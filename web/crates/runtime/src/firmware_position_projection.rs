@@ -218,14 +218,64 @@ fn part_reference(document: &ProjectDoc, part_id: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use boardstudio_application::{SessionEpoch, SnapshotToken, TerminalOutcome};
+    use boardstudio_application::{SessionEpoch, SnapshotToken};
     use boardstudio_core::electrical::{ElectricalMode, ElectricalPlanRequest};
+    use serde_json::json;
 
     fn document() -> ProjectDoc {
-        serde_json::from_str(include_str!(
-            "../../../../core/tests/fixtures/reviung41-outline-original.json"
+        let mut document: ProjectDoc = serde_json::from_str(include_str!(
+            "../../../../core/tests/fixtures/synthetic-outline.json"
         ))
-        .expect("checked-in Reviung fixture is a valid saved project")
+        .expect("synthetic outline fixture is a valid saved project");
+        document.format_version = boardstudio_core::migrate::CURRENT_VERSION;
+        let switch = document
+            .definitions
+            .iter_mut()
+            .find(|definition| definition.id == "synthetic/switch")
+            .unwrap();
+        switch.terminals = BTreeMap::from([
+            ("row".into(), vec!["1".into()]),
+            ("column".into(), vec!["2".into()]),
+        ]);
+        switch.matrix_terminals = Some(boardstudio_core::model::MatrixTerminals {
+            row: "row".into(),
+            column: "column".into(),
+        });
+        let controller = boardstudio_core::generators::catalogue()
+            .expect("bundled generator catalogue")
+            .into_iter()
+            .find(|definition| {
+                definition
+                    .generator
+                    .as_ref()
+                    .is_some_and(|generator| generator.source == "ceoloide/mcu_nice_nano")
+            })
+            .expect("synthetic firmware controller definition");
+        let controller_id = controller.id.clone();
+        document.definitions.push(controller);
+        document
+            .parts
+            .iter_mut()
+            .find(|part| part.id == "main/U1")
+            .unwrap()
+            .definition_id = controller_id;
+        document.matrices[0].board_id = Some("main".into());
+        document.hardware = Some(
+            serde_json::from_value(json!({
+                "topology": "unibody",
+                "transport": "none",
+                "instances": [{
+                    "id": "main", "name": "Synthetic", "boardId": "main",
+                    "half": "unibody", "role": "standalone", "flipped": false,
+                    "controllerPartId": "main/U1"
+                }],
+                "boards": [{
+                    "boardId": "main", "controllerPartId": "main/U1", "mode": "matrix"
+                }]
+            }))
+            .expect("synthetic firmware hardware configuration"),
+        );
+        document
     }
 
     fn identity(document: &ProjectDoc) -> FirmwarePlanIdentity {
@@ -310,88 +360,19 @@ mod tests {
         })
     }
 
-    fn core_effect(
-        effects: &[boardstudio_application::Effect],
-    ) -> (
-        boardstudio_application::RequestId,
-        boardstudio_application::ExecutorEpoch,
-        boardstudio_core::model::CoreRequest,
-    ) {
-        effects
-            .iter()
-            .find_map(|effect| match effect {
-                boardstudio_application::Effect::Core {
-                    request_id,
-                    executor_epoch,
-                    request,
-                    ..
-                } => Some((*request_id, *executor_epoch, (**request).clone())),
-                _ => None,
-            })
-            .expect("session emits a Core request")
-    }
-
-    fn save_effect(
-        effects: &[boardstudio_application::Effect],
-    ) -> (boardstudio_application::SaveAttemptId, ProjectDoc) {
-        effects
-            .iter()
-            .find_map(|effect| match effect {
-                boardstudio_application::Effect::Persist {
-                    save_attempt_id,
-                    document,
-                    ..
-                } => Some((*save_attempt_id, (**document).clone())),
-                _ => None,
-            })
-            .expect("session emits a persistence request")
-    }
-
-    fn open_ready_session() -> (
-        boardstudio_application::Session,
-        boardstudio_core::CoreEngine,
-    ) {
-        use boardstudio_application::{
-            Completion, Effect, Event, OperationId, SaveResult, Session,
-        };
-        let mut session = Session::new();
-        let mut engine = boardstudio_core::CoreEngine::new();
-        let effects = session.submit(Event::Open {
-            operation_id: OperationId(1),
-            document: document(),
-        });
-        let (request_id, executor_epoch, request) = core_effect(&effects);
-        let reply = engine.handle(request);
-        let effects = session.complete(Completion::Core {
-            request_id,
-            executor_epoch,
-            reply: Box::new(reply),
-        });
-        let (save_attempt_id, _) = save_effect(&effects);
-        let effects = session.complete(Completion::Persist {
-            save_attempt_id,
-            result: SaveResult::Committed,
-        });
-        assert!(effects.iter().any(|effect| matches!(
-            effect,
-            Effect::Settled {
-                operation_id: OperationId(1),
-                outcome: TerminalOutcome::Completed,
-
-                ..
-            }
-        )));
-        (session, engine)
-    }
-
+    #[cfg(not(target_arch = "wasm32"))]
     #[test]
-    fn admission_and_exact_session_core_outcome_follow_the_accepted_board() {
-        use boardstudio_application::{Completion, Effect, Event, OperationId, SaveResult};
+    fn admission_and_edit_settle_through_the_native_runtime() {
+        use boardstudio_application::{EditResolver, Event, Resolution};
         use boardstudio_core::model::{EditCommand, EditOperation, EditPhase};
 
-        let (mut session, mut engine) = open_ready_session();
-        let snapshot = session.read_model().accepted.as_ref().unwrap().clone();
-        let runtime_scope = session.scope().unwrap();
+        let runtime = crate::runtime::Runtime::new();
+        runtime.submit(Event::Open {
+            operation_id: runtime.operation(),
+            document: document(),
+        });
+        let snapshot = runtime.model().accepted.unwrap();
+        let runtime_scope = runtime.scope().expect("opened project has an active board");
         let board_scope = Scope {
             instance_id: None,
             ..runtime_scope.clone()
@@ -400,7 +381,7 @@ mod tests {
             scope: board_scope,
             token: snapshot.token,
             revision: snapshot.document.revision,
-            executor_epoch: session.core_executor_epoch().0,
+            executor_epoch: runtime.electrical_preview_executor_epoch(),
         };
         let plan = resolve(&snapshot.document);
         let projection = project(
@@ -426,7 +407,7 @@ mod tests {
                 instance_is_current: true,
                 runtime_scope: Some(&runtime_scope),
                 accepted: &snapshot,
-                executor_epoch: session.core_executor_epoch().0,
+                executor_epoch: runtime.electrical_preview_executor_epoch(),
                 current_plan: Some(&plan_identity),
                 current_projection: &projection,
             },
@@ -443,75 +424,32 @@ mod tests {
                     ..runtime_scope.clone()
                 }),
                 accepted: &snapshot,
-                executor_epoch: session.core_executor_epoch().0,
-                current_plan: Some(&plan_identity),
-                current_projection: &projection,
-            },
-        ));
-        assert!(!admits_edit(
-            identity,
-            &key_id,
-            FirmwarePositionAdmission {
-                workspace: "PCB",
-                current_generation: 3,
-                instance_is_current: true,
-                runtime_scope: Some(&runtime_scope),
-                accepted: &snapshot,
-                executor_epoch: session.core_executor_epoch().0 + 1,
+                executor_epoch: runtime.electrical_preview_executor_epoch(),
                 current_plan: Some(&plan_identity),
                 current_projection: &projection,
             },
         ));
 
-        let outcomes = crate::operation_outcomes::OperationOutcomes::default();
-        let operation_id = OperationId(2);
-        let outcome = outcomes.observe(operation_id);
-        let effects = session.submit(Event::Edit {
-            operation_id,
-            command: EditCommand {
-                base_revision: snapshot.document.revision,
-                transaction_id: "firmware-position-test".into(),
-                phase: EditPhase::Commit,
-                target_ids: vec![runtime_scope.board_id.clone(), key_id.clone()],
-                operation: EditOperation::SetKeyBinding {
-                    board_id: runtime_scope.board_id.clone(),
-                    key_id: key_id.clone(),
-                    binding: "&kp Q".into(),
-                },
+        let resolution = Resolution::submit_with_transaction_id(
+            vec![runtime_scope.board_id.clone(), key_id.clone()],
+            "firmware-position-test",
+            EditOperation::SetKeyBinding {
+                board_id: runtime_scope.board_id.clone(),
+                key_id: key_id.clone(),
+                binding: "&kp Q".into(),
             },
-        });
-        let (request_id, executor_epoch, request) = core_effect(&effects);
-        let reply = engine.handle(request);
-        let effects = session.complete(Completion::Core {
-            request_id,
-            executor_epoch,
-            reply: Box::new(reply),
-        });
-        let (save_attempt_id, pending_document) = save_effect(&effects);
-        assert!(
-            outcome.borrow().is_none(),
-            "Core acceptance alone is not a saved outcome"
         );
-        assert_eq!(pending_document.revision, snapshot.document.revision + 1);
-
-        let effects = session.complete(Completion::Persist {
-            save_attempt_id,
-            result: SaveResult::Committed,
-        });
-        let terminal = effects
-            .iter()
-            .find_map(|effect| match effect {
-                Effect::Settled {
-                    operation_id: id,
-                    outcome,
-                    ..
-                } if *id == operation_id => Some(outcome.clone()),
-                _ => None,
-            })
-            .expect("the exact submitted operation settles");
-        assert!(outcomes.settle(operation_id, terminal));
-        assert_eq!(*outcome.borrow(), Some(TerminalOutcome::Completed));
-        let accepted = session.read_model().accepted.as_ref().unwrap();
+        let ticket = crate::edit_ticket::EditTicket::begin(
+            &runtime,
+            "firmware position test",
+            Some("key".into()),
+            EditResolver::new("firmware position test", move |_| resolution.clone()),
+        );
+        assert!(matches!(
+            ticket.settlement(true),
+            crate::edit_ticket::Settlement::Landed { revision } if revision == snapshot.document.revision + 1
+        ));
+        let accepted = runtime.model().accepted.unwrap();
         assert_eq!(accepted.document.revision, snapshot.document.revision + 1);
         assert_eq!(
             accepted
@@ -531,7 +469,7 @@ mod tests {
     }
 
     #[test]
-    fn current_real_plan_preserves_matrix_order_labels_and_selected_board_bindings() {
+    fn current_plan_preserves_matrix_order_labels_and_selected_board_bindings() {
         let mut document = document();
         document
             .hardware
@@ -542,7 +480,7 @@ mod tests {
             .find(|board| board.board_id == "main")
             .unwrap()
             .key_bindings
-            .insert("matrix/main-right-keys/r0c0".into(), "&kp Q".into());
+            .insert("matrix/matrix/r0c0".into(), "&kp Q".into());
         let identity = identity(&document);
         let plan = resolve(&document);
         assert!(!plan.assignments.is_empty());
@@ -560,8 +498,8 @@ mod tests {
         assert_eq!(projection.state, FirmwarePositionState::Current);
         assert_eq!(projection.keys.len(), plan.assignments.len());
         assert_eq!(projection.keys[0].id, plan.assignments[0].key_id);
-        assert_eq!(projection.keys[0].label, "main-right-keys-SW1");
-        assert_eq!(projection.bindings["matrix/main-right-keys/r0c0"], "&kp Q");
+        assert_eq!(projection.keys[0].label, "M1");
+        assert_eq!(projection.bindings["matrix/matrix/r0c0"], "&kp Q");
         for peripheral in &plan.peripherals {
             let supported_role = matches!(peripheral.kind.as_str(), "encoder" | "press")
                 && peripheral

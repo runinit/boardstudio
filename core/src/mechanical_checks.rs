@@ -3,6 +3,7 @@ use crate::model::{
     Contour, Finding, MechanicalAssembly, MechanicalConfiguration, Mount, MountKind, PlateMethod,
     Scope, Severity, Vec2,
 };
+use boardstudio_contracts::polygon_contains;
 
 use i_overlay::i_float::int::{angle::Angle, point::IntPoint};
 use i_overlay::mesh::{
@@ -32,11 +33,11 @@ pub(crate) fn propose_mounts(config: &MechanicalConfiguration, contours: &[Conto
                 y: min.y + margin + (max.y - min.y - 2.0 * margin) * row as f64 / rows as f64,
             })
         }) {
-            let contained = contains(&contour.points, at)
+            let contained = polygon_contains(&contour.points, at)
                 && !contours
                     .iter()
                     .filter(|c| c.hole)
-                    .any(|c| contains(&c.points, at));
+                    .any(|c| polygon_contains(&c.points, at));
             let edge_clear = contours.iter().all(|c| {
                 (0..c.points.len()).all(|i| {
                     point_segment(at, c.points[i], c.points[(i + 1) % c.points.len()])
@@ -102,18 +103,6 @@ pub(crate) fn propose_mounts(config: &MechanicalConfiguration, contours: &[Conto
     selected
 }
 
-fn contains(points: &[Vec2], p: Vec2) -> bool {
-    let mut result = false;
-    for i in 0..points.len() {
-        let a = points[i];
-        let b = points[(i + 1) % points.len()];
-        if (a.y > p.y) != (b.y > p.y) && p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x {
-            result = !result;
-        }
-    }
-    result
-}
-
 pub(crate) fn apply_allowance(config: &MechanicalConfiguration, assembly: &mut MechanicalAssembly) {
     assembly.nominal_plate_contours = assembly.plate_contours.clone();
     let allowance = config.opening_allowance.unwrap_or(0.0);
@@ -165,8 +154,8 @@ fn offset_opening(points: &[Vec2], distance: f64) -> Option<Vec<Vec2>> {
         || points.iter().any(|p| {
             !p.x.is_finite()
                 || !p.y.is_finite()
-                || p.x.abs() > 1_000_000.0
-                || p.y.abs() > 1_000_000.0
+                || p.x.abs() > boardstudio_contracts::MAX_COORDINATE_MM
+                || p.y.abs() > boardstudio_contracts::MAX_COORDINATE_MM
         })
     {
         return None;
@@ -342,11 +331,11 @@ pub(crate) fn check(config: &MechanicalConfiguration, contours: &[Contour]) -> V
         let material = contours
             .iter()
             .filter(|c| !c.hole)
-            .any(|c| contains(&c.points, mount.at))
+            .any(|c| polygon_contains(&c.points, mount.at))
             && !contours
                 .iter()
                 .filter(|c| c.hole)
-                .any(|c| contains(&c.points, mount.at));
+                .any(|c| polygon_contains(&c.points, mount.at));
         let edge_clear = contours.iter().all(|c| {
             (0..c.points.len()).all(|i| {
                 point_segment(mount.at, c.points[i], c.points[(i + 1) % c.points.len()]) + EPSILON
@@ -380,11 +369,11 @@ pub(crate) fn check(config: &MechanicalConfiguration, contours: &[Contour]) -> V
         }
     }
     for (index, hole) in contours.iter().enumerate().filter(|(_, c)| c.hole) {
-        if !contours
-            .iter()
-            .filter(|c| !c.hole)
-            .any(|outer| hole.points.iter().all(|p| contains(&outer.points, *p)))
-        {
+        if !contours.iter().filter(|c| !c.hole).any(|outer| {
+            hole.points
+                .iter()
+                .all(|p| polygon_contains(&outer.points, *p))
+        }) {
             add(
                 format!("outside:{index}"),
                 Severity::Error,

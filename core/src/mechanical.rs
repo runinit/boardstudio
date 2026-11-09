@@ -1,8 +1,20 @@
 //! Stateless mechanical assembly resolution. Explicit profiles are the geometry authority.
+use crate::hash::sha256_hex;
 use crate::model::*;
+use boardstudio_contracts::polygon_contains;
+pub mod change;
+pub mod clearance;
+pub mod edit;
+pub mod features;
 mod gasket;
+pub mod halves;
+pub mod inputs;
+pub mod pair;
+pub use change::{MechanicalChange, MechanicalEdit, MechanicalTarget};
+pub use edit::{MechanicalEditDisposition, evaluate_edit};
 use i_overlay::core::{fill_rule::FillRule, overlay_rule::OverlayRule};
 use i_overlay::float::single::SingleFloatOverlay;
+pub use inputs::{MechanicalInputs, effective_inputs};
 
 type FloatPath = Vec<[f64; 2]>;
 type FloatShapes = Vec<Vec<FloatPath>>;
@@ -26,6 +38,15 @@ fn inferred_switch_family(
     part: &Part,
     definition: &PartDefinition,
 ) -> Option<MechanicalSwitchFamily> {
+    generator_switch_family(definition, part.generator_parameters.as_ref())
+}
+
+/// The switch family a definition's generator implies; a part's own generator parameters
+/// replace the definition's for the same key. A definition seen without a part passes `None`.
+pub fn generator_switch_family(
+    definition: &PartDefinition,
+    part_parameters: Option<&std::collections::BTreeMap<String, serde_json::Value>>,
+) -> Option<MechanicalSwitchFamily> {
     let source = definition
         .generator
         .as_ref()
@@ -38,8 +59,7 @@ fn inferred_switch_family(
         return None;
     }
     let flag = |key: &str| {
-        part.generator_parameters
-            .as_ref()
+        part_parameters
             .and_then(|values| values.get(key))
             .or_else(|| definition.generator.as_ref()?.parameters.get(key))
             .and_then(|value| {
@@ -60,6 +80,39 @@ fn inferred_switch_family(
     }
 }
 
+/// The family on the profile assigned to the part's definition.
+fn assigned_family(
+    config: &MechanicalConfiguration,
+    part: &Part,
+) -> Option<MechanicalSwitchFamily> {
+    config
+        .profiles
+        .iter()
+        .find(|profile| profile.definition_id == part.definition_id)
+        .and_then(|profile| profile.switch_family)
+}
+
+/// The assigned family, else the one the definition's generator implies.
+fn effective_family(
+    config: &MechanicalConfiguration,
+    part: &Part,
+    definition: &PartDefinition,
+) -> Option<MechanicalSwitchFamily> {
+    assigned_family(config, part).or_else(|| inferred_switch_family(part, definition))
+}
+
+/// Earlier saved catalogue profiles stored the MX mounting datum as a gap. Recognize only the
+/// exact reviewed sources and original value; custom profiles and user-specified engagement
+/// distances retain their meaning.
+fn is_legacy_mx_stabilizer(profile: &MechanicalPartProfile) -> bool {
+    profile.plate_to_pcb == 5.0
+        && profile.source_geometry.as_ref().is_some_and(|source| {
+            source.text == include_str!("../tests/fixtures/mechanical/STAB_MX_2u.kicad_mod")
+                || source.text
+                    == include_str!("../tests/fixtures/mechanical/STAB_MX_6.25u.kicad_mod")
+        })
+}
+
 fn is_switch_position(part: &Part, definition: &PartDefinition) -> bool {
     matches!(definition.kind, PartKind::Switch)
         || inferred_switch_family(part, definition).is_some()
@@ -69,7 +122,7 @@ fn is_switch_position(part: &Part, definition: &PartDefinition) -> bool {
             .is_some_and(|g| g.source.ends_with("/switch_choc_v1_v2"))
 }
 
-fn default_material(part_id: &str, method: &PlateMethod) -> &'static str {
+pub fn default_material(part_id: &str, method: &PlateMethod) -> &'static str {
     if part_id.ends_with("foam") {
         return "EVA";
     }
@@ -81,7 +134,7 @@ fn default_material(part_id: &str, method: &PlateMethod) -> &'static str {
     }
 }
 
-fn default_layer_process(
+pub fn default_layer_process(
     part_id: &str,
     method: PlateMethod,
     thickness: f64,
@@ -97,6 +150,81 @@ fn default_layer_process(
         method,
         thickness,
         constraints_version: "2026-09-24".into(),
+    }
+}
+
+/// The plate-to-PCB mounting datum baseline for a switch family.
+pub fn mounting_datum(family: MechanicalSwitchFamily) -> f64 {
+    switch_mounting_datum(family)
+}
+
+/// The default plate thickness for a switch family.
+pub fn default_plate_thickness(family: MechanicalSwitchFamily) -> f64 {
+    if family == MechanicalSwitchFamily::ChocV1 {
+        1.3
+    } else {
+        1.5
+    }
+}
+
+/// The default plate-foam thickness for a plate-to-PCB gap.
+pub fn default_plate_foam_thickness(gap: f64) -> f64 {
+    (((gap - 0.2).min(3.0) + 0.000001) * 10.0).floor().max(0.0) / 10.0
+}
+
+/// The default gasket layout used when gasket mounting is first selected.
+pub fn default_gasket_layout() -> MechanicalGasketLayout {
+    MechanicalGasketLayout {
+        auto_size: Some(true),
+        adhesive_thickness: None,
+        minimum_foam_thickness: None,
+        preset_id: None,
+        material: None,
+        length: 80.0,
+        width: 3.0,
+        thickness: 2.0,
+        compression: 0.15,
+        supports: Vec::new(),
+    }
+}
+
+/// The default internal gasket (internal closure) configuration.
+pub fn default_internal_gasket() -> InternalGasketConfiguration {
+    InternalGasketConfiguration {
+        version: GasketConstructionVersion::InternalV1,
+        minimum_wall: 2.0,
+        support_clearance: None,
+        tolerance: 0.05,
+        support_count: 4,
+        auto_count: Some(true),
+        hardware: InternalClosureHardware {
+            id: "custom-m2".into(),
+            thread: "M2 × 0.4".into(),
+            screw_lengths: vec![8.0, 10.0, 12.0, 14.0, 15.0, 16.0],
+            thread_diameter: 2.0,
+            pitch: 0.4,
+            drive: ScrewDrive::Hex,
+            installation: InsertInstallation::HeatSet,
+            length_datum: ScrewLengthDatum::UnderHead,
+            head_profile: ScrewHeadProfile::Flat,
+            fixed_length: None,
+            head_diameter: 4.0,
+            head_height: 1.0,
+            hole_diameter: 2.2,
+            insert_diameter: 3.2,
+            insert_length: 3.0,
+            seat_diameter: 2.8,
+            seat_depth: 3.5,
+            engagement: 2.5,
+            thread_start: 0.2,
+            tip_allowance: 0.1,
+            bottoming_clearance: 0.5,
+            roof: 1.5,
+            surround: 1.5,
+            seat_lead_depth: 0.25,
+            seat_lead_diameter: 3.0,
+            bearing_thickness: 1.5,
+        },
     }
 }
 
@@ -289,8 +417,8 @@ fn subtract_foam_exclusions(
             || contour.points.iter().any(|point| {
                 !point.x.is_finite()
                     || !point.y.is_finite()
-                    || point.x.abs() > 1_000_000.0
-                    || point.y.abs() > 1_000_000.0
+                    || point.x.abs() > boardstudio_contracts::MAX_COORDINATE_MM
+                    || point.y.abs() > boardstudio_contracts::MAX_COORDINATE_MM
             })
         {
             return Err("Foam contours must contain finite, in-range polygons".into());
@@ -395,13 +523,9 @@ fn resolve_profiles(
     }
     effective_config.part_processes = Some(normalized_processes(&effective_config));
     for (part, definition) in &switch_parts {
-        let family = effective_config
-            .profiles
-            .iter()
-            .find(|profile| profile.definition_id == part.definition_id)
-            .and_then(|profile| profile.switch_family)
-            .or_else(|| inferred_switch_family(part, definition));
-        let Some(family) = family else { continue };
+        let Some(family) = effective_family(&effective_config, part, definition) else {
+            continue;
+        };
         if !effective_config
             .profiles
             .iter()
@@ -424,17 +548,7 @@ fn resolve_profiles(
         }
     }
     for profile in &mut effective_config.profiles {
-        // Earlier saved catalogue profiles stored the MX mounting datum as a gap.
-        // Recognize only the exact reviewed sources and original value; custom
-        // profiles and user-specified engagement distances retain their meaning.
-        if profile.switch_family.is_none()
-            && profile.plate_to_pcb == 5.0
-            && profile.source_geometry.as_ref().is_some_and(|source| {
-                source.text == include_str!("../tests/fixtures/mechanical/STAB_MX_2u.kicad_mod")
-                    || source.text
-                        == include_str!("../tests/fixtures/mechanical/STAB_MX_6.25u.kicad_mod")
-            })
-        {
+        if profile.switch_family.is_none() && is_legacy_mx_stabilizer(profile) {
             profile.switch_family = Some(MechanicalSwitchFamily::Mx);
         }
         // Family compatibility also applies to separate stabilizer definitions.
@@ -442,26 +556,16 @@ fn resolve_profiles(
             profile.plate_to_pcb = switch_mounting_datum(family) - effective_config.plate_thickness;
         }
     }
-    let resolved_family = switch_parts.iter().find_map(|(part, definition)| {
-        effective_config
-            .profiles
-            .iter()
-            .find(|profile| profile.definition_id == part.definition_id)
-            .and_then(|profile| profile.switch_family)
-            .or_else(|| inferred_switch_family(part, definition))
-    });
+    let resolved_family = switch_parts
+        .iter()
+        .find_map(|(part, definition)| effective_family(&effective_config, part, definition));
     let mut incompatible_switches = resolved_family
         .map(|family| {
             let datum = switch_mounting_datum(family);
             switch_parts
                 .iter()
                 .filter_map(|(part, definition)| {
-                    let other = effective_config
-                        .profiles
-                        .iter()
-                        .find(|profile| profile.definition_id == part.definition_id)
-                        .and_then(|profile| profile.switch_family)
-                        .or_else(|| inferred_switch_family(part, definition))?;
+                    let other = effective_family(&effective_config, part, definition)?;
                     ((switch_mounting_datum(other) - datum).abs() > 0.001)
                         .then_some(part.id.clone())
                 })
@@ -469,11 +573,7 @@ fn resolve_profiles(
         })
         .unwrap_or_default();
     for (part, definition) in &switch_parts {
-        let assigned = effective_config
-            .profiles
-            .iter()
-            .find(|profile| profile.definition_id == part.definition_id)
-            .and_then(|profile| profile.switch_family);
+        let assigned = assigned_family(&effective_config, part);
         let inferred = inferred_switch_family(part, definition);
         if assigned.is_some() && inferred.is_some() && assigned != inferred {
             incompatible_switches.push(part.id.clone());
@@ -595,6 +695,10 @@ fn collect_part_geometry(
             );
             continue;
         }
+        // Ticket 12: case prep reads half-frame parts at their evaluated
+        // board pose; storage stays within-half. The borrow extends the
+        // owned shadow only while a half-frame offset applies.
+        let part: &Part = &crate::matrix::layout::evaluated_part(document, part);
         let profile = config
             .profiles
             .iter()
@@ -842,11 +946,7 @@ fn collect_part_geometry(
         }
         let (sin, cos) = part.pose.rotation.to_radians().sin_cos();
         if let Some(source) = &profile.source_geometry {
-            use sha2::{Digest, Sha256};
-            let hash: String = Sha256::digest(source.text.as_bytes())
-                .iter()
-                .map(|byte| format!("{byte:02x}"))
-                .collect();
+            let hash = sha256_hex(source.text.as_bytes());
             if hash != source.sha256 {
                 issue(
                     &format!("source-hash:{}", part.id),
@@ -1331,7 +1431,12 @@ fn construct_bodies(
                 openings: if (id == "bottom" && !config.integrated_plate_frame)
                     || (id == "plate" && config.integrated_plate_frame)
                 {
-                    let mut openings = config.openings.clone().unwrap_or_default();
+                    let mut openings: Vec<CaseOpening> = config
+                        .openings
+                        .iter()
+                        .flatten()
+                        .map(MechanicalOpening::as_case_opening)
+                        .collect();
                     openings.extend(profile_openings.clone());
                     Some(openings)
                 } else {
@@ -1392,6 +1497,7 @@ fn construct_bodies(
                 } else {
                     vec![]
                 }),
+                pcb_source: None,
                 gasket: None,
             },
         });
@@ -1477,6 +1583,7 @@ fn construct_bodies(
                     wall_height: None,
                     wall_thickness: None,
                     mounts: None,
+                    pcb_source: None,
                     gasket: None,
                     openings: None,
                 },
@@ -1496,11 +1603,18 @@ fn finalize_assembly(
     config: &MechanicalConfiguration,
     result: &mut MechanicalAssembly,
     component_volumes: &[(String, CaseOpening)],
+    accepted_contours: &[Contour],
 ) {
     crate::mechanical_checks::apply_allowance(config, result);
     if config.mount == MechanicalMount::Gasket
         && !result.generation_blocked
-        && let Err(message) = gasket::generate(document, config, result, component_volumes)
+        && let Err(message) = gasket::generate(
+            document,
+            config,
+            result,
+            component_volumes,
+            accepted_contours,
+        )
     {
         result.generation_blocked = true;
         result.diagnostics.push(Finding {
@@ -1545,6 +1659,10 @@ fn finalize_assembly(
             .iter()
             .filter(|part| board.is_some_and(|board| board.part_ids.contains(&part.id)))
         {
+            // Ticket 12: mounting holes follow the evaluated board pose of
+            // half-frame parts. The borrow extends the owned shadow only
+            // while a half-frame offset applies.
+            let part: &Part = &crate::matrix::layout::evaluated_part(document, part);
             let Some(definition) = document
                 .definitions
                 .iter()
@@ -1574,7 +1692,7 @@ fn finalize_assembly(
         for opening in config.openings.iter().flatten() {
             mounting_contours.push(Contour {
                 hole: true,
-                points: opening.points.clone(),
+                points: opening.points(),
             });
         }
         result.suggested_mounts =
@@ -1997,6 +2115,7 @@ pub fn resolve(document: &ProjectDoc, contours: &[Contour]) -> MechanicalAssembl
             wall_height: None,
             wall_thickness: None,
             mounts: None,
+            pcb_source: None,
             gasket: None,
             openings: None,
         },
@@ -2109,11 +2228,11 @@ pub fn resolve(document: &ProjectDoc, contours: &[Contour]) -> MechanicalAssembl
     }
     result.modules = module_resolution.modules;
     result.stack.extend(constructed.stack);
-    finalize_assembly(document, config, &mut result, &component_volumes);
+    finalize_assembly(document, config, &mut result, &component_volumes, contours);
     result
 }
 
-fn expanded_outline(
+pub(crate) fn expanded_outline(
     contours: &[Contour],
     amount: f64,
     revision: u64,
@@ -2131,6 +2250,7 @@ fn expanded_outline(
         wall_height: None,
         wall_thickness: None,
         mounts: None,
+        pcb_source: None,
         gasket: None,
         openings: None,
     };
@@ -2204,20 +2324,8 @@ fn same_ring(a: &Contour, b: &Contour) -> bool {
     })
 }
 
-fn inside_outline(point: Vec2, contours: &[Contour]) -> bool {
-    let contains = |ring: &Contour| {
-        let mut inside = false;
-        for i in 0..ring.points.len() {
-            let a = ring.points[i];
-            let b = ring.points[(i + 1) % ring.points.len()];
-            if (a.y > point.y) != (b.y > point.y)
-                && point.x < (b.x - a.x) * (point.y - a.y) / (b.y - a.y) + a.x
-            {
-                inside = !inside;
-            }
-        }
-        inside
-    };
+pub(crate) fn inside_outline(point: Vec2, contours: &[Contour]) -> bool {
+    let contains = |ring: &Contour| polygon_contains(&ring.points, point);
     contours.iter().any(|c| !c.hole && contains(c))
         && !contours.iter().any(|c| c.hole && contains(c))
 }
@@ -2379,6 +2487,10 @@ mod tests {
             gasket: None,
             closure_mounts: None,
             board_id: "board".into(),
+            next_opening_identity: 0,
+            next_critical_fit_identity: 0,
+            next_hardware_identity: 0,
+            next_mount_identity: 0,
             method: PlateMethod::Printed,
             mount: MechanicalMount::Tray,
             integrated_plate_frame: false,
@@ -3362,6 +3474,235 @@ mod tests {
         );
     }
     #[test]
+    fn switch_family_inference_follows_the_generator_and_part_overrides() {
+        use MechanicalSwitchFamily::{ChocV1, ChocV2, Mx};
+        use serde_json::json;
+        let choc = "ceoloide/switch_choc_v1_v2";
+        for (source, definition_parameters, part_parameters, expected) in [
+            ("ceoloide/switch_mx", json!({}), None, Some(Mx)),
+            ("Ceoloide/Switch_MX", json!({}), None, Some(Mx)),
+            ("someone/else", json!({}), None, None),
+            (choc, json!({}), None, None),
+            (
+                choc,
+                json!({"choc_v1_support":true,"choc_v2_support":false}),
+                None,
+                Some(ChocV1),
+            ),
+            (
+                choc,
+                json!({"choc_v1_support":{"value":false},"choc_v2_support":{"value":true}}),
+                None,
+                Some(ChocV2),
+            ),
+            (
+                choc,
+                json!({"choc_v1_support":false,"choc_v2_support":false}),
+                None,
+                None,
+            ),
+            // A part-level value replaces the definition's value for that key.
+            (
+                choc,
+                json!({"choc_v1_support":true,"choc_v2_support":false}),
+                Some(json!({"choc_v1_support":false,"choc_v2_support":true})),
+                Some(ChocV2),
+            ),
+            // A part-level value that is not a boolean reads as the default (true) instead
+            // of falling back to the definition's value.
+            (
+                choc,
+                json!({"choc_v1_support":false,"choc_v2_support":true}),
+                Some(json!({"choc_v1_support":"yes"})),
+                None,
+            ),
+        ] {
+            let definition = generator_definition("def", source, definition_parameters);
+            let part = switch_part("key", "def", part_parameters);
+            assert_eq!(
+                inferred_switch_family(&part, &definition),
+                expected,
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn legacy_mx_stabilizer_profiles_are_recognized_only_by_reviewed_source_and_original_gap() {
+        let two_u = include_str!("../tests/fixtures/mechanical/STAB_MX_2u.kicad_mod");
+        let wide = include_str!("../tests/fixtures/mechanical/STAB_MX_6.25u.kicad_mod");
+        for (text, gap, family, spacing) in [
+            (Some(two_u), 5.0, Some(MechanicalSwitchFamily::Mx), 3.5),
+            (Some(wide), 5.0, Some(MechanicalSwitchFamily::Mx), 3.5),
+            (Some(two_u), 4.0, None, 4.0),
+            (Some("custom"), 5.0, None, 5.0),
+            (None, 5.0, None, 5.0),
+        ] {
+            let mut configuration = config();
+            configuration.profiles.push(MechanicalPartProfile {
+                source_geometry: text.map(|text| MechanicalProfileSource {
+                    text: text.into(),
+                    sha256: String::new(),
+                    mappings: vec![],
+                    source_ids: vec![],
+                }),
+                pcb_holes: None,
+                clearance_volumes: None,
+                openings: None,
+                clearances: None,
+                supported_thickness: None,
+                switch_family: None,
+                definition_id: "stab".into(),
+                source: "test".into(),
+                cutouts: vec![],
+                plate_to_pcb: gap,
+            });
+            let doc = switch_document(
+                vec![switch_part("key", "def", None)],
+                vec![generator_definition(
+                    "def",
+                    "ceoloide/switch_mx",
+                    serde_json::json!({}),
+                )],
+            );
+            let inputs = resolve_profiles(&doc, &configuration).unwrap();
+            let stabilizer = inputs
+                .config
+                .profiles
+                .iter()
+                .find(|profile| profile.definition_id == "stab")
+                .unwrap();
+            assert_eq!(stabilizer.switch_family, family, "{gap}");
+            assert_eq!(stabilizer.plate_to_pcb, spacing, "{gap}");
+        }
+    }
+
+    #[test]
+    fn assigned_and_inferred_families_decide_compatibility_before_resolution() {
+        use MechanicalSwitchFamily::{ChocV1, ChocV2, Mx};
+        use serde_json::json;
+        let assigned = |definition_id: &str, family: MechanicalSwitchFamily| {
+            let mut profile = builtin_profile(
+                definition_id.into(),
+                profile_source_for_family(family),
+                switch_mounting_datum(family) - 1.5,
+            )
+            .unwrap();
+            profile.switch_family = Some(family);
+            profile
+        };
+        let mx = || generator_definition("def", "ceoloide/switch_mx", json!({}));
+        let single = |definition: PartDefinition, profiles: Vec<MechanicalPartProfile>| {
+            let mut configuration = config();
+            configuration.plate_to_pcb = 4.2;
+            configuration.profiles = profiles;
+            let doc = switch_document(vec![switch_part("key", "def", None)], vec![definition]);
+            resolve_profiles(&doc, &configuration).unwrap()
+        };
+
+        // An inferred family creates its profile and drives the plate spacing.
+        let created = single(mx(), vec![]);
+        assert!(created.incompatible_switches.is_empty());
+        assert_eq!(created.config.profiles.len(), 1);
+        assert_eq!(created.config.profiles[0].switch_family, Some(Mx));
+        assert_eq!(created.config.plate_to_pcb, 3.5);
+
+        // An assignment that disagrees with the generator is incompatible even at the same datum.
+        let disagreeing = single(mx(), vec![assigned("def", ChocV2)]);
+        assert_eq!(disagreeing.incompatible_switches, ["key"]);
+        let agreeing = single(mx(), vec![assigned("def", Mx)]);
+        assert!(agreeing.incompatible_switches.is_empty());
+
+        // The definition's own profile replaces a configuration profile for the same definition.
+        let mut owned = mx();
+        owned.mechanical_profile = Some(assigned("def", Mx));
+        let overridden = single(owned, vec![assigned("def", ChocV2)]);
+        assert!(overridden.incompatible_switches.is_empty());
+        assert_eq!(overridden.config.profiles.len(), 1);
+        assert_eq!(overridden.config.profiles[0].switch_family, Some(Mx));
+
+        // An unknown family adds no profile and leaves the configured spacing alone.
+        let unknown = single(
+            serde_json::from_value(
+                json!({"id":"def","name":"def","kind":"switch","courtyard":[],"pads":[]}),
+            )
+            .unwrap(),
+            vec![],
+        );
+        assert!(unknown.incompatible_switches.is_empty());
+        assert!(unknown.config.profiles.is_empty());
+        assert_eq!(unknown.config.plate_to_pcb, 4.2);
+
+        // Switches whose mounting datum differs from the first resolved family are listed.
+        let doc = switch_document(
+            vec![
+                switch_part("a", "def-mx", None),
+                switch_part("b", "def-choc", None),
+            ],
+            vec![
+                generator_definition("def-mx", "ceoloide/switch_mx", json!({})),
+                generator_definition(
+                    "def-choc",
+                    "ceoloide/switch_choc_v1_v2",
+                    json!({"choc_v1_support":true,"choc_v2_support":false}),
+                ),
+            ],
+        );
+        let mixed = resolve_profiles(&doc, &config()).unwrap();
+        assert_eq!(mixed.incompatible_switches, ["b"]);
+        assert_eq!(mixed.config.plate_to_pcb, 3.5);
+        assert_eq!(
+            mixed
+                .config
+                .profiles
+                .iter()
+                .find(|profile| profile.definition_id == "def-choc")
+                .and_then(|profile| profile.switch_family),
+            Some(ChocV1)
+        );
+    }
+
+    fn switch_part(id: &str, definition_id: &str, parameters: Option<serde_json::Value>) -> Part {
+        let mut part = serde_json::json!({
+            "id":id, "definitionId":definition_id, "reference":id,
+            "pose":{"at":{"x":20,"y":20},"rotation":0}, "side":"front"
+        });
+        if let Some(parameters) = parameters {
+            part["generatorParameters"] = parameters;
+        }
+        serde_json::from_value(part).unwrap()
+    }
+
+    fn generator_definition(
+        id: &str,
+        source: &str,
+        parameters: serde_json::Value,
+    ) -> PartDefinition {
+        serde_json::from_value(serde_json::json!({
+            "id":id, "name":id, "kind":"switch", "courtyard":[], "pads":[],
+            "generator":{"source":source,"version":"1","parameters":parameters}
+        }))
+        .unwrap()
+    }
+
+    fn switch_document(parts: Vec<Part>, definitions: Vec<PartDefinition>) -> ProjectDoc {
+        let mut doc = ProjectDoc::empty("family", "family");
+        doc.boards.push(Board {
+            id: "board".into(),
+            name: "Board".into(),
+            outline_ids: vec![],
+            part_ids: parts.iter().map(|part| part.id.clone()).collect(),
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        doc.parts = parts;
+        doc.definitions = definitions;
+        doc
+    }
+
+    #[test]
     fn duplicate_rings_ignore_winding_start_and_closure() {
         let a = Contour {
             hole: true,
@@ -3556,5 +3897,43 @@ mod tests {
                 .iter()
                 .any(|d| d.id == "mechanical:gasket-rigid-frame")
         );
+    }
+}
+
+#[cfg(test)]
+mod default_tests {
+    use super::*;
+
+    #[test]
+    fn mechanical_defaults_have_their_reference_values() {
+        assert_eq!(mounting_datum(MechanicalSwitchFamily::Mx), 5.0);
+        assert_eq!(mounting_datum(MechanicalSwitchFamily::ChocV1), 3.5);
+        assert_eq!(mounting_datum(MechanicalSwitchFamily::ChocV2), 5.0);
+        assert_eq!(default_plate_thickness(MechanicalSwitchFamily::Mx), 1.5);
+        assert_eq!(default_plate_thickness(MechanicalSwitchFamily::ChocV1), 1.3);
+        assert_eq!(default_plate_foam_thickness(3.5), 3.0);
+        assert_eq!(default_plate_foam_thickness(0.0), 0.0);
+        assert_eq!(default_material("plate", &PlateMethod::Printed), "PLA");
+        assert_eq!(default_material("plate-foam", &PlateMethod::Printed), "EVA");
+        let process = default_layer_process("plate-foam", PlateMethod::Printed, 2.0);
+        assert_eq!(process.method, PlateMethod::CutSheet);
+        assert_eq!(process.material, "EVA");
+        assert_eq!(process.thickness, 2.0);
+        let layout = default_gasket_layout();
+        assert_eq!(layout.length, 80.0);
+        assert_eq!(layout.width, 3.0);
+        assert_eq!(layout.compression, 0.15);
+        assert!(layout.supports.is_empty());
+        let gasket = default_internal_gasket();
+        assert_eq!(gasket.version, GasketConstructionVersion::InternalV1);
+        assert_eq!(gasket.hardware.id, "custom-m2");
+        assert_eq!(
+            gasket.hardware.screw_lengths,
+            vec![8.0, 10.0, 12.0, 14.0, 15.0, 16.0]
+        );
+        assert_eq!(gasket.hardware.drive, ScrewDrive::Hex);
+        assert_eq!(gasket.hardware.installation, InsertInstallation::HeatSet);
+        assert_eq!(gasket.hardware.head_profile, ScrewHeadProfile::Flat);
+        assert_eq!(gasket.hardware.length_datum, ScrewLengthDatum::UnderHead);
     }
 }

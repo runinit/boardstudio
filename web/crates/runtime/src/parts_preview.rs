@@ -216,6 +216,7 @@ impl PartsPreviewCapture {
                     rotation: member.rotation,
                 },
                 side: member.side.clone(),
+                anchor: None,
                 locked: None,
                 properties: None,
                 generator_parameters: Some(

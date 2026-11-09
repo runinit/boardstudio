@@ -1,5 +1,8 @@
 //! Private geometry for projecting a mirrored pair before Core commits the source matrix.
-use boardstudio_core::model::{Layout, LayoutMirrorLink, Matrix, MatrixScene, Mirror, Vec2};
+use boardstudio_core::model::{
+    Layout, LayoutMirrorLink, Matrix, MatrixScene, Mirror, MirroredCorrespondence,
+    MirroredItemKind, Vec2,
+};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct MirroredPairProjection {
@@ -56,6 +59,23 @@ pub fn preview_cells(scene: &MatrixScene, matrix: &Matrix) -> Vec<PairPreviewCel
         .collect()
 }
 
+/// One explicit per-matrix correspondence for a mirrored matrix pair.
+///
+/// Shared by mirrored-pair creation and mirror-existing-half so every linked
+/// pair carries its source-to-mirror matrix identity instead of an empty vec.
+pub fn matrix_pair_correspondences(
+    source_matrix_id: &str,
+    mirror_matrix_id: &str,
+) -> Vec<MirroredCorrespondence> {
+    vec![MirroredCorrespondence {
+        companion_mode: None,
+        companion_tweak: None,
+        kind: MirroredItemKind::Matrix,
+        source_id: source_matrix_id.to_owned(),
+        mirror_id: mirror_matrix_id.to_owned(),
+    }]
+}
+
 /// Matches React `pairAt`: inset both halves from the shared axis by half the requested key-edge
 /// gap plus half the pitch, minus half the matrix edge gap.
 pub fn project_mirrored_pair(
@@ -100,7 +120,7 @@ pub fn project_mirrored_pair(
         id: ids.left_layout_id.clone(),
         name: left_name.to_owned(),
         board_id: board_id.clone(),
-        matrix_id: matrix.id.clone(),
+        matrix_ids: vec![matrix.id.clone()],
         part_ids: Vec::new(),
         mirror_link: None,
     };
@@ -108,11 +128,15 @@ pub fn project_mirrored_pair(
         id: ids.right_layout_id.clone(),
         name: right_name.to_owned(),
         board_id,
-        matrix_id: ids.right_matrix_id.clone(),
+        matrix_ids: vec![ids.right_matrix_id.clone()],
         part_ids: Vec::new(),
         mirror_link: Some(LayoutMirrorLink {
+            correspondences: matrix_pair_correspondences(&matrix.id, &ids.right_matrix_id),
+            exceptions: vec![],
             source_id: left_layout.id.clone(),
             axis_x: center.x,
+            split_gap: None,
+            spacing: None,
         }),
     };
 
@@ -158,12 +182,8 @@ mod tests {
             "partIds": [],
             "boardId": "board",
             "edgeGap": { "x": 1.0, "y": 1.0 },
-            "rowOffsets": [{ "x": 2.0, "y": 3.0 }, { "x": -1.0, "y": 4.0 }, { "x": 0.0, "y": -2.0 }],
-            "columnOffsets": [{ "x": 0.0, "y": 0.0 }, { "x": 1.5, "y": -0.5 }, { "x": 0.0, "y": 0.0 }],
-            "columnStaggers": [0.5, 1.25],
-            "columnSplays": [0.0, 12.0],
-            "columnOrigins": [null, { "x": 20.0, "y": 3.0 }],
-            "rotation": 8.0,
+            "rowLayout": [{"offset": {"x": 2.0, "y": 3.0}}, {"offset": {"x": -1.0, "y": 4.0}}, {"offset": {"x": 0.0, "y": -2.0}}], "columnLayout": [{"offset": {"x": 0.0, "y": 0.0}, "stagger": 0.5, "splay": 0.0}, {"offset": {"x": 1.5, "y": -0.5}, "stagger": 1.25, "splay": 12.0, "splayOrigin": {"x": 20.0, "y": 3.0}}, {"offset": {"x": 0.0, "y": 0.0}}],
+"rotation": 8.0,
             "cells": [
                 { "row": 0, "column": 1, "enabled": true, "offset": { "x": 0.25, "y": 0.75 }, "rotation": 2.0, "assemblies": [] },
                 { "row": 1, "column": 3, "enabled": false, "assemblies": [] }
@@ -203,14 +223,71 @@ mod tests {
         }
     }
 
+    fn creation_document() -> boardstudio_core::model::ProjectDoc {
+        let mut document =
+            boardstudio_core::model::ProjectDoc::empty("creation-proposal", "Creation proposal");
+        document.definitions = serde_json::from_value(serde_json::json!([
+            {"id":"switch","name":"Switch","kind":"switch","courtyard":[],"pads":[]}
+        ]))
+        .unwrap();
+        document.boards.push(
+            serde_json::from_value(serde_json::json!({
+                "id": "board",
+                "name": "Board",
+                "outlineIds": [],
+                "partIds": [],
+                "netIds": [],
+                "thickness": 1.6,
+                "traces": [],
+                "vias": []
+            }))
+            .unwrap(),
+        );
+        document
+    }
+
+    fn creation_matrix(origin_x: f64, columns: u32) -> Matrix {
+        serde_json::from_value(serde_json::json!({
+            "id": "left-matrix",
+            "name": null,
+            "rows": 1,
+            "columns": columns,
+            "pitch": { "x": 19.0, "y": 19.0 },
+            "origin": { "x": origin_x, "y": 0.0 },
+            "definitionId": "switch",
+            "partIds": [],
+            "boardId": "board",
+            "cells": []
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn creation_proposal_matches_the_stored_creation_gap() {
+        // Ticket 11: the mirrored-pair setup proposes through this exact Core
+        // seam, so the preview and the placed pair share the adapted gap.
+        let document = creation_document();
+        // A single key at the requested 40 mm stays on the default.
+        let kept =
+            boardstudio_core::proposed_creation_gap(&document, &creation_matrix(71.0, 1), 100.0)
+                .unwrap();
+        assert!((kept - 40.0).abs() < 1e-9);
+        // Three inner columns overlap at the requested 40 mm, so the proposal
+        // rises to the 88 mm minimum, matching the Core commit path.
+        let adapted =
+            boardstudio_core::proposed_creation_gap(&document, &creation_matrix(71.0, 3), 100.0)
+                .unwrap();
+        assert!((adapted - 88.0).abs() < 1e-9);
+    }
+
     #[test]
     fn projection_matches_react_pair_at_and_leaves_reflection_to_core() {
         let pair = project_mirrored_pair(matrix(), &ids(), &request(), Vec2 { x: 100.0, y: 50.0 })
             .unwrap();
 
         assert_eq!(pair.left.name, "Left half");
-        assert_eq!(pair.left.matrix_id, "left-matrix");
-        assert_eq!(pair.right.matrix_id, "right-matrix");
+        assert_eq!(pair.left.matrix_ids, ["left-matrix"]);
+        assert_eq!(pair.right.matrix_ids, ["right-matrix"]);
         assert_eq!(
             pair.right.mirror_link.as_ref().unwrap().source_id,
             "left-layout"
@@ -225,6 +302,19 @@ mod tests {
         assert_eq!(pair.matrix.origin.y, 50.0);
         assert_eq!(pair.right_preview.origin.y, 50.0);
         assert_eq!(pair.axis_x, 100.0);
+    }
+
+    #[test]
+    fn projection_keeps_the_requested_forty_millimeter_key_gap() {
+        let mut request = request();
+        request.gap_mm = 40.0;
+        let center = Vec2 { x: 100.0, y: 50.0 };
+        let pair = project_mirrored_pair(matrix(), &ids(), &request, center).unwrap();
+        let edge_gap = pair.matrix.edge_gap.unwrap_or(Vec2 { x: 1.0, y: 1.0 });
+        let key_width = pair.matrix.pitch.x - edge_gap.x;
+        let actual_gap = 2.0 * (center.x - pair.matrix.origin.x) - key_width;
+
+        assert!((actual_gap - 40.0).abs() < 1e-9);
     }
 
     #[test]
@@ -266,6 +356,29 @@ mod tests {
                 Vec2 { x: 0.0, y: 0.0 }
             )
             .is_err()
+        );
+    }
+
+    #[test]
+    fn projection_emits_one_explicit_matrix_correspondence_for_the_pair() {
+        let pair = project_mirrored_pair(matrix(), &ids(), &request(), Vec2 { x: 100.0, y: 50.0 })
+            .unwrap();
+
+        let link = pair
+            .right
+            .mirror_link
+            .as_ref()
+            .expect("the mirrored pair carries a link");
+        assert_eq!(
+            link.correspondences,
+            vec![boardstudio_core::model::MirroredCorrespondence {
+                companion_mode: None,
+                companion_tweak: None,
+                kind: boardstudio_core::model::MirroredItemKind::Matrix,
+                source_id: "left-matrix".into(),
+                mirror_id: "right-matrix".into(),
+            }],
+            "pair creation must emit one explicit per-matrix correspondence"
         );
     }
 

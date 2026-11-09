@@ -94,7 +94,69 @@
         "thickness": 2,
         "compression": 0.15,
         "supports": []
-      }
+      },
+      "closureMounts": [
+        {
+          "id": "closure:outline-0:0",
+          "at": {
+            "x": -26.03019296315028,
+            "y": 100.53229110241723
+          },
+          "kind": "hole",
+          "holeDiameter": 2.2,
+          "bossDiameter": 7.0
+        },
+        {
+          "id": "closure:outline-0:1",
+          "at": {
+            "x": -5.194187210836435,
+            "y": 4.163282265086413
+          },
+          "kind": "hole",
+          "holeDiameter": 2.2,
+          "bossDiameter": 7.0
+        },
+        {
+          "id": "closure:outline-0:2",
+          "at": {
+            "x": 102.94285040277354,
+            "y": 27.551443718110082
+          },
+          "kind": "hole",
+          "holeDiameter": 2.2,
+          "bossDiameter": 7.0
+        },
+        {
+          "id": "closure:outline-0:3",
+          "at": {
+            "x": 167.09603361888705,
+            "y": 81.93429104371243
+          },
+          "kind": "hole",
+          "holeDiameter": 2.2,
+          "bossDiameter": 7.0
+        },
+        {
+          "id": "closure:outline-0:4",
+          "at": {
+            "x": 109.76508238360074,
+            "y": 142.04907317304585
+          },
+          "kind": "hole",
+          "holeDiameter": 2.2,
+          "bossDiameter": 7.0
+        },
+        {
+          "id": "closure:outline-0:5",
+          "at": {
+            "x": 48.72598633998126,
+            "y": 92.01679604939501
+          },
+          "kind": "hole",
+          "holeDiameter": 2.2,
+          "bossDiameter": 7.0
+        }
+      ]
     }
   },
   "contours": [

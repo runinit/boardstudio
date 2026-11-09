@@ -6,20 +6,16 @@
 //! in Runtime itself.
 
 use super::*;
+use crate::gate_driver::{GateDriver, OneShotBehavior};
 use boardstudio_core::{archive as core_archive, artifact_request};
 use boardstudio_web_host::host::{ArchiveResult, CoreExecutorFuture, HostError};
 use futures_channel::oneshot;
 
-/// A one-shot test behavior held by a port: fail the next call with a reason, or hold it
-/// until the release sender fires (the entered receiver observes the call reaching the port).
-enum OneShotBehavior {
-    Fail(String),
-    Gate {
-        entered: oneshot::Sender<()>,
-        release: oneshot::Receiver<()>,
-    },
-}
+type AsyncGate = (oneshot::Sender<()>, oneshot::Receiver<()>);
+type RequestFilter = fn(&CoreRequest) -> bool;
+type ScriptedReply = fn(&CoreRequest) -> Option<CoreReply>;
 
+#[derive(Clone)]
 enum PersistTarget {
     Store(BrowserStore),
     Memory(Rc<RefCell<BTreeMap<String, MemorySave>>>),
@@ -34,31 +30,38 @@ struct MemorySave {
 /// The in-process Core executor: one `CoreEngine`, always ready, closable, with an optional
 /// one-shot behavior that fails or holds the next Core reply.
 pub struct InProcessCore {
-    engine: RefCell<boardstudio_core::CoreEngine>,
-    closed: Cell<bool>,
-    behavior: RefCell<Option<OneShotBehavior>>,
-    request_filter: Cell<Option<fn(&CoreRequest) -> bool>>,
-    scripted_reply: Cell<Option<fn(&CoreRequest) -> Option<CoreReply>>>,
-    archive_behavior: RefCell<Option<OneShotBehavior>>,
+    engine: Rc<RefCell<boardstudio_core::CoreEngine>>,
+    closed: Rc<Cell<bool>>,
+    behavior: GateDriver,
+    fail_after_hold: RefCell<Option<String>>,
+    gate: RefCell<Option<AsyncGate>>,
+    request_filter: Cell<Option<RequestFilter>>,
+    scripted_reply: Cell<Option<ScriptedReply>>,
+    archive_behavior: GateDriver,
+    archive_gate: RefCell<Option<AsyncGate>>,
     archive_reply: RefCell<Option<ArchiveResult>>,
 }
 
 impl InProcessCore {
     pub fn new(engine: boardstudio_core::CoreEngine) -> Self {
         Self {
-            engine: RefCell::new(engine),
-            closed: Cell::new(false),
-            behavior: RefCell::new(None),
+            engine: Rc::new(RefCell::new(engine)),
+            closed: Rc::new(Cell::new(false)),
+            behavior: GateDriver::default(),
+            fail_after_hold: RefCell::new(None),
+            gate: RefCell::new(None),
             request_filter: Cell::new(None),
             scripted_reply: Cell::new(None),
-            archive_behavior: RefCell::new(None),
+            archive_behavior: GateDriver::default(),
+            archive_gate: RefCell::new(None),
             archive_reply: RefCell::new(None),
         }
     }
 
     pub fn fail_next_reply(&self, reason: impl Into<String>) {
+        self.fail_after_hold.borrow_mut().take();
         self.request_filter.set(None);
-        *self.behavior.borrow_mut() = Some(OneShotBehavior::Fail(reason.into()));
+        self.behavior.fail_next_core(reason);
     }
 
     pub fn is_closed(&self) -> bool {
@@ -66,14 +69,23 @@ impl InProcessCore {
     }
 
     pub fn gate_next_reply(&self) -> (oneshot::Receiver<()>, oneshot::Sender<()>) {
+        self.fail_after_hold.borrow_mut().take();
         self.request_filter.set(None);
         let (entered, entered_rx) = oneshot::channel();
         let (release, release_rx) = oneshot::channel();
-        *self.behavior.borrow_mut() = Some(OneShotBehavior::Gate {
-            entered,
-            release: release_rx,
-        });
+        self.behavior.hold_next_core();
+        *self.gate.borrow_mut() = Some((entered, release_rx));
         (entered_rx, release)
+    }
+
+    /// Hold the next Core reply and fail that same request after release.
+    pub fn gate_next_reply_then_fail(
+        &self,
+        reason: impl Into<String>,
+    ) -> (oneshot::Receiver<()>, oneshot::Sender<()>) {
+        let gate = self.gate_next_reply();
+        *self.fail_after_hold.borrow_mut() = Some(reason.into());
+        gate
     }
 
     /// Filter a one-shot behavior so unrelated Session requests still reach Core.
@@ -101,16 +113,14 @@ impl InProcessCore {
     }
 
     pub fn fail_next_archive(&self, reason: impl Into<String>) {
-        *self.archive_behavior.borrow_mut() = Some(OneShotBehavior::Fail(reason.into()));
+        self.archive_behavior.fail_next_save(reason);
     }
 
     pub fn gate_next_archive(&self) -> (oneshot::Receiver<()>, oneshot::Sender<()>) {
         let (entered, entered_rx) = oneshot::channel();
         let (release, release_rx) = oneshot::channel();
-        *self.archive_behavior.borrow_mut() = Some(OneShotBehavior::Gate {
-            entered,
-            release: release_rx,
-        });
+        self.archive_behavior.hold_next_save();
+        *self.archive_gate.borrow_mut() = Some((entered, release_rx));
         (entered_rx, release)
     }
 
@@ -119,7 +129,7 @@ impl InProcessCore {
     }
 
     fn take_behavior(&self) -> Option<OneShotBehavior> {
-        self.behavior.borrow_mut().take()
+        self.behavior.take_core()
     }
 }
 
@@ -146,20 +156,44 @@ impl CoreExecutor for InProcessCore {
             if let Some(behavior) = behavior {
                 match behavior {
                     OneShotBehavior::Fail(reason) => return Err(HostError(reason)),
-                    OneShotBehavior::Gate { entered, release } => {
+                    OneShotBehavior::Hold => {
+                        let Some((entered, release)) = self.gate.borrow_mut().take() else {
+                            return Err(HostError("Core gate was not configured".into()));
+                        };
+                        let fail_after_hold = self.fail_after_hold.borrow_mut().take();
                         let _ = entered.send(());
                         let _ = release.await;
+                        if self.closed.get() {
+                            return Err(HostError("core worker is closed".into()));
+                        }
+                        if let Some(reason) = fail_after_hold {
+                            return Err(HostError(reason));
+                        }
                     }
                 }
             }
             if self.closed.get() {
                 return Err(HostError("core worker is closed".into()));
             }
-            let reply = self
-                .scripted_reply
-                .get()
-                .and_then(|reply| reply(request))
-                .unwrap_or_else(|| self.engine.borrow_mut().handle(request.clone()));
+            let engine = self.engine.clone();
+            let closed = self.closed.clone();
+            let scripted_reply = self.scripted_reply.get();
+            let request = request.clone();
+            let (send, receive) = oneshot::channel();
+            // Match the worker boundary: Core must not run on the mounted test's poll stack.
+            spawn_local(async move {
+                let reply = if closed.get() {
+                    Err(HostError("core worker is closed".into()))
+                } else {
+                    Ok(scripted_reply
+                        .and_then(|reply| reply(&request))
+                        .unwrap_or_else(|| engine.borrow_mut().handle(request)))
+                };
+                let _ = send.send(reply);
+            });
+            let reply = receive
+                .await
+                .map_err(|_| HostError("in-process core reply was dropped".into()))??;
             let value = serde_json::to_value(&reply)
                 .map_err(|error| HostError(format!("invalid core reply: {error}")))?;
             if value.get("id").and_then(serde_json::Value::as_str) != Some(request_id) {
@@ -180,12 +214,15 @@ impl CoreExecutor for InProcessCore {
             if self.closed.get() {
                 return Err(HostError("core worker is closed".into()));
             }
-            let behavior = self.archive_behavior.borrow_mut().take();
+            let behavior = self.archive_behavior.take_save();
             let scripted = self.archive_reply.borrow_mut().take();
             if let Some(behavior) = behavior {
                 match behavior {
                     OneShotBehavior::Fail(reason) => return Err(HostError(reason)),
-                    OneShotBehavior::Gate { entered, release } => {
+                    OneShotBehavior::Hold => {
+                        let Some((entered, release)) = self.archive_gate.borrow_mut().take() else {
+                            return Err(HostError("archive gate was not configured".into()));
+                        };
                         let _ = entered.send(());
                         let _ = release.await;
                     }
@@ -262,7 +299,10 @@ impl CoreExecutor for InProcessCore {
     fn close(&self) {
         self.closed.set(true);
         self.take_behavior();
-        self.archive_behavior.borrow_mut().take();
+        self.fail_after_hold.borrow_mut().take();
+        self.archive_behavior.take_save();
+        self.gate.borrow_mut().take();
+        self.archive_gate.borrow_mut().take();
         self.archive_reply.borrow_mut().take();
     }
 }
@@ -272,14 +312,18 @@ impl CoreExecutor for InProcessCore {
 /// that fails or holds the next save.
 pub struct TestPersistence {
     target: RefCell<PersistTarget>,
-    behavior: RefCell<Option<OneShotBehavior>>,
+    target_observer: RefCell<Option<oneshot::Sender<()>>>,
+    behavior: GateDriver,
+    gate: RefCell<Option<AsyncGate>>,
 }
 
 impl TestPersistence {
     fn through_store(store: BrowserStore) -> Self {
         Self {
             target: RefCell::new(PersistTarget::Store(store)),
-            behavior: RefCell::new(None),
+            target_observer: RefCell::new(None),
+            behavior: GateDriver::default(),
+            gate: RefCell::new(None),
         }
     }
 
@@ -287,22 +331,26 @@ impl TestPersistence {
         *self.target.borrow_mut() = PersistTarget::Memory(Rc::new(RefCell::new(BTreeMap::new())));
     }
 
+    pub(super) fn observe_next_target(&self) -> oneshot::Receiver<()> {
+        let (entered, receive) = oneshot::channel();
+        *self.target_observer.borrow_mut() = Some(entered);
+        receive
+    }
+
     pub fn fail_next_save(&self, reason: impl Into<String>) {
-        *self.behavior.borrow_mut() = Some(OneShotBehavior::Fail(reason.into()));
+        self.behavior.fail_next_save(reason);
     }
 
     pub fn gate_next_save(&self) -> (oneshot::Receiver<()>, oneshot::Sender<()>) {
         let (entered, entered_rx) = oneshot::channel();
         let (release, release_rx) = oneshot::channel();
-        *self.behavior.borrow_mut() = Some(OneShotBehavior::Gate {
-            entered,
-            release: release_rx,
-        });
+        self.behavior.hold_next_save();
+        *self.gate.borrow_mut() = Some((entered, release_rx));
         (entered_rx, release)
     }
 
     fn take_behavior(&self) -> Option<OneShotBehavior> {
-        self.behavior.borrow_mut().take()
+        self.behavior.take_save()
     }
 
     fn memory_saves(&self) -> Option<Rc<RefCell<BTreeMap<String, MemorySave>>>> {
@@ -335,23 +383,41 @@ impl DocumentPersistence for TestPersistence {
         &'a self,
         document: &'a ProjectDoc,
         assets: &'a BTreeMap<String, Vec<u8>>,
-    ) -> Pin<Box<dyn Future<Output = Result<(), String>> + 'a>> {
+        expected: Option<&'a StorageToken>,
+    ) -> Pin<Box<dyn Future<Output = Result<StorageToken, SaveError>> + 'a>> {
         Box::pin(async move {
             if let Some(behavior) = self.take_behavior() {
                 match behavior {
-                    OneShotBehavior::Fail(reason) => return Err(reason),
-                    OneShotBehavior::Gate { entered, release } => {
+                    OneShotBehavior::Fail(reason) => return Err(SaveError::Storage(reason)),
+                    OneShotBehavior::Hold => {
+                        let Some((entered, release)) = self.gate.borrow_mut().take() else {
+                            return Err(SaveError::Storage("save gate was not configured".into()));
+                        };
                         let _ = entered.send(());
                         let _ = release.await;
                     }
                 }
             }
-            match &*self.target.borrow() {
-                PersistTarget::Store(store) => store
-                    .save_document(document, assets)
-                    .await
-                    .map_err(|error| error.to_string()),
+            let target = self.target.borrow().clone();
+            if let Some(entered) = self.target_observer.borrow_mut().take() {
+                let _ = entered.send(());
+            }
+            match target {
+                PersistTarget::Store(store) => {
+                    store
+                        .save_document_expected(document, assets, expected)
+                        .await
+                }
                 PersistTarget::Memory(saves) => {
+                    let actual = saves
+                        .borrow()
+                        .get(&document.id)
+                        .map(|save| StorageToken::for_document(&save.document))
+                        .transpose()?;
+                    if actual.as_ref() != expected {
+                        return Err(SaveError::Conflict);
+                    }
+                    let token = StorageToken::for_document(document)?;
                     saves.borrow_mut().insert(
                         document.id.clone(),
                         MemorySave {
@@ -359,7 +425,7 @@ impl DocumentPersistence for TestPersistence {
                             assets: assets.clone(),
                         },
                     );
-                    Ok(())
+                    Ok(token)
                 }
             }
         })

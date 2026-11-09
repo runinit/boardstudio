@@ -8,16 +8,30 @@ use crate::parts_custom_definition::{DEFINITION_GONE, GENERATOR_LOCKED, replacem
 mod ui {
     use super::definition_name_resolver;
     use crate::parts_custom_definition::DefinitionPanelCapture;
-    use crate::parts_custom_definition::ui::{apply_text_settlement, settle_ticket};
     use crate::runtime::Runtime;
     use boardstudio_application::{AcceptedSnapshot, Scope};
     use boardstudio_core::model::PartDefinition;
-    use boardstudio_web_runtime::edit_ticket::EditTicket;
+    use boardstudio_web_runtime::pending_edits::PendingEditResult;
+    use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
+    use boardstudio_web_ui_shared::ui::{
+        collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
+        field::{Field, FieldError, FieldLabel},
+        input::InputType,
+        input_group::{InputGroup, InputGroupInput},
+    };
     use dioxus::prelude::*;
     use dioxus_web::WebEventExt;
+    use std::cell::RefCell;
     use std::rc::Rc;
     use wasm_bindgen::JsCast;
     use web_sys::HtmlInputElement;
+
+    /// This panel's one committed field. A bounded logical key: the helper keeps one
+    /// observation for the name field, whatever definition the panel currently shows.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    enum NameFieldKey {
+        Name,
+    }
 
     #[component]
     pub fn DefinitionNameEditor(
@@ -29,8 +43,9 @@ mod ui {
     ) -> Element {
         let runtime = use_context::<Rc<Runtime>>();
         let mut draft = use_signal(|| definition.name.clone());
-        let mut error = use_signal(String::new);
-        let mut pending = use_signal(|| None::<EditTicket>);
+        let mut draft_dirty = use_signal(|| false);
+        let mut failure = use_signal(|| None::<String>);
+        let pending = use_hook(PendingEditSignals::<NameFieldKey>::new);
         // Subscribe to the workspace's runtime-change version: outcomes settle outside
         // Dioxus (Core replies, saves), so this read is what wakes the settle pass below
         // even when the accepted document did not change (for example a failed save).
@@ -41,20 +56,44 @@ mod ui {
         let mut section_chosen = use_signal(|| false);
         let section_owner = (scope.clone(), definition.id.clone());
         let capture = DefinitionPanelCapture::new(&snapshot, scope.clone(), &definition);
+        let observation_owner = use_hook(|| Rc::new(RefCell::new(capture.clone())));
+        if *observation_owner.borrow() != capture {
+            // Detach the old owner's Signals before silently retiring its observations.
+            // The Session still owns and executes the already committed edits.
+            pending.unbind_field(&NameFieldKey::Name);
+            pending.settle(false, |_| String::new());
+            *observation_owner.borrow_mut() = capture.clone();
+            draft.set(definition.name.clone());
+            draft_dirty.set(false);
+            failure.set(None);
+        }
+        pending.bind_field(NameFieldKey::Name, draft, failure);
+        use_drop({
+            let pending = pending.clone();
+            move || {
+                pending.unbind_field(&NameFieldKey::Name);
+                pending.settle(false, |_| String::new());
+            }
+        });
         // A fresh accepted snapshot is required at commit time, but it is not
         // a reason to discard a dirty field draft. React DraftInput keys its
         // reset to the accepted field value; keep this target identity
         // independent from the snapshot capture that protects submission.
-        let draft_identity = (
-            scope.clone(),
-            selection(),
-            definition.id.clone(),
-            definition.name.clone(),
-        );
+        let draft_identity = (scope.clone(), selection(), definition.id.clone());
         use_effect(use_reactive((&draft_identity,), {
             let definition = definition.clone();
             move |(_identity,)| {
                 draft.set(definition.name.clone());
+                draft_dirty.set(false);
+                failure.set(None);
+            }
+        }));
+        let accepted_name = definition.name.clone();
+        use_effect(use_reactive((&accepted_name,), move |(value,)| {
+            // A newer user draft may equal the previous accepted name. Its dirty
+            // marker, rather than value equality, protects it when an older edit lands.
+            if !draft_dirty() {
+                draft.set(value);
             }
         }));
         use_effect(use_reactive((&pad_count,), move |(pad_count,)| {
@@ -74,17 +113,24 @@ mod ui {
 
         // Settle the pending name edit before rendering: pending keeps the draft, a
         // failure restores the accepted value with the message inline, and a landed or
-        // retired ticket drops so the field follows the accepted document again. The
+        // retired edit drops so the field follows the accepted document again. The
         // editor outlives selection changes, so owner liveness is a real answer.
         {
             let model = runtime.model();
             let owner_live = model.accepted.as_ref().is_some_and(|current| {
-                capture.owner_is_live(current, runtime.scope(), selection())
+                capture.owner_matches(current, runtime.scope(), selection())
             });
-            let mut edits = pending.peek().clone();
-            if let Some(settlement) = settle_ticket(&mut edits, owner_live) {
-                pending.set(edits);
-                apply_text_settlement(settlement, definition.name.as_str(), &mut draft, &mut error);
+            let results = pending.settle(owner_live, |_| definition.name.clone());
+            if !results.is_empty()
+                && !pending.is_pending(&NameFieldKey::Name)
+                && *draft.peek() == definition.name
+            {
+                draft_dirty.set(false);
+            }
+            for result in &results {
+                if let PendingEditResult::Failed { message, .. } = result {
+                    failure.set(Some(message.clone()));
+                }
             }
         }
 
@@ -93,28 +139,36 @@ mod ui {
             let runtime = runtime.clone();
             let capture = capture.clone();
             let selection = selection;
-            let accepted_name = accepted_name.clone();
             move |_| {
                 let model = runtime.model();
                 let Some(current) = model.accepted else {
                     return;
                 };
-                if !capture.owner_is_live(&current, runtime.scope(), selection()) {
+                if !capture.owner_matches(&current, runtime.scope(), selection()) {
                     return;
                 }
                 let name = draft();
-                if name == accepted_name {
+                if !pending.is_pending(&NameFieldKey::Name)
+                    && current
+                        .document
+                        .definitions
+                        .iter()
+                        .find(|definition| definition.id == capture.definition_id)
+                        .is_some_and(|definition| definition.name == name)
+                {
+                    draft_dirty.set(false);
                     return;
                 }
                 let resolver = definition_name_resolver(capture.definition_id.clone(), name);
-                let ticket = EditTicket::begin(
+                pending.begin_field(
                     &runtime,
+                    NameFieldKey::Name,
                     "parts-definition-name",
                     Some("part definition".into()),
                     resolver,
+                    &draft.peek().clone(),
                 );
-                pending.set(Some(ticket));
-                error.set(String::new());
+                failure.set(None);
             }
         };
         let on_keydown = {
@@ -124,6 +178,7 @@ mod ui {
                 if event.key() == Key::Escape {
                     event.prevent_default();
                     keydown_draft.set(value.clone());
+                    draft_dirty.set(false);
                 } else if event.key() == Key::Enter
                     && let Some(input) = event
                         .data()
@@ -135,37 +190,52 @@ mod ui {
                 }
             }
         };
-        let on_section_toggle = move |event: MouseEvent| {
-            event.prevent_default();
-            section_chosen.set(true);
-            section_open.set(!section_open());
-        };
-
+        let name_id = format!(
+            "parts-definition-name-{}",
+            dioxus::core::current_scope_id().0
+        );
+        let name_error = failure();
         rsx! {
-            details {
-                class: "m1-parts-definition-editor",
-                open: section_open(),
-                summary { onclick: on_section_toggle,
+            Collapsible {
+                keep_mounted: true,
+                open: Some(section_open()),
+                on_open_change: move |next| {
+                    section_chosen.set(true);
+                    section_open.set(next);
+                },
+                CollapsibleTrigger { class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", aria_label: "Edit footprint Custom geometry",
                     span { "Edit footprint" }
                     small { "Custom geometry" }
                 }
-                div { class: "m1-parts-definition-editor-body",
-                    section { class: "m1-parts-definition-editor-fields", "aria-label": "Custom component definition editor",
-                        label { class: "m1-parts-definition-name",
-                            "Name"
-                            input {
-                                aria_label: "Definition name",
-                                value: "{draft()}",
-                                oninput: move |event| draft.set(event.value()),
-                                onblur: on_blur,
-                                onkeydown: on_keydown,
+                CollapsibleContent { class: "data-[open=false]:hidden",
+                    div { class: "grid gap-2",
+                        section { class: "grid gap-2", "aria-label": "Custom component definition editor",
+                            Field { invalid: name_error.is_some(), class: "gap-1.5",
+                                FieldLabel { html_for: name_id.clone(), "Name" }
+                                InputGroup {
+                                    InputGroupInput {
+                                        id: name_id.clone(),
+                                        r#type: InputType::Text,
+                                        aria_label: "Definition name",
+                                        value: "{draft()}",
+                                        aria_invalid: name_error.is_some(),
+                                        oninput: move |event: FormEvent| {
+                                            draft.set(event.value());
+                                            draft_dirty.set(true);
+                                        },
+                                        attributes: vec![
+                                            dioxus::events::onblur(on_blur),
+                                            dioxus::events::onkeydown(on_keydown),
+                                        ],
+                                    }
+                                }
+                                if let Some(message) = name_error.as_deref() {
+                                    FieldError { "{message}" }
+                                }
                             }
                         }
-                        if !error().is_empty() {
-                            p { class: "m1-definition-error", role: "alert", "{error()}" }
-                        }
+                        {children}
                     }
-                    {children}
                 }
             }
         }
@@ -216,19 +286,45 @@ pub fn definition_name_resolver(definition_id: String, name: String) -> EditReso
     )
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
     use super::*;
     use crate::parts_custom_definition::DefinitionPanelCapture;
-    use boardstudio_application::{
-        Completion, Durability, Effect, Event, OperationId, SaveResult, Session, TerminalOutcome,
-    };
+    use boardstudio_application::{Durability, Event, OperationId, TerminalOutcome};
     use boardstudio_core::model::PartDefinition;
     use boardstudio_core::{
-        CoreEngine,
         model::ProjectDoc,
         model::{AssemblyDefinition, Asset, Net, Part, Pin, Pose2, Side, Vec2},
     };
+    use boardstudio_web_runtime::{operation_outcomes::OutcomeSlot, runtime::Runtime};
+    use std::rc::Rc;
+
+    fn fixed_commit(
+        operation_id: OperationId,
+        command: boardstudio_core::model::EditCommand,
+    ) -> Event {
+        let boardstudio_core::model::EditCommand {
+            transaction_id,
+            target_ids,
+            operation,
+            ..
+        } = command;
+        Event::ResolveEdit {
+            operation_id,
+            label: "test fixed command".into(),
+            resolver: EditResolver::new("test fixed command", move |_| {
+                if transaction_id.is_empty() {
+                    Resolution::submit(target_ids.clone(), operation.clone())
+                } else {
+                    Resolution::submit_with_transaction_id(
+                        target_ids.clone(),
+                        transaction_id.clone(),
+                        operation.clone(),
+                    )
+                }
+            }),
+        }
+    }
 
     fn definition(id: &str, name: &str) -> PartDefinition {
         serde_json::from_value(serde_json::json!({
@@ -256,6 +352,7 @@ mod tests {
                 rotation: 0.0,
             },
             side: Side::Front,
+            anchor: None,
             keycap: None,
             outline: None,
             locked: None,
@@ -286,105 +383,45 @@ mod tests {
         document
     }
 
-    fn advance(session: &mut Session, core: &mut CoreEngine, initial: Vec<Effect>) {
-        let mut pending = initial;
-        while let Some(effect) = pending.pop() {
-            match effect {
-                Effect::Core {
-                    request_id,
-                    executor_epoch,
-                    request,
-                    ..
-                } => {
-                    let reply = core.handle(*request);
-                    pending.extend(session.complete(Completion::Core {
-                        request_id,
-                        executor_epoch,
-                        reply: Box::new(reply),
-                    }));
-                }
-                Effect::Persist {
-                    save_attempt_id, ..
-                } => {
-                    pending.extend(session.complete(Completion::Persist {
-                        save_attempt_id,
-                        result: SaveResult::Committed,
-                    }));
-                }
-                _ => {}
-            }
-        }
-    }
-
-    fn open_document(document: ProjectDoc) -> (Session, CoreEngine) {
-        let mut session = Session::new();
-        let mut core = CoreEngine::new();
-        let effects = session.submit(Event::Open {
-            operation_id: OperationId(1),
+    fn open_document(document: ProjectDoc) -> Rc<Runtime> {
+        let runtime = Runtime::new();
+        runtime.submit(Event::Open {
+            operation_id: runtime.operation(),
             document,
         });
-        advance(&mut session, &mut core, effects);
-        assert!(session.read_model().accepted.is_some());
-        (session, core)
+        assert!(runtime.model().accepted.is_some());
+        runtime
+    }
+
+    /// Submit the event built for a fresh operation. The slot holds its settlement once
+    /// settled; a gated Runtime leaves it empty until the gate is released.
+    fn submit(runtime: &Runtime, event: impl FnOnce(OperationId) -> Event) -> OutcomeSlot {
+        let operation = runtime.operation();
+        let slot = runtime.observe_operation(operation);
+        runtime.submit(event(operation));
+        slot
+    }
+
+    fn settled(slot: &OutcomeSlot) -> Option<TerminalOutcome> {
+        slot.borrow().clone()
+    }
+
+    fn accepted_snapshot(runtime: &Runtime) -> AcceptedSnapshot {
+        runtime.model().accepted.expect("accepted document")
+    }
+
+    fn submit_name_edit(runtime: &Runtime, definition_id: &str, name: &str) -> OutcomeSlot {
+        submit(runtime, |operation_id| Event::ResolveEdit {
+            operation_id,
+            label: "parts-definition-name".into(),
+            resolver: definition_name_resolver(definition_id.into(), name.into()),
+        })
     }
 
     fn assert_same_content_ignoring_revision(actual: &ProjectDoc, expected: &ProjectDoc) {
         let mut actual = actual.clone();
         actual.revision = expected.revision;
         assert_eq!(actual, *expected);
-    }
-
-    /// Drive effects to completion, collecting every settlement Session reported.
-    fn advance_collecting(
-        session: &mut Session,
-        core: &mut CoreEngine,
-        initial: Vec<Effect>,
-    ) -> Vec<TerminalOutcome> {
-        let mut pending = initial;
-        let mut settlements = Vec::new();
-        while let Some(effect) = pending.pop() {
-            match effect {
-                Effect::Core {
-                    request_id,
-                    executor_epoch,
-                    request,
-                    ..
-                } => {
-                    let reply = core.handle(*request);
-                    pending.extend(session.complete(Completion::Core {
-                        request_id,
-                        executor_epoch,
-                        reply: Box::new(reply),
-                    }));
-                }
-                Effect::Persist {
-                    save_attempt_id, ..
-                } => {
-                    pending.extend(session.complete(Completion::Persist {
-                        save_attempt_id,
-                        result: SaveResult::Committed,
-                    }));
-                }
-                Effect::Settled { outcome, .. } => settlements.push(outcome),
-                _ => {}
-            }
-        }
-        settlements
-    }
-
-    fn submit_name_edit(
-        session: &mut Session,
-        core: &mut CoreEngine,
-        operation: u64,
-        definition_id: &str,
-        name: &str,
-    ) -> Vec<TerminalOutcome> {
-        let effects = session.submit(Event::ResolveEdit {
-            operation_id: OperationId(operation),
-            label: "parts-definition-name".into(),
-            resolver: definition_name_resolver(definition_id.into(), name.into()),
-        });
-        advance_collecting(session, core, effects)
     }
 
     fn selected_name(document: &ProjectDoc) -> &str {
@@ -400,52 +437,33 @@ mod tests {
     #[test]
     fn production_name_edit_commits_one_field_and_round_trips_through_session_history() {
         let original = document();
-        let (mut session, mut core) = open_document(original.clone());
+        let runtime = open_document(original.clone());
         assert_eq!(
-            submit_name_edit(&mut session, &mut core, 2, "selected", "Renamed device"),
-            vec![TerminalOutcome::Completed],
+            settled(&submit_name_edit(&runtime, "selected", "Renamed device")),
+            Some(TerminalOutcome::Completed),
             "a changed name lands as one accepted edit"
         );
-        let accepted = session.read_model().accepted.as_ref().unwrap();
+        let accepted = accepted_snapshot(&runtime);
         let mut expected_renamed = original.clone();
         expected_renamed.definitions[0].name = "Renamed device".into();
         assert_same_content_ignoring_revision(&accepted.document, &expected_renamed);
         assert_eq!(
-            session.read_model().durability,
+            runtime.model().durability,
             Durability::Saved {
                 revision: accepted.document.revision
             }
         );
 
-        let undo_effects = session.submit(Event::Undo {
-            operation_id: OperationId(3),
-        });
-        advance(&mut session, &mut core, undo_effects);
-        let undone = session.read_model().accepted.as_ref().unwrap();
-        assert_same_content_ignoring_revision(&undone.document, &original);
-        let redo_effects = session.submit(Event::Redo {
-            operation_id: OperationId(4),
-        });
-        advance(&mut session, &mut core, redo_effects);
-        let redone = session
-            .read_model()
-            .accepted
-            .as_ref()
-            .unwrap()
-            .document
-            .clone();
+        submit(&runtime, |operation_id| Event::Undo { operation_id });
+        assert_same_content_ignoring_revision(&accepted_snapshot(&runtime).document, &original);
+        submit(&runtime, |operation_id| Event::Redo { operation_id });
+        let redone = accepted_snapshot(&runtime).document;
         assert_same_content_ignoring_revision(&redone, &expected_renamed);
 
         let persisted_round_trip: ProjectDoc =
             serde_json::from_str(&serde_json::to_string(&*redone).unwrap()).unwrap();
-        let (mut reopened, mut reopen_core) = open_document(persisted_round_trip);
-        let reopened_document = reopened
-            .read_model()
-            .accepted
-            .as_ref()
-            .unwrap()
-            .document
-            .clone();
+        let reopened = open_document(persisted_round_trip);
+        let reopened_document = accepted_snapshot(&reopened).document;
         assert_same_content_ignoring_revision(&reopened_document, &expected_renamed);
         assert_eq!(
             reopened_document
@@ -456,14 +474,13 @@ mod tests {
                 .name,
             "Unaffected"
         );
-        let _ = (&mut reopened, &mut reopen_core);
     }
 
     #[test]
     fn admission_keeps_departed_owners_out_but_newer_revisions_queue_freely() {
-        let (session, _core) = open_document(document());
-        let snapshot = session.read_model().accepted.clone().unwrap();
-        let scope = session.scope();
+        let runtime = open_document(document());
+        let snapshot = accepted_snapshot(&runtime);
+        let scope = runtime.scope();
         let selected = Some((scope.clone(), "selected".into()));
         let capture = DefinitionPanelCapture::new(
             &snapshot,
@@ -471,8 +488,8 @@ mod tests {
             &snapshot.document.definitions[0],
         );
 
-        assert!(capture.owner_is_live(&snapshot, scope.clone(), selected.clone()));
-        assert!(!capture.owner_is_live(
+        assert!(capture.owner_matches(&snapshot, scope.clone(), selected.clone()));
+        assert!(!capture.owner_matches(
             &snapshot,
             scope.clone(),
             Some((scope.clone(), "other".into()))
@@ -482,7 +499,7 @@ mod tests {
             changed.instance_id = Some("other-instance".into());
             changed
         });
-        assert!(!capture.owner_is_live(&snapshot, other_scope, selected.clone()));
+        assert!(!capture.owner_matches(&snapshot, other_scope, selected.clone()));
 
         let mut changed_identity_doc = snapshot.document.as_ref().clone();
         changed_identity_doc.id = "another-project".into();
@@ -490,7 +507,7 @@ mod tests {
             document: std::sync::Arc::new(changed_identity_doc),
             ..snapshot.clone()
         };
-        assert!(!capture.owner_is_live(&changed_identity_snapshot, scope.clone(), selected));
+        assert!(!capture.owner_matches(&changed_identity_snapshot, scope.clone(), selected));
 
         // A newer accepted revision is not a departed owner: field edits queue freely
         // and resolve against the document accepted when they run (ADR-0005).
@@ -501,10 +518,10 @@ mod tests {
             document: std::sync::Arc::new(newer_doc),
             ..snapshot.clone()
         };
-        assert!(capture.owner_is_live(
+        assert!(capture.owner_matches(
             &newer,
-            session.scope(),
-            Some((session.scope().clone(), "selected".into()))
+            runtime.scope(),
+            Some((runtime.scope().clone(), "selected".into()))
         ));
     }
 
@@ -516,72 +533,144 @@ mod tests {
             version: "1".into(),
             parameters: Default::default(),
         });
-        let (mut session, mut core) = open_document(generator_doc);
+        let runtime = open_document(generator_doc);
         assert_eq!(
-            submit_name_edit(&mut session, &mut core, 5, "selected", "Generator name"),
-            vec![TerminalOutcome::Rejected(GENERATOR_LOCKED.into())]
+            settled(&submit_name_edit(&runtime, "selected", "Generator name")),
+            Some(TerminalOutcome::Rejected(GENERATOR_LOCKED.into()))
         );
         assert_eq!(
-            selected_name(&session.read_model().accepted.clone().unwrap().document),
+            selected_name(&accepted_snapshot(&runtime).document),
             "Original name"
         );
 
-        let (mut session, mut core) = open_document(document());
+        let runtime = open_document(document());
         assert_eq!(
-            submit_name_edit(&mut session, &mut core, 6, "vanished", "No target"),
-            vec![TerminalOutcome::Rejected(DEFINITION_GONE.into())]
+            settled(&submit_name_edit(&runtime, "vanished", "No target")),
+            Some(TerminalOutcome::Rejected(DEFINITION_GONE.into()))
         );
     }
 
     #[test]
     fn an_unchanged_name_commit_lands_without_moving_the_revision() {
-        let (mut session, mut core) = open_document(document());
-        let before = session.read_model().accepted.clone().unwrap();
+        let runtime = open_document(document());
+        let before = accepted_snapshot(&runtime);
         assert_eq!(
-            submit_name_edit(&mut session, &mut core, 7, "selected", "Original name"),
-            vec![TerminalOutcome::Completed]
+            settled(&submit_name_edit(&runtime, "selected", "Original name")),
+            Some(TerminalOutcome::Completed)
         );
-        let after = session.read_model().accepted.clone().unwrap();
+        let after = accepted_snapshot(&runtime);
         assert_eq!(after.document.revision, before.document.revision);
         assert_eq!(after.token, before.token);
     }
 
     #[test]
     fn a_name_commit_resolves_against_the_latest_accepted_document() {
-        let original = document();
-        let (mut session, mut core) = open_document(original);
-        let initial = session.read_model().accepted.as_ref().unwrap().clone();
+        let runtime = open_document(document());
+        let initial = accepted_snapshot(&runtime);
 
         let mut unrelated_document = initial.document.as_ref().clone();
         unrelated_document
             .parameters
             .insert("unrelated-edit".into(), serde_json::json!(true));
-        let unrelated = Event::Edit {
-            operation_id: OperationId(20),
-            command: boardstudio_core::model::EditCommand {
-                base_revision: initial.document.revision,
-                transaction_id: "parts-name-unrelated-edit".into(),
-                phase: boardstudio_core::model::EditPhase::Commit,
-                target_ids: vec!["unrelated".into()],
-                operation: EditOperation::ReplaceDocument {
-                    document: Box::new(unrelated_document),
+        submit(&runtime, |operation_id| {
+            fixed_commit(
+                operation_id,
+                boardstudio_core::model::EditCommand {
+                    base_revision: initial.document.revision,
+                    transaction_id: "parts-name-unrelated-edit".into(),
+                    phase: boardstudio_core::model::EditPhase::Commit,
+                    target_ids: vec!["unrelated".into()],
+                    operation: EditOperation::ReplaceDocument {
+                        document: Box::new(unrelated_document),
+                    },
                 },
-            },
-        };
-        let effects = session.submit(unrelated);
-        advance(&mut session, &mut core, effects);
+            )
+        });
 
         assert_eq!(
-            submit_name_edit(&mut session, &mut core, 21, "selected", "Dirty name draft"),
-            vec![TerminalOutcome::Completed]
+            settled(&submit_name_edit(&runtime, "selected", "Dirty name draft")),
+            Some(TerminalOutcome::Completed)
         );
-        let accepted = session.read_model().accepted.as_ref().unwrap();
+        let accepted = accepted_snapshot(&runtime);
         assert_eq!(
             accepted.document.parameters.get("unrelated-edit"),
             Some(&serde_json::json!(true)),
             "the name commit must retain the edit accepted while its local draft was dirty"
         );
         assert_eq!(selected_name(&accepted.document), "Dirty name draft");
+    }
+
+    #[test]
+    fn queued_name_edits_keep_the_prior_accepted_change_while_core_is_held() {
+        let runtime = open_document(document());
+        runtime.hold_next_core();
+        let first = submit_name_edit(&runtime, "selected", "First name");
+        assert!(runtime.core_entered(), "the first edit reaches Core");
+        let second = submit_name_edit(&runtime, "other", "Second name");
+        assert_eq!(settled(&first), None);
+        assert_eq!(settled(&second), None);
+
+        runtime.release_core();
+        assert_eq!(settled(&first), Some(TerminalOutcome::Completed));
+        assert_eq!(settled(&second), Some(TerminalOutcome::Completed));
+        let accepted = accepted_snapshot(&runtime);
+        assert_eq!(selected_name(&accepted.document), "First name");
+        assert_eq!(
+            accepted
+                .document
+                .definitions
+                .iter()
+                .find(|definition| definition.id == "other")
+                .unwrap()
+                .name,
+            "Second name",
+            "the queued edit resolves against the document the first edit accepted"
+        );
+    }
+
+    #[test]
+    fn a_queued_name_edit_retires_when_its_target_departs_first() {
+        let runtime = open_document(document());
+        let initial = accepted_snapshot(&runtime);
+        let mut without_target = initial.document.as_ref().clone();
+        without_target
+            .definitions
+            .retain(|definition| definition.id != "selected");
+        without_target.parts.clear();
+        without_target.nets.clear();
+
+        runtime.hold_next_core();
+        let departure = submit(&runtime, |operation_id| {
+            fixed_commit(
+                operation_id,
+                boardstudio_core::model::EditCommand {
+                    base_revision: initial.document.revision,
+                    transaction_id: "parts-name-target-departure".into(),
+                    phase: boardstudio_core::model::EditPhase::Commit,
+                    target_ids: vec!["selected".into()],
+                    operation: EditOperation::ReplaceDocument {
+                        document: Box::new(without_target),
+                    },
+                },
+            )
+        });
+        assert!(runtime.core_entered(), "the departure reaches Core");
+        let queued = submit_name_edit(&runtime, "selected", "Too late");
+        assert_eq!(settled(&queued), None, "the queued edit waits for Core");
+
+        runtime.release_core();
+        assert_eq!(settled(&departure), Some(TerminalOutcome::Completed));
+        assert_eq!(
+            settled(&queued),
+            Some(TerminalOutcome::Rejected(DEFINITION_GONE.into()))
+        );
+        assert!(
+            accepted_snapshot(&runtime)
+                .document
+                .definitions
+                .iter()
+                .all(|definition| definition.id != "selected")
+        );
     }
 }
 
@@ -591,6 +680,7 @@ mod mounted_tests {
     use crate::runtime::{Runtime, project_name_test_support as support};
     use boardstudio_application::{Event as AppEvent, Scope};
     use boardstudio_core::model::{PartDefinition, ProjectDoc};
+    use boardstudio_web_ui_shared::test_role::{all_by_role_name, by_role_name};
     use dioxus::prelude::*;
     use std::{cell::RefCell, rc::Rc};
     use wasm_bindgen::JsCast;
@@ -663,7 +753,7 @@ mod mounted_tests {
     }
 
     async fn settle() {
-        gloo_timers::future::TimeoutFuture::new(80).await;
+        gloo_timers::future::TimeoutFuture::new(5).await;
     }
 
     /// Open `document` through the real Session and Core on a fresh Runtime and return what the
@@ -680,64 +770,55 @@ mod mounted_tests {
     }
 
     fn input(root: &web_sys::Element) -> HtmlInputElement {
-        root.query_selector("input[aria-label='Definition name']")
-            .unwrap()
-            .unwrap()
+        by_role_name(root, "textbox", "Definition name")
+            .expect("definition name field")
             .dyn_into()
             .unwrap()
     }
 
+    fn section_trigger(root: &web_sys::Element) -> web_sys::HtmlElement {
+        by_role_name(root, "button", "Edit footprint Custom geometry")
+            .expect("edit footprint section trigger")
+    }
+
     fn section_is_open(root: &web_sys::Element) -> bool {
-        root.query_selector("details")
-            .unwrap()
-            .unwrap()
-            .has_attribute("open")
+        section_trigger(root)
+            .get_attribute("aria-expanded")
+            .as_deref()
+            == Some("true")
     }
 
     fn pad_id_input(root: &web_sys::Element) -> HtmlInputElement {
-        root.query_selector("input[aria-label='Pad 1 ID']")
-            .unwrap()
-            .unwrap()
+        by_role_name(root, "textbox", "Pad 1 ID")
+            .expect("pad ID field")
             .dyn_into()
             .unwrap()
     }
 
     fn pad_number_input(root: &web_sys::Element) -> HtmlInputElement {
-        root.query_selector("input[aria-label='Pad 1 number']")
-            .unwrap()
-            .unwrap()
+        by_role_name(root, "textbox", "Pad 1 number")
+            .expect("pad number field")
             .dyn_into()
             .unwrap()
     }
 
     fn courtyard_width_input(root: &web_sys::Element) -> HtmlInputElement {
-        root.query_selector("input[aria-label='Courtyard width']")
-            .unwrap()
-            .unwrap()
+        by_role_name(root, "spinbutton", "Courtyard width")
+            .expect("courtyard width field")
             .dyn_into()
             .unwrap()
     }
 
     fn courtyard_height_input(root: &web_sys::Element) -> HtmlInputElement {
-        root.query_selector("input[aria-label='Courtyard height']")
-            .unwrap()
-            .unwrap()
-            .dyn_into()
-            .unwrap()
-    }
-
-    fn pad_x_input(root: &web_sys::Element) -> HtmlInputElement {
-        root.query_selector("input[aria-label='Pad 1 X']")
-            .unwrap()
-            .unwrap()
+        by_role_name(root, "spinbutton", "Courtyard height")
+            .expect("courtyard height field")
             .dyn_into()
             .unwrap()
     }
 
     fn pad_y_input(root: &web_sys::Element) -> HtmlInputElement {
-        root.query_selector("input[aria-label='Pad 1 Y']")
-            .unwrap()
-            .unwrap()
+        by_role_name(root, "spinbutton", "Pad 1 Y")
+            .expect("pad Y field")
             .dyn_into()
             .unwrap()
     }
@@ -793,12 +874,7 @@ mod mounted_tests {
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         settle().await;
-        root.query_selector("details summary")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap()
-            .click();
+        section_trigger(&root).click();
         settle().await;
         let pad_id = pad_id_input(&root);
         type_value(&pad_id, "");
@@ -815,12 +891,7 @@ mod mounted_tests {
             .definition
             .set(snapshot.document.definitions[1].clone());
         settle().await;
-        root.query_selector("details summary")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap()
-            .click();
+        section_trigger(&root).click();
         settle().await;
 
         assert_eq!(pad_id_input(&root).value(), "shared-pad");
@@ -901,11 +972,10 @@ mod mounted_tests {
         assert!(crate::parts_custom_definition::set_pad_number_draft_for_test("9"));
         settle().await;
         assert_eq!(pad_number_input(&root).value(), "9");
-        root.query_selector(".m1-definition-remove-pad")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap()
+        all_by_role_name(&root, "button", "Remove pad")
+            .into_iter()
+            .next()
+            .expect("remove pad action")
             .click();
         settle().await;
         support::run_pending(&runtime).await;
@@ -954,166 +1024,6 @@ mod mounted_tests {
     }
 
     #[wasm_bindgen_test]
-    async fn mounted_definition_owner_switch_retires_dirty_courtyard_pad_and_error_state() {
-        let mut document = ProjectDoc::empty("parts-name-mounted", "Parts name mounted");
-        let mut first = definition("first", "First");
-        let mut second = definition("second", "Second");
-        for definition in [&mut first, &mut second] {
-            definition.courtyard = vec![
-                boardstudio_core::model::Vec2 { x: -5.0, y: -3.0 },
-                boardstudio_core::model::Vec2 { x: 5.0, y: -3.0 },
-                boardstudio_core::model::Vec2 { x: 5.0, y: 3.0 },
-                boardstudio_core::model::Vec2 { x: -5.0, y: 3.0 },
-            ];
-            definition.pads = serde_json::from_value(serde_json::json!([
-                {"id":"shared-pad","number":"1","at":{"x":0.0,"y":0.0},"size":{"x":2.0,"y":2.0},"shape":"circle"}
-            ])).unwrap();
-        }
-        document.definitions = vec![first, second];
-        let (runtime, snapshot, scope) = opened(document).await;
-        let state = Rc::new(RefCell::new(None));
-        let seed = Rc::new(Seed {
-            snapshot: snapshot.clone(),
-            scope: scope.clone(),
-            selection: Some((scope.clone(), "first".into())),
-            definition: snapshot.document.definitions[0].clone(),
-            state: state.clone(),
-        });
-        let root = web_sys::window()
-            .unwrap()
-            .document()
-            .unwrap()
-            .create_element("div")
-            .unwrap();
-        let root_index = NEXT_ROOT.with(|next| next.replace(next.get() + 1));
-        root.set_id(&format!("parts-name-mounted-regression-{root_index}"));
-        web_sys::window()
-            .unwrap()
-            .document()
-            .unwrap()
-            .body()
-            .unwrap()
-            .append_child(&root)
-            .unwrap();
-        let dom = VirtualDom::new(host);
-        dom.provide_root_context(seed);
-        dom.provide_root_context(runtime.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
-        settle().await;
-        root.query_selector("details summary")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap()
-            .click();
-        settle().await;
-        let pad_id = pad_id_input(&root);
-        type_value(&pad_id, "");
-        settle().await;
-        let _ = courtyard_width_input(&root).focus();
-        settle().await;
-        assert!(root.query_selector("[role='alert']").unwrap().is_some());
-        type_value(&courtyard_width_input(&root), "12");
-        settle().await;
-
-        let mut controls = state.borrow().as_ref().unwrap().clone();
-        controls
-            .selection
-            .set(Some((scope.clone(), "second".into())));
-        controls
-            .definition
-            .set(snapshot.document.definitions[1].clone());
-        settle().await;
-
-        assert_eq!(courtyard_width_input(&root).value(), "10");
-        assert!(root.query_selector("[role='alert']").unwrap().is_none());
-
-        // Accepted sibling fields synchronize independently. A refreshed
-        // height must not discard the local width draft.
-        type_value(&courtyard_width_input(&root), "12");
-        settle().await;
-        let mut refreshed_doc = runtime
-            .model()
-            .accepted
-            .as_ref()
-            .unwrap()
-            .document
-            .as_ref()
-            .clone();
-        refreshed_doc.definitions[1].courtyard = vec![
-            boardstudio_core::model::Vec2 { x: -5.0, y: -4.0 },
-            boardstudio_core::model::Vec2 { x: 5.0, y: -4.0 },
-            boardstudio_core::model::Vec2 { x: 5.0, y: 4.0 },
-            boardstudio_core::model::Vec2 { x: -5.0, y: 4.0 },
-        ];
-        let refreshed = support::replace_document(
-            &runtime,
-            "parts-name-mounted-height-refresh",
-            "second",
-            refreshed_doc,
-        )
-        .await;
-        controls.snapshot.set(refreshed.clone());
-        controls
-            .definition
-            .set(refreshed.document.definitions[1].clone());
-        settle().await;
-        assert_eq!(courtyard_width_input(&root).value(), "12");
-        assert_eq!(courtyard_height_input(&root).value(), "8");
-
-        // A different definition may reuse the same pad ID. Its local draft
-        // must reset when the owner changes, even though the pad identity is
-        // otherwise identical.
-        type_value(&pad_x_input(&root), "9");
-        settle().await;
-        // Anything the focus change submitted lands before the next accepted refresh, so the
-        // refresh below is built on the Session's latest accepted document.
-        support::run_pending(&runtime).await;
-        let latest = runtime.model().accepted.as_ref().unwrap().clone();
-        let mut refreshed_pad_doc = latest.document.as_ref().clone();
-        refreshed_pad_doc.definitions[1].pads[0].at.y = 4.0;
-        let refreshed_pad = support::replace_document(
-            &runtime,
-            "parts-name-mounted-pad-refresh",
-            "second",
-            refreshed_pad_doc,
-        )
-        .await;
-        controls.snapshot.set(refreshed_pad.clone());
-        controls
-            .definition
-            .set(refreshed_pad.document.definitions[1].clone());
-        settle().await;
-        assert_eq!(pad_x_input(&root).value(), "9");
-        assert_eq!(pad_y_input(&root).value(), "4");
-
-        controls
-            .selection
-            .set(Some((scope.clone(), "first".into())));
-        controls
-            .definition
-            .set(refreshed_pad.document.definitions[0].clone());
-        settle().await;
-        assert_eq!(courtyard_width_input(&root).value(), "10");
-        assert_eq!(pad_x_input(&root).value(), "0");
-        let _ = courtyard_width_input(&root).blur();
-        let _ = pad_x_input(&root).blur();
-        settle().await;
-        assert!(
-            support::take_held_effects(&runtime).is_empty(),
-            "dirty values owned by the prior definition cannot commit into the next owner"
-        );
-        assert_eq!(
-            runtime.model().accepted.unwrap().document.revision,
-            refreshed_pad.document.revision
-        );
-        root.remove();
-    }
-
-    #[wasm_bindgen_test]
     async fn mounted_unchanged_blur_does_not_rewrite_empty_courtyard_or_create_history() {
         let mut document = ProjectDoc::empty("parts-name-mounted", "Parts name mounted");
         document.definitions = vec![definition("selected", "Empty courtyard")];
@@ -1150,12 +1060,7 @@ mod mounted_tests {
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         settle().await;
-        root.query_selector("details summary")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap()
-            .click();
+        section_trigger(&root).click();
         settle().await;
         let width = courtyard_width_input(&root);
         assert_eq!(width.value(), "10");
@@ -1225,12 +1130,7 @@ mod mounted_tests {
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         settle().await;
-        root.query_selector("details summary")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap()
-            .click();
+        section_trigger(&root).click();
         settle().await;
         let field = pad_id_input(&root);
         type_value(&field, "renamed");
@@ -1335,12 +1235,7 @@ mod mounted_tests {
         );
         settle().await;
         if open_section {
-            root.query_selector("details summary")
-                .unwrap()
-                .unwrap()
-                .dyn_into::<web_sys::HtmlElement>()
-                .unwrap()
-                .click();
+            section_trigger(&root).click();
             settle().await;
         }
         (runtime, snapshot, scope, state, root)
@@ -1534,6 +1429,312 @@ mod mounted_tests {
     }
 
     #[wasm_bindgen_test]
+    async fn mounted_pad_actions_refuse_retained_double_clicks_while_core_is_held() {
+        let (runtime, snapshot, _scope, state, root) =
+            mount_panel(courtyard_document("Pad actions"), false).await;
+        let controls = state.borrow().as_ref().unwrap().clone();
+        let add = by_role_name(&root, "button", "+ Add pad").expect("add pad action");
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+
+        // Both events reach the same retained handler before a disabled render.
+        add.click();
+        add.click();
+        settle().await;
+        support::drive_pending(&runtime);
+        entered.await.expect("the first add reaches Core");
+        assert!(add.has_attribute("disabled"));
+        release.send(()).expect("release the held add reply");
+        accept_edits(&runtime, &controls).await;
+        let added = runtime.model().accepted.unwrap();
+        assert_eq!(
+            added.document.definitions[0].pads.len(),
+            1,
+            "the retained second click cannot add another pad"
+        );
+        assert_eq!(added.document.revision, snapshot.document.revision + 1);
+
+        if !section_is_open(&root) {
+            section_trigger(&root).click();
+            settle().await;
+        }
+        let remove = by_role_name(&root, "button", "Remove pad").expect("remove pad action");
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        remove.click();
+        remove.click();
+        settle().await;
+        support::drive_pending(&runtime);
+        entered.await.expect("the first removal reaches Core");
+        assert!(remove.has_attribute("disabled"));
+        release.send(()).expect("release the held removal reply");
+        accept_edits(&runtime, &controls).await;
+        let removed = runtime.model().accepted.unwrap();
+        assert!(removed.document.definitions[0].pads.is_empty());
+        assert_eq!(removed.document.revision, snapshot.document.revision + 2);
+        assert!(
+            root.query_selector("[role='alert']").unwrap().is_none(),
+            "the retained second removal must not queue a missing-pad failure"
+        );
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_rejected_pad_number_keeps_newer_text_beside_the_failure() {
+        let mut document = courtyard_document("Pad failure");
+        document.definitions[0].pads = serde_json::from_value(serde_json::json!([
+            {"id":"a","number":"1","at":{"x":0.0,"y":0.0},"size":{"x":2.0,"y":2.0},"shape":"circle"},
+            {"id":"b","number":"2","at":{"x":3.0,"y":0.0},"size":{"x":2.0,"y":2.0},"shape":"circle"}
+        ])).unwrap();
+        let (runtime, snapshot, _scope, state, root) = mount_panel(document, true).await;
+        let controls = state.borrow().as_ref().unwrap().clone();
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        type_value(&courtyard_width_input(&root), "12");
+        let _ = courtyard_width_input(&root).blur();
+        settle().await;
+        support::drive_pending(&runtime);
+        entered.await.expect("the width edit reaches Core");
+
+        // Duplicate numbers are rejected by the resolver, without making the
+        // Session enter persistence or Core recovery.
+        type_value(&pad_number_input(&root), "2");
+        let _ = pad_number_input(&root).blur();
+        settle().await;
+        type_value(&pad_number_input(&root), "9");
+        settle().await;
+        release.send(()).expect("release the held width reply");
+        accept_edits(&runtime, &controls).await;
+
+        let accepted = runtime.model().accepted.unwrap();
+        assert_eq!(accepted.document.revision, snapshot.document.revision + 1);
+        assert_eq!(accepted.document.definitions[0].pads[0].number, "1");
+        assert_eq!(pad_number_input(&root).value(), "9");
+        let alert = root
+            .query_selector("[role='alert']")
+            .unwrap()
+            .expect("the older failure remains inline")
+            .text_content()
+            .unwrap();
+        assert!(
+            alert.contains("Pad numbers must be unique"),
+            "the failure explains duplicate numbers: {alert}"
+        );
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_recommitted_name_and_width_baselines_win_over_pending_values() {
+        let (runtime, snapshot, _scope, state, root) =
+            mount_panel(courtyard_document("Original name"), false).await;
+        let controls = state.borrow().as_ref().unwrap().clone();
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+
+        type_value(&input(&root), "Renamed");
+        let _ = input(&root).blur();
+        settle().await;
+        support::drive_pending(&runtime);
+        entered.await.expect("the initial rename reaches Core");
+        type_value(&courtyard_width_input(&root), "12");
+        let _ = courtyard_width_input(&root).blur();
+        settle().await;
+
+        // These are committed values, even though the accepted document still has
+        // them: their earlier edits are waiting and must not become the final values.
+        type_value(&input(&root), "Original name");
+        let _ = input(&root).blur();
+        settle().await;
+        type_value(&courtyard_width_input(&root), "10");
+        let _ = courtyard_width_input(&root).blur();
+        settle().await;
+        release.send(()).expect("release the held rename reply");
+        accept_edits(&runtime, &controls).await;
+
+        let accepted = runtime.model().accepted.unwrap();
+        assert_eq!(
+            (
+                accepted.document.definitions[0].name.as_str(),
+                definition_bounds(&accepted.document).0
+            ),
+            ("Original name", 10.0),
+            "the latest committed values win for both fields"
+        );
+        assert_eq!(accepted.document.revision, snapshot.document.revision + 4);
+        assert_eq!(input(&root).value(), "Original name");
+        assert_eq!(courtyard_width_input(&root).value(), "10");
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_landed_courtyard_keeps_a_newer_draft_then_clean_undo_redo_syncs() {
+        let (runtime, _snapshot, _scope, state, root) =
+            mount_panel(courtyard_document("Courtyard"), false).await;
+        let controls = state.borrow().as_ref().unwrap().clone();
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+
+        type_value(&courtyard_width_input(&root), "12");
+        let _ = courtyard_width_input(&root).blur();
+        settle().await;
+        support::drive_pending(&runtime);
+        entered.await.expect("the width edit reaches Core");
+        type_value(&courtyard_width_input(&root), "10");
+        settle().await;
+        release.send(()).expect("release the held width reply");
+        accept_edits(&runtime, &controls).await;
+
+        assert_eq!(
+            definition_bounds(&runtime.model().accepted.unwrap().document).0,
+            12.0
+        );
+        assert_eq!(
+            courtyard_width_input(&root).value(),
+            "10",
+            "the newer baseline draft survives landing"
+        );
+
+        let init = web_sys::KeyboardEventInit::new();
+        init.set_key("Escape");
+        init.set_bubbles(true);
+        courtyard_width_input(&root)
+            .dispatch_event(
+                &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
+                    .unwrap(),
+            )
+            .unwrap();
+        settle().await;
+        assert_eq!(courtyard_width_input(&root).value(), "12");
+        runtime.submit(AppEvent::Undo {
+            operation_id: runtime.operation(),
+        });
+        accept_edits(&runtime, &controls).await;
+        assert_eq!(
+            courtyard_width_input(&root).value(),
+            "10",
+            "a clean field follows Undo"
+        );
+        runtime.submit(AppEvent::Redo {
+            operation_id: runtime.operation(),
+        });
+        accept_edits(&runtime, &controls).await;
+        assert_eq!(
+            courtyard_width_input(&root).value(),
+            "12",
+            "a clean field follows Redo"
+        );
+        root.remove();
+        let mut document = courtyard_document("Pad draft");
+        document.definitions[0].pads = serde_json::from_value(serde_json::json!([
+            {"id":"a","number":"1","at":{"x":0.0,"y":0.0},"size":{"x":2.0,"y":2.0},"shape":"circle"}
+        ]))
+        .unwrap();
+        let (runtime, _snapshot, _scope, state, root) = mount_panel(document, true).await;
+        let controls = state.borrow().as_ref().unwrap().clone();
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        type_value(&pad_number_input(&root), "7");
+        let _ = pad_number_input(&root).blur();
+        settle().await;
+        support::drive_pending(&runtime);
+        entered.await.expect("the pad number edit reaches Core");
+
+        type_value(&pad_number_input(&root), "1");
+        settle().await;
+        release.send(()).expect("release the held pad number reply");
+        accept_edits(&runtime, &controls).await;
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.definitions[0].pads[0].number,
+            "7"
+        );
+        assert_eq!(
+            pad_number_input(&root).value(),
+            "1",
+            "the newer pad draft survives its accepted refresh"
+        );
+        root.remove();
+        let (runtime, _snapshot, _scope, state, root) =
+            mount_panel(courtyard_document("Original name"), false).await;
+        let controls = state.borrow().as_ref().unwrap().clone();
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+
+        type_value(&input(&root), "Renamed");
+        let _ = input(&root).blur();
+        settle().await;
+        support::drive_pending(&runtime);
+        entered
+            .await
+            .expect("the rename reaches Core before the newer draft");
+
+        // Returning to the old accepted text is still a newer user draft.
+        type_value(&input(&root), "Original name");
+        settle().await;
+        release.send(()).expect("release the held rename reply");
+        accept_edits(&runtime, &controls).await;
+
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.definitions[0].name,
+            "Renamed"
+        );
+        assert_eq!(
+            input(&root).value(),
+            "Original name",
+            "the accepted refresh preserves the newer draft"
+        );
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_definition_switch_retires_old_name_and_courtyard_observations() {
+        let mut document = courtyard_document("Original name");
+        let mut other = document.definitions[0].clone();
+        other.id = "other".into();
+        other.name = "Other definition".into();
+        document.definitions.push(other);
+        let (runtime, snapshot, scope, state, root) = mount_panel(document, false).await;
+        let mut controls = state.borrow().as_ref().unwrap().clone();
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+
+        // Target departure is a resolver rejection, so the Session remains usable.
+        let mut removed = snapshot.document.as_ref().clone();
+        removed.definitions.remove(0);
+        support::submit_fixed_command(
+            &runtime,
+            boardstudio_core::model::EditCommand {
+                base_revision: snapshot.document.revision,
+                transaction_id: "definition-departs-before-owner-switch".into(),
+                phase: boardstudio_core::model::EditPhase::Commit,
+                target_ids: vec!["selected".into()],
+                operation: EditOperation::ReplaceDocument {
+                    document: Box::new(removed),
+                },
+            },
+        );
+        support::drive_pending(&runtime);
+        entered.await.expect("the departure reaches Core");
+
+        type_value(&input(&root), "Too late");
+        let _ = input(&root).blur();
+        settle().await;
+        type_value(&courtyard_width_input(&root), "12");
+        let _ = courtyard_width_input(&root).blur();
+        settle().await;
+        controls.selection.set(Some((scope, "other".into())));
+        controls
+            .definition
+            .set(snapshot.document.definitions[1].clone());
+        settle().await;
+
+        release.send(()).expect("release the held departure reply");
+        accept_edits(&runtime, &controls).await;
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.definitions[0].id,
+            "other"
+        );
+        assert_eq!(input(&root).value(), "Other definition");
+        assert_eq!(courtyard_width_input(&root).value(), "10");
+        assert!(
+            root.query_selector("[role='alert']").unwrap().is_none(),
+            "old owner failures never reach the replacement definition"
+        );
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
     async fn mounted_failed_save_returns_the_field_to_the_accepted_value_with_a_message() {
         let (runtime, snapshot, _scope, state, root) =
             mount_panel(courtyard_document("Courtyard"), false).await;
@@ -1579,9 +1780,9 @@ mod mounted_tests {
         let (entered, release) = support::gate_next_core_reply(&runtime);
         let mut deleted = snapshot.document.as_ref().clone();
         deleted.definitions.clear();
-        runtime.submit(AppEvent::Edit {
-            operation_id: runtime.operation(),
-            command: boardstudio_core::model::EditCommand {
+        support::submit_fixed_command(
+            &runtime,
+            boardstudio_core::model::EditCommand {
                 base_revision: snapshot.document.revision,
                 transaction_id: "delete-definition-before-queued-edit".into(),
                 phase: boardstudio_core::model::EditPhase::Commit,
@@ -1590,7 +1791,7 @@ mod mounted_tests {
                     document: Box::new(deleted),
                 },
             },
-        });
+        );
         support::drive_pending(&runtime);
         entered
             .await
@@ -1738,16 +1939,7 @@ mod mounted_tests {
         );
 
         assert!(section_is_open(&root));
-        web_sys::window()
-            .unwrap()
-            .document()
-            .unwrap()
-            .query_selector("details summary")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap()
-            .click();
+        section_trigger(&root).click();
         settle().await;
         assert!(!section_is_open(&root));
 

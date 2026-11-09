@@ -1,4 +1,5 @@
 //! Queued PCB edits exercise the real Session/Core and saving adapter.
+use super::test_fixtures::{test_definition, test_part};
 use super::*;
 use crate::runtime::{Runtime, project_name_test_support as support};
 use boardstudio_application::{EditResolver, Event, Resolution};
@@ -6,7 +7,12 @@ use boardstudio_core::{
     electrical::{self, ElectricalPlanRequest},
     model::*,
 };
-use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
+use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until_step};
+use std::{
+    cell::{Cell, RefCell},
+    collections::BTreeMap,
+    rc::Rc,
+};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
 
@@ -18,6 +24,8 @@ struct Probe {
     pins: Rc<RefCell<Option<PcbWiringPinActions>>>,
     apply: Rc<RefCell<Option<BoardWiringApplyActions>>>,
     nets: Rc<RefCell<Option<PartNetActions>>>,
+    /// The accepted revision the host rendered last: Core state reaches a hook only through a render.
+    rendered_revision: Rc<Cell<u64>>,
 }
 
 fn plan(document: &ProjectDoc) -> Rc<ElectricalPlan> {
@@ -54,6 +62,7 @@ fn host() -> Element {
     let workspace = use_signal(|| "PCB");
     let generation = use_signal(|| 0u64);
     let accepted = runtime.model().accepted.unwrap();
+    probe.rendered_revision.set(accepted.document.revision);
     let scope = runtime.scope().unwrap();
     let identity = WiringPlanIdentity {
         scope: scope.clone(),
@@ -134,26 +143,34 @@ fn host() -> Element {
         }),
         Rc::new(|document, intent| {
             Box::pin(async move {
-                boardstudio_web_catalogue::catalogue::prepare_physical_setup_proposal(
-                    &document, intent,
+                // The catalogued mounting-hole template a topology pair needs is the
+                // bundled definition; the resolver recomputes the proposal itself.
+                boardstudio_web_catalogue::bundled::prepare_physical_setup_resources(
+                    document, intent,
                 )
+                .await
             })
         }),
     ));
     let actions = probe.mode.borrow().as_ref().unwrap().clone();
-    let shown_mode = actions
-        .identity
-        .as_ref()
-        .and_then(mode::pending_mode)
-        .unwrap_or_else(|| plan(&accepted.document).mode);
-    let mode_value = if shown_mode == ElectricalMode::Direct {
-        "direct"
-    } else {
-        "matrix"
-    };
-    rsx! { div { select { id: "queued-mode", value: mode_value, disabled: !actions.editable,
-        option { value: "matrix", "Matrix" } option { value: "direct", "Direct GPIO" }
-    } } }
+    let mode_value = (actions.draft)();
+    let nets = probe.nets.borrow().as_ref().unwrap().clone();
+    rsx! { div {
+        select { aria_label: "Queued wiring mode", value: mode_value, disabled: !actions.editable,
+            option { value: "matrix", "Matrix" } option { value: "direct", "Direct GPIO" }
+        }
+        button { id: "queued-create-net", disabled: !nets.editable || nets.create_pending,
+            onclick: move |_| {
+                if let Some(identity) = nets.identity.clone() {
+                    nets.on_edit.call(PartNetEditRequest {
+                        identity,
+                        action: PartNetEditAction::CreateNet { name: "Created signal".into() },
+                    });
+                }
+            },
+            "Add net"
+        }
+    } }
 }
 
 async fn mounted() -> (Probe, web_sys::Element) {
@@ -174,6 +191,7 @@ async fn mounted_with_document(document_fixture: ProjectDoc) -> (Probe, web_sys:
         pins: Rc::new(RefCell::new(None)),
         apply: Rc::new(RefCell::new(None)),
         nets: Rc::new(RefCell::new(None)),
+        rendered_revision: Rc::new(Cell::new(0)),
     };
     let document = web_sys::window().unwrap().document().unwrap();
     let root = document.create_element("div").unwrap();
@@ -190,11 +208,30 @@ async fn mounted_with_document(document_fixture: ProjectDoc) -> (Probe, web_sys:
 async fn rendered() {
     gloo_timers::future::TimeoutFuture::new(30).await;
 }
-async fn settle(runtime: &Rc<Runtime>) {
-    for _ in 0..12 {
+/// Drains held effects, then waits until `done` holds: the state the assertion after it needs.
+async fn settle_until(runtime: &Rc<Runtime>, what: &str, done: impl Fn() -> bool) {
+    wait_until_step(what, async || {
         support::run_pending(runtime).await;
-        rendered().await;
-    }
+        done()
+    })
+    .await;
+}
+/// Whether the host has rendered the revision Core accepted last (hook state is current).
+fn rendered_accepted(probe: &Probe) -> bool {
+    probe.rendered_revision.get() == probe.runtime.model().accepted.unwrap().document.revision
+}
+/// The left board's configuration, once the landed document has one.
+fn configuration_if_present(runtime: &Runtime) -> Option<ElectricalBoardConfiguration> {
+    runtime
+        .model()
+        .accepted?
+        .document
+        .hardware
+        .as_ref()?
+        .boards
+        .iter()
+        .find(|board| board.board_id == "left")
+        .cloned()
 }
 fn configuration(runtime: &Runtime) -> ElectricalBoardConfiguration {
     runtime
@@ -224,12 +261,21 @@ async fn wiring_mode_and_peripheral_pin_lock_queue_and_undo_in_order() {
         .next()
         .unwrap()
         .clone();
-    let direct = crate::pcb_wiring_mode_operation::propose_mode(
-        &accepted.document,
-        "left",
-        ElectricalMode::Direct,
-    )
-    .unwrap();
+    let mut direct = (*accepted.document).clone();
+    let hardware = direct.hardware.get_or_insert_with(Default::default);
+    if let Some(configuration) = hardware
+        .boards
+        .iter_mut()
+        .find(|configuration| configuration.board_id == "left")
+    {
+        configuration.mode = ElectricalMode::Direct;
+    } else {
+        hardware.boards.push(ElectricalBoardConfiguration {
+            board_id: "left".into(),
+            mode: ElectricalMode::Direct,
+            ..Default::default()
+        });
+    }
     let direct_plan = plan(&direct);
     let pin = first_plan
         .free_pins
@@ -246,9 +292,7 @@ async fn wiring_mode_and_peripheral_pin_lock_queue_and_undo_in_order() {
     support::drive_pending(runtime);
     entered.await.unwrap();
     rendered().await;
-    let displayed = root
-        .query_selector("#queued-mode")
-        .unwrap()
+    let displayed = by_role_name(&root, "combobox", "Queued wiring mode")
         .unwrap()
         .dyn_into::<web_sys::HtmlSelectElement>()
         .unwrap();
@@ -262,21 +306,53 @@ async fn wiring_mode_and_peripheral_pin_lock_queue_and_undo_in_order() {
         pin: Some(pin.clone()),
     });
     release.send(()).unwrap();
-    settle(runtime).await;
+    settle_until(
+        runtime,
+        "the held layer edit lands with its mode and lock",
+        || {
+            configuration_if_present(runtime).is_some_and(|config| {
+                config.mode == ElectricalMode::Direct && config.locks.get(&assignment) == Some(&pin)
+            })
+        },
+    )
+    .await;
     let config = configuration(runtime);
     assert_eq!(config.mode, ElectricalMode::Direct);
     assert_eq!(config.locks.get(&assignment), Some(&pin));
     runtime.submit(Event::Undo {
         operation_id: runtime.operation(),
     });
-    settle(runtime).await;
+    settle_until(
+        runtime,
+        "the undo removes the lock and keeps the mode",
+        || {
+            configuration_if_present(runtime).is_some_and(|config| {
+                config.mode == ElectricalMode::Direct && !config.locks.contains_key(&assignment)
+            })
+        },
+    )
+    .await;
     let config = configuration(runtime);
     assert_eq!(config.mode, ElectricalMode::Direct);
     assert!(!config.locks.contains_key(&assignment));
     runtime.submit(Event::Undo {
         operation_id: runtime.operation(),
     });
-    settle(runtime).await;
+    settle_until(
+        runtime,
+        "the second undo clears the board configuration",
+        || {
+            runtime
+                .model()
+                .accepted
+                .unwrap()
+                .document
+                .hardware
+                .as_ref()
+                .is_none_or(|hardware| hardware.boards.is_empty())
+        },
+    )
+    .await;
     assert!(
         runtime
             .model()
@@ -286,6 +362,164 @@ async fn wiring_mode_and_peripheral_pin_lock_queue_and_undo_in_order() {
             .hardware
             .as_ref()
             .is_none_or(|hardware| hardware.boards.is_empty())
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn create_net_disables_while_held_and_refuses_a_retained_duplicate_but_allows_assignment() {
+    let (probe, root) = mounted().await;
+    let runtime = &probe.runtime;
+    runtime.submit(Event::SelectParts {
+        operation_id: runtime.operation(),
+        part_ids: vec!["connector".into()],
+        range_part_ids: vec![],
+        mode: boardstudio_application::SelectionMode::Replace,
+    });
+    rendered().await;
+    let actions = probe.nets.borrow().as_ref().unwrap().clone();
+    let identity = actions.identity.unwrap();
+    let create = PartNetEditRequest {
+        identity: identity.clone(),
+        action: PartNetEditAction::CreateNet {
+            name: "Created signal".into(),
+        },
+    };
+    let (entered, release) = support::gate_next_core_reply(runtime);
+    let button = by_role_name(&root, "button", "Add net").unwrap();
+    assert!(!button.has_attribute("disabled"));
+    button.click();
+    rendered().await;
+    support::drive_pending(runtime);
+    entered.await.unwrap();
+    rendered().await;
+    assert!(
+        button.has_attribute("disabled"),
+        "the submitted one-shot disables its control"
+    );
+    assert!(probe.nets.borrow().as_ref().unwrap().feedback.is_none());
+    actions.on_edit.call(create);
+    actions.on_edit.call(PartNetEditRequest {
+        identity,
+        action: PartNetEditAction::AssignPads {
+            pad_ids: vec!["1".into()],
+            net_id: Some("net".into()),
+        },
+    });
+    rendered().await;
+    assert!(
+        button.has_attribute("disabled"),
+        "a field edit does not release the action"
+    );
+    release.send(()).unwrap();
+    settle_until(
+        runtime,
+        "the net creation and the queued pad assignment land and the action re-enables",
+        || {
+            let document = runtime.model().accepted.unwrap().document;
+            document
+                .nets
+                .iter()
+                .filter(|net| net.name == "Created signal")
+                .count()
+                == 1
+                && document
+                    .nets
+                    .iter()
+                    .find(|net| net.id == "net")
+                    .is_some_and(|net| net.pins.iter().any(|pin| pin.part_id == "connector"))
+                && rendered_accepted(&probe)
+                && !button.has_attribute("disabled")
+        },
+    )
+    .await;
+    let document = runtime.model().accepted.unwrap().document;
+    assert_eq!(
+        document
+            .nets
+            .iter()
+            .filter(|net| net.name == "Created signal")
+            .count(),
+        1,
+        "the retained handler cannot submit a second creation"
+    );
+    assert!(
+        document
+            .nets
+            .iter()
+            .find(|net| net.id == "net")
+            .unwrap()
+            .pins
+            .iter()
+            .any(|pin| pin.part_id == "connector")
+    );
+    assert!(
+        !button.has_attribute("disabled"),
+        "landing makes the action available again"
+    );
+    assert!(
+        probe.nets.borrow().as_ref().unwrap().feedback.is_none(),
+        "landing is silent"
+    );
+    runtime.submit(Event::Undo {
+        operation_id: runtime.operation(),
+    });
+    settle_until(runtime, "the undo clears the net pins", || {
+        runtime
+            .model()
+            .accepted
+            .unwrap()
+            .document
+            .nets
+            .iter()
+            .find(|net| net.id == "net")
+            .unwrap()
+            .pins
+            .is_empty()
+    })
+    .await;
+    let document = runtime.model().accepted.unwrap().document;
+    assert!(
+        document
+            .nets
+            .iter()
+            .find(|net| net.id == "net")
+            .unwrap()
+            .pins
+            .is_empty()
+    );
+    assert_eq!(
+        document
+            .nets
+            .iter()
+            .filter(|net| net.name == "Created signal")
+            .count(),
+        1,
+        "Undo removes the later assignment before the created net"
+    );
+    runtime.submit(Event::Undo {
+        operation_id: runtime.operation(),
+    });
+    settle_until(runtime, "the undo removes the created signal", || {
+        !runtime
+            .model()
+            .accepted
+            .unwrap()
+            .document
+            .nets
+            .iter()
+            .any(|net| net.name == "Created signal")
+    })
+    .await;
+    assert!(
+        !runtime
+            .model()
+            .accepted
+            .unwrap()
+            .document
+            .nets
+            .iter()
+            .any(|net| net.name == "Created signal")
     );
     root.remove();
 }
@@ -317,15 +551,12 @@ async fn part_net_assignment_queued_behind_layout_preserves_both_edits_and_undo(
                     .pose
                     .at
                     .x = 40.0;
-                Resolution::Submit(EditCommand {
-                    base_revision: accepted.document.revision,
-                    transaction_id: String::new(),
-                    phase: EditPhase::Commit,
-                    target_ids: vec!["connector".into()],
-                    operation: EditOperation::ReplaceDocument {
+                Resolution::submit(
+                    vec!["connector".into()],
+                    EditOperation::ReplaceDocument {
                         document: Box::new(document),
                     },
-                })
+                )
             },
         ),
     });
@@ -341,7 +572,27 @@ async fn part_net_assignment_queued_behind_layout_preserves_both_edits_and_undo(
         },
     });
     release.send(()).unwrap();
-    settle(runtime).await;
+    settle_until(
+        runtime,
+        "the layout move and the pad assignment both land",
+        || {
+            let document = runtime.model().accepted.unwrap().document;
+            document
+                .parts
+                .iter()
+                .find(|part| part.id == "connector")
+                .unwrap()
+                .pose
+                .at
+                .x
+                == 40.0
+                && document.nets[0]
+                    .pins
+                    .iter()
+                    .any(|pin| pin.part_id == "connector")
+        },
+    )
+    .await;
     let doc = runtime.model().accepted.unwrap().document;
     assert_eq!(
         doc.parts
@@ -362,7 +613,12 @@ async fn part_net_assignment_queued_behind_layout_preserves_both_edits_and_undo(
     runtime.submit(Event::Undo {
         operation_id: runtime.operation(),
     });
-    settle(runtime).await;
+    settle_until(runtime, "the undo clears the net pins", || {
+        runtime.model().accepted.unwrap().document.nets[0]
+            .pins
+            .is_empty()
+    })
+    .await;
     assert!(
         runtime.model().accepted.unwrap().document.nets[0]
             .pins
@@ -386,7 +642,22 @@ async fn part_net_assignment_queued_behind_layout_preserves_both_edits_and_undo(
     runtime.submit(Event::Undo {
         operation_id: runtime.operation(),
     });
-    settle(runtime).await;
+    settle_until(runtime, "the undo returns the connector", || {
+        runtime
+            .model()
+            .accepted
+            .unwrap()
+            .document
+            .parts
+            .iter()
+            .find(|part| part.id == "connector")
+            .unwrap()
+            .pose
+            .at
+            .x
+            == 0.0
+    })
+    .await;
     assert_eq!(
         runtime
             .model()
@@ -413,9 +684,9 @@ async fn plan_queued_behind_part_deletion_is_refused_and_does_not_restore_the_pa
     let (probe, root) = mounted_with_document(fixture).await;
     let runtime = &probe.runtime;
     let (entered, release) = support::gate_next_core_reply(runtime);
-    runtime.submit(Event::Edit {
-        operation_id: runtime.operation(),
-        command: EditCommand {
+    support::submit_fixed_command(
+        runtime,
+        EditCommand {
             base_revision: runtime.model().accepted.unwrap().document.revision,
             transaction_id: "delete-controller".into(),
             phase: EditPhase::Commit,
@@ -424,7 +695,7 @@ async fn plan_queued_behind_part_deletion_is_refused_and_does_not_restore_the_pa
                 ids: vec!["mcu-left".into()],
             },
         },
-    });
+    );
     support::drive_pending(runtime);
     entered.await.unwrap();
     rendered().await;
@@ -439,7 +710,29 @@ async fn plan_queued_behind_part_deletion_is_refused_and_does_not_restore_the_pa
     assert!(!probe.apply.borrow().as_ref().unwrap().editable);
     assert!(probe.mode.borrow().as_ref().unwrap().editable);
     release.send(()).unwrap();
-    settle(runtime).await;
+    settle_until(
+        runtime,
+        "the accepted edit removes the mcu part and the refused apply reports",
+        || {
+            !runtime
+                .model()
+                .accepted
+                .unwrap()
+                .document
+                .parts
+                .iter()
+                .any(|part| part.id == "mcu-left")
+                && probe
+                    .apply
+                    .borrow()
+                    .as_ref()
+                    .unwrap()
+                    .failure
+                    .as_deref()
+                    .is_some_and(|message| message.contains("deleted"))
+        },
+    )
+    .await;
     assert!(
         !runtime
             .model()
@@ -451,13 +744,30 @@ async fn plan_queued_behind_part_deletion_is_refused_and_does_not_restore_the_pa
             .any(|part| part.id == "mcu-left")
     );
     assert!(
-        matches!(&probe.apply.borrow().as_ref().unwrap().feedback.as_ref().unwrap().state,
-        BoardWiringApplyFeedback::Failed(message) if message.contains("deleted"))
+        probe
+            .apply
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .failure
+            .as_deref()
+            .is_some_and(|message| message.contains("deleted")),
+        "the refused apply reports its failure inline"
     );
     runtime.submit(Event::Undo {
         operation_id: runtime.operation(),
     });
-    settle(runtime).await;
+    settle_until(runtime, "the undo restores the mcu part", || {
+        runtime
+            .model()
+            .accepted
+            .unwrap()
+            .document
+            .parts
+            .iter()
+            .any(|part| part.id == "mcu-left")
+    })
+    .await;
     assert!(
         runtime
             .model()
@@ -481,7 +791,10 @@ async fn failed_field_ticket_restores_accepted_value_and_keeps_feedback_across_a
         identity: actions.identity.unwrap(),
         mode: ElectricalMode::Direct,
     });
-    settle(runtime).await;
+    settle_until(runtime, "the refused mode edit reports its failure", || {
+        (probe.mode.borrow().as_ref().unwrap().failure)().is_some()
+    })
+    .await;
     assert!(
         runtime
             .model()
@@ -492,10 +805,14 @@ async fn failed_field_ticket_restores_accepted_value_and_keeps_feedback_across_a
             .as_ref()
             .is_none_or(|hardware| hardware.boards.is_empty())
     );
-    assert!(
-        matches!(&probe.mode.borrow().as_ref().unwrap().feedback.as_ref().unwrap().state,
-        BoardWiringModeFeedback::Failed(message) if message == "The wiring mode change could not be applied: injected wiring refusal")
+    assert_eq!(
+        (probe.mode.borrow().as_ref().unwrap().failure)().as_deref(),
+        Some("The wiring mode change could not be applied: injected wiring refusal"),
+        "the failure stays inline"
     );
+    // An executor failure requires recovery; a subsequent edit is correctly blocked until the
+    // accepted document is recovered, so this check covers that blocked attempt only.
+    let unrelated = support::observe_next(runtime);
     runtime.submit(Event::ResolveEdit {
         operation_id: runtime.operation(),
         label: "unrelated-name".into(),
@@ -504,39 +821,49 @@ async fn failed_field_ticket_restores_accepted_value_and_keeps_feedback_across_a
             |accepted: &boardstudio_application::AcceptedSnapshot| {
                 let mut document = (*accepted.document).clone();
                 document.name = "Later name".into();
-                Resolution::Submit(EditCommand {
-                    base_revision: accepted.document.revision,
-                    transaction_id: String::new(),
-                    phase: EditPhase::Commit,
-                    target_ids: vec![],
-                    operation: EditOperation::ReplaceDocument {
+                Resolution::submit(
+                    vec![],
+                    EditOperation::ReplaceDocument {
                         document: Box::new(document),
                     },
-                })
+                )
             },
         ),
     });
-    settle(runtime).await;
-    assert!(matches!(
-        &probe
-            .mode
-            .borrow()
-            .as_ref()
-            .unwrap()
-            .feedback
-            .as_ref()
-            .unwrap()
-            .state,
-        BoardWiringModeFeedback::Failed(_)
-    ));
+    settle_until(runtime, "the unrelated edit is blocked by recovery", || {
+        unrelated.borrow().is_some()
+    })
+    .await;
+    assert_eq!(
+        *unrelated.borrow(),
+        Some(boardstudio_application::TerminalOutcome::BlockedByRecovery(
+            "save recovery is required".into()
+        )),
+        "the unrelated edit waits for recovery"
+    );
+    assert_eq!(
+        runtime.model().accepted.unwrap().document.name,
+        "Mode test",
+        "the blocked edit does not change the accepted document"
+    );
+    assert!(
+        (probe.mode.borrow().as_ref().unwrap().failure)().is_some(),
+        "a blocked edit leaves the existing field failure visible"
+    );
     runtime.submit(Event::SelectParts {
         operation_id: runtime.operation(),
         part_ids: vec!["connector".into()],
         range_part_ids: vec![],
         mode: boardstudio_application::SelectionMode::Replace,
     });
-    settle(runtime).await;
-    assert!(probe.mode.borrow().as_ref().unwrap().feedback.is_none());
+    settle_until(runtime, "a different target shows no failure", || {
+        (probe.mode.borrow().as_ref().unwrap().failure)().is_none()
+    })
+    .await;
+    assert!(
+        (probe.mode.borrow().as_ref().unwrap().failure)().is_none(),
+        "a different target shows only its own failure"
+    );
     root.remove();
 }
 
@@ -553,15 +880,12 @@ async fn physical_topology_queued_behind_another_edit_preserves_it_and_undo() {
             |accepted: &boardstudio_application::AcceptedSnapshot| {
                 let mut document = (*accepted.document).clone();
                 document.name = "Layout name".into();
-                Resolution::Submit(EditCommand {
-                    base_revision: accepted.document.revision,
-                    transaction_id: String::new(),
-                    phase: EditPhase::Commit,
-                    target_ids: vec![],
-                    operation: EditOperation::ReplaceDocument {
+                Resolution::submit(
+                    vec![],
+                    EditOperation::ReplaceDocument {
                         document: Box::new(document),
                     },
-                })
+                )
             },
         ),
     });
@@ -578,17 +902,45 @@ async fn physical_topology_queued_behind_another_edit_preserves_it_and_undo() {
     assert!(probe.setup.borrow().as_ref().unwrap().projection.busy);
     assert!(probe.mode.borrow().as_ref().unwrap().editable);
     release.send(()).unwrap();
-    settle(runtime).await;
+    settle_until(runtime, "the layout name and split topology land", || {
+        let accepted = runtime.model().accepted.unwrap();
+        accepted.document.name == "Layout name"
+            && accepted.document.hardware.as_ref().unwrap().topology == HardwareTopology::Split
+    })
+    .await;
     let accepted = runtime.model().accepted.unwrap();
     assert_eq!(accepted.document.name, "Layout name");
     assert_eq!(
         accepted.document.hardware.as_ref().unwrap().topology,
         HardwareTopology::Split
     );
+    assert!(
+        !accepted
+            .document
+            .hardware
+            .as_ref()
+            .unwrap()
+            .instances
+            .is_empty(),
+        "the split projected instances, so the undo wait below starts from a state it can change"
+    );
     runtime.submit(Event::Undo {
         operation_id: runtime.operation(),
     });
-    settle(runtime).await;
+    settle_until(
+        runtime,
+        "the undo keeps the name and removes the instances",
+        || {
+            let accepted = runtime.model().accepted.unwrap();
+            accepted.document.name == "Layout name"
+                && accepted
+                    .document
+                    .hardware
+                    .as_ref()
+                    .is_none_or(|hardware| hardware.instances.is_empty())
+        },
+    )
+    .await;
     let accepted = runtime.model().accepted.unwrap();
     assert_eq!(accepted.document.name, "Layout name");
     assert!(
@@ -601,109 +953,16 @@ async fn physical_topology_queued_behind_another_edit_preserves_it_and_undo() {
     runtime.submit(Event::Undo {
         operation_id: runtime.operation(),
     });
-    settle(runtime).await;
+    settle_until(runtime, "the undo restores the mode test name", || {
+        runtime.model().accepted.unwrap().document.name == "Mode test"
+    })
+    .await;
     assert_eq!(runtime.model().accepted.unwrap().document.name, "Mode test");
     root.remove();
 }
 
 fn document() -> ProjectDoc {
-    let mut document = ProjectDoc::empty("project", "Mode test");
-    document.definitions.push(test_definition(
-        "switch-definition",
-        PartKind::Switch,
-        BTreeMap::from([
-            ("row".into(), vec!["1".into()]),
-            ("column".into(), vec!["2".into()]),
-        ]),
-        Some(MatrixTerminals {
-            row: "row".into(),
-            column: "column".into(),
-        }),
-        None,
-    ));
-    document.definitions.push(test_definition(
-        "diode-definition",
-        PartKind::Passive,
-        BTreeMap::from([
-            ("anode".into(), vec!["A".into()]),
-            ("cathode".into(), vec!["K".into()]),
-        ]),
-        None,
-        None,
-    ));
-    document.definitions.push(test_definition(
-        "mcu-definition",
-        PartKind::Controller,
-        [
-            "GND", "P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8", "P9", "P10", "P14", "P15",
-            "P16", "P18", "P19", "P20", "P21",
-        ]
-        .into_iter()
-        .map(|pin| (pin.to_owned(), vec![pin.to_owned()]))
-        .collect(),
-        None,
-        Some("ceoloide/mcu_nice_nano"),
-    ));
-    let electrical_parts = [
-        test_part("matrix/m/r0c0", "switch-definition"),
-        test_part("matrix/m/r0c0/diode", "diode-definition"),
-        test_part("mcu-left", "mcu-definition"),
-    ];
-    document.boards.push(Board {
-        id: "left".into(),
-        name: "Left".into(),
-        outline_ids: vec![],
-        part_ids: electrical_parts
-            .iter()
-            .map(|part| part.id.clone())
-            .collect(),
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
-    });
-    document.parts.extend(electrical_parts);
-    document.boards.push(Board {
-        id: "right".into(),
-        name: "Right".into(),
-        outline_ids: vec![],
-        part_ids: vec![],
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
-    });
-    document.matrices.push(Matrix {
-        id: "m".into(),
-        name: None,
-        rows: 1,
-        columns: 1,
-        pitch: Vec2 { x: 19.0, y: 19.0 },
-        origin: Vec2::default(),
-        definition_id: "switch-definition".into(),
-        part_ids: vec!["matrix/m/r0c0".into(), "matrix/m/r0c0/diode".into()],
-        board_id: Some("left".into()),
-        mirror: None,
-        rotation: None,
-        edge_gap: None,
-        diode_direction: Some(DiodeDirection::Row2col),
-        row_offsets: vec![],
-        column_offsets: vec![],
-        column_staggers: vec![],
-        column_splays: vec![],
-        column_origins: vec![],
-        cells: vec![MatrixCell {
-            row: 0,
-            column: 0,
-            enabled: true,
-            definition_id: Some("switch-definition".into()),
-            variant: None,
-            offset: None,
-            rotation: None,
-            assemblies: vec![],
-            assemblies_local: None,
-        }],
-    });
+    let mut document = super::test_fixtures::document();
     let mut encoder = test_definition(
         "encoder",
         PartKind::Utility,
@@ -739,69 +998,4 @@ fn document() -> ProjectDoc {
     });
     document.boards[0].net_ids.push("net".into());
     document
-}
-
-fn test_part(id: &str, definition_id: &str) -> Part {
-    Part {
-        id: id.into(),
-        definition_id: definition_id.into(),
-        reference: id.into(),
-        pose: Pose2 {
-            at: Vec2::default(),
-            rotation: 0.0,
-        },
-        side: Side::Front,
-        locked: None,
-        keycap: None,
-        outline: None,
-        properties: None,
-        generator_parameters: None,
-    }
-}
-
-fn test_definition(
-    id: &str,
-    kind: PartKind,
-    terminals: BTreeMap<String, Vec<String>>,
-    matrix_terminals: Option<MatrixTerminals>,
-    generator_source: Option<&str>,
-) -> PartDefinition {
-    let pads = terminals
-        .values()
-        .flatten()
-        .map(|id| Pad {
-            id: id.clone(),
-            number: id.clone(),
-            at: Vec2::default(),
-            size: Vec2 { x: 1.0, y: 1.0 },
-            shape: PadShape::Circle,
-            drill: None,
-            plated: Some(true),
-            side: None,
-            rotation: None,
-            net_id: None,
-        })
-        .collect();
-    PartDefinition {
-        hardware_profile: None,
-        input_profile: None,
-        id: id.into(),
-        name: id.into(),
-        kind,
-        keycap: None,
-        envelope_source: None,
-        kicad_source: None,
-        terminals,
-        matrix_terminals,
-        envelope_notice: None,
-        courtyard: vec![],
-        pads,
-        models: None,
-        generator: generator_source.map(|source| PartGenerator {
-            source: source.into(),
-            version: "test".into(),
-            parameters: BTreeMap::new(),
-        }),
-        mechanical_profile: None,
-    }
 }

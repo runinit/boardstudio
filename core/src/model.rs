@@ -12,9 +12,21 @@ pub use crate::modules::{
     ResolvedModulePad, VikSignal,
 };
 pub use boardstudio_contracts::{
+    AffineTransformError, CadStepImportOptions, MAX_COORDINATE_MM, is_sha256_hex,
+    validate_affine_row_transform,
+};
+pub use boardstudio_contracts::{
+    CaseAssemblyIR, CaseBody, CaseFeature, CaseIR, CaseKind, CaseOpening, CasePcbCircularSupport,
+    CasePcbSlot, CasePcbSource, CasePcbSourceContour, CasePcbSourcePrimitive, Contour, Gasket,
+    Mount, MountKind, PreparedCaseAssemblyIR, PreparedCaseIR, PreparedCaseRegion,
+    PreparedGasketRegion,
+};
+pub use boardstudio_contracts::{
     KeycapBoardSettings, KeycapConfiguration, KeycapKeySettings, KeycapMatrixSettings, KeycapMount,
     KeycapProfile, KeycapSpec, Pose2, Side, Vec2,
 };
+pub use boardstudio_contracts::{MechanicalDrillShape, MechanicalShape};
+pub use boardstudio_contracts::{polygon_contains, polygon_signed_area};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -223,6 +235,12 @@ pub struct Part {
     pub reference: String,
     pub pose: Pose2,
     pub side: Side,
+    /// Ticket 13: column-vocabulary anchor for an independent part. `None` is
+    /// a detached part placed from the half origin; `Some` derives the
+    /// evaluated pose from the anchor key, so anchor edits move the part.
+    /// Ignored while the part is a matrix member or generated companion.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub anchor: Option<PartAnchor>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub locked: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -232,6 +250,38 @@ pub struct Part {
         skip_serializing_if = "Option::is_none"
     )]
     pub generator_parameters: Option<BTreeMap<String, serde_json::Value>>,
+}
+
+/// Ticket 13: an independent part's placement in the column vocabulary. The
+/// part follows the anchor key's pose through the Follow subset; Spread,
+/// Stagger and Splay carry in the anchor frame, then Offset and Rotation
+/// apply for the part alone. `matrix_id` names the anchor key's matrix, which
+/// must live in the part's own layout.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct PartAnchor {
+    pub matrix_id: String,
+    pub row: u32,
+    pub column: u32,
+    pub follow: Follow,
+    pub spread: f64,
+    pub stagger: f64,
+    pub splay: f64,
+    pub offset: Vec2,
+    pub rotation: f64,
+}
+
+/// Ticket 13: one typed edit to an anchored part's carried or local values.
+/// Spread/Stagger/Splay carry from the anchor; Offset/Rotation are the part's
+/// own. Anchor retargets, Follow changes and Detach are separate operations
+/// because they re-solve the values to keep the pose.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum PartAnchorValueChange {
+    Spread(f64),
+    Stagger(f64),
+    Splay(f64),
+    Offset(Vec2),
+    Rotation(f64),
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Pin {
@@ -270,38 +320,29 @@ pub struct Matrix {
     pub edge_gap: Option<Vec2>,
     #[serde(rename = "diodeDirection", skip_serializing_if = "Option::is_none")]
     pub diode_direction: Option<DiodeDirection>,
-    #[serde(rename = "rowOffsets", default, skip_serializing_if = "Vec::is_empty")]
-    pub row_offsets: Vec<Vec2>,
     #[serde(
-        rename = "columnOffsets",
+        rename = "columnLayout",
         default,
         skip_serializing_if = "Vec::is_empty"
     )]
-    pub column_offsets: Vec<Vec2>,
-    #[serde(
-        rename = "columnStaggers",
-        default,
-        skip_serializing_if = "Vec::is_empty"
-    )]
-    pub column_staggers: Vec<f64>,
-    #[serde(
-        rename = "columnSplays",
-        default,
-        skip_serializing_if = "Vec::is_empty"
-    )]
-    pub column_splays: Vec<f64>,
-    #[serde(
-        rename = "columnOrigins",
-        default,
-        skip_serializing_if = "Vec::is_empty"
-    )]
-    pub column_origins: Vec<Option<Vec2>>,
+    pub column_layout: Vec<ColumnLayout>,
+    #[serde(rename = "rowLayout", default, skip_serializing_if = "Vec::is_empty")]
+    pub row_layout: Vec<RowLayout>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub anchor: Option<MatrixAnchor>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub cells: Vec<MatrixCell>,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MatrixCell {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shift: Option<Vec2>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bend: Option<f64>,
+    /// Removed slots have neither generated members nor snapping geometry.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub deleted: bool,
     pub row: u32,
     pub column: u32,
     pub enabled: bool,
@@ -321,6 +362,273 @@ pub struct MatrixCell {
         skip_serializing_if = "Option::is_none"
     )]
     pub assemblies_local: Option<bool>,
+}
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default, deny_unknown_fields)]
+pub struct ColumnLayout {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub spread: Option<f64>,
+    #[serde(skip_serializing_if = "is_zero_f64")]
+    pub stagger: f64,
+    #[serde(skip_serializing_if = "is_zero_f64")]
+    pub splay: f64,
+    #[serde(skip_serializing_if = "is_zero_f64")]
+    pub rotation: f64,
+    #[serde(skip_serializing_if = "is_zero_vec2")]
+    pub splay_origin: Vec2,
+    #[serde(skip_serializing_if = "is_zero_vec2")]
+    pub offset: Vec2,
+}
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default, deny_unknown_fields)]
+pub struct RowLayout {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub padding: Option<f64>,
+    #[serde(skip_serializing_if = "is_zero_vec2")]
+    pub shift: Vec2,
+    #[serde(skip_serializing_if = "is_zero_f64")]
+    pub bend: f64,
+    #[serde(skip_serializing_if = "is_zero_vec2")]
+    pub offset: Vec2,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(try_from = "Vec<FollowComponent>", into = "Vec<FollowComponent>")]
+pub struct Follow {
+    pub x: bool,
+    pub y: bool,
+    pub rotation: bool,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum FollowComponent {
+    X,
+    Y,
+    Rotation,
+}
+impl TryFrom<Vec<FollowComponent>> for Follow {
+    type Error = &'static str;
+    fn try_from(values: Vec<FollowComponent>) -> Result<Self, Self::Error> {
+        for (index, value) in values.iter().enumerate() {
+            if values[..index].contains(value) {
+                return Err("Follow components must be unique");
+            }
+        }
+        Ok(Self {
+            x: values.contains(&FollowComponent::X),
+            y: values.contains(&FollowComponent::Y),
+            rotation: values.contains(&FollowComponent::Rotation),
+        })
+    }
+}
+impl From<Follow> for Vec<FollowComponent> {
+    fn from(follow: Follow) -> Self {
+        [
+            (follow.x, FollowComponent::X),
+            (follow.y, FollowComponent::Y),
+            (follow.rotation, FollowComponent::Rotation),
+        ]
+        .into_iter()
+        .filter_map(|(enabled, component)| enabled.then_some(component))
+        .collect()
+    }
+}
+impl Default for Follow {
+    fn default() -> Self {
+        Self {
+            x: true,
+            y: true,
+            rotation: true,
+        }
+    }
+}
+/// Stored anchor target: the `single | aggregate` union from ticket 28
+/// (`anchor.target: { single: {matrixId,row,column} } | { aggregate: {...} }`
+/// with top-level `follow` unchanged). The untagged document grammar keeps
+/// the flat shape so saved single-key anchors open byte-identical: a bare
+/// `{matrixId,row,column,follow}` document is the single arm, a
+/// `{follow,aggregate}` document is the aggregate arm, and a document naming
+/// both arms is refused at admission, matching upstream's ref+aggregate
+/// throw. The arms are matched explicitly (rather than with an untagged
+/// enum) so each arm's inner refusal — e.g. the unknown aggregate method —
+/// keeps its own error instead of collapsing into an untagged mismatch.
+#[derive(Clone, Debug, PartialEq)]
+pub struct MatrixAnchor {
+    /// Single-key target. Inert while the aggregate arm is present: the
+    /// admission grammar never populates both arms, so in-memory single
+    /// fields on an aggregate anchor stay empty/zero and `targets()` never
+    /// reads them. Inert fields are also omitted when an aggregate anchor
+    /// serializes, so saved aggregate anchors reopen.
+    pub matrix_id: String,
+    pub row: u32,
+    pub column: u32,
+    pub follow: Follow,
+    /// Aggregate arm (average / intersection over single-key parts). When
+    /// present, evaluation resolves every part and combines the poses before
+    /// Origin/Rotation and Follow apply; the single-key fields above are
+    /// ignored. Parts are single-key refs only: nesting is unrepresentable.
+    pub aggregate: Option<AggregateAnchor>,
+}
+
+impl serde::Serialize for MatrixAnchor {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeStruct;
+        match &self.aggregate {
+            None => {
+                let mut anchor = serializer.serialize_struct("MatrixAnchor", 4)?;
+                anchor.serialize_field("matrixId", &self.matrix_id)?;
+                anchor.serialize_field("row", &self.row)?;
+                anchor.serialize_field("column", &self.column)?;
+                anchor.serialize_field("follow", &self.follow)?;
+                anchor.end()
+            }
+            Some(aggregate) => {
+                let mut anchor = serializer.serialize_struct("MatrixAnchor", 2)?;
+                anchor.serialize_field("follow", &self.follow)?;
+                anchor.serialize_field("aggregate", aggregate)?;
+                anchor.end()
+            }
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for MatrixAnchor {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        deserializer.deserialize_map(AnchorUnionVisitor)
+    }
+}
+
+struct AnchorUnionVisitor;
+
+impl<'de> serde::de::Visitor<'de> for AnchorUnionVisitor {
+    type Value = MatrixAnchor;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        formatter.write_str(
+            "a single-key anchor {matrixId, row, column, follow} or an aggregate anchor {follow, aggregate}",
+        )
+    }
+
+    fn visit_map<A: serde::de::MapAccess<'de>>(self, mut map: A) -> Result<MatrixAnchor, A::Error> {
+        use serde::de::Error;
+        let mut matrix_id: Option<String> = None;
+        let mut row: Option<u32> = None;
+        let mut column: Option<u32> = None;
+        let mut follow = Follow::default();
+        let mut follow_seen = false;
+        let mut aggregate: Option<AggregateAnchor> = None;
+        while let Some(key) = map.next_key::<String>()? {
+            match key.as_str() {
+                "matrixId" => {
+                    if matrix_id.is_some() {
+                        return Err(A::Error::duplicate_field("matrixId"));
+                    }
+                    matrix_id = Some(map.next_value()?);
+                }
+                "row" => {
+                    if row.is_some() {
+                        return Err(A::Error::duplicate_field("row"));
+                    }
+                    row = Some(map.next_value()?);
+                }
+                "column" => {
+                    if column.is_some() {
+                        return Err(A::Error::duplicate_field("column"));
+                    }
+                    column = Some(map.next_value()?);
+                }
+                "follow" => {
+                    if follow_seen {
+                        return Err(A::Error::duplicate_field("follow"));
+                    }
+                    follow_seen = true;
+                    follow = map.next_value()?;
+                }
+                "aggregate" => {
+                    if aggregate.is_some() {
+                        return Err(A::Error::duplicate_field("aggregate"));
+                    }
+                    aggregate = Some(map.next_value()?);
+                }
+                other => {
+                    return Err(A::Error::unknown_field(
+                        other,
+                        &["matrixId", "row", "column", "follow", "aggregate"],
+                    ));
+                }
+            }
+        }
+        if aggregate.is_some() && (matrix_id.is_some() || row.is_some() || column.is_some()) {
+            return Err(A::Error::custom(
+                "Matrix anchor cannot combine a single-key target (matrixId/row/column) with an aggregate arm; name one target",
+            ));
+        }
+        Ok(MatrixAnchor {
+            matrix_id: matrix_id.unwrap_or_default(),
+            row: row.unwrap_or_default(),
+            column: column.unwrap_or_default(),
+            follow,
+            aggregate,
+        })
+    }
+}
+
+impl MatrixAnchor {
+    /// Every single-key target this anchor resolves: the single key, or each
+    /// aggregate part in order. Evaluation order, cycle walks and part-aware
+    /// guards consume this so aggregates never fall back to the inert
+    /// single-key fields.
+    pub fn targets(&self) -> Vec<AnchorPart> {
+        match &self.aggregate {
+            None => vec![AnchorPart {
+                matrix_id: self.matrix_id.clone(),
+                row: self.row,
+                column: self.column,
+            }],
+            Some(aggregate) => aggregate.parts.clone(),
+        }
+    }
+
+    pub fn is_aggregate(&self) -> bool {
+        self.aggregate.is_some()
+    }
+}
+
+/// Aggregate anchor target: one combined pose from N single-key parts.
+/// Unknown methods are refused at admission; the default is upstream's
+/// `average`. An empty part list parses but refuses at evaluation.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AggregateAnchor {
+    #[serde(default)]
+    pub method: AggregateMethod,
+    #[serde(default)]
+    pub parts: Vec<AnchorPart>,
+}
+
+/// Upstream Ergogen aggregators, nothing else. Deserializing any other
+/// method name fails, which is the unknown-method refusal.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AggregateMethod {
+    #[default]
+    Average,
+    Intersect,
+}
+
+/// One single-key part reference. There is no nested-anchor arm here, so
+/// aggregates cannot nest by construction.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AnchorPart {
+    pub matrix_id: String,
+    pub row: u32,
+    pub column: u32,
+}
+fn is_zero_f64(value: &f64) -> bool {
+    *value == 0.0
+}
+fn is_zero_vec2(value: &Vec2) -> bool {
+    *value == Vec2::default()
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct MatrixAssembly {
@@ -490,6 +798,14 @@ pub struct BoardOutline {
     pub versions: Vec<OutlineVersion>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub generated_last_valid: Option<OutlineSnapshot>,
+    /// Version identities this board used and removed, in removal order.
+    ///
+    /// Core never reissues one, so a pending edit that names a removed version can never
+    /// land on the version created after it. Feature, connection and gap identities are
+    /// namespaced by their version identity, so reserving that identity reserves the
+    /// whole derived namespace. Omitted while empty, which keeps older documents' shape.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub retired_version_ids: Vec<String>,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -498,12 +814,35 @@ pub struct OutlineProvenance {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub version_id: Option<String>,
 }
+/// Who owns a version's boundary shape.
+///
+/// [`OutlineOwnership::Fixed`] is GLOSSARY.md's "edited outline": the geometry stays put
+/// when components move. [`OutlineOwnership::Linked`] is an "outline refinement" that
+/// follows the board's current included components. Absence in a persisted document
+/// means fixed, so existing copies never gain a link and their serialized shape is
+/// unchanged.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum OutlineOwnership {
+    #[default]
+    Fixed,
+    Linked,
+}
+impl OutlineOwnership {
+    /// Serde helper: fixed ownership is the default and is left out of the document.
+    pub fn is_fixed(&self) -> bool {
+        matches!(self, Self::Fixed)
+    }
+}
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct OutlineVersion {
     pub id: String,
     pub name: String,
     pub source: OutlineProvenance,
     pub geometry: OutlineSnapshot,
+    /// Explicit owner of this version's shape; provenance is origin information only.
+    #[serde(default, skip_serializing_if = "OutlineOwnership::is_fixed")]
+    pub ownership: OutlineOwnership,
 }
 /// Fixed world geometry, before corner finishing; source IDs are provenance only.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -595,91 +934,6 @@ pub struct CopperVia {
     pub net_id: Option<String>,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct CaseBody {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub features: Option<Vec<CaseFeature>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub openings: Option<Vec<CaseOpening>>,
-    pub id: String,
-    pub name: String,
-    #[serde(rename = "boardId")]
-    pub board_id: String,
-    pub kind: CaseKind,
-    pub thickness: f64,
-    pub clearance: f64,
-    #[serde(rename = "materialId", skip_serializing_if = "Option::is_none")]
-    pub material_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub z: Option<f64>,
-    #[serde(rename = "wallHeight", skip_serializing_if = "Option::is_none")]
-    pub wall_height: Option<f64>,
-    #[serde(rename = "wallThickness", skip_serializing_if = "Option::is_none")]
-    pub wall_thickness: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub mounts: Option<Vec<Mount>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub gasket: Option<Gasket>,
-}
-/// Exact additions and seats, evaluated after shell cavities and before access openings.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "kebab-case")]
-pub enum CaseFeature {
-    SupportPrism {
-        id: String,
-        points: Vec<Vec2>,
-        z: f64,
-        height: f64,
-    },
-    RoundSeat {
-        id: String,
-        at: Vec2,
-        z: f64,
-        height: f64,
-        diameter: f64,
-    },
-    ConicalSeat {
-        id: String,
-        at: Vec2,
-        z: f64,
-        height: f64,
-        diameter: f64,
-        #[serde(rename = "endDiameter")]
-        end_diameter: f64,
-    },
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct Mount {
-    pub id: String,
-    pub at: Vec2,
-    pub kind: MountKind,
-    #[serde(rename = "holeDiameter")]
-    pub hole_diameter: f64,
-    #[serde(rename = "bossDiameter", skip_serializing_if = "Option::is_none")]
-    pub boss_diameter: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub height: Option<f64>,
-}
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum MountKind {
-    Hole,
-    Boss,
-}
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct Gasket {
-    pub inset: f64,
-    pub width: f64,
-    pub depth: f64,
-}
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum CaseKind {
-    Plate,
-    Tray,
-    Lid,
-}
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Asset {
     pub id: String,
     pub name: String,
@@ -700,8 +954,47 @@ pub struct Script {
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum ConstraintEndpoint {
+    Part {
+        #[serde(rename = "partId")]
+        part_id: String,
+    },
+    LinkedMirror {
+        #[serde(rename = "pairId")]
+        pair_id: String,
+        #[serde(rename = "sourcePartId")]
+        source_part_id: String,
+        #[serde(rename = "mirrorPartId")]
+        mirror_part_id: String,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum ConstraintRelation {
+    /// `offset` is a vector along the board's axes, added to the source position.
+    Offset { offset: Vec2, rotation: f64 },
+    /// `offset` runs along the source's own axes (ADR-0011).
+    PartOffset { offset: Vec2, rotation: f64 },
+    /// Reflection across a line with a point on it and its tangent direction in degrees.
+    MirrorLine { at: Vec2, angle: f64 },
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum Constraint {
     Offset {
+        id: String,
+        #[serde(rename = "sourcePartId")]
+        source_part_id: String,
+        #[serde(rename = "targetPartId")]
+        target_part_id: String,
+        offset: Vec2,
+        rotation: f64,
+    },
+    /// Like `Offset`, but `offset` runs along the source part's own axes, so a target
+    /// held to a turning source keeps its pose in the source's frame. See ADR-0011.
+    PartOffset {
         id: String,
         #[serde(rename = "sourcePartId")]
         source_part_id: String,
@@ -719,27 +1012,161 @@ pub enum Constraint {
         axis: MirrorAxis,
         coordinate: f64,
     },
+    Framed {
+        id: String,
+        source: ConstraintEndpoint,
+        target: ConstraintEndpoint,
+        relation: ConstraintRelation,
+    },
 }
 impl Constraint {
+    /// An offset constraint whose numbers run along `axes`: `Board` builds `offset`, `Part`
+    /// builds `part-offset`.
+    pub fn offset(
+        axes: OffsetAxes,
+        id: String,
+        source_part_id: String,
+        target_part_id: String,
+        offset: Vec2,
+        rotation: f64,
+    ) -> Self {
+        match axes {
+            OffsetAxes::Board => Self::Offset {
+                id,
+                source_part_id,
+                target_part_id,
+                offset,
+                rotation,
+            },
+            OffsetAxes::Part => Self::PartOffset {
+                id,
+                source_part_id,
+                target_part_id,
+                offset,
+                rotation,
+            },
+        }
+    }
     pub fn id(&self) -> &str {
         match self {
-            Self::Offset { id, .. } | Self::Mirror { id, .. } => id,
+            Self::Offset { id, .. }
+            | Self::PartOffset { id, .. }
+            | Self::Mirror { id, .. }
+            | Self::Framed { id, .. } => id,
         }
     }
     pub fn source(&self) -> &str {
         match self {
-            Self::Offset { source_part_id, .. } | Self::Mirror { source_part_id, .. } => {
-                source_part_id
-            }
+            Self::Offset { source_part_id, .. }
+            | Self::PartOffset { source_part_id, .. }
+            | Self::Mirror { source_part_id, .. } => source_part_id,
+            Self::Framed { source, .. } => match source {
+                ConstraintEndpoint::Part { part_id } => part_id,
+                ConstraintEndpoint::LinkedMirror { mirror_part_id, .. } => mirror_part_id,
+            },
         }
     }
     pub fn target(&self) -> &str {
         match self {
-            Self::Offset { target_part_id, .. } | Self::Mirror { target_part_id, .. } => {
-                target_part_id
+            Self::Offset { target_part_id, .. }
+            | Self::PartOffset { target_part_id, .. }
+            | Self::Mirror { target_part_id, .. } => target_part_id,
+            Self::Framed { target, .. } => match target {
+                ConstraintEndpoint::Part { part_id } => part_id,
+                ConstraintEndpoint::LinkedMirror { mirror_part_id, .. } => mirror_part_id,
+            },
+        }
+    }
+    /// Whether this reflects across a coordinate rather than offsetting.
+    pub fn is_mirror(&self) -> bool {
+        matches!(
+            self,
+            Self::Mirror { .. }
+                | Self::Framed {
+                    relation: ConstraintRelation::MirrorLine { .. },
+                    ..
+                }
+        )
+    }
+    /// The axes an offset constraint runs along, or `None` for a mirror.
+    pub fn offset_axes(&self) -> Option<OffsetAxes> {
+        match self {
+            Self::Offset { .. } => Some(OffsetAxes::Board),
+            Self::PartOffset { .. } => Some(OffsetAxes::Part),
+            Self::Framed {
+                relation: ConstraintRelation::Offset { .. },
+                ..
+            } => Some(OffsetAxes::Board),
+            Self::Framed {
+                relation: ConstraintRelation::PartOffset { .. },
+                ..
+            } => Some(OffsetAxes::Part),
+            Self::Mirror { .. }
+            | Self::Framed {
+                relation: ConstraintRelation::MirrorLine { .. },
+                ..
+            } => None,
+        }
+    }
+    /// The offset and turn an offset constraint stores, whichever axes they run along, or
+    /// `None` for a mirror.
+    pub fn offset_numbers(&self) -> Option<(Vec2, f64)> {
+        match self {
+            Self::Offset {
+                offset, rotation, ..
+            }
+            | Self::PartOffset {
+                offset, rotation, ..
+            }
+            | Self::Framed {
+                relation: ConstraintRelation::Offset { offset, rotation },
+                ..
+            }
+            | Self::Framed {
+                relation: ConstraintRelation::PartOffset { offset, rotation },
+                ..
+            } => Some((*offset, *rotation)),
+            Self::Mirror { .. }
+            | Self::Framed {
+                relation: ConstraintRelation::MirrorLine { .. },
+                ..
+            } => None,
+        }
+    }
+    /// Whether every stored number is finite.
+    pub fn is_finite(&self) -> bool {
+        match self {
+            Self::Offset {
+                offset, rotation, ..
+            }
+            | Self::PartOffset {
+                offset, rotation, ..
+            } => offset.x.is_finite() && offset.y.is_finite() && rotation.is_finite(),
+            Self::Mirror { coordinate, .. } => coordinate.is_finite(),
+            Self::Framed { relation, .. } => relation.is_finite(),
+        }
+    }
+}
+
+impl ConstraintRelation {
+    fn is_finite(&self) -> bool {
+        match self {
+            Self::Offset { offset, rotation } | Self::PartOffset { offset, rotation } => {
+                offset.x.is_finite() && offset.y.is_finite() && rotation.is_finite()
+            }
+            Self::MirrorLine { at, angle } => {
+                at.x.is_finite() && at.y.is_finite() && angle.is_finite()
             }
         }
     }
+}
+/// The axes an offset constraint's offset runs along: `Board` is `offset`, `Part` is
+/// `part-offset`. See ADR-0011.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum OffsetAxes {
+    Board,
+    Part,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -754,7 +1181,7 @@ pub struct Layout {
     pub id: String,
     pub name: String,
     pub board_id: String,
-    pub matrix_id: String,
+    pub matrix_ids: Vec<String>,
     pub part_ids: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mirror_link: Option<LayoutMirrorLink>,
@@ -764,6 +1191,39 @@ pub struct Layout {
 pub struct LayoutMirrorLink {
     pub source_id: String,
     pub axis_x: f64,
+    /// Stored Split gap: the key-edge to key-edge distance between the halves,
+    /// measured at the half-origin column. Absent on documents saved before the
+    /// half-frame contract; those keep board-coordinate placement until their
+    /// first committed geometry edit adopts the half frame.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub split_gap: Option<f64>,
+    /// Current spacing: the evaluated key-edge distance, always
+    /// `max(split_gap, minimum)` once a committed edit has run the adaptive
+    /// pass. Absent until the first committed edit after the half frame is
+    /// adopted; while absent, evaluation follows `split_gap` exactly so saved
+    /// boards open with byte-identical geometry.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spacing: Option<f64>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub correspondences: Vec<MirroredCorrespondence>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub exceptions: Vec<MirroredException>,
+}
+impl LayoutMirrorLink {
+    pub fn partner_matrix(&self, id: &str) -> Option<&str> {
+        self.correspondences.iter().find_map(|record| {
+            if record.kind != MirroredItemKind::Matrix {
+                return None;
+            }
+            if record.source_id == id {
+                Some(record.mirror_id.as_str())
+            } else if record.mirror_id == id {
+                Some(record.source_id.as_str())
+            } else {
+                None
+            }
+        })
+    }
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ProjectDoc {
@@ -839,6 +1299,14 @@ fn legacy_format_version() -> u32 {
 }
 
 impl ProjectDoc {
+    /// Finds the constraint that drives this part through its effective mirror authority.
+    ///
+    /// A part and its linked mirror resolve to the same driving constraint. Multiple records
+    /// on that authority return a located error instead of selecting one.
+    pub fn constraint_driving_part(&self, part_id: &str) -> Result<Option<&Constraint>, String> {
+        crate::constraints::driving_constraint(self, part_id)
+    }
+
     pub fn empty(id: &str, name: &str) -> Self {
         Self {
             module_definitions: vec![],
@@ -883,6 +1351,9 @@ pub struct HardwareConfiguration {
     pub instances: Vec<PhysicalBoardInstance>,
     pub boards: Vec<ElectricalBoardConfiguration>,
     pub shared_construction: Option<MechanicalConfiguration>,
+    /// Explicit mechanical mirror pairs between physical instances.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pairs: Vec<MechanicalMirrorPair>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -913,7 +1384,51 @@ pub struct PhysicalBoardInstance {
     pub flipped: bool,
     pub controller_part_id: Option<String>,
     pub mechanical: Option<MechanicalConfiguration>,
-    pub construction_linked: bool,
+    /// Who owns this instance's construction values. Replaces the old
+    /// `constructionLinked` flag, whose value never affected the effective overlay.
+    #[serde(default)]
+    pub construction_ownership: MechanicalConstructionOwnership,
+    /// Monotonic identity reservations that outlive this half's mechanical
+    /// configuration, so disabling a half cannot let a later addition reuse an opening
+    /// or vertex identity that a queued intent may still name. Absent for legacy
+    /// documents and for halves that never reserved one, which keeps their serialized
+    /// shape unchanged, so no document-version migration is required.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mechanical_identity_reservation: Option<MechanicalIdentityReservation>,
+}
+
+/// Monotonic high-water marks for a physical half's authored opening and vertex
+/// identities. See [`PhysicalBoardInstance::mechanical_identity_reservation`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MechanicalIdentityReservation {
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub next_opening_identity: u64,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub next_vertex_identity: u64,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub next_critical_fit_identity: u64,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub next_hardware_identity: u64,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub next_mount_identity: u64,
+}
+
+impl MechanicalIdentityReservation {
+    /// The pointwise maximum of two reservations.
+    pub fn merged(self, other: Self) -> Self {
+        Self {
+            next_opening_identity: self.next_opening_identity.max(other.next_opening_identity),
+            next_vertex_identity: self.next_vertex_identity.max(other.next_vertex_identity),
+            next_critical_fit_identity: self
+                .next_critical_fit_identity
+                .max(other.next_critical_fit_identity),
+            next_hardware_identity: self
+                .next_hardware_identity
+                .max(other.next_hardware_identity),
+            next_mount_identity: self.next_mount_identity.max(other.next_mount_identity),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Default)]
@@ -936,6 +1451,363 @@ pub struct ElectricalHandoffBaseline {
     pub revision: u64,
     pub assignments: BTreeMap<String, String>,
 }
+
+/// Who owns an instance's construction values.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum MechanicalConstructionOwnership {
+    /// Today's effective shared overlay with first-instance fallback, kept until
+    /// the user explicitly converts the instance.
+    #[default]
+    Legacy,
+    /// The instance's own mechanical configuration is authoritative.
+    Local,
+    /// A [`MechanicalMirrorPair`]'s construction is authoritative.
+    Pair,
+}
+
+/// An explicit mechanical mirror pair between exactly two physical instances.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MechanicalMirrorPair {
+    pub id: String,
+    pub members: [String; 2],
+    /// The map from the first member's Case frame to the second's: a [`Pose2`]
+    /// composed with a fixed X reflection,
+    /// `q = R(rotation) * (-p.x, p.y) + at`. `rotation` uses the project's degree
+    /// convention, and the exact inverse maps the second member back to the first.
+    pub mapping: Pose2,
+    pub construction: MechanicalConstruction,
+    /// The member whose geometry authors the pair's construction and closure proposals. Absent
+    /// on pairs linked before format 5, where the first member is the source.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub construction_source: Option<String>,
+    /// The mirrored-half record (ADR-0010). Absent means the pair links mechanical features only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub halves: Option<MirroredHalves>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub features: Vec<MechanicalFeature>,
+}
+
+/// Placement of a switch's diode or LED on its mirrored half (ADR-0010).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum MirroredCompanionMode {
+    /// Reflect the companion's switch-local position and heading.
+    #[default]
+    LiteralMirror,
+    /// Keep the source's switch-local position and heading.
+    DuplicatePosition,
+    /// Reflect, then add the item's switch-local adjustment.
+    LiteralMirrorWithTweak,
+}
+
+impl MirroredCompanionMode {
+    fn is_literal_mirror(&self) -> bool {
+        *self == Self::LiteralMirror
+    }
+}
+
+/// An additive adjustment in the mirrored switch's local frame, in mm and degrees.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct MirroredCompanionTweak {
+    pub x: f64,
+    pub y: f64,
+    pub rotation: f64,
+}
+
+/// A target for one companion placement edit.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum CompanionPlacementTarget {
+    Pair,
+    Item {
+        #[serde(rename = "itemKind")]
+        item_kind: MirroredItemKind,
+        #[serde(rename = "mirrorId")]
+        mirror_id: String,
+    },
+    Row {
+        #[serde(rename = "matrixId")]
+        matrix_id: String,
+        row: u32,
+    },
+    Column {
+        #[serde(rename = "matrixId")]
+        matrix_id: String,
+        column: u32,
+    },
+    Matrix {
+        #[serde(rename = "matrixId")]
+        matrix_id: String,
+    },
+}
+
+/// Which boards a mirrored pair relates, and how their items correspond.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MirroredHalves {
+    /// Default for companion correspondences without a per-item override. Absent in older v5 documents.
+    #[serde(
+        default,
+        skip_serializing_if = "MirroredCompanionMode::is_literal_mirror"
+    )]
+    pub companion_mode: MirroredCompanionMode,
+    /// The board whose items are authored.
+    pub source_board_id: String,
+    /// The board that reflects the source.
+    pub mirror_board_id: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub correspondences: Vec<MirroredCorrespondence>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub exceptions: Vec<MirroredException>,
+}
+
+/// The mirror of one source item. Each side is unique per kind.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MirroredCorrespondence {
+    /// Overrides the pair default for this companion only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub companion_mode: Option<MirroredCompanionMode>,
+    /// Retained per item; only valid with the effective `literal-mirror-with-tweak` mode.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub companion_tweak: Option<MirroredCompanionTweak>,
+    pub kind: MirroredItemKind,
+    pub source_id: String,
+    pub mirror_id: String,
+}
+
+/// A state overlay on a mirror item: kept `local` or `omitted`. The item's identity stays in its
+/// correspondence; an exception with no matching correspondence is a legacy, unassociated record
+/// whose mirror item is present and has no inferred source. An exception never changes the source
+/// or a neighbouring item.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MirroredException {
+    /// Retained when a companion becomes local or omitted, for a later Rejoin.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub companion_mode: Option<MirroredCompanionMode>,
+    /// Retained per item; only valid with the effective `literal-mirror-with-tweak` mode.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub companion_tweak: Option<MirroredCompanionTweak>,
+    pub kind: MirroredItemKind,
+    pub mirror_id: String,
+    pub state: MirroredExceptionState,
+    /// Mirror-board copper removed with an Omitted item, kept so a Rejoin can restore it while the
+    /// source pads still line up. Only valid on an Omitted exception that overlays a correspondence.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub removed_copper: Option<OmittedCopper>,
+}
+
+/// Board copper that belonged only to an Omitted mirror item, and where its pads stood.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmittedCopper {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub traces: Vec<CopperTrace>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub vias: Vec<CopperVia>,
+    /// World position of each omitted pad when the copper was removed.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pads: Vec<OmittedPad>,
+}
+
+/// A mirror pad's world position at the moment its copper was saved.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmittedPad {
+    pub part_id: String,
+    pub pad_id: String,
+    pub at: Vec2,
+}
+
+/// The kinds of item a mirrored half reflects.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum MirroredItemKind {
+    Matrix,
+    Layout,
+    Part,
+    Outline,
+    Net,
+    Assembly,
+    /// A module mounted on the board (`modules`, by its host board).
+    Module,
+    /// A board's electrical configuration (`hardware.boards`, by board id).
+    ElectricalBoard,
+    /// A fixed outline version of a board (`boardOutlines`, by version id).
+    OutlineVersion,
+    MechanicalFeature,
+    /// An embedded circuit hosted on the board (`embeddedCircuits`, by its host board).
+    EmbeddedCircuit,
+}
+
+/// Where a [`EditOperation::CreateMirroredHalf`] puts the second half.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum MirroredHalfMode {
+    /// A new board that receives a reflected copy of the source board.
+    NewBoard {
+        #[serde(rename = "boardId")]
+        board_id: String,
+        #[serde(rename = "instanceId")]
+        instance_id: String,
+    },
+    /// A flipped instance of the source board. It copies nothing: the same board is used twice.
+    ReuseBoard {
+        #[serde(rename = "instanceId")]
+        instance_id: String,
+    },
+}
+
+/// Optional replacements for one physical instance's labels at mirror creation.
+/// Omitted fields keep the source's stored labels or the mirror's default labels.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MirroredHalfLabel {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub half: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub role: Option<String>,
+}
+
+/// Labels applied to the source and mirror in the same creation edit (ADR-0010).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MirroredHalfLabels {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<MirroredHalfLabel>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mirror: Option<MirroredHalfLabel>,
+}
+
+/// Physical setup values applied atomically with creation of its mirror pair.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MirroredHalfPhysicalSetup {
+    pub topology: HardwareTopology,
+    pub transport: HardwareTransport,
+    pub shared_construction: MechanicalConfiguration,
+    pub source_instance: PhysicalBoardInstance,
+}
+
+/// How copied item ids are named. Ids are `<board>/<local>` or `matrix/<board>-<cluster>/...`:
+/// every whole `<source board>` token is replaced by the mirror board id, and an id that names
+/// no such token is prefixed with `<mirror board>/`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum MirroredIdRule {
+    BoardPrefix,
+}
+
+/// The states an exception can take. A linked item needs no exception.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum MirroredExceptionState {
+    Local,
+    Omitted,
+}
+
+/// Requested exception state for a half. `Linked` removes any stored exception overlay.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum HalfExceptionState {
+    Local,
+    Omitted,
+    Linked,
+}
+
+/// The rigid map from the first member's Case frame to the second's.
+///
+/// The map is a `Pose2` composed with a fixed X reflection:
+/// `q = R(rotation) * (-p.x, p.y) + at`. `rotation` uses the project's degree
+/// convention, and the exact inverse maps the second member back to the first.
+/// The shared construction subset of a mechanical pair.
+///
+/// Board identity/thickness, batteries, part profiles, stabilizer overrides and
+/// hardware-specific fits/specifications stay local on each instance.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MechanicalConstruction {
+    pub method: PlateMethod,
+    pub mount: MechanicalMount,
+    pub integrated_plate_frame: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bottom_style: Option<MechanicalBottomStyle>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub middle_frame: Option<bool>,
+    pub plate_thickness: f64,
+    pub plate_foam_thickness: f64,
+    pub bottom_foam_thickness: f64,
+    pub bottom_thickness: f64,
+    pub plate_to_pcb: f64,
+    pub wall_thickness: f64,
+    pub clearance: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gasket: Option<Gasket>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gasket_travel: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub opening_allowance: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub part_processes: Option<Vec<MechanicalPartProcess>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub internal_gasket: Option<InternalGasketConfiguration>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gasket_layout: Option<MechanicalGasketLayout>,
+}
+
+/// One linked mechanical feature of a pair.
+///
+/// The shared value is stored once with its authoring member; counterpart
+/// geometry is derived in Core rather than persisted as a second value.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MechanicalFeature {
+    pub id: String,
+    pub kind: MechanicalFeatureKind,
+    /// The instance that authored the shared value.
+    pub author: String,
+    pub value: MechanicalFeatureValue,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub members: Vec<MechanicalFeatureMember>,
+}
+
+/// One member's identity and state for a linked feature.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MechanicalFeatureMember {
+    pub instance_id: String,
+    pub feature_id: String,
+    pub state: MechanicalFeatureState,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum MechanicalFeatureKind {
+    Mount,
+    ClosureMount,
+    Opening,
+    GasketSupport,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum MechanicalFeatureState {
+    Linked,
+    Local,
+    Omitted,
+}
+
+/// The single authored value of a linked feature.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum MechanicalFeatureValue {
+    Mount { mount: Mount },
+    Opening { opening: MechanicalOpening },
+    GasketSupport { anchor: MechanicalGasketAnchor },
+}
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum MatrixSplayAffect {
@@ -949,10 +1821,101 @@ pub enum MatrixSplayChange {
     Origin {
         world: Option<Vec2>,
     },
+    /// Ctrl is captured by the caller at pointer-down. This intent never compensates steps.
+    OriginSwing {
+        world: Option<Vec2>,
+    },
+    /// Fields and nudges edit the stored relative origin and always hold keys still.
+    OriginRelative {
+        value: Vec2,
+    },
     Angle {
         angle: f64,
         affect: MatrixSplayAffect,
     },
+}
+
+/// A named matrix parameter change, applied to one column or row. Values are
+/// absolute and in matrix coordinates, matching the Inspector fields.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum MatrixPlacementChange {
+    ColumnSpread {
+        column: u32,
+        value: Option<f64>,
+    },
+    RowPadding {
+        row: u32,
+        value: Option<f64>,
+    },
+    RowBend {
+        row: u32,
+        value: f64,
+    },
+    KeyShift {
+        row: u32,
+        column: u32,
+        value: Vec2,
+    },
+    KeyBend {
+        row: u32,
+        column: u32,
+        value: f64,
+    },
+    RowShift {
+        row: u32,
+        value: Vec2,
+    },
+    MatrixTranslation {
+        delta: Vec2,
+    },
+    ColumnTranslation {
+        column: u32,
+        delta: Vec2,
+    },
+    ColumnStagger {
+        column: u32,
+        value: f64,
+    },
+    ColumnOffset {
+        column: u32,
+        value: Vec2,
+    },
+    RowOffset {
+        row: u32,
+        value: Vec2,
+    },
+    /// One-shot: move the column's offset Y into its stagger and compensate the next
+    /// column, so every pose is unchanged. See [`convert_offset_available`].
+    ColumnOffsetToStagger {
+        column: u32,
+    },
+}
+
+/// Why `ColumnOffsetToStagger` is refused for this column, or `Ok` when the
+/// conversion keeps every pose. The stagger moves a default-origin splay pivot,
+/// so a splayed column with a default origin would move. One source for Core and
+/// the Inspector.
+pub fn convert_offset_available(matrix: &Matrix, column: u32) -> Result<(), String> {
+    if column >= matrix.columns {
+        return Err("Matrix placement column is out of bounds".into());
+    }
+    let values = matrix
+        .column_layout
+        .get(column as usize)
+        .copied()
+        .unwrap_or_default();
+    if values.splay != 0.0
+        || values.rotation != 0.0
+        || matrix.row_layout.iter().any(|r| r.bend != 0.0)
+        || matrix
+            .cells
+            .iter()
+            .any(|c| c.column == column && c.bend.unwrap_or_default() != 0.0)
+    {
+        return Err("Converting requires zero Splay, Column rotation and carried Bend".into());
+    }
+    Ok(())
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -990,6 +1953,13 @@ pub enum EditOperation {
         part_id: String,
         mode: PressScanMode,
     },
+    /// Set a board's electrical mode. This changes no component placement or
+    /// outline input, so Core can retain its current resolved outline geometry.
+    SetWiringMode {
+        #[serde(rename = "boardId")]
+        board_id: String,
+        mode: crate::electrical::ElectricalMode,
+    },
     EditKeymap {
         change: KeymapChange,
     },
@@ -1015,58 +1985,66 @@ pub enum EditOperation {
         key_id: String,
         change: KeycapKeyChange,
     },
-    SetMechanical {
-        configuration: Option<Box<MechanicalConfiguration>>,
+    /// One typed keycap-size resize. Core validates every entry before writing
+    /// anything, so a keycap resize commits the typed sizes, the reflow poses
+    /// and the cell offsets atomically with one Undo entry instead of a
+    /// whole-document replacement.
+    SetKeycapSize {
+        /// part_id to its new physical keycap size in mm.
+        sizes: BTreeMap<String, Vec2>,
+        /// Absolute pose updates from the key-size reflow.
+        moves: Vec<Position>,
+        /// Cell offset updates from the key-size reflow.
+        offsets: Vec<KeycapCellOffset>,
     },
     MoveParts {
         positions: Vec<Position>,
-    },
-    SetOutline {
-        feature: OutlineFeature,
-    },
-    CopyOutline {
-        #[serde(rename = "boardId")]
-        board_id: String,
-        #[serde(rename = "versionId")]
-        version_id: String,
-        name: String,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        edit: Option<OutlineContourEdit>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        feature: Option<OutlineFeature>,
-    },
-    SelectOutline {
-        #[serde(rename = "boardId")]
-        board_id: String,
-        #[serde(rename = "versionId", default)]
-        version_id: Option<String>,
-    },
-    RenameOutline {
-        #[serde(rename = "boardId")]
-        board_id: String,
-        #[serde(rename = "versionId")]
-        version_id: String,
-        name: String,
-    },
-    RemoveOutline {
-        #[serde(rename = "boardId")]
-        board_id: String,
-        #[serde(rename = "versionId")]
-        version_id: String,
     },
     AddPart {
         part: Part,
         #[serde(rename = "boardId", skip_serializing_if = "Option::is_none")]
         board_id: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        definition: Option<PartDefinition>,
+        #[serde(rename = "layoutId", default, skip_serializing_if = "Option::is_none")]
+        layout_id: Option<String>,
+    },
+    AddMirrorOnlyPart {
+        part: Part,
+        #[serde(rename = "boardId")]
+        board_id: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        definition: Option<PartDefinition>,
+        #[serde(rename = "layoutId", default, skip_serializing_if = "Option::is_none")]
+        layout_id: Option<String>,
     },
     RemoveMatrix {
         id: String,
     },
+    SetMatrixCellsEnabled {
+        cells: BTreeMap<String, Vec<(u32, u32)>>,
+        enabled: bool,
+    },
+    RemoveSelectedMatrixCells {
+        cells: BTreeMap<String, Vec<(u32, u32)>>,
+    },
+    RemoveMatrixCells {
+        #[serde(rename = "matrixId")]
+        matrix_id: String,
+        cells: Vec<(u32, u32)>,
+    },
+    RemoveMatrixRow {
+        #[serde(rename = "matrixId")]
+        matrix_id: String,
+        row: u32,
+    },
+    RemoveMatrixColumn {
+        #[serde(rename = "matrixId")]
+        matrix_id: String,
+        column: u32,
+    },
     RemoveParts {
         ids: Vec<String>,
-    },
-    SetNet {
-        net: Net,
     },
     SetCase {
         body: CaseBody,
@@ -1082,8 +2060,67 @@ pub enum EditOperation {
         column: u32,
         change: MatrixSplayChange,
     },
+    /// Edits one named matrix placement parameter. Core owns the parameter rule,
+    /// so the Inspector value and an equivalent gesture submit identical intents.
+    SetMatrixPlacement {
+        #[serde(rename = "matrixId")]
+        matrix_id: String,
+        change: MatrixPlacementChange,
+    },
+    /// Creates a 1x3 matrix anchored to one key of another matrix. Core assigns
+    /// the anchor target's board, joins its Layout, uses Origin (0, -pitch.y)
+    /// with all Follow components and materializes members in one Undo entry.
+    AddAnchoredMatrix {
+        id: String,
+        anchor: MatrixAnchor,
+    },
+    /// Re-targets one matrix's anchor and Follow subset in one Undo entry.
+    SetMatrixAnchor {
+        #[serde(rename = "matrixId")]
+        matrix_id: String,
+        anchor: MatrixAnchor,
+    },
+    /// Clears one matrix's anchor after writing its current effective world
+    /// frame to Origin/Rotation, so every pose is unchanged. Linked groups
+    /// detach together; a detach that would need a new Local exception is
+    /// refused and names it instead of silently changing one side.
+    DetachMatrixAnchor {
+        #[serde(rename = "matrixId")]
+        matrix_id: String,
+    },
+    /// Applies a confirmed linked detach that needs one additional Local
+    /// matrix exception: clears both anchors, keeps both world poses, and
+    /// records the named Local exception in the same Undo entry. The named
+    /// matrix must be the linked partner needing the exception; anything
+    /// else refuses as a stale confirmation and changes nothing.
+    DetachMatrixAnchorConfirmed {
+        #[serde(rename = "matrixId")]
+        matrix_id: String,
+        #[serde(rename = "localMatrixId")]
+        local_matrix_id: String,
+    },
     SetConstraint {
         constraint: Constraint,
+    },
+    /// Re-expresses one offset constraint on the other axes without moving any part. `to`
+    /// names the kind it becomes. See ADR-0011.
+    ConvertOffsetConstraint {
+        #[serde(rename = "constraintId")]
+        constraint_id: String,
+        to: OffsetAxes,
+    },
+    /// Applies one typed mechanical settings/feature change. Core owns defaults,
+    /// validation, linked-feature propagation and closure-clearance projection,
+    /// so the settings Inspector and an equivalent adapter submit the same intent.
+    ApplyMechanicalEdit {
+        edit: Box<crate::mechanical::change::MechanicalEdit>,
+    },
+    /// Applies one typed outline change. Core owns target eligibility, validation,
+    /// identity allocation from the captured creation seed and mutation, so the
+    /// outline adapter submits named changes instead of a prepared replacement
+    /// document.
+    ApplyOutlineEdit {
+        edit: Box<crate::outline_edit::OutlineEdit>,
     },
     CreateMirroredPair {
         left: Layout,
@@ -1092,8 +2129,134 @@ pub enum EditOperation {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         definitions: Option<Vec<PartDefinition>>,
     },
+    /// Creates the second half of a mechanical pair from its source instance (ADR-0010): a new
+    /// board that receives a reflection of the source board through `mapping`, or a flipped
+    /// instance of the same board. The pair, its construction source and its mirrored-half
+    /// record are created in the same accepted edit. Every new id must be fresh.
+    CreateMirroredHalf {
+        #[serde(rename = "pairId")]
+        pair_id: String,
+        #[serde(rename = "sourceInstanceId")]
+        source_instance_id: String,
+        mode: MirroredHalfMode,
+        /// Optional source and mirror labels, validated and applied atomically with creation.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        labels: Option<MirroredHalfLabels>,
+        /// Optional physical setup committed in the same edit as pair creation.
+        #[serde(
+            default,
+            rename = "physicalSetup",
+            skip_serializing_if = "Option::is_none"
+        )]
+        physical_setup: Option<MirroredHalfPhysicalSetup>,
+        /// Default switch-companion placement for the created pair.
+        #[serde(
+            default,
+            rename = "companionMode",
+            skip_serializing_if = "MirroredCompanionMode::is_literal_mirror"
+        )]
+        companion_mode: MirroredCompanionMode,
+        /// Initial adjustment copied into every companion's correspondence (never a pair-wide tweak).
+        #[serde(
+            default,
+            rename = "companionTweak",
+            skip_serializing_if = "Option::is_none"
+        )]
+        companion_tweak: Option<MirroredCompanionTweak>,
+        mapping: Pose2,
+        #[serde(rename = "idRule")]
+        id_rule: MirroredIdRule,
+        /// The normalized mounting-hole definition, needed when the source has closure mounts:
+        /// the second half's clearance holes are generated from them, as for `LinkMirrorPair`.
+        #[serde(
+            default,
+            rename = "mountingHole",
+            skip_serializing_if = "Option::is_none"
+        )]
+        mounting_hole: Option<Box<PartDefinition>>,
+    },
+    SetHalfException {
+        #[serde(rename = "pairId")]
+        pair_id: String,
+        // EditOperation is internally tagged by `kind`, so the item category uses itemKind.
+        #[serde(rename = "itemKind")]
+        kind: MirroredItemKind,
+        #[serde(rename = "mirrorId")]
+        mirror_id: String,
+        state: HalfExceptionState,
+    },
+    SetCompanionPlacement {
+        #[serde(rename = "pairId")]
+        pair_id: String,
+        targets: Vec<CompanionPlacementTarget>,
+        mode: MirroredCompanionMode,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        tweak: Option<MirroredCompanionTweak>,
+    },
+    UnlinkHalves {
+        #[serde(rename = "pairId")]
+        pair_id: String,
+    },
     SetLayout {
         layout: Layout,
+    },
+    /// Sets the stored Split gap of a mirrored pair in one Undo entry. The
+    /// halves move apart symmetrically about the split axis; matrix origins
+    /// keep their half-frame values and the partner still reflects exactly.
+    SetSplitGap {
+        #[serde(rename = "layoutId")]
+        layout_id: String,
+        #[serde(rename = "splitGap")]
+        split_gap: f64,
+    },
+    /// Mirrors an independent part on both halves of a split pair, or makes
+    /// it local to its own half, in one Undo entry. Mirroring records a Part
+    /// correspondence on the mirror link and materializes the partner at the
+    /// reflected half-frame pose; making it local removes the partner. Either
+    /// copy edits both while the link lasts.
+    SetMirroredPart {
+        #[serde(rename = "partId")]
+        part_id: String,
+        mirrored: bool,
+    },
+    /// Ticket 13, retarget rule 04: retarget an independent part's anchor
+    /// key (Pick) to a new target and Follow subset. Core keeps the stored
+    /// carried (Spread/Stagger/Splay) and local (Offset/Rotation) values, so
+    /// the part moves to the fresh placement from the new anchor key, in one
+    /// Undo entry.
+    SetPartAnchor {
+        #[serde(rename = "partId")]
+        part_id: String,
+        anchor: PartAnchor,
+    },
+    /// Ticket 13: change the Follow subset an anchored part follows (the
+    /// anchor key stays). Core re-solves the carried and local values so the
+    /// evaluated pose is unchanged, in one Undo entry.
+    SetPartAnchorFollow {
+        #[serde(rename = "partId")]
+        part_id: String,
+        follow: Follow,
+    },
+    /// Ticket 13: clear an independent part's anchor (Detach), keeping its
+    /// evaluated pose from the half origin, in one Undo entry.
+    DetachPartAnchor {
+        #[serde(rename = "partId")]
+        part_id: String,
+    },
+    /// Ticket 13: edit one carried (Spread/Stagger/Splay) or local
+    /// (Offset/Rotation) value of an anchored part, in one Undo entry.
+    SetPartAnchorValues {
+        #[serde(rename = "partId")]
+        part_id: String,
+        change: PartAnchorValueChange,
+    },
+    /// Ticket 07: set a detached independent part's board rotation in one
+    /// Undo entry. Anchored parts keep using `SetPartAnchorValues::Rotation`;
+    /// members, companions, locked and constraint-driven parts refuse.
+    SetPartRotation {
+        #[serde(rename = "partId")]
+        part_id: String,
+        rotation: f64,
     },
     RemoveConstraint {
         id: String,
@@ -1112,6 +2275,15 @@ pub struct Position {
     pub id: String,
     pub at: Vec2,
 }
+/// One matrix cell offset update carried by a typed keycap-size resize.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KeycapCellOffset {
+    pub matrix_id: String,
+    pub row: u32,
+    pub column: u32,
+    pub offset: Option<Vec2>,
+}
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum EditPhase {
@@ -1128,46 +2300,6 @@ pub struct EditCommand {
     #[serde(rename = "targetIds")]
     pub target_ids: Vec<String>,
     pub operation: EditOperation,
-}
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct Contour {
-    pub points: Vec<Vec2>,
-    pub hole: bool,
-}
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct CaseIR {
-    pub revision: u64,
-    pub body: CaseBody,
-    pub contours: Vec<Contour>,
-}
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct CaseAssemblyIR {
-    pub revision: u64,
-    pub bodies: Vec<CaseIR>,
-}
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct PreparedCaseIR {
-    pub revision: u64,
-    pub body: CaseBody,
-    pub regions: Vec<PreparedCaseRegion>,
-}
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct PreparedCaseRegion {
-    pub outer: Vec<Vec2>,
-    pub holes: Vec<Vec<Vec2>>,
-    pub cavities: Vec<Vec<Vec2>>,
-    pub gaskets: Vec<PreparedGasketRegion>,
-    pub mounts: Vec<Mount>,
-}
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct PreparedGasketRegion {
-    pub outer: Vec<Vec2>,
-    pub holes: Vec<Vec<Vec2>>,
-}
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct PreparedCaseAssemblyIR {
-    pub revision: u64,
-    pub bodies: Vec<PreparedCaseIR>,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -1264,6 +2396,33 @@ pub struct MatrixScene {
     pub matrix_id: String,
     pub cells: Vec<MatrixSceneCell>,
     pub columns: Vec<MatrixColumnBasis>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub companions: Vec<MatrixCompanionPlacement>,
+}
+
+/// How Core places a generated companion relative to its matrix key. The mode is
+/// derived from the same rules the placement solver uses, so presentation never
+/// re-derives precedence. `Constrained` names the explicit constraint that wins.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum MatrixCompanionMode {
+    Follows,
+    Authored,
+    Constrained {
+        #[serde(rename = "constraintId")]
+        constraint_id: String,
+        #[serde(rename = "sourcePartId")]
+        source_part_id: String,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct MatrixCompanionPlacement {
+    #[serde(rename = "partId")]
+    pub part_id: String,
+    #[serde(rename = "keyId")]
+    pub key_id: String,
+    pub mode: MatrixCompanionMode,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -1274,11 +2433,47 @@ pub struct MatrixSceneCell {
     #[serde(rename = "memberId", skip_serializing_if = "Option::is_none")]
     pub member_id: Option<String>,
     pub pose: Pose2,
+    #[serde(rename = "shiftFrame")]
+    pub shift_frame: crate::matrix::kernel::ComposedFrame,
+    #[serde(rename = "offsetFrame")]
+    pub offset_frame: crate::matrix::kernel::ComposedFrame,
+    /// Carried row/key contributions from the layout kernel, in stored axes.
+    /// Relations reads these instead of recomputing layout maths.
+    #[serde(rename = "rowShift", default, skip_serializing_if = "is_zero_vec2")]
+    pub row_shift: Vec2,
+    #[serde(rename = "keyShift", default, skip_serializing_if = "is_zero_vec2")]
+    pub key_shift: Vec2,
+    #[serde(rename = "rowBend", default, skip_serializing_if = "is_zero_f64")]
+    pub row_bend: f64,
+    #[serde(rename = "keyBend", default, skip_serializing_if = "is_zero_f64")]
+    pub key_bend: f64,
+    /// Accumulated carried translation in unreflected matrix axes: each shift
+    /// transported through the running carried heading, not a raw sum.
+    #[serde(
+        rename = "cumulativeShift",
+        default,
+        skip_serializing_if = "is_zero_vec2"
+    )]
+    pub cumulative_shift: Vec2,
+    /// Accumulated carried row/key bend in degrees; excludes Splay, Column
+    /// rotation, Key rotation and matrix/anchor rotation.
+    #[serde(
+        rename = "cumulativeBend",
+        default,
+        skip_serializing_if = "is_zero_f64"
+    )]
+    pub cumulative_bend: f64,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct MatrixColumnBasis {
     pub column: u32,
+    pub base: Vec2,
+    pub rotation: f64,
+    #[serde(rename = "relativeOrigin")]
+    pub relative_origin: Vec2,
+    #[serde(rename = "spreadAxis", skip_serializing_if = "Option::is_none")]
+    pub spread_axis: Option<Vec2>,
     #[serde(rename = "splayOrigin")]
     pub splay_origin: Vec2,
     #[serde(rename = "splayAngle")]
@@ -1289,6 +2484,9 @@ pub struct MatrixColumnBasis {
     pub axis_x: Vec2,
     #[serde(rename = "axisY")]
     pub axis_y: Vec2,
+    /// World direction this column's keys move per +1 mm of its column stagger.
+    #[serde(rename = "staggerAxis")]
+    pub stagger_axis: Vec2,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
@@ -1693,6 +2891,12 @@ pub struct OutlineExportRequest {
 #[serde(tag = "kind", rename_all = "kebab-case")]
 #[serde(rename_all_fields = "camelCase")]
 pub enum ArtifactRequest {
+    ReadBoardSource {
+        id: String,
+        source: String,
+        placement: Pose2,
+        flipped: bool,
+    },
     ImportModuleBoard {
         id: String,
         #[serde(rename = "definitionId")]
@@ -1750,6 +2954,10 @@ pub enum ArtifactRequest {
 #[serde(tag = "kind", rename_all = "kebab-case")]
 #[serde(rename_all_fields = "camelCase")]
 pub enum ArtifactReply {
+    ReadBoardSource {
+        id: String,
+        result: ModuleBoard,
+    },
     ImportModuleBoard {
         id: String,
         result: Box<ModuleDefinition>,
@@ -1818,53 +3026,6 @@ pub struct MechanicalPurposeMapping {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub layer: Option<String>,
     pub purpose: MechanicalPurpose,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum MechanicalDrillShape {
-    Circle,
-    Oval,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "kebab-case")]
-#[serde(rename_all_fields = "camelCase")]
-pub enum MechanicalShape {
-    Line {
-        start: Vec2,
-        end: Vec2,
-        width: Option<f64>,
-    },
-    Arc {
-        start: Vec2,
-        mid: Option<Vec2>,
-        end: Vec2,
-        angle_degrees: Option<f64>,
-        width: Option<f64>,
-    },
-    Circle {
-        center: Vec2,
-        end: Vec2,
-        width: Option<f64>,
-    },
-    Rectangle {
-        start: Vec2,
-        end: Vec2,
-        width: Option<f64>,
-    },
-    Polygon {
-        points: Vec<Vec2>,
-        width: Option<f64>,
-    },
-    Drill {
-        at: Vec2,
-        size: Vec2,
-        offset: Vec2,
-        rotation_degrees: f64,
-        shape: MechanicalDrillShape,
-        plated: Option<bool>,
-    },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -2124,7 +3285,7 @@ pub struct MechanicalConfiguration {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gasket_travel: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub openings: Option<Vec<CaseOpening>>,
+    pub openings: Option<Vec<MechanicalOpening>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub opening_allowance: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -2136,6 +3297,27 @@ pub struct MechanicalConfiguration {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub closure_mounts: Option<Vec<Mount>>,
     pub board_id: String,
+    /// Monotonic reservation for authored opening identities.
+    ///
+    /// Zero means nothing has been reserved yet: the first allocation normalizes to
+    /// the highest identity the configuration already carries, so a legacy document
+    /// keeps its geometry. Once reserved, an identity is never handed out again, so a
+    /// queued intent naming a removed opening can never reach a later addition.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub next_opening_identity: u64,
+    /// Monotonic reservations for identities that have no per-entity counter.
+    ///
+    /// Zero means nothing has been reserved yet: the first allocation normalizes to the
+    /// highest identity the configuration already carries. Once reserved, a removed
+    /// identity is never handed out again within the document session. Absence needs no
+    /// format migration: it is the same unset state as zero, and a successful Open starts
+    /// a new session that seeds these counters from the live identities it receives.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub next_critical_fit_identity: u64,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub next_hardware_identity: u64,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub next_mount_identity: u64,
     #[serde(default)]
     pub integrated_plate_frame: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -2154,6 +3336,11 @@ pub struct MechanicalConfiguration {
     pub wall_thickness: f64,
     pub clearance: f64,
     pub profiles: Vec<MechanicalPartProfile>,
+}
+
+/// Serde helper: omit an unset identity reservation so existing documents keep their shape.
+fn is_zero(value: &u64) -> bool {
+    *value == 0
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -2253,11 +3440,54 @@ pub struct MechanicalStabilizerOverride {
     pub rotation: Option<f64>,
 }
 
+/// An authored mechanical opening with stable identity for edit targeting.
+///
+/// Only `MechanicalConfiguration.openings` uses this identified shape; profile and
+/// derived geometry keeps plain [`CaseOpening`].
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct CaseOpening {
-    pub points: Vec<Vec2>,
+#[serde(rename_all = "camelCase")]
+pub struct MechanicalOpening {
+    pub id: String,
+    pub vertices: Vec<MechanicalOpeningVertex>,
     pub z: f64,
     pub height: f64,
+    /// Monotonic reservation for this opening's authored vertex identities, with the
+    /// same zero-means-unset rule as [`MechanicalConfiguration::next_opening_identity`].
+    /// The address is the opening id together with the vertex id, so a removed vertex
+    /// identity is never reused within its opening.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub next_vertex_identity: u64,
+}
+
+impl MechanicalOpening {
+    /// The authored outline in authoring order.
+    pub fn points(&self) -> Vec<Vec2> {
+        self.vertices.iter().map(|vertex| vertex.point).collect()
+    }
+
+    /// The plain derived shape, for the existing cavity and clearance projection.
+    pub fn as_case_opening(&self) -> CaseOpening {
+        CaseOpening {
+            points: self.points(),
+            z: self.z,
+            height: self.height,
+        }
+    }
+}
+
+impl From<&MechanicalOpening> for CaseOpening {
+    fn from(opening: &MechanicalOpening) -> Self {
+        opening.as_case_opening()
+    }
+}
+
+/// One editable vertex of an authored mechanical opening, addressed by ID rather
+/// than by its position in the outline.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MechanicalOpeningVertex {
+    pub id: String,
+    pub point: Vec2,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -2471,4 +3701,88 @@ pub enum KeycapKeyChange {
     Color { value: Option<String> },
     Row { value: Option<u8> },
     Units { value: Option<Vec2> },
+}
+
+#[cfg(test)]
+mod constraint_tests {
+    use super::*;
+
+    fn held(axes: Option<OffsetAxes>, x: f64, rotation: f64) -> Constraint {
+        let (id, source_part_id, target_part_id) = ("c".to_owned(), "a".to_owned(), "b".to_owned());
+        match axes {
+            Some(axes) => Constraint::offset(
+                axes,
+                id,
+                source_part_id,
+                target_part_id,
+                Vec2 { x, y: -4.0 },
+                rotation,
+            ),
+            None => Constraint::Mirror {
+                id,
+                source_part_id,
+                target_part_id,
+                axis: MirrorAxis::Vertical,
+                coordinate: x,
+            },
+        }
+    }
+
+    #[test]
+    fn offset_builds_the_kind_its_axes_name_and_carries_every_field() {
+        let offset = Vec2 { x: 3.0, y: -4.0 };
+        let build =
+            |axes| Constraint::offset(axes, "c".into(), "a".into(), "b".into(), offset, 5.0);
+        assert_eq!(
+            build(OffsetAxes::Board),
+            Constraint::Offset {
+                id: "c".into(),
+                source_part_id: "a".into(),
+                target_part_id: "b".into(),
+                offset,
+                rotation: 5.0,
+            }
+        );
+        assert_eq!(
+            build(OffsetAxes::Part),
+            Constraint::PartOffset {
+                id: "c".into(),
+                source_part_id: "a".into(),
+                target_part_id: "b".into(),
+                offset,
+                rotation: 5.0,
+            }
+        );
+    }
+
+    #[test]
+    fn offset_axes_and_numbers_read_both_offset_kinds_and_nothing_for_a_mirror() {
+        let numbers = Some((Vec2 { x: 1.0, y: -4.0 }, 5.0));
+        let board = held(Some(OffsetAxes::Board), 1.0, 5.0);
+        let part = held(Some(OffsetAxes::Part), 1.0, 5.0);
+        let mirror = held(None, 1.0, 5.0);
+        assert_eq!(board.offset_axes(), Some(OffsetAxes::Board));
+        assert_eq!(part.offset_axes(), Some(OffsetAxes::Part));
+        assert_eq!(mirror.offset_axes(), None);
+        assert_eq!(board.offset_numbers(), numbers);
+        assert_eq!(part.offset_numbers(), numbers);
+        assert_eq!(mirror.offset_numbers(), None);
+        assert!(!board.is_mirror() && !part.is_mirror() && mirror.is_mirror());
+    }
+
+    #[test]
+    fn a_non_finite_number_in_any_kind_is_not_finite() {
+        for axes in [Some(OffsetAxes::Board), Some(OffsetAxes::Part), None] {
+            assert!(held(axes, 1.0, 5.0).is_finite(), "{axes:?} finite");
+            for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+                assert!(!held(axes, bad, 5.0).is_finite(), "{axes:?} x {bad}");
+            }
+        }
+        for axes in [OffsetAxes::Board, OffsetAxes::Part] {
+            assert!(
+                !held(Some(axes), 1.0, f64::NAN).is_finite(),
+                "{axes:?} rotation"
+            );
+        }
+    }
 }

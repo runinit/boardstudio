@@ -148,6 +148,60 @@ async fn mounted_layout_marker_is_bound_to_focused_identity_and_accepted_owner()
     root.remove();
 }
 
+#[wasm_bindgen_test]
+async fn focused_finding_remains_visible_in_both_themes_and_appearances() {
+    let window = web_sys::window().unwrap();
+    let document = window.document().unwrap();
+    let html = document.document_element().unwrap();
+    let original_theme = html.get_attribute("data-theme");
+    let original_appearance = html.get_attribute("data-appearance");
+    let style = document.create_element("style").unwrap();
+    style.set_text_content(Some(&format!(
+        "{}\n{}",
+        include_str!("../../../assets/workbench-base.css"),
+        include_str!("../../../assets/tailwind.css")
+    )));
+    document.head().unwrap().append_child(&style).unwrap();
+    let root = mount_probe();
+    settle().await;
+    let polygon = root
+        .query_selector("[data-finding-id='finding-a'] polygon")
+        .unwrap()
+        .expect("the focused finding has an outline");
+
+    for theme in ["original", "shadcn"] {
+        for appearance in ["light", "dark"] {
+            html.set_attribute("data-theme", theme).unwrap();
+            html.set_attribute("data-appearance", appearance).unwrap();
+            let computed = window.get_computed_style(&polygon).unwrap().unwrap();
+            let stroke = computed.get_property_value("stroke").unwrap();
+            let width = computed.get_property_value("stroke-width").unwrap();
+            let opacity = computed.get_property_value("fill-opacity").unwrap();
+            assert_ne!(stroke, "none", "{theme}/{appearance} finding stroke");
+            assert!(
+                width.trim_end_matches("px").parse::<f64>().unwrap() > 1.0,
+                "{theme}/{appearance} focused finding must be distinguishable"
+            );
+            assert!(
+                opacity.parse::<f64>().unwrap() > 0.0,
+                "{theme}/{appearance} finding fill must be visible"
+            );
+        }
+    }
+    for (name, value) in [
+        ("data-theme", original_theme),
+        ("data-appearance", original_appearance),
+    ] {
+        if let Some(value) = value {
+            html.set_attribute(name, &value).unwrap();
+        } else {
+            html.remove_attribute(name).unwrap();
+        }
+    }
+    root.remove();
+    style.remove();
+}
+
 fn mount_probe() -> DomElement {
     let document = web_sys::window().unwrap().document().unwrap();
     let root = document.create_element("div").unwrap();

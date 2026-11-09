@@ -1,0 +1,51 @@
+{
+  "revision": 1,
+  "body": {
+    "id": "cone-wall",
+    "name": "cone-wall",
+    "boardId": "adoption-board",
+    "kind": "plate",
+    "thickness": 4.0,
+    "clearance": 0.0,
+    "features": [
+      {
+        "kind": "conical-seat",
+        "id": "wall-cone",
+        "at": {
+          "x": 0.0,
+          "y": 8.0
+        },
+        "z": 2.0,
+        "height": 2.0,
+        "diameter": 4.0,
+        "endDiameter": 2.0
+      }
+    ]
+  },
+  "regions": [
+    {
+      "outer": [
+        {
+          "x": 0,
+          "y": 0
+        },
+        {
+          "x": 20,
+          "y": 0
+        },
+        {
+          "x": 20,
+          "y": 16
+        },
+        {
+          "x": 0,
+          "y": 16
+        }
+      ],
+      "holes": [],
+      "cavities": [],
+      "gaskets": [],
+      "mounts": []
+    }
+  ]
+}

@@ -1,0 +1,308 @@
+Your app is being rebuilt.
+
+A non-hot-reloadable change occurred and we must rebuild.
+
+Corne
+Export
+Objects
+Add object
+Board
+Left PCB
+Right PCB
+⌄
+Left PCB
+49 parts
+›
+Outline
+Generated
+left-keys-SW1
+switch mx · front
+left-diode-17-keys
+diode tht sod123 · back
+left-keys-SW2
+switch mx · front
+left-diode-18-keys
+diode tht sod123 · back
+left-keys-SW3
+switch mx · front
+left-diode-14-keys
+diode tht sod123 · back
+left-keys-SW4
+switch mx · front
+left-diode-13-keys
+diode tht sod123 · back
+left-keys-SW5
+switch mx · front
+left-diode-15-keys
+diode tht sod123 · back
+left-keys-SW6
+switch mx · front
+left-diode-16-keys
+diode tht sod123 · back
+left-keys-SW7
+switch mx · front
+left-diode-11-keys
+diode tht sod123 · back
+left-keys-SW8
+switch mx · front
+left-diode-12-keys
+diode tht sod123 · back
+left-keys-SW9
+switch mx · front
+left-diode-8-keys
+diode tht sod123 · back
+left-keys-SW10
+switch mx · front
+left-diode-7-keys
+diode tht sod123 · back
+left-keys-SW11
+switch mx · front
+left-diode-9-keys
+diode tht sod123 · back
+left-keys-SW12
+switch mx · front
+left-diode-10-keys
+diode tht sod123 · back
+left-keys-SW13
+switch mx · front
+left-diode-5-keys
+diode tht sod123 · back
+left-keys-SW14
+switch mx · front
+left-diode-6-keys
+diode tht sod123 · back
+left-keys-SW15
+switch mx · front
+left-diode-2-keys
+diode tht sod123 · back
+left-keys-SW16
+switch mx · front
+left-diode-1-keys
+diode tht sod123 · back
+left-keys-SW17
+switch mx · front
+left-diode-3-keys
+diode tht sod123 · back
+left-keys-SW18
+switch mx · front
+left-diode-4-keys
+diode tht sod123 · back
+left-thumbs-SW1
+switch mx · front
+left-diode-1-thumbs
+diode tht sod123 · back
+left-thumbs-SW2
+switch mx · front
+left-diode-2-thumbs
+diode tht sod123 · back
+left-thumbs-SW3
+switch mx · front
+left-diode-3-thumbs
+diode tht sod123 · back
+left-U1
+mcu nice nano · front
+left-RST
+reset switch tht top · front
+left-TRRS
+trrs pj320a · front
+MH1
+mounting hole npth · front
+MH2
+mounting hole npth · front
+MH3
+mounting hole npth · front
+MH4
+mounting hole npth · front
+left-U1
+Left PCB / PCB
+1 selected
+Layout
+PCB
+Keymap
+Keycaps
+Case
+Parts
+Part
+Transform
+Align
+Snap
+left-keys-SW1
+left-diode-17-keys
+left-keys-SW2
+left-diode-18-keys
+left-keys-SW3
+left-diode-14-keys
+left-keys-SW4
+left-diode-13-keys
+left-keys-SW5
+left-diode-15-keys
+left-keys-SW6
+left-diode-16-keys
+left-keys-SW7
+left-diode-11-keys
+left-keys-SW8
+left-diode-12-keys
+left-keys-SW9
+left-diode-8-keys
+left-keys-SW10
+left-diode-7-keys
+left-keys-SW11
+left-diode-9-keys
+left-keys-SW12
+left-diode-10-keys
+left-keys-SW13
+left-diode-5-keys
+left-keys-SW14
+left-diode-6-keys
+left-keys-SW15
+left-diode-2-keys
+left-keys-SW16
+left-diode-1-keys
+left-keys-SW17
+left-diode-3-keys
+left-keys-SW18
+left-diode-4-keys
+left-thumbs-SW1
+left-diode-1-thumbs
+left-thumbs-SW2
+left-diode-2-thumbs
+left-thumbs-SW3
+left-diode-3-thumbs
+ROW_1
+RAW
+ROW_2
+POWER_GND
+POWER_GND
+POWER_RST
+POWER_GND
+VCC
+ROW_3
+COLUMN_0
+ROW_4
+COLUMN_1
+P4
+COLUMN_2
+P5
+COLUMN_3
+P6
+COLUMN_4
+PERIPHERAL_LEFT_TRRS_SPLIT-RX
+P8
+PERIPHERAL_LEFT_TRRS_SPLIT-TX
+P9
+ROW_0
+left-U1
+RST
+left-RST
+left-TRRS
+MH1
+MH2
+MH3
+MH4
+Layers
+Inspect
+Placement
+Wiring
+
+Left PCB / PCB
+
+Wiring
+
+left-U1 · mcu nice nano
+
+MATRIX
+Wiring mode
+Matrix
+Direct GPIO
+Used pins
+P10 · P1 · P0 · P2 · P3 · P21 · P20 · P19 · P18 · P15 · P14 · P16
+Free pins
+P4 · P5 · P6 · P7 · P8 · P9 · P101 · P102 · P107
+Resolve automatically
+Apply wiring
+Firmware keymap
+0/21 assigned
+Assignments
+12
+Row pins
+5
+Row 1
+Pin for Row 1
+Unresolved
+P10
+P4
+P5
+P6
+P7
+P8
+P9
+P101
+P102
+P107
+Row 2
+Pin for Row 2
+Unresolved
+P1
+P4
+P5
+P6
+P7
+P8
+P9
+P101
+P102
+P107
+Row 3
+Pin for Row 3
+Unresolved
+P0
+P4
+P5
+P6
+P7
+P8
+P9
+P101
+P102
+P107
+Row 4
+Pin for Row 4
+Unresolved
+P2
+P4
+P5
+P6
+P7
+P8
+P9
+P101
+P102
+P107
+Row 5
+Pin for Row 5
+Unresolved
+P3
+P4
+P5
+P6
+P7
+P8
+P9
+P101
+P102
+P107
+Column pins
+5
+Peripheral pins
+2
+mm
+X 161.56
+Y -15.00
+Grid ¼u
+Geometry snap on
+Fit board
+Fit selection
+−
+100%
++
+Layout findings: 2

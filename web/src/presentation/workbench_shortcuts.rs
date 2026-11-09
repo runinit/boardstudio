@@ -6,6 +6,28 @@ use dioxus_web::WebEventExt;
 use std::rc::Rc;
 use wasm_bindgen::JsCast;
 
+pub(super) fn handle_palette_shortcut(
+    state: super::command_palette::PaletteState,
+    event: &KeyboardEvent,
+) -> bool {
+    let Some(raw) = event.data().try_as_web_event() else {
+        return false;
+    };
+    if is_palette_shortcut(&raw) {
+        event.prevent_default();
+        state.show();
+        return true;
+    }
+    false
+}
+
+pub(super) fn is_palette_shortcut(raw: &web_sys::KeyboardEvent) -> bool {
+    !raw.default_prevented()
+        && (raw.ctrl_key() || raw.meta_key())
+        && !raw.alt_key()
+        && raw.key().eq_ignore_ascii_case("k")
+}
+
 /// Mirror the React workbench's history shortcuts for focused shell controls as well as canvas.
 /// Canvas-specific handling runs first and marks its event prevented, so it remains the owner
 /// when the canvas itself is focused and this boundary does not submit the action twice.

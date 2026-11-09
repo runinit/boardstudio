@@ -1,0 +1,128 @@
+Your app is being rebuilt.
+
+A non-hot-reloadable change occurred and we must rebuild.
+
+Corne
+Export
+Objects
+Add object
+Board
+Left PCB
+Right PCB
+⌄
+Left PCB
+49 parts
+›
+Outline
+Generated
+⌄
+Layout
+MH1
+mounting hole npth · 124.6, -84.9
+MH2
+mounting hole npth · 3.5, 2.7
+MH3
+mounting hole npth · 103.4, 6.4
+MH4
+mounting hole npth · 54.5, -51.3
+›
+keys
+Independent
+›
+thumbs
+Independent
+Layout
+PCB
+Keymap
+Keycaps
+Case
+Parts
+Geometry snapping
+Grid increment
+Off
+⅛u
+¼u
+½u
+1u
+1 mm
+0.5 mm
+0.1 mm
+Snap
+Column
+Position
+Stagger
+Offset
+Splay
+Transform
+Align
+2D
+3D assembly
+Footprints
+left-diode-17-keys
+left-diode-18-keys
+left-diode-14-keys
+left-diode-13-keys
+left-diode-15-keys
+left-diode-16-keys
+left-diode-11-keys
+left-diode-12-keys
+left-diode-8-keys
+left-diode-7-keys
+left-diode-9-keys
+left-diode-10-keys
+left-diode-5-keys
+left-diode-6-keys
+left-diode-2-keys
+left-diode-1-keys
+left-diode-3-keys
+left-diode-4-keys
+left-diode-1-thumbs
+left-diode-2-thumbs
+left-diode-3-thumbs
+left-U1
+left-RST
+left-TRRS
+MH1
+MH2
+MH3
+MH4
+Stagger
+mm
+Layers
+Inspect
+keys · Column 3
+
+6 keys selected
+
+Properties
+Relations
+Column properties
+Column 3
+Transform
+Stagger
+mm
+Offset X
+mm
+Offset Y
+mm
+Splay
+°
+Origin
+Column base
+Custom point
+Reset offsets
+Origin & scope
+Advanced
+Key size
+Routed PCB reference
+mm
+X 53.52
+Y -40.38
+Grid ¼u
+Geometry snap on
+Fit board
+Fit selection
+−
+100%
++
+Layout findings: 2

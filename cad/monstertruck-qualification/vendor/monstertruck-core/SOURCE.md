@@ -1,0 +1,7 @@
+# Vendored source provenance
+
+This is the crates.io monstertruck-core 0.4.1 package, declaring Apache-2.0 and retaining its upstream authors and package metadata. The published archive SHA-256 is 6f34f2f284b16af3672085cdcaf5d6521feecc104bacf1a37f1fac6c8c1a5884. The full Apache License 2.0 text is supplied in LICENSE-APACHE, copied unchanged from the neighboring vendored package.
+
+The 21 published files match the independently reviewed rational-jet-wasm32-v1/review-v1 snapshot, with one added modification-notice comment in derivatives.rs. The reviewed arithmetic correction is included unchanged. core-math.patch SHA-256 209289c22af5891baa396f16a48a5249cc25e8c55fda91e2acc4f9040145004a widens three rational binomial accumulators and their integer products to u64. Floating evaluation order and supported orders 0..31 are unchanged. Arithmetic-patch derivatives.rs preimage fce36f5ea6950c992f7759c229d819740786fe7bb35074b37699c5826dcdd5a2; postimage f21b3f0490bf7685c841f70fbe3a2033243fe4931da418e57125fb350827651a.
+
+Independent Spec/Standards reviews and actual Node debug/release WASM RED→GREEN receipts are retained under .evidence/monstertruck-qualification/rational-jet-wasm32-v1/review-v1/. The local Cargo override applies this corrected package to the CAD dependency graph; it does not establish complete backend or browser acceptance. Shared integration receipts live in vendor-integration/core-wasm-v43.

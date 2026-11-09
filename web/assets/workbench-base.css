@@ -1,0 +1,51 @@
+@font-face {
+  font-family: 'Source Sans 3';
+  src: url('fonts/source-sans-3-upright.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 200 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Source Code Pro';
+  src: url('fonts/source-code-pro-upright.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 200 900;
+  font-display: swap;
+}
+/* Inter (latin, variable), from @fontsource-variable/inter 5.3.0. */
+@font-face {
+  font-family: 'Inter Variable';
+  src: url('fonts/inter-latin-variable.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+:root { color-scheme: light; }
+:root[data-appearance='dark'] { color-scheme: dark; }
+* { box-sizing: border-box; }
+html, body, #main { width: 100%; height: 100%; margin: 0; }
+body { overflow: hidden; background: var(--background); color: var(--foreground); font: 16px/1.45 var(--theme-font-sans); }
+button:where(:not([data-slot])), input:where(:not([data-slot])), select:where(:not([data-slot])) { min-width: 0; color: inherit; border: 1px solid var(--input); border-radius: calc(var(--radius) - 2px); padding: 6px 9px; font: inherit; }
+button:where(:not([data-slot])) { min-height: 36px; border-color: transparent; background: var(--secondary); cursor: pointer; }
+input:where(:not([data-slot])), select:where(:not([data-slot])) { background: var(--field); }
+button:where(:not([data-slot])):disabled { opacity: .5; cursor: default; }
+button:where(:not([data-slot])):hover:not(:disabled) { border-color: transparent; background: var(--accent); }
+:focus-visible:where(:not([data-slot])) { outline: 2px solid var(--ring); outline-offset: 2px; }
+h1, h2, p { margin-top: 0; }
+h1 { font-size: 24px; line-height: 1.2; margin-bottom: 8px; }
+h2 { font-size: 18px; line-height: 1.3; margin: 0; font-weight: 650; }
+
+/* A panic toast must not intercept subsequent toolbar hit tests. */
+#__dx-toast { pointer-events: none; }
+
+/* Findings are shared by PCB and Keycaps, and remain independent of the canvas owner. */
+.wb-outline-finding { pointer-events: none; }
+.wb-outline-finding polygon { fill: var(--destructive-light); fill-opacity: .35; stroke: var(--destructive); stroke-width: 1.5; stroke-dasharray: 3 2; vector-effect: non-scaling-stroke; }
+.wb-outline-finding.is-focused polygon { stroke-width: 2.5; fill-opacity: .6; }
+
+@media (max-width: 760px) {
+  html, body, #main { height: auto; min-height: 100%; }
+  body { overflow: auto; }
+  html, body, #main { overflow-x: hidden; }
+}

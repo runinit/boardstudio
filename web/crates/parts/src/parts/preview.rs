@@ -4,14 +4,19 @@ use crate::footprint_forms::{Graphic, Shape};
 use crate::presentation::footprint_graphics::{self, Drawings, GraphicElement};
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::{EnvelopeOrigin, Pad, PadShape, PartDefinition, Side, Vec2};
+use boardstudio_web_ui_shared::canvas_layers::{LayerPanel, LayerToggleButton};
+use boardstudio_web_ui_shared::ui::{
+    alert::{Alert, AlertVariant},
+    callout::{Callout, CalloutVariant},
+    spinner::Spinner,
+    toggle_group::{ToggleGroup, ToggleItem},
+};
 use dioxus::prelude::*;
 use std::{
     cell::{Cell, RefCell},
     collections::BTreeSet,
     rc::Rc,
 };
-use wasm_bindgen::JsCast;
-use web_sys::HtmlElement;
 
 #[cfg(test)]
 thread_local! {
@@ -303,8 +308,8 @@ pub fn PartsPreviewPanel(
     let Some(definition) = definition else {
         lease_slot.invalidate();
         return rsx! {
-            section { class: "m1-workspace-content m1-parts-preview", "aria-label": "Parts footprint preview",
-                p { class: "m1-parts-empty", role: "status", "Select a component from the Parts catalogue to preview its footprint." }
+            section { class: "relative order-2 flex flex-1 flex-col min-w-0 min-h-0 overflow-hidden rounded-xl bg-card shadow-sm", "aria-label": "Parts footprint preview",
+                div { role: "status", Callout { "Select a component from the Parts catalogue to preview its footprint." } }
             }
         };
     };
@@ -332,60 +337,71 @@ pub fn PartsPreviewPanel(
         visibility.set(next);
     };
 
+    let view_controls = rsx! {
+        ToggleGroup {
+            aria_label: "Part preview view", horizontal: true,
+            pressed: Some([usize::from(show_3d())].into_iter().collect()),
+            on_pressed_change: move |next: std::collections::HashSet<usize>| {
+                if next.contains(&0) {
+                    show_3d.set(false);
+                    lease_slot.invalidate();
+                } else if next.contains(&1) { show_3d.set(true); }
+            },
+            ToggleItem { index: 0usize, aria_label: "2D footprint", class: "max-[960px]:min-h-11 max-[960px]:min-w-11 [@media(pointer:coarse)]:min-h-control-touch [@media(pointer:coarse)]:min-w-control-touch",
+                svg { class: "fill-none stroke-current stroke-[1.5]", view_box: "0 0 20 20", "aria-hidden": "true",
+                    rect { x: "4", y: "4", width: "12", height: "12", rx: "2" }
+                    path { d: "M1 7h3M1 13h3M16 7h3M16 13h3M7 1v3M13 1v3M7 16v3M13 16v3" }
+                }
+                "2D"
+            }
+            ToggleItem { index: 1usize, aria_label: "3D model", class: "max-[960px]:min-h-11 max-[960px]:min-w-11 [@media(pointer:coarse)]:min-h-control-touch [@media(pointer:coarse)]:min-w-control-touch",
+                svg { class: "fill-none stroke-current stroke-[1.5]", view_box: "0 0 20 20", "aria-hidden": "true",
+                    path { d: "m10 2 7 4v8l-7 4-7-4V6ZM3 6l7 4 7-4M10 10v8" }
+                }
+                "3D"
+            }
+        }
+    };
     rsx! {
-        section { class: "m1-workspace-content m1-parts-preview", "aria-label": "Parts footprint preview",
-            h2 { class: "m1-library-workspace-title", "{preview_title.as_deref().map(str::to_owned).unwrap_or_else(|| super::placement_label(&definition).to_owned())}" }
-            div { class: "m1-design-view-group", role: "group", aria_label: "Part preview view",
-                button {
-                    r#type: "button",
-                    aria_pressed: "{!show_3d()}",
-                    onclick: move |_| {
-                        show_3d.set(false);
-                        lease_slot.invalidate();
-                    },
-                    "2D footprint"
-                }
-                button {
-                    r#type: "button",
-                    aria_pressed: "{show_3d()}",
-                    onclick: move |_| show_3d.set(true),
-                    "3D model"
-                }
+        section { class: "relative order-2 flex flex-1 flex-col min-w-0 min-h-0 overflow-hidden rounded-xl bg-card shadow-sm [section[aria-roledescription=carousel]_&]:order-none [section[aria-roledescription=carousel]_&]:min-h-[260px] [section[aria-roledescription=carousel]_&]:h-[320px] [section[aria-roledescription=carousel]_&]:p-3 [section[aria-roledescription=carousel]_&]:bg-canvas", "aria-label": "Parts footprint preview",
+            h2 { class: "flex-none min-h-[72px] m-0 pt-5 pr-[120px] pb-5 pl-4 text-lg [section[aria-roledescription=carousel]_&]:min-h-0 [section[aria-roledescription=carousel]_&]:p-0 [section[aria-roledescription=carousel]_&]:text-base", "{preview_title.as_deref().map(str::to_owned).unwrap_or_else(|| super::placement_label(&definition).to_owned())}" }
+            if !show_3d() || recipe_pending || matching_sample.as_ref().is_none_or(|result| result.is_err()) {
+                div { class: "absolute right-3 top-3 z-10 [section[aria-roledescription=carousel]_&]:static [section[aria-roledescription=carousel]_&]:my-2 [section[aria-roledescription=carousel]_&]:self-start", {view_controls.clone()} }
             }
             if let Some(draft) = generator_draft.as_ref() {
                 match &draft.status {
-                    GeneratorPreviewStatus::Pending => rsx! { p { class: "m1-parts-preview-status", role: "status", "Generating the current generator preview…" } },
-                    GeneratorPreviewStatus::Ready => rsx! { p { class: "m1-parts-preview-status", role: "status", "Unapplied generator preview" } },
-                    GeneratorPreviewStatus::Failed(error) => rsx! { p { class: "m1-parts-preview-error", role: "alert", "Generator preview failed; showing the accepted footprint: {error}" } },
+                    GeneratorPreviewStatus::Pending => rsx! { div { role: "status", Spinner {} "Generating the current generator preview…" } },
+                    GeneratorPreviewStatus::Ready => rsx! { div { role: "status", Callout { "Unapplied generator preview" } } },
+                    GeneratorPreviewStatus::Failed(error) => rsx! { Alert { variant: AlertVariant::Destructive, "Generator preview failed; showing the accepted footprint: {error}" } },
                 }
             }
             if show_3d() {
                 if recipe_pending {
-                    p { class: "m1-parts-loading", role: "status", "Preparing assembly footprint preview…" }
+                    div { role: "status", Spinner {} "Preparing assembly footprint preview…" }
                 } else { match matching_sample {
-                    None => rsx! { p { class: "m1-parts-loading", role: "status", "Preparing isolated 3D sample…" } },
-                    Some(Err(error)) => rsx! { p { class: "m1-parts-load-error", role: "alert", "3D Parts preview failed: {error}" } },
-                    Some(Ok(preview)) => rsx! { PartsSampleViewer { preview } },
+                    None => rsx! { div { role: "status", Spinner {} "Preparing isolated 3D sample…" } },
+                    Some(Err(error)) => rsx! { Alert { variant: AlertVariant::Destructive, "3D Parts preview failed: {error}" } },
+                    Some(Ok(preview)) => rsx! { PartsSampleViewer { preview, view_controls: view_controls.clone() } },
                 }}
             } else {
                 if recipe_pending {
-                    p { class: "m1-parts-loading", role: "status", "Preparing assembly footprint preview…" }
+                    div { role: "status", Spinner {} "Preparing assembly footprint preview…" }
                 } else { match matching {
                     None => rsx! {
-                        p { class: "m1-parts-loading", role: "status", "Preparing {definition.name} footprint preview…" }
+                        div { role: "status", Spinner {} "Preparing {definition.name} footprint preview…" }
                     },
                     Some(Err(PreviewFailure::Unsupported)) => rsx! {
-                        p { class: "m1-parts-empty", role: "status", "A source-backed Parts preview is not available for this definition yet." }
+                        div { role: "status", Callout { "A source-backed Parts preview is not available for this definition yet." } }
                     },
                     Some(Err(PreviewFailure::Failed(error))) => rsx! {
-                        p { class: "m1-parts-load-error", role: "alert", "Footprint preview failed: {error}" }
+                        Alert { variant: AlertVariant::Destructive, "Footprint preview failed: {error}" }
                     },
                     Some(Ok(content)) => rsx! {
                     if let Some(notice) = definition.envelope_notice.as_deref().filter(|notice| !notice.is_empty()) {
-                        p { class: "m1-parts-preview-note", role: "status", "{notice}" }
+                        div { role: "status", Callout { variant: CalloutVariant::Warning, "{notice}" } }
                     }
                     svg {
-                        class: "m1-canvas",
+                        class: "block w-full h-full min-h-[250px] bg-canvas touch-none max-[760px]:h-[54svh] max-[760px]:min-h-[270px] [section[aria-roledescription=carousel]_&]:static [section[aria-roledescription=carousel]_&]:flex-1 [section[aria-roledescription=carousel]_&]:min-h-0 [section[aria-roledescription=carousel]_&]:h-[180px]",
                         view_box: "{content.view_box}",
                         preserve_aspect_ratio: "xMidYMid meet",
                         role: "img",
@@ -401,12 +417,12 @@ pub fn PartsPreviewPanel(
                                                 && !hidden.contains(&format!("outline:{}", outline.label)) {
                                                 if outline.label == "Keycap" {
                                                     if let Some((x, y, width, height)) = outline_bounds(&outline.points) {
-                                                        g { class: "m1-keycap-overlay", "data-layer": "Keycap",
+                                                        g { class: "pointer-events-none [&_rect]:fill-geometry-body [&_rect]:[fill-opacity:0.75] [&_rect]:stroke-geometry-outline [&_rect]:stroke-[0.22]", "data-layer": "Keycap",
                                                             rect { x: "{x}", y: "{y}", width: "{width}", height: "{height}", rx: "0.9" }
                                                         }
                                                     }
                                                 } else {
-                                                    polygon { class: "m1-outline", "data-layer": "{outline.label}", points: polygon_points(&outline.points) }
+                                                    polygon { class: "fill-geometry-fill stroke-geometry-board stroke-[0.3]", "data-layer": "{outline.label}", points: polygon_points(&outline.points) }
                                                 }
                                             }
                                             for pad in &member.definition.pads {
@@ -445,9 +461,12 @@ pub fn PartsPreviewPanel(
 }
 
 #[component]
-fn PartsSampleViewer(preview: Rc<crate::parts_preview::PartsPreviewSnapshot>) -> Element {
+fn PartsSampleViewer(
+    preview: Rc<crate::parts_preview::PartsPreviewSnapshot>,
+    #[props(default = rsx! {})] view_controls: Element,
+) -> Element {
     let runtime = use_context::<Rc<crate::runtime::Runtime>>();
-    let theme = use_context::<super::super::ResolvedTheme>().0;
+    let theme = use_context::<super::super::ResolvedAppearance>().0;
     let mut display = use_signal(super::super::case_display::CaseDisplay::default);
     let on_signal = {
         let runtime = runtime.clone();
@@ -479,16 +498,17 @@ fn PartsSampleViewer(preview: Rc<crate::parts_preview::PartsPreviewSnapshot>) ->
         }
     };
     rsx! {
-        section { class: "m1-parts-sample-viewer", "aria-label": "3D footprint model preview",
+        section { class: "flex flex-1 flex-col min-w-0 min-h-0 [&>p]:my-2 [&>p]:mx-3 [&>div:has(canvas)]:relative [&>div:has(canvas)]:flex-1 [&>div:has(canvas)]:min-h-0 [&>div:has(canvas)]:overflow-hidden [&_div:has(>canvas)]:relative [&_div:has(>canvas)]:flex [&_div:has(>canvas)]:flex-1 [&_div:has(>canvas)]:min-w-0 [&_div:has(>canvas)]:min-h-[160px] [&_canvas]:flex-1 [&_canvas]:w-full [&_canvas]:min-w-0 [&_canvas]:min-h-0 [&_canvas]:h-full", "aria-label": "3D footprint model preview",
             if preview.preview.models.is_empty() {
-                p { class: "m1-parts-preview-status", role: "status", "No 3D model is linked to this definition." }
+                div { role: "status", Callout { "No 3D model is linked to this definition." } }
             }
             if let Some(rows) = preview.model_rows.as_ref() {
                 for failure in &rows.failures {
-                    p { class: "m1-parts-load-error", role: "alert", "{failure.reference}: {failure.reason}" }
+                    Alert { variant: AlertVariant::Destructive, "{failure.reference}: {failure.reason}" }
                 }
             }
             super::super::shared_viewer::CaseSharedViewer {
+                toolbar_leading: Some(view_controls),
                 scene: None,
                 preview: None,
                 layout_preview: None,
@@ -501,6 +521,43 @@ fn PartsSampleViewer(preview: Rc<crate::parts_preview::PartsPreviewSnapshot>) ->
                 on_signal,
                 on_display_change,
                 mechanical_settings: None,
+            }
+        }
+    }
+}
+
+/// The carousel uses the same compiled source geometry as the full Parts preview.
+#[component]
+pub(super) fn ControllerFootprintThumbnail(definition: Rc<PartDefinition>) -> Element {
+    let source = use_resource(use_reactive((&definition,), |(definition,)| async move {
+        let preview = load_single_preview(&definition, &Side::Front).await;
+        (definition, preview)
+    }));
+    let matching = source
+        .read()
+        .clone()
+        .filter(|(owner, _)| owner == &definition);
+    rsx! {
+        div { class: "grid place-items-center w-[168px] h-[132px] p-2 rounded-lg bg-canvas text-muted-foreground text-xs [&_svg]:block [&_svg]:w-full [&_svg]:h-full",
+            match matching {
+                None => rsx! { span { "Loading footprint…" } },
+                Some((_, Err(_))) => rsx! { span { "Footprint preview unavailable" } },
+                Some((_, Ok(content))) => rsx! {
+                    svg { view_box: "{content.view_box}", preserve_aspect_ratio: "xMidYMid meet",
+                        role: "img", "aria-label": "{definition.name} footprint",
+                        g { transform: "scale(1,-1)",
+                            for member in &content.members {
+                                if let Some(outline) = &member.outline {
+                                    polygon { class: "fill-geometry-fill stroke-geometry-board stroke-[0.3]", points: polygon_points(&outline.points) }
+                                }
+                                for pad in &member.definition.pads { {render_pad(pad, "F.Cu", false, true)} }
+                                for graphic in member.drawings.iter().filter(|graphic| !matches!(graphic.shape, Shape::Text(..))) {
+                                    GraphicElement { graphic: graphic.clone(), hidden: false }
+                                }
+                            }
+                        }
+                    }
+                },
             }
         }
     }
@@ -945,13 +1002,13 @@ fn render_pad(pad: &Pad, copper_layer: &str, hide_drill: bool, hide_number: bool
     let rotation = pad.rotation.unwrap_or(0.0);
     rsx! {
         g { transform: "translate({pad.at.x} {pad.at.y}) rotate({rotation})",
-            rect { class: "m1-part-pad", "data-layer": "{copper_layer}", x: "{-pad.size.x / 2.0}", y: "{-pad.size.y / 2.0}", width: "{pad.size.x}", height: "{pad.size.y}", rx: "{rx}" }
+            rect { class: "fill-geometry-part stroke-none", "data-layer": "{copper_layer}", x: "{-pad.size.x / 2.0}", y: "{-pad.size.y / 2.0}", width: "{pad.size.x}", height: "{pad.size.y}", rx: "{rx}" }
             if let Some(drill) = pad.drill.filter(|drill| *drill > 0.0)
                 && !hide_drill {
                 circle { class: "{drill_class(pad)}", "data-layer": "Drills", r: "{drill / 2.0}" }
             }
             if !hide_number {
-                text { class: "m1-part-label", "data-layer": "Pad numbers", transform: "scale(1,-1)", text_anchor: "middle", x: "0", y: "{-pad.size.y / 2.0 - 0.7}", "{pad.number}" }
+                text { class: "font-mono text-[1.8px] fill-geometry-label pointer-events-none", "data-layer": "Pad numbers", transform: "scale(1,-1)", text_anchor: "middle", x: "0", y: "{-pad.size.y / 2.0 - 0.7}", "{pad.number}" }
             }
         }
     }
@@ -959,9 +1016,9 @@ fn render_pad(pad: &Pad, copper_layer: &str, hide_drill: bool, hide_number: bool
 
 fn drill_class(pad: &Pad) -> &'static str {
     if pad.plated == Some(false) {
-        "m1-part-drill is-mechanical"
+        "fill-canvas stroke-geometry-outline stroke-[0.1] is-mechanical"
     } else {
-        "m1-part-drill"
+        "fill-canvas stroke-geometry-outline stroke-[0.1]"
     }
 }
 
@@ -991,23 +1048,6 @@ fn PartsPreviewLayers(
     hidden: BTreeSet<String>,
     on_toggle: EventHandler<String>,
 ) -> Element {
-    let mut open = use_signal(|| false);
-    let mut close_and_restore_focus = move || {
-        open.set(false);
-        if let Some(trigger) = web_sys::window()
-            .and_then(|window| window.document())
-            .and_then(|document| document.get_element_by_id("m1-parts-preview-layers-trigger"))
-            .and_then(|element| element.dyn_into::<HtmlElement>().ok())
-        {
-            let _ = trigger.focus();
-        }
-    };
-    let keydown = move |event: KeyboardEvent| {
-        if event.data().key().to_string() == "Escape" && open() {
-            event.prevent_default();
-            close_and_restore_focus();
-        }
-    };
     let mut groups = Vec::<(&'static str, Vec<PreviewLayer>)>::new();
     for layer in layers {
         if let Some((_, entries)) = groups.iter_mut().find(|(group, _)| *group == layer.group) {
@@ -1016,38 +1056,35 @@ fn PartsPreviewLayers(
             groups.push((layer.group, vec![layer]));
         }
     }
-    rsx! {
-        section { class: "m1-layers", "data-open": "{open()}", "aria-label": "Footprint preview layers", onkeydown: keydown,
-            button { id: "m1-parts-preview-layers-trigger", class: "m1-layers-trigger", type: "button", "aria-expanded": "{open()}", "aria-controls": "m1-parts-preview-layers-list", onclick: move |_| open.set(!open()),
-                "Layers"
-                svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: if open() { "m5 12 5-5 5 5" } else { "m5 8 5 5 5-5" } } }
-            }
-            if open() {
-                button { class: "m1-layers-close", type: "button", onclick: move |_| close_and_restore_focus(), "Close" }
-            }
-            div { id: "m1-parts-preview-layers-list", class: "m1-layer-list", hidden: !open(),
-                for (group_name, group_layers) in groups {
-                    div { key: "{group_name}", class: "m1-layer-group", role: "group", "aria-label": "{group_name}",
-                        p { class: "m1-layer-label", "{group_name}" }
-                        for layer in group_layers {
-                            { let id = layer.id.clone();
-                              let visible = !hidden.contains(&id);
-                              let action = if visible { "Hide" } else { "Show" };
-                              let accessible = format!("{action} {}", layer.label);
-                              rsx! {
-                                  button { key: "{layer.id}", type: "button", "aria-pressed": "{visible}", "aria-label": "{accessible}", onclick: move |_| on_toggle.call(id.clone()),
-                                      span { class: "m1-layer-swatch", "data-layer": "{layer.label}" }
-                                      span { class: "m1-layer-label", "{layer.label}" }
-                                      svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M2 10q8-12 16 0-8 12-16 0Z" }, circle { cx: "10", cy: "10", r: "2.5" }, if !visible { path { d: "m3 17 14-14" } } }
-                                  }
+    let content = rsx! {
+        LayerPanel {
+            trigger_label: "Preview layers",
+            trigger_id: "m1-parts-preview-layers-trigger",
+            list_id: "m1-parts-preview-layers-list",
+            for (group_name, group_layers) in groups {
+                div { key: "{group_name}", class: "grid gap-0.5 [&:not(:first-child)]:mt-1 [&:not(:first-child)]:pt-1 [&:not(:first-child)]:border-t [&:not(:first-child)]:border-border", role: "group", "aria-label": "{group_name}",
+                    div { class: "pt-[9px] px-1.5 pb-1 text-muted-foreground font-semibold", "{group_name}" }
+                    for layer in group_layers {
+                        { let id = layer.id.clone();
+                          let visible = !hidden.contains(&id);
+                          let action = if visible { "Hide" } else { "Show" };
+                          rsx! {
+                              LayerToggleButton {
+                                  key: "{layer.id}",
+                                  label: layer.label.clone(),
+                                  swatch: layer.label.clone(),
+                                  aria_label: format!("{action} {}", layer.label),
+                                  visible,
+                                  on_toggle: move |_| on_toggle.call(id.clone()),
                               }
-                            }
+                          }
                         }
                     }
                 }
             }
         }
-    }
+    };
+    boardstudio_web_ui_shared::layer_dock::use_docked_layers(content)
 }
 
 #[cfg(test)]
@@ -1057,8 +1094,9 @@ mod tests {
     use boardstudio_application::{AcceptedSnapshot, Scope, SessionEpoch};
     use boardstudio_core::model::{Board, ProjectDoc};
     use std::sync::Arc;
+    use wasm_bindgen::JsCast;
     use wasm_bindgen_test::wasm_bindgen_test;
-    use web_sys::{Element as DomElement, HtmlElement};
+    use web_sys::Element as DomElement;
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
     use boardstudio_core::model::{EnvelopeSource, KicadSource, PartGenerator, PartKind};
@@ -1118,7 +1156,7 @@ mod tests {
     #[component]
     fn parts_renderer_failure_host() -> Element {
         let fixture = use_context::<PartsMountedFixture>();
-        let mut selection = use_signal(|| None::<(Option<Scope>, String)>);
+        let selection = use_signal(|| None::<(Option<Scope>, String)>);
         let selected_context = use_signal(|| None);
         let anchor_scope = use_signal(|| None::<Scope>);
         let generation = use_signal(|| 1_u64);
@@ -1136,7 +1174,7 @@ mod tests {
         let workspace = use_signal(|| "Parts");
         use_context_provider(|| super::super::super::WorkspaceState(workspace));
         let theme = use_memo(|| "light");
-        use_context_provider(|| super::super::super::ResolvedTheme(theme));
+        use_context_provider(|| super::super::super::ResolvedAppearance(theme));
         let _: Signal<u64> = use_context_provider(|| Signal::new(0_u64));
 
         rsx! {
@@ -1183,27 +1221,13 @@ mod tests {
     }
 
     fn click_button(root: &DomElement, label: &str) {
-        let buttons = root.query_selector_all("button").unwrap();
-        for index in 0..buttons.length() {
-            let Some(button) = buttons.item(index) else {
-                continue;
-            };
-            if button.text_content().unwrap_or_default().trim() == label {
-                button.dyn_into::<HtmlElement>().unwrap().click();
-                return;
-            }
-        }
-        panic!("missing mounted Parts button: {label}");
+        boardstudio_web_ui_shared::test_role::by_role_name(root, "button", label)
+            .unwrap_or_else(|| panic!("missing mounted Parts button: {label}"))
+            .click();
     }
 
     fn has_button(root: &DomElement, label: &str) -> bool {
-        let buttons = root.query_selector_all("button").unwrap();
-        (0..buttons.length()).any(|index| {
-            buttons
-                .item(index)
-                .and_then(|button| button.text_content())
-                .is_some_and(|text| text.trim() == label)
-        })
+        boardstudio_web_ui_shared::test_role::by_role_name(root, "button", label).is_some()
     }
 
     async fn wait_for(root: &DomElement, selector: &str) -> DomElement {
@@ -1226,6 +1250,147 @@ mod tests {
             gloo_timers::future::TimeoutFuture::new(20).await;
         }
         panic!("timed out waiting for mounted Parts button: {label}");
+    }
+
+    #[component]
+    fn preview_controls_host() -> Element {
+        let generation = use_signal(|| 0_u64);
+        let activation = use_signal(|| 0_u64);
+        use_context_provider(|| super::super::PartsSelectionGeneration(generation));
+        use_context_provider(|| super::super::PartsPreviewActivation(activation));
+        rsx! {
+            PartsPreviewPanel {
+                definition: Some(Rc::new(definition())), recipe: Vec::new(),
+                recipe_error: None, recipe_pending: false, recipe_identity: "keyboard-floor",
+                preview_title: None, scope: None, snapshot_token: SnapshotToken(1),
+                generator_draft: None,
+            }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn parts_preview_mode_arrows_rove_without_changing_the_local_view() {
+        use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(preview_controls_host);
+        dom.provide_root_context(support::new_runtime());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_until("the actual Parts preview mode controls mount", || {
+            by_role_name(&root, "button", "2D footprint").is_some()
+        })
+        .await;
+        let footprint = by_role_name(&root, "button", "2D footprint").unwrap();
+        let model = by_role_name(&root, "button", "3D model").unwrap();
+        footprint.focus().unwrap();
+        let key = web_sys::KeyboardEventInit::new();
+        key.set_key("ArrowRight");
+        key.set_bubbles(true);
+        key.set_cancelable(true);
+        footprint
+            .dispatch_event(
+                &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &key)
+                    .unwrap(),
+            )
+            .unwrap();
+        wait_until("ArrowRight roves to the actual 3D mode control", || {
+            document.active_element() == Some(model.clone().unchecked_into())
+        })
+        .await;
+        assert_eq!(
+            footprint.get_attribute("aria-pressed").as_deref(),
+            Some("true")
+        );
+        assert_eq!(
+            model.get_attribute("aria-pressed").as_deref(),
+            Some("false")
+        );
+        model.click();
+        wait_until("the Parts-owned view changes after activation", || {
+            model.get_attribute("aria-pressed").as_deref() == Some("true")
+        })
+        .await;
+        footprint.click();
+        wait_until("the same owner returns to the footprint", || {
+            footprint.get_attribute("aria-pressed").as_deref() == Some("true")
+        })
+        .await;
+        root.remove();
+    }
+
+    #[component]
+    fn parts_layers_host() -> Element {
+        rsx! {
+            PartsPreviewLayers {
+                layers: vec![PreviewLayer {
+                    id: "F.Cu".into(), label: "Front copper".into(), group: "Copper",
+                }],
+                hidden: BTreeSet::new(),
+                on_toggle: move |_| {},
+            }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn parts_layers_escape_closes_and_restores_trigger_focus() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        root.set_id("parts-layers-escape-test");
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(parts_layers_host),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        boardstudio_web_ui_shared::test_wait::wait_until("the Parts layers trigger mounts", || {
+            boardstudio_web_ui_shared::test_role::by_role_name(&root, "button", "Preview layers")
+                .is_some()
+        })
+        .await;
+        let trigger =
+            boardstudio_web_ui_shared::test_role::by_role_name(&root, "button", "Preview layers")
+                .unwrap();
+        assert_eq!(
+            trigger.get_attribute("aria-expanded").as_deref(),
+            Some("false")
+        );
+        trigger.click();
+        wait_for(
+            &root,
+            "#m1-parts-preview-layers-trigger[aria-expanded='true']",
+        )
+        .await;
+        let layer = boardstudio_web_ui_shared::test_role::by_role_name(
+            &root,
+            "button",
+            "Hide Front copper",
+        )
+        .unwrap();
+        layer.focus().unwrap();
+        assert_eq!(
+            document.active_element(),
+            Some(layer.clone().unchecked_into())
+        );
+        let key = web_sys::KeyboardEventInit::new();
+        key.set_key("Escape");
+        key.set_bubbles(true);
+        key.set_cancelable(true);
+        layer
+            .dispatch_event(
+                &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &key)
+                    .unwrap(),
+            )
+            .unwrap();
+        wait_for(
+            &root,
+            "#m1-parts-preview-layers-trigger[aria-expanded='false']",
+        )
+        .await;
+        assert_eq!(document.active_element(), Some(trigger.unchecked_into()));
+        root.remove();
     }
 
     #[wasm_bindgen_test]
@@ -1275,7 +1440,7 @@ mod tests {
 
         wait_for_button(&root, "3D model").await;
         click_button(&root, "3D model");
-        let alert = wait_for(&root, ".m1-case-view-status[role=alert]").await;
+        let alert = wait_for(&root, "[role=alert]").await;
         assert!(
             alert
                 .text_content()
@@ -1530,8 +1695,16 @@ mod tests {
         let mut mechanical = pad("NPTH", Side::Front, Some(1.0));
         mechanical.plated = Some(false);
         let plated = pad("PTH", Side::Front, Some(1.0));
-        assert_eq!(drill_class(&mechanical), "m1-part-drill is-mechanical");
-        assert_eq!(drill_class(&plated), "m1-part-drill");
+        assert!(
+            drill_class(&mechanical)
+                .split_whitespace()
+                .any(|class| class == "is-mechanical")
+        );
+        assert!(
+            !drill_class(&plated)
+                .split_whitespace()
+                .any(|class| class == "is-mechanical")
+        );
     }
 
     #[wasm_bindgen_test]

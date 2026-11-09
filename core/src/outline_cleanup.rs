@@ -2,6 +2,7 @@
 //! The span is the mouth chord, not the recess depth or a global hull radius.
 use super::{Path, Shapes, automatic, point, snap};
 use crate::{model::*, outline_controls};
+use boardstudio_contracts::{path_contains, path_signed_area};
 use i_overlay::{
     core::{fill_rule::FillRule, overlay_rule::OverlayRule},
     float::single::SingleFloatOverlay,
@@ -16,24 +17,6 @@ fn cross(a: [f64; 2], b: [f64; 2]) -> f64 {
 }
 fn dot(a: [f64; 2], b: [f64; 2]) -> f64 {
     a[0] * b[0] + a[1] * b[1]
-}
-fn area(path: &Path) -> f64 {
-    path.iter()
-        .zip(path.iter().cycle().skip(1))
-        .take(path.len())
-        .map(|(a, b)| cross(*a, *b))
-        .sum::<f64>()
-        / 2.0
-}
-fn contains(path: &Path, p: [f64; 2]) -> bool {
-    path.iter()
-        .zip(path.iter().cycle().skip(1))
-        .take(path.len())
-        .fold(false, |inside, (a, b)| {
-            inside
-                ^ ((a[1] > p[1]) != (b[1] > p[1])
-                    && p[0] < (b[0] - a[0]) * (p[1] - a[1]) / (b[1] - a[1]) + a[0])
-        })
 }
 fn distance(p: [f64; 2], a: [f64; 2], b: [f64; 2]) -> f64 {
     let d = sub(b, a);
@@ -64,7 +47,7 @@ fn owner<'a>(p: [f64; 2], envelopes: &'a [(&str, Shapes)]) -> Option<&'a str> {
             let d = shapes
                 .iter()
                 .map(|shape| {
-                    if contains(&shape[0], p) {
+                    if path_contains(&shape[0], p) {
                         return 0.0;
                     }
                     shape[0]
@@ -85,9 +68,12 @@ fn control(doc: &ProjectDoc, p: [f64; 2], envelopes: &[(&str, Shapes)]) -> Outli
     let part = owner(p, envelopes).and_then(|id| doc.parts.iter().find(|part| part.id == id));
     let at = Vec2 { x: p[0], y: p[1] };
     if let Some(part) = part {
-        let (sin, cos) = part.pose.rotation.to_radians().sin_cos();
-        let dx = at.x - part.pose.at.x;
-        let dy = at.y - part.pose.at.y;
+        // Ticket 12: envelope points are world-space; relativize against the
+        // evaluated board pose so half-frame parts keep stable controls.
+        let pose = crate::matrix::layout::evaluated_part_pose(doc, part);
+        let (sin, cos) = pose.rotation.to_radians().sin_cos();
+        let dx = at.x - pose.at.x;
+        let dy = at.y - pose.at.y;
         let x = dx * cos + dy * sin;
         OutlineControlPoint {
             at: Vec2 {
@@ -141,19 +127,19 @@ pub(super) fn bridge_metadata(
         .collect::<BTreeSet<_>>()
         .into_iter()
         .collect();
-    let matrix_ids =
-        doc.matrices
-            .iter()
-            .filter(|matrix| {
-                part_ids.iter().any(|id| {
-                    matrix.part_ids.contains(id)
-                        || doc.layouts.iter().any(|layout| {
-                            layout.matrix_id == matrix.id && layout.part_ids.contains(id)
-                        })
-                })
+    let matrix_ids = doc
+        .matrices
+        .iter()
+        .filter(|matrix| {
+            part_ids.iter().any(|id| {
+                matrix.part_ids.contains(id)
+                    || doc.layouts.iter().any(|layout| {
+                        layout.matrix_ids.contains(&matrix.id) && layout.part_ids.contains(id)
+                    })
             })
-            .map(|matrix| matrix.id.clone())
-            .collect();
+        })
+        .map(|matrix| matrix.id.clone())
+        .collect();
     OutlineBridge {
         id: authored
             .map(|id| format!("{feature}:bridge:{id}"))
@@ -174,7 +160,7 @@ pub(super) fn bridge_metadata(
 
 fn pockets(path: &Path, maximum: f64) -> Vec<Path> {
     let mut path = path.clone();
-    if area(&path) < 0.0 {
+    if path_signed_area(&path) < 0.0 {
         path.reverse();
     }
     let n = path.len();
@@ -210,11 +196,11 @@ fn pockets(path: &Path, maximum: f64) -> Vec<Path> {
             if depth < span * 0.25 {
                 continue;
             }
-            if area(&pocket) >= -0.001
+            if path_signed_area(&pocket) >= -0.001
                 || pocket[1..count]
                     .iter()
                     .any(|p| cross(chord, sub(*p, a)) <= 1e-8)
-                || contains(&path, [(a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0])
+                || path_contains(&path, [(a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0])
                 || !automatic::simple(&pocket)
             {
                 continue;
@@ -228,7 +214,7 @@ fn pockets(path: &Path, maximum: f64) -> Vec<Path> {
             if intersection
                 .iter()
                 .flatten()
-                .map(area)
+                .map(|ring| path_signed_area(ring))
                 .map(f64::abs)
                 .sum::<f64>()
                 > 0.001
@@ -238,7 +224,11 @@ fn pockets(path: &Path, maximum: f64) -> Vec<Path> {
             result.push(pocket);
         }
     }
-    result.sort_by(|a, b| area(b).abs().total_cmp(&area(a).abs()));
+    result.sort_by(|a, b| {
+        path_signed_area(b)
+            .abs()
+            .total_cmp(&path_signed_area(a).abs())
+    });
     result
 }
 
@@ -253,12 +243,13 @@ pub(super) fn repair(
         .keep_gaps
         .iter()
         .map(|gap| {
+            automatic::check_persisted_path_size(gap.points.len())?;
             let path = gap
                 .points
                 .iter()
                 .map(|p| outline_controls::point(doc, p).map(point))
                 .collect::<Result<Path, _>>()?;
-            if !automatic::simple(&path) {
+            if !automatic::persisted_simple(&path)? {
                 return Err(format!(
                     "Protected gap {} no longer has a valid source region",
                     gap.id

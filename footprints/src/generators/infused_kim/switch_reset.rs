@@ -5,7 +5,9 @@
 //! Author: @infused-kim
 use crate::Result;
 use crate::context::RenderContext;
-use crate::generators::util::{ModelDefaults, ModelParams, infused_model};
+use crate::generators::util::{
+    ModelDefaults, ModelParams, atom_or_string, infused_model, json_string,
+};
 use crate::number::js_number as n;
 use crate::params::ParamSpec;
 use crate::registry::{GeneratorSpec, License};
@@ -38,7 +40,7 @@ pub static SPEC: GeneratorSpec = GeneratorSpec {
         spdx: "CC-BY-NC-SA-4.0",
         author: "@infused-kim",
     },
-    body,
+    body: crate::registry::Body::Text(body),
 };
 
 fn body(p: &RenderContext<'_>) -> Result<String> {
@@ -48,12 +50,12 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
           {e0}
           (attr smd)
 
-          (fp_text reference "{e1}" (at 0 3.5 {e2}) (layer {e3}.SilkS) {e4}
+          (fp_text reference {e1} (at 0 3.5 {e2}) (layer {e3}.SilkS) {e4}
             (effects (font (size 1 1) (thickness 0.15)))
           )
       "####,
         e0 = p.at(),
-        e1 = p.reference(),
+        e1 = json_string(p.reference()),
         e2 = n(p.rotation()),
         e3 = p.side(),
         e4 = p.ref_hide()
@@ -120,7 +122,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         e0 = n(270.0 + p.rotation()),
         e1 = p.net("from"),
         e2 = p.net("to"),
-        e3 = p.reference(),
+        e3 = atom_or_string(p.reference()),
         e4 = n(p.rotation()),
         e5 = p.ref_hide()
     );

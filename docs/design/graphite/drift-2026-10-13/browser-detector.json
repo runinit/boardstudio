@@ -1,0 +1,29 @@
+[
+  {
+    "view": "Layout",
+    "preflight": true,
+    "injection": "loaded",
+    "logs": [
+      "%c[impeccable] 4 anti-patterns found color: oklch(84% 0.19 80.46); font-weight: bold",
+      "[impeccable] scan failed TypeError: Converting circular structure to JSON\n    --> starting at object with constructor 'HTMLDialogElement'\n    |     property '_impeccableOverlay' -> object with constructor 'HTMLDivElement'\n    --- property '_targetEl' closes the circle\n    at JSON.stringify (<anonymous>)\n    at console.log (http://127.0.0.1:8182/wasm/snippets/dioxus-interpreter-js-20451f6aefec841d/src/js/patch_console.js:1:229)\n    at printSummary (http://127.0.0.1:8400/detect.js:3557:17)\n    at renderBrowserFindings (http://127.0.0.1:8400/detect.js:3775:26)\n    at scan (http://127.0.0.1:8400/detect.js:3797:25)\n    at runAutoScan (http://127.0.0.1:8400/detect.js:3870:11)"
+    ]
+  },
+  {
+    "view": "PCB",
+    "preflight": true,
+    "injection": "loaded",
+    "logs": [
+      "%c[impeccable] 26 anti-patterns found color: oklch(84% 0.19 80.46); font-weight: bold",
+      "[impeccable] scan failed TypeError: Converting circular structure to JSON\n    --> starting at object with constructor 'HTMLElement'\n    |     property '_impeccableOverlay' -> object with constructor 'HTMLDivElement'\n    --- property '_targetEl' closes the circle\n    at JSON.stringify (<anonymous>)\n    at console.log (http://127.0.0.1:8182/wasm/snippets/dioxus-interpreter-js-20451f6aefec841d/src/js/patch_console.js:1:229)\n    at printSummary (http://127.0.0.1:8400/detect.js:3557:17)\n    at renderBrowserFindings (http://127.0.0.1:8400/detect.js:3775:26)\n    at scan (http://127.0.0.1:8400/detect.js:3797:25)\n    at runAutoScan (http://127.0.0.1:8400/detect.js:3870:11)"
+    ]
+  },
+  {
+    "view": "Export",
+    "preflight": true,
+    "injection": "loaded",
+    "logs": [
+      "%c[impeccable] 7 anti-patterns found color: oklch(84% 0.19 80.46); font-weight: bold",
+      "[impeccable] scan failed TypeError: Converting circular structure to JSON\n    --> starting at object with constructor 'HTMLElement'\n    |     property '_impeccableOverlay' -> object with constructor 'HTMLDivElement'\n    --- property '_targetEl' closes the circle\n    at JSON.stringify (<anonymous>)\n    at console.log (http://127.0.0.1:8182/wasm/snippets/dioxus-interpreter-js-20451f6aefec841d/src/js/patch_console.js:1:229)\n    at printSummary (http://127.0.0.1:8400/detect.js:3557:17)\n    at renderBrowserFindings (http://127.0.0.1:8400/detect.js:3775:26)\n    at scan (http://127.0.0.1:8400/detect.js:3797:25)\n    at runAutoScan (http://127.0.0.1:8400/detect.js:3870:11)"
+    ]
+  }
+]

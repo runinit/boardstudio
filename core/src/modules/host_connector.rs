@@ -1,6 +1,7 @@
 //! Atomic creation of the source-backed physical host-side VIK receptacle.
 use super::{ModuleDefinition, MountedModule};
 use crate::model::{Part, PartDefinition, PartKind, Pose2, ProjectDoc, Side, Vec2};
+use boardstudio_contracts::polygon_contains;
 
 const MODEL_ASSET: &str =
     "bundled-model:vik/sadekbaroudi-vik/kicad/3dmodels/vik-connector-horizontal.stp";
@@ -56,6 +57,7 @@ pub(super) fn add_for_mount(
         reference,
         pose,
         side: instance.host_face.clone(),
+        anchor: None,
         locked: None,
         properties: None,
         generator_parameters: None,
@@ -211,12 +213,15 @@ fn part_bounds(doc: &ProjectDoc, part: &Part) -> Option<Bounds> {
         .iter()
         .find(|definition| definition.id == part.definition_id)?;
     let flip = part.side == Side::Back;
+    // Ticket 12: host bounds follow the evaluated board pose of half-frame
+    // parts.
+    let pose = crate::matrix::layout::evaluated_part_pose(doc, part);
     Bounds::from_points(
         definition
             .courtyard
             .iter()
             .copied()
-            .map(|point| transform(point, part.pose, flip)),
+            .map(|point| transform(point, pose, flip)),
     )
 }
 
@@ -379,7 +384,7 @@ fn edge_samples(points: &[Vec2]) -> Vec<Vec2> {
 fn inside_feature(feature: &crate::model::OutlineFeature, point: Vec2) -> bool {
     use crate::model::OutlineFeature;
     match feature {
-        OutlineFeature::Polygon { points, .. } => point_in_polygon(points, point),
+        OutlineFeature::Polygon { points, .. } => polygon_contains(points, point),
         OutlineFeature::Rect {
             rotation,
             center,
@@ -396,25 +401,6 @@ fn inside_feature(feature: &crate::model::OutlineFeature, point: Vec2) -> bool {
         }
         OutlineFeature::PartEnvelope { .. } => true,
     }
-}
-
-fn point_in_polygon(points: &[Vec2], point: Vec2) -> bool {
-    if points.len() < 3 {
-        return false;
-    }
-    let mut inside = false;
-    let mut previous = points.len() - 1;
-    for current in 0..points.len() {
-        let first = points[current];
-        let second = points[previous];
-        if (first.y > point.y) != (second.y > point.y)
-            && point.x < (second.x - first.x) * (point.y - first.y) / (second.y - first.y) + first.x
-        {
-            inside = !inside;
-        }
-        previous = current;
-    }
-    inside
 }
 
 fn next_reference(doc: &ProjectDoc, board_id: &str) -> String {

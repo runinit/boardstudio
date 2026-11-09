@@ -1,0 +1,58 @@
+---
+status: accepted
+---
+
+# Keep the application static, local-first and Rust-owned
+
+The core workflow runs locally in a statically hosted browser application with browser persistence, without requiring server computation for editing and locally available generation/export. Maintained application rules live in Rust; generated JavaScript bindings and upstream runtimes are allowed, not a second authored application-policy layer. Heavy Core/CAD work runs in workers rather than on the UI thread. The user confirmed this platform boundary on 2026-10-19, accepting browser resource limits in exchange for local operation without a mandatory computation service.
+
+Deployment updates must preserve active editors' access to their offline assets: prefer delayed worker activation over forcing an update that removes assets an old editor may still need. This trades immediate update adoption for continuity. Offline operation requires the relevant app and project assets to be available locally; this is not a promise to fetch uncached remote models offline, nor a browser-support matrix. This decision does not reinstate retired frontend-trial or rollback machinery.
+
+Evidence: [current architecture](../architecture.md), [offline installation and activation policy](../../web/src/service_worker.rs), and [scoped offline-cache policy](../../web/crates/host/src/offline.rs). Historical rationale appears in the removed ownership ADR, `323967ff3a67b9b62db4f201b477396d62b55ccd:docs/adr/0003-rust-application-ownership.md`, §§1, 3 and 7; commit `8d481b7a8743ed7c8b62f47253e6d00b3096bca6` delays offline activation until old clients close.
+
+## Amendment: opt-in adoption of a waiting build (2026-11-07)
+
+The user asked for an **Update Now** action (2026-11-06, [ticket 013](../plans/ui-integration-recovery/issues/013-surface-build-updates.md)). This refines the update paragraph above; it does not reverse it. **Ordinary delayed activation is unchanged:** a newly installed worker still waits until old clients close, the activation cleanup that removes old scoped caches is unchanged, and nothing adopts a build unless the user chooses Update Now. Forcing activation with that cleanup left as is would delete an old editor's assets, so the action is gated rather than the policy relaxed.
+
+Mechanism ([ticket 019](../plans/ui-integration-recovery/issues/019-adopt-build-safely.md), revised after independent review):
+
+- **Opt-in message, worker-authoritative.** The page posts `ADOPT_WAITING_MESSAGE` (with a reply port) to the waiting worker. Only that message can make the worker call `skipWaiting()`; install and activate handlers are otherwise untouched. The **worker** decides: it enumerates its own window clients (uncontrolled legacy windows included) at that moment and calls `skipWaiting()` only when the requesting page is the sole window; otherwise it answers "declined" and nothing changes. A page-side probe followed by a separate message would leave a window in which another editor could open before activation, so the page no longer probes. A declined request says "Please close any other open tabs"; no tab is closed, reloaded or forced. A legacy or unresponsive waiting worker never answers; the page reports that after five seconds and reloads nothing.
+- **Activation guard.** An adopted activation remembers the requesting page. If, when the standard cleanup runs, any other window exists, the cleanup is skipped and the old scoped caches wait for the next ordinary activation. Residual: an editor that opens in the instant between the worker's final client check and cleanup is covered by that second check; an editor still navigating (not yet a client) at both checks is not, which is why activation guards the cleanup rather than relying on the first check alone.
+- **Takeover, then safe reload.** The page waits for `controllerchange` (ten-second bound), then **rechecks refresh safety** before reloading, because edits can begin during the asynchronous takeover. If work began meanwhile, the page keeps running, says the update is installed, and reloads only once every owner settles. If the worker does not take over, nothing reloads, the waiting state and control stay, and the user is told to try again.
+- **Safety gate and warning.** Activation rechecks Session pending work, the save leg (in-flight, failed, conflicted or retained saves never count as safe), storage readiness, recovery and visible invalid fields. A blocked update shows a **cancel-only** warning: acknowledging it is never permission to discard work, and Cancel restores focus and keeps the editor and its values.
+- **Draft detection.** Draft values live in component-local signals with no global registry. Two signals reach the gate: a valid typed value converts to detectable engine work when Update Now moves focus (each panel's standard blur-commit), and a value its panel refuses to commit is visible because the shared field controls mark it `aria-invalid`, which the Runtime reads at activation and again before the reload. Remaining recorded gap: a component that holds an uncommitted draft without committing on blur and without marking the field invalid is invisible to the gate. The user decided on 2026-11-06 that drafts which cannot yet be saved defer the update; this gap is recorded, not closed.
+
+Scope remains each registration's own scope: root and subpath routes are isolated, and a failed installation neither waits nor reloads.
+
+## Amendment 2026-11-08: registered draft owners and retained adoption risks
+
+This amendment **supersedes the Draft detection paragraph of 2026-11-07** above,
+not the worker-authoritative adoption protocol or ordinary delayed activation.
+[Draft-safety 008–015](../plans/update-draft-safety/map.md#decisions-so-far) implements
+and verifies a Runtime-owned `DraftOwnerRegistry`. The
+[015 coverage audit](../plans/update-draft-safety/issues/015-coverage-mutation-and-closure.md#answer)
+accounts for all **14 Class A owners / 17 registrations**. Both initial Update Now
+and post-takeover reload synchronously poll live per-(owner, admission-key)
+reports. Owner-canonical comparison with the accepted or initial baseline,
+per-key in-flight submission tracking, and guard-owned registration/retirement
+protect valid unresolved explicit-submit drafts without changing Apply/Save
+semantics. Hidden retained owners still report; genuine unmount/scope changes
+retire them. A completed save or preview alone is not proof that all drafts are safe.
+
+Class B blur-committing owners remain an **explicit, revocable risk acceptance**,
+not registered coverage or a proof of safety for every blur ordering. The
+[accepted handoff](../plans/update-draft-safety/issues/006-agree-verification-and-implementation-handoff.md#risk-acceptance-exclusions-remaining-blockers)
+revokes it on **any observed Class B draft loss, any new Class B owner, or a
+blur-ordering counterexample** (Enter→blur, portal focus-out,
+unmount-without-blur), reopening Class B adapters through a fresh ticket.
+Blur-commit and the visible `aria-invalid` check remain additive safeguards;
+neither replaces Class A registry reporting. Unresolved work still defers with
+cancel-only warnings, never discard permission.
+
+[019's reviewed completion](../plans/ui-integration-recovery/issues/019-adopt-build-safely.md#completion-record-coordinator-2026-11-08)
+adds combined packaged draft + held-save protection and exact saved-project
+reopening after B adoption. It does **not** prove safe worker-restart/`ADOPTER`
+lifetime or navigating-client/cache races: both remain explicit residual risks.
+The stale-precache and failed-install incomplete-cache observations also remain
+open and outside this draft-safety change. No ordinary activation/cache-policy
+redesign or global Layout Space-to-pan button policy is decided here.

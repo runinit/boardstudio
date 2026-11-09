@@ -5,6 +5,15 @@ use boardstudio_core::model::{
     Contour, Finding, KeycapResolution, Matrix, Part, Pose2, ProjectDoc, SceneDelta,
     Scope as FindingScope, Severity, Side, Vec2,
 };
+use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
+use boardstudio_web_ui_shared::ui::badge::{Badge, BadgeVariant};
+use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
+use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
+use boardstudio_web_ui_shared::ui::collapsible::{
+    Collapsible, CollapsibleContent, CollapsibleTrigger,
+};
+use boardstudio_web_ui_shared::ui::item::{Item, ItemContent, ItemSize};
+use boardstudio_web_ui_shared::ui::spinner::Spinner;
 use dioxus::prelude::*;
 use std::{cell::Cell, rc::Rc};
 use wasm_bindgen_futures::spawn_local;
@@ -259,55 +268,57 @@ pub fn KeycapsFitInspector(
     }));
 
     rsx! {
-        details { class: "m1-keycaps-disclosure m1-keycaps-fit-disclosure", open: findings_open(),
-            summary {
-                onclick: move |_| {
+        Collapsible { class: "min-w-0", open: findings_open(), keep_mounted: true,
+            on_open_change: move |open| {
                     findings_open_chosen.set(true);
-                    findings_open.set(!findings_open());
-                },
-                span { "Clearance findings" }
+                    findings_open.set(open);
+            },
+            CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                span { "Clearance findings " }
                 small { "{title_detail}" }
             }
-            section { class: "m1-keycaps-fit", "aria-label": "Clearance findings details",
+            CollapsibleContent { hidden: !findings_open(), inert: (!findings_open()).then_some(""),
+            section { class: "mt-3 grid min-w-0 gap-2 px-4 pb-4 pt-3 text-foreground [&_p]:m-0 [&_p]:leading-[1.55]", "aria-label": "Clearance findings details",
             if let Some(state) = state.as_ref() {
                 if state.refreshing {
-                    p { class: "m1-keycaps-fit-status", role: "status",
+                    p { class: "text-sm text-muted-foreground", role: "status",
+                        Spinner {}
                         if accepted.is_some() { "Refreshing; the shown assessment is from an earlier revision." }
                         else { "Checking keycap fit…" }
                     }
                 }
                 if let Some(error) = state.error.as_ref() {
-                    div { class: "m1-keycaps-fit-error", role: "alert",
+                    Alert { variant: AlertVariant::Destructive,
                         p { "{error}" }
                         if accepted.is_some() {
                             p { "The last accepted assessment is retained and marked stale until a current result arrives." }
                         } else {
                             p { "No current assessment was accepted. Retry after checking the active board and worker." }
                         }
-                        button { class: "m1-keycaps-fit-retry", onclick: move |_| on_retry.call(()), "Retry assessment" }
+                        Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", onclick: move |_| on_retry.call(()), "Retry assessment" }
                     }
                 }
             } else {
-                p { class: "m1-keycaps-fit-status", role: "status", "Waiting for an accepted board snapshot." }
+                p { class: "text-sm text-muted-foreground", role: "status", "Waiting for an accepted board snapshot." }
             }
             if !current && accepted.is_some() {
-                p { class: "m1-keycaps-fit-stale", "Earlier accepted findings · revision {accepted.unwrap().source.revision}" }
+                Callout { variant: CalloutVariant::Info, "Earlier accepted findings · revision {accepted.unwrap().source.revision}" }
             }
             if !current_case {
-                p { class: "m1-keycaps-fit-case-note",
+                Callout { variant: CalloutVariant::Warning,
                     "Current Case walls and solids have not been checked. Generate or update the Case preview for this revision."
                 }
             }
             if findings.is_empty() {
                 if accepted.is_some() && accepted.unwrap().result.specs.is_empty() {
-                    p { class: "m1-keycaps-fit-empty", "No generated keycaps are configured for this board." }
+                    p { "No generated keycaps are configured for this board." }
                 } else if accepted.is_some() {
-                    p { class: "m1-keycaps-fit-clean",
+                    p { class: "text-sm text-success-dark",
                         if current { "No active findings for the conservative full switch-travel envelope check." }
                         else { "The earlier assessment had no active findings for the conservative full switch-travel envelope check." }
                     }
                 } else if !state.as_ref().is_some_and(|state| state.refreshing) {
-                    p { class: "m1-keycaps-fit-empty", "No fit assessment is available yet." }
+                    p { "No fit assessment is available yet." }
                 }
             } else {
                 div { class: "wb-finding-groups",
@@ -329,7 +340,8 @@ pub fn KeycapsFitInspector(
                     }
                 }
             }
-            p { class: "m1-keycaps-fit-note", "Checks use conservative keycap envelopes through full switch travel. Case walls and solids are included only for a current Case preview." }
+            Callout { variant: CalloutVariant::Info, "Checks use conservative keycap envelopes through full switch travel. Case walls and solids are included only for a current Case preview." }
+            }
             }
         }
     }
@@ -343,10 +355,10 @@ fn KeycapsFitFinding(
     mechanical_layer_ids: Rc<[String]>,
     on_navigate: EventHandler<FindingNavigationRequest>,
 ) -> Element {
-    let (severity, severity_class) = match &finding.severity {
-        Severity::Error => ("Error", "error"),
-        Severity::Warning => ("Warning", "warning"),
-        Severity::Info => ("Information", "info"),
+    let (severity, severity_variant) = match &finding.severity {
+        Severity::Error => ("Error", BadgeVariant::Destructive),
+        Severity::Warning => ("Warning", BadgeVariant::Warning),
+        Severity::Info => ("Information", BadgeVariant::Info),
     };
     let fitted = finding.id.ends_with("outline:corners:fitted");
     let navigation_target = finding_navigation_target_with_layers(
@@ -367,21 +379,23 @@ fn KeycapsFitFinding(
         target,
     });
     rsx! {
-        li { class: "m1-keycaps-fit-finding is-{severity_class}",
-            span { class: "wb-finding-mark", "aria-hidden": "true" }
-            div {
-                strong { class: "wb-finding-severity", "{severity}" }
+        li {
+            Item { size: ItemSize::Sm,
+            ItemContent {
+                Badge { variant: severity_variant, "{severity}" }
                 p { "{finding.message}" }
                 if fitted {
                     p { "The resulting outline has smaller corners than requested. Review the corner size and nearby spacing." }
                 }
                 if let (Some(action_label), Some(request)) = (action_label, request) {
-                    button {
-                        class: "wb-finding-action",
+                    Button {
+                        variant: ButtonVariant::Secondary,
+                        class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         onclick: move |_| on_navigate.call(request.clone()),
                         "{action_label}"
                     }
                 }
+            }
             }
         }
     }
@@ -735,10 +749,13 @@ pub fn selected_part_bounds(
     board_id: &str,
     selected_ids: &[String],
 ) -> Option<(f64, f64, f64, f64)> {
+    if selected_ids.is_empty() {
+        return None;
+    }
     let board = document.boards.iter().find(|board| board.id == board_id)?;
     let mut bounds = None;
     for part in document.parts.iter().filter(|part| {
-        board.part_ids.contains(&part.id) && selected_ids.iter().any(|id| id == &part.id)
+        selected_ids.iter().any(|id| id == &part.id) && board.part_ids.contains(&part.id)
     }) {
         include_layout_part_bounds(document, scene, part, &mut bounds);
     }
@@ -800,6 +817,22 @@ pub fn layout_canvas_bounds(
 
     let visible_part_ids: std::collections::BTreeSet<&str> =
         board.part_ids.iter().map(String::as_str).collect();
+    let mut parts = std::collections::BTreeMap::new();
+    for part in &document.parts {
+        parts.entry(part.id.as_str()).or_insert(part);
+    }
+    let mut definitions = std::collections::BTreeMap::new();
+    for definition in &document.definitions {
+        definitions
+            .entry(definition.id.as_str())
+            .or_insert(definition);
+    }
+    let mut transforms = std::collections::BTreeMap::new();
+    for transform in &scene.transforms {
+        transforms
+            .entry(transform.id.as_str())
+            .or_insert(transform.pose);
+    }
     let visible_matrices: Vec<_> = document
         .matrices
         .iter()
@@ -831,20 +864,10 @@ pub fn layout_canvas_bounds(
             else {
                 continue;
             };
-            let part = document.parts.iter().find(|part| part.id == member_id);
+            let part = parts.get(member_id).copied();
             let definition = part
-                .and_then(|part| {
-                    document
-                        .definitions
-                        .iter()
-                        .find(|definition| definition.id == part.definition_id)
-                })
-                .or_else(|| {
-                    document
-                        .definitions
-                        .iter()
-                        .find(|definition| definition.id == matrix.definition_id)
-                });
+                .and_then(|part| definitions.get(part.definition_id.as_str()).copied())
+                .or_else(|| definitions.get(matrix.definition_id.as_str()).copied());
             let size = part
                 .and_then(|part| part.keycap)
                 .or_else(|| definition.and_then(|definition| definition.keycap))
@@ -859,18 +882,14 @@ pub fn layout_canvas_bounds(
     for part in document
         .parts
         .iter()
-        .filter(|part| board.part_ids.contains(&part.id))
+        .filter(|part| visible_part_ids.contains(part.id.as_str()))
     {
-        let pose = scene
-            .transforms
-            .iter()
-            .find(|transform| transform.id == part.id)
-            .map_or(part.pose, |transform| transform.pose);
+        let pose = transforms
+            .get(part.id.as_str())
+            .copied()
+            .unwrap_or(part.pose);
         include_point(&mut bounds, pose.at);
-        let definition = document
-            .definitions
-            .iter()
-            .find(|definition| definition.id == part.definition_id);
+        let definition = definitions.get(part.definition_id.as_str()).copied();
         let keycap = (definition.is_some_and(|definition| {
             matches!(&definition.kind, boardstudio_core::model::PartKind::Switch)
         }))
@@ -1240,7 +1259,6 @@ mod tests {
         Board, BoardContours, Contour, FindingMarker, KeycapResolution, Part, Pose2, Readiness,
         SceneDelta, Side, Transform, Vec2,
     };
-    use wasm_bindgen::JsCast;
     use wasm_bindgen_test::*;
 
     wasm_bindgen_test_configure!(run_in_browser);
@@ -1331,6 +1349,115 @@ mod tests {
         assert!((basis.bounds.3 - 22.0).abs() < 0.001);
         assert!((basis.bounds.1 - basis.bounds.0 - 44.0 * 725.0 / 455.0).abs() < 0.001);
         assert_eq!(basis.surface, (725.0, 455.0));
+    }
+
+    /// Ticket 18: the Layout view basis follows the content both ways, so the
+    /// view grows and shrinks with the spacing after commits. Matrix cells 5
+    /// mm further out on each side widen the basis by exactly 10 mm; the
+    /// member-less cells here keep the bounds on the keys alone.
+    #[wasm_bindgen_test]
+    fn layout_bounds_follow_spacing_widening_and_narrowing() {
+        use boardstudio_core::model::{MatrixScene, MatrixSceneCell};
+        let mut document = ProjectDoc::empty("doc", "Project");
+        document.boards.push(Board {
+            id: "board".into(),
+            name: "Board".into(),
+            outline_ids: vec![],
+            part_ids: vec![],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        for id in ["left", "right"] {
+            document.matrices.push(
+                serde_json::from_value(serde_json::json!({
+                    "id": id, "rows": 1, "columns": 1,
+                    "pitch": {"x": 19.05, "y": 19.05}, "origin": {"x": 0.0, "y": 0.0},
+                    "definitionId": "switch", "partIds": [], "boardId": "board",
+                    "cells": [{"row": 0, "column": 0, "enabled": true, "assemblies": []}]
+                }))
+                .unwrap(),
+            );
+        }
+        let scene_with = |half_gap: f64| SceneDelta {
+            module_scenes: vec![],
+            revision: 0,
+            transaction_id: "accepted".into(),
+            changed_ids: vec![],
+            transforms: vec![],
+            matrix_scenes: ["left", "right"]
+                .into_iter()
+                .map(|matrix_id| {
+                    let x = if matrix_id == "left" {
+                        -half_gap
+                    } else {
+                        half_gap
+                    };
+                    MatrixScene {
+                        matrix_id: matrix_id.into(),
+                        cells: vec![MatrixSceneCell {
+                            row: 0,
+                            column: 0,
+                            enabled: true,
+                            member_id: None,
+                            pose: Pose2 {
+                                at: Vec2 { x, y: 0.0 },
+                                rotation: 0.0,
+                            },
+                            shift_frame: Default::default(),
+                            offset_frame: Default::default(),
+                            row_shift: Vec2 { x: 0.0, y: 0.0 },
+                            key_shift: Vec2 { x: 0.0, y: 0.0 },
+                            row_bend: 0.0,
+                            key_bend: 0.0,
+                            cumulative_shift: Vec2 { x: 0.0, y: 0.0 },
+                            cumulative_bend: 0.0,
+                        }],
+                        columns: vec![],
+                        companions: vec![],
+                    }
+                })
+                .collect(),
+            contours: vec![],
+            board_contours: vec![],
+            board_readiness: vec![],
+            board_outline_scenes: vec![],
+            finding_markers: vec![],
+            findings: vec![],
+            readiness: Readiness {
+                layout: true,
+                outline: true,
+                pcb: true,
+                case_ready: false,
+            },
+        };
+        let narrow = layout_canvas_bounds(&document, &scene_with(30.0), "board")
+            .expect("narrow spacing has bounds");
+        let wide = layout_canvas_bounds(&document, &scene_with(35.0), "board")
+            .expect("wide spacing has bounds");
+        // Both halves move 5 mm out: the basis grows by exactly 10 mm,
+        // symmetrically, with identical height.
+        assert!((wide.1 - wide.0 - (narrow.1 - narrow.0) - 10.0).abs() < 1e-9);
+        assert!((wide.0 - (narrow.0 - 5.0)).abs() < 1e-9);
+        assert!((wide.1 - (narrow.1 + 5.0)).abs() < 1e-9);
+        assert!((wide.2 - narrow.2).abs() < 1e-9);
+        assert!((wide.3 - narrow.3).abs() < 1e-9);
+        // The camera basis carries the same growth, so the refit view shows
+        // the widened content instead of cropping it.
+        let narrow_basis =
+            layout_camera_basis(&document, &scene_with(30.0), "board", (725.0, 455.0))
+                .expect("narrow basis exists");
+        let wide_basis = layout_camera_basis(&document, &scene_with(35.0), "board", (725.0, 455.0))
+            .expect("wide basis exists");
+        assert!(
+            (wide_basis.bounds.1
+                - wide_basis.bounds.0
+                - (narrow_basis.bounds.1 - narrow_basis.bounds.0)
+                - 10.0)
+                .abs()
+                < 1e-6
+        );
     }
 
     #[wasm_bindgen_test]
@@ -1437,6 +1564,7 @@ mod tests {
                 rotation: 0.0,
             },
             side: Side::Front,
+            anchor: None,
             locked: None,
             properties: None,
             generator_parameters: None,
@@ -1608,6 +1736,7 @@ mod tests {
                 rotation: 0.0,
             },
             side: Side::Front,
+            anchor: None,
             locked: None,
             properties: None,
             generator_parameters: None,
@@ -1671,6 +1800,38 @@ mod tests {
             finding_navigation_bounds(&document, &scene, "different-finding", &part_target),
             Some((28.0, 52.0, 58.0, 82.0)),
             "an absent matching marker falls back to target bounds"
+        );
+        assert_eq!(
+            layout_canvas_bounds(&document, &scene, "board"),
+            Some((28.0, 52.0, 58.0, 82.0))
+        );
+        let mut scene = scene;
+        let mut duplicate = scene.transforms[0].clone();
+        duplicate.pose.at.x = 10_000.0;
+        scene.transforms.push(duplicate);
+        let mut off_board = document.parts[0].clone();
+        off_board.id = "other-board-part".into();
+        off_board.pose.at.x = 20_000.0;
+        document.parts.push(off_board);
+        assert_eq!(
+            layout_canvas_bounds(&document, &scene, "board"),
+            Some((28.0, 52.0, 58.0, 82.0)),
+            "camera fitting uses the first transform and excludes parts outside the board"
+        );
+        assert_eq!(selected_part_bounds(&document, &scene, "board", &[]), None);
+        assert_eq!(
+            selected_part_bounds(&document, &scene, "board", &["other-board-part".into()]),
+            None
+        );
+        assert_eq!(
+            selected_part_bounds(
+                &document,
+                &scene,
+                "board",
+                &["matrix/keys/diode-1".into(), "other-board-part".into()]
+            ),
+            Some((40.0, 40.0, 70.0, 70.0)),
+            "selection fitting keeps board membership and the first displayed transform"
         );
     }
 
@@ -1806,15 +1967,23 @@ mod tests {
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         gloo_timers::future::TimeoutFuture::new(50).await;
-        let action = root
-            .query_selector(".wb-finding-action")
-            .unwrap()
-            .expect("current board target has an action");
+        let disclosure = boardstudio_web_ui_shared::test_role::by_role_name(
+            &root,
+            "button",
+            "Clearance findings 1",
+        )
+        .expect("findings disclosure");
         assert_eq!(
-            action.text_content().as_deref(),
-            Some("Select affected geometry")
+            disclosure.get_attribute("aria-expanded").as_deref(),
+            Some("true")
         );
-        action.dyn_ref::<web_sys::HtmlElement>().unwrap().click();
+        let action = boardstudio_web_ui_shared::test_role::by_role_name(
+            &root,
+            "button",
+            "Select affected geometry",
+        )
+        .expect("current board target has an action");
+        action.click();
         gloo_timers::future::TimeoutFuture::new(50).await;
         let received = root
             .query_selector("#fit-navigation-received")
@@ -1822,6 +1991,12 @@ mod tests {
             .unwrap()
             .text_content();
         assert_eq!(received.as_deref(), Some("true"));
+        disclosure.click();
+        gloo_timers::future::TimeoutFuture::new(50).await;
+        assert_eq!(
+            disclosure.get_attribute("aria-expanded").as_deref(),
+            Some("false")
+        );
         root.remove();
     }
 }

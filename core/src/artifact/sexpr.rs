@@ -71,6 +71,28 @@ pub(super) fn kicad_quoted(raw: &str, span: Span) -> Option<String> {
             't' => out.push('\t'),
             'v' => out.push('\u{b}'),
             '"' | '\\' => out.push(escaped),
+            'u' => {
+                let mut value = 0u32;
+                let mut count = 0;
+                while count < 4 {
+                    let Some(next) = chars.clone().next() else {
+                        break;
+                    };
+                    let Some(digit) = next.to_digit(16) else {
+                        break;
+                    };
+                    chars.next();
+                    value = value * 16 + digit;
+                    count += 1;
+                }
+                if count == 4 {
+                    if let Some(ch) = char::from_u32(value) {
+                        out.push(ch);
+                    }
+                } else {
+                    out.push('u');
+                }
+            }
             'x' => {
                 let mut value = 0u32;
                 let mut count = 0;
@@ -166,6 +188,17 @@ mod tests {
         assert_eq!(
             kicad_quoted(source, span(node)).as_deref(),
             Some("quote: \" slash: \\ newline: \n tab: \t A A café")
+        );
+    }
+
+    #[test]
+    fn kicad_escape_decoder_reads_json_unicode_escapes() {
+        let source = r#"(property "Value" "control: \u0001 accent: \u00e9")"#;
+        let doc = kiutils_sexpr::parse_one(source).expect("valid source");
+        let node = &items(&doc.nodes[0]).expect("root")[2];
+        assert_eq!(
+            kicad_quoted(source, span(node)).as_deref(),
+            Some("control: \u{1} accent: é")
         );
     }
 

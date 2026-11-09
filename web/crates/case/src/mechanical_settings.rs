@@ -3,14 +3,35 @@
 pub use crate::mechanical_feedback::{
     MechanicalSettingsFeedback, MechanicalSettingsFeedbackState, MechanicalSettingsIdentity,
 };
+use crate::mechanical_pair::{MechanicalPairFeatureRow, MechanicalPairLinkOption, feature_label};
+use crate::mechanical_settings_controller::use_bound_mechanical_field;
+pub use boardstudio_core::mechanical::change::{
+    MechanicalChange as MechanicalSettingsPatch, MechanicalCriticalFitTextField,
+    MechanicalDimension, MechanicalHardwareTextField, MechanicalMountCollection,
+};
 use boardstudio_core::model::{
     CaseOpening, GasketPlacement, HardwareTransport, InsertInstallation, InternalClosureHardware,
-    MechanicalBattery, MechanicalBottomStyle, MechanicalBuiltinProfile, MechanicalCriticalFit,
-    MechanicalExtraction, MechanicalGasketAnchor, MechanicalGeometry,
-    MechanicalHardwareSpecification, MechanicalMount, MechanicalPartProcess, MechanicalPartProfile,
-    MechanicalPurpose, MechanicalPurposeMapping, MechanicalStabilizerKind,
-    MechanicalStabilizerOverride, MechanicalSwitchFamily, Mount, MountKind, PlateMethod,
-    ScrewDrive, ScrewHeadProfile, ScrewLengthDatum, Severity, Vec2,
+    MAX_COORDINATE_MM, MechanicalBattery, MechanicalBottomStyle, MechanicalBuiltinProfile,
+    MechanicalCriticalFit, MechanicalExtraction, MechanicalFeatureState, MechanicalGasketAnchor,
+    MechanicalGeometry, MechanicalHardwareSpecification, MechanicalMount, MechanicalOpening,
+    MechanicalPartProcess, MechanicalPartProfile, MechanicalPurpose, MechanicalPurposeMapping,
+    MechanicalStabilizerKind, MechanicalStabilizerOverride, MechanicalSwitchFamily, Mount,
+    MountKind, PlateMethod, Pose2, ScrewDrive, ScrewHeadProfile, ScrewLengthDatum, Severity, Vec2,
+};
+use boardstudio_web_ui_shared::ui::{
+    alert::{Alert, AlertVariant},
+    badge::{Badge, BadgeVariant},
+    button::{Button, ButtonSize, ButtonVariant},
+    callout::{Callout, CalloutVariant},
+    checkbox::{Checkbox, CheckboxState},
+    collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
+    combobox::{Combobox, ComboboxOption},
+    field::{Field, FieldError, FieldLabel},
+    input::InputType,
+    input_group::{InputGroup, InputGroupInput, InputGroupText, InputGroupTextarea},
+    item::{Item, ItemActions, ItemContent, ItemDescription, ItemGroup},
+    select::{Select, SelectOption},
+    toggle_group::{ToggleGroup, ToggleItem},
 };
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
@@ -41,7 +62,7 @@ pub struct MechanicalSettingsValues {
     pub wall_thickness: f64,
     pub clearance: f64,
     pub opening_allowance: f64,
-    pub openings: Vec<CaseOpening>,
+    pub openings: Vec<MechanicalOpening>,
     pub internal_gasket: bool,
     pub closure_hardware: Option<InternalClosureHardware>,
     pub hardware: Vec<MechanicalHardwareSpecification>,
@@ -130,12 +151,6 @@ pub struct MechanicalGasketSupportRow {
     pub is_previous: bool,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum MechanicalMountCollection {
-    Suspension,
-    Closure,
-}
-
 impl MechanicalGasketSupportRow {
     pub fn saved_anchor(&self) -> MechanicalGasketAnchor {
         MechanicalGasketAnchor {
@@ -178,75 +193,6 @@ pub struct MechanicalHardwareMount {
     pub kind: MountKind,
     pub x: f64,
     pub y: f64,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum MechanicalDimension {
-    PlateThickness,
-    PlateFoamThickness,
-    PcbThickness,
-    BottomFoamThickness,
-    BottomThickness,
-    WallThickness,
-    Clearance,
-    GasketSupportLength,
-    GasketSupportWidth,
-    OpeningAllowance,
-    OpeningBottomZ,
-    OpeningHeight,
-    OpeningPointX,
-    OpeningPointY,
-    BatteryWidth,
-    BatteryDepth,
-    BatteryHeight,
-    BatteryCableWidth,
-    BatteryPositionX,
-    BatteryPositionY,
-    BatteryCableExitX,
-    BatteryCableExitY,
-    MountPositionX,
-    MountPositionY,
-    MountHoleDiameter,
-    MountBossDiameter,
-    MountBossHeight,
-    ClosureThreadDiameter,
-    ClosurePitch,
-    ClosureHeadDiameter,
-    ClosureHeadHeight,
-    ClosureHoleDiameter,
-    ClosureInsertDiameter,
-    ClosureInsertLength,
-    ClosureSeatDiameter,
-    ClosureSeatDepth,
-    ClosureEngagement,
-    ClosureThreadStart,
-    ClosureTipAllowance,
-    ClosureBottomingClearance,
-    ClosureRoof,
-    ClosureSurround,
-    ClosureSeatLeadDepth,
-    ClosureSeatLeadDiameter,
-    ClosureBearingThickness,
-    CriticalFitFromX,
-    CriticalFitFromY,
-    CriticalFitToX,
-    CriticalFitToY,
-    HardwareLength,
-    HardwareQuantity,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum MechanicalCriticalFitTextField {
-    Label,
-    Tolerance,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum MechanicalHardwareTextField {
-    Designation,
-    Thread,
-    Tolerance,
-    Notes,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -349,7 +295,13 @@ fn is_dimension_field(field_id: &str) -> bool {
     .any(|field| field.field_id() == field_id)
 }
 
-impl MechanicalDimension {
+trait MechanicalDimensionExt {
+    fn field_id(self) -> &'static str;
+    fn rule(self) -> NumberRule;
+    fn step(self) -> &'static str;
+}
+
+impl MechanicalDimensionExt for MechanicalDimension {
     fn field_id(self) -> &'static str {
         match self {
             Self::PlateThickness => "plate-thickness",
@@ -448,175 +400,12 @@ impl MechanicalDimension {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub enum MechanicalSettingsPatch {
-    Enable,
-    InitializeClosures,
-    Disable,
-    SetBatteryEnabled(bool),
-    SetClosureInsertPreset(String),
-    SetClosureDrive(ScrewDrive),
-    SetClosureInstallation(InsertInstallation),
-    SetClosureFixedLength(Option<f64>),
-    SetClosureThread(String),
-    SetClosureScrewLengths(Vec<f64>),
-    SetClosureHeadProfile(ScrewHeadProfile),
-    SetClosureLengthDatum(ScrewLengthDatum),
-    AddCriticalFit {
-        part_id: String,
-    },
-    RemoveCriticalFit {
-        fit_id: String,
-    },
-    SetCriticalFitText {
-        fit_id: String,
-        field: MechanicalCriticalFitTextField,
-        value: String,
-    },
-    SetCriticalFitPart {
-        fit_id: String,
-        part_id: String,
-    },
-    SetCriticalFitPoint {
-        fit_id: String,
-        field: MechanicalDimension,
-        value: f64,
-    },
-    AddHardware {
-        part_id: String,
-        feature_id: String,
-    },
-    RemoveHardware {
-        hardware_id: String,
-    },
-    SetHardwareMount {
-        hardware_id: String,
-        part_id: String,
-        feature_id: String,
-    },
-    SetHardwareText {
-        hardware_id: String,
-        field: MechanicalHardwareTextField,
-        value: String,
-    },
-    SetHardwareDimension {
-        hardware_id: String,
-        field: MechanicalDimension,
-        value: f64,
-    },
-    AddOpening,
-    RemoveOpening {
-        opening_index: usize,
-    },
-    AddOpeningVertex {
-        opening_index: usize,
-    },
-    RemoveOpeningVertex {
-        opening_index: usize,
-        point_index: usize,
-    },
-    SetOpeningDimension {
-        opening_index: usize,
-        point_index: Option<usize>,
-        field: MechanicalDimension,
-        value: f64,
-    },
-    SetMethod(PlateMethod),
-    SetMount(MechanicalMount),
-    AddMount {
-        collection: MechanicalMountCollection,
-    },
-    AddSuggestedClosureMounts(Vec<Mount>),
-    SetMountCollection {
-        collection: MechanicalMountCollection,
-        mounts: Vec<Mount>,
-    },
-    SetMountDimension {
-        collection: MechanicalMountCollection,
-        mount_id: String,
-        field: MechanicalDimension,
-        value: f64,
-    },
-    SetMountPosition {
-        collection: MechanicalMountCollection,
-        mount_id: String,
-        at: Vec2,
-    },
-    SetMountKind {
-        collection: MechanicalMountCollection,
-        mount_id: String,
-        kind: MountKind,
-    },
-    RemoveMount {
-        collection: MechanicalMountCollection,
-        mount_id: String,
-    },
-    AdoptClosurePositions(Vec<Mount>),
-    SetBottomStyle(MechanicalBottomStyle),
-    SetMiddleFrame(bool),
-    SetIntegratedPlateFrame(bool),
-    SetDimension {
-        field: MechanicalDimension,
-        value: f64,
-    },
-    SetGasketSupportDimension {
-        support_id: String,
-        anchors: Vec<MechanicalGasketAnchor>,
-        field: MechanicalDimension,
-        value: f64,
-    },
-    SetGasketSupportPlacement {
-        support_id: String,
-        anchors: Vec<MechanicalGasketAnchor>,
-    },
-    SetGasketSupportUnlinked {
-        support_id: String,
-        pair_id: Option<String>,
-        anchors: Vec<MechanicalGasketAnchor>,
-    },
-    ResetGasketPlacement,
-    AssignSwitchProfile {
-        definition_id: String,
-        family: MechanicalSwitchFamily,
-    },
-    AssignStabilizerProfile {
-        definition_id: String,
-        source: MechanicalBuiltinProfile,
-    },
-    AssignImportedGeometryProfile {
-        definition_id: String,
-    },
-    UpdateProfile(MechanicalPartProfile),
-    RemoveProfile {
-        definition_id: String,
-    },
-    SetSwitchFamily {
-        definition_id: String,
-        family: MechanicalSwitchFamily,
-    },
-    AddProcessOverride {
-        part_id: String,
-    },
-    RemoveProcessOverride {
-        part_id: String,
-    },
-    SetProcessMethod {
-        part_id: String,
-        method: PlateMethod,
-    },
-    SetProcessMaterial {
-        part_id: String,
-        material: String,
-    },
-    SetProcessThickness {
-        part_id: String,
-        thickness: f64,
-    },
-    SetStabilizerKind(MechanicalStabilizerOverride),
+pub trait MechanicalSettingsPatchExt {
+    fn field_id(&self) -> String;
 }
 
-impl MechanicalSettingsPatch {
-    pub fn field_id(&self) -> String {
+impl MechanicalSettingsPatchExt for MechanicalSettingsPatch {
+    fn field_id(&self) -> String {
         match self {
             Self::Enable => "configure".to_owned(),
             Self::InitializeClosures => "initialize-closures".to_owned(),
@@ -667,13 +456,16 @@ impl MechanicalSettingsPatch {
             | Self::AddOpeningVertex { .. }
             | Self::RemoveOpeningVertex { .. } => "case-openings".to_owned(),
             Self::SetOpeningDimension {
-                opening_index,
-                point_index,
+                opening_id,
+                vertex_id,
                 field,
                 ..
             } => format!(
-                "opening:{opening_index}:{}:{}",
-                point_index.map_or_else(|| "volume".to_owned(), |index| format!("point:{index}")),
+                "opening:{opening_id}:{}:{}",
+                vertex_id.as_deref().map_or_else(
+                    || "volume".to_owned(),
+                    |vertex_id| format!("point:{vertex_id}")
+                ),
                 field.field_id(),
             ),
             Self::SetMethod(_) => "method".to_owned(),
@@ -759,6 +551,33 @@ impl MechanicalSettingsPatch {
             Self::SetStabilizerKind(stabilizer) => {
                 format!("stabilizer:{}", stabilizer.part_id)
             }
+            // The pair lifecycle is applied through the Core mechanical
+            // operation; these field ids are the adapter's stable keys for it.
+            Self::LinkMirrorPair { pair_id, .. } => format!("mechanical-pair:{pair_id}:link"),
+            Self::UnlinkMirrorPair { instance_id } => {
+                format!("mechanical-pair:{instance_id}:unlink")
+            }
+            Self::MakeFeatureLocal {
+                feature_id,
+                instance_id,
+            } => format!("mechanical-feature:{instance_id}:{feature_id}:make-local"),
+            Self::OmitFeatureMember {
+                feature_id,
+                instance_id,
+            } => format!("mechanical-feature:{instance_id}:{feature_id}:omit"),
+            Self::RejoinFeatureMember {
+                feature_id,
+                instance_id,
+                ..
+            } => format!("mechanical-feature:{instance_id}:{feature_id}:rejoin"),
+            // The removal names its member through the edit target, so this key is the
+            // panel's stable identity for the selected half's removal action.
+            Self::RemovePhysicalInstance => "remove-physical-instance".to_owned(),
+            // The conversion names exactly the members it converts, so its key follows
+            // them and a per-half action cannot share another half's pending gate.
+            Self::MaterializeLegacyConstruction { instance_ids } => {
+                format!("materialize-legacy-construction:{}", instance_ids.join(","))
+            }
         }
     }
 }
@@ -776,6 +595,12 @@ pub struct MechanicalSettingsRequest {
     pub request_id: u64,
     pub field_id: String,
     pub patch: MechanicalSettingsPatch,
+    /// The fingerprint of the accepted inputs the reviewed result was produced from,
+    /// for actions whose submission previews its result. The controller compares it
+    /// against the accepted document when Session executes the submission, so a
+    /// relevant change between the displayed review and its execution retires the
+    /// action and refreshes the review. `None` for actions without a reviewed result.
+    pub reviewed_fingerprint: Option<String>,
 }
 
 #[derive(Props, Clone, PartialEq)]
@@ -785,6 +610,8 @@ pub struct MechanicalSettingsProps {
     /// request IDs while retaining the same editor identity.
     pub request_sequence: Signal<u64>,
     pub values: Option<MechanicalSettingsValues>,
+    #[props(default)]
+    pub preview_values: Option<MechanicalSettingsValues>,
     pub profiles: Rc<[MechanicalProfileChoice]>,
     #[props(default)]
     pub extract_profile: Option<MechanicalProfileExtractionPort>,
@@ -798,12 +625,31 @@ pub struct MechanicalSettingsProps {
     pub hardware_mounts: Rc<[MechanicalHardwareMount]>,
     pub suggested_mounts: Rc<[Mount]>,
     pub findings: Rc<[MechanicalFindingRow]>,
+    /// The selected half's pair features, projected from the accepted pair store.
+    /// Absent when the half belongs to no pair.
+    #[props(default)]
+    pub pair_features: Option<Rc<[MechanicalPairFeatureRow]>>,
+    /// The candidate links an unpaired half can establish. Absent when there is
+    /// nothing to link with.
+    #[props(default)]
+    pub pair_link_options: Option<Rc<[MechanicalPairLinkOption]>>,
+    /// The other half when the selected half belongs to a mechanical pair.
+    #[props(default)]
+    pub pair_counterpart: Option<String>,
+    /// Whether the selected half still uses the legacy shared-construction overlay, so
+    /// its construction can be converted to its own local values.
+    #[props(default)]
+    pub construction_is_legacy: bool,
+    /// The mount's read-only Core projection, so the review shows the complete result
+    /// for the choices the user has actually made.
+    #[props(default)]
+    pub pair_projection_port: Option<crate::mechanical_pair::MechanicalPairProjectionPort>,
     pub selected_layer: String,
     pub mismatch: Option<MechanicalBoardMismatch>,
     pub editable: bool,
     pub disabled_reason: Option<String>,
     /// Bounded per-request feedback keeps a rejected raced submit from replacing the
-    /// currently admitted operation's Pending/Saved response.
+    /// currently admitted operation's Pending/Landed response.
     pub feedback: Rc<[MechanicalSettingsFeedback]>,
     pub summary_feedback: Option<MechanicalSettingsFeedback>,
     pub on_request: EventHandler<MechanicalSettingsRequest>,
@@ -913,29 +759,29 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
             .unwrap_or_default()
             + 1;
         return rsx! {
-            section { class: "m1-mechanical-settings", aria_label: "Mechanical stack settings",
-                button {
-                    r#type: "button",
-                    class: "m1-mechanical-context-return",
+            section { class: "grid gap-3 [&_h3]:m-0 [&_p]:m-0 [&_label]:grid-cols-1 [&_small]:text-xs [&_small]:leading-normal [&_small]:text-muted-foreground", aria_label: "Mechanical stack settings",
+                Button {
+                    variant: ButtonVariant::Ghost,
+                    size: ButtonSize::Sm,
+                    button_type: "button",
+                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     onclick: move |_| props.on_select_layer.call(String::new()),
                     "Assembly settings"
                 }
                 h2 { "Gasket {index}" }
                 if support.is_previous {
-                    p { role: "status", class: "m1-mechanical-previous-result",
-                        "Showing previous generated geometry. Gasket measurements cannot be edited until the current assembly resolves."
-                    }
+                    div { role: "status", Callout { "Showing previous generated geometry. Gasket measurements cannot be edited until the current assembly resolves." } }
                 } else {
-                    p { class: "m1-mechanical-help",
+                    p { class: "text-muted-foreground text-sm leading-normal",
                         if support.unlinked { "This gasket is unlinked from its pair." } else { "This support is linked to its mirrored pair. Matching upper and lower pads resize together." }
                     }
                     if let Some(error) = support.fit_error.as_deref() {
-                        p { role: "alert", "{error} Preview and export stay blocked until it fits." }
+                        Alert { variant: AlertVariant::Destructive, "{error} Preview and export stay blocked until it fits." }
                     } else {
-                        p { class: "m1-mechanical-help", "Fits at this position." }
+                        p { class: "text-muted-foreground text-sm leading-normal", "Fits at this position." }
                     }
                     for gasket_owner in [format!("{owner_key}:gasket:{}", support.id)] {
-                    fieldset { key: "{gasket_owner}", class: "m1-mechanical-group", disabled: !props.editable,
+                    fieldset { key: "{gasket_owner}", class: "m-0 grid gap-2.5 border-0 border-t border-border py-2.5 [&_legend]:p-0 [&_legend]:font-semibold", disabled: !props.editable,
                         DimensionField {
                             identity: props.identity.clone(),
                             request_sequence,
@@ -964,15 +810,17 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                         }
                         if !props.editable {
                             if let Some(reason) = props.disabled_reason.as_deref() {
-                                p { role: "status", "{reason}" }
+                                div { role: "status", Callout { "{reason}" } }
                             }
                         }
                     }
                     }
-                    p { class: "m1-mechanical-help", "Prefer 10 mm cuts; use 5 mm increments for a tighter fit. Foam thickness and compression are shared by the floating stack." }
-                    button {
-                        r#type: "button",
-                        class: "m1-mechanical-context-settings",
+                    p { class: "text-muted-foreground text-sm leading-normal", "Prefer 10 mm cuts; use 5 mm increments for a tighter fit. Foam thickness and compression are shared by the floating stack." }
+                    Button {
+                        variant: ButtonVariant::Ghost,
+                        size: ButtonSize::Sm,
+                        button_type: "button",
+                        class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         onclick: move |_| props.on_select_layer.call("gaskets".to_owned()),
                         "All gasket settings"
                     }
@@ -985,29 +833,52 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
     }
 
     rsx! {
-        section { class: "m1-mechanical-settings", aria_label: "Mechanical stack settings",
+        section { class: "grid gap-3 [&_h3]:m-0 [&_p]:m-0 [&_label]:grid-cols-1 [&_small]:text-xs [&_small]:leading-normal [&_small]:text-muted-foreground", aria_label: "Mechanical stack settings",
             h2 { "Case construction" }
-            if props.layers.iter().any(|layer| layer.is_previous) {
-                p { role: "status", class: "m1-mechanical-previous-result",
-                    "Showing generated layers from a previous accepted revision. Settings below reflect the current accepted configuration."
+            if let Some(values) = props.values.as_ref().filter(|_| configuration_matches).or(props.preview_values.as_ref()) {
+                StackupPreview { values: values.clone() }
+            }
+            Collapsible { keep_mounted: true, default_open: false,
+                CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground", "Linked halves" }
+                CollapsibleContent { class: "data-[open=true]:overflow-visible data-[open=false]:hidden",
+            if let Some(features) = props.pair_features.as_ref().filter(|features| !features.is_empty()) {
+                MechanicalPairControls {
+                    identity: props.identity.clone(),
+                    request_sequence,
+                    features: features.clone(),
+                    editable: props.editable,
+                    feedback: props.feedback.clone(),
+                    on_request: props.on_request,
+                }
+            } else if let Some(options) = props.pair_link_options.as_ref().filter(|options| !options.is_empty()) {
+                MechanicalPairLinkControls {
+                    identity: props.identity.clone(),
+                    request_sequence,
+                    options: options.clone(),
+                    editable: props.editable,
+                    projection_port: props.pair_projection_port.clone(),
+                    on_request: props.on_request,
                 }
             }
+             }
+            }
+            if props.layers.iter().any(|layer| layer.is_previous) {
+                div { role: "status", Callout { "Showing generated layers from a previous accepted revision. Settings below reflect the current accepted configuration." } }
+            }
             if let Some(mismatch) = props.mismatch.as_ref() {
-                p { role: "status", class: "m1-mechanical-mismatch",
-                    "Mechanical settings are unavailable while {mismatch.board_name} is configured. Use the authored Case panel to return to that board."
-                }
+                div { role: "status", Callout { variant: CalloutVariant::Warning, "Mechanical settings are unavailable while {mismatch.board_name} is configured. Use the authored Case panel to return to that board." } }
             }
             if let Some(values) = props.values.as_ref().filter(|_| configuration_matches) {
                 if let Some(feedback) = current_feedback {
-                    if feedback.state == MechanicalSettingsFeedbackState::Saved {
-                        p { role: "status", "Mechanical settings saved." }
-                    } else if feedback.state == MechanicalSettingsFeedbackState::Failed && !is_dimension_field(&feedback.field_id)
+                    if feedback.state == MechanicalSettingsFeedbackState::Failed && !is_dimension_field(&feedback.field_id)
                         && let Some(message) = feedback.message.as_deref()
                     {
-                        p { role: "alert", "{message}" }
+                        Alert { variant: AlertVariant::Destructive, "{message}" }
                         if feedback.field_id == "initialize-closures" {
-                            button {
-                                r#type: "button",
+                            Button {
+                                variant: ButtonVariant::Secondary,
+                                button_type: "button",
+                                class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                                 disabled: mechanical_action_pending("initialize-closures") || !props.editable,
                                 onclick: {
                                     let identity = props.identity.clone();
@@ -1022,10 +893,10 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                 }
                 if !props.editable {
                     if let Some(reason) = props.disabled_reason.as_deref() {
-                        p { role: "status", "{reason}" }
+                        div { role: "status", Callout { "{reason}" } }
                     }
                 }
-                p { class: "m1-mechanical-help", "Authored Case bodies remain saved while the generated stack is active. Disable the stack to return to authored bodies." }
+                p { class: "text-muted-foreground text-sm leading-normal", "Authored Case bodies remain saved while the generated stack is active. Disable the stack to return to authored bodies." }
                 ConstructionControls {
                     identity: props.identity.clone(),
                     values: values.clone(),
@@ -1033,6 +904,17 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                     request_sequence,
                     on_request: props.on_request,
                 }
+                if props.construction_is_legacy {
+                    MechanicalLegacyConstructionControl {
+                        identity: props.identity.clone(),
+                        request_sequence,
+                        editable: props.editable,
+                        on_request: props.on_request,
+                    }
+                }
+                Collapsible { keep_mounted: true, default_open: false,
+                    CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground", "Switch fit profiles" }
+                    CollapsibleContent { class: "data-[open=true]:overflow-visible data-[open=false]:hidden",
                 ProfileGuidance {
                     identity: props.identity.clone(),
                     owner_key: owner_key.clone(),
@@ -1046,6 +928,11 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                     request_sequence,
                     on_request: props.on_request,
                 }
+                 }
+                }
+                Collapsible { keep_mounted: true, default_open: false,
+                    CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground", "Manufacturing overrides" }
+                    CollapsibleContent { class: "data-[open=true]:overflow-visible data-[open=false]:hidden",
                 ManufacturingControls {
                     identity: props.identity.clone(),
                     targets: props.process_targets.clone(),
@@ -1054,6 +941,8 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                     feedback: props.feedback.clone(),
                     request_sequence,
                     on_request: props.on_request,
+                }
+                 }
                 }
                 DimensionControls {
                     identity: props.identity.clone(),
@@ -1065,15 +954,28 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                     on_request: props.on_request,
                     owner_key: owner_key.clone(),
                 }
+                Collapsible { keep_mounted: true, default_open: true,
+                    CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground", "Resolved stack" }
+                    CollapsibleContent { class: "data-[open=false]:hidden",
                 ResolvedStack {
                     layers: props.layers.clone(),
                     selected_layer: props.selected_layer.clone(),
                     on_select_layer: props.on_select_layer,
                 }
+                 }
+                }
+                Collapsible { keep_mounted: true, default_open: false,
+                    CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground", "Mechanical diagnostics" }
+                    CollapsibleContent { class: "data-[open=false]:hidden",
                 Diagnostics {
                     findings: props.findings.clone(),
                     on_show_finding: props.on_show_finding,
                 }
+                 }
+                }
+                Collapsible { keep_mounted: true, default_open: false,
+                    CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground", "Battery" }
+                    CollapsibleContent { class: "data-[open=false]:hidden",
                 BatteryControls {
                     identity: props.identity.clone(),
                     request_sequence,
@@ -1082,6 +984,8 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                     feedback: props.feedback.clone(),
                     on_request: props.on_request,
                     owner_key: owner_key.clone(),
+                }
+                 }
                 }
                 for opening_owner in [format!("{owner_key}:case-openings")] {
                     OpeningControls {
@@ -1109,11 +1013,12 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                     }
                 }
                 if values.mount == MechanicalMount::Gasket && values.internal_gasket {
-                    section { class: "m1-mechanical-option-group", aria_label: "Gasket supports",
+                    section { aria_label: "Gasket supports",
                         h3 { "Gasket supports" }
-                        button {
-                            r#type: "button",
-                            class: "m1-mechanical-quiet",
+                        Button {
+                            variant: ButtonVariant::Secondary,
+                            button_type: "button",
+                            class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                             disabled: mechanical_action_pending("reset-gasket-placement") || !props.editable,
                             onclick: {
                                 let identity = props.identity.clone();
@@ -1123,7 +1028,7 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                             },
                             "Reset gasket placement"
                         }
-                        p { class: "m1-mechanical-help",
+                        p { class: "text-muted-foreground text-sm leading-normal",
                             "Reset releases manually positioned supports. Closure positions stay fixed."
                         }
                     }
@@ -1157,9 +1062,10 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                         owner_key: owner_key.clone(),
                     }
                 }
-                button {
-                    r#type: "button",
-                    class: "m1-mechanical-disable",
+                Button {
+                    variant: ButtonVariant::Secondary,
+                    button_type: "button",
+                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     disabled: !props.editable,
                     onclick: {
                         let identity = props.identity.clone();
@@ -1167,25 +1073,42 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                         let on_request = props.on_request;
                         move |_| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::Disable)
                     },
-                    "Disable mechanical stack"
+                    if props.pair_counterpart.is_some() { "Unlink and disable this half" } else { "Disable mechanical stack" }
+                }
+                if let Some(counterpart) = props.pair_counterpart.clone() {
+                    p { class: "text-muted-foreground text-sm leading-normal",
+                        "This half is linked with {counterpart}. Disabling removes that link and disables only this half's mechanical stack: the other half keeps its geometry and settings, and neither PCB is removed. One Undo restores the link and this stack."
+                    }
+                    MechanicalPairMemberRemoval {
+                        identity: props.identity.clone(),
+                        request_sequence,
+                        counterpart,
+                        editable: props.editable,
+                        on_request: props.on_request,
+                    }
                 }
             } else if props.values.is_some() {
-                p { role: "status", "The configured stack belongs to another board. Switch to that board to edit it." }
+                div { role: "status", Callout { variant: CalloutVariant::Warning, "The configured stack belongs to another board. Switch to that board to edit it." } }
             } else {
                 if let Some(feedback) = current_feedback {
                     if feedback.state == MechanicalSettingsFeedbackState::Pending {
                         p { role: "status", "Saving mechanical settings…" }
                     } else if feedback.state == MechanicalSettingsFeedbackState::Failed {
-                        if let Some(message) = feedback.message.as_deref() { p { role: "alert", "{message}" } }
+                        if let Some(message) = feedback.message.as_deref() { Alert { variant: AlertVariant::Destructive, "{message}" } }
                     }
                 }
-                p { class: "m1-mechanical-help", "Configure a mechanical stack from the current board and represented switch fit profiles." }
-                if !props.editable {
-                    if let Some(reason) = props.disabled_reason.as_deref() { p { role: "status", "{reason}" } }
+                if let Some(values) = props.preview_values.as_ref() {
+                    ConstructionControls { identity: props.identity.clone(), values: values.clone(), editable: false, request_sequence, on_request: props.on_request }
+                    p { class: "text-muted-foreground text-sm leading-normal", "Suggested stack from this board and its switch profiles. Configure to save these settings; viewing this preview does not change the project." }
                 }
-                button {
-                    r#type: "button",
-                    class: "m1-mechanical-configure",
+                p { class: "text-muted-foreground text-sm leading-normal", "Configure a mechanical stack from the current board and represented switch fit profiles." }
+                if !props.editable {
+                    if let Some(reason) = props.disabled_reason.as_deref() { div { role: "status", Callout { "{reason}" } } }
+                }
+                Button {
+                    variant: ButtonVariant::Secondary,
+                    button_type: "button",
+                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     disabled: !props.editable,
                     onclick: {
                         let identity = props.identity.clone();
@@ -1194,6 +1117,672 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                         move |_| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::Enable)
                     },
                     "Configure mechanical stack"
+                }
+            }
+        }
+    }
+}
+
+#[derive(Props, Clone, PartialEq)]
+struct MechanicalLegacyConstructionControlProps {
+    identity: MechanicalSettingsIdentity,
+    request_sequence: Signal<u64>,
+    editable: bool,
+    on_request: EventHandler<MechanicalSettingsRequest>,
+}
+
+/// Converting one legacy half's construction to its own local values.
+///
+/// The confirmation states the whole change before anything is submitted: this half's
+/// current effective construction (including the overlaid hardware, critical fits and
+/// profiles) becomes its own local values, its ownership becomes local, the other legacy
+/// halves keep the baseline they had, and one Undo restores the ownership and the overlay.
+/// Exactly one instance is named, and Core validates it.
+#[component]
+fn MechanicalLegacyConstructionControl(props: MechanicalLegacyConstructionControlProps) -> Element {
+    let confirming = use_signal(|| false);
+    let instance_id = props.identity.scope.instance_id.clone().unwrap_or_default();
+    let patch = MechanicalSettingsPatch::MaterializeLegacyConstruction {
+        instance_ids: vec![instance_id.clone()],
+    };
+    let pending = mechanical_action_pending(&patch.field_id()) || !props.editable;
+    let mut confirming_state = confirming;
+    rsx! {
+        fieldset { class: "grid gap-3 m-0 min-w-0 border-0 p-3 rounded-md bg-card", disabled: !props.editable,
+            legend { "Shared construction" }
+            if confirming() {
+                p { class: "text-muted-foreground text-sm leading-normal",
+                    "Makes {instance_id}'s construction its own: the values it shows today (including the overlaid hardware, critical fits and profiles) become this half's local values and its construction becomes local. Other legacy halves keep their previous baseline. One Undo restores the ownership and the overlay."
+                }
+                Button {
+                    variant: ButtonVariant::Ghost,
+                    size: ButtonSize::Sm,
+                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    aria_label: "Confirm making construction local for {instance_id}",
+                    disabled: pending,
+                    onclick: {
+                        let identity = props.identity.clone();
+                        let mut sequence = props.request_sequence;
+                        let on_request = props.on_request;
+                        let patch = patch.clone();
+                        move |_| {
+                            confirming_state.set(false);
+                            send_request(&mut sequence, &identity, on_request, patch.clone());
+                        }
+                    },
+                    "Make construction local"
+                }
+                Button {
+                    variant: ButtonVariant::Ghost,
+                    size: ButtonSize::Sm,
+                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    aria_label: "Keep shared construction for {instance_id}",
+                    onclick: move |_| confirming_state.set(false),
+                    "Keep it shared"
+                }
+            } else {
+                p { class: "text-muted-foreground text-sm leading-normal",
+                    "This half still uses the shared construction baseline."
+                }
+                Button {
+                    variant: ButtonVariant::Ghost,
+                    size: ButtonSize::Sm,
+                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    aria_label: "Make construction local for {instance_id}",
+                    disabled: pending,
+                    onclick: move |_| confirming_state.set(true),
+                    "Make construction local…"
+                }
+            }
+        }
+    }
+}
+
+#[derive(Props, Clone, PartialEq)]
+struct MechanicalPairMemberRemovalProps {
+    identity: MechanicalSettingsIdentity,
+    request_sequence: Signal<u64>,
+    counterpart: String,
+    editable: bool,
+    on_request: EventHandler<MechanicalSettingsRequest>,
+}
+
+/// Removing one half of a mechanical pair, behind an explicit confirmation.
+///
+/// The typed removal is submitted only after the confirmation states the whole result:
+/// this assembly leaves the project, the link is cleared, the other half keeps the
+/// geometry and settings it shows today as its own local assembly, and the boards, PCBs
+/// and parts stay. Core owns the materialization; the panel never writes geometry.
+#[component]
+fn MechanicalPairMemberRemoval(props: MechanicalPairMemberRemovalProps) -> Element {
+    let confirming = use_signal(|| false);
+    let instance_id = props.identity.scope.instance_id.clone().unwrap_or_default();
+    let pending = mechanical_action_pending("remove-physical-instance") || !props.editable;
+    let counterpart = props.counterpart.clone();
+    let mut confirming_state = confirming;
+    rsx! {
+        section { aria_label: "Remove this physical assembly",
+            if confirming() {
+                p { class: "text-muted-foreground text-sm leading-normal",
+                    "Removes {instance_id} from the project and clears the link. {counterpart} keeps the geometry and settings it shows today as its own local assembly. Your boards, PCBs and parts stay. One Undo restores the assembly and the link."
+                }
+                Button {
+                    variant: ButtonVariant::Ghost,
+                    size: ButtonSize::Sm,
+                    button_type: "button",
+                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    aria_label: "Confirm removing assembly {instance_id}",
+                    disabled: pending,
+                    onclick: {
+                        let identity = props.identity.clone();
+                        let mut sequence = props.request_sequence;
+                        let on_request = props.on_request;
+                        move |_| {
+                            confirming_state.set(false);
+                            send_request(
+                                &mut sequence,
+                                &identity,
+                                on_request,
+                                MechanicalSettingsPatch::RemovePhysicalInstance,
+                            );
+                        }
+                    },
+                    "Remove assembly"
+                }
+                Button {
+                    variant: ButtonVariant::Ghost,
+                    size: ButtonSize::Sm,
+                    button_type: "button",
+                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    aria_label: "Keep assembly {instance_id}",
+                    onclick: move |_| confirming_state.set(false),
+                    "Keep it"
+                }
+            } else {
+                p { class: "text-muted-foreground text-sm leading-normal",
+                    "Removing this assembly clears the link and removes only it; the other half stays as its own local assembly."
+                }
+                Button {
+                    variant: ButtonVariant::Ghost,
+                    size: ButtonSize::Sm,
+                    button_type: "button",
+                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    aria_label: "Remove assembly {instance_id}",
+                    disabled: pending,
+                    onclick: move |_| confirming_state.set(true),
+                    "Remove this assembly…"
+                }
+            }
+        }
+    }
+}
+
+#[derive(Props, Clone, PartialEq)]
+struct MechanicalPairLinkControlsProps {
+    identity: MechanicalSettingsIdentity,
+    request_sequence: Signal<u64>,
+    options: Rc<[MechanicalPairLinkOption]>,
+    editable: bool,
+    /// The mount's read-only Core projection of the reviewed choices.
+    projection_port: Option<crate::mechanical_pair::MechanicalPairProjectionPort>,
+    on_request: EventHandler<MechanicalSettingsRequest>,
+}
+
+/// The reviewed link controls for a half that belongs to no pair yet.
+///
+/// The review shows the map the link will use, the construction source and the
+/// durable-id feature matches the link would consolidate, so nothing is submitted
+/// before the user has seen the complete proposed result. A translated or rotated
+/// board frame has no derived map, so its map is entered explicitly.
+#[component]
+fn MechanicalPairLinkControls(props: MechanicalPairLinkControlsProps) -> Element {
+    let selected = use_signal(|| 0_usize);
+    let construction_from_other = use_signal(|| false);
+    // Per-feature source choices, keyed by the reviewed half's durable feature id so a
+    // re-render cannot hand a choice to a different feature.
+    let sources = use_signal(std::collections::BTreeMap::<String, String>::new);
+    let mapping_x = use_signal(String::new);
+    let mapping_y = use_signal(String::new);
+    let mapping_rotation = use_signal(String::new);
+    let options = props.options.clone();
+    let index = selected().min(options.len().saturating_sub(1));
+    let option = options[index].clone();
+    let number = |text: String| {
+        text.trim()
+            .parse::<f64>()
+            .ok()
+            .filter(|value| value.is_finite())
+    };
+    let explicit_mapping = number(mapping_x())
+        .zip(number(mapping_y()))
+        .map(|(x, y)| Pose2 {
+            at: Vec2 { x, y },
+            rotation: number(mapping_rotation()).unwrap_or(0.0),
+        });
+    let mapping = option.derived_mapping.or(explicit_mapping);
+    let mapping_note = match (option.derived_mapping, mapping) {
+        (Some(derived), _) => format!(
+            "Derived from the halves' declared transforms: offset ({:?}, {:?}) · rotation {:?}°",
+            derived.at.x, derived.at.y, derived.rotation
+        ),
+        (None, Some(reviewed)) => format!(
+            "Reviewed map: offset ({:?}, {:?}) · rotation {:?}°",
+            reviewed.at.x, reviewed.at.y, reviewed.rotation
+        ),
+        (None, None) => {
+            "A translated or rotated board frame needs its map entered before linking.".to_owned()
+        }
+    };
+    let construction_from_other_value = construction_from_other();
+    // The complete proposed result is projected for the choices actually reviewed, from
+    // Core through the mount's port. The cache key is the accepted snapshot plus every
+    // reviewed choice, so a change reprojects and an unrelated render does not.
+    let sources_value = sources();
+    let projection_key = format!(
+        "{}|{index}|{}|{}|{}|{construction_from_other_value}|{}",
+        props.identity.snapshot_token.0,
+        mapping_x(),
+        mapping_y(),
+        mapping_rotation(),
+        sources_value
+            .iter()
+            .map(|(feature, source)| format!("{feature}={source}"))
+            .collect::<Vec<_>>()
+            .join(","),
+    );
+    let projection_cache = use_hook(|| {
+        Rc::new(std::cell::RefCell::new(
+            None::<(
+                String,
+                Option<Result<crate::mechanical_pair::MechanicalLinkPreview, String>>,
+            )>,
+        ))
+    });
+    let projection: Option<Result<crate::mechanical_pair::MechanicalLinkPreview, String>> = {
+        let cached = projection_cache.borrow();
+        match cached.as_ref() {
+            Some((key, value)) if *key == projection_key => value.clone(),
+            _ => {
+                drop(cached);
+                let value = props.projection_port.as_ref().map(|port| {
+                    match crate::mechanical_pair::reviewed_link_change(
+                        &option,
+                        mapping,
+                        construction_from_other_value,
+                        &sources_value,
+                    ) {
+                        Some(change) => port.0(&change),
+                        None => Err(
+                            "A translated or rotated board frame needs its map entered before the result is projected."
+                                .to_owned(),
+                        ),
+                    }
+                });
+                *projection_cache.borrow_mut() = Some((projection_key, value.clone()));
+                value
+            }
+        }
+    };
+    // The offer's own projection is the fallback for callers without a port.
+    let (preview, preview_note) = match projection {
+        Some(Ok(preview)) => (Some(preview), None),
+        Some(Err(reason)) => (None, Some(reason)),
+        None => (option.preview.clone(), option.preview_note.clone()),
+    };
+    let blocked = mechanical_action_pending(&format!("mechanical-pair:{}:link", option.pair_id))
+        || !props.editable
+        || mapping.is_none()
+        || preview.is_none()
+        || option.reviewed_fingerprint.is_none();
+    let selected_value = use_memo(move || selected().to_string());
+    let construction_value = use_memo(move || {
+        (if construction_from_other() {
+            "other"
+        } else {
+            "this"
+        })
+        .to_string()
+    });
+    rsx! {
+        section { aria_label: "Link a mechanical mirror pair",
+            h3 { "Mirror another half" }
+            p { class: "text-muted-foreground text-sm leading-normal",
+                "Linking keeps shared mounts, closure mounts, openings and gasket supports reflected and linked. Features without a match stay local to their half."
+            }
+            SettingsChoiceField {
+                label: "Link with",
+                aria_label: "Link with",
+                disabled: !props.editable,
+                value: selected_value,
+                options: options.iter().enumerate().map(|(candidate, item)| (candidate.to_string(), item.other_name.clone())).collect::<Vec<_>>(),
+                on_change: {
+                        let mut selected = selected;
+                        move |next: Option<String>| {
+                            if let Some(next) = next && let Ok(value) = next.parse::<usize>() {
+                                selected.set(value);
+                            }
+                        }
+                    },
+            }
+            SettingsSelect {
+                label: "Construction from",
+                aria_label: "Pair construction source",
+                disabled: !props.editable,
+                value: construction_value,
+                on_change: {
+                        let mut construction_from_other = construction_from_other;
+                        move |next: Option<String>| {
+                            construction_from_other.set(next.as_deref() == Some("other"));
+                        }
+                    },
+                SelectOption::<String> { index: 0usize, value: "this".to_owned(), text_value: option.instance_id.clone(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{option.instance_id}" }
+                    SelectOption::<String> { index: 1usize, value: "other".to_owned(), text_value: option.other_instance_id.clone(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{option.other_instance_id}" }
+            }
+            if option.derived_mapping.is_none() {
+                div {
+                    SettingsNumberField {
+                        label: "Map offset X",
+                        aria_label: "Pair mapping X",
+                        value: mapping_x,
+                        oninput: { let mut mapping_x = mapping_x; move |event: FormEvent| mapping_x.set(event.value()) },
+                        step: "1",
+                    }
+                    SettingsNumberField {
+                        label: "Map offset Y",
+                        aria_label: "Pair mapping Y",
+                        value: mapping_y,
+                        oninput: { let mut mapping_y = mapping_y; move |event: FormEvent| mapping_y.set(event.value()) },
+                        step: "1",
+                    }
+                    SettingsNumberField {
+                        label: "Map rotation",
+                        aria_label: "Pair mapping rotation",
+                        value: mapping_rotation,
+                        oninput: { let mut mapping_rotation = mapping_rotation; move |event: FormEvent| mapping_rotation.set(event.value()) },
+                        step: "1",
+                    }
+                }
+            }
+            p { class: "text-muted-foreground text-sm leading-normal", "{mapping_note}" }
+            if option.matched.is_empty() {
+                p { class: "text-muted-foreground text-sm leading-normal", "Matched features: {option.matched_features}" }
+            } else {
+                p { class: "text-muted-foreground text-sm leading-normal",
+                    "Matched features stay linked. Features without a match stay local to their half."
+                }
+            }
+            for matched in option.matched.iter() {
+                {
+                    let matched = matched.clone();
+                    let key = matched.first_feature_id.clone();
+                    let chosen = sources()
+                        .get(&key)
+                        .cloned()
+                        .unwrap_or_else(|| matched.source_instance_id.clone());
+                    let first_label = matched
+                        .first_geometry
+                        .clone()
+                        .unwrap_or_else(|| "no geometry".to_owned());
+                    let second_label = matched
+                        .second_geometry
+                        .clone()
+                        .unwrap_or_else(|| "no geometry".to_owned());
+                    let row_id = format!("pair-source-{key}");
+                    rsx! {
+                        fieldset { key: "{row_id}",
+                            "aria-label": "Source for {key}",
+                            legend { "{feature_label(matched.kind)} {key} · {matched.second_feature_id}" }
+                            SettingsSelect {
+                                label: "Shared geometry from",
+                                aria_label: "Source for {key}",
+                                disabled: !props.editable,
+                                value: chosen.clone(),
+                                on_change: {
+                                        let mut sources = sources;
+                                        let key = key.clone();
+                                        move |next: Option<String>| {
+                                            if let Some(next) = next {
+                                                sources.write().insert(key.clone(), next);
+                                            }
+                                        }
+                                    },
+                                SelectOption::<String> { index: 0usize, value: matched.source_instance_id.clone(), text_value: format!("{} · {first_label}", matched.source_instance_id), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                        "{matched.source_instance_id} · {first_label}"
+                                    }
+                                    SelectOption::<String> { index: 1usize, value: option.other_instance_id.clone(), text_value: format!("{} · {second_label}", option.other_instance_id), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                        "{option.other_instance_id} · {second_label}"
+                                    }
+                            }
+                        }
+                    }
+                }
+            }
+            // The complete proposed result on both halves, read from Core for exactly
+            // the choices reviewed above.
+            if let Some(preview) = preview.clone() {
+                div { aria_label: "Proposed result on both halves",
+                    for member in preview.members.iter() {
+                        div { "data-instance": "{member.instance_id}",
+                            h4 { "{member.instance_id}" }
+                            if member.features.is_empty() {
+                                p { class: "text-muted-foreground text-sm leading-normal", "No mechanical features after linking." }
+                            } else {
+                                ul {
+                                    for feature in member.features.iter() {
+                                        li { "{feature}" }
+                                    }
+                                }
+                            }
+                            for finding in member.findings.iter() {
+                                Alert { variant: AlertVariant::Destructive, "{finding}" }
+                            }
+                        }
+                    }
+                }
+            } else if let Some(note) = preview_note.clone() {
+                p { class: "text-muted-foreground text-sm leading-normal",
+                    "The complete proposed result is unavailable until you confirm: {note}"
+                }
+            }
+            Button {
+                variant: ButtonVariant::Secondary,
+                button_type: "button",
+                class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                aria_label: "Link {option.instance_id} with {option.other_instance_id}",
+                disabled: blocked,
+                onclick: {
+                    let mut sequence = props.request_sequence;
+                    let identity = props.identity.clone();
+                    let callback = props.on_request;
+                    let option = option.clone();
+                    let reviewed = option.reviewed_fingerprint.clone();
+                    move |_| {
+                        // Exactly the choices the review projected and showed.
+                        let Some(change) = crate::mechanical_pair::reviewed_link_change(
+                            &option,
+                            mapping,
+                            construction_from_other_value,
+                            &sources.peek(),
+                        ) else {
+                            return;
+                        };
+                        send_request_with_review(
+                            &mut sequence,
+                            &identity,
+                            callback,
+                            change,
+                            reviewed.clone(),
+                        );
+                    }
+                },
+                "Link halves"
+            }
+        }
+    }
+}
+
+#[derive(Props, Clone, PartialEq)]
+struct MechanicalPairControlsProps {
+    identity: MechanicalSettingsIdentity,
+    request_sequence: Signal<u64>,
+    features: Rc<[MechanicalPairFeatureRow]>,
+    editable: bool,
+    feedback: Rc<[MechanicalSettingsFeedback]>,
+    on_request: EventHandler<MechanicalSettingsRequest>,
+}
+
+/// Per-feature controls for the selected half's mechanical mirror pair.
+///
+/// The state of every row comes from the accepted pair store, so there is no second
+/// relationship store to drift. A linked feature can be made local or removed on this
+/// half; a local or omitted feature can be rejoined from the other half, with the
+/// geometry the rejoin takes shown before the commit.
+#[component]
+fn MechanicalPairControls(props: MechanicalPairControlsProps) -> Element {
+    let features = props.features.clone();
+    // Per-feature rejoin source choices, keyed by this half's durable feature id.
+    let rejoin_sources = use_signal(std::collections::BTreeMap::<String, String>::new);
+    rsx! {
+        section { aria_label: "Mirrored pair features",
+            h3 { "Mirrored pair" }
+            p { class: "text-muted-foreground text-sm leading-normal",
+                "Shared mechanical features stay linked to the other half. Make one local, remove it on this half, or rejoin it from the other half."
+            }
+            for row in features.iter() {
+                {
+                    let row = row.clone();
+                    let key = format!("{}:{}", row.instance_id, row.feature_id);
+                    let linked = row.state == MechanicalFeatureState::Linked;
+                    let local_patch = MechanicalSettingsPatch::MakeFeatureLocal {
+                        feature_id: row.feature_id.clone(),
+                        instance_id: row.instance_id.clone(),
+                    };
+                    let omit_patch = MechanicalSettingsPatch::OmitFeatureMember {
+                        feature_id: row.feature_id.clone(),
+                        instance_id: row.instance_id.clone(),
+                    };
+                    // A local half may deliberately rejoin from its own current geometry,
+                    // keeping this half's placement and re-deriving the other half; an
+                    // omitted half has no geometry of its own to take.
+                    let offers_own_source = row.state == MechanicalFeatureState::Local
+                        && row.own_geometry.is_some();
+                    let chosen_source = rejoin_sources
+                        .read()
+                        .get(&row.feature_id)
+                        .cloned()
+                        .unwrap_or_else(|| row.counterpart_instance_id.clone());
+                    let source_is_own = chosen_source == row.instance_id;
+                    let source_geometry = if source_is_own {
+                        row.own_geometry.clone()
+                    } else {
+                        row.preview.clone()
+                    };
+                    let rejoin_patch = MechanicalSettingsPatch::RejoinFeatureMember {
+                        feature_id: row.feature_id.clone(),
+                        instance_id: row.instance_id.clone(),
+                        source_instance_id: chosen_source.clone(),
+                    };
+                    let row_fields = [
+                        local_patch.field_id(),
+                        omit_patch.field_id(),
+                        rejoin_patch.field_id(),
+                    ];
+                    let failure = props
+                        .feedback
+                        .iter()
+                        .find(|entry| {
+                            entry.state == MechanicalSettingsFeedbackState::Failed
+                                && row_fields.contains(&entry.field_id)
+                        })
+                        .and_then(|entry| entry.message.clone());
+                    let blocked = |patch: &MechanicalSettingsPatch| {
+                        mechanical_action_pending(&patch.field_id()) || !props.editable
+                    };
+                    let local_blocked = blocked(&local_patch);
+                    let omit_blocked = blocked(&omit_patch);
+                    let rejoin_blocked = blocked(&rejoin_patch)
+                        || source_geometry.is_none()
+                        || row.rejoin_fingerprint.is_none();
+                    let source_label = if source_is_own {
+                        "this half"
+                    } else {
+                        "the other half"
+                    };
+                    let rejoin_label = if source_is_own {
+                        "Rejoin from this half"
+                    } else {
+                        "Rejoin from the other half"
+                    };
+                    let state = match row.state {
+                        MechanicalFeatureState::Linked => "linked to the other half",
+                        MechanicalFeatureState::Local => "local to this half",
+                        MechanicalFeatureState::Omitted => "removed on this half",
+                    };
+                    rsx! {
+                        fieldset { key: "{key}", class: "m-0 border-0 border-b border-border py-2", disabled: !props.editable,
+                            "aria-label": "Mirrored {feature_label(row.kind).to_lowercase()}",
+                            legend { "{feature_label(row.kind)} · {state}" }
+                            if let Some(message) = failure {
+                                Alert { variant: AlertVariant::Destructive, "{message}" }
+                            }
+                            if linked {
+                                Button {
+                                    variant: ButtonVariant::Ghost,
+                                    size: ButtonSize::Sm,
+                                    button_type: "button",
+                                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                    aria_label: "Make local {row.feature_id}",
+                                    disabled: local_blocked,
+                                    onclick: {
+                                        let mut sequence = props.request_sequence;
+                                        let identity = props.identity.clone();
+                                        let callback = props.on_request;
+                                        let patch = local_patch.clone();
+                                        move |_| send_request(&mut sequence, &identity, callback, patch.clone())
+                                    },
+                                    "Make local"
+                                }
+                                Button {
+                                    variant: ButtonVariant::Secondary,
+                                    button_type: "button",
+                                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                    aria_label: "Remove on this half {row.feature_id}",
+                                    disabled: omit_blocked,
+                                    onclick: {
+                                        let mut sequence = props.request_sequence;
+                                        let identity = props.identity.clone();
+                                        let callback = props.on_request;
+                                        let patch = omit_patch.clone();
+                                        move |_| send_request(&mut sequence, &identity, callback, patch.clone())
+                                    },
+                                    "Remove on this half"
+                                }
+                            } else {
+                                if offers_own_source {
+                                    SettingsSelect {
+                                        label: "Rejoin from",
+                                        aria_label: "Rejoin source for {row.feature_id}",
+                                        disabled: !props.editable,
+                                        value: chosen_source.clone(),
+                                        on_change: {
+                                                let mut rejoin_sources = rejoin_sources;
+                                                let feature_id = row.feature_id.clone();
+                                                move |next: Option<String>| {
+                                                    if let Some(next) = next {
+                                                        rejoin_sources
+                                                            .write()
+                                                            .insert(feature_id.clone(), next);
+                                                    }
+                                                }
+                                            },
+                                        SelectOption::<String> { index: 0usize, value: row.instance_id.clone(), text_value: format!("this half · {}", row.own_geometry.clone().unwrap_or_default()), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                                "this half · {row.own_geometry.clone().unwrap_or_default()}"
+                                            }
+                                            SelectOption::<String> { index: 1usize, value: row.counterpart_instance_id.clone(), text_value: format!("the other half · {}", row.preview.clone().unwrap_or_else(|| "no geometry".to_owned())), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                                "the other half · {row.preview.clone().unwrap_or_else(|| \"no geometry\".to_owned())}"
+                                            }
+                                    }
+                                }
+                                if let Some(geometry) = source_geometry.clone() {
+                                    p { class: "text-muted-foreground text-sm leading-normal",
+                                        "Rejoin takes {geometry} from {chosen_source}."
+                                    }
+                                } else {
+                                    p { class: "text-muted-foreground text-sm leading-normal",
+                                        "The reviewed source half has no geometry for this feature, so it cannot be rejoined yet."
+                                    }
+                                }
+                                Button {
+                                    variant: ButtonVariant::Ghost,
+                                    size: ButtonSize::Sm,
+                                    button_type: "button",
+                                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                    aria_label: "Rejoin {row.feature_id} from {source_label}",
+                                    disabled: rejoin_blocked,
+                                    onclick: {
+                                        let mut sequence = props.request_sequence;
+                                        let identity = props.identity.clone();
+                                        let callback = props.on_request;
+                                        let patch = rejoin_patch.clone();
+                                        // The reviewed fingerprint the row was produced with
+                                        // travels with the submission, so a relevant change
+                                        // between this review and its execution retires it.
+                                        let reviewed = row.rejoin_fingerprint.clone();
+                                        move |_| {
+                                            send_request_with_review(
+                                                &mut sequence,
+                                                &identity,
+                                                callback,
+                                                patch.clone(),
+                                                reviewed.clone(),
+                                            )
+                                        }
+                                    },
+                                    "{rejoin_label}"
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -1238,92 +1827,81 @@ fn GasketClosureControls(props: GasketClosureControlsProps) -> Element {
     let identity = props.identity.clone();
     let on_request = props.on_request;
     rsx! {
-        details { class: "m1-mechanical-group", open: true, aria_label: "Closure hardware",
-            summary { "Closure hardware · {hardware.thread}" }
-            p { class: "m1-mechanical-help", "Custom screw and insert dimensions. Review these against your hardware; the starting M2 dimensions are not a supplier preset." }
-            label { class: "m1-mechanical-field",
-                span { "Insert size" }
-                select {
-                    aria_label: "Insert size",
-                    disabled: !props.editable,
-                    value: selected_preset.unwrap_or("custom"),
-                    onchange: {
+        Collapsible { keep_mounted: true, default_open: true,
+            CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground", "Closure hardware · {hardware.thread}" }
+            CollapsibleContent { class: "data-[open=true]:overflow-visible data-[open=false]:hidden",
+            p { class: "text-muted-foreground text-sm leading-normal", "Custom screw and insert dimensions. Review these against your hardware; the starting M2 dimensions are not a supplier preset." }
+            SettingsSelect {
+                label: "Insert size",
+                aria_label: "Insert size",
+                disabled: !props.editable,
+                value: (selected_preset.unwrap_or("custom")).to_string(),
+                on_change: {
                         let mut sequence = request_sequence;
                         let identity = identity.clone();
-                        move |event: FormEvent| {
-                            let id = event.value();
-                            if id != "custom" {
+                        move |next: Option<String>| {
+                            if let Some(id) = next && id != "custom" {
                                 send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetClosureInsertPreset(id));
                             }
                         }
                     },
-                    option { value: "custom", "Custom dimensions" }
-                    option { value: "m2-3", "M2 × L3 × OD3.2" }
-                    option { value: "m2-4", "M2 × L4 × OD3.2" }
-                    option { value: "m2.5-3", "M2.5 × L3 × OD3.5" }
-                    option { value: "m2.5-4", "M2.5 × L4 × OD3.5" }
-                    option { value: "m2.5-5", "M2.5 × L5 × OD3.5" }
-                    option { value: "m3-3", "M3 × L3 × OD4.2" }
-                }
+                SelectOption::<String> { index: 0usize, value: "custom".to_owned(), text_value: "Custom dimensions".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Custom dimensions" }
+                    SelectOption::<String> { index: 1usize, value: "m2-3".to_owned(), text_value: "M2 × L3 × OD3.2".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "M2 × L3 × OD3.2" }
+                    SelectOption::<String> { index: 2usize, value: "m2-4".to_owned(), text_value: "M2 × L4 × OD3.2".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "M2 × L4 × OD3.2" }
+                    SelectOption::<String> { index: 3usize, value: "m2.5-3".to_owned(), text_value: "M2.5 × L3 × OD3.5".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "M2.5 × L3 × OD3.5" }
+                    SelectOption::<String> { index: 4usize, value: "m2.5-4".to_owned(), text_value: "M2.5 × L4 × OD3.5".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "M2.5 × L4 × OD3.5" }
+                    SelectOption::<String> { index: 5usize, value: "m2.5-5".to_owned(), text_value: "M2.5 × L5 × OD3.5".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "M2.5 × L5 × OD3.5" }
+                    SelectOption::<String> { index: 6usize, value: "m3-3".to_owned(), text_value: "M3 × L3 × OD4.2".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "M3 × L3 × OD4.2" }
             }
-            label { class: "m1-mechanical-field",
-                span { "Screw drive" }
-                select {
-                    disabled: !props.editable,
-                    value: if hardware.drive == ScrewDrive::Hex { "hex" } else { "torx" },
-                    onchange: {
+            SettingsSelect {
+                label: "Screw drive",
+                disabled: !props.editable,
+                value: (if hardware.drive == ScrewDrive::Hex { "hex" } else { "torx" }).to_string(),
+                on_change: {
                         let mut sequence = request_sequence;
                         let identity = identity.clone();
-                        move |event: FormEvent| {
-                            let drive = if event.value() == "torx" { ScrewDrive::Torx } else { ScrewDrive::Hex };
+                        move |next: Option<String>| {
+                            let drive = if next.as_deref() == Some("torx") { ScrewDrive::Torx } else { ScrewDrive::Hex };
                             send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetClosureDrive(drive));
                         }
                     },
-                    option { value: "hex", "Hex socket" }
-                    option { value: "torx", "Torx" }
-                }
+                SelectOption::<String> { index: 0usize, value: "hex".to_owned(), text_value: "Hex socket".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Hex socket" }
+                    SelectOption::<String> { index: 1usize, value: "torx".to_owned(), text_value: "Torx".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Torx" }
             }
-            label { class: "m1-mechanical-field",
-                span { "Insert installation" }
-                select {
-                    disabled: !props.editable,
-                    value: if hardware.installation == InsertInstallation::HeatSet { "heat-set" } else { "tapped" },
-                    onchange: {
+            SettingsSelect {
+                label: "Insert installation",
+                disabled: !props.editable,
+                value: (if hardware.installation == InsertInstallation::HeatSet { "heat-set" } else { "tapped" }).to_string(),
+                on_change: {
                         let mut sequence = request_sequence;
                         let identity = identity.clone();
-                        move |event: FormEvent| {
-                            let installation = if event.value() == "tapped" { InsertInstallation::Tapped } else { InsertInstallation::HeatSet };
+                        move |next: Option<String>| {
+                            let installation = if next.as_deref() == Some("tapped") { InsertInstallation::Tapped } else { InsertInstallation::HeatSet };
                             send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetClosureInstallation(installation));
                         }
                     },
-                    option { value: "heat-set", "Heat-set · printed top" }
-                    option { value: "tapped", "Tapped · machined top" }
-                }
+                SelectOption::<String> { index: 0usize, value: "heat-set".to_owned(), text_value: "Heat-set · printed top".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Heat-set · printed top" }
+                    SelectOption::<String> { index: 1usize, value: "tapped".to_owned(), text_value: "Tapped · machined top".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Tapped · machined top" }
             }
-            label { class: "m1-mechanical-field",
-                span { "Screw length" }
-                select {
-                    aria_label: "Screw length",
-                    disabled: !props.editable,
-                    value: selected_length,
-                    onchange: {
+            SettingsChoiceField {
+                label: "Screw length",
+                aria_label: "Screw length",
+                disabled: !props.editable,
+                value: selected_length.clone(),
+                options: std::iter::once(("auto".to_owned(), "Automatic from available lengths".to_owned())).chain(hardware.screw_lengths.iter().map(|length| (length.to_string(), format!("{length} mm · fixed")))).collect::<Vec<_>>(),
+                on_change: {
                         let mut sequence = request_sequence;
                         let identity = identity.clone();
                         let lengths = hardware.screw_lengths.clone();
-                        move |event: FormEvent| {
-                            let fixed = event.value().parse::<f64>().ok();
+                        move |next: Option<String>| {
+                            let fixed = next.as_deref().unwrap_or_default().parse::<f64>().ok();
                             if fixed.is_none() || fixed.is_some_and(|length| lengths.contains(&length)) {
                                 send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetClosureFixedLength(fixed));
                             }
                         }
                     },
-                    option { value: "auto", "Automatic from available lengths" }
-                    for length in hardware.screw_lengths.iter() {
-                        option { value: "{length}", "{length} mm · fixed" }
-                    }
-                }
             }
-            TextDraftField {
+            { rsx! { TextDraftField {
                 key: "{props.owner_key}:closure-screw-lengths",
                 identity: props.identity.clone(),
                 request_sequence,
@@ -1333,10 +1911,11 @@ fn GasketClosureControls(props: GasketClosureControlsProps) -> Element {
                 value: hardware.screw_lengths.iter().map(ToString::to_string).collect::<Vec<_>>().join(", "),
                 intent: MechanicalTextIntent::ClosureScrewLengths,
                 editable: props.editable,
-            }
-            details { class: "m1-mechanical-group", aria_label: "Advanced closure dimensions",
-                summary { "Advanced closure dimensions · Custom · mm" }
-                TextDraftField {
+            } } }
+            Collapsible { keep_mounted: true, default_open: false,
+                CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground", "Advanced closure dimensions · Custom · mm" }
+                CollapsibleContent { class: "data-[open=true]:overflow-visible data-[open=false]:hidden",
+                { rsx! { TextDraftField {
                     key: "{props.owner_key}:closure-thread",
                     identity: props.identity.clone(),
                     request_sequence,
@@ -1346,38 +1925,35 @@ fn GasketClosureControls(props: GasketClosureControlsProps) -> Element {
                     value: hardware.thread.clone(),
                     intent: MechanicalTextIntent::ClosureThread,
                     editable: props.editable,
-                }
-                label { class: "m1-mechanical-field",
-                    span { "Screw head profile" }
-                    select {
-                        disabled: !props.editable,
-                        value: if hardware.head_profile == ScrewHeadProfile::Countersunk { "countersunk" } else { "flat" },
-                        onchange: {
+                } } }
+                SettingsSelect {
+                    label: "Screw head profile",
+                    disabled: !props.editable,
+                    value: (if hardware.head_profile == ScrewHeadProfile::Countersunk { "countersunk" } else { "flat" }).to_string(),
+                    on_change: {
                             let mut sequence = request_sequence;
                             let identity = identity.clone();
-                            move |event: FormEvent| {
-                                let profile = if event.value() == "countersunk" { ScrewHeadProfile::Countersunk } else { ScrewHeadProfile::Flat };
+                            move |next: Option<String>| {
+                                let profile = if next.as_deref() == Some("countersunk") { ScrewHeadProfile::Countersunk } else { ScrewHeadProfile::Flat };
                                 send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetClosureHeadProfile(profile));
                             }
                         },
-                        option { value: "flat", "Flat bearing surface" }
-                        option { value: "countersunk", "Countersunk" }
-                    }
+                    SelectOption::<String> { index: 0usize, value: "flat".to_owned(), text_value: "Flat bearing surface".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Flat bearing surface" }
+                        SelectOption::<String> { index: 1usize, value: "countersunk".to_owned(), text_value: "Countersunk".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Countersunk" }
                 }
-                label { class: "m1-mechanical-field",
-                    span { "Screw length measured from" }
-                    select {
-                        disabled: !props.editable,
-                        value: match hardware.length_datum {
+                SettingsSelect {
+                    label: "Screw length measured from",
+                    disabled: !props.editable,
+                    value: (match hardware.length_datum {
                             ScrewLengthDatum::UnderHead => "under-head",
                             ScrewLengthDatum::Overall => "overall",
                             ScrewLengthDatum::Unresolved => "unresolved",
-                        },
-                        onchange: {
+                        }).to_string(),
+                    on_change: {
                             let mut sequence = request_sequence;
                             let identity = identity.clone();
-                            move |event: FormEvent| {
-                                let datum = match event.value().as_str() {
+                            move |next: Option<String>| {
+                                let datum = match next.as_deref().unwrap_or_default() {
                                     "overall" => ScrewLengthDatum::Overall,
                                     "unresolved" => ScrewLengthDatum::Unresolved,
                                     _ => ScrewLengthDatum::UnderHead,
@@ -1385,13 +1961,12 @@ fn GasketClosureControls(props: GasketClosureControlsProps) -> Element {
                                 send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetClosureLengthDatum(datum));
                             }
                         },
-                        option { value: "under-head", "Under the head" }
-                        option { value: "overall", "Top of head · overall" }
-                        option { value: "unresolved", "Unknown" }
-                    }
+                    SelectOption::<String> { index: 0usize, value: "under-head".to_owned(), text_value: "Under the head".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Under the head" }
+                        SelectOption::<String> { index: 1usize, value: "overall".to_owned(), text_value: "Top of head · overall".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Top of head · overall" }
+                        SelectOption::<String> { index: 2usize, value: "unresolved".to_owned(), text_value: "Unknown".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Unknown" }
                 }
                 for (field, label, value) in closure_dimension_fields(hardware) {
-                    DimensionField {
+                    { rsx! { DimensionField {
                         key: "{props.owner_key}:{field.field_id()}",
                         identity: props.identity.clone(),
                         request_sequence,
@@ -1401,11 +1976,13 @@ fn GasketClosureControls(props: GasketClosureControlsProps) -> Element {
                         label,
                         value,
                         editable: props.editable,
-                    }
+                    } } }
                 }
-                p { class: "m1-mechanical-help", "Thread changes do not resize the insert. Countersunk lengths include the head. Incompatible dimensions appear in Mechanical diagnostics." }
+                p { class: "text-muted-foreground text-sm leading-normal", "Thread changes do not resize the insert. Countersunk lengths include the head. Incompatible dimensions appear in Mechanical diagnostics." }
+                 }
+                }
+             }
             }
-        }
     }
 }
 
@@ -1540,19 +2117,20 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
     let identity = props.identity.clone();
     let on_request = props.on_request;
     rsx! {
-        details { class: "m1-mechanical-group", open: !hardware.is_empty() || !fits.is_empty(), aria_label: "Hardware and critical fits",
-            summary { "Hardware & critical fits · {hardware.len()} hardware · {fits.len()} fits" }
-            div { class: "m1-mechanical-spec-group",
+        Collapsible { keep_mounted: true, default_open: !hardware.is_empty() || !fits.is_empty(),
+            CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground", "Hardware & critical fits · {hardware.len()} hardware · {fits.len()} fits" }
+            CollapsibleContent { class: "data-[open=true]:overflow-visible data-[open=false]:hidden",
+            div { class: "mt-2.5 grid gap-2 border-t border-border pt-2.5 [&>header]:flex [&>header]:items-center [&>header]:justify-between [&>header]:gap-2",
                 header {
                     strong { "Hardware" }
-                    button {
-                        r#type: "button",
-                        class: "m1-mechanical-quiet",
+                    Button {
+                        variant: ButtonVariant::Secondary,
+                        button_type: "button",
+                        class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         disabled: mechanical_action_pending("hardware:add") || !props.editable || mount_choices.is_empty(),
                         onclick: {
                             let mut sequence = request_sequence;
                             let identity = identity.clone();
-                            let on_request = on_request;
                             let choice = mount_choices.first().cloned();
                             move |_| if let Some(choice) = choice.as_ref() {
                                 send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::AddHardware {
@@ -1564,15 +2142,17 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                     }
                 }
                 if mount_choices.is_empty() {
-                    p { class: "m1-mechanical-help", "Add a suspension or closure mount to link a fastener specification to its generated feature." }
+                    p { class: "text-muted-foreground text-sm leading-normal", "Add a suspension or closure mount to link a fastener specification to its generated feature." }
                 }
                 for item in hardware.iter() {
-                    article { class: "m1-mechanical-spec-card", key: "{props.owner_key}:hardware:{item.id}",
+                    article { class: "grid min-w-0 gap-2 rounded-md border border-border bg-card p-2.5 [&>header]:flex [&>header]:items-center [&>header]:justify-between [&>header]:gap-2", key: "{props.owner_key}:hardware:{item.id}",
                         header {
                             strong { if item.designation.is_empty() { "Hardware item" } else { "{item.designation}" } }
-                            button {
-                                r#type: "button",
-                                class: "m1-mechanical-quiet",
+                            Button {
+                                variant: ButtonVariant::Secondary,
+                                button_type: "button",
+                                class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                aria_label: "Remove hardware {item.id}",
                                 disabled: mechanical_action_pending(&format!("hardware:{}:remove", item.id)) || !props.editable,
                                 onclick: {
                                     let mut sequence = request_sequence;
@@ -1583,18 +2163,19 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                                 "Remove"
                             }
                         }
-                        label { class: "m1-mechanical-field",
-                            span { "Mount link" }
-                            select {
-                                aria_label: "Mount link for hardware {item.id}",
-                                disabled: !props.editable,
-                                value: mount_choices.iter().position(|choice| choice.part_id == item.part_id && choice.feature_id == item.feature_id).map(|index| index.to_string()).unwrap_or_default(),
-                                onchange: {
+                        SettingsChoiceField {
+                            label: "Mount link",
+                            aria_label: "Mount link for hardware {item.id}",
+                            placeholder: "Choose generated mount…",
+                            disabled: !props.editable,
+                            value: mount_choices.iter().position(|choice| choice.part_id == item.part_id && choice.feature_id == item.feature_id).map(|index| index.to_string()).unwrap_or_default(),
+                            options: mount_choices.iter().enumerate().map(|(index, choice)| (index.to_string(), format!("{} · {} · {:.1}, {:.1} mm", choice.part_name, mount_kind_label(&choice.kind), choice.x, choice.y))).collect::<Vec<_>>(),
+                            on_change: {
                                     let mut sequence = request_sequence;
                                     let identity = identity.clone();
                                     let hardware_id = item.id.clone();
                                     let mount_choices = mount_choices.clone();
-                                    move |event: FormEvent| if let Ok(index) = event.value().parse::<usize>()
+                                    move |next: Option<String>| if let Some(next) = next && let Ok(index) = next.parse::<usize>()
                                         && let Some(choice) = mount_choices.get(index) {
                                             send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetHardwareMount {
                                                 hardware_id: hardware_id.clone(),
@@ -1603,63 +2184,59 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                                             });
                                         }
                                 },
-                                option { value: "", "Choose generated mount…" }
-                                for (index, choice) in mount_choices.iter().enumerate() {
-                                    option { key: "{choice.part_id}:{choice.feature_id}", value: "{index}", "{choice.part_name} · {mount_kind_label(&choice.kind)} · {choice.x:.1}, {choice.y:.1} mm" }
-                                }
-                            }
                         }
-                        TextDraftField {
+                        { rsx! { TextDraftField {
                             key: "{props.owner_key}:hardware:{item.id}:designation",
                             identity: props.identity.clone(), request_sequence, on_request, feedback: props.feedback.clone(),
                             label: "Designation", value: item.designation.clone(),
                             intent: MechanicalTextIntent::Hardware { hardware_id: item.id.clone(), field: MechanicalHardwareTextField::Designation },
                             editable: props.editable,
-                        }
-                        TextDraftField {
+                        } } }
+                        { rsx! { TextDraftField {
                             key: "{props.owner_key}:hardware:{item.id}:thread",
                             identity: props.identity.clone(), request_sequence, on_request, feedback: props.feedback.clone(),
                             label: "Thread", value: item.thread.clone(),
                             intent: MechanicalTextIntent::Hardware { hardware_id: item.id.clone(), field: MechanicalHardwareTextField::Thread },
                             editable: props.editable,
-                        }
-                        div { class: "m1-mechanical-fit-points",
-                            DimensionField {
+                        } } }
+                        div { class: "grid grid-cols-4 items-end gap-1.5 [@container_mechanical_(max-width:320px)]:grid-cols-2",
+                            { rsx! { DimensionField {
                                 key: "{props.owner_key}:hardware:{item.id}:length",
                                 identity: props.identity.clone(), request_sequence, on_request, feedback: props.feedback.clone(),
                                 field: MechanicalDimension::HardwareLength, label: "Length", value: item.length,
                                 editable: props.editable, hardware_target: Some(HardwareDimensionTarget { hardware_id: item.id.clone() }),
-                            }
-                            DimensionField {
+                            } } }
+                            { rsx! { DimensionField {
                                 key: "{props.owner_key}:hardware:{item.id}:quantity",
                                 identity: props.identity.clone(), request_sequence, on_request, feedback: props.feedback.clone(),
                                 field: MechanicalDimension::HardwareQuantity, label: "Quantity", value: f64::from(item.quantity),
                                 editable: props.editable, hardware_target: Some(HardwareDimensionTarget { hardware_id: item.id.clone() }),
-                            }
+                            } } }
                         }
-                        TextDraftField {
+                        { rsx! { TextDraftField {
                             key: "{props.owner_key}:hardware:{item.id}:tolerance",
                             identity: props.identity.clone(), request_sequence, on_request, feedback: props.feedback.clone(),
                             label: "Tolerance", value: item.tolerance.clone().unwrap_or_default(),
                             intent: MechanicalTextIntent::Hardware { hardware_id: item.id.clone(), field: MechanicalHardwareTextField::Tolerance },
                             editable: props.editable,
-                        }
-                        TextDraftField {
+                        } } }
+                        { rsx! { TextDraftField {
                             key: "{props.owner_key}:hardware:{item.id}:notes",
                             identity: props.identity.clone(), request_sequence, on_request, feedback: props.feedback.clone(),
                             label: "Notes", value: item.notes.clone().unwrap_or_default(),
                             intent: MechanicalTextIntent::Hardware { hardware_id: item.id.clone(), field: MechanicalHardwareTextField::Notes },
                             editable: props.editable, multiline: true,
-                        }
+                        } } }
                     }
                 }
             }
-            div { class: "m1-mechanical-spec-group",
+            div { class: "mt-2.5 grid gap-2 border-t border-border pt-2.5 [&>header]:flex [&>header]:items-center [&>header]:justify-between [&>header]:gap-2",
                 header {
                     strong { "Critical fits" }
-                    button {
-                        r#type: "button",
-                        class: "m1-mechanical-quiet",
+                    Button {
+                        variant: ButtonVariant::Secondary,
+                        button_type: "button",
+                        class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         disabled: mechanical_action_pending("critical-fit:add") || !props.editable,
                         onclick: {
                             let mut sequence = request_sequence;
@@ -1670,14 +2247,16 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                         "Add fit dimension"
                     }
                 }
-                p { class: "m1-mechanical-help", "Endpoints are document XY coordinates. Length is calculated from the saved endpoints." }
+                p { class: "text-muted-foreground text-sm leading-normal", "Endpoints are document XY coordinates. Length is calculated from the saved endpoints." }
                 for (fit, measured_length) in fit_rows.iter() {
-                    article { class: "m1-mechanical-spec-card", key: "{props.owner_key}:fit:{fit.id}",
+                    article { class: "grid min-w-0 gap-2 rounded-md border border-border bg-card p-2.5 [&>header]:flex [&>header]:items-center [&>header]:justify-between [&>header]:gap-2", key: "{props.owner_key}:fit:{fit.id}",
                         header {
                             strong { if fit.label.is_empty() { "Fit dimension" } else { "{fit.label}" } }
-                            button {
-                                r#type: "button",
-                                class: "m1-mechanical-quiet",
+                            Button {
+                                variant: ButtonVariant::Secondary,
+                                button_type: "button",
+                                class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                aria_label: "Remove fit {fit.id}",
                                 disabled: mechanical_action_pending(&format!("critical-fit:{}:remove", fit.id)) || !props.editable,
                                 onclick: {
                                     let mut sequence = request_sequence;
@@ -1688,29 +2267,25 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                                 "Remove"
                             }
                         }
-                        label { class: "m1-mechanical-field",
-                            span { "Generated part" }
-                            select {
-                                aria_label: "Part for critical fit {fit.id}",
-                                disabled: !props.editable,
-                                value: "{fit.part_id}",
-                                onchange: {
+                        SettingsChoiceField {
+                            label: "Generated part",
+                            aria_label: "Part for critical fit {fit.id}",
+                            disabled: !props.editable,
+                            value: fit.part_id.clone(),
+                            options: parts.iter().map(|part| (part.id.clone(), part.name.clone())).collect::<Vec<_>>(),
+                            on_change: {
                                     let mut sequence = request_sequence;
                                     let identity = identity.clone();
                                     let fit_id = fit.id.clone();
-                                    move |event: FormEvent| send_request(
+                                    move |next: Option<String>| if let Some(part_id) = next { send_request(
                                         &mut sequence,
                                         &identity,
                                         on_request,
-                                        MechanicalSettingsPatch::SetCriticalFitPart { fit_id: fit_id.clone(), part_id: event.value() },
-                                    )
+                                        MechanicalSettingsPatch::SetCriticalFitPart { fit_id: fit_id.clone(), part_id },
+                                    ) }
                                 },
-                                for part in parts.iter() {
-                                    option { value: "{part.id}", "{part.name}" }
-                                }
-                            }
                         }
-                        TextDraftField {
+                        { rsx! { TextDraftField {
                             key: "{props.owner_key}:fit:{fit.id}:label",
                             identity: props.identity.clone(),
                             request_sequence,
@@ -1720,8 +2295,8 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                             value: fit.label.clone(),
                             intent: MechanicalTextIntent::CriticalFit { fit_id: fit.id.clone(), field: MechanicalCriticalFitTextField::Label },
                             editable: props.editable,
-                        }
-                        TextDraftField {
+                        } } }
+                        { rsx! { TextDraftField {
                             key: "{props.owner_key}:fit:{fit.id}:tolerance",
                             identity: props.identity.clone(),
                             request_sequence,
@@ -1731,9 +2306,9 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                             value: fit.tolerance.clone(),
                             intent: MechanicalTextIntent::CriticalFit { fit_id: fit.id.clone(), field: MechanicalCriticalFitTextField::Tolerance },
                             editable: props.editable,
-                        }
-                        div { class: "m1-mechanical-fit-points",
-                            DimensionField {
+                        } } }
+                        div { class: "grid grid-cols-4 items-end gap-1.5 [@container_mechanical_(max-width:320px)]:grid-cols-2",
+                            { rsx! { DimensionField {
                                 key: "{props.owner_key}:fit:{fit.id}:from-x",
                                 identity: props.identity.clone(),
                                 request_sequence,
@@ -1745,8 +2320,8 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                                 editable: props.editable,
                                 accessible_label: Some(format!("Critical fit {} from X", fit.id)),
                                 critical_fit_target: Some(CriticalFitDimensionTarget { fit_id: fit.id.clone() }),
-                            }
-                            DimensionField {
+                            } } }
+                            { rsx! { DimensionField {
                                 key: "{props.owner_key}:fit:{fit.id}:from-y",
                                 identity: props.identity.clone(),
                                 request_sequence,
@@ -1758,8 +2333,8 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                                 editable: props.editable,
                                 accessible_label: Some(format!("Critical fit {} from Y", fit.id)),
                                 critical_fit_target: Some(CriticalFitDimensionTarget { fit_id: fit.id.clone() }),
-                            }
-                            DimensionField {
+                            } } }
+                            { rsx! { DimensionField {
                                 key: "{props.owner_key}:fit:{fit.id}:to-x",
                                 identity: props.identity.clone(),
                                 request_sequence,
@@ -1771,8 +2346,8 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                                 editable: props.editable,
                                 accessible_label: Some(format!("Critical fit {} to X", fit.id)),
                                 critical_fit_target: Some(CriticalFitDimensionTarget { fit_id: fit.id.clone() }),
-                            }
-                            DimensionField {
+                            } } }
+                            { rsx! { DimensionField {
                                 key: "{props.owner_key}:fit:{fit.id}:to-y",
                                 identity: props.identity.clone(),
                                 request_sequence,
@@ -1784,15 +2359,16 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                                 editable: props.editable,
                                 accessible_label: Some(format!("Critical fit {} to Y", fit.id)),
                                 critical_fit_target: Some(CriticalFitDimensionTarget { fit_id: fit.id.clone() }),
-                            }
+                            } } }
                         }
-                        output { class: "m1-mechanical-fit-result",
+                        output { class: "text-muted-foreground text-[11px] font-mono font-normal not-italic leading-[normal]",
                             "Measured {measured_length:.2} mm · {fit.tolerance}"
                         }
                     }
                 }
             }
-        }
+             }
+            }
     }
 }
 
@@ -1902,7 +2478,7 @@ fn MountingControls(props: MountingControlsProps) -> Element {
         .collect::<Vec<_>>();
     let suggestions = &props.suggested_mounts;
     rsx! {
-        section { class: "m1-mechanical-option-group", aria_label: "Mounting and hardware",
+        section { aria_label: "Mounting and hardware",
             h3 { "Mounting & hardware" }
             if values.mount != MechanicalMount::Gasket {
                 MountCollectionControls {
@@ -1930,15 +2506,18 @@ fn MountingControls(props: MountingControlsProps) -> Element {
                 reserved_mount_ids: reserved_mount_ids.clone(),
                 allow_add: !values.internal_gasket,
             }
-            details { class: "m1-mechanical-group", aria_label: "Suggested mount locations",
-                summary { "Suggested mount locations · {suggestions.len()} candidates" }
+            Collapsible { keep_mounted: true, default_open: false,
+                CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground", "Suggested mount locations · {suggestions.len()} candidates" }
+                CollapsibleContent { class: "data-[open=false]:hidden",
                 if suggestions.is_empty() {
-                    p { class: "m1-mechanical-help", "Resolve the current geometry to see clearance-tested mounting locations." }
+                    p { class: "text-muted-foreground text-sm leading-normal", "Resolve the current geometry to see clearance-tested mounting locations." }
                 } else if values.internal_gasket {
-                    p { class: "m1-mechanical-help", "Candidates clear the current openings and battery envelope. Adopting them is explicit; later edits keep the chosen coordinates fixed." }
-                    button {
-                        r#type: "button",
-                        class: "m1-mechanical-quiet",
+                    p { class: "text-muted-foreground text-sm leading-normal", "Candidates clear the current openings and battery envelope. Adopting them is explicit; later edits keep the chosen coordinates fixed." }
+                    Button {
+                        variant: ButtonVariant::Ghost,
+                        size: ButtonSize::Sm,
+                        button_type: "button",
+                        class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         disabled: mechanical_action_pending("adopt-closure-positions") || !props.editable,
                         onclick: {
                             let mut sequence = props.request_sequence;
@@ -1950,15 +2529,17 @@ fn MountingControls(props: MountingControlsProps) -> Element {
                         "Adopt closure positions"
                     }
                 } else {
-                    p { class: "m1-mechanical-help", "Clearance-tested positions on this board. Adopt them as suspension mounts or closure screws." }
-                    div { class: "m1-mechanical-mount-candidates",
+                    p { class: "text-muted-foreground text-sm leading-normal", "Clearance-tested positions on this board. Adopt them as suspension mounts or closure screws." }
+                    div {
                         for (index, mount) in suggestions.iter().enumerate() {
                             span { key: "{mount.id}", "{index + 1}: X {mount.at.x:.1}, Y {mount.at.y:.1} mm" }
                         }
                     }
-                    button {
-                        r#type: "button",
-                        class: "m1-mechanical-quiet",
+                    Button {
+                        variant: ButtonVariant::Ghost,
+                        size: ButtonSize::Sm,
+                        button_type: "button",
+                        class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         disabled: mechanical_action_pending("suspension-mounts") || !props.editable,
                         onclick: {
                             let mut sequence = props.request_sequence;
@@ -1969,9 +2550,10 @@ fn MountingControls(props: MountingControlsProps) -> Element {
                         },
                         "Adopt suggested mounts"
                     }
-                    button {
-                        r#type: "button",
-                        class: "m1-mechanical-quiet",
+                    Button {
+                        variant: ButtonVariant::Secondary,
+                        button_type: "button",
+                        class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         disabled: mechanical_action_pending("closure-mounts") || !props.editable,
                         onclick: {
                             let mut sequence = props.request_sequence;
@@ -1983,7 +2565,8 @@ fn MountingControls(props: MountingControlsProps) -> Element {
                         "Add suggested closure screws"
                     }
                 }
-            }
+                 }
+                }
         }
     }
 }
@@ -2006,10 +2589,11 @@ struct MountCollectionControlsProps {
 fn MountCollectionControls(props: MountCollectionControlsProps) -> Element {
     let mounts = props.mounts.clone();
     rsx! {
-        details { class: "m1-mechanical-group", aria_label: "{props.label}",
-            summary { "{props.label} · {mounts.len()}" }
+        Collapsible { keep_mounted: true, default_open: false,
+            CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground", "{props.label} · {mounts.len()}" }
+            CollapsibleContent { class: "data-[open=true]:overflow-visible data-[open=false]:hidden",
             for (index, mount) in mounts.iter().enumerate() {
-                MountRow {
+                { rsx! { MountRow {
                     key: "{mount.id}",
                     identity: props.identity.clone(),
                     request_sequence: props.request_sequence,
@@ -2019,13 +2603,14 @@ fn MountCollectionControls(props: MountCollectionControlsProps) -> Element {
                     collection: props.collection,
                     index: index + 1,
                     mount: mount.clone(),
-                }
+                } } }
             }
-            if mounts.is_empty() { p { class: "m1-mechanical-help", "No {props.label.to_lowercase()} configured." } }
+            if mounts.is_empty() { Callout { "No {props.label.to_lowercase()} configured." } }
             if props.allow_add {
-                button {
-                    r#type: "button",
-                    class: "m1-mechanical-quiet",
+                Button {
+                    variant: ButtonVariant::Secondary,
+                    button_type: "button",
+                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     disabled: mechanical_action_pending(&format!("{}-mounts", mount_collection_id(props.collection))) || !props.editable,
                     onclick: {
                         let mut sequence = props.request_sequence;
@@ -2037,7 +2622,8 @@ fn MountCollectionControls(props: MountCollectionControlsProps) -> Element {
                     "Add {props.label.trim_end_matches('s').to_lowercase()}"
                 }
             }
-        }
+             }
+            }
     }
 }
 
@@ -2067,25 +2653,23 @@ fn MountRow(props: MountRowProps) -> Element {
         mount_id: id.to_owned(),
     };
     rsx! {
-        fieldset { class: "m1-mechanical-mount-row", disabled: !props.editable,
+        fieldset { disabled: !props.editable,
             legend { "{label} {props.index}" }
-            label { class: "m1-mechanical-field",
-                span { "Mount type" }
-                select {
-                    value: if mount.kind == MountKind::Boss { "boss" } else { "hole" },
-                    onchange: {
+            SettingsSelect {
+                label: "Mount type",
+                value: (if mount.kind == MountKind::Boss { "boss" } else { "hole" }).to_string(),
+                on_change: {
                         let mut sequence = props.request_sequence;
                         let identity = props.identity.clone();
                         let callback = props.on_request;
                         let collection = props.collection;
                         let mount_id = mount.id.clone();
-                        move |event: FormEvent| if let Some(kind) = parse_mount_kind(&event.value()) {
+                        move |next: Option<String>| if let Some(kind) = parse_mount_kind(&next.unwrap_or_default()) {
                             send_request(&mut sequence, &identity, callback, MechanicalSettingsPatch::SetMountKind { collection, mount_id: mount_id.clone(), kind });
                         }
                     },
-                    option { value: "hole", "Hole" }
-                    option { value: "boss", "Boss" }
-                }
+                SelectOption::<String> { index: 0usize, value: "hole".to_owned(), text_value: "Hole".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Hole" }
+                    SelectOption::<String> { index: 1usize, value: "boss".to_owned(), text_value: "Boss".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Boss" }
             }
             DimensionField { key: "{field_prefix}:x",
                 identity: props.identity.clone(), request_sequence: props.request_sequence,
@@ -2114,9 +2698,11 @@ fn MountRow(props: MountRowProps) -> Element {
                     label: "Boss height", value: mount.height.unwrap_or(5.0), editable: props.editable, mount_target: Some(make_target(&mount.id)),
                 }
             }
-            button {
-                r#type: "button",
-                class: "m1-mechanical-quiet",
+            Button {
+                variant: ButtonVariant::Secondary,
+                button_type: "button",
+                class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                aria_label: "Remove {label} {props.index}",
                 disabled: mechanical_action_pending(&format!("mount:{}:{}:remove", mount_collection_id(props.collection), mount.id)) || !props.editable,
                 onclick: {
                     let mut sequence = props.request_sequence;
@@ -2148,36 +2734,36 @@ fn BatteryControls(props: BatteryControlsProps) -> Element {
     let battery = props.values.battery.as_ref();
     let request_sequence = props.request_sequence;
     rsx! {
-        section { class: "m1-mechanical-option-group", aria_label: "Openings and battery",
+        section { aria_label: "Openings and battery",
             h3 { "Openings & battery" }
-            section { class: "m1-mechanical-group", aria_label: "Battery",
+            section { class: "m-0 grid gap-2.5 border-0 border-t border-border py-2.5 [&_legend]:p-0 [&_legend]:font-semibold", aria_label: "Battery",
                 h4 { "Battery" }
                 if props.values.transport == HardwareTransport::Wireless {
-                    p { class: "m1-mechanical-help", "Included for wireless. Set your cell dimensions; the battery shares the space below the PCB with bottom foam." }
+                    p { class: "text-muted-foreground text-sm leading-normal", "Included for wireless. Set your cell dimensions; the battery shares the space below the PCB with bottom foam." }
                 } else {
-                    label { class: "m1-mechanical-check m1-mechanical-battery-toggle",
-                        input {
-                            r#type: "checkbox",
+                    FieldLabel { class: "min-h-control-touch", html_for: format!("case-battery-{}-include", dioxus::core::current_scope_id().0),
+                        Checkbox {
+                            id: format!("case-battery-{}-include", dioxus::core::current_scope_id().0),
                             aria_label: "Include a battery envelope",
-                            checked: battery.is_some(),
                             disabled: !props.editable,
-                            onchange: {
+                            checked: Some(if battery.is_some() { CheckboxState::Checked } else { CheckboxState::Unchecked }),
+                            on_checked_change: {
                                 let identity = props.identity.clone();
                                 let on_request = props.on_request;
                                 let mut sequence = request_sequence;
-                                move |event: FormEvent| send_request(
+                                move |state: CheckboxState| send_request(
                                     &mut sequence,
                                     &identity,
                                     on_request,
-                                    MechanicalSettingsPatch::SetBatteryEnabled(event.checked()),
+                                    MechanicalSettingsPatch::SetBatteryEnabled(bool::from(state)),
                                 )
-                            }
+                            },
                         }
                         span { "Include a battery envelope" }
                     }
                 }
                 if let Some(battery) = battery {
-                    fieldset { class: "m1-mechanical-group m1-mechanical-battery-fields", disabled: !props.editable,
+                    fieldset { class: "m-0 grid gap-2.5 border-0 border-t border-border py-2.5 [&_legend]:p-0 [&_legend]:font-semibold", disabled: !props.editable,
                         legend { "Battery dimensions and cable · mm" }
                         DimensionField {
                             key: "{props.owner_key}:battery-width",
@@ -2293,14 +2879,16 @@ fn OpeningControls(props: OpeningControlsProps) -> Element {
     let on_request = props.on_request;
     let owner_key = props.owner_key.clone();
     rsx! {
-        details { class: "m1-mechanical-group", aria_label: "Case openings",
-            summary { "Case openings · {openings.len()}" }
-            div { class: "m1-mechanical-openings",
-                div { class: "m1-mechanical-opening-title",
+        Collapsible { keep_mounted: true, default_open: false,
+            CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground", "Case openings · {openings.len()}" }
+            CollapsibleContent { class: "data-[open=false]:hidden",
+            div { class: "grid min-w-0 gap-2.5",
+                div { class: "flex flex-wrap items-center justify-between gap-2",
                     strong { "Document-coordinate access openings" }
-                    button {
-                        r#type: "button",
-                        class: "m1-mechanical-quiet",
+                    Button {
+                        variant: ButtonVariant::Secondary,
+                        button_type: "button",
+                        class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         disabled: mechanical_action_pending("case-openings") || !props.editable,
                         onclick: {
                             let mut sequence = request_sequence;
@@ -2313,7 +2901,7 @@ fn OpeningControls(props: OpeningControlsProps) -> Element {
                     }
                 }
                 if openings.is_empty() {
-                    p { class: "m1-mechanical-help", "No volumes configured." }
+                    p { class: "text-muted-foreground text-sm leading-normal", "No volumes configured." }
                 }
                 for (opening_index, opening) in openings.iter().enumerate() {
                     {
@@ -2321,86 +2909,100 @@ fn OpeningControls(props: OpeningControlsProps) -> Element {
                         let identity = identity.clone();
                         let remove_identity = identity.clone();
                         let owner = owner_key.clone();
+                        let opening_id = opening.id.clone();
                         rsx! {
-                            fieldset { class: "m1-mechanical-opening", key: "{owner}:opening:{opening_index}", disabled: !props.editable,
-                                div { class: "m1-mechanical-opening-title",
+                            fieldset { class: "m-0 grid min-w-0 gap-2.5 rounded-sm border border-border p-2.5", key: "{owner}:opening:{opening_id}", disabled: !props.editable,
+                                div { class: "flex flex-wrap items-center justify-between gap-2",
                                     strong { "Volume {opening_index + 1}" }
-                                    button {
-                                        r#type: "button",
-                                        class: "m1-mechanical-quiet",
+                                    Button {
+                                        variant: ButtonVariant::Secondary,
+                                        button_type: "button",
+                                        class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                        aria_label: "Remove volume {opening_index + 1}",
                                         disabled: mechanical_action_pending("case-openings") || !props.editable,
-                                        onclick: move |_| send_request(&mut sequence, &remove_identity, on_request, MechanicalSettingsPatch::RemoveOpening { opening_index }),
+                                        onclick: {
+                                            let opening_id = opening.id.clone();
+                                            move |_| send_request(&mut sequence, &remove_identity, on_request, MechanicalSettingsPatch::RemoveOpening { opening_id: opening_id.clone() })
+                                        },
                                         "Remove"
                                     }
                                 }
-                                div { class: "m1-mechanical-opening-fields",
-                                    DimensionField {
-                                        key: "{owner}:opening:{opening_index}:bottom-z",
+                                div { class: "grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-2.5",
+                                    { rsx! { DimensionField {
+                                        key: "{owner}:opening:{opening_id}:bottom-z",
                                         identity: identity.clone(), request_sequence, on_request, feedback: props.feedback.clone(),
                                         field: MechanicalDimension::OpeningBottomZ, label: "Bottom Z", value: opening.z, editable: props.editable,
                                         accessible_label: Some(format!("Document-coordinate access opening {} bottom Z", opening_index + 1)),
-                                        opening_target: Some(OpeningDimensionTarget { opening_index, point_index: None }),
-                                    }
-                                    DimensionField {
-                                        key: "{owner}:opening:{opening_index}:height",
+                                        opening_target: Some(OpeningDimensionTarget { opening_id: opening_id.clone(), vertex_id: None }),
+                                    } } }
+                                    { rsx! { DimensionField {
+                                        key: "{owner}:opening:{opening_id}:height",
                                         identity: identity.clone(), request_sequence, on_request, feedback: props.feedback.clone(),
                                         field: MechanicalDimension::OpeningHeight, label: "Height", value: opening.height, editable: props.editable,
                                         accessible_label: Some(format!("Document-coordinate access opening {} height", opening_index + 1)),
-                                        opening_target: Some(OpeningDimensionTarget { opening_index, point_index: None }),
-                                    }
+                                        opening_target: Some(OpeningDimensionTarget { opening_id: opening_id.clone(), vertex_id: None }),
+                                    } } }
                                 }
                                 h4 { "XY footprint" }
-                                for (point_index, point) in opening.points.iter().enumerate() {
-                                    div { class: "m1-mechanical-opening-vertex",
+                                for (point_index, vertex) in opening.vertices.iter().enumerate() {
+                                    div { class: "grid grid-cols-[72px_repeat(2,minmax(0,1fr))] items-end gap-2.5 [&>span]:pb-2 [&>span]:text-xs [&>span]:text-muted-foreground",
                                         span { "Vertex {point_index + 1}" }
-                                        DimensionField {
-                                            key: "{owner}:opening:{opening_index}:point:{point_index}:x",
+                                        { rsx! { DimensionField {
+                                            key: "{owner}:opening:{opening_id}:point:{point_index}:x",
                                             identity: identity.clone(), request_sequence, on_request, feedback: props.feedback.clone(),
-                                            field: MechanicalDimension::OpeningPointX, label: "X", value: point.x, editable: props.editable,
+                                            field: MechanicalDimension::OpeningPointX, label: "X", value: vertex.point.x, editable: props.editable,
                                             accessible_label: Some(format!("Document-coordinate access opening {} vertex {} X", opening_index + 1, point_index + 1)),
-                                            opening_target: Some(OpeningDimensionTarget { opening_index, point_index: Some(point_index) }),
-                                        }
-                                        DimensionField {
-                                            key: "{owner}:opening:{opening_index}:point:{point_index}:y",
+                                            opening_target: Some(OpeningDimensionTarget { opening_id: opening_id.clone(), vertex_id: Some(vertex.id.clone()) }),
+                                        } } }
+                                        { rsx! { DimensionField {
+                                            key: "{owner}:opening:{opening_id}:point:{point_index}:y",
                                             identity: identity.clone(), request_sequence, on_request, feedback: props.feedback.clone(),
-                                            field: MechanicalDimension::OpeningPointY, label: "Y", value: point.y, editable: props.editable,
+                                            field: MechanicalDimension::OpeningPointY, label: "Y", value: vertex.point.y, editable: props.editable,
                                             accessible_label: Some(format!("Document-coordinate access opening {} vertex {} Y", opening_index + 1, point_index + 1)),
-                                            opening_target: Some(OpeningDimensionTarget { opening_index, point_index: Some(point_index) }),
-                                        }
-                                        button {
-                                            r#type: "button",
-                                            class: "m1-mechanical-quiet",
-                                            aria_label: "Remove access opening vertex {point_index + 1}",
-                                            disabled: mechanical_action_pending("case-openings") || !props.editable || opening.points.len() <= 3,
+                                            opening_target: Some(OpeningDimensionTarget { opening_id: opening_id.clone(), vertex_id: Some(vertex.id.clone()) }),
+                                        } } }
+                                        Button {
+                                            variant: ButtonVariant::Ghost,
+                                            size: ButtonSize::Sm,
+                                            button_type: "button",
+                                            class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                            aria_label: "Remove access opening {opening_index + 1} vertex {point_index + 1}",
+                                            disabled: mechanical_action_pending("case-openings") || !props.editable || opening.vertices.len() <= 3,
                                             onclick: {
                                                 let mut sequence = request_sequence;
                                                 let identity = identity.clone();
-                                                move |_| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::RemoveOpeningVertex { opening_index, point_index })
+                                                let opening_id = opening_id.clone();
+                                                let vertex_id = vertex.id.clone();
+                                                move |_| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::RemoveOpeningVertex { opening_id: opening_id.clone(), vertex_id: vertex_id.clone() })
                                             },
                                             "×"
                                         }
                                     }
                                 }
-                                button {
-                                    r#type: "button",
-                                    class: "m1-mechanical-quiet",
+                                Button {
+                                    variant: ButtonVariant::Secondary,
+                                    button_type: "button",
+                                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                    aria_label: "Add vertex to volume {opening_index + 1}",
                                     disabled: mechanical_action_pending("case-openings") || !props.editable,
                                     onclick: {
                                         let mut sequence = request_sequence;
                                         let identity = identity.clone();
-                                        move |_| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::AddOpeningVertex { opening_index })
+                                        let opening_id = opening_id.clone();
+                                        move |_| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::AddOpeningVertex { opening_id: opening_id.clone() })
                                     },
                                     "Add vertex"
                                 }
-                                if opening.points.len() < 3 {
-                                    p { role: "alert", "An opening footprint needs at least three vertices." }
+                                if opening.vertices.len() < 3 {
+                                    Alert { variant: AlertVariant::Destructive, "An opening footprint needs at least three vertices." }
                                 }
                             }
                         }
                     }
                 }
             }
-        }
+             }
+            }
     }
 }
 
@@ -2495,20 +3097,20 @@ fn ContextualLayerInspector(props: ContextualLayerInspectorProps) -> Element {
             .collect::<Vec<_>>(),
     );
     rsx! {
-        section { class: "m1-mechanical-settings", aria_label: "Mechanical stack settings",
-            button {
-                r#type: "button",
-                class: "m1-mechanical-context-return",
+        section { class: "grid gap-3 [&_h3]:m-0 [&_p]:m-0 [&_label]:grid-cols-1 [&_small]:text-xs [&_small]:leading-normal [&_small]:text-muted-foreground", aria_label: "Mechanical stack settings",
+            Button {
+                variant: ButtonVariant::Ghost,
+                size: ButtonSize::Sm,
+                button_type: "button",
+                class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                 onclick: move |_| props.on_select_layer.call(String::new()),
                 "Assembly settings"
             }
             h2 { "{title}" }
             if props.layer.is_previous {
-                p { role: "status", class: "m1-mechanical-previous-result",
-                    "Showing previous generated geometry. Measurements describe the prior accepted revision; settings below reflect the current configuration."
-                }
+                div { role: "status", Callout { "Showing previous generated geometry. Measurements describe the prior accepted revision; settings below reflect the current configuration." } }
             }
-            fieldset { class: "m1-mechanical-group", disabled: !props.editable,
+            fieldset { class: "m-0 grid gap-2.5 border-0 border-t border-border py-2.5 [&_legend]:p-0 [&_legend]:font-semibold", disabled: !props.editable,
                 for (field, label, value) in fields {
                     DimensionField {
                         key: "{props.owner_key}:context:{props.layer.id}:{field.field_id()}",
@@ -2523,34 +3125,43 @@ fn ContextualLayerInspector(props: ContextualLayerInspectorProps) -> Element {
                     }
                 }
                 if let Some(reason) = props.disabled_reason.as_deref() {
-                    p { role: "status", "{reason}" }
+                    div { role: "status", Callout { "{reason}" } }
                 }
             }
             if let Some(thickness) = props.layer.resolved_body_thickness {
-                p { class: "m1-mechanical-help", "Resolved thickness {thickness:.2} mm." }
+                p { class: "text-muted-foreground text-sm leading-normal", "Resolved thickness {thickness:.2} mm." }
             }
             if props.values.internal_gasket && matches!(props.layer.id.as_str(), "retainer" | "bottom") {
-                button {
-                    r#type: "button",
-                    class: "m1-mechanical-context-hardware",
+                Button {
+                    variant: ButtonVariant::Ghost,
+                    size: ButtonSize::Sm,
+                    button_type: "button",
+                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     onclick: move |_| props.on_select_layer.call(String::new()),
                     "Edit shared closure hardware"
                 }
             }
             if !errors.is_empty() {
-                section { class: "m1-mechanical-group", aria_label: "Fit issues",
+                section { class: "m-0 grid gap-2.5 border-0 border-t border-border py-2.5 [&_legend]:p-0 [&_legend]:font-semibold", aria_label: "Fit issues",
                     h3 { "Fit issues" }
-                    ul {
+                    ItemGroup {
                         for finding in errors.iter() {
                             { let id = finding.id.clone();
                             let message = finding.message.clone();
                             let on_show_finding = props.on_show_finding;
-                            rsx! { li { key: "{id}",
-                                span { "{message}" }
-                                button {
-                                    r#type: "button",
-                                    onclick: move |_| on_show_finding.call(id.clone()),
-                                    "Show"
+                            rsx! { Item { key: "{id}",
+                                Badge { variant: severity_badge(&finding.severity), "{severity_label(&finding.severity)}" }
+                                ItemContent { ItemDescription { "{message}" } }
+                                ItemActions {
+                                    Button {
+                                        variant: ButtonVariant::Ghost,
+                                        size: ButtonSize::Sm,
+                                        button_type: "button",
+                                        class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                        aria_label: "Show finding {id}",
+                                        onclick: move |_| on_show_finding.call(id.clone()),
+                                        "Show"
+                                    }
                                 }
                             } }
                             }
@@ -2575,18 +3186,26 @@ fn gasket_fit_issues(
         return rsx! {};
     }
     rsx! {
-        section { class: "m1-mechanical-group", aria_label: "Fit issues",
+        section { class: "m-0 grid gap-2.5 border-0 border-t border-border py-2.5 [&_legend]:p-0 [&_legend]:font-semibold", aria_label: "Fit issues",
             h3 { "Fit issues" }
-            ul {
+            ItemGroup {
                 for finding in errors {
                     { let id = finding.id.clone();
                       let message = finding.message.clone();
-                      rsx! { li { key: "{id}",
-                          span { "{message}" }
-                          button {
-                              r#type: "button",
-                              onclick: move |_| on_show_finding.call(id.clone()),
-                              "Show"
+                      let severity = finding.severity.clone();
+                      rsx! { Item { key: "{id}",
+                          Badge { variant: severity_badge(&severity), "{severity_label(&severity)}" }
+                          ItemContent { ItemDescription { "{message}" } }
+                          ItemActions {
+                              Button {
+                                  variant: ButtonVariant::Ghost,
+                                  size: ButtonSize::Sm,
+                                  button_type: "button",
+                                  class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                  aria_label: "Show finding {id}",
+                                  onclick: move |_| on_show_finding.call(id.clone()),
+                                  "Show"
+                              }
                           }
                       } }
                     }
@@ -2647,7 +3266,7 @@ impl NumberRule {
                 Self::AtLeastOne => value >= 1.0 && value.fract() == 0.0,
                 Self::AtLeastFive => value >= 5.0,
                 Self::AtLeastHalf => value >= 0.5,
-                Self::Coordinate => value >= -1_000_000.0,
+                Self::Coordinate => value >= -MAX_COORDINATE_MM,
                 Self::Bounded(min, max) => value >= f64::from(min) && value <= f64::from(max),
             }
     }
@@ -2677,17 +3296,19 @@ struct ManufacturingControlsProps {
 fn ManufacturingControls(props: ManufacturingControlsProps) -> Element {
     let version = "2026-09-24";
     rsx! {
-        section { class: "m1-mechanical-group", aria_label: "Manufacturing overrides",
+        section { class: "m-0 grid gap-2.5 border-0 border-t border-border py-2.5 [&_legend]:p-0 [&_legend]:font-semibold", aria_label: "Manufacturing overrides",
             h3 { "Manufacturing overrides" }
-            section { class: "m1-mechanical-profile", aria_label: "Per-part process overrides",
+            section { class: "grid gap-1.5", aria_label: "Per-part process overrides",
                 h4 { "Per-part process overrides {props.targets.iter().filter(|target| target.process.is_some()).count()}" }
                 for target in props.targets.iter() {
-                    div { class: "m1-mechanical-profile", key: "{target.part_id}",
+                    div { class: "grid gap-1.5", key: "{target.part_id}",
                         strong { "{target.name}" }
                         if let Some(process) = target.process.as_ref() {
-                            button {
-                                r#type: "button",
-                                class: "m1-mechanical-context-settings",
+                            Button {
+                                variant: ButtonVariant::Secondary,
+                                button_type: "button",
+                                class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                aria_label: "Remove process override for {target.name}",
                                 disabled: mechanical_action_pending(&format!("process:{}:remove", target.part_id)) || !props.editable,
                                 onclick: {
                                     let part_id = target.part_id.clone();
@@ -2698,52 +3319,41 @@ fn ManufacturingControls(props: ManufacturingControlsProps) -> Element {
                                 },
                                 "Remove"
                             }
-                            div { class: "m1-mechanical-field",
-                                label {
-                                    span { "Method" }
-                                    if target.part_id.ends_with("foam") {
-                                        output { "Cut sheet" }
-                                    } else {
-                                        select {
-                                            aria_label: "Method",
-                                            disabled: !props.editable,
-                                            value: "{method_id(&process.method)}",
-                                            onchange: {
-                                                let part_id = target.part_id.clone();
-                                                let identity = props.identity.clone();
-                                                let mut sequence = props.request_sequence;
-                                                let on_request = props.on_request;
-                                                move |event: FormEvent| if let Some(method) = parse_method(&event.value()) {
-                                                    send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetProcessMethod { part_id: part_id.clone(), method });
-                                                }
-                                            },
-                                            option { value: "pcb-fr4", "PCB FR-4" }
-                                            option { value: "printed", "3D printed" }
-                                            option { value: "cnc", "CNC machined" }
-                                            option { value: "cut-sheet", "Cut sheet" }
+                            if target.part_id.ends_with("foam") {
+                                output { "Cut sheet" }
+                            } else {
+                                SettingsSelect {
+                                    label: "Method",
+                                    disabled: !props.editable,
+                                    value: method_id(&process.method).to_string(),
+                                    on_change: {
+                                        let part_id = target.part_id.clone();
+                                        let identity = props.identity.clone();
+                                        let mut sequence = props.request_sequence;
+                                        let on_request = props.on_request;
+                                        move |next: Option<String>| if let Some(method) = parse_method(&next.unwrap_or_default()) {
+                                            send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetProcessMethod { part_id: part_id.clone(), method });
                                         }
-                                    }
+                                    },
+                                    SelectOption::<String> { index: 0usize, value: "pcb-fr4".to_owned(), text_value: "PCB FR-4".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "PCB FR-4" }
+                                        SelectOption::<String> { index: 1usize, value: "printed".to_owned(), text_value: "3D printed".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "3D printed" }
+                                        SelectOption::<String> { index: 2usize, value: "cnc".to_owned(), text_value: "CNC machined".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "CNC machined" }
+                                        SelectOption::<String> { index: 3usize, value: "cut-sheet".to_owned(), text_value: "Cut sheet".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Cut sheet" }
                                 }
                             }
-                            div { class: "m1-mechanical-field",
-                                label {
-                                    span { "Material" }
-                                    select {
-                                        aria_label: "Material",
-                                        disabled: !props.editable,
-                                        value: "{process.material}",
-                                        onchange: {
-                                            let part_id = target.part_id.clone();
-                                            let identity = props.identity.clone();
-                                            let mut sequence = props.request_sequence;
-                                            let on_request = props.on_request;
-                                            move |event: FormEvent| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetProcessMaterial { part_id: part_id.clone(), material: event.value() })
-                                        },
-                                        for material in process_material_options(&target.part_id, &process.method) {
-                                            option { value: material, "{material}" }
-                                        }
-                                    }
-                                }
+                            SettingsChoiceField {
+                                label: "Material",
+                                aria_label: "Material",
+                                disabled: !props.editable,
+                                value: process.material.clone(),
+                                options: process_material_options(&target.part_id, &process.method).iter().map(|material| (material.to_string(), material.to_string())).collect::<Vec<_>>(),
+                                on_change: {
+                                        let part_id = target.part_id.clone();
+                                        let identity = props.identity.clone();
+                                        let mut sequence = props.request_sequence;
+                                        let on_request = props.on_request;
+                                        move |next: Option<String>| if let Some(material) = next { send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetProcessMaterial { part_id: part_id.clone(), material }) }
+                                    },
                             }
                             DimensionField {
                                 identity: props.identity.clone(),
@@ -2756,15 +3366,16 @@ fn ManufacturingControls(props: ManufacturingControlsProps) -> Element {
                                 editable: props.editable,
                                 process_target: Some(target.part_id.clone()),
                             }
-                            p { class: "m1-mechanical-help", "Constraint set " code { "{process_constraint_version(process)}" }
-                                if !process.constraints_version.is_empty() && process.constraints_version != version {
-                                    small { role: "alert", "Unsupported constraint set. Diagnostics will block export." }
-                                }
+                            p { class: "text-muted-foreground text-sm leading-normal", "Constraint set " code { "{process_constraint_version(process)}" } }
+                            if !process.constraints_version.is_empty() && process.constraints_version != version {
+                                Alert { variant: AlertVariant::Destructive, "Unsupported constraint set. Diagnostics will block export." }
                             }
                         } else {
-                            button {
-                                r#type: "button",
-                                class: "m1-mechanical-context-settings",
+                            Button {
+                                variant: ButtonVariant::Secondary,
+                                button_type: "button",
+                                class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                aria_label: "Add process override for {target.name}",
                                 disabled: mechanical_action_pending(&format!("process:{}:add", target.part_id)) || !props.editable,
                                 onclick: {
                                     let part_id = target.part_id.clone();
@@ -2778,42 +3389,107 @@ fn ManufacturingControls(props: ManufacturingControlsProps) -> Element {
                         }
                     }
                 }
-                p { class: "m1-mechanical-help", "Supported constraint set: {version}." }
+                p { class: "text-muted-foreground text-sm leading-normal", "Supported constraint set: {version}." }
             }
-            section { class: "m1-mechanical-profile", aria_label: "Stabilizer fit",
+            section { class: "grid gap-1.5", aria_label: "Stabilizer fit",
                 h4 { "Stabilizer fit {props.stabilizers.len()} wide keys" }
                 for stabilizer in props.stabilizers.iter() {
-                    div { class: "m1-mechanical-profile", key: "{stabilizer.part_id}",
+                    div { class: "grid gap-1.5", key: "{stabilizer.part_id}",
                         strong { "{stabilizer.reference} · {stabilizer.key_units}u" }
-                        label { class: "m1-mechanical-field",
-                            span { "Stabilizer" }
-                            select {
-                                aria_label: "Stabilizer for {stabilizer.reference}",
-                                disabled: !props.editable,
-                                value: "{stabilizer_kind_id(&stabilizer.current.kind)}",
-                                onchange: {
+                        SettingsSelect {
+                            label: "Stabilizer",
+                            aria_label: "Stabilizer for {stabilizer.reference}",
+                            disabled: !props.editable,
+                            value: stabilizer_kind_id(&stabilizer.current.kind).to_string(),
+                            on_change: {
                                     let mut current = stabilizer.current.clone();
                                     let identity = props.identity.clone();
                                     let mut sequence = props.request_sequence;
                                     let on_request = props.on_request;
-                                    move |event: FormEvent| if let Some(kind) = parse_stabilizer_kind(&event.value()) {
+                                    move |next: Option<String>| if let Some(kind) = parse_stabilizer_kind(&next.unwrap_or_default()) {
                                         current.kind = kind;
                                         send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetStabilizerKind(current.clone()));
                                     }
                                 },
-                                option { value: "pcb-mount", "Cherry PCB mount · {stabilizer.default.units}u" }
-                                option { value: "none", "None" }
+                            SelectOption::<String> { index: 0usize, value: "pcb-mount".to_owned(), text_value: format!("Cherry PCB mount · {}u", stabilizer.default.units), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Cherry PCB mount · {stabilizer.default.units}u" }
+                                SelectOption::<String> { index: 1usize, value: "none".to_owned(), text_value: "None".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "None" }
                                 if stabilizer.current.profile.is_some() {
-                                    option { value: "plate-mount", "Custom plate mount" }
+                                    SelectOption::<String> { index: 2usize, value: "plate-mount".to_owned(), text_value: "Custom plate mount".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Custom plate mount" }
                                 }
-                            }
                         }
-                        p { class: "m1-mechanical-help", "Size and orientation follow the key layout." }
+                        p { class: "text-muted-foreground text-sm leading-normal", "Size and orientation follow the key layout." }
                     }
                 }
                 if props.stabilizers.is_empty() {
-                    p { class: "m1-mechanical-help", "No keys in this layout need stabilizers." }
+                    p { class: "text-muted-foreground text-sm leading-normal", "No keys in this layout need stabilizers." }
                 }
+            }
+        }
+    }
+}
+
+/// Compact case choices for the guided setup flow; the full editor stays in Case settings.
+#[component]
+pub fn MechanicalSetupBasics(settings: MechanicalSettingsProps) -> Element {
+    let Some(values) = settings
+        .values
+        .as_ref()
+        .or(settings.preview_values.as_ref())
+    else {
+        return rsx! { p { role: "status", "Case settings are loading." } };
+    };
+    rsx! {
+        section { class: "grid gap-4 border-0 bg-transparent p-0", aria_label: "Basic case setup",
+            SettingsSelect {
+                label: "Mounting style",
+                aria_label: "Case mounting style",
+                value: mount_id(&values.mount).to_string(),
+                disabled: !settings.editable,
+                on_change: {
+                        let identity = settings.identity.clone();
+                        let mut sequence = settings.request_sequence;
+                        let on_request = settings.on_request;
+                        move |next: Option<String>| if let Some(mount) = parse_mount(&next.unwrap_or_default()) {
+                            send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetMount(mount));
+                        }
+                    },
+                SelectOption::<String> { index: 0usize, value: "tray".to_owned(), text_value: "Tray mount".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Tray mount" }
+                    SelectOption::<String> { index: 1usize, value: "rigid".to_owned(), text_value: "Rigid mount".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Rigid mount" }
+                    SelectOption::<String> { index: 2usize, value: "gasket".to_owned(), text_value: "Gasket mount".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Gasket mount" }
+            }
+            FieldLabel { class: "min-h-control-touch", html_for: format!("case-setup-{}-battery", dioxus::core::current_scope_id().0),
+                Checkbox {
+                    id: format!("case-setup-{}-battery", dioxus::core::current_scope_id().0),
+                    checked: Some(if values.battery.is_some() { CheckboxState::Checked } else { CheckboxState::Unchecked }),
+                    disabled: !settings.editable || values.transport != HardwareTransport::Wireless,
+                    aria_label: "Include wireless battery",
+                    on_checked_change: {
+                        let identity = settings.identity.clone();
+                        let mut sequence = settings.request_sequence;
+                        let on_request = settings.on_request;
+                        move |state: CheckboxState| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetBatteryEnabled(bool::from(state)))
+                    },
+                }
+                span { "Include a battery" }
+                small { class: "text-muted-foreground", if values.transport == HardwareTransport::Wireless { "For the wireless split." } else { "Choose wireless transport to add a battery." } }
+            }
+            SettingsSelect {
+                label: "Case process",
+                aria_label: "Case fabrication process",
+                value: method_id(&values.method).to_string(),
+                disabled: !settings.editable,
+                on_change: {
+                        let identity = settings.identity.clone();
+                        let mut sequence = settings.request_sequence;
+                        let on_request = settings.on_request;
+                        move |next: Option<String>| if let Some(method) = parse_method(&next.unwrap_or_default()) {
+                            send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetMethod(method));
+                        }
+                    },
+                SelectOption::<String> { index: 0usize, value: "printed".to_owned(), text_value: "3D printed".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "3D printed" }
+                    SelectOption::<String> { index: 1usize, value: "cnc".to_owned(), text_value: "CNC machined".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "CNC machined" }
+                    SelectOption::<String> { index: 2usize, value: "cut-sheet".to_owned(), text_value: "Cut sheet".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Cut sheet" }
+                    SelectOption::<String> { index: 3usize, value: "pcb-fr4".to_owned(), text_value: "PCB FR-4".to_owned(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "PCB FR-4" }
             }
         }
     }
@@ -2869,91 +3545,197 @@ fn parse_stabilizer_kind(value: &str) -> Option<MechanicalStabilizerKind> {
 fn ConstructionControls(props: ConstructionControlsProps) -> Element {
     let values = &props.values;
     rsx! {
-        fieldset { class: "m1-mechanical-group", disabled: !props.editable,
+        fieldset { class: "grid gap-3 m-0 min-w-0 p-3 rounded-md bg-card border-0", disabled: !props.editable,
             legend { "Construction" }
-            label { class: "m1-mechanical-field",
-                span { "Plate method" }
-                select {
-                    value: "{method_id(&values.method)}",
-                    onchange: {
+            SettingsSelect {
+                label: "Plate method", disabled: !props.editable,
+                value: "{method_id(&values.method)}",
+                on_change: {
                         let identity = props.identity.clone();
                         let mut sequence = props.request_sequence;
                         let on_request = props.on_request;
-                        move |event: FormEvent| if let Some(method) = parse_method(&event.value()) {
+                        move |event: Option<String>| if let Some(method) = parse_method(&event.clone().unwrap_or_default()) {
                             send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetMethod(method));
                         }
                     },
-                    option { value: "pcb-fr4", "PCB FR-4" }
-                    option { value: "printed", "3D printed" }
-                    option { value: "cnc", "CNC machined" }
-                    option { value: "cut-sheet", "Cut sheet" }
-                }
+                SelectOption::<String> { index: 0usize, value: "pcb-fr4".to_owned(), text_value: "PCB FR-4".to_owned(), "PCB FR-4" }
+                    SelectOption::<String> { index: 1usize, value: "printed".to_owned(), text_value: "3D printed".to_owned(), "3D printed" }
+                    SelectOption::<String> { index: 2usize, value: "cnc".to_owned(), text_value: "CNC machined".to_owned(), "CNC machined" }
+                    SelectOption::<String> { index: 3usize, value: "cut-sheet".to_owned(), text_value: "Cut sheet".to_owned(), "Cut sheet" }
             }
-            label { class: "m1-mechanical-field",
-                span { "Mount style" }
-                select {
-                    value: "{mount_id(&values.mount)}",
-                    onchange: {
+            SettingsSelect {
+                label: "Mount style", disabled: !props.editable,
+                value: "{mount_id(&values.mount)}",
+                on_change: {
                         let identity = props.identity.clone();
                         let mut sequence = props.request_sequence;
                         let on_request = props.on_request;
-                        move |event: FormEvent| if let Some(mount) = parse_mount(&event.value()) {
+                        move |event: Option<String>| if let Some(mount) = parse_mount(&event.clone().unwrap_or_default()) {
                             send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetMount(mount));
                         }
                     },
-                    option { value: "tray", "Tray" }
-                    option { value: "rigid", "Rigid mount" }
-                    option { value: "gasket", "Gasket mount" }
-                }
+                SelectOption::<String> { index: 0usize, value: "tray".to_owned(), text_value: "Tray".to_owned(), "Tray" }
+                    SelectOption::<String> { index: 1usize, value: "rigid".to_owned(), text_value: "Rigid mount".to_owned(), "Rigid mount" }
+                    SelectOption::<String> { index: 2usize, value: "gasket".to_owned(), text_value: "Gasket mount".to_owned(), "Gasket mount" }
             }
-            label { class: "m1-mechanical-field",
-                span { "Bottom construction" }
-                select {
-                    disabled: values.mount == MechanicalMount::Gasket,
-                    value: "{bottom_style_id(&values.bottom_style)}",
-                    onchange: {
+            SettingsSelect {
+                label: "Bottom construction",
+                disabled: !props.editable || values.mount == MechanicalMount::Gasket,
+                value: "{bottom_style_id(&values.bottom_style)}",
+                on_change: {
                         let identity = props.identity.clone();
                         let mut sequence = props.request_sequence;
                         let on_request = props.on_request;
-                        move |event: FormEvent| if let Some(style) = parse_bottom_style(&event.value()) {
+                        move |event: Option<String>| if let Some(style) = parse_bottom_style(&event.clone().unwrap_or_default()) {
                             send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetBottomStyle(style));
                         }
                     },
-                    option { value: "shell", "Tray shell" }
-                    option { value: "sheet", "Flat sheet" }
-                }
+                SelectOption::<String> { index: 0usize, value: "shell".to_owned(), text_value: "Tray shell".to_owned(), "Tray shell" }
+                    SelectOption::<String> { index: 1usize, value: "sheet".to_owned(), text_value: "Flat sheet".to_owned(), "Flat sheet" }
             }
             if values.bottom_style == MechanicalBottomStyle::Sheet {
-                label { class: "m1-mechanical-check",
-                    input {
-                        r#type: "checkbox",
-                        checked: values.middle_frame,
-                        onchange: {
+                FieldLabel { class: "min-h-control-touch", html_for: format!("case-construction-{}-middle", dioxus::core::current_scope_id().0),
+                    Checkbox {
+                        id: format!("case-construction-{}-middle", dioxus::core::current_scope_id().0),
+                        aria_label: "Add middle frame", disabled: !props.editable,
+                        checked: Some(if values.middle_frame { CheckboxState::Checked } else { CheckboxState::Unchecked }),
+                        on_checked_change: {
                             let identity = props.identity.clone();
                             let mut sequence = props.request_sequence;
                             let on_request = props.on_request;
-                            move |event: FormEvent| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetMiddleFrame(event.checked()))
+                            move |event: CheckboxState| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetMiddleFrame(bool::from(event)))
                         },
                     }
                     span { "Add middle frame" }
                 }
             }
-            label { class: "m1-mechanical-check",
-                input {
-                    r#type: "checkbox",
-                    disabled: values.mount == MechanicalMount::Gasket,
-                    checked: values.integrated_plate_frame,
-                    onchange: {
+            FieldLabel { class: "min-h-control-touch", html_for: format!("case-construction-{}-integrated", dioxus::core::current_scope_id().0),
+                Checkbox {
+                    id: format!("case-construction-{}-integrated", dioxus::core::current_scope_id().0),
+                    aria_label: "Integrate plate frame into case",
+                    disabled: !props.editable || values.mount == MechanicalMount::Gasket,
+                    checked: Some(if values.integrated_plate_frame { CheckboxState::Checked } else { CheckboxState::Unchecked }),
+                    on_checked_change: {
                         let identity = props.identity.clone();
                         let mut sequence = props.request_sequence;
                         let on_request = props.on_request;
-                        move |event: FormEvent| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetIntegratedPlateFrame(event.checked()))
+                        move |event: CheckboxState| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetIntegratedPlateFrame(bool::from(event)))
                     },
                 }
                 span { "Integrate plate frame into case" }
             }
         }
     }
+}
+
+/// Presentation-only composition; the caller owns the accepted value and domain request.
+#[component]
+fn SettingsSelect(
+    label: String,
+    value: ReadSignal<String>,
+    #[props(default)] aria_label: Option<String>,
+    #[props(default)] disabled: bool,
+    on_change: EventHandler<Option<String>>,
+    children: Element,
+) -> Element {
+    let id = format!("case-choice-{}", dioxus::core::current_scope_id().0);
+    let selected = use_memo(move || Some(value()));
+    rsx! {
+        Field { class: "gap-1.5", disabled,
+            FieldLabel { html_for: id.clone(), "{label}" }
+            Select::<String> { class: "max-[760px]:[&_[data-slot=select-trigger]]:min-h-control-touch [@media(pointer:coarse)]:[&_[data-slot=select-trigger]]:min-h-control-touch", id, aria_label: aria_label.unwrap_or(label), value: Some(selected.into()), disabled, on_value_change: on_change, {children} }
+        }
+    }
+}
+
+#[component]
+fn ProfileTargetField(
+    label: String,
+    #[props(default)] aria_label: Option<String>,
+    placeholder: String,
+    options: Vec<MechanicalProfileTargetChoice>,
+    disabled: bool,
+    on_change: EventHandler<Option<String>>,
+) -> Element {
+    let selected = use_memo(|| None::<String>);
+    if options.len() <= 12 {
+        return rsx! { SettingsSelect { label, aria_label, value: "", disabled, on_change,
+            SelectOption::<String> { index: 0usize, value: String::new(), text_value: placeholder.clone(), "{placeholder}" }
+            for (index, target) in options.iter().enumerate() {
+                SelectOption::<String> { key: "{target.definition_id}", index: index + 1, value: target.definition_id.clone(), text_value: target.name.clone(), "{target.name}" }
+            }
+        } };
+    }
+    let name = aria_label.unwrap_or_else(|| label.clone());
+    rsx! { Field { class: "gap-1.5", disabled,
+        FieldLabel { "{label}" }
+        Combobox::<String> { class: "max-[760px]:[&_[data-slot=combobox-input]]:min-h-control-touch [@media(pointer:coarse)]:[&_[data-slot=combobox-input]]:min-h-control-touch", aria_label: name.clone(), list_aria_label: name, placeholder, disabled, value: Some(selected.into()), on_value_change: on_change,
+            for (index, target) in options.iter().enumerate() {
+                ComboboxOption::<String> { key: "{target.definition_id}", index, value: target.definition_id.clone(), text_value: target.name.clone(), "{target.name}" }
+            }
+        }
+    } }
+}
+
+/// Presentation-only choice field for caller-owned dynamic lists, with the 12-option
+/// Select/Combobox boundary; the caller owns the accepted value and domain request.
+#[component]
+fn SettingsChoiceField(
+    label: String,
+    value: ReadSignal<String>,
+    options: Vec<(String, String)>,
+    #[props(into, optional)] placeholder: Option<String>,
+    #[props(into, optional)] aria_label: Option<String>,
+    #[props(default)] disabled: bool,
+    on_change: EventHandler<Option<String>>,
+) -> Element {
+    let selected = use_memo(move || Some(value()));
+    if options.len() > 12 {
+        let name = aria_label.unwrap_or_else(|| label.clone());
+        let placeholder = placeholder.unwrap_or_default();
+        return rsx! { Field { class: "gap-1.5", disabled,
+            FieldLabel { "{label}" }
+            Combobox::<String> { class: "max-[760px]:[&_[data-slot=combobox-input]]:min-h-control-touch [@media(pointer:coarse)]:[&_[data-slot=combobox-input]]:min-h-control-touch", aria_label: name.clone(), list_aria_label: name, placeholder, disabled, value: Some(selected.into()), on_value_change: on_change,
+                for (index, (option_value, text)) in options.iter().enumerate() {
+                    ComboboxOption::<String> { key: "{index}", class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", index, value: option_value.clone(), text_value: text.clone(), "{text}" }
+                }
+            }
+        } };
+    }
+    rsx! { SettingsSelect { label, aria_label, value, disabled, on_change,
+        if let Some(placeholder) = placeholder.clone() {
+            SelectOption::<String> { index: 0usize, value: String::new(), text_value: placeholder.clone(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{placeholder}" }
+        }
+        for (index, (option_value, text)) in options.iter().enumerate() {
+            SelectOption::<String> { key: "{index}", index: index + 1, value: option_value.clone(), text_value: text.clone(), class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{text}" }
+        }
+    } }
+}
+
+/// Presentation-only numeric field for caller-owned drafts; parsing stays with the caller.
+#[component]
+fn SettingsNumberField(
+    label: String,
+    value: ReadSignal<String>,
+    #[props(into, optional)] aria_label: Option<String>,
+    #[props(into, optional)] step: Option<String>,
+    oninput: EventHandler<FormEvent>,
+) -> Element {
+    let id = format!("case-number-{}", dioxus::core::current_scope_id().0);
+    let name = aria_label.unwrap_or_else(|| label.clone());
+    rsx! { Field { class: "gap-1.5",
+        FieldLabel { html_for: id.clone(), "{label}" }
+        InputGroup { class: "max-[760px]:h-control-touch [@media(pointer:coarse)]:h-control-touch",
+            InputGroupInput {
+                id: id.clone(), class: "font-mono",
+                r#type: InputType::Number,
+                step,
+                aria_label: name,
+                value: value(),
+                oninput: move |event: FormEvent| oninput.call(event),
+            }
+        }
+    } }
 }
 
 #[derive(Props, Clone, PartialEq)]
@@ -2979,38 +3761,36 @@ fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
     let mut selected_family = use_signal(String::new);
     let mut selected_stabilizer = use_signal(String::new);
     rsx! {
-        section { class: "m1-mechanical-group", aria_label: "Switch fit profiles",
+        section { class: "grid gap-3", aria_label: "Switch fit profiles",
             h3 { "Switch fit profiles" }
             if props.profiles.is_empty() {
-                p { class: "m1-mechanical-help", "No explicit switch fit profile is assigned. The supported plate thickness range is unavailable until a fit profile is assigned in Parts." }
+                Callout { "No explicit switch fit profile is assigned. The supported plate thickness range is unavailable until a fit profile is assigned in Parts." }
                 p { "Plate underside to PCB top: {props.plate_to_pcb:.2} mm · current configured gap." }
             }
             for profile in props.profiles.iter() {
-                div { class: "m1-mechanical-profile", key: "{props.owner_key}:{profile.definition_id}",
+                div { class: "grid gap-3 p-3 rounded-md bg-card", role: "group", aria_label: "Fit profile {profile.name}", key: "{props.owner_key}:{profile.definition_id}",
                     strong { "{profile.name}" }
                     if let Some(source) = profile.source.as_deref() { p { "Profile source: {source}." } }
                     if profile.switch_family_selectable {
-                        label { class: "m1-mechanical-field",
-                            span { "Switch fit family" }
-                            select {
-                                disabled: !props.editable,
-                                value: profile.family.map(family_id).unwrap_or(""),
-                                onchange: {
+                        SettingsSelect {
+                            label: "Switch fit family",
+                            disabled: !props.editable,
+                            value: (profile.family.map(family_id).unwrap_or("")).to_string(),
+                            on_change: {
                                     let definition_id = profile.definition_id.clone();
                                     let identity = props.identity.clone();
                                     let mut sequence = props.request_sequence;
                                     let on_request = props.on_request;
-                                    move |event: FormEvent| {
-                                        if let Some(family) = parse_family(&event.value()) {
+                                    move |event: Option<String>| {
+                                        if let Some(family) = parse_family(&event.clone().unwrap_or_default()) {
                                             send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetSwitchFamily { definition_id: definition_id.clone(), family });
                                         }
                                     }
                                 },
-                                option { value: "", "Choose switch family…" }
-                                option { value: "mx", "MX" }
-                                option { value: "choc-v1", "Choc v1" }
-                                option { value: "choc-v2", "Choc v2" }
-                            }
+                            SelectOption::<String> { index: 0usize, value: "".to_owned(), text_value: "Choose switch family…".to_owned(), "Choose switch family…" }
+                                SelectOption::<String> { index: 1usize, value: "mx".to_owned(), text_value: "MX".to_owned(), "MX" }
+                                SelectOption::<String> { index: 2usize, value: "choc-v1".to_owned(), text_value: "Choc v1".to_owned(), "Choc v1" }
+                                SelectOption::<String> { index: 3usize, value: "choc-v2".to_owned(), text_value: "Choc v2".to_owned(), "Choc v2" }
                         }
                     } else if let Some(family) = profile.family {
                         p { "Switch fit: {family_label(family)}" }
@@ -3021,12 +3801,12 @@ fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
                     if let Some(range) = profile.supported_thickness {
                         p { "Supported plate thickness: {range.x:.2}–{range.y:.2} mm" }
                     } else {
-                        p { role: "status", "Supplier review needed for the supported thickness range." }
+                        div { role: "status", Callout { variant: CalloutVariant::Warning, "Supplier review needed for the supported thickness range." } }
                     }
-                    button {
-                        r#type: "button",
+                    Button {
+                        variant: ButtonVariant::Secondary, button_type: "button",
                         aria_label: "Remove profile {profile.name}",
-                        class: "m1-mechanical-quiet",
+                        class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         disabled: mechanical_action_pending(&format!("profile:{}:remove", profile.definition_id)) || !props.editable,
                         onclick: {
                             let identity = props.identity.clone();
@@ -3049,36 +3829,33 @@ fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
                 }
             }
             if props.profiles.iter().any(|profile| profile.family.is_none()) {
-                p { role: "status", "Choose a supported switch family to resolve the plate gap." }
+                div { role: "status", Callout { "Choose a supported switch family to resolve the plate gap." } }
             }
             if props.targets.iter().any(|target| target.switch_profile) {
-                div { class: "m1-mechanical-profile-assignment",
-                    label { class: "m1-mechanical-field",
-                        span { "Library fit profile" }
-                        select {
-                            aria_label: "Library fit profile",
-                            disabled: !props.editable,
-                            value: selected_family(),
-                            onchange: move |event: FormEvent| selected_family.set(event.value()),
-                            option { value: "", "Choose a switch family…" }
-                            option { value: "mx", "MX switch" }
-                            option { value: "choc-v1", "Choc v1 switch" }
-                            option { value: "choc-v2", "Choc v2 switch" }
-                        }
+                div {
+                    SettingsSelect {
+                        label: "Library fit profile",
+                        aria_label: "Library fit profile",
+                        disabled: !props.editable,
+                        value: (selected_family()).to_string(),
+                        on_change: move |event: Option<String>| selected_family.set(event.clone().unwrap_or_default()),
+                        SelectOption::<String> { index: 0usize, value: "".to_owned(), text_value: "Choose a switch family…".to_owned(), "Choose a switch family…" }
+                            SelectOption::<String> { index: 1usize, value: "mx".to_owned(), text_value: "MX switch".to_owned(), "MX switch" }
+                            SelectOption::<String> { index: 2usize, value: "choc-v1".to_owned(), text_value: "Choc v1 switch".to_owned(), "Choc v1 switch" }
+                            SelectOption::<String> { index: 3usize, value: "choc-v2".to_owned(), text_value: "Choc v2 switch".to_owned(), "Choc v2 switch" }
                     }
-                    label { class: "m1-mechanical-field",
-                        span { "Assign library fit profile to" }
-                        select {
-                            aria_label: "Assign library fit profile to",
-                            disabled: mechanical_action_pending("assign-switch-profile:") || !props.editable || selected_family().is_empty(),
-                            value: "",
-                            onchange: {
+                    ProfileTargetField {
+                        label: "Assign library fit profile to",
+                        aria_label: "Assign library fit profile to",
+                        disabled: mechanical_action_pending("assign-switch-profile:") || !props.editable || selected_family().is_empty(),
+
+                        on_change: {
                                 let identity = props.identity.clone();
                                 let mut sequence = props.request_sequence;
                                 let on_request = props.on_request;
                                 let selected_family = selected_family;
-                                move |event: FormEvent| {
-                                    let definition_id = event.value();
+                                move |event: Option<String>| {
+                                    let definition_id = event.clone().unwrap_or_default();
                                     if !definition_id.is_empty()
                                         && let Some(family) = parse_family(&selected_family())
                                     {
@@ -3094,44 +3871,37 @@ fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
                                     }
                                 }
                             },
-                            option { value: "", "Choose a placed switch type…" }
-                            for target in props.targets.iter().filter(|target| target.switch_profile) {
-                                option { value: "{target.definition_id}", "{target.name}" }
-                            }
-                        }
+                        placeholder: "Choose a placed switch type…", options: props.targets.iter().filter(|target| target.switch_profile).cloned().collect(),
                     }
                 }
-                div { class: "m1-mechanical-profile-assignment",
-                    label { class: "m1-mechanical-field",
-                        span { "Library stabilizer profile" }
-                        select {
-                            aria_label: "Library stabilizer profile",
-                            disabled: !props.editable,
-                            value: selected_stabilizer(),
-                            onchange: move |event: FormEvent| selected_stabilizer.set(event.value()),
-                            option { value: "", "Choose a stabilizer size…" }
-                            option { value: "mx-stab2u", "MX stabilizer · 2u" }
-                            option { value: "mx-stab625u", "MX stabilizer · 6.25u" }
-                        }
+                div {
+                    SettingsSelect {
+                        label: "Library stabilizer profile",
+                        aria_label: "Library stabilizer profile",
+                        disabled: !props.editable,
+                        value: (selected_stabilizer()).to_string(),
+                        on_change: move |event: Option<String>| selected_stabilizer.set(event.clone().unwrap_or_default()),
+                        SelectOption::<String> { index: 0usize, value: "".to_owned(), text_value: "Choose a stabilizer size…".to_owned(), "Choose a stabilizer size…" }
+                            SelectOption::<String> { index: 1usize, value: "mx-stab2u".to_owned(), text_value: "MX stabilizer · 2u".to_owned(), "MX stabilizer · 2u" }
+                            SelectOption::<String> { index: 2usize, value: "mx-stab625u".to_owned(), text_value: "MX stabilizer · 6.25u".to_owned(), "MX stabilizer · 6.25u" }
                     }
-                    label { class: "m1-mechanical-field",
-                        span { "Assign library stabilizer profile to" }
-                        select {
-                            aria_label: "Assign library stabilizer profile to",
-                            disabled: mechanical_action_pending("assign-stabilizer-profile:") || !props.editable || selected_stabilizer().is_empty(),
-                            value: "",
-                            onchange: {
+                    ProfileTargetField {
+                        label: "Assign library stabilizer profile to",
+                        aria_label: "Assign library stabilizer profile to",
+                        disabled: mechanical_action_pending("assign-stabilizer-profile:") || !props.editable || selected_stabilizer().is_empty(),
+
+                        on_change: {
                                 let identity = props.identity.clone();
                                 let mut sequence = props.request_sequence;
                                 let on_request = props.on_request;
                                 let selected_stabilizer = selected_stabilizer;
-                                move |event: FormEvent| {
+                                move |event: Option<String>| {
                                     let source = match selected_stabilizer().as_str() {
                                         "mx-stab2u" => Some(MechanicalBuiltinProfile::MxStab2u),
                                         "mx-stab625u" => Some(MechanicalBuiltinProfile::MxStab625u),
                                         _ => None,
                                     };
-                                    if !event.value().is_empty()
+                                    if !event.clone().unwrap_or_default().is_empty()
                                         && let Some(source) = source
                                     {
                                         send_request(
@@ -3139,51 +3909,42 @@ fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
                                             &identity,
                                             on_request,
                                             MechanicalSettingsPatch::AssignStabilizerProfile {
-                                                definition_id: event.value(),
+                                                definition_id: event.clone().unwrap_or_default(),
                                                 source,
                                             },
                                         );
                                     }
                                 }
                             },
-                            option { value: "", "Choose a placed switch type…" }
-                            for target in props.targets.iter() {
-                                option { value: "{target.definition_id}", "{target.name}" }
-                            }
-                        }
+                        placeholder: "Choose a placed switch type…", options: props.targets.to_vec(),
                     }
                 }
             }
             if props.targets.iter().any(|target| target.imported_geometry) {
-                label { class: "m1-mechanical-field",
-                    span { "Custom KiCad geometry" }
-                    select {
-                        aria_label: "Assign custom geometry profile to",
-                        disabled: mechanical_action_pending("assign-imported-profile:") || !props.editable,
-                        value: "",
-                        onchange: {
+                ProfileTargetField {
+                    label: "Custom KiCad geometry",
+                    aria_label: "Assign custom geometry profile to",
+                    disabled: mechanical_action_pending("assign-imported-profile:") || !props.editable,
+
+                    on_change: {
                             let identity = props.identity.clone();
                             let mut sequence = props.request_sequence;
                             let on_request = props.on_request;
-                            move |event: FormEvent| {
-                                if !event.value().is_empty() {
+                            move |event: Option<String>| {
+                                if !event.clone().unwrap_or_default().is_empty() {
                                     send_request(
                                         &mut sequence,
                                         &identity,
                                         on_request,
                                         MechanicalSettingsPatch::AssignImportedGeometryProfile {
-                                            definition_id: event.value(),
+                                            definition_id: event.clone().unwrap_or_default(),
                                         },
                                     );
                                 }
                             }
                         },
-                        option { value: "", "Choose imported part type…" }
-                        for target in props.targets.iter().filter(|target| target.imported_geometry) {
-                            option { value: "{target.definition_id}", "{target.name}" }
-                        }
+                    placeholder: "Choose imported part type…", options: props.targets.iter().filter(|target| target.imported_geometry).cloned().collect(),
                     }
-                }
             }
             p { "Current plate thickness: {props.plate_thickness:.2} mm." }
         }
@@ -3204,19 +3965,20 @@ struct ProfileGeometryEditorProps {
 #[component]
 fn ProfileGeometryEditor(props: ProfileGeometryEditorProps) -> Element {
     let geometry_state = use_signal(|| None::<MechanicalGeometry>);
-    let selected = use_signal(|| Vec::<String>::new());
-    let purposes = use_signal(|| Vec::<MechanicalPurposeMapping>::new());
+    let selected = use_signal(Vec::<String>::new);
+    let purposes = use_signal(Vec::<MechanicalPurposeMapping>::new);
     let busy = use_signal(|| false);
     let error = use_signal(String::new);
     let extraction_port = props.extract_profile.clone();
     rsx! {
-        section { class: "m1-mechanical-profile-editor", aria_label: "Profile geometry",
+        section { class: "grid gap-3", aria_label: "Profile geometry",
             if let Some(port) = extraction_port.clone() {
-                section { class: "m1-mechanical-geometry-picker", aria_label: "Custom KiCad geometry",
-                    div { class: "m1-mechanical-geometry-head",
+                section { aria_label: "Custom KiCad geometry",
+                    div { class: "flex flex-wrap items-center justify-between gap-2",
                         strong { "Custom geometry layers" }
-                        button {
-                            r#type: "button",
+                        Button {
+                            class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                            variant: ButtonVariant::Secondary, button_type: "button",
                             aria_label: "Read KiCad layers",
                             disabled: !props.editable || busy(),
                             onclick: {
@@ -3251,21 +4013,21 @@ fn ProfileGeometryEditor(props: ProfileGeometryEditorProps) -> Element {
                         }
                     }
                     if let Some(loaded_geometry) = geometry_state() {
-                        p { class: "m1-mechanical-help", "Select exact primitives for plate cutouts, PCB holes, clearances or drawing guides, then apply the selected geometry." }
+                        p { class: "text-muted-foreground text-sm leading-normal", "Select exact primitives for plate cutouts, PCB holes, clearances or drawing guides, then apply the selected geometry." }
                         for primitive in loaded_geometry.primitives.iter() {
-                            div { class: "m1-mechanical-geometry-row", key: "{primitive.id}",
-                                label {
-                                    input {
-                                        r#type: "checkbox",
-                                        checked: selected().contains(&primitive.id),
+                            div { role: "group", aria_label: "Geometry {primitive.id}", key: "{primitive.id}",
+                                FieldLabel { class: "min-h-control-touch", html_for: format!("case-geometry-{}-{}", dioxus::core::current_scope_id().0, primitive.id),
+                                    Checkbox {
+                                        id: format!("case-geometry-{}-{}", dioxus::core::current_scope_id().0, primitive.id),
+                                        checked: Some(if selected().contains(&primitive.id) { CheckboxState::Checked } else { CheckboxState::Unchecked }),
                                         aria_label: "Select geometry {primitive.id}",
                                         disabled: !props.editable || busy(),
-                                        onchange: {
+                                        on_checked_change: {
                                             let id = primitive.id.clone();
                                             let mut selected = selected;
-                                            move |event: FormEvent| {
+                                            move |event: CheckboxState| {
                                                 let mut ids = selected().clone();
-                                                if event.checked() {
+                                                if bool::from(event) {
                                                     if !ids.contains(&id) { ids.push(id.clone()); }
                                                 } else { ids.retain(|entry| entry != &id); }
                                                 selected.set(ids);
@@ -3274,41 +4036,37 @@ fn ProfileGeometryEditor(props: ProfileGeometryEditorProps) -> Element {
                                     }
                                     span { strong { "{primitive.layer.as_deref().unwrap_or(\"geometry\")}" } small { "{primitive.kind:?} · {primitive.source_group_id}" } }
                                 }
-                                label {
-                                    span { "Purpose" }
-                                    select {
-                                        aria_label: "Purpose for {primitive.layer.as_deref().unwrap_or(\"geometry\")}",
-                                        disabled: !props.editable || busy(),
-                                        value: purposes().iter().find(|mapping| mapping.source_id.as_deref() == Some(primitive.id.as_str())).map_or("plate-cutout", |mapping| purpose_id(mapping.purpose)),
-                                        onchange: {
+                                SettingsSelect {
+                                    label: "Purpose",
+                                    aria_label: "Purpose for {primitive.layer.as_deref().unwrap_or(\"geometry\")}",
+                                    disabled: !props.editable || busy(),
+                                    value: (purposes().iter().find(|mapping| mapping.source_id.as_deref() == Some(primitive.id.as_str())).map_or("plate-cutout", |mapping| purpose_id(mapping.purpose))).to_string(),
+                                    on_change: {
                                             let id = primitive.id.clone();
                                             let mut purposes = purposes;
-                                            move |event: FormEvent| {
-                                                let Some(purpose) = parse_purpose(&event.value()) else { return; };
+                                            move |event: Option<String>| {
+                                                let Some(purpose) = parse_purpose(&event.clone().unwrap_or_default()) else { return; };
                                                 let mut entries = purposes().clone();
                                                 entries.retain(|mapping| mapping.source_id.as_deref() != Some(id.as_str()));
                                                 entries.push(MechanicalPurposeMapping { source_id: Some(id.clone()), kind: None, layer: None, purpose });
                                                 purposes.set(entries);
                                             }
                                         },
-                                        option { value: "plate-cutout", "Plate cutout" }
-                                        option { value: "electrical-pcb-mounting-hole", "PCB mounting hole" }
-                                        option { value: "clearance-envelope", "Clearance envelope" }
-                                        option { value: "drawing-guide", "Drawing guide" }
-                                    }
+                                    SelectOption::<String> { index: 0usize, value: "plate-cutout".to_owned(), text_value: "Plate cutout".to_owned(), "Plate cutout" }
+                                        SelectOption::<String> { index: 1usize, value: "electrical-pcb-mounting-hole".to_owned(), text_value: "PCB mounting hole".to_owned(), "PCB mounting hole" }
+                                        SelectOption::<String> { index: 2usize, value: "clearance-envelope".to_owned(), text_value: "Clearance envelope".to_owned(), "Clearance envelope" }
+                                        SelectOption::<String> { index: 3usize, value: "drawing-guide".to_owned(), text_value: "Drawing guide".to_owned(), "Drawing guide" }
                                 }
                             }
                         }
-                        button {
-                            r#type: "button",
+                        Button {
+                            class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                            variant: ButtonVariant::Secondary, button_type: "button",
                             aria_label: "Apply selected geometry",
                             disabled: mechanical_action_pending(&format!("profile:{}:update", props.profile.definition_id)) || !props.editable || busy() || selected().is_empty(),
                             onclick: {
                                 let definition_id = props.profile.definition_id.clone();
                                 let port = port.clone();
-                                let geometry_state = geometry_state;
-                                let purposes = purposes;
-                                let selected = selected;
                                 let profile = props.profile.clone();
                                 let identity = props.identity.clone();
                                 let sequence = props.request_sequence;
@@ -3347,7 +4105,7 @@ fn ProfileGeometryEditor(props: ProfileGeometryEditorProps) -> Element {
                             "Apply selected geometry"
                         }
                     }
-                    if !error().is_empty() { p { role: "alert", "{error()}" } }
+                    if !error().is_empty() { Alert { variant: AlertVariant::Destructive, "{error()}" } }
                 }
             }
             ProfilePolygonListEditor {
@@ -3407,83 +4165,172 @@ struct ProfilePolygonListEditorProps {
 #[component]
 fn ProfilePolygonListEditor(props: ProfilePolygonListEditorProps) -> Element {
     rsx! {
-        section { class: "m1-mechanical-profile-points", aria_label: "{props.title}",
-            header {
+        section {
+            class: "grid gap-3",
+            aria_label: "{props.title}",
+            header { class: "flex flex-wrap items-center justify-between gap-2",
                 strong { "{props.title}" }
-                button {
-                    r#type: "button", class: "m1-mechanical-quiet",
-                    aria_label: "Add polygon to {props.title}", disabled: !props.editable,
+                Button {
+                    variant: ButtonVariant::Secondary,
+                    button_type: "button",
+                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    aria_label: "Add polygon to {props.title}",
+                    disabled: !props.editable,
                     onclick: {
                         let mut polygons = props.polygons.clone();
                         let on_change = props.on_change;
                         move |_| {
-                            polygons.push(vec![
-                                Vec2 { x: -2.5, y: -2.5 }, Vec2 { x: 2.5, y: -2.5 },
-                                Vec2 { x: 2.5, y: 2.5 }, Vec2 { x: -2.5, y: 2.5 },
-                            ]);
+                            polygons
+                                .push(
+                                    vec![
+                                        Vec2 { x: -2.5, y: -2.5 },
+                                        Vec2 { x: 2.5, y: -2.5 },
+                                        Vec2 { x: 2.5, y: 2.5 },
+                                        Vec2 { x: -2.5, y: 2.5 },
+                                    ],
+                                );
                             on_change.call(polygons.clone());
                         }
                     },
                     "Add polygon"
                 }
             }
-            if props.polygons.is_empty() { p { class: "m1-mechanical-help", "No contours assigned." } }
+            if props.polygons.is_empty() {
+                Callout { "No contours assigned." }
+            }
             for (polygon_index, polygon) in props.polygons.iter().enumerate() {
-                fieldset { class: "m1-mechanical-profile-polygon", key: "{props.title}:{polygon_index}", disabled: !props.editable,
-                    div { class: "m1-mechanical-opening-title",
+                fieldset {
+                    class: "grid gap-3 m-0 min-w-0 border-0 p-0",
+                    aria_label: "{props.title} contour {polygon_index + 1}",
+                    key: "{props.title}:{polygon_index}",
+                    disabled: !props.editable,
+                    div { class: "flex flex-wrap items-center justify-between gap-2",
                         strong { "Contour {polygon_index + 1}" }
-                        button {
-                            r#type: "button", class: "m1-mechanical-quiet",
-                            aria_label: "Remove contour {polygon_index + 1} from {props.title}", disabled: !props.editable,
+                        Button {
+                            variant: ButtonVariant::Secondary,
+                            button_type: "button",
+                            class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                            aria_label: "Remove contour {polygon_index + 1} from {props.title}",
+                            disabled: !props.editable,
                             onclick: {
                                 let mut polygons = props.polygons.clone();
                                 let on_change = props.on_change;
-                                move |_| { polygons.remove(polygon_index); on_change.call(polygons.clone()); }
+                                move |_| {
+                                    polygons.remove(polygon_index);
+                                    on_change.call(polygons.clone());
+                                }
                             },
                             "Remove"
                         }
                     }
                     for (point_index, point) in polygon.iter().enumerate() {
-                        div { class: "m1-mechanical-profile-point", key: "{polygon_index}:{point_index}",
+                        div {
+                            class: "flex flex-wrap items-end gap-2",
+                            key: "{polygon_index}:{point_index}",
                             span { "V{point_index + 1}" }
-                            input {
-                                r#type: "number", step: "0.1", value: "{point.x}", disabled: !props.editable,
-                                aria_label: "{props.title} contour {polygon_index + 1} vertex {point_index + 1} X",
-                                oninput: {
-                                    let mut polygons = props.polygons.clone(); let on_change = props.on_change;
-                                    move |event: FormEvent| if let Ok(value) = event.value().parse::<f64>() {
-                                        polygons[polygon_index][point_index].x = value; on_change.call(polygons.clone());
+                            Field {
+                                class: "w-28 gap-1.5",
+                                disabled: !props.editable,
+                                FieldLabel {
+                                    html_for: format!(
+                                        "case-profile-{}-{polygon_index}-{point_index}-x",
+                                        dioxus::core::current_scope_id().0,
+                                    ),
+                                    "X"
+                                }
+                                InputGroup { class: "max-[760px]:h-control-touch [@media(pointer:coarse)]:h-control-touch",
+                                    InputGroupInput {
+                                        id: format!(
+                                            "case-profile-{}-{polygon_index}-{point_index}-x",
+                                            dioxus::core::current_scope_id().0,
+                                        ),
+                                        class: "font-mono",
+                                        r#type: InputType::Number,
+                                        step: "0.1",
+                                        value: "{point.x}",
+                                        disabled: !props.editable,
+                                        aria_label: "{props.title} contour {polygon_index + 1} vertex {point_index + 1} X",
+                                        oninput: {
+                                            let mut polygons = props.polygons.clone();
+                                            let on_change = props.on_change;
+                                            move |event: FormEvent| {
+                                                if let Ok(value) = event.value().parse::<f64>() {
+                                                    polygons[polygon_index][point_index].x = value;
+                                                    on_change.call(polygons.clone());
+                                                }
+                                            }
+                                        },
                                     }
+                                    InputGroupText { class: "pr-3", "mm" }
                                 }
                             }
-                            input {
-                                r#type: "number", step: "0.1", value: "{point.y}", disabled: !props.editable,
-                                aria_label: "{props.title} contour {polygon_index + 1} vertex {point_index + 1} Y",
-                                oninput: {
-                                    let mut polygons = props.polygons.clone(); let on_change = props.on_change;
-                                    move |event: FormEvent| if let Ok(value) = event.value().parse::<f64>() {
-                                        polygons[polygon_index][point_index].y = value; on_change.call(polygons.clone());
+                            Field {
+                                class: "w-28 gap-1.5",
+                                disabled: !props.editable,
+                                FieldLabel {
+                                    html_for: format!(
+                                        "case-profile-{}-{polygon_index}-{point_index}-y",
+                                        dioxus::core::current_scope_id().0,
+                                    ),
+                                    "Y"
+                                }
+                                InputGroup { class: "max-[760px]:h-control-touch [@media(pointer:coarse)]:h-control-touch",
+                                    InputGroupInput {
+                                        id: format!(
+                                            "case-profile-{}-{polygon_index}-{point_index}-y",
+                                            dioxus::core::current_scope_id().0,
+                                        ),
+                                        class: "font-mono",
+                                        r#type: InputType::Number,
+                                        step: "0.1",
+                                        value: "{point.y}",
+                                        disabled: !props.editable,
+                                        aria_label: "{props.title} contour {polygon_index + 1} vertex {point_index + 1} Y",
+                                        oninput: {
+                                            let mut polygons = props.polygons.clone();
+                                            let on_change = props.on_change;
+                                            move |event: FormEvent| {
+                                                if let Ok(value) = event.value().parse::<f64>() {
+                                                    polygons[polygon_index][point_index].y = value;
+                                                    on_change.call(polygons.clone());
+                                                }
+                                            }
+                                        },
                                     }
+                                    InputGroupText { class: "pr-3", "mm" }
                                 }
                             }
-                            button {
-                                r#type: "button", class: "m1-mechanical-quiet",
-                                aria_label: "Remove {props.title} vertex {point_index + 1}",
+                            Button {
+                                variant: ButtonVariant::Ghost,
+                                size: ButtonSize::Sm,
+                                class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                aria_label: "Remove {props.title} contour {polygon_index + 1} vertex {point_index + 1}",
                                 disabled: !props.editable || polygon.len() <= 3,
                                 onclick: {
-                                    let mut polygons = props.polygons.clone(); let on_change = props.on_change;
-                                    move |_| { polygons[polygon_index].remove(point_index); on_change.call(polygons.clone()); }
+                                    let mut polygons = props.polygons.clone();
+                                    let on_change = props.on_change;
+                                    move |_| {
+                                        polygons[polygon_index].remove(point_index);
+                                        on_change.call(polygons.clone());
+                                    }
                                 },
-                                "×"
+                                "Remove vertex"
                             }
                         }
                     }
-                    button {
-                        r#type: "button", class: "m1-mechanical-quiet", disabled: !props.editable,
+                    Button {
+                        variant: ButtonVariant::Secondary,
+                        button_type: "button",
+                        class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                        disabled: !props.editable,
                         aria_label: "Add vertex to {props.title} contour {polygon_index + 1}",
                         onclick: {
-                            let mut polygons = props.polygons.clone(); let on_change = props.on_change;
-                            move |_| { polygons[polygon_index].push(Vec2 { x: 0.0, y: 0.0 }); on_change.call(polygons.clone()); }
+                            let mut polygons = props.polygons.clone();
+                            let on_change = props.on_change;
+                            move |_| {
+                                polygons[polygon_index].push(Vec2 { x: 0.0, y: 0.0 });
+                                on_change.call(polygons.clone());
+                            }
                         },
                         "Add vertex"
                     }
@@ -3510,104 +4357,207 @@ struct ProfileOpeningListEditorProps {
 #[component]
 fn ProfileOpeningListEditor(props: ProfileOpeningListEditorProps) -> Element {
     rsx! {
-        section { class: "m1-mechanical-profile-points", aria_label: "{props.title}",
-            header {
+        section {
+            class: "grid gap-3",
+            aria_label: "{props.title}",
+            header { class: "flex flex-wrap items-center justify-between gap-2",
                 strong { "{props.title}" }
-                button {
-                    r#type: "button", class: "m1-mechanical-quiet",
-                    aria_label: "Add volume to {props.title}", disabled: !props.editable,
+                Button {
+                    variant: ButtonVariant::Secondary,
+                    button_type: "button",
+                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    aria_label: "Add volume to {props.title}",
+                    disabled: !props.editable,
                     onclick: {
-                        let mut openings = props.openings.clone(); let on_change = props.on_change;
+                        let mut openings = props.openings.clone();
+                        let on_change = props.on_change;
                         move |_| {
-                            openings.push(CaseOpening { points: vec![
-                                Vec2 { x: -2.5, y: -2.5 }, Vec2 { x: 2.5, y: -2.5 },
-                                Vec2 { x: 2.5, y: 2.5 }, Vec2 { x: -2.5, y: 2.5 },
-                            ], z: 0.0, height: 10.0 });
+                            openings
+                                .push(CaseOpening {
+                                    points: vec![
+                                        Vec2 { x: -2.5, y: -2.5 },
+                                        Vec2 { x: 2.5, y: -2.5 },
+                                        Vec2 { x: 2.5, y: 2.5 },
+                                        Vec2 { x: -2.5, y: 2.5 },
+                                    ],
+                                    z: 0.0,
+                                    height: 10.0,
+                                });
                             on_change.call(openings.clone());
                         }
                     },
                     "Add volume"
                 }
             }
-            if props.openings.is_empty() { p { class: "m1-mechanical-help", "No volumes configured." } }
+            if props.openings.is_empty() {
+                Callout { "No volumes configured." }
+            }
             for (opening_index, opening) in props.openings.iter().enumerate() {
-                fieldset { class: "m1-mechanical-opening", key: "{props.title}:{opening_index}", disabled: !props.editable,
-                    div { class: "m1-mechanical-opening-title",
+                fieldset {
+                    class: "grid gap-3 m-0 min-w-0 border-0 p-0",
+                    aria_label: "{props.title} volume {opening_index + 1}",
+                    key: "{props.title}:{opening_index}",
+                    disabled: !props.editable,
+                    div { class: "flex flex-wrap items-center justify-between gap-2",
                         strong { "Volume {opening_index + 1}" }
-                        button {
-                            r#type: "button", class: "m1-mechanical-quiet",
-                            aria_label: "Remove {props.title} volume {opening_index + 1}", disabled: !props.editable,
+                        Button {
+                            variant: ButtonVariant::Secondary,
+                            button_type: "button",
+                            class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                            aria_label: "Remove {props.title} volume {opening_index + 1}",
+                            disabled: !props.editable,
                             onclick: {
-                                let mut openings = props.openings.clone(); let on_change = props.on_change;
-                                move |_| { openings.remove(opening_index); on_change.call(openings.clone()); }
+                                let mut openings = props.openings.clone();
+                                let on_change = props.on_change;
+                                move |_| {
+                                    openings.remove(opening_index);
+                                    on_change.call(openings.clone());
+                                }
                             },
                             "Remove"
                         }
                     }
                     DimensionField {
-                        identity: props.identity.clone(), request_sequence: props.request_sequence,
-                        on_request: props.on_request, feedback: props.feedback.clone(),
-                        field: MechanicalDimension::OpeningBottomZ, label: "Bottom Z", value: opening.z,
+                        identity: props.identity.clone(),
+                        request_sequence: props.request_sequence,
+                        on_request: props.on_request,
+                        feedback: props.feedback.clone(),
+                        field: MechanicalDimension::OpeningBottomZ,
+                        label: "Bottom Z",
+                        value: opening.z,
                         editable: props.editable,
                         accessible_label: format!("{} volume {} Bottom Z", props.title, opening_index + 1),
                         profile_volume_target: ProfileVolumeDimensionTarget {
-                            profile: props.profile.clone(), opening_index,
+                            profile: props.profile.clone(),
+                            opening_index,
                             clearance_volume: props.clearance_volume,
                         },
                     }
                     DimensionField {
-                        identity: props.identity.clone(), request_sequence: props.request_sequence,
-                        on_request: props.on_request, feedback: props.feedback.clone(),
-                        field: MechanicalDimension::OpeningHeight, label: "Height", value: opening.height,
+                        identity: props.identity.clone(),
+                        request_sequence: props.request_sequence,
+                        on_request: props.on_request,
+                        feedback: props.feedback.clone(),
+                        field: MechanicalDimension::OpeningHeight,
+                        label: "Height",
+                        value: opening.height,
                         editable: props.editable,
                         accessible_label: format!("{} volume {} Height", props.title, opening_index + 1),
                         profile_volume_target: ProfileVolumeDimensionTarget {
-                            profile: props.profile.clone(), opening_index,
+                            profile: props.profile.clone(),
+                            opening_index,
                             clearance_volume: props.clearance_volume,
                         },
                     }
                     h4 { "XY footprint" }
                     for (point_index, point) in opening.points.iter().enumerate() {
-                        div { class: "m1-mechanical-opening-vertex", key: "{opening_index}:{point_index}",
+                        div {
+                            class: "flex flex-wrap items-end gap-2",
+                            key: "{opening_index}:{point_index}",
                             span { "V{point_index + 1}" }
-                            input {
-                                r#type: "number", step: "0.1", value: "{point.x}", disabled: !props.editable,
-                                aria_label: "{props.title} volume {opening_index + 1} vertex {point_index + 1} X",
-                                oninput: {
-                                    let mut openings = props.openings.clone(); let on_change = props.on_change;
-                                    move |event: FormEvent| if let Ok(value) = event.value().parse::<f64>() {
-                                        openings[opening_index].points[point_index].x = value; on_change.call(openings.clone());
+                            Field {
+                                class: "w-28 gap-1.5",
+                                disabled: !props.editable,
+                                FieldLabel {
+                                    html_for: format!(
+                                        "case-volume-{}-{opening_index}-{point_index}-x",
+                                        dioxus::core::current_scope_id().0,
+                                    ),
+                                    "X"
+                                }
+                                InputGroup { class: "max-[760px]:h-control-touch [@media(pointer:coarse)]:h-control-touch",
+                                    InputGroupInput {
+                                        id: format!(
+                                            "case-volume-{}-{opening_index}-{point_index}-x",
+                                            dioxus::core::current_scope_id().0,
+                                        ),
+                                        class: "font-mono",
+                                        r#type: InputType::Number,
+                                        step: "0.1",
+                                        value: "{point.x}",
+                                        disabled: !props.editable,
+                                        aria_label: "{props.title} volume {opening_index + 1} vertex {point_index + 1} X",
+                                        oninput: {
+                                            let mut openings = props.openings.clone();
+                                            let on_change = props.on_change;
+                                            move |event: FormEvent| {
+                                                if let Ok(value) = event.value().parse::<f64>() {
+                                                    openings[opening_index].points[point_index].x = value;
+                                                    on_change.call(openings.clone());
+                                                }
+                                            }
+                                        },
                                     }
+                                    InputGroupText { class: "pr-3", "mm" }
                                 }
                             }
-                            input {
-                                r#type: "number", step: "0.1", value: "{point.y}", disabled: !props.editable,
-                                aria_label: "{props.title} volume {opening_index + 1} vertex {point_index + 1} Y",
-                                oninput: {
-                                    let mut openings = props.openings.clone(); let on_change = props.on_change;
-                                    move |event: FormEvent| if let Ok(value) = event.value().parse::<f64>() {
-                                        openings[opening_index].points[point_index].y = value; on_change.call(openings.clone());
+                            Field {
+                                class: "w-28 gap-1.5",
+                                disabled: !props.editable,
+                                FieldLabel {
+                                    html_for: format!(
+                                        "case-volume-{}-{opening_index}-{point_index}-y",
+                                        dioxus::core::current_scope_id().0,
+                                    ),
+                                    "Y"
+                                }
+                                InputGroup { class: "max-[760px]:h-control-touch [@media(pointer:coarse)]:h-control-touch",
+                                    InputGroupInput {
+                                        id: format!(
+                                            "case-volume-{}-{opening_index}-{point_index}-y",
+                                            dioxus::core::current_scope_id().0,
+                                        ),
+                                        class: "font-mono",
+                                        r#type: InputType::Number,
+                                        step: "0.1",
+                                        value: "{point.y}",
+                                        disabled: !props.editable,
+                                        aria_label: "{props.title} volume {opening_index + 1} vertex {point_index + 1} Y",
+                                        oninput: {
+                                            let mut openings = props.openings.clone();
+                                            let on_change = props.on_change;
+                                            move |event: FormEvent| {
+                                                if let Ok(value) = event.value().parse::<f64>() {
+                                                    openings[opening_index].points[point_index].y = value;
+                                                    on_change.call(openings.clone());
+                                                }
+                                            }
+                                        },
                                     }
+                                    InputGroupText { class: "pr-3", "mm" }
                                 }
                             }
-                            button {
-                                r#type: "button", class: "m1-mechanical-quiet",
-                                aria_label: "Remove {props.title} vertex {point_index + 1}",
+                            Button {
+                                variant: ButtonVariant::Ghost,
+                                size: ButtonSize::Sm,
+                                class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                aria_label: "Remove {props.title} volume {opening_index + 1} vertex {point_index + 1}",
                                 disabled: !props.editable || opening.points.len() <= 3,
                                 onclick: {
-                                    let mut openings = props.openings.clone(); let on_change = props.on_change;
-                                    move |_| { openings[opening_index].points.remove(point_index); on_change.call(openings.clone()); }
+                                    let mut openings = props.openings.clone();
+                                    let on_change = props.on_change;
+                                    move |_| {
+                                        openings[opening_index].points.remove(point_index);
+                                        on_change.call(openings.clone());
+                                    }
                                 },
-                                "×"
+                                "Remove vertex"
                             }
                         }
                     }
-                    button {
-                        r#type: "button", class: "m1-mechanical-quiet", disabled: !props.editable,
+                    Button {
+                        variant: ButtonVariant::Secondary,
+                        button_type: "button",
+                        class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                        disabled: !props.editable,
                         aria_label: "Add vertex to {props.title} volume {opening_index + 1}",
                         onclick: {
-                            let mut openings = props.openings.clone(); let on_change = props.on_change;
-                            move |_| { openings[opening_index].points.push(Vec2 { x: 0.0, y: 0.0 }); on_change.call(openings.clone()); }
+                            let mut openings = props.openings.clone();
+                            let on_change = props.on_change;
+                            move |_| {
+                                openings[opening_index].points.push(Vec2 { x: 0.0, y: 0.0 });
+                                on_change.call(openings.clone());
+                            }
                         },
                         "Add vertex"
                     }
@@ -3694,7 +4644,7 @@ fn DimensionControls(props: DimensionControlsProps) -> Element {
     ];
     let request_sequence = props.request_sequence;
     rsx! {
-        fieldset { class: "m1-mechanical-group", disabled: !props.editable,
+        fieldset { class: "grid gap-3 m-0 min-w-0 p-3 rounded-md bg-card border-0", disabled: !props.editable,
             legend { "Dimensions and clearances · mm" }
             for (field, label, value) in fields {
                 DimensionField {
@@ -3758,8 +4708,8 @@ struct MountDimensionTarget {
 
 #[derive(Clone, Debug, PartialEq)]
 struct OpeningDimensionTarget {
-    opening_index: usize,
-    point_index: Option<usize>,
+    opening_id: String,
+    vertex_id: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -3779,78 +4729,58 @@ struct HardwareDimensionTarget {
     hardware_id: String,
 }
 
+// Profile-volume controls emit the same UpdateProfile domain request, but each
+// mounted dimension owns a distinct bounded helper observation and accepted text.
+fn dimension_field_key(props: &DimensionFieldProps) -> String {
+    let field = props.field.field_id();
+    if let Some(target) = &props.profile_volume_target {
+        format!(
+            "field:profile-volume:{}:{}:{}:{field}",
+            target.profile.definition_id, target.clearance_volume, target.opening_index
+        )
+    } else if let Some(target) = &props.support_target {
+        format!("field:gasket-support:{}:{field}", target.support_id)
+    } else if let Some(target) = &props.mount_target {
+        format!(
+            "field:mount:{}:{}:{field}",
+            mount_collection_id(target.collection),
+            target.mount_id
+        )
+    } else if let Some(target) = &props.opening_target {
+        format!(
+            "field:opening:{}:{:?}:{field}",
+            target.opening_id, target.vertex_id
+        )
+    } else if let Some(target) = &props.critical_fit_target {
+        format!("field:critical-fit:{}:{field}", target.fit_id)
+    } else if let Some(target) = &props.hardware_target {
+        format!("field:hardware:{}:{field}", target.hardware_id)
+    } else if let Some(part_id) = &props.process_target {
+        format!("field:process:{part_id}:{field}")
+    } else {
+        format!("field:dimension:{field}")
+    }
+}
+
 #[component]
 fn DimensionField(props: DimensionFieldProps) -> Element {
     let mut draft = use_signal(|| props.value.to_string());
     let mut dirty = use_signal(|| false);
     let mut error = use_signal(|| None::<String>);
-    let mut submitted = use_signal(|| None::<MechanicalSettingsRequest>);
-    let mut field_status = use_signal(|| None::<String>);
-    let mut previous_accepted = use_signal(|| props.value);
-
-    let saved_value = props.value;
-    let feedback_entries = props.feedback.clone();
-    let mut draft_for_ack = draft;
-    let mut dirty_for_ack = dirty;
-    let mut error_for_ack = error;
-    let mut submitted_for_ack = submitted;
-    let mut status_for_ack = field_status;
-    let submitted_copy = submitted;
+    let mut failure = use_signal(|| None::<String>);
+    let field_key = dimension_field_key(&props);
+    let accepted = props.value.to_string();
+    let (controller, pending) =
+        use_bound_mechanical_field(field_key.clone(), accepted.clone(), draft, failure);
     use_effect(use_reactive(
-        (&feedback_entries, &saved_value),
-        move |(feedback_entries, accepted)| {
-            let accepted_changed = *previous_accepted.read() != accepted;
-            if accepted_changed {
-                previous_accepted.set(accepted);
-            }
-            let Some(request) = submitted_copy.read().clone() else {
-                if accepted_changed && !dirty_for_ack() {
-                    draft_for_ack.set(accepted.to_string());
-                    dirty_for_ack.set(false);
-                    error_for_ack.set(None);
-                    status_for_ack.set(None);
-                }
+        (&accepted, &pending),
+        move |(accepted, pending)| {
+            if pending {
                 return;
-            };
-            let feedback = feedback_entries.iter().find(|feedback| {
-                feedback.identity == request.identity
-                    && feedback.request_id == request.request_id
-                    && feedback.field_id == request.field_id
-            });
-            if let Some(feedback) = feedback {
-                match feedback.state {
-                    MechanicalSettingsFeedbackState::Pending => {
-                        // The accepted token can advance before persistence settles. Keep this
-                        // field's submitted draft until its exact request receives Saved or Failed.
-                        status_for_ack.set(Some("Saving…".to_owned()));
-                        return;
-                    }
-                    MechanicalSettingsFeedbackState::Saved => {
-                        draft_for_ack.set(accepted.to_string());
-                        dirty_for_ack.set(false);
-                        error_for_ack.set(None);
-                        status_for_ack.set(Some("Saved".to_owned()));
-                        submitted_for_ack.set(None);
-                        return;
-                    }
-                    MechanicalSettingsFeedbackState::Failed => {
-                        draft_for_ack.set(accepted.to_string());
-                        dirty_for_ack.set(false);
-                        error_for_ack.set(Some(feedback.message.clone().unwrap_or_else(|| {
-                            "This setting was not saved. Review the value and retry.".to_owned()
-                        })));
-                        status_for_ack.set(None);
-                        submitted_for_ack.set(None);
-                        return;
-                    }
-                }
             }
-            if accepted_changed && !dirty_for_ack() {
-                draft_for_ack.set(accepted.to_string());
-                dirty_for_ack.set(false);
-                error_for_ack.set(None);
-                status_for_ack.set(None);
-                submitted_for_ack.set(None);
+            if !*dirty.peek() && *draft.peek() != accepted {
+                draft.set(accepted);
+                error.set(None);
             }
         },
     ));
@@ -3870,8 +4800,7 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
         move || {
             let mut sequence = sequence;
             let mut error = error;
-            let mut field_status = field_status;
-            let mut submitted = submitted;
+            let mut dirty = dirty;
             let text = draft();
             let process_rule = process_target.as_deref().map(|target| {
                 if target.ends_with("foam") {
@@ -3881,7 +4810,7 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
                 }
             });
             let rule = process_rule.unwrap_or_else(|| field.rule());
-            if submitted().is_some() || !dirty() {
+            if !dirty() {
                 return;
             }
             let Ok(value) = text.trim().parse::<f64>() else {
@@ -3929,8 +4858,8 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
                 MechanicalSettingsPatch::UpdateProfile(target.profile)
             } else if let Some(target) = opening_target.clone() {
                 MechanicalSettingsPatch::SetOpeningDimension {
-                    opening_index: target.opening_index,
-                    point_index: target.point_index,
+                    opening_id: target.opening_id,
+                    vertex_id: target.vertex_id,
                     field,
                     value,
                 }
@@ -3967,20 +4896,34 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
                 request_id,
                 field_id: patch.field_id(),
                 patch,
+                reviewed_fingerprint: None,
             };
-            submitted.set(Some(request.clone()));
-            field_status.set(Some("Saving…".to_owned()));
-            on_request.call(request);
+            dirty.set(false);
+            if let Some(controller) = controller.as_ref() {
+                controller.request_field(
+                    field_key.clone(),
+                    draft,
+                    failure,
+                    text,
+                    on_request,
+                    request,
+                );
+            } else {
+                on_request.call(request);
+            }
         }
     });
-    let error_text = error();
-    let status_text = field_status();
+    let error_text = error().or_else(&*failure);
+    let status_text = pending.then_some("Saving…");
+    let id = format!("case-dimension-{}", dioxus::core::current_scope_id().0);
+    let message_id = format!("{id}-message");
     rsx! {
-        label { class: "m1-mechanical-dimension",
-            span { "{props.label}" }
-            span { class: "m1-mechanical-number",
-                input {
-                    r#type: "number",
+        Field { invalid: error_text.is_some(), disabled: !props.editable, class: "gap-1.5",
+            FieldLabel { html_for: id.clone(), "{props.label}" }
+            InputGroup { class: "max-[760px]:h-control-touch [@media(pointer:coarse)]:h-control-touch",
+                InputGroupInput {
+                    id: id.clone(), class: "font-mono",
+                    r#type: InputType::Number,
                     step: props.field.step(),
                     min: props.process_target.as_deref().map(|target| {
                         if target.ends_with("foam") { "0" } else { "0.1" }
@@ -3989,19 +4932,18 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
                     aria_label: props.accessible_label.as_deref().unwrap_or(props.label),
                     value: "{draft}",
                     disabled: !props.editable,
-                    "aria-invalid": error_text.is_some(),
+                    aria_invalid: error_text.is_some(),
+                    aria_describedby: if error_text.is_some() || pending { Some(message_id.clone()) } else { None },
                     oninput: move |event: FormEvent| {
                         draft.set(event.value());
                         dirty.set(true);
                         error.set(None);
-                        field_status.set(None);
-                        submitted.set(None);
+                        failure.set(None);
                     },
-                    onblur: {
+                    attributes: vec![dioxus::events::onblur({
                         let commit = commit.clone();
                         move |_| commit()
-                    },
-                    onkeydown: {
+                    }), dioxus::events::onkeydown({
                         let accepted = props.value;
                         move |event: KeyboardEvent| {
                             let key = event.data().key().to_string();
@@ -4020,20 +4962,17 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
                                 draft.set(accepted.to_string());
                                 dirty.set(false);
                                 error.set(None);
-                                submitted.set(None);
-                                field_status.set(None);
+                                failure.set(None);
                             }
                         }
-                    }
+                    })],
                 }
-                if props.field == MechanicalDimension::HardwareQuantity {
-                    small { "pcs" }
-                } else {
-                    small { "mm" }
-                }
+                InputGroupText { class: "pr-3", if props.field == MechanicalDimension::HardwareQuantity { "pcs" } else { "mm" } }
             }
-            if let Some(error) = error_text.as_deref() { small { role: "alert", "{error}" } }
-            if let Some(status) = status_text { small { role: "status", "{status}" } }
+            div { id: message_id,
+                if let Some(error) = error_text.as_deref() { FieldError { "{error}" } }
+                if let Some(status) = status_text { small { role: "status", "{status}" } }
+            }
         }
     }
 }
@@ -4057,66 +4996,20 @@ fn TextDraftField(props: TextDraftFieldProps) -> Element {
     let mut draft = use_signal(|| props.value.clone());
     let mut dirty = use_signal(|| false);
     let mut error = use_signal(|| None::<String>);
-    let mut submitted = use_signal(|| None::<MechanicalSettingsRequest>);
-    let mut status = use_signal(|| None::<String>);
-    let mut previous_accepted = use_signal(|| props.value.clone());
+    let mut failure = use_signal(|| None::<String>);
+    let field_key = format!("field:text:{:?}", props.intent);
     let accepted = props.value.clone();
-    let feedback_entries = props.feedback.clone();
-    let mut draft_for_ack = draft;
-    let mut dirty_for_ack = dirty;
-    let mut error_for_ack = error;
-    let mut submitted_for_ack = submitted;
-    let mut status_for_ack = status;
-    let submitted_copy = submitted;
+    let (controller, pending) =
+        use_bound_mechanical_field(field_key.clone(), accepted.clone(), draft, failure);
     use_effect(use_reactive(
-        (&feedback_entries, &accepted),
-        move |(feedback_entries, accepted)| {
-            let accepted_changed = *previous_accepted.read() != accepted;
-            if accepted_changed {
-                previous_accepted.set(accepted.clone());
-            }
-            let Some(request) = submitted_copy.read().clone() else {
-                if accepted_changed && !dirty_for_ack() {
-                    draft_for_ack.set(accepted);
-                    dirty_for_ack.set(false);
-                    error_for_ack.set(None);
-                    status_for_ack.set(None);
-                }
+        (&accepted, &pending),
+        move |(accepted, pending)| {
+            if pending {
                 return;
-            };
-            let feedback = feedback_entries.iter().find(|feedback| {
-                feedback.identity == request.identity
-                    && feedback.request_id == request.request_id
-                    && feedback.field_id == request.field_id
-            });
-            match feedback.map(|feedback| (&feedback.state, &feedback.message)) {
-                Some((MechanicalSettingsFeedbackState::Pending, _)) => {
-                    status_for_ack.set(Some("Saving…".to_owned()));
-                }
-                Some((MechanicalSettingsFeedbackState::Saved, _)) => {
-                    draft_for_ack.set(accepted);
-                    dirty_for_ack.set(false);
-                    error_for_ack.set(None);
-                    status_for_ack.set(Some("Saved".to_owned()));
-                    submitted_for_ack.set(None);
-                }
-                Some((MechanicalSettingsFeedbackState::Failed, message)) => {
-                    draft_for_ack.set(accepted);
-                    dirty_for_ack.set(false);
-                    error_for_ack.set(Some(message.clone().unwrap_or_else(|| {
-                        "This setting was not saved. Review the value and retry.".to_owned()
-                    })));
-                    status_for_ack.set(None);
-                    submitted_for_ack.set(None);
-                }
-                None if accepted_changed && !dirty_for_ack() => {
-                    draft_for_ack.set(accepted);
-                    dirty_for_ack.set(false);
-                    error_for_ack.set(None);
-                    status_for_ack.set(None);
-                    submitted_for_ack.set(None);
-                }
-                None => {}
+            }
+            if !*dirty.peek() && *draft.peek() != accepted {
+                draft.set(accepted);
+                error.set(None);
             }
         },
     ));
@@ -4129,18 +5022,16 @@ fn TextDraftField(props: TextDraftFieldProps) -> Element {
         move || {
             let mut sequence = sequence;
             let mut error = error;
-            let mut status = status;
-            let mut submitted = submitted;
+            let mut dirty = dirty;
             let draft = draft;
             let value = draft();
-            if submitted().is_some() || !dirty() {
+            if !dirty() {
                 return;
             }
-            let patch = match intent.patch(value) {
+            let patch = match intent.patch(value.clone()) {
                 Ok(patch) => patch,
                 Err(message) => {
                     error.set(Some(message));
-                    status.set(None);
                     return;
                 }
             };
@@ -4157,97 +5048,112 @@ fn TextDraftField(props: TextDraftFieldProps) -> Element {
                 request_id,
                 field_id: patch.field_id(),
                 patch,
+                reviewed_fingerprint: None,
             };
-            submitted.set(Some(request.clone()));
-            status.set(Some("Saving…".to_owned()));
+            dirty.set(false);
             error.set(None);
-            on_request.call(request);
+            if let Some(controller) = controller.as_ref() {
+                controller.request_field(
+                    field_key.clone(),
+                    draft,
+                    failure,
+                    value,
+                    on_request,
+                    request,
+                );
+            } else {
+                on_request.call(request);
+            }
         }
     });
-    let error_text = error();
-    let status_text = status();
+    let error_text = error().or_else(&*failure);
+    let status_text = pending.then_some("Saving…");
+    let id = format!("case-text-{}", dioxus::core::current_scope_id().0);
+    let message_id = format!("{id}-message");
     rsx! {
-        label { class: "m1-mechanical-field",
-            span { "{props.label}" }
-            if props.multiline {
-                textarea {
-                    class: "m1-mechanical-text",
-                    value: "{draft}",
-                    disabled: !props.editable,
-                    "aria-invalid": error_text.is_some(),
-                    rows: 2,
-                    oninput: move |event: FormEvent| {
-                        draft.set(event.value());
-                        dirty.set(true);
-                        error.set(None);
-                        status.set(None);
-                        submitted.set(None);
-                    },
-                    onblur: {
-                        let commit = commit.clone();
-                        move |_| commit()
-                    },
-                    onkeydown: {
-                        let accepted = props.value.clone();
-                        move |event: KeyboardEvent| {
-                            let key = event.data().key().to_string();
-                            if key == "Escape" {
-                                event.prevent_default();
-                                draft.set(accepted.clone());
-                                dirty.set(false);
-                                error.set(None);
-                                submitted.set(None);
-                                status.set(None);
-                            }
-                        }
-                    }
-                }
-            } else {
-                input {
-                    r#type: "text",
-                    class: "m1-mechanical-text",
-                    value: "{draft}",
-                    disabled: !props.editable,
-                    "aria-invalid": error_text.is_some(),
-                    oninput: move |event: FormEvent| {
-                        draft.set(event.value());
-                        dirty.set(true);
-                        error.set(None);
-                        status.set(None);
-                        submitted.set(None);
-                    },
-                    onblur: {
-                        let commit = commit.clone();
-                        move |_| commit()
-                    },
-                    onkeydown: {
-                        let accepted = props.value.clone();
-                        move |event: KeyboardEvent| {
-                            let key = event.data().key().to_string();
-                            if key == "Enter" {
-                                event.prevent_default();
-                                if let Some(input) = event
-                                    .data()
-                                    .try_as_web_event()
-                                    .and_then(|event| event.target())
-                                    .and_then(|target| target.dyn_into::<HtmlInputElement>().ok())
-                                {
-                                    let _ = input.blur();
+        Field { invalid: error_text.is_some(), disabled: !props.editable, class: "gap-1.5",
+            FieldLabel { html_for: id.clone(), "{props.label}" }
+            InputGroup { class: if !props.multiline { "max-[760px]:h-control-touch [@media(pointer:coarse)]:h-control-touch" },
+                if props.multiline {
+                    InputGroupTextarea {
+                        id: id.clone(),
+                        value: "{draft}",
+                        rows: "2",
+                        disabled: !props.editable,
+                        aria_label: props.label,
+                        aria_invalid: error_text.is_some(),
+                        aria_describedby: if error_text.is_some() || pending { Some(message_id.clone()) } else { None },
+                        oninput: move |event: FormEvent| {
+                            draft.set(event.value());
+                            dirty.set(true);
+                            error.set(None);
+                            failure.set(None);
+                        },
+                        attributes: vec![dioxus::events::onblur({
+                            let commit = commit.clone();
+                            move |_| commit()
+                        }), dioxus::events::onkeydown({
+                            let accepted = props.value.clone();
+                            move |event: KeyboardEvent| {
+                                let key = event.data().key().to_string();
+                                if key == "Escape" {
+                                    event.prevent_default();
+                                    draft.set(accepted.clone());
+                                    dirty.set(false);
+                                    error.set(None);
+                                    failure.set(None);
                                 }
-                            } else if key == "Escape" {
-                                event.prevent_default();
-                                draft.set(accepted.clone());
-                                dirty.set(false);
-                                error.set(None);
-                                submitted.set(None);
-                                status.set(None);
                             }
-                        }
+                        })],
+                    }
+                } else {
+                    InputGroupInput {
+                        id: id.clone(),
+                        r#type: InputType::Text,
+                        value: "{draft}",
+                        disabled: !props.editable,
+                        aria_label: props.label,
+                        aria_invalid: error_text.is_some(),
+                        aria_describedby: if error_text.is_some() || pending { Some(message_id.clone()) } else { None },
+                        oninput: move |event: FormEvent| {
+                            draft.set(event.value());
+                            dirty.set(true);
+                            error.set(None);
+                            failure.set(None);
+                        },
+                        attributes: vec![dioxus::events::onblur({
+                            let commit = commit.clone();
+                            move |_| commit()
+                        }), dioxus::events::onkeydown({
+                            let accepted = props.value.clone();
+                            move |event: KeyboardEvent| {
+                                let key = event.data().key().to_string();
+                                if key == "Enter" {
+                                    event.prevent_default();
+                                    if let Some(input) = event
+                                        .data()
+                                        .try_as_web_event()
+                                        .and_then(|event| event.target())
+                                        .and_then(|target| target.dyn_into::<HtmlInputElement>().ok())
+                                    {
+                                        let _ = input.blur();
+                                    }
+                                } else if key == "Escape" {
+                                    event.prevent_default();
+                                    draft.set(accepted.clone());
+                                    dirty.set(false);
+                                    error.set(None);
+                                    failure.set(None);
+                                }
+                            }
+                        })],
                     }
                 }
             }
-            if let Some(error) = error_text.as_deref() { small { role: "alert", "{error}" } }
-            if let Some(status) = status_text { small { role: "status", "{status}" } }
+            div { id: message_id,
+                if let Some(error) = error_text.as_deref() { FieldError { "{error}" } }
+                if let Some(status) = status_text { small { role: "status", "{status}" } }
+            }
         }
     }
 }
@@ -4262,29 +5168,30 @@ struct ResolvedStackProps {
 #[component]
 fn ResolvedStack(props: ResolvedStackProps) -> Element {
     let is_previous = props.layers.iter().any(|layer| layer.is_previous);
+    let selected = props
+        .layers
+        .iter()
+        .position(|layer| layer.id == props.selected_layer);
     rsx! {
-        section { class: "m1-mechanical-group", aria_label: "Resolved mechanical stack",
+        section { class: "grid gap-3 m-0 min-w-0 p-3 rounded-md bg-card border-0", aria_label: "Resolved mechanical stack",
             h3 { if is_previous { "Previous resolved stack · {props.layers.len()} layers" } else { "Resolved stack · {props.layers.len()} layers" } }
             if props.layers.is_empty() {
-                p { role: "status", "The stack appears after the current revision resolves." }
+                div { role: "status", Callout { "The stack appears after the current revision resolves." } }
             } else {
-                div { class: "m1-mechanical-stack",
-                    for row in props.layers.iter() {
-                        { let id = row.id.clone();
-                        let label = row.label.clone();
-                        let selected = props.selected_layer == id;
-                        let callback = props.on_select_layer;
-                        rsx! { button {
-                            key: "{id}",
-                            r#type: "button",
-                            class: if selected { "m1-mechanical-layer is-selected" } else { "m1-mechanical-layer" },
-                            aria_pressed: selected,
-                            onclick: move |_| callback.call(if selected { String::new() } else { id.clone() }),
-                            strong { "{label}" }
+                ToggleGroup {
+                    aria_label: "Resolved mechanical layers", pressed: Some(selected.into_iter().collect()),
+                    horizontal: false, class: "w-full flex-col",
+                    on_pressed_change: {
+                        let layers = props.layers.clone(); let callback = props.on_select_layer;
+                        move |indices: std::collections::HashSet<usize>| callback.call(indices.iter().next().and_then(|index| layers.get(*index)).map(|layer| layer.id.clone()).unwrap_or_default())
+                    },
+                    for (index, row) in props.layers.iter().enumerate() {
+                        ToggleItem { key: "{row.id}", index, class: "w-full h-auto flex-wrap justify-start py-2 max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                            aria_label: format!("{}, {:.2} mm, Z {:.2}{}", row.label, row.thickness, row.z, if row.is_previous { ", previous revision" } else { "" }),
+                            strong { "{row.label}" }
                             span { "{row.thickness:.2} mm" }
                             small { "Z {row.z:.2}" }
                             if row.is_previous { small { "Previous revision" } }
-                        } }
                         }
                     }
                 }
@@ -4302,22 +5209,28 @@ struct DiagnosticsProps {
 #[component]
 fn Diagnostics(props: DiagnosticsProps) -> Element {
     rsx! {
-        section { class: "m1-mechanical-group", aria_label: "Mechanical diagnostics",
+        section { class: "m-0 grid gap-2.5 border-0 border-t border-border py-2.5 [&_legend]:p-0 [&_legend]:font-semibold", aria_label: "Mechanical diagnostics",
             h3 { "Mechanical diagnostics · {props.findings.len()}" }
             if props.findings.is_empty() {
-                p { "No current mechanical findings." }
+                Callout { "No current mechanical findings." }
             }
-            ul {
+            ItemGroup {
                 for row in props.findings.iter() {
                     { let id = row.id.clone();
-                    let severity = severity_label(&row.severity);
                     let callback = props.on_show_finding;
-                    rsx! { li { key: "{id}",
-                        span { "{severity}: {row.message}" }
-                        button {
-                            r#type: "button",
-                            onclick: move |_| callback.call(id.clone()),
-                            "Show"
+                    rsx! { Item { key: "{id}",
+                        Badge { variant: severity_badge(&row.severity), "{severity_label(&row.severity)}" }
+                        ItemContent { ItemDescription { "{row.message}" } }
+                        ItemActions {
+                            Button {
+                                variant: ButtonVariant::Ghost,
+                                size: ButtonSize::Sm,
+                                button_type: "button",
+                                class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                aria_label: "Show finding {id}",
+                                onclick: move |_| callback.call(id.clone()),
+                                "Show"
+                            }
                         }
                     } }
                     }
@@ -4337,11 +5250,27 @@ fn send_request(
         return;
     };
     sequence.set(request_id);
+    send_request_with_review(sequence, identity, on_request, patch, None)
+}
+
+/// Send one request, optionally binding it to the reviewed result the user saw.
+fn send_request_with_review(
+    sequence: &mut Signal<u64>,
+    identity: &MechanicalSettingsIdentity,
+    on_request: EventHandler<MechanicalSettingsRequest>,
+    patch: MechanicalSettingsPatch,
+    reviewed_fingerprint: Option<String>,
+) {
+    let Some(request_id) = sequence().checked_add(1) else {
+        return;
+    };
+    sequence.set(request_id);
     on_request.call(MechanicalSettingsRequest {
         identity: identity.clone(),
         request_id,
         field_id: patch.field_id(),
         patch,
+        reviewed_fingerprint,
     });
 }
 
@@ -4437,15 +5366,71 @@ fn severity_label(value: &Severity) -> &'static str {
     }
 }
 
+fn severity_badge(value: &Severity) -> BadgeVariant {
+    match value {
+        Severity::Error => BadgeVariant::Destructive,
+        Severity::Warning => BadgeVariant::Warning,
+        Severity::Info => BadgeVariant::Info,
+    }
+}
+
+#[cfg(test)]
+#[path = "mechanical_settings_migration_tests.rs"]
+mod migration_tests;
+
 #[cfg(test)]
 mod contextual_layer_tests {
     use super::*;
     use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
-    use boardstudio_core::model::Vec3;
+    use boardstudio_core::model::{MechanicalFeatureKind, MechanicalOpeningVertex, Vec2, Vec3};
+    use boardstudio_web_ui_shared::{
+        test_role::{all_by_role_name, by_role_name},
+        test_wait::wait_until,
+    };
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::wasm_bindgen_test;
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
+    thread_local! {
+        static NEXT_RENDER_PROBE: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+        static ACTIVE_RENDER_PROBE: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
+    }
+
+    #[derive(Clone)]
+    struct RenderProbeId(String);
+
+    fn test_page_dom(page: fn() -> Element) -> VirtualDom {
+        let id = NEXT_RENDER_PROBE.with(|next| {
+            let id = format!("case-render-{}", next.get());
+            next.set(next.get() + 1);
+            id
+        });
+        ACTIVE_RENDER_PROBE.with(|active| *active.borrow_mut() = Some(id.clone()));
+        let dom = VirtualDom::new(page_with_render_probe);
+        dom.provide_root_context(page);
+        dom.provide_root_context(RenderProbeId(id));
+        dom
+    }
+
+    #[component]
+    fn page_with_render_probe() -> Element {
+        let page = use_context::<fn() -> Element>();
+        let id = use_context::<RenderProbeId>().0;
+        let mut generation = use_signal(|| 0u64);
+        let content = page();
+        rsx! {
+            {content}
+            button { id: "{id}-advance", onclick: move |_| generation += 1, "render" }
+            output { id: "{id}-generation", "{generation()}" }
+        }
+    }
+
+    fn test_identity_with_instance(instance_id: &str) -> MechanicalSettingsIdentity {
+        let mut identity = test_identity();
+        identity.scope.instance_id = Some(instance_id.to_owned());
+        identity
+    }
 
     fn test_identity() -> MechanicalSettingsIdentity {
         MechanicalSettingsIdentity {
@@ -4647,45 +5632,38 @@ mod contextual_layer_tests {
     async fn pending_action_disables_only_its_control() {
         mount_battery_test_page("case-pending-action-root", pending_action_test_page);
         rendered().await;
-        element("#case-pending-action-root .m1-mechanical-context-return").click();
-        rendered().await;
         let root = element("#case-pending-action-root");
-        let buttons = root.query_selector_all("button").unwrap();
-        let mut removed = 0;
-        for index in 0..buttons.length() {
-            let button = buttons
-                .item(index)
-                .unwrap()
-                .dyn_into::<web_sys::HtmlElement>()
-                .unwrap();
-            match button.text_content().unwrap_or_default().trim() {
-                "Remove" => {
-                    assert_eq!(
-                        button.has_attribute("disabled"),
-                        removed == 0,
-                        "only the pending plate removal is disabled"
-                    );
-                    removed += 1;
-                }
-                "Add process override" => assert!(
-                    !button.has_attribute("disabled"),
-                    "another action stays available"
-                ),
-                _ => {}
-            }
+        by_role_name(&root, "button", "Assembly settings")
+            .unwrap()
+            .click();
+        rendered().await;
+        let disabled = |name: &str| {
+            js_sys::Reflect::get(
+                &by_role_name(&root, "button", name).unwrap(),
+                &"disabled".into(),
+            )
+            .unwrap()
+            .as_bool()
+            .unwrap_or(false)
+        };
+        assert!(
+            disabled("Remove process override for plate"),
+            "only the pending plate removal is disabled"
+        );
+        for name in [
+            "Remove process override for plate foam",
+            "Remove process override for bottom foam",
+            "Remove process override for bottom",
+            "Add process override for U1 · Fixture part",
+        ] {
+            assert!(!disabled(name), "another action stays available: {name}");
         }
-        assert_eq!(removed, 4);
-        let fields = root.query_selector_all("input[type=number]").unwrap();
-        assert!(fields.length() > 0);
-        for index in 0..fields.length() {
-            assert!(
-                !fields
-                    .item(index)
-                    .unwrap()
-                    .dyn_into::<web_sys::HtmlInputElement>()
-                    .unwrap()
-                    .disabled()
-            );
+        for name in ["Plate thickness", "Wall thickness"] {
+            let field: web_sys::HtmlInputElement = by_role_name(&root, "spinbutton", name)
+                .unwrap()
+                .dyn_into()
+                .unwrap();
+            assert!(!field.disabled(), "unrelated fields stay editable: {name}");
         }
         root.remove();
     }
@@ -4704,59 +5682,6 @@ mod contextual_layer_tests {
                 on_request: move |_| {},
             }
         }
-    }
-
-    fn assigned_profile_guidance_test_page() -> Element {
-        let request_sequence = use_signal(|| 0_u64);
-        rsx! {
-            ProfileGuidance {
-                identity: test_identity(),
-                profiles: Rc::from([MechanicalProfileChoice {
-                    definition_id: "assigned-custom".into(),
-                    name: "Custom tactile switch".into(),
-                    source: Some("KiCad Custom tactile switch".into()),
-                    family: None,
-                    plate_to_pcb: Some(3.5),
-                    supported_thickness: None,
-                    switch_family_selectable: false,
-                    profile: custom_profile_choice().profile,
-                    kicad_source: Some("(footprint custom)".into()),
-                }]),
-                targets: Rc::from([]),
-                plate_thickness: 1.6,
-                plate_to_pcb: 3.5,
-                editable: true,
-                request_sequence,
-                on_request: move |_| {},
-            }
-        }
-    }
-
-    #[wasm_bindgen_test]
-    async fn assigned_profile_exposes_case_local_remove_control() {
-        let document = web_sys::window().unwrap().document().unwrap();
-        let root = document.create_element("div").unwrap();
-        root.set_id("case-profile-remove-red-root");
-        document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(assigned_profile_guidance_test_page),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
-        rendered().await;
-        let buttons = document
-            .query_selector_all("#case-profile-remove-red-root button")
-            .unwrap();
-        let has_remove = (0..buttons.length()).any(|index| {
-            buttons
-                .item(index)
-                .and_then(|button| button.text_content())
-                .is_some_and(|text| text.trim() == "Remove profile")
-        });
-        assert!(
-            has_remove,
-            "assigned Case profile must expose its local Remove profile action"
-        );
-        root.remove();
     }
 
     const CUSTOM_PROFILE_FOOTPRINT: &str = r#"(footprint "Custom tactile switch"
@@ -4810,7 +5735,7 @@ mod contextual_layer_tests {
             ]];
             choice
         });
-        let mut extracted_definition_ids = use_signal(Vec::<String>::new);
+        let extracted_definition_ids = use_signal(Vec::<String>::new);
         let mut owner_key = use_signal(|| "test-owner-a".to_owned());
         let extraction =
             MechanicalProfileExtractionPort(Rc::new(move |definition_id, mappings| {
@@ -4867,7 +5792,10 @@ mod contextual_layer_tests {
                                 saved_profile.set(choice);
                             }
                         }
-                        last_request.set(format!("{:?}", request.patch));
+                        last_request.set(format!(
+                            "{:?}|reviewed={:?}",
+                            request.patch, request.reviewed_fingerprint
+                        ));
                     },
                 }
                 p { id: "case-custom-profile-last-request", "{last_request}" }
@@ -4885,7 +5813,7 @@ mod contextual_layer_tests {
         root.set_id("case-custom-profile-test-host");
         document.body().unwrap().append_child(&root).unwrap();
         dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(custom_profile_test_page),
+            test_page_dom(custom_profile_test_page),
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         rendered().await;
@@ -4896,10 +5824,14 @@ mod contextual_layer_tests {
                 .dyn_into::<web_sys::HtmlElement>()
                 .unwrap()
         };
-        let saved_contour: web_sys::HtmlInputElement =
-            element("input[aria-label='Plate cutout geometry contour 1 vertex 1 X']")
-                .dyn_into()
-                .unwrap();
+        let saved_contour: web_sys::HtmlInputElement = by_role_name(
+            &root,
+            "spinbutton",
+            "Plate cutout geometry contour 1 vertex 1 X",
+        )
+        .unwrap()
+        .dyn_into()
+        .unwrap();
         saved_contour.set_value("-9.4");
         let input_event = web_sys::EventInit::new();
         input_event.set_bubbles(true);
@@ -4916,9 +5848,13 @@ mod contextual_layer_tests {
                 .contains("-9.4")
         );
         assert!(
-            element("button[aria-label='Remove profile Custom tactile switch']").is_connected()
+            by_role_name(&root, "button", "Remove profile Custom tactile switch")
+                .unwrap()
+                .is_connected()
         );
-        element("button[aria-label='Read KiCad layers']").click();
+        by_role_name(&root, "button", "Read KiCad layers")
+            .unwrap()
+            .click();
         rendered().await;
         assert_eq!(
             element("#case-custom-profile-extracted-definition-ids")
@@ -4926,9 +5862,33 @@ mod contextual_layer_tests {
                 .unwrap(),
             "custom-part"
         );
-        assert!(element("select[aria-label='Purpose for Dwgs.User']").is_connected());
-        let checkbox: web_sys::HtmlInputElement =
-            element("input[type='checkbox']").dyn_into().unwrap();
+        assert!(
+            by_role_name(&root, "button", "Purpose for Dwgs.User")
+                .unwrap()
+                .is_connected()
+        );
+        let geometry = boardstudio_core::artifact_request(
+            &serde_json::to_string(
+                &boardstudio_core::model::ArtifactRequest::ExtractMechanical {
+                    id: "ids".into(),
+                    source: CUSTOM_PROFILE_FOOTPRINT.into(),
+                    mappings: vec![],
+                    max_deviation_mm: 0.005,
+                },
+            )
+            .unwrap(),
+        );
+        let boardstudio_core::model::ArtifactReply::ExtractMechanical { result, .. } =
+            serde_json::from_str(&geometry).unwrap()
+        else {
+            panic!("geometry")
+        };
+        let checkbox = by_role_name(
+            &root,
+            "checkbox",
+            &format!("Select geometry {}", result.geometry.primitives[0].id),
+        )
+        .unwrap();
         checkbox.click();
         rendered().await;
         let request_count = || {
@@ -4939,10 +5899,12 @@ mod contextual_layer_tests {
                 .unwrap()
         };
         let before_apply = request_count();
-        element("button[aria-label='Apply selected geometry']").click();
+        by_role_name(&root, "button", "Apply selected geometry")
+            .unwrap()
+            .click();
         rendered().await;
         let extraction_error = root
-            .query_selector(".m1-mechanical-geometry-picker [role='alert']")
+            .query_selector("[aria-label='Custom KiCad geometry'] [role='alert']")
             .unwrap()
             .and_then(|alert| alert.text_content());
         assert!(
@@ -4972,10 +5934,15 @@ mod contextual_layer_tests {
                 .unwrap()
                 .contains("-9.5")
         );
-        let cutout_x: web_sys::HtmlInputElement =
-            element("input[aria-label='Plate cutout geometry contour 1 vertex 1 X']")
-                .dyn_into()
-                .unwrap();
+        let custom = by_role_name(&root, "group", "Fit profile Custom tactile switch").unwrap();
+        let cutout_x: web_sys::HtmlInputElement = by_role_name(
+            &custom,
+            "spinbutton",
+            "Plate cutout geometry contour 1 vertex 1 X",
+        )
+        .unwrap()
+        .dyn_into()
+        .unwrap();
         assert_eq!(
             cutout_x.value(),
             "-9.5",
@@ -4994,7 +5961,9 @@ mod contextual_layer_tests {
                 .unwrap()
                 .contains("-9.4")
         );
-        element("button[aria-label='Remove profile Custom tactile switch']").click();
+        by_role_name(&root, "button", "Remove profile Custom tactile switch")
+            .unwrap()
+            .click();
         rendered().await;
         assert!(
             element("#case-custom-profile-last-request")
@@ -5002,13 +5971,11 @@ mod contextual_layer_tests {
                 .unwrap()
                 .contains("RemoveProfile")
         );
-        element("button#case-profile-switch-owner").click();
+        by_role_name(&root, "button", "Switch Case owner")
+            .unwrap()
+            .click();
         rendered().await;
-        assert!(
-            root.query_selector("select[aria-label='Purpose for Dwgs.User']")
-                .unwrap()
-                .is_none()
-        );
+        assert!(by_role_name(&root, "button", "Purpose for Dwgs.User").is_none());
         root.remove();
     }
 
@@ -5019,17 +5986,21 @@ mod contextual_layer_tests {
         root.set_id("case-profile-volume-draft-test-host");
         document.body().unwrap().append_child(&root).unwrap();
         dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(custom_profile_test_page),
+            test_page_dom(custom_profile_test_page),
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         rendered().await;
+        let custom_profile =
+            by_role_name(&root, "group", "Fit profile Custom tactile switch").unwrap();
         let query = |selector: &str| root.query_selector(selector).unwrap().unwrap();
-        query("button[aria-label='Add volume to Clearance volumes']")
+        by_role_name(&custom_profile, "button", "Add volume to Clearance volumes")
+            .unwrap()
             .dyn_into::<web_sys::HtmlElement>()
             .unwrap()
             .click();
         rendered().await;
-        let input = query("input[aria-label='Clearance volumes volume 1 Height']")
+        let input = by_role_name(&root, "spinbutton", "Clearance volumes volume 1 Height")
+            .unwrap()
             .dyn_into::<web_sys::HtmlInputElement>()
             .unwrap();
         let dispatch_input = |value: &str| {
@@ -5134,10 +6105,12 @@ mod contextual_layer_tests {
         root.set_id("case-profile-clearance-test-host");
         document.body().unwrap().append_child(&root).unwrap();
         dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(custom_profile_test_page),
+            test_page_dom(custom_profile_test_page),
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         rendered().await;
+        let custom_profile =
+            by_role_name(&root, "group", "Fit profile Custom tactile switch").unwrap();
         let element = |selector: &str| {
             root.query_selector(selector)
                 .unwrap()
@@ -5146,7 +6119,13 @@ mod contextual_layer_tests {
                 .unwrap()
         };
 
-        element("button[aria-label='Add polygon to Component clearance zones']").click();
+        by_role_name(
+            &custom_profile,
+            "button",
+            "Add polygon to Component clearance zones",
+        )
+        .unwrap()
+        .click();
         rendered().await;
 
         let request = element("#case-custom-profile-last-request")
@@ -5155,14 +6134,18 @@ mod contextual_layer_tests {
         assert!(request.contains("UpdateProfile"));
         assert!(request.contains("clearances: Some"));
         assert!(request.contains("x: -2.5"));
-        element("button[aria-label='Add volume to Access openings']").click();
+        by_role_name(&custom_profile, "button", "Add volume to Access openings")
+            .unwrap()
+            .click();
         rendered().await;
         let request = element("#case-custom-profile-last-request")
             .text_content()
             .unwrap();
         assert!(request.contains("openings: Some"));
         assert!(request.contains("height: 10.0"));
-        element("button[aria-label='Add volume to Clearance volumes']").click();
+        by_role_name(&custom_profile, "button", "Add volume to Clearance volumes")
+            .unwrap()
+            .click();
         rendered().await;
         let request = element("#case-custom-profile-last-request")
             .text_content()
@@ -5188,9 +6171,84 @@ mod contextual_layer_tests {
                 label: "Thread", value: accepted(), intent: MechanicalTextIntent::ClosureThread,
                 editable: true, on_request: move |_| count += 1,
             }
-            output { "{count}" }
+            output { role: "status", aria_label: "Submitted drafts", "{count}" }
             button { onclick: move |_| accepted.set("M4".into()), "Land previous edit" }
         }
+    }
+
+    fn text_multiline_test_page() -> Element {
+        let request_sequence = use_signal(|| 0_u64);
+        let mut count = use_signal(|| 0_u32);
+        rsx! {
+            TextDraftField {
+                identity: test_identity(), request_sequence, feedback: Rc::from([]),
+                label: "Screw lengths", value: "3, 4".to_owned(),
+                intent: MechanicalTextIntent::ClosureScrewLengths,
+                editable: true, multiline: true, on_request: move |_| count += 1,
+            }
+            output { role: "status", aria_label: "Submitted drafts", "{count}" }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn multiline_text_draft_is_named_and_describes_its_error() {
+        mount_battery_test_page("case-text-multiline-root", text_multiline_test_page);
+        rendered().await;
+        let root = element("#case-text-multiline-root");
+        let area = by_role_name(&root, "textbox", "Screw lengths")
+            .unwrap()
+            .dyn_into::<web_sys::HtmlTextAreaElement>()
+            .unwrap();
+        assert_eq!(
+            area.get_attribute("data-slot").as_deref(),
+            Some("input-group-control"),
+            "the adopted multiline field keeps the shared input root"
+        );
+        assert_eq!(area.get_attribute("rows").as_deref(), Some("2"));
+        let area_value = |value: &str| {
+            area.focus().unwrap();
+            area.set_value(value);
+            let event = web_sys::EventInit::new();
+            event.set_bubbles(true);
+            area.dispatch_event(
+                &web_sys::Event::new_with_event_init_dict("input", &event).unwrap(),
+            )
+            .unwrap();
+        };
+        area_value("abc");
+        area.blur().unwrap();
+        wait_until("invalid lengths are rejected locally", || {
+            area.get_attribute("aria-invalid").as_deref() == Some("true")
+        })
+        .await;
+        assert_eq!(area.value(), "abc", "the field owns the rejected draft");
+        let described = area
+            .get_attribute("aria-describedby")
+            .expect("validation must describe the multiline input");
+        let error = root
+            .query_selector(&format!("[id='{described}'] [data-slot='field-error']"))
+            .unwrap()
+            .expect("description resolves to this production field error");
+        assert!(!error.text_content().unwrap().is_empty());
+        assert_eq!(
+            by_role_name(&root, "status", "Submitted drafts")
+                .unwrap()
+                .text_content()
+                .unwrap(),
+            "0",
+            "an invalid draft must not submit"
+        );
+        area_value("3, 5");
+        area.blur().unwrap();
+        wait_until("valid lengths submit", || {
+            by_role_name(&root, "status", "Submitted drafts")
+                .unwrap()
+                .text_content()
+                .as_deref()
+                == Some("1")
+        })
+        .await;
+        root.remove();
     }
 
     #[wasm_bindgen_test]
@@ -5198,12 +6256,16 @@ mod contextual_layer_tests {
         mount_battery_test_page("case-text-commit-root", text_commit_test_page);
         rendered().await;
         let root = element("#case-text-commit-root");
-        let input = root
-            .query_selector("input")
-            .unwrap()
+        let input = by_role_name(&root, "textbox", "Thread")
             .unwrap()
             .dyn_into::<web_sys::HtmlInputElement>()
             .unwrap();
+        assert_eq!(
+            input.get_attribute("data-slot").as_deref(),
+            Some("input-group-control"),
+            "the adopted text field keeps the shared input root"
+        );
+        assert!(!input.id().is_empty(), "the field label targets this input");
         let input_value = |value: &str| {
             input.focus().unwrap();
             input.set_value(value);
@@ -5226,8 +6288,7 @@ mod contextual_layer_tests {
         input.blur().unwrap();
         rendered().await;
         assert_eq!(
-            root.query_selector("output")
-                .unwrap()
+            by_role_name(&root, "status", "Submitted drafts")
                 .unwrap()
                 .text_content()
                 .unwrap(),
@@ -5240,8 +6301,7 @@ mod contextual_layer_tests {
             rendered().await;
         }
         assert_eq!(
-            root.query_selector("output")
-                .unwrap()
+            by_role_name(&root, "status", "Submitted drafts")
                 .unwrap()
                 .text_content()
                 .unwrap(),
@@ -5249,10 +6309,7 @@ mod contextual_layer_tests {
         );
         assert_eq!(input.value(), "M4");
         input_value("M5");
-        root.query_selector("button")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
+        by_role_name(&root, "button", "Land previous edit")
             .unwrap()
             .click();
         rendered().await;
@@ -5262,42 +6319,6 @@ mod contextual_layer_tests {
             "landing an earlier edit must preserve active typing"
         );
         root.remove();
-    }
-
-    #[component]
-    fn ProcessThicknessTestPage() -> Element {
-        let request_sequence = use_signal(|| 0_u64);
-        let mut request_count = use_signal(|| 0_u32);
-        rsx! {
-            div { id: "case-process-thickness-test-root",
-                MechanicalSettings {
-                    identity: test_identity(),
-                    request_sequence,
-                    values: Some(test_values(HardwareTransport::Wired, None)),
-                    profiles: Rc::from([]),
-                    profile_targets: Rc::from([]),
-                    process_targets: Rc::from([test_process("plate", PlateMethod::Printed, "PLA", 1.5)]),
-                    stabilizer_fits: Rc::from([]),
-                    layers: Rc::from([]),
-                    gasket_supports: Rc::from([]),
-                    fit_parts: Rc::from([]),
-                    fit_parts_resolved: false,
-                    hardware_mounts: Rc::from([]),
-                    suggested_mounts: Rc::from([]),
-                    findings: Rc::from([]),
-                    selected_layer: String::new(),
-                    mismatch: None,
-                    editable: true,
-                    disabled_reason: None,
-                    feedback: Rc::from([]),
-                    summary_feedback: None,
-                    on_request: move |_| request_count += 1,
-                    on_select_layer: move |_| {},
-                    on_show_finding: move |_| {},
-                }
-            }
-            div { id: "case-process-thickness-request-count", "{request_count()}" }
-        }
     }
 
     #[component]
@@ -5382,14 +6403,57 @@ mod contextual_layer_tests {
             .document()
             .unwrap()
             .query_selector(selector)
-            .unwrap()
-            .unwrap()
+            .unwrap_or_else(|error| panic!("invalid selector {selector}: {error:?}"))
+            .unwrap_or_else(|| panic!("no element matches {selector}"))
             .dyn_into()
-            .unwrap()
+            .unwrap_or_else(|_| panic!("element matching {selector} is not an HTMLElement"))
     }
 
     async fn rendered() {
-        gloo_timers::future::TimeoutFuture::new(60).await;
+        let id = ACTIVE_RENDER_PROBE.with(|active| {
+            active
+                .borrow()
+                .clone()
+                .expect("the current test page has a render probe")
+        });
+        let document = web_sys::window().unwrap().document().unwrap();
+        let label_selector = format!("#{id}-generation");
+        let advance_selector = format!("#{id}-advance");
+        wait_until("the Case test page mounts", || {
+            document.query_selector(&label_selector).unwrap().is_some()
+        })
+        .await;
+        let label = document.query_selector(&label_selector).unwrap().unwrap();
+        let expected = label
+            .text_content()
+            .unwrap()
+            .parse::<u64>()
+            .expect("render probe generation is numeric")
+            + 1;
+        document
+            .query_selector(&advance_selector)
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap()
+            .click();
+        wait_until("the Case test page renders its next generation", || {
+            label.text_content().as_deref() == Some(expected.to_string().as_str())
+        })
+        .await;
+    }
+
+    /// The primitives commit an option on primary pointerdown/up, not on click.
+    fn tap_option(option: &web_sys::HtmlElement) {
+        for kind in ["pointerdown", "pointerup"] {
+            let event = js_sys::eval(&format!(
+                "new PointerEvent('{kind}', {{bubbles:true, cancelable:true, button:0}})"
+            ))
+            .unwrap()
+            .dyn_into::<web_sys::Event>()
+            .unwrap();
+            option.dispatch_event(&event).unwrap();
+        }
     }
 
     fn mount_battery_test_page(root_id: &'static str, page: fn() -> Element) {
@@ -5398,7 +6462,7 @@ mod contextual_layer_tests {
         root.set_id(root_id);
         document.body().unwrap().append_child(&root).unwrap();
         dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(page),
+            test_page_dom(page),
             dioxus_web::Config::new().rootnode(root.into()),
         );
     }
@@ -5407,20 +6471,19 @@ mod contextual_layer_tests {
     async fn selected_plate_uses_contextual_inspector_and_returns_to_assembly_settings() {
         let document = web_sys::window().unwrap().document().unwrap();
         let stylesheet = document.create_element("style").unwrap();
-        stylesheet.set_text_content(Some(include_str!("../../../assets/m1.css")));
+        stylesheet.set_text_content(Some(include_str!("../../../assets/workbench-base.css")));
         document.head().unwrap().append_child(&stylesheet).unwrap();
         let root = document.create_element("div").unwrap();
         root.set_id("case-contextual-mechanical-settings-test-root");
         document.body().unwrap().append_child(&root).unwrap();
         dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(test_page),
+            test_page_dom(test_page),
             dioxus_web::Config::new().rootnode(root.into()),
         );
         rendered().await;
 
-        let panel =
-            element("#case-contextual-mechanical-settings-test-root .m1-mechanical-settings");
-        let text = panel.text_content().unwrap_or_default();
+        let scope = element("#case-contextual-mechanical-settings-test-root");
+        let text = scope.text_content().unwrap_or_default();
         assert!(text.contains("Plate"));
         assert!(text.contains("Assembly settings"));
         assert!(text.contains("Plate thickness"));
@@ -5429,7 +6492,9 @@ mod contextual_layer_tests {
         assert!(!text.contains("Current warning"));
         assert!(!text.contains("Case construction"));
         assert!(!text.contains("Bottom thickness"));
-        element("#case-contextual-mechanical-settings-test-root .m1-mechanical-group[aria-label='Fit issues'] button").click();
+        by_role_name(&scope, "button", "Show finding current-error")
+            .unwrap()
+            .click();
         rendered().await;
         assert_eq!(
             element("#case-contextual-selected-finding")
@@ -5438,86 +6503,95 @@ mod contextual_layer_tests {
             Some("current-error")
         );
 
-        element("#case-contextual-mechanical-settings-test-root .m1-mechanical-context-return")
+        by_role_name(&scope, "button", "Assembly settings")
+            .unwrap()
             .click();
         rendered().await;
-        let assembly_panel =
-            element("#case-contextual-mechanical-settings-test-root .m1-mechanical-settings");
+        let manufacturing_text = scope.text_content().unwrap_or_default();
         assert!(
-            assembly_panel
-                .query_selector("section[aria-label='Manufacturing overrides']")
-                .unwrap()
-                .is_some(),
+            manufacturing_text.contains("Per-part process overrides"),
             "the assembly settings should expose per-part manufacturing controls"
         );
-        let manufacturing_text = assembly_panel.text_content().unwrap_or_default();
         assert!(manufacturing_text.contains("Per-part process overrides 4"));
         assert!(manufacturing_text.contains("Stabilizer fit 0 wide keys"));
         assert_eq!(
-            assembly_panel
-                .query_selector_all("select[aria-label='Material']")
-                .unwrap()
-                .length(),
+            all_by_role_name(&scope, "button", "Material").len(),
             4,
             "each accepted standard process override should expose its material"
         );
         assert_eq!(
-            assembly_panel
+            scope
                 .text_content()
                 .unwrap_or_default()
                 .matches("Add process override")
                 .count(),
             1
         );
-        let text =
-            element("#case-contextual-mechanical-settings-test-root .m1-mechanical-settings")
+        assert!(
+            scope
                 .text_content()
-                .unwrap_or_default();
-        assert!(text.contains("Case construction"));
+                .unwrap_or_default()
+                .contains("Case construction")
+        );
 
-        element("#case-contextual-mechanical-settings-test-root .m1-mechanical-stack button:nth-child(2)").click();
+        by_role_name(
+            &element("#case-contextual-mechanical-settings-test-root"),
+            "button",
+            "PCB, 1.60 mm, Z 0.00",
+        )
+        .unwrap()
+        .click();
         rendered().await;
-        let text =
-            element("#case-contextual-mechanical-settings-test-root .m1-mechanical-settings")
-                .text_content()
-                .unwrap_or_default();
+        let text = scope.text_content().unwrap_or_default();
         assert!(text.contains("PCB thickness"));
         assert!(!text.contains("Plate thickness"));
         assert!(!text.contains("Resolved thickness"));
-        element("#case-contextual-mechanical-settings-test-root .m1-mechanical-context-return")
+        by_role_name(&scope, "button", "Assembly settings")
+            .unwrap()
             .click();
         rendered().await;
 
-        element("#case-contextual-mechanical-settings-test-root .m1-mechanical-stack button:nth-child(3)").click();
+        by_role_name(
+            &element("#case-contextual-mechanical-settings-test-root"),
+            "button",
+            "Plate foam, 0.50 mm, Z 0.00",
+        )
+        .unwrap()
+        .click();
         rendered().await;
-        let text =
-            element("#case-contextual-mechanical-settings-test-root .m1-mechanical-settings")
-                .text_content()
-                .unwrap_or_default();
+        let text = scope.text_content().unwrap_or_default();
         assert!(text.contains("Plate foam"));
         assert!(!text.contains("PCB thickness"));
-        element("#case-contextual-mechanical-settings-test-root .m1-mechanical-context-return")
+        by_role_name(&scope, "button", "Assembly settings")
+            .unwrap()
             .click();
         rendered().await;
 
-        element("#case-contextual-mechanical-settings-test-root .m1-mechanical-stack button:nth-child(4)").click();
+        by_role_name(
+            &element("#case-contextual-mechanical-settings-test-root"),
+            "button",
+            "Bottom foam, 0.50 mm, Z 0.00",
+        )
+        .unwrap()
+        .click();
         rendered().await;
-        let text =
-            element("#case-contextual-mechanical-settings-test-root .m1-mechanical-settings")
-                .text_content()
-                .unwrap_or_default();
+        let text = scope.text_content().unwrap_or_default();
         assert!(text.contains("Bottom foam"));
         assert!(!text.contains("PCB thickness"));
-        element("#case-contextual-mechanical-settings-test-root .m1-mechanical-context-return")
+        by_role_name(&scope, "button", "Assembly settings")
+            .unwrap()
             .click();
         rendered().await;
 
-        element("#case-contextual-mechanical-settings-test-root .m1-mechanical-stack button:nth-child(5)").click();
+        by_role_name(
+            &element("#case-contextual-mechanical-settings-test-root"),
+            "button",
+            "Bottom, 3.00 mm, Z 0.00",
+        )
+        .unwrap()
+        .click();
         rendered().await;
-        let text =
-            element("#case-contextual-mechanical-settings-test-root .m1-mechanical-settings")
-                .text_content()
-                .unwrap_or_default();
+        let text = scope.text_content().unwrap_or_default();
         assert!(text.contains("Bottom case"));
         assert!(text.contains("Bottom thickness"));
         assert!(text.contains("Wall thickness"));
@@ -5527,21 +6601,22 @@ mod contextual_layer_tests {
         assert!(!text.contains("Plate thickness"));
         assert!(!text.contains("Current warning"));
 
-        element("#case-contextual-mechanical-settings-test-root .m1-mechanical-context-hardware")
+        by_role_name(&scope, "button", "Edit shared closure hardware")
+            .unwrap()
             .click();
         rendered().await;
-        let text =
-            element("#case-contextual-mechanical-settings-test-root .m1-mechanical-settings")
-                .text_content()
-                .unwrap_or_default();
+        let text = scope.text_content().unwrap_or_default();
         assert!(text.contains("Case construction"));
 
-        element("#case-contextual-mechanical-settings-test-root .m1-mechanical-stack button:nth-child(6)").click();
+        by_role_name(
+            &element("#case-contextual-mechanical-settings-test-root"),
+            "button",
+            "Top case, 0.00 mm, Z 0.00",
+        )
+        .unwrap()
+        .click();
         rendered().await;
-        let text =
-            element("#case-contextual-mechanical-settings-test-root .m1-mechanical-settings")
-                .text_content()
-                .unwrap_or_default();
+        let text = scope.text_content().unwrap_or_default();
         assert!(text.contains("Top case"));
         assert!(text.contains("Wall thickness"));
         assert!(text.contains("Clearance"));
@@ -5566,101 +6641,20 @@ mod contextual_layer_tests {
     }
 
     #[wasm_bindgen_test]
-    async fn process_thickness_draft_escape_enter_and_blur_follow_numeric_field_semantics() {
-        mount_battery_test_page(
-            "case-process-thickness-test-root-host",
-            ProcessThicknessTestPage,
-        );
-        rendered().await;
-        let input =
-            element("#case-process-thickness-test-root input[aria-label='Finished thickness']")
-                .dyn_into::<web_sys::HtmlInputElement>()
-                .unwrap();
-        let dispatch_input = |input: &web_sys::HtmlInputElement, value: &str| {
-            input.set_value(value);
-            let init = web_sys::EventInit::new();
-            init.set_bubbles(true);
-            input
-                .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &init).unwrap())
-                .unwrap();
-        };
-        let dispatch_key = |input: &web_sys::HtmlInputElement, key: &str| {
-            let init = web_sys::KeyboardEventInit::new();
-            init.set_key(key);
-            init.set_bubbles(true);
-            input
-                .dispatch_event(
-                    &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
-                        .unwrap(),
-                )
-                .unwrap();
-        };
-
-        input.focus().unwrap();
-        dispatch_input(&input, "2.5");
-        dispatch_key(&input, "Escape");
-        input.blur();
-        let change = web_sys::EventInit::new();
-        change.set_bubbles(true);
-        input
-            .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &change).unwrap())
-            .unwrap();
-        rendered().await;
-        assert_eq!(input.value(), "1.5");
-        assert_eq!(
-            element("#case-process-thickness-request-count")
-                .text_content()
-                .as_deref(),
-            Some("0"),
-            "Escape then blur should restore the accepted value without submitting"
-        );
-
-        input.focus().unwrap();
-        dispatch_input(&input, "2.0");
-        dispatch_key(&input, "Enter");
-        input.blur();
-        let change = web_sys::EventInit::new();
-        change.set_bubbles(true);
-        input
-            .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &change).unwrap())
-            .unwrap();
-        rendered().await;
-        assert_eq!(
-            element("#case-process-thickness-request-count")
-                .text_content()
-                .as_deref(),
-            Some("1"),
-            "Enter followed by blur should submit the thickness once"
-        );
-
-        input.focus().unwrap();
-        dispatch_input(&input, "0.05");
-        input.blur();
-        rendered().await;
-        assert_eq!(
-            element("#case-process-thickness-request-count")
-                .text_content()
-                .as_deref(),
-            Some("1"),
-            "thickness below 0.1 mm should not submit"
-        );
-    }
-
-    #[wasm_bindgen_test]
     async fn previous_generated_layer_context_stays_visible_and_is_labeled() {
         mount_battery_test_page("case-previous-settings-test-root", previous_test_page);
         rendered().await;
-        let panel = element("#case-previous-settings-test-root .m1-mechanical-settings");
-        let text = panel.text_content().unwrap_or_default();
+        let scope = element("#case-previous-settings-test-root");
+        let text = scope.text_content().unwrap_or_default();
         assert!(text.contains("previous generated geometry"));
         assert!(text.contains("Resolved thickness 1.50 mm."));
         assert!(text.contains("Plate thickness"));
 
-        element("#case-previous-settings-test-root .m1-mechanical-context-return").click();
+        by_role_name(&scope, "button", "Assembly settings")
+            .unwrap()
+            .click();
         rendered().await;
-        let text = element("#case-previous-settings-test-root .m1-mechanical-settings")
-            .text_content()
-            .unwrap_or_default();
+        let text = scope.text_content().unwrap_or_default();
         assert!(text.contains("Previous resolved stack"));
         assert!(text.contains("Settings below reflect the current accepted configuration."));
         assert!(text.contains("Previous revision"));
@@ -5671,27 +6665,41 @@ mod contextual_layer_tests {
         mount_battery_test_page("case-battery-settings-test-root", BatteryTestPage);
         rendered().await;
 
-        let panel = element("#case-battery-wired-test-root .m1-mechanical-settings");
+        let document = web_sys::window().unwrap().document().unwrap();
+        let wired = document
+            .query_selector("#case-battery-wired-test-root")
+            .unwrap()
+            .unwrap();
         assert!(
-            panel
+            wired
                 .text_content()
                 .unwrap_or_default()
                 .contains("Include a battery envelope"),
             "wired mechanical settings should expose the optional battery envelope toggle"
         );
-        let toggle =
-            element("#case-battery-wired-test-root input[aria-label='Include a battery envelope']")
-                .dyn_into::<web_sys::HtmlInputElement>()
-                .unwrap();
-        assert!(!toggle.checked());
-        assert!(!panel.text_content().unwrap_or_default().contains("Width"));
+        let toggle = by_role_name(&wired, "checkbox", "Include a battery envelope").unwrap();
+        assert_eq!(
+            toggle.get_attribute("aria-checked").as_deref(),
+            Some("false")
+        );
+        assert!(
+            !wired.text_content().unwrap_or_default().contains("Width"),
+            "wired settings without a battery show no battery fields"
+        );
+        assert!(!toggle.id().is_empty(), "the toggle keeps its label target");
+        let label = document
+            .query_selector(&format!("label[for='{}']", toggle.id()))
+            .unwrap()
+            .expect("the toggle has an associated visible label");
+        assert!(
+            label
+                .text_content()
+                .unwrap_or_default()
+                .contains("Include a battery envelope"),
+            "the associated label names the toggle"
+        );
 
-        toggle.set_checked(true);
-        let change = web_sys::EventInit::new();
-        change.set_bubbles(true);
-        toggle
-            .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &change).unwrap())
-            .unwrap();
+        toggle.click();
         rendered().await;
         assert_eq!(
             element("#case-battery-last-request")
@@ -5700,50 +6708,2512 @@ mod contextual_layer_tests {
             Some("SetBatteryEnabled(true)")
         );
 
-        let panel = element("#case-battery-wireless-test-root .m1-mechanical-settings");
-        let text = panel.text_content().unwrap_or_default();
+        let wireless = document
+            .query_selector("#case-battery-wireless-test-root")
+            .unwrap()
+            .unwrap();
+        let text = wireless.text_content().unwrap_or_default();
         assert!(text.contains("Included for wireless."));
         assert!(!text.contains("Include a battery envelope"));
-        for label in [
-            "Width",
-            "Depth",
-            "Height",
-            "Cable width",
-            "Position X",
-            "Position Y",
-            "Cable exit X",
-            "Cable exit Y",
+        for (label, minimum) in [
+            ("Width", "0.1"),
+            ("Depth", "0.1"),
+            ("Height", "0.1"),
+            ("Cable width", "0.1"),
+            ("Position X", "-1000000"),
+            ("Position Y", "-1000000"),
+            ("Cable exit X", "-1000000"),
+            ("Cable exit Y", "-1000000"),
         ] {
-            assert!(
-                text.contains(label),
-                "wireless battery field {label} should be visible"
-            );
-        }
-
-        let document = web_sys::window().unwrap().document().unwrap();
-        let inputs = document
-            .query_selector_all(
-                "#case-battery-wireless-test-root .m1-mechanical-battery-fields input[type='number']",
-            )
-            .unwrap();
-        assert_eq!(inputs.length(), 8);
-        let expected_minimums = [
-            "0.1", "0.1", "0.1", "0.1", "-1000000", "-1000000", "-1000000", "-1000000",
-        ];
-        for (index, minimum) in expected_minimums.into_iter().enumerate() {
-            let input = inputs
-                .item(index as u32)
-                .unwrap()
-                .dyn_into::<web_sys::HtmlInputElement>()
+            let input: web_sys::HtmlInputElement = by_role_name(&wireless, "spinbutton", label)
+                .unwrap_or_else(|| panic!("wireless battery field {label} should be visible"))
+                .dyn_into()
                 .unwrap();
             assert_eq!(input.step(), "0.1");
             assert_eq!(input.min(), minimum);
         }
-        let cable_width = inputs
-            .item(3)
-            .unwrap()
-            .dyn_into::<web_sys::HtmlInputElement>()
-            .unwrap();
+        let cable_width: web_sys::HtmlInputElement =
+            by_role_name(&wireless, "spinbutton", "Cable width")
+                .unwrap()
+                .dyn_into()
+                .unwrap();
         assert_eq!(cable_width.value().parse::<f64>().unwrap(), 2.0);
     }
+
+    #[component]
+    fn PairFeatureTestPage() -> Element {
+        let request_sequence = use_signal(|| 0_u64);
+        let mut last_request = use_signal(String::new);
+        let rows: Rc<[MechanicalPairFeatureRow]> = Rc::from([
+            MechanicalPairFeatureRow {
+                feature_id: "mount-1-left".into(),
+                kind: MechanicalFeatureKind::Mount,
+                state: MechanicalFeatureState::Linked,
+                instance_id: "left".into(),
+                counterpart_instance_id: "right".into(),
+                counterpart_feature_id: "mount-1-right".into(),
+                preview: Some("Mount at (2.0, 3.0)".into()),
+                own_geometry: Some("Mount at (2.0, 3.0)".into()),
+                rejoin_fingerprint: Some("reviewed-mount".into()),
+            },
+            MechanicalPairFeatureRow {
+                feature_id: "opening-1-left".into(),
+                kind: MechanicalFeatureKind::Opening,
+                state: MechanicalFeatureState::Local,
+                instance_id: "left".into(),
+                counterpart_instance_id: "right".into(),
+                counterpart_feature_id: "opening-1-right".into(),
+                preview: Some("Opening with 3 vertices".into()),
+                own_geometry: Some("Opening with 4 vertices".into()),
+                rejoin_fingerprint: Some("reviewed-opening".into()),
+            },
+            MechanicalPairFeatureRow {
+                feature_id: "support-1-left".into(),
+                kind: MechanicalFeatureKind::GasketSupport,
+                state: MechanicalFeatureState::Omitted,
+                instance_id: "left".into(),
+                counterpart_instance_id: "right".into(),
+                counterpart_feature_id: "support-1-right".into(),
+                preview: None,
+                own_geometry: None,
+                rejoin_fingerprint: Some("reviewed-support".into()),
+            },
+        ]);
+        rsx! {
+            div { id: "case-pair-feature-test-root",
+                MechanicalSettings {
+                    identity: test_identity(),
+                    request_sequence,
+                    values: Some(test_values(HardwareTransport::Wired, None)),
+                    profiles: Rc::from([]),
+                    profile_targets: Rc::from([]),
+                    process_targets: Rc::from([]),
+                    stabilizer_fits: Rc::from([]),
+                    layers: Rc::from([]),
+                    gasket_supports: Rc::from([]),
+                    fit_parts: Rc::from([]),
+                    fit_parts_resolved: false,
+                    hardware_mounts: Rc::from([]),
+                    suggested_mounts: Rc::from([]),
+                    findings: Rc::from([]),
+                    pair_features: Some(rows),
+                    selected_layer: String::new(),
+                    mismatch: None,
+                    editable: true,
+                    disabled_reason: None,
+                    feedback: Rc::from([]),
+                    summary_feedback: None,
+                    on_request: move |request: MechanicalSettingsRequest| {
+                        last_request.set(format!(
+                            "{:?}|reviewed={:?}",
+                            request.patch, request.reviewed_fingerprint
+                        ));
+                    },
+                    on_select_layer: move |_| {},
+                    on_show_finding: move |_| {},
+                }
+                p { id: "case-pair-feature-last-request", "{last_request}" }
+            }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn pair_feature_controls_are_reachable_and_submit_typed_pair_changes() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        root.set_id("case-pair-feature-test-host");
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            test_page_dom(PairFeatureTestPage),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        rendered().await;
+
+        // The panel renders the accepted pair state for every covered kind.
+        by_role_name(&root, "button", "Linked halves")
+            .unwrap()
+            .click();
+        rendered().await;
+        let panel = root.text_content().unwrap();
+        assert!(
+            panel.contains("Mirrored pair"),
+            "the pair panel renders its heading, got {panel}"
+        );
+        assert!(
+            panel.contains("Mount · linked to the other half"),
+            "the linked row states its relationship, got {panel}"
+        );
+
+        // Linked: make local, or remove on this half.
+        by_role_name(&root, "button", "Make local mount-1-left")
+            .unwrap()
+            .click();
+        rendered().await;
+        let local = element("#case-pair-feature-last-request")
+            .text_content()
+            .unwrap();
+        assert!(
+            local.contains("MakeFeatureLocal") && local.contains("mount-1-left"),
+            "the linked row submits an explicit make-local, got {local}"
+        );
+        by_role_name(&root, "button", "Remove on this half mount-1-left")
+            .unwrap()
+            .click();
+        rendered().await;
+        let omit = element("#case-pair-feature-last-request")
+            .text_content()
+            .unwrap();
+        assert!(
+            omit.contains("OmitFeatureMember") && omit.contains("mount-1-left"),
+            "the linked row can remove the feature on this half, got {omit}"
+        );
+
+        // Local: the preview is shown before the commit, and rejoin names its source.
+        assert!(
+            root.text_content()
+                .unwrap()
+                .contains("Rejoin takes Opening with 3 vertices from right"),
+            "a rejoin previews the geometry it will take"
+        );
+        by_role_name(&root, "button", "Rejoin opening-1-left from the other half")
+            .unwrap()
+            .click();
+        rendered().await;
+        let rejoin = element("#case-pair-feature-last-request")
+            .text_content()
+            .unwrap();
+        assert!(
+            rejoin.contains("RejoinFeatureMember")
+                && rejoin.contains("opening-1-left")
+                && rejoin.contains("\"right\""),
+            "rejoin submits the reviewed source half, got {rejoin}"
+        );
+        assert!(
+            rejoin.contains("reviewed=Some(\"reviewed-opening\")"),
+            "the rejoin submission carries the fingerprint of the row the user reviewed, got {rejoin}"
+        );
+
+        // A local half can deliberately take its OWN geometry as the shared value.
+        by_role_name(&root, "button", "Rejoin source for opening-1-left")
+            .unwrap()
+            .click();
+        wait_until("the rejoin sources open", || {
+            by_role_name(&root, "listbox", "Rejoin source for opening-1-left").is_some()
+        })
+        .await;
+        assert!(
+            by_role_name(&root, "option", "this half · Opening with 4 vertices").is_some(),
+            "the review shows this half's own geometry as a source choice"
+        );
+        tap_option(&by_role_name(&root, "option", "this half · Opening with 4 vertices").unwrap());
+        rendered().await;
+        assert!(
+            root.text_content()
+                .unwrap()
+                .contains("Rejoin takes Opening with 4 vertices from left"),
+            "the preview follows the chosen source, got {}",
+            root.text_content().unwrap()
+        );
+        by_role_name(&root, "button", "Rejoin opening-1-left from this half")
+            .unwrap()
+            .click();
+        rendered().await;
+        let own_source = element("#case-pair-feature-last-request")
+            .text_content()
+            .unwrap();
+        assert!(
+            own_source.contains("RejoinFeatureMember")
+                && own_source.contains("source_instance_id: \"left\""),
+            "the deliberate own-source rejoin is submitted as reviewed, got {own_source}"
+        );
+
+        // Omitted without counterpart geometry: reachable but not committable.
+        let last_reviewed = element("#case-pair-feature-last-request")
+            .text_content()
+            .unwrap();
+        let omitted_rejoin =
+            by_role_name(&root, "button", "Rejoin support-1-left from the other half").unwrap();
+        assert_eq!(
+            js_sys::Reflect::get(&omitted_rejoin, &"disabled".into())
+                .unwrap()
+                .as_bool(),
+            Some(true),
+            "an omitted feature whose other half has no geometry cannot be rejoined"
+        );
+        assert!(
+            root.text_content()
+                .unwrap()
+                .contains("has no geometry for this feature"),
+        );
+        let after = element("#case-pair-feature-last-request")
+            .text_content()
+            .unwrap();
+        assert_eq!(
+            after, last_reviewed,
+            "the disabled rejoin submits nothing when clicked or left alone"
+        );
+        let _ = MechanicalFeatureKind::GasketSupport;
+        root.remove();
+    }
+
+    #[component]
+    fn PairedDisableTestPage() -> Element {
+        let request_sequence = use_signal(|| 0_u64);
+        let mut last_request = use_signal(String::new);
+        let mut requests = use_signal(|| 0_u32);
+        rsx! {
+            div { id: "case-paired-disable-test-root",
+                MechanicalSettings {
+                    identity: test_identity(),
+                    request_sequence,
+                    values: Some(test_values(HardwareTransport::Wired, None)),
+                    profiles: Rc::from([]),
+                    profile_targets: Rc::from([]),
+                    process_targets: Rc::from([]),
+                    stabilizer_fits: Rc::from([]),
+                    layers: Rc::from([]),
+                    gasket_supports: Rc::from([]),
+                    fit_parts: Rc::from([]),
+                    fit_parts_resolved: false,
+                    hardware_mounts: Rc::from([]),
+                    suggested_mounts: Rc::from([]),
+                    findings: Rc::from([]),
+                    pair_counterpart: Some("right".into()),
+                    selected_layer: String::new(),
+                    mismatch: None,
+                    editable: true,
+                    disabled_reason: None,
+                    feedback: Rc::from([]),
+                    summary_feedback: None,
+                    on_request: move |request: MechanicalSettingsRequest| {
+                        requests += 1;
+                        last_request.set(format!("{:?}", request.patch));
+                    },
+                    on_select_layer: move |_| {},
+                    on_show_finding: move |_| {},
+                }
+                p { id: "case-paired-disable-last-request", "{last_request}" }
+                p { id: "case-paired-disable-count", "{requests}" }
+            }
+        }
+    }
+
+    #[component]
+    fn PairedRemovalTestPage() -> Element {
+        let request_sequence = use_signal(|| 0_u64);
+        let mut last_request = use_signal(String::new);
+        let mut requests = use_signal(|| 0_u32);
+        rsx! {
+            div { id: "case-paired-removal-test-root",
+                MechanicalSettings {
+                    identity: test_identity_with_instance("left"),
+                    request_sequence,
+                    values: Some(test_values(HardwareTransport::Wired, None)),
+                    profiles: Rc::from([]),
+                    profile_targets: Rc::from([]),
+                    process_targets: Rc::from([]),
+                    stabilizer_fits: Rc::from([]),
+                    layers: Rc::from([]),
+                    gasket_supports: Rc::from([]),
+                    fit_parts: Rc::from([]),
+                    fit_parts_resolved: false,
+                    hardware_mounts: Rc::from([]),
+                    suggested_mounts: Rc::from([]),
+                    findings: Rc::from([]),
+                    pair_counterpart: Some("right".into()),
+                    selected_layer: String::new(),
+                    mismatch: None,
+                    editable: true,
+                    disabled_reason: None,
+                    feedback: Rc::from([]),
+                    summary_feedback: None,
+                    on_request: move |request: MechanicalSettingsRequest| {
+                        requests += 1;
+                        last_request.set(format!("{:?}", request.patch));
+                    },
+                    on_select_layer: move |_| {},
+                    on_show_finding: move |_| {},
+                }
+                p { id: "case-paired-removal-last-request", "{last_request}" }
+                p { id: "case-paired-removal-count", "{requests}" }
+            }
+        }
+    }
+
+    #[component]
+    fn LegacyConstructionTestPage() -> Element {
+        let request_sequence = use_signal(|| 0_u64);
+        let mut last_request = use_signal(String::new);
+        let mut requests = use_signal(|| 0_u32);
+        rsx! {
+            div { id: "case-legacy-construction-test-root",
+                MechanicalSettings {
+                    identity: test_identity_with_instance("left"),
+                    request_sequence,
+                    values: Some(test_values(HardwareTransport::Wired, None)),
+                    profiles: Rc::from([]),
+                    profile_targets: Rc::from([]),
+                    process_targets: Rc::from([]),
+                    stabilizer_fits: Rc::from([]),
+                    layers: Rc::from([]),
+                    gasket_supports: Rc::from([]),
+                    fit_parts: Rc::from([]),
+                    fit_parts_resolved: false,
+                    hardware_mounts: Rc::from([]),
+                    suggested_mounts: Rc::from([]),
+                    findings: Rc::from([]),
+                    construction_is_legacy: true,
+                    selected_layer: String::new(),
+                    mismatch: None,
+                    editable: true,
+                    disabled_reason: None,
+                    feedback: Rc::from([]),
+                    summary_feedback: None,
+                    on_request: move |request: MechanicalSettingsRequest| {
+                        requests += 1;
+                        last_request.set(format!("{:?}", request.patch));
+                    },
+                    on_select_layer: move |_| {},
+                    on_show_finding: move |_| {},
+                }
+                p { id: "case-legacy-construction-last-request", "{last_request}" }
+                p { id: "case-legacy-construction-count", "{requests}" }
+            }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn a_legacy_half_converts_its_construction_only_after_confirming_the_change() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        root.set_id("case-legacy-construction-test-host");
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            test_page_dom(LegacyConstructionTestPage),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        rendered().await;
+
+        // Reachable only for a legacy half, and it submits nothing on its own.
+        let make_local = by_role_name(&root, "button", "Make construction local for left").unwrap();
+        let construction = make_local.closest("fieldset").unwrap().unwrap();
+        assert!(
+            construction
+                .class_name()
+                .split_whitespace()
+                .any(|class| class == "grid")
+        );
+        assert!(make_local.class_name().contains("min-h-control-touch"));
+        assert!(
+            element("#case-legacy-construction-last-request")
+                .text_content()
+                .unwrap()
+                .is_empty(),
+            "showing the conversion control submits nothing"
+        );
+
+        // The confirmation states the whole change before anything is submitted.
+        make_local.click();
+        rendered().await;
+        let confirmation = construction.text_content().unwrap();
+        assert!(
+            confirmation.contains("left")
+                && confirmation.contains("this half's local values")
+                && confirmation.contains("Other legacy halves keep their previous baseline")
+                && confirmation.contains("One Undo"),
+            "the confirmation states what converting construction does, got {confirmation}"
+        );
+        assert!(
+            element("#case-legacy-construction-last-request")
+                .text_content()
+                .unwrap()
+                .is_empty(),
+            "asking for confirmation submits nothing"
+        );
+
+        // Cancelling keeps the shared construction.
+        by_role_name(&root, "button", "Keep shared construction for left")
+            .unwrap()
+            .click();
+        rendered().await;
+        assert!(
+            element("#case-legacy-construction-last-request")
+                .text_content()
+                .unwrap()
+                .is_empty(),
+            "cancelling submits nothing"
+        );
+
+        // Confirming submits exactly one typed conversion naming one instance.
+        by_role_name(&root, "button", "Make construction local for left")
+            .unwrap()
+            .click();
+        rendered().await;
+        by_role_name(
+            &root,
+            "button",
+            "Confirm making construction local for left",
+        )
+        .unwrap()
+        .click();
+        rendered().await;
+        let submitted = element("#case-legacy-construction-last-request")
+            .text_content()
+            .unwrap();
+        assert!(
+            submitted.contains("MaterializeLegacyConstruction")
+                && submitted.contains("instance_ids: [\"left\"]"),
+            "one typed conversion names exactly this half, got {submitted}"
+        );
+        assert_eq!(
+            element("#case-legacy-construction-count")
+                .text_content()
+                .unwrap(),
+            "1",
+            "exactly one conversion edit is submitted"
+        );
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn a_paired_half_removes_only_after_confirming_what_happens() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        root.set_id("case-paired-removal-test-host");
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            test_page_dom(PairedRemovalTestPage),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        rendered().await;
+
+        // The control exists for a linked half and nothing is submitted on its own.
+        let remove = by_role_name(&root, "button", "Remove assembly left").unwrap();
+        assert!(
+            element("#case-paired-removal-last-request")
+                .text_content()
+                .unwrap()
+                .is_empty(),
+            "showing the removal control submits nothing"
+        );
+
+        // The first click asks for explicit confirmation of the whole change.
+        remove.click();
+        rendered().await;
+        let confirmation = root.text_content().unwrap();
+        assert!(
+            confirmation.contains("right")
+                && confirmation.contains("keeps the geometry and settings")
+                && confirmation.contains("boards, PCBs and parts stay")
+                && confirmation.contains("One Undo"),
+            "the confirmation says what removing this half does, got {confirmation}"
+        );
+        assert!(
+            element("#case-paired-removal-last-request")
+                .text_content()
+                .unwrap()
+                .is_empty(),
+            "asking for confirmation submits nothing"
+        );
+
+        // Cancelling keeps everything.
+        by_role_name(&root, "button", "Keep assembly left")
+            .unwrap()
+            .click();
+        rendered().await;
+        assert!(
+            element("#case-paired-removal-last-request")
+                .text_content()
+                .unwrap()
+                .is_empty(),
+            "cancelling submits nothing"
+        );
+
+        // Confirming submits exactly one typed physical-instance removal.
+        by_role_name(&root, "button", "Remove assembly left")
+            .unwrap()
+            .click();
+        rendered().await;
+        by_role_name(&root, "button", "Confirm removing assembly left")
+            .unwrap()
+            .click();
+        rendered().await;
+        let submitted = element("#case-paired-removal-last-request")
+            .text_content()
+            .unwrap();
+        assert!(
+            submitted.contains("RemovePhysicalInstance"),
+            "the confirmation submits the typed removal, got {submitted}"
+        );
+        assert_eq!(
+            element("#case-paired-removal-count")
+                .text_content()
+                .unwrap(),
+            "1",
+            "one typed removal is submitted"
+        );
+        root.remove();
+    }
+
+    fn mount_collection_test_page() -> Element {
+        let request_sequence = use_signal(|| 0_u64);
+        let mut last_request = use_signal(String::new);
+        rsx! {
+            MountCollectionControls {
+                identity: test_identity(),
+                request_sequence,
+                on_request: move |request: MechanicalSettingsRequest| {
+                    last_request.set(format!("{:?}", request.patch))
+                },
+                editable: true,
+                feedback: Rc::from([]),
+                collection: MechanicalMountCollection::Suspension,
+                label: "Suspension mounts",
+                mounts: vec![Mount {
+                    id: "mount-1".into(),
+                    at: Vec2 { x: 2.0, y: 3.0 },
+                    kind: MountKind::Hole,
+                    hole_diameter: 3.2,
+                    boss_diameter: None,
+                    height: None,
+                }],
+                reserved_mount_ids: vec!["mount-1".into()],
+                allow_add: true,
+            }
+            p { id: "case-mount-last-request", "{last_request}" }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn mount_collection_names_its_disclosure_and_submits_typed_mount_changes() {
+        mount_battery_test_page("case-mount-test-root", mount_collection_test_page);
+        rendered().await;
+        let root = element("#case-mount-test-root");
+        by_role_name(&root, "button", "Suspension mounts · 1")
+            .unwrap()
+            .click();
+        rendered().await;
+        by_role_name(&root, "button", "Mount type").unwrap().click();
+        wait_until("the mount types open", || {
+            by_role_name(&root, "listbox", "Mount type").is_some()
+        })
+        .await;
+        tap_option(&by_role_name(&root, "option", "Boss").unwrap());
+        rendered().await;
+        let kind = element("#case-mount-last-request").text_content().unwrap();
+        assert!(
+            kind.contains("SetMountKind") && kind.contains("Boss"),
+            "the mount type submits its typed change, got {kind}"
+        );
+        by_role_name(&root, "button", "Remove Hole 1")
+            .unwrap()
+            .click();
+        rendered().await;
+        let removed = element("#case-mount-last-request").text_content().unwrap();
+        assert!(
+            removed.contains("RemoveMount") && removed.contains("mount-1"),
+            "the row removes its own mount, got {removed}"
+        );
+        root.remove();
+    }
+
+    fn opening_controls_test_page() -> Element {
+        let request_sequence = use_signal(|| 0_u64);
+        let mut last_request = use_signal(String::new);
+        let mut values = test_values(HardwareTransport::Wired, None);
+        values.openings = vec![
+            MechanicalOpening {
+                id: "opening-1".into(),
+                z: 0.0,
+                height: 10.0,
+                next_vertex_identity: 0,
+                vertices: (1..=4)
+                    .map(|vertex| MechanicalOpeningVertex {
+                        id: format!("vertex-{vertex}"),
+                        point: Vec2 {
+                            x: f64::from(vertex),
+                            y: 0.0,
+                        },
+                    })
+                    .collect(),
+            },
+            MechanicalOpening {
+                id: "opening-2".into(),
+                z: 0.0,
+                height: 10.0,
+                next_vertex_identity: 0,
+                vertices: (1..=2)
+                    .map(|vertex| MechanicalOpeningVertex {
+                        id: format!("short-{vertex}"),
+                        point: Vec2 {
+                            x: f64::from(vertex),
+                            y: 0.0,
+                        },
+                    })
+                    .collect(),
+            },
+        ];
+        rsx! {
+            OpeningControls {
+                identity: test_identity(),
+                request_sequence,
+                values,
+                editable: true,
+                feedback: Rc::from([]),
+                on_request: move |request: MechanicalSettingsRequest| {
+                    last_request.set(format!("{:?}", request.patch))
+                },
+                owner_key: "opening-test".to_owned(),
+            }
+            p { id: "case-opening-last-request", "{last_request}" }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn opening_controls_name_their_disclosure_and_submit_typed_opening_changes() {
+        mount_battery_test_page("case-opening-test-root", opening_controls_test_page);
+        rendered().await;
+        let root = element("#case-opening-test-root");
+        by_role_name(&root, "button", "Case openings · 2")
+            .unwrap()
+            .click();
+        rendered().await;
+        by_role_name(&root, "button", "Remove access opening 1 vertex 1")
+            .unwrap()
+            .click();
+        rendered().await;
+        let removed = element("#case-opening-last-request")
+            .text_content()
+            .unwrap();
+        assert!(
+            removed.contains("RemoveOpeningVertex")
+                && removed.contains("opening-1")
+                && removed.contains("vertex-1"),
+            "the vertex removal names its opening and vertex, got {removed}"
+        );
+        by_role_name(&root, "button", "Add vertex to volume 1")
+            .unwrap()
+            .click();
+        rendered().await;
+        let added = element("#case-opening-last-request")
+            .text_content()
+            .unwrap();
+        assert!(
+            added.contains("AddOpeningVertex") && added.contains("opening-1"),
+            "the vertex addition names its opening, got {added}"
+        );
+        by_role_name(&root, "button", "Remove volume 2")
+            .unwrap()
+            .click();
+        rendered().await;
+        let volume = element("#case-opening-last-request")
+            .text_content()
+            .unwrap();
+        assert!(
+            volume.contains("RemoveOpening") && volume.contains("opening-2"),
+            "the volume removal names its opening, got {volume}"
+        );
+        assert!(
+            root.text_content()
+                .unwrap()
+                .contains("An opening footprint needs at least three vertices."),
+            "a short footprint keeps its blocking validation message"
+        );
+        root.remove();
+    }
+
+    fn closure_test_hardware() -> InternalClosureHardware {
+        InternalClosureHardware {
+            drive: ScrewDrive::Hex,
+            installation: InsertInstallation::HeatSet,
+            thread_diameter: 2.0,
+            pitch: 0.4,
+            insert_length: 3.0,
+            thread_start: 0.5,
+            tip_allowance: 0.5,
+            seat_lead_depth: 1.0,
+            seat_lead_diameter: 2.2,
+            bearing_thickness: 1.0,
+            fixed_length: None,
+            length_datum: ScrewLengthDatum::UnderHead,
+            head_profile: ScrewHeadProfile::Flat,
+            id: "closure-1".into(),
+            thread: "M2".into(),
+            screw_lengths: vec![3.0, 4.0],
+            head_diameter: 3.8,
+            head_height: 2.0,
+            hole_diameter: 2.2,
+            insert_diameter: 3.2,
+            seat_diameter: 4.0,
+            seat_depth: 1.0,
+            engagement: 2.5,
+            bottoming_clearance: 0.5,
+            roof: 1.0,
+            surround: 1.5,
+        }
+    }
+
+    fn closure_controls_test_page() -> Element {
+        let request_sequence = use_signal(|| 0_u64);
+        let mut last_request = use_signal(String::new);
+        rsx! {
+            GasketClosureControls {
+                identity: test_identity(),
+                request_sequence,
+                hardware: Some(closure_test_hardware()),
+                editable: true,
+                feedback: Rc::from([]),
+                on_request: move |request: MechanicalSettingsRequest| {
+                    last_request.set(format!("{:?}", request.patch))
+                },
+                owner_key: "closure-test".to_owned(),
+            }
+            p { id: "case-closure-last-request", "{last_request}" }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn closure_controls_name_their_disclosures_and_submit_typed_closure_changes() {
+        mount_battery_test_page("case-closure-test-root", closure_controls_test_page);
+        rendered().await;
+        let root = element("#case-closure-test-root");
+        assert!(
+            by_role_name(&root, "button", "Closure hardware · M2").is_some(),
+            "the open closure disclosure names its thread"
+        );
+        by_role_name(&root, "button", "Insert size")
+            .unwrap()
+            .click();
+        wait_until("the insert sizes open", || {
+            by_role_name(&root, "listbox", "Insert size").is_some()
+        })
+        .await;
+        tap_option(&by_role_name(&root, "option", "M2 × L4 × OD3.2").unwrap());
+        rendered().await;
+        let preset = element("#case-closure-last-request")
+            .text_content()
+            .unwrap();
+        assert!(
+            preset.contains("SetClosureInsertPreset") && preset.contains("m2-4"),
+            "the insert size submits its typed preset, got {preset}"
+        );
+        by_role_name(&root, "button", "Advanced closure dimensions · Custom · mm")
+            .unwrap()
+            .click();
+        rendered().await;
+        by_role_name(&root, "button", "Screw head profile")
+            .unwrap()
+            .click();
+        wait_until("the head profiles open", || {
+            by_role_name(&root, "listbox", "Screw head profile").is_some()
+        })
+        .await;
+        tap_option(&by_role_name(&root, "option", "Countersunk").unwrap());
+        rendered().await;
+        let head = element("#case-closure-last-request")
+            .text_content()
+            .unwrap();
+        assert!(
+            head.contains("SetClosureHeadProfile") && head.contains("Countersunk"),
+            "the head profile submits its typed change, got {head}"
+        );
+        root.remove();
+    }
+
+    fn critical_fit_controls_test_page() -> Element {
+        let request_sequence = use_signal(|| 0_u64);
+        let mut last_request = use_signal(String::new);
+        rsx! {
+            CriticalFitControls {
+                identity: test_identity(),
+                request_sequence,
+                fits: vec![MechanicalCriticalFit {
+                    id: "fit-1".into(),
+                    part_id: "plate".into(),
+                    label: "Plate gap".into(),
+                    from: Vec2 { x: 0.0, y: 0.0 },
+                    to: Vec2 { x: 10.0, y: 0.0 },
+                    tolerance: "±0.1".into(),
+                }],
+                hardware: vec![MechanicalHardwareSpecification {
+                    id: "hw-1".into(),
+                    part_id: "bottom".into(),
+                    feature_id: "mount-1".into(),
+                    designation: "M2x4".into(),
+                    thread: "M2".into(),
+                    length: 4.0,
+                    quantity: 4,
+                    notes: None,
+                    tolerance: None,
+                }],
+                hardware_mounts: Rc::from([
+                    MechanicalHardwareMount {
+                        part_id: "bottom".into(),
+                        part_name: "Bottom".into(),
+                        feature_id: "mount-1".into(),
+                        kind: MountKind::Hole,
+                        x: 2.0,
+                        y: 3.0,
+                    },
+                    MechanicalHardwareMount {
+                        part_id: "bottom".into(),
+                        part_name: "Bottom".into(),
+                        feature_id: "mount-2".into(),
+                        kind: MountKind::Boss,
+                        x: 5.0,
+                        y: 6.0,
+                    },
+                ]),
+                fit_parts: Rc::from([MechanicalFitPart {
+                    id: "plate".into(),
+                    name: "Plate".into(),
+                }]),
+                fit_parts_resolved: true,
+                values: test_values(HardwareTransport::Wired, None),
+                editable: true,
+                feedback: Rc::from([]),
+                on_request: move |request: MechanicalSettingsRequest| {
+                    last_request.set(format!("{:?}", request.patch))
+                },
+                owner_key: "fits-test".to_owned(),
+            }
+            p { id: "case-fits-last-request", "{last_request}" }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn critical_fit_controls_name_their_disclosure_and_submit_typed_fit_changes() {
+        mount_battery_test_page("case-fits-test-root", critical_fit_controls_test_page);
+        rendered().await;
+        let root = element("#case-fits-test-root");
+        assert!(
+            by_role_name(
+                &root,
+                "button",
+                "Hardware & critical fits · 1 hardware · 1 fits"
+            )
+            .is_some(),
+            "the fits disclosure names its counts"
+        );
+        let outputs = root.query_selector_all("output").unwrap();
+        let measurement = (0..outputs.length())
+            .filter_map(|index| outputs.item(index))
+            .filter_map(|node| node.dyn_into::<web_sys::Element>().ok())
+            .find(|output| {
+                output
+                    .text_content()
+                    .is_some_and(|text| text.contains("Measured 10.00 mm"))
+            })
+            .expect("the measured fit is displayed");
+        let classes = measurement.get_attribute("class").unwrap_or_default();
+        for class in ["text-muted-foreground", "text-[11px]", "font-mono"] {
+            assert!(
+                classes.split_whitespace().any(|name| name == class),
+                "measurement uses {class}"
+            );
+        }
+        let paragraphs = root.query_selector_all("p").unwrap();
+        let help = (0..paragraphs.length())
+            .filter_map(|index| paragraphs.item(index))
+            .filter_map(|node| node.dyn_into::<web_sys::Element>().ok())
+            .find(|paragraph| {
+                paragraph
+                    .text_content()
+                    .is_some_and(|text| text.contains("Endpoints are document XY coordinates"))
+            })
+            .expect("the fit coordinate guidance is displayed");
+        let classes = help.get_attribute("class").unwrap_or_default();
+        for class in ["text-muted-foreground", "text-sm", "leading-normal"] {
+            assert!(
+                classes.split_whitespace().any(|name| name == class),
+                "guidance uses {class}"
+            );
+        }
+        by_role_name(&root, "button", "Mount link for hardware hw-1")
+            .unwrap()
+            .click();
+        wait_until("the mount links open", || {
+            by_role_name(&root, "listbox", "Mount link for hardware hw-1").is_some()
+        })
+        .await;
+        tap_option(&by_role_name(&root, "option", "Bottom · boss · 5.0, 6.0 mm").unwrap());
+        rendered().await;
+        let link = element("#case-fits-last-request").text_content().unwrap();
+        assert!(
+            link.contains("SetHardwareMount") && link.contains("mount-2"),
+            "the mount link submits its typed change, got {link}"
+        );
+        by_role_name(&root, "button", "Remove hardware hw-1")
+            .unwrap()
+            .click();
+        rendered().await;
+        let hardware = element("#case-fits-last-request").text_content().unwrap();
+        assert!(
+            hardware.contains("RemoveHardware") && hardware.contains("hw-1"),
+            "the hardware removal names its item, got {hardware}"
+        );
+        by_role_name(&root, "button", "Remove fit fit-1")
+            .unwrap()
+            .click();
+        rendered().await;
+        let fit = element("#case-fits-last-request").text_content().unwrap();
+        assert!(
+            fit.contains("RemoveCriticalFit") && fit.contains("fit-1"),
+            "the fit removal names its item, got {fit}"
+        );
+        root.remove();
+    }
+
+    fn manufacturing_controls_test_page() -> Element {
+        let request_sequence = use_signal(|| 0_u64);
+        let mut last_request = use_signal(String::new);
+        let stabilizer = MechanicalStabilizerOverride {
+            profile: None,
+            part_id: "plate".into(),
+            kind: MechanicalStabilizerKind::PcbMount,
+            units: 6.25,
+            rotation: None,
+        };
+        rsx! {
+            ManufacturingControls {
+                identity: test_identity(),
+                targets: Rc::from([
+                    MechanicalProcessTarget {
+                        part_id: "plate".into(),
+                        name: "Plate".into(),
+                        default_thickness: 1.5,
+                        process: Some(MechanicalPartProcess {
+                            part_id: "plate".into(),
+                            method: PlateMethod::Printed,
+                            material: "PLA".into(),
+                            thickness: 1.5,
+                            constraints_version: String::new(),
+                        }),
+                    },
+                    MechanicalProcessTarget {
+                        part_id: "bottom".into(),
+                        name: "Bottom".into(),
+                        default_thickness: 2.0,
+                        process: None,
+                    },
+                ]),
+                stabilizers: Rc::from([MechanicalStabilizerFit {
+                    part_id: "plate".into(),
+                    reference: "Space".into(),
+                    key_units: 6.25,
+                    default: stabilizer.clone(),
+                    current: stabilizer,
+                }]),
+                editable: true,
+                feedback: Rc::from([]),
+                request_sequence,
+                on_request: move |request: MechanicalSettingsRequest| {
+                    last_request.set(format!("{:?}", request.patch))
+                },
+            }
+            p { id: "case-manufacturing-last-request", "{last_request}" }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn manufacturing_controls_submit_typed_process_and_stabilizer_changes() {
+        mount_battery_test_page(
+            "case-manufacturing-test-root",
+            manufacturing_controls_test_page,
+        );
+        rendered().await;
+        let root = element("#case-manufacturing-test-root");
+        by_role_name(&root, "button", "Method").unwrap().click();
+        wait_until("the methods open", || {
+            by_role_name(&root, "listbox", "Method").is_some()
+        })
+        .await;
+        tap_option(&by_role_name(&root, "option", "CNC machined").unwrap());
+        rendered().await;
+        let method = element("#case-manufacturing-last-request")
+            .text_content()
+            .unwrap();
+        assert!(
+            method.contains("SetProcessMethod") && method.contains("Cnc"),
+            "the method submits its typed change, got {method}"
+        );
+        by_role_name(&root, "button", "Material").unwrap().click();
+        wait_until("the materials open", || {
+            by_role_name(&root, "listbox", "Material").is_some()
+        })
+        .await;
+        tap_option(&by_role_name(&root, "option", "ABS").unwrap());
+        rendered().await;
+        let material = element("#case-manufacturing-last-request")
+            .text_content()
+            .unwrap();
+        assert!(
+            material.contains("SetProcessMaterial") && material.contains("ABS"),
+            "the material submits its typed change, got {material}"
+        );
+        by_role_name(&root, "button", "Remove process override for Plate")
+            .unwrap()
+            .click();
+        rendered().await;
+        let removed = element("#case-manufacturing-last-request")
+            .text_content()
+            .unwrap();
+        assert!(
+            removed.contains("RemoveProcessOverride") && removed.contains("plate"),
+            "the process removal names its part, got {removed}"
+        );
+        by_role_name(&root, "button", "Add process override for Bottom")
+            .unwrap()
+            .click();
+        rendered().await;
+        let added = element("#case-manufacturing-last-request")
+            .text_content()
+            .unwrap();
+        assert!(
+            added.contains("AddProcessOverride") && added.contains("bottom"),
+            "the process addition names its part, got {added}"
+        );
+        by_role_name(&root, "button", "Stabilizer for Space")
+            .unwrap()
+            .click();
+        wait_until("the stabilizers open", || {
+            by_role_name(&root, "listbox", "Stabilizer for Space").is_some()
+        })
+        .await;
+        tap_option(&by_role_name(&root, "option", "None").unwrap());
+        rendered().await;
+        let stabilizer = element("#case-manufacturing-last-request")
+            .text_content()
+            .unwrap();
+        assert!(
+            stabilizer.contains("SetStabilizerKind") && stabilizer.contains("None"),
+            "the stabilizer submits its typed change, got {stabilizer}"
+        );
+        root.remove();
+    }
+
+    fn diagnostics_test_page() -> Element {
+        let mut shown = use_signal(String::new);
+        rsx! {
+            Diagnostics {
+                findings: Rc::from([
+                    MechanicalFindingRow {
+                        id: "finding-error".into(),
+                        severity: Severity::Error,
+                        message: "Wall too thin".into(),
+                    },
+                    MechanicalFindingRow {
+                        id: "finding-warning".into(),
+                        severity: Severity::Warning,
+                        message: "Foam clearance tight".into(),
+                    },
+                ]),
+                on_show_finding: move |id| shown.set(id),
+            }
+            p { id: "case-diagnostics-shown", "{shown}" }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn diagnostics_name_each_finding_and_show_the_chosen_one() {
+        mount_battery_test_page("case-diagnostics-test-root", diagnostics_test_page);
+        rendered().await;
+        let root = element("#case-diagnostics-test-root");
+        let text = root.text_content().unwrap_or_default();
+        assert!(text.contains("Mechanical diagnostics · 2"));
+        assert!(text.contains("Error"));
+        assert!(text.contains("Wall too thin"));
+        assert!(text.contains("Warning"));
+        assert!(text.contains("Foam clearance tight"));
+        by_role_name(&root, "button", "Show finding finding-warning")
+            .unwrap()
+            .click();
+        rendered().await;
+        assert_eq!(
+            element("#case-diagnostics-shown").text_content().as_deref(),
+            Some("finding-warning"),
+            "the chosen finding is shown"
+        );
+        root.remove();
+    }
+
+    fn gasket_context_test_page() -> Element {
+        let request_sequence = use_signal(|| 0_u64);
+        let mut selected = use_signal(|| "gasket:gasket-1:lower".to_owned());
+        rsx! {
+            MechanicalSettings {
+                identity: test_identity(),
+                request_sequence,
+                values: Some(test_values(HardwareTransport::Wired, None)),
+                profiles: Rc::from([]),
+                profile_targets: Rc::from([]),
+                process_targets: Rc::from([]),
+                stabilizer_fits: Rc::from([]),
+                layers: Rc::from([]),
+                gasket_supports: Rc::from([MechanicalGasketSupportRow {
+                    id: "gasket-1".into(),
+                    region_id: "region-1".into(),
+                    outline_key: "outline-1".into(),
+                    anchor: 0.0,
+                    pair_id: None,
+                    length: 10.0,
+                    width: 5.0,
+                    unlinked: true,
+                    fit_error: None,
+                    is_previous: false,
+                }]),
+                fit_parts: Rc::from([]),
+                fit_parts_resolved: false,
+                hardware_mounts: Rc::from([]),
+                suggested_mounts: Rc::from([]),
+                findings: Rc::from([]),
+                selected_layer: selected(),
+                mismatch: None,
+                editable: true,
+                disabled_reason: None,
+                feedback: Rc::from([]),
+                summary_feedback: None,
+                on_request: move |_| {},
+                on_select_layer: move |id| selected.set(id),
+                on_show_finding: move |_| {},
+            }
+            p { id: "case-gasket-selected", "{selected}" }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn gasket_context_names_its_return_and_fields() {
+        mount_battery_test_page("case-gasket-test-root", gasket_context_test_page);
+        rendered().await;
+        let root = element("#case-gasket-test-root");
+        let text = root.text_content().unwrap_or_default();
+        assert!(text.contains("Gasket 1"));
+        assert!(text.contains("Fits at this position."));
+        assert!(by_role_name(&root, "spinbutton", "Cut length").is_some());
+        assert!(by_role_name(&root, "spinbutton", "Pad width").is_some());
+        by_role_name(&root, "button", "All gasket settings")
+            .unwrap()
+            .click();
+        rendered().await;
+        assert_eq!(
+            element("#case-gasket-selected").text_content().as_deref(),
+            Some("gaskets"),
+            "the gasket view returns to all gasket settings"
+        );
+        root.remove();
+    }
+
+    fn setup_basics_test_page() -> Element {
+        let request_sequence = use_signal(|| 0_u64);
+        let mut last_request = use_signal(String::new);
+        let settings = MechanicalSettingsProps {
+            identity: test_identity(),
+            request_sequence,
+            values: Some(test_values(
+                HardwareTransport::Wireless,
+                Some(MechanicalBattery {
+                    cable_width: None,
+                    size: Vec3 {
+                        x: 30.0,
+                        y: 20.0,
+                        z: 6.0,
+                    },
+                    at: Vec2 { x: 12.0, y: -4.0 },
+                    cable_exit: Vec2 { x: 29.0, y: -4.0 },
+                }),
+            )),
+            preview_values: None,
+            profiles: Rc::from([]),
+            extract_profile: None,
+            profile_targets: Rc::from([]),
+            process_targets: Rc::from([]),
+            stabilizer_fits: Rc::from([]),
+            layers: Rc::from([]),
+            gasket_supports: Rc::from([]),
+            fit_parts: Rc::from([]),
+            fit_parts_resolved: false,
+            hardware_mounts: Rc::from([]),
+            suggested_mounts: Rc::from([]),
+            findings: Rc::from([]),
+            pair_features: None,
+            pair_link_options: None,
+            pair_counterpart: None,
+            construction_is_legacy: false,
+            pair_projection_port: None,
+            selected_layer: String::new(),
+            mismatch: None,
+            editable: true,
+            disabled_reason: None,
+            feedback: Rc::from([]),
+            summary_feedback: None,
+            on_request: EventHandler::new(move |request: MechanicalSettingsRequest| {
+                last_request.set(format!("{:?}", request.patch))
+            }),
+            on_select_layer: EventHandler::new(move |_| {}),
+            on_show_finding: EventHandler::new(move |_| {}),
+        };
+        rsx! {
+            MechanicalSetupBasics { settings: settings }
+            p { id: "case-setup-basics-last-request", "{last_request}" }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn setup_basics_submit_typed_mount_battery_and_process_changes() {
+        mount_battery_test_page("case-setup-basics-test-root", setup_basics_test_page);
+        rendered().await;
+        let root = element("#case-setup-basics-test-root");
+        by_role_name(&root, "button", "Case mounting style")
+            .unwrap()
+            .click();
+        wait_until("the mounting styles open", || {
+            by_role_name(&root, "listbox", "Case mounting style").is_some()
+        })
+        .await;
+        tap_option(&by_role_name(&root, "option", "Gasket mount").unwrap());
+        rendered().await;
+        let mount = element("#case-setup-basics-last-request")
+            .text_content()
+            .unwrap();
+        assert!(
+            mount.contains("SetMount") && mount.contains("Gasket"),
+            "the mounting style submits its typed change, got {mount}"
+        );
+        by_role_name(&root, "checkbox", "Include wireless battery")
+            .unwrap()
+            .click();
+        rendered().await;
+        let battery = element("#case-setup-basics-last-request")
+            .text_content()
+            .unwrap();
+        assert_eq!(
+            battery.as_str(),
+            "SetBatteryEnabled(false)",
+            "the battery toggle submits its typed change, got {battery}"
+        );
+        by_role_name(&root, "button", "Case fabrication process")
+            .unwrap()
+            .click();
+        wait_until("the processes open", || {
+            by_role_name(&root, "listbox", "Case fabrication process").is_some()
+        })
+        .await;
+        tap_option(&by_role_name(&root, "option", "CNC machined").unwrap());
+        rendered().await;
+        let process = element("#case-setup-basics-last-request")
+            .text_content()
+            .unwrap();
+        assert!(
+            process.contains("SetMethod") && process.contains("Cnc"),
+            "the process submits its typed change, got {process}"
+        );
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn a_paired_half_disables_with_an_explicit_unlink_explanation_and_one_edit() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        root.set_id("case-paired-disable-test-host");
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            test_page_dom(PairedDisableTestPage),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        rendered().await;
+
+        let explanation = root.text_content().unwrap();
+        assert!(
+            explanation.contains("right")
+                && explanation.contains("keeps its geometry and settings")
+                && explanation.contains("neither PCB is removed")
+                && explanation.contains("One Undo"),
+            "the panel explains what disabling a linked half does, got {explanation}"
+        );
+        by_role_name(&root, "button", "Unlink and disable this half")
+            .unwrap()
+            .click();
+        rendered().await;
+        let submitted = element("#case-paired-disable-last-request")
+            .text_content()
+            .unwrap();
+        assert!(
+            submitted.contains("Disable") && !submitted.contains("Unlink"),
+            "one typed Disable carries the whole decision, got {submitted}"
+        );
+        assert_eq!(
+            element("#case-paired-disable-count")
+                .text_content()
+                .unwrap(),
+            "1",
+            "exactly one edit is submitted, with no separate unlink item"
+        );
+        root.remove();
+    }
+
+    fn link_options() -> Rc<[MechanicalPairLinkOption]> {
+        Rc::from([
+            MechanicalPairLinkOption {
+                pair_id: "pair/left".into(),
+                instance_id: "left".into(),
+                other_instance_id: "right".into(),
+                other_name: "Right half".into(),
+                derived_mapping: Some(Pose2 {
+                    at: Vec2::default(),
+                    rotation: 0.0,
+                }),
+                construction_source: "left".into(),
+                correspondences: vec![
+                    boardstudio_core::mechanical::change::MechanicalFeatureCorrespondence {
+                        kind: MechanicalFeatureKind::Mount,
+                        first_feature_id: "mount-1".into(),
+                        second_feature_id: "mount-1".into(),
+                        source_instance_id: None,
+                    },
+                ],
+                matched_features: "Mount mount-1".into(),
+                matched: vec![crate::mechanical_pair::MechanicalPairMatchedFeature {
+                    kind: MechanicalFeatureKind::Mount,
+                    first_feature_id: "mount-1-left".into(),
+                    second_feature_id: "mount-1-right".into(),
+                    first_geometry: Some("Mount at (2.0, 3.0)".into()),
+                    second_geometry: Some("Mount at (-2.0, 3.0)".into()),
+                    source_instance_id: "left".into(),
+                }],
+                reviewed_fingerprint: Some("reviewed-link".into()),
+                preview: Some(crate::mechanical_pair::MechanicalLinkPreview {
+                    members: vec![
+                        crate::mechanical_pair::MechanicalLinkMemberPreview {
+                            instance_id: "left".into(),
+                            features: vec!["Mount at (2.0, 3.0)".into()],
+                            findings: vec![],
+                        },
+                        crate::mechanical_pair::MechanicalLinkMemberPreview {
+                            instance_id: "right".into(),
+                            features: vec!["Mount at (-2.0, 3.0)".into()],
+                            findings: vec![],
+                        },
+                    ],
+                }),
+                preview_note: None,
+            },
+            MechanicalPairLinkOption {
+                pair_id: "pair/left".into(),
+                instance_id: "left".into(),
+                other_instance_id: "lower".into(),
+                other_name: "Lower half".into(),
+                derived_mapping: None,
+                construction_source: "left".into(),
+                correspondences: vec![
+                    boardstudio_core::mechanical::change::MechanicalFeatureCorrespondence {
+                        kind: MechanicalFeatureKind::Mount,
+                        first_feature_id: "mount-1-left".into(),
+                        second_feature_id: "mount-1-right".into(),
+                        source_instance_id: Some("left".into()),
+                    },
+                ],
+                matched_features: "Mount mount-1-left · mount-1-right".into(),
+                matched: vec![crate::mechanical_pair::MechanicalPairMatchedFeature {
+                    kind: MechanicalFeatureKind::Mount,
+                    first_feature_id: "mount-1-left".into(),
+                    second_feature_id: "mount-1-right".into(),
+                    first_geometry: Some("Mount at (2.0, 3.0)".into()),
+                    second_geometry: Some("Mount at (-2.0, 3.0)".into()),
+                    source_instance_id: "left".into(),
+                }],
+                reviewed_fingerprint: Some("reviewed-link-explicit".into()),
+                preview: None,
+                preview_note: Some("the reviewed configuration needs a catalogue template".into()),
+            },
+        ])
+    }
+
+    /// A stand-in for the mount's projection port: it reports the reviewed map it was
+    /// given, which is what the review displays and commits.
+    fn echo_projection_port() -> crate::mechanical_pair::MechanicalPairProjectionPort {
+        crate::mechanical_pair::MechanicalPairProjectionPort(Rc::new(|change| {
+            let boardstudio_core::mechanical::change::MechanicalChange::LinkMirrorPair {
+                mapping,
+                ..
+            } = change
+            else {
+                return Err("not a reviewed link".into());
+            };
+            let text = format!(
+                "offset ({:?}, {:?}) rotation {:?}",
+                mapping.at.x, mapping.at.y, mapping.rotation
+            );
+            Ok(crate::mechanical_pair::MechanicalLinkPreview {
+                members: vec![
+                    crate::mechanical_pair::MechanicalLinkMemberPreview {
+                        instance_id: "left".into(),
+                        features: vec![text.clone()],
+                        findings: vec![],
+                    },
+                    crate::mechanical_pair::MechanicalLinkMemberPreview {
+                        instance_id: "right".into(),
+                        features: vec![text],
+                        findings: vec![],
+                    },
+                ],
+            })
+        }))
+    }
+
+    #[component]
+    fn PairLinkTestPage() -> Element {
+        let request_sequence = use_signal(|| 0_u64);
+        let mut last_request = use_signal(String::new);
+        rsx! {
+            div { id: "case-pair-link-test-root",
+                MechanicalSettings {
+                    identity: test_identity(),
+                    request_sequence,
+                    values: Some(test_values(HardwareTransport::Wired, None)),
+                    profiles: Rc::from([]),
+                    profile_targets: Rc::from([]),
+                    process_targets: Rc::from([]),
+                    stabilizer_fits: Rc::from([]),
+                    layers: Rc::from([]),
+                    gasket_supports: Rc::from([]),
+                    fit_parts: Rc::from([]),
+                    fit_parts_resolved: false,
+                    hardware_mounts: Rc::from([]),
+                    suggested_mounts: Rc::from([]),
+                    findings: Rc::from([]),
+                    pair_link_options: Some(link_options()),
+                    pair_projection_port: Some(echo_projection_port()),
+                    selected_layer: String::new(),
+                    mismatch: None,
+                    editable: true,
+                    disabled_reason: None,
+                    feedback: Rc::from([]),
+                    summary_feedback: None,
+                    on_request: move |request: MechanicalSettingsRequest| {
+                        last_request.set(format!(
+                            "{:?}|reviewed={:?}",
+                            request.patch, request.reviewed_fingerprint
+                        ));
+                    },
+                    on_select_layer: move |_| {},
+                    on_show_finding: move |_| {},
+                }
+                p { id: "case-pair-link-last-request", "{last_request}" }
+            }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn link_controls_review_a_candidate_and_submit_the_reviewed_link() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        root.set_id("case-pair-link-test-host");
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            test_page_dom(PairLinkTestPage),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        rendered().await;
+
+        // The review shows the map the link will use and the durable matches before
+        // anything is submitted.
+        by_role_name(&root, "button", "Linked halves")
+            .unwrap()
+            .click();
+        rendered().await;
+        let review = root.text_content().unwrap();
+        assert!(
+            review.contains("Mirror another half"),
+            "the link review renders its heading, got {review}"
+        );
+        assert!(
+            review.contains("Derived from the halves' declared transforms"),
+            "the review explains the map, got {review}"
+        );
+        assert!(
+            review.contains("Mount mount-1-left · mount-1-right"),
+            "the review lists the durable-id matches, got {review}"
+        );
+        assert!(
+            element("#case-pair-link-last-request")
+                .text_content()
+                .unwrap()
+                .is_empty(),
+            "the review submits nothing by itself"
+        );
+
+        // Both halves of the complete proposed result are rendered before the commit,
+        // read from Core rather than computed in the panel.
+        let both_halves = root.text_content().unwrap();
+        assert!(
+            both_halves.contains("left")
+                && both_halves.contains("right")
+                && both_halves.contains("offset (0.0, 0.0) rotation 0.0"),
+            "the review shows both halves of the proposed result, got {both_halves}"
+        );
+
+        // Each match chooses its own source half, independently of the construction
+        // source and of the other matches.
+        by_role_name(&root, "button", "Source for mount-1-left")
+            .unwrap()
+            .click();
+        wait_until("the source choices open", || {
+            by_role_name(&root, "listbox", "Source for mount-1-left").is_some()
+        })
+        .await;
+        assert!(
+            by_role_name(&root, "option", "right · Mount at (-2.0, 3.0)").is_some(),
+            "the other half's geometry is shown for the choice"
+        );
+        tap_option(&by_role_name(&root, "option", "right · Mount at (-2.0, 3.0)").unwrap());
+        rendered().await;
+
+        by_role_name(&root, "button", "Link left with right")
+            .unwrap()
+            .click();
+        rendered().await;
+        let linked = element("#case-pair-link-last-request")
+            .text_content()
+            .unwrap();
+        assert!(
+            linked.contains("LinkMirrorPair")
+                && linked.contains("pair/left")
+                && linked.contains("mount-1"),
+            "the confirmed link submits the reviewed pair, got {linked}"
+        );
+        assert!(
+            linked.contains("rotation: 0.0"),
+            "the submitted link carries the reviewed map, got {linked}"
+        );
+        assert!(
+            linked.contains("reviewed=Some(\"reviewed-link\")"),
+            "the link submission carries the fingerprint of the candidate the user reviewed, got {linked}"
+        );
+        assert!(
+            linked.contains("source_instance_id: Some(\"right\")"),
+            "the link submission carries the source the user chose for that feature, got {linked}"
+        );
+        assert!(
+            linked.contains("source_instance_id: Some(\"right\")")
+                && linked.matches("source_instance_id: Some(").count() == 1,
+            "each match carries its own source choice, got {linked}"
+        );
+
+        // A translated frame has no derived map: the review asks for one explicitly.
+        by_role_name(&root, "button", "Link with").unwrap().click();
+        wait_until("the link candidates open", || {
+            by_role_name(&root, "listbox", "Link with").is_some()
+        })
+        .await;
+        tap_option(&by_role_name(&root, "option", "Lower half").unwrap());
+        rendered().await;
+        assert!(
+            by_role_name(&root, "spinbutton", "Pair mapping X").is_some(),
+            "a translated frame gets explicit mapping inputs"
+        );
+        assert!(
+            root.text_content()
+                .unwrap()
+                .contains("complete proposed result is unavailable"),
+            "a candidate without a projection says so instead of showing a partial result"
+        );
+        let blocked_link = by_role_name(&root, "button", "Link left with lower").unwrap();
+        assert_eq!(
+            js_sys::Reflect::get(&blocked_link, &"disabled".into())
+                .unwrap()
+                .as_bool(),
+            Some(true),
+            "the explicit map is required before the link can be committed"
+        );
+
+        let mapping_input = |name: &str, value: &str| {
+            let input: web_sys::HtmlInputElement = by_role_name(&root, "spinbutton", name)
+                .unwrap()
+                .dyn_into()
+                .unwrap();
+            input.set_value(value);
+            let event = web_sys::EventInit::new();
+            event.set_bubbles(true);
+            input
+                .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
+                .unwrap();
+        };
+        mapping_input("Pair mapping X", "30");
+        mapping_input("Pair mapping Y", "-5");
+        mapping_input("Pair mapping rotation", "180");
+        rendered().await;
+        by_role_name(&root, "button", "Link left with lower")
+            .unwrap()
+            .click();
+        rendered().await;
+        let explicit = element("#case-pair-link-last-request")
+            .text_content()
+            .unwrap();
+        assert!(
+            explicit.contains("LinkMirrorPair")
+                && explicit.contains("lower")
+                && explicit.contains("x: 30.0")
+                && explicit.contains("y: -5.0")
+                && explicit.contains("rotation: 180.0"),
+            "the explicit reviewed map is submitted for a translated frame, got {explicit}"
+        );
+        assert!(
+            explicit.contains("reviewed=Some(\"reviewed-link-explicit\")"),
+            "the explicit-map candidate's own review fingerprint travels with it, got {explicit}"
+        );
+        root.remove();
+    }
+}
+
+#[cfg(test)]
+mod mounted_settlement_tests {
+    use super::*;
+    use crate::mechanical_settings_controller::{
+        MechanicalSettingsController, MechanicalSettingsCurrent, MechanicalSettingsPorts,
+    };
+    use crate::runtime::{Runtime, project_name_test_support as support};
+    use boardstudio_application::Event;
+    use boardstudio_core::model::{
+        GasketConstructionVersion, InternalGasketConfiguration, PartDefinition, ProjectDoc,
+    };
+    use boardstudio_web_ui_shared::{
+        test_role::by_role_name,
+        test_wait::{wait_until, wait_until_future},
+    };
+    use futures_channel::oneshot;
+    use std::{cell::RefCell, collections::VecDeque};
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    #[derive(Clone, Default)]
+    struct TestCatalogue(Rc<RefCell<VecDeque<CatalogueReply>>>);
+
+    type CatalogueReply = oneshot::Receiver<Result<(), String>>;
+
+    /// The normalized mounting-hole definition Core validates on every supplied
+    /// template: the `ceoloide/mounting_hole_npth` source with a drilled pad.
+    fn template() -> Rc<PartDefinition> {
+        Rc::new(
+            serde_json::from_value(serde_json::json!({
+            "id": "generator:ceoloide/mounting_hole_npth", "name": "mounting hole npth",
+            "kind": "custom",
+            "pads": [{
+                "id": "pad-0", "number": "", "at": { "x": 0, "y": 0 },
+                "size": { "x": 2.2, "y": 2.2 }, "shape": "circle", "drill": 2.2,
+                "plated": false, "rotation": 0
+            }],
+            "courtyard": [
+                { "x": -1.1, "y": -1.1 }, { "x": 1.1, "y": -1.1 },
+                { "x": 1.1, "y": 1.1 }, { "x": -1.1, "y": 1.1 }
+            ],
+            "envelopeSource": { "courtyard": "generated" },
+            "envelopeNotice": "No closed courtyard is available; the outline uses physical graphics and pad extents.",
+            "generator": { "source": "ceoloide/mounting_hole_npth", "version": "bundled-1", "parameters": {} }
+        }))
+            .unwrap(),
+        )
+    }
+
+    fn profile() -> MechanicalPartProfile {
+        MechanicalPartProfile {
+            definition_id: "part-profile".into(),
+            source: "Authored".into(),
+            source_geometry: None,
+            pcb_holes: None,
+            clearance_volumes: None,
+            openings: Some(vec![CaseOpening {
+                points: vec![
+                    Vec2 { x: 0.0, y: 0.0 },
+                    Vec2 { x: 5.0, y: 0.0 },
+                    Vec2 { x: 5.0, y: 5.0 },
+                    Vec2 { x: 0.0, y: 5.0 },
+                ],
+                z: 0.0,
+                height: 10.0,
+            }]),
+            clearances: None,
+            supported_thickness: None,
+            switch_family: None,
+            cutouts: vec![],
+            plate_to_pcb: 3.5,
+        }
+    }
+
+    fn host() -> Element {
+        let runtime = use_context::<Rc<Runtime>>();
+        let version = use_signal(|| 0_u64);
+        use_hook({
+            let runtime = runtime.clone();
+            move || {
+                runtime.subscribe(Rc::new(move || {
+                    let mut version = version;
+                    version += 1;
+                }))
+            }
+        });
+        let _ = version();
+        let feedback = use_signal(Vec::<MechanicalSettingsFeedback>::new);
+        let sequence = use_signal(|| 0_u64);
+        let mut show_dimension = use_signal(|| true);
+        let mut show_case = use_signal(|| true);
+        let mut presentation_generation = use_signal(|| 1_u64);
+        let catalogue = use_context::<TestCatalogue>();
+        let current = {
+            let runtime = runtime.clone();
+            Rc::new(move || {
+                let model = runtime.model();
+                let accepted = model.accepted?;
+                Some(MechanicalSettingsCurrent {
+                    identity: MechanicalSettingsIdentity {
+                        editor_instance_id: 1,
+                        scope_generation: 1,
+                        presentation_generation: presentation_generation(),
+                        scope: runtime.scope()?,
+                        snapshot_token: accepted.token,
+                        revision: accepted.document.revision,
+                        active_board_id: "board".into(),
+                        configuration_board_id: "board".into(),
+                    },
+                    configuration: accepted.document.mechanical.clone().map(Rc::new),
+                    accepted,
+                    editable: show_case(),
+                    lifecycle: model.lifecycle,
+                    durability: model.durability,
+                })
+            })
+        };
+        let controller = use_hook({
+            let current = current.clone();
+            let runtime = runtime.clone();
+            move || {
+                MechanicalSettingsController::new(MechanicalSettingsPorts {
+                    current,
+                    load_mounting_hole: Rc::new(move || {
+                        let reply = catalogue.0.borrow_mut().pop_front();
+                        Box::pin(async move {
+                            if let Some(reply) = reply {
+                                reply.await.unwrap()?;
+                            }
+                            Ok(template())
+                        })
+                    }),
+                    edit_port: Rc::new(runtime),
+                    publish: Rc::new(move |entry| {
+                        let mut feedback = feedback;
+                        feedback.write().push(entry);
+                    }),
+                })
+            }
+        });
+        use_context_provider(|| controller.clone());
+        use_effect(use_reactive(
+            (&version(), &presentation_generation(), &show_case()),
+            {
+                let controller = controller.clone();
+                move |_| controller.settle()
+            },
+        ));
+        let current = current().unwrap();
+        let configuration = current.configuration.unwrap();
+        let dimension_controller = controller.clone();
+        let text_controller = controller.clone();
+        let profile_controller = controller.clone();
+        let profile = configuration.profiles[0].clone();
+        rsx! {
+            span { class: "test-revision", "{current.identity.revision}" }
+            button { class: "test-toggle-dimension", onclick: move |_| show_dimension.toggle(), "Toggle dimension" }
+            button { class: "test-toggle-case", onclick: move |_| {
+                presentation_generation += 1;
+                show_case.toggle();
+            }, "Toggle Case" }
+            if show_case() {
+            if show_dimension() {
+            div { class: "test-mechanical-dimension",
+                DimensionField {
+                    identity: current.identity.clone(), request_sequence: sequence,
+                    feedback: Rc::from(feedback().as_slice()),
+                    field: MechanicalDimension::WallThickness, label: "Wall thickness",
+                    value: configuration.wall_thickness, editable: true,
+                    on_request: move |request| { dimension_controller.submit(request); },
+                }
+            }
+            }
+            div { class: "test-mechanical-text",
+                TextDraftField {
+                    identity: current.identity.clone(), request_sequence: sequence,
+                    feedback: Rc::from(feedback().as_slice()), label: "Thread",
+                    value: configuration.internal_gasket.as_ref().unwrap().hardware.thread.clone(),
+                    intent: MechanicalTextIntent::ClosureThread, editable: true,
+                    on_request: move |request| { text_controller.submit(request); },
+                }
+            }
+            div { class: "test-mechanical-profile",
+                ProfileOpeningListEditor {
+                    identity: current.identity, request_sequence: sequence,
+                    feedback: Rc::from(feedback().as_slice()),
+                    profile: profile.clone(),
+                    clearance_volume: false, title: "Access openings",
+                    openings: profile.openings.clone().unwrap(), editable: true,
+                    on_request: move |request| { profile_controller.submit(request); },
+                    on_change: move |_| {},
+                }
+            }
+            }
+        }
+    }
+
+    async fn mounted_fields(project_id: &str) -> (Rc<Runtime>, web_sys::Element) {
+        mounted_fields_with_catalogue(project_id, TestCatalogue::default()).await
+    }
+
+    async fn mounted_fields_with_catalogue(
+        project_id: &str,
+        catalogue: TestCatalogue,
+    ) -> (Rc<Runtime>, web_sys::Element) {
+        let runtime = support::new_runtime();
+        let mut document = ProjectDoc::empty(project_id, "Mechanical field settlement");
+        document.boards.push(
+            serde_json::from_value(serde_json::json!({
+                "id": "board", "name": "Board", "outlineIds": [], "partIds": [],
+                "netIds": [], "thickness": 1.6, "traces": [], "vias": []
+            }))
+            .unwrap(),
+        );
+        let hardware = InternalClosureHardware {
+            id: "custom-m2".into(),
+            thread: "M2".into(),
+            screw_lengths: vec![8.0, 10.0, 12.0],
+            thread_diameter: 2.0,
+            pitch: 0.4,
+            drive: ScrewDrive::Hex,
+            installation: InsertInstallation::HeatSet,
+            length_datum: ScrewLengthDatum::UnderHead,
+            head_profile: ScrewHeadProfile::Flat,
+            fixed_length: None,
+            head_diameter: 4.0,
+            head_height: 1.0,
+            hole_diameter: 2.2,
+            insert_diameter: 3.2,
+            insert_length: 3.0,
+            seat_diameter: 2.8,
+            seat_depth: 3.5,
+            engagement: 2.5,
+            thread_start: 0.2,
+            tip_allowance: 0.1,
+            bottoming_clearance: 0.5,
+            roof: 1.5,
+            surround: 1.5,
+            seat_lead_depth: 0.25,
+            seat_lead_diameter: 3.0,
+            bearing_thickness: 1.5,
+        };
+        let gasket = InternalGasketConfiguration {
+            version: GasketConstructionVersion::InternalV1,
+            minimum_wall: 2.0,
+            support_clearance: None,
+            tolerance: 0.05,
+            support_count: 4,
+            auto_count: Some(true),
+            hardware,
+        };
+        document.mechanical = Some(
+            serde_json::from_value(serde_json::json!({
+                "boardId": "board", "method": "printed", "mount": "rigid",
+                "plateThickness": 1.5, "plateFoamThickness": 0.5, "pcbThickness": 1.6,
+                "bottomFoamThickness": 0.4, "batteryHeight": 4.0, "bottomThickness": 3.0,
+                "plateToPcb": 3.5, "wallThickness": 2.0, "clearance": 0.3, "profiles": [profile()],
+                "closureMounts": [], "internalGasket": gasket,
+            }))
+            .unwrap(),
+        );
+        support::open_document(&runtime, document).await;
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(host);
+        dom.provide_root_context(runtime.clone());
+        dom.provide_root_context(catalogue);
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_until("the mounted mechanical fields render", || {
+            has(&root, ".test-mechanical-dimension input")
+                && has(&root, ".test-mechanical-text input")
+        })
+        .await;
+        (runtime, root)
+    }
+
+    async fn rendered() {
+        gloo_timers::future::TimeoutFuture::new(40).await;
+    }
+
+    async fn settle_until(runtime: &Rc<Runtime>, what: &str, done: impl Fn() -> bool) {
+        wait_until(what, || {
+            support::drive_pending(runtime);
+            done()
+        })
+        .await;
+    }
+
+    fn wall_thickness(runtime: &Runtime) -> f64 {
+        runtime
+            .model()
+            .accepted
+            .unwrap()
+            .document
+            .mechanical
+            .as_ref()
+            .unwrap()
+            .wall_thickness
+    }
+
+    fn accepted_revision(runtime: &Runtime) -> u64 {
+        runtime.model().accepted.unwrap().document.revision
+    }
+
+    /// Whether the host has rendered the revision Core accepted last: Core state reaches the
+    /// fields only through a render, so a wait on the revision alone can pass before it.
+    fn rendered_accepted(runtime: &Runtime, root: &web_sys::Element) -> bool {
+        root.query_selector(".test-revision")
+            .ok()
+            .flatten()
+            .and_then(|marker| marker.text_content())
+            .is_some_and(|text| text == accepted_revision(runtime).to_string())
+    }
+
+    fn has(root: &web_sys::Element, selector: &str) -> bool {
+        root.query_selector(selector).ok().flatten().is_some()
+    }
+
+    /// Short drain, kept only where the test asserts a stale outcome does not land.
+    async fn settle_fields(runtime: &Rc<Runtime>) {
+        for _ in 0..2 {
+            support::run_pending(runtime).await;
+            rendered().await;
+        }
+    }
+
+    fn input(root: &web_sys::Element, field: &str) -> HtmlInputElement {
+        let (role, name) = if field == "dimension" {
+            ("spinbutton", "Wall thickness")
+        } else {
+            ("textbox", "Thread")
+        };
+        if field == "dimension" {
+            by_role_name(root, role, name).unwrap().dyn_into().unwrap()
+        } else {
+            // The 018 text owner is still native and retains its implicit wrapping label.
+            root.query_selector(".test-mechanical-text input")
+                .unwrap()
+                .unwrap()
+                .dyn_into()
+                .unwrap()
+        }
+    }
+
+    fn type_value(input: &HtmlInputElement, value: &str) {
+        input.focus().unwrap();
+        input.set_value(value);
+        let event = web_sys::EventInit::new();
+        event.set_bubbles(true);
+        input
+            .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
+            .unwrap();
+    }
+
+    fn inline_failure(root: &web_sys::Element, field: &str) -> Option<String> {
+        root.query_selector(&format!(".test-mechanical-{field} [role='alert']"))
+            .unwrap()
+            .and_then(|alert| alert.text_content())
+    }
+
+    async fn dispose(runtime: &Rc<Runtime>, root: web_sys::Element, project_id: &str) {
+        runtime
+            .store
+            .delete_project(project_id.into())
+            .await
+            .unwrap();
+        runtime.unsubscribe();
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn a_newer_original_mechanical_draft_survives_an_older_held_landing() {
+        for (field, submitted, original) in [("dimension", "3", "2"), ("text", "M3", "M2")] {
+            let project_id = format!("mechanical-original-{field}");
+            let (runtime, root) = mounted_fields(&project_id).await;
+            let (entered, release) = support::gate_next_core_reply(&runtime);
+            let input = input(&root, field);
+            type_value(&input, submitted);
+            input.blur().unwrap();
+            rendered().await;
+            support::drive_pending(&runtime);
+            wait_until_future("the held edit reaches the Core executor", entered)
+                .await
+                .unwrap();
+            type_value(&input, original);
+            let landed = accepted_revision(&runtime);
+            release.send(()).unwrap();
+            settle_until(
+                &runtime,
+                "the held landing is accepted and the newer original draft stays",
+                || {
+                    accepted_revision(&runtime) > landed
+                        && rendered_accepted(&runtime, &root)
+                        && input.value() == original
+                },
+            )
+            .await;
+            assert_eq!(
+                input.value(),
+                original,
+                "returning to the original accepted text remains a newer draft"
+            );
+            assert!(inline_failure(&root, field).is_none());
+            dispose(&runtime, root, &project_id).await;
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_mechanical_latest_commit_keeps_both_edits_and_undo_steps() {
+        let project_id = "mechanical-mounted-latest";
+        let (runtime, root) = mounted_fields(project_id).await;
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        let input = input(&root, "dimension");
+        type_value(&input, "3");
+        input.blur().unwrap();
+        rendered().await;
+        support::drive_pending(&runtime);
+        wait_until_future("the held edit reaches the Core executor", entered)
+            .await
+            .unwrap();
+        type_value(&input, "4");
+        input.blur().unwrap();
+        rendered().await;
+        support::drive_pending(&runtime);
+        release.send(()).unwrap();
+        settle_until(&runtime, "the latest mechanical commit is accepted", || {
+            wall_thickness(&runtime) == 4.0 && input.value() == "4"
+        })
+        .await;
+        assert_eq!(
+            runtime
+                .model()
+                .accepted
+                .unwrap()
+                .document
+                .mechanical
+                .as_ref()
+                .unwrap()
+                .wall_thickness,
+            4.0
+        );
+        assert_eq!(input.value(), "4");
+        for (accepted, expected_text) in [(3.0, "3"), (2.0, "2")] {
+            runtime.submit(Event::Undo {
+                operation_id: runtime.operation(),
+            });
+            settle_until(
+                &runtime,
+                "the undo restores the earlier accepted step",
+                || wall_thickness(&runtime) == accepted && input.value() == expected_text,
+            )
+            .await;
+            assert_eq!(
+                runtime
+                    .model()
+                    .accepted
+                    .unwrap()
+                    .document
+                    .mechanical
+                    .as_ref()
+                    .unwrap()
+                    .wall_thickness,
+                accepted
+            );
+            assert_eq!(input.value(), expected_text);
+        }
+        dispose(&runtime, root, project_id).await;
+    }
+    #[wasm_bindgen_test]
+    async fn catalogue_failure_restores_only_unchanged_drafts_and_reports_beside_newer_text() {
+        for (field, submitted, newer, expected) in [
+            ("dimension", "3", None, "2"),
+            ("dimension", "3", Some("4"), "4"),
+            ("dimension", "3", Some("2"), "2"),
+            ("text", "M3", None, "M2"),
+            ("text", "M3", Some("M4"), "M4"),
+            ("text", "M3", Some("M2"), "M2"),
+        ] {
+            let (release, reply) = oneshot::channel();
+            let catalogue = TestCatalogue::default();
+            catalogue.0.borrow_mut().push_back(reply);
+            let project_id = format!("mechanical-catalogue-{field}-{expected}");
+            let (runtime, root) = mounted_fields_with_catalogue(&project_id, catalogue).await;
+            let input = input(&root, field);
+            type_value(&input, submitted);
+            input.blur().unwrap();
+            rendered().await;
+            if let Some(newer) = newer {
+                type_value(&input, newer);
+            }
+            release.send(Err("catalogue unavailable".into())).unwrap();
+            settle_until(
+                &runtime,
+                "the catalogue failure restores or keeps the draft",
+                || {
+                    input.value() == expected
+                        && wall_thickness(&runtime) == 2.0
+                        && inline_failure(&root, field)
+                            .is_some_and(|message| message.contains("catalogue unavailable"))
+                },
+            )
+            .await;
+            assert_eq!(input.value(), expected);
+            assert!(
+                inline_failure(&root, field)
+                    .is_some_and(|message| message.contains("catalogue unavailable"))
+            );
+            assert_eq!(
+                runtime
+                    .model()
+                    .accepted
+                    .unwrap()
+                    .document
+                    .mechanical
+                    .as_ref()
+                    .unwrap()
+                    .wall_thickness,
+                2.0
+            );
+            dispose(&runtime, root, &project_id).await;
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn preparation_from_an_unmounted_field_cannot_bind_a_replacement_field() {
+        let (release, reply) = oneshot::channel();
+        let catalogue = TestCatalogue::default();
+        catalogue.0.borrow_mut().push_back(reply);
+        let project_id = "mechanical-preparation-remount";
+        let (runtime, root) = mounted_fields_with_catalogue(project_id, catalogue).await;
+        support::fail_next_core_reply(&runtime, "old preparation failed");
+        let old_input = input(&root, "dimension");
+        type_value(&old_input, "3");
+        old_input.blur().unwrap();
+        rendered().await;
+        let toggle = root
+            .query_selector(".test-toggle-dimension")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap();
+        toggle.click();
+        rendered().await;
+        assert!(
+            root.query_selector(".test-mechanical-dimension")
+                .unwrap()
+                .is_none()
+        );
+        toggle.click();
+        rendered().await;
+        let replacement = input(&root, "dimension");
+        type_value(&replacement, "3");
+        release.send(Ok(())).unwrap();
+        settle_fields(&runtime).await;
+        assert_eq!(
+            replacement.value(),
+            "3",
+            "the old submission must not restore the replacement's identical draft"
+        );
+        assert!(
+            inline_failure(&root, "dimension").is_none(),
+            "the old outcome must not reach the replacement binding"
+        );
+        assert_eq!(
+            runtime
+                .model()
+                .accepted
+                .unwrap()
+                .document
+                .mechanical
+                .as_ref()
+                .unwrap()
+                .wall_thickness,
+            2.0
+        );
+        dispose(&runtime, root, project_id).await;
+    }
+
+    fn profile_input(root: &web_sys::Element, dimension: &str) -> HtmlInputElement {
+        by_role_name(
+            root,
+            "spinbutton",
+            &format!("Access openings volume 1 {dimension}"),
+        )
+        .unwrap()
+        .dyn_into()
+        .unwrap()
+    }
+
+    fn failure_at(input: &HtmlInputElement) -> Option<String> {
+        input
+            .closest("[data-slot=field]")
+            .unwrap()
+            .unwrap()
+            .query_selector("[role='alert']")
+            .unwrap()
+            .and_then(|alert| alert.text_content())
+    }
+
+    #[wasm_bindgen_test]
+    async fn profile_volume_siblings_bind_distinct_fields_for_the_same_domain_request() {
+        let project_id = "mechanical-profile-siblings";
+        let (runtime, root) = mounted_fields(project_id).await;
+        support::fail_next_core_reply(&runtime, "profile volume failed");
+        let bottom = profile_input(&root, "Bottom Z");
+        let height = profile_input(&root, "Height");
+        type_value(&bottom, "2");
+        bottom.blur().unwrap();
+        rendered().await;
+        type_value(&height, "15");
+        settle_until(
+            &runtime,
+            "the profile volume failure restores its field",
+            || {
+                bottom.value() == "0"
+                    && failure_at(&bottom)
+                        .is_some_and(|message| message.contains("profile volume failed"))
+            },
+        )
+        .await;
+        assert_eq!(bottom.value(), "0");
+        assert!(
+            failure_at(&bottom).is_some_and(|message| message.contains("profile volume failed"))
+        );
+        assert_eq!(
+            height.value(),
+            "15",
+            "an untouched sibling's newer draft stays visible"
+        );
+        assert!(
+            failure_at(&height).is_none(),
+            "failure belongs to the submitted profile dimension"
+        );
+        dispose(&runtime, root, project_id).await;
+    }
+
+    #[wasm_bindgen_test]
+    async fn catalogue_latest_preparation_error_survives_older_failure_arriving_last() {
+        let (release_a, reply_a) = oneshot::channel();
+        let (release_b, reply_b) = oneshot::channel();
+        let catalogue = TestCatalogue::default();
+        catalogue.0.borrow_mut().extend([reply_a, reply_b]);
+        let project_id = "mechanical-catalogue-latest-error";
+        let (runtime, root) = mounted_fields_with_catalogue(project_id, catalogue).await;
+        let input = input(&root, "dimension");
+        for _ in 0..2 {
+            type_value(&input, "3");
+            input.blur().unwrap();
+            rendered().await;
+        }
+        release_b
+            .send(Err("newer catalogue failure".into()))
+            .unwrap();
+        settle_until(&runtime, "the newer catalogue failure is reported", || {
+            input.value() == "2"
+                && inline_failure(&root, "dimension")
+                    .is_some_and(|message| message.contains("newer catalogue failure"))
+        })
+        .await;
+        assert_eq!(input.value(), "2");
+        assert!(
+            inline_failure(&root, "dimension")
+                .is_some_and(|message| message.contains("newer catalogue failure"))
+        );
+        release_a
+            .send(Err("older catalogue failure".into()))
+            .unwrap();
+        settle_fields(&runtime).await;
+        assert_eq!(input.value(), "2");
+        assert!(
+            inline_failure(&root, "dimension")
+                .is_some_and(|message| message.contains("newer catalogue failure")),
+            "the bounded latest admission still owns feedback after its preparation failed"
+        );
+        dispose(&runtime, root, project_id).await;
+    }
+
+    #[wasm_bindgen_test]
+    async fn presentation_departure_retires_field_observation_without_canceling_session_edit() {
+        let project_id = "mechanical-presentation-return";
+        let (runtime, root) = mounted_fields(project_id).await;
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        let first_input = input(&root, "dimension");
+        type_value(&first_input, "3");
+        first_input.blur().unwrap();
+        rendered().await;
+        support::drive_pending(&runtime);
+        wait_until_future("the held edit reaches the Core executor", entered)
+            .await
+            .unwrap();
+        let toggle = root
+            .query_selector(".test-toggle-case")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap();
+        toggle.click();
+        rendered().await;
+        assert!(
+            root.query_selector(".test-mechanical-dimension")
+                .unwrap()
+                .is_none()
+        );
+        toggle.click();
+        rendered().await;
+        let returned = input(&root, "dimension");
+        assert_eq!(returned.value(), "2");
+        assert!(
+            root.query_selector(".test-mechanical-dimension [role='status']")
+                .unwrap()
+                .is_none(),
+            "returning to Case must not revive the old presentation's pending field observation"
+        );
+        release.send(()).unwrap();
+        settle_until(
+            &runtime,
+            "the held Session edit lands and the returned field shows it",
+            || wall_thickness(&runtime) == 3.0 && returned.value() == "3",
+        )
+        .await;
+        assert_eq!(
+            runtime
+                .model()
+                .accepted
+                .unwrap()
+                .document
+                .mechanical
+                .as_ref()
+                .unwrap()
+                .wall_thickness,
+            3.0,
+            "the already submitted Session edit still runs"
+        );
+        assert_eq!(returned.value(), "3");
+        assert!(inline_failure(&root, "dimension").is_none());
+        dispose(&runtime, root, project_id).await;
+    }
+    #[wasm_bindgen_test]
+    async fn newer_catalogue_failure_and_draft_survive_an_older_actual_ticket_landing() {
+        for newer in ["5", "2"] {
+            let (ready, reply_a) = oneshot::channel();
+            let (release_b, reply_b) = oneshot::channel();
+            ready.send(Ok(())).unwrap();
+            let catalogue = TestCatalogue::default();
+            catalogue.0.borrow_mut().extend([reply_a, reply_b]);
+            let project_id = format!("mechanical-mixed-phase-{newer}");
+            let (runtime, root) = mounted_fields_with_catalogue(&project_id, catalogue).await;
+            let (entered, release_a) = support::gate_next_core_reply(&runtime);
+            let input = input(&root, "dimension");
+            type_value(&input, "3");
+            input.blur().unwrap();
+            rendered().await;
+            support::drive_pending(&runtime);
+            wait_until_future("the held edit reaches the Core executor", entered)
+                .await
+                .unwrap();
+            type_value(&input, "4");
+            input.blur().unwrap();
+            rendered().await;
+            type_value(&input, newer);
+            release_b
+                .send(Err("newer preparation failed".into()))
+                .unwrap();
+            settle_until(
+                &runtime,
+                "the newer preparation failure is reported",
+                || {
+                    input.value() == newer
+                        && inline_failure(&root, "dimension")
+                            .is_some_and(|message| message.contains("newer preparation failed"))
+                },
+            )
+            .await;
+            assert_eq!(input.value(), newer);
+            assert!(
+                inline_failure(&root, "dimension")
+                    .is_some_and(|message| message.contains("newer preparation failed"))
+            );
+            assert!(
+                root.query_selector(".test-mechanical-dimension [role='status']")
+                    .unwrap()
+                    .is_none(),
+                "only the latest admitted request drives field pending"
+            );
+            release_a.send(()).unwrap();
+            settle_until(
+                &runtime,
+                "the held Session edit lands beside the newer draft",
+                || {
+                    wall_thickness(&runtime) == 3.0
+                        && rendered_accepted(&runtime, &root)
+                        && input.value() == newer
+                        && inline_failure(&root, "dimension")
+                            .is_some_and(|message| message.contains("newer preparation failed"))
+                },
+            )
+            .await;
+            assert_eq!(
+                runtime
+                    .model()
+                    .accepted
+                    .unwrap()
+                    .document
+                    .mechanical
+                    .as_ref()
+                    .unwrap()
+                    .wall_thickness,
+                3.0
+            );
+            assert_eq!(
+                input.value(),
+                newer,
+                "the newer draft survives, including the original accepted value"
+            );
+            assert!(
+                inline_failure(&root, "dimension")
+                    .is_some_and(|message| message.contains("newer preparation failed")),
+                "an older actual ticket cannot clear the newer preparation failure"
+            );
+            dispose(&runtime, root, &project_id).await;
+        }
+    }
+}
+
+#[component]
+fn StackupPreview(values: MechanicalSettingsValues) -> Element {
+    let rows = [
+        ("Plate", values.plate_thickness),
+        ("Plate foam", values.plate_foam_thickness),
+        (
+            "Switch clearance",
+            (values.plate_to_pcb - values.plate_foam_thickness).max(0.0),
+        ),
+        ("PCB", values.pcb_thickness),
+        ("Bottom foam", values.bottom_foam_thickness),
+        ("Bottom", values.bottom_thickness),
+    ];
+    rsx! { figure { class: "m-0 mb-3 [&_svg]:block [&_svg]:max-h-[180px] [&_svg]:w-full [&_rect]:fill-surface [&_rect]:stroke-primary [&_rect]:[stroke-width:1] [&_text]:fill-foreground [&_text]:font-sans [&_text]:text-[11px] [&_figcaption]:text-xs [&_figcaption]:text-muted-foreground",
+        svg { view_box: "0 0 240 156", role: "img", "aria-label": "Mechanical stackup preview",
+            for (index, (name, thickness)) in rows.iter().enumerate().filter(|(_, (_, thickness))| *thickness > 0.0) {
+                g { "data-layer": *name,
+                    rect { x: "8", y: "{8 + index * 24}", width: "64", height: "{(thickness * 4.0).clamp(3.0, 18.0)}", rx: "2" }
+                    text { x: "84", y: "{20 + index * 24}", "{name} · {thickness:.2} mm" }
+                }
+            }
+        }
+        figcaption { "Stackup preview · layer thicknesses labelled" }
+    } }
 }

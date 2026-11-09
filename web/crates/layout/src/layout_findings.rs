@@ -1,8 +1,16 @@
-//! Layout's accepted-scene findings page and guarded navigation request.
+//! Layout's findings page and guarded navigation request.
 use super::keycaps_fit::{self, FindingNavigationTarget};
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::{Finding, ProjectDoc, Severity};
+use boardstudio_web_ui_shared::ui::{
+    badge::{Badge, BadgeVariant},
+    button::{Button, ButtonSize, ButtonVariant},
+    empty::{Empty, EmptyDescription},
+    item::{Item, ItemSize},
+};
+
 use dioxus::prelude::*;
+use dioxus_web::WebEventExt;
 use std::rc::Rc;
 use wasm_bindgen::JsCast;
 
@@ -34,16 +42,31 @@ pub struct InspectorMount {
 #[component]
 pub fn LayoutFindingsFooterButton(count: usize, on_toggle: EventHandler<()>) -> Element {
     rsx! {
-        button {
-            class: "m1-canvas-footer-findings",
+        Button {
+            variant: ButtonVariant::Secondary,
+            class: "ml-auto h-auto min-h-[26px] w-auto gap-1.5 rounded-[3px] border-0 bg-transparent px-1.5 py-0.5 text-warning-dark [font:inherit] hover:bg-accent",
             id: "m1-layout-findings-trigger",
-            r#type: "button",
-            title: "Open Layout findings",
+            onkeydown: move |event: KeyboardEvent| {
+                if event.key().to_string() == " " {
+                    event.stop_propagation();
+                    if let Some(raw) = event.data().try_as_web_event() {
+                        raw.stop_propagation();
+                    }
+                }
+            },
+            button_type: "button",
             onclick: move |_| on_toggle.call(()),
-            svg { view_box: "0 0 20 20", fill: "none", stroke: "currentColor", stroke_width: "1.5", "aria-hidden": "true",
+
+            svg {
+                view_box: "0 0 20 20",
+                fill: "none",
+                stroke: "currentColor",
+                stroke_width: "1.5",
+                "aria-hidden": "true",
                 path { d: "M10 2.5 18 17H2zM10 7v4m0 3v.2" }
             }
-            "Layout findings: {count}"
+            "Layout findings: " Badge { variant: BadgeVariant::Secondary, "{count}" }
+
         }
     }
 }
@@ -75,30 +98,37 @@ pub fn LayoutFindingsInspector(
     let groups = keycaps_fit::grouped_findings(&findings, &document);
     rsx! {
         section {
-            class: "m1-layout-findings",
+            class: "grid min-w-0 gap-2.5 px-4 pt-3 pb-4 text-foreground",
             aria_label: "Layout findings",
             onkeydown: move |event: KeyboardEvent| {
+                if event.key().to_string() == " " {
+                    event.stop_propagation();
+                    if let Some(raw) = event.data().try_as_web_event() { raw.stop_propagation(); }
+                }
                 if event.key() == Key::Escape {
                     event.prevent_default();
                     event.stop_propagation();
                     on_close.call(());
                 }
             },
-            div { class: "m1-layout-findings-return",
-                button {
-                    class: "m1-layout-findings-back",
-                    r#type: "button",
+            div { class: "flex items-center gap-2 text-muted-foreground text-sm",
+                Button {
+                    variant: ButtonVariant::Ghost,
+                    size: ButtonSize::Sm,
+                    class: "max-[760px]:min-h-control-touch",
                     onclick: move |_| on_close.call(()),
+
                     "Back to selection"
+
                 }
                 span { "Layout findings" }
             }
-            div { class: "m1-layout-findings-heading",
-                h2 { id: "m1-layout-findings-heading", tabindex: "-1", "Layout findings" }
-                span { "{keycaps_fit::presented_findings(&findings, &document).len()}" }
+            div { class: "flex items-baseline justify-between gap-2",
+                h2 { class: "m-0 text-[16px]! font-[650]", id: "m1-layout-findings-heading", tabindex: "-1", "Layout findings" }
+                Badge { variant: BadgeVariant::Secondary, "{keycaps_fit::presented_findings(&findings, &document).len()}" }
             }
             if groups.is_empty() {
-                p { class: "m1-layout-findings-empty", "No active findings for this board." }
+                Empty { class: "p-4", EmptyDescription { "No active findings for this board." } }
             } else {
                 div { class: "wb-finding-groups",
                     for group in groups {
@@ -129,12 +159,15 @@ fn LayoutFinding(
     source: Source,
     on_navigate: EventHandler<Request>,
 ) -> Element {
-    let (severity, severity_class) = match &finding.severity {
-        Severity::Error => ("Error", "error"),
-        Severity::Warning => ("Warning", "warning"),
-        Severity::Info => ("Information", "info"),
+    let (severity, severity_variant) = match &finding.severity {
+        Severity::Error => ("Error", BadgeVariant::Destructive),
+        Severity::Warning => ("Warning", BadgeVariant::Warning),
+        Severity::Info => ("Information", BadgeVariant::Info),
     };
-    let target = keycaps_fit::finding_navigation_target(&finding, &document)
+    let preview_electrical_notice = finding.id.starts_with("preview:electrical:");
+    let target = (!preview_electrical_notice)
+        .then(|| keycaps_fit::finding_navigation_target(&finding, &document))
+        .flatten()
         .filter(|target| target_has_live_layout_destination(target, &document));
     let action_label = target.as_ref().map(|target| match target {
         FindingNavigationTarget::Outline { .. } => "Show outline",
@@ -152,17 +185,23 @@ fn LayoutFinding(
     });
 
     rsx! {
-        li { class: "m1-keycaps-fit-finding m1-layout-finding is-{severity_class}",
-            span { class: "wb-finding-mark", "aria-hidden": "true" }
-            div {
-                strong { class: "wb-finding-severity", "{severity}" }
+        li { class: "my-1.5",
+            Item { size: ItemSize::Sm, class: "items-start",
+                Badge { variant: severity_variant, "{severity}" }
                 p { "{finding.message}" }
-                if let (Some(label), Some(request)) = (action_label.filter(|label| !label.is_empty()), request) {
-                    button {
+                if let (Some(label), Some(request)) = (
+                    action_label.filter(|label| !label.is_empty()),
+                    request,
+                )
+                {
+                    Button {
+                        variant: ButtonVariant::Secondary,
                         class: "wb-finding-action",
-                        r#type: "button",
+                        button_type: "button",
                         onclick: move |_| on_navigate.call(request.clone()),
+
                         "{label}"
+
                     }
                 }
             }
@@ -208,6 +247,7 @@ mod tests {
     use super::*;
     use boardstudio_application::SessionEpoch;
     use boardstudio_core::model::{Board, Part, Pose2, Scope as FindingScope, Side, Vec2};
+    use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
     use std::cell::RefCell;
     use wasm_bindgen_test::wasm_bindgen_test;
 
@@ -217,6 +257,7 @@ mod tests {
         Part {
             keycap: None,
             outline: None,
+            anchor: None,
             id: id.into(),
             definition_id: "definition".into(),
             reference: id.to_uppercase(),
@@ -260,6 +301,16 @@ mod tests {
             scope: FindingScope::Layout,
             message: format!("Check {target}"),
             target_ids: vec![target.into()],
+        }
+    }
+
+    fn preview_electrical_pin_finding() -> Finding {
+        Finding {
+            id: "preview:electrical:pin:net:part:pad-1".into(),
+            severity: Severity::Info,
+            scope: FindingScope::Pcb,
+            message: "Preview removes pad pad-1 on right-U1 (right/U1) from net OMIT_CONTROLLER (right/omit-controller-net).".into(),
+            target_ids: vec!["right/omit-controller-net".into(), "right/U1".into()],
         }
     }
 
@@ -309,7 +360,9 @@ mod tests {
     fn findings_host() -> Element {
         let host = use_context::<Host>();
         let requests = host.requests.clone();
+        let count = keycaps_fit::presented_findings(&host.findings, &host.document).len();
         rsx! {
+            LayoutFindingsFooterButton { count, on_toggle: move |_| {} }
             LayoutFindingsInspector {
                 open: true,
                 document: host.document.clone(),
@@ -343,8 +396,115 @@ mod tests {
             dom,
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        gloo_timers::future::TimeoutFuture::new(40).await;
+        wait_until("the actual findings Inspector mounts", || {
+            by_role_name(&root, "button", "Back to selection").is_some()
+        })
+        .await;
         root
+    }
+
+    #[wasm_bindgen_test]
+    async fn findings_navigation_and_heading_keep_their_layout_without_legacy_classes() {
+        let root = mount(
+            "findings-layout-test-root",
+            Host {
+                document: Rc::new(document()),
+                findings: vec![],
+                requests: Rc::default(),
+            },
+        )
+        .await;
+        let document = web_sys::window().unwrap().document().unwrap();
+        let stylesheet = document.create_element("style").unwrap();
+        stylesheet.set_text_content(Some(&format!(
+            "{}\n{}",
+            include_str!("../../../assets/workbench-base.css"),
+            include_str!("../../../assets/tailwind.css")
+        )));
+        document.head().unwrap().append_child(&stylesheet).unwrap();
+        let back = by_role_name(&root, "button", "Back to selection").unwrap();
+        let navigation = back.parent_element().unwrap();
+        let heading = document
+            .get_element_by_id("m1-layout-findings-heading")
+            .unwrap();
+        let heading_row = heading.parent_element().unwrap();
+        // Simulate deleting the old stylesheet's selectors, while retaining all
+        // new utilities on the actual rendered elements.
+        for element in [&navigation, &heading_row] {
+            let classes = element.get_attribute("class").unwrap_or_default();
+            element
+                .set_attribute(
+                    "class",
+                    &classes
+                        .split_whitespace()
+                        .filter(|class| !class.starts_with("m1-"))
+                        .collect::<Vec<_>>()
+                        .join(" "),
+                )
+                .unwrap();
+        }
+        let window = web_sys::window().unwrap();
+        let navigation_style = window.get_computed_style(&navigation).unwrap().unwrap();
+        let heading_style = window.get_computed_style(&heading_row).unwrap().unwrap();
+        assert_eq!(
+            navigation_style.get_property_value("display").unwrap(),
+            "flex"
+        );
+        assert_eq!(navigation_style.get_property_value("gap").unwrap(), "8px");
+        assert_eq!(heading_style.get_property_value("display").unwrap(), "flex");
+        assert_eq!(
+            heading_style.get_property_value("justify-content").unwrap(),
+            "space-between"
+        );
+        assert_eq!(
+            window
+                .get_computed_style(&heading)
+                .unwrap()
+                .unwrap()
+                .get_property_value("font-size")
+                .unwrap(),
+            "16px"
+        );
+        stylesheet.remove();
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn findings_footer_stays_compact_without_legacy_classes() {
+        let root = mount(
+            "findings-footer-layout-test-root",
+            Host {
+                document: Rc::new(document()),
+                findings: vec![],
+                requests: Rc::default(),
+            },
+        )
+        .await;
+        let document = web_sys::window().unwrap().document().unwrap();
+        let stylesheet = document.create_element("style").unwrap();
+        stylesheet.set_text_content(Some(include_str!("../../../assets/tailwind.css")));
+        document.head().unwrap().append_child(&stylesheet).unwrap();
+        let button = by_role_name(&root, "button", "Layout findings: 0").unwrap();
+        let classes = button.get_attribute("class").unwrap_or_default();
+        button
+            .set_attribute(
+                "class",
+                &classes
+                    .split_whitespace()
+                    .filter(|class| !class.starts_with("m1-"))
+                    .collect::<Vec<_>>()
+                    .join(" "),
+            )
+            .unwrap();
+        let style = web_sys::window()
+            .unwrap()
+            .get_computed_style(&button)
+            .unwrap()
+            .unwrap();
+        assert_eq!(style.get_property_value("min-height").unwrap(), "26px");
+        assert_eq!(style.get_property_value("padding-left").unwrap(), "6px");
+        stylesheet.remove();
+        root.remove();
     }
 
     #[wasm_bindgen_test]
@@ -359,16 +519,17 @@ mod tests {
             },
         )
         .await;
-        let action = live
-            .query_selector("button.wb-finding-action")
-            .unwrap()
+        let action = by_role_name(&live, "button", "Select affected geometry")
             .expect("a live Part target must offer navigation");
         assert_eq!(
             action.text_content().as_deref(),
             Some("Select affected geometry")
         );
-        action.dyn_into::<web_sys::HtmlElement>().unwrap().click();
-        gloo_timers::future::TimeoutFuture::new(40).await;
+        action.click();
+        wait_until("finding navigation reaches its owner", || {
+            !requests.borrow().is_empty()
+        })
+        .await;
         assert!(matches!(
             requests.borrow().as_slice(),
             [Request { target: FindingNavigationTarget::Part { part_id, .. }, .. }] if part_id == "left-part"
@@ -398,10 +559,7 @@ mod tests {
             "the finding message stays visible"
         );
         assert!(
-            stale
-                .query_selector("button.wb-finding-action")
-                .unwrap()
-                .is_none(),
+            by_role_name(&stale, "button", "Select affected geometry").is_none(),
             "a deleted target must not render a navigation action"
         );
         assert!(stale_requests.borrow().is_empty());
@@ -422,18 +580,45 @@ mod tests {
             },
         )
         .await;
-        moved
-            .query_selector("button.wb-finding-action")
-            .unwrap()
+        by_role_name(&moved, "button", "Select affected geometry")
             .expect("a part that moved boards navigates to its current board")
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap()
             .click();
-        gloo_timers::future::TimeoutFuture::new(40).await;
+        wait_until("moved finding navigation reaches its owner", || {
+            !moved_requests.borrow().is_empty()
+        })
+        .await;
         assert!(matches!(
             moved_requests.borrow().as_slice(),
             [Request { target: FindingNavigationTarget::Part { board_id, .. }, .. }] if board_id == "right"
         ));
         moved.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn preview_electrical_info_finding_is_visible_but_has_no_navigation_action() {
+        let mut accepted_document = document();
+        accepted_document.boards[1].part_ids = vec!["right/U1".into()];
+        accepted_document.parts[1].id = "right/U1".into();
+        accepted_document.parts[1].reference = "right-U1".into();
+        let preview = mount(
+            "layout-findings-preview-electrical-test-root",
+            Host {
+                document: Rc::new(accepted_document),
+                findings: vec![preview_electrical_pin_finding()],
+                requests: Rc::new(RefCell::new(Vec::new())),
+            },
+        )
+        .await;
+
+        let text = preview.text_content().unwrap_or_default();
+        assert!(text.contains("Layout findings: 1"));
+        assert!(text.contains("Information"));
+        assert!(text.contains("Preview removes pad pad-1 on right-U1 (right/U1)"));
+        assert!(text.contains("net OMIT_CONTROLLER (right/omit-controller-net)"));
+        assert!(
+            by_role_name(&preview, "button", "Select affected geometry").is_none(),
+            "a preview-only electrical notice remains passive even when its Part target is live"
+        );
+        preview.remove();
     }
 }

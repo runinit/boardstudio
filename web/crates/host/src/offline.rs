@@ -1,3 +1,25 @@
+/// Storage startup protocol; unknown workers and extra windows defer collection.
+pub const STORAGE_WINDOW_QUERY: &str = "boardstudio-storage-windows-v1";
+pub const STORAGE_WINDOW_ALONE: &str = "boardstudio-storage-alone-v1";
+/// Ticket 019 adoption protocol: posted to the waiting worker, with a reply
+/// port, to ask it to take over now. The worker checks its own live window
+/// clients at that moment: it answers `ADOPT_DECLINED` when any other editor is
+/// open, and otherwise calls `skipWaiting` and answers `ADOPT_ACCEPTED`. The
+/// page reloads only after its controller changes and refresh safety is
+/// rechecked.
+pub const ADOPT_WAITING_MESSAGE: &str = "boardstudio-adopt-waiting-v1";
+pub const ADOPT_ACCEPTED: &str = "boardstudio-adopt-accepted-v1";
+pub const ADOPT_DECLINED: &str = "boardstudio-adopt-declined-v1";
+
+/// Why a waiting build could not be adopted.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum AdoptError {
+    /// The worker found another open editor and declined. Nothing changed.
+    OtherTabs,
+    /// The worker never answered or never took over.
+    Failed(String),
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct OfflineManifest {
     pub version: String,
@@ -69,9 +91,31 @@ pub fn scope_cache_prefix(scope_url: &str) -> Result<String, String> {
     Ok(format!("boardstudio-m1-offline-path-{encoded}-"))
 }
 
+/// A point-in-time view of the release lifecycle for one service worker registration.
+///
+/// `waiting` is set when a newly installed worker is waiting to activate,
+/// `installing` while a worker is still installing, and `controlled` when this
+/// page is already controlled by an active worker (so a waiting worker is a
+/// newer build, not the initial install).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UpdateSnapshot {
+    pub waiting: bool,
+    pub installing: bool,
+    pub controlled: bool,
+}
+
+/// Whether the snapshot describes a newer build waiting while this page runs
+/// an older one. A waiting worker with no controlling worker is the initial
+/// install, not an update; an installing, failed or unknown worker never counts.
+/// Ticket 018 shows no action and no header notice for this state; the Refresh
+/// action arrives with 019.
+pub fn is_update_waiting(snapshot: UpdateSnapshot) -> bool {
+    snapshot.waiting && snapshot.controlled
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{OfflineManifest, scope_cache_prefix};
+    use super::{OfflineManifest, UpdateSnapshot, is_update_waiting, scope_cache_prefix};
 
     #[test]
     fn path_hex_encoding_separates_root_and_subpath_cache_names() {
@@ -129,6 +173,42 @@ mod tests {
             assert!(
                 manifest.validate().is_err(),
                 "accepted invalid manifest {manifest:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn only_a_waiting_worker_under_a_controlled_page_is_an_update() {
+        assert!(is_update_waiting(UpdateSnapshot {
+            waiting: true,
+            installing: false,
+            controlled: true,
+        }));
+        for snapshot in [
+            UpdateSnapshot {
+                waiting: true,
+                installing: false,
+                controlled: false,
+            },
+            UpdateSnapshot {
+                waiting: false,
+                installing: true,
+                controlled: true,
+            },
+            UpdateSnapshot {
+                waiting: false,
+                installing: false,
+                controlled: true,
+            },
+            UpdateSnapshot {
+                waiting: false,
+                installing: false,
+                controlled: false,
+            },
+        ] {
+            assert!(
+                !is_update_waiting(snapshot),
+                "treated {snapshot:?} as an update"
             );
         }
     }

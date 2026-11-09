@@ -19,6 +19,10 @@ pub(crate) use boardstudio_web_layout::setup_guide_state;
 #[cfg(all(target_arch = "wasm32", feature = "page"))]
 mod presentation;
 
+// Application-boundary browser regression for the packaged renderer decoder.
+#[cfg(all(test, target_arch = "wasm32", feature = "page"))]
+mod model_decode_boundary_tests;
+
 fn main() {
     #[cfg(all(target_arch = "wasm32", feature = "page"))]
     dioxus::launch(app);

@@ -15,7 +15,7 @@ pub fn MirroredPairCanvasOverlay(props: MirroredPairCanvasOverlayProps) -> Eleme
     let on_cancel = props.on_cancel;
     rsx! {
         div {
-            class: "m1-mirrored-pair-canvas-overlay",
+            class: "pointer-events-none absolute inset-0 z-12 box-border flex items-start justify-center px-3 py-5 max-[760px]:p-2",
             onkeydown: move |event| {
                 if event.key().to_string() == "Escape" {
                     event.prevent_default();

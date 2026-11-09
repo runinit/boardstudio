@@ -1,17 +1,24 @@
 //! Scoped controls and file-backed editing for routed-board references.
+use crate::pcb_controls::{PcbCheck, PcbChoice, PcbFile, PcbInput, PcbSection};
+use boardstudio_core::hash::sha256_hex;
 use boardstudio_core::model::{Asset, BoardReference};
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
+use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
+use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
+use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
+use boardstudio_web_ui_shared::ui::input::InputType;
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use gloo_timers::future::TimeoutFuture;
 use js_sys::Uint8Array;
-use sha2::{Digest, Sha256};
-use std::{collections::BTreeSet, rc::Rc};
+use std::{cell::RefCell, collections::BTreeSet, rc::Rc};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::{JsFuture, spawn_local};
 use web_sys::{File, HtmlInputElement};
 
 use boardstudio_web_host::host::AssetBytes;
+
+use super::board_reference_owner::BoardReferenceKey;
 
 use crate::runtime::Runtime;
 
@@ -19,13 +26,6 @@ use crate::runtime::Runtime;
 mod matching;
 
 const MAX_REFERENCE_BYTES: f64 = 32.0 * 1024.0 * 1024.0;
-
-fn sha256_bytes(bytes: &[u8]) -> String {
-    Sha256::digest(bytes)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
-}
 
 #[derive(Clone)]
 pub struct BoardReferenceRuntimeHandle(Rc<Runtime>);
@@ -73,19 +73,41 @@ pub enum Action {
     Remove,
 }
 
-fn removal_pending(tickets: Signal<Vec<(Action, EditTicket)>>) -> bool {
-    tickets
-        .read()
-        .iter()
-        .any(|(action, ticket)| *action == Action::Remove && ticket.is_pending())
+/// Apply drained reference results the same way wherever they settled: drop the key's
+/// submission so the accepted value shows again, and let only the latest key place a
+/// failure message.
+fn place_reference_results(
+    results: Vec<PendingEditResult<BoardReferenceKey>>,
+    mut submissions: Signal<Vec<(BoardReferenceKey, Action)>>,
+    latest: Signal<Option<BoardReferenceKey>>,
+    mut error: Signal<Option<String>>,
+) {
+    for result in results {
+        let (key, message) = match result {
+            PendingEditResult::Failed { key, message } => (key, Some(message)),
+            PendingEditResult::Landed { key, .. } | PendingEditResult::Retired { key } => {
+                (key, None)
+            }
+        };
+        submissions.write().retain(|(existing, _)| existing != &key);
+        if latest.peek().as_ref() == Some(&key) {
+            // Landing and retirement show nothing; failures keep their message.
+            error.set(message);
+        }
+    }
 }
 
+/// The reference the form shows: the accepted one with every still-pending submission
+/// applied. A newer submission for the same control wins; landing and retirement drop
+/// the submission so the accepted value shows again.
 fn reference_with_drafts(
     mut reference: BoardReference,
-    tickets: &[(Action, EditTicket)],
+    submissions: &[(BoardReferenceKey, Action)],
+    edits: &RefCell<PendingEdits<BoardReferenceKey>>,
 ) -> BoardReference {
-    for (action, ticket) in tickets {
-        if !ticket.is_pending() {
+    let pending = edits.borrow();
+    for (key, action) in submissions {
+        if !pending.is_pending(key) {
             continue;
         }
         match action {
@@ -136,41 +158,66 @@ fn preview_paths(models: &[boardstudio_core::model::PcbModel]) -> Vec<String> {
         .collect()
 }
 
-async fn wait_for_reference_ticket(
-    runtime: &Rc<Runtime>,
+#[derive(Clone)]
+struct BoardReferenceContext {
+    runtime: Rc<Runtime>,
     workspace: Signal<&'static str>,
-    adapter: &super::SelectionAdapter,
-    owner: &super::LayoutOwnerIdentity,
+    adapter: super::SelectionAdapter,
+    owner: super::LayoutOwnerIdentity,
     generation: Signal<u64>,
     request_generation: u64,
-    ticket: EditTicket,
+}
+
+impl BoardReferenceContext {
+    fn is_current(&self) -> bool {
+        super::board_reference_owner_is_current(
+            &self.runtime,
+            self.workspace,
+            &self.adapter,
+            &self.owner,
+        )
+    }
+
+    fn is_live(&self) -> bool {
+        self.generation.cloned() == self.request_generation && self.is_current()
+    }
+
+    fn lineage_is_current(&self) -> bool {
+        super::board_reference_owner_lineage_is_current(
+            &self.runtime,
+            self.workspace,
+            &self.adapter,
+            &self.owner,
+        )
+    }
+}
+
+async fn wait_for_reference_ticket(
+    ctx: &BoardReferenceContext,
+    mut edits: PendingEdits<BoardReferenceKey>,
 ) -> Result<(), String> {
     loop {
-        let live = generation() == request_generation
-            && super::board_reference_owner_lineage_is_current(runtime, workspace, adapter, owner);
-        match ticket.settlement(live) {
-            Settlement::Pending => {}
-            Settlement::Landed { .. } => return Ok(()),
-            Settlement::Failed { message } => return Err(message),
-            Settlement::Retired => return Err(String::new()),
+        let live = (ctx.generation)() == ctx.request_generation && ctx.lineage_is_current();
+        let mut results = edits.settle(live);
+        if let Some(result) = results.pop() {
+            return match result {
+                PendingEditResult::Landed { .. } => Ok(()),
+                PendingEditResult::Failed { message: error, .. } => Err(error),
+                PendingEditResult::Retired { .. } => Err(String::new()),
+            };
         }
         TimeoutFuture::new(25).await;
     }
 }
 
 async fn discover_stored_paths(
-    runtime: &Rc<Runtime>,
-    workspace: Signal<&'static str>,
-    adapter: &super::SelectionAdapter,
-    owner: &super::LayoutOwnerIdentity,
+    ctx: &BoardReferenceContext,
     reference: &BoardReference,
-    generation: Signal<u64>,
-    request_generation: u64,
 ) -> Result<Vec<String>, String> {
-    if !super::board_reference_owner_is_current(runtime, workspace, adapter, owner) {
+    if !ctx.is_current() {
         return Err("The active board changed before routed-board model paths were read.".into());
     }
-    let model = runtime.model();
+    let model = ctx.runtime.model();
     let accepted = model
         .accepted
         .as_ref()
@@ -185,82 +232,73 @@ async fn discover_stored_paths(
     if asset.sha256.is_empty() {
         return Err("Saved routed-board file has no SHA-256 identity.".into());
     }
-    let bytes = runtime
+    let bytes = ctx
+        .runtime
         .store
         .load_asset(asset.sha256.clone())
         .await
         .map_err(|error| format!("Could not load routed-board file: {error}"))?
         .ok_or_else(|| "Saved routed-board file is missing from browser storage.".to_owned())?
         .to_vec();
-    if generation() != request_generation
-        || !super::board_reference_owner_is_current(runtime, workspace, adapter, owner)
-    {
+    if !ctx.is_live() {
         return Err("The routed-board source changed while its asset was loading.".into());
     }
     if bytes.is_empty()
         || bytes.len() as f64 > MAX_REFERENCE_BYTES
-        || sha256_bytes(&bytes) != asset.sha256
+        || sha256_hex(&bytes) != asset.sha256
     {
         return Err("Saved routed-board file failed its size or SHA-256 check.".into());
     }
     let source = String::from_utf8(bytes)
         .map_err(|error| format!("Saved routed-board file is not valid UTF-8: {error}"))?;
-    let operation = runtime.operation();
-    let preview = runtime
+    let operation = ctx.runtime.operation();
+    let preview = ctx
+        .runtime
         .preview_routed_board_source(
             format!("board-reference-discover-{}", operation.0),
             source,
-            owner
+            ctx.owner
                 .revision
                 .ok_or("Accepted board revision is unavailable.")?,
         )
         .await?;
-    if generation() != request_generation
-        || !super::board_reference_owner_is_current(runtime, workspace, adapter, owner)
-    {
+    if !ctx.is_live() {
         return Err("The routed-board source changed while Core discovered model paths.".into());
     }
-    if Some(preview.revision) != owner.revision {
+    if Some(preview.revision) != ctx.owner.revision {
         return Err("Core returned model paths for a different routed-board revision.".into());
     }
     Ok(preview_paths(&preview.models))
 }
 
 async fn import_routed_board(
-    runtime: &Rc<Runtime>,
-    workspace: Signal<&'static str>,
-    adapter: &super::SelectionAdapter,
-    owner: &super::LayoutOwnerIdentity,
+    ctx: &BoardReferenceContext,
     reference: Option<&BoardReference>,
     file: File,
-    generation: Signal<u64>,
-    request_generation: u64,
 ) -> Result<(String, String, Vec<String>), String> {
-    if !super::board_reference_owner_is_current(runtime, workspace, adapter, owner) {
+    if !ctx.is_current() {
         return Err("The active project or board changed. Retry with the current board.".into());
     }
     let (bytes, source) = read_kicad_file(&file).await?;
     #[cfg(all(test, target_arch = "wasm32"))]
     test_support::pause_import_after_file_read().await;
-    if generation() != request_generation
-        || !super::board_reference_owner_is_current(runtime, workspace, adapter, owner)
-    {
+    if !ctx.is_live() {
         return Err("The project or board changed while the routed-board file was read.".into());
     }
-    let revision = owner
+    let revision = ctx
+        .owner
         .revision
         .ok_or("Accepted board revision is unavailable.")?;
-    let operation = runtime.operation();
-    let preview = runtime
+    let operation = ctx.runtime.operation();
+    let preview = ctx
+        .runtime
         .preview_routed_board_source(
             format!("board-reference-import-{}", operation.0),
             source,
             revision,
         )
         .await?;
-    if generation() != request_generation
-        || !super::board_reference_owner_is_current(runtime, workspace, adapter, owner)
-    {
+    if !ctx.is_live() {
         return Err("The project or board changed while Core previewed the routed board.".into());
     }
     if preview.revision != revision {
@@ -268,7 +306,7 @@ async fn import_routed_board(
     }
     let paths = preview_paths(&preview.models);
     let asset_id = crate::runtime::new_project_id()?;
-    let sha256 = sha256_bytes(&bytes);
+    let sha256 = sha256_hex(&bytes);
     let asset = Asset {
         id: asset_id.clone(),
         name: file.name(),
@@ -277,22 +315,24 @@ async fn import_routed_board(
         license: None,
         source: None,
     };
-    runtime
+    ctx.runtime
         .store
         .save_asset(AssetBytes { sha256, bytes })
         .await
         .map_err(|error| format!("Could not store routed-board file: {error}"))?;
-    if generation() != request_generation
-        || !super::board_reference_owner_is_current(runtime, workspace, adapter, owner)
-    {
+    if !ctx.is_live() {
         return Err("The project or board changed while the routed-board asset was stored.".into());
     }
-    let model = runtime.model();
+    let model = ctx.runtime.model();
     let accepted = model
         .accepted
         .as_ref()
         .ok_or("No accepted project is open.")?;
-    let scope = owner.scope.as_ref().ok_or("Active board is unavailable.")?;
+    let scope = ctx
+        .owner
+        .scope
+        .as_ref()
+        .ok_or("Active board is unavailable.")?;
     let mut proposed = accepted.document.as_ref().clone();
     if proposed.assets.iter().any(|current| current.id == asset.id) {
         return Err("Could not allocate a unique routed-board asset identity.".into());
@@ -340,25 +380,18 @@ async fn import_routed_board(
         .find(|current| current.id == reference_id && current.board_id == scope.board_id)
         .map(|current| current.asset_id.clone())
         .ok_or_else(|| "The routed-board reference could not be prepared.".to_owned())?;
-    let outcome = super::submit_board_reference_document(
-        runtime,
-        workspace,
-        adapter,
-        owner,
+    let mut edits = PendingEdits::<BoardReferenceKey>::default();
+    super::submit_board_reference_document(
+        &ctx.runtime,
+        ctx.is_current(),
+        &ctx.owner,
         proposed,
         "board-reference-import",
+        &mut edits,
+        BoardReferenceKey::Import,
     )?
     .ok_or_else(|| "The routed-board import produced no project change.".to_owned())?;
-    wait_for_reference_ticket(
-        runtime,
-        workspace,
-        adapter,
-        owner,
-        generation,
-        request_generation,
-        outcome,
-    )
-    .await?;
+    wait_for_reference_ticket(ctx, edits).await?;
     Ok((reference_id, asset_id, paths))
 }
 
@@ -368,19 +401,14 @@ enum ModelAttachment {
 }
 
 async fn attach_model_files(
-    runtime: &Rc<Runtime>,
-    workspace: Signal<&'static str>,
-    adapter: &super::SelectionAdapter,
-    owner: &super::LayoutOwnerIdentity,
+    ctx: &BoardReferenceContext,
     reference: &BoardReference,
     paths: &[String],
     attachment: ModelAttachment,
-    generation: Signal<u64>,
-    request_generation: u64,
 ) -> Result<(), String> {
     use super::model_asset_import::read_model_file;
 
-    if !super::board_reference_owner_is_current(runtime, workspace, adapter, owner) {
+    if !ctx.is_current() {
         return Err("The active project or board changed. Retry with the current board.".into());
     }
     let mut uploads = match attachment {
@@ -406,12 +434,16 @@ async fn attach_model_files(
             matched
         }
     };
-    let model = runtime.model();
+    let model = ctx.runtime.model();
     let accepted = model
         .accepted
         .as_ref()
         .ok_or("No accepted project is open.")?;
-    let scope = owner.scope.as_ref().ok_or("Active board is unavailable.")?;
+    let scope = ctx
+        .owner
+        .scope
+        .as_ref()
+        .ok_or("Active board is unavailable.")?;
     let current_reference = accepted
         .document
         .board_references
@@ -428,26 +460,20 @@ async fn attach_model_files(
     let mut proposed = accepted.document.as_ref().clone();
     let mut imported_assets: Vec<(String, Asset)> = Vec::with_capacity(uploads.len());
     for (path, file) in uploads.drain(..) {
-        if generation() != request_generation
-            || !super::board_reference_owner_is_current(runtime, workspace, adapter, owner)
-        {
+        if !ctx.is_live() {
             return Err(
                 "The project or board changed while model files were being attached.".into(),
             );
         }
         let imported = read_model_file(file).await?;
-        if generation() != request_generation
-            || !super::board_reference_owner_is_current(runtime, workspace, adapter, owner)
-        {
+        if !ctx.is_live() {
             return Err("The project or board changed while a model file was read.".into());
         }
         imported
-            .store(&runtime.store)
+            .store(&ctx.runtime.store)
             .await
             .map_err(|error| format!("Could not store model asset: {error}"))?;
-        if generation() != request_generation
-            || !super::board_reference_owner_is_current(runtime, workspace, adapter, owner)
-        {
+        if !ctx.is_live() {
             return Err("The project or board changed while a model asset was stored.".into());
         }
         let id = crate::runtime::new_project_id()?;
@@ -481,25 +507,18 @@ async fn attach_model_files(
         current.model_assets.insert(path, asset.id.clone());
         proposed.assets.push(asset);
     }
-    let outcome = super::submit_board_reference_document(
-        runtime,
-        workspace,
-        adapter,
-        owner,
+    let mut edits = PendingEdits::<BoardReferenceKey>::default();
+    super::submit_board_reference_document(
+        &ctx.runtime,
+        ctx.is_current(),
+        &ctx.owner,
         proposed,
         "board-reference-model-attach",
+        &mut edits,
+        BoardReferenceKey::ModelAttach,
     )?
     .ok_or_else(|| "The model attachment produced no project change.".to_owned())?;
-    wait_for_reference_ticket(
-        runtime,
-        workspace,
-        adapter,
-        owner,
-        generation,
-        request_generation,
-        outcome,
-    )
-    .await
+    wait_for_reference_ticket(ctx, edits).await
 }
 
 fn begin_request(
@@ -518,38 +537,21 @@ fn begin_request(
 }
 
 fn begin_board_import(
-    runtime: Rc<Runtime>,
-    workspace: Signal<&'static str>,
-    adapter: super::SelectionAdapter,
-    owner: super::LayoutOwnerIdentity,
+    mut ctx: BoardReferenceContext,
     reference: Option<BoardReference>,
     file: File,
-    request_generation: Signal<u64>,
-    busy: Signal<bool>,
-    error: Signal<Option<String>>,
-    paths: Signal<Vec<String>>,
-    paths_asset_id: Signal<Option<String>>,
+    mut busy: Signal<bool>,
+    mut error: Signal<Option<String>>,
+    mut paths: Signal<Vec<String>>,
+    mut paths_asset_id: Signal<Option<String>>,
 ) {
-    let Some(epoch) = begin_request(request_generation, busy, error) else {
+    let Some(epoch) = begin_request(ctx.generation, busy, error) else {
         return;
     };
-    let mut busy = busy;
-    let mut error = error;
-    let mut paths = paths;
-    let mut paths_asset_id = paths_asset_id;
-    let current_epoch = request_generation;
+    ctx.request_generation = epoch;
+    let current_epoch = ctx.generation;
     spawn_local(async move {
-        let result = import_routed_board(
-            &runtime,
-            workspace,
-            &adapter,
-            &owner,
-            reference.as_ref(),
-            file,
-            current_epoch,
-            epoch,
-        )
-        .await;
+        let result = import_routed_board(&ctx, reference.as_ref(), file).await;
         if current_epoch() == epoch {
             busy.set(false);
             match result {
@@ -560,9 +562,7 @@ fn begin_board_import(
                 Err(message) if !message.is_empty() => {
                     error.set(Some(super::board_reference_effect::retryable_error(
                         message,
-                        super::board_reference_owner_lineage_is_current(
-                            &runtime, workspace, &adapter, &owner,
-                        ),
+                        ctx.lineage_is_current(),
                     )))
                 }
                 Err(_) => {}
@@ -572,39 +572,23 @@ fn begin_board_import(
 }
 
 fn begin_model_attachment(
-    runtime: Rc<Runtime>,
-    workspace: Signal<&'static str>,
-    adapter: super::SelectionAdapter,
-    owner: super::LayoutOwnerIdentity,
+    mut ctx: BoardReferenceContext,
     reference: Option<BoardReference>,
     paths: Vec<String>,
     attachment: ModelAttachment,
-    request_generation: Signal<u64>,
-    busy: Signal<bool>,
-    error: Signal<Option<String>>,
+    mut busy: Signal<bool>,
+    mut error: Signal<Option<String>>,
 ) {
     let Some(reference) = reference else {
         return;
     };
-    let Some(epoch) = begin_request(request_generation, busy, error) else {
+    let Some(epoch) = begin_request(ctx.generation, busy, error) else {
         return;
     };
-    let mut busy = busy;
-    let mut error = error;
-    let current_epoch = request_generation;
+    ctx.request_generation = epoch;
+    let current_epoch = ctx.generation;
     spawn_local(async move {
-        let result = attach_model_files(
-            &runtime,
-            workspace,
-            &adapter,
-            &owner,
-            &reference,
-            &paths,
-            attachment,
-            current_epoch,
-            epoch,
-        )
-        .await;
+        let result = attach_model_files(&ctx, &reference, &paths, attachment).await;
         if current_epoch() == epoch {
             busy.set(false);
             if let Err(message) = result
@@ -612,9 +596,7 @@ fn begin_model_attachment(
             {
                 error.set(Some(super::board_reference_effect::retryable_error(
                     message,
-                    super::board_reference_owner_lineage_is_current(
-                        &runtime, workspace, &adapter, &owner,
-                    ),
+                    ctx.lineage_is_current(),
                 )));
             }
         }
@@ -645,8 +627,6 @@ pub fn Editor(
         (&reference, &owner, &disabled, &busy(), &discovery_retry()),
         {
             let runtime = runtime.clone();
-            let model_paths = model_paths;
-            let paths_asset_id = paths_asset_id;
             let mut attempted_discovery = attempted_discovery;
             let mut request_generation = request_generation;
             let mut busy_signal = busy;
@@ -692,38 +672,32 @@ pub fn Editor(
                 request_generation.set(epoch);
                 busy_signal.set(true);
                 error.set(None);
-                let runtime = runtime.clone();
-                let owner = owner.clone();
-                let adapter = adapter.clone();
-                let workspace = workspace;
+                let ctx = BoardReferenceContext {
+                    runtime: runtime.clone(),
+                    workspace,
+                    adapter: adapter.clone(),
+                    owner: owner.clone(),
+                    generation: request_generation,
+                    request_generation: epoch,
+                };
                 let source_asset_id = reference.asset_id.clone();
-                let generation = request_generation;
                 let mut busy_signal = busy_signal;
                 let mut error = error;
                 let mut model_paths = model_paths;
                 let mut paths_asset_id = paths_asset_id;
                 spawn_local(async move {
-                    let result = discover_stored_paths(
-                        &runtime, workspace, &adapter, &owner, &reference, generation, epoch,
-                    )
-                    .await;
-                    if generation() == epoch {
+                    let result = discover_stored_paths(&ctx, &reference).await;
+                    if (ctx.generation)() == epoch {
                         busy_signal.set(false);
                         match result {
-                            Ok(paths)
-                                if super::board_reference_owner_lineage_is_current(
-                                    &runtime, workspace, &adapter, &owner,
-                                ) =>
-                            {
+                            Ok(paths) if ctx.lineage_is_current() => {
                                 model_paths.set(paths);
                                 paths_asset_id.set(Some(source_asset_id));
                             }
                             Err(message) => {
                                 error.set(Some(super::board_reference_effect::retryable_error(
                                     message,
-                                    super::board_reference_owner_lineage_is_current(
-                                        &runtime, workspace, &adapter, &owner,
-                                    ),
+                                    ctx.lineage_is_current(),
                                 )))
                             }
                             _ => {}
@@ -734,63 +708,99 @@ pub fn Editor(
         },
     ));
 
-    let action_tickets = use_signal(Vec::<(Action, EditTicket)>::new);
-    let action_latest = use_signal(|| None::<boardstudio_application::OperationId>);
+    // One keyed collection owns every reference-control ticket; keys are action kinds
+    // (plus the model path for model-asset controls). The submissions memory keeps the
+    // latest submitted action per key, so the form shows the pending value. Removal is
+    // a one-shot: its control disables through the shared helper instead.
+    let action_edits =
+        use_hook(|| Rc::new(RefCell::new(PendingEdits::<BoardReferenceKey>::default())));
+    let actions = use_hook(PendingEditSignals::<BoardReferenceKey>::new);
+    let removal_disabled = use_signal(|| false);
+    actions.bind_one_shot(BoardReferenceKey::Remove, removal_disabled);
+    let action_submissions = use_signal(Vec::<(BoardReferenceKey, Action)>::new);
+    let action_latest = use_signal(|| None::<BoardReferenceKey>);
     let version = use_context::<Signal<u64>>()();
     use_effect(use_reactive((&version,), {
         let runtime = runtime.clone();
         let adapter = adapter.clone();
         let owner = owner.clone();
-        let mut action_tickets = action_tickets;
-        let mut error = error;
+        let action_edits = action_edits.clone();
+        let actions = actions.clone();
         move |_| {
-            let mut entries = action_tickets.peek().clone();
-            let before = entries.len();
-            entries.retain(|(_, ticket)| {
-                let message =
-                    match ticket.settlement(super::board_reference_owner_lineage_is_current(
-                        &runtime, workspace, &adapter, &owner,
-                    )) {
-                        Settlement::Pending => return true,
-                        Settlement::Failed { message } => Some(message),
-                        _ => None,
-                    };
-                if *action_latest.peek() == Some(ticket.operation()) {
-                    error.set(message);
-                }
-                false
-            });
-            if entries.len() != before {
-                action_tickets.set(entries);
-            }
+            // The lineage check already answers for the panel's workspace.
+            let panel_is_live = super::board_reference_owner_lineage_is_current(
+                &runtime, workspace, &adapter, &owner,
+            );
+            place_reference_results(
+                action_edits.borrow_mut().settle(panel_is_live),
+                action_submissions,
+                action_latest,
+                error,
+            );
+            place_reference_results(
+                actions.settle(panel_is_live, |_| String::new()),
+                action_submissions,
+                action_latest,
+                error,
+            );
         }
     }));
     let on_action = use_callback({
         let runtime = runtime.clone();
         let adapter = adapter.clone();
         let owner = owner.clone();
+        let action_edits = action_edits.clone();
+        let removal_actions = actions.clone();
         let reference_id = reference.as_ref().map(|reference| reference.id.clone());
-        let mut action_tickets = action_tickets;
+        let mut action_submissions = action_submissions;
         let mut action_latest = action_latest;
         let mut error = error;
         move |action: Action| {
             let Some(reference_id) = reference_id.as_deref() else {
                 return;
             };
-            if action == Action::Remove && removal_pending(action_tickets) {
+            if action == Action::Remove {
+                // Removal is a one-shot: its helper-bound control already shows the
+                // pending state, so a second click has nothing to submit.
+                if removal_actions.is_pending(&BoardReferenceKey::Remove) {
+                    return;
+                }
+                if let Some(resolver) = super::board_reference_removal(
+                    &runtime,
+                    workspace,
+                    &adapter,
+                    &owner,
+                    reference_id,
+                ) {
+                    removal_actions.begin_one_shot(
+                        &runtime,
+                        BoardReferenceKey::Remove,
+                        "board-reference",
+                        Some("board reference".into()),
+                        resolver,
+                    );
+                    action_latest.set(Some(BoardReferenceKey::Remove));
+                    error.set(None);
+                }
                 return;
             }
-            if let Some(ticket) = super::dispatch_board_reference_action(
+            if let Some(key) = super::dispatch_board_reference_action(
                 &runtime,
                 workspace,
                 &adapter,
                 &owner,
                 reference_id,
                 action.clone(),
+                &mut action_edits.borrow_mut(),
             ) {
-                action_latest.set(Some(ticket.operation()));
+                action_latest.set(Some(key.clone()));
+                let mut entries = action_submissions.write();
+                match entries.iter_mut().find(|(existing, _)| existing == &key) {
+                    Some(entry) => entry.1 = action,
+                    None => entries.push((key, action)),
+                }
+                drop(entries);
                 error.set(None);
-                action_tickets.write().push((action, ticket));
             }
         }
     });
@@ -804,13 +814,16 @@ pub fn Editor(
                 return;
             }
             begin_board_import(
-                runtime.clone(),
-                workspace,
-                adapter.clone(),
-                owner.clone(),
+                BoardReferenceContext {
+                    runtime: runtime.clone(),
+                    workspace,
+                    adapter: adapter.clone(),
+                    owner: owner.clone(),
+                    generation: request_generation,
+                    request_generation: 0,
+                },
                 reference.clone(),
                 file,
-                request_generation,
                 busy,
                 error,
                 model_paths,
@@ -828,14 +841,17 @@ pub fn Editor(
                 return;
             }
             begin_model_attachment(
-                runtime.clone(),
-                workspace,
-                adapter.clone(),
-                owner.clone(),
+                BoardReferenceContext {
+                    runtime: runtime.clone(),
+                    workspace,
+                    adapter: adapter.clone(),
+                    owner: owner.clone(),
+                    generation: request_generation,
+                    request_generation: 0,
+                },
                 reference.clone(),
                 model_paths(),
                 ModelAttachment::Individual { path, file },
-                request_generation,
                 busy,
                 error,
             );
@@ -851,22 +867,26 @@ pub fn Editor(
                 return;
             }
             begin_model_attachment(
-                runtime.clone(),
-                workspace,
-                adapter.clone(),
-                owner.clone(),
+                BoardReferenceContext {
+                    runtime: runtime.clone(),
+                    workspace,
+                    adapter: adapter.clone(),
+                    owner: owner.clone(),
+                    generation: request_generation,
+                    request_generation: 0,
+                },
                 reference.clone(),
                 model_paths(),
                 ModelAttachment::Directory { files },
-                request_generation,
                 busy,
                 error,
             );
         }
     });
 
-    let reference =
-        reference.map(|reference| reference_with_drafts(reference, &action_tickets.read()));
+    let reference = reference.map(|reference| {
+        reference_with_drafts(reference, &action_submissions.read(), &action_edits)
+    });
     let options = assets
         .iter()
         .filter(|asset| matching::is_model_filename(&asset.name))
@@ -878,16 +898,12 @@ pub fn Editor(
     let mut error_signal = error;
 
     rsx! {
-        details { class: "m1-case-physical-setup m1-board-reference",
-            summary { "Routed PCB reference" }
+        PcbSection { class: "grid gap-2 py-2.5 border-b border-border [&>p]:m-0 [&>p]:text-muted-foreground [&>p]:text-xs [&>p]:leading-normal", label: "Routed PCB reference",
             p { "Preview a routed KiCad board with the case. Replace this reference after editing routing in KiCad." }
-            label {
-                if reference.is_some() { "Replace KiCad board" } else { "Import KiCad board" }
-                input {
-                    r#type: "file",
-                    accept: ".kicad_pcb",
+            PcbFile {
+                    label: if reference.is_some() { "Replace KiCad board" } else { "Import KiCad board" },
+                    accept: Some(".kicad_pcb".into()),
                     disabled: disabled || busy,
-                    aria_label: if reference.is_some() { "Replace KiCad board" } else { "Import KiCad board" },
                     onchange: move |event: FormEvent| {
                         let Some(input) = event.data().try_as_web_event()
                             .and_then(|event| event.target())
@@ -897,74 +913,52 @@ pub fn Editor(
                         input.set_value("");
                         on_import.call(file);
                     }
-                }
             }
             if let Some(reference) = reference.as_ref() {
-                label { class: "m1-board-reference-enabled",
-                    input {
-                        r#type: "checkbox",
-                        checked: reference.enabled,
-                        disabled,
-                        aria_label: "Use routed PCB in assembly",
-                        onchange: move |event: FormEvent| on_action.call(Action::SetEnabled(event.checked())),
-                    }
-                    "Use routed PCB in assembly"
+                PcbCheck { label: "Use routed PCB in assembly", checked: reference.enabled, disabled,
+                    on_change: move |enabled| on_action.call(Action::SetEnabled(enabled)),
                 }
-                div { class: "m1-board-reference-transform",
-                    label { "X (mm)"
-                        input {
-                            r#type: "number", step: "0.1", value: "{reference.pose.at.x}",
+                div {
+                    PcbInput { label: "X (mm)", aria_label: "X (mm)",
+                            r#type: InputType::Number, step: Some("0.1".into()), value: reference.pose.at.x.to_string(),
                             disabled,
                             oninput: move |event: FormEvent| {
                                 if let Ok(value) = event.value().parse::<f64>()
                                     && value.is_finite()
                                 { on_action.call(Action::SetPositionX(value)); }
                             }
-                        }
                     }
-                    label { "Y (mm)"
-                        input {
-                            r#type: "number", step: "0.1", value: "{reference.pose.at.y}",
+                    PcbInput { label: "Y (mm)", aria_label: "Y (mm)",
+                            r#type: InputType::Number, step: Some("0.1".into()), value: reference.pose.at.y.to_string(),
                             disabled,
                             oninput: move |event: FormEvent| {
                                 if let Ok(value) = event.value().parse::<f64>()
                                     && value.is_finite()
                                 { on_action.call(Action::SetPositionY(value)); }
                             }
-                        }
                     }
-                    label { "Z (mm)"
-                        input {
-                            r#type: "number", step: "0.1", value: "{reference.elevation}",
+                    PcbInput { label: "Z (mm)", aria_label: "Z (mm)",
+                            r#type: InputType::Number, step: Some("0.1".into()), value: reference.elevation.to_string(),
                             disabled,
                             oninput: move |event: FormEvent| {
                                 if let Ok(value) = event.value().parse::<f64>()
                                     && value.is_finite()
                                 { on_action.call(Action::SetElevation(value)); }
                             }
-                        }
                     }
                 }
-                label { "Rotation (°)"
-                    input {
-                        r#type: "number", value: "{reference.pose.rotation}",
+                PcbInput { label: "Rotation (°)", aria_label: "Rotation (°)",
+                        r#type: InputType::Number, value: reference.pose.rotation.to_string(),
                         disabled,
                         oninput: move |event: FormEvent| {
                             if let Ok(value) = event.value().parse::<f64>()
                                 && value.is_finite()
                             { on_action.call(Action::SetRotation(value)); }
                         }
-                    }
                 }
                 if !current_paths.is_empty() {
-                    label {
-                        "Attach model directory"
-                        input {
-                            r#type: "file",
-                            multiple: true,
-                            "webkitdirectory": true,
+                    PcbFile { label: "Attach model directory", directory: true,
                             disabled: disabled || busy,
-                            aria_label: "Attach model directory",
                             onchange: move |event: FormEvent| {
                                 let Some(input) = event.data().try_as_web_event()
                                     .and_then(|event| event.target())
@@ -976,7 +970,6 @@ pub fn Editor(
                                 input.set_value("");
                                 on_attach_directory.call(files);
                             }
-                        }
                     }
                 }
                 for path in current_paths.iter().cloned() {
@@ -991,30 +984,22 @@ pub fn Editor(
                         let path_for_select = path.clone();
                         let path_for_file = path.clone();
                         rsx! {
-                            label { key: "{path}", "Model asset for {path}"
-                                select {
-                                    aria_label: "Model asset for {path}",
+                            div { key: "{path}", class: "grid gap-2",
+                                PcbChoice {
+                                    label: format!("Model asset for {path}"), aria_label: format!("Model asset for {path}"), value: selected_asset_id.clone(), searchable: true,
                                     disabled,
-                                    onchange: move |event: FormEvent| {
-                                        let selected = event.value();
+                                    on_change: move |selected: String| {
                                         on_action.call(Action::SetModelAsset {
                                             path: path_for_select.clone(),
                                             asset_id: if selected.is_empty() { None } else { Some(selected) },
                                         });
                                     },
-                                    option { value: "", selected: selected_asset_id.is_empty(), "Resolve bundled model" }
-                                    if saved_asset_unavailable {
-                                        option { value: "{selected_asset_id}", selected: true, "Saved model asset is unavailable" }
-                                    }
-                                    for asset in &options {
-                                        option { key: "{asset.id}", value: "{asset.id}", selected: available_selection == Some(asset.id.as_str()), "{asset.name}" }
-                                    }
+                                    options: std::iter::once((String::new(), "Resolve bundled model".into(), false))
+                                        .chain(saved_asset_unavailable.then(|| (selected_asset_id.clone(), "Saved model asset is unavailable".into(), false)))
+                                        .chain(options.iter().map(|asset| (asset.id.clone(), asset.name.clone(), false))).collect(),
                                 }
-                                input {
-                                    r#type: "file",
-                                    accept: ".step,.stp,.stl,.wrl",
+                                PcbFile { label: format!("Attach model for {path}"), accept: Some(".step,.stp,.stl,.wrl".into()),
                                     disabled: disabled || busy,
-                                    aria_label: "Attach model for {path}",
                                     onchange: move |event: FormEvent| {
                                         let Some(input) = event.data().try_as_web_event()
                                             .and_then(|event| event.target())
@@ -1029,18 +1014,16 @@ pub fn Editor(
                         }
                     }
                 }
-                button {
-                    r#type: "button",
-                    disabled: disabled || busy || removal_pending(action_tickets),
+                Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    disabled: disabled || busy || removal_disabled(),
                     onclick: move |_| on_action.call(Action::Remove),
                     "Remove PCB reference"
                 }
             }
 
-            if let Some(message) = error() { p { role: "alert", "{message}" } }
+            if let Some(message) = error() { Alert { variant: AlertVariant::Destructive, "{message}" } }
             if reference.is_some() && error().is_some() && current_paths.is_empty() {
-                button {
-                    r#type: "button",
+                Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     disabled: disabled || busy,
                     onclick: move |_| {
                         attempted_discovery_signal.set(None);
@@ -1095,11 +1078,12 @@ mod mounted_async_tests {
     use crate::runtime::{in_process_support, project_name_test_support as support};
     use boardstudio_application::{AcceptedSnapshot, Event, Scope};
     use boardstudio_core::model::{Asset, Board, BoardReference, Pose2, Vec2};
+    use boardstudio_web_ui_shared::test_role::by_role_name;
     use js_sys::{Array, Uint8Array};
     use std::{cell::RefCell, rc::Rc};
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::wasm_bindgen_test;
-    use web_sys::{File, HtmlElement};
+    use web_sys::File;
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
@@ -1124,7 +1108,7 @@ mod mounted_async_tests {
 
     async fn fixture() -> Fixture {
         let runtime = support::new_runtime();
-        let missing_sha = sha256_bytes(b"absent routed board browser-store fixture");
+        let missing_sha = sha256_hex(b"absent routed board browser-store fixture");
         let asset = Asset {
             id: "routed-board-asset".into(),
             name: "Left_PCB.kicad_pcb".into(),
@@ -1241,6 +1225,75 @@ mod mounted_async_tests {
     }
 
     #[wasm_bindgen_test]
+    async fn routed_reference_has_named_file_action_and_editable_fields() {
+        use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
+        let fixture = fixture().await;
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new_with_props(
+            field_edit_host,
+            field_edit_hostProps {
+                fixture: fixture.clone(),
+            },
+        );
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_until("routed reference disclosure mounts", || {
+            by_role_name(&root, "button", "Routed PCB reference").is_some()
+        })
+        .await;
+        let disclosure = by_role_name(&root, "button", "Routed PCB reference").unwrap();
+        disclosure.click();
+        wait_until("routed reference opens", || {
+            disclosure.get_attribute("aria-expanded").as_deref() == Some("true")
+        })
+        .await;
+        wait_until("routed reference controls mount", || {
+            by_role_name(&root, "button", "Replace KiCad board").is_some()
+                && by_role_name(&root, "spinbutton", "X (mm)").is_some()
+                && by_role_name(&root, "checkbox", "Use routed PCB in assembly").is_some()
+        })
+        .await;
+        assert_eq!(
+            disclosure.get_attribute("aria-expanded").as_deref(),
+            Some("true")
+        );
+        let picker_clicked = Rc::new(std::cell::Cell::new(false));
+        let observed = picker_clicked.clone();
+        let listener = wasm_bindgen::closure::Closure::<dyn FnMut(web_sys::Event)>::new(
+            move |event: web_sys::Event| {
+                if let Some(input) = event
+                    .target()
+                    .and_then(|target| target.dyn_into::<HtmlInputElement>().ok())
+                    && input.type_() == "file"
+                    && input.accept() == ".kicad_pcb"
+                {
+                    observed.set(true);
+                }
+            },
+        );
+        root.add_event_listener_with_callback("click", listener.as_ref().unchecked_ref())
+            .unwrap();
+        let file_button = by_role_name(&root, "button", "Replace KiCad board").unwrap();
+        wait_until("reference discovery settles before replacing", || {
+            !file_button.has_attribute("disabled")
+        })
+        .await;
+        file_button.click();
+        assert!(
+            picker_clicked.get(),
+            "the named action opens its KiCad file input"
+        );
+        root.remove_event_listener_with_callback("click", listener.as_ref().unchecked_ref())
+            .unwrap();
+        fixture.runtime.unsubscribe();
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
     async fn reference_fields_queue_two_commits_keep_the_draft_and_undo_in_order() {
         let fixture = fixture().await;
         let runtime = &fixture.runtime;
@@ -1257,10 +1310,8 @@ mod mounted_async_tests {
             dom,
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        TimeoutFuture::new(100).await;
-        let x = root
-            .query_selector("input[type='number']")
-            .unwrap()
+        TimeoutFuture::new(10).await;
+        let x = by_role_name(&root, "spinbutton", "X (mm)")
             .unwrap()
             .dyn_into::<HtmlInputElement>()
             .unwrap();
@@ -1270,10 +1321,10 @@ mod mounted_async_tests {
         x.set_value("7.25");
         x.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
             .unwrap();
-        TimeoutFuture::new(80).await;
+        TimeoutFuture::new(10).await;
         support::drive_pending(runtime);
         entered.await.unwrap();
-        TimeoutFuture::new(80).await;
+        TimeoutFuture::new(10).await;
         assert!(
             !x.disabled(),
             "coordinate fields stay enabled while pending"
@@ -1286,12 +1337,12 @@ mod mounted_async_tests {
         x.set_value("9.5");
         x.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
             .unwrap();
-        TimeoutFuture::new(80).await;
+        TimeoutFuture::new(10).await;
         assert_eq!(x.value(), "9.5");
         release.send(()).unwrap();
         for _ in 0..12 {
             support::run_pending(runtime).await;
-            TimeoutFuture::new(30).await;
+            TimeoutFuture::new(10).await;
         }
         assert_eq!(
             runtime.model().accepted.unwrap().document.board_references[0]
@@ -1307,7 +1358,7 @@ mod mounted_async_tests {
             });
             for _ in 0..8 {
                 support::run_pending(runtime).await;
-                TimeoutFuture::new(30).await;
+                TimeoutFuture::new(10).await;
             }
             assert_eq!(
                 runtime.model().accepted.unwrap().document.board_references[0]
@@ -1351,49 +1402,67 @@ mod mounted_async_tests {
         );
 
         for _ in 0..100 {
-            if root.query_selector("[role=alert]").unwrap().is_some() {
+            if by_role_name(
+                &root,
+                "alert",
+                "Saved routed-board file is missing from browser storage.",
+            )
+            .is_some()
+            {
                 break;
             }
             gloo_timers::future::TimeoutFuture::new(10).await;
         }
-        let alert = root
-            .query_selector("[role=alert]")
-            .unwrap()
-            .expect("missing stored blob produces a mounted alert");
+        let alert = by_role_name(
+            &root,
+            "alert",
+            "Saved routed-board file is missing from browser storage.",
+        )
+        .expect("missing stored blob produces a mounted alert");
         assert!(
             alert
                 .text_content()
                 .unwrap()
                 .contains("Saved routed-board file is missing from browser storage")
         );
-        let buttons = root.query_selector_all("button").unwrap();
-        let retry = (0..buttons.length())
-            .filter_map(|index| buttons.item(index))
-            .find(|button| button.text_content().as_deref() == Some("Retry model-path discovery"))
-            .expect("failed discovery offers retry")
-            .dyn_into::<HtmlElement>()
-            .unwrap();
+        let retry = by_role_name(&root, "button", "Retry model-path discovery")
+            .expect("failed discovery offers retry");
         assert!(retry.get_attribute("disabled").is_none());
         retry.click();
         for _ in 0..100 {
-            if root.query_selector("[role=alert]").unwrap().is_none() {
+            if by_role_name(
+                &root,
+                "alert",
+                "Saved routed-board file is missing from browser storage.",
+            )
+            .is_none()
+            {
                 break;
             }
             gloo_timers::future::TimeoutFuture::new(10).await;
         }
         for _ in 0..100 {
-            if root.query_selector("[role=alert]").unwrap().is_some() {
+            if by_role_name(
+                &root,
+                "alert",
+                "Saved routed-board file is missing from browser storage.",
+            )
+            .is_some()
+            {
                 break;
             }
             gloo_timers::future::TimeoutFuture::new(10).await;
         }
         assert!(
-            root.query_selector("[role=alert]")
-                .unwrap()
-                .expect("retry runs the real missing-asset lookup again")
-                .text_content()
-                .unwrap()
-                .contains("Saved routed-board file is missing from browser storage")
+            by_role_name(
+                &root,
+                "alert",
+                "Saved routed-board file is missing from browser storage."
+            )
+            .expect("retry runs the real missing-asset lookup again")
+            .text_content()
+            .unwrap()
+            .contains("Saved routed-board file is missing from browser storage")
         );
         assert!(support::take_held_effects(&fixture.runtime).is_empty());
         assert!(
@@ -1451,13 +1520,16 @@ mod mounted_async_tests {
                 id: "pcb-reference-test-begin-replace",
                 disabled: busy(),
                 onclick: move |_| begin_board_import(
-                    runtime.clone(),
-                    workspace,
-                    adapter_for_import.clone(),
-                    owner.clone(),
+                    BoardReferenceContext {
+                        runtime: runtime.clone(),
+                        workspace,
+                        adapter: adapter_for_import.clone(),
+                        owner: owner.clone(),
+                        generation: request_generation,
+                        request_generation: 0,
+                    },
                     Some(reference.clone()),
                     file.clone(),
-                    request_generation,
                     busy,
                     error,
                     paths,
@@ -1511,7 +1583,7 @@ mod mounted_async_tests {
         // Trailing whitespace preserves the fixture as KiCad text while giving
         // each stale-owner case a unique BrowserStore identity.
         bytes.extend(std::iter::repeat_n(b'\n', salt));
-        let sha256 = sha256_bytes(&bytes);
+        let sha256 = sha256_hex(&bytes);
         let contents = Uint8Array::from(bytes.as_slice());
         let file = File::new_with_u8_array_sequence(
             &Array::of1(&contents.into()),
@@ -1555,19 +1627,12 @@ mod mounted_async_tests {
             );
             let (entered, release) = test_support::install_import_gate();
             for _ in 0..100 {
-                if root
-                    .query_selector("#pcb-reference-test-begin-replace")
-                    .unwrap()
-                    .is_some()
-                {
+                if by_role_name(&root, "button", "Begin routed-board replacement").is_some() {
                     break;
                 }
                 gloo_timers::future::TimeoutFuture::new(10).await;
             }
-            root.query_selector("#pcb-reference-test-begin-replace")
-                .unwrap()
-                .unwrap()
-                .dyn_into::<HtmlElement>()
+            by_role_name(&root, "button", "Begin routed-board replacement")
                 .unwrap()
                 .click();
             entered
@@ -1603,9 +1668,8 @@ mod mounted_async_tests {
                 }
             }
             assert!(
-                root.query_selector("#pcb-reference-test-begin-replace:not([disabled])")
-                    .unwrap()
-                    .is_some(),
+                by_role_name(&root, "button", "Begin routed-board replacement")
+                    .is_some_and(|button| button.get_attribute("disabled").is_none()),
                 "replacement action remains usable for retry"
             );
             assert!(

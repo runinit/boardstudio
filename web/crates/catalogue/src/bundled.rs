@@ -34,6 +34,25 @@ pub async fn prepare_physical_setup_proposal(
     catalogue::prepare_physical_setup_proposal_from_package(&accepted, intent).await
 }
 
+/// Prepare the catalogue resources one physical-setup intent needs.
+///
+/// The pair-aware proposal is recomputed against the accepted snapshot when Session
+/// executes the intent, so this preparation owns the catalogue work: the normalized
+/// mounting-hole template Core needs whenever the commit-time proposal establishes a
+/// pair. A template that cannot be loaded fails the whole preparation, so no setup
+/// is submitted against a pair that cannot be projected.
+pub async fn prepare_physical_setup_resources(
+    accepted: ProjectDoc,
+    intent: crate::physical_setup::SetupIntent,
+) -> Result<crate::physical_setup::PreparedSetup, String> {
+    let proposal = catalogue::prepare_physical_setup_proposal_with_pair(&accepted, intent)?;
+    let mounting_hole = match proposal.mirror_pair {
+        Some(_) => Some((*load_mounting_hole_definition().await?).clone()),
+        None => None,
+    };
+    Ok(crate::physical_setup::PreparedSetup { mounting_hole })
+}
+
 /// Normalize a matrix-owned clone through the same built-in generator path used by Parts.
 pub async fn normalize_matrix_definition(
     definition: boardstudio_core::model::PartDefinition,

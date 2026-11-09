@@ -1,0 +1,96 @@
+Your app is being rebuilt.
+
+A non-hot-reloadable change occurred and we must rebuild.
+
+BoardStudio
+Graphite comparison
+Saved
+Export
+Objects
+Add object
+New matrix
+ecbaac17-1881-4242-b360-d97d5834e4cb
+Rows
+Columns
+Key assembly
+MX solder
+MX hotswap
+Choc V1 Solder
+Choc V1 Hotswap
+MX RGB
+Choc V1 RGB
+MX hotswap + RGB
+Choc V1 Hotswap RGB
+
+Starts at X 0, Y 0. Move and edit it on the canvas.
+
+Cancel
+Create matrix
+Board
+Main board
+⌄
+Main board
+0 parts
+›
+Outline
+Generated
+⌄
+Layout
+Layout
+PCB
+Keymap
+Keycaps
+Case
+Parts
+Geometry snapping
+Grid increment
+Off
+⅛u
+¼u
+½u
+1u
+1 mm
+0.5 mm
+0.1 mm
+Snap
+Matrix
+Row
+Column
+Key
+Part
+Transform
+Align
+2D
+3D assembly
+Footprints
+Layers
+Build your keyboard layout
+
+Start with a key matrix. Its switches and companions create the board outline as you edit.
+
+Add key matrix
+Browse individual parts
+Inspect
+Main board
+
+Layout
+
+Select a key, component, or matrix to edit it.
+
+Board name
+Outline
+Not defined
+Placed parts
+0
+Routed PCB reference
+mm
+X 0.00
+Y 0.00
+Grid ¼u
+Geometry snap on
+Fit board
+Fit selection
+−
+100%
++
+Layout findings: 2

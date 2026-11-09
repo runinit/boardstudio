@@ -4,6 +4,11 @@ use boardstudio_application::{AcceptedSnapshot, Scope, SnapshotToken};
 use boardstudio_core::model::{
     HardwareOutput, ModuleDefinition, PartDefinition, PartModel, Side, Vec3, VikRole,
 };
+use boardstudio_web_ui_shared::ui::{
+    button::{Button, ButtonVariant},
+    collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
+    table::{Table, TableBody, TableCell, TableRow},
+};
 use dioxus::prelude::*;
 use js_sys::Uint8Array;
 use serde::Deserialize;
@@ -435,35 +440,35 @@ pub fn ModuleSourcePreview(module: ModuleEntry) -> Element {
         definition.mounts.len()
     );
     rsx! {
-        section { class: "m1-workspace-content m1-parts-preview", "aria-label": "Module source preview",
-            header { class: "m1-parts-module-preview-heading", style: "display: grid; gap: 4px; padding: 12px;",
-                h2 { style: "margin: 0; color: var(--wb-ink); font-size: 16px;", "{definition.name}" }
-                small { style: "color: var(--wb-muted);", "VIK module · {definition.variant}" }
+        section { class: "relative order-2 flex flex-1 flex-col min-w-0 min-h-0 overflow-hidden rounded-xl bg-card shadow-sm", "aria-label": "Module source preview",
+            header { style: "display: grid; gap: 4px; padding: 12px;",
+                h2 { style: "margin: 0; color: var(--foreground); font-size: 16px;", "{definition.name}" }
+                small { style: "color: var(--muted-foreground);", "VIK module · {definition.variant}" }
             }
             if board_path.is_empty() {
-                p { class: "m1-parts-preview-status", role: "status", "This module snapshot has no recorded board contours." }
+                p { class: "text-primary", role: "status", "This module snapshot has no recorded board contours." }
             } else {
                 svg { role: "img", "aria-label": "{definition.name} source board and components", view_box: "{view_box}", style: "flex: 1; width: 100%; min-height: 0;",
                     g { transform: "scale(1,-1)",
-                        path { d: "{board_path}", fill: "rgba(52,124,99,.2)", fill_rule: "evenodd", stroke: "var(--wb-accent)", stroke_width: "0.35" }
+                        path { d: "{board_path}", fill: "rgba(52,124,99,.2)", fill_rule: "evenodd", stroke: "var(--primary)", stroke_width: "0.35" }
                         for (index, points) in &holes {
-                            polygon { key: "source-hole-{index}", points: "{points}", fill: "var(--wb-canvas)", stroke: "var(--wb-muted)", stroke_width: "0.2" }
+                            polygon { key: "source-hole-{index}", points: "{points}", fill: "var(--canvas)", stroke: "var(--muted-foreground)", stroke_width: "0.2" }
                         }
                         for part in &circuit_parts {
                             g { key: "{part.id}", transform: "{part.transform}",
                                 title { "{part.reference} · {part.source_name}" }
                                 if !part.courtyard.is_empty() {
-                                    polygon { points: "{part.courtyard}", fill: "none", stroke: "var(--wb-muted)", stroke_width: "0.2" }
+                                    polygon { points: "{part.courtyard}", fill: "none", stroke: "var(--muted-foreground)", stroke_width: "0.2" }
                                 }
                                 for (pad_id, x, y, radius) in &part.drills {
-                                    circle { key: "{pad_id}", cx: "{x}", cy: "{y}", r: "{radius}", fill: "var(--wb-canvas)", stroke: "var(--wb-muted)", stroke_width: "0.2" }
+                                    circle { key: "{pad_id}", cx: "{x}", cy: "{y}", r: "{radius}", fill: "var(--canvas)", stroke: "var(--muted-foreground)", stroke_width: "0.2" }
                                 }
                             }
                         }
                     }
                 }
             }
-            p { class: "m1-parts-preview-status", style: "margin: 8px 12px;", "{source_summary}" }
+            p { class: "text-primary", style: "margin: 8px 12px;", "{source_summary}" }
         }
     }
 }
@@ -522,52 +527,45 @@ pub fn ModuleInspector(
         h2 { "{definition.name}" }
         small { "VIK · {family}" }
         if !variants.is_empty() {
-            label { class: "m1-parts-search-label",
-                "Variant"
-                select {
-                    "aria-label": "Module variant",
-                    value: "{definition.id}",
-                    onchange: move |event| {
-                        selected.set(Some((variant_scope.clone(), format!("module:{}", event.value()))));
-                        selection_generation.with_mut(|value| *value = value.wrapping_add(1));
-                        preview_activation.with_mut(|value| *value = value.wrapping_add(1));
-                    },
-                    for variant in variants.iter() {
-                        option { value: "{variant.definition.id}", "{variant.definition.variant}" }
-                    }
-                }
+            super::PartsChoiceField {
+                label: "Variant", aria_label: "Module variant", value: definition.id.clone(),
+                options: variants.iter().map(|variant| (variant.definition.id.clone(), variant.definition.variant.clone())).collect(),
+                on_value_change: move |value: String| {
+                    selected.set(Some((variant_scope.clone(), format!("module:{value}"))));
+                    selection_generation.with_mut(|value| *value = value.wrapping_add(1));
+                    preview_activation.with_mut(|value| *value = value.wrapping_add(1));
+                },
             }
         }
         if project_owned { small { "Project snapshot" } }
         if let Some(placement_id) = placement_id {
-            button {
-                class: "m1-parts-place-assembly",
-                r#type: "button",
+            Button { variant: ButtonVariant::Secondary,
+                class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                 onclick: move |_| on_open_placement.call(placement_id.clone()),
                 "Edit selected mounted placement"
             }
         }
-        table { class: "m1-module-readiness",
-            tbody {
+        Table {
+            TableBody {
                 for (output, label) in readiness {
                     { let pending = definition.gates.iter().filter(|gate| gate.output == output).count();
-                      rsx! { tr { th { scope: "row", "{label}" } td { if pending == 0 { "No recorded blockers" } else { "{pending} to review" } } } }
+                      rsx! { TableRow { th { scope: "row", "{label}" } TableCell { if pending == 0 { "No recorded blockers" } else { "{pending} to review" } } } }
                     }
                 }
             }
         }
         if !definition.gates.is_empty() {
-            details {
-                summary { "Review {gate_count} remaining {gate_noun}" }
-                ul {
+            Collapsible { keep_mounted: true,
+                CollapsibleTrigger { class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Review {gate_count} remaining {gate_noun}" }
+                CollapsibleContent { class: "data-[open=false]:hidden", ul {
                     for gate in &definition.gates {
                         li { "{gate.message}" }
                     }
-                }
+                } }
             }
         }
         a { href: "{source_url}", target: "_blank", rel: "noreferrer", "Pinned source ↗" }
-        p { class: "m1-parts-empty", "{source_summary}" }
+        p { class: "my-3 text-muted-foreground text-sm leading-normal", "{source_summary}" }
         ModuleProfileEditor {
             snapshot: snapshot.clone(),
             definition: (*module.definition).clone(),

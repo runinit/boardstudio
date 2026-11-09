@@ -13,12 +13,15 @@ Sockets include MX, Choc v1, Choc v2, and Alps. Known switch families are inferr
 ambiguous or custom definitions require an explicit socket. A mismatched known
 switch family produces an error.
 
-The **3D assembly** view generates hollow caps, sockets, and recessed letter
-inlays in Rust using the existing Cadrum/OCCT backend. Colors belong to individual
-assembly bodies. CAD templates are cached independently of placement and color,
-and preview work runs in the CAD worker with cooperative cancellation between
-batches. **Export keycap STEP** includes caps and their separate letter inlays.
-Wide caps currently have central sockets; stabilizer sockets are not generated.
+The **3D assembly** view uses the Rust/WASM mesh-only keycap pipeline for display;
+optional printable meshes are exported as an STL ZIP. Keycaps do not use
+Cadrum/OCCT or produce exact STEP output, as recorded in
+[ADR-0015](../adr/0015-exact-generated-cad-and-mesh-preview-scope.md). Colors belong
+to individual displayed bodies. Geometry templates are cached independently of
+placement and color, and preview work runs in the CAD worker with cooperative
+cancellation between batches. Printable legends are merged into the cap mesh,
+not exported as separate STEP inlays. Wide caps currently have central sockets;
+stabilizer sockets are not generated.
 
 Clearance findings compare rotated envelopes through the full switch travel,
 including neighbor caps and current prepared case walls, openings, cavities, and

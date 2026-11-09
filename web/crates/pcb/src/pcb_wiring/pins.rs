@@ -1,5 +1,5 @@
 //! Accepted selected-board assignment pin and lock edits.
-use super::mode::{current_edit_snapshot, mode_identity};
+use super::mode::{BoardWiringFailure, current_edit_snapshot, mode_identity};
 use super::{PcbWiringResolution, PcbWiringSource};
 use crate::{
     pcb_wiring_mode_operation::{BoardWiringModeFeedbackTarget, BoardWiringModeIdentity},
@@ -8,10 +8,11 @@ use crate::{
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution};
 use boardstudio_core::{
     electrical::{ElectricalMode, ElectricalPlan},
-    model::{EditCommand, EditOperation, EditPhase, ProjectDoc},
+    model::{EditOperation, ProjectDoc},
 };
+use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
 use dioxus::prelude::*;
-use std::rc::Rc;
+use std::{cell::RefCell, rc::Rc};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PcbWiringPinAssignment {
@@ -22,6 +23,28 @@ pub struct PcbWiringPinAssignment {
     pub locked: bool,
 }
 
+pub(super) struct PcbWiringPinGroups<'a> {
+    pub rows: Vec<&'a PcbWiringPinAssignment>,
+    pub columns: Vec<&'a PcbWiringPinAssignment>,
+    pub other: Vec<&'a PcbWiringPinAssignment>,
+}
+
+pub(super) fn group_assignments(assignments: &[PcbWiringPinAssignment]) -> PcbWiringPinGroups<'_> {
+    let mut groups = PcbWiringPinGroups {
+        rows: Vec::new(),
+        columns: Vec::new(),
+        other: Vec::new(),
+    };
+    for assignment in assignments {
+        match assignment.id.split_once('/') {
+            Some(("row", _)) => groups.rows.push(assignment),
+            Some(("column", _)) => groups.columns.push(assignment),
+            _ => groups.other.push(assignment),
+        }
+    }
+    groups
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PcbWiringPinEditRequest {
     pub identity: BoardWiringModeIdentity,
@@ -30,47 +53,55 @@ pub struct PcbWiringPinEditRequest {
     pub pin: Option<String>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum PcbWiringPinFeedback {
-    Pending,
-    Saved,
-    Failed(String),
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PcbWiringPinFeedbackView {
-    pub target: BoardWiringModeFeedbackTarget,
-    pub request_plan: super::WiringPlanIdentity,
-    pub state: PcbWiringPinFeedback,
-}
-
 #[derive(Clone, PartialEq)]
 pub struct PcbWiringPinActions {
     pub identity: Option<BoardWiringModeIdentity>,
     pub editable: bool,
-    pub feedback: Option<PcbWiringPinFeedbackView>,
+    /// A pin edit for the current board target is still pending.
+    pub(crate) pending: bool,
+    /// The current board target's inline failure; landing and retirement are silent.
+    pub(crate) failure: Option<String>,
     pub on_change: EventHandler<PcbWiringPinEditRequest>,
 }
 
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
-#[derive(Clone, Copy)]
-struct PinTickets(Signal<Vec<(PcbWiringPinEditRequest, EditTicket)>>);
+/// One pin control's bounded logical key: the rendered board target plus its assignment.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct PcbWiringPinKey {
+    target: BoardWiringModeFeedbackTarget,
+    assignment_id: String,
+}
+
+impl PcbWiringPinKey {
+    fn new(identity: &BoardWiringModeIdentity, assignment_id: &str) -> Self {
+        Self {
+            target: identity.feedback_target(),
+            assignment_id: assignment_id.to_owned(),
+        }
+    }
+}
+
+#[derive(Clone)]
+struct PinOwner {
+    edits: Rc<RefCell<PendingEdits<PcbWiringPinKey>>>,
+    /// The latest submitted pin per key: the domain projection the pending select shows.
+    submissions: Signal<Vec<(PcbWiringPinKey, Option<String>)>>,
+}
 
 pub(super) fn pending_pin(
     identity: &BoardWiringModeIdentity,
     assignment_id: &str,
 ) -> Option<Option<String>> {
-    let tickets = try_consume_context::<PinTickets>()?;
-    tickets.0.read().iter().rev().find_map(|(request, ticket)| {
-        if ticket.is_pending()
-            && request.identity.feedback_target() == identity.feedback_target()
-            && request.assignment_id == assignment_id
-        {
-            Some(request.pin.clone())
-        } else {
-            None
-        }
-    })
+    let owner = try_consume_context::<PinOwner>()?;
+    let key = PcbWiringPinKey::new(identity, assignment_id);
+    if !owner.edits.borrow().is_pending(&key) {
+        return None;
+    }
+    owner
+        .submissions
+        .read()
+        .iter()
+        .rev()
+        .find_map(|(existing, pin)| (existing == &key).then(|| pin.clone()))
 }
 
 pub fn use_pcb_wiring_pin_edits(
@@ -82,55 +113,58 @@ pub fn use_pcb_wiring_pin_edits(
     source: Option<PcbWiringSource>,
     resolution: Signal<PcbWiringResolution>,
 ) -> PcbWiringPinActions {
-    let tickets = use_signal(Vec::<(PcbWiringPinEditRequest, EditTicket)>::new);
-    use_context_provider(|| PinTickets(tickets));
-    let latest = use_signal(|| None::<boardstudio_application::OperationId>);
-    let feedback = use_signal(|| None::<PcbWiringPinFeedbackView>);
+    let edits = use_hook(|| Rc::new(RefCell::new(PendingEdits::<PcbWiringPinKey>::default())));
+    let submissions = use_signal(Vec::<(PcbWiringPinKey, Option<String>)>::new);
+    let latest = use_signal(|| None::<PcbWiringPinKey>);
+    let failure = use_signal(|| None::<BoardWiringFailure>);
+    let settlement_tick = use_signal(|| 0u64);
+    let _ = settlement_tick();
+    use_context_provider(|| PinOwner {
+        edits: edits.clone(),
+        submissions,
+    });
     let observed_version = version();
     use_effect(use_reactive((&observed_version,), {
-        let runtime = runtime.clone();
-        let mut tickets = tickets;
-        let mut feedback = feedback;
+        let edits = edits.clone();
+        let mut submissions = submissions;
+        let mut failure = failure;
+        let mut settlement_tick = settlement_tick;
         move |_| {
-            let mut entries = tickets.peek().clone();
-            let before = entries.len();
-            entries.retain(|(request, ticket)| {
-                let live = workspace() == "PCB"
-                    && request.identity.feedback_target().is_visible(
-                        runtime.scope().as_ref(),
-                        runtime
-                            .model()
-                            .selected_part_ids
-                            .first()
-                            .map(String::as_str),
-                        scope_generation(),
-                    );
-                let state = match ticket.settlement(live) {
-                    Settlement::Pending => return true,
-                    Settlement::Landed { .. } => Some(PcbWiringPinFeedback::Saved),
-                    Settlement::Failed { message } => Some(PcbWiringPinFeedback::Failed(message)),
-                    Settlement::Retired => None,
-                };
-                if *latest.peek() == Some(ticket.operation()) {
-                    feedback.set(state.map(|state| PcbWiringPinFeedbackView {
-                        target: request.identity.feedback_target(),
-                        request_plan: request.identity.plan.clone(),
-                        state,
-                    }));
-                }
-                false
-            });
-            if before != entries.len() {
-                tickets.set(entries);
+            // Keyed submissions are the pending select projection; the collection owns the
+            // ticket lifetime, and each ticket retires itself when its Scope departs.
+            let results = edits.borrow_mut().settle(workspace() == "PCB");
+            if results.is_empty() {
+                return;
             }
+            for result in results {
+                match result {
+                    PendingEditResult::Failed { key, message } => {
+                        submissions.write().retain(|(existing, _)| existing != &key);
+                        if latest.peek().as_ref() == Some(&key) {
+                            failure.set(Some(BoardWiringFailure {
+                                target: key.target.clone(),
+                                message,
+                            }));
+                        }
+                    }
+                    PendingEditResult::Landed { key, .. } | PendingEditResult::Retired { key } => {
+                        submissions.write().retain(|(existing, _)| existing != &key);
+                        if latest.peek().as_ref() == Some(&key) {
+                            failure.set(None);
+                        }
+                    }
+                }
+            }
+            settlement_tick.set(settlement_tick().wrapping_add(1));
         }
     }));
     let on_change = use_callback({
         let runtime = runtime.clone();
         let instance_is_current = instance_is_current.clone();
-        let mut tickets = tickets;
+        let edits = edits.clone();
+        let mut submissions = submissions;
         let mut latest = latest;
-        let mut feedback = feedback;
+        let mut failure = failure;
         move |request: PcbWiringPinEditRequest| {
             let Some(snapshot) = current_edit_snapshot(
                 &runtime,
@@ -150,7 +184,7 @@ pub fn use_pcb_wiring_pin_edits(
             };
             if identity != &request.identity.plan {
                 return;
-            };
+            }
             if !pin_edit_is_available(
                 &snapshot.document,
                 _plan,
@@ -160,19 +194,22 @@ pub fn use_pcb_wiring_pin_edits(
             ) {
                 return;
             }
-            let ticket = EditTicket::begin(
+            let key = PcbWiringPinKey::new(&request.identity, &request.assignment_id);
+            latest.set(Some(key.clone()));
+            failure.set(None);
+            let mut entries = submissions.write();
+            match entries.iter_mut().find(|(existing, _)| existing == &key) {
+                Some(entry) => entry.1 = request.pin.clone(),
+                None => entries.push((key.clone(), request.pin.clone())),
+            }
+            drop(entries);
+            edits.borrow_mut().begin(
                 &runtime,
+                key,
                 "pcb-wiring-pins",
                 Some("wiring pin".into()),
-                pins_resolver(request.clone()),
+                pins_resolver(request),
             );
-            latest.set(Some(ticket.operation()));
-            feedback.set(Some(PcbWiringPinFeedbackView {
-                target: request.identity.feedback_target(),
-                request_plan: request.identity.plan.clone(),
-                state: PcbWiringPinFeedback::Pending,
-            }));
-            tickets.write().push((request, ticket));
         }
     });
     let identity = source.as_ref().map(mode_identity);
@@ -181,11 +218,20 @@ pub fn use_pcb_wiring_pin_edits(
     let target = identity
         .as_ref()
         .map(BoardWiringModeIdentity::feedback_target);
-    let feedback = feedback().filter(|item| target.as_ref() == Some(&item.target));
+    let pending = target.as_ref().is_some_and(|target| {
+        submissions
+            .read()
+            .iter()
+            .any(|(key, _)| &key.target == target && edits.borrow().is_pending(key))
+    });
+    let failure = failure()
+        .filter(|failure| target.as_ref() == Some(&failure.target))
+        .map(|failure| failure.message);
     PcbWiringPinActions {
         identity,
         editable,
-        feedback,
+        pending,
+        failure,
         on_change,
     }
 }
@@ -193,11 +239,6 @@ pub fn use_pcb_wiring_pin_edits(
 fn pins_resolver(request: PcbWiringPinEditRequest) -> EditResolver {
     EditResolver::new("pcb-wiring-pins", move |accepted: &AcceptedSnapshot| {
         let board_id = &request.identity.plan.scope.board_id;
-        if accepted.session_epoch != request.identity.ui_scope.session_epoch
-            || accepted.document.id != request.identity.ui_scope.document_id
-        {
-            return Resolution::Retire(boardstudio_application::DOCUMENT_SESSION_CHANGED.into());
-        }
         if !accepted
             .document
             .boards
@@ -250,15 +291,12 @@ fn pins_resolver(request: PcbWiringPinEditRequest) -> EditResolver {
         if proposal == *accepted.document {
             return Resolution::Unchanged;
         }
-        Resolution::Submit(EditCommand {
-            base_revision: accepted.document.revision,
-            transaction_id: String::new(),
-            phase: EditPhase::Commit,
-            target_ids: vec![board_id.clone()],
-            operation: EditOperation::ReplaceDocument {
+        Resolution::submit(
+            vec![board_id.clone()],
+            EditOperation::ReplaceDocument {
                 document: Box::new(proposal),
             },
-        })
+        )
     })
 }
 

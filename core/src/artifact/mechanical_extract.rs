@@ -5,13 +5,15 @@
 //! assigned a mechanical purpose unless a caller explicitly maps it.
 
 use super::sexpr;
+use crate::hash::sha256_hex;
 use crate::model::{ArtifactError, ArtifactErrorCode, MechanicalDrillShape as DrillShape, Vec2};
 pub use crate::model::{
     MechanicalGeometry, MechanicalGeometryKind as GeometryKind, MechanicalPrimitive,
     MechanicalPurpose, MechanicalPurposeMapping as PurposeMapping, MechanicalShape,
 };
 use kiutils_sexpr::Node;
-use sha2::{Digest, Sha256};
+mod board_source;
+pub(super) use board_source::extract_board_source;
 
 const CONTOUR_ENDPOINT_TOLERANCE_MM: f64 = 0.01;
 
@@ -127,7 +129,7 @@ pub fn profile_source(
     let geometry = extract(source, mappings)?;
     Ok(crate::model::MechanicalProfileSource {
         text: source.to_owned(),
-        sha256: hex_digest(&Sha256::digest(source.as_bytes())),
+        sha256: sha256_hex(source.as_bytes()),
         mappings: mappings.to_vec(),
         source_ids: geometry
             .primitives
@@ -180,16 +182,6 @@ pub fn pcb_mounting_holes(
             })
         })
         .collect()
-}
-
-fn hex_digest(bytes: &[u8]) -> String {
-    const HEX: &[u8; 16] = b"0123456789abcdef";
-    let mut output = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        output.push(HEX[(byte >> 4) as usize] as char);
-        output.push(HEX[(byte & 0x0f) as usize] as char);
-    }
-    output
 }
 
 /// Convert only explicitly classified plate-cutout geometry to closed rings.
@@ -409,13 +401,12 @@ fn tessellate_drill(
     Ok(points)
 }
 
-fn tessellate_arc(
+fn circular_arc_parameters(
     start: Vec2,
     mid: Option<Vec2>,
     end: Vec2,
     legacy_sweep_degrees: Option<f64>,
-    deviation: f64,
-) -> Result<Vec<Vec2>, ArtifactError> {
+) -> Result<(Vec2, f64, f64, f64), ArtifactError> {
     let (center, first, sweep, radius) = if let (Some(mid), None) = (mid, legacy_sweep_degrees) {
         let (center, radius) = circumcenter(start, mid, end)
             .ok_or_else(|| validation("Degenerate plate-cutout arc"))?;
@@ -432,18 +423,25 @@ fn tessellate_arc(
         };
         (center, a0, sweep, radius)
     } else if let (None, Some(degrees)) = (mid, legacy_sweep_degrees) {
-        // In legacy KiCad syntax `start` is the center and `end` lies on it.
-        let radius = (end.x - start.x).hypot(end.y - start.y);
-        if radius <= 0.0 {
-            return Err(validation("Degenerate legacy plate-cutout arc"));
-        }
-        let first = (end.y - start.y).atan2(end.x - start.x);
-        (start, first, -degrees.to_radians(), radius)
+        super::legacy_arc_parameters(start, end, degrees)
+            .ok_or_else(|| validation("Degenerate legacy plate-cutout arc"))?
     } else {
         return Err(validation(
             "Arc must have either a midpoint or legacy sweep",
         ));
     };
+    Ok((center, first, sweep, radius))
+}
+
+fn tessellate_arc(
+    start: Vec2,
+    mid: Option<Vec2>,
+    end: Vec2,
+    legacy_sweep_degrees: Option<f64>,
+    deviation: f64,
+) -> Result<Vec<Vec2>, ArtifactError> {
+    let (center, first, sweep, radius) =
+        circular_arc_parameters(start, mid, end, legacy_sweep_degrees)?;
     let max_step = 2.0
         * (1.0 - deviation.min(radius) / radius)
             .clamp(-1.0, 1.0)
@@ -828,7 +826,7 @@ mod tests {
         assert_eq!(provenance.text, source);
         assert_eq!(
             provenance.sha256,
-            hex_digest(&Sha256::digest(source.as_bytes()))
+            "29c925516d79215884d1a89fc53250cd6c4899131e405af94966a74169fe4f19"
         );
         assert_eq!(provenance.sha256.len(), 64);
         assert_eq!(

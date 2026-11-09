@@ -1,7 +1,10 @@
 use boardstudio_application::{
-    AcceptedSnapshot, Completion, EditResolver, Effect, Event, ExecutorEpoch, Landing, Lifecycle,
-    OperationId, RequestId, Resolution, SaveAttemptId, SaveResult, SelectionMode, Session,
+    AcceptedSnapshot, Completion, Durability, EditResolver, Effect, Event, ExecutorEpoch, Landing,
+    Lifecycle, OperationId, RequestId, Resolution, SaveAttemptId, SaveResult, Session,
     TerminalOutcome,
+};
+use boardstudio_core::mechanical::change::{
+    MechanicalChange, MechanicalCriticalFitTextField, MechanicalEdit,
 };
 use boardstudio_core::{CoreEngine, model::*};
 use std::cell::{Cell, RefCell};
@@ -37,6 +40,7 @@ fn fixture() -> ProjectDoc {
             rotation: 0.0,
         },
         side: Side::Front,
+        anchor: None,
         locked: None,
         keycap: None,
         outline: None,
@@ -44,6 +48,31 @@ fn fixture() -> ProjectDoc {
         generator_parameters: None,
     });
     document
+}
+
+#[test]
+fn resolution_constructor_keeps_session_owned_fields_out_of_the_resolver() {
+    let operation = EditOperation::MoveParts { positions: vec![] };
+
+    let Resolution::Submit(command) = Resolution::submit(vec!["key".into()], operation.clone())
+    else {
+        panic!("submit constructor must produce an edit intent");
+    };
+
+    assert_eq!(command.base_revision, 0);
+    assert!(command.transaction_id.is_empty());
+    assert!(matches!(command.phase, EditPhase::Commit));
+    assert_eq!(command.target_ids, ["key"]);
+    assert_eq!(command.operation, operation);
+
+    let Resolution::Submit(grouped) = Resolution::submit_with_transaction_id(
+        vec!["key".into()],
+        "outline-transaction",
+        EditOperation::MoveParts { positions: vec![] },
+    ) else {
+        panic!("grouped submit constructor must produce an edit intent");
+    };
+    assert_eq!(grouped.transaction_id, "outline-transaction");
 }
 
 fn matrix_range_fixture() -> (ProjectDoc, Vec<String>) {
@@ -97,12 +126,13 @@ fn matrix_range_fixture() -> (ProjectDoc, Vec<String>) {
         rotation: None,
         edge_gap: None,
         diode_direction: None,
-        row_offsets: vec![],
-        column_offsets: vec![],
-        column_staggers: vec![],
-        column_splays: vec![],
-        column_origins: vec![],
+        row_layout: vec![],
+        column_layout: vec![],
+        anchor: None,
         cells: vec![MatrixCell {
+            shift: None,
+            bend: None,
+            deleted: false,
             row: 1,
             column: 1,
             enabled: false,
@@ -167,6 +197,19 @@ fn core_effect(effects: &[Effect]) -> (RequestId, ExecutorEpoch, CoreRequest) {
         .expect("one core request")
 }
 
+fn add_preview_electrical_notice(reply: &mut CoreReply, id: &str) {
+    let CoreReply::Preview { scene, .. } = reply else {
+        panic!("an edit preview must return a preview scene");
+    };
+    scene.findings.push(Finding {
+        id: format!("preview:electrical:{id}"),
+        severity: Severity::Info,
+        scope: Scope::Pcb,
+        message: "Preview removed a pin connection".into(),
+        target_ids: vec!["key".into()],
+    });
+}
+
 fn save_effect(effects: &[Effect]) -> (SaveAttemptId, ProjectDoc) {
     effects
         .iter()
@@ -215,9 +258,9 @@ fn protected_handoff_review_uses_core_operation_after_normal_edits_preserve_it()
     // Ordinary document replacement is still an edit, so Core restores the protected handoff.
     let mut attempted_clear = opened.clone();
     attempted_clear.hardware.as_mut().unwrap().boards[0].protected_handoff = None;
-    let effects = session.submit(Event::Edit {
-        operation_id: OperationId(2),
-        command: EditCommand {
+    let effects = session.submit(resolved_edit(
+        OperationId(2),
+        EditCommand {
             base_revision: 0,
             transaction_id: "ordinary-clear-attempt".into(),
             phase: EditPhase::Commit,
@@ -226,7 +269,7 @@ fn protected_handoff_review_uses_core_operation_after_normal_edits_preserve_it()
                 document: Box::new(attempted_clear),
             },
         },
-    });
+    ));
     let (after_edit, _) = settle_core_and_save(&mut session, &mut engine, effects);
     assert_eq!(after_edit.revision, 1);
     assert_eq!(
@@ -400,9 +443,9 @@ fn retry_persists_retained_commit_without_replaying_engine_edit() {
         }
     )));
 
-    let event = Event::Edit {
-        operation_id: OperationId(2),
-        command: EditCommand {
+    let event = resolved_edit(
+        OperationId(2),
+        EditCommand {
             base_revision: 0,
             transaction_id: "move-1".into(),
             phase: EditPhase::Commit,
@@ -414,7 +457,7 @@ fn retry_persists_retained_commit_without_replaying_engine_edit() {
                 }],
             },
         },
-    };
+    );
     let effects = session.submit(event);
     let (edit_request_id, edit_epoch, edit) = core_effect(&effects);
     let committed_reply = engine.handle(edit);
@@ -459,6 +502,10 @@ fn retry_persists_retained_commit_without_replaying_engine_edit() {
         0
     );
 
+    let (outcome, landing) = settled_landing(&effects, OperationId(2));
+    assert!(matches!(outcome, TerminalOutcome::PersistenceFailed(_)));
+    assert!(landing.is_none(), "a failed save has no landing");
+
     let effects = session.submit(Event::RetrySave {
         operation_id: OperationId(3),
     });
@@ -494,6 +541,20 @@ fn retry_persists_retained_commit_without_replaying_engine_edit() {
         }
     )));
 
+    let accepted = session.read_model().accepted.clone().unwrap();
+    let (retry_outcome, retry_landing) = settled_landing(&effects, OperationId(3));
+    let (original_outcome, original_landing) = settled_landing(&effects, OperationId(2));
+    assert_eq!(retry_outcome, TerminalOutcome::Completed);
+    assert_eq!(original_outcome, TerminalOutcome::Completed);
+    let retry_landing = retry_landing.expect("the retry reports where it landed");
+    assert_eq!(retry_landing.revision, accepted.document.revision);
+    assert_eq!(retry_landing.token, accepted.token);
+    assert_eq!(
+        original_landing,
+        Some(retry_landing),
+        "the original edit operation reports the same landing"
+    );
+
     let snapshot_request = CoreRequest::Snapshot {
         id: "inspect".into(),
     };
@@ -502,10 +563,21 @@ fn retry_persists_retained_commit_without_replaying_engine_edit() {
     );
 }
 
+fn resolved_edit(operation_id: OperationId, command: EditCommand) -> Event {
+    let resolver_command = command;
+    Event::ResolveEdit {
+        operation_id,
+        label: "test fixed command".into(),
+        resolver: EditResolver::new("test fixed command", move |_| {
+            Resolution::Submit(resolver_command.clone())
+        }),
+    }
+}
+
 fn move_edit(operation_id: u64, base_revision: u64, x: f64) -> Event {
-    Event::Edit {
-        operation_id: OperationId(operation_id),
-        command: EditCommand {
+    resolved_edit(
+        OperationId(operation_id),
+        EditCommand {
             base_revision,
             transaction_id: format!("move-{operation_id}"),
             phase: EditPhase::Commit,
@@ -517,7 +589,7 @@ fn move_edit(operation_id: u64, base_revision: u64, x: f64) -> Event {
                 }],
             },
         },
-    }
+    )
 }
 
 fn open_ready(session: &mut Session, engine: &mut CoreEngine) {
@@ -540,6 +612,178 @@ fn open_ready(session: &mut Session, engine: &mut CoreEngine) {
 }
 
 #[test]
+fn owned_gesture_commit_finishes_before_project_open() {
+    for preview_first in [true, false] {
+        let mut session = Session::new();
+        let mut engine = CoreEngine::new();
+        open_ready(&mut session, &mut engine);
+        session.submit(Event::GestureBegin {
+            operation_id: OperationId(21),
+            pointer_id: 7,
+            target_ids: vec!["key".into()],
+            transaction_id: "owned-before-open".into(),
+            start: vec![Position {
+                id: "key".into(),
+                at: Vec2 { x: 0.0, y: 0.0 },
+            }],
+            pitch: Vec2 { x: 19.05, y: 19.05 },
+            snap_fraction: 0.0,
+            geometry_snap: false,
+            gap: None,
+            pixels_per_world: None,
+            alt: false,
+        });
+        let preview = if preview_first {
+            session.submit(Event::GestureSample {
+                pointer_id: 7,
+                positions: vec![Position {
+                    id: "key".into(),
+                    at: Vec2 { x: 4.0, y: 0.0 },
+                }],
+                pixels_per_world: None,
+                alt: false,
+            });
+            let generation = session.read_model().gesture.as_ref().unwrap().generation;
+            Some(session.submit(Event::GestureFrame { generation }))
+        } else {
+            None
+        };
+        let commit = session.submit(Event::GestureEnd {
+            pointer_id: 7,
+            final_positions: vec![Position {
+                id: "key".into(),
+                at: Vec2 { x: 4.0, y: 0.0 },
+            }],
+            pixels_per_world: None,
+            alt: false,
+        });
+        let (request_id, executor_epoch, request) =
+            core_effect(preview.as_ref().unwrap_or(&commit));
+        let next = ProjectDoc::empty("next-project", "Next");
+        let open = session.submit(Event::Open {
+            operation_id: OperationId(22),
+            document: next.clone(),
+        });
+        assert!(
+            !open.iter().any(|effect| matches!(
+                effect,
+                Effect::Settled {
+                    operation_id: OperationId(21),
+                    outcome: TerminalOutcome::Cancelled,
+                    ..
+                }
+            )),
+            "project switching must not cancel an owned commit"
+        );
+        let mut effects = session.complete(Completion::Core {
+            request_id,
+            executor_epoch,
+            reply: Box::new(engine.handle(request)),
+        });
+        if preview_first {
+            let (request_id, executor_epoch, request) = core_effect(&effects);
+            effects = session.complete(Completion::Core {
+                request_id,
+                executor_epoch,
+                reply: Box::new(engine.handle(request)),
+            });
+        }
+        let (save_attempt_id, saved) = save_effect(&effects);
+        assert_eq!(saved.id, "project");
+        assert_eq!(saved.parts[0].pose.at.x, 4.0);
+        let effects = session.complete(Completion::Persist {
+            save_attempt_id,
+            result: SaveResult::Committed,
+        });
+        assert_eq!(
+            settled_landing(&effects, OperationId(21)).0,
+            TerminalOutcome::Completed
+        );
+        assert_eq!(
+            session
+                .read_model()
+                .accepted
+                .as_ref()
+                .unwrap()
+                .document
+                .as_ref(),
+            &saved
+        );
+        let (replacement, _) = settle_core_and_save(&mut session, &mut engine, effects);
+        assert_eq!(replacement, next);
+        assert_eq!(
+            session
+                .read_model()
+                .accepted
+                .as_ref()
+                .unwrap()
+                .document
+                .as_ref(),
+            &next
+        );
+    }
+}
+
+#[test]
+fn invalid_open_preserves_the_current_gesture_and_accepted_session() {
+    let mut session = Session::new();
+    let mut engine = CoreEngine::new();
+    open_ready(&mut session, &mut engine);
+    session.submit(Event::GestureBegin {
+        operation_id: OperationId(21),
+        pointer_id: 7,
+        target_ids: vec!["key".into()],
+        transaction_id: "keep-draft".into(),
+        start: vec![Position {
+            id: "key".into(),
+            at: Vec2 { x: 0.0, y: 0.0 },
+        }],
+        pitch: Vec2 { x: 19.05, y: 19.05 },
+        snap_fraction: 0.0,
+        geometry_snap: false,
+        gap: None,
+        pixels_per_world: None,
+        alt: false,
+    });
+    let before = session.read_model().clone();
+    let mut invalid = fixture();
+    invalid.format_version = 6;
+    let mut effects = session.submit(Event::Open {
+        operation_id: OperationId(22),
+        document: invalid,
+    });
+    if effects
+        .iter()
+        .any(|effect| matches!(effect, Effect::Core { .. }))
+    {
+        let (request_id, epoch, request) = core_effect(&effects);
+        effects.extend(session.complete(Completion::Core {
+            request_id,
+            executor_epoch: epoch,
+            reply: Box::new(engine.handle(request)),
+        }));
+    }
+    assert!(effects.iter().any(|effect| matches!(effect,
+        Effect::Settled { operation_id: OperationId(22), outcome: TerminalOutcome::Rejected(reason), .. }
+            if reason.contains("No conversion"))));
+    assert!(!effects.iter().any(|effect| matches!(
+        effect,
+        Effect::Persist { .. } | Effect::ReleasePointer { .. }
+    )));
+    assert_eq!(session.read_model().accepted, before.accepted);
+    assert_eq!(session.read_model().gesture, before.gesture);
+    assert_eq!(
+        session.scope(),
+        Some(boardstudio_application::Scope {
+            session_epoch: before.accepted.unwrap().session_epoch,
+            document_id: "project".into(),
+            board_id: String::new(),
+            instance_id: None
+        })
+    );
+}
+
+#[test]
 fn group_position_edit_moves_selected_parts_together_and_undo_restores_both() {
     let mut session = Session::new();
     let mut engine = CoreEngine::new();
@@ -555,9 +799,9 @@ fn group_position_edit_moves_selected_parts_together_and_undo_restores_both() {
     });
     settle_core_and_save(&mut session, &mut engine, effects);
 
-    let effects = session.submit(Event::Edit {
-        operation_id: OperationId(2),
-        command: EditCommand {
+    let effects = session.submit(resolved_edit(
+        OperationId(2),
+        EditCommand {
             base_revision: 0,
             transaction_id: "group-position-blur".into(),
             phase: EditPhase::Commit,
@@ -575,7 +819,7 @@ fn group_position_edit_moves_selected_parts_together_and_undo_restores_both() {
                 ],
             },
         },
-    });
+    ));
     let (moved, _) = settle_core_and_save(&mut session, &mut engine, effects);
     assert_eq!(moved.parts[0].pose.at.x, 3.0);
     assert_eq!(moved.parts[1].pose.at.x, 13.0);
@@ -589,66 +833,211 @@ fn group_position_edit_moves_selected_parts_together_and_undo_restores_both() {
 }
 
 #[test]
-fn queued_discrete_edits_use_each_preceding_durable_revision() {
+fn undo_save_completing_after_a_superseded_drag_save_keeps_the_restored_document() {
     let mut session = Session::new();
     let mut engine = CoreEngine::new();
-    open_ready(&mut session, &mut engine);
+    let effects = session.submit(Event::Open {
+        operation_id: OperationId(1),
+        document: fixture(),
+    });
+    let (opened, _) = settle_core_and_save(&mut session, &mut engine, effects);
+    assert_eq!(opened.revision, 0);
 
-    let first_effects = session.submit(move_edit(11, 0, 2.0));
-    let (first_id, first_epoch, first_request) = core_effect(&first_effects);
-    let second_effects = session.submit(move_edit(12, 0, 6.0));
+    // Commit a drag-like change and hold its save open: Persist A is the only
+    // outstanding completion.
+    let effects = session.submit(move_edit(2, 0, 3.0));
+    let (request_id, epoch, request) = core_effect(&effects);
+    let reply = engine.handle(request);
+    let effects = session.complete(Completion::Core {
+        request_id,
+        executor_epoch: epoch,
+        reply: Box::new(reply),
+    });
+    let (attempt_a, dragged) = save_effect(&effects);
+    assert_eq!(dragged.revision, 1);
+    assert_eq!(dragged.parts[0].pose.at.x, 3.0);
+
+    // Undo while save A is still in flight: the intent queues behind the save
+    // instead of dispatching a second core request.
+    let queued = session.submit(Event::Undo {
+        operation_id: OperationId(3),
+    });
     assert!(
-        !second_effects
+        !queued
             .iter()
-            .any(|effect| matches!(effect, Effect::Core { .. }))
+            .any(|effect| matches!(effect, Effect::Core { .. })),
+        "Undo must wait for the outstanding save, not race it"
     );
 
-    let first_reply = engine.handle(first_request);
-    let effects = session.complete(Completion::Core {
-        request_id: first_id,
-        executor_epoch: first_epoch,
-        reply: Box::new(first_reply),
-    });
-    let (first_save, _) = save_effect(&effects);
+    // The host persists the dragged revision; only then does Undo run and
+    // overwrite the single pending-save slot with its own Persist B.
     let effects = session.complete(Completion::Persist {
-        save_attempt_id: first_save,
-        result: SaveResult::Committed,
-    });
-    let (second_id, second_epoch, second_request) = core_effect(&effects);
-    assert!(
-        matches!(&second_request, CoreRequest::Edit { command, .. } if command.base_revision == 1)
-    );
-
-    let second_reply = engine.handle(second_request);
-    let effects = session.complete(Completion::Core {
-        request_id: second_id,
-        executor_epoch: second_epoch,
-        reply: Box::new(second_reply),
-    });
-    let (second_save, _) = save_effect(&effects);
-    let effects = session.complete(Completion::Persist {
-        save_attempt_id: second_save,
+        save_attempt_id: attempt_a,
         result: SaveResult::Committed,
     });
     assert_eq!(
+        settled_landing(&effects, OperationId(2)).0,
+        TerminalOutcome::Completed
+    );
+    let (request_id, epoch, request) = core_effect(&effects);
+    let reply = engine.handle(request);
+    let effects = session.complete(Completion::Core {
+        request_id,
+        executor_epoch: epoch,
+        reply: Box::new(reply),
+    });
+    let (attempt_b, restored) = save_effect(&effects);
+    assert_ne!(attempt_b, attempt_a);
+    assert_eq!(restored.parts[0].pose.at.x, 0.0);
+    assert_ne!(restored, dragged);
+
+    // The Undo save lands, then a late duplicate of save A arrives (a retried
+    // host callback after the slot moved on). It must be dropped: the accepted
+    // document stays the restored one and durability stays Saved.
+    let effects = session.complete(Completion::Persist {
+        save_attempt_id: attempt_b,
+        result: SaveResult::Committed,
+    });
+    assert_eq!(
+        settled_landing(&effects, OperationId(3)).0,
+        TerminalOutcome::Completed
+    );
+    let late = session.complete(Completion::Persist {
+        save_attempt_id: attempt_a,
+        result: SaveResult::Committed,
+    });
+    assert!(
+        late.is_empty(),
+        "a late completion for a superseded save must be dropped, got: {late:?}"
+    );
+    let accepted = session.read_model().accepted.as_ref().unwrap();
+    assert_eq!(accepted.document.as_ref(), &restored);
+    assert!(
+        matches!(
+            session.read_model().durability,
+            Durability::Saved { revision } if revision == restored.revision
+        ),
+        "durability must track the restored document"
+    );
+}
+
+#[test]
+fn preview_edit_displays_without_changing_the_accepted_document_or_history() {
+    let mut session = Session::new();
+    let mut engine = CoreEngine::new();
+    open_ready(&mut session, &mut engine);
+    let accepted = session
+        .read_model()
+        .accepted
+        .as_ref()
+        .unwrap()
+        .document
+        .as_ref()
+        .clone();
+
+    let effects = session.submit(Event::PreviewEdit {
+        operation_id: OperationId(11),
+        transaction_id: "preview-position".into(),
+        target_ids: vec!["key".into()],
+        operation: EditOperation::MoveParts {
+            positions: vec![Position {
+                id: "key".into(),
+                at: Vec2 { x: 8.0, y: 0.0 },
+            }],
+        },
+    });
+    let (request_id, executor_epoch, request) = core_effect(&effects);
+    assert!(matches!(
+        &request,
+        CoreRequest::Edit { command, .. } if command.phase == EditPhase::Preview
+    ));
+    let mut reply = engine.handle(request);
+    add_preview_electrical_notice(&mut reply, "first");
+    session.complete(Completion::Core {
+        request_id,
+        executor_epoch,
+        reply: Box::new(reply),
+    });
+
+    let after_preview = session.read_model().accepted.as_ref().unwrap();
+    assert_eq!(after_preview.document.as_ref(), &accepted);
+    assert_eq!(after_preview.document.revision, 0);
+    let accepted_token = after_preview.token;
+    let display_preview = session.read_model().display_preview.as_ref().unwrap();
+    assert!(display_preview.findings.iter().any(|finding| {
+        finding.id == "preview:electrical:first"
+            && finding.severity == Severity::Info
+            && finding.scope == Scope::Pcb
+    }));
+
+    let board_id = session.read_model().active_board_id.clone();
+    let clear = |operation_id, transaction_id: &str| Event::ClearPreview {
+        operation_id: OperationId(operation_id),
+        token: accepted_token,
+        revision: 0,
+        board_id: board_id.clone(),
+        transaction_id: transaction_id.into(),
+    };
+
+    let effects = session.submit(Event::PreviewEdit {
+        operation_id: OperationId(13),
+        transaction_id: "replacement-preview".into(),
+        target_ids: vec!["key".into()],
+        operation: EditOperation::MoveParts {
+            positions: vec![Position {
+                id: "key".into(),
+                at: Vec2 { x: 12.0, y: 0.0 },
+            }],
+        },
+    });
+    let (request_id, executor_epoch, request) = core_effect(&effects);
+    let mut reply = engine.handle(request);
+    add_preview_electrical_notice(&mut reply, "replacement");
+    session.complete(Completion::Core {
+        request_id,
+        executor_epoch,
+        reply: Box::new(reply),
+    });
+    let replacement_preview = session.read_model().display_preview.as_ref().unwrap();
+    assert!(
+        replacement_preview
+            .findings
+            .iter()
+            .any(|finding| finding.id == "preview:electrical:replacement")
+    );
+    assert!(
+        !replacement_preview
+            .findings
+            .iter()
+            .any(|finding| finding.id == "preview:electrical:first")
+    );
+
+    session.submit(clear(14, "preview-position"));
+    assert!(
         session
             .read_model()
-            .accepted
+            .display_preview
             .as_ref()
             .unwrap()
-            .document
-            .revision,
-        2
+            .findings
+            .iter()
+            .any(|finding| finding.id == "preview:electrical:replacement")
     );
-    assert!(effects.iter().any(|effect| matches!(
-        effect,
-        Effect::Settled {
-            operation_id: OperationId(12),
-            outcome: TerminalOutcome::Completed,
+    session.submit(clear(15, "replacement-preview"));
+    assert!(session.read_model().display_preview.is_none());
 
-            ..
-        }
-    )));
+    let accepted_after_clears = session.read_model().accepted.as_ref().unwrap();
+    assert_eq!(accepted_after_clears.document.as_ref(), &accepted);
+    assert_eq!(accepted_after_clears.document.revision, 0);
+    assert_eq!(accepted_after_clears.token, accepted_token);
+
+    let undo = engine.handle(CoreRequest::Undo {
+        id: "preview-history-check".into(),
+    });
+    assert!(matches!(
+        undo,
+        CoreReply::Error { message, .. } if message == "History is empty"
+    ));
 }
 
 #[test]
@@ -690,6 +1079,7 @@ fn part_drag_uses_gap_geometry_snap_at_the_two_millimeter_tolerance() {
         snap_fraction: 0.0,
         geometry_snap: true,
         gap: Some(1.0),
+        pixels_per_world: None,
         alt: false,
     });
     session.submit(Event::GestureSample {
@@ -698,6 +1088,7 @@ fn part_drag_uses_gap_geometry_snap_at_the_two_millimeter_tolerance() {
             id: "moving".into(),
             at: Vec2 { x: 19.6, y: 0.0 },
         }],
+        pixels_per_world: None,
         alt: false,
     });
     let generation = session.read_model().gesture.as_ref().unwrap().generation;
@@ -774,6 +1165,7 @@ fn geometry_snap_ignores_parts_owned_by_another_board() {
         snap_fraction: 0.0,
         geometry_snap: true,
         gap: Some(1.0),
+        pixels_per_world: None,
         alt: false,
     });
     session.submit(Event::GestureSample {
@@ -782,6 +1174,7 @@ fn geometry_snap_ignores_parts_owned_by_another_board() {
             id: "moving".into(),
             at: Vec2 { x: 19.4, y: 0.0 },
         }],
+        pixels_per_world: None,
         alt: false,
     });
     let generation = session.read_model().gesture.as_ref().unwrap().generation;
@@ -797,6 +1190,77 @@ fn geometry_snap_ignores_parts_owned_by_another_board() {
             ..
         } if positions[0].at.x == 19.4
     ));
+}
+
+#[test]
+fn drag_preview_acknowledges_latest_and_coalesces_inflight_samples() {
+    let mut session = Session::new();
+    let mut engine = CoreEngine::new();
+    open_ready(&mut session, &mut engine);
+    let position = |x| {
+        vec![Position {
+            id: "key".into(),
+            at: Vec2 { x, y: 0.0 },
+        }]
+    };
+    session.submit(Event::GestureBegin {
+        operation_id: OperationId(30),
+        pointer_id: 77,
+        target_ids: vec!["key".into()],
+        transaction_id: "preview-ack".into(),
+        start: position(0.0),
+        pitch: Vec2 { x: 19.0, y: 19.0 },
+        snap_fraction: 0.0,
+        geometry_snap: false,
+        gap: None,
+        pixels_per_world: None,
+        alt: true,
+    });
+    let sample = |x| Event::GestureSample {
+        pointer_id: 77,
+        positions: position(x),
+        pixels_per_world: None,
+        alt: true,
+    };
+    session.submit(sample(1.0));
+    let generation = session.read_model().gesture.as_ref().unwrap().generation;
+    let (id, epoch, request) = core_effect(&session.submit(Event::GestureFrame { generation }));
+    let effects = session.complete(Completion::Core {
+        request_id: id,
+        executor_epoch: epoch,
+        reply: Box::new(engine.handle(request)),
+    });
+    assert!(
+        !effects.iter().any(|e| matches!(e, Effect::Core { .. })),
+        "unchanged acknowledged sample must not resubmit"
+    );
+    session.submit(sample(2.0));
+    let (id, epoch, request) = core_effect(&session.submit(Event::GestureFrame { generation }));
+    session.submit(sample(3.0));
+    session.submit(sample(4.0));
+    let effects = session.complete(Completion::Core {
+        request_id: id,
+        executor_epoch: epoch,
+        reply: Box::new(engine.handle(request)),
+    });
+    let (id, epoch, request) = core_effect(&effects);
+    assert!(
+        matches!(&request, CoreRequest::Edit { command: EditCommand { phase: EditPhase::Preview, operation: EditOperation::MoveParts { positions }, .. }, .. } if positions == &position(4.0))
+    );
+    let effects = session.complete(Completion::Core {
+        request_id: id,
+        executor_epoch: epoch,
+        reply: Box::new(engine.handle(request)),
+    });
+    assert!(
+        !effects.iter().any(|e| matches!(e, Effect::Core { .. })),
+        "latest follow-up must run only once"
+    );
+    session.submit(sample(0.0));
+    let (_, _, request) = core_effect(&session.submit(Event::GestureFrame { generation }));
+    assert!(
+        matches!(&request, CoreRequest::Edit { command: EditCommand { phase: EditPhase::Preview, operation: EditOperation::MoveParts { positions }, .. }, .. } if positions == &position(0.0))
+    );
 }
 
 #[test]
@@ -817,6 +1281,7 @@ fn drag_coalesces_previews_and_commits_the_pointerup_sample_once() {
         snap_fraction: 0.0,
         geometry_snap: false,
         gap: None,
+        pixels_per_world: None,
         alt: true,
     });
     session.submit(Event::GestureSample {
@@ -825,6 +1290,7 @@ fn drag_coalesces_previews_and_commits_the_pointerup_sample_once() {
             id: "key".into(),
             at: Vec2 { x: 1.0, y: 0.0 },
         }],
+        pixels_per_world: None,
         alt: true,
     });
     let generation = session.read_model().gesture.as_ref().unwrap().generation;
@@ -847,6 +1313,7 @@ fn drag_coalesces_previews_and_commits_the_pointerup_sample_once() {
             id: "key".into(),
             at: Vec2 { x: 3.0, y: 0.0 },
         }],
+        pixels_per_world: None,
         alt: true,
     });
     session.submit(Event::GestureSample {
@@ -855,6 +1322,7 @@ fn drag_coalesces_previews_and_commits_the_pointerup_sample_once() {
             id: "key".into(),
             at: Vec2 { x: 5.0, y: 0.0 },
         }],
+        pixels_per_world: None,
         alt: true,
     });
     session.submit(Event::GestureEnd {
@@ -863,6 +1331,7 @@ fn drag_coalesces_previews_and_commits_the_pointerup_sample_once() {
             id: "key".into(),
             at: Vec2 { x: 9.0, y: 0.0 },
         }],
+        pixels_per_world: None,
         alt: true,
     });
     let preview_reply = engine.handle(preview_request);
@@ -1015,6 +1484,121 @@ fn uncertain_worker_outcome_is_never_replayed_and_requires_explicit_reopen() {
 }
 
 #[test]
+fn failed_replacement_retries_the_exact_candidate_without_core_or_early_publication() {
+    let mut session = Session::new();
+    let mut engine = CoreEngine::new();
+    open_ready(&mut session, &mut engine);
+    let effects = session.submit(move_edit(70, 0, 4.0));
+    settle_core_and_save(&mut session, &mut engine, effects);
+    let before = session.read_model().accepted.clone().unwrap();
+    let scope = session.scope();
+    let candidate = ProjectDoc::empty("fresh-replacement", "Fresh");
+    let effects = session.submit(Event::Open {
+        operation_id: OperationId(71),
+        document: candidate.clone(),
+    });
+    let (request_id, executor_epoch, request) = core_effect(&effects);
+    let effects = session.complete(Completion::Core {
+        request_id,
+        executor_epoch,
+        reply: Box::new(engine.handle(request)),
+    });
+    let (save_attempt_id, pending) = save_effect(&effects);
+    assert_eq!(pending, candidate);
+    session.complete(Completion::Persist {
+        save_attempt_id,
+        result: SaveResult::Aborted("quota".into()),
+    });
+    assert_eq!(session.read_model().accepted.as_ref(), Some(&before));
+    assert_eq!(session.scope(), scope);
+    assert_eq!(session.read_model().lifecycle, Lifecycle::RecoveryRequired);
+    let effects = session.submit(Event::RetrySave {
+        operation_id: OperationId(72),
+    });
+    assert!(
+        !effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::Core { .. }))
+    );
+    let (retry_id, retried) = save_effect(&effects);
+    assert_eq!(retried, candidate);
+    session.complete(Completion::Persist {
+        save_attempt_id: retry_id,
+        result: SaveResult::Committed,
+    });
+    let accepted = session.read_model().accepted.clone().unwrap();
+    assert_eq!(accepted.document.as_ref(), &candidate);
+    assert_ne!(accepted.session_epoch, before.session_epoch);
+    let effects = session.submit(Event::Undo {
+        operation_id: OperationId(73),
+    });
+    let (request_id, executor_epoch, request) = core_effect(&effects);
+    let effects = session.complete(Completion::Core {
+        request_id,
+        executor_epoch,
+        reply: Box::new(engine.handle(request)),
+    });
+    assert!(
+        matches!(settled_landing(&effects, OperationId(73)).0, TerminalOutcome::Rejected(reason) if reason == "History is empty")
+    );
+    assert_eq!(session.read_model().accepted.as_ref(), Some(&accepted));
+}
+
+#[test]
+fn invalid_recovery_keeps_the_exact_failed_result_for_storage_only_retry() {
+    let mut session = Session::new();
+    let mut engine = CoreEngine::new();
+    open_ready(&mut session, &mut engine);
+    let effects = session.submit(move_edit(70, 0, 4.0));
+    let (request_id, executor_epoch, request) = core_effect(&effects);
+    let effects = session.complete(Completion::Core {
+        request_id,
+        executor_epoch,
+        reply: Box::new(engine.handle(request)),
+    });
+    let (save_attempt_id, pending) = save_effect(&effects);
+    session.complete(Completion::Persist {
+        save_attempt_id,
+        result: SaveResult::Aborted("quota".into()),
+    });
+    let before = session.read_model().clone();
+    let mut invalid = fixture();
+    invalid.format_version = 6;
+    let effects = session.submit(Event::RecoverWithDocument {
+        operation_id: OperationId(71),
+        document: invalid,
+    });
+    assert!(
+        matches!(settled_landing(&effects, OperationId(71)).0, TerminalOutcome::Rejected(reason) if reason.contains("No conversion"))
+    );
+    assert_eq!(session.read_model(), &before);
+    let effects = session.submit(Event::RetrySave {
+        operation_id: OperationId(72),
+    });
+    assert!(
+        !effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::Core { .. }))
+    );
+    let (retry_id, retried) = save_effect(&effects);
+    assert_eq!(retried, pending);
+    session.complete(Completion::Persist {
+        save_attempt_id: retry_id,
+        result: SaveResult::Committed,
+    });
+    assert_eq!(
+        session
+            .read_model()
+            .accepted
+            .as_ref()
+            .unwrap()
+            .document
+            .as_ref(),
+        &pending
+    );
+}
+
+#[test]
 fn recovery_reopen_discards_failed_save_and_ignores_stale_executor_restart() {
     let mut session = Session::new();
     let mut engine = CoreEngine::new();
@@ -1092,6 +1676,89 @@ fn recovery_reopen_discards_failed_save_and_ignores_stale_executor_restart() {
     assert_eq!(next_epoch, active_epoch);
 }
 
+// Characterization for the IDB-quota UI escape hatch: after a quota-aborted save
+// latches RecoveryRequired, opening a fresh document discards the retained oversized
+// candidate without recommitting it, and RetrySave stays an explicit-only action.
+// The Runtime create-new/delete recovery flows rely on this Session contract.
+#[test]
+fn quota_escape_recover_discards_oversized_candidate_and_retry_stays_explicit() {
+    let mut session = Session::new();
+    let mut engine = CoreEngine::new();
+    open_ready(&mut session, &mut engine);
+    let effects = session.submit(move_edit(70, 0, 4.0));
+    let (request_id, executor_epoch, request) = core_effect(&effects);
+    let reply = engine.handle(request);
+    let effects = session.complete(Completion::Core {
+        request_id,
+        executor_epoch,
+        reply: Box::new(reply),
+    });
+    let (save_attempt_id, oversized) = save_effect(&effects);
+    session.complete(Completion::Persist {
+        save_attempt_id,
+        result: SaveResult::Aborted("QuotaExceededError: origin storage is full".into()),
+    });
+    assert_eq!(session.read_model().lifecycle, Lifecycle::RecoveryRequired);
+
+    let fresh = ProjectDoc::empty("quota-escape-fresh", "Untitled keyboard");
+    let effects = session.submit(Event::RecoverWithDocument {
+        operation_id: OperationId(71),
+        document: fresh.clone(),
+    });
+    assert!(
+        !effects.iter().any(
+            |effect| matches!(effect, Effect::Persist { document, .. } if **document == oversized)
+        ),
+        "recovery must not recommit the quota-exceeding candidate"
+    );
+    let (request_id, executor_epoch, request) = core_effect(&effects);
+    let effects = session.complete(Completion::Core {
+        request_id,
+        executor_epoch,
+        reply: Box::new(engine.handle(request)),
+    });
+    let (save_attempt_id, persisted) = save_effect(&effects);
+    assert_eq!(
+        persisted, fresh,
+        "the only persistence after escape carries the fresh document"
+    );
+    let effects = session.complete(Completion::Persist {
+        save_attempt_id,
+        result: SaveResult::Committed,
+    });
+    assert_eq!(
+        session
+            .read_model()
+            .accepted
+            .as_ref()
+            .unwrap()
+            .document
+            .as_ref(),
+        &fresh
+    );
+    assert!(
+        matches!(
+            settled_landing(&effects, OperationId(71)).0,
+            TerminalOutcome::Completed
+        ),
+        "the escape hatch settles the fresh open as completed"
+    );
+
+    let effects = session.submit(Event::RetrySave {
+        operation_id: OperationId(72),
+    });
+    assert!(
+        matches!(settled_landing(&effects, OperationId(72)).0, TerminalOutcome::Rejected(reason) if reason == "there is no retained save to retry"),
+        "after the escape hatch there is no retained save left to retry"
+    );
+    assert!(
+        !effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::Persist { .. })),
+        "no automatic save retries the discarded document"
+    );
+}
+
 #[test]
 fn selection_navigation_and_camera_updates_are_session_only() {
     let mut session = Session::new();
@@ -1130,22 +1797,22 @@ fn selection_navigation_and_camera_updates_are_session_only() {
     });
     let token = session.read_model().accepted.as_ref().unwrap().token;
 
+    let effects = session.submit(Event::SelectParts {
+        operation_id: OperationId(51),
+        part_ids: vec!["key".into()],
+        range_part_ids: vec![],
+        mode: boardstudio_application::SelectionMode::Replace,
+    });
+    assert!(effects.iter().any(|effect| matches!(
+        effect,
+        Effect::Settled {
+            outcome: TerminalOutcome::Completed,
+            ..
+        }
+    )));
     assert!(
-        session
-            .submit(Event::SelectParts {
-                operation_id: OperationId(51),
-                part_ids: vec!["key".into()],
-                range_part_ids: vec![],
-                mode: boardstudio_application::SelectionMode::Replace
-            })
-            .iter()
-            .any(|effect| matches!(
-                effect,
-                Effect::Settled {
-                    outcome: TerminalOutcome::Completed,
-                    ..
-                }
-            ))
+        settled_landing(&effects, OperationId(51)).1.is_none(),
+        "selection changes no document"
     );
     session.submit(Event::SelectParts {
         operation_id: OperationId(60),
@@ -1167,16 +1834,31 @@ fn selection_navigation_and_camera_updates_are_session_only() {
         range_part_ids: vec!["key".into(), "key-2".into()],
         mode: boardstudio_application::SelectionMode::Range,
     });
-    session.submit(Event::Navigate {
+    let effects = session.submit(Event::Navigate {
         operation_id: OperationId(53),
         board_id: "main".into(),
         instance_id: None,
     });
-    session.submit(Event::SetCamera {
+    assert!(
+        settled_landing(&effects, OperationId(53)).1.is_none(),
+        "navigation changes no document"
+    );
+    let effects = session.submit(Event::SetCamera {
         operation_id: OperationId(54),
         center: Vec2 { x: 10.0, y: 12.0 },
         zoom: 2.0,
     });
+    assert!(
+        settled_landing(&effects, OperationId(54)).1.is_none(),
+        "camera changes no document"
+    );
+    let effects = session.submit(Event::CancelGeneration {
+        operation_id: OperationId(55),
+    });
+    assert!(
+        settled_landing(&effects, OperationId(55)).1.is_none(),
+        "cancelling a job changes no document"
+    );
 
     assert_eq!(session.read_model().selected_part_ids, vec!["key", "key-2"]);
     assert_eq!(session.read_model().active_board_id, "main");
@@ -1188,6 +1870,68 @@ fn selection_navigation_and_camera_updates_are_session_only() {
         }
     );
     assert_eq!(session.read_model().accepted.as_ref().unwrap().token, token);
+}
+
+#[test]
+fn preview_queued_behind_a_commit_is_discarded_after_its_revision_changes() {
+    let mut session = Session::new();
+    let mut engine = CoreEngine::new();
+    open_ready(&mut session, &mut engine);
+
+    let effects = session.submit(move_edit(20, 0, 3.0));
+    let (commit_id, commit_epoch, commit_request) = core_effect(&effects);
+    let commit_reply = engine.handle(commit_request);
+    session.submit(Event::PreviewEdit {
+        operation_id: OperationId(21),
+        transaction_id: "stale-position-preview".into(),
+        target_ids: vec!["key".into()],
+        operation: EditOperation::MoveParts {
+            positions: vec![Position {
+                id: "key".into(),
+                at: Vec2 { x: 8.0, y: 0.0 },
+            }],
+        },
+    });
+
+    let effects = session.complete(Completion::Core {
+        request_id: commit_id,
+        executor_epoch: commit_epoch,
+        reply: Box::new(commit_reply),
+    });
+    let (save_attempt_id, committed) = save_effect(&effects);
+    assert_eq!(committed.parts[0].pose.at.x, 3.0);
+
+    let effects = session.complete(Completion::Persist {
+        save_attempt_id,
+        result: SaveResult::Committed,
+    });
+    assert!(
+        !effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::Core { .. }))
+    );
+    assert!(effects.iter().any(|effect| matches!(
+        effect,
+        Effect::Settled {
+            operation_id: OperationId(21),
+            outcome: TerminalOutcome::Superseded,
+            ..
+        }
+    )));
+    assert!(session.read_model().display_preview.is_none());
+    assert_eq!(
+        session
+            .read_model()
+            .accepted
+            .as_ref()
+            .unwrap()
+            .document
+            .parts[0]
+            .pose
+            .at
+            .x,
+        3.0
+    );
 }
 
 #[test]
@@ -1271,6 +2015,36 @@ fn cancelled_pointer_makes_late_preview_inert_and_releases_capture() {
     let mut session = Session::new();
     let mut engine = CoreEngine::new();
     open_ready(&mut session, &mut engine);
+    let effects = session.submit(Event::PreviewEdit {
+        operation_id: OperationId(59),
+        transaction_id: "notice-before-gesture".into(),
+        target_ids: vec!["key".into()],
+        operation: EditOperation::MoveParts {
+            positions: vec![Position {
+                id: "key".into(),
+                at: Vec2 { x: 2.0, y: 0.0 },
+            }],
+        },
+    });
+    let (notice_id, notice_epoch, notice_request) = core_effect(&effects);
+    let mut notice_reply = engine.handle(notice_request);
+    add_preview_electrical_notice(&mut notice_reply, "gesture-current");
+    session.complete(Completion::Core {
+        request_id: notice_id,
+        executor_epoch: notice_epoch,
+        reply: Box::new(notice_reply),
+    });
+    assert!(
+        session
+            .read_model()
+            .display_preview
+            .as_ref()
+            .unwrap()
+            .findings
+            .iter()
+            .any(|finding| finding.id == "preview:electrical:gesture-current")
+    );
+
     session.submit(Event::GestureBegin {
         operation_id: OperationId(60),
         pointer_id: 7,
@@ -1284,6 +2058,7 @@ fn cancelled_pointer_makes_late_preview_inert_and_releases_capture() {
         snap_fraction: 0.0,
         geometry_snap: false,
         gap: None,
+        pixels_per_world: None,
         alt: true,
     });
     session.submit(Event::GestureSample {
@@ -1292,6 +2067,7 @@ fn cancelled_pointer_makes_late_preview_inert_and_releases_capture() {
             id: "key".into(),
             at: Vec2 { x: 4.0, y: 0.0 },
         }],
+        pixels_per_world: None,
         alt: true,
     });
     let generation = session.read_model().gesture.as_ref().unwrap().generation;
@@ -1312,14 +2088,97 @@ fn cancelled_pointer_makes_late_preview_inert_and_releases_capture() {
             ..
         }
     )));
-    let stale_reply = engine.handle(preview_request);
-    session.complete(Completion::Core {
+    assert!(
+        session
+            .read_model()
+            .display_preview
+            .as_ref()
+            .unwrap()
+            .findings
+            .iter()
+            .any(|finding| finding.id == "preview:electrical:gesture-current")
+    );
+    let accepted = session.read_model().accepted.as_ref().unwrap().clone();
+    let mut stale_reply = engine.handle(preview_request);
+    add_preview_electrical_notice(&mut stale_reply, "gesture-late");
+    let duplicate_stale_reply = stale_reply.clone();
+
+    let effects = session.submit(Event::PreviewEdit {
+        operation_id: OperationId(61),
+        transaction_id: "after-cancel-preview".into(),
+        target_ids: vec!["key".into()],
+        operation: EditOperation::MoveParts {
+            positions: vec![Position {
+                id: "key".into(),
+                at: Vec2 { x: 9.0, y: 0.0 },
+            }],
+        },
+    });
+    assert!(
+        !has_core_request(&effects),
+        "the newer preview waits for the canceled request"
+    );
+
+    let effects = session.complete(Completion::Core {
         request_id: preview_id,
         executor_epoch: preview_epoch,
         reply: Box::new(stale_reply),
     });
-    assert!(session.read_model().display_preview.is_none());
+    assert!(
+        session
+            .read_model()
+            .display_preview
+            .as_ref()
+            .unwrap()
+            .findings
+            .iter()
+            .any(|finding| finding.id == "preview:electrical:gesture-current")
+    );
+    let (newer_id, newer_epoch, newer_request) = core_effect(&effects);
+    let mut newer_reply = engine.handle(newer_request);
+    add_preview_electrical_notice(&mut newer_reply, "after-cancel-newer");
+    session.complete(Completion::Core {
+        request_id: newer_id,
+        executor_epoch: newer_epoch,
+        reply: Box::new(newer_reply),
+    });
+
+    let newer_preview = session.read_model().display_preview.as_ref().unwrap();
+    assert_eq!(newer_preview.revision, accepted.document.revision);
+    assert!(
+        newer_preview
+            .findings
+            .iter()
+            .any(|finding| finding.id == "preview:electrical:after-cancel-newer")
+    );
+    assert!(
+        !newer_preview
+            .findings
+            .iter()
+            .any(|finding| finding.id == "preview:electrical:gesture-late")
+    );
+
+    // Core is single-flight; replay after dispatch to exercise staleness against the newer display.
+    session.complete(Completion::Core {
+        request_id: preview_id,
+        executor_epoch: preview_epoch,
+        reply: Box::new(duplicate_stale_reply),
+    });
     assert!(session.read_model().gesture.is_none());
+    assert_eq!(session.read_model().accepted.as_ref(), Some(&accepted));
+    let display_preview = session.read_model().display_preview.as_ref().unwrap();
+    assert!(
+        display_preview
+            .findings
+            .iter()
+            .any(|finding| finding.id == "preview:electrical:after-cancel-newer")
+    );
+    assert!(
+        !display_preview
+            .findings
+            .iter()
+            .any(|finding| finding.id == "preview:electrical:gesture-late")
+    );
 }
 
 #[test]
@@ -1351,6 +2210,8 @@ fn same_id_revision_reopen_invalidates_generation_and_export_tokens() {
         })
         .unwrap();
 
+    assert!(session.export_is_current(OperationId(71), old_token, &scope));
+
     let durable = session
         .read_model()
         .accepted
@@ -1372,6 +2233,7 @@ fn same_id_revision_reopen_invalidates_generation_and_export_tokens() {
             operation_id: OperationId(71)
         }
     )));
+    assert!(!session.export_is_current(OperationId(71), old_token, &scope));
     assert!(effects.iter().any(|effect| matches!(
         effect,
         Effect::Settled {
@@ -1445,7 +2307,9 @@ fn instance_navigation_updates_scope_and_cancels_in_flight_case_work() {
                 flipped: half == "right",
                 controller_part_id: None,
                 mechanical: None,
-                construction_linked: false,
+                construction_ownership:
+                    boardstudio_core::model::MechanicalConstructionOwnership::Local,
+                mechanical_identity_reservation: None,
             })
             .collect(),
         ..HardwareConfiguration::default()
@@ -1557,46 +2421,6 @@ fn instance_navigation_updates_scope_and_cancels_in_flight_case_work() {
         )));
         assert_eq!(session.scope().unwrap(), canonical_scope);
     }
-}
-
-#[test]
-fn cancelled_export_is_no_longer_current_before_its_async_cancel_effect_runs() {
-    let mut session = Session::new();
-    let mut engine = CoreEngine::new();
-    open_ready(&mut session, &mut engine);
-    let scope = session.scope().unwrap();
-    let effects = session.submit(Event::StartExport {
-        operation_id: OperationId(81),
-        scope: scope.clone(),
-    });
-    let token = effects
-        .iter()
-        .find_map(|effect| match effect {
-            Effect::RunExport { snapshot, .. } => Some(snapshot.token),
-            _ => None,
-        })
-        .expect("export dispatch captures the accepted snapshot");
-
-    assert!(session.export_is_current(OperationId(81), token, &scope));
-    let durable = session
-        .read_model()
-        .accepted
-        .as_ref()
-        .unwrap()
-        .document
-        .as_ref()
-        .clone();
-    let effects = session.submit(Event::Open {
-        operation_id: OperationId(82),
-        document: durable,
-    });
-    assert!(effects.iter().any(|effect| matches!(
-        effect,
-        Effect::CancelExport {
-            operation_id: OperationId(81)
-        }
-    )));
-    assert!(!session.export_is_current(OperationId(81), token, &scope));
 }
 
 #[test]
@@ -1742,10 +2566,10 @@ fn document_completions_carry_the_landing_of_the_installed_snapshot() {
     assert_eq!(open_landing.revision, accepted.document.revision);
     assert_eq!(open_landing.token, accepted.token);
 
-    let effects = session.submit(Event::Edit {
-        operation_id: OperationId(2),
-        command: rename_edit_command(0, "Renamed"),
-    });
+    let effects = session.submit(resolved_edit(
+        OperationId(2),
+        rename_edit_command(0, "Renamed"),
+    ));
     let (_, settled) = settle_core_and_save(&mut session, &mut engine, effects);
     let (outcome, landing) = settled_landing(&settled, OperationId(2));
     assert_eq!(outcome, TerminalOutcome::Completed);
@@ -1791,116 +2615,6 @@ fn document_completions_carry_the_landing_of_the_installed_snapshot() {
         redo_landing.token, undo_landing.token,
         "each landing names its own snapshot"
     );
-}
-
-#[test]
-fn retrying_a_failed_save_settles_the_retry_and_the_original_with_the_same_landing() {
-    let mut session = Session::new();
-    let mut engine = CoreEngine::new();
-    let effects = session.submit(Event::Open {
-        operation_id: OperationId(1),
-        document: fixture(),
-    });
-    let (_, _) = settle_core_and_save(&mut session, &mut engine, effects);
-
-    let effects = session.submit(Event::Edit {
-        operation_id: OperationId(2),
-        command: rename_edit_command(0, "Renamed"),
-    });
-    let (request_id, executor_epoch, request) = core_effect(&effects);
-    let reply = engine.handle(request);
-    let effects = session.complete(Completion::Core {
-        request_id,
-        executor_epoch,
-        reply: Box::new(reply),
-    });
-    let (save_attempt_id, _) = save_effect(&effects);
-    let effects = session.complete(Completion::Persist {
-        save_attempt_id,
-        result: SaveResult::Aborted("quota".into()),
-    });
-    let (outcome, landing) = settled_landing(&effects, OperationId(2));
-    assert!(matches!(outcome, TerminalOutcome::PersistenceFailed(_)));
-    assert!(landing.is_none(), "a failed save has no landing");
-
-    let effects = session.submit(Event::RetrySave {
-        operation_id: OperationId(3),
-    });
-    let (retry_save_id, _) = save_effect(&effects);
-    let effects = session.complete(Completion::Persist {
-        save_attempt_id: retry_save_id,
-        result: SaveResult::Committed,
-    });
-    let accepted = session.read_model().accepted.clone().unwrap();
-    let (retry_outcome, retry_landing) = settled_landing(&effects, OperationId(3));
-    let (original_outcome, original_landing) = settled_landing(&effects, OperationId(2));
-    assert_eq!(retry_outcome, TerminalOutcome::Completed);
-    assert_eq!(original_outcome, TerminalOutcome::Completed);
-    let retry_landing = retry_landing.expect("the retry reports where it landed");
-    assert_eq!(retry_landing.revision, accepted.document.revision);
-    assert_eq!(retry_landing.token, accepted.token);
-    assert_eq!(
-        original_landing,
-        Some(retry_landing),
-        "the original edit operation reports the same landing"
-    );
-}
-
-#[test]
-fn non_document_completions_carry_no_landing() {
-    let mut document = fixture();
-    document.boards.push(Board {
-        id: "main".into(),
-        name: "Main".into(),
-        outline_ids: vec![],
-        part_ids: vec![],
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
-    });
-    let mut session = Session::new();
-    let mut engine = CoreEngine::new();
-    let effects = session.submit(Event::Open {
-        operation_id: OperationId(1),
-        document,
-    });
-    let (_, _) = settle_core_and_save(&mut session, &mut engine, effects);
-
-    let effects = session.submit(Event::SelectParts {
-        operation_id: OperationId(2),
-        mode: SelectionMode::Replace,
-        part_ids: vec!["key".into()],
-        range_part_ids: Vec::new(),
-    });
-    let (outcome, landing) = settled_landing(&effects, OperationId(2));
-    assert_eq!(outcome, TerminalOutcome::Completed);
-    assert!(landing.is_none(), "selection changes no document");
-
-    let effects = session.submit(Event::Navigate {
-        operation_id: OperationId(3),
-        board_id: "main".into(),
-        instance_id: None,
-    });
-    let (outcome, landing) = settled_landing(&effects, OperationId(3));
-    assert_eq!(outcome, TerminalOutcome::Completed);
-    assert!(landing.is_none(), "navigation changes no document");
-
-    let effects = session.submit(Event::SetCamera {
-        operation_id: OperationId(4),
-        center: Vec2 { x: 0.0, y: 0.0 },
-        zoom: 1.0,
-    });
-    let (outcome, landing) = settled_landing(&effects, OperationId(4));
-    assert_eq!(outcome, TerminalOutcome::Completed);
-    assert!(landing.is_none(), "camera changes no document");
-
-    let effects = session.submit(Event::CancelGeneration {
-        operation_id: OperationId(5),
-    });
-    let (outcome, landing) = settled_landing(&effects, OperationId(5));
-    assert_eq!(outcome, TerminalOutcome::Completed);
-    assert!(landing.is_none(), "cancelling a job changes no document");
 }
 
 #[test]
@@ -2252,10 +2966,10 @@ fn recovery_and_closing_refuse_resolvers_without_calling_them() {
         })
     };
 
-    let effects = session.submit(Event::Edit {
-        operation_id: OperationId(2),
-        command: rename_edit_command(0, "Renamed"),
-    });
+    let effects = session.submit(resolved_edit(
+        OperationId(2),
+        rename_edit_command(0, "Renamed"),
+    ));
     let (request_id, epoch, request) = core_effect(&effects);
     let reply = engine.handle(request);
     let effects = session.complete(Completion::Core {
@@ -2406,6 +3120,7 @@ fn a_gesture_commit_ahead_is_not_disturbed_and_the_intent_behind_resolves_on_its
         snap_fraction: 0.0,
         geometry_snap: false,
         gap: None,
+        pixels_per_world: None,
         alt: true,
     });
     session.submit(Event::GestureSample {
@@ -2414,6 +3129,7 @@ fn a_gesture_commit_ahead_is_not_disturbed_and_the_intent_behind_resolves_on_its
             id: "key".into(),
             at: Vec2 { x: 9.0, y: 0.0 },
         }],
+        pixels_per_world: None,
         alt: true,
     });
     let effects = session.submit(Event::GestureEnd {
@@ -2422,6 +3138,7 @@ fn a_gesture_commit_ahead_is_not_disturbed_and_the_intent_behind_resolves_on_its
             id: "key".into(),
             at: Vec2 { x: 9.0, y: 0.0 },
         }],
+        pixels_per_world: None,
         alt: true,
     });
     let (commit_id, commit_epoch, commit_request) = core_effect(&effects);
@@ -2479,4 +3196,497 @@ fn a_gesture_commit_ahead_is_not_disturbed_and_the_intent_behind_resolves_on_its
     });
     let accepted = session.read_model().accepted.clone().unwrap();
     assert_eq!(resolved_position(&accepted), &Vec2 { x: 9.0, y: 5.0 });
+}
+
+fn mechanical_fixture(fit_ids: &[&str]) -> ProjectDoc {
+    let mut document = fixture();
+    document.boards.push(Board {
+        id: "main".into(),
+        name: "Main".into(),
+        outline_ids: vec![],
+        part_ids: vec![],
+        net_ids: vec![],
+        thickness: 1.6,
+        traces: vec![],
+        vias: vec![],
+    });
+    let mut configuration: MechanicalConfiguration = serde_json::from_value(serde_json::json!({
+        "boardId":"main","method":"printed","mount":"rigid",
+        "plateThickness":1.5,"plateFoamThickness":0.5,"pcbThickness":1.6,
+        "bottomFoamThickness":0.4,"batteryHeight":4.0,"bottomThickness":3.0,
+        "plateToPcb":3.5,"wallThickness":2.0,"clearance":0.3,
+        "openings":[],"mounts":[],"closureMounts":[],"profiles":[]
+    }))
+    .unwrap();
+    configuration.critical_fits = Some(
+        fit_ids
+            .iter()
+            .map(|id| MechanicalCriticalFit {
+                id: (*id).into(),
+                part_id: "case-closure/part".into(),
+                label: "Critical dimension".into(),
+                from: Vec2 { x: 0.0, y: 0.0 },
+                to: Vec2 { x: 10.0, y: 0.0 },
+                tolerance: "±0.2 mm".into(),
+            })
+            .collect(),
+    );
+    document.mechanical = Some(configuration);
+    document
+}
+
+fn mechanical_template() -> PartDefinition {
+    serde_json::from_value(serde_json::json!({
+        "id":"generator:ceoloide/mounting_hole_npth", "name":"mounting hole npth",
+        "kind":"custom", "pads":[{"id":"pad-0", "number": "", "at":{"x":0,"y":0},
+            "size":{"x":2.2,"y":2.2}, "shape":"circle", "drill":2.2,"plated":false,"rotation":0}],
+        "courtyard":[{"x":-1.1,"y":-1.1},{"x":1.1,"y":-1.1},{"x":1.1,"y":1.1},{"x":-1.1,"y":1.1}],
+        "envelopeSource":{"courtyard":"generated"},
+        "envelopeNotice":"No closed courtyard is available; the outline uses physical graphics and pad extents.",
+        "generator":{"source":"ceoloide/mounting_hole_npth", "version":"bundled-1", "parameters":{}}
+    }))
+    .unwrap()
+}
+
+fn mechanical_command(transaction: &str, change: MechanicalChange) -> EditCommand {
+    EditCommand {
+        base_revision: 0,
+        transaction_id: transaction.into(),
+        phase: EditPhase::Commit,
+        target_ids: vec!["main".into()],
+        operation: EditOperation::ApplyMechanicalEdit {
+            edit: Box::new(MechanicalEdit {
+                target: boardstudio_core::mechanical::MechanicalTarget::Board {
+                    board_id: "main".into(),
+                },
+                change,
+                mounting_hole: Some(Box::new(mechanical_template())),
+            }),
+        },
+    }
+}
+
+fn add_fit_command(transaction: &str) -> EditCommand {
+    mechanical_command(
+        transaction,
+        MechanicalChange::AddCriticalFit {
+            part_id: "case-closure/part".into(),
+        },
+    )
+}
+
+fn remove_fit_command(transaction: &str, fit_id: &str) -> EditCommand {
+    mechanical_command(
+        transaction,
+        MechanicalChange::RemoveCriticalFit {
+            fit_id: fit_id.into(),
+        },
+    )
+}
+
+/// A setter authored against `fit_id`. It retires when that exact identity is gone
+/// instead of redirecting its value at whatever later addition reused the place.
+fn stale_fit_label_resolver(fit_id: &str, label: &str) -> EditResolver {
+    let fit_id = fit_id.to_owned();
+    let label = label.to_owned();
+    EditResolver::new("critical-fit-label", move |accepted: &AcceptedSnapshot| {
+        let edit = MechanicalEdit {
+            target: boardstudio_core::mechanical::MechanicalTarget::Board {
+                board_id: "main".into(),
+            },
+            change: MechanicalChange::SetCriticalFitText {
+                fit_id: fit_id.clone(),
+                field: MechanicalCriticalFitTextField::Label,
+                value: label.clone(),
+            },
+            mounting_hole: Some(Box::new(mechanical_template())),
+        };
+        // The production controller runs Core's read-only evaluator first: an
+        // Unchanged or Retire answer settles locally; a removed target the evaluator
+        // cannot classify reaches Core as a rejected edit.
+        match boardstudio_core::mechanical::evaluate_edit(
+            &accepted.document,
+            &accepted.scene.board_contours,
+            &edit,
+        ) {
+            Ok(boardstudio_core::mechanical::MechanicalEditDisposition::Unchanged) => {
+                Resolution::Unchanged
+            }
+            Ok(boardstudio_core::mechanical::MechanicalEditDisposition::Retire) => {
+                Resolution::Retire("The mechanical target is no longer available.".into())
+            }
+            _ => Resolution::submit(
+                vec!["main".into()],
+                EditOperation::ApplyMechanicalEdit {
+                    edit: Box::new(edit),
+                },
+            ),
+        }
+    })
+}
+
+fn fit_labels(document: &ProjectDoc) -> Vec<(String, String)> {
+    document
+        .mechanical
+        .as_ref()
+        .and_then(|configuration| configuration.critical_fits.as_ref())
+        .into_iter()
+        .flatten()
+        .map(|fit| (fit.id.clone(), fit.label.clone()))
+        .collect()
+}
+
+#[test]
+fn queued_stale_fit_setter_retires_after_remove_add_first_gap_reuse() {
+    let mut session = Session::new();
+    let mut engine = CoreEngine::new();
+    let effects = session.submit(Event::Open {
+        operation_id: OperationId(1),
+        document: mechanical_fixture(&["case-critical-fit-1"]),
+    });
+    let (_, _) = settle_core_and_save(&mut session, &mut engine, effects);
+
+    let effects = session.submit(resolved_edit(
+        OperationId(2),
+        remove_fit_command("remove-fit", "case-critical-fit-1"),
+    ));
+    assert!(has_core_request(&effects), "the removal starts immediately");
+    let queued = session.submit(resolved_edit(OperationId(3), add_fit_command("add-fit")));
+    assert!(
+        !has_core_request(&queued),
+        "the addition is queued behind it"
+    );
+    let queued = session.submit(Event::ResolveEdit {
+        operation_id: OperationId(4),
+        label: "stale-critical-fit-label".into(),
+        resolver: stale_fit_label_resolver("case-critical-fit-1", "stale value"),
+    });
+    assert!(
+        !has_core_request(&queued),
+        "the stale setter is queued behind the replacement sequence"
+    );
+
+    let (_, add_effects) = settle_core_and_save(&mut session, &mut engine, effects);
+    assert!(
+        has_core_request(&add_effects),
+        "the queued addition runs after the removal"
+    );
+    let (_, stale_effects) = settle_core_and_save(&mut session, &mut engine, add_effects);
+    let (request_id, epoch, request) = core_effect(&stale_effects);
+    let reply = engine.handle(request);
+    assert!(
+        matches!(reply, CoreReply::Error { .. }),
+        "the stale setter must be rejected: {reply:?}"
+    );
+    let resolved = session.complete(Completion::Core {
+        request_id,
+        executor_epoch: epoch,
+        reply: Box::new(reply),
+    });
+    let (outcome, landing) = settled_landing(&resolved, OperationId(4));
+    assert!(matches!(outcome, TerminalOutcome::Rejected(_)));
+    assert!(landing.is_none());
+
+    let accepted = session.read_model().accepted.clone().unwrap();
+    let labels = fit_labels(&accepted.document);
+    assert_eq!(
+        labels,
+        [("case-critical-fit-2".into(), "Critical dimension".into())]
+    );
+}
+
+#[test]
+fn queued_stale_fit_setter_retires_after_undo_then_add() {
+    let mut session = Session::new();
+    let mut engine = CoreEngine::new();
+    let effects = session.submit(Event::Open {
+        operation_id: OperationId(1),
+        document: mechanical_fixture(&["case-critical-fit-1"]),
+    });
+    let (_, _) = settle_core_and_save(&mut session, &mut engine, effects);
+
+    let effects = session.submit(resolved_edit(OperationId(2), add_fit_command("first-add")));
+    let (_, _) = settle_core_and_save(&mut session, &mut engine, effects);
+    let accepted = session.read_model().accepted.clone().unwrap();
+    assert!(
+        fit_labels(&accepted.document)
+            .iter()
+            .any(|(id, _)| id == "case-critical-fit-2")
+    );
+
+    let effects = session.submit(Event::Undo {
+        operation_id: OperationId(3),
+    });
+    let (_, _) = settle_core_and_save(&mut session, &mut engine, effects);
+
+    let effects = session.submit(resolved_edit(OperationId(4), add_fit_command("second-add")));
+    assert!(has_core_request(&effects));
+    let queued = session.submit(Event::ResolveEdit {
+        operation_id: OperationId(5),
+        label: "stale-critical-fit-label".into(),
+        resolver: stale_fit_label_resolver("case-critical-fit-2", "stale value"),
+    });
+    assert!(!has_core_request(&queued));
+
+    let (_, stale_effects) = settle_core_and_save(&mut session, &mut engine, effects);
+    let (request_id, epoch, request) = core_effect(&stale_effects);
+    let reply = engine.handle(request);
+    assert!(
+        matches!(reply, CoreReply::Error { .. }),
+        "the stale setter must be rejected: {reply:?}"
+    );
+    let resolved = session.complete(Completion::Core {
+        request_id,
+        executor_epoch: epoch,
+        reply: Box::new(reply),
+    });
+    let (outcome, landing) = settled_landing(&resolved, OperationId(5));
+    assert!(matches!(outcome, TerminalOutcome::Rejected(_)));
+    assert!(landing.is_none());
+
+    let accepted = session.read_model().accepted.clone().unwrap();
+    assert_eq!(
+        fit_labels(&accepted.document),
+        [
+            ("case-critical-fit-1".into(), "Critical dimension".into()),
+            ("case-critical-fit-3".into(), "Critical dimension".into()),
+        ],
+        "undo/add must mint a fresh identity and the stale setter must not redirect"
+    );
+}
+
+#[test]
+fn carried_shift_preview_cancel_commit_and_history_use_the_accepted_matrix() {
+    let mut session = Session::new();
+    let mut engine = CoreEngine::new();
+    let (document, _) = matrix_range_fixture();
+    let effects = session.submit(Event::Open {
+        operation_id: OperationId(1),
+        document,
+    });
+    settle_core_and_save(&mut session, &mut engine, effects);
+    let before = session.read_model().accepted.clone().unwrap();
+    let key = "matrix/main/r1c0";
+    assert_eq!(
+        before
+            .document
+            .parts
+            .iter()
+            .find(|p| p.id == key)
+            .unwrap()
+            .pose
+            .at,
+        Vec2 { x: 0.0, y: 19.0 }
+    );
+    let operation = EditOperation::SetMatrixPlacement {
+        matrix_id: "main".into(),
+        change: MatrixPlacementChange::RowShift {
+            row: 1,
+            value: Vec2 { x: 4.0, y: -3.0 },
+        },
+    };
+    let effects = session.submit(Event::PreviewEdit {
+        operation_id: OperationId(2),
+        transaction_id: "shift-preview".into(),
+        target_ids: vec![key.into()],
+        operation: operation.clone(),
+    });
+    let (request_id, executor_epoch, request) = core_effect(&effects);
+    assert!(
+        matches!(&request, CoreRequest::Edit { command, .. } if command.phase == EditPhase::Preview)
+    );
+    let reply = engine.handle(request);
+    assert!(matches!(&reply, CoreReply::Preview { .. }));
+    session.complete(Completion::Core {
+        request_id,
+        executor_epoch,
+        reply: Box::new(reply),
+    });
+    let preview = session.read_model().display_preview.clone().unwrap();
+    assert_eq!(
+        preview.matrix_scenes[0]
+            .cells
+            .iter()
+            .find(|c| c.row == 1 && c.column == 0)
+            .unwrap()
+            .pose
+            .at,
+        Vec2 { x: 4.0, y: 16.0 }
+    );
+    assert_eq!(
+        session.read_model().accepted.as_ref().unwrap().document,
+        before.document
+    );
+    let effects = session.submit(Event::ClearPreview {
+        operation_id: OperationId(3),
+        token: before.token,
+        revision: before.document.revision,
+        board_id: session.read_model().active_board_id.clone(),
+        transaction_id: "shift-preview".into(),
+    });
+    // Clearing a completed preview is view-only and never persists a document.
+    assert!(
+        !effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::Persist { .. }))
+    );
+    assert!(session.read_model().display_preview.is_none());
+    let effects = session.submit(Event::ResolveEdit {
+        operation_id: OperationId(4),
+        label: "Shift field".into(),
+        resolver: EditResolver::new("Shift field", move |_| {
+            Resolution::submit(vec![key.into()], operation.clone())
+        }),
+    });
+    let (after, _) = settle_core_and_save(&mut session, &mut engine, effects);
+    assert_eq!(
+        session
+            .read_model()
+            .accepted
+            .as_ref()
+            .unwrap()
+            .scene
+            .matrix_scenes,
+        preview.matrix_scenes
+    );
+    assert_eq!(
+        after.parts.iter().find(|p| p.id == key).unwrap().pose.at,
+        Vec2 { x: 4.0, y: 16.0 }
+    );
+    assert_eq!(after.matrices[0].cells, before.document.matrices[0].cells);
+    let effects = session.submit(Event::Undo {
+        operation_id: OperationId(5),
+    });
+    let (undone, _) = settle_core_and_save(&mut session, &mut engine, effects);
+    assert_eq!(undone.matrices, before.document.matrices);
+    assert_eq!(undone.parts, before.document.parts);
+    let effects = session.submit(Event::Redo {
+        operation_id: OperationId(6),
+    });
+    let (redone, _) = settle_core_and_save(&mut session, &mut engine, effects);
+    assert_eq!(redone.matrices, after.matrices);
+    assert_eq!(redone.parts, after.parts);
+}
+
+#[test]
+fn unrelated_rejection_does_not_cancel_active_gesture() {
+    let mut session = Session::new();
+    let mut engine = CoreEngine::new();
+    open_ready(&mut session, &mut engine);
+    session.submit(Event::GestureBegin {
+        operation_id: OperationId(900),
+        pointer_id: 7,
+        target_ids: vec!["key".into()],
+        transaction_id: "gesture".into(),
+        start: vec![Position {
+            id: "key".into(),
+            at: Vec2 { x: 0.0, y: 0.0 },
+        }],
+        pitch: Vec2 { x: 19.0, y: 19.0 },
+        snap_fraction: 0.0,
+        geometry_snap: false,
+        gap: None,
+        pixels_per_world: None,
+        alt: false,
+    });
+    let generation = session.read_model().gesture.as_ref().unwrap().generation;
+    let effects = session.submit(Event::ResolveEdit {
+        operation_id: OperationId(901),
+        label: "invalid".into(),
+        resolver: EditResolver::new("invalid", |accepted: &AcceptedSnapshot| {
+            Resolution::Submit(EditCommand {
+                base_revision: accepted.document.revision,
+                transaction_id: String::new(),
+                phase: EditPhase::Commit,
+                target_ids: vec!["gone".into()],
+                operation: EditOperation::MoveParts {
+                    positions: vec![Position {
+                        id: "gone".into(),
+                        at: Vec2 { x: 1.0, y: 1.0 },
+                    }],
+                },
+            })
+        }),
+    });
+    let (request_id, executor_epoch, request) = core_effect(&effects);
+    let effects = session.complete(Completion::Core {
+        request_id,
+        executor_epoch,
+        reply: Box::new(engine.handle(request)),
+    });
+    assert!(matches!(
+        settled_landing(&effects, OperationId(901)).0,
+        TerminalOutcome::Rejected(_)
+    ));
+    assert_eq!(
+        session.read_model().gesture.as_ref().unwrap().generation,
+        generation
+    );
+    assert!(
+        !effects
+            .iter()
+            .any(|e| matches!(e, Effect::ReleasePointer { pointer_id: 7 }))
+    );
+}
+
+#[test]
+fn ending_gesture_at_origin_preserves_other_transaction_preview() {
+    let mut session = Session::new();
+    let mut engine = CoreEngine::new();
+    open_ready(&mut session, &mut engine);
+    let effects = session.submit(Event::PreviewEdit {
+        operation_id: OperationId(902),
+        transaction_id: "other".into(),
+        target_ids: vec!["key".into()],
+        operation: EditOperation::MoveParts {
+            positions: vec![Position {
+                id: "key".into(),
+                at: Vec2 { x: 2.0, y: 0.0 },
+            }],
+        },
+    });
+    let (request_id, executor_epoch, request) = core_effect(&effects);
+    let mut reply = engine.handle(request);
+    add_preview_electrical_notice(&mut reply, "other");
+    session.complete(Completion::Core {
+        request_id,
+        executor_epoch,
+        reply: Box::new(reply),
+    });
+    session.submit(Event::GestureBegin {
+        operation_id: OperationId(903),
+        pointer_id: 7,
+        target_ids: vec!["key".into()],
+        transaction_id: "gesture".into(),
+        start: vec![Position {
+            id: "key".into(),
+            at: Vec2 { x: 0.0, y: 0.0 },
+        }],
+        pitch: Vec2 { x: 19.0, y: 19.0 },
+        snap_fraction: 0.0,
+        geometry_snap: false,
+        gap: None,
+        pixels_per_world: None,
+        alt: false,
+    });
+    session.submit(Event::GestureEnd {
+        pointer_id: 7,
+        final_positions: vec![Position {
+            id: "key".into(),
+            at: Vec2 { x: 0.0, y: 0.0 },
+        }],
+        pixels_per_world: None,
+        alt: false,
+    });
+    assert!(session.read_model().gesture.is_none());
+    assert!(
+        session
+            .read_model()
+            .display_preview
+            .as_ref()
+            .unwrap()
+            .findings
+            .iter()
+            .any(|finding| finding.id == "preview:electrical:other")
+    );
 }

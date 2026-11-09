@@ -1,6 +1,13 @@
 //! Canvas lifetime and case controls consume immutable session snapshots.
 use crate::runtime::Runtime;
 use boardstudio_application::{Event, GenerationStatus};
+use boardstudio_web_ui_shared::ui::{
+    alert::{Alert, AlertDescription, AlertVariant},
+    button::{Button, ButtonVariant},
+    checkbox::{Checkbox, CheckboxState},
+    collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
+    field::FieldLabel,
+};
 use dioxus::prelude::*;
 use std::rc::Rc;
 use wasm_bindgen_futures::spawn_local;
@@ -183,60 +190,59 @@ pub fn CasePanel(
         CaseGeometryStatus::Missing
     };
     let title = case_generation_title(&model.generation, geometry);
+    let on_generate = use_callback(move |()| {
+        if instance_selection.is_current(&generate.model())
+            && let Some(scope) = generate.scope()
+        {
+            generate.submit(Event::StartGeneration {
+                operation_id: generate.operation(),
+                scope,
+            });
+        }
+    });
+    let on_cancel = use_callback(move |()| {
+        live_preview.set(false);
+        automatic_generation.write().set_enabled(false);
+        cancel.submit(Event::CancelGeneration {
+            operation_id: cancel.operation(),
+        });
+    });
+    use boardstudio_web_ui_shared::ui::command::{Command, use_commands};
+    use_commands(vec![
+        Command {
+            group: "Current Workspace",
+            label: "Update preview".into(),
+            reason: (!generation_ready || generation_busy).then(|| title.to_string()),
+            hint: None,
+            on_select: on_generate,
+        },
+        Command {
+            group: "Current Workspace",
+            label: "Cancel".into(),
+            reason: (!generation_busy).then(|| title.to_string()),
+            hint: None,
+            on_select: on_cancel,
+        },
+    ]);
+    let live_preview_id = format!("case-live-preview-{}", dioxus::core::current_scope_id().0);
     rsx! {
-        section { class: "m1-case-panel", "aria-label": "Case assembly",
-            div { class: "m1-case-header",
-                h2 { "Case assembly" }
-                label { class: "m1-case-live-toggle",
-                    input {
-                        r#type: "checkbox",
-                        role: "switch",
-                        checked: generation_enabled,
-                        onchange: move |event: FormEvent| {
-                            let enabled = event.checked();
-                            live_preview_control.set(enabled);
-                            automatic_generation_control.write().set_enabled(enabled);
-                            if !enabled && generation_busy {
-                                toggle_runtime.submit(Event::CancelGeneration {
-                                    operation_id: toggle_runtime.operation(),
-                                });
-                            }
-                        }
-                    }
-                    span { "Live preview" }
-                }
-                button { disabled: !generation_ready || generation_busy, onclick: move |_| if instance_selection.is_current(&generate.model()) && let Some(scope) = generate.scope() { generate.submit(Event::StartGeneration { operation_id: generate.operation(), scope }); }, "Update preview" }
-                button {
-                    disabled: !generation_busy,
-                    onclick: move |_| {
-                        live_preview.set(false);
-                        automatic_generation.write().set_enabled(false);
-                        cancel.submit(Event::CancelGeneration { operation_id: cancel.operation() });
-                    },
-                    "Cancel"
-                }
-                if mechanical_export_configured {
-                    button {
-                        disabled: !mechanical_export_ready,
-                        onclick: export_mechanical_click,
-                        "Export geometry"
-                    }
-                }
-            }
-            p { class: "m1-case-live-status", role: "status", "aria-live": "polite", "{title}" }
+        section { class: "relative flex h-full min-h-0 flex-1 flex-col gap-0 overflow-hidden bg-canvas p-0 [&_h2]:m-0 [&_p]:m-0", "aria-label": "Case assembly",
+            p { class: "order-[9] m-0 flex-none px-3 py-1 text-xs leading-[1.35] text-muted-foreground", role: "status", "aria-live": "polite", "{title}" }
             if runtime.native_case_preview_pending() {
-                p { class: "m1-case-live-status is-secondary", role: "status", "aria-live": "polite", "Preparing the accepted PCB preview…" }
+                p { class: "order-[9] m-0 flex-none px-3 py-1 text-xs leading-[1.35] text-muted-foreground", role: "status", "aria-live": "polite", "Preparing the accepted PCB preview…" }
             } else if runtime.native_case_preview_error().is_some() {
-                p { class: "m1-case-live-status is-error", role: "alert", "The accepted PCB preview could not be prepared." }
+                p { class: "order-[9] m-0 flex-none px-3 py-1 text-xs leading-[1.35] text-destructive", role: "alert", "The accepted PCB preview could not be prepared." }
             }
             if let Some(preview) = accepted_preview.as_ref()
                 && let Some(rows) = runtime.native_model_delivery(preview)
                 && (rows.delivered.len() != preview.preview.models.len() || !rows.failures.is_empty())
             {
-                details { class: "m1-case-model-delivery",
-                    summary { "Board models: {rows.delivered.len()} of {preview.preview.models.len()} decoded" }
-                    for failure in rows.failures.iter() {
-                        p { role: "alert", "{failure.reference}: {failure.reason}" }
+                Collapsible { class: "absolute top-[46px] right-3 z-[6] max-w-[min(420px,calc(100%-24px))] border border-border bg-card px-[9px] py-1.5 max-[760px]:top-14 max-[760px]:right-2 max-[760px]:max-w-[calc(100%-16px)]", keep_mounted: true, default_open: false,
+                    CollapsibleTrigger { class: "text-xs text-muted-foreground", aria_label: "Board models: {rows.delivered.len()} of {preview.preview.models.len()} decoded", "Board models: {rows.delivered.len()} of {preview.preview.models.len()} decoded" }
+                    CollapsibleContent { class: "data-[open=false]:hidden",
+                        for failure in rows.failures.iter() {
+                            Alert { variant: AlertVariant::Destructive, AlertDescription { "{failure.reference}: {failure.reason}" } }
+                        }
                     }
                 }
             }
@@ -258,6 +264,45 @@ pub fn CasePanel(
                     mechanical_settings,
                 }
             }
+            footer { class: "relative order-10 m-0 flex flex-none flex-wrap items-center gap-1.5 border-0 border-t border-border bg-card px-3 py-1.5 [&_h2]:hidden max-[760px]:gap-2 max-[760px]:[&>button]:min-h-11",
+                h2 { "Case assembly" }
+                FieldLabel { class: "mx-1.5 flex items-center gap-1.5 text-xs text-muted-foreground max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", html_for: live_preview_id.clone(),
+                    Checkbox {
+                        id: live_preview_id.clone(),
+                        aria_label: "Live preview",
+                        checked: Some(if generation_enabled { CheckboxState::Checked } else { CheckboxState::Unchecked }),
+                        on_checked_change: move |state: CheckboxState| {
+                            let enabled = bool::from(state);
+                            live_preview_control.set(enabled);
+                            automatic_generation_control.write().set_enabled(enabled);
+                            if !enabled && generation_busy {
+                                toggle_runtime.submit(Event::CancelGeneration {
+                                    operation_id: toggle_runtime.operation(),
+                                });
+                            }
+                        },
+                    }
+                    span { "Live preview" }
+                }
+                Button { variant: ButtonVariant::Secondary, button_type: "button",
+                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    disabled: !generation_ready || generation_busy, onclick: move |_| on_generate.call(()), "Update preview" }
+                Button { variant: ButtonVariant::Secondary, button_type: "button",
+                    class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    disabled: !generation_busy,
+                    onclick: move |_| on_cancel.call(()),
+                    "Cancel"
+                }
+                if mechanical_export_configured {
+                    Button { variant: ButtonVariant::Secondary, button_type: "button",
+                        class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                        disabled: !mechanical_export_ready,
+                        onclick: export_mechanical_click,
+                        "Export geometry"
+                    }
+                }
+            }
+
         }
     }
 }
@@ -270,12 +315,11 @@ mod mounted_tests {
         Completion, Effect, Event as AppEvent, GenerationStatus, JobId, Scope,
     };
     use boardstudio_core::model::{
-        Board, EditCommand, EditOperation, EditPhase, MechanicalAssembly, Operation,
-        OutlineFeature, ProjectDoc, Vec2,
+        Board, EditOperation, MechanicalAssembly, Operation, OutlineFeature, ProjectDoc, Vec2,
     };
+    use boardstudio_web_ui_shared::test_role::by_role_name;
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::*;
-    use web_sys::HtmlInputElement;
 
     wasm_bindgen_test_configure!(run_in_browser);
 
@@ -479,31 +523,31 @@ mod mounted_tests {
         gloo_timers::future::TimeoutFuture::new(100).await;
     }
 
-    fn live_preview_toggle() -> HtmlInputElement {
-        web_sys::window()
+    fn live_preview_toggle() -> web_sys::HtmlElement {
+        let scope = web_sys::window()
             .unwrap()
             .document()
             .unwrap()
-            .query_selector("#case-live-preview-mounted input[role='switch']")
-            .unwrap()
-            .unwrap()
-            .dyn_into()
-            .unwrap()
+            .document_element()
+            .unwrap();
+        by_role_name(&scope, "checkbox", "Live preview").expect("live preview toggle")
+    }
+
+    fn live_preview_checked() -> bool {
+        live_preview_toggle()
+            .get_attribute("aria-checked")
+            .as_deref()
+            == Some("true")
     }
 
     fn case_button(root_id: &str, label: &str) -> web_sys::HtmlElement {
-        let buttons = web_sys::window()
+        let root = web_sys::window()
             .unwrap()
             .document()
             .unwrap()
-            .query_selector_all(&format!("#{root_id} button"))
+            .get_element_by_id(root_id)
             .unwrap();
-        (0..buttons.length())
-            .filter_map(|index| buttons.item(index))
-            .find(|button| button.text_content().as_deref() == Some(label))
-            .unwrap_or_else(|| panic!("mounted Case has {label}"))
-            .dyn_into()
-            .unwrap()
+        by_role_name(&root, "button", label).unwrap_or_else(|| panic!("mounted Case has {label}"))
     }
 
     fn export_geometry_button_in(root_id: &str) -> web_sys::HtmlElement {
@@ -524,18 +568,7 @@ mod mounted_tests {
     }
 
     fn export_geometry_button() -> web_sys::HtmlElement {
-        let buttons = web_sys::window()
-            .unwrap()
-            .document()
-            .unwrap()
-            .query_selector_all("#case-local-export-mounted button")
-            .unwrap();
-        (0..buttons.length())
-            .filter_map(|index| buttons.item(index))
-            .find(|button| button.text_content().as_deref() == Some("Export geometry"))
-            .expect("Case mounts Export geometry")
-            .dyn_into()
-            .unwrap()
+        case_button("case-local-export-mounted", "Export geometry")
     }
 
     #[wasm_bindgen_test]
@@ -574,7 +607,7 @@ mod mounted_tests {
         settle().await;
         let effects = support::take_held_effects(&runtime);
         assert_eq!(job_effects(&effects), ["run-export"]);
-        assert_eq!(started_exports(&effects), [scope.clone()]);
+        assert_eq!(started_exports(&effects), std::slice::from_ref(&scope));
 
         // A preview-quality generation replaces the exact one and drops the exact geometry.
         finish_generation(&runtime, &scope, false);
@@ -635,18 +668,22 @@ mod mounted_tests {
         let _ = support::take_held_effects(&runtime);
 
         // Disable automatic generation before changing the owner; explicit retry is asserted below.
-        let live = web_sys::window()
+        let root = web_sys::window()
             .unwrap()
             .document()
             .unwrap()
-            .query_selector(&format!("#{root_id} input[role='switch']"))
-            .unwrap()
-            .unwrap()
-            .dyn_into::<HtmlInputElement>()
+            .get_element_by_id(root_id)
             .unwrap();
+        let live = by_role_name(&root, "checkbox", "Live preview").expect("live preview toggle");
         live.click();
         settle().await;
-        assert!(!live.checked());
+        assert_eq!(
+            by_role_name(&root, "checkbox", "Live preview")
+                .unwrap()
+                .get_attribute("aria-checked")
+                .as_deref(),
+            Some("false")
+        );
         let _ = support::take_held_effects(&runtime);
 
         let mut edited = previous.document.as_ref().clone();
@@ -668,13 +705,18 @@ mod mounted_tests {
             .unwrap_or_default();
         assert!(text.contains("Case generation failed: controlled current generation failure"));
         assert!(
-            web_sys::window()
-                .unwrap()
-                .document()
-                .unwrap()
-                .query_selector(&format!("#{root_id} .m1-case-panel"))
-                .unwrap()
-                .is_some()
+            by_role_name(
+                &web_sys::window()
+                    .unwrap()
+                    .document()
+                    .unwrap()
+                    .get_element_by_id(root_id)
+                    .unwrap(),
+                "button",
+                "Update preview"
+            )
+            .is_some(),
+            "the failed generation keeps the Case panel mounted"
         );
         let retained = runtime
             .cad_scene()
@@ -703,7 +745,7 @@ mod mounted_tests {
         );
         assert_eq!(
             started_generations(&support::take_held_effects(&runtime)),
-            [scope.clone()],
+            std::slice::from_ref(&scope),
             "Update preview retries generation for the current owner"
         );
         remove_case_root(root_id);
@@ -742,16 +784,12 @@ mod mounted_tests {
         // A transient Core preview of an edit becomes the Session's display preview.
         let mut previewed = accepted.document.as_ref().clone();
         previewed.name.push_str(" preview");
-        runtime.submit(AppEvent::Edit {
+        runtime.submit(AppEvent::PreviewEdit {
             operation_id: runtime.operation(),
-            command: EditCommand {
-                base_revision: accepted.document.revision,
-                transaction_id: "case-export-draft-preview".into(),
-                phase: EditPhase::Preview,
-                target_ids: vec![scope.board_id.clone()],
-                operation: EditOperation::ReplaceDocument {
-                    document: Box::new(previewed),
-                },
+            transaction_id: "case-export-draft-preview".into(),
+            target_ids: vec![scope.board_id.clone()],
+            operation: EditOperation::ReplaceDocument {
+                document: Box::new(previewed),
             },
         });
         support::run_pending(&runtime).await;
@@ -796,6 +834,7 @@ mod mounted_tests {
             snap_fraction: 1.0,
             geometry_snap: false,
             gap: None,
+            pixels_per_world: None,
             alt: false,
         });
         assert!(
@@ -868,26 +907,14 @@ mod mounted_tests {
             .unwrap()
             .click();
         settle().await;
-        web_sys::window()
-            .unwrap()
-            .document()
-            .unwrap()
-            .query_selector("#case-live-preview-mounted .m1-case-header button:nth-of-type(2)")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap()
-            .click();
+        case_button("case-live-preview-mounted", "Cancel").click();
         settle().await;
         assert_eq!(
             job_effects(&support::take_held_effects(&runtime)),
             ["cancel-job"],
             "Cancel stops the running generation"
         );
-        assert!(
-            !live_preview_toggle().checked(),
-            "Cancel also pauses Live preview"
-        );
+        assert!(!live_preview_checked(), "Cancel also pauses Live preview");
         assert!(matches!(
             runtime.model().generation,
             GenerationStatus::Cancelled { .. }
@@ -903,7 +930,7 @@ mod mounted_tests {
             .click();
         settle().await;
 
-        assert!(!live_preview_toggle().checked());
+        assert!(!live_preview_checked());
         assert!(
             job_effects(&support::take_held_effects(&runtime)).is_empty(),
             "Cancel leaves automatic generation paused"
@@ -930,14 +957,14 @@ mod mounted_tests {
             .click();
         settle().await;
         assert!(
-            !live_preview_toggle().checked(),
+            !live_preview_checked(),
             "workspace remount keeps the app-level pause"
         );
         assert!(job_effects(&support::take_held_effects(&runtime)).is_empty());
 
         live_preview_toggle().click();
         settle().await;
-        assert!(live_preview_toggle().checked());
+        assert!(live_preview_checked());
         assert_eq!(
             job_effects(&support::take_held_effects(&runtime)),
             ["run-generation"],
@@ -965,6 +992,6 @@ mod mounted_tests {
             ["cancel-job"],
             "pausing Live preview cancels the running generation"
         );
-        assert!(!live_preview_toggle().checked());
+        assert!(!live_preview_checked());
     }
 }

@@ -11,7 +11,15 @@ use super::{
 use crate::runtime::Runtime;
 use boardstudio_application::SelectionMode;
 use boardstudio_core::model::{Finding, ProjectDoc};
+use boardstudio_web_ui_shared::ui::{
+    alert::{Alert, AlertDescription, AlertVariant},
+    button::{Button, ButtonVariant},
+    callout::{Callout, CalloutVariant},
+    spinner::Spinner,
+};
+
 use dioxus::prelude::*;
+use dioxus_web::WebEventExt;
 use std::{cell::Cell, rc::Rc};
 #[cfg(test)]
 use std::{future::Future, pin::Pin};
@@ -61,7 +69,7 @@ pub struct LayoutCanonicalViewerProps {
 pub fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
     let selection = use_context::<SelectionAdapter>();
-    let theme = use_context::<super::ResolvedTheme>().0;
+    let theme = use_context::<super::ResolvedAppearance>().0;
     let _ = use_context::<Signal<u64>>()();
     let alive = use_hook(|| Rc::new(Cell::new(true)));
     use_drop({
@@ -308,7 +316,8 @@ pub fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Element {
     };
 
     let Some(preview) = preview else {
-        let message = if let Some(error) = runtime.layout_preview_error() {
+        let preview_error = runtime.layout_preview_error();
+        let message = if let Some(error) = preview_error.as_ref() {
             format!("3D preview unavailable: {error}")
         } else if runtime.layout_preview_pending() {
             "Preparing canonical board preview…".to_owned()
@@ -319,18 +328,48 @@ pub fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Element {
         };
         return rsx! {
             div {
-                p { role: "status", class: "m1-layout-viewer-status", "{message}" }
-                if let Some(blocker) = props.keycaps_fit.as_ref().and_then(|fit| fit.preview_blocker_message()) {
-                    p { role: "status", class: "m1-layout-viewer-status", "{blocker}" }
+                if preview_error.is_some() {
+                    Alert { class: "m-0 px-3 py-2 first:pt-28", variant: AlertVariant::Destructive,
+                        AlertDescription { "{message}" }
+                    }
+                } else {
+                    div { role: "status", class: "m-0 px-3 py-2 first:pt-28",
+                        Callout { variant: CalloutVariant::Info,
+                            if runtime.layout_preview_pending() || request.is_some() { Spinner {} }
+                            "{message}"
+                        }
+                    }
+                }
+                if let Some(blocker) = props
+                    .keycaps_fit
+                    .as_ref()
+                    .and_then(|fit| fit.preview_blocker_message())
+                {
+                    div { role: "status", class: "m-0 px-3 py-2 first:pt-28", Callout { variant: CalloutVariant::Warning, "{blocker}" } }
                 } else if keycaps_preview_pending() {
-                    p { role: "status", class: "m1-layout-viewer-status", "Generating keycap CAD…" }
+                    div { role: "status", class: "m-0 px-3 py-2 first:pt-28",
+                        Callout { variant: CalloutVariant::Info, Spinner {} "Generating keycap CAD…" }
+                    }
                 }
                 if let Some(error) = keycaps_preview_error() {
-                    p { role: "alert", class: "m1-layout-viewer-status", "Keycap preview failed: {error}" }
-                    button {
-                        r#type: "button",
+                    Alert { class: "m-0 px-3 py-2 first:pt-28", variant: AlertVariant::Destructive,
+                        AlertDescription { "Keycap preview failed: {error}" }
+                    }
+                    Button {
+                        variant: ButtonVariant::Secondary,
+                        button_type: "button",
+                        onkeydown: move |event: KeyboardEvent| {
+                            if event.key().to_string() == " " {
+                                event.stop_propagation();
+                                if let Some(raw) = event.data().try_as_web_event() {
+                                    raw.stop_propagation();
+                                }
+                            }
+                        },
                         onclick: move |_| keycaps_retry_generation.set(keycaps_retry_generation().saturating_add(1)),
+
                         "Retry keycaps"
+
                     }
                 }
             }
@@ -369,22 +408,40 @@ pub fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Element {
     });
 
     rsx! {
-        div { class: "m1-layout-canonical-viewer",
-            if let Some(blocker) = props.keycaps_fit.as_ref().and_then(|fit| fit.preview_blocker_message()) {
-                p { role: "status", class: "m1-layout-viewer-status", "{blocker}" }
+        div { class: "flex min-h-0 flex-1 flex-col",
+            if let Some(blocker) = props
+                .keycaps_fit
+                .as_ref()
+                .and_then(|fit| fit.preview_blocker_message())
+            {
+                div { role: "status", class: "m-0 px-3 py-2 first:pt-28", Callout { variant: CalloutVariant::Warning, "{blocker}" } }
             } else if keycaps_preview_pending() {
-                p { role: "status", class: "m1-layout-viewer-status", "Generating keycap CAD…" }
+                div { role: "status", class: "m-0 px-3 py-2 first:pt-28",
+                    Callout { variant: CalloutVariant::Info, Spinner {} "Generating keycap CAD…" }
+                }
             }
             if let Some(error) = keycaps_preview_error() {
-                div { role: "alert", class: "m1-layout-viewer-status",
-                    p { "Keycap preview failed: {error}" }
-                    button {
-                        r#type: "button",
+                Alert { class: "m-0 px-3 py-2 first:pt-28", variant: AlertVariant::Destructive,
+                    AlertDescription { "Keycap preview failed: {error}" }
+                    Button {
+                        variant: ButtonVariant::Secondary,
+                        button_type: "button",
+                        onkeydown: move |event: KeyboardEvent| {
+                            if event.key().to_string() == " " {
+                                event.stop_propagation();
+                                if let Some(raw) = event.data().try_as_web_event() {
+                                    raw.stop_propagation();
+                                }
+                            }
+                        },
                         onclick: move |_| keycaps_retry_generation.set(keycaps_retry_generation().saturating_add(1)),
+
                         "Retry keycaps"
+
                     }
                 }
             }
+            div { class: "flex min-h-0 flex-1 [&>div]:relative [&>div]:flex [&>div]:min-h-0 [&>div]:min-w-0 [&>div]:flex-1 [&>div]:flex-col [&>div>div:has(>canvas)]:relative [&>div>div:has(>canvas)]:flex [&>div>div:has(>canvas)]:min-h-[160px] [&>div>div:has(>canvas)]:min-w-0 [&>div>div:has(>canvas)]:flex-1 [&_canvas]:min-h-0 [&_canvas]:min-w-0 [&_canvas]:flex-1 [&_canvas]:border-0",
             CaseSharedViewer {
                 scene: None,
                 preview: None,
@@ -401,6 +458,7 @@ pub fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Element {
                 mechanical_settings: None,
                 inline_case_controls: false,
                 focus_request,
+            }
             }
         }
     }
@@ -505,16 +563,19 @@ mod mounted_keycaps_preview_tests {
             use_hook(|| SelectionAdapter::new(selected_context, anchor_scope, generation));
         use_context_provider(|| adapter.clone());
         let theme = use_memo(|| "light");
-        use_context_provider(|| super::super::ResolvedTheme(theme));
+        use_context_provider(|| super::super::ResolvedAppearance(theme));
         let _: Signal<u64> = use_context_provider(|| Signal::new(0_u64));
 
         let fit = fit_signal();
         let newer_fit = probe.newer_fit.clone();
         rsx! {
-            button {
+            Button {
+                variant: ButtonVariant::Secondary,
                 id: "keycaps-preview-advance-owner",
                 onclick: move |_| fit_signal.set(Some(newer_fit.clone())),
+
                 "Advance board and revision"
+
             }
             LayoutCanonicalViewer { keycaps_fit: fit }
         }

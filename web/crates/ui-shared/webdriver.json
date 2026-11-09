@@ -1,0 +1,3 @@
+{
+  "goog:chromeOptions": { "args": ["--window-size=1280,900"] }
+}

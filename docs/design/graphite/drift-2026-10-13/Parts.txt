@@ -1,0 +1,103 @@
+Your app is being rebuilt.
+
+A non-hot-reloadable change occurred and we must rebuild.
+
+BoardStudio
+Corne
+Saved
+Export
+Parts library
+Search parts
+Key assemblies8
+Switch orientation
+South-facing LED
+North-facing LED
+Viewed from the keycap side; rotates the switch and attached parts together.
+MX Solder
+MX Hotswap
+Choc V1 Solder
+Choc V1 Hotswap
+MX RGB
+Choc V1 RGB
+MX Hotswap RGB
+Choc V1 Hotswap RGB
+Components48
+Switches
+Choc V1 / V2 switch
+Gateron KS27 / KS33 switch
+MX switch
+Controllers
+Connectors & sockets
+Encoders
+Passives & LEDs
+Utilities
+Custom
+Import KiCad footprint
+New custom component
+Layout
+PCB
+Keymap
+Keycaps
+Case
+Parts
+Mechanical fit
+
+Define this part’s fit once so every layout and case uses the same profile.
+
+Define profile
+MX Hotswap
+2D footprint
+3D model
+
+Unapplied generator preview
+
+No closed courtyard is available; the outline uses physical graphics and pad extents.
+
+1
+2
+1
+2
+Layers
+Inspect
+Assemblies
+New assembly
+Customize 3D assembly
+
+No saved assemblies yet.
+
+MX switch
+
+Switch footprint
+
+Definition ID
+generator:ceoloide/switch_mx
+Catalogue source
+Bundled footprint library
+Source detail
+ceoloide/switch_mx · bundled-1
+Pads
+7
+Courtyard
+15.5 × 8.6 mm
+Place key assembly
+Footprint options
+Hotswap
+Include Keycap
+Reversible
+Board side
+Front
+Back
+Solder
+Keycap dimensions
+Keycap Height
+Keycap Width
+Connections
+3D model placement
+Advanced footprint options
+
+Current generator preview is ready to apply.
+
+Apply generator settings
+Apply to selected key
+100%
+Layout findings: 23

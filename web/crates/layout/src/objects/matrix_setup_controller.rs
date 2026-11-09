@@ -10,17 +10,33 @@ use crate::{
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Resolution, Scope, SelectionMode,
 };
-use boardstudio_core::model::{EditCommand, EditOperation, EditPhase, Matrix, PartDefinition};
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+use boardstudio_core::model::{EditOperation, Matrix, PartDefinition};
+use boardstudio_web_runtime::pending_edits::PendingEditResult;
+use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
 use std::{cell::Cell, rc::Rc};
 use wasm_bindgen_futures::spawn_local;
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum MatrixSetupAction {
+    Create,
+}
+
+// The form can observe actual admission without exposing controller internals in its public props.
 #[derive(Clone)]
-struct MatrixSetupSubmission {
-    owner: MatrixSetupOwner,
-    ticket: EditTicket,
-    matrix_id: String,
+pub(super) struct MatrixSetupAdmission {
+    pending: PendingEditSignals<MatrixSetupAction>,
+    submitted: Signal<Option<MatrixSetupCreateRequest>>,
+}
+
+impl MatrixSetupAdmission {
+    pub(super) fn is_pending(&self) -> bool {
+        self.pending.is_pending(&MatrixSetupAction::Create)
+    }
+
+    pub(super) fn carries(&self, request: &MatrixSetupCreateRequest) -> bool {
+        self.is_pending() && self.submitted.peek().as_ref() == Some(request)
+    }
 }
 
 /// Resolve creating a prepared matrix against the accepted document at execution time: the
@@ -52,16 +68,62 @@ fn create_matrix_resolver(
                 "The prepared matrix definitions conflict with the accepted document.".into(),
             );
         }
-        Resolution::Submit(EditCommand {
-            base_revision: 0,
-            transaction_id: String::new(),
-            phase: EditPhase::Commit,
-            target_ids: vec![matrix.id.clone()],
-            operation: EditOperation::SetMatrix {
+        if document.hardware.as_ref().is_some_and(|hardware| {
+            hardware.topology == boardstudio_core::model::HardwareTopology::Split
+        }) {
+            let ids = crate::mirrored_pair_geometry::MirroredPairIds {
+                right_matrix_id: format!("{}-right", matrix.id),
+                left_layout_id: format!("{}-left-layout", matrix.id),
+                right_layout_id: format!("{}-right-layout", matrix.id),
+            };
+            if document
+                .matrices
+                .iter()
+                .any(|item| item.id == ids.right_matrix_id)
+                || document
+                    .layouts
+                    .iter()
+                    .any(|item| item.id == ids.left_layout_id || item.id == ids.right_layout_id)
+            {
+                return Resolution::Retire(
+                    "The mirrored layout identity is already in use.".into(),
+                );
+            }
+            let pair = match crate::mirrored_pair_geometry::project_mirrored_pair(
+                matrix.clone(),
+                &ids,
+                &crate::mirrored_pair_geometry::MirroredPairGeometryInput {
+                    left_name: "Left half".into(),
+                    right_name: "Right half".into(),
+                    gap_mm: 40.0,
+                },
+                matrix.origin,
+            ) {
+                Ok(pair) => pair,
+                Err(error) => return Resolution::Retire(error),
+            };
+            return Resolution::submit(
+                vec![
+                    matrix.id.clone(),
+                    ids.right_matrix_id,
+                    ids.left_layout_id,
+                    ids.right_layout_id,
+                ],
+                EditOperation::CreateMirroredPair {
+                    left: pair.left,
+                    right: pair.right,
+                    matrix: Box::new(pair.matrix),
+                    definitions: Some(definitions.clone()),
+                },
+            );
+        }
+        Resolution::submit(
+            vec![matrix.id.clone()],
+            EditOperation::SetMatrix {
                 matrix: matrix.clone(),
                 definitions: Some(definitions.clone()),
             },
-        })
+        )
     })
 }
 
@@ -89,7 +151,15 @@ pub fn use_matrix_setup(
     let preparing = use_signal(|| None::<MatrixSetupOwner>);
     let error = use_signal(|| None::<String>);
     let status = use_signal(|| None::<String>);
-    let pending = use_signal(|| None::<MatrixSetupSubmission>);
+    let pending = use_hook(PendingEditSignals::<MatrixSetupAction>::new);
+    let pending_create = use_signal(|| false);
+    pending.bind_one_shot(MatrixSetupAction::Create, pending_create);
+    let pending_owner = use_signal(|| None::<(MatrixSetupOwner, String)>);
+    let submitted_create = use_signal(|| None::<MatrixSetupCreateRequest>);
+    use_context_provider(|| MatrixSetupAdmission {
+        pending: pending.clone(),
+        submitted: submitted_create,
+    });
 
     use_effect(use_reactive(
         (&version(), &workspace(), &scope_generation()),
@@ -99,7 +169,8 @@ pub fn use_matrix_setup(
             let mut preparing = preparing;
             let mut error = error;
             let mut status = status;
-            let mut pending = pending;
+            let pending = pending.clone();
+            let mut pending_owner = pending_owner;
             let mut selected_context = selected_context;
             let mut anchor_scope = anchor_scope;
             move |(_, workspace, scope_generation)| {
@@ -108,7 +179,8 @@ pub fn use_matrix_setup(
                     workspace,
                     scope_generation,
                     &mut SetupSettlement {
-                        pending: &mut pending,
+                        pending: &pending,
+                        pending_owner: &mut pending_owner,
                         open: &mut open,
                         error: &mut error,
                         status: &mut status,
@@ -116,7 +188,7 @@ pub fn use_matrix_setup(
                         anchor_scope: &mut anchor_scope,
                     },
                 );
-                if pending.read().is_none()
+                if pending_owner.read().is_none()
                     && open.read().as_ref().is_some_and(|owner| {
                         workspace != "Layout"
                             || owner.scope_generation != scope_generation
@@ -139,7 +211,7 @@ pub fn use_matrix_setup(
         let mut error = error;
         let mut status = status;
         move |_| {
-            if pending.read().is_some() || preparing.read().is_some() {
+            if pending_create() || preparing.read().is_some() {
                 return;
             }
             let current_workspace = workspace();
@@ -178,7 +250,7 @@ pub fn use_matrix_setup(
         let mut status = status;
         let mut preparing = preparing;
         move |owner: MatrixSetupOwner| {
-            if open.read().as_ref() == Some(&owner) && pending.read().is_none() {
+            if open.read().as_ref() == Some(&owner) && !pending_create() {
                 open.set(None);
                 preparing.set(None);
                 error.set(None);
@@ -195,7 +267,7 @@ pub fn use_matrix_setup(
         let mut status = status;
         move |request: MatrixSetupCreateRequest| {
             if open.read().as_ref() != Some(&request.owner)
-                || pending.read().is_some()
+                || pending_create()
                 || preparing.read().is_some()
                 || request.owner.editor_instance_id != editor_instance_id
                 || workspace() != "Layout"
@@ -255,7 +327,9 @@ pub fn use_matrix_setup(
             let mut preparing = preparing;
             let mut error = error;
             let mut status = status;
-            let mut pending = pending;
+            let pending = pending.clone();
+            let mut pending_owner = pending_owner;
+            let mut submitted_create = submitted_create;
             let mut open = open;
             let alive = alive.clone();
             spawn_local(async move {
@@ -354,35 +428,33 @@ pub fn use_matrix_setup(
                     return;
                 }
                 let matrix_id = matrix.id.clone();
-                let ticket = EditTicket::begin(
+                pending_owner.set(Some((owner.clone(), matrix_id.clone())));
+                submitted_create.set(Some(request.clone()));
+                pending.begin_one_shot(
                     &runtime,
+                    MatrixSetupAction::Create,
                     "layout-matrix-setup",
                     Some("matrix".into()),
                     create_matrix_resolver(current_board.clone(), matrix, definitions),
                 );
-                pending.set(Some(MatrixSetupSubmission {
-                    owner: owner.clone(),
-                    ticket,
-                    matrix_id,
-                }));
                 preparing.set(None);
-                status.set(Some("Creating matrix…".into()));
+                status.set(None);
             });
         }
     });
 
     let projection = open.read().clone().map(|owner| {
-        let idle = pending.read().is_none() && preparing.read().is_none();
+        let idle = !pending_create() && preparing.read().is_none();
         MatrixSetupProjection {
             editable: idle && setup_owner_live(&runtime, &owner, workspace(), scope_generation()),
-            can_cancel: pending.read().is_none(),
+            can_cancel: !pending_create(),
             owner,
             status: status.read().clone(),
             error: error.read().clone(),
         }
     });
     let current_model = runtime.model();
-    let can_open = pending.read().is_none()
+    let can_open = !pending_create()
         && preparing.read().is_none()
         && open.read().is_none()
         && setup_source(
@@ -465,7 +537,8 @@ fn setup_source<'a>(
 }
 
 struct SetupSettlement<'a> {
-    pending: &'a mut Signal<Option<MatrixSetupSubmission>>,
+    pending: &'a PendingEditSignals<MatrixSetupAction>,
+    pending_owner: &'a mut Signal<Option<(MatrixSetupOwner, String)>>,
     open: &'a mut Signal<Option<MatrixSetupOwner>>,
     error: &'a mut Signal<Option<String>>,
     status: &'a mut Signal<Option<String>>,
@@ -479,71 +552,130 @@ fn settle_pending(
     scope_generation: u64,
     signals: &mut SetupSettlement<'_>,
 ) {
-    let Some(waiting) = signals.pending.read().clone() else {
+    let Some((owner, matrix_id)) = signals.pending_owner.read().clone() else {
         return;
     };
     let model = runtime.model();
     // A hidden or departed owner cannot reconcile selection or publish feedback.
     let owner_is_live = workspace == "Layout"
-        && scope_generation == waiting.owner.scope_generation
-        && runtime.scope().as_ref() == Some(&waiting.owner.scope)
+        && scope_generation == owner.scope_generation
+        && runtime.scope().as_ref() == Some(&owner.scope)
         && model.accepted.as_ref().is_some_and(|snapshot| {
-            snapshot.session_epoch == waiting.owner.scope.session_epoch
-                && snapshot.document.id == waiting.owner.scope.document_id
+            snapshot.session_epoch == owner.scope.session_epoch
+                && snapshot.document.id == owner.scope.document_id
         });
-    let settlement = waiting.ticket.settlement(owner_is_live);
-    match settlement {
-        Settlement::Pending => {}
-        Settlement::Retired => {
-            finish_pending(signals.pending, signals.status, &waiting);
-            signals.open.set(None);
-            signals.error.set(None);
-        }
-        Settlement::Landed { .. } => {
-            finish_pending(signals.pending, signals.status, &waiting);
-            signals.open.set(None);
-            signals.error.set(None);
-            if model.active_board_id == waiting.owner.board_id {
-                let context = TreeContext::Matrix {
-                    matrix_id: waiting.matrix_id,
-                };
-                let Some(ids) = super::resolve_selection(&model, &context) else {
-                    signals.error.set(Some(
-                        "The new matrix could not be selected from the saved board.".into(),
-                    ));
-                    return;
-                };
-                signals.selected_context.set(Some(ScopedTreeContext {
-                    scope: waiting.owner.scope.clone(),
-                    context,
-                }));
-                signals.anchor_scope.set(None);
-                runtime.submit(Event::SelectParts {
-                    operation_id: runtime.operation(),
-                    part_ids: ids,
-                    range_part_ids: Vec::new(),
-                    mode: SelectionMode::Replace,
-                });
+    for result in signals.pending.settle(owner_is_live, |_| String::new()) {
+        signals.pending_owner.set(None);
+        signals.status.set(None);
+        match result {
+            PendingEditResult::Retired { .. } => {
+                signals.open.set(None);
+                signals.error.set(None);
             }
-        }
-        Settlement::Failed { message } => {
-            finish_pending(signals.pending, signals.status, &waiting);
-            signals.error.set(Some(message));
+            PendingEditResult::Landed { .. } => {
+                signals.open.set(None);
+                signals.error.set(None);
+                if model.active_board_id == owner.board_id {
+                    let context = TreeContext::Matrix {
+                        matrix_id: matrix_id.clone(),
+                    };
+                    let Some(ids) = super::resolve_selection(&model, &context) else {
+                        signals.error.set(Some(
+                            "The new matrix could not be selected from the saved board.".into(),
+                        ));
+                        return;
+                    };
+                    signals.selected_context.set(Some(ScopedTreeContext {
+                        scope: owner.scope.clone(),
+                        context,
+                    }));
+                    signals.anchor_scope.set(None);
+                    runtime.submit(Event::SelectParts {
+                        operation_id: runtime.operation(),
+                        part_ids: ids,
+                        range_part_ids: Vec::new(),
+                        mode: SelectionMode::Replace,
+                    });
+                }
+            }
+            PendingEditResult::Failed { message, .. } => {
+                signals.error.set(Some(message));
+            }
         }
     }
 }
 
-fn finish_pending(
-    pending: &mut Signal<Option<MatrixSetupSubmission>>,
-    status: &mut Signal<Option<String>>,
-    waiting: &MatrixSetupSubmission,
-) {
-    if pending
-        .read()
-        .as_ref()
-        .is_some_and(|current| current.ticket.operation() == waiting.ticket.operation())
-    {
-        pending.set(None);
-        status.set(None);
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use boardstudio_core::model::*;
+    use std::sync::Arc;
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn split_setup_creates_a_linked_layout_pair() {
+        let mut document = ProjectDoc::empty("setup", "Setup");
+        document.boards.push(Board {
+            id: "board".into(),
+            name: "Board".into(),
+            outline_ids: vec![],
+            part_ids: vec![],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        document.hardware = Some(HardwareConfiguration {
+            topology: HardwareTopology::Split,
+            ..Default::default()
+        });
+        let matrix: Matrix = serde_json::from_value(serde_json::json!({
+            "id": "main", "rows": 3, "columns": 5, "pitch": {"x": 19.05, "y": 19.05},
+            "origin": {"x": 0.0, "y": 0.0}, "definitionId": "switch", "partIds": [], "boardId": "board"
+        })).unwrap();
+        let snapshot = AcceptedSnapshot {
+            token: boardstudio_application::SnapshotToken(1),
+            session_epoch: boardstudio_application::SessionEpoch(1),
+            document: Arc::new(document),
+            scene: Arc::new(SceneDelta {
+                module_scenes: vec![],
+                revision: 0,
+                transaction_id: "setup".into(),
+                changed_ids: vec![],
+                transforms: vec![],
+                matrix_scenes: vec![],
+                contours: vec![],
+                board_contours: vec![],
+                board_readiness: vec![],
+                board_outline_scenes: vec![],
+                finding_markers: vec![],
+                findings: vec![],
+                readiness: Readiness {
+                    layout: false,
+                    outline: false,
+                    pcb: false,
+                    case_ready: false,
+                },
+            }),
+        };
+        let Resolution::Submit(command) =
+            create_matrix_resolver("board".into(), matrix, vec![]).resolve(&snapshot)
+        else {
+            panic!("setup must submit");
+        };
+        let EditOperation::CreateMirroredPair {
+            left,
+            right,
+            matrix,
+            ..
+        } = command.operation
+        else {
+            panic!("split setup must create linked layouts, not a single matrix");
+        };
+        let link = right.mirror_link.as_ref().unwrap();
+        assert_eq!(link.source_id, left.id);
+        assert_ne!(left.matrix_ids, right.matrix_ids);
+        assert!(matrix.origin.x < link.axis_x);
+        let gap = 2.0 * (link.axis_x - matrix.origin.x) - (matrix.pitch.x - 1.0);
+        assert!((gap - 40.0).abs() < 1e-9);
     }
 }

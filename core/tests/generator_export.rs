@@ -2,7 +2,6 @@
 //! preview and export requests (ported from `kicad/test/ergogen.test.ts`, which
 //! drove the JavaScript worker).
 use std::collections::BTreeMap;
-use std::process::Command;
 
 use boardstudio_core::artifact::kicad;
 use boardstudio_core::generators;
@@ -100,7 +99,7 @@ fn model_paths(items: &[(&PartDefinition, Option<&Value>)]) -> BTreeMap<String, 
 }
 
 fn kicad10() -> bool {
-    Command::new("kicad-cli")
+    crate::support::kicad_command("kicad-cli")
         .arg("version")
         .output()
         .map(|output| {
@@ -111,10 +110,17 @@ fn kicad10() -> bool {
         .unwrap_or(false)
 }
 
-/// Whether KiCad 10 parses the board; skipped (true) without KiCad 10.
+/// Whether KiCad 10 parses the board. Without KiCad 10 the check fails, as
+/// `kicad_integration.rs` does, unless `BOARDSTUDIO_ALLOW_NO_KICAD=1` skips it on purpose.
 fn kicad_parses(content: &str) -> bool {
     if !kicad10() {
-        return true;
+        if std::env::var("BOARDSTUDIO_ALLOW_NO_KICAD").as_deref() == Ok("1") {
+            return true;
+        }
+        panic!(
+            "kicad-cli (KiCad 10) is required for the generator KiCad checks; \
+             set BOARDSTUDIO_ALLOW_NO_KICAD=1 to skip them"
+        );
     }
     static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
     let directory = std::env::temp_dir().join(format!(
@@ -126,7 +132,7 @@ fn kicad_parses(content: &str) -> bool {
     let board = directory.join("main.kicad_pcb");
     std::fs::write(&board, content).unwrap();
     let report = directory.join("stats.json");
-    let status = Command::new("kicad-cli")
+    let status = crate::support::kicad_command("kicad-cli")
         .args(["pcb", "export", "stats", "--format", "json", "--output"])
         .arg(&report)
         .arg(&board)
@@ -174,6 +180,31 @@ fn exports_front_and_back_switches_with_instance_nets_and_models() {
     assert_eq!(count(&board, "(model \"${KIPRJMOD}/models/"), 6);
     assert!(board.contains("(layer \"F.Cu\")") && board.contains("(layer \"B.Cu\")"));
     assert!(kicad_parses(&board));
+}
+
+#[test]
+fn part_null_selects_the_declared_default_and_non_null_override_wins() {
+    let mut mx = definition("ceoloide/switch_mx");
+    // The declared hotswap default is true; the definition overrides it with false.
+    mx.generator
+        .as_mut()
+        .unwrap()
+        .parameters
+        .insert("hotswap".into(), json!(false));
+    let pads = |overrides: Value| {
+        let placed = part(&mx, "sw", 0.0, "front", overrides);
+        let paths = model_paths(&[(&mx, Some(&placed))]);
+        let doc = project(std::slice::from_ref(&mx), &[placed], &[]);
+        count(&export_board(doc, paths), "(pad ")
+    };
+    let inherited = pads(json!({}));
+    let masked = pads(json!({ "hotswap": null }));
+    assert_eq!(pads(json!({ "hotswap": false })), inherited);
+    assert!(
+        masked > inherited,
+        "part null selects the default, not the definition value"
+    );
+    assert_eq!(pads(json!({ "hotswap": true })), masked);
 }
 
 #[test]
@@ -244,13 +275,50 @@ fn upgrades_legacy_vendor_arcs() {
 
 #[test]
 fn every_bundled_generator_exports_a_board_kicad_parses() {
-    for item in definitions() {
-        let source = item.generator.as_ref().unwrap().source.clone();
-        let placed = part(&item, "part", 0.0, "front", json!({}));
-        let paths = model_paths(&[(&item, Some(&placed))]);
-        let board = export_board(project(&[item], &[placed], &[]), paths);
-        assert!(kicad_parses(&board), "{source}");
+    let items = definitions();
+    // Every generator on one board, spaced so the footprints do not overlap: one KiCad run.
+    let parts: Vec<Value> = items
+        .iter()
+        .enumerate()
+        .map(|(index, item)| {
+            part(
+                item,
+                &format!("g{index}"),
+                index as f64 * 20.0,
+                "front",
+                json!({}),
+            )
+        })
+        .collect();
+    let pairs: Vec<(&PartDefinition, Option<&Value>)> = items
+        .iter()
+        .zip(&parts)
+        .map(|(item, placed)| (item, Some(placed)))
+        .collect();
+    let board = export_board(project(&items, &parts, &[]), model_paths(&pairs));
+    if kicad_parses(&board) {
+        return;
     }
+    // Only after a failure: export each generator alone to name the ones KiCad rejects.
+    let rejected: Vec<String> = items
+        .iter()
+        .filter_map(|item| {
+            let placed = part(item, "part", 0.0, "front", json!({}));
+            let paths = model_paths(&[(item, Some(&placed))]);
+            let alone = export_board(
+                project(
+                    std::slice::from_ref(item),
+                    std::slice::from_ref(&placed),
+                    &[],
+                ),
+                paths,
+            );
+            (!kicad_parses(&alone)).then(|| item.generator.as_ref().unwrap().source.clone())
+        })
+        .collect();
+    panic!(
+        "KiCad 10 rejects the board with every generator; generators it rejects alone: {rejected:?}"
+    );
 }
 
 #[test]
@@ -317,6 +385,151 @@ fn generator_failures_reach_the_caller_with_their_text() {
     );
 }
 
+fn text_values(forms: &[generators::Expr], head: &str, kind: Option<&str>) -> Vec<String> {
+    fn visit(node: &generators::Expr, head: &str, kind: Option<&str>, out: &mut Vec<String>) {
+        let Some(list) = node.as_list() else {
+            return;
+        };
+        let matched = match (list.first(), list.get(1)) {
+            (Some(generators::Expr::Atom(item)), _) if kind.is_none() && item == head => true,
+            (Some(generators::Expr::Atom(item)), Some(generators::Expr::Atom(name))) => {
+                item == head && kind == Some(name)
+            }
+            _ => false,
+        };
+        let position = if kind.is_some() { 2 } else { 1 };
+        if matched && let Some(generators::Expr::Str(text)) = list.get(position) {
+            out.push(text.clone());
+        }
+        for item in list {
+            visit(item, head, kind, out);
+        }
+    }
+    let mut out = Vec::new();
+    for form in forms {
+        visit(form, head, kind, &mut out);
+    }
+    out
+}
+
+#[test]
+fn exports_quoted_generator_text_and_active_labels_for_kicad() {
+    let text = definition("ceoloide/utility_text");
+    let other = definition("infused-kim/text");
+    let pads = definition("infused-kim/pads");
+    let smd = definition("infused-kim/smd_0805");
+    let literal = "Board 12\" inch \\ path — ✓\nsecond line\\nstays literal\tend";
+    let plain = "Board 12 inch";
+    let parts = [
+        part(
+            &text,
+            "txt-f",
+            0.0,
+            "front",
+            json!({ "text": literal, "reversible": true }),
+        ),
+        part(
+            &other,
+            "txt-b",
+            0.0,
+            "back",
+            json!({ "text": literal, "reverse": true }),
+        ),
+        part(
+            &pads,
+            "pads",
+            20.0,
+            "front",
+            json!({ "pads": 1, "reverse": true, "label_1": literal }),
+        ),
+        part(
+            &smd,
+            "smd",
+            40.0,
+            "front",
+            json!({ "components": 1, "reverse": true, "label_1": literal,
+                "component_1_3dmodel_filename": "" }),
+        ),
+        part(&text, "plain", 60.0, "front", json!({ "text": plain })),
+    ];
+    let document = project(&[text, other, pads, smd], &parts, &[]);
+    let board = export_board(document.clone(), BTreeMap::new());
+    let preview = kicad::preview(request(
+        document,
+        ExportTarget::Board {
+            board_id: "main".into(),
+        },
+        BTreeMap::new(),
+    ))
+    .expect("preview board");
+
+    let forms = generators::parse_forms(&board).expect("exported board parses");
+    let gr_text = text_values(&forms, "gr_text", None);
+    assert_eq!(
+        gr_text,
+        vec![
+            literal.to_owned(),
+            literal.to_owned(),
+            literal.to_owned(),
+            literal.to_owned(),
+            plain.to_owned()
+        ],
+        "board text keeps every literal"
+    );
+    let labels = text_values(&forms, "fp_text", Some("user"));
+    assert_eq!(
+        labels,
+        vec![literal.to_owned(); 6],
+        "pad and SMD labels keep every literal"
+    );
+    assert!(
+        board.contains("Board 12\\\" inch \\\\ path"),
+        "quotes and backslashes are serialized once"
+    );
+    let preview_texts: Vec<&str> = preview
+        .surfaces
+        .iter()
+        .map(|surface| surface.text.as_str())
+        .collect();
+    assert_eq!(
+        preview_texts
+            .iter()
+            .filter(|text| **text == literal)
+            .count(),
+        8,
+        "preview surfaces keep every visible literal text and label"
+    );
+    assert!(preview_texts.contains(&plain));
+    assert!(kicad_parses(&board));
+}
+
+#[test]
+fn rejects_unsupported_control_text_in_generator_output() {
+    let text = definition("ceoloide/utility_text");
+    let part = part(
+        &text,
+        "control",
+        0.0,
+        "front",
+        json!({ "text": "bad\u{1}text" }),
+    );
+    let error = kicad::export(request(
+        project(&[text], &[part], &[]),
+        ExportTarget::Board {
+            board_id: "main".into(),
+        },
+        BTreeMap::new(),
+    ))
+    .expect_err("control text must be refused");
+    assert!(
+        error
+            .message
+            .contains("KiCad text contains a control character"),
+        "{}",
+        error.message
+    );
+}
+
 #[test]
 fn previews_rotated_generators_on_both_faces_with_models_and_copper() {
     for source in [
@@ -361,4 +574,194 @@ fn previews_rotated_generators_on_both_faces_with_models_and_copper() {
             assert_eq!(preview.contours.len(), 1);
         }
     }
+}
+
+type HoleCase = (Value, &'static str, f64, f64, f64, &'static str);
+
+/// The plated hole's footprint as the exported board spells it.
+fn plated_hole(case: &HoleCase) -> String {
+    let (parameters, side, x, y, rotation, reference) = case;
+    let hole = definition("ceoloide/mounting_hole_plated");
+    let mut placed = part(&hole, "h", *x, side, parameters.clone());
+    placed["pose"] = json!({ "at": { "x": x, "y": y }, "rotation": rotation });
+    placed["reference"] = json!(reference);
+    let board = export_board(project(&[hole], &[placed], &[]), BTreeMap::new());
+    board
+        .lines()
+        .find(|line| line.trim_start().starts_with("(footprint"))
+        .expect("footprint")
+        .trim()
+        .to_owned()
+}
+
+fn plated_hole_cases() -> Vec<(&'static str, HoleCase)> {
+    vec![
+        ("defaults", (json!({}), "front", 0.0, 0.0, 0.0, "H1")),
+        (
+            "circle, courtyard off",
+            (
+                json!({ "include_courtyard": false }),
+                "front",
+                0.0,
+                0.0,
+                0.0,
+                "H1",
+            ),
+        ),
+        (
+            "equal secondary",
+            (
+                json!({ "drill": 3, "drill_y": 3 }),
+                "front",
+                0.0,
+                0.0,
+                0.0,
+                "H1",
+            ),
+        ),
+        (
+            "tall oval, turned, back, literal reference",
+            (
+                json!({ "drill": 2, "drill_y": 3, "outline": 0.5, "include_courtyard": false }),
+                "back",
+                3.5,
+                -2.25,
+                37.0,
+                "A\"b\\c \u{e9}\u{2713}",
+            ),
+        ),
+        (
+            "wide oval, quarter turn",
+            (
+                json!({ "drill": 3, "drill_y": 2 }),
+                "front",
+                -12.5,
+                7.75,
+                90.0,
+                "H2",
+            ),
+        ),
+        (
+            "generator side B on a front part",
+            (json!({ "side": "B" }), "front", 1.0, 1.0, 0.0, "H3"),
+        ),
+        (
+            "generator side F on a back part",
+            (json!({ "side": "F" }), "back", 1.0, 1.0, 0.0, "H4"),
+        ),
+        (
+            "zero courtyard endpoint",
+            (
+                json!({ "drill": -0.5, "outline": 0 }),
+                "front",
+                0.0,
+                0.0,
+                0.0,
+                "H5",
+            ),
+        ),
+        (
+            "zero courtyard endpoint, oval",
+            (
+                json!({ "drill": -0.5, "drill_y": 1, "outline": 0 }),
+                "front",
+                0.0,
+                0.0,
+                0.0,
+                "H5",
+            ),
+        ),
+        (
+            "negative outline",
+            (json!({ "outline": -0.8 }), "front", 0.0, 0.0, 0.0, "H6"),
+        ),
+        (
+            "negative outline oval",
+            (
+                json!({ "drill_y": 3, "outline": -0.8 }),
+                "front",
+                0.0,
+                0.0,
+                0.0,
+                "H6",
+            ),
+        ),
+        (
+            "negative secondary",
+            (json!({ "drill_y": -1 }), "front", 0.0, 0.0, 0.0, "H7"),
+        ),
+    ]
+}
+
+/// Recorded from the text-template generator before it moved to direct forms.
+const PLATED_HOLE_FOOTPRINTS: [&str; 12] = [
+    r#"(footprint "ceoloide:mounting_hole_plated" (layer "F.Cu") (at 0 0 0) (property "Reference" "H1" (at 0 3 0) (layer "F.SilkS") (effects (font (size 1 1) (thickness 0.15)))) (pad "" thru_hole circle (at 0 0 0) (size 3.8000000000000003 3.8000000000000003) (drill 2.2) (layers "*.Cu" "*.Mask")) (fp_circle (center 0 0) (end -2.1500000000000004 0) (layer "F.CrtYd") (stroke (width 0.05) (type solid)) (fill none)) (fp_circle (center 0 0) (end -2.1500000000000004 0) (layer "B.CrtYd") (stroke (width 0.05) (type solid)) (fill none)))"#,
+    r#"(footprint "ceoloide:mounting_hole_plated" (layer "F.Cu") (at 0 0 0) (property "Reference" "H1" (at 0 3 0) (layer "F.SilkS") (effects (font (size 1 1) (thickness 0.15)))) (pad "" thru_hole circle (at 0 0 0) (size 3.8000000000000003 3.8000000000000003) (drill 2.2) (layers "*.Cu" "*.Mask")) (fp_circle (center 0 0) (end -2.1500000000000004 0) (layer "F.CrtYd") (stroke (width 0.05) (type solid)) (fill none)) (fp_circle (center 0 0) (end -2.1500000000000004 0) (layer "B.CrtYd") (stroke (width 0.05) (type solid)) (fill none)))"#,
+    r#"(footprint "ceoloide:mounting_hole_plated" (layer "F.Cu") (at 0 0 0) (property "Reference" "H1" (at 0 3 0) (layer "F.SilkS") (effects (font (size 1 1) (thickness 0.15)))) (pad "" thru_hole circle (at 0 0 0) (size 4.6 4.6) (drill 3) (layers "*.Cu" "*.Mask")) (fp_circle (center 0 0) (end -2.55 0) (layer "F.CrtYd") (stroke (width 0.05) (type solid)) (fill none)) (fp_circle (center 0 0) (end -2.55 0) (layer "B.CrtYd") (stroke (width 0.05) (type solid)) (fill none)))"#,
+    r#"(footprint "ceoloide:mounting_hole_plated" (layer "F.Cu") (at 3.5 2.25 37) (property "Reference" "A\"b\\c é✓" (at 0 3 37) (layer "F.SilkS") (effects (font (size 1 1) (thickness 0.15)))) (pad "" thru_hole oval (at 0 0 37) (size 3 4) (drill oval 2 3) (layers "*.Cu" "*.Mask")) (fp_line (start 1.75 -2.25) (end 1.75 2.25) (layer "F.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -1.75 -2.25) (end -1.75 2.25) (layer "F.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -1.75 2.25) (end 1.75 2.25) (layer "F.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -1.75 -2.25) (end 1.75 -2.25) (layer "F.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -1.75 2.25) (end 1.75 2.25) (layer "B.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -1.75 2.25) (end -1.75 -2.25) (layer "B.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -1.75 -2.25) (end 1.75 -2.25) (layer "B.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start 1.75 2.25) (end 1.75 -2.25) (layer "B.CrtYd") (stroke (width 0.05) (type solid))))"#,
+    r#"(footprint "ceoloide:mounting_hole_plated" (layer "F.Cu") (at -12.5 -7.75 90) (property "Reference" "H2" (at 0 3 90) (layer "F.SilkS") (effects (font (size 1 1) (thickness 0.15)))) (pad "" thru_hole oval (at 0 0 90) (size 4.6 3.6) (drill oval 3 2) (layers "*.Cu" "*.Mask")) (fp_line (start 2.55 -2.05) (end 2.55 2.05) (layer "F.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -2.55 -2.05) (end -2.55 2.05) (layer "F.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -2.55 2.05) (end 2.55 2.05) (layer "F.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -2.55 -2.05) (end 2.55 -2.05) (layer "F.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -2.55 2.05) (end 2.55 2.05) (layer "B.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -2.55 2.05) (end -2.55 -2.05) (layer "B.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -2.55 -2.05) (end 2.55 -2.05) (layer "B.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start 2.55 2.05) (end 2.55 -2.05) (layer "B.CrtYd") (stroke (width 0.05) (type solid))))"#,
+    r#"(footprint "ceoloide:mounting_hole_plated" (layer "B.Cu") (at 1 -1 0) (property "Reference" "H3" (at 0 3 0) (layer "B.SilkS") (effects (font (size 1 1) (thickness 0.15)))) (pad "" thru_hole circle (at 0 0 0) (size 3.8000000000000003 3.8000000000000003) (drill 2.2) (layers "*.Cu" "*.Mask")) (fp_circle (center 0 0) (end -2.1500000000000004 0) (layer "F.CrtYd") (stroke (width 0.05) (type solid)) (fill none)) (fp_circle (center 0 0) (end -2.1500000000000004 0) (layer "B.CrtYd") (stroke (width 0.05) (type solid)) (fill none)))"#,
+    r#"(footprint "ceoloide:mounting_hole_plated" (layer "F.Cu") (at 1 -1 0) (property "Reference" "H4" (at 0 3 0) (layer "F.SilkS") (effects (font (size 1 1) (thickness 0.15)))) (pad "" thru_hole circle (at 0 0 0) (size 3.8000000000000003 3.8000000000000003) (drill 2.2) (layers "*.Cu" "*.Mask")) (fp_circle (center 0 0) (end -2.1500000000000004 0) (layer "F.CrtYd") (stroke (width 0.05) (type solid)) (fill none)) (fp_circle (center 0 0) (end -2.1500000000000004 0) (layer "B.CrtYd") (stroke (width 0.05) (type solid)) (fill none)))"#,
+    r#"(footprint "ceoloide:mounting_hole_plated" (layer "F.Cu") (at 0 0 0) (property "Reference" "H5" (at 0 3 0) (layer "F.SilkS") (effects (font (size 1 1) (thickness 0.15)))) (pad "" thru_hole circle (at 0 0 0) (size -0.5 -0.5) (drill -0.5) (layers "*.Cu" "*.Mask")) (fp_circle (center 0 0) (end -0 0) (layer "F.CrtYd") (stroke (width 0.05) (type solid)) (fill none)) (fp_circle (center 0 0) (end -0 0) (layer "B.CrtYd") (stroke (width 0.05) (type solid)) (fill none)))"#,
+    r#"(footprint "ceoloide:mounting_hole_plated" (layer "F.Cu") (at 0 0 0) (property "Reference" "H5" (at 0 3 0) (layer "F.SilkS") (effects (font (size 1 1) (thickness 0.15)))) (pad "" thru_hole oval (at 0 0 0) (size -0.5 1) (drill oval -0.5 1) (layers "*.Cu" "*.Mask")) (fp_line (start 0 -0.75) (end 0 0.75) (layer "F.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -0 -0.75) (end -0 0.75) (layer "F.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -0 0.75) (end 0 0.75) (layer "F.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -0 -0.75) (end 0 -0.75) (layer "F.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -0 0.75) (end 0 0.75) (layer "B.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -0 0.75) (end -0 -0.75) (layer "B.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -0 -0.75) (end 0 -0.75) (layer "B.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start 0 0.75) (end 0 -0.75) (layer "B.CrtYd") (stroke (width 0.05) (type solid))))"#,
+    r#"(footprint "ceoloide:mounting_hole_plated" (layer "F.Cu") (at 0 0 0) (property "Reference" "H6" (at 0 3 0) (layer "F.SilkS") (effects (font (size 1 1) (thickness 0.15)))) (pad "" thru_hole circle (at 0 0 0) (size 0.6000000000000001 0.6000000000000001) (drill 2.2) (layers "*.Cu" "*.Mask")) (fp_circle (center 0 0) (end -0.55 0) (layer "F.CrtYd") (stroke (width 0.05) (type solid)) (fill none)) (fp_circle (center 0 0) (end -0.55 0) (layer "B.CrtYd") (stroke (width 0.05) (type solid)) (fill none)))"#,
+    r#"(footprint "ceoloide:mounting_hole_plated" (layer "F.Cu") (at 0 0 0) (property "Reference" "H6" (at 0 3 0) (layer "F.SilkS") (effects (font (size 1 1) (thickness 0.15)))) (pad "" thru_hole oval (at 0 0 0) (size 0.6000000000000001 1.4) (drill oval 2.2 3) (layers "*.Cu" "*.Mask")) (fp_line (start 0.55 -0.95) (end 0.55 0.95) (layer "F.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -0.55 -0.95) (end -0.55 0.95) (layer "F.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -0.55 0.95) (end 0.55 0.95) (layer "F.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -0.55 -0.95) (end 0.55 -0.95) (layer "F.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -0.55 0.95) (end 0.55 0.95) (layer "B.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -0.55 0.95) (end -0.55 -0.95) (layer "B.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -0.55 -0.95) (end 0.55 -0.95) (layer "B.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start 0.55 0.95) (end 0.55 -0.95) (layer "B.CrtYd") (stroke (width 0.05) (type solid))))"#,
+    r#"(footprint "ceoloide:mounting_hole_plated" (layer "F.Cu") (at 0 0 0) (property "Reference" "H7" (at 0 3 0) (layer "F.SilkS") (effects (font (size 1 1) (thickness 0.15)))) (pad "" thru_hole oval (at 0 0 0) (size 3.8000000000000003 0.6000000000000001) (drill oval 2.2 -1) (layers "*.Cu" "*.Mask")) (fp_line (start 2.1500000000000004 -0.55) (end 2.1500000000000004 0.55) (layer "F.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -2.1500000000000004 -0.55) (end -2.1500000000000004 0.55) (layer "F.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -2.1500000000000004 0.55) (end 2.1500000000000004 0.55) (layer "F.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -2.1500000000000004 -0.55) (end 2.1500000000000004 -0.55) (layer "F.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -2.1500000000000004 0.55) (end 2.1500000000000004 0.55) (layer "B.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -2.1500000000000004 0.55) (end -2.1500000000000004 -0.55) (layer "B.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -2.1500000000000004 -0.55) (end 2.1500000000000004 -0.55) (layer "B.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start 2.1500000000000004 0.55) (end 2.1500000000000004 -0.55) (layer "B.CrtYd") (stroke (width 0.05) (type solid))))"#,
+];
+
+#[test]
+fn plated_mounting_hole_footprints_keep_their_exact_spelling() {
+    let cases = plated_hole_cases();
+    assert_eq!(cases.len(), PLATED_HOLE_FOOTPRINTS.len());
+    for ((name, case), expected) in cases.iter().zip(PLATED_HOLE_FOOTPRINTS) {
+        assert_eq!(plated_hole(case), expected, "{name}");
+    }
+}
+
+#[test]
+fn plated_mounting_hole_refuses_numeric_strings_and_unmappable_nets() {
+    let hole = definition("ceoloide/mounting_hole_plated");
+    let target = || ExportTarget::Board {
+        board_id: "main".into(),
+    };
+    let placed = part(&hole, "h", 0.0, "front", json!({ "drill": "2.2" }));
+    let error = kicad::export(request(
+        project(std::slice::from_ref(&hole), &[placed], &[]),
+        target(),
+        BTreeMap::new(),
+    ))
+    .unwrap_err();
+    assert!(
+        error.message.contains("parameter drill must be a number"),
+        "{}",
+        error.message
+    );
+
+    // The pad's number is empty, so it keeps its normalized id but takes no net.
+    assert_eq!(hole.pads[0].id, "pad-0");
+    let placed = part(&hole, "h", 0.0, "front", json!({}));
+    let nets =
+        [json!({ "id": "gnd", "name": "GND", "pins": [{ "partId": "h", "padId": "pad-0" }] })];
+    let error = kicad::export(request(
+        project(
+            std::slice::from_ref(&hole),
+            std::slice::from_ref(&placed),
+            &nets,
+        ),
+        target(),
+        BTreeMap::new(),
+    ))
+    .unwrap_err();
+    assert!(
+        error.message.contains("unmappable Ergogen pad on part h"),
+        "{}",
+        error.message
+    );
+
+    let mut doc = serde_json::to_value(project(&[hole], &[placed], &[])).unwrap();
+    doc["definitions"][0]["kind"] = json!("bogus");
+    assert!(
+        serde_json::from_value::<ProjectDoc>(doc).is_err(),
+        "invalid kind is refused"
+    );
 }

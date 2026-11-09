@@ -1,0 +1,995 @@
+{
+  "revision": 0,
+  "bodies": [
+    {
+      "revision": 0,
+      "body": {
+        "id": "plate",
+        "name": "plate",
+        "boardId": "board",
+        "kind": "plate",
+        "thickness": 1.5,
+        "clearance": 0.0,
+        "z": 5.0,
+        "wallThickness": 4.0,
+        "mounts": []
+      },
+      "regions": [
+        {
+          "outer": [
+            {
+              "x": -5.25,
+              "y": 41.5
+            },
+            {
+              "x": -5.25,
+              "y": 28.5
+            },
+            {
+              "x": 0.0,
+              "y": 28.5
+            },
+            {
+              "x": 0.0,
+              "y": 0.0
+            },
+            {
+              "x": 43.5,
+              "y": 0.0
+            },
+            {
+              "x": 43.5,
+              "y": -5.25
+            },
+            {
+              "x": 56.5,
+              "y": -5.25
+            },
+            {
+              "x": 56.5,
+              "y": 0.0
+            },
+            {
+              "x": 100.0,
+              "y": 0.0
+            },
+            {
+              "x": 100.0,
+              "y": 28.5
+            },
+            {
+              "x": 105.25,
+              "y": 28.5
+            },
+            {
+              "x": 105.25,
+              "y": 41.5
+            },
+            {
+              "x": 100.0,
+              "y": 41.5
+            },
+            {
+              "x": 100.0,
+              "y": 70.0
+            },
+            {
+              "x": 56.5,
+              "y": 70.0
+            },
+            {
+              "x": 56.5,
+              "y": 75.25
+            },
+            {
+              "x": 43.5,
+              "y": 75.25
+            },
+            {
+              "x": 43.5,
+              "y": 70.0
+            },
+            {
+              "x": 0.0,
+              "y": 70.0
+            },
+            {
+              "x": 0.0,
+              "y": 41.5
+            }
+          ],
+          "holes": [],
+          "cavities": [],
+          "gaskets": [],
+          "mounts": []
+        }
+      ]
+    },
+    {
+      "revision": 0,
+      "body": {
+        "features": [
+          {
+            "kind": "support-prism",
+            "id": "tower:outline-0:0",
+            "points": [
+              {
+                "x": 43.5,
+                "y": -0.25
+              },
+              {
+                "x": 56.5,
+                "y": -0.25
+              },
+              {
+                "x": 56.5,
+                "y": -7.452
+              },
+              {
+                "x": 43.5,
+                "y": -7.452
+              }
+            ],
+            "z": -1.7500000000000002,
+            "height": 5.05
+          },
+          {
+            "kind": "support-prism",
+            "id": "tower:outline-0:1",
+            "points": [
+              {
+                "x": 56.500000000000014,
+                "y": 70.25
+              },
+              {
+                "x": 43.500000000000014,
+                "y": 70.25
+              },
+              {
+                "x": 43.500000000000014,
+                "y": 77.452
+              },
+              {
+                "x": 56.500000000000014,
+                "y": 77.452
+              }
+            ],
+            "z": -1.7500000000000002,
+            "height": 5.05
+          },
+          {
+            "kind": "support-prism",
+            "id": "tower:outline-0:2",
+            "points": [
+              {
+                "x": 100.25,
+                "y": 28.500000000000007
+              },
+              {
+                "x": 100.25,
+                "y": 41.50000000000001
+              },
+              {
+                "x": 107.452,
+                "y": 41.50000000000001
+              },
+              {
+                "x": 107.452,
+                "y": 28.500000000000007
+              }
+            ],
+            "z": -1.7500000000000002,
+            "height": 5.05
+          },
+          {
+            "kind": "support-prism",
+            "id": "tower:outline-0:3",
+            "points": [
+              {
+                "x": -0.25,
+                "y": 41.50000000000002
+              },
+              {
+                "x": -0.25,
+                "y": 28.50000000000002
+              },
+              {
+                "x": -7.452,
+                "y": 28.50000000000002
+              },
+              {
+                "x": -7.452,
+                "y": 41.50000000000002
+              }
+            ],
+            "z": -1.7500000000000002,
+            "height": 5.05
+          },
+          {
+            "kind": "support-prism",
+            "id": "land:closure:outline-0:0",
+            "points": [
+              {
+                "x": -0.25,
+                "y": 8.0
+              },
+              {
+                "x": -0.25,
+                "y": 1.0
+              },
+              {
+                "x": -7.452,
+                "y": 1.0
+              },
+              {
+                "x": -7.452,
+                "y": 8.0
+              }
+            ],
+            "z": -1.7500000000000002,
+            "height": 9.95
+          },
+          {
+            "kind": "round-seat",
+            "id": "bore:closure:outline-0:0",
+            "at": {
+              "x": -3.75,
+              "y": 4.5
+            },
+            "z": -4.25,
+            "height": 12.45,
+            "diameter": 2.2
+          },
+          {
+            "kind": "round-seat",
+            "id": "head:closure:outline-0:0",
+            "at": {
+              "x": -3.75,
+              "y": 4.5
+            },
+            "z": -4.25,
+            "height": 1.0,
+            "diameter": 4.0
+          },
+          {
+            "kind": "support-prism",
+            "id": "land:closure:outline-0:1",
+            "points": [
+              {
+                "x": 100.25,
+                "y": 1.0
+              },
+              {
+                "x": 100.25,
+                "y": 8.0
+              },
+              {
+                "x": 107.452,
+                "y": 8.0
+              },
+              {
+                "x": 107.452,
+                "y": 1.0
+              }
+            ],
+            "z": -1.7500000000000002,
+            "height": 9.95
+          },
+          {
+            "kind": "round-seat",
+            "id": "bore:closure:outline-0:1",
+            "at": {
+              "x": 103.75,
+              "y": 4.5
+            },
+            "z": -4.25,
+            "height": 12.45,
+            "diameter": 2.2
+          },
+          {
+            "kind": "round-seat",
+            "id": "head:closure:outline-0:1",
+            "at": {
+              "x": 103.75,
+              "y": 4.5
+            },
+            "z": -4.25,
+            "height": 1.0,
+            "diameter": 4.0
+          },
+          {
+            "kind": "support-prism",
+            "id": "land:closure:outline-0:2",
+            "points": [
+              {
+                "x": 100.25,
+                "y": 62.0
+              },
+              {
+                "x": 100.25,
+                "y": 69.0
+              },
+              {
+                "x": 107.452,
+                "y": 69.0
+              },
+              {
+                "x": 107.452,
+                "y": 62.0
+              }
+            ],
+            "z": -1.7500000000000002,
+            "height": 9.95
+          },
+          {
+            "kind": "round-seat",
+            "id": "bore:closure:outline-0:2",
+            "at": {
+              "x": 103.75,
+              "y": 65.5
+            },
+            "z": -4.25,
+            "height": 12.45,
+            "diameter": 2.2
+          },
+          {
+            "kind": "round-seat",
+            "id": "head:closure:outline-0:2",
+            "at": {
+              "x": 103.75,
+              "y": 65.5
+            },
+            "z": -4.25,
+            "height": 1.0,
+            "diameter": 4.0
+          },
+          {
+            "kind": "support-prism",
+            "id": "land:closure:outline-0:3",
+            "points": [
+              {
+                "x": -0.25,
+                "y": 69.0
+              },
+              {
+                "x": -0.25,
+                "y": 62.0
+              },
+              {
+                "x": -7.452,
+                "y": 62.0
+              },
+              {
+                "x": -7.452,
+                "y": 69.0
+              }
+            ],
+            "z": -1.7500000000000002,
+            "height": 9.95
+          },
+          {
+            "kind": "round-seat",
+            "id": "bore:closure:outline-0:3",
+            "at": {
+              "x": -3.75,
+              "y": 65.5
+            },
+            "z": -4.25,
+            "height": 12.45,
+            "diameter": 2.2
+          },
+          {
+            "kind": "round-seat",
+            "id": "head:closure:outline-0:3",
+            "at": {
+              "x": -3.75,
+              "y": 65.5
+            },
+            "z": -4.25,
+            "height": 1.0,
+            "diameter": 4.0
+          }
+        ],
+        "openings": [
+          {
+            "points": [
+              {
+                "x": 43.3,
+                "y": 0.6
+              },
+              {
+                "x": 56.7,
+                "y": 0.6
+              },
+              {
+                "x": 56.7,
+                "y": -5.45
+              },
+              {
+                "x": 43.3,
+                "y": -5.45
+              }
+            ],
+            "z": 3.3,
+            "height": 4.8999999999999995
+          },
+          {
+            "points": [
+              {
+                "x": 56.70000000000002,
+                "y": 69.4
+              },
+              {
+                "x": 43.30000000000001,
+                "y": 69.4
+              },
+              {
+                "x": 43.30000000000001,
+                "y": 75.45
+              },
+              {
+                "x": 56.70000000000002,
+                "y": 75.45
+              }
+            ],
+            "z": 3.3,
+            "height": 4.8999999999999995
+          },
+          {
+            "points": [
+              {
+                "x": 99.4,
+                "y": 28.300000000000008
+              },
+              {
+                "x": 99.4,
+                "y": 41.70000000000001
+              },
+              {
+                "x": 105.45,
+                "y": 41.70000000000001
+              },
+              {
+                "x": 105.45,
+                "y": 28.300000000000008
+              }
+            ],
+            "z": 3.3,
+            "height": 4.8999999999999995
+          },
+          {
+            "points": [
+              {
+                "x": 0.6,
+                "y": 41.700000000000024
+              },
+              {
+                "x": 0.6,
+                "y": 28.300000000000022
+              },
+              {
+                "x": -5.45,
+                "y": 28.300000000000022
+              },
+              {
+                "x": -5.45,
+                "y": 41.700000000000024
+              }
+            ],
+            "z": 3.3,
+            "height": 4.8999999999999995
+          }
+        ],
+        "id": "bottom",
+        "name": "bottom",
+        "boardId": "board",
+        "kind": "tray",
+        "thickness": 2.5,
+        "clearance": 0.0,
+        "z": -4.25,
+        "wallHeight": 9.95,
+        "wallThickness": 4.0
+      },
+      "regions": [
+        {
+          "outer": [
+            {
+              "x": -7.502,
+              "y": 77.502
+            },
+            {
+              "x": -7.502,
+              "y": -7.502
+            },
+            {
+              "x": 107.502,
+              "y": -7.502
+            },
+            {
+              "x": 107.502,
+              "y": 77.502
+            }
+          ],
+          "holes": [],
+          "cavities": [
+            [
+              {
+                "x": -3.502,
+                "y": 73.502
+              },
+              {
+                "x": -3.502,
+                "y": -3.502
+              },
+              {
+                "x": 103.502,
+                "y": -3.502
+              },
+              {
+                "x": 103.502,
+                "y": 73.502
+              }
+            ]
+          ],
+          "gaskets": [],
+          "mounts": []
+        }
+      ]
+    },
+    {
+      "revision": 0,
+      "body": {
+        "features": [
+          {
+            "kind": "round-seat",
+            "id": "insert:closure:outline-0:0",
+            "at": {
+              "x": -3.75,
+              "y": 4.5
+            },
+            "z": 8.2,
+            "height": 4.5,
+            "diameter": 3.2
+          },
+          {
+            "kind": "conical-seat",
+            "id": "insert-lead:closure:outline-0:0",
+            "at": {
+              "x": -3.75,
+              "y": 4.5
+            },
+            "z": 8.2,
+            "height": 0.25,
+            "diameter": 3.4,
+            "endDiameter": 3.2
+          },
+          {
+            "kind": "round-seat",
+            "id": "insert:closure:outline-0:1",
+            "at": {
+              "x": 103.75,
+              "y": 4.5
+            },
+            "z": 8.2,
+            "height": 4.5,
+            "diameter": 3.2
+          },
+          {
+            "kind": "conical-seat",
+            "id": "insert-lead:closure:outline-0:1",
+            "at": {
+              "x": 103.75,
+              "y": 4.5
+            },
+            "z": 8.2,
+            "height": 0.25,
+            "diameter": 3.4,
+            "endDiameter": 3.2
+          },
+          {
+            "kind": "round-seat",
+            "id": "insert:closure:outline-0:2",
+            "at": {
+              "x": 103.75,
+              "y": 65.5
+            },
+            "z": 8.2,
+            "height": 4.5,
+            "diameter": 3.2
+          },
+          {
+            "kind": "conical-seat",
+            "id": "insert-lead:closure:outline-0:2",
+            "at": {
+              "x": 103.75,
+              "y": 65.5
+            },
+            "z": 8.2,
+            "height": 0.25,
+            "diameter": 3.4,
+            "endDiameter": 3.2
+          },
+          {
+            "kind": "round-seat",
+            "id": "insert:closure:outline-0:3",
+            "at": {
+              "x": -3.75,
+              "y": 65.5
+            },
+            "z": 8.2,
+            "height": 4.5,
+            "diameter": 3.2
+          },
+          {
+            "kind": "conical-seat",
+            "id": "insert-lead:closure:outline-0:3",
+            "at": {
+              "x": -3.75,
+              "y": 65.5
+            },
+            "z": 8.2,
+            "height": 0.25,
+            "diameter": 3.4,
+            "endDiameter": 3.2
+          }
+        ],
+        "id": "retainer",
+        "name": "Top case",
+        "boardId": "board",
+        "kind": "plate",
+        "thickness": 6.0,
+        "clearance": 0.0,
+        "z": 8.2
+      },
+      "regions": [
+        {
+          "outer": [
+            {
+              "x": -7.502,
+              "y": 77.502
+            },
+            {
+              "x": -7.502,
+              "y": -7.502
+            },
+            {
+              "x": 107.502,
+              "y": -7.502
+            },
+            {
+              "x": 107.502,
+              "y": 77.502
+            }
+          ],
+          "holes": [
+            [
+              {
+                "x": 100.25,
+                "y": 70.25
+              },
+              {
+                "x": 100.25,
+                "y": -0.25
+              },
+              {
+                "x": -0.25,
+                "y": -0.25
+              },
+              {
+                "x": -0.25,
+                "y": 70.25
+              }
+            ]
+          ],
+          "cavities": [],
+          "gaskets": [],
+          "mounts": []
+        }
+      ]
+    },
+    {
+      "revision": 0,
+      "body": {
+        "id": "gasket:outline-0:0:lower",
+        "name": "gasket outline-0 0 lower",
+        "boardId": "board",
+        "kind": "plate",
+        "thickness": 1.7,
+        "clearance": 0.0,
+        "z": 3.3
+      },
+      "regions": [
+        {
+          "outer": [
+            {
+              "x": 44.0,
+              "y": -4.75
+            },
+            {
+              "x": 56.0,
+              "y": -4.75
+            },
+            {
+              "x": 56.0,
+              "y": -0.75
+            },
+            {
+              "x": 44.0,
+              "y": -0.75
+            }
+          ],
+          "holes": [],
+          "cavities": [],
+          "gaskets": [],
+          "mounts": []
+        }
+      ]
+    },
+    {
+      "revision": 0,
+      "body": {
+        "id": "gasket:outline-0:0:upper",
+        "name": "gasket outline-0 0 upper",
+        "boardId": "board",
+        "kind": "plate",
+        "thickness": 1.7,
+        "clearance": 0.0,
+        "z": 6.5
+      },
+      "regions": [
+        {
+          "outer": [
+            {
+              "x": 44.0,
+              "y": -4.75
+            },
+            {
+              "x": 56.0,
+              "y": -4.75
+            },
+            {
+              "x": 56.0,
+              "y": -0.75
+            },
+            {
+              "x": 44.0,
+              "y": -0.75
+            }
+          ],
+          "holes": [],
+          "cavities": [],
+          "gaskets": [],
+          "mounts": []
+        }
+      ]
+    },
+    {
+      "revision": 0,
+      "body": {
+        "id": "gasket:outline-0:1:lower",
+        "name": "gasket outline-0 1 lower",
+        "boardId": "board",
+        "kind": "plate",
+        "thickness": 1.7,
+        "clearance": 0.0,
+        "z": 3.3
+      },
+      "regions": [
+        {
+          "outer": [
+            {
+              "x": 56.000000000000014,
+              "y": 74.75
+            },
+            {
+              "x": 44.000000000000014,
+              "y": 74.75
+            },
+            {
+              "x": 44.000000000000014,
+              "y": 70.75
+            },
+            {
+              "x": 56.000000000000014,
+              "y": 70.75
+            }
+          ],
+          "holes": [],
+          "cavities": [],
+          "gaskets": [],
+          "mounts": []
+        }
+      ]
+    },
+    {
+      "revision": 0,
+      "body": {
+        "id": "gasket:outline-0:1:upper",
+        "name": "gasket outline-0 1 upper",
+        "boardId": "board",
+        "kind": "plate",
+        "thickness": 1.7,
+        "clearance": 0.0,
+        "z": 6.5
+      },
+      "regions": [
+        {
+          "outer": [
+            {
+              "x": 56.000000000000014,
+              "y": 74.75
+            },
+            {
+              "x": 44.000000000000014,
+              "y": 74.75
+            },
+            {
+              "x": 44.000000000000014,
+              "y": 70.75
+            },
+            {
+              "x": 56.000000000000014,
+              "y": 70.75
+            }
+          ],
+          "holes": [],
+          "cavities": [],
+          "gaskets": [],
+          "mounts": []
+        }
+      ]
+    },
+    {
+      "revision": 0,
+      "body": {
+        "id": "gasket:outline-0:2:lower",
+        "name": "gasket outline-0 2 lower",
+        "boardId": "board",
+        "kind": "plate",
+        "thickness": 1.7,
+        "clearance": 0.0,
+        "z": 3.3
+      },
+      "regions": [
+        {
+          "outer": [
+            {
+              "x": 104.75,
+              "y": 29.000000000000007
+            },
+            {
+              "x": 104.75,
+              "y": 41.00000000000001
+            },
+            {
+              "x": 100.75,
+              "y": 41.00000000000001
+            },
+            {
+              "x": 100.75,
+              "y": 29.000000000000007
+            }
+          ],
+          "holes": [],
+          "cavities": [],
+          "gaskets": [],
+          "mounts": []
+        }
+      ]
+    },
+    {
+      "revision": 0,
+      "body": {
+        "id": "gasket:outline-0:2:upper",
+        "name": "gasket outline-0 2 upper",
+        "boardId": "board",
+        "kind": "plate",
+        "thickness": 1.7,
+        "clearance": 0.0,
+        "z": 6.5
+      },
+      "regions": [
+        {
+          "outer": [
+            {
+              "x": 104.75,
+              "y": 29.000000000000007
+            },
+            {
+              "x": 104.75,
+              "y": 41.00000000000001
+            },
+            {
+              "x": 100.75,
+              "y": 41.00000000000001
+            },
+            {
+              "x": 100.75,
+              "y": 29.000000000000007
+            }
+          ],
+          "holes": [],
+          "cavities": [],
+          "gaskets": [],
+          "mounts": []
+        }
+      ]
+    },
+    {
+      "revision": 0,
+      "body": {
+        "id": "gasket:outline-0:3:lower",
+        "name": "gasket outline-0 3 lower",
+        "boardId": "board",
+        "kind": "plate",
+        "thickness": 1.7,
+        "clearance": 0.0,
+        "z": 3.3
+      },
+      "regions": [
+        {
+          "outer": [
+            {
+              "x": -4.75,
+              "y": 41.00000000000002
+            },
+            {
+              "x": -4.75,
+              "y": 29.00000000000002
+            },
+            {
+              "x": -0.75,
+              "y": 29.00000000000002
+            },
+            {
+              "x": -0.75,
+              "y": 41.00000000000002
+            }
+          ],
+          "holes": [],
+          "cavities": [],
+          "gaskets": [],
+          "mounts": []
+        }
+      ]
+    },
+    {
+      "revision": 0,
+      "body": {
+        "id": "gasket:outline-0:3:upper",
+        "name": "gasket outline-0 3 upper",
+        "boardId": "board",
+        "kind": "plate",
+        "thickness": 1.7,
+        "clearance": 0.0,
+        "z": 6.5
+      },
+      "regions": [
+        {
+          "outer": [
+            {
+              "x": -4.75,
+              "y": 41.00000000000002
+            },
+            {
+              "x": -4.75,
+              "y": 29.00000000000002
+            },
+            {
+              "x": -0.75,
+              "y": 29.00000000000002
+            },
+            {
+              "x": -0.75,
+              "y": 41.00000000000002
+            }
+          ],
+          "holes": [],
+          "cavities": [],
+          "gaskets": [],
+          "mounts": []
+        }
+      ]
+    }
+  ]
+}

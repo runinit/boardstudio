@@ -1,0 +1,48 @@
+[package]
+
+name = "cgmath-next"
+version = "0.18.1"
+edition = "2015"
+authors = ["Rust game-developers", "kent-tokyo"]
+rust-version = "1.71"
+license = "Apache-2.0"
+description = "A maintained, soundness-focused, source-compatible successor to cgmath 0.18."
+
+documentation = "https://docs.rs/cgmath-next"
+homepage = "https://github.com/kent-tokyo/cgmath-next"
+repository = "https://github.com/kent-tokyo/cgmath-next"
+readme = "README.md"
+
+keywords = ["gamedev", "math", "matrix", "vector", "quaternion"]
+
+# Restrict publish to crates.io specifically -- prevents an accidental
+# `cargo publish --registry <other>` from pushing this package somewhere
+# unintended.
+publish = ["crates-io"]
+
+# Raw stdout/stderr dumps from the one-time baseline run (docs/baseline.md,
+# docs/upstream-master-diff.md) -- useful as historical evidence on GitHub,
+# not needed by anyone consuming this crate as a dependency. ~1.2MB.
+exclude = ["baseline-results/"]
+
+[lib]
+name = "cgmath"
+
+[features]
+unstable = []
+swizzle = []
+
+[dependencies]
+approx = "0.4"
+mint = { version = "0.5", optional = true }
+num-traits = "0.2"
+# small_rng used only for benchmarks
+rand = { version = "0.8", features = ["small_rng"], optional = true }
+serde = { version = "1.0", features = ["serde_derive"], optional = true }
+# works only in rust toolchain up to 1.32, disabled indefinitely
+#simd = { version = "0.2", optional = true }
+
+[dev-dependencies]
+serde_json = "1.0"
+
+[workspace]

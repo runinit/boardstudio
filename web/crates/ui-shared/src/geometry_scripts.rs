@@ -1,23 +1,27 @@
 //! Layout presentation for the existing Core-owned Rhai script workflow.
+use crate::pending_edit_helpers::PendingEditSignals;
 use crate::runtime::Runtime;
+use crate::ui::{
+    button::{Button, ButtonSize, ButtonVariant},
+    checkbox::{Checkbox, CheckboxState},
+    combobox::{Combobox, ComboboxOption},
+    input_group::{InputGroup, InputGroupInput, InputGroupTextarea},
+    select::{Select, SelectOption},
+};
 use boardstudio_application::{
     AcceptedSnapshot, EditResolver, Lifecycle, Resolution, SessionEpoch,
 };
-use boardstudio_core::model::{EditCommand, EditOperation, EditPhase, Finding, Script, Severity};
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+use boardstudio_core::model::{EditOperation, Finding, Script, Severity};
 use dioxus::prelude::*;
 use std::rc::Rc;
 
 fn script_commit(document: boardstudio_core::model::ProjectDoc, script_id: &str) -> Resolution {
-    Resolution::Submit(EditCommand {
-        base_revision: 0,
-        transaction_id: String::new(),
-        phase: EditPhase::Commit,
-        target_ids: vec![script_id.to_owned()],
-        operation: EditOperation::ReplaceDocument {
+    Resolution::submit(
+        vec![script_id.to_owned()],
+        EditOperation::ReplaceDocument {
             document: Box::new(document),
         },
-    })
+    )
 }
 
 /// Resolve "+ New script": the script is appended to the accepted document when the edit
@@ -69,6 +73,34 @@ fn apply_script_resolver(
     )
 }
 
+#[derive(Clone, Debug)]
+enum ScriptActionKey {
+    New,
+    Apply(String),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ScriptOwner {
+    document_id: String,
+    session_epoch: SessionEpoch,
+    script_id: String,
+}
+
+impl PartialEq for ScriptActionKey {
+    fn eq(&self, other: &Self) -> bool {
+        matches!(
+            (self, other),
+            (Self::New, Self::New) | (Self::Apply(_), Self::Apply(_))
+        )
+    }
+}
+
+impl Eq for ScriptActionKey {}
+
+fn encode_script_draft(name: &str, source: &str, enabled: bool) -> String {
+    serde_json::to_string(&(name, source, enabled)).expect("script draft tuple serializes")
+}
+
 #[component]
 pub fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
     let _ = use_context::<Signal<u64>>()();
@@ -81,31 +113,142 @@ pub fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
     let scripts = document.scripts.clone();
     let active = use_signal(String::new);
     let mut active = active;
+    let selected_script = use_memo(move || Some(active()));
     let mut name = use_signal(String::new);
     let mut source = use_signal(String::new);
     let mut enabled = use_signal(|| true);
-    let script_ticket = use_signal(|| None::<EditTicket>);
-    let script_pending = script_ticket
-        .read()
-        .as_ref()
-        .is_some_and(EditTicket::is_pending);
-    let ticket_error =
-        script_ticket
-            .read()
-            .as_ref()
-            .and_then(|ticket| match ticket.settlement(true) {
-                Settlement::Failed { message } => Some(message),
-                _ => None,
-            });
+    let mut draft = use_signal(|| encode_script_draft("", "", true));
+    let failure = use_signal(|| None::<String>);
+    let pending = use_hook(PendingEditSignals::<ScriptActionKey>::new);
+    let pending_owner = use_signal(|| None::<ScriptOwner>);
+    let new_disabled = use_signal(|| false);
+    let apply_disabled = use_signal(|| false);
+    pending.bind_one_shot(ScriptActionKey::New, new_disabled);
+    pending.bind_one_shot(ScriptActionKey::Apply(String::new()), apply_disabled);
+    pending.bind_field(ScriptActionKey::Apply(String::new()), draft, failure);
+    let pending_for_drop = pending.clone();
+    let runtime_for_drop = runtime.clone();
+    let new_pending = new_disabled();
     let active_script = scripts.iter().find(|script| script.id == active());
-    let active_identity = active_script.map(|script| {
-        (
-            script.id.clone(),
-            script.name.clone(),
-            script.source.clone(),
-            script.enabled,
-        )
+    let current_owner = active_script.map(|script| ScriptOwner {
+        document_id: document.id.clone(),
+        session_epoch: snapshot.session_epoch,
+        script_id: script.id.clone(),
     });
+    let new_active = new_pending && !active().is_empty();
+    let owner_is_live = match (pending_owner(), current_owner.as_ref()) {
+        (Some(owner), Some(active_owner)) => &owner == active_owner,
+        (Some(owner), None) => {
+            new_active
+                && owner.document_id == document.id
+                && owner.session_epoch == snapshot.session_epoch
+                && owner.script_id == active()
+        }
+        _ => false,
+    };
+    let accepted_scripts = scripts.clone();
+    pending.settle(owner_is_live, move |key| match key {
+        ScriptActionKey::Apply(script_id) => accepted_scripts
+            .iter()
+            .find(|script| script.id == *script_id)
+            .map(|script| encode_script_draft(&script.name, &script.source, script.enabled))
+            .unwrap_or_default(),
+        ScriptActionKey::New => String::new(),
+    });
+    // Ticket 008: register the Apply admission key with the Runtime-owned
+    // draft registry. The JSON-encoded draft stays unchanged: unresolved means
+    // the live draft differs from the owner-canonical baseline (the
+    // live-projected accepted encode, or the mount-time default snapshot when
+    // no accepted script with this id exists) and from the key's in-flight
+    // submitted value. Hidden and keep-mounted owners keep blocking through
+    // the same guard; genuine unmount and scope change retire explicitly, and
+    // the gate's poll-prune drops anything left dead instead of blocking.
+    let draft_owner_guard =
+        use_signal(|| None::<boardstudio_web_runtime::draft_owners::DraftOwnerGuard>);
+    let draft_owner_scope = (snapshot.document.id.clone(), snapshot.session_epoch);
+    use_effect(use_reactive((&draft_owner_scope,), {
+        let runtime = runtime.clone();
+        let active = active;
+        let draft = draft;
+        let pending = pending.clone();
+        let mut draft_owner_guard = draft_owner_guard;
+        let draft_owner_scope = draft_owner_scope.clone();
+        move |(scope,)| {
+            let _ = scope;
+            let retired = draft_owner_guard.write().take();
+            if let Some(retired) = retired {
+                runtime.retire_draft_owner(retired);
+            }
+            let scope = draft_owner_scope.clone();
+            // The editor initialises its draft to the empty defaults; that is
+            // the baseline when no accepted script with the active id exists.
+            let mount_defaults = encode_script_draft("", "", true);
+            let probe_runtime = runtime.clone();
+            let probe_pending = pending.clone();
+            let probe_scope = scope.clone();
+            let is_unresolved = std::rc::Rc::new(move || {
+                let active_id = active.peek();
+                if active_id.is_empty() {
+                    return false;
+                }
+                let live = draft.peek().clone();
+                let baseline = probe_runtime
+                    .model()
+                    .accepted
+                    .and_then(|accepted| {
+                        if accepted.document.id != probe_scope.0
+                            || accepted.session_epoch != probe_scope.1
+                        {
+                            return None;
+                        }
+                        accepted
+                            .document
+                            .scripts
+                            .iter()
+                            .find(|script| script.id == *active_id)
+                            .map(|script| {
+                                encode_script_draft(&script.name, &script.source, script.enabled)
+                            })
+                    })
+                    .unwrap_or(mount_defaults.clone());
+                if live == baseline {
+                    return false;
+                }
+                if probe_pending
+                    .submitted_draft(&ScriptActionKey::Apply((*active_id).clone()))
+                    .as_ref()
+                    == Some(&live)
+                {
+                    return false;
+                }
+                true
+            });
+            draft_owner_guard.set(Some(runtime.register_draft_owner(
+                boardstudio_web_runtime::draft_owners::DraftOwnerRegistration {
+                    project_scope: scope,
+                    workspace: "Layout",
+                    owner: "geometry-scripts",
+                    admission_key: "apply",
+                    area: "Geometry scripts".to_owned(),
+                    remedy: "Apply the script edit, or cancel the edit in the form".to_owned(),
+                    is_unresolved,
+                },
+            )));
+        }
+    }));
+    use_drop(move || {
+        pending_for_drop.settle(false, |_| String::new());
+        let mut draft_owner_guard = draft_owner_guard;
+        let retired = draft_owner_guard.write().take();
+        if let Some(retired) = retired {
+            runtime_for_drop.retire_draft_owner(retired);
+        }
+    });
+    let active_identity = if active().is_empty() {
+        None
+    } else {
+        Some((active(), active_script.is_some()))
+    };
     let draft_owner = (snapshot.document.id.clone(), snapshot.session_epoch);
     let accepted_identity = (
         draft_owner.0.clone(),
@@ -114,31 +257,62 @@ pub fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
     );
     let observed_identity = use_hook(|| {
         std::rc::Rc::new(std::cell::RefCell::new(
-            None::<(String, SessionEpoch, Option<(String, String, String, bool)>)>,
+            None::<(String, SessionEpoch, Option<(String, bool)>)>,
         ))
     });
-    use_effect(use_reactive((&accepted_identity,), {
+    let observed_accepted = use_hook(|| Rc::new(std::cell::RefCell::new(None::<String>)));
+    let accepted_active = active_script.cloned();
+    let accepted_value = active_script
+        .map(|script| encode_script_draft(&script.name, &script.source, script.enabled))
+        .unwrap_or_else(|| encode_script_draft("", "", true));
+    use_effect(use_reactive((&accepted_identity, &accepted_value), {
+        let observed_identity = observed_identity.clone();
+        let observed_accepted = observed_accepted.clone();
         let mut name = name;
         let mut source = source;
         let mut enabled = enabled;
-        let observed_identity = observed_identity.clone();
-        move |(identity,)| {
+        let mut draft = draft;
+        move |(identity, accepted_value)| {
             let owner_changed = observed_identity.borrow().as_ref() != Some(&identity);
-            *observed_identity.borrow_mut() = Some(identity.clone());
-            match identity.2 {
-                Some((_, accepted_name, accepted_source, accepted_enabled)) => {
-                    if owner_changed {
-                        name.set(accepted_name);
-                        source.set(accepted_source);
-                        enabled.set(accepted_enabled);
-                    }
+            // Retry save has no new field ticket: failure already drained it and
+            // restored the old accepted value. Follow the new accepted value only
+            // while that same owner's form is still clean; never replace newer input.
+            let was_clean = observed_accepted.borrow().as_ref() == Some(&*draft.peek());
+            *observed_identity.borrow_mut() = Some(identity);
+            *observed_accepted.borrow_mut() = Some(accepted_value);
+            if owner_changed || was_clean {
+                let (accepted_name, accepted_source, accepted_enabled) = accepted_active
+                    .as_ref()
+                    .map(|script| (script.name.clone(), script.source.clone(), script.enabled))
+                    .unwrap_or_else(|| (String::new(), String::new(), true));
+                name.set(accepted_name.clone());
+                source.set(accepted_source.clone());
+                enabled.set(accepted_enabled);
+                draft.set(encode_script_draft(
+                    &accepted_name,
+                    &accepted_source,
+                    accepted_enabled,
+                ));
+            }
+        }
+    }));
+    let current_draft = draft();
+    use_effect(use_reactive((&current_draft,), {
+        let mut name = name;
+        let mut source = source;
+        let mut enabled = enabled;
+        move |(serialized,)| {
+            if let Ok((next_name, next_source, next_enabled)) =
+                serde_json::from_str::<(String, String, bool)>(&serialized)
+            {
+                if name.peek().as_str() != next_name {
+                    name.set(next_name);
                 }
-                None => {
-                    if owner_changed {
-                        name.set(String::new());
-                        source.set(String::new());
-                        enabled.set(true);
-                    }
+                if source.peek().as_str() != next_source {
+                    source.set(next_source);
+                }
+                if enabled() != next_enabled {
+                    enabled.set(next_enabled);
                 }
             }
         }
@@ -150,9 +324,43 @@ pub fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
     let current_error = model.last_error.clone();
     let current_findings = snapshot.scene.findings.clone();
     let on_back_key = on_back;
+    let on_select_script = EventHandler::new({
+        let scripts = scripts.clone();
+        let pending = pending.clone();
+        let mut pending_owner = pending_owner;
+        let document_id = document.id.clone();
+        let session_epoch = snapshot.session_epoch;
+        move |value: Option<String>| {
+            let Some(id) = value else {
+                return;
+            };
+            pending.settle(false, |_| String::new());
+            pending_owner.set((!id.is_empty()).then(|| ScriptOwner {
+                document_id: document_id.clone(),
+                session_epoch,
+                script_id: id.clone(),
+            }));
+            active.set(id.clone());
+            if let Some(script) = scripts.iter().find(|script| script.id == id) {
+                name.set(script.name.clone());
+                source.set(script.source.clone());
+                enabled.set(script.enabled);
+                draft.set(encode_script_draft(
+                    &script.name,
+                    &script.source,
+                    script.enabled,
+                ));
+            } else {
+                name.set(String::new());
+                source.set(String::new());
+                enabled.set(true);
+                draft.set(encode_script_draft("", "", true));
+            }
+        }
+    });
     rsx! {
         section {
-            class: "m1-geometry-scripts",
+            class: "grid content-start gap-3 min-w-0 px-4 pt-3 pb-5 text-foreground [&_h2]:m-0 [&_h3]:m-0 [&_p]:m-0",
             aria_label: "Geometry scripts",
             onkeydown: move |event: KeyboardEvent| {
                 if event.key().to_string() == "Escape" {
@@ -161,23 +369,32 @@ pub fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
                     on_back_key.call(());
                 }
             },
-            header { class: "m1-geometry-scripts-heading",
-                button { r#type: "button", class: "m1-geometry-scripts-back", onclick: move |_| on_back.call(()), "Back to selection" }
-                h2 { "Geometry scripts" }
+            header { class: "flex items-center justify-between gap-2",
+                Button {
+                    variant: ButtonVariant::Ghost,
+                    size: ButtonSize::Sm,
+                    onclick: move |_| on_back.call(()),
+                    "Back to selection"
+                }
+                h2 { class: "text-base font-semibold", "Geometry scripts" }
             }
-            div { class: "m1-geometry-scripts-list-heading",
+            div { class: "flex items-center justify-between gap-2",
                 h3 { "Scripts" }
-                button {
-                    r#type: "button",
-                    disabled: !can_edit || script_pending,
+                Button {
+                    variant: ButtonVariant::Secondary,
+                    size: ButtonSize::Sm,
+                    disabled: !can_edit || new_pending,
                     onclick: {
                         let runtime = runtime.clone();
                         let snapshot = snapshot.clone();
-                        let mut script_ticket = script_ticket;
+                        let pending = pending.clone();
+                        let mut failure = failure;
                         let mut active = active;
                         let mut name = name;
                         let mut source = source;
                         let mut enabled = enabled;
+                        let mut draft = draft;
+                        let mut pending_owner = pending_owner;
                         move |_| {
                             if !current_session_can_accept_edits(&runtime, &snapshot) {
                                 return;
@@ -186,96 +403,114 @@ pub fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
                                 return;
                             };
                             let script_id = format!("geometry-script-{script_identity}");
+                            pending.settle(false, |_| String::new());
+                            pending_owner.set(Some(ScriptOwner {
+                                document_id: snapshot.document.id.clone(),
+                                session_epoch: snapshot.session_epoch,
+                                script_id: script_id.clone(),
+                            }));
                             active.set(script_id.clone());
                             name.set(format!("Script {}", snapshot.document.scripts.len() + 1));
                             source.set(String::new());
                             enabled.set(false);
-                            script_ticket.set(Some(EditTicket::begin(
+                            draft.set(encode_script_draft(&name(), &source(), enabled()));
+                            failure.set(None);
+                            pending.begin_one_shot(
                                 &runtime,
+                                ScriptActionKey::New,
                                 "geometry-script-new",
                                 Some("script".into()),
                                 new_script_resolver(script_id),
-                            )));
+                            );
                         }
                     },
                     "+ New script"
                 }
             }
             if !scripts.is_empty() {
-                label { class: "m1-geometry-script-field",
-                    "Active script"
-                    select {
-                        aria_label: "Active script",
-                        value: "{active()}",
-                        disabled: !can_edit,
-                        onchange: {
-                            let scripts = scripts.clone();
-                            move |event| {
-                                let id = event.value();
-                                active.set(id.clone());
-                                if let Some(script) = scripts.iter().find(|script| script.id == id) {
-                                    name.set(script.name.clone());
-                                    source.set(script.source.clone());
-                                    enabled.set(script.enabled);
-                                } else {
-                                    name.set(String::new());
-                                    source.set(String::new());
-                                    enabled.set(true);
-                                }
+                div { class: "grid gap-1 min-w-0 text-sm text-muted-foreground",
+                    span { "Active script" }
+                    if scripts.len() >= 12 {
+                        Combobox::<String> {
+                            aria_label: "Active script", list_aria_label: "Active script",
+                            value: Some(selected_script.into()), disabled: !can_edit,
+                            on_value_change: on_select_script,
+                            ComboboxOption::<String> { index: 0usize, value: "", text_value: "Select a script", "Select a script" }
+                            for (index, script) in scripts.iter().enumerate() {
+                                ComboboxOption::<String> { index: index + 1, value: script.id.clone(), text_value: script.name.clone(), "{script.name}" }
                             }
-                        },
-                        option { value: "", "Select a script" }
-                        for script in scripts.iter() {
-                            option { value: "{script.id}", "{script.name}" }
+                        }
+                    } else {
+                        Select::<String> {
+                            aria_label: "Active script", value: Some(selected_script.into()), disabled: !can_edit,
+                            on_value_change: on_select_script,
+                            SelectOption::<String> { index: 0usize, value: "", text_value: "Select a script", "Select a script" }
+                            for (index, script) in scripts.iter().enumerate() {
+                                SelectOption::<String> { index: index + 1, value: script.id.clone(), text_value: script.name.clone(), "{script.name}" }
+                            }
                         }
                     }
                 }
             }
             if let Some(script) = active_script {
-                label { class: "m1-geometry-script-field",
+                label { class: "grid gap-1 min-w-0 text-sm text-muted-foreground",
                     "Name"
-                    input {
-                        aria_label: "Name",
-                        value: "{name()}",
-                        disabled: !can_edit,
-                        oninput: move |event| name.set(event.value()),
+                    InputGroup {
+                        InputGroupInput {
+                            aria_label: "Name",
+                            value: "{name()}",
+                            disabled: !can_edit,
+                            oninput: move |event: FormEvent| { let value = event.value(); name.set(value.clone()); draft.set(encode_script_draft(&value, &source(), enabled())); },
+                        }
                     }
                 }
-                label { class: "m1-geometry-script-field",
+                label { class: "grid gap-1 min-w-0 text-sm text-muted-foreground",
                     "Rhai source"
-                    textarea {
-                        aria_label: "Rhai source",
-                        spellcheck: "false",
-                        value: "{source()}",
-                        placeholder: "// Describe generated geometry and component groups",
-                        disabled: !can_edit,
-                        oninput: move |event| source.set(event.value()),
+                    InputGroup {
+                        InputGroupTextarea {
+                            class: "min-h-[180px] resize-y font-mono",
+                            aria_label: "Rhai source",
+                            spellcheck: "false",
+                            value: "{source()}",
+                            placeholder: "// Describe generated geometry and component groups",
+                            disabled: !can_edit,
+                            oninput: move |event: FormEvent| { let value = event.value(); source.set(value.clone()); draft.set(encode_script_draft(&name(), &value, enabled())); },
+                        }
                     }
                 }
-                label { class: "m1-geometry-script-enabled",
-                    input {
-                        r#type: "checkbox",
-                        checked: enabled(),
+                label { class: "flex items-center gap-2 text-sm text-foreground",
+                    Checkbox {
+                        aria_label: "Enable on Apply",
+                        checked: Some(if enabled() { CheckboxState::Checked } else { CheckboxState::Unchecked }),
                         disabled: !can_edit,
-                        onchange: move |event| enabled.set(event.checked()),
+                        on_checked_change: move |state: CheckboxState| { let value = bool::from(state); enabled.set(value); draft.set(encode_script_draft(&name(), &source(), value)); },
                     }
                     "Enable on Apply"
                 }
-                button {
-                    r#type: "button",
-                    class: "m1-geometry-script-apply",
-                    disabled: !can_edit || script_pending || source().trim().is_empty(),
+                Button {
+                    class: "justify-self-start",
+                    disabled: !can_edit || apply_disabled() || source().trim().is_empty(),
                     onclick: {
                         let runtime = runtime.clone();
                         let snapshot = snapshot.clone();
                         let script_id = script.id.clone();
-                        let mut script_ticket = script_ticket;
+                        let pending = pending.clone();
+                        let mut failure = failure;
+                        let draft = draft;
+                        let mut pending_owner = pending_owner;
                         move |_| {
                             if !current_session_can_accept_edits(&runtime, &snapshot) {
                                 return;
                             }
-                            script_ticket.set(Some(EditTicket::begin(
+                            failure.set(None);
+                            pending_owner.set(Some(ScriptOwner {
+                                document_id: snapshot.document.id.clone(),
+                                session_epoch: snapshot.session_epoch,
+                                script_id: script_id.clone(),
+                            }));
+                            pending.begin_field(
                                 &runtime,
+                                ScriptActionKey::Apply(script_id.clone()),
                                 "geometry-script-apply",
                                 Some("script".into()),
                                 apply_script_resolver(
@@ -284,17 +519,20 @@ pub fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
                                     source(),
                                     enabled(),
                                 ),
-                            )));
+                                &draft(),
+                            );
                         }
                     },
                     "Apply script"
                 }
-                if let Some(error) = ticket_error.as_ref().or(current_error.as_ref()) {
-                    p { role: "alert", class: "m1-geometry-script-error", "{error}" }
+                if let Some(error) = failure.read().as_ref() {
+                    p { role: "alert", class: "text-sm text-destructive", "data-error-source": "script", "{error}" }
+                } else if let Some(error) = current_error.as_ref() {
+                    p { role: "alert", class: "text-sm text-destructive", "data-error-source": "runtime", "{error}" }
                 }
                 ScriptFindings { findings: current_findings }
             } else {
-                p { class: "m1-geometry-scripts-empty", "Scripts generate named geometry groups. Apply a script to run it in the core." }
+                p { class: "text-sm text-muted-foreground", "Scripts generate named geometry groups. Apply a script to run it in the core." }
             }
         }
     }
@@ -303,16 +541,16 @@ pub fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
 #[component]
 fn ScriptFindings(findings: Vec<Finding>) -> Element {
     rsx! {
-        section { class: "m1-geometry-script-findings", aria_label: "Core findings",
-            h3 { "Core findings" }
+        section { class: "grid gap-2 pt-2", aria_label: "Core findings",
+            h3 { class: "text-sm font-semibold", "Core findings" }
             if findings.is_empty() {
-                p { "No active findings" }
+                p { class: "text-sm text-muted-foreground", "No active findings" }
             } else {
-                ul {
+                ul { class: "grid list-none gap-2 p-0",
                     for finding in findings {
-                        li { class: severity_class(&finding.severity),
-                            strong { "{severity_label(&finding.severity)}" }
-                            p { "{finding.message}" }
+                        li { class: format!("grid gap-1 rounded-md p-2 {}", severity_class(&finding.severity)),
+                            strong { class: "text-sm", "{severity_label(&finding.severity)}" }
+                            p { class: "text-sm text-muted-foreground", "{finding.message}" }
                         }
                     }
                 }
@@ -336,9 +574,9 @@ fn current_session_can_accept_edits(runtime: &Runtime, snapshot: &AcceptedSnapsh
 
 fn severity_class(severity: &Severity) -> &'static str {
     match severity {
-        Severity::Error => "is-error",
-        Severity::Warning => "is-warning",
-        Severity::Info => "is-info",
+        Severity::Error => "bg-destructive-light text-destructive",
+        Severity::Warning => "bg-warning-light text-warning-dark",
+        Severity::Info => "bg-muted text-foreground",
     }
 }
 
@@ -354,10 +592,21 @@ fn severity_label(severity: &Severity) -> &'static str {
 mod queued_script_tests {
     use super::*;
     use crate::runtime::project_name_test_support as support;
-    use boardstudio_core::model::{Board, ProjectDoc};
+    use boardstudio_core::model::{Board, EditCommand, EditPhase, ProjectDoc};
+    use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+    use std::cell::{Cell, RefCell};
+    use wasm_bindgen::JsCast;
     use wasm_bindgen_test::wasm_bindgen_test;
+    use web_sys::{Event, EventInit, HtmlTextAreaElement};
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
+    #[derive(Clone)]
+    struct ScriptProbe {
+        runtime: Rc<Runtime>,
+        version: Rc<Cell<u64>>,
+        version_signal: Rc<RefCell<Option<Signal<u64>>>>,
+    }
 
     fn document() -> ProjectDoc {
         let mut document = ProjectDoc::empty("script-doc", "Scripts");
@@ -380,14 +629,353 @@ mod queued_script_tests {
         document
     }
 
-    async fn settle(runtime: &Rc<Runtime>, ticket: &EditTicket) {
-        for _ in 0..100 {
-            support::run_pending(runtime).await;
-            if !ticket.is_pending() {
-                return;
-            }
-            gloo_timers::future::TimeoutFuture::new(10).await;
+    fn editor_host() -> Element {
+        let probe = use_context::<ScriptProbe>();
+        let mut version = use_signal(|| 0u64);
+        use_context_provider(|| version);
+        if version() != probe.version.get() {
+            version.set(probe.version.get());
         }
+        *probe.version_signal.borrow_mut() = Some(version);
+        use_context_provider(|| probe.runtime.clone());
+        rsx! {
+            GeometryScriptsEditor { on_back: EventHandler::default() }
+            output { id: "geometry-script-render-generation", "{version()}" }
+        }
+    }
+
+    async fn render_wait(probe: &ScriptProbe) {
+        let expected = probe.version.get().to_string();
+        crate::test_wait::wait_until(
+            "geometry script editor renders the requested generation",
+            || {
+                web_sys::window()
+                    .unwrap()
+                    .document()
+                    .unwrap()
+                    .query_selector(
+                        "#geometry-script-owner-test #geometry-script-render-generation",
+                    )
+                    .unwrap()
+                    .and_then(|element| element.text_content())
+                    .as_deref()
+                    == Some(expected.as_str())
+            },
+        )
+        .await;
+    }
+
+    async fn mount_editor(runtime: Rc<Runtime>) -> ScriptProbe {
+        let probe = ScriptProbe {
+            runtime,
+            version: Rc::new(Cell::new(0)),
+            version_signal: Rc::default(),
+        };
+        let document = web_sys::window().unwrap().document().unwrap();
+        if let Some(previous) = document.get_element_by_id("geometry-script-owner-test") {
+            previous.remove();
+        }
+        let root = document.create_element("div").unwrap();
+        root.set_id("geometry-script-owner-test");
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(editor_host);
+        dom.provide_root_context(probe.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.into()),
+        );
+        render_wait(&probe).await;
+        probe
+    }
+
+    async fn flush(probe: &ScriptProbe) {
+        let next = probe.version.get() + 1;
+        probe.version.set(next);
+        if let Some(mut version) = *probe.version_signal.borrow() {
+            version.set(next);
+        }
+        render_wait(probe).await;
+    }
+
+    async fn select_script(name: &str) {
+        let root = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .get_element_by_id("geometry-script-owner-test")
+            .unwrap();
+        crate::test_wait::wait_until("script picker mounts", || {
+            crate::test_role::by_role_name(&root, "button", "Active script").is_some()
+        })
+        .await;
+        crate::test_role::by_role_name(&root, "button", "Active script")
+            .unwrap()
+            .click();
+        crate::test_wait::wait_until("script choices open", || {
+            crate::test_role::by_role_name(&root, "option", name).is_some()
+        })
+        .await;
+        let option = crate::test_role::by_role_name(&root, "option", name).unwrap();
+        for phase in ["pointerdown", "pointerup"] {
+            let event = web_sys::PointerEvent::new(phase).unwrap();
+            event.init_event_with_bubbles_and_cancelable(phase, true, true);
+            option.dispatch_event(&event).unwrap();
+        }
+    }
+
+    fn source_value() -> String {
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .get_element_by_id("geometry-script-owner-test")
+            .and_then(|root| crate::test_role::by_role_name(&root, "textbox", "Rhai source"))
+            .expect("source field")
+            .dyn_into::<HtmlTextAreaElement>()
+            .unwrap()
+            .value()
+    }
+
+    fn type_source(value: &str) {
+        let source = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .get_element_by_id("geometry-script-owner-test")
+            .and_then(|root| crate::test_role::by_role_name(&root, "textbox", "Rhai source"))
+            .expect("source field")
+            .dyn_into::<HtmlTextAreaElement>()
+            .unwrap();
+        source.set_value(value);
+        source.dispatch_event(&bubbling_event("input")).unwrap();
+    }
+
+    fn bubbling_event(name: &str) -> Event {
+        let init = EventInit::new();
+        init.set_bubbles(true);
+        Event::new_with_event_init_dict(name, &init).unwrap()
+    }
+
+    fn click_apply() {
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .get_element_by_id("geometry-script-owner-test")
+            .and_then(|root| crate::test_role::by_role_name(&root, "button", "Apply script"))
+            .expect("apply button")
+            .click();
+    }
+
+    fn script_field_failure() -> Option<String> {
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .query_selector("#geometry-script-owner-test [data-error-source='script']")
+            .unwrap()
+            .map(|element| element.text_content().unwrap_or_default())
+    }
+
+    async fn settle(runtime: &Rc<Runtime>, ticket: &EditTicket) {
+        crate::test_wait::wait_until_step(
+            "geometry script edit reaches a terminal outcome",
+            async || {
+                support::run_pending(runtime).await;
+                !ticket.is_pending()
+            },
+        )
+        .await;
+    }
+
+    #[wasm_bindgen_test]
+    async fn many_scripts_use_a_searchable_picker() {
+        let runtime = support::new_runtime();
+        let mut document = document();
+        for index in 2..=13 {
+            document.scripts.push(Script {
+                id: format!("script-{index}"),
+                name: format!("Script {index}"),
+                source: format!("// script {index}"),
+                enabled: false,
+            });
+        }
+        support::open_document(&runtime, document).await;
+        let probe = mount_editor(runtime).await;
+        let root = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .get_element_by_id("geometry-script-owner-test")
+            .unwrap();
+        let input = crate::test_role::by_role_name(&root, "combobox", "Active script").unwrap();
+        input.focus().unwrap();
+        let input_value = input
+            .clone()
+            .dyn_into::<web_sys::HtmlInputElement>()
+            .unwrap();
+        input_value.set_value("Script 13");
+        input.dispatch_event(&bubbling_event("input")).unwrap();
+        crate::test_wait::wait_until("matching script is available", || {
+            crate::test_role::by_role_name(&root, "option", "Script 13").is_some()
+        })
+        .await;
+        let option = crate::test_role::by_role_name(&root, "option", "Script 13").unwrap();
+        for phase in ["pointerdown", "pointerup"] {
+            let event = web_sys::PointerEvent::new(phase).unwrap();
+            event.init_event_with_bubbles_and_cancelable(phase, true, true);
+            option.dispatch_event(&event).unwrap();
+        }
+        flush(&probe).await;
+        assert_eq!(source_value(), "// script 13");
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn held_script_failure_is_retired_when_active_script_changes() {
+        let runtime = support::new_runtime();
+        let mut document = document();
+        document.scripts.push(Script {
+            id: "script-2".into(),
+            name: "Script 2".into(),
+            source: "// script 2".into(),
+            enabled: false,
+        });
+        support::open_document(&runtime, document).await;
+        let probe = mount_editor(runtime.clone()).await;
+        let root = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .get_element_by_id("geometry-script-owner-test")
+            .unwrap();
+        assert_eq!(
+            crate::test_role::by_role_name(&root, "button", "+ New script")
+                .unwrap()
+                .get_attribute("data-slot")
+                .as_deref(),
+            Some("button"),
+        );
+        select_script("Script 1").await;
+        flush(&probe).await;
+        type_source("// script 1 edited");
+        flush(&probe).await;
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        click_apply();
+
+        let runner = runtime.clone();
+        let done = Rc::new(Cell::new(false));
+        let done_task = done.clone();
+        wasm_bindgen_futures::spawn_local(async move {
+            support::run_pending(&runner).await;
+            done_task.set(true);
+        });
+        let entered_core = Rc::new(Cell::new(false));
+        let entered_core_task = entered_core.clone();
+        wasm_bindgen_futures::spawn_local(async move {
+            entered.await.expect("script A reached Core");
+            entered_core_task.set(true);
+        });
+        crate::test_wait::wait_until("script A reaches Core", || entered_core.get()).await;
+        select_script("Script 2").await;
+        flush(&probe).await;
+        assert_eq!(source_value(), "// script 2");
+        support::fail_next_persist(&runtime, "disk full");
+        release.send(()).expect("release held script A reply");
+        crate::test_wait::wait_until("script A Session work completes", || done.get()).await;
+        flush(&probe).await;
+
+        assert_eq!(runtime.model().lifecycle, Lifecycle::RecoveryRequired);
+        assert_eq!(source_value(), "// script 2");
+        assert!(
+            script_field_failure().is_none(),
+            "script A failure must not be attached to active script B"
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn successful_save_retry_reconciles_the_rolled_back_clean_script() {
+        let runtime = support::new_runtime();
+        support::open_document(&runtime, document()).await;
+        let probe = mount_editor(runtime.clone()).await;
+        select_script("Script 1").await;
+        flush(&probe).await;
+        type_source("// intended retry");
+        flush(&probe).await;
+        support::fail_next_persist(&runtime, "quota");
+        click_apply();
+        support::run_pending(&runtime).await;
+        flush(&probe).await;
+        assert_eq!(runtime.model().lifecycle, Lifecycle::RecoveryRequired);
+        assert_eq!(
+            source_value(),
+            "",
+            "failure keeps the existing rollback policy"
+        );
+        assert!(script_field_failure().is_some());
+
+        runtime.submit(boardstudio_application::Event::RetrySave {
+            operation_id: runtime.operation(),
+        });
+        support::run_pending(&runtime).await;
+        flush(&probe).await;
+        let accepted = runtime.model().accepted.unwrap();
+        assert_eq!(accepted.document.revision, 1);
+        assert_eq!(accepted.document.scripts[0].source, "// intended retry");
+        assert_eq!(
+            source_value(),
+            "// intended retry",
+            "Retry save must reconcile the still-mounted clean form"
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn successful_save_retry_preserves_newer_input_while_saving() {
+        let runtime = support::new_runtime();
+        support::open_document(&runtime, document()).await;
+        let probe = mount_editor(runtime.clone()).await;
+        select_script("Script 1").await;
+        flush(&probe).await;
+        type_source("// intended retry");
+        flush(&probe).await;
+        support::fail_next_persist(&runtime, "quota");
+        click_apply();
+        support::run_pending(&runtime).await;
+        flush(&probe).await;
+        assert_eq!(source_value(), "");
+
+        let (entered, release) = support::gate_next_persist(&runtime);
+        runtime.submit(boardstudio_application::Event::RetrySave {
+            operation_id: runtime.operation(),
+        });
+        support::drive_pending(&runtime);
+        entered.await.unwrap();
+        flush(&probe).await;
+        let root = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .get_element_by_id("geometry-script-owner-test")
+            .unwrap();
+        assert!(
+            !crate::test_role::by_role_name(&root, "textbox", "Rhai source")
+                .unwrap()
+                .has_attribute("disabled"),
+            "typing during retry Saving is a real UI path"
+        );
+        type_source("// newer unsent input");
+        flush(&probe).await;
+        release.send(()).unwrap();
+        support::run_pending(&runtime).await;
+        flush(&probe).await;
+        let accepted = runtime.model().accepted.unwrap();
+        assert_eq!(accepted.document.revision, 1);
+        assert_eq!(accepted.document.scripts[0].source, "// intended retry");
+        assert_eq!(
+            source_value(),
+            "// newer unsent input",
+            "retry landing must leave the newer draft divergent from accepted"
+        );
     }
 
     #[wasm_bindgen_test]
@@ -399,9 +987,9 @@ mod queued_script_tests {
         let (entered, release) = support::gate_next_core_reply(&runtime);
         let mut renamed = accepted.document.as_ref().clone();
         renamed.boards[0].name = "Renamed".into();
-        runtime.submit(boardstudio_application::Event::Edit {
-            operation_id: runtime.operation(),
-            command: EditCommand {
+        crate::runtime::project_name_test_support::submit_fixed_command(
+            &runtime,
+            EditCommand {
                 base_revision: accepted.document.revision,
                 transaction_id: "rename-board".into(),
                 phase: EditPhase::Commit,
@@ -410,7 +998,7 @@ mod queued_script_tests {
                     document: Box::new(renamed),
                 },
             },
-        });
+        );
         support::drive_pending(&runtime);
         entered.await.expect("the rename reached Core");
         let apply = EditTicket::begin(

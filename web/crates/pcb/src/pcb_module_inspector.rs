@@ -1,14 +1,19 @@
 //! Private editor for the placement of one accepted mounted-module instance.
 //! Module source definitions and their footprint/circuit ownership remain untouched.
+use crate::pcb_controls::{PcbCheck, PcbChoice, PcbInput};
 use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
 };
 use boardstudio_core::model::{
-    EditCommand, EditOperation, EditPhase, ModuleAttachment, ModuleConnection, ModuleSupport,
+    EditOperation, ModuleAttachment, ModuleConnection, ModuleSupport, MountedModule,
     PartDefinition, Side, VikRole, VikSignal,
 };
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+use boardstudio_web_runtime::pending_edits::PendingEditResult;
+use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
+use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
+use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
+use boardstudio_web_ui_shared::ui::input::InputType;
 use dioxus::prelude::*;
 use std::rc::Rc;
 use std::{
@@ -16,6 +21,15 @@ use std::{
     collections::{BTreeMap, VecDeque},
 };
 use wasm_bindgen_futures::spawn_local;
+
+/// One mounted-module inspector action's bounded logical key.
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum ModuleEditKey {
+    Placement,
+    RemoveModule,
+    Embed,
+    RemoveCircuit,
+}
 
 #[derive(Clone)]
 struct RuntimeHandle(Rc<Runtime>);
@@ -35,7 +49,7 @@ pub struct InspectorInput {
     pub on_place_component: EventHandler<super::part_placement::ComponentPlacementAction>,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, PartialEq)]
 struct SupportDraft {
     mount_id: String,
     outer_diameter: String,
@@ -101,13 +115,76 @@ fn PcbMountedModuleInspector(
         return rsx! { p { role: "status", "The mounted module source definition is missing." } };
     };
     let mut draft = use_signal(|| instance.clone());
+    let mut draft_dirty = use_signal(|| false);
     let mut feedback = use_signal(String::new);
     let mut support_draft = use_signal(SupportDraft::default);
+    // Invalid numeric input has no typed MountedModule value, but is still a
+    // draft. Retain its exact text across accepted projection and settlement.
+    let invalid_numbers = use_signal(BTreeMap::<&'static str, String>::new);
     let mut joins = use_signal(BTreeMap::<String, String>::new);
-    let tickets = use_signal(Vec::<(String, EditTicket)>::new);
-    let latest = use_signal(|| None::<boardstudio_application::OperationId>);
-    let committed_draft = use_signal(|| None::<boardstudio_core::model::MountedModule>);
-    let previous_accepted = use_signal(|| instance.clone());
+    // Typed placement and bounded action kinds share submitted-value restoration,
+    // inline failures, one-shot disabling and binding lifetime in one helper.
+    let edits =
+        use_hook(PendingEditSignals::<ModuleEditKey, boardstudio_core::model::MountedModule>::new);
+    let placement_guard =
+        use_signal(|| None::<boardstudio_web_runtime::draft_owners::DraftOwnerGuard>);
+    let registry_owner = (
+        input.snapshot.document.id.clone(),
+        input.snapshot.session_epoch,
+        input.scope.clone(),
+        input.module_id.clone(),
+    );
+    use_effect(use_reactive((&registry_owner,), {
+        let runtime = input.runtime.clone();
+        let edits = edits.clone();
+        let owner = registry_owner.clone();
+        let mut guard = placement_guard;
+        move |_| {
+            if let Some(old) = guard.write().take() {
+                runtime.retire_draft_owner(old);
+            }
+            let probe_runtime = runtime.clone();
+            let edits = edits.clone();
+            let scope = owner.2.clone();
+            let module_id = owner.3.clone();
+            guard.set(Some(runtime.register_draft_owner(
+                boardstudio_web_runtime::draft_owners::DraftOwnerRegistration {
+                    project_scope: (owner.0.clone(), owner.1),
+                    workspace: "PCB",
+                    owner: "mounted-module",
+                    admission_key: "placement",
+                    area: "Mounted module placement".into(),
+                    remedy: "Save placement (add any pending support first), restore the fields, or close".into(),
+                    is_unresolved: Rc::new(move || {
+                        if probe_runtime.scope().as_ref() != Some(&scope) { return false; }
+                        let Some(accepted) = probe_runtime.model().accepted else { return false; };
+                        let Some(baseline) = accepted.document.modules.iter().find(|module| module.id == module_id && module.host_board_id == scope.board_id) else { return false; };
+                        if !invalid_numbers.peek().is_empty() || *support_draft.peek() != SupportDraft::default() { return true; }
+                        let live = draft.peek().clone();
+                        live != *baseline && edits.submitted_draft(&ModuleEditKey::Placement).as_ref() != Some(&live)
+                    }),
+                },
+            )));
+        }
+    }));
+    use_drop({
+        let runtime = input.runtime.clone();
+        let mut guard = placement_guard;
+        move || {
+            if let Some(old) = guard.write().take() {
+                runtime.retire_draft_owner(old);
+            }
+        }
+    });
+    let placement_failure = use_signal(|| None::<String>);
+    let remove_disabled = use_signal(|| false);
+    let embed_disabled = use_signal(|| false);
+    let circuit_removal_disabled = use_signal(|| false);
+    edits.bind_field(ModuleEditKey::Placement, draft, placement_failure);
+    edits.bind_one_shot(ModuleEditKey::RemoveModule, remove_disabled);
+    edits.bind_one_shot(ModuleEditKey::Embed, embed_disabled);
+    edits.bind_one_shot(ModuleEditKey::RemoveCircuit, circuit_removal_disabled);
+    let latest = use_signal(|| None::<ModuleEditKey>);
     let save_queue = use_hook(|| {
         Rc::new(RefCell::new(VecDeque::<(
             boardstudio_core::model::MountedModule,
@@ -118,87 +195,84 @@ fn PcbMountedModuleInspector(
     let alive = use_hook(|| Rc::new(Cell::new(true)));
     use_drop({
         let alive = alive.clone();
-        move || alive.set(false)
+        let edits = edits.clone();
+        move || {
+            alive.set(false);
+            edits.unbind_field(&ModuleEditKey::Placement);
+            edits.unbind_one_shot(&ModuleEditKey::RemoveModule);
+            edits.unbind_one_shot(&ModuleEditKey::Embed);
+            edits.unbind_one_shot(&ModuleEditKey::RemoveCircuit);
+        }
     });
     let version = use_context::<Signal<u64>>()();
-    let pending_operations = tickets
-        .read()
-        .iter()
-        .map(|(_, ticket)| ticket.operation())
-        .collect::<Vec<_>>();
-    use_effect(use_reactive((&version, &pending_operations), {
+    use_effect(use_reactive((&version,), {
         let runtime = input.runtime.clone();
         let scope = input.scope.clone();
         let module_id = input.module_id.clone();
         let selected_context = input.selected_context;
-        let mut tickets = tickets;
+        let edits = edits.clone();
         let mut feedback = feedback;
+        let preparing = preparing.clone();
         move |_| {
-            let mut entries = tickets.peek().clone();
-            let before = entries.len();
-            entries.retain(|(action, ticket)| {
-                let result = ticket.settlement(mounted_selection_current(
-                    &runtime,
-                    selected_context,
-                    &scope,
-                    &module_id,
-                ));
-                let message = match result {
-                    Settlement::Pending => return true,
-                    Settlement::Landed { .. } => Some(
-                        match action.as_str() {
-                            "placement" => "Placement saved.",
-                            "remove-module" => "Placement removed.",
-                            "embed" => "Circuit copied.",
-                            _ => "Circuit copy removed.",
-                        }
-                        .into(),
-                    ),
-                    Settlement::Failed { message } => {
-                        if action == "placement"
-                            && *latest.peek() == Some(ticket.operation())
-                            && committed_draft.peek().as_ref() == Some(&*draft.peek())
-                            && let Some(accepted) = runtime.model().accepted
-                            && let Some(module) = accepted
-                                .document
-                                .modules
-                                .iter()
-                                .find(|module| module.id == module_id)
-                        {
-                            draft.set(module.clone());
-                        }
-                        Some(message)
+            let panel_is_live =
+                mounted_selection_current(&runtime, selected_context, &scope, &module_id);
+            let accepted_module = runtime.model().accepted.and_then(|accepted| {
+                accepted
+                    .document
+                    .modules
+                    .iter()
+                    .find(|module| module.id == module_id)
+                    .cloned()
+            });
+            for result in edits.settle(panel_is_live, |_| {
+                accepted_module
+                    .clone()
+                    .unwrap_or_else(|| draft.peek().clone())
+            }) {
+                let (key, message) = match result {
+                    PendingEditResult::Failed { key, message } => (key, Some(message)),
+                    PendingEditResult::Landed { key, .. } | PendingEditResult::Retired { key } => {
+                        (key, None)
                     }
-                    Settlement::Retired => None,
                 };
-                if *latest.peek() == Some(ticket.operation()) {
+                // The helper owns submitted-value restoration. Once its placement
+                // drain leaves the live draft at accepted, ordinary accepted projection
+                // can resume; a newer user draft keeps its dirty marker.
+                if key == ModuleEditKey::Placement
+                    && panel_is_live
+                    && !edits.is_pending(&ModuleEditKey::Placement)
+                    && !preparing.get()
+                    && accepted_module
+                        .as_ref()
+                        .is_some_and(|accepted| *draft.peek() == *accepted)
+                {
+                    draft_dirty.set(false);
+                }
+                // Placement's bound field owns its inline failure; action failures keep
+                // their existing panel placement and latest-action attribution.
+                if key != ModuleEditKey::Placement && latest.peek().as_ref() == Some(&key) {
                     feedback.set(message.unwrap_or_default());
                 }
-                false
-            });
-            if entries.len() != before {
-                tickets.set(entries);
             }
         }
     }));
     let accepted_instance = instance.clone();
-    let pending_save = preparing.get()
-        || tickets
-            .read()
-            .iter()
-            .any(|(action, ticket)| action == "placement" && ticket.is_pending());
-    use_effect(use_reactive(
-        (&accepted_instance, &pending_save),
-        move |(accepted_instance, pending_save)| {
-            if *draft.peek() == *previous_accepted.peek()
-                || (!pending_save && committed_draft.peek().as_ref() == Some(&*draft.peek()))
+    use_effect(use_reactive((&accepted_instance,), {
+        let edits = edits.clone();
+        let preparing = preparing.clone();
+        move |(accepted_instance,)| {
+            // Value equality with a previous accepted value cannot identify a clean
+            // draft: a newer edit may have returned to that value while a save waited.
+            if !draft_dirty() {
+                draft.set(accepted_instance);
+            } else if !edits.is_pending(&ModuleEditKey::Placement)
+                && !preparing.get()
+                && *draft.peek() == accepted_instance
             {
-                draft.set(accepted_instance.clone());
+                draft_dirty.set(false);
             }
-            let mut previous_accepted = previous_accepted;
-            previous_accepted.set(accepted_instance);
-        },
-    ));
+        }
+    }));
     let module_name = definition.name.clone();
     let automatic_connector_id = format!("{}/vik-host-connector", instance.id);
     let scope = input.scope.clone();
@@ -208,6 +282,7 @@ fn PcbMountedModuleInspector(
     let runtime = input.runtime.clone();
     let selected_context = input.selected_context;
     let save_alive = alive.clone();
+    let save_edits = edits.clone();
     let save = move |_| {
         let Some(snapshot) = mounted_owner_current(
             &runtime,
@@ -243,8 +318,6 @@ fn PcbMountedModuleInspector(
                 .set("Choose a VIK host connector on this board, or clear the connection.".into());
             return;
         }
-        let mut committed_draft = committed_draft;
-        committed_draft.set(Some(value.clone()));
         save_queue.borrow_mut().push_back((value, needs_connector));
         if preparing.replace(true) {
             return;
@@ -255,7 +328,7 @@ fn PcbMountedModuleInspector(
         let alive = save_alive.clone();
         let save_queue = save_queue.clone();
         let preparing = preparing.clone();
-        let mut tickets = tickets;
+        let save_edits = save_edits.clone();
         let mut latest = latest;
         let mut feedback = feedback;
         spawn_local(async move {
@@ -278,6 +351,7 @@ fn PcbMountedModuleInspector(
                 if !mounted_selection_current(&runtime, selected_context, &scope, &module_id) {
                     continue;
                 }
+                let submitted = value.clone();
                 let operation =
                     connector.map(
                         |host_connector_definition| EditOperation::SetMountedModule {
@@ -286,15 +360,17 @@ fn PcbMountedModuleInspector(
                             host_connector_definition,
                         },
                     );
-                let ticket = EditTicket::begin(
+                let key = ModuleEditKey::Placement;
+                latest.set(Some(key.clone()));
+                feedback.set(String::new());
+                save_edits.begin_value(
                     &runtime,
+                    key,
                     "mounted-module-placement",
                     Some("placement".into()),
                     module_resolver(scope.clone(), module_id.clone(), operation),
+                    &submitted,
                 );
-                latest.set(Some(ticket.operation()));
-                feedback.set(String::new());
-                tickets.write().push(("placement".into(), ticket));
             }
         });
     };
@@ -304,8 +380,9 @@ fn PcbMountedModuleInspector(
     let owner_revision = input.snapshot.document.revision;
     let runtime = input.runtime.clone();
     let selected_context = input.selected_context;
+    let remove_actions = edits.clone();
     let remove = move |_| {
-        if module_action_pending(tickets, "remove-module")
+        if remove_actions.is_pending(&ModuleEditKey::RemoveModule)
             || mounted_owner_current(
                 &runtime,
                 selected_context,
@@ -318,8 +395,13 @@ fn PcbMountedModuleInspector(
         {
             return;
         }
-        let ticket = EditTicket::begin(
+        let key = ModuleEditKey::RemoveModule;
+        let mut latest = latest;
+        latest.set(Some(key.clone()));
+        feedback.set(String::new());
+        remove_actions.begin_one_shot(
             &runtime,
+            key,
             "remove-mounted-module",
             Some("module".into()),
             module_resolver(
@@ -330,11 +412,6 @@ fn PcbMountedModuleInspector(
                 }),
             ),
         );
-        let mut tickets = tickets;
-        let mut latest = latest;
-        latest.set(Some(ticket.operation()));
-        feedback.set(String::new());
-        tickets.write().push(("remove-module".into(), ticket));
     };
     let boards = document.boards.clone();
     let source_mounts = definition.mounts.clone();
@@ -458,6 +535,7 @@ fn PcbMountedModuleInspector(
     let embed_token = input.snapshot.token;
     let embed_revision = input.snapshot.document.revision;
     let embed_joins = joins;
+    let embed_actions = edits.clone();
     let embed = move |_| {
         let Some(_snapshot) = mounted_owner_current(
             &embed_runtime,
@@ -474,14 +552,19 @@ fn PcbMountedModuleInspector(
             feedback.set("This module has no editable circuit source.".into());
             return;
         }
-        if module_action_pending(tickets, "embed") {
+        if embed_actions.is_pending(&ModuleEditKey::Embed) {
             return;
         }
         let seed = embed_runtime.operation().0;
         let id = format!("circuit/embedded-{seed}");
         let placement = draft();
-        let ticket = EditTicket::begin(
+        let key = ModuleEditKey::Embed;
+        let mut latest = latest;
+        latest.set(Some(key.clone()));
+        feedback.set(String::new());
+        embed_actions.begin_one_shot(
             &embed_runtime,
+            key,
             "embed-module-circuit",
             Some("circuit".into()),
             module_resolver(
@@ -500,162 +583,164 @@ fn PcbMountedModuleInspector(
                 }),
             ),
         );
-        let mut tickets = tickets;
-        let mut latest = latest;
-        latest.set(Some(ticket.operation()));
-        feedback.set(String::new());
-        tickets.write().push(("embed".into(), ticket));
     };
 
     rsx! {
-        section { class: "m1-pcb-module-inspector", "aria-label": "Mounted module placement",
+        section { class: "grid gap-2.5 min-w-0 overflow-auto p-4 text-foreground [&_h2]:m-0 [&_h2]:text-lg [&_p]:m-0 [&_p]:text-xs [&_p]:leading-normal [&_p]:text-muted-foreground", "aria-label": "Mounted module placement",
             h2 { "{module_name} placement" }
-            p { class: "m1-pcb-module-source-note", "Placement edits affect this project instance. Source footprint artwork remains owned by the module." }
-            label { "Host board"
-                select {
-                    aria_label: "Module host board",
-                    value: "{draft().host_board_id}",
-                    disabled: !editable,
-                    onchange: move |event| {
-                        let next = event.value();
-                        draft.with_mut(|value| {
+            p { "Placement edits affect this project instance. Source footprint artwork remains owned by the module." }
+            PcbChoice {
+                label: "Host board",
+                aria_label: "Module host board",
+                value: "{draft().host_board_id}",
+                disabled: !editable,
+                searchable: true,
+                on_change: move |next: String| {
+                        edit_module_draft(draft, draft_dirty, |value| {
                             value.host_board_id = next.clone();
                             if value.host_instance_id.as_ref().is_some_and(|id| !instances.iter().any(|instance| instance.id == *id && instance.board_id == next)) {
                                 value.host_instance_id = None;
                             }
                         });
                     },
-                    for board in &boards { option { value: "{board.id}", "{board.name}" } }
-                }
+                options: boards.iter().map(|board| (board.id.clone(), board.name.clone(), false)).collect(),
             }
-            label { "Physical instance"
-                select {
-                    aria_label: "Module physical instance",
-                    value: "{draft().host_instance_id.clone().unwrap_or_default()}",
-                    disabled: !editable,
-                    onchange: move |event| {
-                        let id = event.value();
-                        draft.with_mut(|value| value.host_instance_id = (!id.is_empty()).then_some(id));
+            PcbChoice {
+                label: "Physical instance",
+                aria_label: "Module physical instance",
+                value: "{draft().host_instance_id.clone().unwrap_or_default()}",
+                disabled: !editable,
+                searchable: true,
+                on_change: move |id: String| {
+                        edit_module_draft(draft, draft_dirty, |value| value.host_instance_id = (!id.is_empty()).then_some(id));
                     },
-                    option { value: "", "Board-wide" }
-                    for (id, name) in &options { option { value: "{id}", "{name}" } }
-                }
+                options: std::iter::once((String::new(), "Board-wide".into(), false)).chain(options.iter().map(|(id, name)| (id.clone(), name.clone(), false))).collect(),
             }
-            label { "Mounted face"
-                select {
-                    aria_label: "Module host face",
-                    value: if draft().host_face == Side::Front { "front" } else { "back" },
-                    disabled: !editable,
-                    onchange: move |event| draft.with_mut(|value| value.host_face = side(&event.value())),
-                    option { value: "front", "Front" }
-                    option { value: "back", "Back" }
-                }
+            PcbChoice {
+                label: "Mounted face",
+                aria_label: "Module host face",
+                value: (if draft().host_face == Side::Front { "front" } else { "back" }).to_string(),
+                disabled: !editable,
+                on_change: move |next: String| edit_module_draft(draft, draft_dirty, |value| value.host_face = side(&next)),
+                options: vec![("front".into(), "Front".into(), false), ("back".into(), "Back".into(), false)],
             }
-            label { "Facing face"
-                select {
-                    aria_label: "Module facing face",
-                    value: if draft().facing_face == Side::Front { "front" } else { "back" },
-                    disabled: !editable,
-                    onchange: move |event| draft.with_mut(|value| value.facing_face = side(&event.value())),
-                    option { value: "front", "Front" }
-                    option { value: "back", "Back" }
-                }
+            PcbChoice {
+                label: "Facing face",
+                aria_label: "Module facing face",
+                value: (if draft().facing_face == Side::Front { "front" } else { "back" }).to_string(),
+                disabled: !editable,
+                on_change: move |next: String| edit_module_draft(draft, draft_dirty, |value| value.facing_face = side(&next)),
+                options: vec![("front".into(), "Front".into(), false), ("back".into(), "Back".into(), false)],
             }
-            label { "X (mm)"
-                input { r#type: "number", step: "any", value: "{draft().at.x}", disabled: !editable,
-                    oninput: move |event| if let Ok(number) = event.value().parse::<f64>() && number.is_finite() { draft.with_mut(|value| value.at.x = number); }
-                }
+            PcbInput {
+                label: "X (mm)", aria_label: "X (mm)", r#type: InputType::Number,
+                step: Some("any".into()),
+                value: invalid_numbers().get("x").cloned().unwrap_or_else(|| draft().at.x.to_string()),
+                disabled: !editable,
+                oninput: move |event: FormEvent| edit_module_number(draft, draft_dirty, invalid_numbers, "x", event.value(), false, |value, number| value.at.x = number),
             }
-            label { "Y (mm)"
-                input { r#type: "number", step: "any", value: "{draft().at.y}", disabled: !editable,
-                    oninput: move |event| if let Ok(number) = event.value().parse::<f64>() && number.is_finite() { draft.with_mut(|value| value.at.y = number); }
-                }
+            PcbInput {
+                label: "Y (mm)", aria_label: "Y (mm)", r#type: InputType::Number,
+                step: Some("any".into()),
+                value: invalid_numbers().get("y").cloned().unwrap_or_else(|| draft().at.y.to_string()),
+                disabled: !editable,
+                oninput: move |event: FormEvent| edit_module_number(draft, draft_dirty, invalid_numbers, "y", event.value(), false, |value, number| value.at.y = number),
             }
-            label { "Yaw (degrees)"
-                input { r#type: "number", step: "any", value: "{draft().rotation}", disabled: !editable,
-                    oninput: move |event| if let Ok(number) = event.value().parse::<f64>() && number.is_finite() { draft.with_mut(|value| value.rotation = number); }
-                }
+            PcbInput {
+                label: "Yaw (degrees)", aria_label: "Yaw (degrees)", r#type: InputType::Number,
+                step: Some("any".into()),
+                value: invalid_numbers().get("rotation").cloned().unwrap_or_else(|| draft().rotation.to_string()),
+                disabled: !editable,
+                oninput: move |event: FormEvent| edit_module_number(draft, draft_dirty, invalid_numbers, "rotation", event.value(), false, |value, number| value.rotation = number),
             }
-            label { "Gap (mm)"
-                input { r#type: "number", min: "0", step: "any", value: "{draft().gap}", disabled: !editable,
-                    oninput: move |event| if let Ok(number) = event.value().parse::<f64>() && number.is_finite() && number >= 0.0 { draft.with_mut(|value| value.gap = number); }
-                }
+            PcbInput {
+                label: "Gap (mm)", aria_label: "Gap (mm)", r#type: InputType::Number,
+                min: Some("0".into()),
+                step: Some("any".into()),
+                value: invalid_numbers().get("gap").cloned().unwrap_or_else(|| draft().gap.to_string()),
+                disabled: !editable,
+                oninput: move |event: FormEvent| edit_module_number(draft, draft_dirty, invalid_numbers, "gap", event.value(), true, |value, number| value.gap = number),
             }
-            label { "Attachment"
-                select {
-                    aria_label: "Module attachment",
-                    value: if draft().attachment == ModuleAttachment::Board { "board" } else { "case" },
-                    disabled: !editable,
-                    onchange: move |event| draft.with_mut(|value| value.attachment = if event.value() == "case" { ModuleAttachment::Case } else { ModuleAttachment::Board }),
-                    option { value: "board", "Board" }
-                    option { value: "case", "Case" }
-                }
+            PcbChoice {
+                label: "Attachment",
+                aria_label: "Module attachment",
+                value: (if draft().attachment == ModuleAttachment::Board { "board" } else { "case" }).to_string(),
+                disabled: !editable,
+                on_change: move |next: String| edit_module_draft(draft, draft_dirty, |value| value.attachment = if next == "case" { ModuleAttachment::Case } else { ModuleAttachment::Board }),
+                options: vec![("board".into(), "Board".into(), false), ("case".into(), "Case".into(), false)],
             }
-            label { "Extra service clearance (mm)"
-                input { r#type: "number", min: "0", step: "0.1", aria_label: "Module service clearance", value: "{draft().service_clearance}", disabled: !editable,
-                    oninput: move |event| {
-                        let raw = event.value();
-                        let number = if raw.trim().is_empty() { Some(0.0) } else { raw.parse::<f64>().ok() };
-                        if let Some(number) = number.filter(|number| number.is_finite() && *number >= 0.0) {
-                            draft.with_mut(|value| value.service_clearance = number);
-                        }
-                    }
-                }
+            PcbInput {
+                label: "Extra service clearance (mm)",
+                r#type: InputType::Number, min: Some("0".into()),
+                step: Some("0.1".into()),
+                aria_label: "Module service clearance",
+                value: invalid_numbers().get("clearance").cloned().unwrap_or_else(|| draft().service_clearance.to_string()),
+                disabled: !editable,
+                oninput: move |event: FormEvent| edit_module_number(draft, draft_dirty, invalid_numbers, "clearance", event.value(), true, |value, number| value.service_clearance = number),
             }
-            section { class: "m1-pcb-module-supports", "aria-label": "{support_section}",
+            section { class: "grid gap-2 min-w-0 p-2.5 border border-border rounded-md bg-card [&_h3]:m-0 [&_h3]:text-xs [&_h3]:text-foreground", "aria-label": "{support_section}",
                 h3 { "{support_section}" }
                 p { "Choose a source PCB hole and enter designer-selected ring dimensions. Z and height are module-midplane millimetres; these values are not vendor specifications." }
                 for (index, support) in draft().mount_supports.iter().enumerate() {
-                    div { key: "{support.mount_id}", class: "m1-pcb-module-support-row",
+                    div { key: "{support.mount_id}", class: "flex items-center justify-between gap-2 py-1.5 border-b border-border text-foreground text-xs [&_button]:flex-none",
                         span { "{support.mount_id} · OD {support.outer_diameter} / ID {support.hole_diameter} · Z {support.z} · height {support.height} mm" }
-                        button { r#type: "button", disabled: !editable, aria_label: "Remove support {support.mount_id}", onclick: move |_| {
-                            draft.with_mut(|value| { value.mount_supports.remove(index); });
+                        Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: !editable, aria_label: "Remove support {support.mount_id}", onclick: move |_| {
+                            edit_module_draft(draft, draft_dirty, |value| { value.mount_supports.remove(index); });
                         }, "Remove" }
                     }
                 }
                 if !resolved_supports.is_empty() {
-                    div { class: "m1-pcb-module-support-preview", "aria-label": "Resolved support geometry",
+                    div { class: "p-2 border-l-2 border-primary bg-canvas [&_strong]:block [&_strong]:mb-1 [&_strong]:text-foreground [&_strong]:text-xs", "aria-label": "Resolved support geometry",
                         strong { "Resolved {support_section}" }
                         for (index, support) in resolved_supports.iter().enumerate() {
                             p { key: "{support.mount_id}-{index}", "{support.mount_id} · center {support.at.x:.2}, {support.at.y:.2} mm · OD {support.outer_diameter:.2} / ID {support.hole_diameter:.2} mm · Z {support.z:.2} · height {support.height:.2} mm" }
                         }
                     }
                 }
-                label { "Source mounting hole"
-                    select {
-                        aria_label: "Support source mounting hole",
-                        value: "{support_draft().mount_id}",
-                        disabled: !editable || !has_source_mounts,
-                        onchange: move |event| support_draft.with_mut(|value| value.mount_id = event.value()),
-                        option { value: "", "Choose module hole…" }
-                        for mount in &source_mounts {
-                            option { value: "{mount.source_id}", "{mount.source_id} · source drill {mount.diameter} mm" }
-                        }
+                PcbChoice {
+                    label: "Source mounting hole",
+                    aria_label: "Support source mounting hole",
+                    value: "{support_draft().mount_id}",
+                    disabled: !editable || !has_source_mounts,
+                    searchable: true,
+                    on_change: move |next: String| support_draft.with_mut(|value| value.mount_id = next),
+                    options: std::iter::once((String::new(), "Choose module hole…".into(), false)).chain(source_mounts.iter().map(|mount| (mount.source_id.clone(), format!("{} · source drill {} mm", mount.source_id, mount.diameter), false))).collect(),
+                }
+                div { class: "grid grid-cols-2 gap-2",
+                    PcbInput {
+                        label: "Outer diameter (mm)",
+                        r#type: InputType::Number, step: Some("0.1".into()),
+                        aria_label: "Support outer diameter",
+                        value: "{support_draft().outer_diameter}",
+                        disabled: !editable,
+                        oninput: move |event: FormEvent| support_draft.with_mut(|value| value.outer_diameter = event.value()),
+                    }
+                    PcbInput {
+                        label: "Hole diameter (mm)",
+                        r#type: InputType::Number, step: Some("0.1".into()),
+                        aria_label: "Support hole diameter",
+                        value: "{support_draft().hole_diameter}",
+                        disabled: !editable,
+                        oninput: move |event: FormEvent| support_draft.with_mut(|value| value.hole_diameter = event.value()),
+                    }
+                    PcbInput {
+                        label: "Z from midplane (mm)",
+                        r#type: InputType::Number, step: Some("0.1".into()),
+                        aria_label: "Support Z from midplane",
+                        value: "{support_draft().z}",
+                        disabled: !editable,
+                        oninput: move |event: FormEvent| support_draft.with_mut(|value| value.z = event.value()),
+                    }
+                    PcbInput {
+                        label: "Ring height (mm)",
+                        r#type: InputType::Number, step: Some("0.1".into()),
+                        aria_label: "Support ring height",
+                        value: "{support_draft().height}",
+                        disabled: !editable,
+                        oninput: move |event: FormEvent| support_draft.with_mut(|value| value.height = event.value()),
                     }
                 }
-                div { class: "m1-pcb-module-support-fields",
-                    label { "Outer diameter (mm)"
-                        input { r#type: "number", step: "0.1", aria_label: "Support outer diameter", value: "{support_draft().outer_diameter}", disabled: !editable,
-                            oninput: move |event| support_draft.with_mut(|value| value.outer_diameter = event.value())
-                        }
-                    }
-                    label { "Hole diameter (mm)"
-                        input { r#type: "number", step: "0.1", aria_label: "Support hole diameter", value: "{support_draft().hole_diameter}", disabled: !editable,
-                            oninput: move |event| support_draft.with_mut(|value| value.hole_diameter = event.value())
-                        }
-                    }
-                    label { "Z from midplane (mm)"
-                        input { r#type: "number", step: "0.1", aria_label: "Support Z from midplane", value: "{support_draft().z}", disabled: !editable,
-                            oninput: move |event| support_draft.with_mut(|value| value.z = event.value())
-                        }
-                    }
-                    label { "Ring height (mm)"
-                        input { r#type: "number", step: "0.1", aria_label: "Support ring height", value: "{support_draft().height}", disabled: !editable,
-                            oninput: move |event| support_draft.with_mut(|value| value.height = event.value())
-                        }
-                    }
-                }
-                button { r#type: "button", disabled: !editable || !has_source_mounts, onclick: move |_| {
+                Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: !editable || !has_source_mounts, onclick: move |_| {
                     let fields = support_draft().clone();
                     let source_mount = add_source_mounts.iter().find(|mount| mount.source_id == fields.mount_id);
                     let Some(mount) = source_mount else {
@@ -684,7 +769,7 @@ fn PcbMountedModuleInspector(
                         feedback.set("This source mounting hole already has a support. Remove it before adding another.".into());
                         return;
                     }
-                    draft.with_mut(|value| value.mount_supports.push(ModuleSupport {
+                    edit_module_draft(draft, draft_dirty, |value| value.mount_supports.push(ModuleSupport {
                         mount_id: mount.source_id.clone(),
                         outer_diameter,
                         hole_diameter,
@@ -696,18 +781,17 @@ fn PcbMountedModuleInspector(
                 }, "Add specified {support_kind}" }
                 if !has_source_mounts { p { "This module snapshot has no source mounting holes for support placement." } }
             }
-            label { input { r#type: "checkbox", checked: draft().detached, disabled: !editable,
-                onchange: move |event| draft.with_mut(|value| value.detached = event.checked())
-            } "Detached" }
-            section { class: "m1-pcb-module-connection", "aria-label": "VIK connection",
+            PcbCheck { label: "Detached", checked: draft().detached, disabled: !editable,
+                on_change: move |checked| edit_module_draft(draft, draft_dirty, |value| value.detached = checked)
+            }
+            section { "aria-label": "VIK connection",
                 h3 { "VIK connection" }
-                label { input {
-                    r#type: "checkbox",
+                PcbCheck { label: "Assign host connection",
                     checked: draft().connection.is_some(),
                     disabled: !editable,
-                    onchange: move |event| {
-                        if event.checked() {
-                            draft.with_mut(|value| value.connection = Some(ModuleConnection {
+                    on_change: move |checked| {
+                        if checked {
+                            edit_module_draft(draft, draft_dirty, |value| value.connection = Some(ModuleConnection {
                                 host_connector_part_id: if available_connectors.is_empty() && create_automatic_connector_on_toggle { automatic_connector_id_for_toggle.clone() } else { String::new() },
                                 module_port_id: default_module_port_id.clone(),
                                 bus_id: format!("vik/{}", value.id),
@@ -719,23 +803,21 @@ fn PcbMountedModuleInspector(
                                 upstream_port_id: None,
                             }));
                         } else {
-                            draft.with_mut(|value| value.connection = None);
+                            edit_module_draft(draft, draft_dirty, |value| value.connection = None);
                         }
                     }
-                } "Assign host connection" }
+                }
                 if let Some(connection) = draft().connection {
-                    label { "Host connector"
-                        select {
-                            aria_label: "Module host connector",
-                            value: "{connection.host_connector_part_id}",
-                            disabled: !editable,
-                            onchange: move |event| draft.with_mut(|value| if let Some(connection) = &mut value.connection { connection.host_connector_part_id = event.value(); }),
-                            option { value: "", "Select VIK host connector" }
-                            if connectors.is_empty() && automatic_connector_can_be_created {
-                                option { value: "{automatic_connector_id}", "Add source-backed horizontal VIK connector beside module" }
-                            }
-                            for (id, reference) in &connectors { option { value: "{id}", "{reference}" } }
-                        }
+                    PcbChoice {
+                        label: "Host connector",
+                        aria_label: "Module host connector",
+                        value: "{connection.host_connector_part_id}",
+                        disabled: !editable,
+                        searchable: true,
+                        on_change: move |next: String| edit_module_draft(draft, draft_dirty, |value| if let Some(connection) = &mut value.connection { connection.host_connector_part_id = next; }),
+                        options: std::iter::once((String::new(), "Select VIK host connector".into(), false))
+                            .chain((connectors.is_empty() && automatic_connector_can_be_created).then(|| (automatic_connector_id.clone(), "Add source-backed horizontal VIK connector beside module".into(), false)))
+                            .chain(connectors.iter().map(|(id, reference)| (id.clone(), reference.clone(), false))).collect(),
                     }
                     if connectors.is_empty() {
                         if automatic_connector_can_be_created {
@@ -744,121 +826,131 @@ fn PcbMountedModuleInspector(
                             p { "The automatic connector ID is already used by a part outside this board. Choose a valid host connector or clear the connection." }
                         }
                     }
-                    label { "Module port"
-                        select {
-                            aria_label: "Module input port",
-                            value: "{connection.module_port_id}",
-                            disabled: !editable,
-                            onchange: move |event| draft.with_mut(|value| if let Some(connection) = &mut value.connection { connection.module_port_id = event.value(); }),
-                            for port in definition.interfaces.iter().filter(|port| port.role == VikRole::Module) {
-                                option { value: "{port.id}", "{port.id}" }
-                            }
-                        }
+                    PcbChoice {
+                        label: "Module port",
+                        aria_label: "Module input port",
+                        value: "{connection.module_port_id}",
+                        disabled: !editable,
+                        searchable: true,
+                        on_change: move |next: String| edit_module_draft(draft, draft_dirty, |value| if let Some(connection) = &mut value.connection { connection.module_port_id = next; }),
+                        options: definition.interfaces.iter().filter(|port| port.role == VikRole::Module).map(|port| (port.id.clone(), port.id.clone(), false)).collect(),
                     }
-                    label { "Bus name"
-                        input { r#type: "text", aria_label: "Module bus name", value: "{connection.bus_id}", disabled: !editable,
-                            oninput: move |event| draft.with_mut(|value| if let Some(connection) = &mut value.connection { connection.bus_id = event.value(); })
-                        }
+                    PcbInput { label: "Bus name", r#type: InputType::Text, aria_label: "Module bus name", value: "{connection.bus_id}", disabled: !editable,
+                        oninput: move |event: FormEvent| edit_module_draft(draft, draft_dirty, |value| if let Some(connection) = &mut value.connection { connection.bus_id = event.value(); })
                     }
                     p { "12 contacts · 0.5 mm pitch · Type A cable · 3.3 V logic. Enter actual MCU terminals; shared buses are checked by their wiring." }
-                    div { class: "m1-pcb-module-signals",
+                    div {
                         for (signal, label) in vik_signals() {
-                            label { key: "{label}", "{label}"
-                                input { r#type: "text", aria_label: "VIK {label} terminal", value: "{connection.assignments.get(&signal).cloned().unwrap_or_default()}", disabled: !editable,
-                                    oninput: move |event| {
+                            PcbInput { key: "{label}", label: label.to_owned(), r#type: InputType::Text, aria_label: format!("VIK {label} terminal"), value: "{connection.assignments.get(&signal).cloned().unwrap_or_default()}", disabled: !editable,
+                                    oninput: move |event: FormEvent| {
                                         let terminal = event.value().trim().to_owned();
-                                        draft.with_mut(|value| if let Some(connection) = &mut value.connection {
+                                        edit_module_draft(draft, draft_dirty, |value| if let Some(connection) = &mut value.connection {
                                             if terminal.is_empty() { connection.assignments.remove(&signal); }
                                             else { connection.assignments.insert(signal, terminal); }
                                         });
                                     }
-                                }
                             }
                         }
                     }
-                    div { class: "m1-pcb-module-rail-values",
+                    div {
                         for (signal, label) in [(VikSignal::V3v3, "3.3V supply"), (VikSignal::V5, "5V supply"), (VikSignal::Gnd, "Ground") ] {
-                            label { key: "{label}", "{label} · V"
-                                input { r#type: "number", step: "0.1", aria_label: "VIK {label} voltage", value: "{connection.rail_voltages.get(&signal).map(ToString::to_string).unwrap_or_default()}", disabled: !editable,
-                                    oninput: move |event| {
+                            PcbInput { key: "{label}", label: format!("{label} · V"), r#type: InputType::Number, step: Some("0.1".into()), aria_label: format!("VIK {label} voltage"), value: "{connection.rail_voltages.get(&signal).map(ToString::to_string).unwrap_or_default()}", disabled: !editable,
+                                    oninput: move |event: FormEvent| {
                                         let raw = event.value();
-                                        draft.with_mut(|value| if let Some(connection) = &mut value.connection {
+                                        edit_module_draft(draft, draft_dirty, |value| if let Some(connection) = &mut value.connection {
                                             if raw.trim().is_empty() { connection.rail_voltages.remove(&signal); }
                                             else if let Ok(voltage) = raw.parse::<f64>() && voltage.is_finite() { connection.rail_voltages.insert(signal, voltage); }
                                         });
                                     }
-                                }
                             }
                         }
                     }
-                    label { "Supply budget · mA"
-                        input { r#type: "number", min: "0", aria_label: "VIK supply current budget", value: "{connection.supply_current_ma.map(|value| value.to_string()).unwrap_or_default()}", disabled: !editable,
-                            oninput: move |event| {
+                    PcbInput {
+                        label: "Supply budget · mA",
+                        r#type: InputType::Number, min: Some("0".into()),
+                        aria_label: "VIK supply current budget",
+                        value: "{connection.supply_current_ma.map(|value| value.to_string()).unwrap_or_default()}",
+                        disabled: !editable,
+                        oninput: move |event: FormEvent| {
                                 let raw = event.value();
-                                draft.with_mut(|value| if let Some(connection) = &mut value.connection {
+                                edit_module_draft(draft, draft_dirty, |value| if let Some(connection) = &mut value.connection {
                                     connection.supply_current_ma = if raw.trim().is_empty() { None } else { raw.parse::<f64>().ok().filter(|number| number.is_finite() && *number >= 0.0) };
                                 });
-                            }
-                        }
+                            },
+                        step: Some("1".into()),
                     }
                 }
             }
             if definition.circuit.is_some() {
-                section { class: "m1-pcb-module-circuit", "aria-label": "Use circuit on PCB",
+                section { "aria-label": "Use circuit on PCB",
                     h3 { "Use circuit on PCB" }
                     p { "Creates an independent, editable copy. Choose host nets for explicit joins; other nets remain local to this copy." }
                     for port in circuit_nets.clone() {
-                        label { key: "{port}", "{port.to_uppercase()} joins"
-                            select {
-                                aria_label: "Circuit {port} host net",
+                        PcbChoice { key: "{port}", label: format!("{} joins", port.to_uppercase()),
+                                aria_label: format!("Circuit {port} host net"), searchable: true,
                                 value: "{joins.read().get(&port).cloned().unwrap_or_default()}",
                                 disabled: !editable,
-                                onchange: move |event| {
-                                    let net_id = event.value();
+                                on_change: move |net_id: String| {
                                     joins.with_mut(|value| {
                                         if net_id.is_empty() { value.remove(&port); }
                                         else { value.insert(port.clone(), net_id); }
                                     });
                                 },
-                                option { value: "", "Separate local net" }
-                                for (id, name) in &host_nets { option { value: "{id}", "{name}" } }
-                            }
+                                options: std::iter::once((String::new(), "Separate local net".into(), false)).chain(host_nets.iter().map(|(id, name)| (id.clone(), name.clone(), false))).collect(),
                         }
                     }
-                    button { class: "m1-primary-button", r#type: "button", disabled: !editable || module_action_pending(tickets, "embed"), onclick: embed, "Copy circuit to PCB" }
+                    Button { class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: !editable || embed_disabled(), onclick: embed, "Copy circuit to PCB" }
+                    // A copy row cannot own its disabled Signal: the row unmounts when its
+                    // removal lands, before the settlement drain releases the binding, and
+                    // the drain would write a dropped Signal. The bounded removal action
+                    // owns this panel Signal, so one pending removal disables all copy
+                    // controls; the begin guard keeps a second click a no-op while a
+                    // sibling removal is still in flight.
                     for circuit in &embedded_circuits {
-                        div { class: "m1-pcb-module-circuit-copy", key: "{circuit.id}",
-                            span { "{circuit.part_ids.len()} components · {circuit.id.rsplit('/').next().unwrap_or(&circuit.id)}" }
-                            button { r#type: "button", disabled: !editable || module_action_pending(tickets, &format!("remove/{}", circuit.id)), onclick: {
-                                let circuit_id = circuit.id.clone();
-                                let remove_runtime = input.runtime.clone();
-                                let remove_scope = input.scope.clone();
-                                let remove_module_id = input.module_id.clone();
-                                let remove_context = input.selected_context;
-                                let remove_token = input.snapshot.token;
-                                let remove_revision = input.snapshot.document.revision;
-                                move |_| {
-                                    let Some(_snapshot) = mounted_owner_current(&remove_runtime, remove_context, &remove_scope, &remove_module_id, remove_token, remove_revision) else {
-                                        feedback.set("The selected module or accepted project changed. Reopen its placement before removing the circuit copy.".into());
-                                        return;
-                                    };
-                                    let action = format!("remove/{circuit_id}"); if module_action_pending(tickets, &action) { return; }
-                                    let ticket = EditTicket::begin(&remove_runtime, "remove-embedded-circuit", Some("circuit".into()), module_resolver(remove_scope.clone(), remove_module_id.clone(), Ok(EditOperation::RemoveEmbeddedCircuit { id: circuit_id.clone() })));
-                                    let mut tickets = tickets; let mut latest = latest; latest.set(Some(ticket.operation())); feedback.set(String::new()); tickets.write().push((action, ticket));
-                                }
-                            }, "Remove copy" }
+                        div { key: "{circuit.id}",
+                            span {
+                                "{circuit.part_ids.len()} components · {circuit.id.rsplit('/').next().unwrap_or(&circuit.id)}"
+                            }
+                            Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", aria_label: "Remove copy {circuit.id}",
+                                disabled: !editable || circuit_removal_disabled(),
+                                onclick: {
+                                    let circuit_id = circuit.id.clone();
+                                    let remove_runtime = input.runtime.clone();
+                                    let remove_scope = input.scope.clone();
+                                    let remove_module_id = input.module_id.clone();
+                                    let remove_context = input.selected_context;
+                                    let remove_token = input.snapshot.token;
+                                    let remove_revision = input.snapshot.document.revision;
+                                    let remove_actions = edits.clone();
+                                    move |_| {
+                                        if remove_actions.is_pending(&ModuleEditKey::RemoveCircuit) {
+                                            return;
+                                        }
+                                        let Some(_snapshot) = mounted_owner_current(&remove_runtime, remove_context, &remove_scope, &remove_module_id, remove_token, remove_revision) else {
+                                            feedback.set("The selected module or accepted project changed. Reopen its placement before removing the circuit copy.".into());
+                                            return;
+                                        };
+                                        let key = ModuleEditKey::RemoveCircuit;
+                                        let mut latest = latest;
+                                        latest.set(Some(key.clone()));
+                                        feedback.set(String::new());
+                                        remove_actions.begin_one_shot(&remove_runtime, key, "remove-embedded-circuit", Some("circuit".into()), module_resolver(remove_scope.clone(), remove_module_id.clone(), Ok(EditOperation::RemoveEmbeddedCircuit { id: circuit_id.clone() })));
+                                    }
+                                },
+                                "Remove copy"
+                            }
                         }
                     }
                 }
             }
-            section { class: "m1-pcb-module-components", "aria-label": "Individual components",
+            section { "aria-label": "Individual components",
                 h3 { "Individual components" }
                 p { "Place available source footprints independently. Component heights and assembly completeness need separate review." }
                 if definition.circuit.is_some() {
                     for constituent in constituent_actions.clone() {
-                        div { class: "m1-pcb-module-constituent", key: "{constituent.reference}-{constituent.index}",
+                        div { key: "{constituent.reference}-{constituent.index}",
                             div { strong { "{constituent.reference} · {constituent.name}" } small { if constituent.purchased { "Purchased assembly · footprint and external contacts only" } else { "{constituent.footprint}" } } }
-                            button { r#type: "button", disabled: !editable || constituent.source_definition.is_none(), onclick: move |_| {
+                            Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: !editable || constituent.source_definition.is_none(), aria_label: "Place {constituent.reference}", onclick: move |_| {
                                 if let Some(definition) = constituent.source_definition.clone() {
                                     on_place_component.call(super::part_placement::ComponentPlacementAction::AddSourceObject {
                                         module_definition_id: constituent.module_definition_id.clone(),
@@ -872,12 +964,62 @@ fn PcbMountedModuleInspector(
                     p { "This module has no editable component circuit source." }
                 }
             }
-            div { class: "m1-pcb-module-actions",
-                button { class: "m1-primary-button", r#type: "button", disabled: !editable || draft().connection.as_ref().is_some_and(|connection| connection.host_connector_part_id.is_empty()), onclick: save, "Save placement" }
-                button { class: "m1-danger-button", r#type: "button", disabled: !editable || module_action_pending(tickets, "remove-module"), onclick: remove, "Remove module" }
+            div { class: "flex flex-wrap gap-2 mt-1",
+                Button { class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: !editable || draft().connection.as_ref().is_some_and(|connection| connection.host_connector_part_id.is_empty()), onclick: save, "Save placement" }
+                Button { variant: ButtonVariant::Destructive, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: !editable || remove_disabled(), onclick: remove, "Remove module" }
             }
-            if !feedback().is_empty() { p { role: "status", "{feedback()}" } }
+            if !feedback().is_empty() {
+                Alert { variant: AlertVariant::Destructive, "{feedback()}" }
+            } else if latest() == Some(ModuleEditKey::Placement) {
+                if let Some(message) = placement_failure() {
+                    Alert { variant: AlertVariant::Destructive, "{message}" }
+                }
+            }
         }
+    }
+}
+
+/// Mark actual user changes independently of their value. Accepted projection and
+/// helper settlement writes do not go through this path.
+fn edit_module_draft(
+    mut draft: Signal<MountedModule>,
+    mut dirty: Signal<bool>,
+    edit: impl FnOnce(&mut MountedModule),
+) {
+    let before = draft.peek().clone();
+    draft.with_mut(edit);
+    if *draft.peek() != before {
+        dirty.set(true);
+    }
+}
+
+fn edit_module_number(
+    draft: Signal<MountedModule>,
+    dirty: Signal<bool>,
+    mut invalid: Signal<BTreeMap<&'static str, String>>,
+    field: &'static str,
+    raw: String,
+    nonnegative: bool,
+    edit: impl FnOnce(&mut MountedModule, f64),
+) {
+    // Empty service clearance has always meant zero; other empty fields are
+    // incomplete input, not a change to the typed placement's last valid value.
+    let number = if field == "clearance" && raw.trim().is_empty() {
+        Some(0.0)
+    } else {
+        raw.parse::<f64>().ok()
+    };
+    if let Some(number) =
+        number.filter(|number| number.is_finite() && (!nonnegative || *number >= 0.0))
+    {
+        invalid.with_mut(|invalid| {
+            invalid.remove(field);
+        });
+        edit_module_draft(draft, dirty, |value| edit(value, number));
+    } else {
+        invalid.with_mut(|invalid| {
+            invalid.insert(field, raw);
+        });
     }
 }
 
@@ -1009,24 +1151,12 @@ fn mounted_selection_current(
         })
 }
 
-fn module_action_pending(tickets: Signal<Vec<(String, EditTicket)>>, action: &str) -> bool {
-    tickets
-        .read()
-        .iter()
-        .any(|(kind, ticket)| kind == action && ticket.is_pending())
-}
-
 fn module_resolver(
     scope: Scope,
     module_id: String,
     operation: Result<EditOperation, String>,
 ) -> EditResolver {
     EditResolver::new("pcb-module", move |accepted: &AcceptedSnapshot| {
-        if accepted.session_epoch != scope.session_epoch
-            || accepted.document.id != scope.document_id
-        {
-            return Resolution::Retire(boardstudio_application::DOCUMENT_SESSION_CHANGED.into());
-        }
         let operation = match &operation {
             Ok(operation) => operation,
             Err(reason) => return Resolution::Retire(reason.clone()),
@@ -1089,13 +1219,7 @@ fn module_resolver(
             }
             _ => {}
         }
-        Resolution::Submit(EditCommand {
-            base_revision: accepted.document.revision,
-            transaction_id: String::new(),
-            phase: EditPhase::Commit,
-            target_ids: vec![module_id.clone()],
-            operation: operation.clone(),
-        })
+        Resolution::submit(vec![module_id.clone()], operation.clone())
     })
 }
 
@@ -1138,6 +1262,8 @@ mod mounted_save_replacement_tests {
         Completion, Effect, OperationId, SaveResult, Scope as AppScope, Session,
     };
     use boardstudio_core::{CoreEngine, model::*};
+    use boardstudio_web_ui_shared::test_role::by_role_name;
+    use boardstudio_web_ui_shared::test_wait::wait_until_step;
     use gloo_timers::future::TimeoutFuture;
     use std::{collections::VecDeque, rc::Rc};
     use wasm_bindgen::JsCast;
@@ -1224,6 +1350,8 @@ mod mounted_save_replacement_tests {
                 contours: Vec::new(),
                 holes: Vec::new(),
                 thickness: Some(1.6),
+                pcb_source: None,
+                round_drills: Vec::new(),
             },
             mounts: Vec::new(),
             volumes: Vec::new(),
@@ -1344,6 +1472,260 @@ mod mounted_save_replacement_tests {
     }
 
     #[wasm_bindgen_test]
+    async fn module_face_choice_and_detached_checkbox_are_keyboard_accessible() {
+        use crate::runtime::project_name_test_support as support;
+        use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
+        let (session, core) = accepted(module_document(
+            "module-control-project",
+            "Control project",
+            1.0,
+        ));
+        let runtime = support::new_runtime();
+        support::install(&runtime, session, core);
+        let probe = Rc::new(Probe {
+            initial_scope: runtime.scope().unwrap(),
+            runtime: runtime.clone(),
+            module_id: "placement-collision".into(),
+        });
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(mounted_editor_host);
+        dom.provide_root_context(probe);
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_until("module face choice mounts", || {
+            by_role_name(&root, "button", "Module host face").is_some()
+        })
+        .await;
+        let face = by_role_name(&root, "button", "Module host face").unwrap();
+        face.focus().unwrap();
+        let event = web_sys::KeyboardEventInit::new();
+        event.set_key("Enter");
+        event.set_bubbles(true);
+        event.set_cancelable(true);
+        face.dispatch_event(
+            &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &event).unwrap(),
+        )
+        .unwrap();
+        wait_until("module face list opens", || {
+            by_role_name(&root, "listbox", "Module host face").is_some()
+        })
+        .await;
+        let list = by_role_name(&root, "listbox", "Module host face").unwrap();
+        let event = web_sys::KeyboardEventInit::new();
+        event.set_key("End");
+        event.set_bubbles(true);
+        event.set_cancelable(true);
+        list.dispatch_event(
+            &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &event).unwrap(),
+        )
+        .unwrap();
+        wait_until("back face is focused", || {
+            by_role_name(&root, "option", "Back")
+                .is_some_and(|option| option.matches(":focus").unwrap())
+        })
+        .await;
+        let back = by_role_name(&root, "option", "Back").unwrap();
+        let event = web_sys::KeyboardEventInit::new();
+        event.set_key("Enter");
+        event.set_bubbles(true);
+        event.set_cancelable(true);
+        back.dispatch_event(
+            &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &event).unwrap(),
+        )
+        .unwrap();
+        wait_until("selected face is shown and focus returns", || {
+            face.text_content()
+                .is_some_and(|text| text.contains("Back"))
+                && face.matches(":focus").unwrap()
+        })
+        .await;
+        let detached = by_role_name(&root, "checkbox", "Detached").unwrap();
+        assert_eq!(
+            detached.get_attribute("aria-checked").as_deref(),
+            Some("false")
+        );
+        detached.click();
+        wait_until("detached toggles", || {
+            detached.get_attribute("aria-checked").as_deref() == Some("true")
+        })
+        .await;
+        runtime.unsubscribe();
+        root.remove();
+    }
+
+    struct ModuleUpdate;
+    impl boardstudio_web_host::host::UpdateSignals for ModuleUpdate {
+        fn snapshot(&self) -> boardstudio_web_host::offline::UpdateSnapshot {
+            boardstudio_web_host::offline::UpdateSnapshot {
+                waiting: true,
+                installing: false,
+                controlled: true,
+            }
+        }
+        fn watch(&self, _: Rc<dyn Fn()>) -> Box<dyn boardstudio_web_host::host::UpdateWatch> {
+            struct Stop;
+            impl boardstudio_web_host::host::UpdateWatch for Stop {
+                fn stop(&mut self) {}
+            }
+            Box::new(Stop)
+        }
+        fn adopt_waiting(
+            &self,
+        ) -> std::pin::Pin<
+            Box<
+                dyn std::future::Future<
+                        Output = Result<(), boardstudio_web_host::offline::AdoptError>,
+                    >,
+            >,
+        > {
+            Box::pin(async { Ok(()) })
+        }
+        fn reload(&self) {}
+    }
+
+    fn module_areas(
+        runtime: &Rc<Runtime>,
+        opener: boardstudio_web_runtime::update_safety::UpdateOpener,
+    ) -> Vec<String> {
+        use boardstudio_web_runtime::update_safety::{UpdateBlocker, UpdateDialog};
+        runtime.cancel_update_dialog();
+        runtime.begin_update(opener);
+        match runtime.update_dialog() {
+            Some(UpdateDialog::Deferred { blockers }) => blockers.into_iter().filter_map(|blocker| match blocker {
+                UpdateBlocker::UnresolvedDraft { area, remedy } => {
+                    assert_eq!(area, "Mounted module placement");
+                    assert_eq!(remedy, "Save placement (add any pending support first), restore the fields, or close");
+                    Some(area)
+                }, _ => None,
+            }).collect(),
+            None => Vec::new(),
+            other => panic!("unexpected update dialog: {other:?}"),
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_module_valid_and_invalid_placement_defer_both_openers_013() {
+        use crate::runtime::project_name_test_support as support;
+        use boardstudio_web_runtime::update_safety::UpdateOpener;
+        for opener in [UpdateOpener::Toast, UpdateOpener::Header] {
+            for text in ["8", ""] {
+                let runtime = support::new_runtime();
+                support::open_document(
+                    &runtime,
+                    module_document("module-update-013", "Module update", 1.0),
+                )
+                .await;
+                let probe = Rc::new(Probe {
+                    initial_scope: runtime.scope().unwrap(),
+                    runtime: runtime.clone(),
+                    module_id: "placement-collision".into(),
+                });
+                let document = web_sys::window().unwrap().document().unwrap();
+                let root = document.create_element("div").unwrap();
+                document.body().unwrap().append_child(&root).unwrap();
+                let dom = VirtualDom::new(mounted_editor_host);
+                dom.provide_root_context(probe);
+                dioxus_web::launch::launch_virtual_dom(
+                    dom,
+                    dioxus_web::Config::new().rootnode(root.clone().into()),
+                );
+                settle().await;
+                let x = by_role_name(&root, "spinbutton", "X (mm)")
+                    .unwrap()
+                    .dyn_into::<HtmlInputElement>()
+                    .unwrap();
+                x.set_value(text);
+                let init = web_sys::EventInit::new();
+                init.set_bubbles(true);
+                x.dispatch_event(
+                    &web_sys::Event::new_with_event_init_dict("input", &init).unwrap(),
+                )
+                .unwrap();
+                settle().await;
+                runtime.observe_update_waiting(Rc::new(ModuleUpdate));
+                assert_eq!(
+                    module_areas(&runtime, opener),
+                    vec!["Mounted module placement"]
+                );
+                assert_eq!(x.value(), text);
+                root.set_attribute("hidden", "true").unwrap();
+                assert_eq!(
+                    module_areas(&runtime, opener),
+                    vec!["Mounted module placement"],
+                    "hidden is not unmounted"
+                );
+                root.remove_attribute("hidden").unwrap();
+                x.set_value("1");
+                x.dispatch_event(
+                    &web_sys::Event::new_with_event_init_dict("input", &init).unwrap(),
+                )
+                .unwrap();
+                settle().await;
+                assert!(module_areas(&runtime, opener).is_empty());
+                runtime.unsubscribe();
+                root.remove();
+            }
+        }
+    }
+
+    // Scope departure is distinct from the revert story: its safe Update Now
+    // check starts adoption, so a fresh runtime is needed to prove retirement.
+    #[wasm_bindgen_test]
+    async fn mounted_module_scope_departure_retires_unsubmitted_placement_013() {
+        use crate::runtime::project_name_test_support as support;
+        use boardstudio_web_runtime::update_safety::UpdateOpener;
+        let runtime = support::new_runtime();
+        let mut document = module_document("module-scope-013", "Module scope", 1.0);
+        let mut other_board = document.boards[0].clone();
+        other_board.id = "other-board".into();
+        document.boards.push(other_board);
+        support::open_document(&runtime, document).await;
+        let probe = Rc::new(Probe {
+            initial_scope: runtime.scope().unwrap(),
+            runtime: runtime.clone(),
+            module_id: "placement-collision".into(),
+        });
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(mounted_editor_host);
+        dom.provide_root_context(probe);
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        settle().await;
+        let x = by_role_name(&root, "spinbutton", "X (mm)")
+            .unwrap()
+            .dyn_into::<HtmlInputElement>()
+            .unwrap();
+        x.set_value("8");
+        let init = web_sys::EventInit::new();
+        init.set_bubbles(true);
+        x.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &init).unwrap())
+            .unwrap();
+        settle().await;
+        runtime.observe_update_waiting(Rc::new(ModuleUpdate));
+        assert_eq!(
+            module_areas(&runtime, UpdateOpener::Toast),
+            vec!["Mounted module placement"]
+        );
+        support::navigate(&runtime, "other-board").await;
+        settle().await;
+        assert!(
+            !x.is_connected(),
+            "scope departure unmounts the old placement editor"
+        );
+        assert!(module_areas(&runtime, UpdateOpener::Header).is_empty());
+        runtime.unsubscribe();
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
     async fn placement_fields_queue_two_commits_keep_the_draft_and_undo_in_order() {
         use crate::runtime::project_name_test_support as support;
         let (session, core) = accepted(module_document(
@@ -1368,18 +1750,11 @@ mod mounted_save_replacement_tests {
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         settle().await;
-        let x = root
-            .query_selector("input[type='number']")
-            .unwrap()
+        let x = by_role_name(&root, "spinbutton", "X (mm)")
             .unwrap()
             .dyn_into::<HtmlInputElement>()
             .unwrap();
-        let save = root
-            .query_selector(".m1-pcb-module-actions button.m1-primary-button")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap();
+        let save = by_role_name(&root, "button", "Save placement").unwrap();
         let (entered, release) = support::gate_next_core_reply(&runtime);
         let input_event = web_sys::EventInit::new();
         input_event.set_bubbles(true);
@@ -1405,38 +1780,240 @@ mod mounted_save_replacement_tests {
         settle().await;
         assert_eq!(x.value(), "9.5");
         release.send(()).unwrap();
-        for _ in 0..12 {
+        wait_until_step("the queued placement commits land", async || {
             support::run_pending(&runtime).await;
-            settle().await;
-        }
-        assert_eq!(
-            runtime.model().accepted.unwrap().document.modules[0].at.x,
-            9.5
-        );
-        assert_eq!(x.value(), "9.5");
+            runtime.model().accepted.unwrap().document.modules[0].at.x == 9.5 && x.value() == "9.5"
+        })
+        .await;
         runtime.submit(boardstudio_application::Event::Undo {
             operation_id: runtime.operation(),
         });
-        for _ in 0..8 {
-            support::run_pending(&runtime).await;
-            settle().await;
-        }
-        assert_eq!(
-            runtime.model().accepted.unwrap().document.modules[0].at.x,
-            7.25
-        );
-        assert_eq!(x.value(), "7.25");
+        wait_until_step(
+            "the first Undo restores the earlier accepted coordinate",
+            async || {
+                support::run_pending(&runtime).await;
+                runtime.model().accepted.unwrap().document.modules[0].at.x == 7.25
+                    && x.value() == "7.25"
+            },
+        )
+        .await;
         runtime.submit(boardstudio_application::Event::Undo {
             operation_id: runtime.operation(),
         });
-        for _ in 0..8 {
-            support::run_pending(&runtime).await;
-            settle().await;
+        wait_until_step(
+            "the second Undo restores the baseline coordinate",
+            async || {
+                support::run_pending(&runtime).await;
+                runtime.model().accepted.unwrap().document.modules[0].at.x == 1.0
+            },
+        )
+        .await;
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn circuit_removal_disables_siblings_and_rejects_a_retained_sibling_handler() {
+        use crate::runtime::project_name_test_support as support;
+        let mut document = module_document("module-removal-project", "Copy project", 1.0);
+        document.module_definitions[0].circuit = Some(ModuleCircuit {
+            definitions: Vec::new(),
+            parts: Vec::new(),
+            nets: Vec::new(),
+            ports: BTreeMap::new(),
+            adaptations: Vec::new(),
+        });
+        for id in ["circuit/first", "circuit/sibling"] {
+            document.embedded_circuits.push(EmbeddedCircuit {
+                id: id.into(),
+                definition_id: "definition-collision".into(),
+                host_board_id: "board-collision".into(),
+                part_ids: Vec::new(),
+                net_ids: Vec::new(),
+                ports: BTreeMap::new(),
+            });
         }
-        assert_eq!(
-            runtime.model().accepted.unwrap().document.modules[0].at.x,
-            1.0
+        let runtime = support::new_runtime();
+        support::open_document(&runtime, document).await;
+        let probe = Rc::new(Probe {
+            initial_scope: runtime.scope().unwrap(),
+            runtime: runtime.clone(),
+            module_id: "placement-collision".into(),
+        });
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(mounted_editor_host);
+        dom.provide_root_context(probe);
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
         );
+        settle().await;
+        let first = by_role_name(&root, "button", "Remove copy circuit/first").unwrap();
+        let sibling = by_role_name(&root, "button", "Remove copy circuit/sibling").unwrap();
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        first.click();
+        settle().await;
+        support::drive_pending(&runtime);
+        with_stage_timeout(entered, "circuit removal Core gate")
+            .await
+            .unwrap();
+        settle().await;
+        assert!(first.has_attribute("disabled"));
+        assert!(sibling.has_attribute("disabled"));
+
+        // Invoke the retained rendered sibling handler despite the browser's native
+        // disabled-button admission. The handler must also enforce the shared action.
+        sibling.remove_attribute("disabled").unwrap();
+        sibling.click();
+        sibling.set_attribute("disabled", "").unwrap();
+        settle().await;
+        release.send(()).unwrap();
+        wait_until_step(
+            "the circuit removal lands and its siblings re-enable",
+            async || {
+                support::run_pending(&runtime).await;
+                runtime
+                    .model()
+                    .accepted
+                    .unwrap()
+                    .document
+                    .embedded_circuits
+                    .len()
+                    == 1
+                    && by_role_name(&root, "button", "Remove copy circuit/first").is_none()
+                    && by_role_name(&root, "button", "Remove copy circuit/sibling").is_some()
+                    && !sibling.has_attribute("disabled")
+            },
+        )
+        .await;
+        let accepted = runtime.model().accepted.unwrap();
+        assert_eq!(
+            accepted
+                .document
+                .embedded_circuits
+                .iter()
+                .map(|copy| copy.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["circuit/sibling"],
+            "the retained sibling handler must not queue another removal"
+        );
+        assert!(
+            by_role_name(&root, "button", "Remove copy circuit/first").is_none()
+                && by_role_name(&root, "button", "Remove copy circuit/sibling").is_some(),
+            "the removed row unmounts without a dropped-Signal settlement write"
+        );
+        assert!(
+            !sibling.has_attribute("disabled"),
+            "the shared control re-enables after drain"
+        );
+        assert!(!root.text_content().unwrap().contains("Saved"));
+        runtime.unsubscribe();
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn newer_placement_returning_to_baseline_survives_landing_and_clean_accepted_updates() {
+        use crate::runtime::project_name_test_support as support;
+        let runtime = support::new_runtime();
+        support::open_document(
+            &runtime,
+            module_document("module-baseline-project", "Baseline project", 1.0),
+        )
+        .await;
+        let probe = Rc::new(Probe {
+            initial_scope: runtime.scope().unwrap(),
+            runtime: runtime.clone(),
+            module_id: "placement-collision".into(),
+        });
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(mounted_editor_host);
+        dom.provide_root_context(probe);
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        settle().await;
+        let x = by_role_name(&root, "spinbutton", "X (mm)")
+            .unwrap()
+            .dyn_into::<HtmlInputElement>()
+            .unwrap();
+        let save = by_role_name(&root, "button", "Save placement").unwrap();
+        let input = web_sys::EventInit::new();
+        input.set_bubbles(true);
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        x.set_value("7");
+        x.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &input).unwrap())
+            .unwrap();
+        settle().await;
+        save.click();
+        settle().await;
+        support::drive_pending(&runtime);
+        with_stage_timeout(entered, "return-to-baseline placement Core gate")
+            .await
+            .unwrap();
+        x.set_value("1");
+        x.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &input).unwrap())
+            .unwrap();
+        settle().await;
+        release.send(()).unwrap();
+        wait_until_step(
+            "the earlier accepted placement commits under the newer draft",
+            async || {
+                support::run_pending(&runtime).await;
+                runtime.model().accepted.unwrap().document.modules[0].at.x == 7.0
+            },
+        )
+        .await;
+        assert_eq!(
+            x.value(),
+            "1",
+            "returning to the previous accepted value is still a newer draft"
+        );
+
+        runtime.submit(boardstudio_application::Event::Undo {
+            operation_id: runtime.operation(),
+        });
+        wait_until_step("the Undo restores the baseline coordinate", async || {
+            support::run_pending(&runtime).await;
+            runtime.model().accepted.unwrap().document.modules[0].at.x == 1.0
+        })
+        .await;
+        assert_eq!(x.value(), "1");
+        runtime.submit(boardstudio_application::Event::Redo {
+            operation_id: runtime.operation(),
+        });
+        wait_until_step("the clean draft follows Undo and Redo", async || {
+            support::run_pending(&runtime).await;
+            x.value() == "7"
+        })
+        .await;
+
+        let _external = boardstudio_web_runtime::edit_ticket::EditTicket::begin(
+            &runtime,
+            "external-module-placement",
+            Some("placement".into()),
+            EditResolver::new("pcb-module", |accepted| {
+                let mut instance = accepted.document.modules[0].clone();
+                instance.at.x = 9.0;
+                Resolution::submit(
+                    vec![instance.id.clone()],
+                    EditOperation::SetMountedModule {
+                        instance: Box::new(instance),
+                        definition: None,
+                        host_connector_definition: None,
+                    },
+                )
+            }),
+        );
+        wait_until_step("the external accepted update lands", async || {
+            support::run_pending(&runtime).await;
+            runtime.model().accepted.unwrap().document.modules[0].at.x == 9.0 && x.value() == "9"
+        })
+        .await;
+        runtime.unsubscribe();
         root.remove();
     }
 
@@ -1465,18 +2042,11 @@ mod mounted_save_replacement_tests {
                 dioxus_web::Config::new().rootnode(root.clone().into()),
             );
             settle().await;
-            let x = root
-                .query_selector("input[type='number']")
-                .unwrap()
+            let x = by_role_name(&root, "spinbutton", "X (mm)")
                 .unwrap()
                 .dyn_into::<HtmlInputElement>()
                 .unwrap();
-            let save = root
-                .query_selector(".m1-pcb-module-actions button.m1-primary-button")
-                .unwrap()
-                .unwrap()
-                .dyn_into::<web_sys::HtmlElement>()
-                .unwrap();
+            let save = by_role_name(&root, "button", "Save placement").unwrap();
             support::fail_next_core_reply(&runtime, "injected placement refusal");
             let input_event = web_sys::EventInit::new();
             input_event.set_bubbles(true);
@@ -1496,24 +2066,18 @@ mod mounted_save_replacement_tests {
                 .unwrap();
                 settle().await;
             }
-            for _ in 0..12 {
-                support::run_pending(&runtime).await;
-                settle().await;
-            }
-            assert_eq!(
-                runtime.model().accepted.unwrap().document.modules[0].at.x,
-                1.0
-            );
-            assert_eq!(
-                x.value(),
-                if preserve_draft { "8" } else { "1" },
-                "failure restores the committed draft and preserves later typing"
-            );
-            let text = root.text_content().unwrap();
-            assert!(
-                text.contains("injected placement refusal"),
-                "mounted text: {text}"
-            );
+            wait_until_step(
+                "the failed placement restores the accepted coordinate",
+                async || {
+                    support::run_pending(&runtime).await;
+                    runtime.model().accepted.unwrap().document.modules[0].at.x == 1.0
+                        && x.value() == if preserve_draft { "8" } else { "1" }
+                        && root
+                            .text_content()
+                            .is_some_and(|text| text.contains("injected placement refusal"))
+                },
+            )
+            .await;
             runtime.unsubscribe();
             root.remove();
         }
@@ -1523,13 +2087,19 @@ mod mounted_save_replacement_tests {
     async fn mounted_save_persist_settlement_cannot_cross_replacement_with_colliding_ids() {
         let (session, core) = accepted(module_document("old-module-project", "Old project", 1.0));
         let runtime = crate::runtime::project_name_test_support::new_runtime();
-        crate::runtime::project_name_test_support::install(&runtime, session, core);
-        let initial = runtime.model().accepted.expect("old project accepted");
+        let initial = session
+            .read_model()
+            .accepted
+            .as_ref()
+            .expect("old project accepted")
+            .document
+            .clone();
         runtime
             .store
-            .save_document(&initial.document, &std::collections::BTreeMap::new())
+            .save_document(&initial, &std::collections::BTreeMap::new())
             .await
             .expect("seed the old project's durable baseline");
+        crate::runtime::project_name_test_support::install(&runtime, session, core);
         let initial_scope = runtime.scope().expect("old project has scope");
         let probe = Rc::new(Probe {
             runtime: runtime.clone(),
@@ -1551,9 +2121,7 @@ mod mounted_save_replacement_tests {
         let (entered, release) =
             crate::runtime::project_name_test_support::gate_next_persist(&runtime);
         let operation = crate::runtime::project_name_test_support::observe_next(&runtime);
-        let x = root
-            .query_selector("input[type='number']")
-            .unwrap()
+        let x = by_role_name(&root, "spinbutton", "X (mm)")
             .expect("mounted placement X input exists")
             .dyn_into::<HtmlInputElement>()
             .unwrap();
@@ -1565,8 +2133,7 @@ mod mounted_save_replacement_tests {
             .unwrap();
         settle().await;
         assert_eq!(
-            root.query_selector("input[type='number']")
-                .unwrap()
+            by_role_name(&root, "spinbutton", "X (mm)")
                 .expect("placement X input remains mounted")
                 .dyn_into::<HtmlInputElement>()
                 .unwrap()
@@ -1574,24 +2141,18 @@ mod mounted_save_replacement_tests {
             "7.25",
             "the mounted X field retains the dispatched draft value after rerender"
         );
-        root.query_selector("button.m1-primary-button")
-            .unwrap()
+        by_role_name(&root, "button", "Save placement")
             .expect("Save placement button exists")
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap()
             .click();
         settle().await;
         assert!(
-            root.query_selector("button.m1-primary-button")
-                .unwrap()
+            !by_role_name(&root, "button", "Save placement")
                 .expect("Save placement button remains mounted")
-                .has_attribute("disabled")
-                == false,
+                .has_attribute("disabled"),
             "placement fields queue freely while their earlier ticket is pending"
         );
         assert_eq!(
-            root.query_selector("input[type='number']")
-                .unwrap()
+            by_role_name(&root, "spinbutton", "X (mm)")
                 .expect("placement X input remains mounted during Save")
                 .dyn_into::<HtmlInputElement>()
                 .unwrap()
@@ -1618,6 +2179,19 @@ mod mounted_save_replacement_tests {
             "the accepted read model remains the last durable document while Persist is pending"
         );
         let saved_revision = saving_snapshot.document.revision + 1;
+        runtime.observe_update_waiting(Rc::new(ModuleUpdate));
+        x.set_value("9.5");
+        x.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &input).unwrap())
+            .unwrap();
+        settle().await;
+        assert_eq!(
+            module_areas(
+                &runtime,
+                boardstudio_web_runtime::update_safety::UpdateOpener::Toast
+            ),
+            vec!["Mounted module placement"],
+            "newer input remains unresolved while the older save persists"
+        );
 
         let (replacement, _replacement_core) = accepted(module_document(
             "new-module-project",
@@ -1635,10 +2209,17 @@ mod mounted_save_replacement_tests {
             Some("Replacement project")
         );
         assert!(
-            root.query_selector(".m1-pcb-module-inspector")
-                .unwrap()
-                .is_none(),
+            by_role_name(&root, "button", "Save placement").is_none(),
             "old placement feedback/editor is absent in the replacement owner"
+        );
+        runtime.observe_update_waiting(Rc::new(ModuleUpdate));
+        assert!(
+            module_areas(
+                &runtime,
+                boardstudio_web_runtime::update_safety::UpdateOpener::Header
+            )
+            .is_empty(),
+            "replacement unmount retires the old placement draft"
         );
         let replacement_before = runtime.model().accepted.expect("replacement accepted");
         assert_eq!(replacement_before.document.id, "new-module-project");
@@ -1664,10 +2245,11 @@ mod mounted_save_replacement_tests {
             "after the old IndexedDB write completes, the replacement Session has no old-operation feedback"
         );
         assert!(
-            !root
-                .text_content()
-                .unwrap_or_default()
-                .contains("Placement saved.")
+            by_role_name(&root, "button", "Save placement")
+                .and_then(|button| button.parent_element())
+                .and_then(|actions| actions.next_element_sibling())
+                .is_none_or(|next| !next.matches("p[role='status']").unwrap()),
+            "a landed placement shows no status message"
         );
         let _ = runtime
             .store

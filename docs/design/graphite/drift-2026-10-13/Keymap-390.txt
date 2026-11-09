@@ -1,0 +1,62 @@
+Your app is being rebuilt.
+
+A non-hot-reloadable change occurred and we must rebuild.
+
+Corne
+2D
+3D assembly
+Footprints
+—
+—
+—
+—
+—
+—
+—
+—
+—
+—
+—
+—
+—
+—
+—
+—
+—
+—
+—
+—
+—
+Inspect
+Keymap
+1 layers · 21 keys
+Keys
+Macros
+Encoders
+left-keys-SW1 · Base
+
+Unassigned
+
+Behavior
+Key press
+Mod tap
+Layer tap
+Momentary layer
+Toggle layer
+Go to layer
+Sticky layer
+Sticky key
+Macro
+Transparent
+Unassigned
+Export ZMK source
+
+Local source export. Configure controller and wiring in PCB before building firmware.
+
+Grid ¼u
+Fit board
+Fit selection
+−
+94%
++
+Layout findings: 2

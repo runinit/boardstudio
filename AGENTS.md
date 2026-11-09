@@ -1,33 +1,52 @@
 # BoardStudio
 
-- Architecture (ownership across Rust and browser providers): [docs/architecture.md](docs/architecture.md). Domain terms: [CONTEXT.md](CONTEXT.md). Directory map: Source layout in [README.md](README.md).
-- Development and check commands: [README.md](README.md). Browser presentation compiles only for WASM; native tests alone do not validate it.
-- Before finishing, run the affected steps of `python3 scripts/check.py` (`--list` shows them: `repo`, `tooling`, `lint`, `build`, `test`, `typecheck`, `browser`; `deny` after dependency changes). Presentation changes need `typecheck` and `browser`. Run the full check before a PR.
-- Components, footprints, modules, models: read [component onboarding](docs/hardware/component-onboarding.md) before changing.
-- UI or visual work: read [DESIGN.md](DESIGN.md) (large; only for UI). Product scope and users: [PRODUCT.md](PRODUCT.md). Other docs: [docs/README.md](docs/README.md); deferred issues: [docs/backlog.md](docs/backlog.md).
-- Preserve unrelated work and user project data. Keep fixes and their verification within the affected behavior.
+- Commands: [README.md](README.md).
+- Architecture: [architecture](docs/architecture.md), [decisions](docs/adr/README.md), [terms](GLOSSARY.md).
+- UI/product: [DESIGN.md](DESIGN.md), [PRODUCT.md](PRODUCT.md).
+- Hardware: [component onboarding](docs/hardware/component-onboarding.md).
 
-## Git safety
+## Editing
 
-- Stage explicit paths only; never `git add -A` or `git add .`.
-- Never `git stash`: the working tree may hold uncommitted work that a stash would capture.
-- To commit part of a file that also holds unrelated edits, build the staged blob from `git show HEAD:<file>` plus your edit (`git hash-object -w`, `git update-index --cacheinfo`) so the working tree keeps both.
+- Inventory: to find every use of a field or type you change, remove it and read the `cargo check` errors.
+- Scripted edits: replace one exact, unique string and assert the match count. Read the diff before running tests. Checkpoint with a WIP commit on your branch before a large scripted edit.
+- CAD migration review: follow the [map decisions](docs/plans/cad-backend-replacement/map.md#closure-and-workflow-decisions-2026-10-18-user). Run one combined spec+standards review at ticket closure or when a change touches public API, geometry, allowances or a cross-crate contract; private storage and test-only slices get RED/GREEN evidence and a diff read instead. An explicit `code-review` request and 012's final two-axis review still apply.
+- Verification: mutation checks use `scripts/mutation-check.py`; `check.py test` guards native test counts by test name.
+- Tests: before adding, changing or reviewing test code, read [test economy](CODING_STANDARDS.md#test-economy).
+- Evidence: `.evidence/` holds logs only, except committed handoff records; redirect long check and mutation output there and report only results and relevant failures. Never create Cargo `target` directories or copy crate source trees inside `.evidence/`. Never generate `PREIMAGES.json`, `POSTIMAGES.json`, `before/` or `after/` file copies, or custom SHA-256 manifest files—Git already tracks source state.
 
-## Rust
+## Environment & Build Guardrails
 
-- Toolchain and edition: `rust-toolchain.toml` (1.98, edition 2024). Workspace lints live in the root `Cargo.toml`; the `lint` step denies warnings, so new code must be rustfmt- and Clippy-clean.
-- Suppress a lint on the narrowest item only, with a trailing comment saying why; a workspace-wide allow needs its justification in `Cargo.toml`.
-- Errors: follow the surrounding module's error shape (many Core and Session APIs return `Result<_, String>`). Do not add `thiserror`, `anyhow` or a new error hierarchy unless the ticket asks for it.
-- Browser crates are single-threaded WASM on Dioxus: `Rc`, `RefCell` and signals are the norm; do not add `Arc`, `Mutex` or `Send` bounds there.
-- The `rust-skills` and `rust-best-practices` skills, when installed, apply to writing and reviewing Rust. Where they disagree with this file, the workspace lints or the surrounding crate's conventions, the repo wins.
+- `$TMPDIR` changes when the sandbox is lifted; write anything that must survive to an absolute path.
+- Cargo: lift the sandbox unless `.claude/settings.json` allowlists the directory `readlink -f target` prints (it differs per worktree: lane worktrees point into `~/.cache/boardstudio-target`, session worktrees share the main checkout's `target`). `.worktreeinclude` carries that file into new worktrees.
+- Build flags: let `.cargo/config.toml` (`jobs = 12`) and `scripts/run-wasm-tests.py` (`CARGO_PROFILE_DEV_DEBUG=false`) govern concurrency and debuginfo. Never pass `CARGO_BUILD_JOBS=2`, `CARGO_INCREMENTAL=0`, or `CARGO_PROFILE_DEV_DEBUG=2`.
+- Single build per target: do not manually launch overlapping `cargo` or `wasm-pack` commands against the same `target` directory or busy-poll background commands in a tight loop. The supported `scripts/check.py` scheduler owns its bounded independent launches, governed by `BOARDSTUDIO_CHECK_JOBS`.
 
-## Docs and tracking
+Historical workflow documents are not operating instructions.
 
-- Issue tracker: specs, wayfinder maps and tickets are Markdown under `docs/plans/<effort>/`; see `docs/agents/issue-tracker.md`.
-- Domain docs: single-context, `CONTEXT.md` at the root and ADRs in `docs/adr/`.
+## Browser Automation
 
-## Tooling
+Use `agent-browser` for web automation. Run `agent-browser --help` for all commands.
 
-- Code questions, call paths and blast radius: GitNexus (indexed as `boardstudio`). Use `query` for concepts and flows, `context` for a named symbol, and `impact` (upstream) before changing a shared symbol's signature or behaviour; the `gitnexus-*` skills cover each workflow. A `risk: UNKNOWN` or empty caller set is unanswered, not safe: confirm with a text search before changing or deleting. Rename symbols with GitNexus `rename`, not find-and-replace.
-- Library, framework, or API docs (Rust crates, wasm-bindgen, web-sys, browser APIs): Context7 (`resolve-library-id`, then `query-docs`) rather than memory or web search.
-- Past decisions, "why did we do X", prior debugging: `memsearch:memory-recall` before re-deriving. Skip it for questions about current code state. Where memory disagrees with `CONTEXT.md`, ADRs, or `docs/plans/`, the docs win.
+Core workflow:
+
+1. `agent-browser open <url>` - Navigate to page
+2. `agent-browser snapshot -i` - Get interactive elements with refs (@e1, @e2)
+3. `agent-browser click @e1` / `fill @e2 "text"` - Interact using refs
+4. Re-snapshot after page changes
+
+### Issue tracker
+
+Committed Markdown tickets under `docs/plans/<plan>/issues/`. Authoring, implementing or reviewing a ticket: follow its proof-map, review-report and completion-record protocol in [issue tracker](docs/agents/issue-tracker.md#building-and-verifying-a-ticket).
+
+### Triage labels
+
+The five default roles, recorded as a ticket's `Status:`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `GLOSSARY.md` and `docs/adr/`. See `docs/agents/domain.md`.
+
+### Orchestration
+
+- Routing delegated planning, implementation, research, checks, and review: [model routing](docs/agents/model-routing.md).
+- Looking up one selected provider/model for delegation: [model lookup](docs/agents/model-lookup.md).

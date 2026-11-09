@@ -448,6 +448,9 @@ pub fn matrix_with_assembly(
                 .iter()
                 .find(|cell| cell.row == row && cell.column == column);
             cells.push(MatrixCell {
+                shift: None,
+                bend: None,
+                deleted: false,
                 row,
                 column,
                 enabled: previous.is_none_or(|cell| cell.enabled),
@@ -655,6 +658,7 @@ pub fn document_with_assembly(
                 rotation: member.pose.rotation,
             },
             side: member.side.clone(),
+            anchor: None,
             locked: None,
             properties: Some(properties),
             generator_parameters: None,

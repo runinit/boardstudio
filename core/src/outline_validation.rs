@@ -1,5 +1,6 @@
 //! Fabrication checks consume only the active perimeter, independently per board.
 use crate::{geometry, model::*, outline_versions};
+use boardstudio_contracts::{path_contains, path_signed_area};
 use i_overlay::{
     core::{fill_rule::FillRule, overlay_rule::OverlayRule},
     float::single::SingleFloatOverlay,
@@ -61,16 +62,7 @@ impl Material {
     fn contains(&self, p: [f64; 2]) -> bool {
         self.paths
             .iter()
-            .flat_map(|path| {
-                path.iter()
-                    .zip(path.iter().cycle().skip(1))
-                    .take(path.len())
-            })
-            .fold(false, |inside, (a, b)| {
-                inside
-                    ^ ((a[1] > p[1]) != (b[1] > p[1])
-                        && p[0] < (b[0] - a[0]) * (p[1] - a[1]) / (b[1] - a[1]) + a[0])
-            })
+            .fold(false, |inside, path| inside ^ path_contains(path, p))
     }
 }
 fn paths(contours: &[Contour]) -> Vec<Path> {
@@ -132,15 +124,17 @@ fn pad_path(at: Vec2, size: Vec2, shape: &PadShape, rotation: f64) -> Vec<Vec2> 
     }
     points
 }
-fn world(part: &Part, points: &[Vec2]) -> Path {
-    let (sin, cos) = part.pose.rotation.to_radians().sin_cos();
+fn world(doc: &ProjectDoc, part: &Part, points: &[Vec2]) -> Path {
+    // Ticket 12: half-frame parts validate at their evaluated board pose.
+    let pose = crate::matrix::layout::evaluated_part_pose(doc, part);
+    let (sin, cos) = pose.rotation.to_radians().sin_cos();
     points
         .iter()
         .map(|p| {
             let x = if part.side == Side::Back { -p.x } else { p.x };
             [
-                part.pose.at.x + x * cos - p.y * sin,
-                part.pose.at.y + x * sin + p.y * cos,
+                pose.at.x + x * cos - p.y * sin,
+                pose.at.y + x * sin + p.y * cos,
             ]
         })
         .collect()
@@ -204,22 +198,13 @@ fn support_paths(
     }
     paths
 }
-fn area(path: &Path) -> f64 {
-    path.iter()
-        .zip(path.iter().cycle().skip(1))
-        .take(path.len())
-        .map(|(a, b)| a[0] * b[1] - a[1] * b[0])
-        .sum::<f64>()
-        .abs()
-        / 2.0
-}
 fn missing(path: &Path, material: &Material, clearance: f64) -> bool {
     if path.len() < 3
         || path
             .iter()
             .flatten()
             .any(|coordinate| !coordinate.is_finite())
-        || area(path) < 1e-9
+        || path_signed_area(path).abs() < 1e-9
     {
         return false;
     }
@@ -265,7 +250,7 @@ fn missing(path: &Path, material: &Material, clearance: f64) -> bool {
         .overlay(&material.paths, OverlayRule::Difference, FillRule::EvenOdd)
         .iter()
         .flatten()
-        .map(area)
+        .map(|ring| path_signed_area(ring).abs())
         .sum::<f64>()
         > 0.000_001
 }
@@ -400,19 +385,7 @@ pub(crate) fn validate(
             .iter()
             .filter(|contour| !contour.hole)
             .count();
-        let expected = outline_versions::active_snapshot(doc, &board.id)
-            .map(|snapshot| snapshot.expected_regions as usize)
-            .unwrap_or_else(|| {
-                if doc
-                    .layouts
-                    .iter()
-                    .any(|layout| layout.board_id == board.id && layout.mirror_link.is_some())
-                {
-                    2
-                } else {
-                    1
-                }
-            });
+        let expected = outline_versions::expected_regions(doc, &board.id);
         if regions > expected {
             report(
                 "disconnected".into(),
@@ -443,7 +416,7 @@ pub(crate) fn validate(
             }
             let required: Vec<_> = support[definition.id.as_str()]
                 .iter()
-                .map(|path| world(part, path))
+                .map(|path| world(doc, part, path))
                 .collect();
             if let Some(Some(Err(error))) = native.get(definition.id.as_str()) {
                 report(
@@ -453,7 +426,7 @@ pub(crate) fn validate(
                         part.reference, error.message
                     ),
                     Some(&part.id),
-                    vec![contour(world(part, &definition.courtyard))],
+                    vec![contour(world(doc, part, &definition.courtyard))],
                     Severity::Error,
                 );
             }
@@ -476,7 +449,7 @@ pub(crate) fn validate(
                     Severity::Error,
                 );
             }
-            let body = world(part, &definition.courtyard);
+            let body = world(doc, part, &definition.courtyard);
             if definition.courtyard.len() >= 3 && !geometry::valid_polygon(&definition.courtyard) {
                 report(
                     format!("body-source:{}", part.id),
@@ -523,7 +496,11 @@ pub(crate) fn validate(
             if definition.kind == PartKind::Switch
                 && let Some(size) = part.keycap.or(definition.keycap)
             {
-                let keycap = world(part, &pad_path(Vec2::default(), size, &PadShape::Rect, 0.0));
+                let keycap = world(
+                    doc,
+                    part,
+                    &pad_path(Vec2::default(), size, &PadShape::Rect, 0.0),
+                );
                 if missing(&keycap, &material, 0.0) {
                     report(
                         format!("keycap:{}", part.id),
@@ -578,7 +555,10 @@ pub(crate) fn validate(
                 ) {
                     let substantial: Vec<_> = cores
                         .iter()
-                        .filter(|shape| area(&shape[0]) > repair.minimum_connection_width.powi(2))
+                        .filter(|shape| {
+                            path_signed_area(&shape[0]).abs()
+                                > repair.minimum_connection_width.powi(2)
+                        })
                         .collect();
                     if substantial.len() > 1 {
                         let mut regions = vec![];
@@ -626,6 +606,7 @@ pub(crate) fn feature_markers(doc: &ProjectDoc, findings: &[Finding]) -> Vec<Fin
     let mut markers = vec![];
     for board in &doc.boards {
         for feature in outline_versions::features(doc, board) {
+            let feature_id = feature.id().to_owned();
             let points = match feature {
                 OutlineFeature::Polygon {
                     points,
@@ -636,7 +617,7 @@ pub(crate) fn feature_markers(doc: &ProjectDoc, findings: &[Finding]) -> Vec<Fin
                         .as_ref()
                         .and_then(|id| doc.parts.iter().find(|part| &part.id == id))
                     {
-                        contour(world(part, points)).points
+                        contour(world(doc, part, &points)).points
                     } else {
                         points.clone()
                     }
@@ -648,17 +629,13 @@ pub(crate) fn feature_markers(doc: &ProjectDoc, findings: &[Finding]) -> Vec<Fin
                     anchor_part_id,
                     ..
                 } => {
-                    let points = pad_path(
-                        *center,
-                        *size,
-                        &PadShape::Rect,
-                        rotation.unwrap_or_default(),
-                    );
+                    let points =
+                        pad_path(center, size, &PadShape::Rect, rotation.unwrap_or_default());
                     if let Some(part) = anchor_part_id
                         .as_ref()
                         .and_then(|id| doc.parts.iter().find(|part| &part.id == id))
                     {
-                        contour(world(part, &points)).points
+                        contour(world(doc, part, &points)).points
                     } else {
                         points
                     }
@@ -670,7 +647,7 @@ pub(crate) fn feature_markers(doc: &ProjectDoc, findings: &[Finding]) -> Vec<Fin
             }
             for finding in findings.iter().filter(|finding| {
                 finding.severity == Severity::Error
-                    && finding.target_ids.iter().any(|id| id == feature.id())
+                    && finding.target_ids.iter().any(|id| id == &feature_id)
             }) {
                 markers.push(FindingMarker {
                     finding_id: finding.id.clone(),
@@ -698,7 +675,7 @@ pub(crate) fn feature_markers(doc: &ProjectDoc, findings: &[Finding]) -> Vec<Fin
                         .iter()
                         .find(|definition| definition.id == part.definition_id)
                         .filter(|definition| !definition.courtyard.is_empty())
-                        .map(|definition| contour(world(part, &definition.courtyard)))
+                        .map(|definition| contour(world(doc, part, &definition.courtyard)))
                 })
                 .collect();
             if !contours.is_empty() {

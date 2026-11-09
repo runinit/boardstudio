@@ -1,0 +1,25 @@
+{
+  "id": "I",
+  "name": "Graphite",
+  "page": "Layout",
+  "file": "i-graphite.png",
+  "palette": [
+    "#15171B",
+    "#202329",
+    "#3A3F48",
+    "#9AADFF"
+  ],
+  "model": "Neutral charcoal surfaces with the existing blue and violet accents",
+  "risk": "The palette relies on distinct surface brightness rather than hue shifts.",
+  "prompt": "Edit the reference BoardStudio Layout mockup into a polished DARK THEME variant. Preserve refined D's layout and functionality: exactly one slim top bar, docked Objects tree left, docked Inspector right, central flat 2D split-keyboard geometry, direct move/stagger/offset/splay mouse handles, visible snapping and slim bottom status. No floating panels, tables, second top row, detached inspector windows or photographic keyboards. Render one complete 16:10 desktop application edge to edge.\nThe important CHANGE is a CLEANER, LEGIBLE ADAPTIVE CONTEXT TOOLBAR. Replace the reference's loose unboxed icons above the keyboard with ONE compact solid-backed horizontal tool strip near the selected column, about 48px tall, with a crisp border and enough contrast from the canvas to read immediately. This is only a compact contextual toolbar, never a floating settings panel or another app-wide bar. Use icons PLUS readable labels in a SINGLE horizontal line, not icons above labels. Controls: Move, Stagger, Offset, Splay, then a fine divider, Align dropdown and More ellipsis. Stagger is selected: a filled periwinkle button with very dark text and icon, not merely a thin underline. Other actions have light text and icons on the solid toolbar surface. Consistent 36px button heights, 14px labels, restrained 6px corners, deliberate spacing, no glow or translucent glass. The tool strip has one uninterrupted background, not separate disconnected bubbles. It does not cover the selection or obscure dimensions.\nRetain direct geometry controls attached to left Column 3: three selected keys, an obvious move cross handle, vertical stagger handle with clickable \u201c4.0 mm\u201d value, horizontal offset handle \u201c0.0 mm\u201d, splay arc \u201c6\u00b0\u201d with clear Column base pivot. Handle endpoints have sufficient visible size, light accent strokes and a dark contrasting edge; labels must be readable against the canvas. Active Stagger is prominent; other handles quieter. Exact values appear in the right inspector: Column 3 \u00b7 3 keys, Stagger 4.0 mm, Offset 0.0 mm, Splay 6\u00b0, Origin Column base, collapsed Position, Key assembly, Advanced. Left tree selected Column 3 matches the canvas. Snap enabled 0.25u at left dock bottom. Preserve a sober technical humanist sans and precise monospaced values. Existing periwinkle-blue and violet accents remain the brand vocabulary; these options vary the dark neutral surfaces, not the application structure or features.\nKeep the keyboard CAD geometry sharp and two dimensional, no gradients, no glow, no ornamental patterns. Strong separation between canvas, dock surfaces, toolbar and fields. This is a practical editor to operate with the mouse, not a cinematic sci-fi interface.\nTHEME:\nUse a NEUTRAL GRAPHITE interpretation: canvas #15171B, dock panels #202329, header #1A1D22, toolbar SOLID #3A3F48 with border #727C8B, text #EDF1F7, muted #AFBCCB. Keep existing #9AADFF periwinkle primary/handles and #B98CD1 component accents, selected fill #303B56, board outline muted #6AB99D. Fields #171A20, visible #66717F rules. No orange or copper accents. Neutral charcoal makes the blue direct controls and selected Stagger button stand out. The canvas must read noticeably more neutral than the Midnight version, and the raised toolbar should be instantly distinguishable without shadow effects.",
+  "source": "/home/chris/.codex/generated_images/01a12e4e-cf9d-7da0-86c6-ff2bfcdfe49f/exec-abd162d9-b11f-401c-9eaa-302ac3db8606.png",
+  "references": [
+    "/home/chris/.codex/worktrees/2182/ts-boardstudio2/.impeccable/mocks/redesign-2026-10-12/layout-refined-d/d-direct-geometry.png"
+  ],
+  "approved": true,
+  "approval": {
+    "date": "2026-10-12",
+    "user_instruction": "lets go with graphite.. mock up the other pages now please, mockup a new project browser and onboarding experience as well",
+    "scope": "Visual direction for the cross-workspace mockup suite; not application implementation"
+  }
+}

@@ -3,7 +3,11 @@
 use boardstudio_application::{AcceptedSnapshot, Scope};
 #[cfg(all(test, feature = "page"))]
 use boardstudio_core::CoreEngine;
+use boardstudio_core::hash::sha256_hex;
 use boardstudio_core::model::*;
+pub use boardstudio_core::model::{
+    CadStepImportOptions, is_sha256_hex, validate_affine_row_transform,
+};
 use serde::{Deserialize, Serialize};
 
 pub const MAX_CAD_REVISION: u64 = 9_007_199_254_740_991;
@@ -23,9 +27,198 @@ pub struct CadSnapshotIdentity {
 #[serde(rename_all = "kebab-case")]
 pub enum CadOperation {
     Preview,
+    PrintKeycaps,
     Exact,
     ExportStep,
     ReadStep,
+    AnalyzeGeneratedBody,
+    CollisionQuery,
+}
+
+pub const MAX_COLLISION_QUERY_BYTES: usize = 64 * 1024 * 1024;
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CadCollisionQuery {
+    pub left: CadCollisionOperand,
+    pub right: CadCollisionOperand,
+    pub clearance_threshold_mm: f64,
+    #[serde(deserialize_with = "required_accuracy")]
+    pub requested_accuracy_mm: Option<f64>,
+    pub qualification_limits: crate::cad_qualification::Limits,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CadCollisionOperand {
+    pub model_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_sha256: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub generated_geometry_identity: Option<String>,
+    #[serde(default)]
+    pub import_options: CadStepImportOptions,
+    pub row_transform_f64: [f64; 16],
+    pub analysis_ref: Option<crate::cad_qualification::AnalysisRef>,
+    pub analysis_mesh: Option<crate::cad_qualification::AnalysisMesh>,
+}
+
+fn required_accuracy<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<f64>, D::Error> {
+    Option::deserialize(deserializer)
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct CadCollisionMeshPair {
+    pub left_positions_mm_f64: Vec<f64>,
+    pub left_triangle_face_occurrence_indices: Vec<u32>,
+    pub right_positions_mm_f64: Vec<f64>,
+    pub right_triangle_face_occurrence_indices: Vec<u32>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct CadTriangleProvenance {
+    pub triangle_index: u32,
+    pub face_occurrence_index: u32,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct CadTrianglePairProvenance {
+    pub left: CadTriangleProvenance,
+    pub right: CadTriangleProvenance,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CadContactWitness {
+    pub triangles: CadTrianglePairProvenance,
+    pub point1_mm: [f64; 3],
+    pub point2_mm: [f64; 3],
+    pub normal1: [f64; 3],
+    pub normal2: [f64; 3],
+    pub triangle_pair_contact_dist_mm: f64,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CadClosestPointsWitness {
+    pub triangles: CadTrianglePairProvenance,
+    pub point1_mm: [f64; 3],
+    pub point2_mm: [f64; 3],
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum CadCollisionObservation {
+    #[serde(rename_all = "camelCase")]
+    SurfaceIntersecting {
+        intersection_triangles: CadTrianglePairProvenance,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        contact_witness: Option<CadContactWitness>,
+    },
+    #[serde(rename_all = "camelCase")]
+    SurfaceSeparated {
+        surface_distance_mm: f64,
+        closest_points: CadClosestPointsWitness,
+    },
+    #[serde(rename_all = "camelCase")]
+    Uncertain {
+        reason: String,
+        #[serde(default)]
+        partial_intersection: bool,
+    },
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CadVendorStep {
+    pub analysis_ref: Option<crate::cad_qualification::AnalysisRef>,
+    pub analysis_mesh: Option<crate::cad_qualification::AnalysisMesh>,
+    pub source_qualification: Option<crate::cad_qualification::SourceQualification>,
+    pub source_sha256: String,
+    #[serde(default)]
+    pub import_options: CadStepImportOptions,
+    pub surface_positions_mm_f64: Vec<f64>,
+    pub source_faces: Vec<CadStepSourceFace>,
+    pub face_occurrences: Vec<CadStepFaceOccurrence>,
+    pub triangle_face_occurrence_indices: Vec<u32>,
+    pub line_segments_mm_f64: Vec<f64>,
+    pub line_render_positions: Vec<f32>,
+    pub line_occurrences: Vec<CadStepLineOccurrence>,
+    pub segment_line_occurrence_indices: Vec<u32>,
+    pub precision: Vec<CadStepPrecision>,
+    pub accuracy: CadStepAccuracy,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CadStepSourceFace {
+    pub solid_id: String,
+    pub shell_index: u32,
+    pub face_id: String,
+    pub support_id: String,
+    pub support_kind: String,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CadStepFaceOccurrence {
+    pub source_face_index: u32,
+    pub solid_occurrence_index: u32,
+    pub representation_id: String,
+    pub source_uncertainty_mm: Option<f64>,
+    pub repair_displacement_mm: Option<f64>,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CadStepLineOccurrence {
+    pub line_occurrence_index: u32,
+    pub trimmed_curve_id: String,
+    pub source_line_id: String,
+    pub curve_set_id: String,
+    pub representation_id: String,
+    pub source_unit_to_mm: f64,
+    pub placement_f64: [f64; 16],
+    pub declared_uncertainty_mm: Option<f64>,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CadStepPrecision {
+    pub representation_id: String,
+    pub context_id: String,
+    pub geometric_dimension: Option<u32>,
+    pub declarations: Vec<CadStepUncertainty>,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CadStepUncertainty {
+    pub entity_id: String,
+    pub length_unit_id: String,
+    pub millimetres: f64,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CadStepAccuracy {
+    pub preview_deflection_mm: f64,
+    pub preview_angular_rad: f64,
+    pub analysis_error_bound_mm: Option<f64>,
+    pub selected_repair_budget_mm: Option<f64>,
+    pub max_repair_displacement_mm: Option<f64>,
+    pub bounds_from_source_geometry: bool,
+    pub mesh_closed_oriented: bool,
+    pub preview_floor_mm: f64,
+    pub preview_declared_multiplier: f64,
+    pub relaxed_beyond_declared_precision: bool,
+    pub sampled_support_checks: u32,
+    pub max_sampled_support_residual_mm: Option<f64>,
+    pub fallback_meshed_faces: u32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -37,6 +230,16 @@ pub struct CadRequest {
     pub operation: CadOperation,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub prepared: Option<PreparedCaseAssemblyIR>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_sha256: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub step_import_options: Option<CadStepImportOptions>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub collision_query: Option<CadCollisionQuery>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub generated_analysis_request: Option<CadGeneratedAnalysisRequest>,
+    #[serde(skip)]
+    pub collision_meshes: Option<CadCollisionMeshPair>,
     #[serde(skip)]
     pub input_bytes: Vec<u8>,
 }
@@ -67,11 +270,64 @@ pub struct CadBounds {
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase", default)]
 pub struct CadResult {
+    pub query_qualification: Option<crate::cad_qualification::QueryQualification>,
     pub revision: u64,
     pub step: Vec<u8>,
     pub mesh: Option<CadMesh>,
     pub bodies: Vec<CadBodyMesh>,
     pub bounds: Option<CadBounds>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vendor_step: Option<CadVendorStep>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub collision: Option<CadCollisionObservation>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub generated_analysis: Option<CadGeneratedAnalysis>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CadGeneratedAnalysisRequest {
+    pub body_id: String,
+    pub geometry_identity: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target_deflection_mm: Option<f64>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CadGeneratedAnalysis {
+    #[serde(default)]
+    pub analysis_ref: Option<crate::cad_qualification::AnalysisRef>,
+    #[serde(default)]
+    pub analysis_mesh: Option<crate::cad_qualification::AnalysisMesh>,
+    #[serde(default)]
+    pub source_qualification: Option<crate::cad_qualification::SourceQualification>,
+    pub body_id: String,
+    pub revision: u64,
+    pub geometry_identity: String,
+    pub surface_positions_mm_f64: Vec<f64>,
+    pub triangle_face_occurrence_indices: Vec<u32>,
+    pub source_faces: Vec<CadGeneratedSourceFace>,
+    pub face_occurrences: Vec<CadGeneratedFaceOccurrence>,
+    pub analysis_error_bound_mm: Option<f64>,
+    pub mesh_closed_oriented: bool,
+    pub deflection_mm: f64,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CadGeneratedSourceFace {
+    pub solid_index: u32,
+    pub shell_index: u32,
+    pub face_index: u32,
+    pub support_kind: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CadGeneratedFaceOccurrence {
+    pub source_face_index: u32,
+    pub solid_occurrence_index: u32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -124,9 +380,7 @@ pub fn validate_reply(
                 .result
                 .take()
                 .ok_or_else(|| CadJobError::Failed("CAD worker returned no result".into()))?;
-            if request.operation != CadOperation::ReadStep
-                && result.revision != request.identity.revision
-            {
+            if result.revision != request.identity.revision {
                 return Err(CadJobError::Stale(
                     "CAD result has another document revision".into(),
                 ));
@@ -158,6 +412,27 @@ fn validate_result_payload(request: &CadRequest, result: &CadResult) -> Result<(
             && (0..3).all(|axis| bounds.min[axis] <= bounds.max[axis])
     };
     match request.operation {
+        CadOperation::AnalyzeGeneratedBody => {
+            let metadata = request
+                .generated_analysis_request
+                .as_ref()
+                .ok_or_else(|| bad("generated analysis omitted request metadata"))?;
+            validate_generated_analysis_request(
+                request.prepared.as_ref(),
+                request.identity.revision,
+                metadata,
+            )
+            .map_err(|reason| bad(&reason))?;
+            let analysis = result
+                .generated_analysis
+                .as_ref()
+                .ok_or_else(|| bad("generated analysis omitted payload"))?;
+            validate_generated_analysis(metadata, request.identity.revision, analysis)
+                .map_err(|reason| bad(&reason))?;
+        }
+        CadOperation::PrintKeycaps => {
+            return Err(bad("printable keycaps require the keycap request adapter"));
+        }
         CadOperation::Preview => {
             let expected = request
                 .prepared
@@ -205,10 +480,559 @@ fn validate_result_payload(request: &CadRequest, result: &CadResult) -> Result<(
             }
         }
         CadOperation::ReadStep => {
-            if !result.mesh.as_ref().is_some_and(valid_mesh)
-                || !result.bounds.as_ref().is_some_and(valid_bounds)
-            {
+            let Some(expected_sha) = request
+                .source_sha256
+                .as_deref()
+                .filter(|sha| is_sha256_hex(sha))
+            else {
+                return Err(bad("STEP import requires a canonical source SHA-256"));
+            };
+            let expected_options = request
+                .step_import_options
+                .unwrap_or_default()
+                .validate()
+                .map_err(|reason| bad(&reason))?;
+            let (Some(mesh), Some(bounds)) = (
+                result.mesh.as_ref().filter(|mesh| valid_mesh(mesh)),
+                result.bounds.as_ref().filter(|bounds| valid_bounds(bounds)),
+            ) else {
                 return Err(bad("STEP import mesh or bounds are invalid"));
+            };
+            let Some(vendor_step) = result.vendor_step.as_ref() else {
+                return Err(bad("STEP import omitted vendor STEP source metadata"));
+            };
+            validate_vendor_step(expected_sha, expected_options, mesh, bounds, vendor_step)
+                .map_err(|reason| bad(&reason))?;
+        }
+        CadOperation::CollisionQuery => {
+            let Some(query) = request.collision_query.as_ref() else {
+                return Err(bad("collision query omitted metadata"));
+            };
+            validate_collision_query(query).map_err(|reason| bad(&reason))?;
+            if let Some(meshes) = request.collision_meshes.as_ref() {
+                validate_collision_mesh_pair(meshes).map_err(|reason| bad(&reason))?;
+            }
+            let Some(collision) = result.collision.as_ref() else {
+                return Err(bad("collision query omitted observation"));
+            };
+            validate_collision_observation(request.collision_meshes.as_ref(), collision)
+                .map_err(|reason| bad(&reason))?;
+            let report = result
+                .query_qualification
+                .clone()
+                .ok_or_else(|| bad("missing query qualification"))?;
+            let expected = crate::cad_qualification::expected_binding(
+                query,
+                &request.identity,
+                &report.binding.worker_generation,
+            )
+            .map_err(|reason| bad(&reason))?;
+            crate::cad_qualification::validate_query_qualification(
+                report,
+                &expected,
+                &query.qualification_limits,
+                request
+                    .collision_meshes
+                    .as_ref()
+                    .ok_or_else(|| bad("missing query buffers"))?,
+                None,
+            )
+            .map_err(|reason| bad(&reason))?;
+        }
+    }
+    Ok(())
+}
+
+/// Shares the production generated geometry cache's m1 revision. Include the
+/// complete prepared body, rather than presentation meshes or a STEP source hash.
+pub fn generated_geometry_identity(body: &PreparedCaseIR) -> Result<String, String> {
+    let bytes = serde_json::to_vec(body).map_err(|error| error.to_string())?;
+    let digest = sha256_hex(&bytes);
+    Ok(format!("m1/generated-analysis-v2/{digest}"))
+}
+
+pub fn validate_generated_analysis_request<'a>(
+    prepared: Option<&'a PreparedCaseAssemblyIR>,
+    revision: u64,
+    metadata: &CadGeneratedAnalysisRequest,
+) -> Result<&'a PreparedCaseIR, String> {
+    let assembly = prepared
+        .filter(|assembly| assembly.revision == revision)
+        .ok_or("generated analysis requires the captured prepared assembly")?;
+    let bodies = assembly
+        .bodies
+        .iter()
+        .filter(|body| body.body.id == metadata.body_id)
+        .collect::<Vec<_>>();
+    if bodies.len() != 1 || bodies[0].revision != revision {
+        return Err("generated analysis requires exactly one body at the captured revision".into());
+    }
+    if metadata
+        .target_deflection_mm
+        .is_some_and(|value| !value.is_finite() || value <= 0.0)
+    {
+        return Err("generated targetDeflectionMm must be finite and positive".into());
+    }
+    if generated_geometry_identity(bodies[0])? != metadata.geometry_identity {
+        return Err("generated geometry identity does not match prepared body".into());
+    }
+    Ok(bodies[0])
+}
+
+pub fn validate_generated_analysis(
+    metadata: &CadGeneratedAnalysisRequest,
+    revision: u64,
+    analysis: &CadGeneratedAnalysis,
+) -> Result<(), String> {
+    match (
+        &analysis.analysis_ref,
+        &analysis.analysis_mesh,
+        &analysis.source_qualification,
+    ) {
+        (Some(reference), Some(mesh), Some(source)) => {
+            crate::cad_qualification::validate_analysis(
+                reference,
+                mesh,
+                source,
+                analysis.analysis_error_bound_mm,
+            )?;
+            crate::cad_qualification::validate_source_triangle_cap(
+                mesh,
+                source,
+                analysis.triangle_face_occurrence_indices.len(),
+            )?;
+            if reference.source
+                != (crate::cad_qualification::Source::GeneratedBody {
+                    body_id: analysis.body_id.clone(),
+                    revision,
+                    geometry_identity: metadata.geometry_identity.clone(),
+                })
+                || mesh.settings.target_deflection_mm.map(f64::to_bits)
+                    != metadata.target_deflection_mm.map(f64::to_bits)
+                || mesh.settings.selected_deflection_mm.to_bits()
+                    != analysis.deflection_mm.to_bits()
+            {
+                return Err("generated source descriptor does not match preparation".into());
+            }
+        }
+        (None, None, None) if analysis.analysis_error_bound_mm.is_none() => {}
+        _ => return Err("incomplete generated qualification metadata".into()),
+    }
+    if analysis.body_id != metadata.body_id
+        || analysis.revision != revision
+        || analysis.geometry_identity != metadata.geometry_identity
+    {
+        return Err("generated analysis belongs to another body, geometry or revision".into());
+    }
+    let selected_deflection_mm = metadata.target_deflection_mm.unwrap_or(0.1).min(0.1);
+    if metadata
+        .target_deflection_mm
+        .is_some_and(|target| !target.is_finite() || target <= 0.0)
+        || !analysis.deflection_mm.is_finite()
+        || analysis.deflection_mm <= 0.0
+        || analysis.deflection_mm != selected_deflection_mm
+        || analysis
+            .analysis_error_bound_mm
+            .is_some_and(|bound| !bound.is_finite() || bound < 0.0)
+    {
+        return Err("generated analysis has invalid or insufficient accuracy settings".into());
+    }
+    let positions = &analysis.surface_positions_mm_f64;
+    if positions.is_empty()
+        || !positions.len().is_multiple_of(9)
+        || positions.len().saturating_mul(8).saturating_add(
+            analysis
+                .triangle_face_occurrence_indices
+                .len()
+                .saturating_mul(4),
+        ) > MAX_COLLISION_QUERY_BYTES
+        || positions.iter().any(|value| !value.is_finite())
+        || analysis.triangle_face_occurrence_indices.len() != positions.len() / 9
+        || analysis
+            .triangle_face_occurrence_indices
+            .iter()
+            .any(|&index| index as usize >= analysis.face_occurrences.len())
+        || analysis
+            .face_occurrences
+            .iter()
+            .any(|occurrence| occurrence.source_face_index as usize >= analysis.source_faces.len())
+        || analysis
+            .source_faces
+            .iter()
+            .any(|face| face.support_kind.trim().is_empty())
+    {
+        return Err("generated analysis mesh or retained face occurrences are invalid".into());
+    }
+    Ok(())
+}
+
+pub fn valid_step_entity_id(value: &str) -> bool {
+    !value.is_empty() && (value == "0" || !value.starts_with('0')) && value.parse::<u64>().is_ok()
+}
+
+pub fn validate_vendor_step(
+    expected_sha: &str,
+    expected_options: CadStepImportOptions,
+    mesh: &CadMesh,
+    bounds: &CadBounds,
+    vendor_step: &CadVendorStep,
+) -> Result<(), String> {
+    match (
+        &vendor_step.analysis_ref,
+        &vendor_step.analysis_mesh,
+        &vendor_step.source_qualification,
+    ) {
+        (Some(reference), Some(descriptor), Some(source)) => {
+            crate::cad_qualification::validate_analysis(
+                reference,
+                descriptor,
+                source,
+                vendor_step.accuracy.analysis_error_bound_mm,
+            )?;
+            crate::cad_qualification::validate_source_triangle_cap(
+                descriptor,
+                source,
+                vendor_step.triangle_face_occurrence_indices.len(),
+            )?;
+            if let crate::cad_qualification::SourceQualification::Bounded {
+                source_precision_mm,
+                ..
+            } = source
+            {
+                let declared = vendor_step
+                    .precision
+                    .iter()
+                    .flat_map(|p| &p.declarations)
+                    .map(|d| d.millimetres)
+                    .chain(
+                        vendor_step
+                            .face_occurrences
+                            .iter()
+                            .filter_map(|f| f.source_uncertainty_mm),
+                    )
+                    .fold(0_f64, f64::max);
+                if *source_precision_mm < declared {
+                    return Err("source qualification omits declared STEP precision".into());
+                }
+            }
+            if reference.source
+                != (crate::cad_qualification::Source::VendorStep {
+                    source_sha256: expected_sha.to_owned(),
+                    import_options: expected_options.into(),
+                })
+                || descriptor.settings.selected_deflection_mm.to_bits()
+                    != vendor_step.accuracy.preview_deflection_mm.to_bits()
+                || descriptor.settings.angular_rad.to_bits()
+                    != vendor_step.accuracy.preview_angular_rad.to_bits()
+            {
+                return Err("vendor source descriptor does not match authenticated import".into());
+            }
+        }
+        (None, None, None) if vendor_step.accuracy.analysis_error_bound_mm.is_none() => {}
+        _ => return Err("incomplete vendor qualification metadata".into()),
+    }
+    if !is_sha256_hex(expected_sha)
+        || !is_sha256_hex(&vendor_step.source_sha256)
+        || vendor_step.source_sha256 != expected_sha
+    {
+        return Err("STEP import returned a mismatched or non-canonical sourceSha256".into());
+    }
+    let expected_options = expected_options.validate()?;
+    vendor_step.import_options.validate()?;
+    if !vendor_step.import_options.same_identity(expected_options) {
+        return Err("STEP import returned mismatched import options".into());
+    }
+    if mesh.positions.is_empty()
+        || !mesh.positions.len().is_multiple_of(9)
+        || mesh.normals.len() != mesh.positions.len()
+        || mesh
+            .positions
+            .iter()
+            .chain(&mesh.normals)
+            .any(|value| !value.is_finite())
+        || vendor_step.surface_positions_mm_f64.len() != mesh.positions.len()
+        || vendor_step
+            .surface_positions_mm_f64
+            .iter()
+            .any(|value| !value.is_finite())
+        || vendor_step
+            .surface_positions_mm_f64
+            .iter()
+            .zip(&mesh.positions)
+            .any(|(source, render)| (*source as f32) != *render)
+    {
+        return Err("STEP import surface buffers are missing or inconsistent".into());
+    }
+    if vendor_step.source_faces.is_empty()
+        || vendor_step.source_faces.iter().any(|face| {
+            !valid_step_entity_id(&face.solid_id)
+                || !valid_step_entity_id(&face.face_id)
+                || !valid_step_entity_id(&face.support_id)
+                || face.support_kind.trim().is_empty()
+        })
+    {
+        return Err("STEP import source face provenance is missing or invalid".into());
+    }
+    if vendor_step.face_occurrences.is_empty()
+        || vendor_step.face_occurrences.iter().any(|face| {
+            (face.source_face_index as usize) >= vendor_step.source_faces.len()
+                || !valid_step_entity_id(&face.representation_id)
+                || face
+                    .source_uncertainty_mm
+                    .is_some_and(|value| !value.is_finite() || value <= 0.0)
+                || face
+                    .repair_displacement_mm
+                    .is_some_and(|value| !value.is_finite() || value < 0.0)
+        })
+    {
+        return Err("STEP import face occurrence provenance is missing or invalid".into());
+    }
+    let triangle_count = mesh.positions.len() / 9;
+    if vendor_step.triangle_face_occurrence_indices.len() != triangle_count
+        || vendor_step
+            .triangle_face_occurrence_indices
+            .iter()
+            .any(|index| (*index as usize) >= vendor_step.face_occurrences.len())
+    {
+        return Err("STEP import triangle face occurrence indices are invalid".into());
+    }
+    if !vendor_step.line_segments_mm_f64.len().is_multiple_of(6)
+        || vendor_step.line_render_positions.len() != vendor_step.line_segments_mm_f64.len()
+        || vendor_step.segment_line_occurrence_indices.len()
+            != vendor_step.line_segments_mm_f64.len() / 6
+        || vendor_step
+            .line_segments_mm_f64
+            .iter()
+            .any(|value| !value.is_finite())
+        || vendor_step
+            .line_render_positions
+            .iter()
+            .any(|value| !value.is_finite())
+        || vendor_step
+            .line_segments_mm_f64
+            .iter()
+            .zip(&vendor_step.line_render_positions)
+            .any(|(source, render)| (*source as f32) != *render)
+        || vendor_step
+            .line_occurrences
+            .iter()
+            .enumerate()
+            .any(|(index, line)| {
+                line.line_occurrence_index as usize != index
+                    || !valid_step_entity_id(&line.trimmed_curve_id)
+                    || !valid_step_entity_id(&line.source_line_id)
+                    || !valid_step_entity_id(&line.curve_set_id)
+                    || !valid_step_entity_id(&line.representation_id)
+                    || !line.source_unit_to_mm.is_finite()
+                    || line.source_unit_to_mm <= 0.0
+                    || line.placement_f64.iter().any(|value| !value.is_finite())
+                    || line
+                        .declared_uncertainty_mm
+                        .is_some_and(|value| !value.is_finite() || value <= 0.0)
+            })
+        || vendor_step
+            .segment_line_occurrence_indices
+            .iter()
+            .any(|index| (*index as usize) >= vendor_step.line_occurrences.len())
+    {
+        return Err("STEP import source line buffers or metadata are invalid".into());
+    }
+    if vendor_step.precision.iter().any(|precision| {
+        !valid_step_entity_id(&precision.representation_id)
+            || !valid_step_entity_id(&precision.context_id)
+            || precision.declarations.iter().any(|declaration| {
+                !valid_step_entity_id(&declaration.entity_id)
+                    || !valid_step_entity_id(&declaration.length_unit_id)
+                    || !declaration.millimetres.is_finite()
+                    || declaration.millimetres <= 0.0
+            })
+    }) {
+        return Err("STEP import precision declarations are invalid".into());
+    }
+    let accuracy = &vendor_step.accuracy;
+    if !accuracy.preview_deflection_mm.is_finite()
+        || accuracy.preview_deflection_mm <= 0.0
+        || !accuracy.preview_angular_rad.is_finite()
+        || accuracy.preview_angular_rad <= 0.0
+        || accuracy
+            .analysis_error_bound_mm
+            .is_some_and(|value| !value.is_finite() || value < 0.0)
+        || accuracy
+            .selected_repair_budget_mm
+            .is_some_and(|value| !value.is_finite() || value <= 0.0)
+        || accuracy
+            .max_repair_displacement_mm
+            .is_some_and(|value| !value.is_finite() || value < 0.0)
+        || expected_options
+            .target_deflection_mm
+            .is_some_and(|target| accuracy.preview_deflection_mm > target)
+        || !accuracy.preview_floor_mm.is_finite()
+        || accuracy.preview_floor_mm < 0.0
+        || !accuracy.preview_declared_multiplier.is_finite()
+        || accuracy.preview_declared_multiplier < 0.0
+        || accuracy
+            .max_sampled_support_residual_mm
+            .is_some_and(|value| !value.is_finite() || value < 0.0)
+    {
+        return Err("STEP import accuracy metadata is invalid".into());
+    }
+    let bounds_tolerance = if accuracy.bounds_from_source_geometry {
+        0.03
+    } else {
+        0.0
+    };
+    let contains = |positions: &[f64]| {
+        positions.len().is_multiple_of(3)
+            && positions.as_chunks::<3>().0.iter().all(|point| {
+                (0..3).all(|axis| {
+                    bounds.min[axis] - bounds_tolerance <= point[axis]
+                        && point[axis] <= bounds.max[axis] + bounds_tolerance
+                })
+            })
+    };
+    if !contains(&vendor_step.surface_positions_mm_f64)
+        || !contains(&vendor_step.line_segments_mm_f64)
+    {
+        return Err("STEP import bounds omit returned surface or line coordinates".into());
+    }
+    Ok(())
+}
+
+pub fn validate_collision_query(query: &CadCollisionQuery) -> Result<(), String> {
+    query.qualification_limits.validate()?;
+    if !query.clearance_threshold_mm.is_finite() || query.clearance_threshold_mm < 0.0 {
+        return Err("collision clearanceThresholdMm must be finite and non-negative".into());
+    }
+    if let Some(accuracy) = query.requested_accuracy_mm
+        && (!accuracy.is_finite() || accuracy <= 0.0)
+    {
+        return Err("collision requestedAccuracyMm must be finite and positive".into());
+    }
+    for operand in [&query.left, &query.right] {
+        if operand.model_id.trim().is_empty() {
+            return Err("collision operand modelId must not be empty".into());
+        }
+        match (&operand.source_sha256, &operand.generated_geometry_identity) {
+            (Some(sha), None) if is_sha256_hex(sha) => {}
+            (None, Some(identity))
+                if !identity.trim().is_empty()
+                    && operand.import_options == CadStepImportOptions::default() => {}
+            _ => {
+                return Err(
+                    "collision operand requires exactly one valid STEP or generated identity"
+                        .into(),
+                );
+            }
+        }
+        operand.import_options.validate()?;
+        validate_affine_row_transform(&operand.row_transform_f64)
+            .map_err(|error| error.to_string())?;
+        crate::cad_qualification::validate_operand(operand)?;
+    }
+    Ok(())
+}
+
+pub fn validate_collision_mesh_pair(meshes: &CadCollisionMeshPair) -> Result<(), String> {
+    let total_bytes = meshes
+        .left_positions_mm_f64
+        .len()
+        .saturating_mul(8)
+        .saturating_add(
+            meshes
+                .left_triangle_face_occurrence_indices
+                .len()
+                .saturating_mul(4),
+        )
+        .saturating_add(meshes.right_positions_mm_f64.len().saturating_mul(8))
+        .saturating_add(
+            meshes
+                .right_triangle_face_occurrence_indices
+                .len()
+                .saturating_mul(4),
+        );
+    if total_bytes > MAX_COLLISION_QUERY_BYTES {
+        return Err("collision mesh buffers exceed the 64 MiB limit".into());
+    }
+    for (positions, tags) in [
+        (
+            &meshes.left_positions_mm_f64,
+            &meshes.left_triangle_face_occurrence_indices,
+        ),
+        (
+            &meshes.right_positions_mm_f64,
+            &meshes.right_triangle_face_occurrence_indices,
+        ),
+    ] {
+        if positions.is_empty()
+            || !positions.len().is_multiple_of(9)
+            || tags.len() != positions.len() / 9
+            || positions.len() / 3 > u32::MAX as usize
+            || positions.iter().any(|value| !value.is_finite())
+        {
+            return Err("collision mesh buffers or triangle tags are invalid".into());
+        }
+    }
+    Ok(())
+}
+
+pub fn validate_collision_observation(
+    meshes: Option<&CadCollisionMeshPair>,
+    observation: &CadCollisionObservation,
+) -> Result<(), String> {
+    let valid_pair = |pair: &CadTrianglePairProvenance| -> bool {
+        let Some(meshes) = meshes else {
+            return true;
+        };
+        let left_tris = meshes.left_triangle_face_occurrence_indices.len();
+        let right_tris = meshes.right_triangle_face_occurrence_indices.len();
+        (pair.left.triangle_index as usize) < left_tris
+            && meshes.left_triangle_face_occurrence_indices[pair.left.triangle_index as usize]
+                == pair.left.face_occurrence_index
+            && (pair.right.triangle_index as usize) < right_tris
+            && meshes.right_triangle_face_occurrence_indices[pair.right.triangle_index as usize]
+                == pair.right.face_occurrence_index
+    };
+    match observation {
+        CadCollisionObservation::SurfaceIntersecting {
+            intersection_triangles,
+            contact_witness,
+        } => {
+            if !valid_pair(intersection_triangles) {
+                return Err("collision intersection triangle provenance is invalid".into());
+            }
+            if let Some(witness) = contact_witness
+                && (!valid_pair(&witness.triangles)
+                    || witness
+                        .point1_mm
+                        .iter()
+                        .chain(&witness.point2_mm)
+                        .chain(&witness.normal1)
+                        .chain(&witness.normal2)
+                        .any(|value| !value.is_finite())
+                    || !witness.triangle_pair_contact_dist_mm.is_finite())
+            {
+                return Err("collision contact witness is invalid".into());
+            }
+        }
+        CadCollisionObservation::SurfaceSeparated {
+            surface_distance_mm,
+            closest_points,
+        } => {
+            if !surface_distance_mm.is_finite()
+                || *surface_distance_mm < 0.0
+                || !valid_pair(&closest_points.triangles)
+                || closest_points
+                    .point1_mm
+                    .iter()
+                    .chain(&closest_points.point2_mm)
+                    .any(|value| !value.is_finite())
+            {
+                return Err("collision separated surface observation is invalid".into());
+            }
+        }
+        CadCollisionObservation::Uncertain { reason, .. } => {
+            if reason.trim().is_empty() {
+                return Err("collision uncertain observation omitted reason".into());
             }
         }
     }
@@ -254,6 +1078,103 @@ pub fn captured_case_document(
     scope: &Scope,
 ) -> Result<ProjectDoc, CadJobError> {
     captured_case_inputs(snapshot, scope).map(|(document, _)| document)
+}
+
+#[cfg(feature = "page")]
+#[derive(Clone, Debug, PartialEq)]
+pub struct CapturedPcbSource {
+    pub reference: BoardReference,
+    pub asset: Asset,
+    pub placement: Pose2,
+    pub flipped: bool,
+}
+
+/// Capture raw PCB ownership before the Case display projection disables mirrored references.
+#[cfg(feature = "page")]
+pub fn captured_pcb_source(
+    snapshot: &AcceptedSnapshot,
+    scope: &Scope,
+) -> Result<Option<CapturedPcbSource>, CadJobError> {
+    let document = snapshot.document.as_ref();
+    if snapshot.session_epoch != scope.session_epoch
+        || document.id != scope.document_id
+        || snapshot.scene.revision != document.revision
+    {
+        return Err(CadJobError::Stale("PCB source scope changed".into()));
+    }
+    if document
+        .boards
+        .iter()
+        .filter(|board| board.id == scope.board_id)
+        .count()
+        != 1
+    {
+        return Err(CadJobError::Blocked(
+            "PCB source board is missing or ambiguous".into(),
+        ));
+    }
+    let flipped = if let Some(id) = &scope.instance_id {
+        let instances = document
+            .hardware
+            .as_ref()
+            .into_iter()
+            .flat_map(|hardware| &hardware.instances)
+            .filter(|instance| instance.id == *id && instance.board_id == scope.board_id)
+            .collect::<Vec<_>>();
+        if instances.len() != 1 {
+            return Err(CadJobError::Blocked(
+                "PCB source physical instance is missing or ambiguous".into(),
+            ));
+        }
+        instances[0].flipped
+    } else {
+        false
+    };
+    let references = document
+        .board_references
+        .iter()
+        .filter(|reference| reference.board_id == scope.board_id && reference.enabled)
+        .collect::<Vec<_>>();
+    if references.is_empty() {
+        return Ok(None);
+    }
+    if references.len() != 1 {
+        return Err(CadJobError::Blocked(
+            "PCB source reference is ambiguous".into(),
+        ));
+    }
+    let reference = references[0];
+    if !reference.elevation.is_finite()
+        || !reference.pose.at.x.is_finite()
+        || !reference.pose.at.y.is_finite()
+        || !reference.pose.rotation.is_finite()
+    {
+        return Err(CadJobError::Blocked(
+            "PCB source placement must be finite".into(),
+        ));
+    }
+    let assets = document
+        .assets
+        .iter()
+        .filter(|asset| asset.id == reference.asset_id)
+        .collect::<Vec<_>>();
+    if assets.len() != 1 || assets[0].sha256.is_empty() {
+        return Err(CadJobError::Blocked(
+            "PCB source asset is missing or ambiguous".into(),
+        ));
+    }
+    let mut placement = reference.pose;
+    if flipped {
+        // World-X reflection after placement equals reflected local X at (-tx, ty, -angle).
+        placement.at.x = -placement.at.x;
+        placement.rotation = -placement.rotation;
+    }
+    Ok(Some(CapturedPcbSource {
+        reference: reference.clone(),
+        asset: assets[0].clone(),
+        placement,
+        flipped,
+    }))
 }
 
 #[cfg(feature = "page")]
@@ -371,6 +1292,7 @@ async fn prepare_captured_case_for_step(
                         wall_height: None,
                         wall_thickness: None,
                         mounts: None,
+                        pcb_source: None,
                         gasket: None,
                         openings: None,
                         features: None,
@@ -472,8 +1394,6 @@ fn effective_case_inputs(
     scene: &SceneDelta,
     scope: &Scope,
 ) -> Result<(ProjectDoc, SceneDelta), CadJobError> {
-    let mut effective = document.clone();
-    let mut effective_scene = scene.clone();
     let board = document
         .boards
         .iter()
@@ -506,46 +1426,33 @@ fn effective_case_inputs(
     };
 
     let flipped = selected_instance.is_some_and(|instance| instance.flipped);
-    if let Some(instance) = selected_instance {
-        effective.physical_instance_id = Some(instance.id.clone());
-    }
-    let configuration = if let Some(instance) = selected_instance {
-        effective_instance_configuration(document, instance, board.thickness)
-    } else {
-        document.mechanical.clone()
-    };
-    effective.mechanical = configuration.map(|configuration| {
-        mechanical_defaults(document, configuration, &scope.board_id, flipped)
-    });
 
+    // Core owns the effective-document projection: the fully defaulted configuration,
+    // the physical-instance identity, flipped-instance part/reference mirroring and the
+    // target board's mirrored contours. The host keeps only the scene transform and
+    // target-contour mirroring that are not part of the document projection.
+    let target = match &scope.instance_id {
+        Some(instance_id) => boardstudio_core::mechanical::MechanicalTarget::Instance {
+            instance_id: instance_id.clone(),
+        },
+        None => boardstudio_core::mechanical::MechanicalTarget::Board {
+            board_id: scope.board_id.clone(),
+        },
+    };
+    let (effective, _target_contours) =
+        boardstudio_core::mechanical::inputs::effective_document(document, &target)
+            .map_err(CadJobError::Blocked)?;
+
+    let mut effective_scene = scene.clone();
     if flipped {
+        // The scene transform and contour mirroring are not part of the document
+        // projection, so the host keeps them and mirrors the accepted scene's own
+        // target-board contours in place. Core's `effective_document` returns the
+        // same contours for its own resolver and clearance projection.
         let selected_parts = board
             .part_ids
             .iter()
             .collect::<std::collections::HashSet<_>>();
-        for part in &mut effective.parts {
-            if !selected_parts.contains(&part.id) {
-                continue;
-            }
-            part.pose.at.x = -part.pose.at.x;
-            part.pose.rotation = -part.pose.rotation;
-            part.side = match part.side {
-                Side::Front => Side::Back,
-                Side::Back => Side::Front,
-            };
-            let parameters = part
-                .generator_parameters
-                .get_or_insert_with(Default::default);
-            parameters.insert(
-                "side".into(),
-                serde_json::Value::String(if part.side == Side::Front { "F" } else { "B" }.into()),
-            );
-        }
-        for reference in &mut effective.board_references {
-            if reference.board_id == scope.board_id {
-                reference.enabled = false;
-            }
-        }
         for transform in &mut effective_scene.transforms {
             if selected_parts.contains(&transform.id) {
                 transform.pose.at.x = -transform.pose.at.x;
@@ -566,192 +1473,30 @@ fn effective_case_inputs(
     Ok((effective, effective_scene))
 }
 
-#[cfg(feature = "page")]
-fn effective_instance_configuration(
+/// Whether the selected target's own accepted findings leave its Case output clear.
+///
+/// Uses the approved target-scoped effective read, so a finding naming a sibling half of
+/// the same board never blocks this target, and a finding naming this target does.
+#[cfg(all(feature = "page", any(target_arch = "wasm32", test)))]
+fn target_case_findings_are_clear(
     document: &ProjectDoc,
-    instance: &PhysicalBoardInstance,
-    board_thickness: f64,
-) -> Option<MechanicalConfiguration> {
-    let hardware = document.hardware.as_ref()?;
-    let common = hardware.shared_construction.as_ref().or_else(|| {
-        hardware
-            .instances
-            .iter()
-            .find_map(|entry| entry.mechanical.as_ref())
-    });
-    let mut configuration = instance.mechanical.clone().or_else(|| common.cloned())?;
-    if instance.mechanical.is_none() {
-        configuration.openings = None;
-        configuration.mounts.clear();
-        configuration.closure_mounts = None;
-        configuration.battery = None;
-        configuration.battery_height = 0.0;
-    }
-    if let Some(common) = common {
-        let mut output = serde_json::to_value(&configuration)
-            .ok()?
-            .as_object()?
-            .clone();
-        let shared = serde_json::to_value(common).ok()?.as_object()?.clone();
-        for field in [
-            "method",
-            "mount",
-            "integratedPlateFrame",
-            "bottomStyle",
-            "middleFrame",
-            "plateThickness",
-            "plateFoamThickness",
-            "bottomFoamThickness",
-            "bottomThickness",
-            "plateToPcb",
-            "wallThickness",
-            "clearance",
-            "gasket",
-            "gasketTravel",
-            "openingAllowance",
-            "partProcesses",
-            "internalGasket",
-            "hardware",
-            "criticalFits",
-            "profiles",
-        ] {
-            if let Some(value) = shared.get(field) {
-                output.insert(field.into(), value.clone());
-            }
-        }
-        if let Some(mut gasket_layout) = shared.get("gasketLayout").cloned() {
-            let supports = instance
-                .mechanical
-                .as_ref()
-                .and_then(|item| item.gasket_layout.as_ref())
-                .map(|item| item.supports.clone())
-                .unwrap_or_default();
-            if let Some(layout) = gasket_layout.as_object_mut() {
-                layout.insert("supports".into(), serde_json::to_value(supports).ok()?);
-            }
-            output.insert("gasketLayout".into(), gasket_layout);
-        }
-        output.insert(
-            "boardId".into(),
-            serde_json::Value::String(instance.board_id.clone()),
-        );
-        output.insert("pcbThickness".into(), serde_json::json!(board_thickness));
-        configuration = serde_json::from_value(serde_json::Value::Object(output)).ok()?;
-    }
-    configuration.board_id = instance.board_id.clone();
-    configuration.pcb_thickness = board_thickness;
-    Some(configuration)
-}
-
-#[cfg(feature = "page")]
-fn mechanical_defaults(
-    document: &ProjectDoc,
-    mut configuration: MechanicalConfiguration,
-    board_id: &str,
-    flipped: bool,
-) -> MechanicalConfiguration {
-    let board = document.boards.iter().find(|board| board.id == board_id);
-    let parts = document
-        .parts
-        .iter()
-        .filter(|part| board.is_some_and(|board| board.part_ids.contains(&part.id)))
-        .collect::<Vec<_>>();
-    fn center(parts: &[&Part], coordinate: impl Fn(&Part) -> f64) -> f64 {
-        let values = parts
-            .iter()
-            .map(|part| coordinate(part))
-            .collect::<Vec<_>>();
-        values
-            .iter()
-            .copied()
-            .reduce(f64::min)
-            .zip(values.iter().copied().reduce(f64::max))
-            .map_or(0.0, |(min, max)| (min + max) / 2.0)
-    }
-    let at = Vec2 {
-        x: center(&parts, |part| part.pose.at.x) * if flipped { -1.0 } else { 1.0 },
-        y: center(&parts, |part| part.pose.at.y),
+    scene: &SceneDelta,
+    scope: &Scope,
+) -> bool {
+    let target = match &scope.instance_id {
+        Some(instance_id) => boardstudio_core::mechanical::MechanicalTarget::Instance {
+            instance_id: instance_id.clone(),
+        },
+        None => boardstudio_core::mechanical::MechanicalTarget::Board {
+            board_id: scope.board_id.clone(),
+        },
     };
-    if configuration.battery.is_none()
-        && document
-            .hardware
-            .as_ref()
-            .is_some_and(|hardware| hardware.transport == HardwareTransport::Wireless)
-    {
-        configuration.battery = Some(MechanicalBattery {
-            cable_width: Some(2.0),
-            size: Vec3 {
-                x: 30.0,
-                y: 20.0,
-                z: 6.0,
-            },
-            at,
-            cable_exit: Vec2 {
-                x: at.x + 17.0,
-                y: at.y,
-            },
-        });
+    match boardstudio_core::mechanical::effective_inputs(document, &scene.board_contours, &target) {
+        // Core owns the rule; the adapter only selects the target.
+        Ok(inputs) => inputs.case_findings_are_clear(),
+        // An unresolvable target is decided by the shared board-level admission.
+        Err(_) => true,
     }
-    if let Some(battery) = &configuration.battery {
-        configuration.battery_height = battery.size.z;
-    }
-
-    let explicit = configuration.stabilizers.clone().unwrap_or_default();
-    let mut stabilizers = Vec::new();
-    for part in &parts {
-        let Some(definition) = document
-            .definitions
-            .iter()
-            .find(|definition| definition.id == part.definition_id)
-        else {
-            continue;
-        };
-        let size = part.keycap.as_ref().or(definition.keycap.as_ref());
-        let Some(size) = size.filter(|size| size.x.max(size.y) >= 37.0) else {
-            continue;
-        };
-        if definition
-            .generator
-            .as_ref()
-            .is_none_or(|generator| generator.source.to_lowercase() != "ceoloide/switch_mx")
-        {
-            continue;
-        }
-        let has_existing = document.parts.iter().any(|candidate| {
-            let is_stabilizer = document
-                .definitions
-                .iter()
-                .find(|entry| entry.id == candidate.definition_id)
-                .and_then(|entry| entry.kicad_source.as_ref())
-                .is_some_and(|source| source.source.contains("(footprint \"STAB_MX_"));
-            is_stabilizer
-                && (candidate.pose.at.x - part.pose.at.x)
-                    .hypot(candidate.pose.at.y - part.pose.at.y)
-                    < 0.01
-        });
-        if has_existing {
-            continue;
-        }
-        let key_units = (((size.x.max(size.y) + 1.0) / 19.05) * 4.0).round() / 4.0;
-        let units = if key_units <= 2.75 { 2.0 } else { key_units };
-        let rotation = if size.y > size.x { 90.0 } else { 0.0 };
-        let mut stabilizer = explicit
-            .iter()
-            .find(|entry| entry.part_id == part.id)
-            .cloned()
-            .unwrap_or(MechanicalStabilizerOverride {
-                profile: None,
-                part_id: part.id.clone(),
-                kind: MechanicalStabilizerKind::PcbMount,
-                units,
-                rotation: Some(rotation),
-            });
-        stabilizer.units = units;
-        stabilizer.rotation = Some(rotation);
-        stabilizers.push(stabilizer);
-    }
-    configuration.stabilizers = Some(stabilizers);
-    configuration
 }
 
 #[cfg(all(feature = "page", any(target_arch = "wasm32", test)))]
@@ -790,12 +1535,17 @@ fn preparation_request(
         .mechanical
         .as_ref()
         .is_some_and(|case| case.board_id == scope.board_id);
+    // Admission is decided per selected target: the target-scoped effective read is the
+    // authority for this half's Case problems. A conflict that names a sibling half of
+    // the same PCB is not this target's problem, while this target's own conflict blocks
+    // its case generation even though the board-level admission cannot see the half.
     if !boardstudio_core::case_preparation_ready(
         &effective_document,
         &effective_scene,
         &scope.board_id,
         configured,
-    ) {
+    ) || !target_case_findings_are_clear(document, scene, scope)
+    {
         return Err(CadJobError::Blocked(
             "selected board is not ready for case generation".into(),
         ));
@@ -854,6 +1604,115 @@ mod tests {
     };
 
     #[test]
+    fn pcb_source_capture_keeps_original_reference_and_composes_physical_reflection_once() {
+        let mut document = ProjectDoc::empty("source-doc", "PCB source");
+        document.boards.push(
+            serde_json::from_value(serde_json::json!({
+                "id":"board", "name":"Board", "outlineIds":[],"partIds":[],"netIds":[],
+                "thickness":1.6,"traces":[],"vias":[]
+            }))
+            .unwrap(),
+        );
+        document.assets.push(
+            serde_json::from_value(serde_json::json!({
+                "id":"raw", "name":"routed.kicad_pcb", "mediaType":"application/vnd.kicad.pcb",
+                "sha256":"0".repeat(64)
+            }))
+            .unwrap(),
+        );
+        document.board_references.push(BoardReference {
+            id: "reference".into(),
+            board_id: "board".into(),
+            asset_id: "raw".into(),
+            enabled: true,
+            pose: Pose2 {
+                at: Vec2 { x: 100., y: 200. },
+                rotation: 90.,
+            },
+            elevation: 3.,
+            model_assets: Default::default(),
+        });
+        document.hardware = Some(
+            serde_json::from_value(serde_json::json!({
+                "topology":"unibody","transport":"none","boards":[],"instances":[{
+                    "id":"right","name":"Right","boardId":"board","half":"right","role":"central",
+                    "flipped":true,"controllerPartId":null,"mechanical":null
+                }]
+            }))
+            .unwrap(),
+        );
+        let CoreReply::Scene {
+            document, scene, ..
+        } = CoreEngine::new().handle(CoreRequest::Open {
+            id: "open".into(),
+            document,
+        })
+        else {
+            panic!("source fixture must open");
+        };
+        let snapshot = AcceptedSnapshot {
+            token: SnapshotToken(1),
+            session_epoch: SessionEpoch(1),
+            document: std::sync::Arc::new(*document),
+            scene: std::sync::Arc::new(scene),
+        };
+        let scope = Scope {
+            session_epoch: SessionEpoch(1),
+            document_id: "source-doc".into(),
+            board_id: "board".into(),
+            instance_id: Some("right".into()),
+        };
+        let before = snapshot.document.clone();
+        let captured = captured_pcb_source(&snapshot, &scope).unwrap().unwrap();
+        assert!(captured.flipped);
+        assert_eq!(
+            captured.placement,
+            Pose2 {
+                at: Vec2 { x: -100., y: 200. },
+                rotation: -90.
+            }
+        );
+        assert_eq!(captured.reference.pose.at.x, 100.);
+        assert_eq!(captured.reference.elevation, 3.);
+        assert_eq!(captured.asset.id, "raw");
+        assert_eq!(
+            snapshot.document, before,
+            "capture must not disable or mutate the source"
+        );
+
+        let mut invalid = snapshot.clone();
+        std::sync::Arc::make_mut(&mut invalid.document)
+            .board_references
+            .push(BoardReference {
+                id: "second-reference".into(),
+                ..captured.reference.clone()
+            });
+        assert!(matches!(
+            captured_pcb_source(&invalid, &scope),
+            Err(CadJobError::Blocked(_))
+        ));
+        let mut invalid = snapshot.clone();
+        std::sync::Arc::make_mut(&mut invalid.document)
+            .assets
+            .clear();
+        assert!(matches!(
+            captured_pcb_source(&invalid, &scope),
+            Err(CadJobError::Blocked(_))
+        ));
+        let mut invalid = snapshot.clone();
+        std::sync::Arc::make_mut(&mut invalid.scene).revision += 1;
+        assert!(matches!(
+            captured_pcb_source(&invalid, &scope),
+            Err(CadJobError::Stale(_))
+        ));
+        let mut authored = snapshot;
+        std::sync::Arc::make_mut(&mut authored.document)
+            .board_references
+            .clear();
+        assert!(captured_pcb_source(&authored, &scope).unwrap().is_none());
+    }
+
+    #[test]
     fn cad_revision_boundary_rejects_values_that_would_lose_integer_identity() {
         assert!(revision_supported_by_cad_boundary(MAX_CAD_REVISION));
         assert!(!revision_supported_by_cad_boundary(MAX_CAD_REVISION + 1));
@@ -876,6 +1735,11 @@ mod tests {
             identity: identity.clone(),
             operation: CadOperation::ExportStep,
             prepared: None,
+            source_sha256: None,
+            step_import_options: None,
+            collision_query: None,
+            generated_analysis_request: None,
+            collision_meshes: None,
             input_bytes: vec![],
         };
         let mut reply = CadReply {
@@ -906,6 +1770,188 @@ mod tests {
         ));
     }
 
+    fn sample_vendor_step(sha256: &str) -> CadVendorStep {
+        CadVendorStep {
+            analysis_ref: None,
+            analysis_mesh: None,
+            source_qualification: None,
+            source_sha256: sha256.into(),
+            import_options: CadStepImportOptions::default(),
+            surface_positions_mm_f64: vec![0., 0., 0., 1., 0., 0., 0., 1., 0.],
+            source_faces: vec![CadStepSourceFace {
+                solid_id: "10".into(),
+                shell_index: 0,
+                face_id: "20".into(),
+                support_id: "30".into(),
+                support_kind: "PLANE".into(),
+            }],
+            face_occurrences: vec![CadStepFaceOccurrence {
+                source_face_index: 0,
+                solid_occurrence_index: 0,
+                representation_id: "40".into(),
+                source_uncertainty_mm: Some(0.01),
+                repair_displacement_mm: None,
+            }],
+            triangle_face_occurrence_indices: vec![0],
+            line_segments_mm_f64: vec![],
+            line_render_positions: vec![],
+            line_occurrences: vec![],
+            segment_line_occurrence_indices: vec![],
+            precision: vec![CadStepPrecision {
+                representation_id: "40".into(),
+                context_id: "50".into(),
+                geometric_dimension: Some(3),
+                declarations: vec![CadStepUncertainty {
+                    entity_id: "60".into(),
+                    length_unit_id: "70".into(),
+                    millimetres: 0.01,
+                }],
+            }],
+            accuracy: CadStepAccuracy {
+                preview_deflection_mm: 0.1,
+                preview_angular_rad: 0.5,
+                analysis_error_bound_mm: None,
+                bounds_from_source_geometry: true,
+                mesh_closed_oriented: false,
+                preview_floor_mm: 0.02,
+                preview_declared_multiplier: 2.0,
+                relaxed_beyond_declared_precision: false,
+                sampled_support_checks: 0,
+                max_sampled_support_residual_mm: None,
+                fallback_meshed_faces: 0,
+                selected_repair_budget_mm: None,
+                max_repair_displacement_mm: None,
+            },
+        }
+    }
+
+    #[test]
+    fn read_step_reply_requires_canonical_source_identity() {
+        let sha = "4bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459a";
+        let mut request_json = serde_json::json!({
+            "requestId": "step-source", "jobId": "step-source",
+            "identity": {"token": 1, "sessionEpoch": 1, "documentId": "doc",
+                "boardId": "board", "instanceId": null, "revision": 7},
+            "operation": "read-step", "prepared": null,
+            "sourceSha256": sha
+        });
+        let request: CadRequest = serde_json::from_value(request_json.clone()).unwrap();
+        let reply = CadReply {
+            request_id: request.request_id.clone(),
+            job_id: request.job_id.clone(),
+            identity: request.identity.clone(),
+            operation: CadOperation::ReadStep,
+            outcome: CadReplyOutcome::Completed,
+            result: Some(CadResult {
+                revision: 7,
+                mesh: Some(CadMesh {
+                    positions: vec![0., 0., 0., 1., 0., 0., 0., 1., 0.],
+                    normals: vec![0., 0., 1., 0., 0., 1., 0., 0., 1.],
+                }),
+                bounds: Some(CadBounds {
+                    min: [0., 0., 0.],
+                    max: [1., 1., 0.],
+                }),
+                vendor_step: Some(sample_vendor_step(sha)),
+                ..CadResult::default()
+            }),
+            error: None,
+        };
+        assert!(validate_reply(&request, reply.clone(), &request.identity).is_ok());
+        let mut missing_vendor_step = reply.clone();
+        missing_vendor_step.result.as_mut().unwrap().vendor_step = None;
+        assert!(matches!(
+            validate_reply(&request, missing_vendor_step, &request.identity),
+            Err(CadJobError::Failed(_))
+        ));
+        let mut mismatched_sha = reply.clone();
+        mismatched_sha
+            .result
+            .as_mut()
+            .unwrap()
+            .vendor_step
+            .as_mut()
+            .unwrap()
+            .source_sha256 = "0".repeat(64);
+        assert!(matches!(
+            validate_reply(&request, mismatched_sha, &request.identity),
+            Err(CadJobError::Failed(_))
+        ));
+        for invalid in [
+            serde_json::Value::Null,
+            serde_json::json!(""),
+            serde_json::json!("00"),
+            serde_json::json!("4BF5122F344554C53BDE2EBB8CD2B7E3D1600AD631C385A5D7CCE23C7785459A"),
+            serde_json::json!("gbf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459a"),
+        ] {
+            request_json["sourceSha256"] = invalid;
+            let request: CadRequest = serde_json::from_value(request_json.clone()).unwrap();
+            assert!(
+                matches!(
+                    validate_reply(&request, reply.clone(), &request.identity),
+                    Err(CadJobError::Failed(_))
+                ),
+                "source identity must be canonical: {}",
+                request_json["sourceSha256"]
+            );
+        }
+    }
+
+    #[test]
+    fn read_step_reply_requires_the_captured_result_revision() {
+        let sha = "4bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459a";
+        let identity = CadSnapshotIdentity {
+            token: 3,
+            session_epoch: 2,
+            document_id: "doc".into(),
+            board_id: "board".into(),
+            instance_id: None,
+            revision: 7,
+        };
+        let request = CadRequest {
+            request_id: "read-step-request".into(),
+            job_id: "read-step-job".into(),
+            identity: identity.clone(),
+            operation: CadOperation::ReadStep,
+            prepared: None,
+            source_sha256: Some(sha.into()),
+            step_import_options: None,
+            collision_query: None,
+            generated_analysis_request: None,
+            collision_meshes: None,
+            input_bytes: vec![],
+        };
+        let mut reply = CadReply {
+            request_id: request.request_id.clone(),
+            job_id: request.job_id.clone(),
+            identity: identity.clone(),
+            operation: CadOperation::ReadStep,
+            outcome: CadReplyOutcome::Completed,
+            result: Some(CadResult {
+                revision: 7,
+                mesh: Some(CadMesh {
+                    positions: vec![0., 0., 0., 1., 0., 0., 0., 1., 0.],
+                    normals: vec![0., 0., 1., 0., 0., 1., 0., 0., 1.],
+                }),
+                bounds: Some(CadBounds {
+                    min: [0., 0., 0.],
+                    max: [1., 1., 0.],
+                }),
+                vendor_step: Some(sample_vendor_step(sha)),
+                ..CadResult::default()
+            }),
+            error: None,
+        };
+        assert!(validate_reply(&request, reply.clone(), &identity).is_ok());
+        for other_revision in [0, 6, 8] {
+            reply.result.as_mut().unwrap().revision = other_revision;
+            assert!(matches!(
+                validate_reply(&request, reply.clone(), &identity),
+                Err(CadJobError::Stale(_))
+            ));
+        }
+    }
+
     #[test]
     fn exact_accepts_public_case_payload_without_optional_bounds() {
         let identity = CadSnapshotIdentity {
@@ -922,6 +1968,11 @@ mod tests {
             identity: identity.clone(),
             operation: CadOperation::Exact,
             prepared: None,
+            source_sha256: None,
+            step_import_options: None,
+            collision_query: None,
+            generated_analysis_request: None,
+            collision_meshes: None,
             input_bytes: vec![],
         };
         // The public provider's case-result payload contains revision, STEP,
@@ -946,6 +1997,7 @@ mod tests {
                     normals: vec![0.0, 0.0, 1.0],
                 }],
                 bounds: None,
+                ..CadResult::default()
             }),
             error: None,
         };
@@ -964,6 +2016,8 @@ mod tests {
 
         let mut read_request = request;
         read_request.operation = CadOperation::ReadStep;
+        read_request.source_sha256 =
+            Some("4bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459a".into());
         let mut read_reply = reply;
         read_reply.operation = CadOperation::ReadStep;
         assert!(matches!(
@@ -976,10 +2030,19 @@ mod tests {
     fn flipped_instance_reflects_only_its_board_parts_and_scene_transform() {
         let mut document = ProjectDoc::empty("doc", "Fixture");
         document.revision = 4;
+        document.outline.push(OutlineFeature::Rect {
+            anchor_part_id: None,
+            id: "outline-a".into(),
+            center: Vec2 { x: 10.0, y: 0.0 },
+            size: Vec2 { x: 20.0, y: 10.0 },
+            radius: 0.0,
+            rotation: None,
+            operation: Operation::Add,
+        });
         document.boards.push(Board {
             id: "board-a".into(),
             name: "Board A".into(),
-            outline_ids: vec![],
+            outline_ids: vec!["outline-a".into()],
             part_ids: vec!["part-a".into()],
             net_ids: vec![],
             thickness: 1.6,
@@ -1005,6 +2068,7 @@ mod tests {
                 rotation: 27.0,
             },
             side: Side::Front,
+            anchor: None,
             locked: None,
             keycap: None,
             outline: None,
@@ -1022,7 +2086,9 @@ mod tests {
                 flipped: true,
                 controller_part_id: None,
                 mechanical: None,
-                construction_linked: true,
+                construction_ownership:
+                    boardstudio_core::model::MechanicalConstructionOwnership::Legacy,
+                mechanical_identity_reservation: None,
             }],
             ..HardwareConfiguration::default()
         });
@@ -1048,7 +2114,18 @@ mod tests {
             ],
             matrix_scenes: vec![],
             contours: vec![],
-            board_contours: vec![],
+            board_contours: vec![BoardContours {
+                board_id: "board-a".into(),
+                contours: vec![Contour {
+                    points: vec![
+                        Vec2 { x: 0.0, y: 5.0 },
+                        Vec2 { x: 0.0, y: -5.0 },
+                        Vec2 { x: 20.0, y: -5.0 },
+                        Vec2 { x: 20.0, y: 5.0 },
+                    ],
+                    hole: false,
+                }],
+            }],
             board_readiness: vec![],
             board_outline_scenes: vec![],
             module_scenes: vec![],
@@ -1082,6 +2159,21 @@ mod tests {
         assert_eq!(effective.parts[1], document.parts[1]);
         assert_eq!(scene.transforms[0].pose.at.x, -3.0);
         assert_eq!(scene.transforms[1].pose.at.x, 8.0);
+        // The target board's scene contours come from Core's mirrored projection.
+        let board_contours = scene
+            .board_contours
+            .iter()
+            .find(|entry| entry.board_id == "board-a")
+            .unwrap();
+        assert!(!board_contours.contours.is_empty());
+        assert!(
+            board_contours
+                .contours
+                .iter()
+                .flat_map(|contour| &contour.points)
+                .all(|point| point.x <= 0.0),
+            "the mirrored contours negate X"
+        );
         assert_eq!(
             captured_document.physical_instance_id.as_deref(),
             Some("instance-a")
@@ -1118,6 +2210,7 @@ mod tests {
             wall_height: None,
             wall_thickness: None,
             mounts: None,
+            pcb_source: None,
             gasket: None,
         });
         let contour = Contour {
@@ -1237,5 +2330,307 @@ mod tests {
             preparation_request(&snapshot, &scope, "fixture"),
             Err(CadJobError::Stale(_))
         ));
+    }
+
+    /// Two halves sharing one PCB where the reflected linked mount clashes with the
+    /// second half's own hardware. Admission must be decided per selected target.
+    #[cfg(feature = "page")]
+    #[test]
+    fn case_admission_is_scoped_to_the_selected_half_of_a_shared_pcb() {
+        use boardstudio_core::model::{
+            HardwareConfiguration, HardwareTopology, HardwareTransport, MechanicalConfiguration,
+            MechanicalConstructionOwnership, MechanicalFeature, MechanicalFeatureMember,
+            MechanicalFeatureState, MechanicalFeatureValue, MechanicalMirrorPair, Mount, MountKind,
+            PhysicalBoardInstance, Pose2,
+        };
+        fn configuration() -> MechanicalConfiguration {
+            serde_json::from_value(serde_json::json!({
+                "boardId": "board",
+                "method": "printed",
+                "mount": "rigid",
+                "plateThickness": 1.5,
+                "plateFoamThickness": 0.5,
+                "pcbThickness": 1.6,
+                "bottomFoamThickness": 0.4,
+                "batteryHeight": 4.0,
+                "bottomThickness": 3.0,
+                "plateToPcb": 3.5,
+                "wallThickness": 2.0,
+                "clearance": 0.3,
+                "bottomStyle": "shell",
+                "middleFrame": false,
+                "openingAllowance": 0.25,
+                "mounts": [],
+                "closureMounts": [],
+                "profiles": []
+            }))
+            .unwrap()
+        }
+        fn mount(id: &str, x: f64, y: f64) -> Mount {
+            Mount {
+                id: id.into(),
+                at: Vec2 { x, y },
+                kind: MountKind::Hole,
+                hole_diameter: 2.2,
+                boss_diameter: None,
+                height: None,
+            }
+        }
+        fn instance(id: &str, mounts: Vec<Mount>) -> PhysicalBoardInstance {
+            let mut mechanical = configuration();
+            mechanical.mounts = mounts;
+            PhysicalBoardInstance {
+                id: id.into(),
+                name: id.into(),
+                board_id: "board".into(),
+                half: id.into(),
+                role: "controller".into(),
+                flipped: false,
+                controller_part_id: None,
+                mechanical: Some(mechanical),
+                construction_ownership: MechanicalConstructionOwnership::Local,
+                mechanical_identity_reservation: None,
+            }
+        }
+
+        let mut document = ProjectDoc::empty("doc", "Fixture");
+        document.revision = 7;
+        document.boards.push(Board {
+            id: "board".into(),
+            name: "Board".into(),
+            outline_ids: vec![],
+            part_ids: vec![],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        document.case_bodies.push(CaseBody {
+            features: None,
+            openings: None,
+            id: "plate".into(),
+            name: "Plate".into(),
+            board_id: "board".into(),
+            kind: CaseKind::Plate,
+            thickness: 2.0,
+            clearance: 0.0,
+            material_id: Some("pla".into()),
+            z: None,
+            wall_height: None,
+            wall_thickness: None,
+            mounts: None,
+            pcb_source: None,
+            gasket: None,
+        });
+        let left = instance("left", vec![mount("mount-1", 2.0, 3.0)]);
+        let right = instance(
+            "right",
+            vec![
+                mount("mount-1", 7.0, 3.0),
+                mount("mount-encoder", -2.0, 3.0),
+            ],
+        );
+        let construction = boardstudio_core::mechanical::features::shared_construction(
+            left.mechanical.as_ref().unwrap(),
+        );
+        document.hardware = Some(HardwareConfiguration {
+            topology: HardwareTopology::Unibody,
+            transport: HardwareTransport::None,
+            instances: vec![left, right],
+            boards: vec![],
+            shared_construction: None,
+            pairs: vec![MechanicalMirrorPair {
+                id: "pair-left-right".into(),
+                members: ["left".into(), "right".into()],
+                mapping: Pose2 {
+                    at: Vec2 { x: 0.0, y: 0.0 },
+                    rotation: 0.0,
+                },
+                construction,
+                construction_source: None,
+                halves: None,
+                features: vec![MechanicalFeature {
+                    id: "mount-1".into(),
+                    kind: MechanicalFeatureKind::Mount,
+                    author: "left".into(),
+                    value: MechanicalFeatureValue::Mount {
+                        mount: mount("mount-1", 2.0, 3.0),
+                    },
+                    members: vec![
+                        MechanicalFeatureMember {
+                            instance_id: "left".into(),
+                            feature_id: "mount-1".into(),
+                            state: MechanicalFeatureState::Linked,
+                        },
+                        MechanicalFeatureMember {
+                            instance_id: "right".into(),
+                            feature_id: "mount-1".into(),
+                            state: MechanicalFeatureState::Linked,
+                        },
+                    ],
+                }],
+            }],
+        });
+        let scene = SceneDelta {
+            revision: 7,
+            transaction_id: String::new(),
+            changed_ids: vec![],
+            transforms: vec![],
+            matrix_scenes: vec![],
+            contours: vec![],
+            board_contours: vec![BoardContours {
+                board_id: "board".into(),
+                contours: vec![Contour {
+                    points: vec![
+                        Vec2 { x: -40.0, y: -30.0 },
+                        Vec2 { x: 40.0, y: -30.0 },
+                        Vec2 { x: 40.0, y: 30.0 },
+                        Vec2 { x: -40.0, y: 30.0 },
+                    ],
+                    hole: false,
+                }],
+            }],
+            board_readiness: vec![BoardReadiness {
+                board_id: "board".into(),
+                outline: true,
+                pcb: true,
+                case_ready: false,
+            }],
+            board_outline_scenes: vec![],
+            module_scenes: vec![],
+            finding_markers: vec![],
+            findings: vec![],
+            readiness: Readiness {
+                layout: true,
+                outline: true,
+                pcb: true,
+                case_ready: false,
+            },
+        };
+        let snapshot = AcceptedSnapshot {
+            token: SnapshotToken(9),
+            session_epoch: SessionEpoch(1),
+            document: std::sync::Arc::new(document),
+            scene: std::sync::Arc::new(scene),
+        };
+        let scope = |instance_id: Option<&str>| Scope {
+            session_epoch: SessionEpoch(1),
+            document_id: "doc".into(),
+            board_id: "board".into(),
+            instance_id: instance_id.map(str::to_string),
+        };
+
+        // The conflict belongs to the right half, so the left half is admitted.
+        assert!(
+            preparation_request(&snapshot, &scope(Some("left")), "fixture").is_ok(),
+            "a sibling half's conflict must not block this half"
+        );
+        // The half that owns the conflict is blocked.
+        assert!(matches!(
+            preparation_request(&snapshot, &scope(Some("right")), "fixture"),
+            Err(CadJobError::Blocked(_))
+        ));
+    }
+}
+
+#[cfg(test)]
+mod generated_collision_identity_tests {
+    use super::*;
+
+    #[test]
+    fn generated_analysis_checks_body_geometry_revision_accuracy_and_retained_tags() {
+        let body: PreparedCaseIR = serde_json::from_value(serde_json::json!({
+            "revision": 7, "body": {"id":"plate","name":"Plate","boardId":"board","kind":"plate","thickness":2.0,"clearance":0.0},
+            "regions": [{"outer":[{"x":0,"y":0},{"x":1,"y":0},{"x":0,"y":1}],"holes":[],"cavities":[],"gaskets":[],"mounts":[]}]
+        })).unwrap();
+        let prepared = PreparedCaseAssemblyIR {
+            revision: 7,
+            bodies: vec![body.clone()],
+        };
+        let metadata = CadGeneratedAnalysisRequest {
+            body_id: "plate".into(),
+            geometry_identity: generated_geometry_identity(&body).unwrap(),
+            target_deflection_mm: Some(0.01),
+        };
+        assert!(validate_generated_analysis_request(Some(&prepared), 7, &metadata).is_ok());
+        let mut changed = prepared.clone();
+        changed.bodies[0].body.thickness += 0.1;
+        assert!(validate_generated_analysis_request(Some(&changed), 7, &metadata).is_err());
+        assert!(validate_generated_analysis_request(Some(&prepared), 8, &metadata).is_err());
+        let mut duplicate = prepared.clone();
+        duplicate.bodies.push(body);
+        assert!(validate_generated_analysis_request(Some(&duplicate), 7, &metadata).is_err());
+        let analysis = CadGeneratedAnalysis {
+            analysis_ref: None,
+            analysis_mesh: None,
+            source_qualification: None,
+            body_id: "plate".into(),
+            revision: 7,
+            geometry_identity: metadata.geometry_identity.clone(),
+            surface_positions_mm_f64: vec![0., 0., 0., 1., 0., 0., 0., 1., 0.],
+            triangle_face_occurrence_indices: vec![0],
+            source_faces: vec![CadGeneratedSourceFace {
+                solid_index: 0,
+                shell_index: 0,
+                face_index: 4,
+                support_kind: "plane".into(),
+            }],
+            face_occurrences: vec![CadGeneratedFaceOccurrence {
+                source_face_index: 0,
+                solid_occurrence_index: 0,
+            }],
+            analysis_error_bound_mm: None,
+            mesh_closed_oriented: true,
+            deflection_mm: 0.01,
+        };
+        assert!(validate_generated_analysis(&metadata, 7, &analysis).is_ok());
+        let mut bad = analysis.clone();
+        bad.deflection_mm = 0.1;
+        assert!(
+            validate_generated_analysis(&metadata, 7, &bad).is_err(),
+            "coarse mesh cannot satisfy a tighter request"
+        );
+        let mut bad = analysis.clone();
+        bad.triangle_face_occurrence_indices[0] = 1;
+        assert!(validate_generated_analysis(&metadata, 7, &bad).is_err());
+        let mut bad = analysis.clone();
+        bad.geometry_identity.push('x');
+        assert!(validate_generated_analysis(&metadata, 7, &bad).is_err());
+        let mut bad = analysis;
+        bad.analysis_error_bound_mm = Some(f64::NAN);
+        assert!(validate_generated_analysis(&metadata, 7, &bad).is_err());
+    }
+
+    #[test]
+    fn collision_operand_accepts_generated_identity_without_a_step_hash_and_rejects_ambiguity() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../cad/wasm/tests/fixtures/generated-analysis-contract.json"
+        ))
+        .unwrap();
+        let mut operand =
+            fixture["qualificationV2"]["activation"]["generatedQueryMetadata"]["left"].clone();
+        let query = |operand: serde_json::Value| -> Result<(), String> {
+            let query: CadCollisionQuery = serde_json::from_value(serde_json::json!({
+                "left": operand, "right": operand, "clearanceThresholdMm": 0.0,
+                "requestedAccuracyMm": null, "qualificationLimits": crate::cad_qualification::Limits::default()
+            }))
+            .map_err(|error| error.to_string())?;
+            validate_collision_query(&query)
+        };
+        assert!(
+            query(operand.clone()).is_ok(),
+            "generated identity must not require a fake STEP SHA"
+        );
+        operand["sourceSha256"] = "a".repeat(64).into();
+        assert!(
+            query(operand.clone()).is_err(),
+            "two identities are ambiguous"
+        );
+        operand.as_object_mut().unwrap().remove("sourceSha256");
+        operand["importOptions"] = serde_json::json!({"previewRepairBudgetMm": 0.1});
+        assert!(
+            query(operand).is_err(),
+            "generated geometry cannot carry STEP repair settings"
+        );
     }
 }

@@ -4,10 +4,19 @@ BoardStudio is an offline-capable keyboard design workbench built with Dioxus an
 Rust. It combines layouts, PCB preparation, keymaps, keycaps, mechanical assemblies
 and portable exports. KiCad and CAD tools handle downstream routing and fabrication.
 
+## Workbench updates
+
+Visibility controls have distinct scopes: Canvas visibility (Layout), PCB layers,
+Keymap layers, Assembly visibility (Case), and Parts preview layers. Canvas, PCB,
+assembly, and parts visibility controls sit at the bottom of Objects; Keymap layers
+remain in the Keymap Objects list. Visibility changes affect the view without adding
+document edits or undo entries. Hold Ctrl when a Stagger drag starts to offset the
+whole column.
+
 ## Development
 
 Install the Rust version in `rust-toolchain.toml`, `wasm-pack` 0.15.0, Dioxus CLI
-0.7.10 and Python 3.11+. No Node, npm or pnpm is needed. KiCad CLI 10 is required for PCB integration checks. Browser tests require
+0.7.10 and Python 3.11+. The default checks use the Rust browser harness and do not require Node or Playwright. KiCad CLI 10 is required for PCB integration checks. Browser tests require
 Chrome/Chromium and its compatible ChromeDriver.
 
 ```sh
@@ -27,9 +36,14 @@ After changing a worker, bundled example or CAD provider, run
 ## Build and preview
 
 ```sh
-python3 scripts/build-web.py
+# Checked, unoptimized build for local feature testing
+python3 scripts/build-web.py --fast
 python3 scripts/serve-web.py web/target/site 4173
 ```
+
+`--fast` skips `wasm-opt` for runtime providers and builds the Dioxus page without
+release optimization. Use `python3 scripts/build-web.py` for the optimized release
+build.
 
 The build creates `web/target/site/site-subpath/boardstudio`, the `/boardstudio/` route
 GitHub Pages publishes. Add `--routes subpath,root` to also package the root route in
@@ -40,28 +54,107 @@ from the watched development loop. Development uses an online server; use the
 production preview to test offline behavior.
 
 The normal Dioxus service worker supports offline use and application updates.
-React, its deployment handoff and rollback tooling are retired. Version 1 projects migrate to document format version 2 when loaded; current
-projects save locally and round-trip through `.boardstudio` exports. Existing user files are never erased by
-build or cleanup commands.
+React, its deployment handoff and rollback tooling are retired. This integration lane reads
+document format 7 only; older projects are retained but cannot be converted by this build.
+Current projects save locally and round-trip through `.boardstudio` exports. Existing user
+files are never erased by build or cleanup commands. Do not promote this lane to user-data
+stores before the layout-parity acceptance gate.
+
+## Local project safety
+
+If another tab saves the same keyboard, a conflicting save stops and keeps your pending
+edits. Download those edits before choosing to reload the saved version. Unreadable saved
+projects appear separately, with raw-data download and confirmed deletion actions.
+
+Undo keeps the latest 100 committed edits. Project imports are limited to 128 MiB.
+Unused imported assets are reclaimed at a later safe startup, after other editors close.
+Cleanup is deferred when browser coordination is unavailable or any saved project is unreadable.
 
 ## Checks
 
+Two commands, by purpose:
+
 ```sh
-python3 scripts/check.py
+python3 scripts/check.py quick   # the routine loop: only what your changes touch
+python3 scripts/check.py build   # checked web build without wasm-opt
+python3 scripts/check.py browser # mounted browser tests and browser smoke checks
+python3 scripts/check.py         # the full pre-PR check
 ```
 
-This runs documentation link checks, build and content tool tests, rustfmt and Clippy, native
-Rust and provider tests, WASM page compilation, release packaging, native/WASM
-boundary checks and mounted headless browser tests. Name steps (`python3 scripts/check.py --list`) to run
-only the affected checks during development. The browser runner checks
-that every listed test actually executes, grouped into broad batches to avoid repeated
-WASM/browser startup costs. Each presentation crate under `web/crates/` runs its own browser
-tests (`wasm-pack test --headless --chrome web/crates/<crate> --lib`); the Case workspace,
-panel and setup guide tests run separately because their mounted fixtures need an isolated
-DOM. Each batch has a bounded two-minute timeout, overridable with
-`WASM_BINDGEN_TEST_TIMEOUT`. A native test run alone does not compile
-WASM-only presentation code. Browser setup installs the locked wasm-bindgen runner
-before executing tests.
+A single Core Rust test runs with `cargo test -p boardstudio_core --test integration <filter>`.
+
+**Optional Node/npm execution check.** On Linux, install `strace` and run
+`python3 scripts/verify-no-node.py -- COMMAND [ARG ...]` around the command to check.
+The verifier first runs its own PATH and absolute-path positive controls, then traces
+the command and descendants. It fails on attempts to execute a pathname named `node`
+or `npm`, on command failure, or if tracing cannot be verified. It observes only the
+traced process tree: renamed or embedded runtimes and the GitHub Actions runtime are
+outside its scope. It does not change CI or replace the required verification checks.
+
+**Routine loop.** `quick` takes the files changed against `main` (plus untracked files; or name
+them with `--files`) and runs the documentation checks, rustfmt and Clippy, WASM page compilation,
+the native tests of the changed crates and everything that depends on them, and the browser tests
+of the affected presentation crates (page tests by file). It never runs `build`. A shared input
+(`Cargo.toml`, `Cargo.lock`, `.cargo/`) or a path it cannot place falls back to every Rust check and
+says so. Documentation-only changes run only the documentation checks. Rust checks first run a
+Dioxus page build to generate the Tailwind stylesheet required by WASM test fixtures; they do not
+run the full provider-and-packaging `build` step.
+
+**Full check.** The default runs documentation link checks, build and content tool tests, rustfmt and
+Clippy, native Rust and provider tests, a checked web build, native/WASM boundary checks and mounted
+headless browser tests. Name steps (`python3 scripts/check.py --list`) to run only some. Each command
+and step prints its wall time. On machines with 8 or more CPUs the full check runs `lint`, `test` and
+`build` at the same time, each as its own `check.py` child whose output prints whole in plan order;
+`lint` then builds into `target/lint`, and a shared jobserver caps rustc across the three. Smaller
+machines, `BOARDSTUDIO_CHECK_JOBS=1`, `--receipt` and partial plans keep the serial order.
+The checked `build` skips `wasm-opt` and the optimized page build; the
+opt-in `release` step (`python3 scripts/check.py release`) keeps both and is what ships.
+Running the `browser` step by itself first rebuilds the checked page so its real-page drag smoke
+cannot pass against stale frontend assets. Run `python3 scripts/check.py drag-smoke` for that small
+drag preflight by itself before a longer browser or performance run.
+
+**Old-CSS count.** The `repo` step reports how many `.board-*` and `.m1-*` selectors and `--wb-*` variables
+remain under `web/` (distinct names, build output skipped) and never fails on them. `python3 scripts/check.py old-css`
+(or `python3 scripts/check-old-css.py --strict`) fails while any remain; it is not in the default run and gates the
+final merge to `dev` only.
+Workbench Theme tokens and Tailwind utilities live in `web/tailwind.css`; document defaults,
+fonts, and shared finding outlines live in `web/assets/workbench-base.css`.
+
+**KiCad in native tests.** The native tests call `kicad-cli` (KiCad 10) and fail with a clear message when it
+is missing; CI installs it. Only the generator export check (`core/tests/generator_export.rs`) can be skipped
+on purpose, with `BOARDSTUDIO_ALLOW_NO_KICAD=1`; the KiCad integration tests have no skip.
+
+**Browser tests.** The runner checks that every listed test actually executes. Each presentation crate
+under `web/crates/` is one test launch (`wasm-pack test --headless --chrome web/crates/<crate> --lib`,
+which starts its own `chromedriver` and Chrome); the Case workspace, panel and setup guide tests run
+separately because their mounted fixtures need an isolated DOM. One `cargo test --no-run` compiles them all
+first; every launch dev-depends on `web/crates/test-floor` so it finds those builds fresh. The check runs up to four crate launches
+at once (`BOARDSTUDIO_CHECK_JOBS`, `1` for serial) and builds test wasm without debug info
+(`CARGO_PROFILE_DEV_DEBUG=false`, which is most of a launch's cost; run `wasm-pack test` by hand,
+without the variable, for source-level debugging). Use `python3 scripts/check.py browser --only <crate>...`
+to run only the named presentation crate launch(es) without the full packaged build or drag smoke (reported
+as a partial subset, not full acceptance), and add `--keep-going` to continue across independent browser
+launches while still exiting nonzero if any failed. CSS-dependent crate subsets first build the
+Dioxus page to generate the test stylesheet. Each batch has a bounded two-minute timeout,
+overridable with `WASM_BINDGEN_TEST_TIMEOUT`. A native test run alone does not compile WASM-only
+presentation code. Browser setup installs the locked wasm-bindgen runner before executing tests.
+The browser step opens the packaged page and runs a trusted mouse-drag smoke over
+Part, Column, Stagger and Ctrl+Offset. It checks live preview, pointer capture, saved document state
+and exact Undo. Its success receipt and failure log are kept under `web/target/test-results/drag-browser/`.
+Browser checks use the Rust harness and a Chrome or Chromium executable available as `CHROME_BIN`.
+
+**Verification receipts.** Add `--receipt PATH` to any check invocation to write a JSON receipt at
+`PATH` and a reviewer summary at `PATH.md`, both derived only from the output that invocation
+already captured. The receipt keeps native `cargo test` binaries, direct `wasm-pack test` crate
+launches, the `web/src` page suite and the provider/product smoke checks in separate scopes, each
+with its full observed test names and outcomes, module-prefix group counts, and its own exit
+status, completeness and problems. Planned-but-unrun commands are `not_run`; malformed or
+interrupted output is incomplete, never zero failures, and a complete page run with a failing test
+is not reported as passing. The native section reuses the name guard's matched/missing/new
+retention semantics and identifies the guard list's recording revision and local changes.
+Before/after group deltas stay `unknown` unless a base run is supplied with `--base-receipt PATH`,
+which is then labelled reused with its original run and source identity. Provide the summary (or
+the receipt) at review handoff.
 
 ## Source layout
 
@@ -79,15 +172,22 @@ before executing tests.
 | `scripts/` | Build, content preparation and checks |
 
 The Rust crates share one Cargo workspace (root `Cargo.toml`, `Cargo.lock` and
-`target/`), so dependencies compile once per profile and target. `cad/wasm` and
-`cad/step-oracle` stay outside it because they build against the pinned WASI and
-native OCCT toolchains.
+`target/`), so dependencies compile once per profile and target. `cad/monstertruck` stays
+outside it with its own workspace and lockfile, covering the `cad/wasm` member, because it
+patches the vendored Monstertruck crates. It declares `[workspace]` so cargo treats it as its own
+root, which also lets both crates build from a worktree nested under another checkout.
+
+A new worktree can skip most of its cold build by seeding copy-on-write copies of an idle
+worktree's target dirs. With the one-time `git config core.hooksPath scripts/git-hooks`, `git worktree add`
+does this automatically (`seed-worktree-target.py --auto`); by hand, run
+`python3 scripts/seed-worktree-target.py DONOR` inside the new worktree. It refuses a busy donor,
+a toolchain mismatch, or a destination that already has targets.
 
 The repository has no TypeScript or Node dependency; Python scripts handle build, content preparation and checks. Footprint generation runs in Rust inside Core and the page. User-supplied
 JavaScript generators are not executed. Bundled model export includes used assets;
 missing or unsupported model paths fail explicitly.
 
-See [architecture](docs/architecture.md), [domain vocabulary](CONTEXT.md),
+See [architecture](docs/architecture.md), [domain vocabulary](GLOSSARY.md),
 [component onboarding](docs/hardware/component-onboarding.md) and
 [deferred issues](docs/backlog.md). Migration history is preserved in Git at
 `323967ff`; it imposes no development or acceptance process on this branch.

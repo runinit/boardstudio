@@ -25,10 +25,21 @@ pub(crate) mod pcb_wiring {
     };
 }
 
+#[cfg(any(target_arch = "wasm32", test))]
+pub(crate) mod layer_edit;
 pub mod macro_accessible_names;
+#[cfg(any(target_arch = "wasm32", test))]
+pub(crate) mod macro_edit;
 
 #[cfg(target_arch = "wasm32")]
 pub mod keymap;
+
+// Exercise the production projection and camera math without browser-only surfaces.
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod keymap {
+    mod view;
+    mod view_controls;
+}
 
 #[cfg(all(test, target_arch = "wasm32"))]
 wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);

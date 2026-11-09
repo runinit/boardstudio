@@ -1,5 +1,11 @@
 //! Browser composition runs identified effects; the headless session remains authoritative.
 use crate::archive_export::{ArchiveExportOptions, ArchiveWorkFuture, archive_filename};
+use crate::draft_owners::{DraftOwnerGuard, DraftOwnerRegistration, DraftOwnerRegistry};
+use crate::export_lease::{ExportKind, ExportLease, ExportLeases};
+use crate::mechanical_package::{
+    critical_fit_drawing, mechanical_fabrication_notes, mechanical_filename_component,
+    mechanical_stl, push_mechanical_file,
+};
 use crate::pcb_wiring_mode_operation::electrical_preview_request;
 use boardstudio_application::{
     AcceptedSnapshot, Completion, Durability, Effect, Event, JobId, Lifecycle, OperationId,
@@ -7,13 +13,14 @@ use boardstudio_application::{
 };
 use boardstudio_core::{
     electrical::{ElectricalMode, ElectricalPlan, ElectricalPlanRequest},
+    hash::sha256_hex,
     model::{
         ArchiveEntry, ArchiveReply, ArchiveRequest, ArtifactReply, ArtifactRequest, Board,
         CaseAssemblyIR, CaseIR, CompiledFootprint, CoreReply, CoreRequest, HardwareTopology,
         KeycapSpec, Material, MechanicalAssembly, MechanicalBuiltinProfile,
         MechanicalConfiguration, MechanicalExtraction, MechanicalPartProfile,
         MechanicalPurposeMapping, MechanicalSwitchFamily, Operation, OutlineFeature,
-        OutlineSettings, PcbPreview, PrepareExportRequest, ProjectDoc,
+        OutlineSettings, PcbPreview, PhysicalBoardInstance, PrepareExportRequest, ProjectDoc,
     },
 };
 pub use boardstudio_web_host::host::CoreExecutor;
@@ -23,16 +30,23 @@ pub use boardstudio_web_host::host::CoreExecutor;
 fn core_executor_identity(core: &Rc<dyn CoreExecutor>) -> usize {
     Rc::as_ptr(core) as *const () as usize
 }
-use boardstudio_web_host::host::{BrowserStore, CoreWorker};
+use boardstudio_web_host::host::{
+    BrowserStore, CoreWorker, SaveError, SavedProject, StorageSession, StorageToken, UpdateSignals,
+    UpdateWatch,
+};
 use boardstudio_web_host::{
     cad_jobs::{
         CadJobError, CadOperation, CadRequest, CadResult, CadSnapshotIdentity,
-        captured_case_document, captured_case_scene, prepare_captured_case,
+        captured_case_document, captured_case_scene, captured_pcb_source, prepare_captured_case,
         prepare_captured_step_assembly, validate_reply,
     },
     cad_worker::CadWorker,
 };
+#[cfg(test)]
 use sha2::{Digest, Sha256};
+use std::sync::Arc;
+
+type CoreExecutorFactory = dyn Fn() -> Result<Rc<dyn CoreExecutor>, String>;
 
 #[cfg(any(test, feature = "test-support"))]
 type CaseGesturePreviewTestExecutor = dyn Fn(AcceptedSnapshot, Scope) -> Result<CadScene, String>;
@@ -47,6 +61,12 @@ type KeycapsPreviewTestExecutor = dyn Fn(
             >,
     >,
 >;
+
+struct PhysicalStepAssembly {
+    prepared: boardstudio_web_host::cad_jobs::PreparedCadSnapshot,
+    pcb_source: Option<boardstudio_web_host::cad_jobs::CapturedPcbSource>,
+    pcb_source_thickness: Option<f64>,
+}
 
 pub struct CadScene {
     pub scope: Scope,
@@ -100,8 +120,7 @@ struct Artifact {
     media_type: Option<String>,
     scope: Scope,
     token: SnapshotToken,
-    firmware: bool,
-    keycaps_step: bool,
+    board_outline: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -114,6 +133,15 @@ enum RuntimeReportSeverity {
 struct RuntimeReport {
     message: String,
     severity: RuntimeReportSeverity,
+    notification_error: Option<bool>,
+    retire_on_save: bool,
+}
+
+/// A one-shot result for the shell's single notification consumer.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RuntimeNotification {
+    pub message: String,
+    pub is_error: bool,
 }
 
 impl RuntimeReport {
@@ -121,6 +149,8 @@ impl RuntimeReport {
         Self {
             message: message.into(),
             severity: RuntimeReportSeverity::Status,
+            notification_error: None,
+            retire_on_save: false,
         }
     }
 
@@ -128,7 +158,24 @@ impl RuntimeReport {
         Self {
             message: message.into(),
             severity: RuntimeReportSeverity::Alert,
+            notification_error: None,
+            retire_on_save: false,
         }
+    }
+
+    fn until_saved(mut self) -> Self {
+        self.retire_on_save = true;
+        self
+    }
+
+    fn transient(mut self) -> Self {
+        self.notification_error = Some(self.severity == RuntimeReportSeverity::Alert);
+        self
+    }
+
+    fn transient_error(mut self) -> Self {
+        self.notification_error = Some(true);
+        self
     }
 
     fn clear_alert(&mut self) {
@@ -139,7 +186,7 @@ impl RuntimeReport {
     }
 }
 
-fn firmware_export_terminal_report(
+fn export_terminal_report(
     capture_is_current: bool,
     outcome: TerminalOutcome,
     delivery_error: Option<String>,
@@ -149,37 +196,18 @@ fn firmware_export_terminal_report(
     }
     match outcome {
         TerminalOutcome::Completed => Some(match delivery_error {
-            Some(error) => RuntimeReport::alert(error),
-            None => RuntimeReport::status("Saved locally."),
+            Some(error) => RuntimeReport::alert(error).transient(),
+            None => RuntimeReport::status("Saved locally.").transient(),
         }),
-        TerminalOutcome::Rejected(reason)
-        | TerminalOutcome::PersistenceFailed(reason)
-        | TerminalOutcome::BlockedByRecovery(reason)
-        | TerminalOutcome::ExecutorFailed(reason) => Some(RuntimeReport::alert(reason)),
-        TerminalOutcome::Cancelled => Some(RuntimeReport::status("Cancelled.")),
+        TerminalOutcome::Rejected(reason) | TerminalOutcome::ExecutorFailed(reason) => {
+            Some(RuntimeReport::alert(reason).transient())
+        }
+        TerminalOutcome::PersistenceFailed(reason) | TerminalOutcome::BlockedByRecovery(reason) => {
+            Some(RuntimeReport::alert(reason))
+        }
+        TerminalOutcome::Cancelled => Some(RuntimeReport::status("Cancelled.").transient()),
         TerminalOutcome::Closed => Some(RuntimeReport::status("Editor closed.")),
         TerminalOutcome::Superseded => None,
-    }
-}
-
-fn firmware_export_worker_is_current(
-    expected_epoch: boardstudio_application::ExecutorEpoch,
-    current_epoch: boardstudio_application::ExecutorEpoch,
-    same_worker: bool,
-) -> bool {
-    expected_epoch == current_epoch && same_worker
-}
-
-fn firmware_export_bytes_for_delivery(
-    result: Result<Vec<u8>, String>,
-    owner_is_current: bool,
-    cancelled: bool,
-) -> Result<Vec<u8>, String> {
-    match result {
-        Ok(_) if !owner_is_current || cancelled => {
-            Err("Export scope changed before delivery.".into())
-        }
-        other => other,
     }
 }
 
@@ -216,28 +244,6 @@ fn pcb_wiring_is_applied(document: &ProjectDoc, plan: &ElectricalPlan) -> bool {
             .all(|net| current.contains(&net) && board.net_ids.contains(&net.id))
 }
 
-fn firmware_export_capture_matches(
-    capture: &FirmwareExportCapture,
-    scope: Option<&Scope>,
-    snapshot: Option<&FirmwareAcceptedIdentity>,
-) -> bool {
-    scope == Some(&capture.scope)
-        && snapshot.is_some_and(|snapshot| {
-            snapshot.session_epoch == capture.session_epoch
-                && snapshot.document_id == capture.document_id
-                && snapshot.token == capture.token
-                && snapshot.revision == capture.revision
-                && snapshot.scene_revision == capture.revision
-        })
-}
-
-fn firmware_export_is_latest(
-    operation_id: OperationId,
-    latest_operation_id: Option<OperationId>,
-) -> bool {
-    latest_operation_id == Some(operation_id)
-}
-
 /// The document persistence port: the save Runtime performs for Session `Persist` effects.
 /// Loading, listing, deleting and the active-project preference stay on the browser store.
 /// Production saves through IndexedDB; tests install the in-process memory adapter from
@@ -247,7 +253,8 @@ pub trait DocumentPersistence {
         &'a self,
         document: &'a ProjectDoc,
         assets: &'a BTreeMap<String, Vec<u8>>,
-    ) -> Pin<Box<dyn Future<Output = Result<(), String>> + 'a>>;
+        expected: Option<&'a StorageToken>,
+    ) -> Pin<Box<dyn Future<Output = Result<StorageToken, SaveError>> + 'a>>;
 }
 
 impl DocumentPersistence for BrowserStore {
@@ -255,78 +262,11 @@ impl DocumentPersistence for BrowserStore {
         &'a self,
         document: &'a ProjectDoc,
         assets: &'a BTreeMap<String, Vec<u8>>,
-    ) -> Pin<Box<dyn Future<Output = Result<(), String>> + 'a>> {
+        expected: Option<&'a StorageToken>,
+    ) -> Pin<Box<dyn Future<Output = Result<StorageToken, SaveError>> + 'a>> {
         Box::pin(async move {
-            BrowserStore::save_document(self, document, assets)
-                .await
-                .map_err(|error| error.to_string())
+            BrowserStore::save_document_expected(self, document, assets, expected).await
         })
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct FirmwareExportCapture {
-    scope: Scope,
-    token: SnapshotToken,
-    revision: u64,
-    session_epoch: boardstudio_application::SessionEpoch,
-    document_id: String,
-    executor_epoch: boardstudio_application::ExecutorEpoch,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct FootprintExportCapture {
-    scope: Scope,
-    token: SnapshotToken,
-    revision: u64,
-    session_epoch: boardstudio_application::SessionEpoch,
-    document_id: String,
-    executor_epoch: boardstudio_application::ExecutorEpoch,
-    core_worker_identity: usize,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct PcbHandoffCapture {
-    scope: Scope,
-    token: SnapshotToken,
-    revision: u64,
-    session_epoch: boardstudio_application::SessionEpoch,
-    document_id: String,
-    executor_epoch: boardstudio_application::ExecutorEpoch,
-    core_worker_identity: usize,
-    draft: bool,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct MechanicalExportCapture {
-    scope: Scope,
-    token: SnapshotToken,
-    revision: u64,
-    session_epoch: boardstudio_application::SessionEpoch,
-    document_id: String,
-    executor_epoch: boardstudio_application::ExecutorEpoch,
-    core_worker_identity: usize,
-    filename: String,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct FirmwareAcceptedIdentity {
-    session_epoch: boardstudio_application::SessionEpoch,
-    document_id: String,
-    token: SnapshotToken,
-    revision: u64,
-    scene_revision: u64,
-}
-
-impl From<&AcceptedSnapshot> for FirmwareAcceptedIdentity {
-    fn from(snapshot: &AcceptedSnapshot) -> Self {
-        Self {
-            session_epoch: snapshot.session_epoch,
-            document_id: snapshot.document.id.clone(),
-            token: snapshot.token,
-            revision: snapshot.document.revision,
-            scene_revision: snapshot.scene.revision,
-        }
     }
 }
 
@@ -341,6 +281,31 @@ impl PartialEq for CadScene {
     fn eq(&self, other: &Self) -> bool {
         std::ptr::eq(self, other)
     }
+}
+
+/// Whether a live, enabled field outside the update warning is marked invalid:
+/// a Draft value its panel refuses to commit. It exists only in the page, so no
+/// engine owner can report it; the shared field controls expose it as
+/// `aria-invalid` (ticket 019).
+/// Ticket 008: the one-time diagnostic for a draft-owner entry pruned dead.
+/// Dead entries are dropped, never blockers; this names the retired owner in
+/// the browser console exactly once per entry.
+fn emit_draft_owner_diagnostic(message: &str) {
+    web_sys::console::warn_1(&message.into());
+}
+
+fn visible_invalid_draft() -> bool {
+    web_sys::window()
+        .and_then(|window| window.document())
+        .and_then(|document| {
+            document
+                .query_selector(
+                    "input[aria-invalid=true]:not([disabled]), textarea[aria-invalid=true]:not([disabled]), select[aria-invalid=true]:not([disabled]), [role=combobox][aria-invalid=true], [role=textbox][aria-invalid=true], [role=spinbutton][aria-invalid=true]",
+                )
+                .ok()
+                .flatten()
+        })
+        .is_some()
 }
 
 fn browser_uuid() -> Result<String, String> {
@@ -362,21 +327,67 @@ pub fn new_project_id() -> Result<String, String> {
     browser_uuid()
 }
 
+type GeneratedAnalysisResult =
+    Result<Rc<boardstudio_web_host::cad_jobs::CadGeneratedAnalysis>, String>;
+struct PendingGeneratedAnalysis {
+    task: String,
+    batch: u64,
+    waiters: Vec<futures_channel::oneshot::Sender<GeneratedAnalysisResult>>,
+}
+
+struct StepReadContext {
+    scope: Scope,
+    token: SnapshotToken,
+    revision: u64,
+    is_current: Rc<dyn Fn() -> bool>,
+    collision: bool,
+}
+
+fn generated_analysis_cache_key(
+    scene: &CadScene,
+    geometry_identity: &str,
+    target: Option<f64>,
+) -> String {
+    format!(
+        "{:?}/{}/{geometry_identity}/{:?}",
+        scene.scope,
+        scene.token.0,
+        target.map(f64::to_bits)
+    )
+}
+
 pub struct Runtime {
     session: RefCell<Session>,
     operation_outcomes: crate::operation_outcomes::OperationOutcomes,
     core: RefCell<Rc<dyn CoreExecutor>>,
-    core_executor_factory: RefCell<Rc<dyn Fn() -> Result<Rc<dyn CoreExecutor>, String>>>,
+    core_executor_factory: RefCell<Rc<CoreExecutorFactory>>,
     pub store: BrowserStore,
     persistence: RefCell<Rc<dyn DocumentPersistence>>,
+    storage_session: RefCell<Option<StorageSession>>,
+    storage_initializing: Cell<bool>,
+    storage_error: RefCell<Option<String>>,
+    saved_tokens: RefCell<BTreeMap<String, StorageToken>>,
+    pending_document: RefCell<Option<Arc<ProjectDoc>>>,
+    save_conflict: Cell<bool>,
     next_operation: Cell<u64>,
     assets: RefCell<BTreeMap<String, Vec<u8>>>,
     artifacts: RefCell<BTreeMap<String, Artifact>>,
-    cancelled_exports: RefCell<BTreeSet<OperationId>>,
+    export_leases: RefCell<ExportLeases>,
     frames: RefCell<BTreeMap<u64, Frame>>,
     surface: RefCell<Option<SvgElement>>,
     notify: RefCell<Option<Notifier>>,
     status: RefCell<RuntimeReport>,
+    notifications: RefCell<Vec<RuntimeNotification>>,
+    update_waiting: Cell<bool>,
+    update_observer: RefCell<Option<Box<dyn UpdateWatch>>>,
+    update_signals: RefCell<Option<Rc<dyn UpdateSignals>>>,
+    update_dismissed: Cell<bool>,
+    update_dialog: RefCell<Option<crate::update_safety::UpdateDialog>>,
+    update_phase: Cell<crate::update_safety::UpdatePhase>,
+    update_opener: Cell<crate::update_safety::UpdateOpener>,
+    /// Live explicit-submit draft owners (ticket 008). Polled synchronously by
+    /// [`Runtime::update_safety_inputs`] at both Update Now checkpoints.
+    draft_owners: RefCell<DraftOwnerRegistry>,
     open_sequence: Cell<u64>,
     project_deletion_pending: Cell<bool>,
     project_deletion_open: Cell<Option<OperationId>>,
@@ -388,17 +399,13 @@ pub struct Runtime {
     keycaps_preview_generation: Cell<u64>,
     keycaps_preview_worker: RefCell<Option<(u64, Rc<CadWorker>)>>,
     cad_jobs: RefCell<BTreeMap<JobId, Rc<Cell<bool>>>>,
-    step_exports: RefCell<BTreeSet<OperationId>>,
-    keycaps_step_exports: RefCell<BTreeSet<OperationId>>,
-    firmware_exports: RefCell<BTreeMap<OperationId, FirmwareExportCapture>>,
-    footprint_exports: RefCell<BTreeMap<OperationId, FootprintExportCapture>>,
-    pcb_handoff_exports: RefCell<BTreeMap<OperationId, PcbHandoffCapture>>,
-    mechanical_exports: RefCell<BTreeMap<OperationId, MechanicalExportCapture>>,
     latest_firmware_export: Cell<Option<OperationId>>,
-    firmware_export_delivery_errors: RefCell<BTreeMap<OperationId, String>>,
+    export_delivery_errors: RefCell<BTreeMap<OperationId, String>>,
     export_workers: RefCell<BTreeMap<OperationId, Rc<CadWorker>>>,
     native_case_preview: RefCell<crate::case_preview::NativePreviewState>,
     case_model_delivery: crate::model_delivery::ModelDeliveryAdapter,
+    // Tight preparation must not consume the separate missing-evidence retry.
+    collision_vendor_refinement: crate::model_delivery::ModelDeliveryAdapter,
     native_model_delivery: RefCell<NativeModelDeliveryState>,
     layout_preview: RefCell<crate::layout_viewer_source::LayoutPreviewState>,
     layout_model_rows: RefCell<
@@ -409,6 +416,14 @@ pub struct Runtime {
     >,
     layout_model_batch_generation: Cell<u64>,
     native_model_jobs: RefCell<BTreeSet<String>>,
+    generated_analysis_cache:
+        RefCell<BTreeMap<String, Rc<boardstudio_web_host::cad_jobs::CadGeneratedAnalysis>>>,
+    generated_analysis_prepared:
+        RefCell<BTreeMap<String, boardstudio_core::model::PreparedCaseAssemblyIR>>,
+    generated_analysis_pending: RefCell<BTreeMap<String, PendingGeneratedAnalysis>>,
+    collision_batch: Cell<u64>,
+    collision_alive: RefCell<Rc<Cell<bool>>>,
+    collision_generated_attempts: RefCell<BTreeSet<String>>,
     archive_export_options: ArchiveExportOptions,
     #[cfg(any(test, feature = "test-support"))]
     case_gesture_preview_test_executor: RefCell<Option<Rc<CaseGesturePreviewTestExecutor>>>,
@@ -418,6 +433,8 @@ pub struct Runtime {
     in_process_adapters: RefCell<Option<Rc<crate::runtime::in_process_support::InProcessAdapters>>>,
     #[cfg(any(test, feature = "test-support"))]
     held_effects: RefCell<Vec<Effect>>,
+    #[cfg(any(test, feature = "test-support"))]
+    in_process_drives: RefCell<Vec<futures_channel::oneshot::Receiver<()>>>,
 }
 
 struct ProjectDeletionLease {
@@ -438,31 +455,64 @@ impl Runtime {
 
     fn new_with_restoration(restore_active_project: bool) -> Result<Rc<Self>, String> {
         let prefix = deployment_prefix()?;
-        let core_executor_factory: Rc<dyn Fn() -> Result<Rc<dyn CoreExecutor>, String>> =
-            Rc::new(|| {
-                resource_url("assets/core-worker/entry.js")
-                    .and_then(|url| CoreWorker::new(&url).map_err(|e| e.to_string()))
-                    .map(|worker| Rc::new(worker) as Rc<dyn CoreExecutor>)
-            });
-        let store = BrowserStore::scoped(if prefix == "/" { "root" } else { "boardstudio" })
-            .map_err(|e| e.to_string())?;
+        let store = if restore_active_project {
+            BrowserStore::scoped(if prefix == "/" { "root" } else { "boardstudio" })
+        } else {
+            BrowserStore::new(format!("boardstudio-test-{}", browser_uuid()?))
+        }
+        .map_err(|e| e.to_string())?;
+        Self::new_with_store(restore_active_project, store)
+    }
+
+    fn new_with_store(
+        restore_active_project: bool,
+        store: BrowserStore,
+    ) -> Result<Rc<Self>, String> {
+        #[cfg(not(any(test, feature = "test-support")))]
+        let prefix = deployment_prefix()?;
+        let core_executor_factory: Rc<CoreExecutorFactory> = Rc::new(|| {
+            resource_url("assets/core-worker/entry.js")
+                .and_then(|url| CoreWorker::new(&url).map_err(|e| e.to_string()))
+                .map(|worker| Rc::new(worker) as Rc<dyn CoreExecutor>)
+        });
         let runtime = Rc::new(Self {
             session: RefCell::new(Session::new()),
             operation_outcomes: crate::operation_outcomes::OperationOutcomes::default(),
             core: RefCell::new(core_executor_factory.clone()()?),
             core_executor_factory: RefCell::new(core_executor_factory),
+            #[cfg(not(feature = "diagnostic-persist-gate"))]
             persistence: RefCell::new(Rc::new(store.clone())),
+            // Diagnostic packaged verification only (ticket 009): the gate wraps the
+            // real store at this composition point; the worker and Session are untouched.
+            #[cfg(feature = "diagnostic-persist-gate")]
+            persistence: RefCell::new(crate::diagnostic_persistence::wrap_store(store.clone())),
             store,
+            storage_session: RefCell::default(),
+            storage_initializing: Cell::new(restore_active_project),
+            storage_error: RefCell::new(None),
+            saved_tokens: RefCell::default(),
+            pending_document: RefCell::default(),
+            save_conflict: Cell::new(false),
             next_operation: Cell::new(1),
             assets: RefCell::new(BTreeMap::new()),
             artifacts: RefCell::new(BTreeMap::new()),
-            cancelled_exports: RefCell::new(BTreeSet::new()),
+            export_leases: RefCell::new(ExportLeases::default()),
             frames: RefCell::new(BTreeMap::new()),
             surface: RefCell::new(None),
             notify: RefCell::new(None),
-            status: RefCell::new(RuntimeReport::status(
-                "Open a saved keyboard or an editable demo copy.",
-            )),
+            status: RefCell::new(
+                RuntimeReport::status("Open a saved keyboard or an editable demo copy.")
+                    .until_saved(),
+            ),
+            notifications: RefCell::default(),
+            update_waiting: Cell::new(false),
+            update_observer: RefCell::new(None),
+            update_signals: RefCell::new(None),
+            update_dismissed: Cell::new(false),
+            update_dialog: RefCell::new(None),
+            update_phase: Cell::new(crate::update_safety::UpdatePhase::Idle),
+            update_opener: Cell::new(crate::update_safety::UpdateOpener::Toast),
+            draft_owners: RefCell::new(DraftOwnerRegistry::new()),
             open_sequence: Cell::new(0),
             project_deletion_pending: Cell::new(false),
             project_deletion_open: Cell::new(None),
@@ -473,22 +523,23 @@ impl Runtime {
             keycaps_preview_generation: Cell::new(0),
             keycaps_preview_worker: RefCell::new(None),
             cad_jobs: RefCell::new(BTreeMap::new()),
-            step_exports: RefCell::new(BTreeSet::new()),
-            keycaps_step_exports: RefCell::new(BTreeSet::new()),
-            firmware_exports: RefCell::new(BTreeMap::new()),
-            footprint_exports: RefCell::new(BTreeMap::new()),
-            pcb_handoff_exports: RefCell::new(BTreeMap::new()),
-            mechanical_exports: RefCell::new(BTreeMap::new()),
             latest_firmware_export: Cell::new(None),
-            firmware_export_delivery_errors: RefCell::new(BTreeMap::new()),
+            export_delivery_errors: RefCell::new(BTreeMap::new()),
             export_workers: RefCell::new(BTreeMap::new()),
             native_case_preview: RefCell::new(Default::default()),
             case_model_delivery: Default::default(),
+            collision_vendor_refinement: Default::default(),
             native_model_delivery: RefCell::new(Default::default()),
             layout_preview: RefCell::new(Default::default()),
             layout_model_rows: RefCell::new(None),
             layout_model_batch_generation: Cell::new(0),
             native_model_jobs: RefCell::new(BTreeSet::new()),
+            generated_analysis_cache: RefCell::new(BTreeMap::new()),
+            generated_analysis_prepared: RefCell::new(BTreeMap::new()),
+            generated_analysis_pending: RefCell::new(BTreeMap::new()),
+            collision_batch: Cell::new(0),
+            collision_alive: RefCell::new(Rc::new(Cell::new(true))),
+            collision_generated_attempts: RefCell::new(BTreeSet::new()),
             archive_export_options: ArchiveExportOptions::default(),
             #[cfg(any(test, feature = "test-support"))]
             case_gesture_preview_test_executor: RefCell::new(None),
@@ -498,11 +549,32 @@ impl Runtime {
             in_process_adapters: RefCell::new(None),
             #[cfg(any(test, feature = "test-support"))]
             held_effects: RefCell::new(Vec::new()),
+            #[cfg(any(test, feature = "test-support"))]
+            in_process_drives: RefCell::new(Vec::new()),
         });
-        // Reserve the startup open identity synchronously, before any explicit
-        // open action can supersede restoration of the last durable project.
+        // Storage cleanup finishes before any editor, import, or restored history can use assets.
         if restore_active_project {
-            runtime.restore_active_project();
+            let weak = Rc::downgrade(&runtime);
+            let store = runtime.store.clone();
+            spawn_local(async move {
+                let result = store.start_session().await;
+                if let Some(runtime) = weak.upgrade() {
+                    match result {
+                        Ok((lease, cleanup_error)) => {
+                            *runtime.storage_session.borrow_mut() = lease;
+                            runtime.storage_initializing.set(false);
+                            runtime.restore_active_project();
+                            if let Some(error) = cleanup_error {
+                                runtime.report(format!("Unused model cleanup was deferred; saved keyboards were kept: {error}"));
+                            }
+                            runtime.changed();
+                        }
+                        Err(error) => {
+                            runtime.storage_initialization_failed(&error.to_string());
+                        }
+                    }
+                }
+            });
         }
         // Test servers do not serve the release service worker, so registering it only races
         // a 404 report against whatever status the test is observing.
@@ -510,10 +582,17 @@ impl Runtime {
         let weak = Rc::downgrade(&runtime);
         #[cfg(not(any(test, feature = "test-support")))]
         spawn_local(async move {
-            if let Err(error) = boardstudio_web_host::host::register_offline(prefix).await
-                && let Some(runtime) = weak.upgrade()
-            {
-                runtime.report(format!("Offline setup failed; this keyboard still needs an online connection: {error:?}"));
+            match boardstudio_web_host::host::register_offline(prefix).await {
+                Ok(registration) => {
+                    if let Some(runtime) = weak.upgrade() {
+                        runtime.observe_update_waiting(Rc::new(registration));
+                    }
+                }
+                Err(error) => {
+                    if let Some(runtime) = weak.upgrade() {
+                        runtime.report(format!("Offline setup failed; this keyboard still needs an online connection: {error:?}"));
+                    }
+                }
             }
         });
         Ok(runtime)
@@ -772,11 +851,244 @@ impl Runtime {
             _ => Err("Core returned an unexpected matrix preview reply.".into()),
         }
     }
+    fn storage_initialization_failed(&self, error: &str) {
+        let message =
+            format!("Storage could not be initialized safely. Reload this page to retry. {error}");
+        *self.storage_error.borrow_mut() = Some(message.clone());
+        self.apply_report(RuntimeReport::alert(message));
+    }
+
+    /// Whether storage is ready for project imports, or why initialization failed.
+    pub fn storage_readiness(&self) -> Result<bool, String> {
+        match self.storage_error.borrow().as_ref() {
+            Some(error) => Err(error.clone()),
+            None => Ok(!self.storage_initializing.get()),
+        }
+    }
     pub fn status(&self) -> String {
         self.status.borrow().message.clone()
     }
     pub fn status_is_alert(&self) -> bool {
         self.status.borrow().severity == RuntimeReportSeverity::Alert
+    }
+    pub fn status_is_transient(&self) -> bool {
+        self.status.borrow().notification_error.is_some()
+    }
+    /// Drain every pending result in order, including identical results between renders.
+    /// Only the shell consumes this queue; reading it does not trigger another render.
+    pub fn take_notifications(&self) -> Vec<RuntimeNotification> {
+        std::mem::take(&mut *self.notifications.borrow_mut())
+    }
+    /// Whether a newer build is installed and waiting while this page runs an
+    /// older one. Derived from the live registration on every observation, so
+    /// dismissal is never stored: the notice returns on the next page load.
+    /// Ticket 018 shows no action for this state; Refresh arrives with 019.
+    pub fn update_waiting(&self) -> bool {
+        self.update_waiting.get()
+    }
+    fn set_update_waiting(&self, waiting: bool) {
+        if self.update_waiting.get() == waiting {
+            return;
+        }
+        self.update_waiting.set(waiting);
+        if !waiting {
+            // A cleared wait ends the notice cycle: dismissal and any warning
+            // belong to the previous wait, never to the next one.
+            self.update_dismissed.set(false);
+            self.update_dialog.borrow_mut().take();
+        }
+        self.changed();
+    }
+    /// Observe real release lifecycle signals and keep the waiting state the
+    /// shell notice renders. Replaces any previous observer so repeated
+    /// observations never stack listeners or duplicate the notice. Retains the
+    /// signals so activation can recheck the real waiting state and adopt.
+    pub fn observe_update_waiting(self: &Rc<Self>, signals: Rc<dyn UpdateSignals>) {
+        if let Some(mut previous) = self.update_observer.borrow_mut().take() {
+            previous.stop();
+        }
+        *self.update_signals.borrow_mut() = Some(signals.clone());
+        let runtime = Rc::downgrade(self);
+        let watched = signals.clone();
+        self.update_observer
+            .borrow_mut()
+            .replace(signals.watch(Rc::new(move || {
+                if let Some(runtime) = runtime.upgrade() {
+                    runtime.set_update_waiting(boardstudio_web_host::offline::is_update_waiting(
+                        watched.snapshot(),
+                    ));
+                }
+            })));
+        self.set_update_waiting(boardstudio_web_host::offline::is_update_waiting(
+            signals.snapshot(),
+        ));
+    }
+    /// Whether the waiting-update Toast was dismissed. The header notice shows
+    /// while this is set and a wait is still outstanding; a cleared wait
+    /// resets it, so dismissal is never stored across page loads.
+    pub fn update_notice_dismissed(&self) -> bool {
+        self.update_dismissed.get()
+    }
+    /// The deferral warning the bridge shows, if adoption must wait.
+    pub fn update_dialog(&self) -> Option<crate::update_safety::UpdateDialog> {
+        self.update_dialog.borrow().clone()
+    }
+    /// Which production control started the current adoption flow.
+    pub fn update_opener(&self) -> crate::update_safety::UpdateOpener {
+        self.update_opener.get()
+    }
+    /// Record the Toast's dismissal so the header notice takes over. Dismissal
+    /// never reloads and never adopts; the waiting state is untouched.
+    pub fn dismiss_update_notice(&self) {
+        if self.update_waiting.get() && !self.update_dismissed.get() {
+            self.update_dismissed.set(true);
+            self.changed();
+        }
+    }
+    /// Close the deferral warning. Cancellation preserves the editor and every
+    /// value; the update keeps waiting until the user resolves the cause and
+    /// chooses Update Now again.
+    pub fn cancel_update_dialog(&self) {
+        if self.update_dialog.borrow_mut().take().is_some() {
+            self.changed();
+        }
+    }
+    /// Register one draft owner's admission key. The entry stays live while
+    /// the returned guard is held; dropping the guard (genuine unmount or
+    /// scope change) retires it at the next poll. Hidden, keep-mounted and
+    /// portal-retained owners keep their guard and keep blocking.
+    pub fn register_draft_owner(&self, registration: DraftOwnerRegistration) -> DraftOwnerGuard {
+        self.draft_owners.borrow_mut().register(registration)
+    }
+    /// Retire one registration silently: the normal path for genuine unmount
+    /// and scope change. Idempotent.
+    pub fn retire_draft_owner(&self, guard: DraftOwnerGuard) {
+        self.draft_owners.borrow_mut().remove(&guard);
+    }
+    /// Poll the live draft owners against the current accepted document,
+    /// pruning dead and stale-scope entries. Each pruned dead entry emits its
+    /// one-time diagnostic; dead entries never block.
+    fn poll_draft_owners(&self) -> Vec<crate::update_safety::UnresolvedDraft> {
+        let scope = self
+            .model()
+            .accepted
+            .map(|accepted| (accepted.document.id.clone(), accepted.session_epoch));
+        let mut registry = self.draft_owners.borrow_mut();
+        let unresolved = registry.poll(scope.as_ref());
+        for diagnostic in registry.take_diagnostics() {
+            emit_draft_owner_diagnostic(&diagnostic);
+        }
+        unresolved
+    }
+    fn update_safety_inputs(&self) -> crate::update_safety::UpdateSafetyInputs {
+        let model = self.model();
+        crate::update_safety::UpdateSafetyInputs {
+            lifecycle: model.lifecycle,
+            durability: model.durability.clone(),
+            accepted_revision: model
+                .accepted
+                .as_ref()
+                .map(|accepted| accepted.document.revision),
+            session_pending_work: self.session.borrow().has_pending_work(),
+            save_started_or_retained: self.pending_document.borrow().is_some(),
+            save_conflict: self.save_conflict.get(),
+            storage_initializing: self.storage_initializing.get(),
+            storage_failed: self.storage_error.borrow().is_some(),
+            invalid_draft: visible_invalid_draft(),
+            unresolved_drafts: self.poll_draft_owners(),
+        }
+    }
+    /// Start adopting the waiting build from the `opener` control. Rechecks the
+    /// real waiting state and refresh safety at activation: a stale notification
+    /// clears silently, detected risk opens a cancel-only warning, and only a
+    /// settled sole client adopts. Anything but an idle phase ignores further
+    /// activation, so repeated clicks cannot adopt twice.
+    pub fn begin_update(self: &Rc<Self>, opener: crate::update_safety::UpdateOpener) {
+        use crate::update_safety::{UpdateDialog, UpdatePhase};
+        if self.update_phase.get() != UpdatePhase::Idle {
+            return;
+        }
+        let Some(signals) = self.update_signals.borrow().clone() else {
+            self.set_update_waiting(false);
+            return;
+        };
+        if !boardstudio_web_host::offline::is_update_waiting(signals.snapshot()) {
+            self.set_update_waiting(false);
+            return;
+        }
+        match crate::update_safety::update_safety(&self.update_safety_inputs()) {
+            Err(blockers) => {
+                self.update_opener.set(opener);
+                *self.update_dialog.borrow_mut() = Some(UpdateDialog::Deferred { blockers });
+                self.changed();
+            }
+            Ok(()) => {
+                self.update_opener.set(opener);
+                self.update_phase.set(UpdatePhase::Checking);
+                self.changed();
+                let this = self.clone();
+                spawn_local(async move {
+                    this.run_update_adoption().await;
+                });
+            }
+        }
+    }
+    async fn run_update_adoption(self: &Rc<Self>) {
+        use crate::update_safety::{UpdateDialog, UpdatePhase};
+        use boardstudio_web_host::offline::AdoptError;
+        let Some(signals) = self.update_signals.borrow().clone() else {
+            self.update_phase.set(UpdatePhase::Idle);
+            self.changed();
+            return;
+        };
+        if !boardstudio_web_host::offline::is_update_waiting(signals.snapshot()) {
+            self.set_update_waiting(false);
+            self.update_phase.set(UpdatePhase::Idle);
+            self.changed();
+            return;
+        }
+        self.update_phase.set(UpdatePhase::Adopting);
+        self.changed();
+        // The worker decides whether other open editors allow adoption, at the
+        // moment it would skip waiting; the page never asks first, so no editor
+        // can open between a probe and the takeover.
+        match signals.adopt_waiting().await {
+            Ok(()) => self.reload_when_safe(signals).await,
+            Err(AdoptError::OtherTabs) => {
+                self.update_phase.set(UpdatePhase::Idle);
+                *self.update_dialog.borrow_mut() = Some(UpdateDialog::OtherTabs);
+                self.changed();
+            }
+            Err(AdoptError::Failed(error)) => {
+                self.update_phase.set(UpdatePhase::Idle);
+                self.report(format!(
+                    "The update could not be adopted: {error}. Try Update Now again."
+                ));
+            }
+        }
+    }
+    /// The waiting worker has taken over. Edits can begin while that async
+    /// takeover runs, so the reload rechecks every refresh-safety owner and
+    /// waits (never discards) until they settle again. The page keeps running
+    /// its loaded build in the meantime and reports why it has not reloaded.
+    async fn reload_when_safe(self: &Rc<Self>, signals: Rc<dyn UpdateSignals>) {
+        use crate::update_safety::UpdatePhase;
+        let mut told = false;
+        loop {
+            if crate::update_safety::update_safety(&self.update_safety_inputs()).is_ok() {
+                // The page is going away; scripted tests record the call instead.
+                signals.reload();
+                return;
+            }
+            if !told {
+                told = true;
+                self.update_phase.set(UpdatePhase::Installed);
+                self.report(
+                    "The update is installed. This page reloads once your work is saved and any invalid fields are fixed.",
+                );
+            }
+            TimeoutFuture::new(250).await;
+        }
     }
     pub fn embed_used_models(&self) -> bool {
         self.archive_export_options.embed_used_models()
@@ -799,6 +1111,12 @@ impl Runtime {
         self.apply_report(RuntimeReport::status(status));
     }
     fn apply_report(&self, report: RuntimeReport) {
+        if let Some(is_error) = report.notification_error {
+            self.notifications.borrow_mut().push(RuntimeNotification {
+                message: report.message.clone(),
+                is_error,
+            });
+        }
         *self.status.borrow_mut() = report;
         self.changed();
     }
@@ -899,10 +1217,40 @@ impl Runtime {
         self.create_new_keyboard_inner(false)
     }
 
+    /// Open a fresh, locally persisted copy of a shipped demo project.
+    pub fn open_demo_copy(self: &Rc<Self>, mut document: ProjectDoc) -> Result<(), String> {
+        if self.storage_initializing.get() {
+            return Err("Storage is still initializing; try again shortly.".into());
+        }
+        if self.project_deletion_pending.get() {
+            return Err("A saved keyboard deletion is in progress.".into());
+        }
+        document.id = browser_uuid()?;
+        document.revision = 0;
+        self.confirm_project_replacement(&document)?;
+        self.begin_open()?;
+        let operation_id = self.operation();
+        self.submit(if self.model().lifecycle == Lifecycle::RecoveryRequired {
+            Event::RecoverWithDocument {
+                operation_id,
+                document,
+            }
+        } else {
+            Event::Open {
+                operation_id,
+                document,
+            }
+        });
+        Ok(())
+    }
+
     fn create_new_keyboard_inner(
         self: &Rc<Self>,
         allow_project_deletion: bool,
     ) -> Result<(String, crate::operation_outcomes::OutcomeSlot), String> {
+        if self.storage_initializing.get() {
+            return Err("Storage is still initializing; try again shortly.".into());
+        }
         if self.project_deletion_pending.get() && !allow_project_deletion {
             return Err("A saved keyboard deletion is in progress.".into());
         }
@@ -934,28 +1282,68 @@ impl Runtime {
             thickness: 3.0,
         });
 
+        if !allow_project_deletion {
+            self.confirm_project_replacement(&document)?;
+            // The confirm above explicitly discarded pending edits: drop the
+            // retained download buffer now so a latched quota failure cannot
+            // outlive recovery. Session drops its own retained save when the
+            // RecoverWithDocument below is submitted; the Persist emitted
+            // afterwards carries only the new document.
+            self.pending_document.borrow_mut().take();
+            self.begin_open()?;
+        }
+
         let operation_id = self.operation();
         let outcome = self.observe_operation(operation_id);
         if allow_project_deletion {
             self.project_deletion_open.set(Some(operation_id));
         }
-        self.submit(Event::Open {
-            operation_id,
-            document,
+        self.submit(if self.model().lifecycle == Lifecycle::RecoveryRequired {
+            Event::RecoverWithDocument {
+                operation_id,
+                document,
+            }
+        } else {
+            Event::Open {
+                operation_id,
+                document,
+            }
         });
         Ok((project_id, outcome))
     }
 
     pub async fn delete_saved_project(self: &Rc<Self>, project_id: String) -> Result<(), String> {
+        let recovery = self.model().lifecycle == Lifecycle::RecoveryRequired;
+        if recovery && !self.confirm_discard_pending() {
+            return Err("Pending edits were kept; no keyboard was deleted.".into());
+        }
         let lease = self.begin_project_deletion()?;
         self.supersede_pending_opens_for_deletion()?;
-        let initial = if self.model().lifecycle == Lifecycle::RecoveryRequired {
-            self.recover_active_project_for_deletion().await?
-        } else {
-            self.wait_for_saved_active_document().await?
-        };
+        if recovery {
+            // Quota escape hatch: the confirm above explicitly discarded pending
+            // work, so remove the single key without rewriting durable state
+            // first. Recovery and replacement writes re-hit a full origin and
+            // abort, which used to make in-app deletion impossible. Opening a
+            // replacement stays a later, explicit user action; the retained
+            // pending doc stays available for explicit retry or download.
+            self.store
+                .delete_project_by_key(project_id.clone())
+                .await
+                .map_err(|error| {
+                    format!("This keyboard could not be deleted. Try again. {error}")
+                })?;
+            self.saved_tokens.borrow_mut().remove(&project_id);
+            drop(lease);
+            return Ok(());
+        }
+        let initial = self.wait_for_saved_active_document().await?;
 
         let deleting_active = initial.document.id == project_id;
+        let expected_delete = if deleting_active {
+            self.saved_tokens.borrow().get(&project_id).cloned()
+        } else {
+            self.store.observed_token(&project_id)
+        };
         let expected_current = if deleting_active {
             let mut remaining = self
                 .store
@@ -973,7 +1361,7 @@ impl Runtime {
                 let replacement_id = first.id.clone();
                 let replacement = self
                     .store
-                    .load_document(replacement_id.clone())
+                    .load_document_with_token(replacement_id.clone())
                     .await
                     .map_err(|error| format!("Could not open the next saved keyboard: {error}"))?
                     .ok_or_else(|| {
@@ -981,6 +1369,7 @@ impl Runtime {
                             .to_owned()
                     })?;
                 self.ensure_delete_owner(&initial)?;
+                let replacement = self.remember_saved(replacement);
                 match self
                     .open_project_for_deletion(replacement, replacement_id)
                     .await
@@ -1040,9 +1429,10 @@ impl Runtime {
         }
 
         self.store
-            .delete_project(project_id)
+            .delete_project_expected(project_id.clone(), expected_delete.as_ref())
             .await
             .map_err(|error| format!("This keyboard could not be deleted. Try again. {error}"))?;
+        self.saved_tokens.borrow_mut().remove(&project_id);
         drop(lease);
         Ok(())
     }
@@ -1136,7 +1526,7 @@ impl Runtime {
         })?;
         let document = self
             .store
-            .load_document(accepted.document.id.clone())
+            .load_document_with_token(accepted.document.id.clone())
             .await
             .map_err(|error| format!("Could not restore the current saved keyboard: {error}"))?
             .ok_or_else(|| {
@@ -1149,6 +1539,7 @@ impl Runtime {
         if current.document.id != accepted.document.id || current.token != accepted.token {
             return Err("The active keyboard changed during deletion recovery.".into());
         }
+        let document = self.remember_saved(document);
         let operation_id = self.operation();
         let outcome = self.observe_operation(operation_id);
         let sequence = self.open_sequence.get();
@@ -1525,7 +1916,9 @@ impl Runtime {
             revision: accepted.document.revision,
         };
         #[cfg(any(test, feature = "test-support"))]
-        if let Some(executor) = self.keycaps_preview_test_executor.borrow().clone() {
+        let test_executor = self.keycaps_preview_test_executor.borrow().clone();
+        #[cfg(any(test, feature = "test-support"))]
+        if let Some(executor) = test_executor {
             let bodies = executor(input.clone()).await?;
             self.ensure_keycaps_source_current(&accepted, &input.scope)?;
             if self.keycaps_preview_generation.get() != generation {
@@ -1777,6 +2170,13 @@ impl Runtime {
     }
 
     fn complete(self: &Rc<Self>, event: Completion) -> Vec<Effect> {
+        let persist_committed = matches!(
+            &event,
+            Completion::Persist {
+                result: SaveResult::Committed,
+                ..
+            }
+        );
         let previous_scope = self.scope();
         let previous_snapshot = self
             .model()
@@ -1794,11 +2194,28 @@ impl Runtime {
             self.cancel_active_case_gesture_preview();
             self.cancel_keycaps_cad_preview();
         }
+        // A landing alone can be an unchanged edit. Only an accepted persistence ack
+        // retires save-owned reports; stale acks and view completions leave them alone.
+        if persist_committed
+            && accepted_snapshot != previous_snapshot
+            && matches!(self.model().durability, Durability::Saved { .. })
+        {
+            let mut report = self.status.borrow_mut();
+            if report.retire_on_save {
+                *report = RuntimeReport::status("Saved locally.");
+            }
+        }
         self.changed();
         effects
     }
     fn drive(self: &Rc<Self>, effects: Vec<Effect>) {
         let this = self.clone();
+        #[cfg(any(test, feature = "test-support"))]
+        let finished = self.in_process_adapters.borrow().as_ref().map(|_| {
+            let (finished, receive) = futures_channel::oneshot::channel();
+            self.in_process_drives.borrow_mut().push(receive);
+            finished
+        });
         spawn_local(async move {
             let mut effects = VecDeque::from(effects);
             while let Some(effect) = effects.pop_front() {
@@ -1814,6 +2231,10 @@ impl Runtime {
                     worker.close();
                 }
                 this.core.borrow().close();
+            }
+            #[cfg(any(test, feature = "test-support"))]
+            if let Some(finished) = finished {
+                let _ = finished.send(());
             }
         });
     }
@@ -1881,14 +2302,27 @@ impl Runtime {
                     .map(|(hash, bytes)| (hash.clone(), bytes.clone()))
                     .collect();
                 let persistence = self.persistence.borrow().clone();
-                let result = match persistence.save_document(&document, &assets).await {
-                    Ok(()) => {
+                *self.pending_document.borrow_mut() = Some(document.clone());
+                let expected = self.saved_tokens.borrow().get(&document.id).cloned();
+                let result = match persistence
+                    .save_document(&document, &assets, expected.as_ref())
+                    .await
+                {
+                    Ok(token) => {
+                        self.saved_tokens
+                            .borrow_mut()
+                            .insert(document.id.clone(), token);
+                        self.pending_document.borrow_mut().take();
+                        self.save_conflict.set(false);
                         for asset in &document.assets {
                             self.assets.borrow_mut().remove(&asset.sha256);
                         }
                         SaveResult::Committed
                     }
-                    Err(error) => SaveResult::Aborted(error),
+                    Err(error) => {
+                        self.save_conflict.set(error == SaveError::Conflict);
+                        SaveResult::Aborted(error.to_string())
+                    }
                 };
                 self.complete(Completion::Persist {
                     save_attempt_id,
@@ -1905,54 +2339,92 @@ impl Runtime {
                     outcome.clone(),
                     landing,
                 );
-                self.step_exports.borrow_mut().remove(&operation_id);
-                let is_keycaps_step_export =
-                    self.keycaps_step_exports.borrow_mut().remove(&operation_id);
-                let firmware_capture = self.firmware_exports.borrow_mut().remove(&operation_id);
-                self.footprint_exports.borrow_mut().remove(&operation_id);
-                self.pcb_handoff_exports.borrow_mut().remove(&operation_id);
-                self.mechanical_exports.borrow_mut().remove(&operation_id);
+                let lease = self.export_leases.borrow_mut().finish(operation_id);
+                let kind = lease.as_ref().map(|lease| lease.kind().clone());
+                let is_board_outline_export =
+                    matches!(kind.as_ref(), Some(ExportKind::BoardOutline { .. }));
+                let firmware_capture = (kind == Some(ExportKind::Firmware))
+                    .then_some(lease.as_ref())
+                    .flatten();
+                let is_firmware_export = firmware_capture.is_some();
                 let delivery_error = self
-                    .firmware_export_delivery_errors
+                    .export_delivery_errors
                     .borrow_mut()
                     .remove(&operation_id);
                 self.archive_export_options.settle(operation_id);
-                let firmware_owner_is_current = firmware_capture.as_ref().is_some_and(|capture| {
-                    self.firmware_export_capture_is_current(operation_id, capture)
+                let firmware_owner_is_current = firmware_capture.is_some_and(|lease| {
+                    self.export_source_is_current(lease)
+                        && self.latest_firmware_export.get() == Some(operation_id)
                 });
-                if firmware_capture.is_some() {
-                    if let Some(report) = firmware_export_terminal_report(
-                        firmware_owner_is_current,
-                        outcome,
-                        delivery_error,
-                    ) {
+                if is_firmware_export {
+                    if let Some(report) =
+                        export_terminal_report(firmware_owner_is_current, outcome, delivery_error)
+                    {
                         self.apply_report(report);
                     }
-                } else if is_keycaps_step_export {
-                    match outcome {
-                        TerminalOutcome::Completed => {}
-                        TerminalOutcome::Rejected(reason)
-                        | TerminalOutcome::PersistenceFailed(reason)
-                        | TerminalOutcome::BlockedByRecovery(reason)
-                        | TerminalOutcome::ExecutorFailed(reason) => {
-                            self.apply_report(RuntimeReport::alert(reason));
-                        }
-                        TerminalOutcome::Cancelled => self.report("Cancelled."),
-                        TerminalOutcome::Closed => self.report("Editor closed."),
-                        TerminalOutcome::Superseded => {
-                            if observed {
-                                self.changed();
+                } else if is_board_outline_export {
+                    let lease_is_current = lease
+                        .as_ref()
+                        .is_some_and(|lease| self.export_source_is_current(lease));
+                    if lease_is_current {
+                        match outcome {
+                            TerminalOutcome::Completed => {}
+                            TerminalOutcome::Rejected(reason)
+                            | TerminalOutcome::ExecutorFailed(reason) => {
+                                self.apply_report(RuntimeReport::alert(reason).transient());
+                            }
+                            TerminalOutcome::PersistenceFailed(reason)
+                            | TerminalOutcome::BlockedByRecovery(reason) => {
+                                self.apply_report(RuntimeReport::alert(reason));
+                            }
+                            TerminalOutcome::Cancelled => self.report("Cancelled."),
+                            TerminalOutcome::Closed => self.report("Editor closed."),
+                            TerminalOutcome::Superseded => {
+                                if observed {
+                                    self.changed();
+                                }
                             }
                         }
                     }
+                } else if let Some(lease) = lease {
+                    let downloaded =
+                        outcome == TerminalOutcome::Completed && delivery_error.is_none();
+                    if let Some(mut report) = export_terminal_report(
+                        self.export_source_is_current(&lease),
+                        outcome,
+                        delivery_error,
+                    ) {
+                        if downloaded {
+                            report.message = if kind == Some(ExportKind::ProjectCopy) {
+                                "Project copy downloaded."
+                            } else {
+                                "Export finished."
+                            }
+                            .into();
+                        }
+                        self.apply_report(report);
+                    }
                 } else {
                     match outcome {
-                        TerminalOutcome::Completed => self.report("Saved locally."),
+                        TerminalOutcome::Completed => {
+                            // Silent completion still wakes views without an outcome observer.
+                            self.changed();
+                        }
+                        TerminalOutcome::PersistenceFailed(reason) => {
+                            self.apply_report(RuntimeReport::status(reason).until_saved());
+                        }
+                        TerminalOutcome::BlockedByRecovery(reason) => {
+                            let mut report = RuntimeReport::status(reason);
+                            if matches!(self.model().durability, Durability::Failed { .. }) {
+                                report = report.until_saved();
+                            }
+                            self.apply_report(report);
+                        }
                         TerminalOutcome::Rejected(reason)
-                        | TerminalOutcome::PersistenceFailed(reason)
-                        | TerminalOutcome::BlockedByRecovery(reason)
                         | TerminalOutcome::ExecutorFailed(reason) => self.report(reason),
-                        TerminalOutcome::Cancelled => self.report("Cancelled."),
+                        TerminalOutcome::Cancelled => {
+                            self.apply_report(RuntimeReport::status("Cancelled.").transient());
+                        }
                         TerminalOutcome::Closed => self.report("Editor closed."),
                         TerminalOutcome::Superseded => {
                             if observed {
@@ -2025,25 +2497,34 @@ impl Runtime {
                 scope,
                 snapshot,
             } => {
-                let is_keycaps_step_export =
-                    self.keycaps_step_exports.borrow().contains(&operation_id);
-                let is_step_export =
-                    self.step_exports.borrow().contains(&operation_id) || is_keycaps_step_export;
-                let is_firmware_export = self.firmware_exports.borrow().contains_key(&operation_id);
-                let is_footprint_export =
-                    self.footprint_exports.borrow().contains_key(&operation_id);
-                let is_pcb_handoff_export = self
-                    .pcb_handoff_exports
+                if self.export_current(operation_id, snapshot.token, &scope) {
+                    self.apply_report(RuntimeReport::status("Export started.").transient());
+                }
+                let kind = self
+                    .export_leases
                     .borrow()
-                    .contains_key(&operation_id);
+                    .get(operation_id)
+                    .map(|lease| lease.kind().clone());
+                let is_step_export = matches!(kind.as_ref(), Some(ExportKind::Step));
+                let is_keycaps_export = kind == Some(ExportKind::KeycapsStl);
+                let is_firmware_export = kind == Some(ExportKind::Firmware);
+                let is_footprint_export = kind == Some(ExportKind::Footprints);
+                let is_pcb_handoff_export =
+                    matches!(kind.as_ref(), Some(ExportKind::PcbHandoff { .. }));
                 let is_mechanical_export =
-                    self.mechanical_exports.borrow().contains_key(&operation_id);
-                let result = if is_pcb_handoff_export {
-                    let draft = self
-                        .pcb_handoff_exports
-                        .borrow()
-                        .get(&operation_id)
-                        .is_some_and(|capture| capture.draft);
+                    matches!(kind.as_ref(), Some(ExportKind::Mechanical { .. }));
+                let is_board_outline_export =
+                    matches!(kind.as_ref(), Some(ExportKind::BoardOutline { .. }));
+                let result = if let Some(ExportKind::BoardOutline { dxf }) = kind.as_ref() {
+                    self.board_outline_bytes(operation_id, &snapshot, &scope, *dxf)
+                        .await
+                } else if is_keycaps_export {
+                    self.keycaps_stl_bytes(operation_id, &snapshot, &scope)
+                        .await
+                        .map(|bytes| (bytes, snapshot.token))
+                } else if is_pcb_handoff_export {
+                    let draft =
+                        matches!(kind.as_ref(), Some(ExportKind::PcbHandoff { draft: true }));
                     self.pcb_handoff_bytes(operation_id, &snapshot, &scope, draft)
                         .await
                 } else if is_mechanical_export {
@@ -2061,15 +2542,7 @@ impl Runtime {
                             is_step_export,
                             is_firmware_export,
                             || -> ArchiveWorkFuture<'_> {
-                                if is_keycaps_step_export {
-                                    Box::pin(self.keycaps_step_bytes(
-                                        operation_id,
-                                        &snapshot,
-                                        &scope,
-                                    ))
-                                } else {
-                                    Box::pin(self.step_bytes(operation_id, &snapshot, &scope))
-                                }
+                                Box::pin(self.step_bytes(operation_id, &snapshot, &scope))
                             },
                             |embed_used_models| -> ArchiveWorkFuture<'_> {
                                 Box::pin(self.pack_archive(
@@ -2088,24 +2561,15 @@ impl Runtime {
                         Err(reason) => Err(reason),
                     }
                 };
-                let result = if is_firmware_export {
-                    let owner_is_current =
-                        self.export_current(operation_id, snapshot.token, &scope);
-                    let cancelled = self.cancelled_exports.borrow_mut().remove(&operation_id);
-                    firmware_export_bytes_for_delivery(
-                        result.map(|(bytes, _)| bytes),
-                        owner_is_current,
-                        cancelled,
-                    )
-                    .map(|bytes| (bytes, snapshot.token))
-                } else {
-                    result
-                };
+                let result = result.and_then(|(bytes, token)| {
+                    self.export_current(operation_id, token, &scope)
+                        .then_some((bytes, token))
+                        .ok_or_else(|| "Export scope changed before delivery.".to_owned())
+                });
                 match result {
                     Ok((bytes, delivery_token)) => {
                         let current = self.export_current(operation_id, delivery_token, &scope);
-                        let cancelled = self.cancelled_exports.borrow_mut().remove(&operation_id);
-                        if !current || cancelled {
+                        if !current {
                             return self.complete(Completion::ExportFailed {
                                 operation_id,
                                 reason: "Export scope changed before delivery.".into(),
@@ -2122,10 +2586,10 @@ impl Runtime {
                                 format!("{}-zmk.zip", snapshot.document.name),
                                 Some("application/zip".to_owned()),
                             )
-                        } else if is_keycaps_step_export {
+                        } else if is_keycaps_export {
                             (
-                                format!("{}-keycaps.step", snapshot.document.name),
-                                Some("model/step".to_owned()),
+                                format!("{}-keycaps.zip", snapshot.document.name),
+                                Some("application/zip".to_owned()),
                             )
                         } else if is_step_export {
                             (
@@ -2133,11 +2597,10 @@ impl Runtime {
                                 Some("model/step".to_owned()),
                             )
                         } else if is_pcb_handoff_export {
-                            let draft = self
-                                .pcb_handoff_exports
-                                .borrow()
-                                .get(&operation_id)
-                                .is_some_and(|capture| capture.draft);
+                            let draft = matches!(
+                                kind.as_ref(),
+                                Some(ExportKind::PcbHandoff { draft: true })
+                            );
                             (
                                 format!(
                                     "{}-{}pcb-handoff.zip",
@@ -2147,15 +2610,31 @@ impl Runtime {
                                 Some("application/zip".to_owned()),
                             )
                         } else if is_mechanical_export {
-                            let filename = self
-                                .mechanical_exports
-                                .borrow()
-                                .get(&operation_id)
-                                .map(|capture| capture.filename.clone())
-                                .unwrap_or_else(|| {
-                                    format!("{}-mechanical.zip", snapshot.document.name)
-                                });
+                            let filename = match kind.as_ref() {
+                                Some(ExportKind::Mechanical { filename }) => filename.clone(),
+                                _ => format!("{}-mechanical.zip", snapshot.document.name),
+                            };
                             (filename, Some("application/zip".to_owned()))
+                        } else if is_board_outline_export {
+                            let dxf = matches!(
+                                kind.as_ref(),
+                                Some(ExportKind::BoardOutline { dxf: true })
+                            );
+                            (
+                                format!(
+                                    "{}.{}",
+                                    snapshot.document.name,
+                                    if dxf { "dxf" } else { "svg" }
+                                ),
+                                Some(
+                                    if dxf {
+                                        "application/dxf"
+                                    } else {
+                                        "image/svg+xml"
+                                    }
+                                    .to_owned(),
+                                ),
+                            )
                         } else {
                             (archive_filename(&snapshot.document.name), None)
                         };
@@ -2168,8 +2647,7 @@ impl Runtime {
                                 media_type,
                                 scope: scope.clone(),
                                 token: delivery_token,
-                                firmware: is_firmware_export,
-                                keycaps_step: is_keycaps_step_export,
+                                board_outline: is_board_outline_export,
                             },
                         );
                         self.complete(Completion::ExportFinished {
@@ -2179,13 +2657,10 @@ impl Runtime {
                             artifact_id,
                         })
                     }
-                    Err(reason) => {
-                        self.cancelled_exports.borrow_mut().remove(&operation_id);
-                        self.complete(Completion::ExportFailed {
-                            operation_id,
-                            reason,
-                        })
-                    }
+                    Err(reason) => self.complete(Completion::ExportFailed {
+                        operation_id,
+                        reason,
+                    }),
                 }
             }
             Effect::DeliverExport {
@@ -2194,22 +2669,28 @@ impl Runtime {
                 let artifact = self.artifacts.borrow_mut().remove(&artifact_id);
                 if let Some(artifact) = artifact
                     && token == artifact.token
-                    && self.scope().as_ref() == Some(&artifact.scope)
-                    && self
-                        .model()
-                        .accepted
-                        .as_ref()
-                        .is_some_and(|s| s.token == token)
-                    && let Err(error) = self.deliver_artifact(&artifact)
+                    && self.export_delivery_is_current(
+                        artifact.operation_id,
+                        token,
+                        &artifact.scope,
+                    )
                 {
-                    if artifact.firmware {
-                        self.firmware_export_delivery_errors
-                            .borrow_mut()
-                            .insert(artifact.operation_id, error);
-                    } else if artifact.keycaps_step {
-                        self.apply_report(RuntimeReport::alert(error));
-                    } else {
-                        self.report(error);
+                    match self.deliver_artifact(&artifact) {
+                        Ok(()) if artifact.board_outline => {
+                            self.apply_report(
+                                RuntimeReport::status(format!("Saved {}.", artifact.filename))
+                                    .transient(),
+                            );
+                        }
+                        Ok(()) => {}
+                        Err(error) if artifact.board_outline => {
+                            self.apply_report(RuntimeReport::alert(error).transient());
+                        }
+                        Err(error) => {
+                            self.export_delivery_errors
+                                .borrow_mut()
+                                .insert(artifact.operation_id, error);
+                        }
                     }
                 }
                 vec![]
@@ -2232,11 +2713,11 @@ impl Runtime {
                 vec![]
             }
             Effect::CancelExport { operation_id } => {
-                self.cancelled_exports.borrow_mut().insert(operation_id);
+                self.export_leases.borrow_mut().cancel(operation_id);
+                self.export_delivery_errors
+                    .borrow_mut()
+                    .remove(&operation_id);
                 self.archive_export_options.cancel(operation_id);
-                self.footprint_exports.borrow_mut().remove(&operation_id);
-                self.pcb_handoff_exports.borrow_mut().remove(&operation_id);
-                self.mechanical_exports.borrow_mut().remove(&operation_id);
                 if let Some(worker) = self.export_workers.borrow_mut().remove(&operation_id) {
                     worker.close();
                 }
@@ -2473,6 +2954,11 @@ impl Runtime {
             identity: prepared.identity.clone(),
             operation: CadOperation::Preview,
             prepared: Some(prepared.prepared.clone()),
+            source_sha256: None,
+            step_import_options: None,
+            collision_query: None,
+            generated_analysis_request: None,
+            collision_meshes: None,
             input_bytes: vec![],
         };
         let reply = worker
@@ -3082,11 +3568,7 @@ impl Runtime {
         if !is_current() {
             return Err("Imported board asset request became stale after loading".into());
         }
-        let digest = Sha256::digest(&bytes);
-        let digest = digest
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect::<String>();
+        let digest = sha256_hex(&bytes);
         if digest != asset.sha256 {
             return Err("Imported board asset bytes do not match the accepted SHA-256".into());
         }
@@ -3252,12 +3734,17 @@ impl Runtime {
 
     async fn read_step_model(
         &self,
-        bytes: Vec<u8>,
-        scope: Scope,
-        token: SnapshotToken,
-        revision: u64,
-        is_current: Rc<dyn Fn() -> bool>,
+        bytes: crate::model_delivery::VerifiedModelBytes,
+        import_options: boardstudio_web_host::cad_jobs::CadStepImportOptions,
+        context: StepReadContext,
     ) -> Result<crate::model_delivery::MeshArrays, String> {
+        let StepReadContext {
+            scope,
+            token,
+            revision,
+            is_current,
+            collision,
+        } = context;
         if !is_current() || self.scope().as_ref() != Some(&scope) {
             return Err("STEP model request became stale before worker setup".into());
         }
@@ -3284,25 +3771,40 @@ impl Runtime {
             instance_id: scope.instance_id.clone(),
             revision,
         };
+        let prefix = if collision {
+            "case-model-evidence-step"
+        } else if import_options.target_deflection_mm.is_some() {
+            "case-model-refine-step"
+        } else {
+            "case-model-step"
+        };
         let request = CadRequest {
-            request_id: format!("case-model-step-{revision}-{operation}"),
-            job_id: format!("case-model-step-{revision}-{operation}"),
+            request_id: format!("{prefix}-{revision}-{operation}"),
+            job_id: format!("{prefix}-{revision}-{operation}"),
             identity: identity.clone(),
             operation: CadOperation::ReadStep,
             prepared: None,
-            input_bytes: bytes,
+            source_sha256: Some(bytes.sha256().to_owned()),
+            step_import_options: Some(import_options),
+            collision_query: None,
+            generated_analysis_request: None,
+            collision_meshes: None,
+            input_bytes: bytes.bytes().to_vec(),
         };
         self.native_model_jobs
             .borrow_mut()
             .insert(request.job_id.clone());
         let reply = worker.request(request.clone()).await;
-        self.native_model_jobs.borrow_mut().remove(&request.job_id);
+        let active = self.native_model_jobs.borrow_mut().remove(&request.job_id);
         let reply = reply.map_err(|error| error.to_string())?;
-        if !is_current() || self.scope().as_ref() != Some(&scope) {
+        if !active || !is_current() || self.scope().as_ref() != Some(&scope) {
+            let _ = worker.cancel(&request.job_id);
             return Err("STEP model request became stale after parsing".into());
         }
-        let result =
-            validate_reply(&request, reply, &identity).map_err(|error| format!("{error:?}"))?;
+        let result = validate_reply(&request, reply, &identity).map_err(|error| {
+            let _ = worker.cancel(&request.job_id);
+            format!("{error:?}")
+        })?;
         let mesh = result
             .mesh
             .ok_or_else(|| "STEP model reader returned no mesh".to_owned())?;
@@ -3310,7 +3812,821 @@ impl Runtime {
             positions: mesh.positions,
             normals: mesh.normals,
             colors: None,
+            step_bounds: result.bounds,
+            vendor_step: result.vendor_step.map(Rc::new),
         })
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn query_vendor_step_collision(
+        &self,
+        left: &crate::model_delivery::DeliveredModel,
+        left_explicit_pcb_transform: Option<[f64; 16]>,
+        right: &crate::model_delivery::DeliveredModel,
+        right_explicit_pcb_transform: Option<[f64; 16]>,
+        clearance_threshold_mm: f64,
+        requested_accuracy_mm: Option<f64>,
+        scope: Scope,
+        token: SnapshotToken,
+        revision: u64,
+        is_current: Rc<dyn Fn() -> bool>,
+    ) -> Result<crate::model_delivery::CadCollisionResult, String> {
+        use crate::model_delivery::{CadCollisionSubject, resolve_physical_model_row_transform};
+        let left = CadCollisionSubject::VendorModel {
+            id: left.id.clone(),
+            reference: left.id.clone(),
+            row_transform_f64: resolve_physical_model_row_transform(
+                left,
+                left_explicit_pcb_transform,
+            )?,
+            vendor_step: left.mesh.vendor_step.clone(),
+        };
+        let right = CadCollisionSubject::VendorModel {
+            id: right.id.clone(),
+            reference: right.id.clone(),
+            row_transform_f64: resolve_physical_model_row_transform(
+                right,
+                right_explicit_pcb_transform,
+            )?,
+            vendor_step: right.mesh.vendor_step.clone(),
+        };
+        self.query_collision_subjects(
+            &left,
+            &right,
+            clearance_threshold_mm,
+            requested_accuracy_mm,
+            scope,
+            token,
+            revision,
+            is_current,
+        )
+        .await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn query_collision_subjects(
+        &self,
+        left: &crate::model_delivery::CadCollisionSubject,
+        right: &crate::model_delivery::CadCollisionSubject,
+        clearance_threshold_mm: f64,
+        requested_accuracy_mm: Option<f64>,
+        scope: Scope,
+        token: SnapshotToken,
+        revision: u64,
+        is_current: Rc<dyn Fn() -> bool>,
+    ) -> Result<crate::model_delivery::CadCollisionResult, String> {
+        use crate::model_delivery::{CadCollisionAssessment, CadCollisionResult};
+        use boardstudio_web_host::{cad_jobs::CadCollisionQuery, cad_qualification::MeshDistance};
+        let batch = self.collision_batch.get();
+        let identity = CadSnapshotIdentity {
+            token: token.0,
+            session_epoch: scope.session_epoch.0,
+            document_id: scope.document_id.clone(),
+            board_id: scope.board_id.clone(),
+            instance_id: scope.instance_id.clone(),
+            revision,
+        };
+        let mut subjects = [left.clone(), right.clone()];
+        for attempt in 0..2 {
+            if batch != self.collision_batch.get()
+                || !is_current()
+                || !self.collision_snapshot_is_current(&scope, token, revision)
+            {
+                return Err("collision request became stale before dispatch".into());
+            }
+            let operands = subjects[0]
+                .operand()
+                .and_then(|left| subjects[1].operand().map(|right| (left, right)));
+            let (left, right) = match operands {
+                Ok(operands) => operands,
+                Err(reason) => {
+                    return Ok(CadCollisionResult {
+                        source_interval_mm: None,
+                        query_qualification: None,
+                        observation: None,
+                        left_provenance: None,
+                        right_provenance: None,
+                        assessment: CadCollisionAssessment::Unknown {
+                            reasons: vec![reason],
+                            refinement_requested: requested_accuracy_mm.is_some(),
+                        },
+                    });
+                }
+            };
+            let query = CadCollisionQuery {
+                left,
+                right,
+                clearance_threshold_mm,
+                requested_accuracy_mm,
+                qualification_limits: Default::default(),
+            };
+            let mut result = self
+                .dispatch_collision_subjects(
+                    [&subjects[0], &subjects[1]],
+                    query,
+                    scope.clone(),
+                    identity.clone(),
+                    is_current.clone(),
+                )
+                .await?;
+            let unavailable = result.query_qualification.as_ref().is_some_and(|r| matches!(&r.mesh_distance, MeshDistance::Unknown { reasons } if reasons == &["evidence-unavailable"]));
+            if attempt == 1 || !unavailable {
+                return Ok(result);
+            }
+            for subject in &mut subjects {
+                match self
+                    .refresh_collision_subject(subject, &scope, token, revision, is_current.clone())
+                    .await
+                {
+                    Ok(refreshed) => *subject = refreshed,
+                    Err(error) => {
+                        if let CadCollisionAssessment::Unknown { reasons, .. } =
+                            &mut result.assessment
+                        {
+                            reasons.push(error);
+                        }
+                        if batch != self.collision_batch.get() || !is_current() {
+                            return Err("collision preparation became stale".into());
+                        }
+                        return Ok(result);
+                    }
+                }
+            }
+        }
+        unreachable!("bounded collision evidence recovery")
+    }
+
+    async fn dispatch_collision_subjects(
+        &self,
+        subjects: [&crate::model_delivery::CadCollisionSubject; 2],
+        query: boardstudio_web_host::cad_jobs::CadCollisionQuery,
+        scope: Scope,
+        identity: CadSnapshotIdentity,
+        is_current: Rc<dyn Fn() -> bool>,
+    ) -> Result<crate::model_delivery::CadCollisionResult, String> {
+        let [left, right] = subjects;
+        let token = SnapshotToken(identity.token);
+        let revision = identity.revision;
+        let clearance_threshold_mm = query.clearance_threshold_mm;
+        let requested_accuracy_mm = query.requested_accuracy_mm;
+        let batch = self.collision_batch.get();
+        use crate::model_delivery::assess_subject_collision_observation;
+        use boardstudio_web_host::cad_jobs::CadCollisionMeshPair;
+        if !is_current() || !self.collision_snapshot_is_current(&scope, token, revision) {
+            return Err("collision request became stale before worker setup".into());
+        }
+        let (left_positions, left_tags) = left.mesh().ok_or("left analysis mesh is unavailable")?;
+        let (right_positions, right_tags) =
+            right.mesh().ok_or("right analysis mesh is unavailable")?;
+        let pair_bytes = left_positions
+            .len()
+            .saturating_mul(8)
+            .saturating_add(left_tags.len().saturating_mul(4))
+            .saturating_add(right_positions.len().saturating_mul(8))
+            .saturating_add(right_tags.len().saturating_mul(4));
+        if pair_bytes > boardstudio_web_host::cad_jobs::MAX_COLLISION_QUERY_BYTES {
+            return Err("collision pair exceeds the 64 MiB limit before copying".into());
+        }
+        let worker = crate::case_model_lifecycle::case_model_worker(
+            &self.cad_worker,
+            &scope,
+            |worker| !worker.is_closed(),
+            || {
+                CadWorker::new(&resource_url("assets/cad-worker/entry.js")?)
+                    .map(Rc::new)
+                    .map_err(|error| error.to_string())
+            },
+        )?;
+        worker.ready().await.map_err(|error| error.to_string())?;
+        if self.collision_batch.get() != batch
+            || !is_current()
+            || !self.collision_snapshot_is_current(&scope, token, revision)
+        {
+            return Err("collision request became stale before dispatch".into());
+        }
+        let operation = self.operation().0;
+        let request = CadRequest {
+            request_id: format!("case-model-collision-{revision}-{operation}"),
+            job_id: format!("case-model-collision-{revision}-{operation}"),
+            identity: identity.clone(),
+            operation: CadOperation::CollisionQuery,
+            prepared: None,
+            source_sha256: None,
+            step_import_options: None,
+            generated_analysis_request: None,
+            collision_query: Some(query),
+            collision_meshes: Some(CadCollisionMeshPair {
+                left_positions_mm_f64: left_positions.to_vec(),
+                left_triangle_face_occurrence_indices: left_tags.to_vec(),
+                right_positions_mm_f64: right_positions.to_vec(),
+                right_triangle_face_occurrence_indices: right_tags.to_vec(),
+            }),
+            input_bytes: Vec::new(),
+        };
+        self.native_model_jobs
+            .borrow_mut()
+            .insert(request.job_id.clone());
+        let reply = worker.request(request.clone()).await;
+        let active = self.native_model_jobs.borrow_mut().remove(&request.job_id);
+        let reply = reply.map_err(|error| error.to_string())?;
+        if !active
+            || self.collision_batch.get() != batch
+            || !is_current()
+            || !self.collision_snapshot_is_current(&scope, token, revision)
+        {
+            return Err("collision request became stale after parsing".into());
+        }
+        let result =
+            validate_reply(&request, reply, &identity).map_err(|error| format!("{error:?}"))?;
+        let query = request
+            .collision_query
+            .as_ref()
+            .ok_or("missing collision request")?;
+        let report = result
+            .query_qualification
+            .clone()
+            .ok_or("missing query qualification")?;
+        let expected = boardstudio_web_host::cad_qualification::expected_binding(
+            query,
+            &identity,
+            &report.binding.worker_generation,
+        )?;
+        let validated = boardstudio_web_host::cad_qualification::validate_query_qualification(
+            report,
+            &expected,
+            &query.qualification_limits,
+            request
+                .collision_meshes
+                .as_ref()
+                .ok_or("missing collision buffers")?,
+            left.source_qualification()
+                .zip(right.source_qualification())
+                .map(|(left, right)| [left, right]),
+        )?;
+        Ok(assess_subject_collision_observation(
+            left,
+            right,
+            clearance_threshold_mm,
+            requested_accuracy_mm,
+            Some((&validated, &expected)),
+            result
+                .collision
+                .ok_or("collision query returned no observation")?,
+        ))
+    }
+
+    pub fn cancel_collision_checks(&self) {
+        self.collision_alive.borrow().set(false);
+        *self.collision_alive.borrow_mut() = Rc::new(Cell::new(true));
+        self.collision_batch.set(
+            self.collision_batch
+                .get()
+                .checked_add(1)
+                .expect("collision batch exhausted"),
+        );
+        self.collision_generated_attempts.borrow_mut().clear();
+        let jobs = self
+            .native_model_jobs
+            .borrow()
+            .iter()
+            .filter(|job| {
+                job.starts_with("case-model-collision-")
+                    || job.starts_with("case-model-analysis-")
+                    || job.starts_with("case-model-refine-step-")
+                    || job.starts_with("case-model-evidence-step-")
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        for job in jobs {
+            self.native_model_jobs.borrow_mut().remove(&job);
+            if let Some((_, worker)) = self.cad_worker.borrow().as_ref() {
+                let _ = worker.cancel(&job);
+            }
+        }
+    }
+
+    fn collision_snapshot_is_current(
+        &self,
+        scope: &Scope,
+        token: SnapshotToken,
+        revision: u64,
+    ) -> bool {
+        self.scope().as_ref() == Some(scope)
+            && self.model().accepted.is_some_and(|accepted| {
+                accepted.token == token
+                    && accepted.document.revision == revision
+                    && accepted.session_epoch == scope.session_epoch
+                    && accepted.document.id == scope.document_id
+            })
+    }
+
+    fn collision_current(&self, is_current: Rc<dyn Fn() -> bool>) -> Rc<dyn Fn() -> bool> {
+        let alive = self.collision_alive.borrow().clone();
+        Rc::new(move || alive.get() && is_current())
+    }
+
+    async fn verified_collision_step_bytes(
+        &self,
+        sha: &str,
+    ) -> Result<crate::model_delivery::VerifiedModelBytes, String> {
+        let cached = self.assets.borrow().get(sha).cloned();
+        let bytes = match cached {
+            Some(bytes) => bytes,
+            None => self
+                .store
+                .load_asset(sha.into())
+                .await
+                .map_err(|e| e.to_string())?
+                .ok_or("original vendor STEP bytes are unavailable")?
+                .to_vec(),
+        };
+        crate::model_delivery::VerifiedModelBytes::verify(bytes, sha)
+    }
+
+    async fn refresh_collision_subject(
+        &self,
+        subject: &crate::model_delivery::CadCollisionSubject,
+        scope: &Scope,
+        token: SnapshotToken,
+        revision: u64,
+        is_current: Rc<dyn Fn() -> bool>,
+    ) -> Result<crate::model_delivery::CadCollisionSubject, String> {
+        use crate::model_delivery::CadCollisionSubject;
+        let current = self.collision_current(is_current);
+        if !current() || !self.collision_snapshot_is_current(scope, token, revision) {
+            return Err("evidence preparation became stale".into());
+        }
+        let mut refreshed = subject.clone();
+        match &mut refreshed {
+            CadCollisionSubject::VendorModel {
+                vendor_step: Some(asset),
+                ..
+            } => {
+                let batch = format!(
+                    "{scope:?}/{}/{revision}/{}",
+                    token.0,
+                    self.collision_batch.get()
+                );
+                let options = asset.import_options;
+                let sha = asset.source_sha256.clone();
+                let load = async {
+                    let bytes = self.verified_collision_step_bytes(&sha).await?;
+                    self.read_step_model(
+                        bytes,
+                        options,
+                        StepReadContext {
+                            scope: scope.clone(),
+                            token,
+                            revision,
+                            is_current: current.clone(),
+                            collision: true,
+                        },
+                    )
+                    .await
+                };
+                let mesh = self
+                    .case_model_delivery
+                    .refresh_step_evidence(&sha, options, &batch, current.clone(), load)
+                    .await?;
+                *asset = mesh
+                    .vendor_step
+                    .clone()
+                    .ok_or("reprepared STEP omitted full source asset")?;
+            }
+            CadCollisionSubject::GeneratedCaseBody {
+                analysis: Some(asset),
+                ..
+            } => {
+                let scene = self
+                    .cad_scene()
+                    .filter(|s| {
+                        s.scope == *scope
+                            && s.token == token
+                            && s.snapshot.document.revision == revision
+                    })
+                    .ok_or("generated evidence has no current exact scene")?;
+                let target = asset
+                    .analysis_mesh
+                    .as_ref()
+                    .ok_or("generated evidence omitted descriptor")?
+                    .settings
+                    .target_deflection_mm;
+                let key = generated_analysis_cache_key(&scene, &asset.geometry_identity, target);
+                let first = self
+                    .collision_generated_attempts
+                    .borrow_mut()
+                    .insert(key.clone());
+                if first {
+                    self.generated_analysis_cache.borrow_mut().remove(&key);
+                }
+                if !first
+                    && !self.generated_analysis_cache.borrow().contains_key(&key)
+                    && !self.generated_analysis_pending.borrow().contains_key(&key)
+                {
+                    return Err(
+                        "generated evidence preparation already failed in this batch".into(),
+                    );
+                }
+                let prepared = self
+                    .generated_analysis_prepared
+                    .borrow()
+                    .get(&asset.geometry_identity)
+                    .cloned()
+                    .ok_or("complete prepared source for generated evidence is unavailable")?;
+                *asset = self
+                    .analyze_prepared_generated_body(
+                        &scene,
+                        &prepared,
+                        &asset.body_id,
+                        target,
+                        current.clone(),
+                    )
+                    .await?;
+            }
+            _ => return Err("source evidence cannot be prepared".into()),
+        }
+        if !current() || !self.collision_snapshot_is_current(scope, token, revision) {
+            return Err("evidence preparation became stale after settlement".into());
+        }
+        Ok(refreshed)
+    }
+
+    pub async fn refine_collision_vendor(
+        &self,
+        scene: &CadScene,
+        subject: &crate::model_delivery::CadCollisionSubject,
+        target_deflection_mm: f64,
+        is_current: Rc<dyn Fn() -> bool>,
+    ) -> Result<crate::model_delivery::CadCollisionSubject, String> {
+        use crate::model_delivery::CadCollisionSubject;
+        let CadCollisionSubject::VendorModel {
+            id,
+            reference,
+            row_transform_f64,
+            vendor_step: Some(asset),
+        } = subject
+        else {
+            return Err(format!(
+                "{} has no retained vendor STEP source for refinement",
+                subject.label()
+            ));
+        };
+        if !is_current()
+            || !self.collision_snapshot_is_current(
+                &scene.scope,
+                scene.token,
+                scene.snapshot.document.revision,
+            )
+        {
+            return Err("vendor refinement became stale".into());
+        }
+        let is_current = self.collision_current(is_current);
+        let options = boardstudio_web_host::cad_jobs::CadStepImportOptions {
+            target_deflection_mm: Some(target_deflection_mm),
+            ..asset.import_options
+        };
+        options.validate()?;
+        let batch = format!(
+            "{:?}/{}/{}/{}",
+            scene.scope,
+            scene.token.0,
+            scene.snapshot.document.revision,
+            self.collision_batch.get()
+        );
+        let load = async {
+            let bytes = self
+                .verified_collision_step_bytes(&asset.source_sha256)
+                .await?;
+            self.read_step_model(
+                bytes,
+                options,
+                StepReadContext {
+                    scope: scene.scope.clone(),
+                    token: scene.token,
+                    revision: scene.snapshot.document.revision,
+                    is_current: is_current.clone(),
+                    collision: true,
+                },
+            )
+            .await
+        };
+        let arrays = self
+            .collision_vendor_refinement
+            .refresh_step_evidence(
+                &asset.source_sha256,
+                options,
+                &batch,
+                is_current.clone(),
+                load,
+            )
+            .await?;
+        Ok(CadCollisionSubject::VendorModel {
+            id: id.clone(),
+            reference: reference.clone(),
+            row_transform_f64: *row_transform_f64,
+            vendor_step: arrays.vendor_step.clone(),
+        })
+    }
+
+    pub async fn generated_collision_subjects(
+        self: &Rc<Self>,
+        scene: &CadScene,
+        accuracy: Option<f64>,
+        current: Rc<dyn Fn() -> bool>,
+    ) -> (Vec<crate::model_delivery::CadCollisionSubject>, Vec<String>) {
+        use crate::model_delivery::{CadCollisionSubject, IDENTITY_ROW_TRANSFORM_F64};
+        let mut subjects = Vec::new();
+        let mut errors = Vec::new();
+        for body in scene
+            .prepared
+            .bodies
+            .iter()
+            .filter(|body| body.body.id != "pcb-reference")
+        {
+            let analysis = match self
+                .analyze_generated_case_body(scene, &body.body.id, accuracy, current.clone())
+                .await
+            {
+                Ok(analysis) => Some(analysis),
+                Err(error) => {
+                    errors.push(format!("{}: {error}", body.body.name));
+                    None
+                }
+            };
+            subjects.push(CadCollisionSubject::GeneratedCaseBody {
+                id: body.body.id.clone(),
+                name: body.body.name.clone(),
+                row_transform_f64: IDENTITY_ROW_TRANSFORM_F64,
+                analysis,
+            });
+            if !current() {
+                return (Vec::new(), Vec::new());
+            }
+        }
+        let core = self.core.borrow().clone();
+        let epoch = self.session.borrow().core_executor_epoch();
+        let pcb_current: Rc<dyn Fn() -> bool> = {
+            let runtime = self.clone();
+            let core = core.clone();
+            let current = current.clone();
+            let scope = scene.scope.clone();
+            let token = scene.token;
+            let revision = scene.snapshot.document.revision;
+            let scene_identity = scene as *const CadScene as usize;
+            Rc::new(move || {
+                current()
+                    && runtime.collision_snapshot_is_current(&scope, token, revision)
+                    && runtime.session.borrow().core_executor_epoch() == epoch
+                    && Rc::ptr_eq(&core, &runtime.core.borrow())
+                    && runtime
+                        .cad_scene()
+                        .is_some_and(|scene| Rc::as_ptr(&scene) as usize == scene_identity)
+            })
+        };
+        let pcb = async {
+            let physical = self
+                .prepare_physical_step_assembly(
+                    core.as_ref(),
+                    &epoch.0.to_string(),
+                    &format!("collision-pcb-{}", self.operation().0),
+                    &scene.snapshot,
+                    &scene.scope,
+                    pcb_current.clone(),
+                )
+                .await?;
+            self.analyze_prepared_generated_body(
+                scene,
+                &physical.prepared.prepared,
+                "pcb-reference",
+                accuracy,
+                pcb_current.clone(),
+            )
+            .await
+        }
+        .await;
+        let analysis = match pcb {
+            Ok(analysis) if pcb_current() => Some(analysis),
+            Ok(_) => {
+                errors.push("PCB unavailable: physical source preparation became stale".into());
+                None
+            }
+            Err(error) => {
+                errors.push(format!("PCB unavailable: {error}"));
+                None
+            }
+        };
+        if !current() {
+            return (Vec::new(), Vec::new());
+        }
+        subjects.push(CadCollisionSubject::GeneratedCaseBody {
+            id: "pcb-reference".into(),
+            name: "PCB".into(),
+            row_transform_f64: IDENTITY_ROW_TRANSFORM_F64,
+            analysis,
+        });
+        (subjects, errors)
+    }
+
+    pub async fn analyze_generated_case_body(
+        &self,
+        scene: &CadScene,
+        body_id: &str,
+        target_deflection_mm: Option<f64>,
+        is_current: Rc<dyn Fn() -> bool>,
+    ) -> Result<Rc<boardstudio_web_host::cad_jobs::CadGeneratedAnalysis>, String> {
+        self.analyze_prepared_generated_body(
+            scene,
+            &scene.prepared,
+            body_id,
+            target_deflection_mm,
+            is_current,
+        )
+        .await
+    }
+
+    async fn analyze_prepared_generated_body(
+        &self,
+        scene: &CadScene,
+        prepared: &boardstudio_core::model::PreparedCaseAssemblyIR,
+        body_id: &str,
+        target_deflection_mm: Option<f64>,
+        is_current: Rc<dyn Fn() -> bool>,
+    ) -> Result<Rc<boardstudio_web_host::cad_jobs::CadGeneratedAnalysis>, String> {
+        use boardstudio_web_host::cad_jobs::{
+            CadGeneratedAnalysisRequest, generated_geometry_identity,
+        };
+        let is_current = self.collision_current(is_current);
+        let revision = scene.snapshot.document.revision;
+        if !is_current()
+            || !scene.exact
+            || !self.collision_snapshot_is_current(&scene.scope, scene.token, revision)
+            || !self
+                .cad_scene()
+                .is_some_and(|current| std::ptr::eq(current.as_ref(), scene))
+        {
+            return Err("generated analysis requires the current exact scene".into());
+        }
+        let body = prepared
+            .bodies
+            .iter()
+            .find(|body| body.body.id == body_id)
+            .ok_or("generated analysis body is not in the prepared scene")?;
+        let metadata = CadGeneratedAnalysisRequest {
+            body_id: body_id.into(),
+            geometry_identity: generated_geometry_identity(body)?,
+            target_deflection_mm,
+        };
+        boardstudio_web_host::cad_jobs::validate_generated_analysis_request(
+            Some(prepared),
+            revision,
+            &metadata,
+        )?;
+        let cache_key =
+            generated_analysis_cache_key(scene, &metadata.geometry_identity, target_deflection_mm);
+        if let Some(cached) = self.generated_analysis_cache.borrow().get(&cache_key) {
+            boardstudio_web_host::cad_jobs::validate_generated_analysis(
+                &metadata, revision, cached,
+            )?;
+            return Ok(cached.clone());
+        }
+        let worker = crate::case_model_lifecycle::case_model_worker(
+            &self.cad_worker,
+            &scene.scope,
+            |worker| !worker.is_closed(),
+            || {
+                CadWorker::new(&resource_url("assets/cad-worker/entry.js")?)
+                    .map(Rc::new)
+                    .map_err(|error| error.to_string())
+            },
+        )?;
+        worker.ready().await.map_err(|error| error.to_string())?;
+        if !is_current() || !self.collision_snapshot_is_current(&scene.scope, scene.token, revision)
+        {
+            return Err("generated analysis became stale before dispatch".into());
+        }
+        let receiver = {
+            let mut pending = self.generated_analysis_pending.borrow_mut();
+            if pending
+                .get(&cache_key)
+                .is_some_and(|entry| entry.batch != self.collision_batch.get())
+                && let Some(old) = pending.remove(&cache_key)
+            {
+                for waiter in old.waiters {
+                    let _ = waiter.send(Err("generated analysis batch was retired".into()));
+                }
+            }
+            pending.get_mut(&cache_key).map(|pending| {
+                let (sender, receiver) = futures_channel::oneshot::channel();
+                pending.waiters.push(sender);
+                receiver
+            })
+        };
+        if let Some(receiver) = receiver {
+            let result = receiver
+                .await
+                .map_err(|_| "generated analysis task was abandoned")?;
+            if !is_current()
+                || !self.collision_snapshot_is_current(&scene.scope, scene.token, revision)
+            {
+                return Err("joined generated analysis became stale".into());
+            }
+            return result;
+        }
+        let operation = self.operation().0;
+        let identity = CadSnapshotIdentity {
+            token: scene.token.0,
+            session_epoch: scene.scope.session_epoch.0,
+            document_id: scene.scope.document_id.clone(),
+            board_id: scene.scope.board_id.clone(),
+            instance_id: scene.scope.instance_id.clone(),
+            revision,
+        };
+        let request = CadRequest {
+            request_id: format!("case-model-analysis-{revision}-{operation}"),
+            job_id: format!("case-model-analysis-{revision}-{operation}"),
+            identity: identity.clone(),
+            operation: CadOperation::AnalyzeGeneratedBody,
+            prepared: Some(prepared.clone()),
+            generated_analysis_request: Some(metadata),
+            source_sha256: None,
+            step_import_options: None,
+            collision_query: None,
+            collision_meshes: None,
+            input_bytes: Vec::new(),
+        };
+        self.native_model_jobs
+            .borrow_mut()
+            .insert(request.job_id.clone());
+        self.generated_analysis_pending.borrow_mut().insert(
+            cache_key.clone(),
+            PendingGeneratedAnalysis {
+                task: request.job_id.clone(),
+                batch: self.collision_batch.get(),
+                waiters: Vec::new(),
+            },
+        );
+        let result: GeneratedAnalysisResult = async {
+            let reply = worker.request(request.clone()).await;
+            let active = self.native_model_jobs.borrow_mut().remove(&request.job_id);
+            let reply = reply.map_err(|error| error.to_string())?;
+            if !active
+                || !is_current()
+                || !self.collision_snapshot_is_current(&scene.scope, scene.token, revision)
+                || !self
+                    .cad_scene()
+                    .is_some_and(|current| std::ptr::eq(current.as_ref(), scene))
+            {
+                return Err("generated analysis became stale after dispatch".into());
+            }
+            let result =
+                validate_reply(&request, reply, &identity).map_err(|error| format!("{error:?}"))?;
+            let analysis = Rc::new(
+                result
+                    .generated_analysis
+                    .ok_or("generated analysis returned no payload")?,
+            );
+            Ok(analysis)
+        }
+        .await;
+        let pending = self
+            .generated_analysis_pending
+            .borrow_mut()
+            .remove(&cache_key)
+            .ok_or("generated task lost settlement authority")?;
+        if result.is_err() {
+            let _ = worker.cancel(&request.job_id);
+        }
+        if pending.task != request.job_id {
+            self.generated_analysis_pending
+                .borrow_mut()
+                .insert(cache_key, pending);
+            return Err("generated task was superseded before settlement".into());
+        }
+        for waiter in pending.waiters {
+            let _ = waiter.send(result.clone());
+        }
+        let analysis = result?;
+        let mut cache = self.generated_analysis_cache.borrow_mut();
+        let bytes = |asset: &boardstudio_web_host::cad_jobs::CadGeneratedAnalysis| {
+            asset.surface_positions_mm_f64.len() * 8
+                + asset.triangle_face_occurrence_indices.len() * 4
+        };
+        if cache.len() >= 64
+            || cache.values().map(|asset| bytes(asset)).sum::<usize>() + bytes(&analysis)
+                > 64 * 1024 * 1024
+        {
+            cache.clear();
+            self.generated_analysis_prepared.borrow_mut().clear();
+        }
+        self.generated_analysis_prepared.borrow_mut().insert(
+            analysis.geometry_identity.clone(),
+            boardstudio_core::model::PreparedCaseAssemblyIR {
+                revision,
+                bodies: vec![body.clone()],
+            },
+        );
+        cache.insert(cache_key, analysis.clone());
+        Ok(analysis)
     }
 
     fn native_model_delivery_ports(
@@ -3466,7 +4782,17 @@ impl Runtime {
                         .upgrade()
                         .ok_or_else(|| "Model runtime was closed".to_owned())?;
                     runtime
-                        .read_step_model(bytes.bytes().to_vec(), scope, token, revision, is_current)
+                        .read_step_model(
+                            bytes,
+                            Default::default(),
+                            StepReadContext {
+                                scope,
+                                token,
+                                revision,
+                                is_current,
+                                collision: false,
+                            },
+                        )
                         .await
                 })
             },
@@ -3970,7 +5296,30 @@ impl Runtime {
         }
         self.clear_alert();
         let operation_id = self.operation();
-        self.step_exports.borrow_mut().insert(operation_id);
+        self.begin_export_lease(operation_id, ExportKind::Step, snapshot, &scope);
+        self.submit(Event::StartExport {
+            operation_id,
+            scope,
+        });
+    }
+
+    pub fn export_keycaps_stl(self: &Rc<Self>) {
+        let Some(scope) = self.scope() else {
+            self.apply_report(RuntimeReport::alert(
+                "Select a board before exporting keycaps.",
+            ));
+            return;
+        };
+        let Some(snapshot) = self.model().accepted else {
+            return;
+        };
+        if let Err(error) = self.ensure_keycaps_source_current(&snapshot, &scope) {
+            self.apply_report(RuntimeReport::alert(error));
+            return;
+        }
+        self.clear_alert();
+        let operation_id = self.operation();
+        self.begin_export_lease(operation_id, ExportKind::KeycapsStl, &snapshot, &scope);
         self.submit(Event::StartExport {
             operation_id,
             scope,
@@ -4082,22 +5431,16 @@ impl Runtime {
         };
         self.clear_alert();
         let operation_id = self.operation();
-        let core = self.core.borrow().clone();
-        self.mechanical_exports.borrow_mut().insert(
+        self.begin_export_lease(
             operation_id,
-            MechanicalExportCapture {
-                scope: scope.clone(),
-                token: snapshot.token,
-                revision: snapshot.document.revision,
-                session_epoch: snapshot.session_epoch,
-                document_id: snapshot.document.id.clone(),
-                executor_epoch: self.session.borrow().core_executor_epoch(),
-                core_worker_identity: core_executor_identity(&core),
+            ExportKind::Mechanical {
                 filename: format!(
                     "{}{}-mechanical.zip",
                     snapshot.document.name, instance_suffix
                 ),
             },
+            &snapshot,
+            &scope,
         );
         self.submit(Event::StartExport {
             operation_id,
@@ -4105,34 +5448,6 @@ impl Runtime {
         });
     }
 
-    pub fn export_keycaps_step(self: &Rc<Self>) {
-        let Some(scope) = self.scope() else {
-            self.apply_report(RuntimeReport::alert("Select a board before export"));
-            return;
-        };
-        let model = self.model();
-        let Some(snapshot) = model.accepted else {
-            self.apply_report(RuntimeReport::alert("The project is still opening"));
-            return;
-        };
-        if model.active_board_id != scope.board_id
-            || !snapshot
-                .document
-                .boards
-                .iter()
-                .any(|board| board.id == scope.board_id)
-        {
-            self.apply_report(RuntimeReport::alert("Select a board before export"));
-            return;
-        }
-        self.clear_alert();
-        let operation_id = self.operation();
-        self.keycaps_step_exports.borrow_mut().insert(operation_id);
-        self.submit(Event::StartExport {
-            operation_id,
-            scope,
-        });
-    }
     pub fn export_firmware(self: &Rc<Self>) {
         let Some(scope) = self.scope() else {
             self.report("Select a board before exporting ZMK source.");
@@ -4145,19 +5460,8 @@ impl Runtime {
         };
         self.clear_alert();
         let operation_id = self.operation();
-        let (_, executor_epoch) = self.current_firmware_executor();
         self.latest_firmware_export.set(Some(operation_id));
-        self.firmware_exports.borrow_mut().insert(
-            operation_id,
-            FirmwareExportCapture {
-                scope: scope.clone(),
-                token: snapshot.token,
-                revision: snapshot.document.revision,
-                session_epoch: snapshot.session_epoch,
-                document_id: snapshot.document.id.clone(),
-                executor_epoch,
-            },
-        );
+        self.begin_export_lease(operation_id, ExportKind::Firmware, &snapshot, &scope);
         self.submit(Event::StartExport {
             operation_id,
             scope,
@@ -4186,20 +5490,7 @@ impl Runtime {
         }
         self.clear_alert();
         let operation_id = self.operation();
-        let core = self.core.borrow().clone();
-        let executor_epoch = self.session.borrow().core_executor_epoch();
-        self.footprint_exports.borrow_mut().insert(
-            operation_id,
-            FootprintExportCapture {
-                scope: scope.clone(),
-                token: snapshot.token,
-                revision: snapshot.document.revision,
-                session_epoch: snapshot.session_epoch,
-                document_id: snapshot.document.id.clone(),
-                executor_epoch,
-                core_worker_identity: core_executor_identity(&core),
-            },
-        );
+        self.begin_export_lease(operation_id, ExportKind::Footprints, &snapshot, &scope);
         self.submit(Event::StartExport {
             operation_id,
             scope,
@@ -4237,20 +5528,12 @@ impl Runtime {
         }
         self.clear_alert();
         let operation_id = self.operation();
-        let core = self.core.borrow().clone();
-        let capture = PcbHandoffCapture {
-            scope: scope.clone(),
-            token: snapshot.token,
-            revision: snapshot.document.revision,
-            session_epoch: snapshot.session_epoch,
-            document_id: snapshot.document.id.clone(),
-            executor_epoch: self.session.borrow().core_executor_epoch(),
-            core_worker_identity: core_executor_identity(&core),
-            draft,
-        };
-        self.pcb_handoff_exports
-            .borrow_mut()
-            .insert(operation_id, capture);
+        self.begin_export_lease(
+            operation_id,
+            ExportKind::PcbHandoff { draft },
+            &snapshot,
+            &scope,
+        );
         self.submit(Event::StartExport {
             operation_id,
             scope,
@@ -4265,15 +5548,15 @@ impl Runtime {
         draft: bool,
     ) -> Result<(Vec<u8>, SnapshotToken), String> {
         let mut capture = self
-            .pcb_handoff_exports
+            .export_leases
             .borrow()
-            .get(&operation_id)
+            .get(operation_id)
             .cloned()
             .ok_or_else(|| "KiCad export owner was cancelled or superseded.".to_owned())?;
-        if capture.draft != draft
-            || capture.scope != *scope
-            || capture.token != initial_snapshot.token
-            || capture.revision != initial_snapshot.document.revision
+        if !matches!(capture.kind(), ExportKind::PcbHandoff { draft: captured_draft } if *captured_draft == draft)
+            || capture.scope() != scope
+            || capture.token() != initial_snapshot.token
+            || capture.snapshot().document.revision != initial_snapshot.document.revision
         {
             return Err("KiCad export no longer matches its captured board.".into());
         }
@@ -4362,7 +5645,7 @@ impl Runtime {
                 let package_plan = plan.clone();
                 async move {
                     let is_current = || {
-                        if runtime.pcb_handoff_capture_is_current(
+                        if runtime.export_lease_is_current(
                             operation_id,
                             &package_capture,
                             &package_core,
@@ -4385,7 +5668,7 @@ impl Runtime {
                         crate::pcb_handoff::HandoffPorts {
                             core: package_core.as_ref(),
                             store: &runtime.store,
-                            executor_epoch: package_capture.executor_epoch.0,
+                            executor_epoch: package_capture.executor_epoch().0,
                         },
                         is_current,
                     )
@@ -4393,7 +5676,7 @@ impl Runtime {
                 }
             },
             || {
-                if self.pcb_handoff_capture_is_current(operation_id, &capture, &core) {
+                if self.export_lease_is_current(operation_id, &capture, &core) {
                     Ok(())
                 } else {
                     Err("KiCad export was superseded before wiring protection.".into())
@@ -4409,7 +5692,7 @@ impl Runtime {
                 )
             },
             |protected_capture| {
-                if self.pcb_handoff_capture_is_current(operation_id, protected_capture, &core) {
+                if self.export_lease_is_current(operation_id, protected_capture, &core) {
                     Ok(())
                 } else {
                     Err("KiCad handoff was superseded before delivery.".into())
@@ -4418,7 +5701,167 @@ impl Runtime {
         )
         .await?;
         capture = protected_capture;
-        Ok((archive, capture.token))
+        Ok((archive, capture.token()))
+    }
+
+    /// Share complete physical PCB preparation between export and collision.
+    async fn prepare_physical_step_assembly(
+        &self,
+        core: &dyn boardstudio_web_host::host::CoreExecutor,
+        executor_epoch: &str,
+        request_prefix: &str,
+        snapshot: &AcceptedSnapshot,
+        scope: &Scope,
+        is_current: Rc<dyn Fn() -> bool>,
+    ) -> Result<PhysicalStepAssembly, String> {
+        let ensure_current = || {
+            if is_current() {
+                Ok(())
+            } else {
+                Err("Physical PCB preparation was cancelled or became stale.".to_owned())
+            }
+        };
+        ensure_current()?;
+        let mut prepared =
+            prepare_captured_step_assembly(core, executor_epoch, request_prefix, snapshot, scope)
+                .await
+                .map_err(|error| format!("Mechanical assembly resolution failed: {error:?}"))?;
+        ensure_current()?;
+        let pcb_source = captured_pcb_source(snapshot, scope)
+            .map_err(|error| format!("Could not capture imported PCB source: {error:?}"))?;
+        let mut pcb_source_thickness = None;
+        if let Some(source) = &pcb_source {
+            let source_is_current = is_current.clone();
+            let bytes = self
+                .load_preview_document_asset(&source.asset, source_is_current)
+                .await?;
+            ensure_current()?;
+            let request_id = format!("{request_prefix}-pcb-source");
+            let request = ArtifactRequest::ReadBoardSource {
+                id: request_id.clone(),
+                source: String::from_utf8(bytes)
+                    .map_err(|error| format!("PCB source is not valid UTF-8: {error}"))?,
+                placement: source.placement,
+                flipped: source.flipped,
+            };
+            let reply = core
+                .artifact(&request_id, executor_epoch, &request)
+                .await
+                .map_err(|error| format!("Could not read complete PCB source: {error}"))?;
+            ensure_current()?;
+            let board = match reply {
+                ArtifactReply::ReadBoardSource { id, result } if id == request_id => result,
+                ArtifactReply::Error { id, error } if id == request_id => return Err(error.message),
+                _ => return Err("Core returned PCB source for another request.".into()),
+            };
+            let indices = prepared
+                .prepared
+                .bodies
+                .iter()
+                .enumerate()
+                .filter(|(_, body)| body.body.id == "pcb-reference")
+                .map(|(index, _)| index)
+                .collect::<Vec<_>>();
+            if indices.len() != 1 {
+                return Err("Prepared PCB reference is missing or ambiguous.".into());
+            }
+            let mut body = prepared.prepared.bodies[indices[0]].body.clone();
+            pcb_source_thickness = board.thickness;
+            if board
+                .thickness
+                .is_some_and(|thickness| thickness != body.thickness)
+            {
+                return Err(
+                    "Imported PCB thickness does not match the mechanical PCB thickness.".into(),
+                );
+            }
+            if board
+                .pcb_source
+                .as_ref()
+                .is_none_or(|profile| profile.contours.is_empty())
+                || board.contours.is_empty()
+            {
+                return Err("Core returned incomplete PCB source geometry.".into());
+            }
+            if body
+                .features
+                .as_ref()
+                .is_some_and(|features| !features.is_empty())
+                || body
+                    .openings
+                    .as_ref()
+                    .is_some_and(|openings| !openings.is_empty())
+                || body
+                    .mounts
+                    .as_ref()
+                    .is_some_and(|mounts| !mounts.is_empty())
+                || body.gasket.is_some()
+                || body.pcb_source.is_some()
+            {
+                return Err(
+                    "Imported source cannot replace a modified nominal PCB reference.".into(),
+                );
+            }
+            body.z = Some(body.z.unwrap_or(0.0) + source.reference.elevation);
+            body.pcb_source = board.pcb_source;
+            body.mounts = (!board.round_drills.is_empty()).then_some(board.round_drills);
+            let mut contours = board.contours;
+            contours.extend(
+                board
+                    .holes
+                    .into_iter()
+                    .map(|points| boardstudio_core::model::Contour { points, hole: true }),
+            );
+            let source_ir = CaseIR {
+                revision: prepared.identity.revision,
+                body,
+                contours,
+            };
+            let request_id = format!("{request_prefix}-pcb-prepare");
+            let request = CoreRequest::PrepareCase {
+                id: request_id.clone(),
+                ir: CaseAssemblyIR {
+                    revision: source_ir.revision,
+                    bodies: vec![source_ir.clone()],
+                },
+            };
+            let reply = core
+                .request(&request_id, executor_epoch, &request)
+                .await
+                .map_err(|error| format!("PCB source preparation failed: {error}"))?;
+            ensure_current()?;
+            let mut ir = match reply {
+                CoreReply::CasePrepared { id, ir } if id == request_id => ir,
+                CoreReply::Error { id, message, .. } if id == request_id => return Err(message),
+                _ => return Err("Core returned an unexpected source PCB preparation.".into()),
+            };
+            if ir.revision != prepared.identity.revision
+                || ir.bodies.len() != 1
+                || ir.bodies[0].revision != ir.revision
+                || ir.bodies[0].body != source_ir.body
+            {
+                return Err("Core returned an incomplete or stale source PCB preparation.".into());
+            }
+            let mut pcb = ir.bodies.pop().expect("one source PCB body checked");
+            // Compatibility polygons already contain these voids; exact CAD uses body mounts.
+            for region in &mut pcb.regions {
+                region.mounts.clear();
+            }
+            prepared.prepared.bodies[indices[0]] = pcb;
+            if let Some(assembly) = &mut prepared.mechanical_assembly {
+                assembly.pcb_reference = Some(source_ir);
+                for layer in &mut assembly.stack {
+                    if layer.id == "pcb" {
+                        layer.z += source.reference.elevation;
+                    }
+                }
+            }
+        }
+        Ok(PhysicalStepAssembly {
+            prepared,
+            pcb_source,
+            pcb_source_thickness,
+        })
     }
 
     async fn mechanical_package_bytes(
@@ -4428,23 +5871,23 @@ impl Runtime {
         scope: &Scope,
     ) -> Result<Vec<u8>, String> {
         let capture = self
-            .mechanical_exports
+            .export_leases
             .borrow()
-            .get(&operation_id)
+            .get(operation_id)
             .cloned()
             .ok_or_else(|| "Mechanical export owner was cancelled or superseded.".to_owned())?;
-        if capture.scope != *scope
-            || capture.token != initial_snapshot.token
-            || capture.revision != initial_snapshot.document.revision
-            || capture.session_epoch != initial_snapshot.session_epoch
-            || capture.document_id != initial_snapshot.document.id
+        if capture.scope() != scope
+            || capture.token() != initial_snapshot.token
+            || capture.snapshot().document.revision != initial_snapshot.document.revision
+            || capture.snapshot().session_epoch != initial_snapshot.session_epoch
+            || capture.snapshot().document.id != initial_snapshot.document.id
         {
             return Err("Mechanical export no longer matches its captured project.".into());
         }
         let core = self.core.borrow().clone();
         let runtime = self.clone();
         let ensure_current = || -> Result<(), String> {
-            if runtime.mechanical_export_capture_is_current(operation_id, &capture, &core) {
+            if runtime.export_lease_is_current(operation_id, &capture, &core) {
                 Ok(())
             } else {
                 Err("Mechanical export was cancelled, superseded, or its source changed.".into())
@@ -4483,23 +5926,34 @@ impl Runtime {
             .find(|item| item.board_id == scope.board_id)
             .map(|item| item.contours.clone())
             .ok_or_else(|| "The selected board has no resolved outline contours.".to_owned())?;
-        let executor_epoch = capture.executor_epoch.0.to_string();
-        let prepared = prepare_captured_step_assembly(
-            core.as_ref(),
-            &executor_epoch,
-            &format!("mechanical-export-{}", operation_id.0),
-            initial_snapshot,
-            scope,
-        )
-        .await
-        .map_err(|error| format!("Mechanical assembly resolution failed: {error:?}"))?;
+        let executor_epoch = capture.executor_epoch().0.to_string();
+        let source_is_current = {
+            let runtime = self.clone();
+            let capture = capture.clone();
+            let core = core.clone();
+            Rc::new(move || runtime.export_lease_is_current(operation_id, &capture, &core))
+        };
+        let PhysicalStepAssembly {
+            prepared,
+            pcb_source,
+            pcb_source_thickness,
+        } = self
+            .prepare_physical_step_assembly(
+                core.as_ref(),
+                &executor_epoch,
+                &format!("mechanical-export-{}", operation_id.0),
+                initial_snapshot,
+                scope,
+                source_is_current,
+            )
+            .await?;
         ensure_current()?;
         let assembly = prepared
             .mechanical_assembly
             .as_ref()
             .ok_or_else(|| "Core did not resolve a generated mechanical assembly.".to_owned())?;
-        if assembly.revision != capture.revision
-            || assembly.case.revision != capture.revision
+        if assembly.revision != capture.snapshot().document.revision
+            || assembly.case.revision != capture.snapshot().document.revision
             || assembly.generation_blocked
         {
             return Err("Mechanical assembly is blocked or belongs to another revision.".into());
@@ -4541,7 +5995,7 @@ impl Runtime {
                 }
                 _ => return Err("Core returned an unexpected mechanical plate artifact.".into()),
             };
-            if result.revision != capture.revision {
+            if result.revision != capture.snapshot().document.revision {
                 return Err("Core returned a mechanical plate for another revision.".into());
             }
             for file in result.files {
@@ -4715,8 +6169,16 @@ impl Runtime {
             critical_fit_drawing(assembly, configuration)?.into_bytes(),
         )?;
         let assembly_json = serde_json::json!({
-            "revision": capture.revision,
-            "pcbReference": "Nominal unpopulated PCB only; component solids are not included",
+            "revision": capture.snapshot().document.revision,
+            "pcbReference": if pcb_source.is_some() {
+                "Source-backed unpopulated PCB; component solids are not included"
+            } else { "Nominal unpopulated PCB only; component solids are not included" },
+            "pcbSource": pcb_source.as_ref().map(|source| serde_json::json!({
+                "referenceId": source.reference.id,
+                "assetId": source.asset.id,
+                "sha256": source.asset.sha256,
+                "declaredThicknessMm": pcb_source_thickness,
+            })),
             "stack": assembly.stack,
             "diagnostics": assembly.diagnostics,
         });
@@ -4769,28 +6231,6 @@ impl Runtime {
         }
     }
 
-    fn mechanical_export_capture_is_current(
-        &self,
-        operation_id: OperationId,
-        capture: &MechanicalExportCapture,
-        core: &Rc<dyn CoreExecutor>,
-    ) -> bool {
-        let current_core = self.core.borrow().clone();
-        self.mechanical_exports.borrow().get(&operation_id) == Some(capture)
-            && self.export_current(operation_id, capture.token, &capture.scope)
-            && self.scope().as_ref() == Some(&capture.scope)
-            && self.model().accepted.as_ref().is_some_and(|snapshot| {
-                snapshot.token == capture.token
-                    && snapshot.document.id == capture.document_id
-                    && snapshot.document.revision == capture.revision
-                    && snapshot.scene.revision == capture.revision
-                    && snapshot.session_epoch == capture.session_epoch
-            })
-            && self.session.borrow().core_executor_epoch() == capture.executor_epoch
-            && core_executor_identity(&current_core) == capture.core_worker_identity
-            && Rc::ptr_eq(core, &current_core)
-    }
-
     async fn resolve_pcb_handoff_plan(
         &self,
         operation_id: OperationId,
@@ -4798,9 +6238,9 @@ impl Runtime {
         scope: &Scope,
         instance_id: Option<&str>,
         core: &Rc<dyn CoreExecutor>,
-        capture: &PcbHandoffCapture,
+        capture: &ExportLease,
     ) -> Result<ElectricalPlan, String> {
-        if !self.pcb_handoff_capture_is_current(operation_id, capture, core) {
+        if !self.export_lease_is_current(operation_id, capture, core) {
             return Err("Accepted board changed before wiring resolution.".into());
         }
         let configuration = snapshot.document.hardware.as_ref().and_then(|hardware| {
@@ -4844,10 +6284,14 @@ impl Runtime {
             },
         };
         let reply = core
-            .request(&request_id, &capture.executor_epoch.0.to_string(), &request)
+            .request(
+                &request_id,
+                &capture.executor_epoch().0.to_string(),
+                &request,
+            )
             .await
             .map_err(|error| format!("Wiring resolution failed: {error}"))?;
-        if !self.pcb_handoff_capture_is_current(operation_id, capture, core) {
+        if !self.export_lease_is_current(operation_id, capture, core) {
             return Err("Accepted board changed during wiring resolution.".into());
         }
         let plan = match reply {
@@ -4870,14 +6314,11 @@ impl Runtime {
     async fn commit_pcb_handoff(
         self: &Rc<Self>,
         export_operation_id: OperationId,
-        capture: &PcbHandoffCapture,
+        capture: &ExportLease,
         commit: boardstudio_application::ExportCommitRequest,
-    ) -> Result<PcbHandoffCapture, String> {
-        if !self.pcb_handoff_capture_is_current(
-            export_operation_id,
-            capture,
-            &self.core.borrow().clone(),
-        ) {
+    ) -> Result<ExportLease, String> {
+        if !self.export_lease_is_current(export_operation_id, capture, &self.core.borrow().clone())
+        {
             return Err("KiCad export no longer owns the accepted wiring source.".into());
         }
         let operation_id = self.operation();
@@ -4885,8 +6326,8 @@ impl Runtime {
         self.submit(Event::ExportCommit {
             operation_id,
             export_operation_id,
-            token: capture.token,
-            scope: capture.scope.clone(),
+            token: capture.token(),
+            scope: capture.scope().clone(),
             commit,
         });
         for _ in 0..1_200 {
@@ -4900,18 +6341,21 @@ impl Runtime {
                     "Accepted board snapshot disappeared after export wiring.".to_owned()
                 })?;
                 let mut updated = capture.clone();
-                updated.token = accepted.token;
-                updated.revision = accepted.document.revision;
-                if accepted.session_epoch != updated.session_epoch
-                    || accepted.document.id != updated.document_id
-                    || accepted.scene.revision != updated.revision
-                    || !self.export_current(export_operation_id, updated.token, &updated.scope)
+                updated.advance(accepted.clone())?;
+                if accepted.session_epoch != updated.snapshot().session_epoch
+                    || accepted.document.id != updated.snapshot().document.id
+                    || accepted.scene.revision != updated.snapshot().document.revision
+                    || !self.session.borrow().export_is_current(
+                        export_operation_id,
+                        updated.token(),
+                        updated.scope(),
+                    )
                 {
                     return Err("Export wiring changed the captured project or board.".into());
                 }
-                self.pcb_handoff_exports
+                self.export_leases
                     .borrow_mut()
-                    .insert(export_operation_id, updated.clone());
+                    .begin(export_operation_id, updated.clone());
                 return Ok(updated);
             }
             TimeoutFuture::new(25).await;
@@ -4919,36 +6363,13 @@ impl Runtime {
         Err("Export wiring save did not complete.".into())
     }
 
-    fn pcb_handoff_capture_is_current(
-        &self,
-        operation_id: OperationId,
-        capture: &PcbHandoffCapture,
-        core: &Rc<dyn CoreExecutor>,
-    ) -> bool {
-        let current_core = self.core.borrow().clone();
-        let accepted = self.model().accepted;
-        self.pcb_handoff_exports.borrow().get(&operation_id) == Some(capture)
-            && self.export_current(operation_id, capture.token, &capture.scope)
-            && self.scope().as_ref() == Some(&capture.scope)
-            && accepted.as_ref().is_some_and(|snapshot| {
-                snapshot.token == capture.token
-                    && snapshot.document.id == capture.document_id
-                    && snapshot.document.revision == capture.revision
-                    && snapshot.scene.revision == capture.revision
-                    && snapshot.session_epoch == capture.session_epoch
-            })
-            && self.session.borrow().core_executor_epoch() == capture.executor_epoch
-            && core_executor_identity(&current_core) == capture.core_worker_identity
-            && Rc::ptr_eq(core, &current_core)
-    }
-
     fn require_pcb_handoff_current(
         &self,
         operation_id: OperationId,
-        capture: &PcbHandoffCapture,
+        capture: &ExportLease,
         core: &Rc<dyn CoreExecutor>,
     ) -> Result<(), String> {
-        if self.pcb_handoff_capture_is_current(operation_id, capture, core) {
+        if self.export_lease_is_current(operation_id, capture, core) {
             Ok(())
         } else {
             Err("KiCad export was cancelled, superseded, or its accepted source changed.".into())
@@ -4962,23 +6383,23 @@ impl Runtime {
         scope: &Scope,
     ) -> Result<Vec<u8>, String> {
         let capture = self
-            .footprint_exports
+            .export_leases
             .borrow()
-            .get(&operation_id)
+            .get(operation_id)
             .cloned()
             .ok_or_else(|| "Footprint export owner was cancelled or superseded.".to_owned())?;
-        if capture.scope != *scope
-            || capture.token != snapshot.token
-            || capture.revision != snapshot.document.revision
-            || capture.session_epoch != snapshot.session_epoch
-            || capture.document_id != snapshot.document.id
+        if capture.scope() != scope
+            || capture.token() != snapshot.token
+            || capture.snapshot().document.revision != snapshot.document.revision
+            || capture.snapshot().session_epoch != snapshot.session_epoch
+            || capture.snapshot().document.id != snapshot.document.id
         {
             return Err("Footprint export no longer matches its captured project.".into());
         }
         let core = self.core.borrow().clone();
         let runtime = self.clone();
         let ensure_current = || {
-            if runtime.footprint_export_capture_is_current(operation_id, &capture, &core) {
+            if runtime.export_lease_is_current(operation_id, &capture, &core) {
                 Ok(())
             } else {
                 Err("Footprint export was cancelled, superseded, or its source changed.".into())
@@ -4990,45 +6411,23 @@ impl Runtime {
                 snapshot,
                 core: core.as_ref(),
                 store: &self.store,
-                executor_epoch: capture.executor_epoch.0,
+                executor_epoch: capture.executor_epoch().0,
             },
             ensure_current,
         )
         .await
     }
 
-    fn footprint_export_capture_is_current(
-        &self,
-        operation_id: OperationId,
-        capture: &FootprintExportCapture,
-        core: &Rc<dyn CoreExecutor>,
-    ) -> bool {
-        let current_core = self.core.borrow().clone();
-        let accepted = self.model().accepted;
-        self.footprint_exports.borrow().get(&operation_id) == Some(capture)
-            && self.export_current(operation_id, capture.token, &capture.scope)
-            && self.scope().as_ref() == Some(&capture.scope)
-            && accepted.as_ref().is_some_and(|snapshot| {
-                snapshot.token == capture.token
-                    && snapshot.document.id == capture.document_id
-                    && snapshot.document.revision == capture.revision
-                    && snapshot.scene.revision == capture.revision
-                    && snapshot.session_epoch == capture.session_epoch
-            })
-            && self.session.borrow().core_executor_epoch() == capture.executor_epoch
-            && core_executor_identity(&current_core) == capture.core_worker_identity
-            && Rc::ptr_eq(core, &current_core)
-    }
-
     pub fn export_project_copy(self: &Rc<Self>) {
-        if self.model().accepted.is_none() {
+        let Some(snapshot) = self.model().accepted else {
             return;
-        }
+        };
         let Some(scope) = self.scope() else {
             return;
         };
         let operation_id = self.operation();
         self.archive_export_options.begin_archive(operation_id);
+        self.begin_export_lease(operation_id, ExportKind::ProjectCopy, &snapshot, &scope);
         self.submit(Event::StartExport {
             operation_id,
             scope,
@@ -5051,7 +6450,7 @@ impl Runtime {
             ));
             return;
         };
-        let Some(board) = snapshot
+        let Some(_board) = snapshot
             .document
             .boards
             .iter()
@@ -5063,7 +6462,7 @@ impl Runtime {
             ));
             return;
         };
-        let Some(contours) = snapshot
+        let Some(_contours) = snapshot
             .scene
             .board_contours
             .iter()
@@ -5075,75 +6474,177 @@ impl Runtime {
             ));
             return;
         };
-        let runtime = self.clone();
         let operation_id = self.operation();
-        spawn_local(async move {
-            let core = runtime.core.borrow().clone();
-            let executor_epoch = runtime.session.borrow().core_executor_epoch();
-            let request_id = format!("export-outline-{}", operation_id.0);
-            let format_name = match format {
-                boardstudio_core::model::OutlineExportFormat::Svg => "svg",
-                boardstudio_core::model::OutlineExportFormat::Dxf => "dxf",
-            };
-            let request = ArtifactRequest::ExportOutline {
-                id: request_id.clone(),
-                request: boardstudio_core::model::OutlineExportRequest {
-                    filename: format!("{}.{}", snapshot.document.name, format_name),
-                    board,
-                    contours,
-                    format,
-                },
-            };
-            let result = core
-                .artifact(&request_id, &executor_epoch.0.to_string(), &request)
-                .await
-                .map_err(|error| format!("Outline export failed: {error}"))
-                .and_then(|reply| match reply {
-                    ArtifactReply::ExportOutline { id, result } if id == request_id => Ok(result),
-                    ArtifactReply::Error { id, error } if id == request_id => {
-                        Err(format!("Outline export failed: {}", error.message))
-                    }
-                    _ => Err("Core returned an outline for another export request.".into()),
-                });
-            let current = runtime.scope().as_ref() == Some(&scope)
-                && runtime.model().accepted.as_ref().is_some_and(|current| {
-                    current.token == snapshot.token
-                        && current.session_epoch == snapshot.session_epoch
-                        && current.document.id == snapshot.document.id
-                        && current.document.revision == snapshot.document.revision
-                })
-                && runtime.session.borrow().core_executor_epoch() == executor_epoch
-                && Rc::ptr_eq(&core, &*runtime.core.borrow());
-            if !current {
-                return;
-            }
-            match result {
-                Ok(file) => {
-                    let media_type = match format {
-                        boardstudio_core::model::OutlineExportFormat::Svg => "image/svg+xml",
-                        boardstudio_core::model::OutlineExportFormat::Dxf => "application/dxf",
-                    };
-                    let delivery =
-                        deliver(file.content.as_bytes(), &file.filename, Some(media_type));
-                    match delivery {
-                        Ok(()) => runtime.report(format!("Saved {}.", file.filename)),
-                        Err(error) => runtime.apply_report(RuntimeReport::alert(error)),
-                    }
-                }
-                Err(error) => runtime.apply_report(RuntimeReport::alert(error)),
-            }
+        self.begin_export_lease(
+            operation_id,
+            ExportKind::BoardOutline {
+                dxf: matches!(format, boardstudio_core::model::OutlineExportFormat::Dxf),
+            },
+            &snapshot,
+            &scope,
+        );
+        self.submit(Event::StartExport {
+            operation_id,
+            scope,
         });
     }
+
+    async fn board_outline_bytes(
+        &self,
+        operation_id: OperationId,
+        snapshot: &AcceptedSnapshot,
+        scope: &Scope,
+        dxf: bool,
+    ) -> Result<(Vec<u8>, SnapshotToken), String> {
+        let lease = self
+            .export_leases
+            .borrow()
+            .get(operation_id)
+            .cloned()
+            .ok_or_else(|| "Outline export owner was cancelled or superseded.".to_owned())?;
+        if !matches!(lease.kind(), ExportKind::BoardOutline { dxf: captured } if *captured == dxf)
+            || lease.scope() != scope
+            || lease.token() != snapshot.token
+        {
+            return Err("Outline export no longer matches its captured board.".into());
+        }
+        let board = snapshot
+            .document
+            .boards
+            .iter()
+            .find(|board| board.id == scope.board_id)
+            .cloned()
+            .ok_or_else(|| "Select a resolved board before outline export.".to_owned())?;
+        let contours = snapshot
+            .scene
+            .board_contours
+            .iter()
+            .find(|entry| entry.board_id == scope.board_id)
+            .map(|entry| entry.contours.clone())
+            .ok_or_else(|| "The selected board has no resolved outline.".to_owned())?;
+        let format = if dxf {
+            boardstudio_core::model::OutlineExportFormat::Dxf
+        } else {
+            boardstudio_core::model::OutlineExportFormat::Svg
+        };
+        let format_name = if dxf { "dxf" } else { "svg" };
+        let request_id = format!("export-outline-{}", operation_id.0);
+        let request = ArtifactRequest::ExportOutline {
+            id: request_id.clone(),
+            request: boardstudio_core::model::OutlineExportRequest {
+                filename: format!("{}.{}", snapshot.document.name, format_name),
+                board,
+                contours,
+                format,
+            },
+        };
+        let core = self.core.borrow().clone();
+        if !self.export_lease_is_current(operation_id, &lease, &core) {
+            return Err("Outline export was cancelled, superseded, or its source changed.".into());
+        }
+        let reply = core
+            .artifact(&request_id, &lease.executor_epoch().0.to_string(), &request)
+            .await
+            .map_err(|error| format!("Outline export failed: {error}"))?;
+        if !self.export_lease_is_current(operation_id, &lease, &core) {
+            return Err("Outline export was cancelled, superseded, or its source changed.".into());
+        }
+        let file = match reply {
+            ArtifactReply::ExportOutline { id, result } if id == request_id => result,
+            ArtifactReply::Error { id, error } if id == request_id => {
+                return Err(format!("Outline export failed: {}", error.message));
+            }
+            _ => return Err("Core returned an outline for another export request.".into()),
+        };
+        Ok((file.content.into_bytes(), snapshot.token))
+    }
+
+    fn export_lease_is_current(
+        &self,
+        operation_id: OperationId,
+        lease: &ExportLease,
+        worker: &Rc<dyn CoreExecutor>,
+    ) -> bool {
+        let core = self.core.borrow().clone();
+        self.export_leases.borrow().get(operation_id) == Some(lease)
+            && self.export_current(operation_id, lease.token(), lease.scope())
+            && Rc::ptr_eq(worker, &core)
+    }
+
     fn export_current(
         &self,
         operation_id: OperationId,
         token: SnapshotToken,
         scope: &Scope,
     ) -> bool {
-        self.session
+        let core = self.core.borrow().clone();
+        let session = self.session.borrow();
+        self.export_leases
             .borrow()
-            .export_is_current(operation_id, token, scope)
-            && !self.cancelled_exports.borrow().contains(&operation_id)
+            .get(operation_id)
+            .is_some_and(|lease| {
+                let session_owns_export = session.export_is_current(operation_id, token, scope)
+                    && session.scope().as_ref() == Some(scope);
+                lease.token() == token
+                    && lease.scope() == scope
+                    && lease
+                        .require_current(
+                            session_owns_export,
+                            session.read_model().accepted.as_ref(),
+                            session.core_executor_epoch(),
+                            core_executor_identity(&core),
+                        )
+                        .is_ok()
+            })
+    }
+
+    fn begin_export_lease(
+        &self,
+        operation_id: OperationId,
+        kind: ExportKind,
+        snapshot: &AcceptedSnapshot,
+        scope: &Scope,
+    ) {
+        let core = self.core.borrow().clone();
+        let executor_epoch = self.session.borrow().core_executor_epoch();
+        self.export_leases.borrow_mut().begin(
+            operation_id,
+            ExportLease::new(
+                kind,
+                snapshot.clone(),
+                scope.clone(),
+                executor_epoch,
+                core_executor_identity(&core),
+            ),
+        );
+    }
+
+    fn export_source_is_current(&self, lease: &ExportLease) -> bool {
+        let model = self.model();
+        let core = self.core.borrow().clone();
+        let session = self.session.borrow();
+        lease.source_is_current(
+            session.scope().as_ref(),
+            model.accepted.as_ref(),
+            session.core_executor_epoch(),
+            core_executor_identity(&core),
+        )
+    }
+    fn export_delivery_is_current(
+        &self,
+        operation_id: OperationId,
+        token: SnapshotToken,
+        scope: &Scope,
+    ) -> bool {
+        self.export_leases
+            .borrow()
+            .get(operation_id)
+            .cloned()
+            .is_some_and(|lease| {
+                lease.token() == token
+                    && lease.scope() == scope
+                    && self.export_source_is_current(&lease)
+            })
     }
     fn snapshot_current(&self, token: SnapshotToken, scope: &Scope) -> bool {
         self.scope().as_ref() == Some(scope)
@@ -5152,17 +6653,6 @@ impl Runtime {
                 .accepted
                 .as_ref()
                 .is_some_and(|s| s.token == token)
-    }
-    fn firmware_export_capture_is_current(
-        &self,
-        operation_id: OperationId,
-        capture: &FirmwareExportCapture,
-    ) -> bool {
-        let model = self.model();
-        let accepted = model.accepted.as_ref().map(FirmwareAcceptedIdentity::from);
-        firmware_export_is_latest(operation_id, self.latest_firmware_export.get())
-            && self.current_firmware_executor().1 == capture.executor_epoch
-            && firmware_export_capture_matches(capture, self.scope().as_ref(), accepted.as_ref())
     }
     fn current_firmware_executor(
         &self,
@@ -5292,6 +6782,11 @@ impl Runtime {
                 identity: prepared.identity.clone(),
                 operation,
                 prepared: Some(prepared.prepared.clone()),
+                source_sha256: None,
+                step_import_options: None,
+                collision_query: None,
+                generated_analysis_request: None,
+                collision_meshes: None,
                 input_bytes: vec![],
             };
             let reply = worker
@@ -5422,6 +6917,11 @@ impl Runtime {
                 identity: identity.clone(),
                 operation: CadOperation::ExportStep,
                 prepared: Some(prepared),
+                source_sha256: None,
+                step_import_options: None,
+                collision_query: None,
+                generated_analysis_request: None,
+                collision_meshes: None,
                 input_bytes: vec![],
             };
             let reply = worker
@@ -5439,49 +6939,19 @@ impl Runtime {
         result
     }
 
-    async fn keycaps_step_bytes(
+    async fn keycaps_stl_bytes(
         &self,
         operation_id: OperationId,
         snapshot: &AcceptedSnapshot,
         scope: &Scope,
     ) -> Result<Vec<u8>, String> {
-        let guard = || {
-            if !self.export_current(operation_id, snapshot.token, scope) {
-                return Err("Keycap STEP export was cancelled or superseded.".to_owned());
-            }
-            self.ensure_keycaps_source_current(snapshot, scope)
-        };
-        guard()?;
         let core = self.core.borrow().clone();
-        let executor_epoch = self.session.borrow().core_executor_epoch();
-        let request_id = format!("keycaps-step-resolve-{}", operation_id.0);
-        let request = CoreRequest::ResolveKeycaps {
-            id: request_id.clone(),
-            document: (*snapshot.document).clone(),
-            board_id: scope.board_id.clone(),
-            cases: None,
-        };
-        let reply = core
-            .request(&request_id, &executor_epoch.0.to_string(), &request)
-            .await
-            .map_err(|error| format!("Keycap STEP resolution failed: {error}"))?;
+        let guard = || self.require_export_current(operation_id, snapshot, scope, Some(&core));
         guard()?;
-        if self.session.borrow().core_executor_epoch() != executor_epoch
-            || !Rc::ptr_eq(&core, &self.core.borrow())
-        {
-            return Err("The Core worker changed during keycap STEP resolution.".into());
-        }
-        let resolution = match reply {
-            CoreReply::KeycapsResolved { id, result } if id == request_id => result,
-            CoreReply::Error { id, message, .. } if id == request_id => return Err(message),
-            CoreReply::KeycapsResolved { .. } | CoreReply::Error { .. } => {
-                return Err("Core returned a stale keycap STEP resolution reply.".into());
-            }
-            _ => return Err("Core returned an unexpected keycap STEP resolution reply.".into()),
-        };
-        if resolution.revision != snapshot.document.revision {
-            return Err("Core resolved keycaps for another document revision.".into());
-        }
+        let resolution = self
+            .resolve_case_keycaps_preview(scope.clone(), snapshot.token, snapshot.document.revision)
+            .await?;
+        guard()?;
         let errors = resolution
             .findings
             .iter()
@@ -5492,9 +6962,8 @@ impl Runtime {
             return Err(errors.join("\n"));
         }
         if resolution.specs.is_empty() {
-            return Err("Choose a keycap profile in Keymap before export".into());
+            return Err("Choose a keycap profile before exporting keycap STLs.".into());
         }
-        guard()?;
         let identity = CadSnapshotIdentity {
             token: snapshot.token.0,
             session_epoch: snapshot.session_epoch.0,
@@ -5510,36 +6979,60 @@ impl Runtime {
         self.export_workers
             .borrow_mut()
             .insert(operation_id, worker.clone());
-        let request_id = format!("keycaps-step-cad-{}", operation_id.0);
         let result = async {
             worker.ready().await.map_err(|error| error.to_string())?;
             guard()?;
-            let reply = worker
-                .request_keycaps_step(
-                    request_id.clone(),
-                    format!("keycaps-step-{}", operation_id.0),
-                    identity.clone(),
+            let result = worker
+                .request_keycaps_print(
+                    format!("keycaps-stl-{}", operation_id.0),
+                    format!("keycaps-print-{}", operation_id.0),
+                    identity,
                     resolution.specs,
                 )
                 .await
                 .map_err(|error| error.to_string())?;
             guard()?;
-            let request = CadRequest {
-                request_id,
-                job_id: format!("keycaps-step-{}", operation_id.0),
-                identity: identity.clone(),
-                operation: CadOperation::ExportStep,
-                prepared: None,
-                input_bytes: vec![],
-            };
-            validate_reply(&request, reply, &identity)
-                .map(|result| result.step)
-                .map_err(|error| format!("{error:?}"))
+            crate::keycap_package::files(result)
         }
         .await;
         worker.close();
         self.export_workers.borrow_mut().remove(&operation_id);
-        result
+        let files = result?;
+        let entries = files
+            .iter()
+            .enumerate()
+            .map(|(index, (path, _))| {
+                Ok(ArchiveEntry {
+                    path: path.clone(),
+                    buffer_index: u32::try_from(index)
+                        .map_err(|_| "Too many keycap STL files.".to_owned())?,
+                })
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+        let metadata = serde_json::to_string(&ArchiveRequest::PackFiles { entries })
+            .map_err(|error| error.to_string())?;
+        let buffers = files
+            .iter()
+            .map(|(_, bytes)| Uint8Array::from(bytes.as_slice()))
+            .collect();
+        guard()?;
+        let epoch = self.session.borrow().core_executor_epoch().0.to_string();
+        let packed = core
+            .archive(
+                &format!("keycaps-stl-archive-{}", operation_id.0),
+                &epoch,
+                &metadata,
+                buffers,
+            )
+            .await
+            .map_err(|error| format!("Keycap STL packaging failed: {error}"))?;
+        guard()?;
+        match serde_json::from_str::<ArchiveReply>(&packed.metadata)
+            .map_err(|error| error.to_string())?
+        {
+            ArchiveReply::Packed if packed.buffers.len() == 1 => Ok(packed.buffers[0].to_vec()),
+            _ => Err("Core returned an incomplete keycap STL archive.".into()),
+        }
     }
 
     async fn firmware_bytes(
@@ -5549,7 +7042,7 @@ impl Runtime {
         scope: &Scope,
     ) -> Result<Vec<u8>, String> {
         let document = snapshot.document.as_ref();
-        self.ensure_firmware_export_current(operation_id, snapshot, scope, None, None)?;
+        self.require_export_current(operation_id, snapshot, scope, None)?;
         if !document
             .boards
             .iter()
@@ -5565,14 +7058,8 @@ impl Runtime {
         let peripheral = instances
             .iter()
             .find(|instance| instance.role == "peripheral");
-        if hardware.is_some_and(|hardware| hardware.topology == HardwareTopology::Split)
-            && (instances.len() != 2
-                || central.is_none_or(|instance| instance.half != "left")
-                || peripheral.is_none_or(|instance| instance.half != "right"))
-        {
-            return Err(
-                "Split firmware requires a left central and a right peripheral assembly".into(),
-            );
+        if hardware.is_some_and(|hardware| hardware.topology == HardwareTopology::Split) {
+            validate_split_assignment(instances)?;
         }
         let primary_board_id = central.map_or(scope.board_id.as_str(), |instance| {
             instance.board_id.as_str()
@@ -5581,13 +7068,7 @@ impl Runtime {
             Some(instance.id.as_str())
         });
         let (core, executor_epoch) = self.current_firmware_executor();
-        self.ensure_firmware_export_current(
-            operation_id,
-            snapshot,
-            scope,
-            Some(&core),
-            Some(executor_epoch),
-        )?;
+        self.require_export_current(operation_id, snapshot, scope, Some(&core))?;
         let primary = self
             .resolve_firmware_plan(
                 operation_id,
@@ -5621,13 +7102,7 @@ impl Runtime {
         } else {
             None
         };
-        self.ensure_firmware_export_current(
-            operation_id,
-            snapshot,
-            scope,
-            Some(&core),
-            Some(executor_epoch),
-        )?;
+        self.require_export_current(operation_id, snapshot, scope, Some(&core))?;
         let (request, _) = crate::firmware_request_adapter::firmware_request(
             document,
             &primary,
@@ -5641,13 +7116,7 @@ impl Runtime {
         let generated = core
             .request(&generate_id, &executor_epoch.0.to_string(), &request)
             .await;
-        self.ensure_firmware_export_current(
-            operation_id,
-            snapshot,
-            scope,
-            Some(&core),
-            Some(executor_epoch),
-        )?;
+        self.require_export_current(operation_id, snapshot, scope, Some(&core))?;
         let generated =
             generated.map_err(|error| format!("Firmware generation failed: {error}"))?;
         let package = match generated {
@@ -5675,13 +7144,7 @@ impl Runtime {
             serde_json::to_string_pretty(&serde_json::Value::Object(plan_value))
                 .map_err(|error| format!("Could not serialize electrical plan: {error}"))?,
         );
-        self.ensure_firmware_export_current(
-            operation_id,
-            snapshot,
-            scope,
-            Some(&core),
-            Some(executor_epoch),
-        )?;
+        self.require_export_current(operation_id, snapshot, scope, Some(&core))?;
         let entries = files
             .keys()
             .enumerate()
@@ -5703,13 +7166,7 @@ impl Runtime {
         let packed = core
             .archive(&pack_id, &executor_epoch.0.to_string(), &metadata, buffers)
             .await;
-        self.ensure_firmware_export_current(
-            operation_id,
-            snapshot,
-            scope,
-            Some(&core),
-            Some(executor_epoch),
-        )?;
+        self.require_export_current(operation_id, snapshot, scope, Some(&core))?;
         let packed = packed.map_err(|error| format!("Firmware packaging failed: {error}"))?;
         match serde_json::from_str::<ArchiveReply>(&packed.metadata)
             .map_err(|error| format!("Could not read firmware package result: {error}"))?
@@ -5735,13 +7192,7 @@ impl Runtime {
         executor_epoch: boardstudio_application::ExecutorEpoch,
         target: FirmwarePlanTarget<'_>,
     ) -> Result<ElectricalPlan, String> {
-        self.ensure_firmware_export_current(
-            operation_id,
-            snapshot,
-            scope,
-            Some(core),
-            Some(executor_epoch),
-        )?;
+        self.require_export_current(operation_id, snapshot, scope, Some(core))?;
         let configuration = snapshot.document.hardware.as_ref().and_then(|hardware| {
             hardware
                 .boards
@@ -5781,13 +7232,7 @@ impl Runtime {
         let reply = core
             .request(&request_id, &executor_epoch.0.to_string(), &request)
             .await;
-        self.ensure_firmware_export_current(
-            operation_id,
-            snapshot,
-            scope,
-            Some(core),
-            Some(executor_epoch),
-        )?;
+        self.require_export_current(operation_id, snapshot, scope, Some(core))?;
         let reply = reply.map_err(|error| format!("Wiring resolution failed: {error}"))?;
         let plan = match reply {
             CoreReply::ElectricalResolved { id, plan } if id == request_id => plan,
@@ -5810,36 +7255,37 @@ impl Runtime {
         Ok(plan)
     }
 
-    fn ensure_firmware_export_current(
+    fn require_export_current(
         &self,
         operation_id: OperationId,
         snapshot: &AcceptedSnapshot,
         scope: &Scope,
-        core: Option<&Rc<dyn CoreExecutor>>,
-        executor_epoch: Option<boardstudio_application::ExecutorEpoch>,
+        worker: Option<&Rc<dyn CoreExecutor>>,
     ) -> Result<(), String> {
-        if !self.export_current(operation_id, snapshot.token, scope) {
-            return Err("Firmware export was cancelled or superseded.".into());
+        let lease = self
+            .export_leases
+            .borrow()
+            .get(operation_id)
+            .cloned()
+            .ok_or_else(|| "Export lease is no longer current.".to_owned())?;
+        if lease.token() != snapshot.token
+            || lease.scope() != scope
+            || lease.snapshot().document.revision != snapshot.document.revision
+        {
+            return Err("Export lease is no longer current.".into());
         }
-        let model = self.model();
-        if model.accepted.as_ref().is_none_or(|current| {
-            current.session_epoch != snapshot.session_epoch
-                || current.document.id != snapshot.document.id
-                || current.document.revision != snapshot.document.revision
-                || current.scene.revision != snapshot.scene.revision
-                || current.scene.revision != current.document.revision
-        }) {
-            return Err("The accepted project or scene changed during firmware export.".into());
-        }
-        if let (Some(expected_core), Some(expected_epoch)) = (core, executor_epoch) {
-            let (current_core, current_epoch) = self.current_firmware_executor();
-            if !firmware_export_worker_is_current(
-                expected_epoch,
-                current_epoch,
-                Rc::ptr_eq(expected_core, &current_core),
-            ) {
-                return Err("The Core worker changed during firmware export.".into());
-            }
+        let core = self.core.borrow().clone();
+        let session = self.session.borrow();
+        let session_owns_export = session.export_is_current(operation_id, lease.token(), scope)
+            && session.scope().as_ref() == Some(scope);
+        lease.require_current(
+            session_owns_export,
+            session.read_model().accepted.as_ref(),
+            session.core_executor_epoch(),
+            core_executor_identity(&core),
+        )?;
+        if worker.is_some_and(|worker| !Rc::ptr_eq(worker, &core)) {
+            return Err("Export lease is no longer current.".into());
         }
         Ok(())
     }
@@ -5851,45 +7297,10 @@ impl Runtime {
             }
         }
     }
-    pub async fn fixture_document(&self, name: &'static str) -> Result<ProjectDoc, String> {
-        let bytes = fetch_bytes(&format!("assets/fixtures/{name}.json")).await?;
-        serde_json::from_slice(&bytes)
-            .map_err(|error| format!("Could not read the {name} demo preview: {error}"))
-    }
-    pub fn open_fixture(self: &Rc<Self>, name: &str) {
-        let name = name.to_owned();
-        let sequence = match self.begin_open() {
-            Ok(sequence) => sequence,
-            Err(error) => {
-                self.report(error);
-                return;
-            }
-        };
-        let copy_id = match browser_uuid() {
-            Ok(copy_id) => copy_id,
-            Err(error) => {
-                if self.open_sequence.get() == sequence {
-                    self.report(error);
-                }
-                return;
-            }
-        };
-        let this = self.clone();
-        spawn_local(async move {
-            match fetch_bytes(&format!("assets/fixtures/{name}.boardstudio")).await {
-                Ok(bytes) => {
-                    if let Err(error) = this.import_archive_at(bytes, sequence, Some(copy_id)).await
-                        && this.open_sequence.get() == sequence
-                    {
-                        this.report(error);
-                    }
-                }
-                Err(error) if this.open_sequence.get() == sequence => this.report(error),
-                Err(_) => {}
-            }
-        });
-    }
     fn begin_open(&self) -> Result<u64, String> {
+        if self.storage_initializing.get() {
+            return Err("Storage is still initializing; try again shortly.".into());
+        }
         if self.project_deletion_pending.get() {
             return Err("A saved keyboard deletion is in progress.".into());
         }
@@ -5902,6 +7313,13 @@ impl Runtime {
         Ok(sequence)
     }
     pub fn import_file(self: &Rc<Self>, file: web_sys::File) {
+        if file.size() > boardstudio_core::archive::MAX_PROJECT_ARCHIVE_BYTES as f64 {
+            self.apply_report(
+                RuntimeReport::status("Project archive exceeds the 128 MiB size limit.")
+                    .transient_error(),
+            );
+            return;
+        }
         let sequence = match self.begin_open() {
             Ok(sequence) => sequence,
             Err(error) => {
@@ -5927,7 +7345,7 @@ impl Runtime {
             if let Err(error) = result
                 && this.open_sequence.get() == sequence
             {
-                this.report(error);
+                this.apply_report(RuntimeReport::status(error).transient_error());
             }
             #[cfg(any(test, feature = "test-support"))]
             if let Some(done) = open_observer {
@@ -5978,10 +7396,18 @@ impl Runtime {
         if self.open_sequence.get() != sequence {
             return Err("Open superseded by another import.".into());
         }
+        self.confirm_project_replacement(&document)?;
         self.assets.borrow_mut().extend(copied);
-        self.submit(Event::Open {
-            operation_id: operation,
-            document,
+        self.submit(if self.model().lifecycle == Lifecycle::RecoveryRequired {
+            Event::RecoverWithDocument {
+                operation_id: operation,
+                document,
+            }
+        } else {
+            Event::Open {
+                operation_id: operation,
+                document,
+            }
         });
         Ok(())
     }
@@ -6001,7 +7427,7 @@ impl Runtime {
             .and_then(|adapters| adapters.take_open_observer());
         let this = self.clone();
         spawn_local(async move {
-            let loaded = this.store.load_document(id).await;
+            let loaded = this.store.load_document_with_token(id).await;
             #[cfg(any(test, feature = "test-support"))]
             {
                 let adapters = this.in_process_adapters.borrow().clone();
@@ -6010,18 +7436,26 @@ impl Runtime {
                 }
             }
             match loaded {
-                Ok(Some(document)) if this.open_sequence.get() == sequence => {
-                    let operation_id = this.operation();
-                    if this.model().lifecycle == Lifecycle::RecoveryRequired {
-                        this.submit(Event::RecoverWithDocument {
-                            operation_id,
-                            document,
-                        });
-                    } else {
-                        this.submit(Event::Open {
-                            operation_id,
-                            document,
-                        });
+                Ok(Some(saved)) if this.open_sequence.get() == sequence => {
+                    match this.confirm_project_replacement(&saved.document) {
+                        Err(error) => {
+                            this.report(format!("Could not open the saved keyboard: {error}"))
+                        }
+                        Ok(()) => {
+                            let document = this.remember_saved(saved);
+                            let operation_id = this.operation();
+                            if this.model().lifecycle == Lifecycle::RecoveryRequired {
+                                this.submit(Event::RecoverWithDocument {
+                                    operation_id,
+                                    document,
+                                });
+                            } else {
+                                this.submit(Event::Open {
+                                    operation_id,
+                                    document,
+                                });
+                            }
+                        }
                     }
                 }
                 Ok(Some(_)) => {}
@@ -6067,13 +7501,14 @@ impl Runtime {
         let sequence = self.begin_open()?;
         let document = self
             .store
-            .load_document(id.clone())
+            .load_document_with_token(id.clone())
             .await
             .map_err(|error| format!("Could not load the saved original project: {error}"))?
             .ok_or_else(|| "The saved original project is no longer available.".to_owned())?;
         if self.open_sequence.get() != sequence || !still_expected(self) {
             return Err("A newer project open superseded recovery of the original project.".into());
         }
+        let document = self.remember_saved(document);
         let operation_id = self.operation();
         let outcome = self.observe_operation(operation_id);
         if self.model().lifecycle == Lifecycle::RecoveryRequired {
@@ -6091,8 +7526,138 @@ impl Runtime {
             .await
     }
 
+    fn remember_saved(&self, saved: SavedProject) -> ProjectDoc {
+        self.saved_tokens
+            .borrow_mut()
+            .insert(saved.document.id.clone(), saved.token);
+        saved.document
+    }
+
+    pub fn has_save_conflict(&self) -> bool {
+        self.save_conflict.get()
+    }
+
+    pub fn download_raw_project(self: &Rc<Self>, key: JsValue) {
+        let this = self.clone();
+        spawn_local(async move {
+            let result = match this.store.raw_project(&key).await {
+                Ok(Some((json, _))) => deliver(
+                    json.as_bytes(),
+                    "boardstudio-unreadable-project.json",
+                    Some("application/json"),
+                ),
+                Ok(None) => Err("The saved record is no longer available.".into()),
+                Err(error) => Err(error.to_string()),
+            };
+            if let Err(error) = result {
+                this.apply_report(
+                    RuntimeReport::status(format!(
+                        "Raw saved data could not be downloaded: {error}"
+                    ))
+                    .transient_error(),
+                );
+            }
+        });
+    }
+
+    pub fn download_pending_edits(self: &Rc<Self>) {
+        let this = self.clone();
+        spawn_local(async move {
+            let result = this.pending_archive().await.and_then(|(document, bytes)| {
+                deliver(
+                    &bytes,
+                    &archive_filename(&format!("{}-pending", document.name)),
+                    None,
+                )
+            });
+            if let Err(error) = result {
+                this.apply_report(
+                    RuntimeReport::status(format!(
+                        "Pending edits could not be downloaded: {error}"
+                    ))
+                    .transient_error(),
+                );
+            }
+        });
+    }
+
+    async fn pending_archive(&self) -> Result<(Arc<ProjectDoc>, Vec<u8>), String> {
+        let document = self
+            .pending_document
+            .borrow()
+            .clone()
+            .ok_or("There are no pending edits to download.")?;
+        let guard = || {
+            if self.model().lifecycle == Lifecycle::RecoveryRequired
+                && self
+                    .pending_document
+                    .borrow()
+                    .as_ref()
+                    .is_some_and(|pending| Arc::ptr_eq(pending, &document))
+            {
+                Ok(())
+            } else {
+                Err("Pending edits changed during export; download them again.".into())
+            }
+        };
+        let bytes = self.pack_document(&document, true, guard).await?;
+        guard()?;
+        Ok((document, bytes))
+    }
+
+    fn confirm_discard_pending(&self) -> bool {
+        self.pending_document.borrow().is_none() || web_sys::window().and_then(|window| window.confirm_with_message(
+            "Discard your pending edits and reload the saved keyboard? Download your pending edits first if you want to keep them."
+        ).ok()).unwrap_or(false)
+    }
+
+    fn confirm_project_replacement(&self, document: &ProjectDoc) -> Result<(), String> {
+        boardstudio_core::CoreEngine::validate_open(document)?;
+        let model = self.model();
+        let pending = self.has_pending_edits();
+        if model.accepted.is_none() && !pending {
+            return Ok(());
+        }
+        let message = if model.lifecycle == Lifecycle::RecoveryRequired && pending {
+            format!(
+                "Discard your pending edits and open \"{}\"? Download your pending edits first if you want to keep them.",
+                document.name
+            )
+        } else {
+            format!(
+                "Open \"{}\"? Any uncommitted drafts will be discarded. Owned edits and saves will finish before switching.",
+                document.name
+            )
+        };
+        let confirmed = web_sys::window()
+            .and_then(|window| window.confirm_with_message(&message).ok())
+            .unwrap_or(false);
+        if confirmed {
+            Ok(())
+        } else {
+            Err("Project switch canceled; your current work was kept.".into())
+        }
+    }
+
+    pub fn has_pending_edits(&self) -> bool {
+        self.pending_document.borrow().is_some()
+    }
+
     pub fn recover_saved(self: &Rc<Self>) {
-        let Some(accepted) = self.model().accepted else {
+        if !self.confirm_discard_pending() {
+            return;
+        }
+        let accepted_token = self.model().accepted.map(|accepted| accepted.token);
+        let pending = self.pending_document.borrow().clone();
+        let project_id = pending
+            .as_ref()
+            .map(|document| document.id.clone())
+            .or_else(|| {
+                self.model()
+                    .accepted
+                    .map(|accepted| accepted.document.id.clone())
+            });
+        let Some(project_id) = project_id else {
             self.report("No durable document exists to recover; reopen an explicit saved copy.");
             return;
         };
@@ -6103,15 +7668,18 @@ impl Runtime {
                 this.report(format!("Recovery executor unavailable: {error}"));
                 return;
             }
-            match this.store.load_document(accepted.document.id.clone()).await {
-                Ok(Some(document))
-                    if this
-                        .model()
-                        .accepted
-                        .as_ref()
-                        .is_some_and(|s| s.token == accepted.token)
-                        && this.model().lifecycle == Lifecycle::RecoveryRequired =>
+            match this.store.load_document_with_token(project_id).await {
+                Ok(Some(saved))
+                    if this.model().lifecycle == Lifecycle::RecoveryRequired
+                        && this.model().accepted.map(|accepted| accepted.token)
+                            == accepted_token
+                        && match (this.pending_document.borrow().as_ref(), pending.as_ref()) {
+                            (Some(current), Some(expected)) => Arc::ptr_eq(current, expected),
+                            (None, None) => true,
+                            _ => false,
+                        } =>
                 {
+                    let document = this.remember_saved(saved);
                     this.submit(Event::RecoverWithDocument {
                         operation_id: this.operation(),
                         document,
@@ -6138,8 +7706,17 @@ impl Runtime {
                 Err("Archive export was cancelled or superseded.".to_owned())
             }
         };
+        self.pack_document(snapshot.document.as_ref(), embed_used_models, guard)
+            .await
+    }
+
+    async fn pack_document(
+        &self,
+        document: &ProjectDoc,
+        embed_used_models: bool,
+        guard: impl Fn() -> Result<(), String>,
+    ) -> Result<Vec<u8>, String> {
         guard()?;
-        let document = snapshot.document.as_ref();
         let mut bundled_bytes = Vec::new();
         if embed_used_models {
             let generated_ids = crate::bundled_models::generated_model_ids(document).await?;
@@ -6160,14 +7737,19 @@ impl Runtime {
         }
         let mut local_asset_bytes = BTreeMap::new();
         for asset in &document.assets {
-            let bytes = self
-                .store
-                .load_asset(asset.sha256.clone())
-                .await
-                .map_err(|e| e.to_string())?
-                .ok_or_else(|| format!("Missing asset: {}", asset.name))?;
+            let pending_bytes = self.assets.borrow().get(&asset.sha256).cloned();
+            let bytes = match pending_bytes {
+                Some(bytes) => bytes,
+                None => self
+                    .store
+                    .load_asset(asset.sha256.clone())
+                    .await
+                    .map_err(|error| error.to_string())?
+                    .ok_or_else(|| format!("Missing asset: {}", asset.name))?
+                    .to_vec(),
+            };
             guard()?;
-            local_asset_bytes.insert(asset.sha256.clone(), bytes.to_vec());
+            local_asset_bytes.insert(asset.sha256.clone(), bytes);
         }
         let prepared = crate::portable_archive::prepare_archive(
             document,
@@ -6352,9 +7934,26 @@ impl Drop for Runtime {
     }
 }
 
+#[path = "collision_check.rs"]
+mod collision_check;
+
+pub use collision_check::{CollisionCheckInput, CollisionCheckReport};
+
 #[cfg(any(test, feature = "test-support"))]
 #[path = "in_process_support.rs"]
 pub mod in_process_support;
+
+#[cfg(all(test, target_arch = "wasm32"))]
+#[path = "runtime_collision_browser_tests.rs"]
+mod collision_browser_tests;
+
+#[cfg(test)]
+#[path = "source_pcb_export_tests.rs"]
+mod source_pcb_export_tests;
+
+#[cfg(all(test, target_arch = "wasm32"))]
+#[path = "cad_runtime_borrow_tests.rs"]
+mod cad_runtime_borrow_tests;
 
 #[cfg(any(test, feature = "test-support"))]
 pub mod firmware_export_test_support {
@@ -6392,6 +7991,48 @@ pub mod firmware_export_test_support {
                 warnings: Vec::new(),
             },
         })
+    }
+
+    thread_local! {
+        static GENERATED_FILES: RefCell<Vec<BTreeMap<String, String>>> = const { RefCell::new(Vec::new()) };
+    }
+
+    /// Run the real generator and keep its files for assertions; failures fall through to Core.
+    fn generated_with_recording(request: &CoreRequest) -> Option<CoreReply> {
+        let CoreRequest::GenerateFirmware { id, request } = request else {
+            return None;
+        };
+        let package = boardstudio_core::firmware::generate(request).ok()?;
+        GENERATED_FILES.with(|files| files.borrow_mut().push(package.files.clone()));
+        Some(CoreReply::FirmwareGenerated {
+            id: id.clone(),
+            package,
+        })
+    }
+
+    /// Files the real generator produced for each firmware export since the last call.
+    pub fn take_generated_files() -> Vec<BTreeMap<String, String>> {
+        GENERATED_FILES.with(|files| std::mem::take(&mut *files.borrow_mut()))
+    }
+
+    /// Physical left half on `board-a`, right half on `board-b`, each with its own bindings.
+    /// Optional encoders and the selected transport go through the real electrical resolver
+    /// and firmware generator, with the given roles.
+    pub async fn split_fixture(
+        left_role: &str,
+        right_role: &str,
+        transport: HardwareTransport,
+        encoders: bool,
+    ) -> Rc<Runtime> {
+        let runtime = support::new_runtime();
+        support::open_document(
+            &runtime,
+            split_document(left_role, right_role, transport, encoders),
+        )
+        .await;
+        support::in_process_core(&runtime).script_replies(generated_with_recording);
+        take_generated_files();
+        runtime
     }
 
     pub async fn fixture() -> (Rc<Runtime>, AcceptedSnapshot, Scope) {
@@ -6523,6 +8164,7 @@ pub mod firmware_export_test_support {
                 rotation: 0.0,
             },
             side: Side::Front,
+            anchor: None,
             locked: None,
             keycap: None,
             outline: None,
@@ -6556,10 +8198,149 @@ pub mod firmware_export_test_support {
             mcu_terms,
             Some("ceoloide/mcu_nice_nano"),
         ));
+        add_half_board(&mut doc, "board-a", "m", "mcu-left");
+        doc.hardware = Some(HardwareConfiguration {
+            topology: HardwareTopology::Unibody,
+            transport: HardwareTransport::None,
+            instances: Vec::new(),
+            shared_construction: None,
+            pairs: Vec::new(),
+            boards: vec![ElectricalBoardConfiguration {
+                board_id: "board-a".into(),
+                controller_part_id: Some("mcu-left".into()),
+                ..Default::default()
+            }],
+        });
+        doc
+    }
+
+    fn split_document(
+        left_role: &str,
+        right_role: &str,
+        transport: HardwareTransport,
+        encoders: bool,
+    ) -> ProjectDoc {
+        let mut doc = wired_document();
+        add_half_board(&mut doc, "board-b", "n", "mcu-right");
+        if transport == HardwareTransport::Wired {
+            doc.definitions.push(definition(
+                "trrs",
+                PartKind::Utility,
+                BTreeMap::from([
+                    ("TP".into(), vec!["TP".into()]),
+                    ("R2".into(), vec!["R2".into()]),
+                    ("SL".into(), vec!["SL".into()]),
+                ]),
+                Some("ceoloide/trrs_pj320a"),
+            ));
+        }
+        if encoders {
+            let mut encoder = definition(
+                "encoder",
+                PartKind::Utility,
+                BTreeMap::from([
+                    ("A".into(), vec!["A".into()]),
+                    ("B".into(), vec!["B".into()]),
+                    ("C".into(), vec!["C".into()]),
+                ]),
+                None,
+            );
+            encoder.matrix_terminals = None;
+            encoder.input_profile = Some(InputProfile {
+                press: None,
+                rotary: Some(RotaryProfile {
+                    a: "A".into(),
+                    b: "C".into(),
+                    common: "B".into(),
+                    steps: Some(80),
+                    triggers_per_rotation: Some(20),
+                    driver: Some(EncoderDriver::Ec11),
+                }),
+            });
+            doc.definitions.push(encoder);
+        }
+        for (board, half) in doc.boards.iter_mut().zip(["left", "right"]) {
+            for (enabled, definition_id, suffix) in [
+                (transport == HardwareTransport::Wired, "trrs", "link"),
+                (encoders, "encoder", "knob"),
+            ] {
+                if enabled {
+                    let id = format!("{half}-{suffix}");
+                    board.part_ids.push(id.clone());
+                    doc.parts.push(part(&id, definition_id));
+                }
+            }
+        }
+        let bindings = |matrix: &str, keys: [&str; 4]| {
+            ["r0c0", "r0c1", "r1c0", "r1c1"]
+                .into_iter()
+                .zip(keys)
+                .map(|(cell, key)| (format!("matrix/{matrix}/{cell}"), format!("&kp {key}")))
+                .collect::<BTreeMap<_, _>>()
+        };
+        let instance = |id: &str, board: &str, half: &str, role: &str, controller: &str| {
+            PhysicalBoardInstance {
+                id: id.into(),
+                name: id.into(),
+                board_id: board.into(),
+                half: half.into(),
+                role: role.into(),
+                flipped: false,
+                controller_part_id: Some(controller.into()),
+                mechanical: None,
+                construction_ownership: Default::default(),
+                mechanical_identity_reservation: None,
+            }
+        };
+        doc.hardware = Some(HardwareConfiguration {
+            topology: HardwareTopology::Split,
+            transport,
+            instances: vec![
+                instance("left-half", "board-a", "left", left_role, "mcu-left"),
+                instance("right-half", "board-b", "right", right_role, "mcu-right"),
+            ],
+            shared_construction: None,
+            pairs: Vec::new(),
+            boards: vec![
+                ElectricalBoardConfiguration {
+                    board_id: "board-a".into(),
+                    controller_part_id: Some("mcu-left".into()),
+                    key_bindings: bindings("m", ["A", "B", "C", "D"]),
+                    locks: if transport == HardwareTransport::Wired {
+                        BTreeMap::from([
+                            ("peripheral/left-link/split-tx".into(), "P14".into()),
+                            ("peripheral/left-link/split-rx".into(), "P15".into()),
+                        ])
+                    } else {
+                        BTreeMap::new()
+                    },
+                    ..Default::default()
+                },
+                ElectricalBoardConfiguration {
+                    board_id: "board-b".into(),
+                    controller_part_id: Some("mcu-right".into()),
+                    key_bindings: bindings("n", ["E", "F", "G", "H"]),
+                    locks: if transport == HardwareTransport::Wired {
+                        BTreeMap::from([
+                            ("peripheral/right-link/split-tx".into(), "P18".into()),
+                            ("peripheral/right-link/split-rx".into(), "P19".into()),
+                        ])
+                    } else {
+                        BTreeMap::new()
+                    },
+                    ..Default::default()
+                },
+            ],
+        });
+        doc
+    }
+
+    fn add_half_board(doc: &mut ProjectDoc, board_id: &str, matrix_id: &str, controller_id: &str) {
+        let first_part = doc.parts.len();
         let mut matrix_parts = vec![];
         for r in 0..2 {
             for c in 0..2 {
-                let id = format!("matrix/m/r{r}c{c}");
+                let id = format!("matrix/{matrix_id}/r{r}c{c}");
                 matrix_parts.push(id.clone());
                 doc.parts.push(part(&id, "switch"));
                 let did = format!("{id}/diode");
@@ -6567,19 +8348,22 @@ pub mod firmware_export_test_support {
                 doc.parts.push(part(&did, "diode"));
             }
         }
-        doc.parts.push(part("mcu-left", "mcu"));
+        doc.parts.push(part(controller_id, "mcu"));
         doc.boards.push(Board {
-            id: "board-a".into(),
-            name: "A".into(),
+            id: board_id.into(),
+            name: board_id.into(),
             outline_ids: vec![],
-            part_ids: doc.parts.iter().map(|p| p.id.clone()).collect(),
+            part_ids: doc.parts[first_part..]
+                .iter()
+                .map(|p| p.id.clone())
+                .collect(),
             net_ids: vec![],
             thickness: 1.6,
             traces: vec![],
             vias: vec![],
         });
         doc.matrices.push(Matrix {
-            id: "m".into(),
+            id: matrix_id.into(),
             name: None,
             rows: 2,
             columns: 2,
@@ -6587,20 +8371,21 @@ pub mod firmware_export_test_support {
             origin: Vec2::default(),
             definition_id: "switch".into(),
             part_ids: matrix_parts,
-            board_id: Some("board-a".into()),
+            board_id: Some(board_id.into()),
             mirror: None,
             rotation: None,
             edge_gap: None,
 
             diode_direction: Some(DiodeDirection::Row2col),
-            row_offsets: vec![],
-            column_offsets: vec![],
-            column_staggers: vec![],
-            column_splays: vec![],
-            column_origins: vec![],
+            row_layout: vec![],
+            column_layout: vec![],
+            anchor: None,
             cells: (0..2)
                 .flat_map(|r| {
                     (0..2).map(move |c| MatrixCell {
+                        shift: None,
+                        bend: None,
+                        deleted: false,
                         row: r,
                         column: c,
                         enabled: true,
@@ -6615,19 +8400,32 @@ pub mod firmware_export_test_support {
                 })
                 .collect(),
         });
-        doc.hardware = Some(HardwareConfiguration {
-            topology: HardwareTopology::Unibody,
-            transport: HardwareTransport::None,
-            instances: Vec::new(),
-            shared_construction: None,
-            boards: vec![ElectricalBoardConfiguration {
-                board_id: "board-a".into(),
-                controller_part_id: Some("mcu-left".into()),
-                ..Default::default()
-            }],
-        });
-        doc
     }
+}
+
+/// Either physical half may be central; the split needs one of each role and one of each side.
+fn validate_split_assignment(instances: &[PhysicalBoardInstance]) -> Result<(), String> {
+    let [first, second] = instances else {
+        return Err(
+            "Split firmware needs exactly two assemblies: one left half and one right half".into(),
+        );
+    };
+    let roles = [first.role.as_str(), second.role.as_str()];
+    if !(roles == ["central", "peripheral"] || roles == ["peripheral", "central"]) {
+        return Err(if roles[0] == roles[1] {
+            format!(
+                "Split firmware needs exactly one central half and one peripheral half; both halves are assigned {}",
+                roles[0]
+            )
+        } else {
+            "Split firmware needs exactly one central half and one peripheral half".into()
+        });
+    }
+    let halves = [first.half.as_str(), second.half.as_str()];
+    if !(halves == ["left", "right"] || halves == ["right", "left"]) {
+        return Err("Split firmware needs one left half and one right half".into());
+    }
+    Ok(())
 }
 
 fn validate_mechanical_source(accepted: &AcceptedSnapshot, scope: &Scope) -> Result<(), String> {
@@ -6703,6 +8501,11 @@ async fn request_exact_cad(
         identity: identity.clone(),
         operation: CadOperation::Exact,
         prepared: Some(prepared),
+        source_sha256: None,
+        step_import_options: None,
+        collision_query: None,
+        generated_analysis_request: None,
+        collision_meshes: None,
         input_bytes: Vec::new(),
     };
     let reply = worker
@@ -6711,47 +8514,6 @@ async fn request_exact_cad(
         .map_err(|error| format!("CAD mechanical geometry failed: {error}"))?;
     validate_reply(&request, reply, identity)
         .map_err(|error| format!("CAD mechanical geometry failed: {error:?}"))
-}
-
-fn push_mechanical_file(
-    files: &mut Vec<(String, Vec<u8>)>,
-    paths: &mut BTreeSet<String>,
-    path: String,
-    bytes: Vec<u8>,
-) -> Result<(), String> {
-    if path.is_empty()
-        || path.starts_with('/')
-        || path.contains('\\')
-        || path
-            .split('/')
-            .any(|part| part.is_empty() || part == "." || part == "..")
-    {
-        return Err(format!(
-            "Mechanical exporter produced an unsafe path: {path}"
-        ));
-    }
-    if !paths.insert(path.clone()) {
-        return Err(format!(
-            "Mechanical exporter produced a duplicate path: {path}"
-        ));
-    }
-    files.push((path, bytes));
-    Ok(())
-}
-
-fn mechanical_filename_component(value: &str) -> String {
-    let mut result = String::with_capacity(value.len());
-    let mut in_replacement = false;
-    for character in value.chars() {
-        if character.is_ascii_alphanumeric() || matches!(character, '_' | '-') {
-            result.push(character);
-            in_replacement = false;
-        } else if !in_replacement {
-            result.push('-');
-            in_replacement = true;
-        }
-    }
-    result
 }
 
 fn authored_case_filename(document: &ProjectDoc, scope: &Scope) -> String {
@@ -6783,451 +8545,6 @@ fn authored_case_filename_component(value: &str) -> String {
     result
 }
 
-fn mechanical_stl(mesh: &boardstudio_web_host::cad_jobs::CadMesh) -> Result<Vec<u8>, String> {
-    if mesh.positions.len() % 9 != 0 || mesh.positions.len() != mesh.normals.len() {
-        return Err("CAD returned incomplete mechanical STL triangles.".into());
-    }
-    let triangles = mesh.positions.len() / 9;
-    let triangle_count = u32::try_from(triangles)
-        .map_err(|_| "Mechanical STL exceeds the supported triangle count.".to_owned())?;
-    let byte_length = 84usize
-        .checked_add(
-            triangles
-                .checked_mul(50)
-                .ok_or_else(|| "Mechanical STL is too large.".to_owned())?,
-        )
-        .ok_or_else(|| "Mechanical STL is too large.".to_owned())?;
-    let mut bytes = vec![0u8; byte_length];
-    const HEADER: &[u8] = b"Board Studio mechanical part; coordinates in millimetres";
-    bytes[..HEADER.len()].copy_from_slice(HEADER);
-    bytes[80..84].copy_from_slice(&triangle_count.to_le_bytes());
-    for triangle in 0..triangles {
-        let offset = 84 + triangle * 50;
-        for component in 0..3 {
-            let value = mesh.normals[triangle * 9 + component];
-            bytes[offset + component * 4..offset + component * 4 + 4]
-                .copy_from_slice(&value.to_le_bytes());
-        }
-        for component in 0..9 {
-            let value = mesh.positions[triangle * 9 + component];
-            let index = offset + 12 + component * 4;
-            bytes[index..index + 4].copy_from_slice(&value.to_le_bytes());
-        }
-    }
-    Ok(bytes)
-}
-
-fn mechanical_xml_escape(value: &str) -> String {
-    value
-        .replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-        .replace('\'', "&apos;")
-}
-
-fn serialized_enum_label<T: serde::Serialize>(value: &T) -> String {
-    serde_json::to_value(value)
-        .ok()
-        .and_then(|value| value.as_str().map(str::to_owned))
-        .unwrap_or_default()
-}
-
-fn mechanical_fabrication_notes(document: &ProjectDoc, assembly: &MechanicalAssembly) -> String {
-    let Some(configuration) = document.mechanical.as_ref() else {
-        return String::new();
-    };
-    let mut hardware = configuration.hardware.clone().unwrap_or_default();
-    hardware.extend(assembly.generated_hardware.iter().cloned());
-    let mounts = assembly
-        .case
-        .bodies
-        .iter()
-        .find(|body| body.body.id == "plate")
-        .and_then(|body| body.body.mounts.as_ref())
-        .cloned()
-        .unwrap_or_default();
-    let method = serialized_enum_label(&configuration.method);
-    let mount = serialized_enum_label(&configuration.mount);
-    let plate_to_pcb = assembly
-        .stack
-        .iter()
-        .find(|layer| layer.id == "plate")
-        .map_or(configuration.plate_to_pcb, |layer| layer.z);
-    let material_note = if method == "pcb-fr4" {
-        "Plate substrate: FR4, no copper or plated holes. Confirm grade, finish and thickness tolerance with the fabricator."
-    } else {
-        "Material grade, finish and mechanical properties must be selected with the fabricator; no material grade is inferred from the process choice."
-    };
-    let mount_notes = if mounts.is_empty() {
-        "none".to_owned()
-    } else {
-        mounts
-            .iter()
-            .map(|item| {
-                format!(
-                    "{}: diameter {} mm at ({}, {}) mm",
-                    item.id, item.hole_diameter, item.at.x, item.at.y
-                )
-            })
-            .collect::<Vec<_>>()
-            .join("; ")
-    };
-    let hardware_notes = if hardware.is_empty() {
-        "- No hardware specifications recorded.".to_owned()
-    } else {
-        hardware
-            .iter()
-            .map(|item| {
-                format!(
-                    "- {}: {} × {}; thread {}; length {} mm; part {}, mount {}{}{}",
-                    item.id,
-                    item.quantity,
-                    item.designation,
-                    item.thread,
-                    item.length,
-                    item.part_id,
-                    item.feature_id,
-                    item.tolerance
-                        .as_ref()
-                        .map(|value| format!("; tolerance {value}"))
-                        .unwrap_or_default(),
-                    item.notes
-                        .as_ref()
-                        .map(|value| format!("; {value}"))
-                        .unwrap_or_default(),
-                )
-            })
-            .collect::<Vec<_>>()
-            .join("\n")
-    };
-    let processes = configuration
-        .part_processes
-        .as_ref()
-        .filter(|items| !items.is_empty())
-        .map(|items| {
-            items
-                .iter()
-                .map(|part| {
-                    format!(
-                        "- {}: {}; material {}; finished thickness {} mm; constraint set {}",
-                        part.part_id,
-                        serialized_enum_label(&part.method),
-                        part.material,
-                        part.thickness,
-                        part.constraints_version
-                    )
-                })
-                .collect::<Vec<_>>()
-                .join("\n")
-        })
-        .unwrap_or_else(|| "- No per-part overrides.".into());
-    let gasket_note = if mount == "gasket" {
-        let thickness = configuration
-            .gasket_layout
-            .as_ref()
-            .map_or(2.0, |layout| layout.thickness);
-        let compression = configuration
-            .gasket_layout
-            .as_ref()
-            .map_or(0.15, |layout| layout.compression);
-        format!(
-            "\nGasket stock: EVA, {thickness} mm uncompressed; {}% nominal assembly compression. Exported assembly strips depict compressed thickness; cut the strip outlines from the specified uncompressed stock.\n",
-            100.0 * compression
-        )
-    } else {
-        String::new()
-    };
-    let critical_fits = configuration
-        .critical_fits
-        .as_ref()
-        .filter(|items| !items.is_empty())
-        .map(|items| {
-            items
-                .iter()
-                .map(|fit| {
-                    let length = (fit.to.x - fit.from.x).hypot(fit.to.y - fit.from.y);
-                    format!(
-                        "- {}: {} — {}: {:.3} mm, {}; from ({}, {}) to ({}, {}) mm.",
-                        fit.id,
-                        fit.part_id,
-                        fit.label,
-                        length,
-                        fit.tolerance,
-                        fit.from.x,
-                        fit.from.y,
-                        fit.to.x,
-                        fit.to.y
-                    )
-                })
-                .collect::<Vec<_>>()
-                .join("\n")
-        })
-        .unwrap_or_else(|| "- No critical dimension annotations recorded.".into());
-    let openings = assembly
-        .nominal_plate_contours
-        .iter()
-        .filter(|contour| contour.hole)
-        .enumerate()
-        .map(|(index, contour)| {
-            let min_x = contour.points.iter().map(|point| point.x).fold(f64::INFINITY, f64::min);
-            let max_x = contour.points.iter().map(|point| point.x).fold(f64::NEG_INFINITY, f64::max);
-            let min_y = contour.points.iter().map(|point| point.y).fold(f64::INFINITY, f64::min);
-            let max_y = contour.points.iter().map(|point| point.y).fold(f64::NEG_INFINITY, f64::max);
-            format!(
-                "- Opening {}: {:.3} × {:.3} mm; review the full contour for corner radii and retention tabs.",
-                index + 1,
-                max_x - min_x,
-                max_y - min_y
-            )
-        })
-        .collect::<Vec<_>>();
-    let openings = if openings.is_empty() {
-        "- No profile openings.".to_owned()
-    } else {
-        openings.join("\n")
-    };
-    let profiles = if configuration.profiles.is_empty() {
-        "- No mechanical profiles configured.".to_owned()
-    } else {
-        configuration
-            .profiles
-            .iter()
-            .map(|profile| format!("- {}: {}", profile.definition_id, profile.source))
-            .collect::<Vec<_>>()
-            .join("\n")
-    };
-    let diagnostics = if assembly.diagnostics.is_empty() {
-        "- No resolver diagnostics.".to_owned()
-    } else {
-        assembly
-            .diagnostics
-            .iter()
-            .map(|finding| {
-                format!(
-                    "- {}: {}",
-                    serialized_enum_label(&finding.severity),
-                    finding.message
-                )
-            })
-            .collect::<Vec<_>>()
-            .join("\n")
-    };
-    format!(
-        "# Mechanical fabrication specification\n\nRevision: {}\nProcess: {method}\nMount system: {mount}\nPlate finished thickness: {} mm\nPCB nominal thickness: {} mm\nPlate-to-PCB distance: {plate_to_pcb} mm\nPlate foam thickness: {} mm\nBottom foam thickness: {} mm\nWall thickness: {} mm\n\nThe assembled STEP includes a nominal, unpopulated PCB reference. Component solids are not included. This reference is excluded from manufacturing part exports.\n\n## Material and hardware\n\n{material_note}\nPlate mounting holes: {mount_notes}.\nHardware specifications (metadata only; threads are not modeled):\n{hardware_notes}\nFastener compatibility, washers, inserts, torque, gasket material and adhesive specifications are not inferred from hole diameter. Review recorded hardware against the assembled stack before ordering.\n\nPer-part process specifications:\n{processes}\n{gasket_note}\n## Critical fit and process allowances\n\nPlate STEP, STL, SVG, DXF and KiCad geometry uses the same resolved millimetre design. Explicit radial opening allowance: {} mm. Foam retains nominal exclusions. No automatic shrinkage, kerf or tool-radius compensation has been applied. Account for the recorded opening allowance before applying any additional reviewed CAM compensation; preserve the nominal source. CNC internal corners require a compatible tool radius or explicitly reviewed relief. Printed shrinkage and cut-sheet kerf require a measured process coupon. Critical interfaces: switch retention, stabilizer cutouts, plate-to-PCB distance, fastener fit and battery clearance. Confirm each before fabrication.\n\nRecorded critical dimensions:\n{critical_fits}\n\nNominal opening extents (bounding dimensions, not replacement profiles):\n{openings}\n\nProfile sources:\n{profiles}\n\nDiagnostics:\n{diagnostics}\n",
-        assembly.revision,
-        configuration.plate_thickness,
-        configuration.pcb_thickness,
-        configuration.plate_foam_thickness,
-        configuration.bottom_foam_thickness,
-        configuration.wall_thickness,
-        configuration.opening_allowance.unwrap_or(0.0)
-    )
-}
-
-fn critical_fit_drawing(
-    assembly: &MechanicalAssembly,
-    configuration: &boardstudio_core::model::MechanicalConfiguration,
-) -> Result<String, String> {
-    use boardstudio_core::model::Vec2;
-
-    let contours = &assembly.nominal_plate_contours;
-    let fits = configuration.critical_fits.as_deref().unwrap_or_default();
-    let mut hardware = configuration.hardware.clone().unwrap_or_default();
-    hardware.extend(assembly.generated_hardware.iter().cloned());
-    let referenced_parts = fits
-        .iter()
-        .map(|fit| fit.part_id.as_str())
-        .chain(hardware.iter().map(|item| item.part_id.as_str()))
-        .collect::<BTreeSet<_>>();
-    let reference_bodies = assembly
-        .case
-        .bodies
-        .iter()
-        .filter(|entry| {
-            entry.body.id != "plate" && referenced_parts.contains(entry.body.id.as_str())
-        })
-        .collect::<Vec<_>>();
-    let points = contours
-        .iter()
-        .flat_map(|contour| contour.points.iter())
-        .chain(fits.iter().flat_map(|fit| [&fit.from, &fit.to]))
-        .chain(reference_bodies.iter().flat_map(|entry| {
-            entry
-                .contours
-                .iter()
-                .flat_map(|contour| contour.points.iter())
-        }))
-        .collect::<Vec<_>>();
-    if points.is_empty() {
-        return Err("No plate geometry for critical-fit drawing.".into());
-    }
-    if points
-        .iter()
-        .any(|point| !point.x.is_finite() || !point.y.is_finite())
-    {
-        return Err("Invalid critical-fit coordinates.".into());
-    }
-    let min_x = points
-        .iter()
-        .map(|point| point.x)
-        .fold(f64::INFINITY, f64::min);
-    let max_x = points
-        .iter()
-        .map(|point| point.x)
-        .fold(f64::NEG_INFINITY, f64::max);
-    let min_y = points
-        .iter()
-        .map(|point| point.y)
-        .fold(f64::INFINITY, f64::min);
-    let max_y = points
-        .iter()
-        .map(|point| point.y)
-        .fold(f64::NEG_INFINITY, f64::max);
-    let width = max_x - min_x;
-    let height = max_y - min_y;
-    let path_data = |points: &[Vec2]| {
-        points
-            .iter()
-            .enumerate()
-            .map(|(index, point)| {
-                format!(
-                    "{} {} {}",
-                    if index == 0 { "M" } else { "L" },
-                    point.x,
-                    -point.y
-                )
-            })
-            .collect::<Vec<_>>()
-            .join(" ")
-    };
-    let paths = contours
-        .iter()
-        .map(|contour| format!("<path d=\"{} Z\"/>", path_data(&contour.points)))
-        .collect::<String>();
-    let reference_paths = reference_bodies
-        .iter()
-        .map(|entry| {
-            let paths = entry
-                .contours
-                .iter()
-                .map(|contour| format!("<path d=\"{} Z\"/>", path_data(&contour.points)))
-                .collect::<String>();
-            format!(
-                "<g data-part=\"{}\" fill=\"none\" stroke=\"#8c959b\" stroke-width=\"0.1\" stroke-dasharray=\"0.7 0.5\">{paths}</g>",
-                mechanical_xml_escape(&entry.body.id)
-            )
-        })
-        .collect::<String>();
-    let mounts = assembly
-        .case
-        .bodies
-        .iter()
-        .find(|body| body.body.id == "plate")
-        .and_then(|body| body.body.mounts.as_ref())
-        .into_iter()
-        .flatten()
-        .map(|mount| {
-            format!(
-                "<circle cx=\"{}\" cy=\"{}\" r=\"{}\"/>",
-                mount.at.x,
-                -mount.at.y,
-                mount.hole_diameter / 2.0
-            )
-        })
-        .collect::<String>();
-    let mut dimensions = String::new();
-    for fit in fits {
-        let dx = fit.to.x - fit.from.x;
-        let dy = fit.to.y - fit.from.y;
-        let length = dx.hypot(dy);
-        if !length.is_finite() || length <= 0.0 {
-            return Err("Critical-fit endpoints must be distinct.".into());
-        }
-        let offset = Vec2 {
-            x: -dy / length * 5.0,
-            y: dx / length * 5.0,
-        };
-        let a = Vec2 {
-            x: fit.from.x + offset.x,
-            y: fit.from.y + offset.y,
-        };
-        let b = Vec2 {
-            x: fit.to.x + offset.x,
-            y: fit.to.y + offset.y,
-        };
-        let label = format!(
-            "{}: {} — {:.3} mm {}",
-            fit.part_id, fit.label, length, fit.tolerance
-        );
-        dimensions.push_str(&format!(
-            "<g data-fit=\"{}\"><path d=\"M {} {} L {} {} M {} {} L {} {}\" fill=\"none\" stroke=\"#42657a\" stroke-width=\"0.12\"/><path d=\"M {} {} L {} {}\" fill=\"none\" stroke=\"#42657a\" stroke-width=\"0.15\" marker-start=\"url(#dimension-arrow)\" marker-end=\"url(#dimension-arrow)\"/><text x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"sans-serif\" font-size=\"2.2\" fill=\"#23495e\">{}</text></g>",
-            mechanical_xml_escape(&fit.id),
-            fit.from.x, -fit.from.y, a.x, -a.y,
-            fit.to.x, -fit.to.y, b.x, -b.y,
-            a.x, -a.y, b.x, -b.y,
-            (a.x + b.x) / 2.0,
-            -(a.y + b.y) / 2.0 - 1.0,
-            mechanical_xml_escape(&label),
-        ));
-    }
-    let mut callouts = String::new();
-    for (index, item) in hardware.iter().enumerate() {
-        let mount = assembly
-            .case
-            .bodies
-            .iter()
-            .find(|entry| entry.body.id == item.part_id)
-            .and_then(|entry| entry.body.mounts.as_ref())
-            .and_then(|mounts| mounts.iter().find(|mount| mount.id == item.feature_id))
-            .ok_or_else(|| {
-                format!(
-                    "Hardware {} is not linked to a generated mounting feature.",
-                    item.id
-                )
-            })?;
-        let x = max_x + 12.0;
-        let y = -max_y + index as f64 * 9.0;
-        let label = format!(
-            "{} × {}; {} × {} mm",
-            item.quantity, item.designation, item.thread, item.length
-        );
-        let feature = format!(
-            "{}/{}{}",
-            item.part_id,
-            item.feature_id,
-            item.tolerance
-                .as_ref()
-                .map(|value| format!("; {value}"))
-                .unwrap_or_default()
-        );
-        callouts.push_str(&format!(
-            "<g data-hardware=\"{}\"><path d=\"M {} {} L {} {}\" fill=\"none\" stroke=\"#705b35\" stroke-width=\"0.12\"/><circle cx=\"{}\" cy=\"{}\" r=\"0.4\" fill=\"#705b35\"/><text x=\"{}\" y=\"{}\" font-family=\"sans-serif\" font-size=\"2.3\" fill=\"#493a21\">{}<tspan x=\"{}\" dy=\"3\">{}</tspan></text></g>",
-            mechanical_xml_escape(&item.id),
-            mount.at.x, -mount.at.y, x - 2.0, y,
-            mount.at.x, -mount.at.y,
-            x, y, mechanical_xml_escape(&label), x, mechanical_xml_escape(&feature),
-        ));
-    }
-    let drawing_width = width + if hardware.is_empty() { 40.0 } else { 135.0 };
-    let drawing_height = (height + 50.0).max(hardware.len() as f64 * 9.0 + 40.0);
-    Ok(format!(
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{drawing_width}mm\" height=\"{drawing_height}mm\" viewBox=\"{} {} {drawing_width} {drawing_height}\"><defs><marker id=\"dimension-arrow\" viewBox=\"0 0 10 10\" refX=\"5\" refY=\"5\" markerWidth=\"3\" markerHeight=\"3\" orient=\"auto-start-reverse\"><path d=\"M 0 0 L 10 5 L 0 10 Z\" fill=\"#42657a\"/></marker></defs>{reference_paths}<g fill=\"none\" stroke=\"#111\" stroke-width=\"0.15\">{paths}{mounts}<path d=\"M {min_x} {} v 4 M {max_x} {} v 4 M {min_x} {} H {max_x}\"/></g>{dimensions}{callouts}<g font-family=\"sans-serif\" font-size=\"2.5\" fill=\"#111\"><text x=\"{min_x}\" y=\"{}\">NOMINAL ASSEMBLY XY — CRITICAL FIT REVIEW</text><text x=\"{min_x}\" y=\"{}\">Extents: {:.3} × {:.3} mm</text><text x=\"{min_x}\" y=\"{}\">Nominal geometry; see specification for opening allowance.</text><text x=\"{min_x}\" y=\"{}\">Hardware callouts are specifications; threads are not modeled.</text><text x=\"{min_x}\" y=\"{}\">See FABRICATION.md for fit and hardware specifications.</text></g></svg>",
-        min_x - 20.0,
-        -max_y - 20.0,
-        -min_y + 5.0,
-        -min_y + 5.0,
-        -min_y + 7.0,
-        -max_y - 10.0,
-        -min_y + 12.0,
-        width,
-        height,
-        -min_y + 17.0,
-        -min_y + 22.0,
-        -min_y + 27.0,
-    ))
-}
-
 pub fn deployment_prefix() -> Result<&'static str, String> {
     let path = web_sys::window()
         .ok_or("window unavailable")?
@@ -7249,24 +8566,6 @@ pub fn resource_url(path: &str) -> Result<String, String> {
         .origin()
         .map_err(|e| format!("{e:?}"))?;
     Ok(format!("{origin}{}{path}", deployment_prefix()?))
-}
-async fn fetch_bytes(path: &str) -> Result<Vec<u8>, String> {
-    let window = web_sys::window().ok_or("window unavailable")?;
-    let response = JsFuture::from(window.fetch_with_str(&resource_url(path)?))
-        .await
-        .map_err(|e| format!("{e:?}"))?
-        .dyn_into::<web_sys::Response>()
-        .map_err(|e| format!("{e:?}"))?;
-    if !response.ok() {
-        return Err(format!(
-            "Required asset unavailable: {path} ({})",
-            response.status()
-        ));
-    }
-    let buffer = JsFuture::from(response.array_buffer().map_err(|e| format!("{e:?}"))?)
-        .await
-        .map_err(|e| format!("{e:?}"))?;
-    Ok(Uint8Array::new(&buffer).to_vec())
 }
 fn deliver(bytes: &[u8], filename: &str, media_type: Option<&str>) -> Result<(), String> {
     let parts = Array::new();
@@ -7312,9 +8611,20 @@ fn deliver(bytes: &[u8], filename: &str, media_type: Option<&str>) -> Result<(),
 pub mod project_name_test_support {
     use super::*;
     use crate::runtime::in_process_support::InProcessAdapters;
+    use boardstudio_application::{EditResolver, Resolution};
 
     pub fn new_runtime() -> Rc<Runtime> {
         Runtime::new_with_restoration(false).expect("browser runtime fixture initializes")
+    }
+
+    pub fn set_storage_initializing(runtime: &Runtime, initializing: bool) {
+        runtime.storage_initializing.set(initializing);
+        runtime.changed();
+    }
+
+    pub fn fail_storage_initialization(runtime: &Runtime, error: &str) {
+        runtime.storage_initializing.set(true);
+        runtime.storage_initialization_failed(error);
     }
 
     /// Replace the runtime's session and route Core execution through an in-process
@@ -7322,6 +8632,15 @@ pub mod project_name_test_support {
     /// `gate_next_persist` / `fail_next_persist`); call `install_memory_persistence` to save
     /// into memory instead.
     pub fn install(runtime: &Runtime, session: Session, core: boardstudio_core::CoreEngine) {
+        runtime.saved_tokens.borrow_mut().clear();
+        if let Some(accepted) = session.read_model().accepted.as_ref()
+            && let Some(token) = runtime.store.observed_token(&accepted.document.id)
+        {
+            runtime
+                .saved_tokens
+                .borrow_mut()
+                .insert(accepted.document.id.clone(), token);
+        }
         *runtime.session.borrow_mut() = session;
         let adapters = Rc::new(InProcessAdapters::new(core, runtime.store.clone()));
         adapters.attach(runtime);
@@ -7332,6 +8651,7 @@ pub mod project_name_test_support {
     /// Route saves into the in-process memory store. Requires `install` to have run.
     pub fn install_memory_persistence(runtime: &Runtime) {
         installed(runtime).use_memory_saves();
+        runtime.saved_tokens.borrow_mut().clear();
     }
 
     /// Install the in-process adapters with memory saves and open `document` through the real
@@ -7361,9 +8681,9 @@ pub mod project_name_test_support {
             .expect("an accepted document is open")
             .document
             .revision;
-        runtime.submit(Event::Edit {
-            operation_id: runtime.operation(),
-            command: boardstudio_core::model::EditCommand {
+        submit_fixed_command(
+            runtime,
+            boardstudio_core::model::EditCommand {
                 base_revision,
                 transaction_id: transaction_id.to_owned(),
                 phase: boardstudio_core::model::EditPhase::Commit,
@@ -7372,12 +8692,48 @@ pub mod project_name_test_support {
                     document: Box::new(document),
                 },
             },
-        });
+        );
         run_pending(runtime).await;
         runtime
             .model()
             .accepted
             .expect("the edited document stays accepted")
+    }
+
+    /// Submit a fixed command through the same resolver route as a production commit.
+    pub fn submit_fixed_command(
+        runtime: &Rc<Runtime>,
+        command: boardstudio_core::model::EditCommand,
+    ) {
+        runtime.submit(fixed_command_event(runtime.operation(), command));
+    }
+
+    /// Build a resolver event for tests that need to submit through their own observer.
+    pub fn fixed_command_event(
+        operation_id: OperationId,
+        command: boardstudio_core::model::EditCommand,
+    ) -> Event {
+        let boardstudio_core::model::EditCommand {
+            transaction_id,
+            target_ids,
+            operation,
+            ..
+        } = command;
+        Event::ResolveEdit {
+            operation_id,
+            label: "test fixed command".into(),
+            resolver: EditResolver::new("test fixed command", move |_| {
+                if transaction_id.is_empty() {
+                    Resolution::submit(target_ids.clone(), operation.clone())
+                } else {
+                    Resolution::submit_with_transaction_id(
+                        target_ids.clone(),
+                        transaction_id.clone(),
+                        operation.clone(),
+                    )
+                }
+            }),
+        }
     }
 
     /// Make `board_id` the active board through the real Session.
@@ -7453,6 +8809,10 @@ pub mod project_name_test_support {
         installed(runtime).observe_next_open()
     }
 
+    pub fn track_next_persist_target(runtime: &Runtime) -> futures_channel::oneshot::Receiver<()> {
+        installed(runtime).persistence().observe_next_target()
+    }
+
     pub fn replace_session(runtime: &Runtime, session: Session) {
         *runtime.session.borrow_mut() = session;
         runtime.changed();
@@ -7487,6 +8847,18 @@ pub mod project_name_test_support {
         installed(runtime).current_core().gate_next_reply()
     }
 
+    pub fn gate_next_core_reply_then_fail(
+        runtime: &Runtime,
+        _reason: impl Into<String>,
+    ) -> (
+        futures_channel::oneshot::Receiver<()>,
+        futures_channel::oneshot::Sender<()>,
+    ) {
+        installed(runtime)
+            .current_core()
+            .gate_next_reply_then_fail(_reason)
+    }
+
     /// The copy a completed save left in the in-process memory store.
     pub fn saved_document(runtime: &Runtime, project_id: &str) -> Option<ProjectDoc> {
         installed(runtime).persistence().saved_document(project_id)
@@ -7518,9 +8890,21 @@ pub mod project_name_test_support {
     }
 
     pub async fn run_pending(runtime: &Rc<Runtime>) {
-        let mut pending = VecDeque::from(std::mem::take(&mut *runtime.held_effects.borrow_mut()));
-        while let Some(effect) = pending.pop_front() {
-            pending.extend(runtime.run(effect).await);
+        loop {
+            let pending = std::mem::take(&mut *runtime.held_effects.borrow_mut());
+            if !pending.is_empty() {
+                // Keep Runtime effects off the mounted test's WASM poll stack too.
+                runtime.drive(pending);
+            }
+            let drives = std::mem::take(&mut *runtime.in_process_drives.borrow_mut());
+            if drives.is_empty() {
+                break;
+            }
+            for finished in drives {
+                finished
+                    .await
+                    .expect("in-process effect driver was dropped");
+            }
         }
     }
 
@@ -7534,36 +8918,10 @@ pub mod project_name_test_support {
 mod firmware_export_tests {
     use super::*;
     use crate::runtime::firmware_export_test_support as test_support;
-    use boardstudio_application::{ExecutorEpoch, SessionEpoch};
+    use boardstudio_core::model::HardwareTransport;
     use futures_channel::oneshot;
     use std::task::Poll;
     use wasm_bindgen_test::wasm_bindgen_test;
-
-    fn capture() -> FirmwareExportCapture {
-        FirmwareExportCapture {
-            scope: Scope {
-                session_epoch: SessionEpoch(5),
-                document_id: "project-a".into(),
-                board_id: "board-a".into(),
-                instance_id: None,
-            },
-            token: SnapshotToken(17),
-            revision: 6,
-            session_epoch: SessionEpoch(5),
-            document_id: "project-a".into(),
-            executor_epoch: ExecutorEpoch(11),
-        }
-    }
-
-    fn accepted(capture: &FirmwareExportCapture) -> FirmwareAcceptedIdentity {
-        FirmwareAcceptedIdentity {
-            session_epoch: capture.session_epoch,
-            document_id: capture.document_id.clone(),
-            token: capture.token,
-            revision: capture.revision,
-            scene_revision: capture.revision,
-        }
-    }
 
     fn run_export_effect(effects: Vec<Effect>) -> (OperationId, Effect) {
         let exports = effects
@@ -7594,6 +8952,199 @@ mod firmware_export_tests {
             }
         })
         .await
+    }
+
+    async fn export_split(
+        left_role: &str,
+        right_role: &str,
+        transport: HardwareTransport,
+        encoders: bool,
+    ) -> (Rc<Runtime>, Vec<BTreeMap<String, String>>) {
+        let runtime = test_support::split_fixture(left_role, right_role, transport, encoders).await;
+        let (_, run_effect) = run_export_effect(test_support::start_export(&runtime));
+        test_support::run_effects(&runtime, vec![run_effect]).await;
+        let generated = test_support::take_generated_files();
+        (runtime, generated)
+    }
+
+    const SHIELD: &str = "config/boards/shields/boardstudio/";
+
+    fn bindings(keymap: &str) -> Vec<&str> {
+        let list = keymap
+            .split("bindings = <")
+            .nth(1)
+            .and_then(|rest| rest.split('>').next())
+            .expect("keymap lists its bindings");
+        list.split("&kp ").skip(1).map(str::trim).collect()
+    }
+
+    fn assert_physical_layout(files: &BTreeMap<String, String>) {
+        let mut positions = bindings(&files[&format!("{SHIELD}boardstudio.keymap")]);
+        assert_eq!(positions.len(), 8);
+        positions[..4].sort();
+        positions[4..].sort();
+        assert_eq!(
+            positions,
+            ["A", "B", "C", "D", "E", "F", "G", "H"],
+            "positions are physical left-then-right whichever half is central"
+        );
+        assert!(files[&format!("{SHIELD}boardstudio_left.overlay")].contains("row-offset = <0>"));
+        assert!(files[&format!("{SHIELD}boardstudio_right.overlay")].contains("row-offset = <2>"));
+    }
+
+    fn assert_physical_files_unchanged(exports: &[BTreeMap<String, String>]) {
+        assert_eq!(exports.len(), 2);
+        for path in [
+            "boardstudio.keymap",
+            "boardstudio_left.overlay",
+            "boardstudio_right.overlay",
+        ] {
+            let path = format!("{SHIELD}{path}");
+            assert_eq!(
+                exports[0][&path], exports[1][&path],
+                "swapping the central role must not change {path}"
+            );
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn split_export_follows_the_central_role_while_keys_keep_physical_left_to_right_order() {
+        let mut exports = Vec::new();
+        for (left_role, right_role, left_central, right_central) in [
+            ("central", "peripheral", "y", "n"),
+            ("peripheral", "central", "n", "y"),
+        ] {
+            let (runtime, generated) =
+                export_split(left_role, right_role, HardwareTransport::Wireless, false).await;
+            assert_eq!(generated.len(), 1, "{left_role}/{right_role} exports once");
+            assert!(
+                !runtime.status_is_alert(),
+                "{left_role}/{right_role}: {}",
+                runtime.status()
+            );
+            let files = &generated[0];
+            let defconfig = &files[&format!("{SHIELD}Kconfig.defconfig")];
+            let role = |shield: &str, central: &str| {
+                format!(
+                    "if SHIELD_BOARDSTUDIO_{shield}\nconfig ZMK_SPLIT\n    default y\nconfig ZMK_SPLIT_ROLE_CENTRAL\n    default {central}"
+                )
+            };
+            assert!(
+                defconfig.contains(&role("LEFT", left_central)),
+                "{defconfig}"
+            );
+            assert!(
+                defconfig.contains(&role("RIGHT", right_central)),
+                "{defconfig}"
+            );
+            assert_physical_layout(files);
+            exports.push(generated.into_iter().next().unwrap());
+        }
+        assert_physical_files_unchanged(&exports);
+    }
+
+    #[wasm_bindgen_test]
+    async fn split_export_wired_right_central_preserves_physical_layout_and_uart() {
+        let mut exports = Vec::new();
+        for (left_role, right_role) in [("central", "peripheral"), ("peripheral", "central")] {
+            let (runtime, generated) =
+                export_split(left_role, right_role, HardwareTransport::Wired, false).await;
+            assert_eq!(
+                generated.len(),
+                1,
+                "{left_role}/{right_role}: {}",
+                runtime.status()
+            );
+            assert!(!runtime.status_is_alert(), "{}", runtime.status());
+            assert_eq!(test_support::take_deliveries(&runtime).len(), 1);
+            let mut files = generated.into_iter().next().unwrap();
+            assert_physical_layout(&files);
+            // The fixture locks different physical pins per half: left P14/P15, right P18/P19.
+            for (half, role, tx, rx) in [
+                ("left", left_role, "1, 11", "1, 13"),
+                ("right", right_role, "1, 15", "0, 2"),
+            ] {
+                let path = format!("{SHIELD}boardstudio_{half}.overlay");
+                let overlay = &files[&path];
+                assert!(
+                    overlay.contains("compatible = \"zmk,wired-split\""),
+                    "{overlay}"
+                );
+                assert!(overlay.contains("current-speed = <115200>"), "{overlay}");
+                assert!(
+                    overlay.contains("&uart0 { pinctrl-0 = <&uart0_default>"),
+                    "{overlay}"
+                );
+                let config = &files[&format!("{SHIELD}boardstudio_{half}.conf")];
+                assert!(config.contains("CONFIG_ZMK_SPLIT_WIRED=y"), "{config}");
+                assert!(
+                    config.contains("CONFIG_ZMK_SPLIT_WIRED_UART_MODE_INTERRUPT=y"),
+                    "{config}"
+                );
+                // Only UART direction follows the role, as in the existing adapter test.
+                let (tx, rx) = if role == "central" {
+                    (tx, rx)
+                } else {
+                    (rx, tx)
+                };
+                let uart = format!("psels = <NRF_PSEL(UART_TX, {tx})>, <NRF_PSEL(UART_RX, {rx})>;");
+                assert!(overlay.contains(&uart), "{half}/{role}: {overlay}");
+                // Pin direction was checked above; byte-compare every other overlay byte,
+                // including matrix GPIOs, against the known-good left-central export.
+                let normalized = overlay.replace(&uart, "psels = <role-directed UART pins>;");
+                files.insert(path, normalized);
+            }
+            exports.push(files);
+        }
+        assert_physical_files_unchanged(&exports);
+    }
+
+    #[wasm_bindgen_test]
+    async fn split_export_encoders_stay_physical_left_then_right_with_right_central() {
+        let mut exports = Vec::new();
+        for (left_role, right_role) in [("central", "peripheral"), ("peripheral", "central")] {
+            let (runtime, generated) =
+                export_split(left_role, right_role, HardwareTransport::Wireless, true).await;
+            assert_eq!(
+                generated.len(),
+                1,
+                "{left_role}/{right_role}: {}",
+                runtime.status()
+            );
+            assert!(!runtime.status_is_alert(), "{}", runtime.status());
+            assert_eq!(test_support::take_deliveries(&runtime).len(), 1);
+            let files = generated.into_iter().next().unwrap();
+            assert_physical_layout(&files);
+            // Core labels are the hex-encoded part ids: left-knob, then right-knob.
+            // The literal order pins the adapter/Core sensor-index contract, not role order.
+            for half in ["left", "right"] {
+                let overlay = &files[&format!("{SHIELD}boardstudio_{half}.overlay")];
+                assert!(
+                    overlay.contains(
+                        "sensors = <&encoder_6c6566742d6b6e6f62 &encoder_72696768742d6b6e6f62>;"
+                    ),
+                    "{half}/{left_role}/{right_role}: {overlay}"
+                );
+                assert!(overlay.contains("compatible = \"alps,ec11\"; status = \"okay\";"));
+                assert!(
+                    files[&format!("{SHIELD}boardstudio_{half}.conf")].contains("CONFIG_EC11=y")
+                );
+            }
+            exports.push(files);
+        }
+        assert_physical_files_unchanged(&exports);
+    }
+
+    #[wasm_bindgen_test]
+    async fn split_export_rejects_two_central_halves_and_names_the_role_problem() {
+        let (runtime, generated) =
+            export_split("central", "central", HardwareTransport::Wireless, false).await;
+        assert!(generated.is_empty());
+        assert!(runtime.status_is_alert());
+        assert_eq!(
+            runtime.status(),
+            "Split firmware needs exactly one central half and one peripheral half; both halves are assigned central"
+        );
     }
 
     #[wasm_bindgen_test]
@@ -7707,6 +9258,7 @@ mod firmware_export_tests {
         project_name_test_support::run_pending(&runtime).await;
         let next_accepted = runtime.model().accepted.unwrap();
         let next_scope = runtime.scope().unwrap();
+        runtime.take_notifications();
         release.send(()).expect("release old project generation");
         test_support::run_effects(&runtime, run.await).await;
 
@@ -7714,6 +9266,10 @@ mod firmware_export_tests {
         assert_eq!(runtime.scope().as_ref(), Some(&next_scope));
         assert!(runtime.artifacts.borrow().is_empty());
         assert!(test_support::take_deliveries(&runtime).is_empty());
+        assert!(
+            runtime.take_notifications().is_empty(),
+            "obsolete completion cannot Toast in the new project"
+        );
         assert!(
             !runtime.status_is_alert(),
             "an old project failure must not be announced in the new project"
@@ -7735,6 +9291,7 @@ mod firmware_export_tests {
         let new_deliveries = test_support::take_deliveries(&runtime);
         assert_eq!(new_deliveries.len(), 1, "newest attempt delivers once");
         assert_eq!(runtime.status(), "Saved locally.");
+        runtime.take_notifications();
 
         release.send(()).expect("release older generation");
         test_support::run_effects(&runtime, old_run.await).await;
@@ -7747,6 +9304,10 @@ mod firmware_export_tests {
         assert_eq!(older_deliveries[0].filename, "ZMK export test-zmk.zip");
         assert_eq!(runtime.status(), "Saved locally.");
         assert!(!runtime.status_is_alert());
+        assert!(
+            runtime.take_notifications().is_empty(),
+            "older output cannot replay a terminal notification"
+        );
     }
 
     #[wasm_bindgen_test]
@@ -7755,18 +9316,15 @@ mod firmware_export_tests {
             "Firmware generation failed: worker rejected the plan.",
             "Firmware packaging failed: ZIP worker returned no bytes.",
         ] {
-            let report = firmware_export_terminal_report(
-                true,
-                TerminalOutcome::ExecutorFailed(reason.into()),
-                None,
-            )
-            .expect("current firmware failure is announced");
+            let report =
+                export_terminal_report(true, TerminalOutcome::ExecutorFailed(reason.into()), None)
+                    .expect("current firmware failure is announced");
             assert_eq!(report.message, reason);
             assert_eq!(report.severity, RuntimeReportSeverity::Alert);
         }
 
         assert!(
-            firmware_export_terminal_report(
+            export_terminal_report(
                 false,
                 TerminalOutcome::ExecutorFailed("late failure from old project".into()),
                 None,
@@ -7778,7 +9336,7 @@ mod firmware_export_tests {
             "Firmware generation failed: same text is routine status without typed severity.",
         );
         assert_eq!(report.severity, RuntimeReportSeverity::Status);
-        report = firmware_export_terminal_report(
+        report = export_terminal_report(
             true,
             TerminalOutcome::Completed,
             Some("Browser refused the firmware download.".into()),
@@ -7789,83 +9347,471 @@ mod firmware_export_tests {
         assert_eq!(report.severity, RuntimeReportSeverity::Status);
         assert!(report.message.is_empty());
     }
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod notification_tests {
+    use super::firmware_export_test_support as support;
+    use super::*;
+    use wasm_bindgen_test::wasm_bindgen_test;
 
     #[wasm_bindgen_test]
-    fn firmware_completion_is_suppressed_after_project_board_or_snapshot_changes() {
-        let capture = capture();
-        let accepted = accepted(&capture);
-        assert!(firmware_export_capture_matches(
-            &capture,
-            Some(&capture.scope),
-            Some(&accepted),
-        ));
-
-        let other_board = Scope {
-            board_id: "board-b".into(),
-            ..capture.scope.clone()
+    async fn view_completions_preserve_save_state_and_inline_failure_without_toasts() {
+        let (runtime, accepted, scope) = support::fixture().await;
+        runtime.take_notifications();
+        let mut document = (*accepted.document).clone();
+        document.name = "Retried autosave".into();
+        super::project_name_test_support::fail_next_persist(&runtime, "injected save failure");
+        super::project_name_test_support::replace_document(
+            &runtime,
+            "retry-autosave",
+            &accepted.document.id,
+            document,
+        )
+        .await;
+        let failure = runtime.status();
+        assert!(failure.contains("injected save failure"));
+        let durability = runtime.model().durability;
+        assert!(matches!(durability, Durability::Failed { .. }));
+        assert!(runtime.take_notifications().is_empty());
+        let camera = boardstudio_application::CameraState {
+            center: boardstudio_core::model::Vec2 { x: 12.0, y: -8.0 },
+            zoom: 1.5,
         };
-        assert!(!firmware_export_capture_matches(
-            &capture,
-            Some(&other_board),
-            Some(&accepted),
-        ));
-
-        let mut newer_snapshot = accepted.clone();
-        newer_snapshot.token = SnapshotToken(18);
-        assert!(!firmware_export_capture_matches(
-            &capture,
-            Some(&capture.scope),
-            Some(&newer_snapshot),
-        ));
-
-        let mut other_project = accepted;
-        other_project.document_id = "project-b".into();
-        assert!(!firmware_export_capture_matches(
-            &capture,
-            Some(&capture.scope),
-            Some(&other_project),
-        ));
-    }
-
-    #[wasm_bindgen_test]
-    fn older_export_cannot_replace_a_newer_attempts_report() {
-        let first = OperationId(41);
-        let second = OperationId(42);
-        assert!(firmware_export_is_latest(second, Some(second)));
-        assert!(!firmware_export_is_latest(first, Some(second)));
-        assert!(!firmware_export_is_latest(first, None));
-    }
-
-    #[wasm_bindgen_test]
-    fn worker_replacement_at_resolution_generation_or_packaging_boundary_invalidates_attempt() {
-        let expected = ExecutorEpoch(11);
-        let stages = ["resolution", "generation", "packaging"];
-        for stage in stages {
-            assert!(firmware_export_worker_is_current(expected, expected, true));
+        let selected = accepted.document.boards[0].part_ids[0].clone();
+        for (label, event) in [
+            (
+                "camera",
+                Event::SetCamera {
+                    operation_id: runtime.operation(),
+                    center: camera.center,
+                    zoom: camera.zoom,
+                },
+            ),
+            (
+                "navigation",
+                Event::Navigate {
+                    operation_id: runtime.operation(),
+                    board_id: scope.board_id.clone(),
+                    instance_id: None,
+                },
+            ),
+            (
+                "selection",
+                Event::SelectParts {
+                    operation_id: runtime.operation(),
+                    part_ids: vec![selected.clone()],
+                    range_part_ids: vec![],
+                    mode: boardstudio_application::SelectionMode::Replace,
+                },
+            ),
+        ] {
+            let effects = runtime.session.borrow_mut().submit(event);
             assert!(
-                !firmware_export_worker_is_current(expected, ExecutorEpoch(12), false),
-                "worker replacement during {stage} must invalidate the export"
+                !effects
+                    .iter()
+                    .any(|effect| matches!(effect, Effect::Persist { .. })),
+                "{label} must not request persistence"
+            );
+            support::run_effects(&runtime, effects).await;
+            let model = runtime.model();
+            assert_eq!(model.camera, camera, "{label}");
+            assert_eq!(model.active_board_id, scope.board_id, "{label}");
+            if label == "selection" {
+                assert_eq!(model.selected_part_ids, vec![selected.clone()]);
+            }
+            assert_eq!(model.durability, durability, "{label}");
+            assert_eq!(model.accepted.unwrap().token, accepted.token, "{label}");
+            assert_eq!(
+                (runtime.take_notifications(), runtime.status()),
+                (vec![], failure.clone()),
+                "{label} must neither Toast nor clobber the inline report"
             );
         }
+        // A committed ack for a different attempt is ignored by Session, not a recovery.
+        super::project_name_test_support::deliver_completion(
+            &runtime,
+            Completion::Persist {
+                save_attempt_id: boardstudio_application::SaveAttemptId(u64::MAX),
+                result: SaveResult::Committed,
+            },
+        );
+        super::project_name_test_support::run_pending(&runtime).await;
+        assert_eq!(runtime.status(), failure);
+        assert_eq!(runtime.model().durability, durability);
+        runtime.submit(Event::RetrySave {
+            operation_id: runtime.operation(),
+        });
+        super::project_name_test_support::run_pending(&runtime).await;
+        let model = runtime.model();
+        let saved = model.accepted.unwrap();
+        assert_eq!(saved.document.name, "Retried autosave");
+        assert_eq!(saved.document.revision, accepted.document.revision + 1);
+        assert_eq!(model.lifecycle, Lifecycle::Ready);
+        assert_eq!(
+            model.durability,
+            Durability::Saved {
+                revision: saved.document.revision,
+            },
+            "the header's save-state source must be Saved"
+        );
+        assert_eq!(
+            super::project_name_test_support::saved_document(&runtime, &saved.document.id).unwrap(),
+            *saved.document
+        );
+        assert_eq!(
+            runtime.status(),
+            "Saved locally.",
+            "successful retry must retire the obsolete inline failure"
+        );
+        assert!(!runtime.status_is_alert());
+        assert!(!runtime.status_is_transient());
+        assert!(
+            runtime.take_notifications().is_empty(),
+            "retry must not Toast"
+        );
     }
 
     #[wasm_bindgen_test]
-    fn generation_and_zip_failures_cannot_produce_deliverable_firmware_bytes() {
-        for error in [
-            "Firmware generation failed: test worker rejection.",
-            "Firmware packaging failed: test ZIP rejection.",
+    async fn ordinary_edit_saves_the_document_without_a_success_toast() {
+        let (runtime, accepted, _) = support::fixture().await;
+        assert_eq!(
+            runtime.status(),
+            "Saved locally.",
+            "successful Open retires the initial library prompt without a Toast"
+        );
+        assert!(runtime.take_notifications().is_empty());
+        let mut document = (*accepted.document).clone();
+        document.name = "Quiet autosave".into();
+        let current = super::project_name_test_support::replace_document(
+            &runtime,
+            "quiet-autosave",
+            &accepted.document.id,
+            document,
+        )
+        .await;
+        assert_eq!(current.document.name, "Quiet autosave");
+        assert_eq!(current.document.revision, accepted.document.revision + 1);
+        assert_eq!(
+            runtime.model().durability,
+            Durability::Saved {
+                revision: current.document.revision,
+            }
+        );
+        assert_eq!(
+            super::project_name_test_support::saved_document(&runtime, &accepted.document.id)
+                .unwrap(),
+            *current.document,
+            "TestPersistence must contain the real edit, not merely a Saved label"
+        );
+        assert!(
+            runtime.take_notifications().is_empty(),
+            "ordinary autosave is header-only"
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn unobserved_completion_notifies_subscribers_without_a_toast_or_status_change() {
+        let (runtime, _, _) = support::fixture().await;
+        runtime.report("Inline context");
+        runtime.take_notifications();
+        let changes = Rc::new(Cell::new(0));
+        let notified = changes.clone();
+        runtime.subscribe(Rc::new(move || notified.set(notified.get() + 1)));
+        // A runtime subscriber is independent of an operation-specific outcome slot.
+        runtime
+            .run(Effect::Settled {
+                operation_id: runtime.operation(),
+                outcome: TerminalOutcome::Completed,
+                landing: None,
+            })
+            .await;
+        assert_eq!(
+            changes.get(),
+            1,
+            "silent completion must still notify views"
+        );
+        assert!(runtime.take_notifications().is_empty());
+        assert_eq!(runtime.status(), "Inline context");
+    }
+
+    #[wasm_bindgen_test]
+    async fn notification_queue_keeps_repeated_events_and_drains_once_without_notifying() {
+        let (runtime, _, _) = support::fixture().await;
+        runtime.take_notifications();
+        let changes = Rc::new(Cell::new(0));
+        let observed = changes.clone();
+        runtime.subscribe(Rc::new(move || observed.set(observed.get() + 1)));
+        runtime.apply_report(RuntimeReport::status("Same result").transient());
+        runtime.apply_report(RuntimeReport::status("Same result").transient());
+        runtime.apply_report(RuntimeReport::alert("Action failed").transient());
+        runtime.report("Saved locally.");
+        assert!(
+            !runtime.status_is_transient(),
+            "classification never matches message text"
+        );
+        assert_eq!(changes.get(), 4);
+        let pending = runtime.take_notifications();
+        assert_eq!(
+            pending
+                .iter()
+                .map(|n| (n.message.as_str(), n.is_error))
+                .collect::<Vec<_>>(),
+            vec![
+                ("Same result", false),
+                ("Same result", false),
+                ("Action failed", true)
+            ]
+        );
+        assert!(runtime.take_notifications().is_empty());
+        assert_eq!(changes.get(), 4, "draining cannot schedule another render");
+    }
+
+    #[wasm_bindgen_test]
+    async fn matching_export_failure_toasts_once_but_other_operation_failures_stay_inline() {
+        let (runtime, _, _) = support::fixture().await;
+        runtime.take_notifications();
+        support::fail(&runtime, support::Stage::Generation);
+        let effects = support::start_export(&runtime);
+        for outcome in [
+            TerminalOutcome::ExecutorFailed("executor unavailable".into()),
+            TerminalOutcome::PersistenceFailed("save conflict".into()),
+            TerminalOutcome::BlockedByRecovery("recovery required".into()),
         ] {
-            let result = firmware_export_bytes_for_delivery(Err(error.into()), true, false);
-            assert_eq!(result, Err(error.into()));
+            let message = match &outcome {
+                TerminalOutcome::ExecutorFailed(s)
+                | TerminalOutcome::PersistenceFailed(s)
+                | TerminalOutcome::BlockedByRecovery(s) => s.clone(),
+                _ => unreachable!(),
+            };
+            runtime
+                .run(Effect::Settled {
+                    operation_id: OperationId(1_000_000),
+                    outcome,
+                    landing: None,
+                })
+                .await;
+            assert_eq!(runtime.status(), message);
+            assert!(
+                !runtime.status_is_transient(),
+                "another operation's active export lease is irrelevant"
+            );
+            assert!(runtime.take_notifications().is_empty());
         }
-        assert_eq!(
-            firmware_export_bytes_for_delivery(Ok(vec![1, 2, 3]), false, false),
-            Err("Export scope changed before delivery.".into())
+        support::run_effects(&runtime, effects).await;
+        let failure = runtime.take_notifications();
+        assert_eq!(failure.len(), 2, "start plus exactly one terminal failure");
+        assert_eq!(failure[0].message, "Export started.");
+        assert!(failure[1].is_error);
+        assert!(
+            failure[1]
+                .message
+                .contains("injected firmware-generation failure")
         );
+        assert!(runtime.status_is_transient());
+        assert!(runtime.take_notifications().is_empty());
+        assert!(runtime.export_delivery_errors.borrow().is_empty());
+        let retry = support::start_export(&runtime);
+        support::run_effects(&runtime, retry).await;
+        let success = runtime.take_notifications();
         assert_eq!(
-            firmware_export_bytes_for_delivery(Ok(vec![1, 2, 3]), true, true),
-            Err("Export scope changed before delivery.".into())
+            success
+                .iter()
+                .map(|n| n.message.as_str())
+                .collect::<Vec<_>>(),
+            vec!["Export started.", "Saved locally."]
         );
+        assert!(success.iter().all(|n| !n.is_error));
+        assert_eq!(support::take_deliveries(&runtime).len(), 1);
+
+        let accepted = runtime.model().accepted.unwrap();
+        let operation = runtime.operation();
+        runtime.begin_export_lease(
+            operation,
+            ExportKind::BoardOutline { dxf: false },
+            &accepted,
+            &runtime.scope().unwrap(),
+        );
+        runtime
+            .run(Effect::Settled {
+                operation_id: operation,
+                outcome: TerminalOutcome::PersistenceFailed("injected save failure".into()),
+                landing: None,
+            })
+            .await;
+        let mut document = (*accepted.document).clone();
+        document.name = "Save unrelated to failed export".into();
+        super::project_name_test_support::replace_document(
+            &runtime,
+            "save-after-export-failure",
+            &accepted.document.id,
+            document,
+        )
+        .await;
+        assert!(matches!(
+            runtime.model().durability,
+            Durability::Saved { .. }
+        ));
+        assert_eq!(runtime.status(), "injected save failure");
+        assert!(
+            runtime.status_is_alert(),
+            "an unrelated save cannot retire an export failure"
+        );
+        assert!(runtime.take_notifications().is_empty());
+    }
+
+    #[wasm_bindgen_test]
+    async fn export_delivery_errors_are_consumed_only_by_their_operation_and_cancel_cleans_them() {
+        let (runtime, _, _) = support::fixture().await;
+        runtime.take_notifications();
+        let effects = support::start_export(&runtime);
+        let operation = effects
+            .iter()
+            .find_map(|effect| match effect {
+                Effect::RunExport { operation_id, .. } => Some(*operation_id),
+                _ => None,
+            })
+            .unwrap();
+        let unrelated = OperationId(1_000_001);
+        runtime
+            .export_delivery_errors
+            .borrow_mut()
+            .insert(operation, "browser refused download".into());
+        runtime
+            .run(Effect::Settled {
+                operation_id: unrelated,
+                outcome: TerminalOutcome::ExecutorFailed("unrelated executor".into()),
+                landing: None,
+            })
+            .await;
+        assert!(runtime.take_notifications().is_empty());
+        assert!(
+            runtime
+                .export_delivery_errors
+                .borrow()
+                .contains_key(&operation)
+        );
+        runtime
+            .run(Effect::Settled {
+                operation_id: operation,
+                outcome: TerminalOutcome::Completed,
+                landing: None,
+            })
+            .await;
+        let notifications = runtime.take_notifications();
+        assert_eq!(
+            notifications,
+            vec![RuntimeNotification {
+                message: "browser refused download".into(),
+                is_error: true
+            }]
+        );
+        assert!(runtime.export_delivery_errors.borrow().is_empty());
+        runtime
+            .export_delivery_errors
+            .borrow_mut()
+            .insert(unrelated, "cancelled delivery".into());
+        runtime
+            .run(Effect::CancelExport {
+                operation_id: unrelated,
+            })
+            .await;
+        assert!(runtime.export_delivery_errors.borrow().is_empty());
+        runtime
+            .run(Effect::Settled {
+                operation_id: unrelated,
+                outcome: TerminalOutcome::ExecutorFailed("late executor result".into()),
+                landing: None,
+            })
+            .await;
+        assert!(
+            runtime.take_notifications().is_empty(),
+            "a removed lease cannot turn a late executor failure into a Toast"
+        );
+        let stale_effects = support::start_export(&runtime);
+        let stale_operation = stale_effects
+            .iter()
+            .find_map(|effect| match effect {
+                Effect::RunExport { operation_id, .. } => Some(*operation_id),
+                _ => None,
+            })
+            .unwrap();
+        runtime
+            .export_delivery_errors
+            .borrow_mut()
+            .insert(stale_operation, "obsolete delivery error".into());
+        runtime.latest_firmware_export.set(Some(unrelated));
+        runtime
+            .run(Effect::Settled {
+                operation_id: stale_operation,
+                outcome: TerminalOutcome::Completed,
+                landing: None,
+            })
+            .await;
+        assert!(
+            runtime.export_delivery_errors.borrow().is_empty(),
+            "stale latest-owner gate still consumes its exact error"
+        );
+        assert!(
+            runtime.take_notifications().is_empty(),
+            "obsolete delivery errors cannot replay"
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn outline_delivery_notifies_once_and_completed_is_silent() {
+        let (runtime, accepted, scope) = support::fixture().await;
+        runtime.take_notifications();
+        let operation = runtime.operation();
+        runtime.begin_export_lease(
+            operation,
+            ExportKind::BoardOutline { dxf: false },
+            &accepted,
+            &scope,
+        );
+        runtime.artifacts.borrow_mut().insert(
+            "outline-result".into(),
+            Artifact {
+                operation_id: operation,
+                bytes: b"<svg/>".to_vec(),
+                filename: "board.svg".into(),
+                media_type: Some("image/svg+xml".into()),
+                scope,
+                token: accepted.token,
+                board_outline: true,
+            },
+        );
+        runtime
+            .run(Effect::DeliverExport {
+                operation_id: operation,
+                artifact_id: "outline-result".into(),
+                token: accepted.token,
+            })
+            .await;
+        assert_eq!(runtime.status(), "Saved board.svg.");
+        assert_eq!(
+            runtime.take_notifications(),
+            vec![RuntimeNotification {
+                message: "Saved board.svg.".into(),
+                is_error: false
+            }]
+        );
+        runtime
+            .run(Effect::Settled {
+                operation_id: operation,
+                outcome: TerminalOutcome::Completed,
+                landing: None,
+            })
+            .await;
+        assert!(
+            runtime.take_notifications().is_empty(),
+            "outline Completed cannot emit a second result"
+        );
+        let deliveries = support::take_deliveries(&runtime);
+        assert_eq!(deliveries.len(), 1);
+        assert_eq!(deliveries[0].filename, "board.svg");
+        assert_eq!(deliveries[0].bytes, b"<svg/>");
+        assert!(runtime.export_delivery_errors.borrow().is_empty());
     }
 }
 
@@ -8006,6 +9952,412 @@ mod project_open_supersession_tests {
     use boardstudio_core::CoreEngine;
     use wasm_bindgen_test::wasm_bindgen_test;
 
+    struct ConfirmChoice {
+        original: JsValue,
+        calls: Rc<Cell<u32>>,
+        answer: Rc<Cell<bool>>,
+        _callback: Closure<dyn FnMut(JsValue) -> bool>,
+    }
+
+    impl ConfirmChoice {
+        fn new() -> Self {
+            let window = web_sys::window().unwrap();
+            let original = Reflect::get(&window, &"confirm".into()).unwrap();
+            let calls = Rc::new(Cell::new(0));
+            let answer = Rc::new(Cell::new(false));
+            let count = calls.clone();
+            let result = answer.clone();
+            let callback = Closure::<dyn FnMut(JsValue) -> bool>::new(move |_| {
+                count.set(count.get() + 1);
+                result.get()
+            });
+            Reflect::set(&window, &"confirm".into(), callback.as_ref()).unwrap();
+            Self {
+                original,
+                calls,
+                answer,
+                _callback: callback,
+            }
+        }
+    }
+
+    impl Drop for ConfirmChoice {
+        fn drop(&mut self) {
+            Reflect::set(
+                &web_sys::window().unwrap(),
+                &"confirm".into(),
+                &self.original,
+            )
+            .unwrap();
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn unknown_outcome_recovery_still_confirms_discard_before_new() {
+        let runtime = test_support::new_runtime();
+        test_support::install(&runtime, Session::new(), CoreEngine::new());
+        let current = ProjectDoc::empty("unknown-current", "Current");
+        runtime.submit(Event::Open {
+            operation_id: runtime.operation(),
+            document: current.clone(),
+        });
+        test_support::run_pending(&runtime).await;
+        assert_eq!(*runtime.model().accepted.unwrap().document, current);
+        test_support::fail_next_core_reply(&runtime, "unknown worker outcome");
+        let mut edited = current.clone();
+        edited.name = "Unknown edit".into();
+        test_support::replace_document(&runtime, "unknown-before-new", &current.id, edited).await;
+        assert_eq!(runtime.model().lifecycle, Lifecycle::RecoveryRequired);
+        assert!(!runtime.has_pending_edits());
+        let before = runtime.model();
+        let confirm = ConfirmChoice::new();
+        assert!(
+            runtime.create_new_keyboard().is_err(),
+            "an unknown outcome does not authorize discarding local drafts"
+        );
+        assert_eq!(confirm.calls.get(), 1);
+        assert_eq!(runtime.model(), before);
+        assert_eq!(
+            runtime.store.list_projects().await.unwrap().documents,
+            vec![current.clone()]
+        );
+        assert_eq!(
+            runtime
+                .store
+                .load_document(current.id.clone())
+                .await
+                .unwrap(),
+            Some(current)
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn new_project_cancel_keeps_drafts_and_publication_waits_for_persistence() {
+        let runtime = test_support::new_runtime();
+        test_support::install(&runtime, Session::new(), CoreEngine::new());
+        let current = ProjectDoc::empty("new-keeps-current", "Current");
+        runtime.submit(Event::Open {
+            operation_id: runtime.operation(),
+            document: current.clone(),
+        });
+        test_support::run_pending(&runtime).await;
+        assert_eq!(*runtime.model().accepted.unwrap().document, current);
+        let mut edited = current.clone();
+        edited.name = "Current with history".into();
+        let current =
+            (*test_support::replace_document(&runtime, "before-new", &current.id, edited)
+                .await
+                .document)
+                .clone();
+        assert_eq!(current.revision, 1);
+        runtime.submit(Event::GestureBegin {
+            operation_id: runtime.operation(),
+            pointer_id: 19,
+            target_ids: Vec::new(),
+            transaction_id: "retained-draft".into(),
+            start: Vec::new(),
+            pitch: boardstudio_core::model::Vec2 { x: 19.05, y: 19.05 },
+            snap_fraction: 0.0,
+            geometry_snap: false,
+            gap: None,
+            pixels_per_world: None,
+            alt: false,
+        });
+        test_support::run_pending(&runtime).await;
+        let before = runtime.model();
+        assert!(before.gesture.is_some());
+        let confirm = ConfirmChoice::new();
+        assert!(
+            runtime.create_new_keyboard().is_err(),
+            "cancel must keep the current draft"
+        );
+        assert_eq!(confirm.calls.get(), 1);
+        assert_eq!(runtime.model(), before);
+        assert_eq!(
+            runtime.store.list_projects().await.unwrap().documents,
+            vec![current.clone()]
+        );
+        confirm.answer.set(true);
+        let (entered, release) = test_support::gate_next_persist(&runtime);
+        let (id, outcome) = runtime.create_new_keyboard().unwrap();
+        test_support::drive_pending(&runtime);
+        entered.await.unwrap();
+        assert_eq!(runtime.model().accepted, before.accepted);
+        assert_ne!(id, current.id);
+        assert!(
+            runtime
+                .store
+                .load_document(id.clone())
+                .await
+                .unwrap()
+                .is_none()
+        );
+        release.send(()).unwrap();
+        test_support::run_pending(&runtime).await;
+        assert_eq!(*outcome.borrow(), Some(TerminalOutcome::Completed));
+        let accepted = runtime.model().accepted.unwrap();
+        assert_eq!(accepted.document.id, id);
+        assert_ne!(
+            accepted.session_epoch,
+            before.accepted.unwrap().session_epoch
+        );
+        assert!(runtime.model().gesture.is_none());
+        assert_eq!(
+            runtime
+                .store
+                .load_document(current.id.clone())
+                .await
+                .unwrap(),
+            Some(current)
+        );
+        let undo = test_support::observe_next(&runtime);
+        runtime.submit(Event::Undo {
+            operation_id: runtime.operation(),
+        });
+        test_support::run_pending(&runtime).await;
+        assert!(matches!(
+            &*undo.borrow(),
+            Some(TerminalOutcome::Rejected(_))
+        ));
+        assert_eq!(runtime.model().accepted.unwrap(), accepted);
+    }
+
+    #[wasm_bindgen_test]
+    async fn unsupported_saved_target_is_validated_before_discard_confirmation() {
+        let runtime = test_support::new_runtime();
+        test_support::install(&runtime, Session::new(), CoreEngine::new());
+        let current = ProjectDoc::empty("recover-pending", "Current");
+        runtime.submit(Event::Open {
+            operation_id: runtime.operation(),
+            document: current.clone(),
+        });
+        test_support::run_pending(&runtime).await;
+        assert_eq!(*runtime.model().accepted.unwrap().document, current);
+        test_support::fail_next_persist(&runtime, "quota");
+        let mut pending = current.clone();
+        pending.name = "Keep my failed edit".into();
+        test_support::replace_document(&runtime, "pending-recovery", &current.id, pending).await;
+        assert_eq!(runtime.model().lifecycle, Lifecycle::RecoveryRequired);
+        let before = runtime.model();
+        let retained = runtime.pending_document.borrow().clone().unwrap();
+        let mut old = ProjectDoc::empty("recover-unsupported", "Older");
+        old.format_version = 6;
+        runtime
+            .store
+            .save_document(&old, &BTreeMap::new())
+            .await
+            .unwrap();
+        let confirm = ConfirmChoice::new();
+        let done = test_support::track_open_saved(&runtime);
+        runtime.open_saved(old.id);
+        assert_eq!(
+            confirm.calls.get(),
+            0,
+            "invalid targets must not ask to discard work"
+        );
+        done.await.unwrap();
+        test_support::run_pending(&runtime).await;
+        assert_eq!(confirm.calls.get(), 0);
+        assert_eq!(runtime.model(), before);
+        assert!(Arc::ptr_eq(
+            runtime.pending_document.borrow().as_ref().unwrap(),
+            &retained
+        ));
+        assert!(runtime.status().contains("No conversion"));
+        runtime.submit(Event::RetrySave {
+            operation_id: runtime.operation(),
+        });
+        test_support::run_pending(&runtime).await;
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.name,
+            "Keep my failed edit"
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn unsupported_saved_open_preserves_current_work_storage_and_undo() {
+        let runtime = test_support::new_runtime();
+        test_support::install(&runtime, Session::new(), CoreEngine::new());
+        let current = ProjectDoc::empty("recovery-current", "Before edit");
+        runtime.submit(Event::Open {
+            operation_id: runtime.operation(),
+            document: current.clone(),
+        });
+        test_support::run_pending(&runtime).await;
+        assert_eq!(*runtime.model().accepted.unwrap().document, current);
+        let mut edited = current.clone();
+        edited.name = "Accepted edit".into();
+        test_support::replace_document(&runtime, "recovery-edit", &current.id, edited).await;
+        let before = runtime.model().accepted.unwrap();
+        let scope = runtime.scope();
+        let mut older = ProjectDoc::empty("recovery-older", "Older saved keyboard");
+        older.format_version = 6;
+        let payload = b"preserved unsupported-project payload".to_vec();
+        let hash = sha256_hex(&payload);
+        older.assets.push(boardstudio_core::model::Asset {
+            id: "older-asset".into(),
+            name: "retained.bin".into(),
+            media_type: "application/octet-stream".into(),
+            sha256: hash.clone(),
+            license: None,
+            source: None,
+        });
+        runtime
+            .store
+            .save_document(&older, &BTreeMap::from([(hash.clone(), payload.clone())]))
+            .await
+            .unwrap();
+        let raw_before = runtime
+            .store
+            .raw_project(&older.id.clone().into())
+            .await
+            .unwrap()
+            .unwrap()
+            .0;
+        let listing = runtime.store.list_projects().await.unwrap();
+        assert_eq!(listing.documents, vec![(*before.document).clone()]);
+        assert_eq!(listing.unreadable.len(), 1);
+        assert!(listing.unreadable[0].error.contains("format 6"));
+        let done = test_support::track_open_saved(&runtime);
+        runtime.open_saved(older.id.clone());
+        done.await.unwrap();
+        test_support::run_pending(&runtime).await;
+        assert!(runtime.status().contains("No conversion"));
+        assert_eq!(runtime.model().accepted.unwrap(), before);
+        assert_eq!(runtime.scope(), scope);
+        assert_eq!(
+            runtime
+                .store
+                .load_asset(hash.clone())
+                .await
+                .unwrap()
+                .map(|bytes| bytes.to_vec()),
+            Some(payload.clone())
+        );
+        assert_eq!(
+            runtime
+                .store
+                .raw_project(&older.id.clone().into())
+                .await
+                .unwrap()
+                .unwrap()
+                .0,
+            raw_before
+        );
+        assert_eq!(
+            runtime
+                .store
+                .load_document(current.id.clone())
+                .await
+                .unwrap(),
+            Some((*before.document).clone())
+        );
+        let confirm = ConfirmChoice::new();
+        let incoming_bytes = b"must not be partially imported".to_vec();
+        let incoming_hash = sha256_hex(&incoming_bytes);
+        for (version, revision, reason) in [
+            (6, 0, "No conversion"),
+            (7, u64::MAX, "revision is exhausted"),
+        ] {
+            let mut candidate = older.clone();
+            candidate.id = format!("refused-import-{version}");
+            candidate.format_version = version;
+            candidate.revision = revision;
+            candidate.assets[0].sha256 = incoming_hash.clone();
+            let metadata = serde_json::to_string(&ArchiveRequest::PackFiles {
+                entries: vec![
+                    ArchiveEntry {
+                        path: "project.json".into(),
+                        buffer_index: 0,
+                    },
+                    ArchiveEntry {
+                        path: format!("assets/{incoming_hash}"),
+                        buffer_index: 1,
+                    },
+                    ArchiveEntry {
+                        path: "archive.json".into(),
+                        buffer_index: 2,
+                    },
+                ],
+            })
+            .unwrap();
+            let (reply, packed) = boardstudio_core::archive::request(
+                &metadata,
+                &[
+                    serde_json::to_vec(&candidate).unwrap(),
+                    incoming_bytes.clone(),
+                    b"{\"author\":\"retained metadata\"}".to_vec(),
+                ],
+            );
+            assert!(matches!(
+                serde_json::from_str::<ArchiveReply>(&reply).unwrap(),
+                ArchiveReply::Packed
+            ));
+            let file = web_sys::File::new_with_u8_array_sequence(
+                &Array::of1(&Uint8Array::from(packed[0].as_slice()).into()),
+                "refused.boardstudio",
+            )
+            .unwrap();
+            let pending_assets = runtime.assets.borrow().clone();
+            let model = runtime.model();
+            let done = test_support::track_import_file(&runtime);
+            runtime.import_file(file.clone());
+            done.await.unwrap();
+            test_support::run_pending(&runtime).await;
+            assert!(runtime.status().contains(reason), "{}", runtime.status());
+            assert_eq!(runtime.model(), model);
+            assert_eq!(*runtime.assets.borrow(), pending_assets);
+            assert_eq!(confirm.calls.get(), 0);
+            assert!(
+                runtime
+                    .store
+                    .load_document(candidate.id)
+                    .await
+                    .unwrap()
+                    .is_none()
+            );
+            assert!(
+                runtime
+                    .store
+                    .load_asset(incoming_hash.clone())
+                    .await
+                    .unwrap()
+                    .is_none()
+            );
+            assert_eq!(
+                Uint8Array::new(&JsFuture::from(file.array_buffer()).await.unwrap()).to_vec(),
+                packed[0]
+            );
+        }
+        runtime.submit(Event::Undo {
+            operation_id: runtime.operation(),
+        });
+        test_support::run_pending(&runtime).await;
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.name,
+            "Before edit"
+        );
+        assert_eq!(
+            runtime
+                .store
+                .load_asset(hash.clone())
+                .await
+                .unwrap()
+                .map(|bytes| bytes.to_vec()),
+            Some(payload)
+        );
+        assert_eq!(
+            runtime
+                .store
+                .raw_project(&older.id.into())
+                .await
+                .unwrap()
+                .unwrap()
+                .0,
+            raw_before
+        );
+    }
+
     async fn fixture() -> (Rc<Runtime>, ProjectDoc, ProjectDoc) {
         let runtime = test_support::new_runtime();
         let suffix = new_project_id().expect("browser fixture id is available");
@@ -8082,6 +10434,8 @@ mod project_open_supersession_tests {
 
     #[wasm_bindgen_test]
     async fn delayed_import_cannot_replace_a_newer_saved_project_open() {
+        let confirm = ConfirmChoice::new();
+        confirm.answer.set(true);
         let (runtime, _, newer) = fixture().await;
         let imported = imported_document(&newer);
         let (archive_entered, release_archive) =
@@ -8117,6 +10471,8 @@ mod project_open_supersession_tests {
 
     #[wasm_bindgen_test]
     async fn delayed_saved_open_cannot_replace_a_newer_import() {
+        let confirm = ConfirmChoice::new();
+        confirm.answer.set(true);
         let (runtime, stale_saved, current) = fixture().await;
         let imported = imported_document(&current);
         let (open_entered, release_open) = test_support::gate_open_saved_result(&runtime);
@@ -8215,10 +10571,7 @@ mod in_process_adapter_tests {
         name: &str,
     ) -> crate::operation_outcomes::OutcomeSlot {
         let slot = test_support::observe_next(runtime);
-        runtime.submit(Event::Edit {
-            operation_id: runtime.operation(),
-            command: rename_edit(accepted, name),
-        });
+        test_support::submit_fixed_command(runtime, rename_edit(accepted, name));
         slot
     }
 
@@ -8373,5 +10726,467 @@ mod in_process_adapter_tests {
             "a late reply from the replaced executor changes nothing"
         );
         assert_eq!(runtime.model().lifecycle, Lifecycle::RecoveryRequired);
+    }
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod offline_safety_tests {
+    use super::*;
+    use boardstudio_core::model::{EditCommand, EditOperation, EditPhase};
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    #[wasm_bindgen_test]
+    async fn conflicting_runtime_preserves_pending_document_and_assets_for_download() {
+        let first = project_name_test_support::new_runtime();
+        project_name_test_support::install(
+            &first,
+            Session::new(),
+            boardstudio_core::CoreEngine::new(),
+        );
+        let mut document = in_process_support::board_document();
+        document.id = format!("runtime-conflict-{}", js_sys::Date::now());
+        document.name = "Original".into();
+        first.submit(Event::Open {
+            operation_id: first.operation(),
+            document: document.clone(),
+        });
+        project_name_test_support::run_pending(&first).await;
+        let second = Runtime::new_with_store(false, first.store.clone()).unwrap();
+        project_name_test_support::install(
+            &second,
+            Session::new(),
+            boardstudio_core::CoreEngine::new(),
+        );
+        let done = project_name_test_support::track_open_saved(&second);
+        second.open_saved(document.id.clone());
+        done.await.unwrap();
+        project_name_test_support::run_pending(&second).await;
+        let stale = second.model().accepted.unwrap();
+        let accepted = first.model().accepted.unwrap();
+        let mut winner = (*accepted.document).clone();
+        winner.name = "First tab saved".into();
+        project_name_test_support::submit_fixed_command(
+            &first,
+            EditCommand {
+                base_revision: accepted.document.revision,
+                transaction_id: "first-tab".into(),
+                phase: EditPhase::Commit,
+                target_ids: Vec::new(),
+                operation: EditOperation::ReplaceDocument {
+                    document: Box::new(winner),
+                },
+            },
+        );
+        project_name_test_support::run_pending(&first).await;
+        let mut pending = (*stale.document).clone();
+        pending.name = "Second tab pending".into();
+        let bytes = b"model retained after conflict".to_vec();
+        let hash: String = Sha256::digest(&bytes)
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect();
+        pending.assets.push(
+            serde_json::from_value(serde_json::json!({
+                "id":"pending-model", "name":"pending.step", "mediaType":"model/step", "sha256":hash
+            }))
+            .unwrap(),
+        );
+        second
+            .assets
+            .borrow_mut()
+            .insert(hash.clone(), bytes.clone());
+        project_name_test_support::submit_fixed_command(
+            &second,
+            EditCommand {
+                base_revision: stale.document.revision,
+                transaction_id: "second-tab".into(),
+                phase: EditPhase::Commit,
+                target_ids: Vec::new(),
+                operation: EditOperation::ReplaceDocument {
+                    document: Box::new(pending),
+                },
+            },
+        );
+        project_name_test_support::run_pending(&second).await;
+        assert_eq!(second.model().lifecycle, Lifecycle::RecoveryRequired);
+        assert!(second.has_save_conflict());
+        assert_eq!(second.model().accepted.unwrap().document.name, "Original");
+        assert_eq!(
+            first
+                .store
+                .load_document(document.id.clone())
+                .await
+                .unwrap()
+                .unwrap()
+                .name,
+            "First tab saved"
+        );
+        second.submit(Event::RetrySave {
+            operation_id: second.operation(),
+        });
+        project_name_test_support::run_pending(&second).await;
+        assert!(
+            second.has_save_conflict(),
+            "retry cannot adopt the other tab's token"
+        );
+        let window = web_sys::window().unwrap();
+        let old_confirm = Reflect::get(&window, &"confirm".into()).unwrap();
+        let cancel = Closure::<dyn FnMut(JsValue) -> bool>::new(|_| false);
+        Reflect::set(&window, &"confirm".into(), cancel.as_ref()).unwrap();
+        let done = project_name_test_support::track_open_saved(&second);
+        second.open_saved(document.id.clone());
+        done.await.unwrap();
+        assert_eq!(
+            second.delete_saved_project("another-keyboard".into()).await,
+            Err("Pending edits were kept; no keyboard was deleted.".into())
+        );
+        Reflect::set(&window, &"confirm".into(), &old_confirm).unwrap();
+        drop(cancel);
+        assert_eq!(second.model().lifecycle, Lifecycle::RecoveryRequired);
+        second.submit(Event::RetrySave {
+            operation_id: second.operation(),
+        });
+        project_name_test_support::run_pending(&second).await;
+        assert!(
+            second.has_save_conflict(),
+            "cancelled recovery must not adopt a new storage token"
+        );
+        let (captured, archive) = second.pending_archive().await.unwrap();
+        assert_eq!(captured.name, "Second tab pending");
+        let (reply, buffers) =
+            boardstudio_core::archive::request("{\"kind\":\"unpack-project\"}", &[archive]);
+        let ArchiveReply::Unpacked {
+            project_json,
+            assets,
+        } = serde_json::from_str(&reply).unwrap()
+        else {
+            panic!("pending copy was not a valid archive: {reply}")
+        };
+        let unpacked: ProjectDoc = serde_json::from_str(&project_json).unwrap();
+        assert_eq!(unpacked.name, "Second tab pending");
+        assert_eq!(buffers[assets[0].buffer_index as usize], bytes);
+        assert!(
+            second.store.load_asset(hash).await.unwrap().is_none(),
+            "the conflicting asset write was rolled back"
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn archive_exactly_at_size_limit_reaches_normal_validation() {
+        let window = web_sys::window().unwrap();
+        let original = Reflect::get(&window, &"confirm".into()).unwrap();
+        let confirm = Closure::<dyn FnMut(JsValue) -> bool>::new(|_| true);
+        Reflect::set(&window, &"confirm".into(), confirm.as_ref()).unwrap();
+        let runtime = project_name_test_support::new_runtime();
+        project_name_test_support::open_document(&runtime, in_process_support::board_document())
+            .await;
+        let imported = ProjectDoc::empty("archive-at-limit", "At limit");
+        let (mut entered, release) =
+            project_name_test_support::gate_import_archive(&runtime, &imported);
+        let done = project_name_test_support::track_import_file(&runtime);
+        let file = web_sys::File::new_with_u8_array_sequence(&Array::new(), "at-limit.boardstudio")
+            .unwrap();
+        let descriptor = Object::new();
+        Reflect::set(
+            &descriptor,
+            &"value".into(),
+            &JsValue::from_f64(128.0 * 1024.0 * 1024.0),
+        )
+        .unwrap();
+        Object::define_property(&Object::from(file.clone()), &"size".into(), &descriptor);
+        runtime.import_file(file);
+        let mut admitted = false;
+        for _ in 0..200 {
+            if matches!(entered.try_recv(), Ok(Some(()))) {
+                admitted = true;
+                break;
+            }
+            TimeoutFuture::new(1).await;
+        }
+        assert!(
+            admitted,
+            "exactly-at-limit files must reach Core: {}",
+            runtime.status()
+        );
+        release.send(()).unwrap();
+        done.await.unwrap();
+        Reflect::set(&window, &"confirm".into(), &original).unwrap();
+        project_name_test_support::run_pending(&runtime).await;
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.id,
+            "archive-at-limit"
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn oversized_import_is_rejected_before_opening_or_reading() {
+        let runtime = project_name_test_support::new_runtime();
+        project_name_test_support::open_document(&runtime, in_process_support::board_document())
+            .await;
+        let before = runtime.model().accepted.unwrap();
+        let file =
+            web_sys::File::new_with_u8_array_sequence(&Array::new(), "oversized.boardstudio")
+                .unwrap();
+        let descriptor = Object::new();
+        Reflect::set(
+            &descriptor,
+            &"value".into(),
+            &JsValue::from_f64(128.0 * 1024.0 * 1024.0 + 1.0),
+        )
+        .unwrap();
+        Object::define_property(&Object::from(file.clone()), &"size".into(), &descriptor);
+        runtime.import_file(file);
+        assert!(
+            runtime.status().contains("128 MiB"),
+            "oversized files must be rejected synchronously: {}",
+            runtime.status()
+        );
+        assert_eq!(runtime.model().accepted.unwrap().token, before.token);
+    }
+}
+
+/// Quota-recovery RED tests: with origin storage full every save aborts, so the
+/// in-app delete path must not rewrite durable state before the single-key
+/// delete, and create-new must discard the latched pending doc without
+/// committing it. Saves are failed through the persistence port (the quota
+/// simulation); single-key deletes go straight to the store and must succeed.
+#[cfg(all(test, target_arch = "wasm32"))]
+mod quota_recovery_deletion_tests {
+    use super::*;
+    use crate::runtime::project_name_test_support as test_support;
+    use boardstudio_core::CoreEngine;
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    struct ConfirmChoice {
+        original: JsValue,
+        calls: Rc<Cell<u32>>,
+        answer: Rc<Cell<bool>>,
+        _callback: Closure<dyn FnMut(JsValue) -> bool>,
+    }
+
+    impl ConfirmChoice {
+        fn new() -> Self {
+            let window = web_sys::window().unwrap();
+            let original = Reflect::get(&window, &"confirm".into()).unwrap();
+            let calls = Rc::new(Cell::new(0));
+            let answer = Rc::new(Cell::new(false));
+            let count = calls.clone();
+            let result = answer.clone();
+            let callback = Closure::<dyn FnMut(JsValue) -> bool>::new(move |_| {
+                count.set(count.get() + 1);
+                result.get()
+            });
+            Reflect::set(&window, &"confirm".into(), callback.as_ref()).unwrap();
+            Self {
+                original,
+                calls,
+                answer,
+                _callback: callback,
+            }
+        }
+    }
+
+    impl Drop for ConfirmChoice {
+        fn drop(&mut self) {
+            Reflect::set(
+                &web_sys::window().unwrap(),
+                &"confirm".into(),
+                &self.original,
+            )
+            .unwrap();
+        }
+    }
+
+    async fn quota_latched_runtime(active_name: &str) -> Rc<Runtime> {
+        let runtime = test_support::new_runtime();
+        test_support::install(&runtime, Session::new(), CoreEngine::new());
+        let active = ProjectDoc::empty("quota-delete-active", active_name);
+        runtime.submit(Event::Open {
+            operation_id: runtime.operation(),
+            document: active.clone(),
+        });
+        test_support::run_pending(&runtime).await;
+        let other = ProjectDoc::empty("quota-delete-other", "Other board");
+        runtime
+            .store
+            .save_document(&other, &BTreeMap::new())
+            .await
+            .unwrap();
+        test_support::fail_next_persist(&runtime, "QuotaExceededError: origin storage is full");
+        let mut edited = active.clone();
+        edited.name = "Oversized failed edit".into();
+        test_support::replace_document(&runtime, "quota-delete-edit", &active.id, edited).await;
+        assert_eq!(runtime.model().lifecycle, Lifecycle::RecoveryRequired);
+        assert!(
+            runtime.has_pending_edits(),
+            "the aborted save latches pending edits"
+        );
+        runtime
+    }
+
+    #[wasm_bindgen_test]
+    async fn quota_delete_non_active_skips_recovery_writes_and_keeps_pending_for_explicit_retry() {
+        let runtime = quota_latched_runtime("Active board").await;
+        // Persistent quota: every save aborts, not just the latched one.
+        test_support::fail_next_persist(&runtime, "QuotaExceededError: origin storage is full");
+        let active_id = "quota-delete-active";
+        let mut pending_target = test_support::track_next_persist_target(&runtime);
+        let confirm = ConfirmChoice::new();
+        confirm.answer.set(true);
+        let result = runtime
+            .delete_saved_project("quota-delete-other".into())
+            .await;
+        assert!(
+            result.is_ok(),
+            "quota delete must succeed where the save aborted: {result:?}"
+        );
+        assert_eq!(
+            confirm.calls.get(),
+            1,
+            "one explicit discard-confirm gates the recovery delete"
+        );
+        test_support::run_pending(&runtime).await;
+        assert!(
+            pending_target.try_recv().unwrap().is_none(),
+            "no recovery or replacement write may run before the single-key delete"
+        );
+        assert!(
+            runtime
+                .store
+                .load_document("quota-delete-other".into())
+                .await
+                .unwrap()
+                .is_none(),
+            "the other keyboard is gone"
+        );
+        assert_eq!(
+            runtime
+                .store
+                .load_document(active_id.into())
+                .await
+                .unwrap()
+                .unwrap()
+                .name,
+            "Active board",
+            "the durable active copy is untouched"
+        );
+        assert_eq!(runtime.model().accepted.unwrap().document.id, active_id);
+        assert_eq!(runtime.model().lifecycle, Lifecycle::RecoveryRequired);
+        assert!(
+            runtime.has_pending_edits(),
+            "the pending doc stays available for explicit retry or download"
+        );
+        let remaining = runtime.store.list_documents().await.unwrap();
+        assert!(
+            remaining
+                .iter()
+                .all(|document| document.id != "quota-delete-fresh"),
+            "no replacement keyboard is created by the delete"
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn quota_delete_active_removes_only_the_saved_copy() {
+        let runtime = quota_latched_runtime("Active board").await;
+        // Persistent quota: every save aborts, not just the latched one.
+        test_support::fail_next_persist(&runtime, "QuotaExceededError: origin storage is full");
+        let active_id = "quota-delete-active";
+        let confirm = ConfirmChoice::new();
+        confirm.answer.set(true);
+        let result = runtime.delete_saved_project(active_id.into()).await;
+        assert!(
+            result.is_ok(),
+            "quota delete of the active keyboard must succeed: {result:?}"
+        );
+        test_support::run_pending(&runtime).await;
+        assert!(
+            runtime
+                .store
+                .load_document(active_id.into())
+                .await
+                .unwrap()
+                .is_none(),
+            "the active saved copy is gone"
+        );
+        assert!(
+            runtime
+                .store
+                .load_document("quota-delete-other".into())
+                .await
+                .unwrap()
+                .is_some(),
+            "the other keyboard is untouched"
+        );
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.id,
+            active_id,
+            "the accepted in-memory keyboard stays for the explicit next step"
+        );
+        assert_eq!(runtime.model().lifecycle, Lifecycle::RecoveryRequired);
+        assert!(
+            !runtime.saved_tokens.borrow().contains_key(active_id),
+            "the saved token is dropped with the record"
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn quota_create_new_discards_pending_without_committing_oversized_doc() {
+        let runtime = quota_latched_runtime("Active board").await;
+        test_support::fail_next_persist(&runtime, "QuotaExceededError: origin storage is full");
+        let confirm = ConfirmChoice::new();
+        confirm.answer.set(true);
+        let (id, outcome) = runtime
+            .create_new_keyboard()
+            .expect("discard-confirmed create-new must replace");
+        assert_eq!(confirm.calls.get(), 1);
+        assert!(
+            !runtime.has_pending_edits(),
+            "the explicit discard clears the latched pending doc immediately"
+        );
+        test_support::run_pending(&runtime).await;
+        assert!(
+            matches!(
+                &*outcome.borrow(),
+                Some(TerminalOutcome::PersistenceFailed(_))
+            ),
+            "the fresh save fails explicitly under quota instead of retrying silently"
+        );
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.id,
+            "quota-delete-active",
+            "under quota the accepted keyboard stays until a save succeeds"
+        );
+        let durable = runtime
+            .store
+            .load_document("quota-delete-active".into())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            durable.name, "Active board",
+            "the oversized doc is never committed"
+        );
+        assert_eq!(durable.revision, 0);
+        // The escape hatch retains only the fresh small doc: an explicit retry
+        // (quota simulation spent) commits and installs it, proving the
+        // oversized candidate was discarded rather than retried.
+        runtime.submit(Event::RetrySave {
+            operation_id: runtime.operation(),
+        });
+        test_support::run_pending(&runtime).await;
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.id,
+            id,
+            "explicit retry installs the fresh keyboard, not the oversized edit"
+        );
+        assert!(
+            runtime
+                .store
+                .load_document(id.clone())
+                .await
+                .unwrap()
+                .is_some(),
+            "the fresh keyboard is durably saved"
+        );
     }
 }

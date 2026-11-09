@@ -56,3 +56,10 @@ RGB LED assemblies require pads `vdd`, `gnd`, `din`, and `dout`. The core
 maintains matrix-owned power nets, input/output endpoints, and deterministic
 DIN/DOUT chain across enabled cells. A `set-matrix` edit may include new
 definitions; registration and placement share one undo step.
+
+## Tests
+
+Core's integration tests are modules of `core/tests/integration.rs`
+(`autotests = false`). Register a new file there with `#[path = "name.rs"] mod name;`;
+`python3 scripts/check-core-tests.py` fails for a file no target compiles. Run one test with
+`cargo test -p boardstudio_core --test integration <name>`.

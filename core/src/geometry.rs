@@ -77,6 +77,9 @@ pub(super) struct FeatureShape {
 }
 type FeatureGeometry = Result<FeatureShape, String>;
 fn feature_geometry(doc: &ProjectDoc, feature: &OutlineFeature) -> FeatureGeometry {
+    if let OutlineFeature::Polygon { points, .. } = feature {
+        automatic::check_persisted_path_size(points.len())?;
+    }
     crate::outline_controls::validate(doc, feature)?;
     let mut path = match feature {
         OutlineFeature::Polygon { points, .. } => points.iter().copied().map(point).collect(),
@@ -120,6 +123,18 @@ fn feature_geometry(doc: &ProjectDoc, feature: &OutlineFeature) -> FeatureGeomet
                 .collect();
             axes.sort_by(f64::total_cmp);
             axes.dedup();
+            // An authored bridge across an axis opts this feature into one connected
+            // envelope there. Automatic bridges still respect every other split.
+            for connection in connections {
+                let mut minimum_x = f64::INFINITY;
+                let mut maximum_x = f64::NEG_INFINITY;
+                for control in &connection.points {
+                    let point = crate::outline_controls::point(doc, control)?;
+                    minimum_x = minimum_x.min(point.x);
+                    maximum_x = maximum_x.max(point.x);
+                }
+                axes.retain(|axis| !(minimum_x < *axis && *axis < maximum_x));
+            }
             if axes.is_empty() {
                 return automatic::envelope(
                     doc,
@@ -136,19 +151,7 @@ fn feature_geometry(doc: &ProjectDoc, feature: &OutlineFeature) -> FeatureGeomet
                 let Some(part) = doc.parts.iter().find(|part| &part.id == id) else {
                     continue;
                 };
-                let owner = doc.layouts.iter().find(|layout| {
-                    layout.part_ids.contains(id)
-                        || doc.matrices.iter().any(|matrix| {
-                            matrix.id == layout.matrix_id && matrix.part_ids.contains(id)
-                        })
-                });
-                let x = owner
-                    .and_then(|layout| {
-                        doc.matrices
-                            .iter()
-                            .find(|matrix| matrix.id == layout.matrix_id)
-                    })
-                    .map_or(part.pose.at.x, |matrix| matrix.origin.x);
+                let x = split_x(doc, part)?;
                 groups
                     .entry(axes.iter().map(|axis| x < *axis).collect())
                     .or_default()
@@ -243,14 +246,22 @@ fn feature_geometry(doc: &ProjectDoc, feature: &OutlineFeature) -> FeatureGeomet
         path = path
             .into_iter()
             .map(|p| {
+                // Ticket 12: anchored paths compose at the evaluated board pose.
+                let pose = crate::matrix::layout::evaluated_part_pose(doc, part);
                 point(crate::outline_controls::world(
                     Vec2 { x: p[0], y: p[1] },
-                    part,
+                    &pose,
+                    part.side.clone(),
                 ))
             })
             .collect();
     }
-    if !automatic::simple(&path) {
+    let simple = if matches!(feature, OutlineFeature::Polygon { .. }) {
+        automatic::persisted_simple(&path)?
+    } else {
+        automatic::simple(&path)
+    };
+    if !simple {
         return Err(
             "Outline requires a non-self-intersecting polygon with three distinct finite points"
                 .into(),
@@ -268,6 +279,140 @@ pub struct OutlineCache {
     layouts: Vec<crate::model::Layout>,
     paths: BTreeMap<String, (OutlineFeature, FeatureGeometry)>,
 }
+
+/// A linked refinement whose current projection does not resolve.
+///
+/// The link stays active: the refinement keeps its settings and choices, the board
+/// shows its last valid projection, and a located finding names the board, version and
+/// cause. It is not manufactured into a valid current result, so it blocks the
+/// affected exports while saving and further editing remain available.
+pub(crate) struct LinkedProblem {
+    pub version_id: String,
+    pub version_name: String,
+    pub message: String,
+}
+
+impl LinkedProblem {
+    pub fn finding_id(&self, board_id: &str) -> String {
+        format!("board:{board_id}:outline:linked:{}", self.version_id)
+    }
+
+    pub fn finding(&self, board_id: &str) -> Finding {
+        Finding {
+            id: self.finding_id(board_id),
+            severity: Severity::Error,
+            scope: Scope::Pcb,
+            message: format!(
+                "Linked refinement {} cannot resolve from the board's current components: {}. Showing its last valid shape; the refinement stays linked and exports stay blocked until it resolves.",
+                self.version_name, self.message
+            ),
+            target_ids: vec![board_id.to_owned(), self.version_id.clone()],
+        }
+    }
+}
+
+/// Compose one board, keeping the link and falling back to the last valid projection
+/// when a linked refinement cannot resolve from the current components.
+fn board_composition(
+    doc: &ProjectDoc,
+    cache: &OutlineCache,
+    board: &crate::model::Board,
+) -> (ComposedOutline, Option<LinkedProblem>) {
+    let result = compose(
+        crate::outline_versions::features(doc, board).iter(),
+        cache,
+        crate::outline_versions::settings(doc, &board.id),
+    );
+    let Some(version) = crate::outline_versions::active_version(doc, &board.id) else {
+        return (result, None);
+    };
+    if version.ownership.is_fixed() {
+        return (result, None);
+    }
+    // Only an outline-composition failure is a resolution failure. Clearance,
+    // support and overhang findings come from the separate fabrication checks and
+    // must report the *current* projection instead of pinning a stale one.
+    let failure = result
+        .findings
+        .iter()
+        .find(|finding| {
+            finding.severity == Severity::Error && matches!(finding.scope, Scope::Outline)
+        })
+        .map(|finding| finding.message.clone())
+        .or_else(|| {
+            result
+                .contours
+                .is_empty()
+                .then(|| "the current components resolve to no board area".to_owned())
+        });
+    let Some(message) = failure else {
+        return (result, None);
+    };
+    let problem = LinkedProblem {
+        version_id: version.id.clone(),
+        version_name: version.name.clone(),
+        message,
+    };
+    let mut last_valid = cache.clone();
+    for feature in &version.geometry.features {
+        let geometry = feature_geometry(doc, feature);
+        last_valid
+            .paths
+            .insert(feature.id().into(), (feature.clone(), geometry));
+    }
+    let fallback = compose(
+        version.geometry.features.iter(),
+        &last_valid,
+        Some(&version.geometry.settings),
+    );
+    (fallback, Some(problem))
+}
+
+/// Recompute every linked alternative and report its failures without letting them
+/// block the selected outline or another board (ADR-0001/0002).
+fn alternative_findings(doc: &ProjectDoc) -> Vec<Finding> {
+    let mut findings = vec![];
+    for board in &doc.boards {
+        let Some(state) = doc
+            .board_outlines
+            .iter()
+            .find(|state| state.board_id == board.id)
+        else {
+            continue;
+        };
+        for version in &state.versions {
+            if version.ownership.is_fixed()
+                || state.active_version_id.as_deref() == Some(version.id.as_str())
+            {
+                continue;
+            }
+            let features = crate::outline_versions::resolved_features(doc, &board.id, version);
+            let failure = features
+                .iter()
+                .find_map(|feature| feature_geometry(doc, feature).err())
+                .or_else(|| {
+                    features
+                        .is_empty()
+                        .then(|| "it has no boundary features".to_owned())
+                });
+            let Some(message) = failure else {
+                continue;
+            };
+            findings.push(Finding {
+                id: format!("board:{}:outline:linked:{}", board.id, version.id),
+                severity: Severity::Error,
+                scope: Scope::Pcb,
+                message: format!(
+                    "Linked refinement {} cannot resolve from the board's current components: {}. It is not selected, so it does not block current output.",
+                    version.name, message
+                ),
+                target_ids: vec![board.id.clone(), version.id.clone()],
+            });
+        }
+    }
+    findings
+}
+
 pub fn outlines(
     doc: &ProjectDoc,
     previous: Option<&OutlineCache>,
@@ -277,24 +422,24 @@ pub fn outlines(
         layouts: doc.layouts.clone(),
         ..Default::default()
     };
-    let mut features: Vec<_> = doc.outline.iter().collect();
+    let mut features: Vec<OutlineFeature> = doc.outline.clone();
     for board in &doc.boards {
-        if let Some(snapshot) = crate::outline_versions::active_snapshot(doc, &board.id) {
-            features.extend(&snapshot.features);
+        if crate::outline_versions::active_snapshot(doc, &board.id).is_some() {
+            features.extend(crate::outline_versions::features(doc, board));
         }
     }
     for feature in features {
         let paths = previous
             .filter(|old| old.layouts == doc.layouts)
             .and_then(|old| old.paths.get(feature.id()))
-            .filter(|(old_feature, _)| old_feature == feature && !depends_on(feature, moved))
+            .filter(|(old_feature, _)| old_feature == &feature && !depends_on(&feature, moved))
             .map(|(_, paths)| paths.clone())
-            .unwrap_or_else(|| feature_geometry(doc, feature));
+            .unwrap_or_else(|| feature_geometry(doc, &feature));
         cache
             .paths
             .insert(feature.id().into(), (feature.clone(), paths));
     }
-    let (contours, findings) = if doc
+    let (contours, mut findings) = if doc
         .boards
         .iter()
         .any(|board| crate::outline_versions::active_snapshot(doc, &board.id).is_some())
@@ -302,11 +447,10 @@ pub fn outlines(
         let mut contours = vec![];
         let mut findings = vec![];
         for board in &doc.boards {
-            let result = compose(
-                crate::outline_versions::features(doc, board).into_iter(),
-                &cache,
-                crate::outline_versions::settings(doc, &board.id),
-            );
+            let (result, problem) = board_composition(doc, &cache, board);
+            if let Some(problem) = &problem {
+                findings.push(problem.finding(&board.id));
+            }
             contours.extend(result.contours);
             findings.extend(result.findings);
         }
@@ -327,6 +471,7 @@ pub fn outlines(
         let result = compose(doc.outline.iter(), &cache, None);
         (result.contours, result.findings)
     };
+    findings.extend(alternative_findings(doc));
     (cache, contours, findings)
 }
 
@@ -539,7 +684,9 @@ pub(crate) fn retained_cutout(
             .as_ref()
             .and_then(|id| doc.parts.iter().find(|part| &part.id == id));
         let center = anchor.map_or(*center, |part| {
-            crate::outline_controls::world(*center, part)
+            // Ticket 12: anchored islands center on the evaluated board pose.
+            let pose = crate::matrix::layout::evaluated_part_pose(doc, part);
+            crate::outline_controls::world(*center, &pose, part.side.clone())
         });
         let rotation = anchor.map_or(rotation.unwrap_or_default(), |part| {
             part.pose.rotation
@@ -563,17 +710,6 @@ pub(crate) fn retained_cutout(
     None
 }
 
-pub(crate) fn board_source(
-    doc: &ProjectDoc,
-    cache: &OutlineCache,
-    board: &crate::model::Board,
-) -> ComposedOutline {
-    compose(
-        crate::outline_versions::features(doc, board).into_iter(),
-        cache,
-        crate::outline_versions::settings(doc, &board.id),
-    )
-}
 pub(crate) fn generated_source(
     doc: &ProjectDoc,
     cache: &OutlineCache,
@@ -588,8 +724,32 @@ pub(crate) fn generated_source(
         None,
     )
 }
+
+/// Source contours of an arbitrary feature set, resolving geometry the accepted cache
+/// does not hold (an inactive version's current projection).
+///
+/// Used by settlement to compare a reviewed projection with the current one: the
+/// composition is the same one the board path uses, so a reviewed shape and its later
+/// recomputation are comparable without exposing the private cache.
+pub(crate) fn feature_source_contours(
+    doc: &ProjectDoc,
+    cache: &OutlineCache,
+    features: &[OutlineFeature],
+) -> Vec<Contour> {
+    let mut local = cache.clone();
+    for feature in features {
+        local.paths.insert(
+            feature.id().into(),
+            (feature.clone(), feature_geometry(doc, feature)),
+        );
+    }
+    compose(features.iter(), &local, None).source
+}
 pub(crate) fn valid_polygon(points: &[Vec2]) -> bool {
-    automatic::simple(&points.iter().copied().map(point).collect())
+    if automatic::check_persisted_path_size(points.len()).is_err() {
+        return false;
+    }
+    automatic::persisted_simple(&points.iter().copied().map(point).collect()).unwrap_or(false)
 }
 
 pub(crate) fn board_outline_scenes(
@@ -599,13 +759,19 @@ pub(crate) fn board_outline_scenes(
     doc.boards
         .iter()
         .map(|board| {
-            let result = board_source(doc, cache, board);
+            let (result, _) = board_composition(doc, cache, board);
+            let bridges = match crate::outline_versions::active_version(doc, &board.id) {
+                // A linked refinement's material bridges follow its current projection.
+                Some(version) if !version.ownership.is_fixed() => result.bridges.clone(),
+                Some(_) => crate::outline_versions::active_snapshot(doc, &board.id)
+                    .map(|snapshot| snapshot.bridges.clone())
+                    .unwrap_or_else(|| result.bridges.clone()),
+                None => result.bridges.clone(),
+            };
             BoardOutlineScene {
                 board_id: board.id.clone(),
                 source_contours: result.source,
-                bridges: crate::outline_versions::active_snapshot(doc, &board.id)
-                    .map(|snapshot| snapshot.bridges.clone())
-                    .unwrap_or(result.bridges),
+                bridges,
                 gaps: result.gaps,
             }
         })
@@ -624,8 +790,22 @@ pub fn board_contours(
     let mut findings = vec![];
     let mut markers = vec![];
     for board in &doc.boards {
-        let result = board_source(doc, cache, board);
+        let (result, problem) = board_composition(doc, cache, board);
         markers.extend(corner_markers_for(&board.id, &result.corner_locations));
+        if let Some(problem) = &problem {
+            // The last valid shape is what the board displays; the finding identifies
+            // the board and version it belongs to and locates it on the workbench.
+            markers.push(crate::model::FindingMarker {
+                finding_id: problem.finding_id(&board.id),
+                board_id: board.id.clone(),
+                contours: result
+                    .contours
+                    .iter()
+                    .filter(|contour| !contour.hole)
+                    .cloned()
+                    .collect(),
+            });
+        }
         for problem in result.findings {
             findings.push(Finding {
                 id: format!("board:{}:feature:{}", board.id, problem.id),
@@ -694,6 +874,33 @@ fn corner_markers_for(board_id: &str, locations: &[Vec2]) -> Vec<crate::model::F
     .collect()
 }
 
+/// The split coordinate of a part: the origin of the unanchored root of the matrix that owns
+/// it. A part outside any matrix has only its own pose.
+fn split_x(doc: &ProjectDoc, part: &Part) -> Result<f64, String> {
+    let Some(owner) = doc
+        .matrices
+        .iter()
+        .find(|matrix| matrix.part_ids.contains(&part.id))
+    else {
+        // Ticket 12: independent parts group by their evaluated board pose,
+        // so a half-frame part stays on its own half's island.
+        return Ok(crate::matrix::layout::evaluated_part_pose(doc, part).at.x);
+    };
+    let mut root = crate::matrix::evaluation::logical_matrix(&owner.id, doc)?;
+    for _ in 0..=doc.matrices.len() {
+        let Some(anchor) = root.anchor.as_ref() else {
+            // Half-frame origins are relative to the half offset; compare in
+            // board space so each half still groups on its own side.
+            return Ok(match crate::matrix::layout::half_offset(doc, &root.id) {
+                Some(offset) => root.origin.x + offset.x,
+                None => root.origin.x,
+            });
+        };
+        root = crate::matrix::evaluation::logical_matrix(&anchor.matrix_id, doc)?;
+    }
+    Err(format!("Matrix anchors of {} form a cycle", owner.id))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -713,8 +920,8 @@ mod tests {
             settings.bridge_width = 10.0;
         }
         doc.layouts = serde_json::from_value(serde_json::json!([
-            {"id":"left","name":"Left","boardId":"board","matrixId":"left-matrix","partIds":["key-0"]},
-            {"id":"right","name":"Right","boardId":"board","matrixId":"right-matrix","partIds":["key-1"],"mirrorLink":{"sourceId":"left","axisX":20.0}}
+            {"id":"left","name":"Left","boardId":"board","matrixIds":["left-matrix"],"partIds":["key-0"]},
+            {"id":"right","name":"Right","boardId":"board","matrixIds":["right-matrix"],"partIds":["key-1"],"mirrorLink":{"sourceId":"left","axisX":20.0}}
         ])).unwrap();
         let shapes = feature_geometry(&doc, &doc.outline[0]).unwrap().shapes;
         assert_eq!(
@@ -722,6 +929,39 @@ mod tests {
             2,
             "split halves must retain separate outlines"
         );
+    }
+
+    #[test]
+    fn oversized_authored_outline_stays_saved_and_reports_a_finding() {
+        let mut doc = fixture(1);
+        let points = (0..=automatic::MAX_PERSISTED_OUTLINE_POINTS)
+            .map(|index| {
+                let angle = std::f64::consts::TAU * index as f64
+                    / (automatic::MAX_PERSISTED_OUTLINE_POINTS + 1) as f64;
+                Vec2 {
+                    x: angle.cos() * 20.0,
+                    y: angle.sin() * 20.0,
+                }
+            })
+            .collect();
+        doc.outline[0] = OutlineFeature::Polygon {
+            anchor_part_id: None,
+            id: "large-outline".into(),
+            points,
+            operation: crate::model::Operation::Add,
+        };
+
+        let (cache, _, findings) = outlines(&doc, None, &[]);
+
+        assert!(matches!(
+            &doc.outline[0],
+            OutlineFeature::Polygon { points, .. }
+                if points.len() == automatic::MAX_PERSISTED_OUTLINE_POINTS + 1
+        ));
+        assert!(findings.iter().any(|finding| {
+            finding.id == "outline:large-outline:invalid" && finding.message.contains("1024 points")
+        }));
+        assert!(cache.paths["large-outline"].1.is_err());
     }
 
     const SAMPLES: usize = 100;
@@ -756,6 +996,7 @@ mod tests {
         for index in 0..keys {
             let id = format!("key-{index}");
             doc.parts.push(Part {
+                anchor: None,
                 id: id.clone(),
                 definition_id: "switch".into(),
                 reference: format!("SW{}", index + 1),

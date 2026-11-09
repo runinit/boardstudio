@@ -19,13 +19,18 @@ members = [
   "web/crates/keymap",
   "web/crates/library",
   "web/crates/keycaps",
+  "web/crates/test-floor",
 ]
-# The CAD crates build in their own toolchains: cad/wasm inside the pinned
-# wasi-sdk container and cad/step-oracle against native OCCT.
-exclude = ["cad/wasm", "cad/step-oracle", "renderer/vendor/cgmath-0.18.0"]
+# cad/wasm belongs to the cad/monstertruck workspace, with its own lockfile and patched Monstertruck graph.
+exclude = [
+  "cad/wasm",
+  "renderer/vendor/cgmath-next-0.18.1",
+  "web/vendor/dioxus-interpreter-js-0.7.10",
+]
 
 [patch.crates-io]
-cgmath = { path = "renderer/vendor/cgmath-0.18.0" }
+cgmath = { path = "renderer/vendor/cgmath-next-0.18.1" }
+dioxus-interpreter-js = { path = "web/vendor/dioxus-interpreter-js-0.7.10" }
 
 # `dx serve` builds the page with this profile. Full debuginfo made the debug wasm
 # about 550 MB, and dx's `wasm-bindgen --keep-debug` pass over it took about 52 s of a
@@ -39,6 +44,58 @@ cgmath = { path = "renderer/vendor/cgmath-0.18.0" }
 # boxing them would change every construction and match site for no measured gain.
 large_enum_variant = "allow"
 
+# Keep DWARF off by default for dev/test builds so direct `cargo test` and `wasm-pack test`
+# match `scripts/run-wasm-tests.py` (`CARGO_PROFILE_DEV_DEBUG=false`), avoiding 700+ MB
+# debug WASM binaries, browser memory traps, and full-workspace cache invalidations.
+[profile.dev]
+debug = false
+
 [profile.wasm-dev]
 inherits = "dev"
 debug = "line-tables-only"
+
+# dx's page builds: enough optimization to keep the page responsive, with line tables only for the
+# workspace's own crates, where browser debugging happens.
+[profile.wasm-dev.package."*"]
+opt-level = 1
+debug = false
+
+# Build tools that only run on the host: "*" outranks `build-override`, so name the costly ones.
+[profile.wasm-dev.package]
+async-trait = { opt-level = 0 }
+const-serialize-macro = { opt-level = 0 }
+darling_core = { opt-level = 0 }
+darling_macro = { opt-level = 0 }
+dioxus-core-macro = { opt-level = 0 }
+dioxus-rsx = { opt-level = 0 }
+dioxus-stores-macro = { opt-level = 0 }
+enumset_derive = { opt-level = 0 }
+futures-macro = { opt-level = 0 }
+manganis-macro = { opt-level = 0 }
+palette_derive = { opt-level = 0 }
+pin-project-internal = { opt-level = 0 }
+proc-macro2 = { opt-level = 0 }
+quote = { opt-level = 0 }
+rhai_codegen = { opt-level = 0 }
+serde_derive = { opt-level = 0 }
+sledgehammer_bindgen_macro = { opt-level = 0 }
+syn = { opt-level = 0 }
+thiserror-impl = { opt-level = 0 }
+tracing-attributes = { opt-level = 0 }
+wasm-bindgen-macro-support = { opt-level = 0 }
+
+# Only crates whose own code dominates test time stay optimized: hashing, compression, parsing and
+# geometry (the demo-project acceptance test runs about 2.4x faster with them). A blanket "*" entry
+# also optimizes every proc macro and build script, because it outranks `build-override`, and that
+# makes cold builds much slower (`syn`: 22 s against 4 s).
+[profile.dev.package]
+cavalier_contours = { opt-level = 2 }
+crc32fast = { opt-level = 2 }
+flate2 = { opt-level = 2 }
+i_overlay = { opt-level = 2 }
+kiutils_sexpr = { opt-level = 2 }
+num-bigint = { opt-level = 2 }
+serde_json = { opt-level = 2 }
+sha2 = { opt-level = 2 }
+zip = { opt-level = 2 }
+zlib-rs = { opt-level = 2 }

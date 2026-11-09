@@ -8,17 +8,18 @@ description = "Browser host services shared by the BoardStudio page and its work
 
 [features]
 # The page's host services (storage, Core client, renderer host, CAD job capture).
-page = ["dep:boardstudio-application", "dep:boardstudio_core", "dep:serde_json", "dep:sha2"]
+page = ["dep:boardstudio-application", "dep:boardstudio_core", "dep:serde_json"]
 # The CAD worker's job protocol.
-cad-worker = ["dep:boardstudio_core", "dep:serde_json", "dep:sha2"]
+cad-worker = ["dep:boardstudio_core", "dep:serde_json"]
 test-harness = []
+# Test-only storage hooks the page's own tests drive (raw record fixtures).
+test-support = []
 
 [dependencies]
 boardstudio-application = { path = "../../../application", optional = true }
 boardstudio_core = { path = "../../../core", optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["float_roundtrip"], optional = true }
-sha2 = { version = "=0.11.0", default-features = false, optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 gloo-timers = { version = "=0.3.0", features = ["futures"] }
@@ -31,12 +32,17 @@ web-sys = { version = "=0.3.106", features = [
   "DedicatedWorkerGlobalScope", "DomException", "ErrorEvent", "Event", "EventInit", "EventTarget", "MessageEvent", "KeyboardEventInit", "CssStyleDeclaration",
   "Worker", "WorkerOptions", "WorkerType", "IdbDatabase", "IdbFactory", "IdbObjectStore", "IdbOpenDbRequest",
   "IdbRequest", "IdbTransaction", "IdbTransactionMode", "IdbObjectStoreParameters", "Storage", "Window", "Document", "Element", "HtmlElement", "HtmlAnchorElement", "HtmlCanvasElement", "SvgElement", "PointerEvent", "KeyboardEvent", "FocusOptions", "DomRect", "Response", "Request", "Blob", "BlobPropertyBag", "Url", "Location", "Node", "File", "FileList", "HtmlInputElement", "ResizeObserver", "MediaQueryList",
-  "Cache", "CacheStorage", "ExtendableEvent", "FetchEvent", "Clients", "ServiceWorkerContainer",
+  "Cache", "CacheStorage", "ExtendableEvent", "FetchEvent", "Clients", "ServiceWorkerContainer", "ServiceWorker", "MessageChannel", "MessagePort", "ExtendableMessageEvent", "Client", "ClientQueryOptions", "ClientType",
   "ServiceWorkerGlobalScope", "ServiceWorkerRegistration", "WorkerGlobalScope", "Navigator", "RegistrationOptions", "RequestDestination", "HtmlDialogElement"
 ] }
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+# Not used by the tests: gives every browser test launch the same features, so one prebuild serves them all.
+boardstudio-web-test-floor = { path = "../test-floor" }
 wasm-bindgen-test = "=0.3.79"
+
+[package.metadata.cargo-machete]
+ignored = ["boardstudio-web-test-floor"]
 
 [lints]
 workspace = true

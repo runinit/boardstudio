@@ -8,10 +8,11 @@ use boardstudio_application::{
 use boardstudio_core::CoreEngine;
 use boardstudio_core::model::Vec2;
 use boardstudio_core::model::{Part, Pose2, Side};
+use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
 use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
-use web_sys::{Event, HtmlInputElement, KeyboardEvent};
+use web_sys::HtmlInputElement;
 
 wasm_bindgen_test_configure!(run_in_browser);
 
@@ -45,9 +46,15 @@ fn host() -> Element {
         request_sequence,
         editable: true,
         feedback: probe.feedback.borrow().clone(),
+        inspector_mounted: use_signal(|| true),
+        on_bind_draft: use_callback(|_| {}),
         on_resize,
     };
-    rsx! { div { id: "key-size-regression-root", KeySizeControls { mount } } }
+    rsx! {
+        div { id: "key-size-regression-root",
+            KeySizeControls { mount }
+        }
+    }
 }
 
 fn owner(context: TreeContext, selected_ids: &[&str], generation: u64) -> KeySizeOwner {
@@ -122,6 +129,85 @@ fn mounted(
     (probe, root)
 }
 
+#[wasm_bindgen_test]
+async fn key_size_preview_keeps_its_geometry_without_legacy_classes() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let stylesheet = document.create_element("style").unwrap();
+    stylesheet.set_text_content(Some(&format!(
+        "{}\n{}",
+        include_str!("../../../../assets/workbench-base.css"),
+        include_str!("../../../../assets/tailwind.css")
+    )));
+    document.head().unwrap().append_child(&stylesheet).unwrap();
+    let key_owner = owner(
+        TreeContext::Row {
+            matrix_id: "m".into(),
+            row: 0,
+        },
+        &["a"],
+        1,
+    );
+    let (_, root) = mounted(projection(key_owner, &["a"], &[18.0]), None);
+    wait_until("key size mounts", || {
+        root.query_selector("section[aria-label='Key size']")
+            .unwrap()
+            .is_some()
+    })
+    .await;
+    let section = root
+        .query_selector("section[aria-label='Key size']")
+        .unwrap()
+        .unwrap();
+    let descendants = section.query_selector_all("[class]").unwrap();
+    for node in (0..descendants.length()).filter_map(|i| descendants.item(i)) {
+        let element = node.dyn_into::<web_sys::Element>().unwrap();
+        let classes = element.get_attribute("class").unwrap_or_default();
+        element
+            .set_attribute(
+                "class",
+                &classes
+                    .split_whitespace()
+                    .filter(|class| !class.starts_with("m1-"))
+                    .collect::<Vec<_>>()
+                    .join(" "),
+            )
+            .unwrap();
+    }
+    let classes = section.get_attribute("class").unwrap_or_default();
+    section
+        .set_attribute(
+            "class",
+            &classes
+                .split_whitespace()
+                .filter(|class| !class.starts_with("m1-"))
+                .collect::<Vec<_>>()
+                .join(" "),
+        )
+        .unwrap();
+    let svg = section.query_selector("[role=img]").unwrap().unwrap();
+    let window = web_sys::window().unwrap();
+    assert_eq!(
+        window
+            .get_computed_style(&section)
+            .unwrap()
+            .unwrap()
+            .get_property_value("display")
+            .unwrap(),
+        "grid"
+    );
+    assert_eq!(
+        window
+            .get_computed_style(&svg)
+            .unwrap()
+            .unwrap()
+            .get_property_value("height")
+            .unwrap(),
+        "100px"
+    );
+    stylesheet.remove();
+    root.remove();
+}
+
 fn rerender(probe: &Probe) {
     let mut version = {
         let stored = probe.version.borrow();
@@ -139,7 +225,7 @@ async fn rendered(ms: u32) {
 }
 
 #[wasm_bindgen_test]
-async fn delayed_keyboard_resize_cannot_be_retargeted_to_a_new_mixed_selection() {
+async fn size_selection_is_submitted_once_for_its_owner_before_selection_changes() {
     let first_owner = owner(
         TreeContext::Row {
             matrix_id: "m".into(),
@@ -156,35 +242,23 @@ async fn delayed_keyboard_resize_cannot_be_retargeted_to_a_new_mixed_selection()
         &["c", "d"],
         2,
     );
-    let (probe, root) = mounted(projection(first_owner, &["a", "b"], &[18.0, 18.0]), None);
-    rendered(20).await;
-
-    let width = element(&root, "input[aria-label='Key width']")
-        .dyn_into::<HtmlInputElement>()
-        .unwrap();
-    width.focus().unwrap();
-    width.set_value("2");
-    let input = Event::new("input").unwrap();
-    input.init_event_with_bubbles("input", true);
-    width.dispatch_event(&input).unwrap();
-    rendered(20).await;
-    assert_eq!(
-        element(&root, "output").text_content().as_deref(),
-        Some("2u × 1u")
+    let (probe, root) = mounted(
+        projection(first_owner.clone(), &["a", "b"], &[18.0, 18.0]),
+        None,
     );
-    let keyup = KeyboardEvent::new("keyup").unwrap();
-    keyup.init_event_with_bubbles("keyup", true);
-    width.dispatch_event(&keyup).unwrap();
-
-    // Change owner before the control's 150 ms keyboard debounce expires.
+    rendered(20).await;
+    change_size(&root, "2").await;
+    rendered(20).await;
+    assert_eq!(probe.accepted.borrow().len(), 1);
+    assert_eq!(probe.accepted.borrow()[0].owner, first_owner);
     *probe.live_owner.borrow_mut() = second_owner.clone();
     *probe.projection.borrow_mut() = projection(second_owner, &["c", "d"], &[18.0, 37.0]);
     rerender(&probe);
     rendered(220).await;
-
-    assert!(
-        probe.accepted.borrow().is_empty(),
-        "an A-owned delayed keyup must not turn into a B-owned edit after selection changes"
+    assert_eq!(
+        probe.accepted.borrow().len(),
+        1,
+        "a selection change must not resubmit the previous size for a new owner"
     );
     root.remove();
 }
@@ -195,6 +269,7 @@ fn overlap_filter_tracks_authoritative_add_and_toggle_selection() {
         Part {
             keycap: None,
             outline: None,
+            anchor: None,
             id: "a".into(),
             definition_id: "switch".into(),
             reference: "A".into(),
@@ -210,6 +285,7 @@ fn overlap_filter_tracks_authoritative_add_and_toggle_selection() {
         Part {
             keycap: None,
             outline: None,
+            anchor: None,
             id: "c".into(),
             definition_id: "switch".into(),
             reference: "C".into(),
@@ -225,6 +301,7 @@ fn overlap_filter_tracks_authoritative_add_and_toggle_selection() {
         Part {
             keycap: None,
             outline: None,
+            anchor: None,
             id: "b".into(),
             definition_id: "switch".into(),
             reference: "B".into(),
@@ -285,22 +362,52 @@ fn overlap_filter_tracks_authoritative_add_and_toggle_selection() {
 #[wasm_bindgen_test]
 fn accepted_projection_uses_session_add_toggle_selection_across_hit_contexts() {
     let mut document: boardstudio_core::model::ProjectDoc = serde_json::from_str(include_str!(
-        "../../../../../core/tests/fixtures/reviung41-outline-original.json"
+        "../../../../../core/tests/fixtures/synthetic-outline.json"
     ))
     .unwrap();
+    document.format_version = boardstudio_core::migrate::CURRENT_VERSION;
     let first_matrix_id = document.matrices[0].id.clone();
+    let overlap_id = "matrix/matrix/r0c2".to_owned();
+    let mut overlap_part = document
+        .parts
+        .iter()
+        .find(|part| part.id == "matrix/matrix/r0c1")
+        .expect("the synthetic matrix has an authored key to clone")
+        .clone();
+    overlap_part.id = overlap_id.clone();
+    overlap_part.reference = "M3".into();
+    overlap_part.keycap = Some(Vec2 {
+        x: 1000.0,
+        y: 1000.0,
+    });
+    document.parts.push(overlap_part);
+    document.matrices[0].part_ids.push(overlap_id.clone());
+    document.matrices[0].columns = 3;
+    document.boards[0].part_ids.push(overlap_id.clone());
+    let overlap_definition = document.matrices[0].definition_id.clone();
+    document.matrices[0]
+        .cells
+        .push(boardstudio_core::model::MatrixCell {
+            shift: None,
+            bend: None,
+            deleted: false,
+            row: 0,
+            column: 2,
+            enabled: true,
+            definition_id: Some(overlap_definition),
+            variant: None,
+            offset: None,
+            rotation: None,
+            assemblies: Vec::new(),
+            assemblies_local: Some(true),
+        });
     let first_ids: Vec<_> = document.matrices[0]
         .part_ids
         .iter()
         .filter(|id| !id.ends_with("/diode"))
         .cloned()
         .collect();
-    let other_id = document.matrices[1]
-        .part_ids
-        .iter()
-        .find(|id| !id.ends_with("/diode"))
-        .unwrap()
-        .clone();
+    let other_id = overlap_id;
     let first_id = first_ids[0].clone();
     let context_id = first_ids[1].clone();
     for id in [&first_id, &other_id] {
@@ -486,7 +593,7 @@ fn accepted_projection_uses_session_add_toggle_selection_across_hit_contexts() {
 }
 
 #[wasm_bindgen_test]
-async fn delayed_keyboard_resize_commits_for_its_unchanged_owner() {
+async fn size_selector_and_rotate_checkbox_submit_through_the_same_owner() {
     let first_owner = owner(
         TreeContext::Row {
             matrix_id: "m".into(),
@@ -497,28 +604,17 @@ async fn delayed_keyboard_resize_commits_for_its_unchanged_owner() {
     );
     let (probe, root) = mounted(projection(first_owner.clone(), &["a"], &[18.0]), None);
     rendered(20).await;
-    let width = element(&root, "input[aria-label='Key width']")
-        .dyn_into::<HtmlInputElement>()
-        .unwrap();
-    width.focus().unwrap();
-    width.set_value("2");
-    let input = Event::new("input").unwrap();
-    input.init_event_with_bubbles("input", true);
-    width.dispatch_event(&input).unwrap();
+    change_size(&root, "2").await;
     rendered(20).await;
-    let keyup = KeyboardEvent::new("keyup").unwrap();
-    keyup.init_event_with_bubbles("keyup", true);
-    width.dispatch_event(&keyup).unwrap();
-    rendered(220).await;
-
-    assert_eq!(
-        probe.accepted.borrow().len(),
-        1,
-        "the ordinary same-owner debounced keyboard edit must still reach admission"
-    );
-    let accepted = probe.accepted.borrow()[0].clone();
-    assert_eq!(accepted.owner, first_owner);
-    assert_eq!(accepted.units.x, 2.0);
+    by_role_name(&root, "checkbox", "Rotate keycap")
+        .unwrap()
+        .click();
+    rendered(20).await;
+    assert_eq!(probe.accepted.borrow().len(), 2);
+    let request = probe.accepted.borrow()[1].clone();
+    assert_eq!(request.owner, first_owner);
+    assert_eq!(request.units, Vec2 { x: 1.0, y: 2.0 });
+    assert!(root.query_selector("[role=slider]").unwrap().is_none());
     root.remove();
 }
 
@@ -543,7 +639,7 @@ async fn feedback_from_another_selection_is_not_shown_in_the_inspector() {
     let old_feedback = KeySizeFeedback {
         owner: first_owner.clone(),
         request_id: 0,
-        state: KeySizeState::Failed,
+        field: KeySizeField::Width,
         message: Some("Old selection failed".into()),
     };
     let (probe, root) = mounted(projection(first_owner, &["a"], &[18.0]), Some(old_feedback));
@@ -564,7 +660,7 @@ async fn feedback_from_another_selection_is_not_shown_in_the_inspector() {
     *probe.feedback.borrow_mut() = Some(KeySizeFeedback {
         owner: second_owner,
         request_id: 0,
-        state: KeySizeState::Failed,
+        field: KeySizeField::Width,
         message: Some("Current selection failed".into()),
     });
     rerender(&probe);
@@ -582,6 +678,7 @@ fn mixed_size_draft_uses_react_visible_document_part_order() {
     let make_part = |id: &str, reference: &str| Part {
         keycap: None,
         outline: None,
+        anchor: None,
         id: id.into(),
         definition_id: "switch".into(),
         reference: reference.into(),
@@ -647,6 +744,7 @@ async fn overlap_status_matches_react_selection_deduplication_and_truncation() {
         .map(|(index, reference)| Part {
             keycap: None,
             outline: None,
+            anchor: None,
             id: format!("part-{index}"),
             definition_id: "switch".into(),
             reference: (*reference).into(),
@@ -707,10 +805,14 @@ async fn overlap_status_matches_react_selection_deduplication_and_truncation() {
     initial.overlap_references = labels;
     let (_probe, root) = mounted(initial, None);
     rendered(20).await;
+    assert!(
+        element(&root, "[role='status']")
+            .query_selector("[data-slot=callout]")
+            .unwrap()
+            .is_some()
+    );
     assert_eq!(
-        element(&root, ".m1-key-size-warning[role='status']")
-            .text_content()
-            .as_deref(),
+        element(&root, "[role='status']").text_content().as_deref(),
         Some(
             "Keycaps overlap: Selected, Duplicate, Ref 3, Ref 4, Ref 5, Ref 6, Ref 7, Ref 8 and 2 more. Adjust their rows or columns to clear the overlap."
         )
@@ -754,6 +856,7 @@ fn key_fixture() -> boardstudio_core::model::ProjectDoc {
     document.parts.push(Part {
         keycap: None,
         outline: None,
+        anchor: None,
         id: KEY_ID.into(),
         definition_id: "switch:base".into(),
         reference: "SW1".into(),
@@ -815,7 +918,7 @@ async fn undo(runtime: &Rc<crate::runtime::Runtime>) {
 #[wasm_bindgen_test]
 async fn rapid_key_size_then_an_unrelated_edit_both_survive_and_undo_removes_them_in_order() {
     use crate::runtime::project_name_test_support as support;
-    use boardstudio_core::model::{EditCommand, EditOperation, EditPhase};
+    use boardstudio_core::model::EditOperation;
     use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 
     let runtime = support::new_runtime();
@@ -851,7 +954,8 @@ async fn rapid_key_size_then_an_unrelated_edit_both_survive_and_undo_removes_the
         &runtime,
         "layout-key-size",
         Some("key size".into()),
-        resize_resolver(
+        resize_resolver_for(
+            &accepted.document,
             "board-main".into(),
             vec![KEY_ID.into()],
             Vec2 { x: 2.0, y: 1.0 },
@@ -871,15 +975,12 @@ async fn rapid_key_size_then_an_unrelated_edit_both_survive_and_undo_removes_the
             |accepted: &boardstudio_application::AcceptedSnapshot| {
                 let mut replacement = accepted.document.as_ref().clone();
                 replacement.boards[0].name = "Renamed".into();
-                boardstudio_application::Resolution::Submit(EditCommand {
-                    base_revision: 0,
-                    transaction_id: String::new(),
-                    phase: EditPhase::Commit,
-                    target_ids: vec!["board-main".into()],
-                    operation: EditOperation::ReplaceDocument {
+                boardstudio_application::Resolution::submit(
+                    vec!["board-main".into()],
+                    EditOperation::ReplaceDocument {
                         document: Box::new(replacement),
                     },
-                })
+                )
             },
         ),
     );
@@ -913,5 +1014,268 @@ async fn rapid_key_size_then_an_unrelated_edit_both_survive_and_undo_removes_the
         key_width(&runtime),
         original_width,
         "the second Undo removes the key size"
+    );
+}
+
+#[derive(Clone)]
+struct RuntimeProbe {
+    runtime: Rc<Runtime>,
+    selected: ScopedTreeContext,
+}
+
+fn runtime_host() -> Element {
+    let probe = use_context::<RuntimeProbe>();
+    let version = use_signal(|| 0u64);
+    use_hook({
+        let runtime = probe.runtime.clone();
+        move || {
+            runtime.subscribe(Rc::new(move || {
+                let mut version = version;
+                version += 1;
+            }));
+        }
+    });
+    use_drop({
+        let runtime = probe.runtime.clone();
+        move || runtime.unsubscribe()
+    });
+    let _ = version();
+    let selected = use_signal(|| Some(probe.selected.clone()));
+    let workspace = use_signal(|| "Layout");
+    let generation = use_signal(|| 1u64);
+    let mount = use_key_size(
+        probe.runtime.clone(),
+        version,
+        selected,
+        workspace,
+        generation,
+    );
+    rsx! {
+        KeySizeControls { mount }
+    }
+}
+
+async fn change_size(root: &web_sys::Element, value: &str) {
+    let input = by_role_name(root, "combobox", "Key size").unwrap();
+    input.focus().unwrap();
+    let init = web_sys::KeyboardEventInit::new();
+    init.set_key("ArrowDown");
+    init.set_bubbles(true);
+    input
+        .dispatch_event(
+            &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init).unwrap(),
+        )
+        .unwrap();
+    let name = format!("{value}u");
+    wait_until("key-size option opens", || {
+        by_role_name(root, "option", &name).is_some()
+    })
+    .await;
+    let option = by_role_name(root, "option", &name).unwrap();
+    // The primitive selects on a complete pointer gesture, not a synthetic click.
+    for phase in ["pointerdown", "pointerup"] {
+        let pointer = web_sys::PointerEvent::new(phase).unwrap();
+        pointer.init_event_with_bubbles_and_cancelable(phase, true, true);
+        option.dispatch_event(&pointer).unwrap();
+    }
+    wait_until("key-size choice closes", || {
+        input.get_attribute("aria-expanded").as_deref() == Some("false")
+    })
+    .await;
+}
+
+#[wasm_bindgen_test]
+async fn size_selector_tracks_accepted_undo_redo_and_failed_edit_feedback() {
+    use crate::runtime::project_name_test_support as support;
+    let runtime = support::new_runtime();
+    support::open_document(&runtime, key_fixture()).await;
+    runtime.submit(SessionEvent::SelectParts {
+        operation_id: runtime.operation(),
+        part_ids: vec![KEY_ID.into()],
+        range_part_ids: Vec::new(),
+        mode: SelectionMode::Replace,
+    });
+    support::run_pending(&runtime).await;
+    let original = key_width(&runtime);
+    let probe = RuntimeProbe {
+        selected: ScopedTreeContext {
+            scope: runtime.scope().unwrap(),
+            context: TreeContext::Key {
+                matrix_id: "matrix-main".into(),
+                row: 0,
+                column: 0,
+            },
+        },
+        runtime,
+    };
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = document.create_element("div").unwrap();
+    document.body().unwrap().append_child(&root).unwrap();
+    let dom = VirtualDom::new(runtime_host);
+    dom.provide_root_context(probe.clone());
+    dioxus_web::launch::launch_virtual_dom(
+        dom,
+        dioxus_web::Config::new().rootnode(root.clone().into()),
+    );
+    rendered(30).await;
+    change_size(&root, "2").await;
+    for _ in 0..50 {
+        support::run_pending(&probe.runtime).await;
+        rendered(10).await;
+        if key_width(&probe.runtime).is_some_and(|value| (value.x - 37.1).abs() < 1e-9) {
+            break;
+        }
+    }
+    assert!(key_width(&probe.runtime).is_some_and(|value| (value.x - 37.1).abs() < 1e-9));
+    undo(&probe.runtime).await;
+    rendered(30).await;
+    assert_eq!(key_width(&probe.runtime), original);
+    assert_eq!(
+        by_role_name(&root, "combobox", "Key size")
+            .unwrap()
+            .dyn_into::<HtmlInputElement>()
+            .unwrap()
+            .value(),
+        "1u"
+    );
+    probe.runtime.submit(SessionEvent::Redo {
+        operation_id: probe.runtime.operation(),
+    });
+    support::run_pending(&probe.runtime).await;
+    rendered(30).await;
+    assert_eq!(
+        by_role_name(&root, "combobox", "Key size")
+            .unwrap()
+            .dyn_into::<HtmlInputElement>()
+            .unwrap()
+            .value(),
+        "2u"
+    );
+    support::fail_next_core_reply(&probe.runtime, "injected key-size failure");
+    change_size(&root, "3").await;
+    for _ in 0..50 {
+        support::run_pending(&probe.runtime).await;
+        rendered(10).await;
+        if root.query_selector("[role='alert']").unwrap().is_some() {
+            break;
+        }
+    }
+    assert!(
+        element(&root, "[role='alert']")
+            .text_content()
+            .unwrap()
+            .contains("injected key-size failure")
+    );
+    assert!(key_width(&probe.runtime).is_some_and(|value| (value.x - 37.1).abs() < 1e-9));
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn queued_key_resize_retires_when_row_delete_reuses_the_selected_id() {
+    use crate::runtime::project_name_test_support as support;
+    use boardstudio_core::model::EditOperation;
+    use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+
+    let runtime = support::new_runtime();
+    let mut document = key_fixture();
+    document.matrices[0].rows = 3;
+    for row in 1..3 {
+        let mut part = document.parts[0].clone();
+        part.id = format!("matrix/matrix-main/r{row}c0");
+        part.reference = format!("SW{}", row + 1);
+        part.pose.at.y = row as f64 * 19.05;
+        document.boards[0].part_ids.push(part.id.clone());
+        document.matrices[0].part_ids.push(part.id.clone());
+        document.parts.push(part);
+    }
+    support::open_document(&runtime, document).await;
+    let captured = runtime.model().accepted.unwrap();
+    let (entered, release) = support::gate_next_core_reply(&runtime);
+    let delete = EditTicket::begin(
+        &runtime,
+        "delete-row",
+        None,
+        EditResolver::new("delete-row", |_| {
+            Resolution::submit(
+                vec!["matrix-main".into()],
+                EditOperation::RemoveMatrixRow {
+                    matrix_id: "matrix-main".into(),
+                    row: 0,
+                },
+            )
+        }),
+    );
+    support::drive_pending(&runtime);
+    entered.await.expect("row removal reached Core");
+    let resize = EditTicket::begin(
+        &runtime,
+        "layout-key-size",
+        None,
+        resize_resolver_for(
+            &captured.document,
+            "board-main".into(),
+            vec![KEY_ID.into()],
+            Vec2 { x: 2.0, y: 1.0 },
+            Some(ResizeAxis::X),
+        ),
+    );
+    support::drive_pending(&runtime);
+    release.send(()).unwrap();
+    support::run_pending(&runtime).await;
+    rendered(20).await;
+    assert!(matches!(delete.settlement(true), Settlement::Landed { .. }));
+    assert!(
+        matches!(resize.settlement(true), Settlement::Failed { message }
+            if message.contains("matrix topology changed")),
+        "a reused coordinate ID must not resize the surviving next-row key"
+    );
+    let accepted = runtime.model().accepted.unwrap();
+    assert_eq!(accepted.document.matrices[0].rows, 2);
+    assert_eq!(accepted.document.revision, captured.document.revision + 1);
+    assert_eq!(
+        accepted.document.parts[0].keycap,
+        captured.document.parts[0].keycap
+    );
+}
+
+/// Ticket 33: the key-size resolver submits one typed SetKeycapSize edit, never
+/// a whole-document replacement; invalid units resolve Unchanged and write nothing.
+#[wasm_bindgen_test]
+async fn resize_resolver_submits_a_typed_keycap_size_edit() {
+    use crate::runtime::project_name_test_support as support;
+    use boardstudio_core::model::EditOperation;
+
+    let runtime = support::new_runtime();
+    support::open_document(&runtime, key_fixture()).await;
+    let accepted = runtime.model().accepted.expect("the fixture opens");
+    let resolver = resize_resolver_for(
+        &accepted.document,
+        "board-main".into(),
+        vec![KEY_ID.into()],
+        Vec2 { x: 2.0, y: 1.0 },
+        Some(ResizeAxis::X),
+    );
+    match resolver.resolve(&accepted) {
+        Resolution::Submit(command) => assert!(
+            matches!(command.operation, EditOperation::SetKeycapSize { .. }),
+            "key size must commit a typed edit, got {:?}",
+            command.operation
+        ),
+        Resolution::Unchanged => panic!("a valid resize must submit"),
+        Resolution::Retire(message) => panic!("a valid resize must not retire: {message}"),
+    }
+    let invalid = resize_resolver_for(
+        &accepted.document,
+        "board-main".into(),
+        vec![KEY_ID.into()],
+        Vec2 {
+            x: f64::NAN,
+            y: 1.0,
+        },
+        Some(ResizeAxis::X),
+    );
+    assert!(
+        matches!(invalid.resolve(&accepted), Resolution::Unchanged),
+        "invalid units write nothing"
     );
 }

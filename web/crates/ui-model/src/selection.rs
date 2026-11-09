@@ -97,19 +97,22 @@ pub fn live_board_ids(model: &boardstudio_application::ReadModel) -> Vec<String>
     else {
         return Vec::new();
     };
+    let live: std::collections::HashSet<_> = snapshot
+        .document
+        .parts
+        .iter()
+        .map(|part| part.id.as_str())
+        .collect();
     board
         .part_ids
         .iter()
-        .filter(|id| snapshot.document.parts.iter().any(|part| part.id == **id))
+        .filter(|id| live.contains(id.as_str()))
         .cloned()
         .collect()
 }
 
 pub fn eligible_live_ids(model: &boardstudio_application::ReadModel) -> Vec<String> {
-    live_board_ids(model)
-        .into_iter()
-        .filter(|id| objects::context_for_part(model, id).is_some())
-        .collect()
+    objects::eligible_live_ids(model)
 }
 
 pub fn context_is_current(
@@ -123,7 +126,7 @@ pub fn context_is_current(
             snapshot.session_epoch == scope.session_epoch
                 && snapshot.document.id == scope.document_id
         })
-        && objects::resolve_selection(model, context).is_some()
+        && objects::context_is_resolvable(model, context)
 }
 
 pub fn resolve_context(
@@ -336,14 +339,14 @@ pub fn submit_matrix_cell_selection(
     if !context_is_current(&model, scope, &context) {
         return None;
     }
-    let eligible = eligible_live_ids(&model);
-    if !eligible.iter().any(|id| id == &target_part_id) {
+    let eligible = |id: &str| objects::context_for_part(&model, id).is_some();
+    if !eligible(&target_part_id) {
         return None;
     }
     let range_anchor_is_current = mode != SelectionMode::Range
         || ((adapter.anchor_scope)().as_ref() == Some(scope)
             && model.selection_anchor_id.as_ref().is_some_and(|anchor| {
-                eligible.iter().any(|id| id == anchor)
+                eligible(anchor)
                     && matches!(
                         objects::context_for_part(&model, anchor),
                         Some(TreeContext::Key { matrix_id: anchor_matrix, .. })
@@ -359,7 +362,7 @@ pub fn submit_matrix_cell_selection(
     };
     let ids = objects::resolve_selection(&model, &context)?
         .into_iter()
-        .filter(|id| eligible.iter().any(|candidate| candidate == id))
+        .filter(|id| eligible(id))
         .collect::<Vec<_>>();
     let context = additive_inspector_context(&model, &context, &ids, mode, Some(hit_context));
     let mut selected_context = adapter.selected_context;
@@ -432,20 +435,13 @@ fn additive_inspector_context(
         .iter()
         .map(|id| objects::context_for_part(model, id))
         .collect::<Vec<_>>();
-    let mut matrix_id: Option<String> = None;
-    let all_same_matrix_keys = contexts.iter().all(|context| match context {
-        Some(TreeContext::Key {
-            matrix_id: current, ..
-        }) => {
-            if matrix_id.as_ref().is_some_and(|matrix| matrix != current) {
-                return false;
-            }
-            matrix_id = Some(current.clone());
-            true
-        }
-        _ => false,
-    });
-    if all_same_matrix_keys {
+    // A key selection keeps a cell context across matrices as well as within one
+    // matrix. Generated primary part IDs disappear when disabled; the cell's
+    // context still resolves and can own re-enabling the selected group.
+    let all_primary_keys = contexts
+        .iter()
+        .all(|context| matches!(context, Some(TreeContext::Key { .. })));
+    if all_primary_keys {
         if let Some(hit) = hit_context
             && contexts.iter().any(|context| context.as_ref() == Some(hit))
         {

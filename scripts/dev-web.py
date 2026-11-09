@@ -17,14 +17,13 @@ from urllib.parse import unquote, urlsplit
 ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "web"
 REQUIRED = (
-    ROOT / "web/assets/cad/boardstudio_cadrum_wasm_bg.wasm",
+    ROOT / "web/assets/cad/boardstudio_cad_wasm_bg.wasm",
     ROOT / "web/assets/renderer/boardstudio_renderer_wasm_bg.wasm",
     ROOT / "web/assets/core-worker/entry.js",
     ROOT / "web/assets/core-worker/m1_core_worker_bg.wasm",
     ROOT / "web/assets/cad-worker/entry.js",
     ROOT / "web/assets/cad-worker/m1_cad_worker_bg.wasm",
     ROOT / "web/assets/imported-modules.json",
-    ROOT / "web/assets/fixtures/sofle.boardstudio",
 )
 
 
@@ -35,9 +34,11 @@ def add_isolation_headers(handler: BaseHTTPRequestHandler) -> None:
     handler.send_header("Cache-Control", "no-store")
 
 
-def dev_handler(upstream_port: int, asset_root: Path | None = None):
+def dev_handler(upstream_port: int, asset_root: Path | None = None, *,
+                model_root: Path | None = None):
     """Proxy app traffic to dx; serve /assets from the live source tree."""
     asset_root = (asset_root or ROOT / "web/assets").resolve()
+    model_root = (model_root or ROOT / "ergogen/library/vendor").resolve()
 
     class Handler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.0"
@@ -53,18 +54,27 @@ def dev_handler(upstream_port: int, asset_root: Path | None = None):
             path = unquote(urlsplit(self.path).path)
             if not path.startswith("/assets/"):
                 return None
-            resolved = (asset_root / path[len("/assets/"):]).resolve()
-            try:
-                resolved.relative_to(asset_root)
-            except ValueError:
+            relative = Path(path[len("/assets/"):])
+            if relative.is_absolute() or ".." in relative.parts:
                 return asset_root / "__not_found__"
-            return resolved
+            staged = asset_root / relative
+            resolved = staged.resolve()
+            if resolved.is_relative_to(asset_root):
+                return resolved
+            # Model staging deliberately links into the vendored catalogue.
+            # Only direct staged model links may leave the live asset tree.
+            if (staged.parent == asset_root / "ergogen-models"
+                    and staged.is_symlink() and resolved.is_relative_to(model_root)):
+                return resolved
+            return asset_root / "__not_found__"
 
         def _static(self) -> None:
             path = self._asset_path()
-            if path is None or not path.is_file():
+            if path is None or path.name == "__not_found__":
                 self.send_error(404)
                 return
+            if not path.is_file():
+                return self._proxy()
             body = path.read_bytes()
             content_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
             self.send_response(200)
@@ -179,7 +189,7 @@ def main(argv: list[str] | None = None) -> int:
     missing = [path.relative_to(ROOT).as_posix() for path in REQUIRED if not path.is_file()]
     if missing:
         print("Preparing missing runtime assets for the first development run:", flush=True)
-        setup = subprocess.run([sys.executable, "scripts/build-web.py", "--providers-only"], cwd=ROOT, check=False)
+        setup = subprocess.run([sys.executable, "scripts/build-web.py", "--providers-only", "--fast"], cwd=ROOT, check=False)
         if setup.returncode:
             return setup.returncode
         missing = [path.relative_to(ROOT).as_posix() for path in REQUIRED if not path.is_file()]

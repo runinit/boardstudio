@@ -2,7 +2,8 @@
 use super::{
     FeatureShape, MAX_ARC_SEGMENTS, MAX_CHORD_ERROR_MM, Path, SCALE, Shapes, cleanup, rect, snap,
 };
-use crate::model::{CornerStyle, OutlineSettings, PartKind, ProjectDoc, Vec2};
+use crate::model::{CornerStyle, OutlineSettings, PartKind, Pose2, ProjectDoc, Vec2};
+use boardstudio_contracts::{path_contains, path_signed_area};
 use i_overlay::{
     core::{fill_rule::FillRule, overlay_rule::OverlayRule},
     float::single::SingleFloatOverlay,
@@ -22,48 +23,134 @@ fn sub(a: [f64; 2], b: [f64; 2]) -> [f64; 2] {
 fn length(a: [f64; 2]) -> f64 {
     a[0].hypot(a[1])
 }
-fn area(p: &Path) -> f64 {
-    p.iter()
-        .zip(p.iter().cycle().skip(1))
-        .take(p.len())
-        .map(|(a, b)| cross(*a, *b))
-        .sum::<f64>()
-        / 2.0
-}
 fn on_segment(a: [f64; 2], b: [f64; 2], p: [f64; 2]) -> bool {
     cross(sub(b, a), sub(p, a)).abs() < 1e-8
         && (0..2).all(|i| p[i] >= a[i].min(b[i]) - 1e-8 && p[i] <= a[i].max(b[i]) + 1e-8)
 }
+
+pub(super) const MAX_PERSISTED_OUTLINE_POINTS: usize = 1024;
+type GridPoint = [i64; 2];
+
+fn grid_point(point: [f64; 2]) -> Option<GridPoint> {
+    let [x, y] = point.map(|value| value * SCALE);
+    let limit = (1_i64 << 61) as f64;
+    (x.is_finite() && y.is_finite() && x.abs() <= limit && y.abs() <= limit)
+        .then(|| [x.round() as i64, y.round() as i64])
+}
+
+fn orient(a: GridPoint, b: GridPoint, c: GridPoint) -> Option<i128> {
+    let ab_x = b[0] as i128 - a[0] as i128;
+    let ab_y = b[1] as i128 - a[1] as i128;
+    let ac_x = c[0] as i128 - a[0] as i128;
+    let ac_y = c[1] as i128 - a[1] as i128;
+    ab_x.checked_mul(ac_y)?.checked_sub(ab_y.checked_mul(ac_x)?)
+}
+
+fn grid_on_segment(a: GridPoint, b: GridPoint, p: GridPoint) -> bool {
+    orient(a, b, p) == Some(0)
+        && (0..2).all(|axis| p[axis] >= a[axis].min(b[axis]) && p[axis] <= a[axis].max(b[axis]))
+}
+
+fn segments_intersect(a: GridPoint, b: GridPoint, c: GridPoint, d: GridPoint) -> bool {
+    let (Some(ab_c), Some(ab_d), Some(cd_a), Some(cd_b)) = (
+        orient(a, b, c),
+        orient(a, b, d),
+        orient(c, d, a),
+        orient(c, d, b),
+    ) else {
+        return true;
+    };
+    ((ab_c < 0 && ab_d > 0 || ab_c > 0 && ab_d < 0)
+        && (cd_a < 0 && cd_b > 0 || cd_a > 0 && cd_b < 0))
+        || grid_on_segment(a, b, c)
+        || grid_on_segment(a, b, d)
+        || grid_on_segment(c, d, a)
+        || grid_on_segment(c, d, b)
+}
+
+fn adjacent_edges_meet_only_at(
+    a: GridPoint,
+    b: GridPoint,
+    c: GridPoint,
+    d: GridPoint,
+    shared: GridPoint,
+) -> bool {
+    let other_a = if a == shared { b } else { a };
+    let other_b = if c == shared { d } else { c };
+    !grid_on_segment(a, b, other_b) && !grid_on_segment(c, d, other_a)
+}
+
+// shortcut: x-overlapping boxes can still produce quadratic candidate work; persisted rings stop at 1024 points, upgrade if generated outlines profile too slowly.
 pub(super) fn simple(p: &Path) -> bool {
-    if p.len() < 3 || p.iter().flatten().any(|x| !x.is_finite()) || area(p).abs() < 1e-6 {
+    if p.len() < 3 || p.iter().flatten().any(|x| !x.is_finite()) || path_signed_area(p).abs() < 1e-6
+    {
         return false;
     }
-    for i in 0..p.len() {
-        let (a, b) = (p[i], p[(i + 1) % p.len()]);
-        if length(sub(b, a)) < 1e-6 {
+    let Some(points): Option<Vec<_>> = p.iter().copied().map(grid_point).collect() else {
+        return false;
+    };
+    let mut edges: Vec<_> = (0..points.len())
+        .map(|i| {
+            let (a, b) = (points[i], points[(i + 1) % points.len()]);
+            (
+                i,
+                a,
+                b,
+                a[0].min(b[0]),
+                a[0].max(b[0]),
+                a[1].min(b[1]),
+                a[1].max(b[1]),
+            )
+        })
+        .collect();
+    edges.sort_unstable_by_key(|edge| (edge.3, edge.5, edge.0));
+    for i in 0..edges.len() {
+        let (edge_i, a, b, _, max_x, min_y, max_y) = edges[i];
+        if a == b {
             return false;
         }
-        for j in i + 1..p.len() {
-            if j == i + 1 || (i == 0 && j == p.len() - 1) {
+        for &(edge_j, c, d, min_x, _, other_min_y, other_max_y) in edges.iter().skip(i + 1) {
+            if min_x > max_x {
+                break;
+            }
+            if other_min_y > max_y || other_max_y < min_y {
                 continue;
             }
-            let (c, d) = (p[j], p[(j + 1) % p.len()]);
-            let c1 = cross(sub(b, a), sub(c, a));
-            let c2 = cross(sub(b, a), sub(d, a));
-            let c3 = cross(sub(d, c), sub(a, c));
-            let c4 = cross(sub(d, c), sub(b, c));
-            if (c1 * c2 < 0.0 && c3 * c4 < 0.0)
-                || on_segment(a, b, c)
-                || on_segment(a, b, d)
-                || on_segment(c, d, a)
-                || on_segment(c, d, b)
-            {
+            if !segments_intersect(a, b, c, d) {
+                continue;
+            }
+            let adjacent =
+                (edge_i + 1) % points.len() == edge_j || (edge_j + 1) % points.len() == edge_i;
+            if !adjacent {
+                return false;
+            }
+            let shared = if (edge_i + 1) % points.len() == edge_j {
+                b
+            } else {
+                a
+            };
+            if !adjacent_edges_meet_only_at(a, b, c, d, shared) {
                 return false;
             }
         }
     }
     true
 }
+
+pub(super) fn check_persisted_path_size(point_count: usize) -> Result<(), String> {
+    if point_count > MAX_PERSISTED_OUTLINE_POINTS {
+        return Err(format!(
+            "Outline paths are limited to {MAX_PERSISTED_OUTLINE_POINTS} points for validation"
+        ));
+    }
+    Ok(())
+}
+
+pub(super) fn persisted_simple(p: &Path) -> Result<bool, String> {
+    check_persisted_path_size(p.len())?;
+    Ok(simple(p))
+}
+
 fn nearest(p: [f64; 2], a: [f64; 2], b: [f64; 2]) -> [f64; 2] {
     let d = sub(b, a);
     let v = sub(p, a);
@@ -164,48 +251,67 @@ pub(super) fn envelope(
     let mut notices = vec![];
     let mut fallback_definitions = BTreeSet::new();
     let mut envelopes = vec![];
+    // Ticket 12: envelopes read the evaluated board pose, so half-frame
+    // parts outline where the canvas draws them.
+    let poses: BTreeMap<&str, Pose2> = selected
+        .iter()
+        .map(|p| {
+            (
+                p.id.as_str(),
+                crate::matrix::layout::evaluated_part_pose(doc, p),
+            )
+        })
+        .collect();
     for p in &selected {
         let d = defs
             .get(&p.definition_id)
             .ok_or("Outline part definition is missing")?;
-        let mut path = if d.kind == PartKind::Switch {
-            if let Some(size) = p.keycap.or(d.keycap) {
-                if !size.x.is_finite() || !size.y.is_finite() || size.x <= 0.0 || size.y <= 0.0 {
-                    return Err("Keycap dimensions must be positive".into());
-                }
-                rect(Vec2::default(), size, 0.0)
-            } else {
-                if fallback_definitions.insert(&d.id) {
-                    notices.push(format!(
-                        "{}: keycap dimensions are missing; using the courtyard",
-                        d.name
-                    ));
-                }
-                d.courtyard.iter().map(|p| [p.x, p.y]).collect()
-            }
+        let keycap_size = if d.kind == PartKind::Switch {
+            p.keycap.or(d.keycap)
         } else {
+            None
+        };
+        let mut path = if let Some(size) = keycap_size {
+            if !size.x.is_finite() || !size.y.is_finite() || size.x <= 0.0 || size.y <= 0.0 {
+                return Err("Keycap dimensions must be positive".into());
+            }
+            rect(Vec2::default(), size, 0.0)
+        } else {
+            if d.kind == PartKind::Switch && fallback_definitions.insert(&d.id) {
+                notices.push(format!(
+                    "{}: keycap dimensions are missing; using the courtyard",
+                    d.name
+                ));
+            }
+            check_persisted_path_size(d.courtyard.len())
+                .map_err(|error| format!("{}: {error}", p.reference))?;
             d.courtyard.iter().map(|p| [p.x, p.y]).collect()
         };
+        for point in &mut path {
+            point[0] = snap(point[0]);
+            point[1] = snap(point[1]);
+        }
         if matches!(p.side, crate::model::Side::Back) {
             for point in &mut path {
                 point[0] = -point[0];
             }
         }
-        if !simple(&path) {
+        if !persisted_simple(&path).map_err(|error| format!("{}: {error}", p.reference))? {
             return Err(format!(
                 "{}: outline envelope must be a simple polygon",
                 p.reference
             ));
         }
-        let (sin, cos) = p.pose.rotation.to_radians().sin_cos();
+        let pose = poses.get(p.id.as_str()).copied().unwrap_or(p.pose);
+        let (sin, cos) = pose.rotation.to_radians().sin_cos();
         for q in &mut path {
             let [x, y] = *q;
             *q = [
-                snap(p.pose.at.x + x * cos - y * sin),
-                snap(p.pose.at.y + x * sin + y * cos),
+                snap(pose.at.x + x * cos - y * sin),
+                snap(pose.at.y + x * sin + y * cos),
             ];
         }
-        if area(&path) < 0.0 {
+        if path_signed_area(&path) < 0.0 {
             path.reverse();
         }
         let m = p.outline.as_ref().and_then(|o| o.margin).unwrap_or(margin);
@@ -363,16 +469,6 @@ fn rings_intersect(a: &Path, b: &Path) -> bool {
     false
 }
 
-fn inside(path: &Path, p: [f64; 2]) -> bool {
-    path.iter()
-        .zip(path.iter().cycle().skip(1))
-        .take(path.len())
-        .fold(false, |hit, (a, b)| {
-            hit ^ ((a[1] > p[1]) != (b[1] > p[1])
-                && p[0] < (b[0] - a[0]) * (p[1] - a[1]) / (b[1] - a[1]) + a[0])
-        })
-}
-
 pub(super) fn finish(
     shapes: Shapes,
     settings: &OutlineSettings,
@@ -463,7 +559,11 @@ pub(super) fn finish(
         result.push(finished);
     }
     for shape in &result {
-        if shape.iter().skip(1).any(|hole| !inside(&shape[0], hole[0])) {
+        if shape
+            .iter()
+            .skip(1)
+            .any(|hole| !path_contains(&shape[0], hole[0]))
+        {
             return Err(
                 "Corner finishing moves a cutout outside its outline; reduce its size".into(),
             );
@@ -476,4 +576,62 @@ pub(super) fn finish(
         }
     }
     Ok((result, reduced, locations))
+}
+
+#[cfg(test)]
+mod validation_tests {
+    use super::*;
+
+    #[test]
+    fn sweep_rejects_crossings_and_non_adjacent_contacts() {
+        assert!(!simple(&vec![
+            [0.0, 0.0],
+            [2.0, 2.0],
+            [0.0, 2.0],
+            [2.0, 0.0]
+        ]));
+        assert!(!simple(&vec![
+            [0.0, 0.0],
+            [2.0, 0.0],
+            [2.0, 2.0],
+            [1.0, 0.0],
+            [0.0, 2.0]
+        ]));
+    }
+
+    #[test]
+    fn adjacent_edges_may_continue_but_cannot_overlap() {
+        assert!(simple(&vec![
+            [0.0, 0.0],
+            [1.0, 0.0],
+            [2.0, 0.0],
+            [2.0, 2.0],
+            [0.0, 2.0]
+        ]));
+        assert!(!simple(&vec![
+            [0.0, 0.0],
+            [2.0, 0.0],
+            [1.0, 0.0],
+            [1.0, 2.0],
+            [0.0, 2.0]
+        ]));
+    }
+
+    #[test]
+    fn persisted_paths_use_grid_contacts_and_a_per_path_budget() {
+        assert!(!simple(&vec![
+            [0.0, 0.0],
+            [0.0004, 0.0],
+            [1.0, 1.0],
+            [0.0, 1.0]
+        ]));
+        assert!(!simple(&vec![
+            [0.0, 0.0],
+            [2.0, 0.0],
+            [2.0, 2.0],
+            [1.0004, 0.0],
+            [0.0, 2.0]
+        ]));
+        assert!(persisted_simple(&vec![[0.0, 0.0]; MAX_PERSISTED_OUTLINE_POINTS + 1]).is_err());
+    }
 }

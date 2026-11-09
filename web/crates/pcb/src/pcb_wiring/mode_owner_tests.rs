@@ -1,25 +1,24 @@
-use super::apply::{BoardWiringApplyActions, BoardWiringApplyFeedback, use_board_wiring_apply};
+use super::apply::{BoardWiringApplyActions, use_board_wiring_apply};
 use super::mode::{
-    BoardWiringModeActions, BoardWiringModeEditRequest, BoardWiringModeFeedback,
-    CurrentSnapshotBlocker, current_snapshot_probe, use_board_wiring_mode_edits,
+    BoardWiringModeActions, BoardWiringModeEditRequest, CurrentSnapshotBlocker,
+    current_snapshot_probe, use_board_wiring_mode_edits,
 };
-use super::pins::{
-    PcbWiringPinActions, PcbWiringPinEditRequest, PcbWiringPinFeedback, use_pcb_wiring_pin_edits,
-};
+use super::pins::{PcbWiringPinActions, PcbWiringPinEditRequest, use_pcb_wiring_pin_edits};
 use super::remap::{ProtectedRemapActions, ProtectedRemapFeedback, use_protected_remap_review};
+use super::test_fixtures::document;
 use super::*;
 use boardstudio_application::{
-    AcceptedSnapshot, Completion, Durability, Effect, Event, Lifecycle, OperationId, ReadModel,
-    SaveResult, Scope, Session, SessionEpoch, SnapshotToken, TerminalOutcome,
+    Durability, EditResolver, Event, OperationId, Resolution, Scope, SessionEpoch, SnapshotToken,
+    TerminalOutcome,
 };
 use boardstudio_core::{
     electrical::{ElectricalDiagnostic, ElectricalMode, ElectricalPlan, ElectricalPlanRequest},
     model::*,
 };
+use boardstudio_web_runtime::operation_outcomes::OutcomeSlot;
 use dioxus::prelude::*;
 use std::{
     cell::{Cell, RefCell},
-    collections::BTreeMap,
     future::Future,
     rc::Rc,
     task::{Context, Waker},
@@ -114,220 +113,12 @@ fn host() -> Element {
     rsx! { div { "mode owner test host" } }
 }
 
-fn accepted(document: ProjectDoc, token: u64) -> AcceptedSnapshot {
-    let revision = document.revision;
-    AcceptedSnapshot {
-        token: SnapshotToken(token),
-        session_epoch: SessionEpoch(3),
-        document: std::sync::Arc::new(document),
-        scene: std::sync::Arc::new(SceneDelta {
-            module_scenes: vec![],
-            revision,
-            transaction_id: "accepted-mode-test".into(),
-            changed_ids: vec![],
-            transforms: vec![],
-            matrix_scenes: vec![],
-            contours: vec![],
-            board_contours: vec![],
-            board_readiness: vec![],
-            board_outline_scenes: vec![],
-            finding_markers: vec![],
-            findings: vec![],
-            readiness: Readiness {
-                layout: true,
-                outline: true,
-                pcb: true,
-                case_ready: false,
-            },
-        }),
-    }
-}
-
-fn document() -> ProjectDoc {
-    let mut document = ProjectDoc::empty("project", "Mode test");
-    document.definitions.push(test_definition(
-        "switch-definition",
-        PartKind::Switch,
-        BTreeMap::from([
-            ("row".into(), vec!["1".into()]),
-            ("column".into(), vec!["2".into()]),
-        ]),
-        Some(MatrixTerminals {
-            row: "row".into(),
-            column: "column".into(),
-        }),
-        None,
-    ));
-    document.definitions.push(test_definition(
-        "diode-definition",
-        PartKind::Passive,
-        BTreeMap::from([
-            ("anode".into(), vec!["A".into()]),
-            ("cathode".into(), vec!["K".into()]),
-        ]),
-        None,
-        None,
-    ));
-    document.definitions.push(test_definition(
-        "mcu-definition",
-        PartKind::Controller,
-        [
-            "GND", "P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8", "P9", "P10", "P14", "P15",
-            "P16", "P18", "P19", "P20", "P21",
-        ]
-        .into_iter()
-        .map(|pin| (pin.to_owned(), vec![pin.to_owned()]))
-        .collect(),
-        None,
-        Some("ceoloide/mcu_nice_nano"),
-    ));
-    let electrical_parts = [
-        test_part("matrix/m/r0c0", "switch-definition"),
-        test_part("matrix/m/r0c0/diode", "diode-definition"),
-        test_part("mcu-left", "mcu-definition"),
-    ];
-    document.boards.push(Board {
-        id: "left".into(),
-        name: "Left".into(),
-        outline_ids: vec![],
-        part_ids: electrical_parts
-            .iter()
-            .map(|part| part.id.clone())
-            .collect(),
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
-    });
-    document.parts.extend(electrical_parts);
-    document.boards.push(Board {
-        id: "right".into(),
-        name: "Right".into(),
-        outline_ids: vec![],
-        part_ids: vec![],
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
-    });
-    document.matrices.push(Matrix {
-        id: "m".into(),
-        name: None,
-        rows: 1,
-        columns: 1,
-        pitch: Vec2 { x: 19.0, y: 19.0 },
-        origin: Vec2::default(),
-        definition_id: "switch-definition".into(),
-        part_ids: vec!["matrix/m/r0c0".into(), "matrix/m/r0c0/diode".into()],
-        board_id: Some("left".into()),
-        mirror: None,
-        rotation: None,
-        edge_gap: None,
-        diode_direction: Some(DiodeDirection::Row2col),
-        row_offsets: vec![],
-        column_offsets: vec![],
-        column_staggers: vec![],
-        column_splays: vec![],
-        column_origins: vec![],
-        cells: vec![MatrixCell {
-            row: 0,
-            column: 0,
-            enabled: true,
-            definition_id: Some("switch-definition".into()),
-            variant: None,
-            offset: None,
-            rotation: None,
-            assemblies: vec![],
-            assemblies_local: None,
-        }],
-    });
-    document
-}
-
-fn test_part(id: &str, definition_id: &str) -> Part {
-    Part {
-        id: id.into(),
-        definition_id: definition_id.into(),
-        reference: id.into(),
-        pose: Pose2 {
-            at: Vec2::default(),
-            rotation: 0.0,
-        },
-        side: Side::Front,
-        locked: None,
-        keycap: None,
-        outline: None,
-        properties: None,
-        generator_parameters: None,
-    }
-}
-
-fn test_definition(
-    id: &str,
-    kind: PartKind,
-    terminals: BTreeMap<String, Vec<String>>,
-    matrix_terminals: Option<MatrixTerminals>,
-    generator_source: Option<&str>,
-) -> PartDefinition {
-    let pads = terminals
-        .values()
-        .flatten()
-        .map(|id| Pad {
-            id: id.clone(),
-            number: id.clone(),
-            at: Vec2::default(),
-            size: Vec2 { x: 1.0, y: 1.0 },
-            shape: PadShape::Circle,
-            drill: None,
-            plated: Some(true),
-            side: None,
-            rotation: None,
-            net_id: None,
-        })
-        .collect();
-    PartDefinition {
-        hardware_profile: None,
-        input_profile: None,
-        id: id.into(),
-        name: id.into(),
-        kind,
-        keycap: None,
-        envelope_source: None,
-        kicad_source: None,
-        terminals,
-        matrix_terminals,
-        envelope_notice: None,
-        courtyard: vec![],
-        pads,
-        models: None,
-        generator: generator_source.map(|source| PartGenerator {
-            source: source.into(),
-            version: "test".into(),
-            parameters: BTreeMap::new(),
-        }),
-        mechanical_profile: None,
-    }
-}
-
 fn scope() -> Scope {
     Scope {
         session_epoch: SessionEpoch(3),
         document_id: "project".into(),
         board_id: "left".into(),
         instance_id: None,
-    }
-}
-
-fn model(document: ProjectDoc, token: u64) -> ReadModel {
-    let revision = document.revision;
-    ReadModel {
-        lifecycle: Lifecycle::Ready,
-        durability: Durability::Saved { revision },
-        accepted: Some(accepted(document, token)),
-        selected_part_ids: vec![],
-        active_board_id: "left".into(),
-        active_instance_id: None,
-        ..Default::default()
     }
 }
 
@@ -384,15 +175,121 @@ fn source(
     }
 }
 
+fn replace_document(runtime: &Rc<crate::runtime::Runtime>, document: ProjectDoc) {
+    let target_id = document.id.clone();
+    let resolver =
+        boardstudio_application::EditResolver::new("native-test-document-replacement", move |_| {
+            boardstudio_application::Resolution::submit(
+                vec![target_id.clone()],
+                EditOperation::ReplaceDocument {
+                    document: Box::new(document.clone()),
+                },
+            )
+        });
+    let ticket = boardstudio_web_runtime::edit_ticket::EditTicket::begin(
+        runtime,
+        "native-test-document-replacement",
+        None,
+        resolver,
+    );
+    assert!(matches!(
+        ticket.settlement(true),
+        boardstudio_web_runtime::edit_ticket::Settlement::Landed { .. }
+    ));
+}
+
+fn select_part(runtime: &crate::runtime::Runtime, part_id: &str) {
+    runtime.submit(Event::SelectParts {
+        operation_id: runtime.operation(),
+        mode: boardstudio_application::SelectionMode::Replace,
+        part_ids: vec![part_id.into()],
+        range_part_ids: Vec::new(),
+    });
+}
+
+fn navigate(runtime: &crate::runtime::Runtime, board_id: &str) {
+    runtime.submit(Event::Navigate {
+        operation_id: runtime.operation(),
+        board_id: board_id.into(),
+        instance_id: None,
+    });
+}
+
+fn assert_no_edit_submitted(runtime: &crate::runtime::Runtime) {
+    assert_eq!(mutation_count(runtime), 0);
+}
+
+fn mutation_count(runtime: &crate::runtime::Runtime) -> usize {
+    runtime
+        .events
+        .borrow()
+        .iter()
+        .filter(|event| {
+            matches!(
+                event,
+                Event::ResolveEdit { .. } | Event::ReviewElectricalRemap { .. }
+            )
+        })
+        .count()
+}
+
+fn refreshed_source(
+    runtime: &crate::runtime::Runtime,
+    selected_part_id: Option<&str>,
+    generation: u64,
+) -> PcbWiringSource {
+    let accepted = runtime
+        .model()
+        .accepted
+        .expect("Session has an accepted project");
+    let ui_scope = runtime.scope().expect("Session has an active board");
+    PcbWiringSource {
+        identity: FirmwarePlanIdentity {
+            scope: Scope {
+                instance_id: None,
+                ..ui_scope.clone()
+            },
+            token: accepted.token,
+            revision: accepted.document.revision,
+            executor_epoch: runtime.electrical_preview_executor_epoch(),
+        },
+        ui_scope,
+        scope_generation: generation,
+        active_part_id: selected_part_id.map(str::to_owned),
+        document: accepted.document,
+    }
+}
+
 fn mounted() -> (Probe, VirtualDom) {
     mounted_with_document(document())
 }
 
 fn mounted_with_document(document: ProjectDoc) -> (Probe, VirtualDom) {
-    let mut source = source(1, document.revision, None, 5);
-    source.document = std::sync::Arc::new(document.clone());
+    let runtime = crate::runtime::Runtime::new();
+    runtime.submit(Event::Open {
+        operation_id: runtime.operation(),
+        document: document.clone(),
+    });
+    runtime.submit(Event::Navigate {
+        operation_id: runtime.operation(),
+        board_id: "left".into(),
+        instance_id: None,
+    });
+    let accepted = runtime.model().accepted.expect("fixture opens in Session");
+    let ui_scope = runtime.scope().expect("fixture board is active");
+    let mut source = source(accepted.token.0, accepted.document.revision, None, 5);
+    source.identity = FirmwarePlanIdentity {
+        scope: Scope {
+            instance_id: None,
+            ..ui_scope.clone()
+        },
+        token: accepted.token,
+        revision: accepted.document.revision,
+        executor_epoch: runtime.electrical_preview_executor_epoch(),
+    };
+    source.ui_scope = ui_scope;
+    source.document = accepted.document.clone();
     let plan_identity = source.identity.clone();
-    let runtime = crate::runtime::Runtime::new(model(document.clone(), 1), scope());
     let probe = Probe {
         runtime,
         source: Rc::new(RefCell::new(source)),
@@ -461,14 +358,21 @@ fn pin_request(probe: &Probe, assignment_id: &str, pin: Option<String>) -> PcbWi
 
 fn submitted(probe: &Probe) -> (OperationId, ProjectDoc) {
     let events = probe.runtime.events.borrow();
-    let [
-        Event::Edit {
-            operation_id,
-            command,
-        },
-    ] = events.as_slice()
+    let Event::ResolveEdit {
+        operation_id,
+        resolver,
+        ..
+    } = events
+        .iter()
+        .rev()
+        .find(|event| matches!(event, Event::ResolveEdit { .. }))
+        .expect("edit submitted")
     else {
-        panic!("one accepted mode choice must submit one Edit")
+        panic!("one accepted mode choice must submit one resolved edit")
+    };
+    let accepted = probe.runtime.model().accepted.clone().unwrap();
+    let Resolution::Submit(command) = resolver.resolve(&accepted) else {
+        panic!("mode choice must resolve to a command")
     };
     let EditOperation::ReplaceDocument { document } = &command.operation else {
         panic!("mode choice must use the existing ReplaceDocument edit")
@@ -478,14 +382,16 @@ fn submitted(probe: &Probe) -> (OperationId, ProjectDoc) {
 
 fn submitted_remap(probe: &Probe) -> (OperationId, u64, String, String) {
     let events = probe.runtime.events.borrow();
-    let [
-        Event::ReviewElectricalRemap {
-            operation_id,
-            base_revision,
-            board_id,
-            expected_fingerprint,
-        },
-    ] = events.as_slice()
+    let Event::ReviewElectricalRemap {
+        operation_id,
+        base_revision,
+        board_id,
+        expected_fingerprint,
+    } = events
+        .iter()
+        .rev()
+        .find(|event| matches!(event, Event::ReviewElectricalRemap { .. }))
+        .expect("remap submitted")
     else {
         panic!("one protected-remap review must submit one Session review event")
     };
@@ -535,7 +441,6 @@ fn production_snapshot_probe_distinguishes_import_settlement_from_other_admissio
         .identity
         .clone()
         .unwrap();
-    let saved = probe.runtime.model.borrow().clone();
     let check = |workspace, current| {
         current_snapshot_probe(&probe.runtime, &identity, workspace, 5, current)
     };
@@ -549,33 +454,48 @@ fn production_snapshot_probe_distinguishes_import_settlement_from_other_admissio
         CurrentSnapshotBlocker::InstanceSelection
     );
 
-    let mut opening = saved.clone();
-    opening.lifecycle = Lifecycle::Opening;
-    *probe.runtime.model.borrow_mut() = opening;
+    probe.runtime.hold_next_core();
+    let mut opening_document = document();
+    opening_document.id = "opening-project".into();
+    probe.runtime.submit(Event::Open {
+        operation_id: probe.runtime.operation(),
+        document: opening_document,
+    });
     assert_eq!(
         check("PCB", true).unwrap_err(),
         CurrentSnapshotBlocker::Lifecycle
     );
-    *probe.runtime.model.borrow_mut() = saved.clone();
+    probe.runtime.release_core();
 
-    let mut preview = saved.clone();
-    preview.display_preview = preview
-        .accepted
+    let (preview_probe, _preview_dom) = mounted();
+    let preview_identity = preview_probe
+        .latest
+        .borrow()
         .as_ref()
-        .map(|accepted| accepted.scene.clone());
-    *probe.runtime.model.borrow_mut() = preview;
+        .unwrap()
+        .identity
+        .clone()
+        .unwrap();
+    preview_probe.runtime.submit(Event::PreviewEdit {
+        operation_id: preview_probe.runtime.operation(),
+        transaction_id: "owner-probe-preview".into(),
+        target_ids: vec!["matrix/m/r0c0".into()],
+        operation: EditOperation::MoveParts {
+            positions: vec![Position {
+                id: "matrix/m/r0c0".into(),
+                at: Vec2 { x: 1.0, y: 0.0 },
+            }],
+        },
+    });
     assert_eq!(
-        check("PCB", true).unwrap_err(),
+        current_snapshot_probe(&preview_probe.runtime, &preview_identity, "PCB", 5, true)
+            .unwrap_err(),
         CurrentSnapshotBlocker::Preview
     );
 
-    *probe.runtime.model.borrow_mut() = saved;
     probe.workspace.set("Layout");
     tick(&probe, &mut dom);
     assert!(!probe.latest_pins.borrow().as_ref().unwrap().editable);
-    probe.workspace.set("PCB");
-    tick(&probe, &mut dom);
-    assert!(probe.latest_pins.borrow().as_ref().unwrap().editable);
 }
 
 #[test]
@@ -589,7 +509,7 @@ fn mounted_pin_owner_rejects_unavailable_pins_and_retained_selection_actions() {
         assignment_id: "row/0".into(),
         pin: Some("not-in-current-plan".into()),
     });
-    assert!(probe.runtime.events.borrow().is_empty());
+    assert_no_edit_submitted(&probe.runtime);
 
     let free_pin = resolved_plan(&document()).free_pins[0].clone();
     let retained = PcbWiringPinEditRequest {
@@ -597,11 +517,11 @@ fn mounted_pin_owner_rejects_unavailable_pins_and_retained_selection_actions() {
         assignment_id: "row/0".into(),
         pin: Some(free_pin),
     };
-    probe.runtime.model.borrow_mut().selected_part_ids = vec!["matrix/m/r0c0".into()];
+    select_part(&probe.runtime, "matrix/m/r0c0");
     tick(&probe, &mut dom);
     assert!(!probe.latest_pins.borrow().as_ref().unwrap().editable);
     actions.on_change.call(retained);
-    assert!(probe.runtime.events.borrow().is_empty());
+    assert_no_edit_submitted(&probe.runtime);
 }
 
 #[test]
@@ -620,6 +540,20 @@ fn assignment_projection_uses_current_mode_rows_locks_and_only_free_pin_choices(
     source.document = std::sync::Arc::new(document.clone());
     let matrix = resolved_plan_with_mode(&document, ElectricalMode::Matrix);
     let rows = super::pins::assignments(&source, &matrix);
+    let groups = super::pins::group_assignments(&rows);
+    assert!(!groups.rows.is_empty());
+    assert!(!groups.columns.is_empty());
+    assert_eq!(
+        groups.rows.len() + groups.columns.len() + groups.other.len(),
+        rows.len()
+    );
+    assert!(groups.rows.iter().all(|row| row.id.starts_with("row/")));
+    assert!(
+        groups
+            .columns
+            .iter()
+            .all(|row| row.id.starts_with("column/"))
+    );
     let row = rows.iter().find(|row| row.id == "row/0").unwrap();
     assert_eq!(row.label, "Row 1");
     assert!(row.locked);
@@ -630,6 +564,10 @@ fn assignment_projection_uses_current_mode_rows_locks_and_only_free_pin_choices(
 
     let direct = resolved_plan_with_mode(&document, ElectricalMode::Direct);
     let direct_rows = super::pins::assignments(&source, &direct);
+    let direct_groups = super::pins::group_assignments(&direct_rows);
+    assert!(direct_groups.rows.is_empty());
+    assert!(direct_groups.columns.is_empty());
+    assert_eq!(direct_groups.other.len(), direct_rows.len());
     assert!(direct_rows.iter().any(|row| row.id == "matrix/m/r0c0"));
     assert!(!direct_rows.iter().any(|row| row.id == "row/0"));
 }
@@ -637,82 +575,26 @@ fn assignment_projection_uses_current_mode_rows_locks_and_only_free_pin_choices(
 #[test]
 fn mounted_owner_refreshes_from_a_real_session_open_and_board_navigation() {
     let (probe, mut dom) = mounted();
-    let mut session = Session::new();
-    let mut core = boardstudio_core::CoreEngine::new();
-    let open_effects = session.submit(Event::Open {
-        operation_id: OperationId(70),
+    assert!(probe.latest_pins.borrow().as_ref().unwrap().editable);
+
+    probe.runtime.hold_next_core();
+    probe.runtime.submit(Event::Open {
+        operation_id: probe.runtime.operation(),
         document: document(),
     });
-    *probe.runtime.model.borrow_mut() = session.read_model().clone();
+    tick(&probe, &mut dom);
+    assert!(!probe.latest_pins.borrow().as_ref().unwrap().editable);
+    probe.runtime.release_core();
+    navigate(&probe.runtime, "left");
+
+    navigate(&probe.runtime, "right");
     tick(&probe, &mut dom);
     assert!(!probe.latest_pins.borrow().as_ref().unwrap().editable);
 
-    let mut persist_effects = Vec::new();
-    for effect in open_effects {
-        if let Effect::Core {
-            request_id,
-            executor_epoch,
-            request,
-            ..
-        } = effect
-        {
-            persist_effects.extend(session.complete(Completion::Core {
-                request_id,
-                executor_epoch,
-                reply: Box::new(core.handle(*request)),
-            }));
-        }
-    }
-    let opening_snapshot = session.read_model().accepted.as_ref();
-    if let Some(snapshot) = opening_snapshot {
-        let opening_scope = Scope {
-            session_epoch: snapshot.session_epoch,
-            document_id: snapshot.document.id.clone(),
-            board_id: "left".into(),
-            instance_id: None,
-        };
-        probe.runtime.set_scope(Some(opening_scope.clone()));
-        *probe.runtime.model.borrow_mut() = session.read_model().clone();
-        let identity = crate::pcb_wiring_mode_operation::BoardWiringModeIdentity {
-            plan: WiringPlanIdentity {
-                scope: opening_scope.clone(),
-                token: snapshot.token,
-                revision: snapshot.document.revision,
-                executor_epoch: probe.runtime.electrical_preview_executor_epoch(),
-            },
-            ui_scope: opening_scope,
-            selected_part_id: None,
-            scope_generation: 5,
-        };
-        let blocker =
-            current_snapshot_probe(&probe.runtime, &identity, "PCB", 5, true).unwrap_err();
-        assert!(matches!(
-            blocker,
-            CurrentSnapshotBlocker::Lifecycle | CurrentSnapshotBlocker::Durability
-        ));
-    }
-
-    for effect in persist_effects {
-        if let Effect::Persist {
-            save_attempt_id, ..
-        } = effect
-        {
-            session.complete(Completion::Persist {
-                save_attempt_id,
-                result: SaveResult::Committed,
-            });
-        }
-    }
-    session.submit(Event::Navigate {
-        operation_id: OperationId(71),
-        board_id: "left".into(),
-        instance_id: None,
-    });
-    let accepted = session.read_model().accepted.as_ref().unwrap().clone();
-    let ui_scope = session.scope().expect("opened board is navigable");
-    probe.runtime.set_scope(Some(ui_scope.clone()));
-    *probe.runtime.model.borrow_mut() = session.read_model().clone();
-    let identity = WiringPlanIdentity {
+    navigate(&probe.runtime, "left");
+    let accepted = probe.runtime.model().accepted.unwrap();
+    let ui_scope = probe.runtime.scope().unwrap();
+    let identity = FirmwarePlanIdentity {
         scope: Scope {
             instance_id: None,
             ..ui_scope.clone()
@@ -721,24 +603,18 @@ fn mounted_owner_refreshes_from_a_real_session_open_and_board_navigation() {
         revision: accepted.document.revision,
         executor_epoch: probe.runtime.electrical_preview_executor_epoch(),
     };
-    *probe.source.borrow_mut() = super::PcbWiringSource {
+    let current_source = PcbWiringSource {
         identity: identity.clone(),
-        ui_scope: ui_scope.clone(),
+        ui_scope,
         scope_generation: 5,
         active_part_id: None,
         document: accepted.document.clone(),
     };
+    *probe.source.borrow_mut() = current_source;
     *probe.resolution.borrow_mut() = PcbWiringResolution::Current {
-        identity: identity.clone(),
+        identity,
         plan: resolved_plan(&accepted.document),
     };
-    let mode_identity = crate::pcb_wiring_mode_operation::BoardWiringModeIdentity {
-        plan: identity,
-        ui_scope,
-        selected_part_id: None,
-        scope_generation: 5,
-    };
-    assert!(current_snapshot_probe(&probe.runtime, &mode_identity, "PCB", 5, true).is_ok());
     tick(&probe, &mut dom);
     assert!(probe.latest_pins.borrow().as_ref().unwrap().editable);
 }
@@ -758,7 +634,7 @@ fn mounted_apply_owner_rejects_mode_mismatched_or_unavailable_current_plan() {
                         .iter()
                         .all(|diagnostic| diagnostic.severity != "error")
                 );
-                *probe.runtime.model.borrow_mut() = model(accepted, 1);
+                replace_document(&probe.runtime, accepted);
                 *probe.resolution.borrow_mut() = PcbWiringResolution::Current {
                     identity,
                     plan: direct_plan,
@@ -791,11 +667,9 @@ fn mounted_apply_owner_rejects_mode_mismatched_or_unavailable_current_plan() {
         tick(&probe, &mut dom);
         let actions = probe.latest_apply.borrow().as_ref().unwrap().clone();
         assert!(!actions.editable, "{state} plans must disable Apply");
+        let mutations_before = mutation_count(&probe.runtime);
         actions.on_apply.call(actions.identity.unwrap());
-        assert!(
-            probe.runtime.events.borrow().is_empty(),
-            "{state} plan submitted an edit"
-        );
+        assert_eq!(mutation_count(&probe.runtime), mutations_before);
     }
 }
 
@@ -803,11 +677,11 @@ fn mounted_apply_owner_rejects_mode_mismatched_or_unavailable_current_plan() {
 fn mounted_apply_owner_rejects_retained_action_after_context_changes() {
     let (probe, mut dom) = mounted();
     let old_actions = probe.latest_apply.borrow().as_ref().unwrap().clone();
-    probe.runtime.model.borrow_mut().selected_part_ids = vec!["matrix/m/r0c0".into()];
+    select_part(&probe.runtime, "matrix/m/r0c0");
     *probe.source.borrow_mut() = source(1, 0, Some("matrix/m/r0c0"), 5);
     flush(&mut dom);
     old_actions.on_apply.call(old_actions.identity.unwrap());
-    assert!(probe.runtime.events.borrow().is_empty());
+    assert_no_edit_submitted(&probe.runtime);
 }
 
 #[test]
@@ -818,11 +692,11 @@ fn mounted_owner_rejects_a_retained_control_after_selection_changes() {
         identity: old_actions.identity.clone().unwrap(),
         mode: ElectricalMode::Direct,
     };
-    probe.runtime.model.borrow_mut().selected_part_ids = vec!["matrix/m/r0c0".into()];
+    select_part(&probe.runtime, "matrix/m/r0c0");
     *probe.source.borrow_mut() = source(1, 0, Some("matrix/m/r0c0"), 5);
     flush(&mut dom);
     old_actions.on_change.call(old_request);
-    assert!(probe.runtime.events.borrow().is_empty());
+    assert_no_edit_submitted(&probe.runtime);
 }
 
 #[test]
@@ -845,46 +719,25 @@ fn mounted_owner_rejects_retained_controls_after_each_source_identity_change() {
         };
         match changed {
             "project" => {
-                let mut model = probe.runtime.model.borrow_mut();
-                model.accepted.as_mut().unwrap().document = std::sync::Arc::new({
-                    let mut document = document();
-                    document.id = "other-project".into();
-                    document
+                let mut changed_document = document();
+                changed_document.id = "other-project".into();
+                probe.runtime.submit(Event::Open {
+                    operation_id: probe.runtime.operation(),
+                    document: changed_document,
                 });
-                probe.runtime.set_scope(Some(Scope {
-                    document_id: "other-project".into(),
-                    ..scope()
-                }));
             }
             "session" => {
-                probe
-                    .runtime
-                    .model
-                    .borrow_mut()
-                    .accepted
-                    .as_mut()
-                    .unwrap()
-                    .session_epoch = SessionEpoch(4);
-                probe.runtime.set_scope(Some(Scope {
-                    session_epoch: SessionEpoch(4),
-                    ..scope()
-                }));
+                probe.runtime.submit(Event::Open {
+                    operation_id: probe.runtime.operation(),
+                    document: document(),
+                });
             }
-            "board" => {
-                probe.runtime.model.borrow_mut().active_board_id = "right".into();
-                probe.runtime.set_scope(Some(Scope {
-                    board_id: "right".into(),
-                    ..scope()
-                }));
-            }
+            "board" => navigate(&probe.runtime, "right"),
             "revision" => {
-                let mut model = probe.runtime.model.borrow_mut();
-                let accepted = model.accepted.as_mut().unwrap();
-                let mut document = (*accepted.document).clone();
-                document.revision = 1;
-                accepted.document = std::sync::Arc::new(document);
-                accepted.token = SnapshotToken(2);
-                model.durability = Durability::Saved { revision: 1 };
+                let mut changed_document =
+                    (*probe.runtime.model().accepted.unwrap().document).clone();
+                changed_document.name.push_str(" revised");
+                replace_document(&probe.runtime, changed_document);
             }
             "workspace" => probe.workspace.set("Layout"),
             "generation" => {
@@ -893,11 +746,9 @@ fn mounted_owner_rejects_retained_controls_after_each_source_identity_change() {
             _ => unreachable!(),
         }
         flush(&mut dom);
+        let mutations_before = mutation_count(&probe.runtime);
         old_actions.on_change.call(old_request);
-        assert!(
-            probe.runtime.events.borrow().is_empty(),
-            "retained callback submitted after {changed} changed"
-        );
+        assert_eq!(mutation_count(&probe.runtime), mutations_before);
     }
 }
 
@@ -906,6 +757,7 @@ fn mounted_protected_remap_review_submits_one_exact_edit_and_settles_saved_revis
     let document = protected_document();
     let (probe, mut dom) = mounted_with_document(document.clone());
     let actions = probe.latest_remap.borrow().as_ref().unwrap().clone();
+    let accepted_before_review = probe.runtime.model().accepted.unwrap().document;
     assert_eq!(
         actions.handoff_revision,
         Some(document.revision.saturating_sub(1))
@@ -914,13 +766,17 @@ fn mounted_protected_remap_review_submits_one_exact_edit_and_settles_saved_revis
     let identity = actions.identity.clone().unwrap();
     actions.on_review.call(identity);
 
-    let (operation, base_revision, board_id, fingerprint) = submitted_remap(&probe);
+    let (_operation, base_revision, board_id, fingerprint) = submitted_remap(&probe);
     assert_eq!(base_revision, document.revision);
     assert_eq!(board_id, "left");
     assert_eq!(fingerprint, "protected-fixture-fingerprint");
-    let mut proposal =
-        crate::pcb_wiring_remap_operation::propose_review_remap(&document, &board_id, &fingerprint)
-            .unwrap();
+    let mut proposal = crate::pcb_wiring_remap_operation::propose_review_remap(
+        &accepted_before_review,
+        &board_id,
+        &fingerprint,
+    )
+    .unwrap();
+    proposal.revision += 1;
     let left = proposal
         .hardware
         .as_ref()
@@ -935,12 +791,10 @@ fn mounted_protected_remap_review_submits_one_exact_edit_and_settles_saved_revis
         document.hardware.as_ref().unwrap().boards[0].locks
     );
 
-    proposal.revision = document.revision + 1;
-    *probe.runtime.model.borrow_mut() = model(proposal.clone(), 2);
-    let mut next_source = source(2, proposal.revision, None, 5);
-    next_source.document = std::sync::Arc::new(proposal);
+    let accepted = probe.runtime.model().accepted.unwrap();
+    assert_eq!(accepted.document.as_ref(), &proposal);
+    let next_source = refreshed_source(&probe.runtime, None, 5);
     *probe.source.borrow_mut() = next_source;
-    assert!(probe.runtime.settle(operation, TerminalOutcome::Completed));
     tick(&probe, &mut dom);
 
     let settled = probe.latest_remap.borrow();
@@ -972,26 +826,26 @@ fn mounted_protected_remap_review_rejects_a_retained_fingerprint_after_refresh()
         .as_mut()
         .unwrap()
         .fingerprint = "new-fingerprint".into();
-    *probe.runtime.model.borrow_mut() = model(changed.clone(), 2);
-    let mut current_source = source(2, changed.revision, None, 5);
-    current_source.document = std::sync::Arc::new(changed);
+    replace_document(&probe.runtime, changed);
+    let current_source = refreshed_source(&probe.runtime, None, 5);
     *probe.source.borrow_mut() = current_source;
     tick(&probe, &mut dom);
 
+    let mutations_before = mutation_count(&probe.runtime);
     old_actions.on_review.call(old_identity);
-    assert!(probe.runtime.events.borrow().is_empty());
+    assert_eq!(mutation_count(&probe.runtime), mutations_before);
 }
 
 #[test]
 fn mounted_protected_remap_failures_preserve_the_accepted_handoff() {
-    for outcome in [
-        TerminalOutcome::Rejected("rejected".into()),
-        TerminalOutcome::ExecutorFailed("executor".into()),
-        TerminalOutcome::PersistenceFailed("disk".into()),
-        TerminalOutcome::Cancelled,
-    ] {
+    for fail_save in [false, true] {
         let document = protected_document();
         let (probe, mut dom) = mounted_with_document(document.clone());
+        if fail_save {
+            probe.runtime.fail_next_save("disk");
+        } else {
+            probe.runtime.fail_next_core("executor");
+        }
         probe
             .latest_remap
             .borrow()
@@ -1008,10 +862,9 @@ fn mounted_protected_remap_failures_preserve_the_accepted_handoff() {
                     .clone()
                     .unwrap(),
             );
-        let (operation, _, _, _) = submitted_remap(&probe);
-        assert!(probe.runtime.settle(operation, outcome));
+        let _ = submitted_remap(&probe);
         tick(&probe, &mut dom);
-        let accepted = probe.runtime.model.borrow();
+        let accepted = probe.runtime.model();
         assert_eq!(
             accepted
                 .accepted
@@ -1040,5 +893,331 @@ fn mounted_protected_remap_failures_preserve_the_accepted_handoff() {
                 .state,
             ProtectedRemapFeedback::Failed(_)
         ));
+    }
+}
+
+/// Queue a whole-document edit that resolves against the document accepted when it runs.
+fn queue_document_edit(
+    runtime: &crate::runtime::Runtime,
+    change: impl Fn(&mut ProjectDoc) + 'static,
+) -> OutcomeSlot {
+    let operation = runtime.operation();
+    let slot = runtime.observe_operation(operation);
+    runtime.submit(Event::ResolveEdit {
+        operation_id: operation,
+        label: "native-test-queued-document-edit".into(),
+        resolver: EditResolver::new("native-test-queued-document-edit", move |accepted| {
+            let mut document = (*accepted.document).clone();
+            change(&mut document);
+            Resolution::submit(
+                vec![document.id.clone()],
+                EditOperation::ReplaceDocument {
+                    document: Box::new(document),
+                },
+            )
+        }),
+    });
+    slot
+}
+
+/// The settlement slot of the most recently submitted edit, observed while it is gated.
+fn latest_edit_slot(runtime: &crate::runtime::Runtime) -> OutcomeSlot {
+    let events = runtime.events.borrow();
+    let Some(Event::ResolveEdit { operation_id, .. }) = events
+        .iter()
+        .rev()
+        .find(|event| matches!(event, Event::ResolveEdit { .. }))
+    else {
+        panic!("no edit was submitted");
+    };
+    runtime.observe_operation(*operation_id)
+}
+
+fn accepted_mode(runtime: &crate::runtime::Runtime) -> ElectricalMode {
+    runtime
+        .model()
+        .accepted
+        .unwrap()
+        .document
+        .hardware
+        .as_ref()
+        .and_then(|hardware| {
+            hardware
+                .boards
+                .iter()
+                .find(|configuration| configuration.board_id == "left")
+        })
+        .map_or(ElectricalMode::Matrix, |configuration| configuration.mode)
+}
+
+fn mark_unrelated(document: &mut ProjectDoc) {
+    document
+        .parameters
+        .insert("unrelated-edit".into(), serde_json::json!(true));
+}
+
+fn has_unrelated_edit(runtime: &crate::runtime::Runtime) -> bool {
+    runtime
+        .model()
+        .accepted
+        .unwrap()
+        .document
+        .parameters
+        .get("unrelated-edit")
+        == Some(&serde_json::json!(true))
+}
+
+fn remove_left_board(document: &mut ProjectDoc) {
+    document.boards.retain(|board| board.id != "left");
+}
+
+#[test]
+fn mounted_mode_choice_submits_one_edit_that_lands_and_saves() {
+    let (probe, mut dom) = mounted();
+    assert_eq!(accepted_mode(&probe.runtime), ElectricalMode::Matrix);
+    let actions = probe.latest.borrow().as_ref().unwrap().clone();
+    actions
+        .on_change
+        .call(request(&probe, ElectricalMode::Direct));
+
+    assert_eq!(mutation_count(&probe.runtime), 1);
+    assert_eq!(accepted_mode(&probe.runtime), ElectricalMode::Direct);
+    let model = probe.runtime.model();
+    assert_eq!(
+        model.durability,
+        Durability::Saved {
+            revision: model.accepted.as_ref().unwrap().document.revision
+        }
+    );
+    let next_source = refreshed_source(&probe.runtime, None, 5);
+    *probe.source.borrow_mut() = next_source;
+    tick(&probe, &mut dom);
+    let shown = probe.latest.borrow().as_ref().unwrap().clone();
+    assert_eq!(
+        (shown.draft)(),
+        "direct",
+        "the control shows the accepted mode after landing"
+    );
+    assert!(!shown.pending);
+    assert!(
+        (shown.failure)().is_none(),
+        "landing shows the accepted value without a status message"
+    );
+}
+
+#[test]
+fn mounted_mode_owner_departure_does_not_resurrect_a_pending_choice_when_selection_returns() {
+    let (probe, mut dom) = mounted();
+    let actions = probe.latest.borrow().as_ref().unwrap().clone();
+    probe.runtime.hold_next_core();
+    actions
+        .on_change
+        .call(request(&probe, ElectricalMode::Direct));
+    let mode = latest_edit_slot(&probe.runtime);
+    assert!(probe.runtime.core_entered(), "the mode choice reaches Core");
+    tick(&probe, &mut dom);
+    assert!(probe.latest.borrow().as_ref().unwrap().pending);
+
+    select_part(&probe.runtime, "matrix/m/r0c0");
+    *probe.source.borrow_mut() = refreshed_source(&probe.runtime, Some("matrix/m/r0c0"), 5);
+    tick(&probe, &mut dom);
+    assert!(!probe.latest.borrow().as_ref().unwrap().pending);
+    probe.runtime.submit(Event::SelectParts {
+        operation_id: probe.runtime.operation(),
+        mode: boardstudio_application::SelectionMode::Replace,
+        part_ids: Vec::new(),
+        range_part_ids: Vec::new(),
+    });
+    *probe.source.borrow_mut() = refreshed_source(&probe.runtime, None, 5);
+    tick(&probe, &mut dom);
+    let shown = probe.latest.borrow().as_ref().unwrap().clone();
+    assert!(
+        !shown.pending,
+        "returning to a departed owner does not revive its observation"
+    );
+    assert_eq!(
+        (shown.draft)(),
+        "matrix",
+        "the returned owner shows accepted mode"
+    );
+    assert!((shown.failure)().is_none(), "owner retirement is silent");
+    assert!(
+        mode.borrow().is_none(),
+        "the departed owner's Session edit still waits for Core"
+    );
+
+    probe.runtime.release_core();
+    assert_eq!(*mode.borrow(), Some(TerminalOutcome::Completed));
+    assert_eq!(accepted_mode(&probe.runtime), ElectricalMode::Direct);
+    *probe.source.borrow_mut() = refreshed_source(&probe.runtime, None, 5);
+    tick(&probe, &mut dom);
+    let shown = probe.latest.borrow().as_ref().unwrap().clone();
+    assert!(!shown.pending);
+    assert_eq!((shown.draft)(), "direct");
+    assert!((shown.failure)().is_none());
+}
+
+#[test]
+fn queued_mode_choice_resolves_against_the_prior_accepted_edit() {
+    let (probe, _dom) = mounted();
+    let actions = probe.latest.borrow().as_ref().unwrap().clone();
+    let direct = request(&probe, ElectricalMode::Direct);
+
+    probe.runtime.hold_next_core();
+    let unrelated = queue_document_edit(&probe.runtime, mark_unrelated);
+    assert!(
+        probe.runtime.core_entered(),
+        "the unrelated edit reaches Core"
+    );
+    actions.on_change.call(direct);
+    assert_eq!(mutation_count(&probe.runtime), 2);
+    let mode = latest_edit_slot(&probe.runtime);
+    assert!(mode.borrow().is_none(), "the mode choice waits for Core");
+
+    probe.runtime.release_core();
+    assert_eq!(*unrelated.borrow(), Some(TerminalOutcome::Completed));
+    assert_eq!(*mode.borrow(), Some(TerminalOutcome::Completed));
+    assert_eq!(accepted_mode(&probe.runtime), ElectricalMode::Direct);
+    assert!(
+        has_unrelated_edit(&probe.runtime),
+        "the mode choice keeps the edit accepted ahead of it"
+    );
+}
+
+#[test]
+fn queued_mode_choice_retires_when_its_board_departs_first() {
+    let (probe, _dom) = mounted();
+    let actions = probe.latest.borrow().as_ref().unwrap().clone();
+    let direct = request(&probe, ElectricalMode::Direct);
+
+    probe.runtime.hold_next_core();
+    let departure = queue_document_edit(&probe.runtime, remove_left_board);
+    assert!(probe.runtime.core_entered(), "the departure reaches Core");
+    actions.on_change.call(direct);
+    let mode = latest_edit_slot(&probe.runtime);
+    assert!(mode.borrow().is_none(), "the mode choice waits for Core");
+
+    probe.runtime.release_core();
+    assert_eq!(*departure.borrow(), Some(TerminalOutcome::Completed));
+    assert_eq!(
+        *mode.borrow(),
+        Some(TerminalOutcome::Rejected("The board was deleted.".into()))
+    );
+    let accepted = probe.runtime.model().accepted.unwrap();
+    assert!(
+        accepted
+            .document
+            .boards
+            .iter()
+            .all(|board| board.id != "left")
+    );
+}
+
+#[test]
+fn queued_pin_choice_keeps_the_prior_edit_and_retires_with_its_board() {
+    let free_pin = resolved_plan(&document()).free_pins[0].clone();
+    for board_departs in [false, true] {
+        let (probe, _dom) = mounted();
+        let actions = probe.latest_pins.borrow().as_ref().unwrap().clone();
+        let choice = PcbWiringPinEditRequest {
+            identity: actions.identity.clone().unwrap(),
+            assignment_id: "row/0".into(),
+            pin: Some(free_pin.clone()),
+        };
+
+        probe.runtime.hold_next_core();
+        let first = if board_departs {
+            queue_document_edit(&probe.runtime, remove_left_board)
+        } else {
+            queue_document_edit(&probe.runtime, mark_unrelated)
+        };
+        assert!(probe.runtime.core_entered(), "the first edit reaches Core");
+        actions.on_change.call(choice);
+        let pin = latest_edit_slot(&probe.runtime);
+        assert!(pin.borrow().is_none(), "the pin choice waits for Core");
+
+        probe.runtime.release_core();
+        assert_eq!(*first.borrow(), Some(TerminalOutcome::Completed));
+        let accepted = probe.runtime.model().accepted.unwrap();
+        if board_departs {
+            assert_eq!(
+                *pin.borrow(),
+                Some(TerminalOutcome::Rejected("The board was deleted.".into()))
+            );
+            assert!(
+                accepted
+                    .document
+                    .boards
+                    .iter()
+                    .all(|board| board.id != "left")
+            );
+        } else {
+            assert_eq!(*pin.borrow(), Some(TerminalOutcome::Completed));
+            assert!(has_unrelated_edit(&probe.runtime));
+            let locks = &accepted
+                .document
+                .hardware
+                .as_ref()
+                .unwrap()
+                .boards
+                .iter()
+                .find(|configuration| configuration.board_id == "left")
+                .unwrap()
+                .locks;
+            assert_eq!(locks.get("row/0"), Some(&free_pin));
+        }
+    }
+}
+
+#[test]
+fn queued_apply_keeps_the_prior_edit_and_retires_when_its_target_changes_first() {
+    type Change = fn(&mut ProjectDoc);
+    fn set_direct_mode(document: &mut ProjectDoc) {
+        let hardware = document.hardware.get_or_insert_with(Default::default);
+        match hardware
+            .boards
+            .iter_mut()
+            .find(|configuration| configuration.board_id == "left")
+        {
+            Some(configuration) => configuration.mode = ElectricalMode::Direct,
+            None => hardware.boards.push(ElectricalBoardConfiguration {
+                board_id: "left".into(),
+                mode: ElectricalMode::Direct,
+                ..Default::default()
+            }),
+        }
+    }
+    let cases: [(Change, Option<&str>); 3] = [
+        (mark_unrelated, None),
+        (remove_left_board, Some("The board was deleted.")),
+        (
+            set_direct_mode,
+            Some("The board wiring mode changed. Resolve the plan again."),
+        ),
+    ];
+    for (first_edit, retired_reason) in cases {
+        let (probe, _dom) = mounted();
+        let actions = probe.latest_apply.borrow().as_ref().unwrap().clone();
+        assert!(actions.editable);
+
+        probe.runtime.hold_next_core();
+        let first = queue_document_edit(&probe.runtime, first_edit);
+        assert!(probe.runtime.core_entered(), "the first edit reaches Core");
+        actions.on_apply.call(actions.identity.clone().unwrap());
+        let apply = latest_edit_slot(&probe.runtime);
+        assert!(apply.borrow().is_none(), "the apply waits for Core");
+
+        probe.runtime.release_core();
+        assert_eq!(*first.borrow(), Some(TerminalOutcome::Completed));
+        match retired_reason {
+            Some(reason) => assert_eq!(
+                *apply.borrow(),
+                Some(TerminalOutcome::Rejected(reason.into()))
+            ),
+            None => {
+                assert_eq!(*apply.borrow(), Some(TerminalOutcome::Completed));
+                assert!(has_unrelated_edit(&probe.runtime));
+            }
+        }
     }
 }

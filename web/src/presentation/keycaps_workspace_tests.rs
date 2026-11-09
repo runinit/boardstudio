@@ -1,9 +1,11 @@
 use super::*;
 use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
 use boardstudio_core::model::{KeycapBoardSettings, Pose2, Vec2};
-use wasm_bindgen::{JsCast, JsValue};
+use boardstudio_web_ui_shared::test_role::by_role_name;
+use boardstudio_web_ui_shared::test_wait::wait_until;
+use wasm_bindgen::JsValue;
 use wasm_bindgen_test::*;
-use web_sys::{Element as DomElement, Event, HtmlElement};
+use web_sys::Element as DomElement;
 
 wasm_bindgen_test_configure!(run_in_browser);
 
@@ -92,6 +94,9 @@ fn mounted_inspector() -> Element {
             },
             "Accept binding projection"
         }
+        button { onclick: move |_| selection.set(Some("key-a".into())), "Select fixture A1" }
+        button { onclick: move |_| selection.set(Some("key-b".into())), "Select fixture B2" }
+        button { onclick: move |_| selection.set(None), "Clear fixture selection" }
         {inspector(InspectorInput {
             view: Some(view),
             document: Rc::new(boardstudio_core::model::ProjectDoc::empty(
@@ -105,7 +110,6 @@ fn mounted_inspector() -> Element {
             mechanical_layer_ids: Rc::from([]),
             fit_retry: EventHandler::new(|()| {}),
             fit_navigate: EventHandler::new(|_| {}),
-            on_export: EventHandler::new(|()| {}),
         })}
     }
 }
@@ -113,36 +117,44 @@ fn mounted_inspector() -> Element {
 #[wasm_bindgen_test]
 async fn inspector_header_shows_accepted_assigned_and_total_key_count() {
     let root = mount_inspector();
-    settle().await;
+    wait_until("the Keycaps header renders", || {
+        by_role_name(&root, "region", "Keycaps inspector").is_some_and(|panel| {
+            panel
+                .text_content()
+                .unwrap_or_default()
+                .contains("0/2 assigned")
+        })
+    })
+    .await;
 
-    assert_eq!(
-        element(".m1-keycaps-inspector-header h2")
+    assert!(by_role_name(&root, "heading", "Keycaps").is_some());
+    assert!(
+        !by_role_name(&root, "region", "Keycaps inspector")
             .unwrap()
             .text_content()
-            .as_deref(),
-        Some("Keycaps")
-    );
-    assert_eq!(
-        element(".m1-keycaps-inspector-assigned-count")
-            .unwrap()
-            .text_content()
-            .as_deref(),
-        Some("0/2 assigned")
+            .unwrap_or_default()
+            .contains("Export keycap STEP")
     );
 
-    element("#keycaps-test-accept-binding")
-        .unwrap()
-        .dyn_into::<HtmlElement>()
+    by_role_name(&root, "button", "Accept binding projection")
         .unwrap()
         .click();
-    settle().await;
+    wait_until("the accepted binding count updates", || {
+        by_role_name(&root, "region", "Keycaps inspector").is_some_and(|panel| {
+            panel
+                .text_content()
+                .unwrap_or_default()
+                .contains("1/2 assigned")
+        })
+    })
+    .await;
 
-    assert_eq!(
-        element(".m1-keycaps-inspector-assigned-count")
+    assert!(
+        !by_role_name(&root, "region", "Keycaps inspector")
             .unwrap()
             .text_content()
-            .as_deref(),
-        Some("1/2 assigned"),
+            .unwrap_or_default()
+            .contains("0/2 assigned"),
         "a replaced accepted Keycaps projection refreshes the summary"
     );
     root.remove();
@@ -151,64 +163,69 @@ async fn inspector_header_shows_accepted_assigned_and_total_key_count() {
 #[wasm_bindgen_test]
 async fn selected_key_disclosure_tracks_selection_without_resetting_user_state() {
     let root = mount_inspector();
-    settle().await;
-
-    let disclosure = element("details.m1-keycaps-selected-key").unwrap();
-    assert!(is_open(&disclosure), "the Selected key section starts open");
+    wait_until("the selected key disclosure renders", || {
+        by_role_name(&root, "button", "A1 · key").is_some()
+    })
+    .await;
+    let disclosure = by_role_name(&root, "button", "A1 · key").unwrap();
     assert_eq!(
-        summary(&disclosure).text_content().as_deref(),
-        Some("A1 · key")
+        disclosure.get_attribute("aria-expanded").as_deref(),
+        Some("true")
     );
-    assert!(element(".m1-keycaps-matrix-list").is_err());
-    assert!(element(".m1-keycaps-selected-summary").is_err());
-    assert!(element("details.m1-keycaps-selected-key input[aria-label='Find a key']").is_ok());
-    assert!(element("details.m1-keycaps-selected-key select[aria-label='Selected key']").is_ok());
-    assert!(element("details.m1-keycaps-selected-key input[aria-label='Legend for A1']").is_ok());
-    assert!(
-        element("details.m1-keycaps-selected-key input[aria-label='Keycap color for A1']").is_ok()
-    );
-
-    summary(&disclosure).click();
-    settle().await;
-    assert!(!is_open(&disclosure), "the user can collapse the section");
-
-    select_key("key-b");
-    settle().await;
-    let updated = element("details.m1-keycaps-selected-key").unwrap();
+    assert!(element("[aria-label='Keycaps matrices']").is_err());
+    assert!(element("[aria-label='Selected keycap']").is_err());
+    assert!(by_role_name(&root, "searchbox", "Find a key").is_some());
+    assert!(by_role_name(&root, "combobox", "Selected key").is_some());
+    assert!(by_role_name(&root, "textbox", "Legend for A1").is_some());
+    assert!(element("[aria-label='Keycap color for A1']").is_ok());
+    disclosure.click();
+    wait_until("the selected key disclosure collapses", || {
+        disclosure.get_attribute("aria-expanded").as_deref() == Some("false")
+    })
+    .await;
+    by_role_name(&root, "button", "Select fixture B2")
+        .unwrap()
+        .click();
+    wait_until("selecting B2 updates the disclosure", || {
+        by_role_name(&root, "button", "B2 · key").is_some()
+    })
+    .await;
+    let updated = by_role_name(&root, "button", "B2 · key").unwrap();
     assert_eq!(
-        summary(&updated).text_content().as_deref(),
-        Some("B2 · key")
-    );
-    assert!(
-        !is_open(&updated),
+        updated.get_attribute("aria-expanded").as_deref(),
+        Some("false"),
         "changing keys preserves the user's collapsed choice"
     );
-    assert!(element("input[aria-label='Legend for B2']").is_ok());
-    assert!(element("input[aria-label='Keycap color for B2']").is_ok());
-
-    select_key("");
-    settle().await;
-    let empty = element("details.m1-keycaps-selected-key").unwrap();
+    assert!(by_role_name(&root, "textbox", "Legend for B2").is_some());
+    assert!(element("[aria-label='Keycap color for B2']").is_ok());
+    by_role_name(&root, "button", "Clear fixture selection")
+        .unwrap()
+        .click();
+    wait_until("clearing key selection updates the disclosure", || {
+        by_role_name(&root, "button", "Select a key").is_some()
+    })
+    .await;
+    let empty = by_role_name(&root, "button", "Select a key").unwrap();
     assert_eq!(
-        summary(&empty).text_content().as_deref(),
-        Some("Select a key")
+        empty.get_attribute("aria-expanded").as_deref(),
+        Some("false")
     );
-    assert!(!is_open(&empty));
-
-    summary(&empty).click();
-    settle().await;
-    assert!(is_open(
-        &element("details.m1-keycaps-selected-key").unwrap()
-    ));
-    select_key("key-a");
-    settle().await;
-    let reopened = element("details.m1-keycaps-selected-key").unwrap();
+    empty.click();
+    wait_until("the empty key disclosure opens", || {
+        empty.get_attribute("aria-expanded").as_deref() == Some("true")
+    })
+    .await;
+    by_role_name(&root, "button", "Select fixture A1")
+        .unwrap()
+        .click();
+    wait_until("selecting A1 updates the disclosure", || {
+        by_role_name(&root, "button", "A1 · key").is_some()
+    })
+    .await;
+    let reopened = by_role_name(&root, "button", "A1 · key").unwrap();
     assert_eq!(
-        summary(&reopened).text_content().as_deref(),
-        Some("A1 · key")
-    );
-    assert!(
-        is_open(&reopened),
+        reopened.get_attribute("aria-expanded").as_deref(),
+        Some("true"),
         "changing keys preserves the user's open choice"
     );
     root.remove();
@@ -226,20 +243,6 @@ fn mount_inspector() -> DomElement {
     root
 }
 
-fn select_key(id: &str) {
-    let select = element("select[aria-label='Selected key']").unwrap();
-    js_sys::Reflect::set(select.as_ref(), &"value".into(), &id.into()).unwrap();
-    let init = web_sys::EventInit::new();
-    init.set_bubbles(true);
-    select
-        .dispatch_event(&Event::new_with_event_init_dict("change", &init).unwrap())
-        .unwrap();
-}
-
-async fn settle() {
-    gloo_timers::future::TimeoutFuture::new(40).await;
-}
-
 fn element(selector: &str) -> Result<DomElement, JsValue> {
     web_sys::window()
         .unwrap()
@@ -247,20 +250,4 @@ fn element(selector: &str) -> Result<DomElement, JsValue> {
         .unwrap()
         .query_selector(&format!("#keycaps-workspace-test-root {selector}"))?
         .ok_or_else(|| JsValue::from_str("expected Keycaps Inspector element"))
-}
-
-fn summary(disclosure: &DomElement) -> HtmlElement {
-    disclosure
-        .query_selector("summary")
-        .unwrap()
-        .unwrap()
-        .dyn_into()
-        .unwrap()
-}
-
-fn is_open(disclosure: &DomElement) -> bool {
-    js_sys::Reflect::get(disclosure.as_ref(), &"open".into())
-        .unwrap()
-        .as_bool()
-        .unwrap_or(false)
 }

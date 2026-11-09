@@ -10,22 +10,34 @@ mod ui {
     use super::{created_definition, new_component_resolver};
     use crate::runtime::Runtime;
     use boardstudio_application::Scope;
-    use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+    use boardstudio_web_runtime::pending_edits::PendingEditResult;
+    use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
+    use boardstudio_web_ui_shared::ui::{
+        alert::{Alert, AlertVariant},
+        button::{Button, ButtonVariant},
+    };
     use dioxus::prelude::*;
     use js_sys::{Date, Function, Reflect};
     use std::{cell::Cell, rc::Rc};
     use wasm_bindgen::{JsCast, JsValue};
 
-    /// One queued create: the identity base the resolver derives the definition from
-    /// and the identities that already existed when the click was admitted.
+    /// This action's one bounded key: the helper keeps one observation for the create,
+    /// whatever the panel's owner generation.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    enum CreateKey {
+        NewComponent,
+    }
+
+    /// The create this panel observes: the identity base the resolver derives the
+    /// definition from and the identities that already existed when the click was
+    /// admitted. The settlement itself is the helper's observation.
     #[derive(Clone)]
-    struct ComponentCreation {
+    struct CreationIntent {
         base: String,
         known: Vec<String>,
         scope: Scope,
         view_generation: u64,
         scope_generation: u64,
-        ticket: EditTicket,
     }
 
     /// The Parts parent mounts this action outside its catalogue loading/error branches so
@@ -42,7 +54,8 @@ mod ui {
     ) -> Element {
         let runtime = use_context::<Rc<Runtime>>();
         let version = use_context::<Signal<u64>>();
-        let pending = use_signal(|| None::<ComponentCreation>);
+        let pending = use_hook(PendingEditSignals::<CreateKey>::new);
+        let mut waiting = use_signal(|| None::<CreationIntent>);
         let mut error = use_signal(|| None::<(Scope, u64, u64, String)>);
         let owner_is_mounted = use_hook(|| Rc::new(Cell::new(true)));
         use_drop({
@@ -55,72 +68,69 @@ mod ui {
         use_effect(use_reactive((&version(),), {
             let runtime = runtime.clone();
             let owner_is_mounted = owner_is_mounted.clone();
-            let mut pending = pending;
+            let pending = pending.clone();
             let mut selected = selected;
             let mut query = query;
             let view_generation = view_generation;
             let scope_generation = scope_generation;
             let workspace = workspace;
-            let on_select = on_select.clone();
             move |_| {
-                let Some(waiting) = pending.read().clone() else {
+                let Some(intent) = waiting.read().clone() else {
                     return;
                 };
                 let owner_is_live = owner_is_mounted.get()
                     && workspace() == "Parts"
-                    && view_generation() == waiting.view_generation
-                    && scope_generation() == waiting.scope_generation
-                    && runtime.scope().as_ref() == Some(&waiting.scope)
+                    && view_generation() == intent.view_generation
+                    && scope_generation() == intent.scope_generation
+                    && runtime.scope().as_ref() == Some(&intent.scope)
                     && runtime.model().accepted.as_ref().is_some_and(|current| {
-                        current.session_epoch == waiting.scope.session_epoch
-                            && current.document.id == waiting.scope.document_id
+                        current.session_epoch == intent.scope.session_epoch
+                            && current.document.id == intent.scope.document_id
                     });
-                match waiting.ticket.settlement(owner_is_live) {
-                    Settlement::Pending => {}
-                    Settlement::Landed { .. } => {
-                        pending.set(None);
-                        // Landed means landed: select the created definition by reading the
-                        // accepted document at the landing, and only if it still exists.
-                        let created = runtime.model().accepted.as_ref().and_then(|current| {
-                            created_definition(
-                                &waiting.base,
-                                &waiting.known,
-                                &current.document.definitions,
-                            )
-                            .map(|definition| definition.id.clone())
-                        });
-                        if let Some(definition_id) = created {
-                            selected.set(Some((Some(waiting.scope.clone()), definition_id)));
-                            query.set(String::new());
-                            on_select.call(());
+                for result in pending.settle(owner_is_live, |_| String::new()) {
+                    match result {
+                        PendingEditResult::Landed { .. } => {
+                            waiting.set(None);
+                            // Landed means landed: select the created definition by reading the
+                            // accepted document at the landing, and only if it still exists.
+                            let created = runtime.model().accepted.as_ref().and_then(|current| {
+                                created_definition(
+                                    &intent.base,
+                                    &intent.known,
+                                    &current.document.definitions,
+                                )
+                                .map(|definition| definition.id.clone())
+                            });
+                            if let Some(definition_id) = created {
+                                selected.set(Some((Some(intent.scope.clone()), definition_id)));
+                                query.set(String::new());
+                                on_select.call(());
+                            }
                         }
+                        PendingEditResult::Failed { message, .. } => {
+                            waiting.set(None);
+                            error.set(Some((
+                                intent.scope.clone(),
+                                intent.view_generation,
+                                intent.scope_generation,
+                                message,
+                            )));
+                        }
+                        PendingEditResult::Retired { .. } => waiting.set(None),
                     }
-                    Settlement::Failed { message } => {
-                        pending.set(None);
-                        error.set(Some((
-                            waiting.scope,
-                            waiting.view_generation,
-                            waiting.scope_generation,
-                            message,
-                        )));
-                    }
-                    Settlement::Retired => pending.set(None),
                 }
             }
         }));
 
         let create = {
             let runtime = runtime.clone();
-            let mut pending = pending;
+            let pending = pending.clone();
             let owner_is_mounted = owner_is_mounted.clone();
             let view_generation = view_generation;
             let scope_generation = scope_generation;
             let workspace = workspace;
             move |_| {
-                if pending
-                    .read()
-                    .as_ref()
-                    .is_some_and(|waiting| waiting.ticket.is_pending())
+                if pending.is_pending(&CreateKey::NewComponent)
                     || !owner_is_mounted.get()
                     || workspace() != "Parts"
                 {
@@ -147,37 +157,33 @@ mod ui {
                     .map(|definition| definition.id.clone())
                     .collect::<Vec<_>>();
                 error.set(None);
-                let ticket = EditTicket::begin(
+                pending.begin_one_shot(
                     &runtime,
+                    CreateKey::NewComponent,
                     "parts-new-component",
                     Some("component".into()),
                     new_component_resolver(base.clone()),
                 );
-                pending.set(Some(ComponentCreation {
+                waiting.set(Some(CreationIntent {
                     base,
                     known,
                     scope: current_scope,
                     view_generation: view_generation(),
                     scope_generation: scope_generation(),
-                    ticket,
                 }));
             }
         };
 
         rsx! {
-            button {
-                class: "m1-parts-create-component",
-                type: "button",
-                "aria-label": "New custom component",
-                disabled: pending
-                    .read()
-                    .as_ref()
-                    .is_some_and(|waiting| waiting.ticket.is_pending()),
+            Button {
+                variant: ButtonVariant::Secondary,
+                class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                disabled: pending.is_pending(&CreateKey::NewComponent),
                 onclick: create,
                 "New custom component"
             }
             if let Some((_, _, _, message)) = error().filter(|(owner, view, generation, _)| runtime.scope().as_ref() == Some(owner) && workspace() == "Parts" && view_generation() == *view && scope_generation() == *generation) {
-                p { role: "alert", "{message}" }
+                Alert { variant: AlertVariant::Destructive, "{message}" }
             }
         }
     }
@@ -321,199 +327,6 @@ fn non_colliding_id(base: &str, definitions: &[PartDefinition]) -> Option<String
 #[cfg(test)]
 mod tests {
     use super::*;
-    use boardstudio_application::{
-        Completion, Effect, Event, OperationId, SaveResult, Session, TerminalOutcome,
-    };
-    use boardstudio_core::CoreEngine;
-    use boardstudio_core::model::{PartKind, ProjectDoc};
-
-    fn advance(session: &mut Session, core: &mut CoreEngine, initial: Vec<Effect>) {
-        let mut pending = initial;
-        while let Some(effect) = pending.pop() {
-            match effect {
-                Effect::Core {
-                    request_id,
-                    executor_epoch,
-                    request,
-                    ..
-                } => {
-                    let reply = core.handle(*request);
-                    pending.extend(session.complete(Completion::Core {
-                        request_id,
-                        executor_epoch,
-                        reply: Box::new(reply),
-                    }));
-                }
-                Effect::Persist {
-                    save_attempt_id, ..
-                } => {
-                    pending.extend(session.complete(Completion::Persist {
-                        save_attempt_id,
-                        result: SaveResult::Committed,
-                    }));
-                }
-                _ => {}
-            }
-        }
-    }
-
-    fn open_document(document: ProjectDoc) -> (Session, CoreEngine) {
-        let mut session = Session::new();
-        let mut core = CoreEngine::new();
-        let effects = session.submit(Event::Open {
-            operation_id: OperationId(1),
-            document,
-        });
-        advance(&mut session, &mut core, effects);
-        (session, core)
-    }
-
-    fn resolve(
-        session: &mut Session,
-        core: &mut CoreEngine,
-        operation: u64,
-        base: &str,
-    ) -> Vec<TerminalOutcome> {
-        let effects = session.submit(Event::ResolveEdit {
-            operation_id: OperationId(operation),
-            label: "parts-new-component".into(),
-            resolver: new_component_resolver(base.into()),
-        });
-        let mut settlements = Vec::new();
-        let mut pending = effects;
-        while let Some(effect) = pending.pop() {
-            match effect {
-                Effect::Core {
-                    request_id,
-                    executor_epoch,
-                    request,
-                    ..
-                } => {
-                    let reply = core.handle(*request);
-                    pending.extend(session.complete(Completion::Core {
-                        request_id,
-                        executor_epoch,
-                        reply: Box::new(reply),
-                    }));
-                }
-                Effect::Persist {
-                    save_attempt_id, ..
-                } => {
-                    pending.extend(session.complete(Completion::Persist {
-                        save_attempt_id,
-                        result: SaveResult::Committed,
-                    }));
-                }
-                Effect::Settled { outcome, .. } => settlements.push(outcome),
-                _ => {}
-            }
-        }
-        settlements
-    }
-
-    #[test]
-    fn create_lands_against_the_accepted_document_and_round_trips_history() {
-        let mut document = ProjectDoc::empty("parts-create-test", "Parts create fixture");
-        document.definitions.push(
-            serde_json::from_value::<PartDefinition>(serde_json::json!({
-                "id": "existing", "name": "Existing", "kind": "custom",
-                "courtyard": [], "pads": []
-            }))
-            .unwrap(),
-        );
-        let original_parts = document.parts.clone();
-        let original_boards = document.boards.clone();
-        let (mut session, mut core) = open_document(document);
-        let known = session
-            .read_model()
-            .accepted
-            .as_ref()
-            .unwrap()
-            .document
-            .definitions
-            .iter()
-            .map(|definition| definition.id.clone())
-            .collect::<Vec<_>>();
-
-        assert_eq!(
-            resolve(&mut session, &mut core, 21, "ui-fresh"),
-            vec![TerminalOutcome::Completed],
-            "the create lands"
-        );
-        let accepted = session.read_model().accepted.as_ref().unwrap();
-        let created =
-            created_definition("ui-fresh", &known, &accepted.document.definitions).unwrap();
-        assert_eq!(created.name, "Custom component 2");
-        assert!(matches!(created.kind, PartKind::Custom));
-        assert_eq!(created.pads.len(), 0);
-        assert_eq!(
-            created
-                .courtyard
-                .iter()
-                .map(|point| (point.x, point.y))
-                .collect::<Vec<_>>(),
-            [(-5.0, -3.0), (5.0, -3.0), (5.0, 3.0), (-5.0, 3.0)]
-        );
-        assert_eq!(accepted.document.parts, original_parts);
-        assert_eq!(accepted.document.boards, original_boards);
-
-        let undo_effects = session.submit(Event::Undo {
-            operation_id: OperationId(24),
-        });
-        advance(&mut session, &mut core, undo_effects);
-        assert!(
-            !session
-                .read_model()
-                .accepted
-                .as_ref()
-                .unwrap()
-                .document
-                .definitions
-                .iter()
-                .any(|definition| identity_derives_from("ui-fresh", &definition.id))
-        );
-        let redo_effects = session.submit(Event::Redo {
-            operation_id: OperationId(25),
-        });
-        advance(&mut session, &mut core, redo_effects);
-        assert!(
-            session
-                .read_model()
-                .accepted
-                .as_ref()
-                .unwrap()
-                .document
-                .definitions
-                .iter()
-                .any(|definition| definition.id == "ui-fresh")
-        );
-    }
-
-    #[test]
-    fn two_queued_creates_derive_distinct_identities_and_keep_unrelated_edits() {
-        let (mut session, mut core) = open_document(ProjectDoc::empty(
-            "parts-create-test",
-            "Parts create fixture",
-        ));
-        // A whole-document rename lands between the two queued creates.
-        assert_eq!(
-            resolve(&mut session, &mut core, 2, "ui-first"),
-            vec![TerminalOutcome::Completed]
-        );
-        assert_eq!(
-            resolve(&mut session, &mut core, 3, "ui-first"),
-            vec![TerminalOutcome::Completed]
-        );
-        let accepted = session.read_model().accepted.as_ref().unwrap();
-        let ids: Vec<&String> = accepted
-            .document
-            .definitions
-            .iter()
-            .map(|definition| &definition.id)
-            .collect();
-        assert_eq!(ids, [&"ui-first".to_owned(), &"ui-first-1".to_owned()]);
-    }
-
     #[test]
     fn generated_ui_identity_skips_existing_ids() {
         let definitions = ["ui-same", "ui-same-1"]
@@ -569,38 +382,189 @@ mod tests {
         );
     }
 
-    #[test]
-    fn accepted_project_selection_resolves_without_catalogue_state() {
-        let mut document = ProjectDoc::empty("parts-create-test", "Parts create fixture");
-        document.definitions.push(
-            serde_json::from_value(serde_json::json!({
-                "id": "project-custom", "name": "Project custom", "kind": "custom",
+    #[cfg(not(target_arch = "wasm32"))]
+    mod native {
+        use super::*;
+        use boardstudio_application::{Event, OperationId, TerminalOutcome};
+        use boardstudio_core::model::{PartKind, ProjectDoc};
+        use boardstudio_web_runtime::{operation_outcomes::OutcomeSlot, runtime::Runtime};
+        use std::rc::Rc;
+
+        fn open_document(document: ProjectDoc) -> Rc<Runtime> {
+            let runtime = Runtime::new();
+            runtime.submit(Event::Open {
+                operation_id: runtime.operation(),
+                document,
+            });
+            assert!(runtime.model().accepted.is_some());
+            runtime
+        }
+
+        /// Submit the event built for a fresh operation. The slot holds its settlement once
+        /// settled; a gated Runtime leaves it empty until the gate is released.
+        fn submit(runtime: &Runtime, event: impl FnOnce(OperationId) -> Event) -> OutcomeSlot {
+            let operation = runtime.operation();
+            let slot = runtime.observe_operation(operation);
+            runtime.submit(event(operation));
+            slot
+        }
+
+        fn settled(slot: &OutcomeSlot) -> Option<TerminalOutcome> {
+            slot.borrow().clone()
+        }
+
+        fn definitions(runtime: &Runtime) -> Vec<PartDefinition> {
+            runtime
+                .model()
+                .accepted
+                .expect("accepted document")
+                .document
+                .definitions
+                .clone()
+        }
+
+        fn create(runtime: &Runtime, base: &str) -> OutcomeSlot {
+            submit(runtime, |operation_id| Event::ResolveEdit {
+                operation_id,
+                label: "parts-new-component".into(),
+                resolver: new_component_resolver(base.into()),
+            })
+        }
+
+        fn existing_definition() -> PartDefinition {
+            serde_json::from_value::<PartDefinition>(serde_json::json!({
+                "id": "existing", "name": "Existing", "kind": "custom",
                 "courtyard": [], "pads": []
             }))
-            .unwrap(),
-        );
-        let (session, _) = open_document(document);
-        let snapshot = session.read_model().accepted.as_ref().unwrap().clone();
-        let scope = session.scope();
-        let selection = Some((scope.clone(), "project-custom".to_string()));
+            .unwrap()
+        }
 
-        let definition = accepted_project_definition(&snapshot, &scope, &selection).unwrap();
-        assert_eq!(definition.id, "project-custom");
-        assert_eq!(definition.name, "Project custom");
+        #[test]
+        fn create_lands_against_the_accepted_document_and_round_trips_history() {
+            let mut document = ProjectDoc::empty("parts-create-test", "Parts create fixture");
+            document.definitions.push(existing_definition());
+            let original_parts = document.parts.clone();
+            let original_boards = document.boards.clone();
+            let runtime = open_document(document);
+            let known = definitions(&runtime)
+                .iter()
+                .map(|definition| definition.id.clone())
+                .collect::<Vec<_>>();
 
-        let other_scope = Some(Scope {
-            board_id: "another-board".into(),
-            ..scope.clone().unwrap()
-        });
-        assert!(accepted_project_definition(&snapshot, &other_scope, &selection).is_none());
-        assert!(
-            accepted_project_definition(
-                &snapshot,
-                &scope,
-                &Some((scope.clone(), "missing".to_string()))
-            )
-            .is_none()
-        );
+            assert_eq!(
+                settled(&create(&runtime, "ui-fresh")),
+                Some(TerminalOutcome::Completed),
+                "the create lands"
+            );
+            let accepted = runtime.model().accepted.expect("accepted document");
+            let created =
+                created_definition("ui-fresh", &known, &accepted.document.definitions).unwrap();
+            assert_eq!(created.name, "Custom component 2");
+            assert!(matches!(created.kind, PartKind::Custom));
+            assert_eq!(created.pads.len(), 0);
+            assert_eq!(
+                created
+                    .courtyard
+                    .iter()
+                    .map(|point| (point.x, point.y))
+                    .collect::<Vec<_>>(),
+                [(-5.0, -3.0), (5.0, -3.0), (5.0, 3.0), (-5.0, 3.0)]
+            );
+            assert_eq!(accepted.document.parts, original_parts);
+            assert_eq!(accepted.document.boards, original_boards);
+
+            submit(&runtime, |operation_id| Event::Undo { operation_id });
+            assert!(
+                !definitions(&runtime)
+                    .iter()
+                    .any(|definition| identity_derives_from("ui-fresh", &definition.id))
+            );
+            submit(&runtime, |operation_id| Event::Redo { operation_id });
+            assert!(
+                definitions(&runtime)
+                    .iter()
+                    .any(|definition| definition.id == "ui-fresh")
+            );
+        }
+
+        #[test]
+        fn two_queued_creates_derive_distinct_identities_and_keep_unrelated_edits() {
+            let runtime = open_document(ProjectDoc::empty(
+                "parts-create-test",
+                "Parts create fixture",
+            ));
+            assert_eq!(
+                settled(&create(&runtime, "ui-first")),
+                Some(TerminalOutcome::Completed)
+            );
+            assert_eq!(
+                settled(&create(&runtime, "ui-first")),
+                Some(TerminalOutcome::Completed)
+            );
+            let definitions = definitions(&runtime);
+            let ids: Vec<&String> = definitions
+                .iter()
+                .map(|definition| &definition.id)
+                .collect();
+            assert_eq!(ids, [&"ui-first".to_owned(), &"ui-first-1".to_owned()]);
+        }
+
+        #[test]
+        fn creates_queued_behind_a_held_core_request_keep_the_prior_accepted_definition() {
+            let mut document = ProjectDoc::empty("parts-create-test", "Parts create fixture");
+            document.definitions.push(existing_definition());
+            let runtime = open_document(document);
+
+            runtime.hold_next_core();
+            let first = create(&runtime, "ui-held");
+            assert!(runtime.core_entered(), "the first create reaches Core");
+            let second = create(&runtime, "ui-held");
+            assert_eq!(settled(&first), None);
+            assert_eq!(settled(&second), None, "the second create waits for Core");
+
+            runtime.release_core();
+            assert_eq!(settled(&first), Some(TerminalOutcome::Completed));
+            assert_eq!(settled(&second), Some(TerminalOutcome::Completed));
+            let ids = definitions(&runtime)
+                .into_iter()
+                .map(|definition| definition.id)
+                .collect::<Vec<_>>();
+            assert_eq!(ids, ["existing", "ui-held", "ui-held-1"]);
+        }
+
+        #[test]
+        fn accepted_project_selection_resolves_without_catalogue_state() {
+            let mut document = ProjectDoc::empty("parts-create-test", "Parts create fixture");
+            document.definitions.push(
+                serde_json::from_value(serde_json::json!({
+                    "id": "project-custom", "name": "Project custom", "kind": "custom",
+                    "courtyard": [], "pads": []
+                }))
+                .unwrap(),
+            );
+            let runtime = open_document(document);
+            let snapshot = runtime.model().accepted.expect("accepted document");
+            let scope = runtime.scope();
+            let selection = Some((scope.clone(), "project-custom".to_string()));
+
+            let definition = accepted_project_definition(&snapshot, &scope, &selection).unwrap();
+            assert_eq!(definition.id, "project-custom");
+            assert_eq!(definition.name, "Project custom");
+
+            let other_scope = Some(Scope {
+                board_id: "another-board".into(),
+                ..scope.clone().unwrap()
+            });
+            assert!(accepted_project_definition(&snapshot, &other_scope, &selection).is_none());
+            assert!(
+                accepted_project_definition(
+                    &snapshot,
+                    &scope,
+                    &Some((scope.clone(), "missing".to_string()))
+                )
+                .is_none()
+            );
+        }
     }
 }
 
@@ -611,9 +575,10 @@ mod mounted_tests {
     use boardstudio_web_runtime::{
         runtime::Runtime, runtime::project_name_test_support as support,
     };
+    use boardstudio_web_ui_shared::test_role::by_role_name;
+    use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_future, wait_until_step};
     use dioxus::prelude::*;
     use std::{cell::RefCell, rc::Rc};
-    use wasm_bindgen::JsCast;
     use wasm_bindgen_test::*;
 
     type SelectionProbe = Rc<RefCell<Option<Signal<Option<(Option<Scope>, String)>>>>>;
@@ -656,24 +621,26 @@ mod mounted_tests {
             dom,
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        gloo_timers::future::TimeoutFuture::new(30).await;
-        let button = root
-            .query_selector("button")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap();
+        wait_until("new component action mounts", || {
+            by_role_name(&root, "button", "New custom component").is_some()
+        })
+        .await;
+        let button =
+            by_role_name(&root, "button", "New custom component").expect("new component action");
         let (entered, release) = support::gate_next_core_reply(&runtime);
         button.click();
-        gloo_timers::future::TimeoutFuture::new(30).await;
         support::drive_pending(&runtime);
-        entered.await.unwrap();
+        wait_until_future("new component request reaches Core", entered)
+            .await
+            .unwrap();
         assert!(button.has_attribute("disabled"));
         assert!(probe.borrow().as_ref().unwrap()().is_none());
         release.send(()).unwrap();
-        gloo_timers::future::TimeoutFuture::new(30).await;
-        support::run_pending(&runtime).await;
-        gloo_timers::future::TimeoutFuture::new(30).await;
+        wait_until_step("new component is accepted and selected", async || {
+            support::run_pending(&runtime).await;
+            probe.borrow().as_ref().unwrap()().is_some()
+        })
+        .await;
         let selected = probe.borrow().as_ref().unwrap()().unwrap();
         assert_eq!(selected.0, runtime.scope());
         assert!(

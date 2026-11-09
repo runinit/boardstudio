@@ -1,10 +1,22 @@
 //! Parts-owned retained generator settings drafts and their accepted edit boundary.
+use super::editor_fields::{EditorNumberField, EditorSelect, EditorTextField, EditorTextarea};
 use super::{GeneratorDraftStore, GeneratorPreviewDraft};
 use crate::parts_custom_definition::replacement_commit;
 use crate::{presentation::model_asset_import::read_model_file, runtime::Runtime};
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution, Scope};
 use boardstudio_core::model::{Asset, EditOperation, Net, PartDefinition, Pin};
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+use boardstudio_web_runtime::pending_edits::PendingEditResult;
+#[cfg(test)]
+use boardstudio_web_runtime::pending_edits::PendingEdits;
+use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
+use boardstudio_web_ui_shared::ui::{
+    alert::{Alert, AlertVariant},
+    button::{Button, ButtonVariant},
+    checkbox::{Checkbox, CheckboxState},
+    collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
+    field::{FieldError, FieldLabel},
+    spinner::Spinner,
+};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use serde_json::Value;
@@ -62,13 +74,22 @@ struct GeneratorParameter {
     value: Value,
 }
 
+/// The apply or upload this panel observes while its edit is pending: the helper owns
+/// the observation, the panel keeps the follow-up context (whose owner, which draft
+/// generation, which uploaded parameter).
 #[derive(Clone)]
-struct GeneratorSubmission {
+struct GeneratorAction {
     owner: GeneratorOwner,
-    ticket: EditTicket,
     draft_sequence: u64,
     apply: bool,
     uploaded_parameter: Option<String>,
+}
+
+/// This panel's two bounded one-shot keys.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum GeneratorKey {
+    Apply,
+    Upload,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -181,11 +202,8 @@ fn parameters(
         .iter()
         .filter_map(|(key, spec)| {
             let kind = spec.get("type")?.as_str()?.to_owned();
-            let value = generator
-                .parameters
-                .get(key)
+            let value = effective_value(None, generator.parameters.get(key), spec)
                 .cloned()
-                .or_else(|| spec.get("value").cloned())
                 .unwrap_or(Value::Null);
             Some(GeneratorParameter {
                 key: key.clone(),
@@ -202,6 +220,21 @@ fn parameters(
         .collect::<Vec<_>>();
     entries.sort_by(|left, right| left.key.cmp(&right.key));
     entries
+}
+
+/// The value the form, preview and render agree on: a non-null draft wins, a null draft
+/// or a null/missing saved value selects the declared default, and no default stays absent.
+fn effective_value<'a>(
+    draft: Option<&'a Value>,
+    saved: Option<&'a Value>,
+    spec: &'a Value,
+) -> Option<&'a Value> {
+    let default = spec.get("value").filter(|value| !value.is_null());
+    match draft {
+        Some(value) if !value.is_null() => Some(value),
+        Some(_) => default,
+        None => saved.filter(|value| !value.is_null()).or(default),
+    }
 }
 
 fn parameter_label(key: &str) -> String {
@@ -269,6 +302,118 @@ fn input_value(value: &Value, kind: &str) -> String {
     }
 }
 
+/// Ticket 012 P2: Upload-owned generator keys for per-admission-key judgement.
+/// Model filename parameters end in `3dmodel_filename` (the suffix the Upload
+/// admission checks before `begin_one_shot`); Apply owns every other key, so one
+/// key in flight never exempts the other's unresolved draft.
+fn generator_is_upload_key(key: &str) -> bool {
+    key.ends_with("3dmodel_filename")
+}
+
+/// Ticket 012 P2: numeric-aware canonical equality for number params.
+/// `apply_input` coerces numbers to float, while saved baselines may hold ints;
+/// strict `Value` equality would false-defer unedited int params (18 vs 18.0)
+/// after every Apply. Numbers compare as f64; every other kind uses `Value`
+/// equality. Missing on both sides is equal; missing on one side differs.
+fn generator_values_equal(
+    kind: Option<&str>,
+    live: Option<&Value>,
+    baseline: Option<&Value>,
+) -> bool {
+    if kind != Some("number") {
+        return live == baseline;
+    }
+    match (
+        live.and_then(Value::as_f64),
+        baseline.and_then(Value::as_f64),
+    ) {
+        (Some(a), Some(b)) => a == b,
+        (None, None) => live == baseline,
+        _ => false,
+    }
+}
+
+/// Ticket 012: owner-canonical Apply-draft comparison for the draft registry.
+/// The live raw edits differ when any edited non-Upload key's submitted value —
+/// the same per-kind coercion [`apply_input`] submits — differs from the baseline
+/// parameters of `base` (the live accepted definition, or the mount-time base
+/// only where no accepted definition exists). Invalid text never matches, so
+/// it defers; no non-Upload edit holds no Apply draft. Upload keys are excluded
+/// here; they belong to [`generator_upload_draft_differs`] below.
+fn generator_apply_draft_differs(
+    live_edits: &BTreeMap<String, Value>,
+    base: &PartDefinition,
+    schema: &BTreeMap<String, Value>,
+) -> bool {
+    generator_partitioned_draft_differs(live_edits, base, schema, GeneratorKey::Apply)
+}
+
+/// Ticket 012 P2: owner-canonical Upload-draft comparison for the draft registry.
+/// Mirrors [`generator_apply_draft_differs`] for the Upload admission key only:
+/// the live raw edits differ when any edited Upload key's submitted value differs
+/// from the baseline parameters of `base` (live accepted, mount-time base only
+/// where no accepted definition exists). Invalid text defers; no Upload edit
+/// holds no Upload draft.
+fn generator_upload_draft_differs(
+    live_edits: &BTreeMap<String, Value>,
+    base: &PartDefinition,
+    schema: &BTreeMap<String, Value>,
+) -> bool {
+    generator_partitioned_draft_differs(live_edits, base, schema, GeneratorKey::Upload)
+}
+
+/// Ticket 012 fifth slice: shared per-admission-key draft comparison.
+/// Partitions `live_edits` by [`generator_is_upload_key`] (Upload owns
+/// `3dmodel_filename` keys, Apply owns the rest) and judges only that partition
+/// under owner-canonical comparison (the value [`apply_input`] would submit vs
+/// the baseline via [`effective_value`] and [`generator_values_equal`]).
+/// Invalid text and unknown keys defer fail-closed; an empty partition resolves.
+fn generator_partitioned_draft_differs(
+    live_edits: &BTreeMap<String, Value>,
+    base: &PartDefinition,
+    schema: &BTreeMap<String, Value>,
+    key: GeneratorKey,
+) -> bool {
+    let live_partition: BTreeMap<String, Value> = live_edits
+        .iter()
+        .filter(|(partition_key, _)| match key {
+            GeneratorKey::Apply => !generator_is_upload_key(partition_key),
+            GeneratorKey::Upload => generator_is_upload_key(partition_key),
+        })
+        .map(|(partition_key, value)| (partition_key.clone(), value.clone()))
+        .collect();
+    if live_partition.is_empty() {
+        return false;
+    }
+    let saved = base
+        .generator
+        .as_ref()
+        .map(|generator| &generator.parameters);
+    let Ok(candidate) = apply_input(base, schema, &live_partition) else {
+        return true;
+    };
+    let submitted = candidate
+        .generator
+        .as_ref()
+        .map(|generator| &generator.parameters);
+    for partition_key in live_partition.keys() {
+        let Some(spec) = schema.get(partition_key) else {
+            return true;
+        };
+        let live_value = submitted.and_then(|parameters| parameters.get(partition_key));
+        let baseline = effective_value(
+            None,
+            saved.and_then(|parameters| parameters.get(partition_key)),
+            spec,
+        );
+        let kind = spec.get("type").and_then(Value::as_str);
+        if !generator_values_equal(kind, live_value, baseline) {
+            return true;
+        }
+    }
+    false
+}
+
 fn apply_input(
     definition: &PartDefinition,
     schema: &BTreeMap<String, Value>,
@@ -282,10 +427,7 @@ fn apply_input(
         let Some(kind) = spec.get("type").and_then(Value::as_str) else {
             continue;
         };
-        let raw = edits
-            .get(key)
-            .or_else(|| generator.parameters.get(key))
-            .or_else(|| spec.get("value"));
+        let raw = effective_value(edits.get(key), generator.parameters.get(key), spec);
         let Some(raw) = raw else {
             continue;
         };
@@ -477,8 +619,7 @@ pub fn generator_apply_resolver(
         "parts-generator-settings",
         move |accepted: &AcceptedSnapshot| {
             let document = &accepted.document;
-            if accepted.session_epoch != owner.session_epoch
-                || accepted.document.id != owner.document_id
+            if accepted.document.id != owner.document_id
                 || candidate.id != owner.definition_id
                 || candidate.generator.as_ref().is_none_or(|generator| {
                     generator.source != owner.source || generator.version != owner.generator_version
@@ -512,8 +653,7 @@ pub fn generator_model_upload_resolver(
         "parts-generator-settings",
         move |accepted: &AcceptedSnapshot| {
             let document = &accepted.document;
-            if accepted.session_epoch != owner.session_epoch
-                || accepted.document.id != owner.document_id
+            if accepted.document.id != owner.document_id
                 || candidate.id != owner.definition_id
                 || candidate.generator.is_none()
             {
@@ -738,20 +878,18 @@ fn rebase_generator_candidate(
 #[cfg(test)]
 type GeneratorCandidateFuture =
     std::pin::Pin<Box<dyn std::future::Future<Output = Result<PartDefinition, String>>>>;
+#[cfg(test)]
+type GeneratorCandidateCallback = dyn Fn(
+    PartDefinition,
+    BTreeMap<String, Value>,
+    BTreeMap<String, Value>,
+) -> GeneratorCandidateFuture;
 
 /// Per-mounted-editor boundary for deterministic completion ordering in browser tests.
 /// The production path still calls `prepare_generator_candidate` directly.
 #[cfg(test)]
 #[derive(Clone)]
-struct GeneratorCandidateTestProvider(
-    Rc<
-        dyn Fn(
-            PartDefinition,
-            BTreeMap<String, Value>,
-            BTreeMap<String, Value>,
-        ) -> GeneratorCandidateFuture,
-    >,
-);
+struct GeneratorCandidateTestProvider(Rc<GeneratorCandidateCallback>);
 
 /// Dynamic settings form. Each field remains a local JSON draft until Apply; every
 /// candidate preview uses the same retained generator renderer as the Parts canvas.
@@ -780,8 +918,9 @@ pub fn GeneratorSettingsEditor(
     let edits = use_signal(BTreeMap::<String, Value>::new);
     let mut changed_parameters = use_signal(BTreeSet::<String>::new);
     let mut feedback = use_signal(|| None::<ScopedFeedback>);
-    let pending_apply = use_signal(|| None::<GeneratorSubmission>);
-    let pending_upload = use_signal(|| None::<GeneratorSubmission>);
+    let pending_edits = use_hook(PendingEditSignals::<GeneratorKey>::new);
+    let apply_intent = use_signal(|| None::<GeneratorAction>);
+    let upload_intent = use_signal(|| None::<GeneratorAction>);
     let mut uploaded_preview_generation = use_signal(|| 0_u64);
     let sequence = use_hook(|| Rc::new(Cell::new(0_u64)));
     let draft_generation = use_hook(|| Rc::new(Cell::new(0_u64)));
@@ -820,38 +959,59 @@ pub fn GeneratorSettingsEditor(
         let runtime = runtime.clone();
         let sequence = sequence.clone();
         let draft_generation = draft_generation.clone();
+        let pending_edits = pending_edits.clone();
         let mut feedback = feedback;
         let mut store = store;
         let mut edits = edits;
+        let mut changed_parameters = changed_parameters;
+        let mut apply_intent = apply_intent;
+        let mut upload_intent = upload_intent;
         move |_| {
-            for mut pending_action in [pending_apply, pending_upload] {
-                let Some(pending) = pending_action.peek().clone() else {
+            let intents = [
+                (GeneratorKey::Apply, apply_intent.peek().clone()),
+                (GeneratorKey::Upload, upload_intent.peek().clone()),
+            ];
+            let Some(observed_owner) = intents
+                .iter()
+                .find_map(|(_, intent)| intent.as_ref().map(|action| action.owner.clone()))
+            else {
+                return;
+            };
+            // The editor outlives selection changes, so owner liveness is the context
+            // owner (workspace, scope, selection, generations), not the accepted
+            // generator parameters the edit itself is about to change. Both actions
+            // belong to this editor instance, so one answer drains the collection.
+            let owner_is_live = owner_context_is_current(
+                &observed_owner,
+                &runtime,
+                selected,
+                scope_generation(),
+                selection_generation(),
+                workspace(),
+            );
+            for result in pending_edits.settle(owner_is_live, |_| String::new()) {
+                let intent = match &result {
+                    PendingEditResult::Landed { key, .. }
+                    | PendingEditResult::Failed { key, .. }
+                    | PendingEditResult::Retired { key } => match key {
+                        GeneratorKey::Apply => apply_intent.take(),
+                        GeneratorKey::Upload => upload_intent.take(),
+                    },
+                };
+                let Some(intent) = intent else {
                     continue;
                 };
-                // The editor outlives selection changes, so owner liveness is the context
-                // owner (workspace, scope, selection, generations), not the accepted
-                // generator parameters the ticket itself is about to change.
-                let owner_is_live = owner_context_is_current(
-                    &pending.owner,
-                    &runtime,
-                    selected,
-                    scope_generation(),
-                    selection_generation(),
-                    workspace(),
-                );
-                match pending.ticket.settlement(owner_is_live) {
-                    Settlement::Pending => {}
+                match result {
                     // Landed means landed: drop the draft store without re-checking the
                     // accepted document for the requested values.
-                    Settlement::Landed { .. } => {
-                        pending_action.set(None);
-                        if pending.apply && draft_generation.get() == pending.draft_sequence {
+                    PendingEditResult::Landed { .. } => {
+                        if intent.apply && draft_generation.get() == intent.draft_sequence {
                             sequence.set(sequence.get().wrapping_add(1));
                             store.set(None);
                             edits.set(BTreeMap::new());
                             changed_parameters.set(BTreeSet::new());
                         }
-                        if let Some(parameter) = &pending.uploaded_parameter {
+                        if let Some(parameter) = &intent.uploaded_parameter {
                             // Upload owns this disabled file control until settlement;
                             // reveal its accepted value without erasing other draft fields.
                             edits.write().remove(parameter);
@@ -862,26 +1022,205 @@ pub fn GeneratorSettingsEditor(
                         }
                         feedback.set(None);
                     }
-                    Settlement::Failed { message } => {
-                        pending_action.set(None);
-                        if pending.apply && draft_generation.get() == pending.draft_sequence {
-                            sequence.set(sequence.get().wrapping_add(1));
-                            store.set(None);
-                            edits.set(BTreeMap::new());
-                            changed_parameters.set(BTreeSet::new());
-                        }
+                    PendingEditResult::Failed { message, .. } => {
+                        // Terminal failure preserves the typed edits/store for retry
+                        // (spec story 12; 004 failure never clears); only report.
                         feedback.set(Some(ScopedFeedback {
-                            owner: pending.owner.clone(),
+                            owner: intent.owner.clone(),
                             message,
                         }));
                     }
-                    Settlement::Retired => {
-                        pending_action.set(None);
-                    }
+                    PendingEditResult::Retired { .. } => {}
                 }
             }
         }
     }));
+
+    // Ticket 012: register the Apply and Upload admission keys with the
+    // Runtime-owned draft registry. Each key judges only its own partitioned
+    // edits (Upload owns `3dmodel_filename` keys, Apply owns the rest) against
+    // the live-projected accepted parameters under owner-canonical comparison
+    // (the value that key would submit; the mount-time base covers only keys
+    // with no accepted definition) and against that key's own in-flight
+    // submission. One key in flight never exempts the other. Hidden and
+    // keep-mounted owners keep blocking through the same guards; genuine unmount
+    // and scope/owner change retire explicitly, and the gate's poll-prune drops
+    // anything left dead instead of blocking.
+    let draft_owner_guard =
+        use_signal(|| None::<boardstudio_web_runtime::draft_owners::DraftOwnerGuard>);
+    let upload_owner_guard =
+        use_signal(|| None::<boardstudio_web_runtime::draft_owners::DraftOwnerGuard>);
+    let draft_owner_scope = (snapshot.document.id.clone(), snapshot.session_epoch);
+    let draft_owner_schema = schema_result
+        .as_ref()
+        .and_then(|result| result.as_ref().ok().cloned());
+    use_effect(use_reactive(
+        (&draft_owner_scope, &owner, &draft_owner_schema),
+        {
+            let runtime = runtime.clone();
+            let pending_edits = pending_edits.clone();
+            let draft_generation = draft_generation.clone();
+            let mut draft_owner_guard = draft_owner_guard;
+            let mut upload_owner_guard = upload_owner_guard;
+            let draft_owner_scope = draft_owner_scope.clone();
+            let draft_owner = owner.clone();
+            let draft_owner_schema = draft_owner_schema.clone();
+            move |_| {
+                let retired = draft_owner_guard.write().take();
+                if let Some(retired) = retired {
+                    runtime.retire_draft_owner(retired);
+                }
+                let retired_upload = upload_owner_guard.write().take();
+                if let Some(retired_upload) = retired_upload {
+                    runtime.retire_draft_owner(retired_upload);
+                }
+                let (Some(owner), Some(schema)) = (draft_owner.clone(), draft_owner_schema.clone())
+                else {
+                    return;
+                };
+                let probe_runtime = runtime.clone();
+                let probe_pending = pending_edits.clone();
+                let probe_edits = edits;
+                let probe_apply = apply_intent;
+                let probe_generation = draft_generation.clone();
+                let probe_scope = draft_owner_scope.clone();
+                let is_unresolved = Rc::new(move || {
+                    let live = probe_edits.peek().clone();
+                    if live.is_empty() {
+                        return false;
+                    }
+                    let Some(accepted) = probe_runtime.model().accepted.clone() else {
+                        return false;
+                    };
+                    if accepted.document.id != probe_scope.0
+                        || accepted.session_epoch != probe_scope.1
+                    {
+                        return false;
+                    }
+                    let base = accepted
+                        .document
+                        .definitions
+                        .iter()
+                        .find(|definition| definition.id == owner.definition_id)
+                        .filter(|definition| {
+                            definition.generator.as_ref().is_some_and(|generator| {
+                                generator.source == owner.source
+                                    && generator.version == owner.generator_version
+                            })
+                        })
+                        .cloned()
+                        .unwrap_or_else(|| owner.base_definition.clone());
+                    if !generator_apply_draft_differs(&live, &base, &schema) {
+                        return false;
+                    }
+                    // One-shot Apply stores no submitted text, so the
+                    // in-flight check is the Apply intent's draft sequence:
+                    // pending with no newer typing means the live edits are
+                    // exactly what was submitted. Terminal records never
+                    // exempt; newer typing re-raises by sequence mismatch.
+                    if probe_pending.is_pending(&GeneratorKey::Apply)
+                        && probe_apply.peek().as_ref().is_some_and(|intent| {
+                            intent.apply && probe_generation.get() == intent.draft_sequence
+                        })
+                    {
+                        return false;
+                    }
+                    true
+                });
+                draft_owner_guard.set(Some(runtime.register_draft_owner(
+                    boardstudio_web_runtime::draft_owners::DraftOwnerRegistration {
+                        project_scope: draft_owner_scope.clone(),
+                        workspace: "Parts",
+                        owner: "generator-settings",
+                        admission_key: "apply",
+                        area: "Generator settings".to_owned(),
+                        remedy:
+                            "Apply the generator settings, or restore its saved values".to_owned(),
+                        is_unresolved,
+                    },
+                )));
+                let upload_runtime = runtime.clone();
+                let upload_pending = pending_edits.clone();
+                let upload_edits = edits;
+                let upload_probe_intent = upload_intent;
+                let upload_generation = draft_generation.clone();
+                let upload_scope = draft_owner_scope.clone();
+                let upload_owner = draft_owner.clone().expect("checked above");
+                let upload_schema = draft_owner_schema.clone().expect("checked above");
+                let upload_unresolved = Rc::new(move || {
+                    let live = upload_edits.peek().clone();
+                    if live.is_empty() {
+                        return false;
+                    }
+                    let Some(accepted) = upload_runtime.model().accepted.clone() else {
+                        return false;
+                    };
+                    if accepted.document.id != upload_scope.0
+                        || accepted.session_epoch != upload_scope.1
+                    {
+                        return false;
+                    }
+                    let base = accepted
+                        .document
+                        .definitions
+                        .iter()
+                        .find(|definition| definition.id == upload_owner.definition_id)
+                        .filter(|definition| {
+                            definition.generator.as_ref().is_some_and(|generator| {
+                                generator.source == upload_owner.source
+                                    && generator.version == upload_owner.generator_version
+                            })
+                        })
+                        .cloned()
+                        .unwrap_or_else(|| upload_owner.base_definition.clone());
+                    if !generator_upload_draft_differs(&live, &base, &upload_schema) {
+                        return false;
+                    }
+                    // One-shot Upload stores no submitted text either; its intent
+                    // carries draft sequence 0, so pending with no newer typing
+                    // never matches a live draft generation and never exempts
+                    // (fail-closed: an Upload submits an asset id, never the
+                    // cleared filename text). Terminal records never exempt;
+                    // newer typing re-raises by sequence mismatch.
+                    if upload_pending.is_pending(&GeneratorKey::Upload)
+                        && upload_probe_intent.peek().as_ref().is_some_and(|intent| {
+                            !intent.apply && upload_generation.get() == intent.draft_sequence
+                        })
+                    {
+                        return false;
+                    }
+                    true
+                });
+                upload_owner_guard.set(Some(runtime.register_draft_owner(
+                    boardstudio_web_runtime::draft_owners::DraftOwnerRegistration {
+                        project_scope: draft_owner_scope.clone(),
+                        workspace: "Parts",
+                        owner: "generator-settings",
+                        admission_key: "upload",
+                        area: "Generator settings".to_owned(),
+                        remedy:
+                            "Upload the generator model, or restore its saved values".to_owned(),
+                        is_unresolved: upload_unresolved,
+                    },
+                )));
+            }
+        },
+    ));
+    use_drop({
+        let runtime = runtime.clone();
+        let mut draft_owner_guard = draft_owner_guard;
+        let mut upload_owner_guard = upload_owner_guard;
+        move || {
+            let retired = draft_owner_guard.write().take();
+            if let Some(retired) = retired {
+                runtime.retire_draft_owner(retired);
+            }
+            let retired_upload = upload_owner_guard.write().take();
+            if let Some(retired_upload) = retired_upload {
+                runtime.retire_draft_owner(retired_upload);
+            }
+        }
+    });
 
     let Some(owner) = owner else {
         return rsx! {};
@@ -889,22 +1228,21 @@ pub fn GeneratorSettingsEditor(
     let schema = match schema_result {
         Some(Ok(schema)) => schema,
         Some(Err(error)) => {
-            return rsx! { p { class: "m1-parts-load-error", role: "alert", "Generator settings could not be loaded: {error}" } };
+            return rsx! { Alert { variant: AlertVariant::Destructive, "Generator settings could not be loaded: {error}" } };
         }
         None => {
-            return rsx! { p { class: "m1-parts-loading", role: "status", "Loading generator settings…" } };
+            return rsx! { div { role: "status", class: "flex items-center gap-2", Spinner {} "Loading generator settings…" } };
         }
     };
     let entries = parameters(&definition, &schema);
     let initial_parameters = schema
         .iter()
         .filter_map(|(key, spec)| {
-            definition
+            let saved = definition
                 .generator
                 .as_ref()
-                .and_then(|generator| generator.parameters.get(key))
-                .or_else(|| spec.get("value"))
-                .map(|value| (key.clone(), value.clone()))
+                .and_then(|generator| generator.parameters.get(key));
+            effective_value(None, saved, spec).map(|value| (key.clone(), value.clone()))
         })
         .collect::<BTreeMap<_, _>>();
     let mut changed = edits;
@@ -1003,13 +1341,13 @@ pub fn GeneratorSettingsEditor(
     });
     let model_import_runtime = runtime.clone();
     let model_import_owner = owner.clone();
+    let import_pending_edits = pending_edits.clone();
     let import_generator_model = use_callback(move |(parameter, file): (String, web_sys::File)| {
+        let pending_edits = import_pending_edits.clone();
         let runtime = model_import_runtime.clone();
         let owner = model_import_owner.clone();
         if model_uploading()
-            || pending_upload()
-                .as_ref()
-                .is_some_and(|action| action.ticket.is_pending())
+            || pending_edits.is_pending(&GeneratorKey::Upload)
             || !parameter.ends_with("3dmodel_filename")
         {
             return;
@@ -1035,7 +1373,8 @@ pub fn GeneratorSettingsEditor(
         let error_prefix = parameter_label(&parameter).to_ascii_lowercase();
         let mut feedback = feedback;
         let mut model_uploading = model_uploading;
-        let mut pending_upload = pending_upload;
+        let pending_edits = pending_edits.clone();
+        let mut upload_intent = upload_intent;
         let draft_sequence = 0;
         spawn_local(async move {
             let imported = read_model_file(file).await;
@@ -1171,8 +1510,9 @@ pub fn GeneratorSettingsEditor(
             };
             model_uploading.set(false);
             let asset_seed = runtime.operation().0;
-            let ticket = EditTicket::begin(
+            pending_edits.begin_one_shot(
                 &runtime,
+                GeneratorKey::Upload,
                 "parts-generator-settings",
                 Some("generator".into()),
                 generator_model_upload_resolver(
@@ -1183,9 +1523,8 @@ pub fn GeneratorSettingsEditor(
                     asset_seed,
                 ),
             );
-            pending_upload.set(Some(GeneratorSubmission {
+            upload_intent.set(Some(GeneratorAction {
                 owner,
-                ticket,
                 draft_sequence,
                 apply: false,
                 uploaded_parameter: Some(parameter),
@@ -1195,7 +1534,8 @@ pub fn GeneratorSettingsEditor(
     });
     let on_apply = {
         let runtime = runtime.clone();
-        let mut pending_apply = pending_apply;
+        let pending_edits = pending_edits.clone();
+        let mut apply_intent = apply_intent;
         let mut feedback = feedback;
         let current_owner = active_draft
             .as_ref()
@@ -1211,10 +1551,7 @@ pub fn GeneratorSettingsEditor(
             else {
                 return;
             };
-            if pending_apply
-                .peek()
-                .as_ref()
-                .is_some_and(|action| action.ticket.is_pending())
+            if pending_edits.is_pending(&GeneratorKey::Apply)
                 || !owner_context_is_current(
                     &current_owner,
                     &runtime,
@@ -1226,15 +1563,15 @@ pub fn GeneratorSettingsEditor(
             {
                 return;
             }
-            let ticket = EditTicket::begin(
+            pending_edits.begin_one_shot(
                 &runtime,
+                GeneratorKey::Apply,
                 "parts-generator-settings",
                 Some("generator settings".into()),
                 generator_apply_resolver(current_owner.clone(), candidate, changed_parameters()),
             );
-            pending_apply.set(Some(GeneratorSubmission {
+            apply_intent.set(Some(GeneratorAction {
                 owner: current_owner.clone(),
-                ticket,
                 draft_sequence: draft_generation.get(),
                 apply: true,
                 uploaded_parameter: None,
@@ -1251,15 +1588,16 @@ pub fn GeneratorSettingsEditor(
         "Advanced footprint options",
     ];
     rsx! {
-        section { class: "m1-generator-settings", "aria-label": "Generator settings",
+        section { class: "grid gap-2", "aria-label": "Generator settings",
             for group in groups {
                 { let group_entries = entries.iter().filter(|entry| entry.group == group).cloned().collect::<Vec<_>>();
                   rsx! {
                     if !group_entries.is_empty() {
-                    details { open: group == "Footprint options" || group == "Keycap dimensions",
-                        summary { "{group}" }
+                    Collapsible { keep_mounted: true, default_open: group == "Footprint options" || group == "Keycap dimensions",
+                        CollapsibleTrigger { class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{group}" }
+                        CollapsibleContent { class: "data-[open=false]:hidden",
                         fieldset {
-                            class: "m1-generator-fields",
+                            class: "grid gap-2",
                             "aria-label": "{group}",
                             for entry in group_entries {
                                 GeneratorParameterField {
@@ -1267,7 +1605,7 @@ pub fn GeneratorSettingsEditor(
                                     value: edits().get(&entry.key).cloned().unwrap_or(entry.value.clone()),
                                     on_change: EventHandler::new({ let key = entry.key.clone(); move |value| change_parameter.call((key.clone(), value)) }),
                                     on_import: import_generator_model,
-                                    busy: model_uploading() || pending_upload().as_ref().is_some_and(|action| action.ticket.is_pending()),
+                                    busy: model_uploading() || pending_edits.is_pending(&GeneratorKey::Upload),
                                     feedback: feedback()
                                         .filter(|message| owner_context_is_current(
                                             &message.owner,
@@ -1281,6 +1619,7 @@ pub fn GeneratorSettingsEditor(
                                 }
                             }
                         }
+                        }
                     }
                     }
                   }
@@ -1288,12 +1627,12 @@ pub fn GeneratorSettingsEditor(
             }
             if let Some(draft) = active_draft.as_ref() {
                 match &draft.status {
-                    GeneratorPreviewStatus::Pending => rsx! { p { role: "status", "Generating footprint preview…" } },
-                    GeneratorPreviewStatus::Ready => rsx! { p { role: "status", "Current generator preview is ready to apply." } },
-                    GeneratorPreviewStatus::Failed(error) => rsx! { p { class: "m1-parts-load-error", role: "alert", "Generator preview failed: {error}" } },
+                    GeneratorPreviewStatus::Pending => rsx! { div { role: "status", class: "flex items-center gap-2", Spinner {} "Generating footprint preview…" } },
+                    GeneratorPreviewStatus::Ready => rsx! { div { role: "status", "Current generator preview is ready to apply." } },
+                    GeneratorPreviewStatus::Failed(error) => rsx! { Alert { variant: AlertVariant::Destructive, "Generator preview failed: {error}" } },
                 }
             }
-            if model_uploading() { p { role: "status", "Reading and saving generator model…" } }
+            if model_uploading() { div { role: "status", class: "flex items-center gap-2", Spinner {} "Reading and saving generator model…" } }
             if let Some(message) = feedback()
                 .filter(|message| owner_context_is_current(
                     &message.owner,
@@ -1304,12 +1643,12 @@ pub fn GeneratorSettingsEditor(
                     workspace(),
                 ))
             {
-                p { class: "m1-parts-load-error", role: "alert", "{message.message}" }
+                Alert { variant: AlertVariant::Destructive, "{message.message}" }
             }
-            button {
-                class: "m1-generator-apply",
-                r#type: "button",
-                disabled: !preview_ready || pending_apply().is_some(),
+            Button {
+                variant: ButtonVariant::Default,
+                class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                disabled: !preview_ready || pending_edits.is_pending(&GeneratorKey::Apply),
                 onclick: on_apply,
                 "Apply generator settings"
             }
@@ -1328,6 +1667,7 @@ fn GeneratorParameterField(
 ) -> Element {
     let key = entry.key.clone();
     let label = entry.label.clone();
+    let mut file_input = use_signal(|| None::<HtmlInputElement>);
     if key.to_ascii_lowercase().ends_with("3dmodel_filename") {
         let current = input_value(&value, &entry.kind);
         let field_error = feedback.filter(|message| {
@@ -1336,114 +1676,114 @@ fn GeneratorParameterField(
                 .starts_with(&key.replace('_', " ").to_ascii_lowercase())
         });
         return rsx! {
-            div { class: "m1-generator-field m1-generator-model-field",
-                label { "{label}",
-                    input {
-                        r#type: "text",
-                        aria_label: "{key}",
-                        value: "{current}",
-                        readonly: true,
-                    }
-                }
-                label { class: "m1-generator-field", "Attach STEP / STL / WRL",
-                    input {
-                        r#type: "file",
-                        accept: ".step,.stp,.stl,.wrl,model/step,model/stl,model/vrml",
-                        disabled: busy,
-                        onchange: move |event| {
-                            let Some(input) = event
-                                .data()
-                                .try_as_web_event()
-                                .and_then(|event| event.target())
-                                .and_then(|target| target.dyn_into::<HtmlInputElement>().ok())
-                            else {
-                                return;
-                            };
-                            let Some(file) = input.files().and_then(|files| files.get(0)) else {
-                                return;
-                            };
-                            input.set_value("");
-                            on_import.call((key.clone(), file));
+            div { class: "grid gap-2",
+                EditorTextField { label: "{label}", aria_label: "{key}", value: "{current}", readonly: true }
+                Button {
+                    variant: ButtonVariant::Secondary,
+                    class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    disabled: busy,
+                    onclick: move |_| {
+                        if let Some(input) = file_input() {
+                            input.click();
                         }
+                    },
+                    "Attach STEP / STL / WRL"
+                }
+                input {
+                    r#type: "file",
+                    hidden: true,
+                    accept: ".step,.stp,.stl,.wrl,model/step,model/stl,model/vrml",
+                    aria_label: "Attach STEP / STL / WRL",
+                    disabled: busy,
+                    onmounted: move |event: MountedEvent| {
+                        file_input.set(event.data().downcast::<web_sys::Element>().and_then(|e| e.dyn_ref::<HtmlInputElement>()).cloned());
+                    },
+                    onchange: move |event| {
+                        let Some(input) = event
+                            .data()
+                            .try_as_web_event()
+                            .and_then(|event| event.target())
+                            .and_then(|target| target.dyn_into::<HtmlInputElement>().ok())
+                        else {
+                            return;
+                        };
+                        let Some(file) = input.files().and_then(|files| files.get(0)) else {
+                            return;
+                        };
+                        input.set_value("");
+                        on_import.call((key.clone(), file));
                     }
                 }
                 if !current.is_empty() {
-                    button {
-                        r#type: "button",
-                        class: "m1-generator-apply",
+                    Button {
+                        variant: ButtonVariant::Default,
+                        class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         disabled: busy,
                         onclick: move |_| on_change.call(Value::String(String::new())),
                         "Remove model"
                     }
                 }
-                if let Some(message) = field_error { p { class: "m1-parts-load-error", role: "alert", "{message}" } }
+                if let Some(message) = field_error { FieldError { "{message}" } }
             }
         };
     }
     if key == "side" && matches!(value.as_str(), Some("F" | "B")) {
         let selected = value.as_str().unwrap_or("F").to_owned();
         return rsx! {
-            label { class: "m1-generator-field", "{label}",
-                select {
-                    aria_label: "side",
-                    value: "{selected}",
-                    onchange: move |event| on_change.call(Value::String(event.value())),
-                    option { value: "F", "Front" }
-                    option { value: "B", "Back" }
-                }
+            EditorSelect {
+                label: label.clone(),
+                aria_label: "side",
+                value: selected,
+                options: vec![("F".to_owned(), "Front".to_owned()), ("B".to_owned(), "Back".to_owned())],
+                on_select: move |value: String| on_change.call(Value::String(value)),
             }
         };
     }
     match entry.kind.as_str() {
         "boolean" => rsx! {
-            label { class: "m1-generator-toggle",
-                input {
-                    r#type: "checkbox",
+            FieldLabel { html_for: format!("generator-toggle-{key}-{}", dioxus::core::current_scope_id().0), class: "min-h-control-touch",
+                Checkbox {
+                    id: format!("generator-toggle-{key}-{}", dioxus::core::current_scope_id().0),
                     aria_label: "{key}",
-                    checked: value.as_bool().unwrap_or(false),
-                    onchange: move |event| on_change.call(Value::Bool(event.checked())),
+                    checked: Some(if value.as_bool().unwrap_or(false) { CheckboxState::Checked } else { CheckboxState::Unchecked }),
+                    on_checked_change: move |state: CheckboxState| on_change.call(Value::Bool(bool::from(state))),
                 }
-                "{label}"
+                span { "{label}" }
             }
         },
         "array" | "object" | "anchor" => {
             let current = input_value(&value, &entry.kind);
             rsx! {
-                label { class: "m1-generator-field", "{label}",
-                    textarea {
-                        aria_label: "{key}",
-                        rows: 3,
-                        spellcheck: "false",
-                        value: "{current}",
-                        oninput: move |event| on_change.call(Value::String(event.value())),
-                    }
+                EditorTextarea {
+                    label: "{label}",
+                    aria_label: "{key}",
+                    rows: 3,
+                    spellcheck: false,
+                    value: "{current}",
+                    oninput: move |event: FormEvent| on_change.call(Value::String(event.value())),
                 }
             }
         }
         "number" => {
             let current = input_value(&value, "number");
             rsx! {
-                label { class: "m1-generator-field", "{label}",
-                    input {
-                        r#type: "number",
-                        step: "any",
-                        aria_label: "{label}",
-                        value: "{current}",
-                        oninput: move |event| on_change.call(Value::String(event.value())),
-                    }
+                EditorNumberField {
+                    label: "{label}",
+                    aria_label: "{label}",
+                    step: "any",
+                    value: "{current}",
+                    oninput: move |event: FormEvent| on_change.call(Value::String(event.value())),
                 }
             }
         }
         _ => {
             let current = input_value(&value, &entry.kind);
             rsx! {
-                label { class: "m1-generator-field", "{label}",
-                    input {
-                        r#type: "text",
-                        aria_label: "{key}",
-                        value: "{current}",
-                        oninput: move |event| on_change.call(Value::String(event.value())),
-                    }
+                EditorTextField {
+                    label: "{label}",
+                    aria_label: "{key}",
+                    value: "{current}",
+                    oninput: move |event: FormEvent| on_change.call(Value::String(event.value())),
                 }
             }
         }
@@ -1456,6 +1796,10 @@ mod tests {
     use crate::runtime::project_name_test_support as support;
     use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
     use boardstudio_core::model::{Board, MechanicalPartProfile, ProjectDoc, SceneDelta};
+    use boardstudio_web_host::host::{UpdateSignals, UpdateWatch};
+    use boardstudio_web_host::offline::{AdoptError, UpdateSnapshot};
+    use boardstudio_web_runtime::update_safety::{UpdateBlocker, UpdateDialog, UpdateOpener};
+    use boardstudio_web_ui_shared::test_role::by_role_name;
     use futures_channel::oneshot;
     use std::sync::Arc;
     use std::{cell::RefCell, collections::VecDeque};
@@ -1534,7 +1878,7 @@ mod tests {
             .iter()
             .find(|item| item.id == definition().id)
             .cloned()
-            .unwrap_or_else(|| definition());
+            .unwrap_or_else(&*definition);
         *handles.borrow_mut() = Some(GeneratorMountedSignals {
             definition,
             selected,
@@ -1579,7 +1923,16 @@ mod tests {
         Rc<GeneratorMountedFixture>,
         Rc<RefCell<Option<GeneratorMountedSignals>>>,
     ) {
-        let first = definition();
+        mount_generator_editor_with(definition()).await
+    }
+
+    async fn mount_generator_editor_with(
+        first: PartDefinition,
+    ) -> (
+        web_sys::Element,
+        Rc<GeneratorMountedFixture>,
+        Rc<RefCell<Option<GeneratorMountedSignals>>>,
+    ) {
         let mut second = first.clone();
         second.id = "test:other-mx-switch".into();
         second.name = "Other MX switch".into();
@@ -1628,19 +1981,19 @@ mod tests {
             dom,
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        wait_for_selector(&root, "input[aria-label='Keycap Width']").await;
+        wait_for_control(&root, "spinbutton", "Keycap Width").await;
         (root, fixture, handles)
     }
 
-    async fn wait_for_selector(root: &web_sys::Element, selector: &str) {
+    async fn wait_for_control(root: &web_sys::Element, role: &str, name: &str) {
         for _ in 0..150 {
-            if root.query_selector(selector).unwrap().is_some() {
+            if by_role_name(root, role, name).is_some() {
                 return;
             }
             gloo_timers::future::TimeoutFuture::new(20).await;
         }
         panic!(
-            "timed out waiting for mounted selector {selector}; mounted text was: {}",
+            "timed out waiting for mounted {role} {name}; mounted text was: {}",
             root.text_content().unwrap_or_default()
         );
     }
@@ -1667,11 +2020,33 @@ mod tests {
         panic!("no controlled candidate request arrived for width {width}");
     }
 
+    // Ticket 012 P1 third slice: raw-text variant of the width-request wait.
+    // The width control is a native number input, which sanitizes non-numeric
+    // text, so a realistic invalid draft here is the cleared field (""); the
+    // f64-parsing wait above cannot observe it. Same purpose: the request's
+    // arrival proves the input was processed before the gate polls.
+    async fn take_raw_width_request(
+        requests: &Rc<RefCell<VecDeque<CandidateRequest>>>,
+        text: &str,
+    ) -> CandidateRequest {
+        for _ in 0..150 {
+            let index = {
+                let queue = requests.borrow();
+                queue.iter().position(|request| {
+                    request.edits.get("keycap_width") == Some(&Value::String(text.into()))
+                })
+            };
+            if let Some(index) = index {
+                return requests.borrow_mut().remove(index).unwrap();
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        panic!("no controlled candidate request arrived for width text {text}");
+    }
+
     fn dispatch_width(root: &web_sys::Element, width: &str) {
-        let input = root
-            .query_selector("input[aria-label='Keycap Width']")
-            .unwrap()
-            .unwrap()
+        let input = by_role_name(root, "spinbutton", "Keycap Width")
+            .expect("mounted keycap width field")
             .dyn_into::<web_sys::HtmlInputElement>()
             .unwrap();
         input.set_value(width);
@@ -1850,8 +2225,10 @@ mod tests {
         let accepted = runtime.model().accepted.unwrap();
         let mut owner = owner;
         owner.session_epoch = accepted.session_epoch;
-        let ticket = EditTicket::begin(
+        let mut edits = PendingEdits::default();
+        edits.begin(
             &runtime,
+            0_u64,
             "generator-test",
             None,
             generator_apply_resolver(
@@ -1861,7 +2238,10 @@ mod tests {
             ),
         );
         support::run_pending(&runtime).await;
-        assert!(matches!(ticket.settlement(true), Settlement::Landed { .. }));
+        assert!(matches!(
+            edits.settle(true).as_slice(),
+            [PendingEditResult::Landed { .. }]
+        ));
         let accepted = runtime.model().accepted.unwrap();
         let applied = &accepted.document.definitions[0];
         assert_eq!(applied.name, "Latest accepted name");
@@ -1874,16 +2254,18 @@ mod tests {
         deleted.definitions.clear();
         support::open_document(&runtime, deleted).await;
         owner.session_epoch = runtime.model().accepted.unwrap().session_epoch;
-        let ticket = EditTicket::begin(
+        edits.begin(
             &runtime,
+            1_u64,
             "generator-test",
             None,
             generator_apply_resolver(owner, candidate, BTreeSet::from(["keycap_width".into()])),
         );
         support::run_pending(&runtime).await;
-        assert!(
-            matches!(ticket.settlement(true), Settlement::Failed { message } if message.contains("removed"))
-        );
+        assert!(matches!(
+            edits.settle(true).as_slice(),
+            [PendingEditResult::Failed { message, .. }] if message.contains("removed")
+        ));
     }
 
     #[wasm_bindgen_test]
@@ -1902,8 +2284,10 @@ mod tests {
         )
         .await;
         let (entered, release) = support::gate_next_core_reply(&fixture.runtime);
-        let _rename = boardstudio_web_runtime::edit_ticket::EditTicket::begin(
+        let mut renames = PendingEdits::default();
+        renames.begin(
             &fixture.runtime,
+            0_u64,
             "definition-name",
             Some("name".into()),
             boardstudio_application::EditResolver::new(
@@ -1922,12 +2306,8 @@ mod tests {
         );
         support::drive_pending(&fixture.runtime);
         entered.await.unwrap();
-        let apply = root
-            .query_selector(".m1-generator-settings > button.m1-generator-apply")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap();
+        let apply =
+            by_role_name(&root, "button", "Apply generator settings").expect("apply action");
         apply.click();
         gloo_timers::future::TimeoutFuture::new(30).await;
         support::drive_pending(&fixture.runtime);
@@ -1991,12 +2371,7 @@ mod tests {
     }
 
     #[wasm_bindgen_test]
-    async fn uploaded_model_projects_accepted_filename_without_erasing_dirty_width() {
-        uploaded_model_projection(false).await;
-    }
-
-    #[wasm_bindgen_test]
-    async fn upload_preview_refresh_does_not_keep_a_later_failed_apply_draft() {
+    async fn upload_preview_refresh_keeps_a_later_failed_apply_draft() {
         uploaded_model_projection(true).await;
     }
 
@@ -2008,18 +2383,17 @@ mod tests {
         let request = take_request(&fixture.requests, 21.0).await;
         let prepared = candidate(&request);
         finish_request(request, Ok(prepared)).await;
-        let field = root
-            .query_selector("input[aria-label='switch_3dmodel_filename']")
-            .unwrap()
-            .unwrap()
+        let filename_field = by_role_name(&root, "textbox", "switch_3dmodel_filename")
+            .expect("mounted generator model filename");
+        let container = filename_field
             .parent_element()
-            .unwrap()
-            .parent_element()
-            .unwrap();
-        let input = field
+            .and_then(|input_group| input_group.parent_element())
+            .and_then(|field| field.parent_element())
+            .expect("model field container");
+        let input = container
             .query_selector("input[type=file]")
             .unwrap()
-            .unwrap()
+            .expect("mounted generator model file input")
             .dyn_into::<web_sys::HtmlInputElement>()
             .unwrap();
         let file = web_sys::File::new_with_str_sequence(
@@ -2047,11 +2421,8 @@ mod tests {
             gloo_timers::future::TimeoutFuture::new(20).await;
             effects.extend(support::take_held_effects(&fixture.runtime));
             if fail_queued_apply && !apply_queued && !effects.is_empty() {
-                root.query_selector(".m1-generator-settings > button.m1-generator-apply")
-                    .unwrap()
-                    .unwrap()
-                    .dyn_into::<web_sys::HtmlElement>()
-                    .unwrap()
+                by_role_name(&root, "button", "Apply generator settings")
+                    .expect("apply action")
                     .click();
                 apply_queued = true;
             }
@@ -2091,18 +2462,15 @@ mod tests {
             .as_str()
             .unwrap();
         assert!(filename.starts_with("boardstudio-asset:"));
-        let displayed = field
-            .query_selector("input[type=text]")
-            .unwrap()
-            .unwrap()
+        let displayed = by_role_name(&root, "textbox", "switch_3dmodel_filename")
+            .expect("mounted generator model filename")
             .dyn_into::<web_sys::HtmlInputElement>()
             .unwrap();
         assert_eq!(displayed.value(), filename);
-        assert!(field.text_content().unwrap().contains("Remove model"));
+        assert!(root.text_content().unwrap().contains("Remove model"));
         assert_eq!(
-            root.query_selector("input[aria-label='Keycap Width']")
-                .unwrap()
-                .unwrap()
+            by_role_name(&root, "spinbutton", "Keycap Width")
+                .expect("mounted keycap width field")
                 .dyn_into::<web_sys::HtmlInputElement>()
                 .unwrap()
                 .value(),
@@ -2127,21 +2495,23 @@ mod tests {
         if fail_queued_apply {
             wait_for_text(&root, "[role='alert']", "Apply after upload failed").await;
             assert_eq!(
-                root.query_selector("input[aria-label='Keycap Width']")
-                    .unwrap()
-                    .unwrap()
+                by_role_name(&root, "spinbutton", "Keycap Width")
+                    .expect("mounted keycap width field")
                     .dyn_into::<web_sys::HtmlInputElement>()
                     .unwrap()
                     .value(),
-                "18.0"
+                "21"
             );
         }
         finish_request(refreshed, Ok(prepared)).await;
         let store = handles.borrow().as_ref().unwrap().store;
         if fail_queued_apply {
             assert!(
-                store.read().is_none(),
-                "late preview cannot restore the rejected draft"
+                store
+                    .read()
+                    .as_ref()
+                    .is_some_and(|draft| draft.definition.is_some()),
+                "late preview keeps the preserved failed draft for retry"
             );
         } else {
             assert!(store.read().as_ref().unwrap().definition.is_some());
@@ -2168,8 +2538,10 @@ mod tests {
             source: None,
         };
         let (entered, release) = support::gate_next_core_reply(&runtime);
-        let upload = EditTicket::begin(
+        let mut edits = PendingEdits::default();
+        edits.begin(
             &runtime,
+            0_u64,
             "upload-test",
             None,
             generator_model_upload_resolver(
@@ -2188,8 +2560,9 @@ mod tests {
             &BTreeMap::from([("keycap_width".into(), Value::from(20))]),
         )
         .unwrap();
-        let apply = EditTicket::begin(
+        edits.begin(
             &runtime,
+            1_u64,
             "apply-test",
             None,
             generator_apply_resolver(owner, prepared, BTreeSet::from(["keycap_width".into()])),
@@ -2197,8 +2570,16 @@ mod tests {
         release.send(()).unwrap();
         gloo_timers::future::TimeoutFuture::new(30).await;
         support::run_pending(&runtime).await;
-        assert!(matches!(upload.settlement(true), Settlement::Landed { .. }));
-        assert!(matches!(apply.settlement(true), Settlement::Landed { .. }));
+        assert!(
+            matches!(
+                edits.settle(true).as_slice(),
+                [
+                    PendingEditResult::Landed { .. },
+                    PendingEditResult::Landed { .. }
+                ]
+            ),
+            "the queued apply runs behind the held upload and both land"
+        );
         let accepted = runtime.model().accepted.unwrap();
         assert_eq!(
             accepted.document.definitions[0]
@@ -2234,12 +2615,8 @@ mod tests {
             "Current generator preview is ready",
         )
         .await;
-        let button = root
-            .query_selector(".m1-generator-settings > button.m1-generator-apply")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap();
+        let button =
+            by_role_name(&root, "button", "Apply generator settings").expect("apply action");
         let (entered, release) = support::gate_next_core_reply(&fixture.runtime);
         button.click();
         gloo_timers::future::TimeoutFuture::new(30).await;
@@ -2299,7 +2676,7 @@ mod tests {
     }
 
     #[wasm_bindgen_test]
-    async fn failed_apply_restores_accepted_parameters_and_reports_failure() {
+    async fn failed_apply_preserves_typed_parameters_and_reports_failure() {
         let (root, fixture, _) = mount_generator_editor().await;
         let initial = take_initial_default_request(&fixture.requests).await;
         finish_request(initial, Err("superseded".into())).await;
@@ -2314,22 +2691,17 @@ mod tests {
         )
         .await;
         support::fail_next_core_reply(&fixture.runtime, "controlled Apply failure");
-        root.query_selector(".m1-generator-settings > button.m1-generator-apply")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap()
+        by_role_name(&root, "button", "Apply generator settings")
+            .expect("apply action")
             .click();
         gloo_timers::future::TimeoutFuture::new(30).await;
         support::run_pending(&fixture.runtime).await;
         wait_for_text(&root, "[role='alert']", "controlled Apply failure").await;
-        let input = root
-            .query_selector("input[aria-label='Keycap Width']")
-            .unwrap()
-            .unwrap()
+        let input = by_role_name(&root, "spinbutton", "Keycap Width")
+            .expect("mounted keycap width field")
             .dyn_into::<web_sys::HtmlInputElement>()
             .unwrap();
-        assert_eq!(input.value(), "18.0");
+        assert_eq!(input.value(), "20");
         fixture.runtime.unsubscribe();
         root.remove();
     }
@@ -2341,9 +2713,8 @@ mod tests {
         wait_for_text(&root, "[role='status']", "Generating footprint preview").await;
         let request = take_request(&fixture.requests, 19.0).await;
         assert!(
-            root.query_selector(".m1-generator-settings > button.m1-generator-apply")
-                .unwrap()
-                .unwrap()
+            by_role_name(&root, "button", "Apply generator settings")
+                .expect("apply action")
                 .has_attribute("disabled")
         );
 
@@ -2355,9 +2726,8 @@ mod tests {
         )
         .await;
         assert!(
-            root.query_selector(".m1-generator-settings > button.m1-generator-apply")
-                .unwrap()
-                .unwrap()
+            by_role_name(&root, "button", "Apply generator settings")
+                .expect("apply action")
                 .has_attribute("disabled")
         );
         let accepted = fixture.runtime.model().accepted.unwrap();
@@ -2377,17 +2747,134 @@ mod tests {
         root.remove();
     }
 
+    fn mounted_value(root: &web_sys::Element, role: &str, name: &str) -> String {
+        by_role_name(root, role, name)
+            .unwrap_or_else(|| panic!("mounted field {role} {name}"))
+            .dyn_into::<web_sys::HtmlInputElement>()
+            .unwrap()
+            .value()
+    }
+
+    fn mounted_textarea_value(root: &web_sys::Element, name: &str) -> String {
+        by_role_name(root, "textbox", name)
+            .unwrap_or_else(|| panic!("mounted textarea {name}"))
+            .dyn_into::<web_sys::HtmlTextAreaElement>()
+            .unwrap()
+            .value()
+    }
+
+    fn mounted_checked(root: &web_sys::Element, name: &str) -> bool {
+        by_role_name(root, "checkbox", name)
+            .unwrap_or_else(|| panic!("mounted checkbox {name}"))
+            .get_attribute("aria-checked")
+            .as_deref()
+            == Some("true")
+    }
+
+    #[wasm_bindgen_test]
+    async fn saved_null_and_missing_parameters_show_and_preview_declared_defaults() {
+        for saved in [
+            serde_json::json!({
+                "keycap_width": null, "hotswap": null, "designator": null,
+                "keycap_3dmodel_xyz_scale": null, "from": null
+            }),
+            serde_json::json!({}),
+        ] {
+            let mut saved_definition = definition();
+            saved_definition.generator.as_mut().unwrap().parameters =
+                serde_json::from_value(saved).unwrap();
+            let (root, fixture, _) = mount_generator_editor_with(saved_definition).await;
+            let width = mounted_value(&root, "spinbutton", "Keycap Width");
+            assert_eq!(width.parse::<f64>(), Ok(18.0));
+            assert!(mounted_checked(&root, "hotswap"));
+            assert_eq!(mounted_value(&root, "textbox", "designator"), "S");
+            let scale = mounted_textarea_value(&root, "keycap_3dmodel_xyz_scale");
+            assert_eq!(
+                serde_json::from_str::<Value>(&scale).unwrap(),
+                serde_json::json!([1, 1, 1])
+            );
+            assert_eq!(
+                Some(mounted_value(&root, "textbox", "from")),
+                Some(String::new())
+            );
+
+            let request = take_initial_default_request(&fixture.requests).await;
+            assert_eq!(request.edits["keycap_width"], 18.0);
+            assert_eq!(request.edits["hotswap"], true);
+            assert_eq!(request.edits["designator"], "S");
+            assert_eq!(
+                request.edits["keycap_3dmodel_xyz_scale"],
+                serde_json::json!([1, 1, 1])
+            );
+            assert!(
+                !request.edits.contains_key("from"),
+                "a net without a default stays absent"
+            );
+            let prepared =
+                super::super::catalogue::normalize_generator_definition(candidate(&request))
+                    .await
+                    .expect("defaults prepare a candidate");
+            let parameters = &prepared.generator.as_ref().unwrap().parameters;
+            assert_eq!(parameters["hotswap"], true);
+            assert!(parameters.get("from").is_none_or(Value::is_null));
+            finish_request(request, Ok(prepared)).await;
+            wait_for_text(
+                &root,
+                "[role='status']",
+                "Current generator preview is ready",
+            )
+            .await;
+            let accepted = fixture.runtime.model().accepted.unwrap();
+            assert_eq!(accepted.document, fixture.snapshot.document);
+            assert_eq!(
+                accepted.document.revision,
+                fixture.snapshot.document.revision
+            );
+            root.remove();
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn explicit_null_draft_selects_the_default_and_non_null_draft_wins() {
+        let (root, fixture, _) = mount_generator_editor().await;
+        let request = take_initial_default_request(&fixture.requests).await;
+        let mut saved = request.definition.clone();
+        saved
+            .generator
+            .as_mut()
+            .unwrap()
+            .parameters
+            .insert("keycap_width".into(), Value::from(25));
+        let width = |edit: Value| {
+            let edits = BTreeMap::from([("keycap_width".to_owned(), edit)]);
+            apply_input(&saved, &request.schema, &edits)
+                .unwrap()
+                .generator
+                .unwrap()
+                .parameters["keycap_width"]
+                .clone()
+        };
+        assert_eq!(width(Value::Null), 18.0);
+        assert_eq!(width(Value::from(30)), 30.0);
+        assert_eq!(width(Value::String("31".into())), 31.0);
+        assert!(
+            apply_input(
+                &saved,
+                &request.schema,
+                &BTreeMap::from([("keycap_width".to_owned(), Value::String(" ".into()))])
+            )
+            .is_err()
+        );
+        root.remove();
+    }
+
     #[wasm_bindgen_test]
     async fn mounted_generator_initial_schema_default_seeds_unapplied_preview() {
         let (root, fixture, handles) = mount_generator_editor().await;
-        let side = root.query_selector("select[aria-label='side']").unwrap();
-        let side = side.expect("mounted Board side control");
-        assert_eq!(
-            js_sys::Reflect::get(side.as_ref(), &"value".into())
-                .unwrap()
-                .as_string()
-                .as_deref(),
-            Some("F")
+        let side = by_role_name(&root, "button", "side").expect("mounted Board side control");
+        assert!(
+            side.text_content().unwrap_or_default().contains("Front"),
+            "the side picker shows the Front default"
         );
 
         let request = take_initial_default_request(&fixture.requests).await;
@@ -2522,5 +3009,906 @@ mod tests {
             fixture.snapshot.document
         );
         root.remove();
+    }
+
+    // ---- Ticket 012 P1 first slice: generator Apply draft defers Update Now. ----
+    //
+    // RED: no Parts adapter exists yet, so the gate adopts instead of deferring.
+    // Smallest coherent mounted regression through the real Runtime gate with a
+    // live generator owner: a real valid unapplied width draft at the toast entry.
+    // Oracle: deferral state, per-(owner, key) area/remedy copy, unchanged draft,
+    // zero adoptions. Header, invalid, lifecycle and multi-key rows follow separately.
+
+    struct FakeUpdateSignals012 {
+        snapshot: Rc<RefCell<UpdateSnapshot>>,
+        adoptions: Rc<Cell<u32>>,
+    }
+
+    impl FakeUpdateSignals012 {
+        fn new(snapshot: UpdateSnapshot) -> Self {
+            Self {
+                snapshot: Rc::new(RefCell::new(snapshot)),
+                adoptions: Rc::new(Cell::new(0)),
+            }
+        }
+    }
+
+    impl UpdateSignals for FakeUpdateSignals012 {
+        fn snapshot(&self) -> UpdateSnapshot {
+            *self.snapshot.borrow()
+        }
+
+        fn watch(&self, _on_change: Rc<dyn Fn()>) -> Box<dyn UpdateWatch> {
+            struct Stop;
+            impl UpdateWatch for Stop {
+                fn stop(&mut self) {}
+            }
+            Box::new(Stop)
+        }
+
+        fn adopt_waiting(
+            &self,
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), AdoptError>>>> {
+            let adoptions = self.adoptions.clone();
+            Box::pin(async move {
+                adoptions.set(adoptions.get() + 1);
+                Ok(())
+            })
+        }
+
+        fn reload(&self) {}
+    }
+
+    fn waiting_update_012() -> UpdateSnapshot {
+        UpdateSnapshot {
+            waiting: true,
+            installing: false,
+            controlled: true,
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_generator_valid_apply_draft_defers_update_now_at_the_toast_012() {
+        let (root, fixture, _) = mount_generator_editor().await;
+        let signals = Rc::new(FakeUpdateSignals012::new(waiting_update_012()));
+        fixture.runtime.observe_update_waiting(signals.clone());
+        // Drain the mount-time default preview so the width request below proves
+        // the input was processed; preview outcome never affects the draft gate.
+        let initial = take_initial_default_request(&fixture.requests).await;
+        finish_request(initial, Err("superseded by 012 RED".into())).await;
+        // Baseline keycap_width is 18.0; "20" is a real valid unapplied Apply draft.
+        dispatch_width(&root, "20");
+        let width_request = take_request(&fixture.requests, 20.0).await;
+        finish_request(width_request, Err("superseded by 012 RED".into())).await;
+        fixture.runtime.begin_update(UpdateOpener::Toast);
+        match fixture.runtime.update_dialog() {
+            Some(UpdateDialog::Deferred { blockers }) => {
+                assert_eq!(
+                    blockers.len(),
+                    1,
+                    "only the generator draft defers: {blockers:?}"
+                );
+                match &blockers[0] {
+                    UpdateBlocker::UnresolvedDraft { area, remedy } => {
+                        assert_eq!(area, "Generator settings");
+                        assert_eq!(
+                            remedy,
+                            "Apply the generator settings, or restore its saved values"
+                        );
+                    }
+                    other => panic!("expected the generator draft blocker, got {other:?}"),
+                }
+            }
+            other => panic!("expected a deferred update dialog, got {other:?}"),
+        }
+        assert_eq!(signals.adoptions.get(), 0, "the draft never adopts");
+        let width = by_role_name(&root, "spinbutton", "Keycap Width")
+            .expect("mounted keycap width field")
+            .dyn_into::<web_sys::HtmlInputElement>()
+            .unwrap()
+            .value();
+        assert_eq!(width, "20", "deferral preserves the exact draft text");
+        fixture.runtime.unsubscribe();
+        root.remove();
+    }
+
+    // ---- Ticket 012 P1 second slice: same generator Apply draft at the header entry. ----
+    //
+    // Mirrors the toast case with only the entry point parameterized: a real valid
+    // unapplied width draft must defer Update Now from the header with the same
+    // per-(owner, key) area/remedy copy, zero adoptions, and preserved draft.
+    // Distinct failure story is header-checkpoint wiring; both checkpoints poll
+    // the same registry via update_safety_inputs, so no production change is
+    // expected — this run verifies, it does not assume.
+    #[wasm_bindgen_test]
+    async fn mounted_generator_valid_apply_draft_defers_update_now_at_the_header_012() {
+        let (root, fixture, _) = mount_generator_editor().await;
+        let signals = Rc::new(FakeUpdateSignals012::new(waiting_update_012()));
+        fixture.runtime.observe_update_waiting(signals.clone());
+        // Drain the mount-time default preview so the width request below proves
+        // the input was processed; preview outcome never affects the draft gate.
+        let initial = take_initial_default_request(&fixture.requests).await;
+        finish_request(initial, Err("superseded by 012 RED".into())).await;
+        // Baseline keycap_width is 18.0; "20" is a real valid unapplied Apply draft.
+        dispatch_width(&root, "20");
+        let width_request = take_request(&fixture.requests, 20.0).await;
+        finish_request(width_request, Err("superseded by 012 RED".into())).await;
+        fixture.runtime.begin_update(UpdateOpener::Header);
+        match fixture.runtime.update_dialog() {
+            Some(UpdateDialog::Deferred { blockers }) => {
+                assert_eq!(
+                    blockers.len(),
+                    1,
+                    "only the generator draft defers: {blockers:?}"
+                );
+                match &blockers[0] {
+                    UpdateBlocker::UnresolvedDraft { area, remedy } => {
+                        assert_eq!(area, "Generator settings");
+                        assert_eq!(
+                            remedy,
+                            "Apply the generator settings, or restore its saved values"
+                        );
+                    }
+                    other => panic!("expected the generator draft blocker, got {other:?}"),
+                }
+            }
+            other => panic!("expected a deferred update dialog, got {other:?}"),
+        }
+        assert_eq!(signals.adoptions.get(), 0, "the draft never adopts");
+        let width = by_role_name(&root, "spinbutton", "Keycap Width")
+            .expect("mounted keycap width field")
+            .dyn_into::<web_sys::HtmlInputElement>()
+            .unwrap()
+            .value();
+        assert_eq!(width, "20", "deferral preserves the exact draft text");
+        fixture.runtime.unsubscribe();
+        root.remove();
+    }
+
+    // ---- Ticket 012 P1 third slice: realistic invalid unsubmitted draft at the toast. ----
+    //
+    // A width draft the owner's own Apply would not accept must defer Update Now
+    // with NO submit attempt, and the deferral must not depend on any
+    // invalid-field marker. The width control is a native number input, which
+    // sanitizes non-numeric text, so the realistic invalid draft here is the
+    // cleared field: the Apply path rejects it ("keycap width must be a finite
+    // number."). Generator fields carry no aria-invalid marker (census A1), so
+    // the test asserts its absence when the gate polls. Distinct failure story
+    // is invalid-unsubmitted deferral (fail-closed comparison, never-submit
+    // path).
+    #[wasm_bindgen_test]
+    async fn mounted_generator_invalid_apply_draft_defers_update_now_at_the_toast_012() {
+        let (root, fixture, _) = mount_generator_editor().await;
+        let signals = Rc::new(FakeUpdateSignals012::new(waiting_update_012()));
+        fixture.runtime.observe_update_waiting(signals.clone());
+        // Drain the mount-time default preview so the width request below proves
+        // the input was processed; preview outcome never affects the draft gate.
+        let initial = take_initial_default_request(&fixture.requests).await;
+        finish_request(initial, Err("superseded by 012 invalid".into())).await;
+        // Baseline keycap_width is 18.0; clearing the field is a realistic
+        // invalid unsubmitted Apply draft (empty text is not a finite number),
+        // so no submit is attempted. The raw-text request wait proves the
+        // input was processed: the f64-parsing wait cannot observe "".
+        dispatch_width(&root, "");
+        let width_request = take_raw_width_request(&fixture.requests, "").await;
+        finish_request(width_request, Err("superseded by 012 invalid".into())).await;
+        let field =
+            by_role_name(&root, "spinbutton", "Keycap Width").expect("mounted keycap width field");
+        assert_ne!(
+            field.get_attribute("aria-invalid").as_deref(),
+            Some("true"),
+            "the never-submitted invalid draft carries no invalid-field marker"
+        );
+        fixture.runtime.begin_update(UpdateOpener::Toast);
+        match fixture.runtime.update_dialog() {
+            Some(UpdateDialog::Deferred { blockers }) => {
+                assert_eq!(
+                    blockers.len(),
+                    1,
+                    "only the generator draft defers: {blockers:?}"
+                );
+                match &blockers[0] {
+                    UpdateBlocker::UnresolvedDraft { area, remedy } => {
+                        assert_eq!(area, "Generator settings");
+                        assert_eq!(
+                            remedy,
+                            "Apply the generator settings, or restore its saved values"
+                        );
+                    }
+                    other => panic!("expected the generator draft blocker, got {other:?}"),
+                }
+            }
+            other => panic!("expected a deferred update dialog, got {other:?}"),
+        }
+        assert_eq!(signals.adoptions.get(), 0, "the draft never adopts");
+        let width = field
+            .dyn_into::<web_sys::HtmlInputElement>()
+            .unwrap()
+            .value();
+        assert_eq!(
+            width, "",
+            "deferral preserves the cleared draft, not the baseline"
+        );
+        fixture.runtime.unsubscribe();
+        root.remove();
+    }
+
+    // ---- Ticket 012 P2 Apply→Upload: Apply landing preserves an Upload draft. ----
+    //
+    // Drafts unresolved under both keys: an Apply width draft plus an Upload model
+    // filename draft typed while the Apply is in flight (newer typing, so the older
+    // Apply settlement must preserve it). Landing the Apply re-baselines the width;
+    // the Upload key must still defer with its own remedy naming Upload only.
+    // Distinct failure story is per-admission-key independence in the Apply→Upload
+    // direction; the reverse direction follows separately.
+    #[wasm_bindgen_test]
+    async fn mounted_generator_apply_landing_preserves_upload_draft_012() {
+        let (root, fixture, _) = mount_generator_editor().await;
+        let signals = Rc::new(FakeUpdateSignals012::new(waiting_update_012()));
+        fixture.runtime.observe_update_waiting(signals.clone());
+        // Drain the mount-time default preview so later requests prove inputs processed.
+        let initial = take_initial_default_request(&fixture.requests).await;
+        finish_request(initial, Err("superseded by 012 P2".into())).await;
+        // Baseline keycap_width is 18.0; "20" is a real valid unapplied Apply draft.
+        dispatch_width(&root, "20");
+        let width_request = take_request(&fixture.requests, 20.0).await;
+        let ready = candidate(&width_request);
+        finish_request(width_request, Ok(ready)).await;
+        wait_for_text(
+            &root,
+            "[role='status']",
+            "Current generator preview is ready",
+        )
+        .await;
+        // Submit Apply and hold its landing so the Upload draft below is newer typing.
+        let (entered, release) = support::gate_next_core_reply(&fixture.runtime);
+        by_role_name(&root, "button", "Apply generator settings")
+            .expect("apply action")
+            .click();
+        gloo_timers::future::TimeoutFuture::new(30).await;
+        support::drive_pending(&fixture.runtime);
+        entered.await.unwrap();
+        // Upload draft: Remove the switch model while Apply is in flight. The
+        // filename field is readonly, so Remove is the production path that clears
+        // it to ""; the preview request arrival proves the input was processed.
+        let filename_field = by_role_name(&root, "textbox", "switch_3dmodel_filename")
+            .expect("mounted generator model filename");
+        let container = filename_field
+            .parent_element()
+            .and_then(|input_group| input_group.parent_element())
+            .and_then(|field| field.parent_element())
+            .expect("model field container");
+        let buttons = container.query_selector_all("button").unwrap();
+        let mut remove_button = None;
+        for index in 0..buttons.length() {
+            let button = buttons
+                .item(index)
+                .expect("model field button")
+                .dyn_into::<web_sys::HtmlElement>()
+                .unwrap();
+            if button
+                .text_content()
+                .unwrap_or_default()
+                .contains("Remove model")
+            {
+                remove_button = Some(button);
+                break;
+            }
+        }
+        remove_button
+            .expect("remove model button for switch")
+            .click();
+        let remove_request = take_request(&fixture.requests, 20.0).await;
+        assert_eq!(
+            remove_request.edits.get("switch_3dmodel_filename"),
+            Some(&Value::String("".into())),
+            "the Remove input was processed before the gate polls"
+        );
+        finish_request(remove_request, Err("superseded by 012 P2".into())).await;
+        // Land the older Apply; newer Upload input must survive.
+        release.send(()).unwrap();
+        gloo_timers::future::TimeoutFuture::new(30).await;
+        support::run_pending(&fixture.runtime).await;
+        gloo_timers::future::TimeoutFuture::new(30).await;
+        assert_eq!(
+            fixture
+                .runtime
+                .model()
+                .accepted
+                .unwrap()
+                .document
+                .definitions[0]
+                .generator
+                .as_ref()
+                .unwrap()
+                .parameters["keycap_width"],
+            Value::from(20.0),
+            "the Apply landed before the gate polls"
+        );
+        assert_eq!(
+            mounted_value(&root, "spinbutton", "Keycap Width"),
+            "20",
+            "the landed width draft is preserved as text"
+        );
+        assert_eq!(
+            mounted_value(&root, "textbox", "switch_3dmodel_filename"),
+            "",
+            "the newer Upload draft survives the older Apply landing"
+        );
+        fixture.runtime.begin_update(UpdateOpener::Toast);
+        match fixture.runtime.update_dialog() {
+            Some(UpdateDialog::Deferred { blockers }) => {
+                assert_eq!(
+                    blockers.len(),
+                    1,
+                    "only the Upload draft defers: {blockers:?}"
+                );
+                match &blockers[0] {
+                    UpdateBlocker::UnresolvedDraft { area, remedy } => {
+                        assert_eq!(area, "Generator settings");
+                        assert_eq!(
+                            remedy,
+                            "Upload the generator model, or restore its saved values"
+                        );
+                    }
+                    other => panic!("expected the Upload draft blocker, got {other:?}"),
+                }
+            }
+            other => {
+                panic!("expected a deferred update dialog for the Upload draft, got {other:?}")
+            }
+        }
+        assert_eq!(signals.adoptions.get(), 0, "the Upload draft never adopts");
+        fixture.runtime.unsubscribe();
+        root.remove();
+    }
+
+    // ---- Ticket 012 P2 Upload→Apply: Upload landing preserves an Apply draft. ----
+    //
+    // Drafts unresolved under both keys: a real valid Apply width draft plus an
+    // Upload model filename draft via the production Remove path. Submitting Upload
+    // through the real file/model admission and landing it resolves Upload only;
+    // the Apply key must still defer with its own remedy naming Apply only.
+    // Distinct failure story is per-admission-key independence in the Upload→Apply
+    // direction; one key in flight never exempts the other.
+    #[wasm_bindgen_test]
+    async fn mounted_generator_upload_landing_preserves_apply_draft_012() {
+        let (root, fixture, _) = mount_generator_editor().await;
+        let signals = Rc::new(FakeUpdateSignals012::new(waiting_update_012()));
+        fixture.runtime.observe_update_waiting(signals.clone());
+        // Drain the mount-time default preview so later requests prove inputs processed.
+        let initial = take_initial_default_request(&fixture.requests).await;
+        finish_request(initial, Err("superseded by 012 P2".into())).await;
+        // Baseline keycap_width is 18.0; "20" is a real valid unapplied Apply draft.
+        dispatch_width(&root, "20");
+        let width_request = take_request(&fixture.requests, 20.0).await;
+        finish_request(width_request, Err("superseded by 012 P2".into())).await;
+        // Upload draft: Remove the switch model via the production path. The
+        // filename field is readonly, so Remove clears it to ""; the preview
+        // request arrival proves the input was processed.
+        let filename_field = by_role_name(&root, "textbox", "switch_3dmodel_filename")
+            .expect("mounted generator model filename");
+        let container = filename_field
+            .parent_element()
+            .and_then(|input_group| input_group.parent_element())
+            .and_then(|field| field.parent_element())
+            .expect("model field container");
+        let buttons = container.query_selector_all("button").unwrap();
+        let mut remove_button = None;
+        for index in 0..buttons.length() {
+            let button = buttons
+                .item(index)
+                .expect("model field button")
+                .dyn_into::<web_sys::HtmlElement>()
+                .unwrap();
+            if button
+                .text_content()
+                .unwrap_or_default()
+                .contains("Remove model")
+            {
+                remove_button = Some(button);
+                break;
+            }
+        }
+        remove_button
+            .expect("remove model button for switch")
+            .click();
+        let remove_request = take_request(&fixture.requests, 20.0).await;
+        assert_eq!(
+            remove_request.edits.get("switch_3dmodel_filename"),
+            Some(&Value::String("".into())),
+            "the Remove input was processed before the Upload submits"
+        );
+        finish_request(remove_request, Err("superseded by 012 P2".into())).await;
+        // Submit Upload through the real file/model admission (as in
+        // uploaded_model_projection): a test.stl file via the file input.
+        let input = container
+            .query_selector("input[type=file]")
+            .unwrap()
+            .expect("mounted generator model file input")
+            .dyn_into::<web_sys::HtmlInputElement>()
+            .unwrap();
+        let file = web_sys::File::new_with_str_sequence(
+            &js_sys::Array::of1(&wasm_bindgen::JsValue::from_str(
+                "solid test\nendsolid test\n",
+            )),
+            "test.stl",
+        )
+        .unwrap();
+        let descriptor = js_sys::Object::new();
+        js_sys::Reflect::set(&descriptor, &"value".into(), &js_sys::Array::of1(&file)).unwrap();
+        js_sys::Object::define_property(
+            input.unchecked_ref::<js_sys::Object>(),
+            &"files".into(),
+            &descriptor,
+        );
+        let init = web_sys::EventInit::new();
+        init.set_bubbles(true);
+        input
+            .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &init).unwrap())
+            .unwrap();
+        // Drive the real Upload until it lands; the accepted document must reflect it.
+        let mut effects = VecDeque::new();
+        for _ in 0..100 {
+            gloo_timers::future::TimeoutFuture::new(20).await;
+            effects.extend(support::take_held_effects(&fixture.runtime));
+            if let Some(effect) = effects.pop_front() {
+                effects.extend(support::run_effect(&fixture.runtime, effect).await);
+            }
+            if fixture
+                .runtime
+                .model()
+                .accepted
+                .as_ref()
+                .unwrap()
+                .document
+                .assets
+                .iter()
+                .any(|asset| asset.name == "test.stl")
+            {
+                break;
+            }
+        }
+        while let Some(effect) = effects.pop_front() {
+            effects.extend(support::run_effect(&fixture.runtime, effect).await);
+        }
+        effects.extend(support::take_held_effects(&fixture.runtime));
+        while let Some(effect) = effects.pop_front() {
+            effects.extend(support::run_effect(&fixture.runtime, effect).await);
+        }
+        gloo_timers::future::TimeoutFuture::new(30).await;
+        let accepted = fixture.runtime.model().accepted.unwrap();
+        let filename = accepted.document.definitions[0]
+            .generator
+            .as_ref()
+            .unwrap()
+            .parameters["switch_3dmodel_filename"]
+            .as_str()
+            .unwrap();
+        assert!(
+            filename.starts_with("boardstudio-asset:"),
+            "the Upload landed before the gate polls"
+        );
+        assert_eq!(
+            mounted_value(&root, "spinbutton", "Keycap Width"),
+            "20",
+            "the unsubmitted Apply draft survives the Upload landing"
+        );
+        assert_eq!(
+            mounted_value(&root, "textbox", "switch_3dmodel_filename"),
+            filename,
+            "the Upload landing resolves its own draft to the accepted asset"
+        );
+        // Drain the Upload-triggered preview refresh; outcome never affects the gate.
+        let refreshed = take_request(&fixture.requests, 20.0).await;
+        finish_request(refreshed, Err("superseded by 012 P2".into())).await;
+        fixture.runtime.begin_update(UpdateOpener::Toast);
+        match fixture.runtime.update_dialog() {
+            Some(UpdateDialog::Deferred { blockers }) => {
+                assert_eq!(
+                    blockers.len(),
+                    1,
+                    "only the Apply draft defers: {blockers:?}"
+                );
+                match &blockers[0] {
+                    UpdateBlocker::UnresolvedDraft { area, remedy } => {
+                        assert_eq!(area, "Generator settings");
+                        assert_eq!(
+                            remedy,
+                            "Apply the generator settings, or restore its saved values"
+                        );
+                    }
+                    other => panic!("expected the Apply draft blocker, got {other:?}"),
+                }
+            }
+            other => {
+                panic!("expected a deferred update dialog for the Apply draft, got {other:?}")
+            }
+        }
+        assert_eq!(signals.adoptions.get(), 0, "the Apply draft never adopts");
+        fixture.runtime.unsubscribe();
+        root.remove();
+    }
+
+    // ---- Ticket 012 P3 failure keeps deferring: failed Apply preserves draft. ----
+    //
+    // Valid unapplied width draft submitted via Apply, driven to FAILURE via a
+    // failed core reply (realistic terminal path: ExecutorFailed becomes Failed
+    // when the owner is live). Terminal failure must not clear: Update Now still
+    // defers with the Apply remedy, draft preserved. Distinct failure story:
+    // terminal records never exempt. Landing/newer-typing reuse P2
+    // (Apply→Upload + Upload→Apply); do not re-prove here.
+    #[wasm_bindgen_test]
+    async fn mounted_generator_failed_apply_keeps_deferring_update_now_at_the_toast_012() {
+        let (root, fixture, _) = mount_generator_editor().await;
+        let signals = Rc::new(FakeUpdateSignals012::new(waiting_update_012()));
+        fixture.runtime.observe_update_waiting(signals.clone());
+        let initial = take_initial_default_request(&fixture.requests).await;
+        finish_request(initial, Err("superseded by 012 P3".into())).await;
+        // Baseline keycap_width is 18.0; "20" is a real valid unapplied Apply draft.
+        dispatch_width(&root, "20");
+        let width_request = take_request(&fixture.requests, 20.0).await;
+        let ready = candidate(&width_request);
+        finish_request(width_request, Ok(ready)).await;
+        wait_for_text(
+            &root,
+            "[role='status']",
+            "Current generator preview is ready",
+        )
+        .await;
+        // Drive the Apply to terminal FAILURE via a failed core reply.
+        support::fail_next_core_reply(&fixture.runtime, "controlled Apply failure for 012 P3");
+        by_role_name(&root, "button", "Apply generator settings")
+            .expect("apply action")
+            .click();
+        gloo_timers::future::TimeoutFuture::new(30).await;
+        support::run_pending(&fixture.runtime).await;
+        wait_for_text(
+            &root,
+            "[role='alert']",
+            "controlled Apply failure for 012 P3",
+        )
+        .await;
+        // Terminal failure observed: accepted unchanged, draft preserved.
+        assert_eq!(
+            fixture
+                .runtime
+                .model()
+                .accepted
+                .unwrap()
+                .document
+                .definitions[0]
+                .generator
+                .as_ref()
+                .unwrap()
+                .parameters["keycap_width"],
+            Value::from(18.0),
+            "the failed Apply never landed"
+        );
+        assert_eq!(
+            mounted_value(&root, "spinbutton", "Keycap Width"),
+            "20",
+            "terminal failure preserves the draft for retry"
+        );
+        fixture.runtime.begin_update(UpdateOpener::Toast);
+        match fixture.runtime.update_dialog() {
+            Some(UpdateDialog::Deferred { blockers }) => {
+                // Failed core also raises RecoveryRequired (Session::core_failed);
+                // the P3 claim is the Apply draft still defers among them.
+                assert!(
+                    blockers.iter().any(|blocker| matches!(
+                        blocker,
+                        UpdateBlocker::UnresolvedDraft { area, remedy }
+                            if area == "Generator settings"
+                                && remedy
+                                    == "Apply the generator settings, or restore its saved values"
+                    )),
+                    "the failed Apply draft still defers: {blockers:?}"
+                );
+            }
+            other => {
+                panic!(
+                    "expected a deferred update dialog for the failed Apply draft, got {other:?}"
+                )
+            }
+        }
+        assert_eq!(signals.adoptions.get(), 0, "the failed draft never adopts");
+        fixture.runtime.unsubscribe();
+        root.remove();
+    }
+
+    // ---- Ticket 012 P3 revert clears: reverting to baseline resolves Apply. ----
+    //
+    // Valid unapplied width draft defers Update Now (asserted), then reverting the
+    // field to its baseline value through the production input path clears: Update
+    // Now proceeds with no Deferred from this owner. Distinct failure story: revert
+    // clears. Landing/newer-typing reuse P2 (Apply→Upload + Upload→Apply); do not
+    // re-prove here.
+    #[wasm_bindgen_test]
+    async fn mounted_generator_revert_to_baseline_clears_apply_draft_012() {
+        let (root, fixture, _) = mount_generator_editor().await;
+        let signals = Rc::new(FakeUpdateSignals012::new(waiting_update_012()));
+        fixture.runtime.observe_update_waiting(signals.clone());
+        let initial = take_initial_default_request(&fixture.requests).await;
+        finish_request(initial, Err("superseded by 012 P3".into())).await;
+        // Baseline keycap_width is 18.0; "20" is a real valid unapplied Apply draft.
+        dispatch_width(&root, "20");
+        let width_request = take_request(&fixture.requests, 20.0).await;
+        finish_request(width_request, Err("superseded by 012 P3".into())).await;
+        // First Update Now defers (asserted setup).
+        fixture.runtime.begin_update(UpdateOpener::Toast);
+        match fixture.runtime.update_dialog() {
+            Some(UpdateDialog::Deferred { blockers }) => {
+                assert_eq!(
+                    blockers.len(),
+                    1,
+                    "only the generator draft defers: {blockers:?}"
+                );
+                match &blockers[0] {
+                    UpdateBlocker::UnresolvedDraft { area, remedy } => {
+                        assert_eq!(area, "Generator settings");
+                        assert_eq!(
+                            remedy,
+                            "Apply the generator settings, or restore its saved values"
+                        );
+                    }
+                    other => panic!("expected the generator draft blocker, got {other:?}"),
+                }
+            }
+            other => panic!("expected a deferred update dialog, got {other:?}"),
+        }
+        assert_eq!(
+            signals.adoptions.get(),
+            0,
+            "the draft never adopts before revert"
+        );
+        fixture.runtime.cancel_update_dialog();
+        // Revert to baseline through the production input path.
+        dispatch_width(&root, "18.0");
+        let revert_request = take_request(&fixture.requests, 18.0).await;
+        finish_request(revert_request, Err("superseded by 012 P3".into())).await;
+        assert_eq!(
+            mounted_value(&root, "spinbutton", "Keycap Width"),
+            "18.0",
+            "revert restores the baseline text"
+        );
+        // Second Update Now proceeds: no Deferred from this owner.
+        fixture.runtime.begin_update(UpdateOpener::Toast);
+        for _ in 0..150 {
+            if signals.adoptions.get() == 1 {
+                break;
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        assert_eq!(signals.adoptions.get(), 1, "revert lets the update adopt");
+        assert!(
+            fixture.runtime.update_dialog().is_none(),
+            "no deferral remains after revert"
+        );
+        fixture.runtime.unsubscribe();
+        root.remove();
+    }
+
+    // ---- Ticket 012 P4 retention: hidden but mounted still defers. ----
+    //
+    // Valid unapplied Apply draft, then hide the mounted owner via display:none
+    // (established 011 hidden-owner pattern; the generator has no own hide path,
+    // so reuse, do not invent product UI). Update Now at toast must still defer
+    // with the Apply remedy, draft preserved. Distinct failure story is retention
+    // wiring (hidden keeps blocking); shared lifetime mechanics reuse 008/011.
+    #[wasm_bindgen_test]
+    async fn mounted_generator_hidden_apply_draft_still_defers_update_now_at_the_toast_012() {
+        let (root, fixture, _) = mount_generator_editor().await;
+        let signals = Rc::new(FakeUpdateSignals012::new(waiting_update_012()));
+        fixture.runtime.observe_update_waiting(signals.clone());
+        let initial = take_initial_default_request(&fixture.requests).await;
+        finish_request(initial, Err("superseded by 012 P4".into())).await;
+        // Baseline keycap_width is 18.0; "20" is a real valid unapplied Apply draft.
+        dispatch_width(&root, "20");
+        let width_request = take_request(&fixture.requests, 20.0).await;
+        finish_request(width_request, Err("superseded by 012 P4".into())).await;
+        // Hidden but mounted: display:none keeps signals alive, out of sight.
+        root.set_attribute("style", "display: none")
+            .expect("hide the mounted generator owner");
+        assert!(
+            by_role_name(&root, "spinbutton", "Keycap Width").is_some(),
+            "the hidden owner stays mounted"
+        );
+        fixture.runtime.begin_update(UpdateOpener::Toast);
+        match fixture.runtime.update_dialog() {
+            Some(UpdateDialog::Deferred { blockers }) => {
+                assert_eq!(
+                    blockers.len(),
+                    1,
+                    "only the generator draft defers: {blockers:?}"
+                );
+                match &blockers[0] {
+                    UpdateBlocker::UnresolvedDraft { area, remedy } => {
+                        assert_eq!(area, "Generator settings");
+                        assert_eq!(
+                            remedy,
+                            "Apply the generator settings, or restore its saved values"
+                        );
+                    }
+                    other => panic!("expected the generator draft blocker, got {other:?}"),
+                }
+            }
+            other => panic!("expected a deferred update dialog, got {other:?}"),
+        }
+        assert_eq!(signals.adoptions.get(), 0, "the hidden draft never adopts");
+        assert_eq!(
+            mounted_value(&root, "spinbutton", "Keycap Width"),
+            "20",
+            "deferral preserves the exact draft text"
+        );
+        fixture.runtime.unsubscribe();
+        root.remove();
+    }
+
+    // ---- Ticket 012 P4 retention: owner change retires the Apply draft. ----
+    //
+    // Valid unapplied Apply draft defers (asserted setup), then switch owner to
+    // the second definition via the production selection signals (definition +
+    // selected + selection_generation bump, as existing selection tests do).
+    // The old registration retires via effect rotation + edits clear; Update Now
+    // at toast must proceed with no UnresolvedDraft from the retired entry.
+    // Distinct failure story is retire wiring; shared mechanics reuse 008/011.
+    #[wasm_bindgen_test]
+    async fn mounted_generator_owner_change_retires_apply_draft_012() {
+        let (root, fixture, handles) = mount_generator_editor().await;
+        let signals = Rc::new(FakeUpdateSignals012::new(waiting_update_012()));
+        fixture.runtime.observe_update_waiting(signals.clone());
+        let initial = take_initial_default_request(&fixture.requests).await;
+        finish_request(initial, Err("superseded by 012 P4".into())).await;
+        // Baseline keycap_width is 18.0; "20" is a real valid unapplied Apply draft.
+        dispatch_width(&root, "20");
+        let width_request = take_request(&fixture.requests, 20.0).await;
+        finish_request(width_request, Err("superseded by 012 P4".into())).await;
+        // First Update Now defers (asserted setup).
+        fixture.runtime.begin_update(UpdateOpener::Toast);
+        match fixture.runtime.update_dialog() {
+            Some(UpdateDialog::Deferred { blockers }) => {
+                assert_eq!(
+                    blockers.len(),
+                    1,
+                    "only the generator draft defers: {blockers:?}"
+                );
+                match &blockers[0] {
+                    UpdateBlocker::UnresolvedDraft { area, remedy } => {
+                        assert_eq!(area, "Generator settings");
+                        assert_eq!(
+                            remedy,
+                            "Apply the generator settings, or restore its saved values"
+                        );
+                    }
+                    other => panic!("expected the generator draft blocker, got {other:?}"),
+                }
+            }
+            other => panic!("expected a deferred update dialog, got {other:?}"),
+        }
+        assert_eq!(
+            signals.adoptions.get(),
+            0,
+            "the draft never adopts before retire"
+        );
+        fixture.runtime.cancel_update_dialog();
+        // Owner change via production selection signals (as existing tests do).
+        let mut mounted = handles.borrow().as_ref().copied().expect("mounted handles");
+        mounted.definition.set(fixture.second.clone());
+        mounted.selected.set(Some((
+            Some(fixture.scope.clone()),
+            fixture.second.id.clone(),
+        )));
+        mounted
+            .selection_generation
+            .with_mut(|generation| *generation += 1);
+        // The new owner's initial preview proves the switch was processed.
+        let switched = take_initial_default_request(&fixture.requests).await;
+        assert_eq!(
+            switched.definition.id, fixture.second.id,
+            "owner change was processed before the gate polls"
+        );
+        finish_request(switched, Err("superseded by 012 P4".into())).await;
+        // Second Update Now proceeds: no UnresolvedDraft from the retired entry.
+        fixture.runtime.begin_update(UpdateOpener::Toast);
+        for _ in 0..150 {
+            if signals.adoptions.get() == 1 {
+                break;
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        assert_eq!(signals.adoptions.get(), 1, "retire lets the update adopt");
+        assert!(
+            fixture.runtime.update_dialog().is_none(),
+            "no deferral remains after owner change"
+        );
+        fixture.runtime.unsubscribe();
+        root.remove();
+    }
+}
+
+/// What the Parts editor submits must pass Core's parameter check (ADR-0009). The parse is
+/// browser-only (`parts` is `wasm32`-only), so these run with the browser tests.
+#[cfg(test)]
+mod core_check_tests {
+    use super::*;
+    use boardstudio_core::generators;
+    use wasm_bindgen_test::*;
+
+    fn definition(source: &str) -> PartDefinition {
+        generators::catalogue()
+            .expect("catalogue")
+            .into_iter()
+            .find(|entry| {
+                entry
+                    .generator
+                    .as_ref()
+                    .is_some_and(|generator| generator.source == source)
+            })
+            .expect("bundled generator")
+    }
+
+    fn submit(source: &str, edits: Value) -> Result<PartDefinition, String> {
+        let base = definition(source);
+        let schema = generators::parameter_schema(source).expect("schema");
+        let edits: BTreeMap<String, Value> =
+            serde_json::from_value(edits).expect("edits are an object");
+        apply_input(&base, &schema, &edits)
+    }
+
+    #[wasm_bindgen_test]
+    fn submitted_numbers_and_lists_pass_the_core_check() {
+        let hole = submit(
+            "ceoloide/mounting_hole_npth",
+            serde_json::json!({ "hole_size": " 2.5 ", "hole_drill": "2.2" }),
+        )
+        .expect("numeric text is coerced");
+        assert_eq!(
+            generators::definition_error(&hole),
+            Ok(()),
+            "the coerced mounting hole passes Core"
+        );
+        assert!(hole.generator.as_ref().unwrap().parameters["hole_size"].is_number());
+
+        let mcu = submit(
+            "ceoloide/mcu_nice_nano",
+            serde_json::json!({ "mcu_3dmodel_xyz_offset": "[1, 2, 3]", "designator": "U9" }),
+        )
+        .expect("list text that parses as JSON is coerced");
+        assert_eq!(generators::definition_error(&mcu), Ok(()));
+        assert!(mcu.generator.as_ref().unwrap().parameters["mcu_3dmodel_xyz_offset"].is_array());
+    }
+
+    #[wasm_bindgen_test]
+    fn text_that_does_not_parse_is_refused_before_it_reaches_core() {
+        assert!(
+            submit(
+                "ceoloide/mounting_hole_npth",
+                serde_json::json!({ "hole_size": "two" })
+            )
+            .is_err()
+        );
+        assert!(
+            submit(
+                "ceoloide/mcu_nice_nano",
+                serde_json::json!({ "mcu_3dmodel_xyz_offset": "[1, 2" })
+            )
+            .is_err()
+        );
+    }
+
+    #[wasm_bindgen_test]
+    fn the_check_would_catch_text_the_form_did_not_coerce() {
+        // Negative control: a value written past the form is the wrong type for Core.
+        let mut written = definition("ceoloide/mounting_hole_npth");
+        written
+            .generator
+            .as_mut()
+            .unwrap()
+            .parameters
+            .insert("hole_size".into(), Value::from("2"));
+        let error = generators::definition_error(&written).expect_err("text for a number");
+        assert!(error.contains("hole_size"), "{error}");
+        assert!(error.contains("ceoloide/mounting_hole_npth"), "{error}");
     }
 }

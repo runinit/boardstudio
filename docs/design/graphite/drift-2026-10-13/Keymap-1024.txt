@@ -1,0 +1,125 @@
+Your app is being rebuilt.
+
+A non-hot-reloadable change occurred and we must rebuild.
+
+Corne
+Export
+Layers
+Layers
+0
+Base
+Add layer
+Layer name
+
+Higher layers take precedence. Transparent keys fall through to the layer below.
+
+Find a key
+left-keys-SW1
+Unassigned
+left-keys-SW2
+Unassigned
+left-keys-SW3
+Unassigned
+left-keys-SW4
+Unassigned
+left-keys-SW5
+Unassigned
+left-keys-SW6
+Unassigned
+left-keys-SW7
+Unassigned
+left-keys-SW8
+Unassigned
+left-keys-SW9
+Unassigned
+left-keys-SW10
+Unassigned
+left-keys-SW11
+Unassigned
+left-keys-SW12
+Unassigned
+left-keys-SW13
+Unassigned
+left-keys-SW14
+Unassigned
+left-keys-SW15
+Unassigned
+left-keys-SW16
+Unassigned
+left-keys-SW17
+Unassigned
+left-keys-SW18
+Unassigned
+left-thumbs-SW1
+Unassigned
+left-thumbs-SW2
+Unassigned
+left-thumbs-SW3
+Unassigned
+Layout
+PCB
+Keymap
+Keycaps
+Case
+Parts
+2D
+3D assembly
+Footprints
+—
+—
+—
+—
+—
+—
+—
+—
+—
+—
+—
+—
+—
+—
+—
+—
+—
+—
+—
+—
+—
+Inspect
+Keymap
+1 layers · 21 keys
+Keys
+Macros
+Encoders
+left-keys-SW1 · Base
+
+Unassigned
+
+Behavior
+Key press
+Mod tap
+Layer tap
+Momentary layer
+Toggle layer
+Go to layer
+Sticky layer
+Sticky key
+Macro
+Transparent
+Unassigned
+Export ZMK source
+
+Local source export. Configure controller and wiring in PCB before building firmware.
+
+mm
+X 15.53
+Y -45.12
+Grid ¼u
+Geometry snap on
+Fit board
+Fit selection
+−
+94%
++
+Layout findings: 2

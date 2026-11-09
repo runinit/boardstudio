@@ -1,6 +1,34 @@
 use crate::model::{CaseKind, Finding, HardwareOutput, MountKind, ProjectDoc, Scope, Severity};
 use std::collections::{BTreeMap, BTreeSet};
 
+/// Rejects duplicate identities in each top-level identity collection.
+///
+/// Duplicates are compared within one collection, not across entity kinds. Admission runs
+/// this before scripts or layout normalization, and publication runs it again on the
+/// generated document, so a later stage cannot hide or introduce an ambiguous identity.
+pub(crate) fn duplicate_top_level_identity(doc: &ProjectDoc) -> Option<String> {
+    fn duplicate<'a>(kind: &str, ids: impl Iterator<Item = &'a str>) -> Option<String> {
+        let mut seen = BTreeSet::new();
+        for id in ids {
+            if !seen.insert(id) {
+                return Some(format!("Duplicate {kind} identity {id:?}"));
+            }
+        }
+        None
+    }
+    duplicate("part", doc.parts.iter().map(|entry| entry.id.as_str()))
+        .or_else(|| {
+            duplicate(
+                "definition",
+                doc.definitions.iter().map(|entry| entry.id.as_str()),
+            )
+        })
+        .or_else(|| duplicate("board", doc.boards.iter().map(|entry| entry.id.as_str())))
+        .or_else(|| duplicate("matrix", doc.matrices.iter().map(|entry| entry.id.as_str())))
+        .or_else(|| duplicate("net", doc.nets.iter().map(|entry| entry.id.as_str())))
+        .or_else(|| duplicate("constraint", doc.constraints.iter().map(|entry| entry.id())))
+}
+
 fn error(scope: Scope, id: String, message: &str, targets: Vec<String>) -> Finding {
     Finding {
         id,
@@ -13,6 +41,9 @@ fn error(scope: Scope, id: String, message: &str, targets: Vec<String>) -> Findi
 
 pub fn validate(doc: &ProjectDoc) -> Vec<Finding> {
     let mut findings = crate::hardware::nominal_fit(doc).0;
+    findings.extend(crate::generators::parameter_findings(doc));
+    findings.extend(crate::mirrored_half::heading_findings(doc));
+    findings.extend(crate::mirrored_half::module_findings(doc));
     for board in &doc.boards {
         findings.extend(crate::keycaps::resolve(doc, &board.id, None).findings);
         findings.extend(crate::modules::resolve(doc, &board.id).findings);
@@ -138,28 +169,32 @@ pub fn validate(doc: &ProjectDoc) -> Vec<Finding> {
             && let Some(id) = &state.active_version_id
         {
             if let Some(version) = state.versions.iter().find(|version| &version.id == id) {
-                for feature in &version.geometry.features {
-                    let fixed = matches!(
-                        feature,
-                        crate::model::OutlineFeature::Polygon {
-                            anchor_part_id: None,
-                            ..
-                        } | crate::model::OutlineFeature::Rect {
-                            anchor_part_id: None,
-                            ..
+                // A linked refinement follows the board's components, so its authored
+                // attachments are legitimate; a fixed edited copy cannot contain one.
+                if version.ownership.is_fixed() {
+                    for feature in &version.geometry.features {
+                        let fixed = matches!(
+                            feature,
+                            crate::model::OutlineFeature::Polygon {
+                                anchor_part_id: None,
+                                ..
+                            } | crate::model::OutlineFeature::Rect {
+                                anchor_part_id: None,
+                                ..
+                            }
+                        );
+                        if !fixed {
+                            findings.push(error(
+                                Scope::Pcb,
+                                format!(
+                                    "board:{}:outline:fixed-attachment:{}",
+                                    board.id,
+                                    feature.id()
+                                ),
+                                "A fixed version cannot contain live component attachments",
+                                vec![board.id.clone(), feature.id().into()],
+                            ));
                         }
-                    );
-                    if !fixed {
-                        findings.push(error(
-                            Scope::Pcb,
-                            format!(
-                                "board:{}:outline:fixed-attachment:{}",
-                                board.id,
-                                feature.id()
-                            ),
-                            "A fixed version cannot contain live component attachments",
-                            vec![board.id.clone(), feature.id().into()],
-                        ));
                     }
                 }
             } else {
@@ -241,12 +276,7 @@ pub fn validate(doc: &ProjectDoc) -> Vec<Finding> {
                 vec![matrix.id.clone(), board_id.clone()],
             ));
         }
-        if matrix.rows == 0
-            || matrix.columns == 0
-            || matrix
-                .rows
-                .checked_mul(matrix.columns)
-                .is_none_or(|count| count > crate::matrix::MAX_MATRIX_PARTS)
+        if crate::matrix::valid_dimensions(matrix).is_err()
             || !matrix.pitch.x.is_finite()
             || !matrix.pitch.y.is_finite()
             || matrix.pitch.x <= 0.0
@@ -274,11 +304,15 @@ pub fn validate(doc: &ProjectDoc) -> Vec<Finding> {
                 vec![matrix.id.clone()],
             ));
         }
-        let disabled = matrix.cells.iter().filter(|cell| !cell.enabled).count();
+        let disabled = matrix
+            .cells
+            .iter()
+            .filter(|cell| !cell.enabled || cell.deleted)
+            .count();
         let companions: usize = matrix
             .cells
             .iter()
-            .filter(|cell| cell.enabled)
+            .filter(|cell| cell.enabled && !cell.deleted)
             .map(|cell| cell.assemblies.len())
             .sum();
         if matrix

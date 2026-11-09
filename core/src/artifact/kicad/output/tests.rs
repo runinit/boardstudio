@@ -72,6 +72,7 @@ fn generated_document() -> ProjectDoc {
         .collect();
     for (index, id) in ["p1", "p2"].into_iter().enumerate() {
         document.parts.push(Part {
+            anchor: None,
             id: id.into(),
             definition_id: format!("d{}", index + 1),
             reference: format!("U{}", index + 1),
@@ -108,6 +109,7 @@ fn placed_native_document(side: Side) -> ProjectDoc {
             rotation: 37.0,
         },
         side,
+        anchor: None,
         keycap: None,
         outline: None,
         locked: None,
@@ -185,6 +187,7 @@ fn unicode_uuid_is_stable_and_matches_javascript_codepoints() {
 fn rotated_oblong_uses_absolute_angle_and_back_side_canonical_mirror() {
     let definition = asymmetric_definition();
     let part = Part {
+        anchor: None,
         id: "placed".into(),
         definition_id: definition.id.clone(),
         reference: "U1".into(),
@@ -268,6 +271,7 @@ fn imported_source_rejects_nets_bound_to_removed_pad_ids() {
     let mut document = board_document();
     document.definitions.push(imported.definition);
     document.parts.push(Part {
+        anchor: None,
         id: "imported-part".into(),
         definition_id: "imported".into(),
         reference: "U1".into(),
@@ -563,4 +567,14 @@ fn standalone_export_disambiguates_repeated_footprint_names() {
         let stem = file.filename.strip_suffix(".kicad_mod").unwrap();
         assert!(file.content.starts_with(&format!("(footprint \"{stem}\"")));
     }
+}
+
+#[test]
+fn escapes_supported_control_whitespace_and_rejects_others() {
+    let form = "(gr_text \"a\nb\rc\td\" (layer \"F.SilkS\"))";
+    assert_eq!(
+        escape_quoted_controls(form).unwrap(),
+        "(gr_text \"a\\nb\\rc\\td\" (layer \"F.SilkS\"))"
+    );
+    assert!(escape_quoted_controls("(gr_text \"a\u{1}b\")").is_err());
 }

@@ -19,11 +19,11 @@ fn panel_composition() -> Element {
     });
     let requested = panels::use_workspace_panel_defaults(workspace(), objects_open, inspector_open);
     rsx! {
-        div { class: "m1-editor",
+        div { class: "flex min-h-0 flex-1 flex-col",
             button { id: "test-layout-route", onclick: move |_| workspace.set("Layout"), "Test ordinary Layout navigation" }
             button { id: "test-case-route", onclick: move |_| workspace.set("Case"), "Test ordinary Case navigation" }
             button { id: "test-reopen-guide", onclick: move |_| activate_stage(SetupGuideStage::Case, workspace, requested, objects_open, inspector_open, objects_settings, inspector_settings), "Test same-workspace guide reveal" }
-            div { class: "m1-editor-body",
+            div { class: "relative grid min-h-0 flex-1 grid-cols-[264px_minmax(0,1fr)_360px] overflow-hidden max-[760px]:flex max-[760px]:flex-col max-[760px]:overflow-visible",
                 ObjectsPanel { compact_open: objects_open, settings: objects_settings,
                     ProjectSetupGuide {
                         stage: stage(), stage_readiness: [false; 5], stage_detail: stage_detail(stage(), &ProjectDoc::empty("fixture", "Fixture"), "board"), project_name: "Fixture".to_owned(),
@@ -33,10 +33,10 @@ fn panel_composition() -> Element {
                             activate_stage(next, workspace, requested, objects_open, inspector_open, objects_settings, inspector_settings);
                         },
                         on_open_workspace: move |_| reveal_panels(crate::setup_guide_state::GuideReveal::Settings, objects_open, inspector_open, objects_settings, inspector_settings),
-                        on_open_matrix_setup: None, on_choose_controller: None, on_dismiss: |_| {}, project_controls: None,
+                        on_open_matrix_setup: None, on_choose_controller: None, on_dismiss: |_| {}, on_finish: |_| {}, project_controls: None,
                     }
                 }
-                section { class: "m1-workspace-content", "{workspace()}" }
+                section { class: "relative col-start-2 row-start-1 flex min-h-0 min-w-0 flex-col overflow-auto bg-canvas [container-type:inline-size] max-[760px]:order-1 max-[760px]:min-h-[54svh] max-[760px]:overflow-visible", role: "region", aria_label: "Fixture workspace", "{workspace()}" }
                 InspectorPanel { compact_open: inspector_open, settings: inspector_settings,
                     button { "Case settings control" }
                 }
@@ -57,9 +57,14 @@ fn element(selector: &str) -> web_sys::Element {
         .unwrap()
         .unwrap()
 }
-fn click(selector: &str) {
-    element(selector)
-        .dyn_into::<web_sys::HtmlElement>()
+fn click(name: &str) {
+    let root = web_sys::window()
+        .unwrap()
+        .document()
+        .unwrap()
+        .document_element()
+        .unwrap();
+    boardstudio_web_ui_shared::test_role::by_role_name(&root, "button", name)
         .unwrap()
         .click();
 }
@@ -83,7 +88,7 @@ async fn desktop_case_stage_opens_settings_and_keeps_the_guide_available() {
     let window = web_sys::window().unwrap();
     assert!(
         window
-            .match_media("(min-width: 981px)")
+            .match_media("(min-width: 980px)")
             .unwrap()
             .unwrap()
             .matches(),
@@ -105,11 +110,13 @@ async fn desktop_case_stage_opens_settings_and_keeps_the_guide_available() {
             .as_deref(),
         Some("collapsed")
     );
-    click(".m1-setup-guide__steps button:nth-child(4)");
+    click("Case (optional)");
     rendered().await;
     assert_panels(true, true);
     assert_eq!(
-        element(".m1-workspace-content").text_content().as_deref(),
+        element("[role=region][aria-label='Fixture workspace']")
+            .text_content()
+            .as_deref(),
         Some("Case")
     );
     assert_eq!(
@@ -119,15 +126,16 @@ async fn desktop_case_stage_opens_settings_and_keeps_the_guide_available() {
         Some("collapsed"),
         "choosing the guide stage must not open the settings panel"
     );
-    let copy = element(".m1-setup-guide").text_content().unwrap();
+    let copy = element("[aria-label='Project setup guide']")
+        .text_content()
+        .unwrap();
     assert_eq!(
-        copy.matches("Optional: configure a case or continue without one.")
+        copy.matches("Optional. Set the basics here, then refine your case in the full editor.")
             .count(),
         1,
         "Case readiness detail must appear once"
     );
-    assert!(copy.contains("Configure construction and clearances, then generate geometry when you are ready. PCB and firmware exports are available separately."));
-    click(".m1-setup-guide__secondary");
+    click("Open full case settings");
     rendered().await;
     assert_panels(true, true);
     assert_eq!(
@@ -136,12 +144,12 @@ async fn desktop_case_stage_opens_settings_and_keeps_the_guide_available() {
             .as_deref(),
         Some("pinned")
     );
-    click("#test-layout-route");
+    click("Test ordinary Layout navigation");
     rendered().await;
-    click("#test-case-route");
+    click("Test ordinary Case navigation");
     rendered().await;
     assert_panels(true, true);
-    click("#test-reopen-guide");
+    click("Test same-workspace guide reveal");
     rendered().await;
     assert_panels(true, true);
     assert_eq!(
@@ -156,5 +164,104 @@ async fn desktop_case_stage_opens_settings_and_keeps_the_guide_available() {
             .as_deref(),
         Some("pinned")
     );
+    root.remove();
+}
+
+fn freely_navigable_guide() -> Element {
+    let mut stage = use_signal(|| SetupGuideStage::Wiring);
+    let mut name = use_signal(|| "Guide fixture".to_owned());
+    rsx! {
+        ProjectSetupGuide {
+            stage: stage(), stage_readiness: [false, true, false, true, false],
+            stage_detail: "Fixture prerequisites".to_owned(), project_name: name(),
+            on_name_change: move |value| name.set(value), on_name_commit: |_| {},
+            on_stage_change: move |value| stage.set(value),
+            on_open_workspace: |_| {}, on_open_matrix_setup: None,
+            on_choose_controller: None, on_dismiss: |_| {}, on_finish: |_| {},
+            project_controls: None,
+        }
+    }
+}
+
+#[wasm_bindgen_test]
+async fn guide_current_and_ready_steps_remain_freely_navigable_without_losing_the_name_draft() {
+    use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
+    use wasm_bindgen::JsCast;
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = document.create_element("div").unwrap();
+    document.body().unwrap().append_child(&root).unwrap();
+    dioxus_web::launch::launch_virtual_dom(
+        VirtualDom::new(freely_navigable_guide),
+        dioxus_web::Config::new().rootnode(root.clone().into()),
+    );
+    wait_until("the named current guide step is available", || {
+        by_role_name(&root, "button", "Controller & wiring").is_some()
+    })
+    .await;
+    let current = by_role_name(&root, "button", "Controller & wiring").unwrap();
+    assert_eq!(
+        current.get_attribute("aria-current").as_deref(),
+        Some("step")
+    );
+    for (title, ready) in [
+        ("Project & hardware", false),
+        ("Layout & assemblies", true),
+        ("Controller & wiring", false),
+        ("Case (optional)", true),
+    ] {
+        let trigger = by_role_name(&root, "button", title).unwrap();
+        assert!(!trigger.has_attribute("disabled"));
+        assert_eq!(
+            trigger.get_attribute("aria-description").as_deref(),
+            Some(if ready { "Ready" } else { "Not ready" })
+        );
+    }
+    assert_eq!(
+        root.query_selector_all("[data-slot=stepper][data-orientation=Vertical]")
+            .unwrap()
+            .length(),
+        4
+    );
+    by_role_name(&root, "button", "Project & hardware")
+        .unwrap()
+        .click();
+    wait_until("the project step becomes current", || {
+        by_role_name(&root, "button", "Project & hardware")
+            .unwrap()
+            .get_attribute("aria-current")
+            .as_deref()
+            == Some("step")
+    })
+    .await;
+    let field: web_sys::HtmlInputElement = by_role_name(&root, "textbox", "Project name")
+        .unwrap()
+        .dyn_into()
+        .unwrap();
+    field.set_value("Uncommitted guide draft");
+    let event = web_sys::Event::new("input").unwrap();
+    event.init_event_with_bubbles_and_cancelable("input", true, true);
+    field.dispatch_event(&event).unwrap();
+    by_role_name(&root, "button", "Case (optional)")
+        .unwrap()
+        .click();
+    wait_until("a later ready stage is current", || {
+        by_role_name(&root, "button", "Case (optional)")
+            .unwrap()
+            .get_attribute("aria-current")
+            .as_deref()
+            == Some("step")
+    })
+    .await;
+    by_role_name(&root, "button", "Project & hardware")
+        .unwrap()
+        .click();
+    wait_until(
+        "returning retains the original field owner and draft",
+        || {
+            let current = by_role_name(&root, "textbox", "Project name").unwrap();
+            current.is_same_node(Some(&field)) && field.value() == "Uncommitted guide draft"
+        },
+    )
+    .await;
     root.remove();
 }

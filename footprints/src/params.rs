@@ -114,6 +114,21 @@ impl ParamSpec {
     pub const SIDE: ParamSpec = ParamSpec::string("side", "F");
 }
 
+/// A saved parameter value that a generator's declared schema does not accept.
+///
+/// Null is absent, as it is at render, so it is never a problem.
+#[derive(Clone, Debug, PartialEq)]
+pub enum ParameterProblem {
+    /// The value is not of the declared kind (`ParamKind::accepts` is false).
+    WrongType {
+        parameter: String,
+        expected: ParamKind,
+        found: Value,
+    },
+    /// The name is not declared; render ignores the value.
+    Undeclared { parameter: String, found: Value },
+}
+
 /// One entry of a generator's parameter schema, as the page shows it.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct ParameterSchema {

@@ -23,13 +23,13 @@ commits keep their strict captured-revision checks.
 
 Planning the panel migrations surfaced two rules that follow from this decision.
 
-- For a [field edit](../../CONTEXT.md), the latest committed value wins. A resolver
+- For a [field edit](../../GLOSSARY.md), the latest committed value wins. A resolver
   does not compare the accepted value with the value the user saw when typing; it
   retires only when the target has gone or is no longer eligible (for example
   locked, relationship-driven or deleted). The Matrix Transform Inspector's
   "accepted value changed" rejection is removed during migration. Admission checks
   for selection lifetime and stale callbacks stay.
-- A [one-shot action](../../CONTEXT.md) disables its control, without a message,
+- A [one-shot action](../../GLOSSARY.md) disables its control, without a message,
   while its edit is pending, so a double click cannot create, delete or apply twice.
   Field edits are never disabled or refused while an earlier edit is pending.
 
@@ -41,7 +41,7 @@ normalised.
 
 After the migration every product commit is submitted as intent and settles through
 an edit ticket. Only three production paths still use the direct edit event, all for
-[edit previews](../../CONTEXT.md): the old position Inspector, the outline perimeter
+[edit previews](../../GLOSSARY.md): the old position Inspector, the outline perimeter
 and the Layout transform toolbar. The direct event refreshes its base revision, so a
 commit sent through it with a whole-document payload would silently restore values
 that landed after the payload was built.
@@ -64,6 +64,17 @@ Rejected for this question: keeping the rule as a documented convention (no
 enforcement), and rejecting commits at runtime while the type still allows them (the
 mistake surfaces in tests or use, not at compile time). Removing the revision refresh
 from the direct event was not needed once it carries previews only.
+
+## Amendment: a retired edit is silent (2026-10-07)
+
+Panels disagreed about an edit ticket that settles retired while its panel is still
+open (the session changed, the project closed, or Session superseded or cancelled the
+edit): some showed "did not complete in the active session", others nothing. On
+2026-10-07 the user chose silence everywhere
+([module deepening 01](../plans/module-deepening/issues/01-decide-pending-edit-settlement.md#answer)):
+a retired edit shows no message and its field shows the accepted value again, the
+same as an edit whose owner has gone. A landed edit shows no "Saved" status either;
+the accepted value is the confirmation. Failures keep their inline message.
 
 ## Considered Options
 

@@ -9,6 +9,7 @@
 //! persisted identifier contains `ergogen`.
 use crate::Result;
 use crate::context::RenderContext;
+use crate::generators::util::json_string;
 use crate::number::{js_number as n, js_to_fixed};
 use crate::params::ParamSpec;
 use crate::registry::{GeneratorSpec, License};
@@ -33,7 +34,7 @@ pub static SPEC: GeneratorSpec = GeneratorSpec {
         spdx: "MIT",
         author: "@dieseltravis + @ceoloide improvements",
     },
-    body,
+    body: crate::registry::Body::Text(body),
 };
 
 /// Polygon outline in the logo's own units.
@@ -97,6 +98,7 @@ const POINTS: [(f64, f64); 56] = [
 ];
 
 fn polygon(side: &str, layer: &str, scale: f64, mirrored: bool) -> String {
+    let layer = json_string(&format!("{side}.{layer}"));
     let points: Vec<String> = POINTS
         .iter()
         .map(|&(x, y)| {
@@ -110,7 +112,7 @@ fn polygon(side: &str, layer: &str, scale: f64, mirrored: bool) -> String {
         })
         .collect();
     format!(
-        "(fp_poly (pts {}) (stroke (width 0.01) (type solid)) (fill solid) (layer \"{side}.{layer}\"))\n",
+        "(fp_poly (pts {}) (stroke (width 0.01) (type solid)) (fill solid) (layer {layer}))\n",
         points.join(" ")
     )
 }
@@ -121,7 +123,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         "(footprint \"ceoloide:utility_logo\"
   (layer \"{side}.Cu\")
   {at}
-  (property \"Reference\" \"{reference}\"
+  (property \"Reference\" {reference}
     (at {label_x} 0 {rotation})
     (layer \"{side}.Fab\")
     {hide}
@@ -130,7 +132,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
   (attr exclude_from_pos_files exclude_from_bom)
 ",
         at = p.at(),
-        reference = p.reference(),
+        reference = json_string(p.reference()),
         label_x = n(scale * 4.572),
         rotation = n(p.rotation()),
         hide = p.ref_hide(),

@@ -5,7 +5,7 @@
 //! Author: @infused-kim
 use crate::Result;
 use crate::context::RenderContext;
-use crate::generators::util::{ModelDefaults, ModelParams, infused_model};
+use crate::generators::util::{ModelDefaults, ModelParams, infused_model, json_string};
 use crate::number::js_number as n;
 use crate::params::ParamSpec;
 use crate::registry::{GeneratorSpec, License};
@@ -58,7 +58,7 @@ pub static SPEC: GeneratorSpec = GeneratorSpec {
         spdx: "CC-BY-NC-SA-4.0",
         author: "@infused-kim",
     },
-    body,
+    body: crate::registry::Body::Text(body),
 };
 
 fn body(p: &RenderContext<'_>) -> Result<String> {
@@ -107,12 +107,12 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
       (module nice!view (layer F.Cu) (tedit 6448AF5B)
         {e0}
         (attr virtual)
-        (fp_text reference "{e1}" (at 0 20 {e2}) (layer {e3}.SilkS) {e4}
+        (fp_text reference {e1} (at 0 20 {e2}) (layer {e3}.SilkS) {e4}
           (effects (font (size 1 1) (thickness 0.15)))
         )
         "####,
         e0 = p.at(),
-        e1 = p.reference(),
+        e1 = json_string(p.reference()),
         e2 = n(p.rotation()),
         e3 = p.side(),
         e4 = p.ref_hide()

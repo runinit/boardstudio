@@ -1,14 +1,20 @@
 //! Presentation drafts and DOM input are separate from the durable session state.
+pub(crate) use boardstudio_web_layout::anchor_badge;
 pub(crate) use boardstudio_web_layout::board_inspector;
 pub(crate) use boardstudio_web_ui_shared::canvas_layers;
+pub(crate) use boardstudio_web_ui_shared::canvas_navigation::{
+    CanvasNavigationState, use_canvas_navigation_state,
+};
 mod canvas_status_footer;
 pub(crate) use boardstudio_web_case::case_controller;
 pub(crate) use boardstudio_web_case::case_display;
 pub(crate) use boardstudio_web_case::case_viewer;
 mod case_workspace;
+mod command_palette;
 mod context_summary;
 mod empty_board_canvas;
 mod export_workspace;
+mod header;
 pub(crate) use boardstudio_web_pcb::firmware_positions;
 pub(crate) use boardstudio_web_ui_shared::geometry_scripts;
 mod inspector;
@@ -21,12 +27,31 @@ mod keycaps_workspace;
 pub(crate) use boardstudio_web_keymap::keymap;
 mod keymap_workspace;
 pub(crate) use boardstudio_web_ui_shared::layout_camera;
+#[cfg(test)]
+mod layout_anchor_badge_tests;
+mod layout_canvas;
 mod layout_component_edits;
 #[cfg(test)]
 mod layout_component_inspector_tests;
 #[cfg(test)]
+mod layout_draft_safety_tests;
+#[cfg(test)]
+mod layout_field_preview_tests;
+#[cfg(test)]
+mod layout_layers_tests;
+#[cfg(test)]
+mod layout_relation_highlight_tests;
+#[cfg(test)]
 mod layout_remainder_tests;
+#[cfg(test)]
+mod layout_spacing_ghost_tests;
+#[cfg(test)]
+mod layout_split_focus_tests;
 pub(crate) use boardstudio_web_layout::layout_findings;
+pub(crate) use boardstudio_web_layout::layout_findings_state::{
+    ReturnTarget as LayoutFindingReturnTarget, layout_finding_is_live,
+    layout_finding_return_is_current, source_matches_layout_owner, use_layout_findings_state,
+};
 pub(crate) use boardstudio_web_layout::layout_viewer;
 // Shared UI vocabulary lives in `boardstudio-web-ui-model`; re-export it here so
 // presentation modules keep addressing it as `super::selection`, `super::InstanceSelection`
@@ -41,18 +66,24 @@ pub(crate) use boardstudio_web_ui_model::selection::{
 };
 #[cfg(test)]
 pub(crate) use boardstudio_web_ui_model::state::use_empty_test_instance_selection;
+pub(crate) use boardstudio_web_ui_model::state::{
+    AppearanceState, PreferenceStorageWarning, ThemeState,
+};
 #[allow(unused_imports)]
 pub(crate) use boardstudio_web_ui_model::state::{
-    CaseGenerationState, CompactPanelState, Drag, InstanceSelection, LayerVisibility,
-    LayoutOwnerIdentity, ProjectMenuPage, ResolvedTheme, WorkspaceState,
+    CaseGenerationState, CompactPanelState, Drag, FieldPreview, FieldPreviewSource,
+    FieldPreviewState, InstanceSelection, LayerVisibility, LayoutOwnerIdentity, RelationHighlight,
+    ResolvedAppearance, WorkspaceState,
 };
-pub(crate) use boardstudio_web_ui_model::state::{PreferenceStorageWarning, ThemeState};
 pub(crate) use boardstudio_web_ui_model::svg_coordinates::{
-    PointerLocation, coordinates, coordinates_at, pointer_location,
+    PointerLocation, coordinates, coordinates_at, coordinates_with_scale, pointer_location,
 };
-pub(crate) use boardstudio_web_ui_model::{canvas_interaction, instance_selection, selection};
+pub(crate) use boardstudio_web_ui_model::{
+    canvas_interaction, instance_selection, selection, spacing_ghost,
+};
 pub(crate) use boardstudio_web_ui_shared::panels::browse_parts_workspace;
-pub(crate) use boardstudio_web_ui_shared::project_menu::close_project_menu;
+mod layout_key_selection_actions;
+mod layout_matrix_relations;
 mod layout_workspace;
 pub(crate) use boardstudio_web_case::mechanical_settings;
 pub(crate) use boardstudio_web_case::mechanical_settings_mount;
@@ -63,9 +94,13 @@ pub(crate) use boardstudio_web_layout::part_placement;
 pub(crate) use boardstudio_web_library::library;
 pub(crate) use boardstudio_web_parts::parts;
 pub(crate) use boardstudio_web_ui_shared::panels;
+use boardstudio_web_ui_shared::ui::{
+    button::{Button, ButtonVariant},
+    field::FieldError,
+};
 use part_placement::{LayoutPlacementCancellation, layout_view_mode_handler};
 mod parts_workspace;
-pub(crate) use boardstudio_web_pcb::pcb_board_reference;
+mod setup_workspace;
 pub(crate) use boardstudio_web_pcb::pcb_layers;
 pub(crate) use boardstudio_web_pcb::pcb_module_footprints;
 pub(crate) use boardstudio_web_pcb::pcb_module_inspector;
@@ -75,8 +110,10 @@ pub(crate) use boardstudio_web_pcb::pcb_wiring;
 mod pcb_workspace;
 pub(crate) use boardstudio_web_case::shared_viewer;
 pub(crate) use boardstudio_web_layout::setup_guide;
+mod notifications;
 mod workbench_shortcuts;
 mod workspace_composition;
+mod workspace_navigation;
 mod zmk_firmware_export;
 
 use crate::case_generation_lifecycle::AutomaticCaseGeneration;
@@ -87,11 +124,12 @@ use library::Library;
 pub(crate) use mechanical_settings::{MechanicalSettings, MechanicalSettingsProps};
 pub(crate) use mechanical_settings_mount::MechanicalSettingsMount;
 use panels::{
-    InspectorPanel, ObjectsPanel, PanelMode, PanelSettings, PanelSide, use_panel_settings,
+    DockLayout, InspectorPanel, ObjectsPanel, PanelMode, PanelSettings, PanelSide,
+    use_panel_settings,
 };
 use parts::{PartsQuery, PartsSelection};
 use selection::{ReentrancyReset, SelectionAdapter};
-use setup_guide::{PendingNewKeyboard, SetupGuidePreferences, SetupGuideRequest, SetupGuideStage};
+use setup_guide::{PendingNewKeyboard, SetupGuideRequest, SetupGuideStage};
 use zmk_firmware_export::use_export_panel_input;
 #[cfg(test)]
 use zmk_firmware_export::{ZmkFirmwareExportPanelInput, ZmkFirmwareExportRow};
@@ -104,26 +142,19 @@ use boardstudio_application::{
     TerminalOutcome,
 };
 use boardstudio_core::model::{
-    Contour, EditCommand, EditOperation, EditPhase, Matrix, MatrixSplayAffect, Part,
-    PartDefinition, PartKind, PartOutline, Position, Vec2,
+    CompanionPlacementTarget, Contour, EditOperation, Finding as LayoutFinding, HalfExceptionState,
+    MirroredExceptionState, MirroredItemKind, Part, PartKind, PartOutline, Position, Vec2,
 };
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use footprint_graphics::FootprintGraphics;
 use std::{
     cell::{Cell, RefCell},
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet, HashSet},
     rc::Rc,
 };
 use wasm_bindgen::{JsCast, closure::Closure};
 use web_sys::{HtmlElement, SvgElement};
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct LayoutFindingReturnTarget {
-    owner: LayoutOwnerIdentity,
-    selection: objects::ScopedTreeContext,
-    destination: objects::TreeContext,
-}
 
 fn case_setup_context_is_current(
     identity: &pcb_physical_setup::OwnerIdentity,
@@ -139,6 +170,62 @@ fn case_setup_context_is_current(
                 && scope.board_id == identity.board_id
                 && (!strict || scope.instance_id == identity.instance_id)
         })
+}
+
+/// Keep accepted diagnostics stable while exposing only electrical loss notices from a preview.
+fn layout_findings_for_display(
+    accepted: &[LayoutFinding],
+    preview: Option<&[LayoutFinding]>,
+) -> Vec<LayoutFinding> {
+    let mut findings = accepted.to_vec();
+    findings.extend(
+        preview
+            .into_iter()
+            .flatten()
+            .filter(|finding| finding.id.starts_with("preview:electrical:"))
+            .cloned(),
+    );
+    findings
+}
+
+#[cfg(test)]
+mod layout_findings_for_display_tests {
+    use super::*;
+    use boardstudio_core::model::{Scope as FindingScope, Severity as FindingSeverity};
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    #[wasm_bindgen_test]
+    fn preview_adds_only_electrical_notices_and_keeps_accepted_findings() {
+        let accepted = LayoutFinding {
+            id: "accepted:layout:warning".into(),
+            severity: FindingSeverity::Warning,
+            scope: FindingScope::Layout,
+            message: "Accepted diagnostic remains visible".into(),
+            target_ids: vec!["accepted-part".into()],
+        };
+        let ordinary_preview = LayoutFinding {
+            id: "preview:layout:warning".into(),
+            severity: FindingSeverity::Warning,
+            scope: FindingScope::Layout,
+            message: "Ordinary preview diagnostic stays hidden".into(),
+            target_ids: vec!["preview-part".into()],
+        };
+        let electrical_preview = LayoutFinding {
+            id: "preview:electrical:net:1-61".into(),
+            severity: FindingSeverity::Info,
+            scope: FindingScope::Pcb,
+            message: "Electrical preview notice is visible".into(),
+            target_ids: vec!["preview-pad".into()],
+        };
+
+        assert_eq!(
+            layout_findings_for_display(
+                std::slice::from_ref(&accepted),
+                Some(&[ordinary_preview, electrical_preview.clone()]),
+            ),
+            vec![accepted, electrical_preview],
+        );
+    }
 }
 
 #[cfg(test)]
@@ -184,45 +271,18 @@ struct OwnedTreeCellAnchor {
 pub(super) struct ExportReturnWorkspace(pub(super) Signal<&'static str>);
 
 #[derive(Clone, Copy)]
-struct WorkspaceCallbackSlots {
+struct WorkspaceRoutingSlots {
     select_tree: EventHandler<objects::TreeSelectRequest>,
     navigate: EventHandler<(Scope, String, Option<String>)>,
-    nudge_tree: EventHandler<objects::TreeNudgeRequest>,
-    parts_select: EventHandler<()>,
-    toggle_footprints: EventHandler<()>,
-    retry_save: EventHandler<()>,
-    recover_saved: EventHandler<()>,
-    canvas_mount: EventHandler<MountedEvent>,
-    canvas_start_pan: EventHandler<PointerEvent>,
-    canvas_move_pointer: EventHandler<PointerEvent>,
-    canvas_end_pointer: EventHandler<PointerEvent>,
-    canvas_cancel_pointer: EventHandler<PointerEvent>,
-    canvas_keyboard: EventHandler<KeyboardEvent>,
-    canvas_key_up: EventHandler<KeyboardEvent>,
-    canvas_wheel: EventHandler<WheelEvent>,
-    keymap_select: EventHandler<String>,
-    keycaps_select: EventHandler<String>,
-    keycaps_finding: EventHandler<keycaps_fit::FindingNavigationRequest>,
-    pcb_empty_hit: EventHandler<PointerEvent>,
-    pcb_part_hit: EventHandler<pcb_scene::PcbPartHit>,
-    pcb_part_pointer_down: EventHandler<pcb_scene::PcbPartPointerDown>,
-    mounted_module_select: EventHandler<String>,
-    pcb_wiring_edit_board: EventHandler<()>,
-    layout_selection_kind: EventHandler<objects::LayoutSelectionKind>,
-    layout_snap_intent: EventHandler<objects::LayoutSnapIntent>,
-    pcb_selection_kind: EventHandler<objects::LayoutSelectionKind>,
-    pcb_snap_intent: EventHandler<objects::LayoutSnapIntent>,
-    pcb_transform_properties: EventHandler<()>,
-    case_action: EventHandler<case_workspace::TreeAction>,
-    case_display: EventHandler<case_workspace::DisplayRequest>,
-    keymap_layer: EventHandler<String>,
-    keymap_export: EventHandler<()>,
-    show_configured_board: EventHandler<String>,
-    open_geometry_scripts: EventHandler<()>,
 }
 
 #[allow(non_snake_case)]
 pub fn App() -> Element {
+    rsx! { WorkbenchApp {} }
+}
+
+#[component]
+fn WorkbenchApp() -> Element {
     let runtime = use_hook(Runtime::new);
     let runtime = match runtime {
         Ok(runtime) => runtime,
@@ -408,6 +468,8 @@ pub fn App() -> Element {
     use_context_provider(|| adapter.clone());
     let mut workspace = use_signal(|| "Layout");
     use_context_provider(|| WorkspaceState(workspace));
+    let project_browser = use_signal(|| false);
+    use_context_provider(|| library::ProjectBrowserState(project_browser));
     let mut objects_open = use_signal(|| false);
     let mut inspector_open = use_signal(|| false);
     use_context_provider(|| CompactPanelState {
@@ -500,25 +562,27 @@ pub fn App() -> Element {
     use_context_provider(|| layer_visibility);
     let preference_warning = use_signal(|| false);
     use_context_provider(|| PreferenceStorageWarning(preference_warning));
-    let theme = use_signal(move || panels::read_theme_preference(preference_warning));
-    let system_theme = use_signal(read_system_theme);
+    let appearance = use_signal(move || panels::read_appearance_preference(preference_warning));
+    let system_appearance = use_signal(read_system_appearance);
+    use_context_provider(|| AppearanceState(appearance));
+    let theme = use_signal(move || panels::read_workbench_theme_preference(preference_warning));
     use_context_provider(|| ThemeState(theme));
-    let resolved_theme = use_memo(move || {
-        let preference = theme();
+    let resolved_appearance = use_memo(move || {
+        let preference = appearance();
         if preference == "system" {
-            system_theme()
+            system_appearance()
         } else {
             preference
         }
     });
-    use_context_provider(|| ResolvedTheme(resolved_theme));
+    use_context_provider(|| ResolvedAppearance(resolved_appearance));
     let media_listener = use_hook(|| {
         Rc::new(RefCell::new(
             None::<(web_sys::MediaQueryList, Closure<dyn FnMut(web_sys::Event)>)>,
         ))
     });
     use_effect({
-        let mut system_theme = system_theme;
+        let mut system_appearance = system_appearance;
         let media_listener = media_listener.clone();
         move || {
             if let Some(query) = web_sys::window().and_then(|window| {
@@ -529,7 +593,7 @@ pub fn App() -> Element {
             }) {
                 let observed_query = query.clone();
                 let listener = Closure::wrap(Box::new(move |_event: web_sys::Event| {
-                    system_theme.set(if observed_query.matches() {
+                    system_appearance.set(if observed_query.matches() {
                         "dark"
                     } else {
                         "light"
@@ -552,13 +616,14 @@ pub fn App() -> Element {
             }
         }
     });
-    use_effect(use_reactive((&resolved_theme(),), {
-        move |(effective,)| {
+    use_effect(use_reactive((&resolved_appearance(), &theme()), {
+        move |(effective, theme)| {
             if let Some(root) = web_sys::window()
                 .and_then(|window| window.document())
                 .and_then(|document| document.document_element())
             {
-                let _ = root.set_attribute("data-theme", effective);
+                let _ = root.set_attribute("data-appearance", effective);
+                let _ = root.set_attribute("data-theme", theme);
             }
         }
     }));
@@ -578,73 +643,95 @@ pub fn App() -> Element {
     } else {
         durability_state(&runtime.model().durability)
     };
-    let mut project_menu_page = use_signal(|| ProjectMenuPage::Project);
+    let mut settings_open = use_signal(|| false);
+    let palette = command_palette::use_palette_state();
+    boardstudio_web_ui_shared::ui::command::use_command_registry();
+    library::use_project_tools();
+    let header_undo = runtime.clone();
+    let header_redo = runtime.clone();
+    let on_undo = EventHandler::new(move |()| {
+        header_undo.submit(Event::Undo {
+            operation_id: header_undo.operation(),
+        })
+    });
+    let on_redo = EventHandler::new(move |()| {
+        header_redo.submit(Event::Redo {
+            operation_id: header_redo.operation(),
+        })
+    });
+    let on_export = EventHandler::new(move |()| {
+        if workspace() == "Export" {
+            workspace.set(return_workspace())
+        } else {
+            workspace.set("Export")
+        }
+    });
+    command_palette::use_navigation_commands(
+        workspace,
+        project_browser,
+        runtime.model().accepted.is_some(),
+        on_undo,
+        on_redo,
+        on_export,
+    );
+    // The notification provider lives inside the workbench (not around it) so the
+    // ticket-019 Toast action slot can reach the Runtime above; the rendered order
+    // is unchanged (provider, then stylesheets, then the workbench main).
     rsx! {
-        link { rel: "stylesheet", href: "assets/m1.css" }
+        notifications::NotificationProvider {
+        link { rel: "stylesheet", href: "assets/workbench-base.css" }
+        link { rel: "stylesheet", href: "assets/header.css" }
+        link { rel: "stylesheet", href: "assets/command-palette.css" }
+        link { rel: "stylesheet", href: "assets/shell.css" }
         link { rel: "stylesheet", href: "assets/firmware-keymap-panel.css" }
-        main { class: "m1-workbench",
+        link { rel: "stylesheet", href: "assets/tailwind.css" }
+        main { class: "flex h-dvh min-h-0 w-full flex-col overflow-hidden",
             onkeydown: {
                 let runtime = runtime.clone();
                 move |event: KeyboardEvent| {
-                    workbench_shortcuts::handle_history_shortcut(runtime.clone(), event);
+                    if !workbench_shortcuts::handle_palette_shortcut(palette, &event) {
+                        workbench_shortcuts::handle_history_shortcut(runtime.clone(), event);
+                    }
                 }
             },
-            header { class: "m1-topbar",
-                details { class: "m1-project-menu", onkeydown: move |event: KeyboardEvent| {
-                    if event.data().key().to_string() == "Escape" {
-                        event.prevent_default();
-                        close_project_menu();
-                    }
+            header::Header {
+                project_menu: rsx! { library::ProjectHeaderMenu { project_name, on_undo, on_redo, on_export,
+                    on_settings: move |_| settings_open.set(true),
+                } },
+                workspace,
+                show_workspaces: runtime.model().accepted.is_some() && !project_browser(),
+                has_project: runtime.model().accepted.is_some(),
+                save_state,
+                settings_open,
+                palette_open: palette.open,
+                on_search: move |_| palette.show(),
+                on_undo,
+                on_redo,
+                on_export,
+                panel_controls: rsx! {
+                    if runtime.model().accepted.is_some() && workspace() != "Export" { panels::CompactPanelControls {} }
                 },
-                    summary { role: "button", "aria-label": "Project", "aria-controls": "m1-project-menu-dropdown", title: "Project menu — {project_name}", onclick: move |_| project_menu_page.set(ProjectMenuPage::Project),
-                        svg { class: "m1-project-mark", view_box: "0 0 30 30", fill: "none", stroke: "currentColor", stroke_width: "1.5", "aria-hidden": "true", path { d: "M4 4h22v22H4z" }, path { d: "m8 20 5-10 4 8 3-5 3 7" }, circle { cx: "13", cy: "10", r: "1.3" } }
-                        span { class: "m1-project-name", "{project_name}" }
-                        svg { class: "m1-project-chevron", view_box: "0 0 20 20", fill: "none", stroke: "currentColor", stroke_width: "1.5", "aria-hidden": "true", path { d: "m5 7 5 5 5-5" } }
-                    }
-                    Library { project_menu: true, menu_page: Some(project_menu_page) }
-                }
-                details { class: "m1-save-state", "data-state": "{save_state}", onkeydown: move |event: KeyboardEvent| {
-                    if event.data().key().to_string() == "Escape" {
-                        event.prevent_default();
-                        if let Some(menu) = event.data().try_as_web_event().and_then(|event| event.current_target()).and_then(|target| target.dyn_into::<web_sys::Element>().ok()) {
-                            let _ = menu.remove_attribute("open");
-                            if let Some(summary) = menu.query_selector("summary").ok().flatten().and_then(|element| element.dyn_into::<HtmlElement>().ok()) {
-                                let _ = summary.focus();
-                            }
-                        }
-                    }
+                update_available: runtime.update_waiting() && runtime.update_notice_dismissed(),
+                on_update: {
+                    let runtime = runtime.clone();
+                    EventHandler::new(move |_| runtime.begin_update(boardstudio_web_runtime::update_safety::UpdateOpener::Header))
                 },
-                    summary {
-                        aria_label: match save_state { "saved" => "Saved locally", "saving" => "Saving locally", "failed" => "Local save failed", _ => "Local save status unavailable" },
-                        i { "aria-hidden": "true" }
-                    }
-                    div { role: "status",
-                        if save_state == "saved" { "Changes are saved in this browser. Use Save project copy for a portable backup." }
-                        else if save_state == "saving" { "Saving changes in this browser…" }
-                        else if save_state == "failed" { "Changes could not be saved locally. Check available browser storage before editing further." }
-                        else { "Local save status is unavailable." }
-                    }
-                }
-                WorkspaceNavigation {}
-                if runtime.model().accepted.is_some() && workspace() != "Export" {
-                    panels::CompactPanelControls {}
-                }
-                button { class: "m1-export-tab", id: "m1-tab-Export", "aria-pressed": "{workspace() == \"Export\"}", onclick: move |_| if workspace() == "Export" { workspace.set(return_workspace()) } else { workspace.set("Export") },
-                    svg { view_box: "0 0 20 20", fill: "none", stroke: "currentColor", stroke_width: "1.5", stroke_linecap: "round", stroke_linejoin: "round", "aria-hidden": "true", path { d: "M4 12v5h12v-5M10 13V3M6 7l4-4 4 4" } }
-                    span { "Export" }
-                }
             }
-            if runtime.model().accepted.is_some() { Editor {} }
-            else { LibraryLanding {} }
-                RuntimeReportBanner {}
+            command_palette::CommandPalette { state: palette }
+            if runtime.model().accepted.is_some() {
+                div { class: "flex min-h-0 flex-1 flex-col", hidden: project_browser(), Editor {} }
+            }
+            if project_browser() || runtime.model().accepted.is_none() { LibraryLanding {} }
+                notifications::RuntimeNotifications {}
             if preference_warning() {
-                p { role: "status", "aria-live": "polite", class: "m1-status",
+                p { role: "status", "aria-live": "polite", class: "m-0 flex-none truncate border-t border-border bg-card px-3 py-[5px] text-xs text-muted-foreground",
                     "Preferences are session-only because browser storage is unavailable."
                 }
             }
             if !new_keyboard_error().is_empty() {
-                p { role: "alert", class: "m1-status", "{new_keyboard_error()}" }
+                p { role: "alert", class: "m-0 flex-none truncate border-t border-border bg-card px-3 py-[5px] text-xs text-muted-foreground", "{new_keyboard_error()}" }
             }
+        }
         }
     }
 }
@@ -657,18 +744,18 @@ fn RuntimeReportBanner() -> Element {
     let alert = runtime.status_is_alert();
     let status = runtime.status();
     rsx! {
-        if alert || status != "Saved locally." {
+        if !runtime.status_is_transient() && (alert || status != "Saved locally.") {
             p {
                 role: if alert { "alert" } else { "status" },
                 "aria-live": if alert { "assertive" } else { "polite" },
-                class: "m1-status",
+                class: "m-0 flex-none truncate border-t border-border bg-card px-3 py-[5px] text-xs text-muted-foreground",
                 "{status}"
             }
         }
     }
 }
 
-fn read_system_theme() -> &'static str {
+fn read_system_appearance() -> &'static str {
     if web_sys::window()
         .and_then(|window| {
             window
@@ -685,62 +772,10 @@ fn read_system_theme() -> &'static str {
 }
 
 #[component]
-fn WorkspaceNavigation() -> Element {
-    let mut workspace = use_context::<WorkspaceState>().0;
-    let tabs = ["Layout", "PCB", "Keymap", "Keycaps", "Case", "Parts"];
-    rsx! {
-        div { class: "m1-workflow-navigation",
-            nav { class: "m1-workflow-tabs", role: "tablist", "aria-label": "Board workflow",
-                for tab in tabs {
-                    button { key: "{tab}", role: "tab", id: "m1-tab-{tab}", "aria-selected": "{workspace() == tab}", "aria-controls": "m1-workspace-panel", onclick: move |_| workspace.set(tab), onkeydown: {
-                        let mut workspace = workspace;
-                        move |event: KeyboardEvent| {
-                            let key = event.data().key().to_string();
-                            let current = workspace();
-                            let index = tabs.iter().position(|candidate| *candidate == current).unwrap_or(0);
-                            let next = match key.as_str() { "ArrowRight" => Some((index + 1) % tabs.len()), "ArrowLeft" => Some((index + tabs.len() - 1) % tabs.len()), "Home" => Some(0), "End" => Some(tabs.len() - 1), _ => None };
-                            if let Some(next) = next {
-                                event.prevent_default();
-                                workspace.set(tabs[next]);
-                                if let Some(tab) = tabs.get(next)
-                                    && let Some(element) = web_sys::window().and_then(|window| window.document()).and_then(|document| document.get_element_by_id(&format!("m1-tab-{tab}"))).and_then(|element| element.dyn_into::<HtmlElement>().ok())
-                                {
-                                    let _ = element.focus();
-                                }
-                            }
-                        }
-                    },
-                        TabIcon { name: tab }
-                        "{tab}"
-                    }
-                }
-            }
-            select { class: "m1-workspace-select", "aria-label": "Workspace", value: "{workspace()}", onchange: move |event| workspace.set(match event.value().as_str() { "PCB" => "PCB", "Keymap" => "Keymap", "Keycaps" => "Keycaps", "Case" => "Case", "Parts" => "Parts", "Export" => "Export", _ => "Layout" }),
-                for tab in tabs { option { value: "{tab}", selected: workspace() == tab, "{tab}" } }
-                if workspace() == "Export" { option { value: "Export", selected: true, "Export" } }
-            }
-        }
-    }
-}
-
-#[component]
-fn TabIcon(name: &'static str) -> Element {
-    rsx! { svg { class: "m1-tab-icon", view_box: "0 0 20 20", fill: "none", stroke: "currentColor", stroke_width: "1.5", stroke_linecap: "round", stroke_linejoin: "round", "aria-hidden": "true",
-        if name == "Layout" { path { d: "M3 14.5 14.5 3l2.5 2.5L5.5 17H3z" } path { d: "m11 6 3 3M3 17h14" } }
-        else if name == "PCB" { rect { x: "3", y: "3", width: "14", height: "14", rx: "2" } circle { cx: "7", cy: "7", r: "1.2" } circle { cx: "13", cy: "13", r: "1.2" } path { d: "M8 7h3v3M7 8v3h3" } }
-        else if name == "Keymap" { rect { x: "3", y: "4", width: "14", height: "12", rx: "2" } path { d: "M6 7h2M10 7h2M14 7h1M6 10h2M10 10h2M6 13h8" } }
-        else if name == "Keycaps" { path { d: "m3 15 2-10h10l2 10zM5 5l2 4h6l2-4M7 9l-1 6m7-6 1 6" } }
-        else if name == "Case" { path { d: "m10 2 7 4v8l-7 4-7-4V6zM3 6l7 4 7-4m-7 4v8" } }
-        else { path { d: "M4 3h9l3 3v11H4z" } path { d: "M13 3v4h4M7 11h6M7 14h6" } }
-    } }
-}
-
-#[component]
 fn LibraryLanding() -> Element {
+    use boardstudio_web_ui_shared::ui::card::Card;
     rsx! {
-        section { class: "m1-library-landing",
-            h1 { "Open a keyboard" }
-            p { "Choose a demo copy, open a saved project, or import a BoardStudio archive." }
+        Card { class: "block min-h-0 w-full flex-1 overflow-hidden border-0 bg-canvas p-0 [&>[id=m1-library-landing-content]]:grid [&>[id=m1-library-landing-content]]:h-full [&>[id=m1-library-landing-content]]:min-h-0 [&>[id=m1-library-landing-content]]:w-full [&>[id=m1-library-landing-content]]:max-w-none [&>[id=m1-library-landing-content]]:grid-cols-[minmax(0,2.7fr)_minmax(280px,1fr)] [&>[id=m1-library-landing-content]]:gap-0 max-[1100px]:[&>[id=m1-library-landing-content]]:grid-cols-[minmax(0,1.8fr)_minmax(260px,1fr)] max-[760px]:overflow-auto max-[760px]:[&>[id=m1-library-landing-content]]:flex max-[760px]:[&>[id=m1-library-landing-content]]:h-auto max-[760px]:[&>[id=m1-library-landing-content]]:min-h-full max-[760px]:[&>[id=m1-library-landing-content]]:flex-col",
             Library { project_menu: false }
         }
     }
@@ -749,6 +784,10 @@ fn LibraryLanding() -> Element {
 #[cfg(test)]
 #[component]
 fn ExportPanel(#[props(default)] zmk_firmware: Option<ZmkFirmwareExportPanelInput>) -> Element {
+    use boardstudio_web_ui_shared::ui::{
+        checkbox::{Checkbox, CheckboxState},
+        label::Label,
+    };
     let runtime = use_context::<Rc<Runtime>>();
     let _ = use_context::<Signal<u64>>()();
     let model = runtime.model();
@@ -756,38 +795,37 @@ fn ExportPanel(#[props(default)] zmk_firmware: Option<ZmkFirmwareExportPanelInpu
     let preference = runtime.clone();
     let step = runtime.clone();
     rsx! {
-        section { class: "m1-export-panel", "aria-label": "Export",
+        section { class: "m-auto w-[min(100%,760px)] p-7 text-foreground [&>p]:max-w-[60ch] [&>p]:text-muted-foreground [&>h2]:mt-6 [&>h2]:mb-2.5", "aria-label": "Export",
             h1 { "Export" }
             p { "Create files from the saved keyboard in the current board and instance scope." }
-            div { class: "m1-export-actions",
-                button { disabled: model.accepted.is_none(), onclick: move |_| step.export_step(), "Export STEP" }
+            div { class: "my-5 flex flex-wrap gap-2",
+                Button { variant: ButtonVariant::Secondary, disabled: model.accepted.is_none(), onclick: move |_| step.export_step(), "Export STEP" }
             }
             if let Some(firmware) = zmk_firmware {
                 h2 { "Design files" }
-                div { class: "m1-export-list",
+                div { class: "grid gap-2",
                     ZmkFirmwareExportRow { ready: firmware.ready, on_export: firmware.on_export }
                 }
             }
-            section { class: "m1-export-portable", "aria-label": "Portable project",
+            section { class: "mt-6 grid gap-2.5 rounded-md border border-border bg-card p-4 [&_h2]:m-0 [&_p]:m-0 [&_p]:text-muted-foreground", "aria-label": "Portable project",
                 h2 { "Portable project" }
                 p { "Keep an editable copy of the whole project, including all boards." }
-                label { class: "m1-export-option",
-                    input {
-                        r#type: "checkbox",
+                Label { class: "flex items-start gap-2.5 [&_span]:grid [&_span]:gap-[3px] [&_small]:text-xs [&_small]:text-muted-foreground",
+                    Checkbox {
                         aria_label: "Embed used models",
-                        checked: runtime.embed_used_models(),
-                        onchange: move |event: FormEvent| preference.set_embed_used_models(event.checked()),
+                        checked: if runtime.embed_used_models() { CheckboxState::Checked } else { CheckboxState::Unchecked },
+                        on_checked_change: move |state: CheckboxState| preference.set_embed_used_models(state == CheckboxState::Checked),
                     }
                     span { strong { "Embed used models" } small { "Include attached 3D model files used in this project." } }
                 }
-                button {
-                    class: "m1-export-action",
+                Button { variant: ButtonVariant::Secondary,
+                    class: "justify-self-start",
                     disabled: model.accepted.is_none(),
                     onclick: move |_| archive.export_project_copy(),
                     "Save .boardstudio project"
                 }
             }
-            p { role: "status", "aria-live": "polite", "{runtime.status()}" }
+            RuntimeReportBanner {}
         }
     }
 }
@@ -871,13 +909,79 @@ fn keymap_toolbar_height() -> f64 {
         .and_then(|window| window.document())
         .and_then(|document| {
             document
-                .query_selector(".m1-design-canvas-toolbar")
+                .query_selector("[role='group'][aria-label='Keymap commands']")
                 .ok()
                 .flatten()
         })
         .map(|toolbar| toolbar.get_bounding_client_rect().height())
         .filter(|height| height.is_finite() && *height > 0.0)
         .unwrap_or(42.0)
+}
+
+fn setup_guide_left_inset() -> f64 {
+    web_sys::window()
+        .and_then(|window| window.document())
+        .and_then(|document| {
+            document
+                .query_selector("[data-setup-guide-overlay]")
+                .ok()
+                .flatten()
+        })
+        .map(|guide| guide.get_bounding_client_rect().width())
+        .filter(|width| width.is_finite() && *width > 0.0)
+        .unwrap_or(0.0)
+}
+
+// The creation schematic has no camera: reserve the same measured guide area in layout.
+#[component]
+fn GuideHardwarePreview(split: bool, wired: bool) -> Element {
+    let mut left_inset = use_signal(|| 0.0);
+    let observer = use_hook(|| {
+        Rc::new(RefCell::new(
+            None::<(
+                web_sys::ResizeObserver,
+                Closure<dyn FnMut(js_sys::Array, web_sys::ResizeObserver)>,
+            )>,
+        ))
+    });
+    use_effect({
+        let observer = observer.clone();
+        move || {
+            left_inset.set(setup_guide_left_inset());
+            let guide = web_sys::window()
+                .and_then(|window| window.document())
+                .and_then(|document| {
+                    document
+                        .query_selector("[data-setup-guide-overlay]")
+                        .ok()
+                        .flatten()
+                });
+            let Some(guide) = guide else {
+                return;
+            };
+            let callback =
+                Closure::<dyn FnMut(js_sys::Array, web_sys::ResizeObserver)>::new(move |_, _| {
+                    let width = setup_guide_left_inset();
+                    if width != *left_inset.peek() {
+                        left_inset.set(width);
+                    }
+                });
+            if let Ok(next) = web_sys::ResizeObserver::new(callback.as_ref().unchecked_ref()) {
+                next.observe(&guide);
+                *observer.borrow_mut() = Some((next, callback));
+            }
+        }
+    });
+    use_drop(move || {
+        if let Some((observer, _)) = observer.borrow_mut().take() {
+            observer.disconnect();
+        }
+    });
+    rsx! {
+        div { class: "flex min-h-0 min-w-0 flex-1", style: "padding-left:{left_inset}px",
+            setup_guide::SetupHardwarePreview { split, wired }
+        }
+    }
 }
 
 fn keycaps_bounds(
@@ -952,15 +1056,28 @@ fn pcb_bounds(snapshot: &AcceptedSnapshot, scope: &Scope) -> Option<(f64, f64, f
     bounds
 }
 
+/// A pending splay-origin pick and the pointer state that fires it: with Ctrl
+/// held the pick swings the keys instead of holding them still.
+struct PendingSplayOriginPick<'a> {
+    pending: &'a mut Signal<Option<objects::MatrixTransformInspectorOwner>>,
+    inspector: &'a objects::MatrixTransformInspectorMount,
+    point: Vec2,
+    swing: bool,
+}
+
 fn apply_pending_splay_origin_pick(
     runtime: &Runtime,
     workspace: Signal<&'static str>,
     adapter: &SelectionAdapter,
     owner: &LayoutOwnerIdentity,
-    pending: &mut Signal<Option<objects::MatrixTransformInspectorOwner>>,
-    inspector: &objects::MatrixTransformInspectorMount,
-    point: Vec2,
+    pick: PendingSplayOriginPick<'_>,
 ) -> bool {
+    let PendingSplayOriginPick {
+        pending,
+        inspector,
+        point,
+        swing,
+    } = pick;
     let Some(picked_owner) = pending.peek().clone() else {
         return false;
     };
@@ -986,9 +1103,66 @@ fn apply_pending_splay_origin_pick(
     if !layout_owner_is_current(runtime, workspace, adapter, owner)
         || !selected_is_current
         || !inspector_is_current
-        || !inspector.pick_splay_origin(point)
+        || !inspector.pick_splay_origin(point, swing)
     {
         runtime.report("Column selection changed. Pick the splay origin again.");
+    }
+    true
+}
+
+/// A pending anchor-key pick and the picked key identity: the canvas hit
+/// already carries the key, so unlike the splay pick there is no world point
+/// to resolve.
+struct PendingAnchorPick<'a> {
+    pending: &'a mut Signal<Option<objects::MatrixTransformInspectorOwner>>,
+    inspector: &'a objects::MatrixTransformInspectorMount,
+    matrix_id: String,
+    row: u32,
+    column: u32,
+}
+
+fn apply_pending_anchor_pick(
+    runtime: &Runtime,
+    workspace: Signal<&'static str>,
+    adapter: &SelectionAdapter,
+    owner: &LayoutOwnerIdentity,
+    pick: PendingAnchorPick<'_>,
+) -> bool {
+    let PendingAnchorPick {
+        pending,
+        inspector,
+        matrix_id,
+        row,
+        column,
+    } = pick;
+    let Some(picked_owner) = pending.peek().clone() else {
+        return false;
+    };
+    pending.set(None);
+    let selected_is_current = adapter
+        .selected_context
+        .read()
+        .as_ref()
+        .is_some_and(|selected| {
+            selected.scope == picked_owner.scope
+                && selected.context == picked_owner.context
+                && matches!(&selected.context, objects::TreeContext::Matrix { .. })
+                && selection::context_is_current(
+                    &runtime.model(),
+                    &selected.scope,
+                    &selected.context,
+                )
+        });
+    let inspector_is_current = inspector
+        .projection
+        .as_ref()
+        .is_some_and(|projection| projection.owner == picked_owner);
+    if !layout_owner_is_current(runtime, workspace, adapter, owner)
+        || !selected_is_current
+        || !inspector_is_current
+        || !inspector.pick_matrix_anchor(matrix_id, row, column)
+    {
+        runtime.report("Matrix selection changed. Pick the anchor key again.");
     }
     true
 }
@@ -1011,463 +1185,6 @@ fn layout_finding_context(
         }),
         Target::Body { .. } | Target::MechanicalLayer { .. } => None,
     }
-}
-
-fn layout_finding_return_is_current(
-    model: &ReadModel,
-    owner: &LayoutOwnerIdentity,
-    current_selection: Option<&objects::ScopedTreeContext>,
-    target: &LayoutFindingReturnTarget,
-) -> bool {
-    if owner != &target.owner || owner.workspace != "Layout" {
-        return false;
-    }
-    let Some(scope) = owner.scope.as_ref() else {
-        return false;
-    };
-    let saved_selection_is_live =
-        selection::context_is_current(model, scope, &target.selection.context)
-            && match &target.selection.context {
-                objects::TreeContext::Component {
-                    part_id: Some(_), ..
-                } => selection::resolve_context(model, &target.selection.context)
-                    .is_some_and(|part_ids| !part_ids.is_empty()),
-                _ => true,
-            };
-    target.selection.scope == *scope
-        && saved_selection_is_live
-        && current_selection.is_some_and(|selected| {
-            selected.scope == *scope
-                && selected.context == target.destination
-                && selection::context_is_current(model, scope, &selected.context)
-        })
-}
-
-fn focus_layout_finding_return_destination() -> bool {
-    let Some(document) = web_sys::window().and_then(|window| window.document()) else {
-        return false;
-    };
-    for selector in [
-        "#m1-inspector-panel-content .m1-layout-component-tabs [role='tab'][aria-selected='true']",
-        "#m1-inspector-panel-content .m1-board-inspector :is(input, select, button):not(:disabled)",
-        "#m1-inspector-panel-content .m1-outline-inspector :is(input, select, button):not(:disabled)",
-    ] {
-        if let Some(element) = document
-            .query_selector(selector)
-            .ok()
-            .flatten()
-            .and_then(|element| element.dyn_into::<HtmlElement>().ok())
-        {
-            let _ = element.focus();
-            return true;
-        }
-    }
-    if let Some(element) = document
-        .query_selector(
-            "#m1-inspector-panel-content .m1-inspector-body, #m1-inspector-panel-content .m1-selected-context, #m1-inspector-panel-content .m1-board-inspector, #m1-inspector-panel-content .m1-outline-inspector",
-        )
-        .ok()
-        .flatten()
-        .and_then(|element| element.dyn_into::<HtmlElement>().ok())
-    {
-        let _ = element.set_attribute("tabindex", "-1");
-        let _ = element.focus();
-        return true;
-    }
-    false
-}
-
-#[cfg(test)]
-mod layout_finding_return_regression_tests {
-    use super::*;
-    use boardstudio_application::{AcceptedSnapshot, SessionEpoch};
-    use boardstudio_core::model::{
-        Board, Part, PartDefinition, PartKind, Pose2, ProjectDoc, Readiness, SceneDelta, Side, Vec2,
-    };
-    use std::sync::Arc;
-    use wasm_bindgen::{JsCast, closure::Closure};
-    use wasm_bindgen_test::wasm_bindgen_test;
-
-    fn fixture() -> (ReadModel, Scope, objects::ScopedTreeContext) {
-        let scope = Scope {
-            session_epoch: SessionEpoch(5),
-            document_id: "finding-return-doc".into(),
-            board_id: "board".into(),
-            instance_id: None,
-        };
-        let mut document = ProjectDoc::empty("finding-return-doc", "Finding return fixture");
-        document.revision = 9;
-        document.boards.push(Board {
-            id: "board".into(),
-            name: "Board".into(),
-            outline_ids: vec![],
-            part_ids: vec!["left-U1".into()],
-            net_ids: vec![],
-            thickness: 1.6,
-            traces: vec![],
-            vias: vec![],
-        });
-        document.definitions.push(PartDefinition {
-            hardware_profile: None,
-            input_profile: None,
-            id: "controller".into(),
-            name: "Controller".into(),
-            kind: PartKind::Controller,
-            keycap: None,
-            envelope_source: None,
-            kicad_source: None,
-            terminals: Default::default(),
-            matrix_terminals: None,
-            envelope_notice: None,
-            courtyard: vec![],
-            pads: vec![],
-            models: None,
-            generator: None,
-            mechanical_profile: None,
-        });
-        document.parts.push(Part {
-            keycap: None,
-            outline: None,
-            id: "left-U1".into(),
-            definition_id: "controller".into(),
-            reference: "U1".into(),
-            pose: Pose2 {
-                at: Vec2::default(),
-                rotation: 0.0,
-            },
-            side: Side::Front,
-            locked: None,
-            properties: None,
-            generator_parameters: None,
-        });
-        let model = ReadModel {
-            accepted: Some(AcceptedSnapshot {
-                token: SnapshotToken(13),
-                session_epoch: scope.session_epoch,
-                document: Arc::new(document),
-                scene: Arc::new(SceneDelta {
-                    module_scenes: vec![],
-                    revision: 9,
-                    transaction_id: "accepted-fixture".into(),
-                    changed_ids: vec![],
-                    transforms: vec![],
-                    matrix_scenes: vec![],
-                    contours: vec![],
-                    board_contours: vec![],
-                    board_readiness: vec![],
-                    board_outline_scenes: vec![],
-                    finding_markers: vec![],
-                    findings: vec![],
-                    readiness: Readiness {
-                        layout: true,
-                        outline: true,
-                        pcb: true,
-                        case_ready: false,
-                    },
-                }),
-            }),
-            active_board_id: scope.board_id.clone(),
-            selected_part_ids: vec!["left-U1".into()],
-            ..ReadModel::default()
-        };
-        let selection = objects::ScopedTreeContext {
-            scope: scope.clone(),
-            context: objects::TreeContext::Component {
-                part_id: Some("left-U1".into()),
-                matrix_id: None,
-                row: None,
-                column: None,
-                assembly_id: None,
-            },
-        };
-        (model, scope, selection)
-    }
-
-    #[wasm_bindgen_test]
-    fn outline_return_requires_the_same_live_owner_and_saved_selection() {
-        let (model, scope, selection) = fixture();
-        let owner = LayoutOwnerIdentity {
-            scope: Some(scope.clone()),
-            token: Some(SnapshotToken(13)),
-            revision: Some(9),
-            generation: 2,
-            workspace: "Layout",
-        };
-        let destination = objects::TreeContext::Outline {
-            board_id: scope.board_id.clone(),
-        };
-        let target = LayoutFindingReturnTarget {
-            owner: owner.clone(),
-            selection: selection.clone(),
-            destination: destination.clone(),
-        };
-        let outline_selection = objects::ScopedTreeContext {
-            scope,
-            context: destination,
-        };
-
-        assert!(layout_finding_return_is_current(
-            &model,
-            &owner,
-            Some(&outline_selection),
-            &target,
-        ));
-
-        let empty_outline_selection = objects::ScopedTreeContext {
-            scope: outline_selection.scope.clone(),
-            context: outline_selection.context.clone(),
-        };
-        let empty_outline_target = LayoutFindingReturnTarget {
-            selection: empty_outline_selection.clone(),
-            ..target.clone()
-        };
-        assert!(layout_finding_return_is_current(
-            &model,
-            &owner,
-            Some(&empty_outline_selection),
-            &empty_outline_target,
-        ));
-
-        let component_target = LayoutFindingReturnTarget {
-            destination: selection.context.clone(),
-            ..target.clone()
-        };
-        assert!(layout_finding_return_is_current(
-            &model,
-            &owner,
-            Some(&selection),
-            &component_target,
-        ));
-
-        let mut changed_owner = owner.clone();
-        changed_owner.revision = Some(10);
-        assert!(!layout_finding_return_is_current(
-            &model,
-            &changed_owner,
-            Some(&outline_selection),
-            &target,
-        ));
-
-        let mut changed_scope_owner = owner.clone();
-        changed_scope_owner
-            .scope
-            .as_mut()
-            .expect("fixture scope")
-            .board_id = "other-board".into();
-        assert!(!layout_finding_return_is_current(
-            &model,
-            &changed_scope_owner,
-            Some(&outline_selection),
-            &target,
-        ));
-
-        let mut changed_model = model;
-        Arc::make_mut(
-            &mut changed_model
-                .accepted
-                .as_mut()
-                .expect("fixture snapshot")
-                .document,
-        )
-        .boards[0]
-            .part_ids
-            .clear();
-        assert!(!layout_finding_return_is_current(
-            &changed_model,
-            &owner,
-            Some(&outline_selection),
-            &target,
-        ));
-    }
-
-    #[wasm_bindgen_test]
-    fn mounted_back_enter_focuses_board_and_outline_inspectors_and_rejects_stale_scope() {
-        let (model, scope, selection) = fixture();
-        let owner = LayoutOwnerIdentity {
-            scope: Some(scope.clone()),
-            token: Some(SnapshotToken(13)),
-            revision: Some(9),
-            generation: 2,
-            workspace: "Layout",
-        };
-        let document = web_sys::window().unwrap().document().unwrap();
-        let root = document
-            .create_element("div")
-            .unwrap()
-            .dyn_into::<HtmlElement>()
-            .unwrap();
-        root.set_id("m1-inspector-panel-content");
-        document.body().unwrap().append_child(&root).unwrap();
-
-        for (inspector, destination, expected_focus) in [
-            (
-                r#"<button id="back">Back to selection</button><section class="m1-board-inspector"><input id="board-name"></section>"#,
-                objects::TreeContext::Board {
-                    board_id: scope.board_id.clone(),
-                },
-                "board-name",
-            ),
-            (
-                r#"<button id="back">Back to selection</button><section class="m1-outline-inspector"><select id="outline-version"><option>Generated</option></select></section>"#,
-                objects::TreeContext::Outline {
-                    board_id: scope.board_id.clone(),
-                },
-                "outline-version",
-            ),
-        ] {
-            root.set_inner_html(inspector);
-            let back = document
-                .get_element_by_id("back")
-                .unwrap()
-                .dyn_into::<HtmlElement>()
-                .unwrap();
-            let target = LayoutFindingReturnTarget {
-                owner: owner.clone(),
-                selection: selection.clone(),
-                destination: destination.clone(),
-            };
-            let current_selection = objects::ScopedTreeContext {
-                scope: scope.clone(),
-                context: destination,
-            };
-            let model = model.clone();
-            let owner = owner.clone();
-            let back_key = Closure::wrap(Box::new(move |event: web_sys::KeyboardEvent| {
-                if event.key() == "Enter"
-                    && layout_finding_return_is_current(
-                        &model,
-                        &owner,
-                        Some(&current_selection),
-                        &target,
-                    )
-                {
-                    event.prevent_default();
-                    let _ = focus_layout_finding_return_destination();
-                }
-            }) as Box<dyn FnMut(_)>);
-            back.add_event_listener_with_callback("keydown", back_key.as_ref().unchecked_ref())
-                .unwrap();
-            back.focus().unwrap();
-            let init = web_sys::KeyboardEventInit::new();
-            init.set_key("Enter");
-            init.set_bubbles(true);
-            back.dispatch_event(
-                &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
-                    .unwrap(),
-            )
-            .unwrap();
-            assert_eq!(
-                document
-                    .active_element()
-                    .and_then(|element| element.get_attribute("id")),
-                Some(expected_focus.to_owned()),
-                "Enter returns focus into {expected_focus}"
-            );
-            back.remove_event_listener_with_callback("keydown", back_key.as_ref().unchecked_ref())
-                .unwrap();
-        }
-
-        root.set_inner_html(
-            r#"<button id="back">Back to selection</button><section class="m1-board-inspector"><input id="board-name"></section>"#,
-        );
-        let back = document
-            .get_element_by_id("back")
-            .unwrap()
-            .dyn_into::<HtmlElement>()
-            .unwrap();
-        let target = LayoutFindingReturnTarget {
-            owner: owner.clone(),
-            selection,
-            destination: objects::TreeContext::Board {
-                board_id: scope.board_id.clone(),
-            },
-        };
-        let current_selection = objects::ScopedTreeContext {
-            scope,
-            context: target.destination.clone(),
-        };
-        let mut stale_owner = owner.clone();
-        stale_owner.scope.as_mut().expect("fixture scope").board_id = "other-board".into();
-        let model = model.clone();
-        let stale_key = Closure::wrap(Box::new(move |event: web_sys::KeyboardEvent| {
-            if event.key() == "Enter"
-                && layout_finding_return_is_current(
-                    &model,
-                    &stale_owner,
-                    Some(&current_selection),
-                    &target,
-                )
-            {
-                event.prevent_default();
-                let _ = focus_layout_finding_return_destination();
-            }
-        }) as Box<dyn FnMut(_)>);
-        back.add_event_listener_with_callback("keydown", stale_key.as_ref().unchecked_ref())
-            .unwrap();
-        back.focus().unwrap();
-        let init = web_sys::KeyboardEventInit::new();
-        init.set_key("Enter");
-        back.dispatch_event(
-            &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init).unwrap(),
-        )
-        .unwrap();
-        assert_eq!(
-            document
-                .active_element()
-                .and_then(|element| element.get_attribute("id")),
-            Some("back".to_owned()),
-            "a stale scope cannot move focus into another board's Inspector"
-        );
-        back.remove_event_listener_with_callback("keydown", stale_key.as_ref().unchecked_ref())
-            .unwrap();
-        document.body().unwrap().remove_child(&root).unwrap();
-    }
-}
-
-fn layout_finding_is_live(
-    model: &ReadModel,
-    request: &layout_findings::Request,
-    destination_board: &str,
-) -> bool {
-    let Some(snapshot) = model.accepted.as_ref() else {
-        return false;
-    };
-    if !keycaps_fit::presented_findings(&snapshot.scene.findings, &snapshot.document)
-        .iter()
-        .any(|finding| finding == &request.finding)
-        || keycaps_fit::finding_navigation_target(&request.finding, &snapshot.document).as_ref()
-            != Some(&request.target)
-        || keycaps_fit::target_board_id(&request.target) != destination_board
-    {
-        return false;
-    }
-    snapshot
-        .document
-        .boards
-        .iter()
-        .any(|board| board.id == destination_board)
-        && layout_finding_context(model, &request.target).is_some()
-}
-
-fn source_matches_layout_owner(
-    source: &layout_findings::Source,
-    owner: &LayoutOwnerIdentity,
-    allow_board_hop: bool,
-) -> bool {
-    owner.workspace
-        == if allow_board_hop {
-            "Layout"
-        } else {
-            source.workspace
-        }
-        && owner.token == Some(source.token)
-        && owner.revision == Some(source.revision)
-        && owner.scope.as_ref().is_some_and(|scope| {
-            scope.session_epoch == source.scope.session_epoch
-                && scope.document_id == source.scope.document_id
-                && (allow_board_hop || scope.board_id == source.scope.board_id)
-        })
-        && (allow_board_hop || owner.generation == source.generation)
 }
 
 fn findings_owner_is_current(
@@ -1494,7 +1211,7 @@ struct LayoutFindingNavigationContext {
     inspect_open: Signal<bool>,
     findings_open: Signal<bool>,
     inspector_settings: Signal<PanelSettings>,
-    focused_finding: Signal<Option<keycaps_finding_marker::FocusedFinding>>,
+    keycaps_state: keycaps_workspace::KeycapsWorkspaceState,
     svg: Rc<RefCell<Option<SvgElement>>>,
     alive: Rc<Cell<bool>>,
     body_selection: Signal<Option<case_viewer::BodySelection>>,
@@ -1516,7 +1233,7 @@ fn perform_layout_finding_navigation(
         mut inspect_open,
         mut findings_open,
         inspector_settings,
-        mut focused_finding,
+        keycaps_state,
         svg,
         alive,
         body_selection,
@@ -1611,14 +1328,12 @@ fn perform_layout_finding_navigation(
         }
     }
 
-    let navigation_id = keycaps_finding_marker::next_navigation_id(focused_finding.peek().as_ref());
-    focused_finding.set(Some(keycaps_finding_marker::FocusedFinding {
-        scope: scope.clone(),
-        token: request.source.token,
-        revision: request.source.revision,
-        finding_id: request.finding.id,
-        navigation_id,
-    }));
+    keycaps_state.focus_finding(
+        scope.clone(),
+        request.source.token,
+        request.source.revision,
+        request.finding.id,
+    );
     findings_open.set(false);
     objects_open.set(false);
     inspect_open.set(true);
@@ -1757,8 +1472,8 @@ fn layout_component_inspector_projection(
     let selected = selected?;
     let objects::TreeContext::Component {
         part_id: Some(part_id),
-        matrix_id: None,
-        assembly_id: None,
+        matrix_id,
+        assembly_id,
         ..
     } = &selected.context
     else {
@@ -1767,14 +1482,16 @@ fn layout_component_inspector_projection(
     if model.selected_part_ids.is_empty()
         || model.selected_part_ids.first() != Some(part_id)
         || !selection::context_is_current(model, &selected.scope, &selected.context)
-        || objects::component_context_for_finding_part(model, part_id).as_ref()
-            != Some(&selected.context)
     {
         return None;
     }
     let snapshot = model.accepted.as_ref()?;
     let document = &snapshot.document;
     let part = document.parts.iter().find(|part| part.id == *part_id)?;
+    let mirrored_half = mirrored_half_projection(document, part_id);
+    if matrix_id.is_some() && assembly_id.is_some() && mirrored_half.is_none() {
+        return None;
+    }
     let definition = document
         .definitions
         .iter()
@@ -1783,27 +1500,48 @@ fn layout_component_inspector_projection(
         .boards
         .iter()
         .find(|board| board.id == model.active_board_id)?;
+    let board_part_ids: BTreeSet<_> = board.part_ids.iter().map(String::as_str).collect();
+    let parts_by_id: BTreeMap<_, _> = document
+        .parts
+        .iter()
+        .map(|part| (part.id.as_str(), part))
+        .collect();
     if model.selected_part_ids.iter().any(|selected_id| {
-        !board.part_ids.iter().any(|id| id == selected_id)
-            || !snapshot
-                .document
-                .parts
-                .iter()
-                .any(|part| part.id == *selected_id)
+        !board_part_ids.contains(selected_id.as_str())
+            || !parts_by_id.contains_key(selected_id.as_str())
     }) {
         return None;
+    }
+    let mut matrix_key_ids = BTreeSet::new();
+    for matrix in &document.matrices {
+        let Some(matrix_scene) = snapshot
+            .scene
+            .matrix_scenes
+            .iter()
+            .find(|scene| scene.matrix_id == matrix.id)
+        else {
+            continue;
+        };
+        let matrix_part_ids: BTreeSet<_> = matrix.part_ids.iter().map(String::as_str).collect();
+        matrix_key_ids.extend(
+            matrix_scene
+                .cells
+                .iter()
+                .filter(|cell| cell.enabled)
+                .filter_map(|cell| cell.member_id.as_deref())
+                .filter(|id| matrix_part_ids.contains(id)),
+        );
     }
     let board_parts: Vec<_> = board
         .part_ids
         .iter()
         .filter_map(|id| {
-            document
-                .parts
-                .iter()
-                .find(|part| part.id == *id)
+            parts_by_id
+                .get(id.as_str())
                 .map(|part| inspector::BoardPartChoice {
                     id: part.id.clone(),
                     reference: part.reference.clone(),
+                    matrix_key: matrix_key_ids.contains(part.id.as_str()),
                 })
         })
         .collect();
@@ -1828,22 +1566,26 @@ fn layout_component_inspector_projection(
         layout.board_id == board.id
             && (layout.part_ids.contains(part_id)
                 || document.matrices.iter().any(|matrix| {
-                    matrix.id == layout.matrix_id && matrix.part_ids.contains(part_id)
+                    layout.matrix_ids.contains(&matrix.id) && matrix.part_ids.contains(part_id)
                 }))
     });
-    let active_constraint = document
-        .constraints
-        .iter()
-        .find(|constraint| {
-            model
-                .selected_part_ids
-                .iter()
-                .any(|id| constraint.target() == id)
-                && board.part_ids.iter().any(|id| id == constraint.source())
-        })
-        .cloned();
-    let relationship_summary =
+    let mut active_constraint = None;
+    for selected_id in &model.selected_part_ids {
+        match document.constraint_driving_part(selected_id) {
+            Ok(Some(constraint)) => {
+                active_constraint = Some(constraint.clone());
+                break;
+            }
+            Ok(None) => {}
+            Err(_) => return None,
+        }
+    }
+    let mut relationship_summary =
         layout_relationship_summary(document, board, active_layout, Some(part));
+    // Ticket 13: the anchor fact leads for anchored parts.
+    if let Some(lead) = part_anchor_summary(document, part) {
+        relationship_summary = format!("{lead} {relationship_summary}");
+    }
     let definition_kind = match &definition.kind {
         PartKind::Switch => "switch",
         PartKind::Controller => "controller",
@@ -1874,7 +1616,14 @@ fn layout_component_inspector_projection(
                 .find(|part| part.id == *selected_id)
                 .is_none_or(|part| part.locked.unwrap_or(false))
         }),
-        position: part.pose.at,
+        // Ticket 13: the Inspector edits board-space positions, so an anchored
+        // part shows its evaluated pose (what the canvas shows); a detached
+        // part keeps its stored half-frame pose.
+        position: if part.anchor.is_some() {
+            boardstudio_core::evaluated_part_pose(document, part).at
+        } else {
+            part.pose.at
+        },
         selection_count: model.selected_part_ids.len(),
         layout_id: active_layout.map(|layout| layout.id.clone()),
         layouts,
@@ -1882,13 +1631,478 @@ fn layout_component_inspector_projection(
         board_parts,
         active_constraint,
         relationship_summary,
+        mirrored_half,
+        part_mirror: part_mirror_projection(document, part_id, active_layout, is_matrix_member),
+        anchor: part_anchor_projection(document, part),
+        // Ticket 13: matrix members and companions follow the matrix refresh,
+        // so they get no anchor vocabulary and no Pick form.
+        anchor_choices: if is_matrix_member {
+            Vec::new()
+        } else {
+            part_anchor_choices(document, active_layout)
+        },
     })
 }
 
-fn matrix_context_relationship_summary(
+/// Ticket 13: the part's column-vocabulary anchor for the Inspector: the
+/// anchor key and Follow subset, the carried Spread/Stagger/Splay and the
+/// local Offset/Rotation. `None` is a detached part; parts homed on a
+/// layout without an anchor stay detached.
+fn part_anchor_projection(
+    document: &boardstudio_core::model::ProjectDoc,
+    part: &boardstudio_core::model::Part,
+) -> Option<inspector::PartAnchorProjection> {
+    let anchor = part.anchor.as_ref()?;
+    let matrix = document
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == anchor.matrix_id)?;
+    Some(inspector::PartAnchorProjection {
+        matrix_id: anchor.matrix_id.clone(),
+        matrix_name: matrix.name.clone().unwrap_or(matrix.id.clone()),
+        row: anchor.row,
+        column: anchor.column,
+        follow: anchor.follow,
+        spread: anchor.spread,
+        stagger: anchor.stagger,
+        splay: anchor.splay,
+        offset: anchor.offset,
+        rotation: anchor.rotation,
+    })
+}
+
+/// Ticket 13: the anchor-key choices for Pick: every matrix on the part's
+/// layout with its live dimensions.
+fn part_anchor_choices(
+    document: &boardstudio_core::model::ProjectDoc,
+    active_layout: Option<&boardstudio_core::model::Layout>,
+) -> Vec<inspector::AnchorKeyChoice> {
+    let Some(layout) = active_layout else {
+        return Vec::new();
+    };
+    layout
+        .matrix_ids
+        .iter()
+        .filter_map(|matrix_id| {
+            document
+                .matrices
+                .iter()
+                .find(|matrix| matrix.id == *matrix_id)
+                .map(|matrix| inspector::AnchorKeyChoice {
+                    matrix_id: matrix.id.clone(),
+                    matrix_name: matrix.name.clone().unwrap_or(matrix.id.clone()),
+                    rows: matrix.rows,
+                    columns: matrix.columns,
+                })
+        })
+        .collect()
+}
+
+/// Ticket 12: the "Mirror on both halves" toggle for an independent part on a
+/// stored-gap half. `Some(true)` while a live Part correspondence mirrors it;
+/// `Some(false)` while it stays local. Members keep the exception buttons.
+fn part_mirror_projection(
+    document: &boardstudio_core::model::ProjectDoc,
+    part_id: &str,
+    active_layout: Option<&boardstudio_core::model::Layout>,
+    is_matrix_member: bool,
+) -> Option<bool> {
+    if is_matrix_member {
+        return None;
+    }
+    let layout = active_layout?;
+    boardstudio_core::layout_half_offset(document, &layout.id)?;
+    // Ticket 12: Part correspondences live on the layout mirror links, next
+    // to the matrices they mirror — not on the hardware halves. The toggle
+    // reads mirrored only while both ends of the record still exist.
+    let mirrored =
+        boardstudio_core::part_correspondence(document, part_id).is_some_and(|(_, record)| {
+            document
+                .parts
+                .iter()
+                .any(|part| part.id == record.source_id)
+                && document
+                    .parts
+                    .iter()
+                    .any(|part| part.id == record.mirror_id)
+        });
+    Some(mirrored)
+}
+
+fn mirrored_half_projection(
+    document: &boardstudio_core::model::ProjectDoc,
+    part_id: &str,
+) -> Option<inspector::MirroredHalfProjection> {
+    let hardware = document.hardware.as_ref()?;
+    for pair in &hardware.pairs {
+        let Some(halves) = pair.halves.as_ref() else {
+            continue;
+        };
+        let Some(link) = halves.correspondences.iter().find(|link| {
+            link.kind == MirroredItemKind::Part
+                && (link.source_id == part_id || link.mirror_id == part_id)
+        }) else {
+            continue;
+        };
+        let state = halves
+            .exceptions
+            .iter()
+            .find(|exception| {
+                exception.kind == MirroredItemKind::Part && exception.mirror_id == link.mirror_id
+            })
+            .map(|exception| match exception.state {
+                MirroredExceptionState::Local => HalfExceptionState::Local,
+                MirroredExceptionState::Omitted => HalfExceptionState::Omitted,
+            })
+            .unwrap_or(HalfExceptionState::Linked);
+        return Some(inspector::MirroredHalfProjection {
+            pair_id: pair.id.clone(),
+            mirror_id: link.mirror_id.clone(),
+            state,
+        });
+    }
+    None
+}
+
+fn companion_placement_projection(
     model: &ReadModel,
     selected: Option<&objects::ScopedTreeContext>,
+    context_generation: u64,
+    scope_generation: u64,
+) -> Option<inspector::CompanionPlacementProjection> {
+    let selected = selected?;
+    if !selection::context_is_current(model, &selected.scope, &selected.context) {
+        return None;
+    }
+    let snapshot = model.accepted.as_ref()?;
+    let document = &snapshot.document;
+    let hardware = document.hardware.as_ref()?;
+    let component_context = matches!(&selected.context, objects::TreeContext::Component { .. });
+    let (matrix_id, row, column) = match &selected.context {
+        objects::TreeContext::Matrix { matrix_id } => (Some(matrix_id.as_str()), None, None),
+        objects::TreeContext::Row { matrix_id, row } => {
+            (Some(matrix_id.as_str()), Some(*row), None)
+        }
+        objects::TreeContext::Column { matrix_id, column } => {
+            (Some(matrix_id.as_str()), None, Some(*column))
+        }
+        objects::TreeContext::Key {
+            matrix_id,
+            row,
+            column,
+        } => (Some(matrix_id.as_str()), Some(*row), Some(*column)),
+        objects::TreeContext::Component {
+            matrix_id,
+            row,
+            column,
+            ..
+        } => (matrix_id.as_deref(), *row, *column),
+        _ => return None,
+    };
+
+    let mut matches = Vec::new();
+    for pair in &hardware.pairs {
+        let Some(halves) = pair.halves.as_ref() else {
+            continue;
+        };
+        if let Some(matrix_id) = matrix_id.filter(|_| !component_context) {
+            let linked_matrix = halves.correspondences.iter().any(|link| {
+                link.kind == MirroredItemKind::Matrix
+                    && (link.source_id == matrix_id || link.mirror_id == matrix_id)
+            });
+            if !linked_matrix {
+                continue;
+            }
+            let (target, key) = match (row, column) {
+                (Some(row), Some(column)) => (None, Some((row, column))),
+                (Some(row), None) => (
+                    Some(CompanionPlacementTarget::Row {
+                        matrix_id: matrix_id.to_owned(),
+                        row,
+                    }),
+                    None,
+                ),
+                (None, Some(column)) => (
+                    Some(CompanionPlacementTarget::Column {
+                        matrix_id: matrix_id.to_owned(),
+                        column,
+                    }),
+                    None,
+                ),
+                (None, None) => (
+                    Some(CompanionPlacementTarget::Matrix {
+                        matrix_id: matrix_id.to_owned(),
+                    }),
+                    None,
+                ),
+            };
+            let (eligible, disabled_reason) =
+                companion_links_for_selection(document, pair, matrix_id, row, column);
+            if eligible.is_empty() && disabled_reason.is_none() {
+                continue;
+            }
+            let targets = if key.is_some() {
+                eligible
+                    .iter()
+                    .map(|link| CompanionPlacementTarget::Item {
+                        item_kind: MirroredItemKind::Part,
+                        mirror_id: link.mirror_id.clone(),
+                    })
+                    .collect()
+            } else {
+                target.into_iter().collect()
+            };
+            matches.push((pair, targets, eligible, disabled_reason));
+        } else {
+            let selected_parts = &model.selected_part_ids;
+            let mut eligible = Vec::new();
+            let mut targets = Vec::new();
+            let mut disabled_reason = None;
+            for link in halves
+                .correspondences
+                .iter()
+                .filter(|link| link.kind == MirroredItemKind::Part)
+            {
+                if !selected_parts
+                    .iter()
+                    .any(|part_id| part_id == &link.source_id || part_id == &link.mirror_id)
+                {
+                    continue;
+                }
+                if let Some(reason) = boardstudio_core::companion_placement_disabled_reason(
+                    document,
+                    &pair.id,
+                    &link.source_id,
+                ) {
+                    disabled_reason = Some(reason);
+                    continue;
+                }
+                if !is_matrix_companion(document, pair, &link.source_id) {
+                    continue;
+                }
+                if !eligible.iter().any(
+                    |existing: &&boardstudio_core::model::MirroredCorrespondence| {
+                        existing.mirror_id == link.mirror_id
+                    },
+                ) {
+                    eligible.push(link);
+                    targets.push(CompanionPlacementTarget::Item {
+                        item_kind: MirroredItemKind::Part,
+                        mirror_id: link.mirror_id.clone(),
+                    });
+                }
+            }
+            if let (Some(matrix_id), Some(row), Some(column)) = (matrix_id, row, column)
+                && targets.is_empty()
+            {
+                let (cell_links, cell_reason) = companion_links_for_selection(
+                    document,
+                    pair,
+                    matrix_id,
+                    Some(row),
+                    Some(column),
+                );
+                eligible = cell_links;
+                targets.extend(eligible.iter().map(|link| CompanionPlacementTarget::Item {
+                    item_kind: MirroredItemKind::Part,
+                    mirror_id: link.mirror_id.clone(),
+                }));
+                disabled_reason = disabled_reason.or(cell_reason);
+            }
+            if !targets.is_empty() || disabled_reason.is_some() {
+                matches.push((pair, targets, eligible, disabled_reason));
+            }
+        }
+    }
+    let [(pair, targets, eligible, disabled_reason)] = matches.as_slice() else {
+        return None;
+    };
+    let halves = pair.halves.as_ref()?;
+    let modes: Vec<_> = if eligible.is_empty() {
+        vec![halves.companion_mode]
+    } else {
+        eligible
+            .iter()
+            .map(|link| link.companion_mode.unwrap_or(halves.companion_mode))
+            .collect()
+    };
+    let first_mode = modes.first().copied();
+    let mixed_mode = modes.iter().any(|mode| Some(*mode) != first_mode);
+    let tweaks: Vec<_> = eligible.iter().map(|link| link.companion_tweak).collect();
+    let first_tweak = tweaks.first().copied().unwrap_or(None);
+    let mixed_tweak = tweaks.iter().any(|tweak| *tweak != first_tweak);
+    let snapshot_token = snapshot.token;
+    Some(inspector::CompanionPlacementProjection {
+        owner: inspector::CompanionPlacementOwner {
+            scope: selected.scope.clone(),
+            context: selected.clone(),
+            selected_part_ids: model.selected_part_ids.clone(),
+            snapshot_token,
+            revision: document.revision,
+            context_generation,
+            scope_generation,
+        },
+        pair_id: pair.id.clone(),
+        targets: targets.clone(),
+        mode: if mixed_mode { None } else { first_mode },
+        mixed_mode,
+        tweak: if mixed_tweak { None } else { first_tweak },
+        mixed_tweak,
+        disabled_reason: if eligible.is_empty() {
+            *disabled_reason
+        } else {
+            None
+        },
+    })
+}
+
+fn companion_links_for_selection<'a>(
+    document: &'a boardstudio_core::model::ProjectDoc,
+    pair: &'a boardstudio_core::model::MechanicalMirrorPair,
+    selected_matrix_id: &str,
+    row: Option<u32>,
+    column: Option<u32>,
+) -> (
+    Vec<&'a boardstudio_core::model::MirroredCorrespondence>,
+    Option<&'static str>,
+) {
+    let Some(halves) = pair.halves.as_ref() else {
+        return (Vec::new(), None);
+    };
+    let matrix_links: Vec<_> = halves
+        .correspondences
+        .iter()
+        .filter(|link| {
+            link.kind == MirroredItemKind::Matrix
+                && (link.source_id == selected_matrix_id || link.mirror_id == selected_matrix_id)
+        })
+        .collect();
+    let [matrix_link] = matrix_links.as_slice() else {
+        return (Vec::new(), None);
+    };
+    let Some(matrix) = document
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == matrix_link.source_id)
+    else {
+        return (Vec::new(), None);
+    };
+    let mut links = Vec::new();
+    let mut disabled_reason = None;
+    for cell in matrix.cells.iter().filter(|cell| {
+        cell.enabled
+            && !cell.deleted
+            && row.is_none_or(|row| cell.row == row)
+            && column.is_none_or(|column| cell.column == column)
+    }) {
+        let prefix = format!("matrix/{}/r{}c{}/", matrix.id, cell.row, cell.column);
+        for assembly in &cell.assemblies {
+            let source_id = format!("{prefix}{}", assembly.id);
+            let Some(link) = halves
+                .correspondences
+                .iter()
+                .find(|link| link.kind == MirroredItemKind::Part && link.source_id == source_id)
+            else {
+                continue;
+            };
+            if let Some(reason) = boardstudio_core::companion_placement_disabled_reason(
+                document, &pair.id, &source_id,
+            ) {
+                disabled_reason = Some(reason);
+            } else if !links.iter().any(
+                |existing: &&boardstudio_core::model::MirroredCorrespondence| {
+                    existing.mirror_id == link.mirror_id
+                },
+            ) {
+                links.push(link);
+            }
+        }
+    }
+    (links, disabled_reason)
+}
+
+fn is_matrix_companion(
+    document: &boardstudio_core::model::ProjectDoc,
+    pair: &boardstudio_core::model::MechanicalMirrorPair,
+    source_id: &str,
+) -> bool {
+    companion_links_for_selection(
+        document,
+        pair,
+        &source_matrix_id(pair, source_id).unwrap_or_default(),
+        None,
+        None,
+    )
+    .0
+    .iter()
+    .any(|link| link.source_id == source_id)
+}
+
+fn source_matrix_id(
+    pair: &boardstudio_core::model::MechanicalMirrorPair,
+    source_part_id: &str,
 ) -> Option<String> {
+    let halves = pair.halves.as_ref()?;
+    halves
+        .correspondences
+        .iter()
+        .find(|matrix| {
+            matrix.kind == MirroredItemKind::Matrix
+                && source_part_id.starts_with(&format!("matrix/{}/", matrix.source_id))
+        })
+        .map(|matrix| matrix.source_id.clone())
+}
+
+/// Resolve a Relations reference against the live accepted document. A component opens
+/// its Inspector context, as for a finding. A target that has gone, or a request for a
+/// session that has moved on, resolves to `None` and nothing is selected.
+fn relation_target_request(
+    runtime: &Runtime,
+    mut request: objects::TreeSelectRequest,
+) -> Option<objects::TreeSelectRequest> {
+    if runtime.scope().as_ref() != Some(&request.scope) {
+        return None;
+    }
+    let model = runtime.model();
+    if let objects::TreeContext::Component {
+        part_id: Some(part_id),
+        ..
+    } = &request.context
+    {
+        request.context = objects::component_context_for_finding_part(&model, part_id)?;
+    }
+    if !selection::context_is_current(&model, &request.scope, &request.context) {
+        return None;
+    }
+    // A removed key keeps a resolvable (empty) context, so check the cell itself.
+    if let objects::TreeContext::Key {
+        matrix_id,
+        row,
+        column,
+    } = &request.context
+    {
+        let document = &model.accepted.as_ref()?.document;
+        let removed = document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == *matrix_id)?
+            .cells
+            .iter()
+            .any(|cell| cell.row == *row && cell.column == *column && cell.deleted);
+        if removed {
+            return None;
+        }
+    }
+    Some(request)
+}
+
+/// The Relations projection for the selected matrix context, from the accepted document and
+/// Core's matrix scene. `None` when nothing is selected, the selection is stale, or the
+/// context names no live object of a matrix.
+fn matrix_context_relations(
+    model: &ReadModel,
+    selected: Option<&objects::ScopedTreeContext>,
+) -> Option<boardstudio_web_layout::matrix_relations::MatrixRelations> {
     let selected = selected?;
     if !selection::context_is_current(model, &selected.scope, &selected.context) {
         return None;
@@ -1905,64 +2119,25 @@ fn matrix_context_relationship_summary(
         _ => return None,
     };
     let snapshot = model.accepted.as_ref()?;
-    let document = &snapshot.document;
-    let board_id = &selected.scope.board_id;
-    let layout = document
-        .layouts
+    let scene = snapshot
+        .scene
+        .matrix_scenes
         .iter()
-        .find(|layout| layout.board_id == *board_id && layout.matrix_id == *matrix_id);
-    let board = document.boards.iter().find(|board| board.id == *board_id)?;
-    Some(layout_relationship_summary(
-        document,
-        board,
-        layout,
-        matrix_context_active_part(model, selected),
-    ))
-}
-
-fn matrix_context_relationship_target(
-    model: &ReadModel,
-    selected: Option<&objects::ScopedTreeContext>,
-) -> Option<objects::TreeSelectRequest> {
-    let selected = selected?;
-    let part = matrix_context_active_part(model, selected)?;
-    let context = objects::component_context_for_finding_part(model, &part.id)?;
-    Some(objects::TreeSelectRequest {
-        scope: selected.scope.clone(),
-        context,
-        mode: SelectionMode::Replace,
-        outline_action: None,
-    })
-}
-
-fn matrix_context_active_part<'a>(
-    model: &'a ReadModel,
-    selected: &objects::ScopedTreeContext,
-) -> Option<&'a Part> {
-    if !selection::context_is_current(model, &selected.scope, &selected.context) {
-        return None;
-    }
-    let board = model
-        .accepted
-        .as_ref()?
-        .document
-        .boards
-        .iter()
-        .find(|board| board.id == selected.scope.board_id)?;
-    let context_parts = objects::resolve_selection(model, &selected.context)?;
-    model
-        .selected_part_ids
-        .iter()
-        .find(|part_id| context_parts.contains(part_id) && board.part_ids.contains(part_id))
-        .and_then(|part_id| {
-            model
-                .accepted
-                .as_ref()?
-                .document
-                .parts
-                .iter()
-                .find(|part| part.id == *part_id)
-        })
+        .find(|scene| scene.matrix_id == *matrix_id)?;
+    let mut relations = boardstudio_web_layout::matrix_relations::matrix_relations(
+        &snapshot.document,
+        scene,
+        &selected.context,
+        &snapshot.scene.matrix_scenes,
+    )?;
+    // The chain covers one matrix context only: selected parts in other
+    // matrices get an explanatory note, never a merged frame.
+    relations.selection_note = boardstudio_web_layout::matrix_relations::cross_matrix_note(
+        &snapshot.scene.matrix_scenes,
+        &selected.context,
+        &model.selected_part_ids,
+    );
+    Some(relations)
 }
 
 fn layout_relationship_summary(
@@ -2000,55 +2175,67 @@ fn layout_relationship_summary(
         return "This layout is independent. Its geometry and components can be edited separately."
             .to_owned();
     }
-    let driven = active_part.and_then(|target| {
-        document
-            .constraints
-            .iter()
-            .find(|constraint| {
-                constraint.target() == target.id.as_str()
-                    && board
-                        .part_ids
+    let driven =
+        active_part.and_then(
+            |target| match document.constraint_driving_part(&target.id) {
+                Ok(Some(constraint)) => {
+                    let source = document
+                        .parts
                         .iter()
-                        .any(|part_id| part_id == constraint.source())
-            })
-            .map(|constraint| {
-                let source = document
-                    .parts
-                    .iter()
-                    .find(|part| part.id == constraint.source())
-                    .map(|part| part.reference.as_str())
-                    .unwrap_or("A part");
-                format!("{source} drives {}.", target.reference)
-            })
-    });
+                        .find(|part| part.id == constraint.source())
+                        .map(|part| part.reference.as_str())
+                        .unwrap_or(constraint.source());
+                    let driven = document
+                        .parts
+                        .iter()
+                        .find(|part| part.id == constraint.target())
+                        .map(|part| part.reference.as_str())
+                        .unwrap_or(constraint.target());
+                    Some(format!("{source} drives {driven}."))
+                }
+                Ok(None) => None,
+                Err(_) => {
+                    Some("The saved placement relationship could not be verified.".to_owned())
+                }
+            },
+        );
     driven.unwrap_or_else(|| "No saved placement relationship on this selection.".to_owned())
 }
 
-fn layout_selection_kind_for_tree_context(
-    context: &objects::TreeContext,
-) -> Option<objects::LayoutSelectionKind> {
-    match context {
-        objects::TreeContext::Matrix { .. } => Some(objects::LayoutSelectionKind::Matrix),
-        objects::TreeContext::Row { .. } => Some(objects::LayoutSelectionKind::Row),
-        objects::TreeContext::Column { .. } => Some(objects::LayoutSelectionKind::Column),
-        objects::TreeContext::Key { .. } => Some(objects::LayoutSelectionKind::Key),
-        objects::TreeContext::Component { .. } => Some(objects::LayoutSelectionKind::Part),
-        objects::TreeContext::Outline { .. }
-        | objects::TreeContext::OutlineVersion { .. }
-        | objects::TreeContext::Bridge { .. }
-        | objects::TreeContext::MountedModule { .. }
-        | objects::TreeContext::Board { .. }
-        | objects::TreeContext::LayoutGroup { .. } => None,
+/// Ticket 13: the Relationships lead for an anchored part: its anchor key and
+/// Follow subset, ahead of the mirror-pairing summary.
+fn part_anchor_summary(
+    document: &boardstudio_core::model::ProjectDoc,
+    part: &boardstudio_core::model::Part,
+) -> Option<String> {
+    let anchor = part.anchor.as_ref()?;
+    let matrix = document
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == anchor.matrix_id)?;
+    let name = matrix.name.clone().unwrap_or(matrix.id.clone());
+    let mut follows = Vec::new();
+    if anchor.follow.x {
+        follows.push("X");
     }
-}
-
-fn update_layout_selection_kind_for_tree_context(
-    mut selection_kind: Signal<objects::LayoutSelectionKind>,
-    context: &objects::TreeContext,
-) {
-    if let Some(kind) = layout_selection_kind_for_tree_context(context) {
-        selection_kind.set(kind);
+    if anchor.follow.y {
+        follows.push("Y");
     }
+    if anchor.follow.rotation {
+        follows.push("rotation");
+    }
+    let follows = if follows.is_empty() {
+        "none".to_owned()
+    } else {
+        follows.join(", ")
+    };
+    Some(format!(
+        "Anchored to {} R{}C{}, following {}.",
+        name,
+        anchor.row + 1,
+        anchor.column + 1,
+        follows
+    ))
 }
 
 fn layout_component_inspector_owner_key(
@@ -2062,14 +2249,20 @@ fn layout_component_inspector_owner_key(
     let selected = selected?;
     let objects::TreeContext::Component {
         part_id: Some(part_id),
-        matrix_id: None,
-        assembly_id: None,
+        matrix_id,
+        assembly_id,
         ..
     } = &selected.context
     else {
         return None;
     };
-    model.accepted.as_ref()?;
+    let snapshot = model.accepted.as_ref()?;
+    if matrix_id.is_some()
+        && assembly_id.is_some()
+        && mirrored_half_projection(&snapshot.document, part_id).is_none()
+    {
+        return None;
+    }
     Some(inspector::LayoutComponentInspectorOwnerKey {
         scope: Some(selected.scope.clone()),
         workspace,
@@ -2111,8 +2304,6 @@ fn layout_component_inspector_owner_is_current(
             &selected.context,
             objects::TreeContext::Component {
                 part_id: Some(part_id),
-                matrix_id: None,
-                assembly_id: None,
                 ..
             } if part_id == &owner.part_id
         )
@@ -2121,28 +2312,103 @@ fn layout_component_inspector_owner_is_current(
         && model.selected_part_ids.first() == Some(&owner.part_id)
 }
 
+fn companion_placement_owner_is_current(
+    runtime: &Runtime,
+    workspace: Signal<&'static str>,
+    adapter: &SelectionAdapter,
+    owner: &inspector::CompanionPlacementOwner,
+    pair_id: &str,
+    submitted_targets: &[CompanionPlacementTarget],
+) -> bool {
+    let current_owner = current_layout_owner(runtime, workspace, adapter);
+    if current_owner.workspace != "Layout"
+        || current_owner.scope.as_ref() != Some(&owner.scope)
+        || current_owner.token != Some(owner.snapshot_token)
+        || current_owner.revision != Some(owner.revision)
+        || owner.context_generation != (adapter.generation)()
+        || owner.scope_generation != (adapter.generation)()
+    {
+        return false;
+    }
+    let model = runtime.model();
+    let Some(selected) = adapter.selected_context.read().clone() else {
+        return false;
+    };
+    if selected != owner.context
+        || model.selected_part_ids != owner.selected_part_ids
+        || !selection::context_is_current(&model, &owner.scope, &owner.context.context)
+    {
+        return false;
+    }
+    let Some(projection) = companion_placement_projection(
+        &model,
+        Some(&selected),
+        owner.context_generation,
+        owner.scope_generation,
+    ) else {
+        return false;
+    };
+    if projection.pair_id != pair_id {
+        return false;
+    }
+    let mut expected = projection.targets;
+    if submitted_targets
+        .iter()
+        .any(|target| matches!(target, CompanionPlacementTarget::Pair))
+    {
+        expected.push(CompanionPlacementTarget::Pair);
+    }
+    sort_companion_targets(&mut expected);
+    let mut submitted = submitted_targets.to_vec();
+    sort_companion_targets(&mut submitted);
+    expected == submitted
+}
+
+fn sort_companion_targets(targets: &mut Vec<CompanionPlacementTarget>) {
+    targets.sort_by_key(|target| serde_json::to_string(target).unwrap_or_default());
+    targets.dedup();
+}
+
 /// Begin the pending edit for an Inspector field and park it on its field of the
 /// Inspector's pending-edit state, so the form renders the draft while it is pending and
 /// the accepted value again when it settles.
 fn submit_layout_component_edit(
     runtime: &Rc<Runtime>,
-    mut pending_edits: Signal<layout_component_edits::LayoutComponentInspectorEdits>,
+    pending_edits: Signal<layout_component_edits::LayoutComponentInspectorEdits>,
     field: layout_component_edits::InspectorField,
     resolver: boardstudio_application::EditResolver,
+    draft: Option<String>,
 ) {
-    let ticket = layout_component_edits::begin_inspector_edit(runtime, field, resolver);
-    let mut edits = pending_edits.peek().clone();
-    match field {
-        layout_component_edits::InspectorField::X => edits.x = Some(ticket),
-        layout_component_edits::InspectorField::Y => edits.y = Some(ticket),
-        layout_component_edits::InspectorField::Margin => edits.margin = Some(ticket),
-        layout_component_edits::InspectorField::Layout => edits.layout = Some(ticket),
-        layout_component_edits::InspectorField::Constraint => edits.constraint = Some(ticket),
+    let helper = pending_edits.peek().clone();
+    let label = match field {
+        layout_component_edits::InspectorField::X => "layout-inspector-x",
+        layout_component_edits::InspectorField::Y => "layout-inspector-y",
+        layout_component_edits::InspectorField::Margin => "layout-inspector-outline",
+        layout_component_edits::InspectorField::Layout => "layout-inspector-layout",
+        layout_component_edits::InspectorField::Constraint => "layout-inspector-constraint",
         layout_component_edits::InspectorField::RemoveConstraint => {
-            edits.remove_constraint = Some(ticket)
+            "layout-inspector-remove-constraint"
         }
+        layout_component_edits::InspectorField::MirroredHalfState => "layout-mirrored-half-state",
+        layout_component_edits::InspectorField::PartMirror => "layout-part-mirror",
+        layout_component_edits::InspectorField::CompanionPlacement => "layout-companion-placement",
+        layout_component_edits::InspectorField::PartAnchorValue => "layout-part-anchor-value",
+        layout_component_edits::InspectorField::PartAnchorFollow => "layout-part-anchor-follow",
+        layout_component_edits::InspectorField::PartAnchorPick => "layout-part-anchor-pick",
+        layout_component_edits::InspectorField::PartAnchorDetach => "layout-part-anchor-detach",
+    };
+    if field.is_field() {
+        helper.begin_field(
+            runtime,
+            field,
+            label,
+            Some("layout".into()),
+            resolver,
+            draft.as_deref().unwrap_or_default(),
+        );
+    } else {
+        helper.begin_one_shot(runtime, field, label, Some("layout".into()), resolver);
     }
-    pending_edits.set(edits);
 }
 
 fn dispatch_layout_component_inspector_action(
@@ -2150,8 +2416,7 @@ fn dispatch_layout_component_inspector_action(
     adapter: &SelectionAdapter,
     layout_owner: &LayoutOwnerIdentity,
     lifetime: &inspector::LayoutComponentInspectorLifetime,
-    mut workspace: Signal<&'static str>,
-    mut inspect_open: Signal<bool>,
+    (mut workspace, mut inspect_open): (Signal<&'static str>, Signal<bool>),
     pending_edits: Signal<layout_component_edits::LayoutComponentInspectorEdits>,
     action: inspector::LayoutComponentInspectorAction,
 ) {
@@ -2161,7 +2426,14 @@ fn dispatch_layout_component_inspector_action(
         | inspector::LayoutComponentInspectorAction::SetOutline { owner, .. }
         | inspector::LayoutComponentInspectorAction::SetConstraint { owner, .. }
         | inspector::LayoutComponentInspectorAction::RemoveConstraint { owner, .. }
-        | inspector::LayoutComponentInspectorAction::NavigateElectrical { owner } => owner,
+        | inspector::LayoutComponentInspectorAction::ConvertOffsetAxes { owner, .. }
+        | inspector::LayoutComponentInspectorAction::NavigateElectrical { owner }
+        | inspector::LayoutComponentInspectorAction::SetMirroredHalfState { owner, .. }
+        | inspector::LayoutComponentInspectorAction::SetPartMirrored { owner, .. }
+        | inspector::LayoutComponentInspectorAction::SetPartAnchorValue { owner, .. }
+        | inspector::LayoutComponentInspectorAction::SetPartAnchorFollow { owner, .. }
+        | inspector::LayoutComponentInspectorAction::SetPartAnchor { owner, .. }
+        | inspector::LayoutComponentInspectorAction::DetachPartAnchor { owner } => owner,
     };
     if !layout_component_inspector_owner_is_current(
         runtime,
@@ -2199,7 +2471,12 @@ fn dispatch_layout_component_inspector_action(
         return;
     }
     match action {
-        inspector::LayoutComponentInspectorAction::SetPosition { owner, axis, value } => {
+        inspector::LayoutComponentInspectorAction::SetPosition {
+            owner,
+            axis,
+            value,
+            submitted_draft,
+        } => {
             if !value.is_finite() {
                 return;
             }
@@ -2218,6 +2495,7 @@ fn dispatch_layout_component_inspector_action(
                     axis,
                     value,
                 ),
+                Some(submitted_draft),
             );
         }
         inspector::LayoutComponentInspectorAction::AssignLayout { owner, layout_id } => {
@@ -2245,14 +2523,20 @@ fn dispatch_layout_component_inspector_action(
                     owner.scope.board_id.clone(),
                     layout_id,
                 ),
+                None,
             );
         }
-        inspector::LayoutComponentInspectorAction::SetOutline { owner, outline } => {
+        inspector::LayoutComponentInspectorAction::SetOutline {
+            owner,
+            outline,
+            submitted_draft,
+        } => {
             submit_layout_component_edit(
                 runtime,
                 pending_edits,
                 layout_component_edits::InspectorField::Margin,
                 layout_component_edits::outline_resolver(owner.part_id.clone(), outline),
+                Some(submitted_draft),
             );
         }
         inspector::LayoutComponentInspectorAction::SetConstraint {
@@ -2277,6 +2561,24 @@ fn dispatch_layout_component_inspector_action(
                     values,
                     id_seed,
                 ),
+                None,
+            );
+        }
+        inspector::LayoutComponentInspectorAction::ConvertOffsetAxes {
+            owner,
+            constraint_id,
+            to,
+        } => {
+            submit_layout_component_edit(
+                runtime,
+                pending_edits,
+                layout_component_edits::InspectorField::Constraint,
+                layout_component_edits::offset_axes_resolver(
+                    owner.part_id.clone(),
+                    constraint_id,
+                    to,
+                ),
+                None,
             );
         }
         inspector::LayoutComponentInspectorAction::RemoveConstraint {
@@ -2291,39 +2593,104 @@ fn dispatch_layout_component_inspector_action(
                     owner.part_id.clone(),
                     constraint_id,
                 ),
+                None,
             );
         }
         inspector::LayoutComponentInspectorAction::NavigateElectrical { .. } => {
             workspace.set("PCB");
             inspect_open.set(true);
         }
+        inspector::LayoutComponentInspectorAction::SetMirroredHalfState {
+            owner: _,
+            pair_id,
+            mirror_id,
+            state,
+        } => {
+            submit_layout_component_edit(
+                runtime,
+                pending_edits,
+                layout_component_edits::InspectorField::MirroredHalfState,
+                layout_component_edits::mirrored_half_state_resolver(pair_id, mirror_id, state),
+                None,
+            );
+        }
+        inspector::LayoutComponentInspectorAction::SetPartMirrored {
+            owner: _,
+            part_id,
+            mirrored,
+        } => {
+            submit_layout_component_edit(
+                runtime,
+                pending_edits,
+                layout_component_edits::InspectorField::PartMirror,
+                layout_component_edits::part_mirror_resolver(part_id, mirrored),
+                None,
+            );
+        }
+        inspector::LayoutComponentInspectorAction::SetPartAnchorValue { owner, change } => {
+            if !part_anchor_value_finite(&change) {
+                return;
+            }
+            submit_layout_component_edit(
+                runtime,
+                pending_edits,
+                layout_component_edits::InspectorField::PartAnchorValue,
+                layout_component_edits::part_anchor_value_resolver(owner.part_id, change),
+                None,
+            );
+        }
+        inspector::LayoutComponentInspectorAction::SetPartAnchorFollow { owner, follow } => {
+            submit_layout_component_edit(
+                runtime,
+                pending_edits,
+                layout_component_edits::InspectorField::PartAnchorFollow,
+                layout_component_edits::part_anchor_follow_resolver(owner.part_id, follow),
+                None,
+            );
+        }
+        inspector::LayoutComponentInspectorAction::SetPartAnchor {
+            owner,
+            matrix_id,
+            row,
+            column,
+            follow,
+        } => {
+            submit_layout_component_edit(
+                runtime,
+                pending_edits,
+                layout_component_edits::InspectorField::PartAnchorPick,
+                layout_component_edits::part_anchor_pick_resolver(
+                    owner.part_id,
+                    matrix_id,
+                    row,
+                    column,
+                    follow,
+                ),
+                None,
+            );
+        }
+        inspector::LayoutComponentInspectorAction::DetachPartAnchor { owner } => {
+            submit_layout_component_edit(
+                runtime,
+                pending_edits,
+                layout_component_edits::InspectorField::PartAnchorDetach,
+                layout_component_edits::part_anchor_detach_resolver(owner.part_id),
+                None,
+            );
+        }
     }
 }
 
-fn pending_splay_origin_pick_after_view_change<T>(
-    from_3d: bool,
-    to_3d: bool,
-    pending: Option<T>,
-) -> Option<T> {
-    if !from_3d && to_3d { None } else { pending }
-}
-
-#[cfg(test)]
-mod layout_splay_pick_view_change_tests {
-    use super::pending_splay_origin_pick_after_view_change;
-    wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
-
-    #[wasm_bindgen_test::wasm_bindgen_test]
-    fn entering_layout_3d_cancels_pending_splay_origin_pick() {
-        assert_eq!(
-            pending_splay_origin_pick_after_view_change(false, true, Some("origin")),
-            None
-        );
-        assert_eq!(
-            pending_splay_origin_pick_after_view_change(true, false, Some("origin")),
-            Some("origin"),
-            "leaving 3D does not rewrite the pending pick state"
-        );
+/// Ticket 13: finite check for anchor value edits; Follow, Pick and Detach
+/// carry no floats.
+fn part_anchor_value_finite(change: &boardstudio_core::model::PartAnchorValueChange) -> bool {
+    use boardstudio_core::model::PartAnchorValueChange as Change;
+    match change {
+        Change::Spread(value)
+        | Change::Stagger(value)
+        | Change::Splay(value)
+        | Change::Rotation(value) => value.is_finite(),
+        Change::Offset(offset) => offset.x.is_finite() && offset.y.is_finite(),
     }
 }
 
@@ -2529,7 +2896,7 @@ fn pin_inspector_on_desktop(mut settings: Signal<PanelSettings>) {
 
 fn is_compact_viewport() -> bool {
     web_sys::window()
-        .and_then(|window| window.match_media("(max-width: 760px)").ok().flatten())
+        .and_then(|window| window.match_media("(width < 980px)").ok().flatten())
         .is_some_and(|query| query.matches())
 }
 
@@ -2550,7 +2917,7 @@ fn focus_first_inspector_control_on_next_frame(
                 .and_then(|window| window.document())
                 .and_then(|document| {
                     if let Some(body) = document
-                        .query_selector("#m1-inspector-panel-content .m1-inspector-body")
+                        .query_selector("#m1-inspector-panel-content > div")
                         .ok()
                         .flatten()
                         .and_then(|element| element.dyn_into::<HtmlElement>().ok())
@@ -2711,7 +3078,17 @@ fn fit_selected_bridge(runtime: &Rc<Runtime>, bridge_id: Option<&str>) {
                 .parts
                 .iter()
                 .filter(|part| board.part_ids.contains(&part.id))
-                .map(|part| part.pose.at)
+                .map(|part| {
+                    // Ticket 12: fit the evaluated board pose of half-frame
+                    // parts, like the canvas does.
+                    snapshot
+                        .scene
+                        .transforms
+                        .iter()
+                        .find(|transform| transform.id == part.id)
+                        .map(|transform| transform.pose.at)
+                        .unwrap_or(part.pose.at)
+                })
                 .fold(None, |bounds, point| {
                     Some(bounds.map_or(
                         (point.x, point.x, point.y, point.y),
@@ -2845,32 +3222,20 @@ fn use_setup_project_name(runtime: Rc<Runtime>) -> SetupProjectNameEdit {
             draft.set(Some((id.clone(), current.document.name.clone())));
             return;
         }
-        let expected_epoch = *epoch;
-        let target_document_id = id.clone();
         let resolver = boardstudio_application::EditResolver::new(
             "setup-project-name",
             move |accepted: &boardstudio_application::AcceptedSnapshot| {
-                if accepted.session_epoch != expected_epoch
-                    || accepted.document.id != target_document_id
-                {
-                    return boardstudio_application::Resolution::Retire(
-                        boardstudio_application::DOCUMENT_SESSION_CHANGED.into(),
-                    );
-                }
                 if accepted.document.name == proposed {
                     return boardstudio_application::Resolution::Unchanged;
                 }
                 let mut document = accepted.document.as_ref().clone();
                 document.name = proposed.clone();
-                boardstudio_application::Resolution::Submit(EditCommand {
-                    base_revision: accepted.document.revision,
-                    transaction_id: String::new(),
-                    phase: EditPhase::Commit,
-                    target_ids: vec![document.id.clone()],
-                    operation: EditOperation::ReplaceDocument {
+                boardstudio_application::Resolution::submit(
+                    vec![document.id.clone()],
+                    EditOperation::ReplaceDocument {
                         document: Box::new(document),
                     },
-                })
+                )
             },
         );
         let ticket = EditTicket::begin(
@@ -2891,283 +3256,112 @@ fn use_setup_project_name(runtime: Rc<Runtime>) -> SetupProjectNameEdit {
     }
 }
 
-#[cfg(test)]
-mod setup_project_name_queue_tests {
-    use super::*;
-    use crate::runtime::project_name_test_support as support;
-    use wasm_bindgen::JsCast;
-    use wasm_bindgen_test::wasm_bindgen_test;
-
-    fn host() -> Element {
-        let runtime = use_context::<Rc<Runtime>>();
-        let version = use_signal(|| 0u64);
-        use_context_provider(|| version);
-        use_hook(|| {
-            runtime.subscribe(Rc::new(move || {
-                let mut version = version;
-                version += 1;
-            }))
-        });
-        let _ = version();
-        let name = use_setup_project_name(runtime);
-        let value = (name.draft)().map(|(_, name)| name).unwrap_or_default();
-        rsx! { input { id: "setup-name-queue", value, oninput: move |event: FormEvent| name.on_change.call(event.value()), onblur: move |_| name.on_commit.call(()) } }
-    }
-
-    #[wasm_bindgen_test]
-    async fn older_setup_name_landing_preserves_active_typing() {
-        let runtime = support::new_runtime();
-        support::open_document(
-            &runtime,
-            boardstudio_core::model::ProjectDoc::empty("setup-name-typing", "Original"),
-        )
-        .await;
-        let document = web_sys::window().unwrap().document().unwrap();
-        let root = document.create_element("div").unwrap();
-        document.body().unwrap().append_child(&root).unwrap();
-        let dom = VirtualDom::new(host);
-        dom.provide_root_context(runtime.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
-        gloo_timers::future::TimeoutFuture::new(80).await;
-        let input = root
-            .query_selector("input")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlInputElement>()
-            .unwrap();
-        let type_name = |value: &str| {
-            let _ = input.focus();
-            input.set_value(value);
-            let event = web_sys::EventInit::new();
-            event.set_bubbles(true);
-            input
-                .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
-                .unwrap();
-        };
-        let (entered, release) = support::gate_next_core_reply(&runtime);
-        type_name("Committed");
-        let _ = input.blur();
-        gloo_timers::future::TimeoutFuture::new(40).await;
-        support::drive_pending(&runtime);
-        entered.await.unwrap();
-        type_name("Still typing");
-        gloo_timers::future::TimeoutFuture::new(40).await;
-        release.send(()).unwrap();
-        for _ in 0..12 {
-            support::run_pending(&runtime).await;
-            gloo_timers::future::TimeoutFuture::new(30).await;
-        }
-        assert_eq!(runtime.model().accepted.unwrap().document.name, "Committed");
-        assert_eq!(
-            input.value(),
-            "Still typing",
-            "older setup name landing must preserve active draft"
-        );
-        let _ = input.blur();
-        for _ in 0..12 {
-            support::run_pending(&runtime).await;
-            gloo_timers::future::TimeoutFuture::new(30).await;
-        }
-        assert_eq!(
-            runtime.model().accepted.unwrap().document.name,
-            "Still typing"
-        );
-        runtime.unsubscribe();
-        runtime
-            .store
-            .delete_project("setup-name-typing".into())
-            .await
-            .unwrap();
-        root.remove();
-    }
-}
-
+/// Ticket 18: the ghost of the previous spacing lives here, in the Editor,
+/// next to the other Layout view state. The tracker below records the last
+/// accepted snapshot; a committed spacing change raises the pre-commit scene
+/// as a dashed ghost with its delta note until the next edit, undo/redo, or
+/// selection change. Nothing here writes the document.
 #[component]
 fn Editor() -> Element {
-    let mut workspace_callbacks = use_hook(|| WorkspaceCallbackSlots {
+    boardstudio_web_ui_shared::layer_dock::use_layer_dock_provider();
+    parts::use_assembly_action_provider();
+    let mut workspace_routing = use_hook(|| WorkspaceRoutingSlots {
         select_tree: EventHandler::new(|_: objects::TreeSelectRequest| {}),
         navigate: EventHandler::new(|_: (Scope, String, Option<String>)| {}),
-        nudge_tree: EventHandler::new(|_: objects::TreeNudgeRequest| {}),
-        parts_select: EventHandler::new(|_: ()| {}),
-        toggle_footprints: EventHandler::new(|_: ()| {}),
-        retry_save: EventHandler::new(|_: ()| {}),
-        recover_saved: EventHandler::new(|_: ()| {}),
-        canvas_mount: EventHandler::new(|_: MountedEvent| {}),
-        canvas_start_pan: EventHandler::new(|_: PointerEvent| {}),
-        canvas_move_pointer: EventHandler::new(|_: PointerEvent| {}),
-        canvas_end_pointer: EventHandler::new(|_: PointerEvent| {}),
-        canvas_cancel_pointer: EventHandler::new(|_: PointerEvent| {}),
-        canvas_keyboard: EventHandler::new(|_: KeyboardEvent| {}),
-        canvas_key_up: EventHandler::new(|_: KeyboardEvent| {}),
-        canvas_wheel: EventHandler::new(|_: WheelEvent| {}),
-        keymap_select: EventHandler::new(|_: String| {}),
-        keycaps_select: EventHandler::new(|_: String| {}),
-        keycaps_finding: EventHandler::new(|_: keycaps_fit::FindingNavigationRequest| {}),
-        pcb_empty_hit: EventHandler::new(|_: PointerEvent| {}),
-        pcb_part_hit: EventHandler::new(|_: pcb_scene::PcbPartHit| {}),
-        pcb_part_pointer_down: EventHandler::new(|_: pcb_scene::PcbPartPointerDown| {}),
-        mounted_module_select: EventHandler::new(|_: String| {}),
-        pcb_wiring_edit_board: EventHandler::new(|_: ()| {}),
-        layout_selection_kind: EventHandler::new(|_: objects::LayoutSelectionKind| {}),
-        layout_snap_intent: EventHandler::new(|_: objects::LayoutSnapIntent| {}),
-        pcb_selection_kind: EventHandler::new(|_: objects::LayoutSelectionKind| {}),
-        pcb_snap_intent: EventHandler::new(|_: objects::LayoutSnapIntent| {}),
-        pcb_transform_properties: EventHandler::new(|_: ()| {}),
-        case_action: EventHandler::new(|_: case_workspace::TreeAction| {}),
-        case_display: EventHandler::new(|_: case_workspace::DisplayRequest| {}),
-        keymap_layer: EventHandler::new(|_: String| {}),
-        keymap_export: EventHandler::new(|_: ()| {}),
-        show_configured_board: EventHandler::new(|_: String| {}),
-        open_geometry_scripts: EventHandler::new(|_: ()| {}),
     });
     let runtime = use_context::<Rc<Runtime>>();
     let compact_panel_state = use_context::<CompactPanelState>();
-    let mut objects_open = compact_panel_state.objects_open;
+    let objects_open = compact_panel_state.objects_open;
     let mut inspect_open = compact_panel_state.inspector_open;
-    let mut geometry_scripts_open = use_signal(|| false);
     let preference_warning = use_context::<PreferenceStorageWarning>().0;
     let objects_panel_settings = use_panel_settings(PanelSide::Objects, preference_warning);
     let inspector_panel_settings = use_panel_settings(PanelSide::Inspector, preference_warning);
     let created_request_signal = use_context::<Signal<Option<SetupGuideRequest>>>();
-    let created_request = created_request_signal();
-    let mut guide_preferences = use_signal(|| None::<SetupGuidePreferences>);
+    let setup_state = setup_workspace::use_setup_workspace_state(
+        runtime.clone(),
+        created_request_signal,
+        objects_open,
+        inspect_open,
+        objects_panel_settings,
+        inspector_panel_settings,
+    );
+    let guide_preferences = setup_state.guide_preferences();
+    let geometry_scripts_open = setup_state.geometry_scripts_open();
     let guide_name_edit = use_setup_project_name(runtime.clone());
     let guide_name_draft = guide_name_edit.draft;
     let guide_name_failure = guide_name_edit.failure;
-    let consumed_guide_requests = use_hook(|| Rc::new(RefCell::new(BTreeSet::<String>::new())));
-    let accepted_project_id = runtime
-        .model()
-        .accepted
-        .as_ref()
-        .map(|snapshot| snapshot.document.id.clone());
-    let mut guide_workspace = use_context::<WorkspaceState>().0;
-    use_effect(use_reactive!(|accepted_project_id, created_request| {
-        let mut created_request_signal = created_request_signal;
-        let Some(project_id) = accepted_project_id.as_ref() else {
-            return;
-        };
-        if let Some(request) = created_request
-            .as_ref()
-            .filter(|request| request.project_id == *project_id)
-        {
-            let already_consumed = consumed_guide_requests
-                .borrow()
-                .contains(&request.request_id);
-            if !already_consumed {
-                consumed_guide_requests
-                    .borrow_mut()
-                    .insert(request.request_id.clone());
-                guide_preferences.set(Some(SetupGuidePreferences {
-                    project_id: project_id.clone(),
-                    open: true,
-                    current_stage: if request.start_at_project {
-                        SetupGuideStage::Project
-                    } else {
-                        guide_preferences()
-                            .filter(|preferences| preferences.project_id == *project_id)
-                            .map(|preferences| preferences.current_stage)
-                            .unwrap_or_else(|| {
-                                setup_guide::read_preferences(project_id).current_stage
-                            })
-                    },
-                }));
-                if request.start_at_project {
-                    guide_workspace.set("Layout");
-                }
-                setup_guide::reveal_panels(
-                    crate::setup_guide_state::GuideReveal::Guide,
-                    objects_open,
-                    inspect_open,
-                    objects_panel_settings,
-                    inspector_panel_settings,
-                );
-                created_request_signal.set(None);
-            }
-        } else if guide_preferences()
-            .as_ref()
-            .is_none_or(|preferences| preferences.project_id != *project_id)
-        {
-            let preferences = setup_guide::read_preferences(project_id);
-            if preferences.open {
-                setup_guide::reveal_panels(
-                    crate::setup_guide_state::GuideReveal::Guide,
-                    objects_open,
-                    inspect_open,
-                    objects_panel_settings,
-                    inspector_panel_settings,
-                );
-            }
-            guide_preferences.set(Some(preferences));
-        }
-    }));
-    let preferences_to_persist = guide_preferences();
-    use_effect(use_reactive!(|preferences_to_persist| {
-        if let Some(preferences) = preferences_to_persist.as_ref() {
-            setup_guide::write_preferences(preferences);
-        }
-    }));
     let adapter = use_context::<SelectionAdapter>();
     let layout_component_inspector_lifetime =
         use_hook(|| Rc::new(inspector::LayoutComponentInspectorLifetime::default()));
     let version = use_context::<Signal<u64>>();
     let observed_version = version();
-    let instance_preference = use_signal(|| {
-        runtime.scope().and_then(|scope| {
-            scope
-                .instance_id
-                .map(|explicit_id| instance_selection::Preference {
-                    session_epoch: scope.session_epoch,
-                    document_id: scope.document_id,
-                    explicit_id,
-                })
-        })
-    });
-    let instance_selection = use_context_provider(|| InstanceSelection(instance_preference));
-    let case_body_selection = use_signal(|| None::<case_viewer::BodySelection>);
-    let case_layer_selection = use_signal(|| None::<case_viewer::LayerSelection>);
-    let focused_keycaps_finding = use_signal(|| None::<keycaps_finding_marker::FocusedFinding>);
-    let layout_findings_open = use_signal(|| false);
-    let layout_finding_return_target = use_signal(|| None::<LayoutFindingReturnTarget>);
-    let layout_finding_return_focus = use_signal(|| false);
-    let pending_layout_finding = use_signal(|| None::<layout_findings::Request>);
-    let pending_keycaps_navigation_fit =
-        use_signal(|| None::<keycaps_navigation::PendingLayoutFit>);
-    let keycaps_navigation_alive = keycaps_navigation::use_navigation_lifetime();
-    let case_display = use_signal(std::collections::BTreeMap::new);
-    let case_body_edit_dispatch = use_signal(|| None::<case_viewer::CaseBodyEditDispatch>);
-    let case_body_editable = use_signal(|| false);
-    let case_selection = case_viewer::CaseSelection {
-        body: case_body_selection,
-        layer: case_layer_selection,
-        display: case_display,
-        body_edit_portal: case_viewer::CaseBodyEditPortal {
-            dispatch: case_body_edit_dispatch,
-            editable: case_body_editable,
-        },
-    };
-    use_context_provider(|| case_selection);
-    let case_tree_expanded = use_signal(BTreeSet::<String>::new);
+    let instance_preference = setup_state.instance_preference();
+    let instance_selection = InstanceSelection(instance_preference);
+    let case_workspace_state = case_workspace::use_case_workspace_state();
+    let case_selection = case_workspace_state.selection();
+    let case_tree_expanded = case_workspace_state.tree_expanded();
     let workspace = use_context::<WorkspaceState>().0;
+    let layout_state =
+        layout_workspace::use_layout_workspace_state(adapter.selected_context, workspace);
+    let canvas_navigation = use_canvas_navigation_state(workspace);
     let return_workspace = use_context::<ExportReturnWorkspace>().0;
     let active_workspace = workspace();
     let requested_workspace_panel =
         panels::use_workspace_panel_defaults(active_workspace, objects_open, inspect_open);
     let render_generation = (adapter.generation)();
-    let layout_selection_kind = use_signal(objects::LayoutSelectionKind::default);
-    let layout_snap_settings = use_signal(objects::LayoutSnapSettings::default);
-    let mut layout_context_tab = use_signal(layout_workspace::LayoutInspectorTab::default);
-    layout_workspace::use_contextual_inspector_tab_reset(
-        adapter.selected_context,
-        layout_context_tab,
-    );
-    let layout_command_menu = use_signal(|| None::<objects::LayoutCommandMenu>);
-    let mut layout_transform_tool = use_signal(|| None::<objects::LayoutTransformTool>);
-    let layout_transform_tool_owner =
-        use_signal(|| None::<(Option<Scope>, u64, Option<String>, &'static str, bool)>);
-    let mut layout_assembly_3d = use_signal(|| false);
+    let layout_selection_kind = layout_state.selection_kind();
+    // Ticket 14: view-only split editing focus. Like Handles, this signal
+    // never writes the document; only canvas clicks move it.
+    let split_focus = layout_state.split_focus();
+    // Ticket 18: ghost of the previous spacing. The tracker records the last
+    // accepted snapshot it processed; a committed spacing change raises the
+    // pre-commit scene as the ghost. The effect re-runs on every runtime
+    // change (Runtime::submit always notifies, including selection), but only
+    // writes the signals when the tracker advances — selection-only paints
+    // resolve to Keep.
+    let mut last_spacing_seen = use_signal(|| None::<spacing_ghost::SeenAccepted>);
+    let mut spacing_ghost_state = use_signal(|| None::<spacing_ghost::SpacingGhostState>);
+    let ghost_effect_runtime = runtime.clone();
+    let ghost_effect_selection = adapter.selected_context;
+    use_effect(move || {
+        let _ = version();
+        let tree_context = (ghost_effect_selection)();
+        let model = ghost_effect_runtime.model();
+        let Some(snapshot) = model.accepted.clone() else {
+            return;
+        };
+        let current = spacing_ghost::AcceptedView {
+            revision: snapshot.document.revision,
+            transaction: snapshot.scene.transaction_id.clone(),
+            document: snapshot.document.clone(),
+            scene: snapshot.scene.clone(),
+            selected_ids: model.selected_part_ids.clone(),
+            selected_context: tree_context,
+        };
+        // Clone the settled values first: the tracker borrows nothing, and the
+        // guarded writes below only fire on real advances.
+        let seen_before = last_spacing_seen.peek().clone();
+        let ghost_before = spacing_ghost_state.peek().clone();
+        match spacing_ghost::advance_spacing_ghost(
+            seen_before.as_ref(),
+            &current,
+            ghost_before.as_ref(),
+        ) {
+            spacing_ghost::GhostAdvance::Keep => {}
+            spacing_ghost::GhostAdvance::Set { seen, ghost } => {
+                if Some(&seen) != seen_before.as_ref() {
+                    last_spacing_seen.set(Some(seen));
+                }
+                if ghost != ghost_before {
+                    spacing_ghost_state.set(ghost);
+                }
+            }
+        }
+    });
+    let layout_snap_settings = layout_state.snap_settings();
+    let layout_command_menu = layout_state.command_menu();
+    let mut layout_transform_tool = layout_state.transform_tool();
+    let layout_assembly_3d = layout_state.assembly_3d();
     let tree_cell_anchor = use_hook(|| Rc::new(RefCell::new(None::<OwnedTreeCellAnchor>)));
     let matrix_inspector = objects::use_matrix_inspector(
         runtime.clone(),
@@ -3189,7 +3383,7 @@ fn Editor() -> Element {
         workspace,
         adapter.generation,
     );
-    let matrix_splay_affect = use_signal(|| MatrixSplayAffect::Following);
+    let matrix_splay_affect = layout_state.splay_affect();
     let matrix_transform_inspector = objects::use_workspace_matrix_transform(
         runtime.clone(),
         version,
@@ -3199,7 +3393,8 @@ fn Editor() -> Element {
         matrix_splay_affect,
         "Layout",
     );
-    let pending_splay_origin_pick = use_signal(|| None::<objects::MatrixTransformInspectorOwner>);
+    let pending_splay_origin_pick = layout_state.pending_splay_origin_pick();
+    let pending_anchor_pick = layout_state.pending_anchor_pick();
     let layout_align = objects::use_canvas_align(
         runtime.clone(),
         version,
@@ -3224,7 +3419,8 @@ fn Editor() -> Element {
         workspace,
         adapter.generation,
     );
-    let parts_assembly_orientation = use_signal(|| parts::SwitchOrientation::South);
+    let parts_state = parts_workspace::use_parts_workspace_state();
+    let parts_assembly_orientation = parts_state.assembly_orientation();
     let canvas_interaction = use_hook(CanvasInteractionArbiter::default);
     let matrix_placement = objects::use_matrix_placement(
         runtime.clone(),
@@ -3267,7 +3463,7 @@ fn Editor() -> Element {
             });
         })
     };
-    let pair_created_selection = use_signal(|| None::<objects::MirroredPairCreated>);
+    let pair_created_selection = layout_state.pair_created_selection();
     let on_mirrored_pair_created = use_callback({
         let runtime = runtime.clone();
         let mut adapter = adapter.clone();
@@ -3371,19 +3567,12 @@ fn Editor() -> Element {
         adapter.generation,
     );
     let layer_visibility = use_context::<LayerVisibility>();
-    let parts_query: PartsQuery = use_signal(String::new);
-    let parts_selection: PartsSelection = use_signal(|| None);
-    let parts_assembly_selection = use_signal(|| None);
-    use_context_provider(|| parts::PartsAssemblySelection(parts_assembly_selection));
-    use_context_provider(|| parts::PartsAssemblyOrientation(parts_assembly_orientation));
-    let parts_selection_generation = use_signal(|| 0u64);
-    use_context_provider(|| parts::PartsSelectionGeneration(parts_selection_generation));
-    let parts_preview_activation = use_signal(|| 0u64);
-    use_context_provider(|| parts::PartsPreviewActivation(parts_preview_activation));
-    let parts_generator_draft = use_signal(|| None::<parts::GeneratorPreviewDraft>);
-    use_context_provider(|| parts::GeneratorDraftStore(parts_generator_draft));
+    let parts_query: PartsQuery = parts_state.query();
+    let parts_selection: PartsSelection = parts_state.selected();
+    let parts_selection_generation = parts_state.selection_generation();
     let layout_target: Signal<Option<String>> = use_signal(|| None);
-    let mut keymap_layer_id = use_signal(|| "base".to_owned());
+    let keymap_state = keymap_workspace::use_keymap_workspace_state();
+    let keymap_layer_id = keymap_state.active_layer_id();
     let has_inspector = matches!(
         active_workspace,
         "Layout" | "Parts" | "Keymap" | "Keycaps" | "Case" | "PCB"
@@ -3396,31 +3585,6 @@ fn Editor() -> Element {
             inspect_open.set(true);
         }
     };
-    let objects_preferences = objects_panel_settings();
-    let inspector_preferences = inspector_panel_settings();
-    let left_track = if objects_preferences.mode == PanelMode::Pinned {
-        "min(var(--m1-left-panel-width), calc(45vw - 126px))"
-    } else {
-        "32px"
-    };
-    let right_track = if !has_inspector {
-        "0px"
-    } else if inspector_preferences.mode == PanelMode::Pinned {
-        "min(var(--m1-right-panel-width), calc(55vw - 154px))"
-    } else {
-        "32px"
-    };
-    let left_width = objects_preferences
-        .width
-        .map(|width| format!("--m1-left-panel-width:{width}px;"))
-        .unwrap_or_default();
-    let right_width = inspector_preferences
-        .width
-        .map(|width| format!("--m1-right-panel-width:{width}px;"))
-        .unwrap_or_default();
-    let panel_layout_style = format!(
-        "--m1-left-track:{left_track};--m1-right-track:{right_track};{left_width}{right_width}"
-    );
     let model = runtime.model();
     let current_scope = runtime.scope();
     let accepted_token = model.accepted.as_ref().map(|snapshot| snapshot.token);
@@ -3434,48 +3598,12 @@ fn Editor() -> Element {
         generation: render_generation,
         workspace: active_workspace,
     };
-    use_effect(use_reactive(
-        (
-            &layout_finding_return_target(),
-            &layout_owner,
-            &(adapter.selected_context)(),
-        ),
-        {
-            let runtime = runtime.clone();
-            let mut return_target = layout_finding_return_target;
-            move |(target, owner, current_selection)| {
-                let Some(target) = target.as_ref() else {
-                    return;
-                };
-                if !layout_finding_return_is_current(
-                    &runtime.model(),
-                    &owner,
-                    current_selection.as_ref(),
-                    target,
-                ) {
-                    return_target.set(None);
-                }
-            }
-        },
-    ));
-    use_effect(use_reactive((&layout_finding_return_focus(),), {
-        let mut return_focus = layout_finding_return_focus;
-        move |(pending,)| {
-            if !pending {
-                return;
-            }
-            return_focus.set(false);
-            let _ = focus_layout_finding_return_destination();
-        }
-    }));
-    use_effect(use_reactive((&active_workspace,), {
-        let mut active_tool = layout_transform_tool;
-        move |(active_workspace,)| {
-            if active_workspace != "Layout" {
-                active_tool.set(None);
-            }
-        }
-    }));
+    let mut layout_findings = use_layout_findings_state(
+        runtime.clone(),
+        workspace,
+        adapter.clone(),
+        layout_owner.clone(),
+    );
     use_effect(use_reactive((&layout_owner,), {
         let tree_cell_anchor = tree_cell_anchor.clone();
         move |(owner,)| {
@@ -3488,15 +3616,54 @@ fn Editor() -> Element {
             }
         }
     }));
+    // The Relations highlight is transient view state. A selection, workspace or board change
+    // clears it; an accepted revision that drops its parts is handled by the canvas filter.
+    let relation_highlight = use_signal(|| None::<Vec<String>>);
+    use_context_provider(|| RelationHighlight(relation_highlight));
+    let highlight_context = (
+        adapter.selected_context.read().clone(),
+        model.selected_part_ids.clone(),
+        model.active_board_id.clone(),
+        active_workspace,
+    );
+    use_effect(use_reactive((&highlight_context,), move |(_,)| {
+        RelationHighlight(relation_highlight).clear();
+    }));
+    // Ticket 16: the amber at-rest field preview is transient view state too,
+    // but separate from the violet reference above: hovering or focusing an
+    // Inspector number field shows it, and leave, blur, unmount, a selection
+    // change or any accepted revision clears it (the set is computed from
+    // the accepted document, so a commit always stales it).
+    let field_preview = use_signal(|| None::<FieldPreviewState>);
+    use_context_provider(|| FieldPreview(field_preview));
+    let field_preview_source = model.accepted.as_ref().map(|snapshot| FieldPreviewSource {
+        document: snapshot.document.clone(),
+        scene: snapshot.scene.clone(),
+    });
+    use_context_provider(|| field_preview_source.clone());
+    let field_preview_context = (
+        adapter.selected_context.read().clone(),
+        model.selected_part_ids.clone(),
+        model.active_board_id.clone(),
+        active_workspace,
+        model
+            .accepted
+            .as_ref()
+            .map(|snapshot| snapshot.document.revision),
+    );
+    use_effect(use_reactive((&field_preview_context,), move |(_,)| {
+        FieldPreview(field_preview).clear();
+    }));
     let active_board_id = model.active_board_id.clone();
-    keycaps_finding_marker::use_retire_stale_finding(
-        focused_keycaps_finding,
+    let keycaps_state = keycaps_workspace::use_keycaps_workspace_state(
         layout_owner.workspace,
         layout_owner.scope.clone(),
         layout_owner.token,
         layout_owner.revision,
         active_board_id.clone(),
     );
+    let focused_keycaps_finding = keycaps_state.focused_finding();
+    let keycaps_navigation_alive = keycaps_state.navigation_alive();
     let layer_source =
         current_scope
             .clone()
@@ -3658,7 +3825,7 @@ fn Editor() -> Element {
             }
         }),
         Rc::new(|accepted, intent| {
-            Box::pin(parts::prepare_physical_setup_proposal(accepted, intent))
+            Box::pin(parts::prepare_physical_setup_resources(accepted, intent))
         }),
     );
     // Keep the operation observer alive even when the workspace panel is hidden.
@@ -3674,46 +3841,19 @@ fn Editor() -> Element {
         },
     );
     let keymap_layer_value = keymap_layer_id();
-    let keymap_projection = use_memo(use_reactive(
-        (
-            &accepted_token,
-            &current_scope,
-            &active_board_id,
-            &keymap_layer_value,
-        ),
-        {
-            let runtime = runtime.clone();
-            move |(token, scope, board_id, layer_id)| {
-                let model = runtime.model();
-                let snapshot = model.accepted.as_ref()?;
-                if token.as_ref() != Some(&snapshot.token) {
-                    return None;
-                }
-                let view = keymap::project(
-                    snapshot,
-                    scope.as_ref(),
-                    board_id.as_ref(),
-                    layer_id.as_ref(),
-                )?;
-                Some((view, accepted_board_contours(snapshot, &board_id)))
-            }
-        },
-    ));
-    let keycaps_projection = use_memo(use_reactive(
-        (&accepted_token, &current_scope, &active_board_id),
-        {
-            let runtime = runtime.clone();
-            move |(token, scope, board_id)| {
-                let model = runtime.model();
-                let snapshot = model.accepted.as_ref()?;
-                if token.as_ref() != Some(&snapshot.token) {
-                    return None;
-                }
-                let view = keycaps_scene::project(snapshot, scope.as_ref()?, &board_id)?;
-                Some((view, accepted_board_contours(snapshot, &board_id)))
-            }
-        },
-    ));
+    let keymap_projection = keymap_workspace::use_projection(
+        runtime.clone(),
+        accepted_token,
+        current_scope.clone(),
+        active_board_id.clone(),
+        keymap_layer_value,
+    );
+    let keycaps_projection = keycaps_workspace::use_projection(
+        runtime.clone(),
+        accepted_token,
+        current_scope.clone(),
+        active_board_id.clone(),
+    );
     let encoder_input_actions = keymap::use_encoder_inputs(
         runtime.clone(),
         layer_source.clone(),
@@ -3723,7 +3863,7 @@ fn Editor() -> Element {
         runtime.clone(),
         keymap::BindingProjectionSources {
             source: layer_source.clone(),
-            view: keymap_projection().as_ref().map(|(view, _)| view.clone()),
+            view: keymap_projection.as_ref().map(|(view, _)| view.clone()),
             encoder_projection: encoder_input_actions.projection,
             current_encoder_projection: encoder_input_actions.current,
         },
@@ -3735,10 +3875,8 @@ fn Editor() -> Element {
             Rc::new(move || instance_selection.is_current(&runtime.model()))
         },
     );
-    let keymap_projection = keymap_projection.read().clone();
     let keymap_view = keymap_projection.as_ref().map(|(view, _)| view.clone());
     let keymap_contours = keymap_projection.map(|(_, contours)| contours);
-    let keycaps_projection = keycaps_projection.read().clone();
     let keycaps_view = keycaps_projection.as_ref().map(|(view, _)| view.clone());
     let keycaps_contours = keycaps_projection.map(|(_, contours)| contours);
     // Keep macro operation observation alive when another workspace hides the panel.
@@ -3760,15 +3898,7 @@ fn Editor() -> Element {
         let generation = adapter.generation;
         let mut workspace = workspace;
         let mut inspect_open = inspect_open;
-        let mut case_selection = case_viewer::CaseSelection {
-            body: case_body_selection,
-            layer: case_layer_selection,
-            display: case_display,
-            body_edit_portal: case_viewer::CaseBodyEditPortal {
-                dispatch: case_body_edit_dispatch,
-                editable: case_body_editable,
-            },
-        };
+        let mut case_selection = case_selection;
         let captured_revision = model
             .accepted
             .as_ref()
@@ -3883,15 +4013,7 @@ fn Editor() -> Element {
         adapter.generation,
         workspace,
         instance_selection,
-        case_viewer::CaseSelection {
-            body: case_body_selection,
-            layer: case_layer_selection,
-            display: case_display,
-            body_edit_portal: case_viewer::CaseBodyEditPortal {
-                dispatch: case_body_edit_dispatch,
-                editable: case_body_editable,
-            },
-        },
+        case_selection,
         on_show_mechanical_finding,
     );
     let Some(render_scope) = current_scope.clone() else {
@@ -3905,20 +4027,25 @@ fn Editor() -> Element {
         .display_preview
         .clone()
         .unwrap_or_else(|| snapshot.scene.clone());
+    let findings = layout_findings_for_display(
+        &snapshot.scene.findings,
+        model
+            .display_preview
+            .as_ref()
+            .map(|preview| preview.findings.as_slice()),
+    );
     let board = document
         .boards
         .iter()
         .find(|b| b.id == model.active_board_id);
+    let board_part_ids: HashSet<_> = board
+        .into_iter()
+        .flat_map(|board| board.part_ids.iter().map(String::as_str))
+        .collect();
     let visible: Vec<_> = document
         .parts
         .iter()
-        .filter(|p| board.is_some_and(|b| b.part_ids.contains(&p.id)))
-        .cloned()
-        .collect();
-    let definitions: std::collections::BTreeMap<_, _> = document
-        .definitions
-        .iter()
-        .map(|definition| (definition.id.as_str(), definition))
+        .filter(|part| board_part_ids.contains(part.id.as_str()))
         .collect();
     let matrices: Vec<_> = document
         .matrices
@@ -3932,27 +4059,10 @@ fn Editor() -> Element {
                     && (matrix
                         .part_ids
                         .iter()
-                        .any(|id| board.is_some_and(|board| board.part_ids.contains(id)))
+                        .any(|id| board_part_ids.contains(id.as_str()))
                         || (matrix.part_ids.is_empty() && document.boards.len() <= 1)))
         })
         .collect();
-    let matrix_scenes: std::collections::BTreeMap<_, _> = scene
-        .matrix_scenes
-        .iter()
-        .map(|matrix| (matrix.matrix_id.as_str(), matrix))
-        .collect();
-    let mut matrix_members = BTreeSet::new();
-    for matrix in &matrices {
-        if let Some(projected) = matrix_scenes.get(matrix.id.as_str()) {
-            matrix_members.extend(
-                projected
-                    .cells
-                    .iter()
-                    .filter(|cell| cell.enabled)
-                    .filter_map(|cell| cell.member_id.as_deref()),
-            );
-        }
-    }
     let visible_ids: Rc<Vec<String>> =
         Rc::new(visible.iter().map(|part| part.id.clone()).collect());
     let select_tree = {
@@ -3962,7 +4072,6 @@ fn Editor() -> Element {
         let tree_cell_anchor = tree_cell_anchor.clone();
         let generation = render_generation;
         let mut workspace = workspace;
-        let selection_kind = layout_selection_kind;
         let inspector_settings = inspector_panel_settings;
         let mut objects_open = objects_open;
         let mut inspect_open = inspect_open;
@@ -4006,7 +4115,7 @@ fn Editor() -> Element {
             };
             let activation = request.outline_action.clone();
             let scope = request.scope.clone();
-            update_layout_selection_kind_for_tree_context(selection_kind, &request.context);
+            layout_state.set_selection_kind_from_context(&request.context);
             update_tree_cell_anchor(
                 &tree_cell_anchor,
                 &owner,
@@ -4482,10 +4591,6 @@ fn Editor() -> Element {
         let generation = render_generation;
         let token = snapshot.token;
         let revision = snapshot.document.revision;
-        let mut parts_selection = parts_selection;
-        let mut parts_selection_generation = parts_selection_generation;
-        let mut parts_preview_activation = parts_preview_activation;
-        let objects_open = objects_open;
         let mut inspect_open = inspect_open;
         move |module_id: String| {
             if !matches!(workspace(), "PCB" | "Layout")
@@ -4540,12 +4645,7 @@ fn Editor() -> Element {
                 range_part_ids: Vec::new(),
                 mode: SelectionMode::Replace,
             });
-            parts_selection.set(Some((
-                Some(scope.clone()),
-                format!("module:{module_definition_id}"),
-            )));
-            parts_selection_generation.with_mut(|value| *value = value.wrapping_add(1));
-            parts_preview_activation.with_mut(|value| *value = value.wrapping_add(1));
+            parts_state.select_mounted_module(scope.clone(), &module_definition_id);
             browse_parts_workspace(
                 workspace,
                 objects_open,
@@ -4723,7 +4823,7 @@ fn Editor() -> Element {
     let case_admission = case_workspace::Admission {
         runtime: runtime.clone(),
         adapter: adapter.clone(),
-        case_selection,
+        case_state: case_workspace_state,
         instance_selection,
         owner_scope: render_scope.clone(),
         owner_token: snapshot.token,
@@ -4731,12 +4831,12 @@ fn Editor() -> Element {
     };
     let on_case_action = {
         let admission = case_admission.clone();
-        let navigate = workspace_callbacks.navigate;
+        let navigate = workspace_routing.navigate;
         move |action| {
             if workspace() != "Case" {
                 return;
             }
-            case_workspace::apply_tree_action(action, &admission, navigate);
+            case_workspace_state.apply_tree_action(action, &admission, navigate);
         }
     };
     let on_case_display = {
@@ -4745,7 +4845,7 @@ fn Editor() -> Element {
             if workspace() != "Case" {
                 return;
             }
-            case_workspace::apply_display_request(request, &admission);
+            case_workspace_state.apply_display_request(request, &admission);
         }
     };
     let on_keymap_layer = {
@@ -4776,7 +4876,7 @@ fn Editor() -> Element {
                     map.layers.iter().any(|layer| layer.id == layer_id)
                 });
             if exists {
-                keymap_layer_id.set(layer_id);
+                keymap_state.select_layer(layer_id);
             }
         }
     };
@@ -4939,7 +5039,77 @@ fn Editor() -> Element {
             }
         };
     let svg = use_hook(|| Rc::new(RefCell::new(None::<SvgElement>)));
-    let zoom_surface_size = use_signal(|| (1.0, 1.0));
+    let zoom_surface_size = canvas_navigation.surface_size();
+    // Read actual post-layout dimensions so attached controls keep their screen size
+    // when the viewport or either dock changes, without polling or a resize loop.
+    let geometry_observer = use_hook(|| {
+        Rc::new(RefCell::new(
+            None::<(
+                web_sys::ResizeObserver,
+                Closure<dyn FnMut(js_sys::Array, web_sys::ResizeObserver)>,
+            )>,
+        ))
+    });
+    use_effect({
+        let svg = svg.clone();
+        let observer = geometry_observer.clone();
+        move || {
+            let _ = zoom_surface_size();
+            let _ = workspace();
+            let Some(surface) = svg.borrow().clone() else {
+                return;
+            };
+            if let Some((previous, _)) = observer.borrow_mut().take() {
+                previous.disconnect();
+            }
+            let measured = surface.clone();
+            let mut size = zoom_surface_size;
+            let callback =
+                Closure::<dyn FnMut(js_sys::Array, web_sys::ResizeObserver)>::new(move |_, _| {
+                    let rect = measured.get_bounding_client_rect();
+                    let next = (rect.width(), rect.height());
+                    if next != *size.peek() {
+                        size.set(next);
+                    }
+                });
+            if let Ok(next) = web_sys::ResizeObserver::new(callback.as_ref().unchecked_ref()) {
+                next.observe(&surface);
+                *observer.borrow_mut() = Some((next, callback));
+            }
+        }
+    });
+    use_drop(move || {
+        if let Some((observer, _)) = geometry_observer.borrow_mut().take() {
+            observer.disconnect();
+        }
+    });
+
+    let accepted_canvas_source = layout_canvas::SceneSource {
+        document: document.clone(),
+        scene: snapshot.scene.clone(),
+        board_id: render_scope.board_id.clone(),
+    };
+    let canvas_source = layout_canvas::SceneSource {
+        scene: scene.clone(),
+        ..accepted_canvas_source.clone()
+    };
+    let accepted_layout_bounds = use_memo(use_reactive((&accepted_canvas_source,), |(source,)| {
+        keycaps_fit::layout_canvas_bounds(&source.document, &source.scene, &source.board_id)
+    }))();
+    let displayed_layout_bounds = use_memo(use_reactive(
+        (
+            &canvas_source,
+            &accepted_canvas_source,
+            &accepted_layout_bounds,
+        ),
+        |(source, accepted_source, accepted_bounds)| {
+            if source == accepted_source {
+                accepted_bounds
+            } else {
+                keycaps_fit::layout_canvas_bounds(&source.document, &source.scene, &source.board_id)
+            }
+        },
+    ))();
     let workspace_rect_bounds = match active_workspace {
         "PCB" => pcb_bounds(snapshot, &render_scope),
         "Keymap" => keymap_view
@@ -4948,11 +5118,7 @@ fn Editor() -> Element {
         "Keycaps" => keycaps_view
             .as_deref()
             .and_then(|view| keycaps_bounds(view, keycaps_contours.as_deref().unwrap_or(&[]))),
-        "Layout" => keycaps_fit::layout_canvas_bounds(
-            &snapshot.document,
-            &snapshot.scene,
-            &render_scope.board_id,
-        ),
+        "Layout" => accepted_layout_bounds,
         _ => None,
     };
     let bounds = workspace_rect_bounds.or_else(|| {
@@ -4990,7 +5156,7 @@ fn Editor() -> Element {
     // React normalizes its zoom against the physical getBounds basis; Keymap's existing camera
     // uses its key/contour basis. Convert only the displayed/effective scale between those bases.
     let keymap_scale_ratio = if active_workspace == "Keymap" && !layout_assembly_3d() {
-        keycaps_fit::layout_canvas_bounds(&document, &scene, &render_scope.board_id)
+        displayed_layout_bounds
             .map(|reference| {
                 let reference = keycaps_fit::aspect_bounds(reference, keymap_surface);
                 let current = keycaps_fit::aspect_bounds(
@@ -5028,9 +5194,9 @@ fn Editor() -> Element {
     let footer_board_bounds = if active_workspace == "Keymap" {
         workspace_rect_bounds
     } else {
-        keycaps_fit::layout_canvas_bounds(&document, &scene, &render_scope.board_id).map(
-            |(min_x, max_x, min_y, max_y)| (min_x + 12.0, max_x - 12.0, min_y + 12.0, max_y - 12.0),
-        )
+        displayed_layout_bounds.map(|(min_x, max_x, min_y, max_y)| {
+            (min_x + 12.0, max_x - 12.0, min_y + 12.0, max_y - 12.0)
+        })
     };
     let footer_selection_bounds = if active_workspace == "Keymap" {
         keymap_view.as_deref().and_then(|view| {
@@ -5049,7 +5215,7 @@ fn Editor() -> Element {
     let footer_runtime = runtime.clone();
     let footer_workspace = workspace;
     let footer_adapter = adapter.clone();
-    let on_fit_keymap_board = move |_| {
+    let on_fit_keymap_board = EventHandler::new(move |_| {
         if current_layout_owner(&footer_runtime, footer_workspace, &footer_adapter) != footer_owner
         {
             return;
@@ -5072,6 +5238,7 @@ fn Editor() -> Element {
             target_bounds,
             (rect.width(), rect.height()),
             keymap_toolbar_height(),
+            setup_guide_left_inset(),
         ) else {
             return;
         };
@@ -5080,7 +5247,7 @@ fn Editor() -> Element {
             center: camera.center,
             zoom: camera.zoom,
         });
-    };
+    });
     let selection_owner = layout_owner.clone();
     let selection_runtime = runtime.clone();
     let selection_workspace = workspace;
@@ -5120,6 +5287,7 @@ fn Editor() -> Element {
             target_bounds,
             (rect.width(), rect.height()),
             keymap_toolbar_height(),
+            setup_guide_left_inset(),
         ) else {
             return;
         };
@@ -5192,12 +5360,14 @@ fn Editor() -> Element {
             return;
         }
         let next_zoom = next_effective / zoom_ratio;
-        let center = zoom_center_at(zoom_bounds, location, next_zoom);
-        zoom_runtime.submit(Event::SetCamera {
-            operation_id: zoom_runtime.operation(),
-            center,
-            zoom: next_zoom,
-        });
+        let center = CanvasNavigationState::zoom_center_at(zoom_bounds, location, next_zoom);
+        CanvasNavigationState::apply_zoom_target(
+            &zoom_runtime,
+            boardstudio_web_ui_shared::canvas_navigation::ZoomTarget {
+                center,
+                zoom: next_zoom,
+            },
+        );
     };
     let zoom_out = zoom_keymap.clone();
     let on_zoom_keymap_out = move |_| zoom_out(-1.0);
@@ -5206,7 +5376,7 @@ fn Editor() -> Element {
         part_placement::canvas_world_center(min_x, max_x, min_y, max_y, model.camera.center);
     let part_placement =
         part_placement::use_controller_placement(part_placement::PartPlacementHost {
-            runtime: part_placement::runtime_adapter(runtime.clone()),
+            runtime: runtime.clone(),
             load_definition: Rc::new(|document, definition_id| {
                 Box::pin(async move {
                     parts::load_component_definition(&document, &definition_id).await
@@ -5246,18 +5416,8 @@ fn Editor() -> Element {
             }
         }
     }));
-    let drag = use_hook(|| Rc::new(RefCell::new(None::<Drag>)));
-    let space_down = use_hook(|| Rc::new(Cell::new(false)));
-    let space_pan_window_listener = use_hook({
-        let workspace = workspace;
-        let space_down = space_down.clone();
-        move || {
-            let is_layout: Rc<dyn Fn() -> bool> = Rc::new(move || workspace() == "Layout");
-            canvas_interaction::LayoutSpacePanWindowListener::install(is_layout, space_down.clone())
-                .map(Rc::new)
-        }
-    });
-    use_drop(move || drop(space_pan_window_listener));
+    let drag = canvas_navigation.drag_interaction();
+    let space_down = canvas_navigation.space_key_state();
     let interaction_version = use_signal(|| 0_u64);
     let observed_interaction_version = interaction_version();
     let navigate_scoped = {
@@ -5338,8 +5498,7 @@ fn Editor() -> Element {
                 if !valid {
                     return;
                 }
-                let mut preference = instance_preference;
-                preference.set(Some(instance_selection::Preference {
+                setup_state.set_instance_preference(Some(instance_selection::Preference {
                     session_epoch: snapshot.session_epoch,
                     document_id: snapshot.document.id.clone(),
                     explicit_id: id,
@@ -5363,15 +5522,14 @@ fn Editor() -> Element {
         let mut workspace = workspace;
         let mut objects_open = objects_open;
         let mut inspect_open = inspect_open;
-        let mut body_selection = case_body_selection;
+        let mut body_selection = case_selection.body;
         let case_selection_for_owner = case_selection;
         let navigation_alive = keycaps_navigation_alive.clone();
         let inspector_settings = inspector_panel_settings;
         let fit_state = keycaps_fit_state.state.clone();
-        let mut pending_camera_fit = pending_keycaps_navigation_fit;
-        let mut focused_finding = focused_keycaps_finding;
+        let keycaps_state = keycaps_state.clone();
         let source_surface = svg.clone();
-        let select_tree = workspace_callbacks.select_tree;
+        let select_tree = workspace_routing.select_tree;
         move |request: keycaps_fit::FindingNavigationRequest| {
             let owner = keycaps_navigation::OwnerIdentity {
                 scope: &scope,
@@ -5433,13 +5591,13 @@ fn Editor() -> Element {
             } else {
                 None
             };
-            focused_finding.set(focused);
+            keycaps_state.set_focused_finding(focused);
             let focus_runtime = runtime.clone();
             let focus_adapter = adapter.clone();
             let focus_body_selection = body_selection;
             let focus_case_selection = case_selection_for_owner;
             let focus_workspace = workspace;
-            pending_camera_fit.set(None);
+            keycaps_state.set_pending_layout_fit(None);
             keycaps_navigation::dispatch_route_with_camera_basis(
                 effects,
                 &request,
@@ -5469,7 +5627,7 @@ fn Editor() -> Element {
                         pin_inspector_on_desktop(inspector_settings);
                     }
                     keycaps_navigation::RouteAction::QueueLayoutFit(request) => {
-                        pending_camera_fit.set(Some(*request));
+                        keycaps_state.set_pending_layout_fit(Some(*request));
                     }
                     keycaps_navigation::RouteAction::Report(message) => runtime.report(message),
                     keycaps_navigation::RouteAction::FocusInspector => {
@@ -5497,7 +5655,7 @@ fn Editor() -> Element {
         let runtime = runtime.clone();
         let adapter = adapter.clone();
         let owner = layout_owner.clone();
-        let mut findings_open = layout_findings_open;
+        let mut findings_open = layout_findings.open;
         let mut inspect_open = inspect_open;
         let mut objects_open = objects_open;
         let inspector_settings = inspector_panel_settings;
@@ -5515,14 +5673,13 @@ fn Editor() -> Element {
         let runtime = runtime.clone();
         let adapter = adapter.clone();
         let owner = layout_owner.clone();
-        let mut findings_open = layout_findings_open;
-        let mut scripts_open = geometry_scripts_open;
+        let mut findings_open = layout_findings.open;
         move |()| {
             if !findings_owner_is_current(&runtime, workspace, &adapter, &owner) {
                 return;
             }
             findings_open.set(false);
-            scripts_open.set(false);
+            setup_state.set_geometry_scripts_open(false);
             if let Some(element) = web_sys::window()
                 .and_then(|window| window.document())
                 .and_then(|document| document.get_element_by_id("m1-layout-findings-trigger"))
@@ -5536,11 +5693,10 @@ fn Editor() -> Element {
         let runtime = runtime.clone();
         let adapter = adapter.clone();
         let owner = layout_owner.clone();
-        let mut selected_tab = layout_context_tab;
-        let select_tree = workspace_callbacks.select_tree;
-        let mut findings_open = layout_findings_open;
-        let mut return_target = layout_finding_return_target;
-        let mut return_focus = layout_finding_return_focus;
+        let select_tree = workspace_routing.select_tree;
+        let mut findings_open = layout_findings.open;
+        let mut return_target = layout_findings.return_target;
+        let mut return_focus = layout_findings.return_focus;
         move |()| {
             let Some(target) = return_target.peek().clone() else {
                 return;
@@ -5560,7 +5716,6 @@ fn Editor() -> Element {
                 return_target.set(None);
                 return;
             };
-            selected_tab.set(layout_workspace::LayoutInspectorTab::Properties);
             findings_open.set(false);
             select_tree.call(objects::TreeSelectRequest {
                 scope,
@@ -5576,18 +5731,17 @@ fn Editor() -> Element {
         let runtime = runtime.clone();
         let adapter = adapter.clone();
         let owner = layout_owner.clone();
-        let objects_open = objects_open;
         let inspect_open = inspect_open;
-        let findings_open = layout_findings_open;
+        let findings_open = layout_findings.open;
         let inspector_settings = inspector_panel_settings;
-        let mut pending = pending_layout_finding;
-        let mut return_target = layout_finding_return_target;
-        let focused_finding = focused_keycaps_finding;
+        let mut pending = layout_findings.pending;
+        let mut return_target = layout_findings.return_target;
+        let keycaps_state = keycaps_state.clone();
         let svg = svg.clone();
         let alive = keycaps_navigation_alive.clone();
-        let body_selection = case_body_selection;
-        let select_tree = workspace_callbacks.select_tree;
-        let navigate = workspace_callbacks.navigate;
+        let body_selection = case_selection.body;
+        let select_tree = workspace_routing.select_tree;
+        let navigate = workspace_routing.navigate;
         let mut active_workspace = workspace;
         move |request: layout_findings::Request| {
             if !findings_owner_is_current(&runtime, workspace, &adapter, &owner)
@@ -5651,7 +5805,7 @@ fn Editor() -> Element {
                     inspect_open,
                     findings_open,
                     inspector_settings,
-                    focused_finding,
+                    keycaps_state: keycaps_state.clone(),
                     svg: svg.clone(),
                     alive: alive.clone(),
                     body_selection,
@@ -5663,95 +5817,56 @@ fn Editor() -> Element {
             );
         }
     });
-    use_effect(use_reactive(
-        (&pending_layout_finding(), &layout_owner, &active_workspace),
-        {
-            let runtime = runtime.clone();
-            let adapter = adapter.clone();
-            let objects_open = objects_open;
-            let inspect_open = inspect_open;
-            let findings_open = layout_findings_open;
-            let inspector_settings = inspector_panel_settings;
-            let mut pending = pending_layout_finding;
-            let focused_finding = focused_keycaps_finding;
-            let svg = svg.clone();
-            let alive = keycaps_navigation_alive.clone();
-            let body_selection = case_body_selection;
-            let select_tree = workspace_callbacks.select_tree;
-            move |(request, owner, active_workspace)| {
-                let Some(request) = request else {
-                    return;
-                };
-                if active_workspace != "Layout" {
-                    if active_workspace != request.source.workspace {
-                        pending.set(None);
-                    }
-                    return;
-                }
-                if !source_matches_layout_owner(&request.source, &owner, true) {
-                    pending.set(None);
-                    return;
-                }
-                let Some(scope) = owner.scope.as_ref() else {
-                    pending.set(None);
-                    return;
-                };
-                let target_board = keycaps_fit::target_board_id(&request.target);
-                if scope.board_id != target_board {
-                    if scope.board_id != request.source.scope.board_id {
-                        pending.set(None);
-                    }
-                    return;
-                }
-                if request.source.workspace == "Layout"
-                    && scope.board_id == request.source.scope.board_id
-                {
-                    return;
-                }
-                let model = runtime.model();
-                if !layout_finding_is_live(&model, &request, target_board) {
-                    pending.set(None);
-                    return;
-                }
-                pending.set(None);
-                perform_layout_finding_navigation(
-                    LayoutFindingNavigationContext {
-                        runtime: runtime.clone(),
-                        adapter: adapter.clone(),
-                        owner,
-                        workspace,
-                        objects_open,
-                        inspect_open,
-                        findings_open,
-                        inspector_settings,
-                        focused_finding,
-                        svg: svg.clone(),
-                        alive: alive.clone(),
-                        body_selection,
-                        case_selection,
-                        select_tree,
-                        resumed_after_board_navigation: true,
-                    },
-                    request,
-                );
-            }
-        },
-    ));
+    let resume_pending_layout_finding = use_callback({
+        let runtime = runtime.clone();
+        let adapter = adapter.clone();
+        let inspect_open = inspect_open;
+        let findings_open = layout_findings.open;
+        let inspector_settings = inspector_panel_settings;
+        let keycaps_state = keycaps_state.clone();
+        let svg = svg.clone();
+        let alive = keycaps_navigation_alive.clone();
+        let body_selection = case_selection.body;
+        let select_tree = workspace_routing.select_tree;
+        move |(request, owner): (layout_findings::Request, LayoutOwnerIdentity)| {
+            perform_layout_finding_navigation(
+                LayoutFindingNavigationContext {
+                    runtime: runtime.clone(),
+                    adapter: adapter.clone(),
+                    owner,
+                    workspace,
+                    objects_open,
+                    inspect_open,
+                    findings_open,
+                    inspector_settings,
+                    keycaps_state: keycaps_state.clone(),
+                    svg: svg.clone(),
+                    alive: alive.clone(),
+                    body_selection,
+                    case_selection,
+                    select_tree,
+                    resumed_after_board_navigation: true,
+                },
+                request,
+            );
+        }
+    });
+    layout_findings.resume.replace(Box::new(move |event| {
+        resume_pending_layout_finding.call(event);
+    }));
     let observed_navigation_selection = (adapter.selected_context)();
     let observed_navigation_generation = (adapter.generation)();
-    keycaps_navigation::use_pending_layout_fit(
-        pending_keycaps_navigation_fit,
+    keycaps_state.use_pending_layout_fit(
         (
             workspace(),
             observed_navigation_selection,
             observed_navigation_generation,
             version(),
         ),
-        keycaps_navigation_alive.clone(),
         {
             let runtime = runtime.clone();
             let adapter = adapter.clone();
-            let body_selection = case_body_selection;
+            let body_selection = case_selection.body;
             move || {
                 current_keycaps_navigation_owner(
                     workspace,
@@ -5824,7 +5939,7 @@ fn Editor() -> Element {
         {
             let runtime = runtime.clone();
             let adapter = adapter.clone();
-            let body_selection = case_body_selection;
+            let body_selection = case_selection.body;
             let alive = keycaps_navigation_alive.clone();
             move |action, expected| match action {
                 keycaps_navigation::FitAction::SetCamera(camera_fit) => {
@@ -5872,7 +5987,6 @@ fn Editor() -> Element {
             let revision = snapshot.document.revision;
             let generation = render_generation;
             let drag = drag.clone();
-            let physical_setup_busy = physical_setup_busy;
             let mut navigate_scoped = navigate_scoped.clone();
             move |_| {
                 let model = runtime.model();
@@ -5962,7 +6076,41 @@ fn Editor() -> Element {
         selected.scope == render_scope
             && selection::context_is_current(&model, &selected.scope, &selected.context)
     });
-    let layout_transform_target = selected_tree_context
+    // Ticket 02: the anchor badge and the "Placed from" readout share one
+    // projection of the displayed scene. It clears with the selection, and
+    // the canvas ring reads the same value through its scene prop.
+    let canvas_anchor_badge = (!(layer_visibility.hidden)().contains("Keys"))
+        .then(|| {
+            selected_tree_context.as_ref().and_then(|selected| {
+                let scene_refs: Vec<_> = canvas_source.scene.matrix_scenes.iter().collect();
+                anchor_badge::anchor_badge(
+                    &canvas_source.document,
+                    &scene_refs,
+                    Some(&selected.context),
+                )
+            })
+        })
+        .flatten();
+    // Ticket 18: the live spacing ghost, if it still describes this paint —
+    // the revision and selection it was born with, and no drag preview up.
+    // The revision check covers the paint between a commit landing and the
+    // tracker effect recording it; the selection check covers the paint
+    // between a selection landing and the effect retiring the ghost.
+    let spacing_ghost_prop = spacing_ghost_state
+        .read()
+        .clone()
+        .filter(|state| {
+            state.revision == snapshot.document.revision
+                && state.selected_ids == model.selected_part_ids
+                && state.selected_context == selected_tree_context
+                && model.display_preview.is_none()
+        })
+        .map(|state| layout_canvas::SpacingGhost {
+            scene: state.scene.clone(),
+            delta_mm: state.delta_mm,
+            axis_x: state.axis_x,
+        });
+    let transform_matrix_id = selected_tree_context
         .as_ref()
         .filter(|selected| selected.scope == render_scope && active_workspace == "Layout")
         .and_then(|selected| {
@@ -5977,14 +6125,83 @@ fn Editor() -> Element {
                 } => matrix_id.as_str(),
                 _ => return None,
             };
-            let matrix = matrices.iter().find(|matrix| matrix.id == matrix_id)?;
-            let projection = matrix_scenes.get(matrix_id)?;
-            Some((
-                (**matrix).clone(),
-                (**projection).clone(),
-                selected.context.clone(),
-            ))
+            Some(matrix_id.to_owned())
         });
+    let transform_matrix = use_memo(use_reactive(
+        (&accepted_canvas_source, &transform_matrix_id),
+        |(source, matrix_id)| {
+            let matrix_id = matrix_id?;
+            source
+                .document
+                .matrices
+                .iter()
+                .find(|matrix| matrix.id == matrix_id)
+                .cloned()
+                .map(Rc::new)
+        },
+    ))();
+    let transform_projection = use_memo(use_reactive(
+        (&canvas_source, &transform_matrix_id),
+        |(source, matrix_id)| {
+            let matrix_id = matrix_id?;
+            source
+                .scene
+                .matrix_scenes
+                .iter()
+                .find(|matrix| matrix.matrix_id == matrix_id)
+                .cloned()
+                .map(Rc::new)
+        },
+    ))();
+    let layout_transform_target = transform_matrix
+        .zip(transform_projection)
+        .zip(selected_tree_context.as_ref())
+        .map(|((matrix, projection), selected)| (matrix, projection, selected.context.clone()));
+    // Ticket 07: the part rail facts for an independent part selection behind
+    // `transform_tools` and the part rail below. Members and companions keep
+    // their matrix's tools: the facts name them and the pure list stays empty.
+    let part_rail_selection =
+        selected_tree_context
+            .as_ref()
+            .and_then(|selected| match &selected.context {
+                objects::TreeContext::Component {
+                    part_id: Some(part_id),
+                    matrix_id: None,
+                    ..
+                } => {
+                    let part = document.parts.iter().find(|part| &part.id == part_id)?;
+                    Some((
+                        part_id.clone(),
+                        boardstudio_web_layout::part_rail::PartRailFacts {
+                            anchored: part.anchor.is_some(),
+                            anchor_column: part.anchor.as_ref().map_or(0, |anchor| anchor.column),
+                            locked: part.locked == Some(true),
+                            member_or_companion: document
+                                .matrices
+                                .iter()
+                                .any(|matrix| matrix.part_ids.contains(part_id)),
+                        },
+                    ))
+                }
+                _ => None,
+            });
+    // Ticket 07: the part rail drag snap: anchored drags snap in the anchor
+    // matrix's pitch, like the matrix tools snap in their own.
+    let part_rail_snap = part_rail_selection.as_ref().map(|(part_id, _)| {
+        let anchor_pitch = document
+            .parts
+            .iter()
+            .find(|part| &part.id == part_id)
+            .and_then(|part| part.anchor.as_ref())
+            .and_then(|anchor| {
+                document
+                    .matrices
+                    .iter()
+                    .find(|matrix| matrix.id == anchor.matrix_id)
+            })
+            .map(|matrix| matrix.pitch);
+        objects::gesture_snap_inputs(&layout_snap_settings.read().clone(), anchor_pitch, None)
+    });
     let transform_tool_owner = (
         layout_owner.scope.clone(),
         layout_owner.generation,
@@ -5994,20 +6211,7 @@ fn Editor() -> Element {
         active_workspace,
         layout_assembly_3d(),
     );
-    use_effect(use_reactive((&transform_tool_owner,), {
-        let mut owner_state = layout_transform_tool_owner;
-        let mut active_tool = layout_transform_tool;
-        move |(transform_tool_owner,)| {
-            if owner_state
-                .peek()
-                .as_ref()
-                .is_some_and(|previous| previous != &transform_tool_owner)
-            {
-                active_tool.set(None);
-            }
-            owner_state.set(Some(transform_tool_owner.clone()));
-        }
-    }));
+    layout_state.observe_transform_tool_owner(transform_tool_owner);
     let component_inspector_key = layout_component_inspector_owner_key(
         &model,
         active_workspace,
@@ -6015,13 +6219,60 @@ fn Editor() -> Element {
     );
     let component_inspector_generation =
         layout_component_inspector_lifetime.update(component_inspector_key);
-    let component_inspector = (active_workspace == "Layout")
-        .then(|| {
+    let component_inspector_scope_generation = (adapter.generation)();
+    let component_inspector_identity = (
+        accepted_token,
+        current_scope.clone(),
+        model.active_board_id.clone(),
+        model.active_instance_id.clone(),
+        model.selected_part_ids.clone(),
+        selected_tree_context.clone(),
+        component_inspector_generation,
+        component_inspector_scope_generation,
+        active_workspace,
+    );
+    let component_inspector = use_memo(use_reactive((&component_inspector_identity,), {
+        let runtime = runtime.clone();
+        move |(identity,)| {
+            let (
+                token,
+                _scope,
+                active_board_id,
+                active_instance_id,
+                selected_part_ids,
+                selected,
+                context_generation,
+                scope_generation,
+                workspace,
+            ) = identity;
+            if workspace != "Layout" {
+                return None;
+            }
+            let model = runtime.model();
+            if model.accepted.as_ref().map(|snapshot| snapshot.token) != token
+                || model.active_board_id != active_board_id
+                || model.active_instance_id != active_instance_id
+                || model.selected_part_ids != selected_part_ids
+            {
+                return None;
+            }
             layout_component_inspector_projection(
                 &model,
+                selected.as_ref(),
+                context_generation,
+                scope_generation,
+            )
+        }
+    }))
+    .read()
+    .clone();
+    let companion_placement = (active_workspace == "Layout")
+        .then(|| {
+            companion_placement_projection(
+                &model,
                 selected_tree_context.as_ref(),
-                component_inspector_generation,
-                (adapter.generation)(),
+                render_generation,
+                render_generation,
             )
         })
         .flatten();
@@ -6043,29 +6294,12 @@ fn Editor() -> Element {
     let context_summary = selected_tree_context
         .as_ref()
         .and_then(|selected| context_summary::summarize(&model, &selected.context));
-    let mount = {
-        let runtime = runtime.clone();
-        let svg = svg.clone();
-        let mut zoom_surface_size = zoom_surface_size;
-        let focus_placement = part_placement.projection.is_some();
-        move |event: MountedEvent| {
-            if let Some(element) = event
-                .data()
-                .try_as_web_event()
-                .and_then(|e| e.dyn_into::<SvgElement>().ok())
-            {
-                runtime.surface(element.clone());
-                if focus_placement {
-                    let options = web_sys::FocusOptions::new();
-                    options.set_prevent_scroll(true);
-                    let _ = element.focus_with_options(&options);
-                }
-                let rect = element.get_bounding_client_rect();
-                zoom_surface_size.set((rect.width(), rect.height()));
-                *svg.borrow_mut() = Some(element);
-            }
-        }
-    };
+    let mount = EventHandler::new(CanvasNavigationState::mount_handler(
+        zoom_surface_size,
+        runtime.clone(),
+        svg.clone(),
+        part_placement.projection.is_some(),
+    ));
     let placement_active = part_placement.projection.is_some()
         || part_placement.busy
         || matrix_placement.placement.is_some()
@@ -6087,6 +6321,7 @@ fn Editor() -> Element {
         }
     }));
     let move_pointer = {
+        let navigation = canvas_navigation.clone();
         let runtime = runtime.clone();
         let svg = svg.clone();
         let drag = drag.clone();
@@ -6164,6 +6399,15 @@ fn Editor() -> Element {
                                     geometry_snap: settings.geometry_snap,
                                     gap: part_placement::placement_gap(&settings),
                                     free: pointer.alt_key(),
+                                    // Ticket 22: component placement snaps in the selected
+                                    // matrix pitch (19.05 mm only when none is selected).
+                                    pitch: matrix_snap_parameters(
+                                        &model,
+                                        &active.owner.scope,
+                                        &adapter,
+                                        None,
+                                    )
+                                    .0,
                                 }
                             },
                         )
@@ -6219,13 +6463,16 @@ fn Editor() -> Element {
                 drag.borrow_mut().take();
                 return;
             }
-            // A pan owns only the camera delta calculated on pointerup. It has no
-            // part targets and must never sample a lingering Session gesture that
-            // happens to reuse this DOM pointer ID.
-            if current.pan {
+            if navigation.consume_pan_pointer_move(
+                current.pointer,
+                &current.scope,
+                current.generation,
+            ) {
                 return;
             }
-            let Some(point) = coordinates(&svg, &pointer, view_x, view_y, width, height) else {
+            let Some((point, scale)) =
+                coordinates_with_scale(&svg, &pointer, view_x, view_y, width, height)
+            else {
                 return;
             };
             if !current.active {
@@ -6277,6 +6524,7 @@ fn Editor() -> Element {
                     snap_fraction: snap.snap_fraction,
                     geometry_snap: snap.geometry_snap,
                     gap: snap.gap,
+                    pixels_per_world: Some(scale),
                     alt: pointer.alt_key(),
                 });
                 let fresh = runtime.model();
@@ -6300,11 +6548,13 @@ fn Editor() -> Element {
             runtime.submit(Event::GestureSample {
                 pointer_id: current.pointer,
                 positions: moved(&current, point),
+                pixels_per_world: Some(scale),
                 alt: pointer.alt_key(),
             });
         }
     };
     let end_pointer = {
+        let navigation = canvas_navigation.clone();
         let runtime = runtime.clone();
         let svg = svg.clone();
         let drag = drag.clone();
@@ -6355,29 +6605,35 @@ fn Editor() -> Element {
                     return;
                 }
                 if let Some(point) = coordinates(&svg, &pointer, view_x, view_y, width, height) {
-                    let at = runtime
-                        .model()
-                        .accepted
-                        .as_ref()
-                        .map_or(point, |_snapshot| {
-                            placement.projection.as_ref().map_or(point, |active| {
-                                part_placement::snap_placement_at(
-                                    &active.snap_document,
-                                    &active.owner.board_id,
-                                    &active.pending,
-                                    point,
-                                    {
-                                        let settings = snap_settings.read();
-                                        part_placement::PlacementSnapOptions {
-                                            snap_fraction: settings.snap_fraction,
-                                            geometry_snap: settings.geometry_snap,
-                                            gap: part_placement::placement_gap(&settings),
-                                            free: pointer.alt_key(),
-                                        }
-                                    },
-                                )
-                            })
-                        });
+                    let model = runtime.model();
+                    let at = model.accepted.as_ref().map_or(point, |_snapshot| {
+                        placement.projection.as_ref().map_or(point, |active| {
+                            part_placement::snap_placement_at(
+                                &active.snap_document,
+                                &active.owner.board_id,
+                                &active.pending,
+                                point,
+                                {
+                                    let settings = snap_settings.read();
+                                    part_placement::PlacementSnapOptions {
+                                        snap_fraction: settings.snap_fraction,
+                                        geometry_snap: settings.geometry_snap,
+                                        gap: part_placement::placement_gap(&settings),
+                                        free: pointer.alt_key(),
+                                        // Ticket 22: component placement snaps in the selected
+                                        // matrix pitch (19.05 mm only when none is selected).
+                                        pitch: matrix_snap_parameters(
+                                            &model,
+                                            &active.owner.scope,
+                                            &adapter,
+                                            None,
+                                        )
+                                        .0,
+                                    }
+                                },
+                            )
+                        })
+                    });
                     placement.on_commit.call(at);
                 }
                 return;
@@ -6429,39 +6685,23 @@ fn Editor() -> Element {
                 return;
             }
             if current.pan {
-                if let Some(element) = svg.borrow().as_ref() {
-                    let rect = element.get_bounding_client_rect();
-                    if rect.width() > 0.0 && rect.height() > 0.0 {
-                        let scale = (rect.width() / width).min(rect.height() / height);
-                        if scale > 0.0 {
-                            let camera = runtime.model().camera;
-                            runtime.submit(Event::SetCamera {
-                                operation_id: runtime.operation(),
-                                center: Vec2 {
-                                    x: current.camera.x
-                                        - (f64::from(pointer.client_x()) - current.client_x)
-                                            / scale,
-                                    y: current.camera.y
-                                        + (f64::from(pointer.client_y()) - current.client_y)
-                                            / scale,
-                                },
-                                zoom: camera.zoom,
-                            });
-                        }
-                    }
-                }
-                drag.borrow_mut().take();
-                if let Some(element) = svg.borrow().as_ref() {
-                    let _ = element.release_pointer_capture(pointer.pointer_id());
-                }
+                navigation.finish_pan(
+                    &runtime,
+                    &svg,
+                    pointer.pointer_id(),
+                    (f64::from(pointer.client_x()), f64::from(pointer.client_y())),
+                    (width, height),
+                );
                 return;
             }
             if current.active
-                && let Some(point) = coordinates(&svg, &pointer, view_x, view_y, width, height)
+                && let Some((point, scale)) =
+                    coordinates_with_scale(&svg, &pointer, view_x, view_y, width, height)
             {
                 runtime.submit(Event::GestureEnd {
                     pointer_id: current.pointer,
                     final_positions: moved(&current, point),
+                    pixels_per_world: Some(scale),
                     alt: pointer.alt_key(),
                 });
             } else if current.active {
@@ -6552,6 +6792,8 @@ fn Editor() -> Element {
         let canvas_interaction = canvas_interaction.clone();
         let snap_settings = layout_snap_settings;
         let mut pending_splay_pick = pending_splay_origin_pick;
+        let mut pending_anchor_pick = pending_anchor_pick;
+        let transform_inspector = matrix_transform_inspector.clone();
         move |event: KeyboardEvent| {
             let key = event.data().key().to_string();
             let code = event.data().code().to_string();
@@ -6713,6 +6955,12 @@ fn Editor() -> Element {
                 event.prevent_default();
                 return;
             }
+            if key == "Escape" && pending_anchor_pick.peek().is_some() {
+                pending_anchor_pick.set(None);
+                transform_inspector.clear_aggregate_pick();
+                event.prevent_default();
+                return;
+            }
             if key == " " || code == "Space" {
                 space_down.set(true);
                 event.prevent_default();
@@ -6736,112 +6984,90 @@ fn Editor() -> Element {
         }
     };
     let key_up = {
-        let space_down = space_down.clone();
+        let navigation = canvas_navigation.clone();
         move |event: KeyboardEvent| {
             let key = event.data().key().to_string();
             let code = event.data().code().to_string();
-            if key == " " || code == "Space" {
-                space_down.set(false);
-            }
+            navigation.release_space_key(&key, &code);
         }
     };
-    let start_pan = {
-        let drag = drag.clone();
-        let runtime = runtime.clone();
-        let svg = svg.clone();
-        let space_down = space_down.clone();
-        let scope = render_scope.clone();
-        let adapter = adapter.clone();
-        let mirrored_pair = mirrored_pair.clone();
-        let canvas_interaction = canvas_interaction.clone();
-        let mut pending_splay_pick = pending_splay_origin_pick;
-        let transform_inspector = matrix_transform_inspector.clone();
-        let layout_owner_for_pick = layout_owner.clone();
-        move |event: PointerEvent| {
-            let Some(pointer) = event.data().try_as_web_event() else {
-                return;
-            };
-            if canvas_interaction.is_owner(CanvasInteractionOwner::MatrixPlacement) {
-                pointer.prevent_default();
-                pointer.stop_propagation();
-                return;
-            }
-            if canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair)
-                && let Some(placement) = mirrored_pair.placement.as_ref()
-                && pointer.button() == 0
-            {
-                let owner = placement.owner.clone();
-                if workspace() != "Layout"
-                    || runtime.scope().as_ref() != Some(&owner.scope)
-                    || (adapter.generation)() != owner.scope_generation
-                {
-                    mirrored_pair.on_cancel.call(owner);
+    let start_pan = canvas_navigation.space_pan_handler(
+        render_scope.clone(),
+        render_generation,
+        runtime.clone(),
+        svg.clone(),
+        Rc::new({
+            let adapter = adapter.clone();
+            move || (adapter.generation)() == render_generation
+        }),
+        {
+            let runtime = runtime.clone();
+            let svg = svg.clone();
+            let adapter = adapter.clone();
+            let mirrored_pair = mirrored_pair.clone();
+            let canvas_interaction = canvas_interaction.clone();
+            let mut pending_splay_pick = pending_splay_origin_pick;
+            let transform_inspector = matrix_transform_inspector.clone();
+            let layout_owner_for_pick = layout_owner.clone();
+            move |event: PointerEvent| {
+                let Some(pointer) = event.data().try_as_web_event() else {
                     return;
-                }
-                if let Some(center) = coordinates(&svg, &pointer, view_x, view_y, width, height) {
+                };
+                if canvas_interaction.is_owner(CanvasInteractionOwner::MatrixPlacement) {
                     pointer.prevent_default();
                     pointer.stop_propagation();
-                    mirrored_pair
-                        .on_commit
-                        .call(objects::MirroredPairMove { owner, center });
+                    return;
                 }
-                return;
+                if canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair)
+                    && let Some(placement) = mirrored_pair.placement.as_ref()
+                    && pointer.button() == 0
+                {
+                    let owner = placement.owner.clone();
+                    if workspace() != "Layout"
+                        || runtime.scope().as_ref() != Some(&owner.scope)
+                        || (adapter.generation)() != owner.scope_generation
+                    {
+                        mirrored_pair.on_cancel.call(owner);
+                        return;
+                    }
+                    if let Some(center) = coordinates(&svg, &pointer, view_x, view_y, width, height)
+                    {
+                        pointer.prevent_default();
+                        pointer.stop_propagation();
+                        mirrored_pair
+                            .on_commit
+                            .call(objects::MirroredPairMove { owner, center });
+                    }
+                    return;
+                }
+                if canvas_interaction.current().is_some() {
+                    pointer.prevent_default();
+                    pointer.stop_propagation();
+                    return;
+                }
+                if pointer.button() == 0
+                    && workspace() == "Layout"
+                    && pending_splay_pick.peek().is_some()
+                    && let Some(point) = coordinates(&svg, &pointer, view_x, view_y, width, height)
+                {
+                    pointer.prevent_default();
+                    pointer.stop_propagation();
+                    apply_pending_splay_origin_pick(
+                        &runtime,
+                        workspace,
+                        &adapter,
+                        &layout_owner_for_pick,
+                        PendingSplayOriginPick {
+                            pending: &mut pending_splay_pick,
+                            inspector: &transform_inspector,
+                            point,
+                            swing: pointer.ctrl_key(),
+                        },
+                    );
+                }
             }
-            if canvas_interaction.current().is_some() {
-                pointer.prevent_default();
-                pointer.stop_propagation();
-                return;
-            }
-            if pointer.button() == 0
-                && workspace() == "Layout"
-                && pending_splay_pick.peek().is_some()
-                && let Some(point) = coordinates(&svg, &pointer, view_x, view_y, width, height)
-            {
-                pointer.prevent_default();
-                pointer.stop_propagation();
-                apply_pending_splay_origin_pick(
-                    &runtime,
-                    workspace,
-                    &adapter,
-                    &layout_owner_for_pick,
-                    &mut pending_splay_pick,
-                    &transform_inspector,
-                    point,
-                );
-                return;
-            }
-            if !space_down.get()
-                || pointer.button() != 0
-                || runtime.scope().as_ref() != Some(&scope)
-                || (adapter.generation)() != render_generation
-                || drag.borrow().is_some()
-                || runtime.model().gesture.is_some()
-            {
-                return;
-            }
-            pointer.prevent_default();
-            pointer.stop_propagation();
-            if let Some(surface) = svg.borrow().as_ref() {
-                let _ = surface.set_pointer_capture(pointer.pointer_id());
-                let options = web_sys::FocusOptions::new();
-                options.set_prevent_scroll(true);
-                let _ = surface.focus_with_options(&options);
-            }
-            *drag.borrow_mut() = Some(Drag {
-                pointer: i64::from(pointer.pointer_id()),
-                scope: scope.clone(),
-                generation: render_generation,
-                gesture_generation: None,
-                origin: Vec2::default(),
-                client_x: f64::from(pointer.client_x()),
-                client_y: f64::from(pointer.client_y()),
-                positions: vec![],
-                active: true,
-                pan: true,
-                camera: runtime.model().camera.center,
-            });
-        }
-    };
+        },
+    );
     let on_pcb_part_pointer_down = {
         let runtime = runtime.clone();
         let adapter = adapter.clone();
@@ -6852,6 +7078,7 @@ fn Editor() -> Element {
         let accepted_token = snapshot.token;
         let accepted_revision = snapshot.document.revision;
         let generation = render_generation;
+        let navigation = canvas_navigation.clone();
         let space_down = space_down.clone();
         let tree_cell_anchor = tree_cell_anchor.clone();
         let canvas_interaction = canvas_interaction.clone();
@@ -6885,19 +7112,15 @@ fn Editor() -> Element {
                     options.set_prevent_scroll(true);
                     let _ = surface.focus_with_options(&options);
                 }
-                *drag.borrow_mut() = Some(Drag {
-                    pointer: request.pointer_id,
-                    scope: scope.clone(),
-                    generation,
-                    gesture_generation: None,
-                    origin,
-                    client_x: f64::from(request.client_x),
-                    client_y: f64::from(request.client_y),
-                    positions: vec![],
-                    active: true,
-                    pan: true,
-                    camera: runtime.model().camera.center,
-                });
+                navigation.start_space_pan(
+                    boardstudio_web_ui_shared::canvas_navigation::PanStart {
+                        pointer_id: request.pointer_id,
+                        scope: scope.clone(),
+                        generation,
+                        client: (f64::from(request.client_x), f64::from(request.client_y)),
+                        camera: runtime.model().camera.center,
+                    },
+                );
                 return;
             }
             let model = runtime.model();
@@ -7092,6 +7315,12 @@ fn Editor() -> Element {
         let svg = svg.clone();
         let scope = render_scope.clone();
         let adapter = adapter.clone();
+        // Wheel bursts (trackpads emit dozens of ticks per gesture) coalesce
+        // into one zoom application per animation frame: ticks only add to
+        // this burst, and the single rAF flush submits once. Without this,
+        // every tick ran Runtime::submit -> changed()/notify() plus a DOM
+        // rect read, re-rendering the full scene per tick (Issue 2).
+        let pending = Rc::new(RefCell::new(layout_camera::WheelZoomCoalescer::new()));
         move |event: WheelEvent| {
             if runtime.scope().as_ref() != Some(&scope)
                 || (adapter.generation)() != render_generation
@@ -7110,7 +7339,6 @@ fn Editor() -> Element {
             if rect.width() <= 0.0 || rect.height() <= 0.0 {
                 return;
             }
-            let old = runtime.model().camera;
             let Some(location) = pointer_location(
                 &rect,
                 wheel.client_x(),
@@ -7122,153 +7350,144 @@ fn Editor() -> Element {
             ) else {
                 return;
             };
-            // keymap_scale_ratio is 1.0 outside Keymap, so Layout and Keymap share the
-            // reference 0.25..4 limits.
-            let zoom = layout_camera::wheel_zoom(old.zoom, keymap_scale_ratio, wheel.delta_y());
-            let center = zoom_center_at((min_x, max_x, min_y, max_y), location, zoom);
-            runtime.submit(Event::SetCamera {
-                operation_id: runtime.operation(),
-                center,
-                zoom,
-            });
+            let Some(window) = web_sys::window() else {
+                return;
+            };
+            let schedule_flush = pending.borrow_mut().push(
+                wheel.delta_y(),
+                layout_camera::WheelAnchor {
+                    world: location.world,
+                    x_fraction: location.x_fraction,
+                    y_fraction: location.y_fraction,
+                },
+            );
+            if !schedule_flush {
+                // A flush is already queued for this frame; this tick rides it.
+                return;
+            }
+            let flush_pending = pending.clone();
+            let flush_runtime = runtime.clone();
+            let flush_scope = scope.clone();
+            let flush_generation = adapter.generation;
+            // keymap_scale_ratio is 1.0 outside Keymap, so Layout and Keymap
+            // share the reference 0.25..4 limits.
+            let flush = move || {
+                let start_zoom = flush_runtime.model().camera.zoom;
+                // Replay the burst tick-by-tick through the clamp: a burst
+                // that hits a limit mid-burst then backs off ends exactly
+                // where sequential application ends.
+                let final_zoom = flush_pending
+                    .borrow()
+                    .coalesced_zoom(start_zoom, keymap_scale_ratio);
+                let Some(batch) = flush_pending.borrow_mut().take_batch() else {
+                    return;
+                };
+                let Some(final_zoom) = final_zoom else {
+                    return;
+                };
+                if final_zoom == start_zoom {
+                    return;
+                }
+                if flush_runtime.scope().as_ref() != Some(&flush_scope)
+                    || (flush_generation)() != render_generation
+                {
+                    return;
+                }
+                CanvasNavigationState::apply_zoom_target(
+                    &flush_runtime,
+                    boardstudio_web_ui_shared::canvas_navigation::ZoomTarget {
+                        center: CanvasNavigationState::zoom_center_at(
+                            (min_x, max_x, min_y, max_y),
+                            PointerLocation {
+                                world: batch.anchor.world,
+                                x_fraction: batch.anchor.x_fraction,
+                                y_fraction: batch.anchor.y_fraction,
+                            },
+                            final_zoom,
+                        ),
+                        zoom: final_zoom,
+                    },
+                );
+            };
+            let callback = Closure::once_into_js(flush);
+            let _ = window.request_animation_frame(callback.unchecked_ref());
         }
     };
     let undo = runtime.clone();
     let redo = runtime.clone();
     let retry = runtime.clone();
     let recover = runtime.clone();
-    workspace_callbacks
-        .select_tree
-        .replace(Box::new(select_tree));
-    workspace_callbacks.navigate.replace(Box::new(navigate));
-    workspace_callbacks.nudge_tree.replace(Box::new(nudge_tree));
-    workspace_callbacks
-        .parts_select
-        .replace(Box::new(on_parts_select));
-    workspace_callbacks
-        .keymap_select
-        .replace(Box::new(on_keymap_select.clone()));
-    workspace_callbacks
-        .keycaps_select
-        .replace(Box::new(on_keycaps_select.clone()));
-    workspace_callbacks
-        .keycaps_finding
-        .replace(Box::new(on_keycaps_finding));
-    workspace_callbacks
-        .pcb_empty_hit
-        .replace(Box::new(on_pcb_empty_hit));
-    workspace_callbacks
-        .pcb_part_hit
-        .replace(Box::new(on_pcb_part_hit));
-    workspace_callbacks
-        .mounted_module_select
-        .replace(Box::new(on_mounted_module_select));
-    workspace_callbacks
-        .pcb_part_pointer_down
-        .replace(Box::new(on_pcb_part_pointer_down));
-    workspace_callbacks
-        .pcb_wiring_edit_board
-        .replace(Box::new(on_pcb_wiring_edit_board));
-    workspace_callbacks
-        .layout_selection_kind
-        .replace(Box::new(on_layout_selection_kind));
-    workspace_callbacks
-        .layout_snap_intent
-        .replace(Box::new(on_layout_snap_intent));
-    workspace_callbacks
-        .pcb_selection_kind
-        .replace(Box::new(on_pcb_selection_kind));
-    workspace_callbacks
-        .pcb_snap_intent
-        .replace(Box::new(on_pcb_snap_intent));
-    workspace_callbacks
-        .case_action
-        .replace(Box::new(on_case_action));
-    workspace_callbacks
-        .case_display
-        .replace(Box::new(on_case_display));
-    workspace_callbacks
-        .keymap_layer
-        .replace(Box::new(on_keymap_layer));
-    workspace_callbacks
-        .keymap_export
-        .replace(Box::new(on_keymap_export));
-    workspace_callbacks
-        .show_configured_board
-        .replace(Box::new(on_show_configured_board));
-    {
+    workspace_routing.select_tree.replace(Box::new(select_tree));
+    workspace_routing.navigate.replace(Box::new(navigate));
+    let nudge_tree = EventHandler::new(nudge_tree);
+    let parts_select = EventHandler::new(on_parts_select);
+    let keymap_select = EventHandler::new(on_keymap_select.clone());
+    let keycaps_select = EventHandler::new(on_keycaps_select.clone());
+    let keycaps_finding = EventHandler::new(on_keycaps_finding);
+    let pcb_empty_hit = EventHandler::new(on_pcb_empty_hit);
+    let pcb_part_hit = EventHandler::new(on_pcb_part_hit);
+    let mounted_module_select = EventHandler::new(on_mounted_module_select);
+    let pcb_part_pointer_down = EventHandler::new(on_pcb_part_pointer_down);
+    let pcb_wiring_edit_board = EventHandler::new(on_pcb_wiring_edit_board);
+    let on_layout_selection_kind_handler = EventHandler::new(on_layout_selection_kind);
+    let layout_snap_intent = EventHandler::new(on_layout_snap_intent);
+    let pcb_selection_kind = EventHandler::new(on_pcb_selection_kind);
+    let pcb_snap_intent = EventHandler::new(on_pcb_snap_intent);
+    let case_action = EventHandler::new(on_case_action);
+    let case_display = EventHandler::new(on_case_display);
+    let keymap_layer = EventHandler::new(on_keymap_layer);
+    let keymap_export = EventHandler::new(on_keymap_export);
+    let show_configured_board = EventHandler::new(on_show_configured_board);
+    let open_geometry_scripts = {
         let mut workspace = workspace;
         let mut objects_open = objects_open;
         let mut inspect_open = inspect_open;
-        let mut geometry_scripts_open = geometry_scripts_open;
         let inspector_settings = inspector_panel_settings;
-        workspace_callbacks
-            .open_geometry_scripts
-            .replace(Box::new(move |_| {
-                workspace.set("Layout");
-                objects_open.set(false);
-                inspect_open.set(true);
-                geometry_scripts_open.set(true);
-                pin_inspector_on_desktop(inspector_settings);
-            }));
-    }
-    workspace_callbacks
-        .toggle_footprints
-        .replace(Box::new(move |_| {
-            let mut footprints = layer_visibility.footprints;
-            footprints.set(!footprints());
-        }));
-    {
+        EventHandler::new(move |_| {
+            workspace.set("Layout");
+            objects_open.set(false);
+            inspect_open.set(true);
+            setup_state.set_geometry_scripts_open(true);
+            pin_inspector_on_desktop(inspector_settings);
+        })
+    };
+    let toggle_footprints = EventHandler::new(move |_| {
+        let mut footprints = layer_visibility.footprints;
+        footprints.set(!footprints());
+    });
+    let retry_save = {
         let retry = retry.clone();
-        workspace_callbacks.retry_save.replace(Box::new(move |_| {
+        EventHandler::new(move |_| {
             retry.submit(Event::RetrySave {
                 operation_id: retry.operation(),
             });
-        }));
-    }
-    {
+        })
+    };
+    let download_pending = {
+        let pending = runtime.clone();
+        EventHandler::new(move |_| pending.download_pending_edits())
+    };
+    let recover_saved = {
         let recover = recover.clone();
-        workspace_callbacks
-            .recover_saved
-            .replace(Box::new(move |_| recover.recover_saved()));
-    }
-    workspace_callbacks
-        .canvas_mount
-        .replace(Box::new(mount.clone()));
-    workspace_callbacks
-        .canvas_start_pan
-        .replace(Box::new(start_pan.clone()));
-    workspace_callbacks
-        .canvas_move_pointer
-        .replace(Box::new(move_pointer.clone()));
-    workspace_callbacks
-        .canvas_end_pointer
-        .replace(Box::new(end_pointer.clone()));
-    workspace_callbacks
-        .canvas_cancel_pointer
-        .replace(Box::new(cancel_pointer.clone()));
-    workspace_callbacks
-        .canvas_keyboard
-        .replace(Box::new(keyboard.clone()));
-    workspace_callbacks
-        .canvas_key_up
-        .replace(Box::new(key_up.clone()));
-    workspace_callbacks
-        .canvas_wheel
-        .replace(Box::new(wheel.clone()));
+        EventHandler::new(move |_| recover.recover_saved())
+    };
+    let canvas_end_pointer = EventHandler::new(end_pointer.clone());
+    let canvas_cancel_pointer = EventHandler::new(cancel_pointer.clone());
+    let canvas_keyboard = EventHandler::new(keyboard.clone());
+    let canvas_wheel = EventHandler::new(wheel.clone());
     let board_setup = objects::use_board_setup(
         runtime.clone(),
         version,
         workspace,
         adapter.generation,
-        workspace_callbacks.navigate,
+        workspace_routing.navigate,
     );
     let shared_objects = workspace_composition::SharedObjectsInput {
         selected_context: adapter.selected_context,
-        on_select: workspace_callbacks.select_tree,
-        on_navigate: workspace_callbacks.navigate,
-        on_nudge: workspace_callbacks.nudge_tree,
-        on_open_geometry_scripts: workspace_callbacks.open_geometry_scripts,
+        on_select: workspace_routing.select_tree,
+        on_navigate: workspace_routing.navigate,
+        on_nudge: nudge_tree,
+        on_open_geometry_scripts: open_geometry_scripts,
         board_setup,
     };
     let case_scene = case_workspace::workspace_display_scene(runtime.cad_scene(), &render_scope);
@@ -7436,25 +7655,10 @@ fn Editor() -> Element {
                 layout_assembly_3d,
                 matrix_setup.on_open,
             );
-            let mut pcb_mirrored_pair = mirrored_pair.clone();
-            pcb_mirrored_pair.can_open = pcb_add_is_current
-                && pcb_mirrored_pair.form.is_none()
-                && pcb_mirrored_pair.placement.is_none()
-                && !pcb_mirrored_pair.owns_canvas
-                && canvas_interaction.current().is_none();
-            pcb_mirrored_pair.on_open = pcb_add_layout_open_handler(
-                runtime.clone(),
-                workspace,
-                adapter.clone(),
-                pcb_add_owner,
-                layout_assembly_3d,
-                mirrored_pair.on_open,
-            );
             workspace_composition::WorkspaceObjectsInput::Pcb(Box::new(
                 pcb_workspace::ObjectsInput {
                     shared: pcb_shared_objects,
                     matrix_setup: pcb_matrix_setup,
-                    mirrored_pair: pcb_mirrored_pair,
                     on_place_component: part_placement.on_place_component,
                     layout_target,
                     parts_query,
@@ -7466,8 +7670,28 @@ fn Editor() -> Element {
                 },
             ))
         }
-        "Keymap" => workspace_composition::WorkspaceObjectsInput::Keymap(shared_objects),
-        "Keycaps" => workspace_composition::WorkspaceObjectsInput::Keycaps(shared_objects),
+        "Keymap" => workspace_composition::WorkspaceObjectsInput::Keymap(
+            keymap_workspace::NavigationInput {
+                view: keymap_view.clone(),
+                scope: render_scope.clone(),
+                active_layer_id: keymap_layer_id(),
+                selected_key_id: model.selected_part_ids.first().cloned(),
+                layer_actions: keymap::LayerActions {
+                    enabled: layer_actions.enabled,
+                    feedback: layer_actions.feedback.clone(),
+                    on_operation: layer_actions.on_operation,
+                },
+                on_layer: keymap_layer,
+                on_select_key: keymap_select,
+            },
+        ),
+        "Keycaps" => workspace_composition::WorkspaceObjectsInput::Keycaps(
+            keycaps_workspace::NavigationInput {
+                shared: shared_objects,
+                view: keycaps_view.clone(),
+                settings_actions: keycaps_settings_actions.clone(),
+            },
+        ),
         "Case" => workspace_composition::WorkspaceObjectsInput::Case(Box::new(
             case_workspace::ObjectsInput {
                 model: &model,
@@ -7479,9 +7703,9 @@ fn Editor() -> Element {
                 selected_layer_id: case_selected_layer_id.clone(),
                 case_selection,
                 expanded: case_tree_expanded,
-                on_action: workspace_callbacks.case_action,
-                on_select: workspace_callbacks.select_tree,
-                on_display: workspace_callbacks.case_display,
+                on_action: case_action,
+                on_select: workspace_routing.select_tree,
+                on_display: case_display,
             },
         )),
         "Parts" => {
@@ -7492,7 +7716,7 @@ fn Editor() -> Element {
                 workspace,
                 query: parts_query,
                 selected: parts_selection,
-                on_select: workspace_callbacks.parts_select,
+                on_select: parts_select,
             })
         }
         _ => workspace_composition::WorkspaceObjectsInput::Layout(Box::new(
@@ -7500,7 +7724,6 @@ fn Editor() -> Element {
                 shared: shared_objects,
                 matrix_setup: matrix_setup.clone(),
                 matrix_inspector: matrix_inspector.clone(),
-                mirrored_pair: mirrored_pair.clone(),
                 pair_created: pair_created_selection,
                 on_place_component: part_placement.on_place_component,
                 layout_target,
@@ -7510,6 +7733,7 @@ fn Editor() -> Element {
                     .error
                     .clone()
                     .or_else(|| part_placement.error.clone()),
+                add_object_menu_open: layout_state.add_object_menu_open(),
             },
         )),
     };
@@ -7522,10 +7746,8 @@ fn Editor() -> Element {
         },
         layout_assembly_3d,
         {
-            let mut active_tool = layout_transform_tool;
             move |assembly_3d| {
-                active_tool.set(None);
-                layout_assembly_3d.set(assembly_3d);
+                layout_state.set_assembly_3d(assembly_3d);
             }
         },
         LayoutPlacementCancellation {
@@ -7548,14 +7770,7 @@ fn Editor() -> Element {
             let mirrored_pair = mirrored_pair.clone();
             let matrix_setup = matrix_setup.clone();
             let matrix_placement = matrix_placement.clone();
-            let mut pending_splay_origin_pick = pending_splay_origin_pick;
-            let layout_assembly_3d = layout_assembly_3d;
             move || {
-                pending_splay_origin_pick.set(pending_splay_origin_pick_after_view_change(
-                    layout_assembly_3d(),
-                    true,
-                    pending_splay_origin_pick(),
-                ));
                 if let Some(active) = mirrored_pair.placement.as_ref() {
                     mirrored_pair.on_cancel.call(active.owner.clone());
                 } else if let Some(form) = mirrored_pair.form.as_ref() {
@@ -7570,11 +7785,34 @@ fn Editor() -> Element {
             }
         },
     );
-    let toolbar_input = match active_workspace {
-        "Layout" => {
-            let retained = tree_cell_anchor_for_owner(&tree_cell_anchor, &layout_owner);
-            let supports_kind = |kind| {
-                selected_tree_context.as_ref().is_some_and(|selected| {
+    let retained_toolbar_cell = tree_cell_anchor_for_owner(&tree_cell_anchor, &layout_owner);
+    let toolbar_selection_availability = use_memo(use_reactive(
+        (
+            &accepted_canvas_source,
+            &snapshot.token,
+            &snapshot.session_epoch,
+            &model.active_instance_id,
+            &selected_tree_context,
+            &retained_toolbar_cell,
+            &active_workspace,
+        ),
+        |(source, token, session_epoch, active_instance_id, selected, retained, workspace)| {
+            if !matches!(workspace, "Layout" | "PCB") {
+                return (false, false);
+            }
+            let model = ReadModel {
+                accepted: Some(AcceptedSnapshot {
+                    token,
+                    session_epoch,
+                    document: source.document,
+                    scene: source.scene,
+                }),
+                active_board_id: source.board_id,
+                active_instance_id,
+                ..ReadModel::default()
+            };
+            let supports = |kind| {
+                selected.as_ref().is_some_and(|selected| {
                     objects::context_for_selection_kind(
                         &model,
                         &selected.context,
@@ -7584,6 +7822,14 @@ fn Editor() -> Element {
                     .is_some()
                 })
             };
+            (
+                supports(objects::LayoutSelectionKind::Column),
+                supports(objects::LayoutSelectionKind::Row),
+            )
+        },
+    ))();
+    let toolbar_input = match active_workspace {
+        "Layout" => {
             let properties_available = selected_tree_context.as_ref().is_some_and(|selected| {
                 matches!(
                     &selected.context,
@@ -7601,13 +7847,11 @@ fn Editor() -> Element {
                 let owner = layout_owner.clone();
                 let mut objects_open = objects_open;
                 let mut inspect_open = inspect_open;
-                let mut layout_context_tab = layout_context_tab;
                 move |_| {
                     if !layout_owner_is_current(&runtime, workspace, &adapter, &owner) {
                         return;
                     }
                     pin_inspector_on_desktop(inspector_panel_settings);
-                    layout_context_tab.set(layout_workspace::LayoutInspectorTab::Properties);
                     objects_open.set(false);
                     inspect_open.set(true);
                 }
@@ -7618,7 +7862,7 @@ fn Editor() -> Element {
                 let adapter = adapter.clone();
                 let owner = layout_owner.clone();
                 let mut active_tool = layout_transform_tool;
-                let on_selection_kind = workspace_callbacks.layout_selection_kind;
+                let on_selection_kind = on_layout_selection_kind_handler;
                 let matrix_ids: BTreeSet<_> =
                     matrices.iter().map(|matrix| matrix.id.clone()).collect();
                 move |tool| {
@@ -7648,29 +7892,38 @@ fn Editor() -> Element {
                         } => matrix_id.as_str(),
                         _ => return,
                     };
-                    if !matrix_ids.contains(matrix_id) || active_tool() == Some(tool) {
+                    if !matrix_ids.contains(matrix_id) {
                         active_tool.set(None);
                         return;
                     }
-                    active_tool.set(Some(tool));
-                    let next_kind = match (tool, &selected.context) {
-                        (
-                            objects::LayoutTransformTool::Stagger,
-                            objects::TreeContext::Row { .. },
-                        ) => objects::LayoutSelectionKind::Row,
-                        _ => objects::LayoutSelectionKind::Column,
-                    };
-                    on_selection_kind.call(next_kind);
+                    let activation =
+                        objects::activate_transform_tool(active_tool(), tool, &selected.context);
+                    active_tool.set(activation.active);
+                    if let Some(kind) = activation.selection_kind {
+                        on_selection_kind.call(kind);
+                    }
                 }
             });
+            let matrix_rotate_followed =
+                matrix_transform_inspector
+                    .projection
+                    .as_ref()
+                    .and_then(|projection| match &projection.fields {
+                        boardstudio_web_layout::matrix_transform_operation::MatrixTransformFields::Matrix {
+                            rotation_followed,
+                            ..
+                        } => Some(*rotation_followed),
+                        _ => None,
+                    });
             let transform = objects::LayoutTransformMenuMount {
                 properties_available,
-                column_available: supports_kind(objects::LayoutSelectionKind::Column),
-                row_available: supports_kind(objects::LayoutSelectionKind::Row),
+                column_available: toolbar_selection_availability.0,
+                row_available: toolbar_selection_availability.1,
                 pointer_tools_visible: true,
                 pointer_tools_available,
                 active_tool: layout_transform_tool(),
-                on_selection_kind: workspace_callbacks.layout_selection_kind,
+                matrix_rotate_followed,
+                on_selection_kind: on_layout_selection_kind_handler,
                 on_show_properties,
                 on_transform_tool,
             };
@@ -7685,11 +7938,13 @@ fn Editor() -> Element {
                     recovery_required: model.lifecycle
                         == boardstudio_application::Lifecycle::RecoveryRequired,
                     footprints_pressed,
-                    on_toggle_footprints: workspace_callbacks.toggle_footprints,
+                    on_toggle_footprints: toggle_footprints,
                     assembly_3d: layout_assembly_3d(),
                     on_view_mode: on_layout_view_mode,
-                    on_retry_save: workspace_callbacks.retry_save,
-                    on_recover_saved: workspace_callbacks.recover_saved,
+                    on_retry_save: retry_save,
+                    save_conflict: runtime.has_save_conflict(),
+                    on_download_pending: download_pending,
+                    on_recover_saved: recover_saved,
                     selection_kind: layout_selection_kind(),
                     snap_settings: layout_snap_settings.read().clone(),
                     command_label: "Layout commands".to_owned(),
@@ -7697,31 +7952,18 @@ fn Editor() -> Element {
                     transform,
                     menu_owner_key: format!("{layout_owner:?}"),
                     open_menu: layout_command_menu,
-                    on_selection_kind: workspace_callbacks.layout_selection_kind,
-                    on_snap_intent: workspace_callbacks.layout_snap_intent,
+                    on_selection_kind: on_layout_selection_kind_handler,
+                    on_snap_intent: layout_snap_intent,
                     show_relationships: true,
                     has_selection_context: matrix_transform_inspector.projection.is_some()
                         || component_inspector.is_some(),
                     on_show_relationships: EventHandler::new(move |()| {
-                        layout_context_tab.set(layout_workspace::LayoutInspectorTab::Relations);
                         inspect_open.set(true);
                     }),
                 },
             ))
         }
         "PCB" => {
-            let retained = tree_cell_anchor_for_owner(&tree_cell_anchor, &layout_owner);
-            let supports_kind = |kind| {
-                selected_tree_context.as_ref().is_some_and(|selected| {
-                    objects::context_for_selection_kind(
-                        &model,
-                        &selected.context,
-                        kind,
-                        retained.as_ref(),
-                    )
-                    .is_some()
-                })
-            };
             let properties_available = selected_tree_context.as_ref().is_some_and(|selected| {
                 matches!(
                     &selected.context,
@@ -7752,18 +7994,16 @@ fn Editor() -> Element {
                     inspect_open.set(true);
                 }
             };
-            workspace_callbacks
-                .pcb_transform_properties
-                .replace(Box::new(on_show_properties));
             let transform = objects::LayoutTransformMenuMount {
                 properties_available,
-                column_available: supports_kind(objects::LayoutSelectionKind::Column),
-                row_available: supports_kind(objects::LayoutSelectionKind::Row),
+                column_available: toolbar_selection_availability.0,
+                row_available: toolbar_selection_availability.1,
                 pointer_tools_visible: false,
                 pointer_tools_available: false,
                 active_tool: None,
-                on_selection_kind: workspace_callbacks.pcb_selection_kind,
-                on_show_properties: workspace_callbacks.pcb_transform_properties,
+                matrix_rotate_followed: None,
+                on_selection_kind: pcb_selection_kind,
+                on_show_properties: EventHandler::new(on_show_properties),
                 on_transform_tool: EventHandler::new(|_| {}),
             };
             workspace_composition::WorkspaceToolbarInput::Pcb(Box::new(
@@ -7775,8 +8015,8 @@ fn Editor() -> Element {
                     snap_settings: layout_snap_settings.read().clone(),
                     transform,
                     align: pcb_align.clone(),
-                    on_selection_kind: workspace_callbacks.pcb_selection_kind,
-                    on_snap_intent: workspace_callbacks.pcb_snap_intent,
+                    on_selection_kind: pcb_selection_kind,
+                    on_snap_intent: pcb_snap_intent,
                     show_relationships: false,
                     has_selection_context: false,
                     on_show_relationships: EventHandler::new(|()| {}),
@@ -7793,13 +8033,18 @@ fn Editor() -> Element {
             );
             workspace_composition::WorkspaceToolbarInput::Keymap(
                 shared_viewer::DesignViewToolbarProps {
+                    contextual_tools: Some(rsx! { workspace_navigation::InspectorActions {
+                        label: "Keymap tools", workspace, inspect_open, inspector_settings: inspector_panel_settings,
+                        generation: adapter.generation, actions: vec![("Assign", "[aria-label='Keymap editors'] [aria-label='Keys']", true), ("Macros", "[aria-label='Keymap editors'] [aria-label='Macros']", true), ("Encoders", "[aria-label='Keymap editors'] [aria-label='Encoders']", true)],
+                        disabled: false,
+                    } }),
                     label: "Keymap".into(),
                     detail: "Layers & key behaviors".into(),
                     assembly_3d: layout_assembly_3d(),
                     footprints_visible: (layer_visibility.footprints)()
                         && !(layer_visibility.hidden)().contains("Footprints"),
                     on_view_mode,
-                    on_toggle_footprints: workspace_callbacks.toggle_footprints,
+                    on_toggle_footprints: toggle_footprints,
                 },
             )
         }
@@ -7813,13 +8058,18 @@ fn Editor() -> Element {
             );
             workspace_composition::WorkspaceToolbarInput::Keycaps(
                 shared_viewer::DesignViewToolbarProps {
+                    contextual_tools: Some(rsx! { workspace_navigation::InspectorActions {
+                        label: "Keycaps tools", workspace, inspect_open, inspector_settings: inspector_panel_settings,
+                        generation: adapter.generation, actions: vec![("Profile", "[aria-label^='Keycap overrides for '] [data-slot='select-trigger'][aria-label^='Profile override for ']", false), ("Legend", "[aria-label^='Keycap overrides for '] [aria-label^='Legend for ']", false), ("Color", "[aria-label^='Keycap overrides for '] [aria-label^='Keycap color for ']", false)],
+                        disabled: model.selected_part_ids.is_empty(),
+                    } }),
                     label: "Keycaps".into(),
                     detail: "Profiles, legends & fit".into(),
                     assembly_3d: layout_assembly_3d(),
                     footprints_visible: (layer_visibility.footprints)()
                         && !(layer_visibility.hidden)().contains("Footprints"),
                     on_view_mode,
-                    on_toggle_footprints: workspace_callbacks.toggle_footprints,
+                    on_toggle_footprints: toggle_footprints,
                 },
             )
         }
@@ -7829,14 +8079,14 @@ fn Editor() -> Element {
         _ => workspace_composition::WorkspaceToolbarInput::Other,
     };
     let canvas_handlers = workspace_composition::CanvasEventHandlers {
-        mount: workspace_callbacks.canvas_mount,
-        start_pan: workspace_callbacks.canvas_start_pan,
-        move_pointer: workspace_callbacks.canvas_move_pointer,
-        end_pointer: workspace_callbacks.canvas_end_pointer,
-        cancel_pointer: workspace_callbacks.canvas_cancel_pointer,
-        keyboard: workspace_callbacks.canvas_keyboard,
-        key_up: workspace_callbacks.canvas_key_up,
-        wheel: workspace_callbacks.canvas_wheel,
+        mount,
+        start_pan: EventHandler::new(start_pan.clone()),
+        move_pointer: EventHandler::new(move_pointer.clone()),
+        end_pointer: canvas_end_pointer,
+        cancel_pointer: canvas_cancel_pointer,
+        keyboard: canvas_keyboard,
+        key_up: EventHandler::new(key_up.clone()),
+        wheel: canvas_wheel,
     };
     let canvas_input = match active_workspace {
         "PCB" => Some(workspace_composition::WorkspaceCanvasInput::Pcb(Box::new(
@@ -7847,10 +8097,10 @@ fn Editor() -> Element {
                 selected_ids: model.selected_part_ids.clone(),
                 generation: render_generation,
                 handlers: canvas_handlers,
-                on_empty_hit: workspace_callbacks.pcb_empty_hit,
-                on_part_hit: workspace_callbacks.pcb_part_hit,
-                on_part_pointer_down: workspace_callbacks.pcb_part_pointer_down,
-                on_module_select: workspace_callbacks.mounted_module_select,
+                on_empty_hit: pcb_empty_hit,
+                on_part_hit: pcb_part_hit,
+                on_part_pointer_down: pcb_part_pointer_down,
+                on_module_select: mounted_module_select,
             },
         ))),
         "Keymap" => Some(workspace_composition::WorkspaceCanvasInput::Keymap(
@@ -7862,7 +8112,7 @@ fn Editor() -> Element {
                 view_box: view_box.clone(),
                 selected_ids: model.selected_part_ids.iter().cloned().collect(),
                 handlers: canvas_handlers,
-                on_select_key: workspace_callbacks.keymap_select,
+                on_select_key: keymap_select,
             }),
         )),
         "Keycaps" => Some(workspace_composition::WorkspaceCanvasInput::Keycaps(
@@ -7874,7 +8124,7 @@ fn Editor() -> Element {
                 view_box: view_box.clone(),
                 selected_ids: model.selected_part_ids.iter().cloned().collect(),
                 handlers: canvas_handlers,
-                on_select_key: workspace_callbacks.keycaps_select,
+                on_select_key: keycaps_select,
             }),
         )),
         "Case" => Some(workspace_composition::WorkspaceCanvasInput::Case(Box::new(
@@ -7902,8 +8152,26 @@ fn Editor() -> Element {
             },
         )),
     };
-    let component_inspector_pending_edits =
-        use_signal(layout_component_edits::LayoutComponentInspectorEdits::default);
+    let component_inspector_pending_edits = layout_state.component_inspector_edits();
+    let (
+        component_inspector_x,
+        component_inspector_y,
+        component_inspector_margin,
+        component_inspector_error,
+    ) = layout_state.component_inspector_drafts();
+    let (
+        component_inspector_x_failure,
+        component_inspector_y_failure,
+        component_inspector_margin_failure,
+    ) = layout_state.component_inspector_field_failures();
+    let (
+        component_inspector_layout_pending,
+        component_inspector_constraint_pending,
+        component_inspector_remove_pending,
+        component_inspector_mirrored_half_pending,
+    ) = layout_state.component_inspector_pending_controls();
+    let (companion_placement_pending, mut companion_placement_error, companion_placement_edits) =
+        layout_state.companion_placement_controls();
     let on_component_inspector_action = EventHandler::new({
         let runtime = runtime.clone();
         let adapter = adapter.clone();
@@ -7915,11 +8183,43 @@ fn Editor() -> Element {
                 &adapter,
                 &owner,
                 &lifetime,
-                workspace,
-                inspect_open,
+                (workspace, inspect_open),
                 component_inspector_pending_edits,
                 action,
             )
+        }
+    });
+    let on_companion_placement_action = EventHandler::new({
+        let runtime = runtime.clone();
+        let adapter = adapter.clone();
+        let owner_workspace = workspace;
+        move |action: inspector::CompanionPlacementAction| {
+            if !companion_placement_owner_is_current(
+                &runtime,
+                owner_workspace,
+                &adapter,
+                &action.owner,
+                &action.pair_id,
+                &action.targets,
+            ) {
+                companion_placement_error.set(Some(
+                    "The selection changed before this edit ran; placement was not changed.".into(),
+                ));
+                return;
+            }
+            companion_placement_error.set(None);
+            submit_layout_component_edit(
+                &runtime,
+                companion_placement_edits,
+                layout_component_edits::InspectorField::CompanionPlacement,
+                layout_component_edits::companion_placement_resolver(
+                    action.pair_id,
+                    action.targets,
+                    action.mode,
+                    action.tweak,
+                ),
+                None,
+            );
         }
     });
     let inspector_input = match active_workspace {
@@ -7930,8 +8230,8 @@ fn Editor() -> Element {
                 layer_actions,
                 active_layer_id: keymap_layer_id(),
                 selected_key_id: model.selected_part_ids.first().cloned(),
-                on_layer: workspace_callbacks.keymap_layer,
-                on_export: workspace_callbacks.keymap_export,
+                on_layer: keymap_layer,
+                on_export: keymap_export,
                 firmware_export_enabled: keymap_view
                     .as_ref()
                     .is_some_and(|view| !view.keys.is_empty())
@@ -7939,7 +8239,7 @@ fn Editor() -> Element {
                         .encoder_projection
                         .as_ref()
                         .is_some_and(|projection| !projection.rows.is_empty()),
-                on_select_key: workspace_callbacks.keymap_select,
+                on_select_key: keymap_select,
                 binding_actions,
                 macro_actions,
                 admission_token: snapshot.token,
@@ -7961,8 +8261,8 @@ fn Editor() -> Element {
                     &model,
                     selected_tree_context.as_ref(),
                 ),
-                on_show_configured_board: workspace_callbacks.show_configured_board,
-                on_display: workspace_callbacks.case_display,
+                on_show_configured_board: show_configured_board,
+                on_display: case_display,
             },
         )),
         "Parts" => workspace_composition::WorkspaceInspectorInput::Parts(Box::new(
@@ -8042,6 +8342,7 @@ fn Editor() -> Element {
                             }
                         };
                         Box::new(pcb_wiring::PcbWiringInspectorProps {
+                            board_overview: true,
                             source,
                             resolution: pcb_wiring_mount.resolution.clone(),
                             firmware_positions: firmware_position_projection,
@@ -8052,7 +8353,7 @@ fn Editor() -> Element {
                             on_firmware_edit: firmware_position_actions.on_edit,
                             on_resolve: pcb_wiring_mount.on_resolve,
                             on_choose_controller: part_placement.on_choose_controller,
-                            on_edit_board_wiring: workspace_callbacks.pcb_wiring_edit_board,
+                            on_edit_board_wiring: pcb_wiring_edit_board,
                             mode_actions: pcb_wiring_mode_actions.clone(),
                             pin_actions: pcb_wiring_pin_actions.clone(),
                             apply_actions: pcb_wiring_apply_actions.clone(),
@@ -8084,17 +8385,13 @@ fn Editor() -> Element {
                     view: keycaps_view.clone(),
                     document: Rc::new((*document).clone()),
                     selected_key_id,
-                    on_select_key: workspace_callbacks.keycaps_select,
+                    on_select_key: keycaps_select,
                     settings_editor,
                     settings_actions: keycaps_settings_actions.clone(),
                     fit_state: keycaps_fit_state.state.clone(),
                     mechanical_layer_ids,
                     fit_retry: keycaps_fit_state.on_retry,
-                    fit_navigate: workspace_callbacks.keycaps_finding,
-                    on_export: {
-                        let runtime = runtime.clone();
-                        EventHandler::new(move |_: ()| runtime.export_keycaps_step())
-                    },
+                    fit_navigate: keycaps_finding,
                 },
             ))
         }
@@ -8102,7 +8399,7 @@ fn Editor() -> Element {
             layout_workspace::InspectorInput {
                 geometry_scripts_open: geometry_scripts_open(),
                 on_close_geometry_scripts: EventHandler::new(move |()| {
-                    geometry_scripts_open.set(false);
+                    setup_state.set_geometry_scripts_open(false)
                 }),
                 context_title: context_summary
                     .as_ref()
@@ -8123,6 +8420,22 @@ fn Editor() -> Element {
                 show_position_inspector,
                 component_inspector: component_inspector.clone(),
                 component_inspector_pending_edits,
+                component_inspector_x,
+                component_inspector_y,
+                component_inspector_margin,
+                component_inspector_error,
+                component_inspector_x_failure,
+                component_inspector_y_failure,
+                component_inspector_margin_failure,
+                component_inspector_layout_pending,
+                component_inspector_constraint_pending,
+                component_inspector_remove_pending,
+                component_inspector_mirrored_half_pending,
+                companion_placement: companion_placement.clone(),
+                companion_placement_pending,
+                companion_placement_error,
+                companion_placement_edits,
+                on_companion_placement_action,
                 on_component_inspector_action,
                 matrix_inspector,
                 key_size,
@@ -8130,6 +8443,7 @@ fn Editor() -> Element {
                 on_pick_splay_origin: {
                     let mount = matrix_transform_inspector.clone();
                     let mut pending = pending_splay_origin_pick;
+                    let mut anchor_pending = pending_anchor_pick;
                     EventHandler::new(move |()| {
                         let Some(projection) = mount.projection.as_ref() else {
                             return;
@@ -8139,8 +8453,37 @@ fn Editor() -> Element {
                             objects::TreeContext::Column { .. }
                         ) && mount.editable
                         {
+                            anchor_pending.set(None);
                             pending.set(Some(projection.owner.clone()));
                         }
+                    })
+                },
+                on_pick_anchor: {
+                    let mount = matrix_transform_inspector.clone();
+                    let mut pending = pending_anchor_pick;
+                    let mut splay_pending = pending_splay_origin_pick;
+                    EventHandler::new(move |()| {
+                        let Some(projection) = mount.projection.as_ref() else {
+                            return;
+                        };
+                        if matches!(
+                            &projection.owner.context,
+                            objects::TreeContext::Matrix { .. }
+                        ) && mount.editable
+                        {
+                            splay_pending.set(None);
+                            mount.clear_aggregate_pick();
+                            pending.set(Some(projection.owner.clone()));
+                        }
+                    })
+                },
+                anchor_pick_pending: pending_anchor_pick().is_some(),
+                on_cancel_anchor_pick: {
+                    let mount = matrix_transform_inspector.clone();
+                    let mut pending = pending_anchor_pick;
+                    EventHandler::new(move |()| {
+                        mount.clear_aggregate_pick();
+                        pending.set(None);
                     })
                 },
                 splay_origin_pick_pending: pending_splay_origin_pick().is_some(),
@@ -8148,18 +8491,42 @@ fn Editor() -> Element {
                     let mut pending = pending_splay_origin_pick;
                     EventHandler::new(move |()| pending.set(None))
                 },
-                inspector_tab: layout_context_tab,
-                matrix_relationship_summary: matrix_context_relationship_summary(
-                    &model,
-                    selected_tree_context.as_ref(),
-                ),
-                matrix_relationship_target: matrix_context_relationship_target(
-                    &model,
-                    selected_tree_context.as_ref(),
-                ),
-                on_select_context: workspace_callbacks.select_tree,
+                inspector_tab: layout_state.inspector_tab(),
+                matrix_relations: matrix_context_relations(&model, selected_tree_context.as_ref()),
+                relation_target: {
+                    let runtime = runtime.clone();
+                    Rc::new(move |request| relation_target_request(&runtime, request))
+                },
+                relation_scope: selected_tree_context
+                    .as_ref()
+                    .map(|selected| selected.scope.clone()),
+                on_navigate_anchor_part: {
+                    let runtime = runtime.clone();
+                    let scope = selected_tree_context
+                        .as_ref()
+                        .map(|selected| selected.scope.clone());
+                    let select = workspace_routing.select_tree;
+                    EventHandler::new(move |context: objects::TreeContext| {
+                        let Some(scope) = scope.clone() else {
+                            return;
+                        };
+                        let request = objects::TreeSelectRequest {
+                            scope,
+                            context,
+                            mode: boardstudio_application::SelectionMode::Replace,
+                            outline_action: None,
+                        };
+                        // A part key removed since the section was projected:
+                        // do nothing; the next accepted revision re-projects.
+                        let Some(request) = relation_target_request(&runtime, request) else {
+                            return;
+                        };
+                        select.call(request);
+                    })
+                },
+                on_select_context: workspace_routing.select_tree,
                 outline_inspector: outline_inspector.clone().map(Box::new),
-                findings_return_available: layout_finding_return_target().as_ref().is_some_and(
+                findings_return_available: (layout_findings.return_target)().as_ref().is_some_and(
                     |target| {
                         layout_finding_return_is_current(
                             &model,
@@ -8170,12 +8537,11 @@ fn Editor() -> Element {
                     },
                 ),
                 on_findings_return: on_return_from_layout_finding,
-                board_inspector: board_inspector_projection,
-                on_board_rename: board_inspector.on_rename,
+                board_inspector_mount: board_inspector.clone(),
                 findings_page: Some(layout_findings::InspectorMount {
-                    open: layout_findings_open(),
+                    open: (layout_findings.open)(),
                     document: Rc::new(document.as_ref().clone()),
-                    findings: snapshot.scene.findings.clone(),
+                    findings: findings.clone(),
                     source: layout_findings::Source {
                         workspace: active_workspace,
                         scope: render_scope.clone(),
@@ -8189,7 +8555,7 @@ fn Editor() -> Element {
             },
         )),
     };
-    let board_reference_editor = if matches!(active_workspace, "Layout" | "Case") {
+    let _board_reference_editor = if matches!(active_workspace, "Layout" | "Case") {
         let reference = document
             .board_references
             .iter()
@@ -8250,16 +8616,172 @@ fn Editor() -> Element {
     let guide = guide_preferences().filter(|preferences| {
         preferences.project_id == document.id
             && preferences.open
-            // Opening Matrix Setup from the guide temporarily reveals the normal Layout
-            // Objects panel; the guide preference remains intact and returns on cancel.
+            // Keep the guide visible while matrix setup overlays the Layout canvas.
             && !(active_workspace == "Layout"
-                && (matrix_setup.projection.is_some()
-                    || matrix_placement.placement.is_some()
+                && (matrix_placement.placement.is_some()
                     || matrix_placement.busy
                     || mirrored_pair.form.is_some()
                     || mirrored_pair.placement.is_some()))
             && !controller_guide_hidden
     });
+    let has_matrix = !matrices.is_empty();
+    let setup_guide_active = guide.is_some();
+    let matrix_count = matrices.len();
+    let placing_matrix = matrix_placement.placement.is_some() || matrix_placement.busy;
+    let setup_fit_owner = (document.id.clone(), render_scope.board_id.clone());
+    let fitted_matrix_count =
+        use_hook(|| Rc::new(RefCell::new((setup_fit_owner.clone(), matrix_count))));
+    use_effect(use_reactive(
+        (
+            &setup_fit_owner,
+            &matrix_count,
+            &placing_matrix,
+            &setup_guide_active,
+            &active_workspace,
+        ),
+        move |(owner, count, placing, guide_open, active_workspace)| {
+            // Placement hides the guide. Wait for accepted geometry AND the guide's
+            // post-commit DOM before refitting; cancellation has no new matrix to fit.
+            if placing || !guide_open || active_workspace != "Layout" {
+                return;
+            }
+            let mut previous = fitted_matrix_count.borrow_mut();
+            let added = previous.0 == owner && count > previous.1;
+            *previous = (owner, count);
+            if added {
+                on_fit_keymap_board.call(());
+            }
+        },
+    ));
+    let mut setup_wiring_error = use_signal(|| None::<String>);
+    use_effect(use_reactive(
+        (&guide_preferences(), &pcb_wiring_mount.resolution),
+        {
+            let runtime = runtime.clone();
+            move |(guide, resolution)| {
+                if !guide.as_ref().is_some_and(|guide| {
+                    guide.open && guide.current_stage == SetupGuideStage::Wiring
+                }) {
+                    return;
+                }
+                let pcb_wiring::PcbWiringResolution::Current { identity, plan } = resolution else {
+                    return;
+                };
+                let Some(accepted) = runtime.model().accepted else {
+                    return;
+                };
+                if identity.token != accepted.token
+                    || plan.controller_part_id.is_none()
+                    || plan
+                        .diagnostics
+                        .iter()
+                        .any(|finding| finding.severity == "error")
+                {
+                    return;
+                }
+                let mut proposal = (*accepted.document).clone();
+                if let Err(error) = boardstudio_core::electrical::materialize(&mut proposal, &plan)
+                {
+                    setup_wiring_error.set(Some(error));
+                    return;
+                }
+                setup_wiring_error.set(None);
+                if proposal == *accepted.document {
+                    return;
+                }
+                runtime.submit(boardstudio_application::Event::ResolveEdit {
+                    operation_id: runtime.operation(),
+                    label: "Setup wiring".into(),
+                    resolver: boardstudio_application::EditResolver::new(
+                        "setup-wiring",
+                        move |current| {
+                            if current.token != identity.token {
+                                return boardstudio_application::Resolution::Retire(
+                                    "The board changed while wiring was being prepared.".into(),
+                                );
+                            }
+                            boardstudio_application::Resolution::submit(
+                                vec![identity.scope.board_id.clone()],
+                                EditOperation::ReplaceDocument {
+                                    document: Box::new(proposal.clone()),
+                                },
+                            )
+                        },
+                    ),
+                });
+            }
+        },
+    ));
+    let auto_open_matrix = use_reactive(
+        (
+            &guide_preferences(),
+            &workspace(),
+            &matrix_setup.can_open,
+            &matrix_count,
+            &placing_matrix,
+        ),
+        {
+            let project_id = document.id.clone();
+            let on_open = matrix_setup.on_open;
+            move |(preferences, active_workspace, can_open, matrix_count, placing)| {
+                if active_workspace == "Layout"
+                    && can_open
+                    && matrix_count == 0
+                    && !placing
+                    && preferences.as_ref().is_some_and(|preferences| {
+                        preferences.project_id == project_id
+                            && preferences.open
+                            && preferences.current_stage == SetupGuideStage::Layout
+                    })
+                {
+                    on_open.call(());
+                }
+            }
+        },
+    );
+    use_effect(auto_open_matrix);
+    let inline_matrix_setup = if guide.is_some() {
+        matrix_setup.projection.clone().map(|mut projection| {
+            projection.can_cancel &= has_matrix;
+            rsx! {
+                objects::MatrixSetup {
+                    projection,
+                    on_cancel: matrix_setup.on_cancel,
+                    on_create: matrix_setup.on_create,
+                }
+            }
+        })
+    } else {
+        None
+    };
+    let inline_case_basics = guide
+        .as_ref()
+        .and_then(|_| mechanical_settings.props.clone())
+        .map(|settings| {
+            rsx! {
+                boardstudio_web_case::mechanical_settings::MechanicalSetupBasics { settings }
+            }
+        });
+    let inline_controller_picker = guide
+        .as_ref()
+        .filter(|preferences| {
+            preferences.current_stage == SetupGuideStage::Wiring
+        })
+        .map(|_| {
+            rsx! {
+                div {
+                    parts::ControllerSetupPicker {
+                        snapshot: snapshot.clone(),
+                        scope: current_scope.clone(),
+                        selected: parts_selection,
+                        on_place: part_placement.on_place_controller,
+                        enabled: part_placement.controller_placement_enabled,
+                        busy: part_placement.busy || matrix_placement.busy,
+                        error: setup_wiring_error().or_else(|| matrix_placement.error.clone()).or_else(|| part_placement.error.clone()),
+                    }
+                }
+            }
+        });
     let show_empty_board = guide.is_none()
         && matches!(active_workspace, "Layout" | "PCB" | "Keymap" | "Keycaps")
         && !layout_assembly_3d()
@@ -8279,50 +8801,13 @@ fn Editor() -> Element {
             .0
             .unwrap_or(Vec2 { x: 19.05, y: 19.05 })
     };
-    let outline_snap_origins = visible
-        .iter()
-        .map(|part| {
-            let definition = definitions.get(part.definition_id.as_str()).copied();
-            let keycap = definition
-                .filter(|definition| definition.kind == PartKind::Switch)
-                .and_then(|definition| part.keycap.or(definition.keycap));
-            let local = if let Some(size) = keycap {
-                vec![
-                    Vec2 {
-                        x: -size.x / 2.0,
-                        y: -size.y / 2.0,
-                    },
-                    Vec2 {
-                        x: size.x / 2.0,
-                        y: -size.y / 2.0,
-                    },
-                    Vec2 {
-                        x: size.x / 2.0,
-                        y: size.y / 2.0,
-                    },
-                    Vec2 {
-                        x: -size.x / 2.0,
-                        y: size.y / 2.0,
-                    },
-                ]
-            } else {
-                definition.map_or_else(Vec::new, |definition| definition.courtyard.clone())
-            };
-            let (sin, cos) = part.pose.rotation.to_radians().sin_cos();
-            let world = local
-                .into_iter()
-                .map(|point| Vec2 {
-                    x: part.pose.at.x + point.x * cos - point.y * sin,
-                    y: part.pose.at.y + point.x * sin + point.y * cos,
-                })
-                .collect();
-            crate::presentation::outline_snapping::Origin {
-                reference: part.reference.clone(),
-                center: part.pose.at,
-                polygon: crate::presentation::outline_snapping::convex_hull(world),
-            }
-        })
-        .collect::<Vec<_>>();
+    let outline_snap_origins = use_memo(use_reactive((&accepted_canvas_source,), |(source,)| {
+        Rc::new(layout_canvas::snap_origins(
+            &source.document,
+            &source.board_id,
+            &source.scene,
+        ))
+    }))();
     let outline_snap_settings = layout_snap_settings.read().clone();
     let outline_grid_active = outline_inspector
         .as_ref()
@@ -8345,18 +8830,13 @@ fn Editor() -> Element {
     let on_name_commit = guide_name_edit.on_commit;
     let guide_runtime = runtime.clone();
     let mut guide_adapter = adapter.clone();
-    let mut guide_preferences_for_stage = guide_preferences;
+    let setup_state_for_stage = setup_state;
     let guide_workspace_for_stage = workspace;
     let guide_project_id = document.id.clone();
     let on_stage_change = move |stage: SetupGuideStage| {
-        let Some(mut preferences) = guide_preferences_for_stage()
-            .filter(|preferences| preferences.project_id == guide_project_id)
-        else {
+        if !setup_state_for_stage.update_guide_stage(&guide_project_id, stage) {
             return;
-        };
-        preferences.current_stage = stage;
-        preferences.open = true;
-        guide_preferences_for_stage.set(Some(preferences));
+        }
         setup_guide::activate_stage(
             stage,
             guide_workspace_for_stage,
@@ -8379,7 +8859,13 @@ fn Editor() -> Element {
     let mut guide_adapter_for_action = adapter.clone();
     let guide_runtime_for_action = runtime.clone();
     let settings_project_id = document.id.clone();
+    let mut full_case_settings = use_signal(|| false);
     let on_open_workspace = move |target: &'static str| {
+        if target == "Case" {
+            full_case_settings.set(true);
+            guide_workspace_for_action.set("Case");
+            return;
+        }
         guide_workspace_for_action.set(target);
         setup_guide::reveal_panels(
             crate::setup_guide_state::GuideReveal::Settings,
@@ -8411,52 +8897,690 @@ fn Editor() -> Element {
             mode: SelectionMode::Replace,
         });
     };
-    let mut guide_preferences_for_dismiss = guide_preferences;
+    let setup_state_for_dismiss = setup_state;
     let guide_project_id_for_dismiss = document.id.clone();
     let on_dismiss_guide = move |_| {
-        if let Some(mut preferences) = guide_preferences_for_dismiss()
-            .filter(|preferences| preferences.project_id == guide_project_id_for_dismiss)
+        setup_state_for_dismiss.dismiss_guide(&guide_project_id_for_dismiss);
+    };
+    let setup_state_for_finish = setup_state;
+    let guide_project_id_for_finish = document.id.clone();
+    let mut guide_workspace_for_finish = workspace;
+    let on_finish_guide = move |_| {
+        guide_workspace_for_finish.set("Layout");
+        setup_state_for_finish.dismiss_guide(&guide_project_id_for_finish);
+    };
+    let (guide_stage_readiness, guide_stage_detail) = guide
+        .as_ref()
+        .map(|preferences| {
+            let guide_statuses = setup_guide::stage_statuses(
+                &document,
+                &model.active_board_id,
+                &snapshot.scene,
+                match &pcb_wiring_mount.resolution {
+                    pcb_wiring::PcbWiringResolution::Current { identity, plan }
+                        if identity.scope.document_id == document.id
+                            && identity.scope.board_id == model.active_board_id
+                            && identity.scope.instance_id.is_none()
+                            && identity.token == snapshot.token
+                            && identity.revision == document.revision =>
+                    {
+                        Some(plan.as_ref())
+                    }
+                    _ => None,
+                },
+            );
+            let guide_stage_index = match preferences.current_stage {
+                SetupGuideStage::Project => 0,
+                SetupGuideStage::Layout => 1,
+                SetupGuideStage::Wiring => 2,
+                SetupGuideStage::Case => 3,
+                SetupGuideStage::Review => 4,
+            };
+            let guide_stage_detail = guide_statuses[guide_stage_index].detail.clone();
+            (
+                guide_statuses.map(|status| status.ready),
+                guide_stage_detail,
+            )
+        })
+        .unwrap_or_default();
+    let canvas_transform_menu = match &toolbar_input {
+        workspace_composition::WorkspaceToolbarInput::Layout(input) => {
+            Some(input.transform.clone())
+        }
+        _ => None,
+    };
+    let selection_geometry_anchor = (!layout_assembly_3d() && active_workspace == "Layout")
+        .then(|| {
+            let points: Vec<_> = visible
+                .iter()
+                .filter(|part| model.selected_part_ids.contains(&part.id))
+                .map(|part| {
+                    scene
+                        .transforms
+                        .iter()
+                        .find(|t| t.id == part.id)
+                        .map_or(part.pose.at, |t| t.pose.at)
+                })
+                .collect();
+            if points.is_empty() {
+                return None;
+            }
+            let scale = svg.borrow().as_ref().map_or(1.0, |_surface| {
+                let (surface_width, surface_height) = zoom_surface_size();
+                (width / surface_width.max(1.0)).max(height / surface_height.max(1.0))
+            });
+            let x = (points.iter().map(|p| p.x).sum::<f64>() / points.len() as f64).clamp(
+                view_x + 60.0 * scale,
+                (view_x + width - 60.0 * scale).max(view_x + 60.0 * scale),
+            );
+            let y = points.iter().map(|p| p.y).fold(f64::INFINITY, f64::min) - 12.0 - 6.0 * scale;
+            Some((x, y, scale))
+        })
+        .flatten();
+    let matrix_pointer_down = EventHandler::new({
+        let runtime = runtime.clone();
+        let adapter = adapter.clone();
+        let svg = svg.clone();
+        let space_down = space_down.clone();
+        let scope = render_scope.clone();
+        let generation = render_generation;
+        let range_ids = visible_ids.clone();
+        let selection_kind = layout_selection_kind;
+        let owner = layout_owner.clone();
+        let tree_cell_anchor = tree_cell_anchor.clone();
+        let mut pending_splay_pick = pending_splay_origin_pick;
+        let mut pending_anchor_pick = pending_anchor_pick;
+        let transform_inspector = matrix_transform_inspector.clone();
+        let canvas_interaction = canvas_interaction.clone();
+        let mirrored_pair = mirrored_pair.clone();
+        let mut split_focus = split_focus;
+        move |request: layout_canvas::MatrixPointerDown| {
+            let Some(pointer) = request.event.data().try_as_web_event() else {
+                return;
+            };
+            if canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair)
+                && mirrored_pair.placement.is_some()
+            {
+                return;
+            }
+            if canvas_interaction.current().is_some() {
+                pointer.prevent_default();
+                pointer.stop_propagation();
+                return;
+            }
+            if pointer.button() != 0 || space_down.get() {
+                return;
+            }
+            if pending_splay_pick.peek().is_some()
+                && let Some(point) = coordinates(&svg, &pointer, view_x, view_y, width, height)
+            {
+                pointer.prevent_default();
+                pointer.stop_propagation();
+                apply_pending_splay_origin_pick(
+                    &runtime,
+                    workspace,
+                    &adapter,
+                    &owner,
+                    PendingSplayOriginPick {
+                        pending: &mut pending_splay_pick,
+                        inspector: &transform_inspector,
+                        point,
+                        swing: pointer.ctrl_key(),
+                    },
+                );
+                return;
+            }
+            if pending_anchor_pick.peek().is_some() {
+                // Key-identity hits retarget the anchor; the world point is
+                // irrelevant, so no coordinate resolution can fail here. An
+                // aggregate-armed pick appends to the pending parts instead and
+                // stays armed for the next key.
+                pointer.prevent_default();
+                pointer.stop_propagation();
+                let aggregate_armed = transform_inspector.projection.as_ref().is_some_and(
+                    |projection| {
+                        matches!(
+                            &projection.fields,
+                            boardstudio_web_layout::matrix_transform_operation::MatrixTransformFields::Matrix {
+                                anchor: Some(anchor),
+                                ..
+                            } if anchor.aggregate.is_some()
+                        )
+                    },
+                );
+                if aggregate_armed {
+                    if !transform_inspector.pick_aggregate_part(
+                        request.matrix_id.clone(),
+                        request.row,
+                        request.column,
+                    ) {
+                        runtime.report("Matrix selection changed. Pick the anchor parts again.");
+                    }
+                    return;
+                }
+                apply_pending_anchor_pick(
+                    &runtime,
+                    workspace,
+                    &adapter,
+                    &owner,
+                    PendingAnchorPick {
+                        pending: &mut pending_anchor_pick,
+                        inspector: &transform_inspector,
+                        matrix_id: request.matrix_id.clone(),
+                        row: request.row,
+                        column: request.column,
+                    },
+                );
+                return;
+            }
+            pointer.prevent_default();
+            pointer.stop_propagation();
+            let current = runtime.model();
+            if !layout_owner_is_current(&runtime, workspace, &adapter, &owner) {
+                return;
+            }
+            let Some(hit_context) = objects::context_for_cell(
+                &current,
+                &request.matrix_id,
+                request.row,
+                request.column,
+            ) else {
+                return;
+            };
+            // Ticket 14: clicking the dimmed half on the canvas moves the
+            // view-only editing focus and still performs normal selection.
+            if let Some(accepted) = current.accepted.as_ref()
+                && let Some(half) = boardstudio_web_ui_model::split_focus::context_half(
+                    &accepted.document,
+                    &hit_context,
+                )
+                && half != split_focus()
+            {
+                split_focus.set(half);
+            }
+            update_tree_cell_anchor(&tree_cell_anchor, &owner, &current, Some(&hit_context));
+            let retained = tree_cell_anchor_for_owner(&tree_cell_anchor, &owner);
+            let context = objects::context_for_selection_kind(
+                &current,
+                &hit_context,
+                selection_kind(),
+                retained.as_ref(),
+            )
+            .map(|projection| projection.context)
+            .unwrap_or_else(|| hit_context.clone());
+            let mode = if pointer.shift_key() {
+                SelectionMode::Range
+            } else if pointer.ctrl_key() || pointer.meta_key() {
+                SelectionMode::Toggle
+            } else {
+                SelectionMode::Replace
+            };
+            if let Some(target_part_id) = request.part_id {
+                selection::submit_matrix_cell_selection(
+                    &runtime,
+                    &adapter,
+                    &scope,
+                    generation,
+                    selection::MatrixCellSelection {
+                        matrix_id: request.matrix_id,
+                        target_part_id,
+                        hit_context: &hit_context,
+                        context,
+                        mode,
+                    },
+                );
+            } else {
+                selection::submit_canvas_selection(
+                    &runtime,
+                    &adapter,
+                    &scope,
+                    generation,
+                    context,
+                    mode,
+                    if mode == SelectionMode::Range {
+                        range_ids.as_ref().clone()
+                    } else {
+                        Vec::new()
+                    },
+                );
+            }
+        }
+    });
+    let part_pointer_down = EventHandler::new({
+        let runtime = runtime.clone();
+        let svg = svg.clone();
+        let drag = drag.clone();
+        let space_down = space_down.clone();
+        let canvas_interaction = canvas_interaction.clone();
+        let navigation = canvas_navigation.clone();
+        let adapter = adapter.clone();
+        let render_scope = render_scope.clone();
+        let generation = render_generation;
+        let range_ids = visible_ids.clone();
+        let selection_kind = layout_selection_kind;
+        let owner = layout_owner.clone();
+        let tree_cell_anchor = tree_cell_anchor.clone();
+        let mirrored_pair = mirrored_pair.clone();
+        let mut pending_splay_pick = pending_splay_origin_pick;
+        let transform_inspector = matrix_transform_inspector.clone();
+        let mut selected_context = adapter.selected_context;
+        let mut split_focus = split_focus;
+        move |request: layout_canvas::PartPointerDown| {
+            let id = request.part_id;
+            let Some(pointer) = request.event.data().try_as_web_event() else {
+                return;
+            };
+            if pointer.button() != 0 {
+                return;
+            }
+            if canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair)
+                && mirrored_pair.placement.is_some()
+            {
+                return;
+            }
+            if canvas_interaction.current().is_some() {
+                pointer.prevent_default();
+                pointer.stop_propagation();
+                return;
+            }
+            if runtime.scope().as_ref() != Some(&render_scope)
+                || (adapter.generation)() != generation
+            {
+                return;
+            }
+            if drag.borrow().is_some() || runtime.model().gesture.is_some() {
+                return;
+            }
+            pointer.prevent_default();
+            pointer.stop_propagation();
+            if pending_splay_pick.peek().is_some()
+                && let Some(point) = coordinates(&svg, &pointer, view_x, view_y, width, height)
+            {
+                apply_pending_splay_origin_pick(
+                    &runtime,
+                    workspace,
+                    &adapter,
+                    &owner,
+                    PendingSplayOriginPick {
+                        pending: &mut pending_splay_pick,
+                        inspector: &transform_inspector,
+                        point,
+                        swing: pointer.ctrl_key(),
+                    },
+                );
+                return;
+            }
+            if space_down.get() {
+                if let Some(svg) = svg.borrow().as_ref() {
+                    let _ = svg.set_pointer_capture(pointer.pointer_id());
+                    let options = web_sys::FocusOptions::new();
+                    options.set_prevent_scroll(true);
+                    let _ = svg.focus_with_options(&options);
+                }
+                navigation.start_space_pan(
+                    boardstudio_web_ui_shared::canvas_navigation::PanStart {
+                        pointer_id: i64::from(pointer.pointer_id()),
+                        scope: render_scope.clone(),
+                        generation,
+                        client: (f64::from(pointer.client_x()), f64::from(pointer.client_y())),
+                        camera: runtime.model().camera.center,
+                    },
+                );
+                return;
+            }
+            let Some(origin) = coordinates(&svg, &pointer, view_x, view_y, width, height) else {
+                if let Some(surface) = svg.borrow().as_ref() {
+                    let _ = surface.release_pointer_capture(pointer.pointer_id());
+                }
+                return;
+            };
+            let mode = if pointer.shift_key() {
+                SelectionMode::Range
+            } else if pointer.ctrl_key() || pointer.meta_key() {
+                SelectionMode::Toggle
+            } else {
+                SelectionMode::Replace
+            };
+            let current = runtime.model();
+            if !layout_owner_is_current(&runtime, workspace, &adapter, &owner) {
+                return;
+            }
+            let Some(hit_context) = objects::context_for_part(&current, &id) else {
+                return;
+            };
+            // Ticket 14: clicking the dimmed half on the canvas moves the
+            // view-only editing focus and still performs normal selection.
+            if let Some(accepted) = current.accepted.as_ref()
+                && let Some(half) = boardstudio_web_ui_model::split_focus::context_half(
+                    &accepted.document,
+                    &hit_context,
+                )
+                && half != split_focus()
+            {
+                split_focus.set(half);
+            }
+            update_tree_cell_anchor(&tree_cell_anchor, &owner, &current, Some(&hit_context));
+            let retained = tree_cell_anchor_for_owner(&tree_cell_anchor, &owner);
+            let selection_projection = objects::context_for_selection_kind(
+                &current,
+                &hit_context,
+                selection_kind(),
+                retained.as_ref(),
+            );
+            let target_ids = selection_projection
+                .as_ref()
+                .map(|projection| projection.part_ids.clone())
+                .unwrap_or_else(|| {
+                    selection::resolve_context(&current, &hit_context).unwrap_or_default()
+                });
+            let context = selection_projection
+                .map(|projection| projection.context)
+                .unwrap_or_else(|| hit_context.clone());
+            if let objects::TreeContext::Key {
+                matrix_id,
+                row,
+                column,
+            } = &hit_context
+                && id == format!("matrix/{matrix_id}/r{row}c{column}")
+            {
+                selection::submit_matrix_cell_selection(
+                    &runtime,
+                    &adapter,
+                    &render_scope,
+                    generation,
+                    selection::MatrixCellSelection {
+                        matrix_id: matrix_id.clone(),
+                        target_part_id: id.clone(),
+                        hit_context: &hit_context,
+                        context: context.clone(),
+                        mode,
+                    },
+                );
+            } else if !current.selected_part_ids.contains(&id)
+                || mode != SelectionMode::Replace
+                || target_ids != current.selected_part_ids
+            {
+                selection::submit_canvas_selection(
+                    &runtime,
+                    &adapter,
+                    &render_scope,
+                    generation,
+                    context.clone(),
+                    mode,
+                    if mode == SelectionMode::Range {
+                        range_ids.as_ref().clone()
+                    } else {
+                        Vec::new()
+                    },
+                );
+            } else {
+                let anchor_valid = (adapter.anchor_scope)().as_ref() == Some(&render_scope)
+                    && current.selection_anchor_id.as_ref() == Some(&id)
+                    && selection::eligible_live_ids(&current).contains(&id);
+                if !anchor_valid {
+                    selection::submit_canvas_selection(
+                        &runtime,
+                        &adapter,
+                        &render_scope,
+                        generation,
+                        context,
+                        SelectionMode::Add,
+                        Vec::new(),
+                    );
+                } else {
+                    selected_context.set(Some(objects::ScopedTreeContext {
+                        scope: render_scope.clone(),
+                        context,
+                    }));
+                }
+            }
+            let current = runtime.model();
+            if !current.selected_part_ids.contains(&id) || mode != SelectionMode::Replace {
+                return;
+            }
+            let Some(snapshot) = current.accepted else {
+                return;
+            };
+            let positions: Vec<_> = snapshot
+                .document
+                .parts
+                .iter()
+                .filter(|part| current.selected_part_ids.contains(&part.id))
+                .map(|part| Position {
+                    id: part.id.clone(),
+                    at: part.pose.at,
+                })
+                .collect();
+            if positions.is_empty() {
+                return;
+            }
+            if let Some(svg) = svg.borrow().as_ref() {
+                let _ = svg.set_pointer_capture(pointer.pointer_id());
+                let options = web_sys::FocusOptions::new();
+                options.set_prevent_scroll(true);
+                let _ = svg.focus_with_options(&options);
+            }
+            *drag.borrow_mut() = Some(Drag {
+                pointer: i64::from(pointer.pointer_id()),
+                scope: render_scope.clone(),
+                generation,
+                gesture_generation: None,
+                origin,
+                client_x: f64::from(pointer.client_x()),
+                client_y: f64::from(pointer.client_y()),
+                positions,
+                active: false,
+                pan: false,
+                camera: Vec2::default(),
+            });
+        }
+    });
+
+    // Only a linked Layout split has an unfocused half.
+    let split_focused_half = if boardstudio_web_ui_model::split_focus::has_split(&document) {
+        Some(split_focus())
+    } else {
+        None
+    };
+    let on_zoom_keymap_out = EventHandler::new(on_zoom_keymap_out);
+    let on_zoom_keymap_in = EventHandler::new(on_zoom_keymap_in);
+    let object_commands = use_memo(use_reactive(
+        (
+            &accepted_canvas_source,
+            &snapshot.token,
+            &render_scope,
+            &render_generation,
+            &active_workspace,
+        ),
         {
-            preferences.open = false;
-            guide_preferences_for_dismiss.set(Some(preferences));
+            let model = model.clone();
+            let on_select = workspace_routing.select_tree;
+            move |(_, _, scope, generation, workspace)| {
+                command_palette::editor_commands(&model, workspace, &scope, generation, on_select)
+            }
+        },
+    ));
+    let mut palette_commands = object_commands();
+    if matches!(active_workspace, "Layout" | "PCB" | "Keymap" | "Keycaps") && !layout_assembly_3d()
+    {
+        for (label, on_select) in [
+            ("Fit board", on_fit_keymap_board),
+            ("Zoom out", on_zoom_keymap_out),
+            ("Zoom in", on_zoom_keymap_in),
+        ] {
+            palette_commands.push(boardstudio_web_ui_shared::ui::command::Command {
+                group: "View",
+                label: label.into(),
+                reason: None,
+                hint: None,
+                on_select,
+            });
+        }
+    }
+    if active_workspace == "Layout" {
+        for (label, mode) in [("2D", false), ("3D assembly", true)] {
+            palette_commands.push(boardstudio_web_ui_shared::ui::command::Command {
+                group: "View",
+                label: label.into(),
+                reason: None,
+                hint: None,
+                on_select: EventHandler::new(move |()| on_layout_view_mode.call(mode)),
+            });
+        }
+        palette_commands.push(boardstudio_web_ui_shared::ui::command::Command {
+            group: "View",
+            label: "Footprints".into(),
+            reason: None,
+            hint: None,
+            on_select: toggle_footprints,
+        });
+        let mut add_open = layout_state.add_object_menu_open();
+        let mut objects_open = objects_open;
+        let mut inspect_open = inspect_open;
+        let mut objects_settings = objects_panel_settings;
+        palette_commands.push(boardstudio_web_ui_shared::ui::command::Command {
+            group: "Current Workspace",
+            label: "Add object".into(),
+            reason: None,
+            hint: None,
+            on_select: EventHandler::new(move |()| {
+                if is_compact_viewport() {
+                    inspect_open.set(false);
+                    objects_open.set(true);
+                } else {
+                    let mut current = objects_settings();
+                    current.mode = PanelMode::Pinned;
+                    objects_settings.set(current);
+                }
+                add_open.set(true);
+            }),
+        });
+    }
+    let toggle_panel = |mut requested: Signal<bool>,
+                        mut opposite: Signal<bool>,
+                        mut settings: Signal<PanelSettings>| {
+        if is_compact_viewport() {
+            let was_open = requested();
+            opposite.set(false);
+            requested.set(!was_open);
+        } else {
+            let mut current = settings();
+            current.mode = match current.mode {
+                PanelMode::Pinned => PanelMode::Collapsed,
+                PanelMode::Collapsed => PanelMode::Pinned,
+            };
+            settings.set(current);
         }
     };
-    let guide_statuses = setup_guide::stage_statuses(
-        &document,
-        &model.active_board_id,
-        &snapshot.scene,
-        match &pcb_wiring_mount.resolution {
-            pcb_wiring::PcbWiringResolution::Current { identity, plan }
-                if identity.scope.document_id == document.id
-                    && identity.scope.board_id == model.active_board_id
-                    && identity.scope.instance_id.is_none()
-                    && identity.token == snapshot.token
-                    && identity.revision == document.revision =>
-            {
-                Some(plan.as_ref())
+    let toggle_objects =
+        use_callback(move |()| toggle_panel(objects_open, inspect_open, objects_panel_settings));
+    let toggle_inspector =
+        use_callback(move |()| toggle_panel(inspect_open, objects_open, inspector_panel_settings));
+    if guide.is_none() && active_workspace != "Export" {
+        for (label, on_select, available) in [
+            ("Show/hide Objects", toggle_objects, true),
+            ("Show/hide Inspector", toggle_inspector, has_inspector),
+        ] {
+            if !available {
+                continue;
             }
-            _ => None,
-        },
-    );
-    let guide_stage_index = guide
-        .as_ref()
-        .map(|preferences| match preferences.current_stage {
-            SetupGuideStage::Project => 0,
-            SetupGuideStage::Layout => 1,
-            SetupGuideStage::Wiring => 2,
-            SetupGuideStage::Case => 3,
-            SetupGuideStage::Review => 4,
-        })
-        .unwrap_or(0);
-    let guide_stage_readiness = guide_statuses.clone().map(|status| status.ready);
-    let guide_stage_detail = guide_statuses[guide_stage_index].detail.clone();
+            palette_commands.push(boardstudio_web_ui_shared::ui::command::Command {
+                group: "View",
+                label: label.into(),
+                reason: None,
+                hint: None,
+                on_select,
+            });
+        }
+    }
+    boardstudio_web_ui_shared::ui::command::use_commands(palette_commands);
+
     rsx! {
-        section { class: "m1-editor", "aria-label": "Keyboard editor",
-            panels::CompactPanelScrim {}
-            div { class: "m1-editor-body", style: "{panel_layout_style}",
+        section { class: "flex min-h-0 flex-1 flex-col", "aria-label": "Keyboard editor",
+            div { class: if active_workspace == "Export" { "dock-desk relative flex min-h-0 flex-1 flex-row gap-2 overflow-hidden bg-background p-2 [&_[id=workspace-panel-sheet]]:hidden!" } else { "dock-desk relative flex min-h-0 flex-1 flex-row gap-2 overflow-hidden bg-background p-2" },
+                DockLayout {
+                    objects: if guide.is_none() { Some(rsx! {
                 ObjectsPanel { compact_open: objects_open, settings: objects_panel_settings,
-                    if let Some(preferences) = guide {
-                        if let Some(message) = guide_name_failure() { p { role: "alert", "{message}" } }
+                    header_action: if active_workspace == "Layout" {
+                        Some(layout_workspace::add_object_header_action(layout_state.add_object_menu_open()))
+                    } else { None },
+                    div { class: "min-h-0 min-w-0 flex-[1_1_auto] overflow-x-hidden overflow-y-auto",
+                    {workspace_composition::objects(objects_input)}
+                    }
+                    div { class: "relative mt-auto min-w-0 flex-none border-t border-border max-[760px]:[&_button]:min-h-control-touch [&>[data-slot=collapsible]]:overflow-visible [&_[id=m1-layers-list]]:absolute [&_[id=m1-layers-list]]:bottom-full [&_[id=m1-layers-list]]:left-0 [&_[id=m1-layers-list]]:z-30 [&_[id=m1-layers-list]]:w-full [&_[id=m1-layers-list]]:max-h-[min(65vh,520px)] [&_[id=m1-layers-list]]:overflow-auto [&_[id=m1-layers-list]]:rounded-t-xl [&_[id=m1-layers-list]]:border [&_[id=m1-layers-list]]:border-border-strong [&_[id=m1-layers-list]]:bg-card [&_[id=m1-layers-list]]:p-3",
+                        if active_workspace == "Layout" && !layout_assembly_3d() {
+                            CanvasLayers {
+                                initially_open: false,
+                                trigger_label: "Canvas visibility".to_owned(),
+                                trigger_id: String::from("m1-layers-trigger"),
+                                list_id: String::from("m1-layers-list"),
+                                groups: canvas_layers::layout_groups(),
+                            }
+                        }
+                        if active_workspace == "PCB" {
+                            pcb_layers::PcbLayerControls { initially_open: false, snapshot: snapshot.clone(), scope: render_scope.clone() }
+                        }
+                        boardstudio_web_ui_shared::layer_dock::LayerDockOutlet {}
+                    }
+                    if active_workspace == "Layout" && !layout_assembly_3d() {
+                        objects::LayoutSnapDock {
+                            settings: layout_snap_settings.read().clone(),
+                            open_menu: layout_command_menu,
+                            on_snap_intent: layout_snap_intent,
+                            handles_visible: layout_state.transform_handles()(),
+                            on_toggle_handles: EventHandler::new(move |visible| layout_state.transform_handles().set(visible)),
+                        }
+                    }
+                }
+                    }) } else { None },
+                    inspector: if has_inspector && guide.is_none() { Some(rsx! {
+                    InspectorPanel { compact_open: inspect_open, settings: inspector_panel_settings,
+                        if active_workspace != "Layout" && (layout_findings.open)() {
+                            layout_findings::LayoutFindingsInspector {
+                                open: true,
+                                document: Rc::new(document.as_ref().clone()),
+                                findings: findings.clone(),
+                                source: layout_findings::Source {
+                                    workspace: active_workspace,
+                                    scope: render_scope.clone(),
+                                    token: snapshot.token,
+                                    revision: snapshot.document.revision,
+                                    generation: render_generation,
+                                },
+                                on_close: on_close_layout_findings,
+                                on_navigate: on_layout_finding,
+                            }
+                        } else {
+                            {workspace_composition::inspector(inspector_input)}
+                        }
+
+                    }
+                    }) } else { None },
+                if guide.is_some() {
+                    section { class: "absolute inset-y-0 left-0 z-24 flex w-[min(380px,calc(100vw-32px))] max-w-[calc(100%-16px)] flex-col overflow-hidden border-r border-border-strong bg-card shadow-[8px_0_24px_rgb(0_0_0/16%)] [&>[role=alert]]:mx-4 [&>[role=alert]]:mt-3 [&>[role=alert]]:text-destructive max-[760px]:z-40 max-[760px]:w-[min(380px,calc(100vw-16px))]", aria_label: "Keyboard setup", "data-setup-guide-overlay": "",
+                    if full_case_settings() && active_workspace == "Case" {
+                        aside { class: "flex min-h-0 flex-1 flex-col bg-card p-4 [&>header]:flex [&>header]:items-center [&>header]:gap-3 [&>header]:pb-4 [&>header_h2]:m-0 [&>header_h2]:text-lg", aria_label: "Full case settings",
+                            header {
+                                Button { variant: ButtonVariant::Secondary,
+                                    class: "max-[960px]:h-control-touch [@media(pointer:coarse)]:h-control-touch",
+                                    aria_label: "Back to setup guide",
+                                    onclick: move |_| full_case_settings.set(false),
+                                    svg { width: "20", height: "20", view_box: "0 0 24 24", fill: "none", stroke: "currentColor", stroke_width: "1.8", "aria-hidden": "true",
+                                        path { d: "M19 12H5m7-7-7 7 7 7" }
+                                    }
+                                    "Back to guide"
+                                }
+                                h2 { "Case settings" }
+                            }
+                            div { class: "min-h-0 overflow-y-auto",
+                                if let Some(settings) = mechanical_settings.props.clone() {
+                                    boardstudio_web_case::mechanical_settings::MechanicalSettings { ..settings }
+                                }
+                            }
+                        }
+                    } else {
+                    if let Some(preferences) = guide.clone() {
+                        if let Some(message) = guide_name_failure() { FieldError { "{message}" } }
                         setup_guide::ProjectSetupGuide {
                             stage: preferences.current_stage,
                             stage_readiness: guide_stage_readiness,
@@ -8467,53 +9591,58 @@ fn Editor() -> Element {
                             on_stage_change,
                             on_open_workspace,
                             on_open_matrix_setup: Some(matrix_setup.on_open),
+                            matrix_setup: inline_matrix_setup,
+                            case_basics: inline_case_basics,
+                            controller_picker: inline_controller_picker,
+                            has_matrix,
                             on_choose_controller: Some(part_placement.on_choose_controller),
                             on_dismiss: on_dismiss_guide,
+                            on_finish: on_finish_guide,
                             project_controls: if preferences.current_stage
                                 == SetupGuideStage::Project
                             {
                                 Some(pcb_physical_setup::controller::project_setup_controls(
                                     physical_setup_mount.clone(),
                                 ))
-                            } else {
-                                None
-                            },
+                            } else { None },
                         }
-                    } else {
-                        {workspace_composition::objects(objects_input)}
+                    }
+                    }
                     }
                 }
-                section { class: "m1-workspace-content", role: "tabpanel", id: "m1-workspace-panel", "aria-labelledby": "m1-tab-{active_workspace}",
-                    onfocusin: move |_| {
+                section { class: if setup_guide_active { "relative order-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border-0 bg-card shadow-sm [container:layout-canvas/inline-size] [&>[data-workspace-toolbar]]:hidden" } else if active_workspace == "Export" { "relative order-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-auto rounded-xl border-0 bg-card shadow-sm" } else { "relative order-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border-0 bg-card shadow-sm [container:layout-canvas/inline-size]" }, role: "region", id: "m1-workspace-panel", aria_label: "{active_workspace} workspace",
+                    onfocusin: {
+                        let mut objects_open = objects_open;
+                        let mut inspect_open = inspect_open;
+                        move |_| {
                         let compact = web_sys::window()
                             .and_then(|window| window.match_media("(max-width: 760px)").ok().flatten())
                             .is_some_and(|query| query.matches());
                         if workspace() == "Case" && compact {
-                            // Reveal the focused workspace control without moving focus or remounting the viewer.
-                            if objects_open() {
-                                objects_open.set(false);
-                            }
-                            if inspect_open() {
-                                inspect_open.set(false);
-                            }
+                            if objects_open() { objects_open.set(false); }
+                            if inspect_open() { inspect_open.set(false); }
+                        }
                         }
                     },
-                    {workspace_composition::toolbar(toolbar_input)}
-                    if active_workspace == "Layout"
-                        && let Some(projection) = mirrored_pair.form.clone()
-                    {
-                        objects::MirroredPairCanvasOverlay {
-                            projection,
-                            on_cancel: mirrored_pair.on_cancel,
-                            on_preview: mirrored_pair.on_preview,
+                    if active_workspace == "Layout" {
+                        objects::AddMatrixSurface {
+                            matrix_setup: matrix_setup.clone(),
+                            mirrored_pair: mirrored_pair.clone(),
+                            guide_covering_single: guide.is_some(),
                         }
                     }
-                    if matches!(active_workspace, "Layout" | "Keymap" | "Keycaps")
+                    {workspace_composition::toolbar(toolbar_input)}
+                    if guide.as_ref().is_some_and(|guide| guide.current_stage == SetupGuideStage::Project) {
+                        GuideHardwarePreview {
+                            split: physical_setup_mount.projection.topology == boardstudio_core::model::HardwareTopology::Split,
+                            wired: physical_setup_mount.projection.transport == boardstudio_core::model::HardwareTransport::Wired,
+                        }
+                    } else if matches!(active_workspace, "Layout" | "Keymap" | "Keycaps")
                         && layout_assembly_3d()
                     {
                         layout_viewer::LayoutCanonicalViewer {
                             on_mounted_module_pick: (active_workspace == "Layout")
-                                .then_some(workspace_callbacks.mounted_module_select),
+                                .then_some(mounted_module_select),
                             keycaps_fit: if matches!(active_workspace, "Keymap" | "Keycaps") {
                                 keycaps_fit_state.state.clone()
                             } else {
@@ -8526,18 +9655,18 @@ fn Editor() -> Element {
                             },
                         }
                     } else if active_workspace == "Layout" {
-                    svg { class: "m1-canvas", view_box: "{view_box}", preserve_aspect_ratio: "xMidYMid meet", tabindex: "0", role: "group", "aria-label": "{canvas_aria_label}", onmounted: mount,
+                    svg { class: "mt-[76px] block h-[calc(100%-120px)] min-h-0 w-full touch-none bg-canvas max-[760px]:mt-0 max-[760px]:h-full", view_box: "{view_box}", preserve_aspect_ratio: "xMidYMid meet", tabindex: "0", role: "group", "aria-label": "{canvas_aria_label}", onmounted: mount,
                     onpointerdown: start_pan, onpointermove: move_pointer, onpointerup: end_pointer, onpointercancel: cancel_pointer.clone(), onlostpointercapture: cancel_pointer, onkeydown: keyboard, onkeyup: key_up, onwheel: wheel,
                     defs {
                         pattern { id: "m1-layout-grid-small", width: "{canvas_grid.spacing_mm}", height: "{canvas_grid.spacing_mm}", pattern_units: "userSpaceOnUse",
-                            circle { cx: "0", cy: "0", r: "{canvas_grid.radius_mm}", fill: "var(--wb-grid-large)", stroke: "none" }
+                            circle { cx: "0", cy: "0", r: "{canvas_grid.radius_mm}", fill: "var(--grid-large)", stroke: "none" }
                         }
                     }
                     rect { x: "{view_x}", y: "{view_y}", width: "{width}", height: "{height}", fill: "url(#m1-layout-grid-small)" }
                     g { transform: "scale(1,-1)",
                         if !(layer_visibility.hidden)().contains("Board") {
                             for contour in scene.board_contours.iter().filter(|b| b.board_id == model.active_board_id).flat_map(|b| &b.contours) {
-                                polygon { points: polygon_points(&contour.points), class: if contour.hole { "m1-outline is-hole" } else { "m1-outline" } }
+                                polygon { points: polygon_points(&contour.points), class: if contour.hole { "fill-canvas stroke-destructive stroke-[0.3] [stroke-dasharray:0.8_0.55]" } else { "fill-geometry-fill stroke-geometry-board stroke-[0.3]" } }
                             }
                         }
                         if let Some(projection) = outline_inspector.clone().filter(|projection| (projection.editing_points)()) {
@@ -8555,11 +9684,11 @@ fn Editor() -> Element {
                                 height,
                                 snap_settings: outline_snap_settings.clone(),
                                 pitch: outline_pitch,
-                                origins: outline_snap_origins.clone(),
+                                origins: outline_snap_origins.as_ref().clone(),
                             }
                         }
                         if let Some(bridge) = selected_bridge {
-                            polygon { points: polygon_points(&bridge.points), class: "m1-outline-bridge-selected", "data-outline-bridge": bridge.id.clone() }
+                            polygon { points: polygon_points(&bridge.points), class: "pointer-events-none fill-none stroke-primary stroke-[1.25]", "data-outline-bridge": bridge.id.clone() }
                         }
                         if !(layer_visibility.hidden)().contains("Keys") {
                             if let Some(active) = matrix_placement.placement.as_ref() {
@@ -8567,12 +9696,12 @@ fn Editor() -> Element {
                                     let cells = crate::mirrored_pair_geometry::preview_cells(&active.scene, &active.matrix);
                                     rsx! {
                                         g {
-                                            class: "m1-mirrored-pair-preview m1-matrix-placement-preview",
+                                            class: "pointer-events-none",
                                             "aria-label": "Matrix placement preview",
                                             transform: "translate({active.matrix.origin.x} {active.matrix.origin.y})",
                                             for cell in cells {
                                                 g { key: "{cell.row}-{cell.column}", transform: "translate({cell.center.x} {cell.center.y}) rotate({cell.rotation})",
-                                                    rect { class: "m1-mirrored-pair-cell", x: "{-cell.size.x / 2.0}", y: "{-cell.size.y / 2.0}", width: "{cell.size.x}", height: "{cell.size.y}", rx: "1" }
+                                                    rect { class: "fill-primary/20 stroke-primary stroke-[0.35]", x: "{-cell.size.x / 2.0}", y: "{-cell.size.y / 2.0}", width: "{cell.size.x}", height: "{cell.size.y}", rx: "1" }
                                                 }
                                             }
                                         }
@@ -8586,235 +9715,140 @@ fn Editor() -> Element {
                                     let right_cells = crate::mirrored_pair_geometry::preview_cells(&active_pair.right_scene, &pair.right_preview);
                                     let line_half_height = f64::from(pair.matrix.rows) * pair.matrix.pitch.y / 2.0 + 16.0;
                                     rsx! {
-                                        g { class: "m1-mirrored-pair-preview", "aria-label": "Mirrored pair placement preview", transform: "translate({pair.center.x} {pair.center.y})",
-                                            line { class: "m1-mirror-pair-axis", x1: "0", x2: "0", y1: "{-line_half_height}", y2: "{line_half_height}" }
+                                        g { class: "pointer-events-none", "aria-label": "Mirrored pair placement preview", transform: "translate({pair.center.x} {pair.center.y})",
+                                            line { class: "stroke-primary stroke-[0.35] [stroke-dasharray:2_2]", x1: "0", x2: "0", y1: "{-line_half_height}", y2: "{line_half_height}" }
                                             for cell in left_cells {
                                                 g { key: "left-{cell.row}-{cell.column}", transform: "translate({cell.center.x} {cell.center.y}) rotate({cell.rotation})",
-                                                    rect { class: "m1-mirrored-pair-cell", x: "{-cell.size.x / 2.0}", y: "{-cell.size.y / 2.0}", width: "{cell.size.x}", height: "{cell.size.y}", rx: "1" }
+                                                    rect { class: "fill-primary/20 stroke-primary stroke-[0.35]", x: "{-cell.size.x / 2.0}", y: "{-cell.size.y / 2.0}", width: "{cell.size.x}", height: "{cell.size.y}", rx: "1" }
                                                 }
                                             }
                                             for cell in right_cells {
                                                 g { key: "right-{cell.row}-{cell.column}", transform: "translate({cell.center.x} {cell.center.y}) rotate({cell.rotation})",
-                                                    rect { class: "m1-mirrored-pair-cell", x: "{-cell.size.x / 2.0}", y: "{-cell.size.y / 2.0}", width: "{cell.size.x}", height: "{cell.size.y}", rx: "1" }
+                                                    rect { class: "fill-primary/20 stroke-primary stroke-[0.35]", x: "{-cell.size.x / 2.0}", y: "{-cell.size.y / 2.0}", width: "{cell.size.x}", height: "{cell.size.y}", rx: "1" }
                                                 }
                                             }
-                                        }
-                                    }
-                                }
-                            }
-                            for matrix in &matrices {
-                                if let Some(projected) = matrix_scenes.get(matrix.id.as_str()) {
-                                    for cell in projected.cells.iter().filter(|cell| cell.enabled) {
-                                        {
-                                            let member = cell.member_id.as_deref().and_then(|id| visible.iter().find(|part| part.id == id));
-                                            let cell_definition = match member {
-                                                Some(part) => definitions.get(part.definition_id.as_str()).copied(),
-                                                None => definitions.get(matrix.definition_id.as_str()).copied(),
-                                            };
-                                            let size = resolved_matrix_keycap(member, cell_definition, matrix);
-                                            let pose = cell.pose;
-                                            let cell_context = objects::TreeContext::Key { matrix_id: matrix.id.clone(), row: cell.row, column: cell.column };
-                                            let selected = cell.member_id.as_ref().is_some_and(|id| model.selected_part_ids.contains(id))
-                                                || selected_tree_context.as_ref().is_some_and(|selected| selected.context == cell_context);
-                                            let matrix_id = matrix.id.clone();
-                                            let cell_row = cell.row;
-                                            let cell_column = cell.column;
-                                            let target_part_id = cell.member_id.clone();
-                                            let runtime = runtime.clone();
-                                            let adapter = adapter.clone();
-                                            let svg = svg.clone();
-                                            let space_down = space_down.clone();
-                                            let scope = render_scope.clone();
-                                            let generation = render_generation;
-                                            let range_ids = visible_ids.clone();
-                                            let selection_kind = layout_selection_kind;
-                                            let owner = layout_owner.clone();
-                                            let tree_cell_anchor = tree_cell_anchor.clone();
-                                            let mut pending_splay_pick = pending_splay_origin_pick;
-                                            let transform_inspector = matrix_transform_inspector.clone();
-                                            let canvas_interaction = canvas_interaction.clone();
-                                            let mirrored_pair = mirrored_pair.clone();
-                                            rsx! { rect { class: if selected { "m1-matrix-key is-selected" } else { "m1-matrix-key" }, x: "{-size.x / 2.0}", y: "{-size.y / 2.0}", width: "{size.x}", height: "{size.y}", rx: "0.9", transform: "translate({pose.at.x} {pose.at.y}) rotate({pose.rotation})", "data-matrix-id": "{matrix.id}", "data-row": "{cell.row}", "data-column": "{cell.column}",
-                                                onpointerdown: move |event: PointerEvent| {
-                                                    let Some(pointer) = event.data().try_as_web_event() else { return; };
-                                                    if canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair) && mirrored_pair.placement.is_some() { return; }
-                                                    if canvas_interaction.current().is_some() { pointer.prevent_default(); pointer.stop_propagation(); return; }
-                                                    if pointer.button() != 0 { return; }
-                                                    if space_down.get() { return; }
-                                                    if pending_splay_pick.peek().is_some() {
-                                                        if let Some(point) = coordinates(&svg, &pointer, view_x, view_y, width, height) {
-                                                            pointer.prevent_default();
-                                                            pointer.stop_propagation();
-                                                            apply_pending_splay_origin_pick(&runtime, workspace, &adapter, &owner, &mut pending_splay_pick, &transform_inspector, point);
-                                                            return;
-                                                        }
-                                                    }
-                                                    pointer.prevent_default();
-                                                    pointer.stop_propagation();
-                                                    let current = runtime.model();
-                                                    if !layout_owner_is_current(&runtime, workspace, &adapter, &owner) { return; }
-                                                    let Some(hit_context) = objects::context_for_cell(&current, &matrix_id, cell_row, cell_column) else { return; };
-                                                    update_tree_cell_anchor(&tree_cell_anchor, &owner, &current, Some(&hit_context));
-                                                    let retained = tree_cell_anchor_for_owner(&tree_cell_anchor, &owner);
-                                                    let context = objects::context_for_selection_kind(&current, &hit_context, selection_kind(), retained.as_ref())
-                                                        .map(|projection| projection.context)
-                                                        .unwrap_or_else(|| hit_context.clone());
-                                                    let mode = if pointer.shift_key() { SelectionMode::Range } else if pointer.ctrl_key() || pointer.meta_key() { SelectionMode::Toggle } else { SelectionMode::Replace };
-                                                    if let Some(target_part_id) = target_part_id.clone() {
-                                                        selection::submit_matrix_cell_selection(&runtime, &adapter, &scope, generation, selection::MatrixCellSelection { matrix_id: matrix_id.clone(), target_part_id, hit_context: &hit_context, context, mode });
-                                                    } else {
-                                                        selection::submit_canvas_selection(&runtime, &adapter, &scope, generation, context, mode, if mode == SelectionMode::Range { range_ids.as_ref().clone() } else { Vec::new() });
-                                                    }
-                                                }
-                                            } }
                                         }
                                     }
                                 }
                             }
                         }
-                        for part in visible.iter().cloned() {
-                            {
-                                let pose = scene.transforms.iter().find(|t| t.id == part.id).map(|t| t.pose).unwrap_or(part.pose);
-                                let definition = definitions.get(part.definition_id.as_str()).copied();
-                                let courtyard = definition.map(|d| polygon_points(&d.courtyard)).unwrap_or_default();
-                                let selected = model.selected_part_ids.contains(&part.id);
-                                let side_transform = if matches!(part.side, boardstudio_core::model::Side::Back) { "scale(-1 1)" } else { "" };
-                                let is_matrix_key = matrix_members.contains(part.id.as_str());
-                                let layer_visible = if is_matrix_key { !(layer_visibility.hidden)().contains("Keys") } else { !(layer_visibility.hidden)().contains("Components") };
-                                let is_encoder = definition.is_some_and(|definition| matches!(definition.kind, boardstudio_core::model::PartKind::Encoder) || definition.input_profile.as_ref().is_some_and(|profile| profile.rotary.is_some()));
-                                let keycap = if is_encoder { None } else {
-                                    let standalone_switch = definition.is_some_and(|definition| matches!(definition.kind, boardstudio_core::model::PartKind::Switch));
-                                    if is_matrix_key || standalone_switch {
-                                        part.keycap.or_else(|| definition.and_then(|definition| definition.keycap)).or_else(|| {
-                                            if !is_matrix_key { return None; }
-                                            matrices.iter().find_map(|matrix| {
-                                                let projected = matrix_scenes.get(matrix.id.as_str())?;
-                                                projected.cells.iter().any(|cell| cell.enabled && cell.member_id.as_deref() == Some(part.id.as_str())).then(|| resolved_matrix_keycap(Some(&part), definition, matrix))
-                                            })
-                                        })
-                                    } else { None }
-                                };
-                                let show_keycap = keycap.filter(|_| !(layer_visibility.hidden)().contains("Keycaps"));
-                                let footprints_on = (layer_visibility.footprints)() && !(layer_visibility.hidden)().contains("Footprints");
-                                let id = part.id.clone();
-                                let runtime = runtime.clone(); let svg = svg.clone(); let drag = drag.clone(); let space_down = space_down.clone();
-                                let canvas_interaction = canvas_interaction.clone();
-                                let adapter = adapter.clone(); let render_scope_for_hit = render_scope.clone();
-                                let mut selected_context = adapter.selected_context;
-                                let generation_for_hit = render_generation;
-                                let range_ids = visible_ids.clone();
-                                let selection_kind = layout_selection_kind;
-                                let owner = layout_owner.clone();
-                                let tree_cell_anchor = tree_cell_anchor.clone();
-                                let mirrored_pair = mirrored_pair.clone();
-                                let mut pending_splay_pick = pending_splay_origin_pick;
-                                let transform_inspector = matrix_transform_inspector.clone();
-                                rsx! { if layer_visible { g { key: "{part.id}", class: "m1-scene-part", transform: "translate({pose.at.x},{pose.at.y}) rotate({pose.rotation}) {side_transform}", "data-part-id": "{part.id}",
-                                    onpointerdown: move |event: PointerEvent| {
-                                        let Some(pointer) = event.data().try_as_web_event() else { return; };
-                                        if pointer.button() != 0 { return; }
-                                        if canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair) && mirrored_pair.placement.is_some() { return; }
-                                        if canvas_interaction.current().is_some() { pointer.prevent_default(); pointer.stop_propagation(); return; }
-                                        if runtime.scope().as_ref() != Some(&render_scope_for_hit) || (adapter.generation)() != generation_for_hit { return; }
-                                        if drag.borrow().is_some() || runtime.model().gesture.is_some() { return; }
-                                        pointer.prevent_default(); pointer.stop_propagation();
-                                        if pending_splay_pick.peek().is_some() {
-                                            if let Some(point) = coordinates(&svg, &pointer, view_x, view_y, width, height) {
-                                                apply_pending_splay_origin_pick(&runtime, workspace, &adapter, &owner, &mut pending_splay_pick, &transform_inspector, point);
-                                                return;
+                        layout_canvas::Scene {
+                            source: canvas_source,
+                            focused_half: split_focused_half,
+                            preview_active: model.display_preview.is_some(),
+                            accepted_scene: model
+                                .display_preview
+                                .as_ref()
+                                .map(|_| snapshot.scene.clone()),
+                            spacing_ghost: spacing_ghost_prop.clone(),
+                            selected_ids: model.selected_part_ids.clone(),
+                            selected_context: selected_tree_context.clone(),
+                            view_width_world: width,
+                            surface_width_px: zoom_surface_size().0,
+                            anchor_badge: canvas_anchor_badge.clone(),
+                            keys_visible: !(layer_visibility.hidden)().contains("Keys"),
+                            components_visible: !(layer_visibility.hidden)().contains("Components"),
+                            keycaps_visible: !(layer_visibility.hidden)().contains("Keycaps"),
+                            footprints_visible: (layer_visibility.footprints)()
+                                && !(layer_visibility.hidden)().contains("Footprints"),
+                            on_matrix_pointer_down: matrix_pointer_down,
+                            on_part_pointer_down: part_pointer_down,
+                        }
+                        if let Some((x, y, scale)) = selection_geometry_anchor
+                            && let Some(tools) = canvas_transform_menu.clone()
+                            && matrix_transform_inspector.projection.is_some()
+                        {
+                            g {
+                                foreignObject { class: "overflow-visible", transform: "translate({x - 60.0 * scale} {y - 66.0 * scale}) scale({scale} {-scale})", width: "120", height: "44",
+                                objects::SelectionDeleteControl { mount: matrix_transform_inspector.clone() }
+                            }
+                            if !matches!(selected_tree_context.as_ref().map(|selected| &selected.context), Some(objects::TreeContext::Column { .. } | objects::TreeContext::Row { .. })) {
+                            { let runtime = runtime.clone(); let svg = svg.clone(); let drag = drag.clone();
+                                  let owner = layout_owner.clone(); let adapter = adapter.clone();
+                                  let arbiter = canvas_interaction.clone(); let scope = render_scope.clone();
+                                  rsx! {
+                                    g {
+                                        class: "cursor-grab touch-none fill-card stroke-current text-primary outline-none [pointer-events:all] [stroke-width:0.4] active:cursor-grabbing focus-visible:stroke-foreground [&_path]:fill-none",
+                                        transform: "translate({x} {y - 18.0 * scale}) scale({scale * 3.0})",
+                                        role: "button", tabindex: "0", "aria-label": "Move selection",
+                                        "aria-description": "Drag to move. Press Enter to edit the exact position.",
+                                        onkeydown: move |event: KeyboardEvent| {
+                                            if event.key() == Key::Enter || event.key() == Key::Character(" ".into()) {
+                                                event.prevent_default(); event.stop_propagation();
+                                                tools.on_show_properties.call(());
                                             }
-                                        }
-                                        if space_down.get() {
-                                            if let Some(svg) = svg.borrow().as_ref() { let _ = svg.set_pointer_capture(pointer.pointer_id()); let options = web_sys::FocusOptions::new(); options.set_prevent_scroll(true); let _ = svg.focus_with_options(&options); }
-                                            *drag.borrow_mut() = Some(Drag { pointer: i64::from(pointer.pointer_id()), scope: render_scope_for_hit.clone(), generation: generation_for_hit, gesture_generation: None, origin: Vec2::default(), client_x: f64::from(pointer.client_x()), client_y: f64::from(pointer.client_y()), positions: vec![], active: true, pan: true, camera: runtime.model().camera.center });
-                                            return;
-                                        }
-                                        let Some(origin) = coordinates(&svg, &pointer, view_x, view_y, width, height) else {
-                                            if let Some(surface) = svg.borrow().as_ref() { let _ = surface.release_pointer_capture(pointer.pointer_id()); }
-                                            return;
-                                        };
-                                        let mode = if pointer.shift_key() { SelectionMode::Range } else if pointer.ctrl_key() || pointer.meta_key() { SelectionMode::Toggle } else { SelectionMode::Replace };
-                                        let current = runtime.model();
-                                        if !layout_owner_is_current(&runtime, workspace, &adapter, &owner) { return; }
-                                        let Some(hit_context) = objects::context_for_part(&current, &id) else { return; };
-                                        update_tree_cell_anchor(&tree_cell_anchor, &owner, &current, Some(&hit_context));
-                                        let retained = tree_cell_anchor_for_owner(&tree_cell_anchor, &owner);
-                                        let projection = objects::context_for_selection_kind(&current, &hit_context, selection_kind(), retained.as_ref());
-                                        let target_ids = projection.as_ref().map(|projection| projection.part_ids.clone())
-                                            .unwrap_or_else(|| selection::resolve_context(&current, &hit_context).unwrap_or_default());
-                                        let context = projection.map(|projection| projection.context).unwrap_or_else(|| hit_context.clone());
-                                        if let objects::TreeContext::Key { matrix_id, row, column } = &hit_context
-                                            && id == format!("matrix/{matrix_id}/r{row}c{column}")
-                                        {
-                                            selection::submit_matrix_cell_selection(&runtime, &adapter, &render_scope_for_hit, generation_for_hit, selection::MatrixCellSelection { matrix_id: matrix_id.clone(), target_part_id: id.clone(), hit_context: &hit_context, context: context.clone(), mode });
-                                        } else if !current.selected_part_ids.contains(&id)
-                                            || mode != SelectionMode::Replace
-                                            || target_ids != current.selected_part_ids
-                                        {
-                                            selection::submit_canvas_selection(&runtime, &adapter, &render_scope_for_hit, generation_for_hit, context.clone(), mode, if mode == SelectionMode::Range { range_ids.as_ref().clone() } else { Vec::new() });
-                                        } else {
-                                            let anchor_valid = (adapter.anchor_scope)().as_ref() == Some(&render_scope_for_hit)
-                                                && current.selection_anchor_id.as_ref() == Some(&id)
-                                                && selection::eligible_live_ids(&current).contains(&id);
-                                            if !anchor_valid {
-                                                selection::submit_canvas_selection(&runtime, &adapter, &render_scope_for_hit, generation_for_hit, context, SelectionMode::Add, Vec::new());
-                                            } else {
-                                                selected_context.set(Some(objects::ScopedTreeContext { scope: render_scope_for_hit.clone(), context }));
+                                        },
+                                        onpointerdown: move |event: PointerEvent| {
+                                            let Some(pointer) = event.data().try_as_web_event() else { return; };
+                                            if pointer.button() != 0 || arbiter.current().is_some()
+                                                || !layout_owner_is_current(&runtime, workspace, &adapter, &owner)
+                                                || drag.borrow().is_some() || runtime.model().gesture.is_some() { return; }
+                                            pointer.prevent_default(); pointer.stop_propagation();
+                                            let Some(origin) = coordinates(&svg, &pointer, view_x, view_y, width, height) else { return; };
+                                            let current = runtime.model();
+                                            let Some(snapshot) = current.accepted else { return; };
+                                            let positions: Vec<_> = snapshot.document.parts.iter().filter(|p| current.selected_part_ids.contains(&p.id)).map(|p| Position { id: p.id.clone(), at: p.pose.at }).collect();
+                                            if positions.is_empty() { return; }
+                                            if let Some(surface) = svg.borrow().as_ref() {
+                                                let _ = surface.set_pointer_capture(pointer.pointer_id());
+                                                let options = web_sys::FocusOptions::new(); options.set_prevent_scroll(true);
+                                                let _ = surface.focus_with_options(&options);
                                             }
-                                        }
-                                        let current = runtime.model();
-                                        if !current.selected_part_ids.contains(&id) { return; }
-                                        if mode != SelectionMode::Replace { return; }
-                                        let Some(snapshot) = current.accepted else { return; };
-                                        let positions: Vec<_> = snapshot.document.parts.iter().filter(|p| current.selected_part_ids.contains(&p.id)).map(|p| Position { id: p.id.clone(), at: p.pose.at }).collect();
-                                        if positions.is_empty() { return; }
-                                        if let Some(svg) = svg.borrow().as_ref() { let _ = svg.set_pointer_capture(pointer.pointer_id()); let options = web_sys::FocusOptions::new(); options.set_prevent_scroll(true); let _ = svg.focus_with_options(&options); }
-                                        *drag.borrow_mut() = Some(Drag { pointer: i64::from(pointer.pointer_id()), scope: render_scope_for_hit.clone(), generation: generation_for_hit, gesture_generation: None, origin, client_x: f64::from(pointer.client_x()), client_y: f64::from(pointer.client_y()), positions, active: false, pan: false, camera: Vec2::default() });
-                                    },
-                                    polygon { points: "{courtyard}", class: if selected { "m1-part selected" } else { "m1-part" } }
-                                    if footprints_on {
-                                        if let Some(definition) = definition {
-                                            FootprintGraphics { definition: definition.clone(), parameters: part.generator_parameters.clone() }
-                                            for pad in &definition.pads {
-                                                {
-                                                    let rx = match &pad.shape { boardstudio_core::model::PadShape::Circle | boardstudio_core::model::PadShape::Oval => pad.size.x.min(pad.size.y) / 2.0, boardstudio_core::model::PadShape::Roundrect => pad.size.x.min(pad.size.y) / 4.0, boardstudio_core::model::PadShape::Rect => 0.0 };
-                                                    rsx! { g { transform: "translate({pad.at.x} {pad.at.y}) rotate({pad.rotation.unwrap_or(0.0)})",
-                                                        if pad.plated != Some(false) { rect { class: "m1-part-pad", x: "{-pad.size.x / 2.0}", y: "{-pad.size.y / 2.0}", width: "{pad.size.x}", height: "{pad.size.y}", rx: "{rx}" } }
-                                                        if let Some(drill) = pad.drill { circle { class: "m1-part-drill", r: "{drill / 2.0}" } }
-                                                    } }
-                                                }
-                                            }
-                                        }
+                                            *drag.borrow_mut() = Some(Drag { pointer: i64::from(pointer.pointer_id()), scope: scope.clone(), generation: owner.generation, gesture_generation: None, origin, client_x: f64::from(pointer.client_x()), client_y: f64::from(pointer.client_y()), positions, active: false, pan: false, camera: Vec2::default() });
+                                        },
+                                        circle { r: "5" }
+                                        path { d: "M0 -3.2v6.4M-3.2 0h6.4M-1.4 -1.8 0 -3.2l1.4 1.4M-1.4 1.8 0 3.2l1.4 -1.4M-1.8 -1.4-3.2 0l1.4 1.4M1.8 -1.4 3.2 0l-1.4 1.4" }
+                                        title { "Move selection" }
                                     }
-                                    if let Some(size) = show_keycap {
-                                        { let inset = 1.5_f64.min(size.x / 6.0).min(size.y / 6.0); rsx! { g { class: if selected { "m1-keycap-overlay is-selected" } else { "m1-keycap-overlay" }, "aria-hidden": "true",
-                                            rect { x: "{-size.x / 2.0}", y: "{-size.y / 2.0}", width: "{size.x}", height: "{size.y}", rx: "0.9" }
-                                            rect { class: "m1-keycap-top", x: "{-size.x / 2.0 + inset}", y: "{-size.y / 2.0 + inset}", width: "{size.x - inset * 2.0}", height: "{size.y - inset * 2.0}", rx: "0.7" }
-                                        } } }
-                                    }
-                                    if let Some(size) = keycap {
-                                        rect { class: "m1-part-hit-area", x: "{-size.x / 2.0}", y: "{-size.y / 2.0}", width: "{size.x}", height: "{size.y}" }
-                                    }
-                                    if show_keycap.is_none() { text { transform: "scale(1,-1)", text_anchor: "middle", class: "m1-part-label", x: "0", y: "-5.2", "{part.reference}" } }
-                                }} }
+                                  }
+                                }
+                            }
                             }
                         }
                         if active_workspace == "Layout"
                             && !layout_assembly_3d()
-                            && let Some(tool) = layout_transform_tool()
                             && let Some((matrix, projection, context)) = layout_transform_target.clone()
                         {
-                            objects::LayoutTransformToolOverlay {
+                            for tool in layout_canvas::transform_tools(&context, layout_transform_tool(), layout_state.transform_handles()(), None) {
+                            // Ticket 08: the anchored matrix's Anchor token
+                            // arms canvas pick mode instead of a drag; an
+                            // unanchored matrix offers no token.
+                            if tool == objects::LayoutTransformTool::Anchor && matrix.anchor.is_some() {
+                            objects::LayoutAnchorPickOverlay {
+                                key: "{tool:?}",
                                 runtime: objects::LayoutTransformRuntime(runtime.clone()),
                                 svg: objects::LayoutTransformSvg(svg.clone()),
                                 arbiter: canvas_interaction.clone(),
                                 owner: layout_owner.clone(),
                                 selected_context: adapter.selected_context,
                                 scope_generation: adapter.generation,
+                                surface_size: Some(zoom_surface_size),
                                 workspace,
-                                matrix,
-                                projection,
-                                context,
+                                pick_owner: objects::AnchorPickOwner::Matrix {
+                                    matrix: matrix.clone(),
+                                    projection: projection.clone(),
+                                    context: context.clone(),
+                                },
+                                view_x,
+                                view_y,
+                                width,
+                                height,
+                            }
+                            }
+                            if tool != objects::LayoutTransformTool::Anchor {
+                            objects::LayoutTransformToolOverlay {
+                                key: "{tool:?}",
+                                runtime: objects::LayoutTransformRuntime(runtime.clone()),
+                                svg: objects::LayoutTransformSvg(svg.clone()),
+                                arbiter: canvas_interaction.clone(),
+                                owner: layout_owner.clone(),
+                                selected_context: adapter.selected_context,
+                                scope_generation: adapter.generation,
+                                surface_size: Some(zoom_surface_size),
+                                workspace,
+                                matrix: matrix.clone(),
+                                projection: projection.clone(),
+                                context: context.clone(),
                                 tool,
                                 snap_settings: layout_snap_settings.read().clone(),
                                 snap_origins: outline_snap_origins.clone(),
@@ -8825,18 +9859,102 @@ fn Editor() -> Element {
                                 height,
                                 on_finish: EventHandler::new(move |_| layout_transform_tool.set(None)),
                             }
+                            }
+                            }
+                        }
+                        // Ticket 07: the independent part's own rail. Move and
+                        // Rotate edit the local Offset and Rotation; Spread and
+                        // Stagger edit the values carried from the anchor key.
+                        // The strip above is unchanged: it keeps offering
+                        // Position for a part selection.
+                        if active_workspace == "Layout"
+                            && !layout_assembly_3d()
+                            && let Some((part_id, facts)) = part_rail_selection.clone()
+                            && let Some(selected) = selected_tree_context.clone()
+                            && let Some(part_snap) = part_rail_snap
+                        {
+                            {
+                                let part_context = selected.context.clone();
+                                rsx! {
+                                    for tool in layout_canvas::transform_tools(&part_context, layout_transform_tool(), layout_state.transform_handles()(), Some(facts)) {
+                                    // Ticket 08: the part rail ends in the
+                                    // Anchor token, which arms canvas pick
+                                    // mode instead of a drag.
+                                    if tool == objects::LayoutTransformTool::Anchor {
+                                    objects::LayoutAnchorPickOverlay {
+                                        key: "{tool:?}",
+                                        runtime: objects::LayoutTransformRuntime(runtime.clone()),
+                                        svg: objects::LayoutTransformSvg(svg.clone()),
+                                        arbiter: canvas_interaction.clone(),
+                                        owner: layout_owner.clone(),
+                                        selected_context: adapter.selected_context,
+                                        scope_generation: adapter.generation,
+                                        workspace,
+                                        surface_size: Some(zoom_surface_size),
+                                        pick_owner: objects::AnchorPickOwner::Part {
+                                            part_id: part_id.clone(),
+                                        },
+                                        view_x,
+                                        view_y,
+                                        width,
+                                        height,
+                                    }
+                                    }
+                                    if tool != objects::LayoutTransformTool::Anchor {
+                                    objects::LayoutPartToolOverlay {
+                                        key: "{tool:?}",
+                                        runtime: objects::LayoutTransformRuntime(runtime.clone()),
+                                        svg: objects::LayoutTransformSvg(svg.clone()),
+                                        arbiter: canvas_interaction.clone(),
+                                        owner: layout_owner.clone(),
+                                        selected_context: adapter.selected_context,
+                                        scope_generation: adapter.generation,
+                                        workspace,
+                                        surface_size: Some(zoom_surface_size),
+                                        part_id: part_id.clone(),
+                                        tool,
+                                        snap: part_snap,
+                                        view_x,
+                                        view_y,
+                                        width,
+                                        height,
+                                        on_finish: EventHandler::new(move |_| layout_transform_tool.set(None)),
+                                        on_focus_half: {
+                                            let document = document.clone();
+                                            let mut split_focus = split_focus;
+                                            let part_context = part_context.clone();
+                                            EventHandler::new(move |_| {
+                                                if let Some(half) = boardstudio_web_ui_model::split_focus::context_half(&document, &part_context)
+                                                    && half != split_focus()
+                                                {
+                                                    split_focus.set(half);
+                                                }
+                                            })
+                                        },
+                                    }
+                                    }
+                                    }
+                                }
+                            }
                         }
                         if let Some(placement) = part_placement.projection.as_ref() {
                             { let definition = placement.pending.definition.clone();
                               let at = placement.pending.part.pose.at;
                               let courtyard = polygon_points(&definition.courtyard);
                               let reference = placement.pending.part.reference.clone();
+                              // Ticket 02: the preview name keeps the part-label
+                              // rule: at the top of the part at a fixed 11 px.
+                              let preview_courtyard_top = definition.courtyard.iter().map(|point| point.y).fold(f64::NEG_INFINITY, f64::max);
+                              let preview_courtyard_top = if preview_courtyard_top.is_finite() { preview_courtyard_top } else { 0.0 };
+                              let preview_label_font = boardstudio_web_layout::screen_scale::px_to_world(11.0, width, zoom_surface_size().0);
+                              let preview_label_y = preview_courtyard_top - boardstudio_web_layout::screen_scale::px_to_world(12.0, width, zoom_surface_size().0);
                               rsx! {
                                 g {
-                                    class: "m1-part-placement-preview",
+                                    class: "pointer-events-none opacity-[0.68]",
+                                    "data-placement-preview": "part",
                                     transform: "translate({at.x},{at.y})",
                                     "aria-hidden": "true",
-                                    polygon { points: "{courtyard}", class: "m1-part-placement-envelope" }
+                                    polygon { points: "{courtyard}", class: "fill-selected stroke-primary stroke-[0.7] [stroke-dasharray:2_1]" }
                                     FootprintGraphics {
                                         definition: definition.clone(),
                                         parameters: placement.pending.part.generator_parameters.clone(),
@@ -8844,12 +9962,12 @@ fn Editor() -> Element {
                                     for pad in &definition.pads {
                                         g { transform: "translate({pad.at.x} {pad.at.y}) rotate({pad.rotation.unwrap_or(0.0)})",
                                             if pad.plated != Some(false) {
-                                                rect { class: "m1-part-pad", x: "{-pad.size.x / 2.0}", y: "{-pad.size.y / 2.0}", width: "{pad.size.x}", height: "{pad.size.y}" }
+                                                rect { class: "fill-geometry-part stroke-none", x: "{-pad.size.x / 2.0}", y: "{-pad.size.y / 2.0}", width: "{pad.size.x}", height: "{pad.size.y}" }
                                             }
-                                            if let Some(drill) = pad.drill { circle { class: "m1-part-drill", r: "{drill / 2.0}" } }
+                                            if let Some(drill) = pad.drill { circle { class: "fill-canvas stroke-geometry-outline stroke-[0.1]", r: "{drill / 2.0}" } }
                                         }
                                     }
-                                    text { transform: "scale(1,-1)", text_anchor: "middle", class: "m1-part-label", x: "0", y: "-5.2", "{reference}" }
+                                    text { transform: "scale(1,-1)", text_anchor: "middle", class: "pointer-events-none fill-geometry-label font-mono", style: "font-size:{preview_label_font}px", x: "0", y: "{preview_label_y}", "{reference}" }
                                 }
                               }
                             }
@@ -8876,15 +9994,10 @@ fn Editor() -> Element {
                                 height,
                                 snap_settings: outline_snap_settings.clone(),
                                 pitch: outline_pitch,
-                                origins: outline_snap_origins.clone(),
+                                origins: outline_snap_origins.as_ref().clone(),
                             }
                         }
                     }
-                        }
-                        CanvasLayers {
-                            trigger_id: String::from("m1-layers-trigger"),
-                            list_id: String::from("m1-layers-list"),
-                            groups: canvas_layers::layout_groups(),
                         }
                     } else if active_workspace == "Export" {
                         export_workspace::ExportWorkspace {
@@ -8912,7 +10025,7 @@ fn Editor() -> Element {
                     if active_workspace == "Layout"
                         && let Some(placement) = part_placement.projection.as_ref()
                     {
-                        div { class: "m1-canvas-placement-hint", role: "status",
+                        div { class: "pointer-events-none absolute right-[17px] bottom-[62px] flex items-center gap-2 rounded-sm border border-border bg-card px-[9px] py-[7px] text-[10px] text-muted-foreground shadow-[0_4px_14px_#24373312]", role: "status",
                             {format!("Place {}", parts::placement_label(&placement.pending.definition))}
                             if let Some(layout_name) = placement.owner.layout_id.as_ref()
                                 .and_then(|id| document.layouts.iter().find(|layout| &layout.id == id))
@@ -8924,52 +10037,43 @@ fn Editor() -> Element {
                         }
                     }
                     if active_workspace == "Layout" && pending_splay_origin_pick().is_some() {
-                        div { class: "m1-canvas-placement-hint", role: "status",
+                        div { class: "pointer-events-none absolute right-[17px] bottom-[62px] flex items-center gap-2 rounded-sm border border-border bg-card px-[9px] py-[7px] text-[10px] text-muted-foreground shadow-[0_4px_14px_#24373312]", role: "status",
                             "Pick splay origin · Click the canvas · Esc cancels"
                         }
                     }
-                }
-                if has_inspector {
-                    InspectorPanel { compact_open: inspect_open, settings: inspector_panel_settings,
-                        if active_workspace != "Layout" && layout_findings_open() {
-                            layout_findings::LayoutFindingsInspector {
-                                open: true,
-                                document: Rc::new(document.as_ref().clone()),
-                                findings: snapshot.scene.findings.clone(),
-                                source: layout_findings::Source {
-                                    workspace: active_workspace,
-                                    scope: render_scope.clone(),
-                                    token: snapshot.token,
-                                    revision: snapshot.document.revision,
-                                    generation: render_generation,
-                                },
-                                on_close: on_close_layout_findings,
-                                on_navigate: on_layout_finding,
-                            }
-                        } else {
-                            {workspace_composition::inspector(inspector_input)}
+                    if active_workspace == "Layout" && pending_anchor_pick().is_some() {
+                        div { class: "pointer-events-none absolute right-[17px] bottom-[62px] flex items-center gap-2 rounded border border-border bg-card px-2 py-1.5 text-[10px] text-muted-foreground shadow-sm", role: "status",
+                            "Pick anchor key · Click a key · Esc cancels"
                         }
-                        if let Some((reference, assets, editable, owner)) = board_reference_editor {
-                            pcb_board_reference::Editor {
-                                reference,
-                                assets,
-                                disabled: !editable,
-                                runtime: pcb_board_reference::BoardReferenceRuntimeHandle::new(
-                                    runtime.clone(),
-                                ),
-                                workspace,
-                                adapter: pcb_board_reference::BoardReferenceAdapterHandle::new(
-                                    adapter.clone(),
-                                ),
-                                owner,
-                            }
+                    }
+                    // Ticket 16: the at-rest field preview names the keys the
+                    // hovered or focused Inspector number field would move.
+                    if active_workspace == "Layout"
+                        && let Some(state) = field_preview() {
+                        div { class: "pointer-events-none absolute right-[17px] bottom-[62px] flex items-center gap-2 rounded border border-border bg-card px-2 py-1.5 text-[10px] font-semibold text-warning shadow-sm", role: "status", "data-field-preview-hint": "",
+                            "{state.hint}"
+                        }
+                    }
+                    // Ticket 02: the "Placed from" readout (prototype variant
+                    // D) names what the selection is placed from at the
+                    // canvas's bottom left. It shares the canvas ring's badge
+                    // projection and clears with the selection.
+                    if active_workspace == "Layout"
+                        && !layout_assembly_3d()
+                        && let Some(badge) = canvas_anchor_badge.as_ref()
+                    {
+                        div { class: "pointer-events-none absolute bottom-[62px] left-3 flex items-center gap-1.5 rounded border border-border bg-card px-2 py-1.5 font-mono text-[11px] text-geometry-part shadow-sm", "data-canvas-anchor-readout": "",
+                            "Placed from {badge.label}"
                         }
                     }
                 }
+                }
             }
-            footer { class: "m1-editor-footer",
-                button { "aria-label": "Undo", onclick: move |_| undo.submit(Event::Undo { operation_id: undo.operation() }), svg { view_box: "0 0 20 20", fill: "none", stroke: "currentColor", stroke_width: "1.5", "aria-hidden": "true", path { d: "M8 6 4 10l4 4M4 10h7a5 5 0 0 1 5 5" } } }
-                button { "aria-label": "Redo", onclick: move |_| redo.submit(Event::Redo { operation_id: redo.operation() }), svg { view_box: "0 0 20 20", fill: "none", stroke: "currentColor", stroke_width: "1.5", "aria-hidden": "true", path { d: "m12 6 4 4-4 4m4-4H9a5 5 0 0 0-5 5" } } }
+            footer { class: "shell-footer", hidden: active_workspace == "Export", aria_label: "Canvas status",
+                boardstudio_web_ui_shared::ui::toolbar::Toolbar { class: "shell-history", aria_label: "Footer edit history",
+                    boardstudio_web_ui_shared::ui::toolbar::ToolbarButton { index: 0usize, aria_label: "Undo", on_click: move |_| undo.submit(Event::Undo { operation_id: undo.operation() }), "Undo" }
+                    boardstudio_web_ui_shared::ui::toolbar::ToolbarButton { index: 1usize, aria_label: "Redo", on_click: move |_| redo.submit(Event::Redo { operation_id: redo.operation() }), "Redo" }
+                }
                 if matches!(active_workspace, "Layout" | "PCB" | "Keymap" | "Keycaps") && !layout_assembly_3d() {
                     canvas_status_footer::CanvasStatusFooter {
                         snap_settings: layout_snap_settings.read().clone(),
@@ -8980,7 +10084,7 @@ fn Editor() -> Element {
                         selection_available: footer_selection_available,
                         zoom_percent,
                         findings_count: Some(keycaps_fit::presented_findings(
-                            &snapshot.scene.findings,
+                            &findings,
                             &snapshot.document,
                         ).len()),
                         on_toggle_findings: on_toggle_layout_findings,
@@ -8990,7 +10094,7 @@ fn Editor() -> Element {
                         on_zoom_in: on_zoom_keymap_in,
                     }
                     if let Some(guide) = model.snap_guide.as_ref() {
-                        span { class: "m1-layout-snap-guide", role: "status", "{guide.label}" }
+                        span { class: "ml-auto max-w-[min(35vw,340px)] truncate", role: "status", "{guide.label}" }
                     }
                 } else {
                     span { "{model.camera.zoom * 100.0:.0}%" }
@@ -8999,9 +10103,9 @@ fn Editor() -> Element {
                     && !(matches!(active_workspace, "Layout" | "PCB" | "Keymap" | "Keycaps")
                         && !layout_assembly_3d())
                 {
-                    layout_findings::LayoutFindingsFooterButton {
+                    canvas_status_footer::FindingsButton {
                         count: keycaps_fit::presented_findings(
-                            &snapshot.scene.findings,
+                            &findings,
                             &snapshot.document,
                         ).len(),
                         on_toggle: on_toggle_layout_findings,
@@ -9012,41 +10116,12 @@ fn Editor() -> Element {
     }
 }
 
-fn resolved_matrix_keycap(
-    part: Option<&Part>,
-    definition: Option<&PartDefinition>,
-    matrix: &Matrix,
-) -> Vec2 {
-    part.and_then(|part| part.keycap)
-        .or_else(|| definition.and_then(|definition| definition.keycap))
-        .unwrap_or(Vec2 {
-            x: (matrix.pitch.x - matrix.edge_gap.map(|gap| gap.x).unwrap_or(1.0)).max(1.0),
-            y: (matrix.pitch.y - matrix.edge_gap.map(|gap| gap.y).unwrap_or(1.0)).max(1.0),
-        })
-}
-
 fn polygon_points(points: &[Vec2]) -> String {
     points
         .iter()
         .map(|p| format!("{},{}", p.x, p.y))
         .collect::<Vec<_>>()
         .join(" ")
-}
-
-fn zoom_center_at(
-    (min_x, max_x, min_y, max_y): (f64, f64, f64, f64),
-    location: PointerLocation,
-    zoom: f64,
-) -> Vec2 {
-    let base_width = (max_x - min_x).max(50.0);
-    let base_height = (max_y - min_y).max(50.0);
-    Vec2 {
-        x: location.world.x
-            - (min_x + max_x - base_width / zoom) * 0.5
-            - location.x_fraction * base_width / zoom,
-        y: location.world.y - (min_y + max_y + base_height / zoom) * 0.5
-            + location.y_fraction * base_height / zoom,
-    }
 }
 
 fn moved(drag: &Drag, point: Vec2) -> Vec<Position> {

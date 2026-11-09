@@ -3,15 +3,17 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, OperationId, Resolution, Scope,
     SnapshotToken,
 };
-use boardstudio_core::model::{
-    EditCommand, EditOperation, EditPhase, HardwareTopology, HardwareTransport, ProjectDoc,
-};
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+use boardstudio_core::model::{EditOperation, HardwareTopology, HardwareTransport, ProjectDoc};
+use boardstudio_web_catalogue::physical_setup::PreparedSetup;
+use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
+use boardstudio_web_ui_shared::ui::checkbox::{Checkbox, CheckboxState};
+use boardstudio_web_ui_shared::ui::field::FieldLabel;
+use boardstudio_web_ui_shared::ui::toggle_group::{ToggleGroup, ToggleItem};
 use dioxus::prelude::*;
 use std::{cell::Cell, future::Future, pin::Pin, rc::Rc};
 use wasm_bindgen_futures::spawn_local;
 
-pub type ProposalFuture = Pin<Box<dyn Future<Output = Result<ProjectDoc, String>>>>;
+pub type ProposalFuture = Pin<Box<dyn Future<Output = Result<PreparedSetup, String>>>>;
 pub type ProposalPreparer = Rc<dyn Fn(ProjectDoc, SetupIntent) -> ProposalFuture>;
 pub type CurrentOwner = Rc<dyn Fn(&OwnerIdentity, bool) -> bool>;
 
@@ -148,6 +150,14 @@ impl OperationUi {
             self.busy.set(None);
         }
     }
+
+    /// A landed setup shows no status: the accepted document is the confirmation.
+    fn settle_silently(&mut self, operation_id: OperationId) {
+        if !self.alive.get() || *self.busy.peek() != Some(operation_id) {
+            return;
+        }
+        self.busy.set(None);
+    }
 }
 pub fn use_controller(
     runtime: Rc<Runtime>,
@@ -227,8 +237,12 @@ pub fn use_controller(
             ui.feedback.set(None);
             spawn_local(async move {
                 let prepared = match preparation {
-                    Some(future) => future.await.map(|_| ()),
-                    None => Ok(()),
+                    Some(future) => future.await,
+                    // A non-project intent (Case assembly setup) resolves from the accepted
+                    // snapshot alone and prepares no catalogue resource.
+                    None => Ok(PreparedSetup {
+                        mounting_hole: None,
+                    }),
                 };
                 if !ui.alive.get() {
                     return;
@@ -237,13 +251,21 @@ pub fn use_controller(
                     ui.busy.set(None);
                     return;
                 }
-                let ticket = EditTicket::begin(
+                // One setup operation is in flight at a time (the busy gate above), so a
+                // task-local keyed collection is the whole settlement owner here. This is
+                // workflow orchestration, not field settlement: the drained result drives
+                // navigation and reassignment follow-ups through finish_operation instead
+                // of restoring a drafted control, which is why it does not route through
+                // PendingEditSignals.
+                let mut edits = PendingEdits::<OwnerIdentity>::default();
+                let operation = edits.begin(
                     &runtime,
+                    identity.clone(),
                     "physical-setup",
                     Some("physical setup".into()),
                     setup_resolver(identity.clone(), intent.clone(), seed, prepared),
                 );
-                ui.busy.set(Some(ticket.operation()));
+                ui.busy.set(Some(operation));
                 loop {
                     if !ui.alive.get() {
                         return;
@@ -253,39 +275,33 @@ pub fn use_controller(
                         accepted.session_epoch == identity.session_epoch
                             && accepted.document.id == identity.document_id
                     });
-                    let reassigned = matches!(ticket.settlement(true), Settlement::Landed { .. })
-                        && match &intent {
-                            PhysicalSetupIntent::CasePcbDesign(board_id) => model
-                                .accepted
-                                .as_ref()
-                                .and_then(|accepted| {
-                                    expected_case_reassignment_owner(
-                                        &identity,
-                                        board_id,
-                                        accepted.token,
-                                        generation(),
-                                    )
-                                })
-                                .is_some_and(|owner| activity.matches(&owner, false)),
-                            _ => false,
-                        };
+                    let reassigned = match &intent {
+                        PhysicalSetupIntent::CasePcbDesign(board_id) => model
+                            .accepted
+                            .as_ref()
+                            .and_then(|accepted| {
+                                expected_case_reassignment_owner(
+                                    &identity,
+                                    board_id,
+                                    accepted.token,
+                                    generation(),
+                                )
+                            })
+                            .is_some_and(|owner| activity.matches(&owner, false)),
+                        _ => false,
+                    };
                     let live = same_session && (activity.matches(&identity, false) || reassigned);
-                    match ticket.settlement(live) {
-                        Settlement::Pending => {}
-                        settlement => {
-                            finish_operation(
-                                &runtime,
-                                &identity,
-                                &intent,
-                                ticket.operation(),
-                                settlement,
-                                &activity,
-                                instance_selection,
-                                generation,
-                                &mut ui,
-                            );
-                            break;
-                        }
+                    let mut results = edits.settle(live);
+                    if let Some(settlement) = results.pop() {
+                        finish_operation(
+                            &runtime,
+                            &identity,
+                            &intent,
+                            operation,
+                            settlement,
+                            (&activity, instance_selection, generation, &mut ui),
+                        );
+                        break;
                     }
                     gloo_timers::future::TimeoutFuture::new(16).await;
                 }
@@ -308,54 +324,220 @@ pub fn project_setup_controls(mount: PhysicalSetupMount) -> Element {
     let wireless = mount.clone();
     let wired = mount.clone();
     let split = projection.topology == HardwareTopology::Split;
+    let reversible_id = format!("project-reversible-{}", dioxus::core::current_scope_id().0);
     rsx! {
-        section { class: "m1-project-physical-setup", "aria-label": "Physical assembly",
-            div { class: "m1-project-setup-choice",
+        section { class: "grid gap-3.5", "aria-label": "Physical assembly",
+            div { class: "grid gap-2",
                 span { "Keyboard configuration" }
-                div { role: "group", "aria-label": "Keyboard configuration",
-                    button {
-                        r#type: "button", "aria-pressed": !split, disabled: projection.busy,
-                        onclick: move |_| topology_single.submit(PhysicalSetupIntent::ProjectTopology(false)),
-                        "One keyboard"
-                    }
-                    button {
-                        r#type: "button", "aria-pressed": split, disabled: projection.busy,
-                        onclick: move |_| topology_split.submit(PhysicalSetupIntent::ProjectTopology(true)),
-                        "Split keyboard"
-                    }
+                ToggleGroup { class: "grid! grid-cols-2 gap-2!", aria_label: "Keyboard configuration", horizontal: true, disabled: projection.busy,
+                    pressed: Some([if split { 1usize } else { 0usize }].into_iter().collect()),
+                    on_pressed_change: move |next: std::collections::HashSet<usize>| {
+                        if next.contains(&0) || (next.is_empty() && !split) { topology_single.submit(PhysicalSetupIntent::ProjectTopology(false)); }
+                        else if next.contains(&1) || (next.is_empty() && split) { topology_split.submit(PhysicalSetupIntent::ProjectTopology(true)); }
+                    },
+                    ToggleItem { index: 0usize, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "One keyboard" }
+                    ToggleItem { index: 1usize, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Split keyboard" }
                 }
             }
             if split {
-                div { class: "m1-project-setup-choice",
+                div { class: "grid gap-2",
                     span { "Half connection" }
-                    div { role: "group", "aria-label": "Half connection",
-                        button {
-                            r#type: "button", "aria-pressed": projection.transport == HardwareTransport::Wireless,
-                            disabled: projection.busy,
-                            onclick: move |_| wireless.submit(PhysicalSetupIntent::ProjectTransport(HardwareTransport::Wireless)),
-                            "Wireless"
-                        }
-                        button {
-                            r#type: "button", "aria-pressed": projection.transport == HardwareTransport::Wired,
-                            disabled: projection.busy,
-                            onclick: move |_| wired.submit(PhysicalSetupIntent::ProjectTransport(HardwareTransport::Wired)),
-                            "Wired"
-                        }
+                    ToggleGroup { class: "grid! grid-cols-2 gap-2!", aria_label: "Half connection", horizontal: true, disabled: projection.busy,
+                        pressed: Some([if projection.transport == HardwareTransport::Wireless { 0usize } else { 1usize }].into_iter().collect()),
+                        on_pressed_change: move |next: std::collections::HashSet<usize>| {
+                            if next.contains(&0) || (next.is_empty() && projection.transport == HardwareTransport::Wireless) { wireless.submit(PhysicalSetupIntent::ProjectTransport(HardwareTransport::Wireless)); }
+                            else if next.contains(&1) || (next.is_empty() && projection.transport == HardwareTransport::Wired) { wired.submit(PhysicalSetupIntent::ProjectTransport(HardwareTransport::Wired)); }
+                        },
+                        ToggleItem { index: 0usize, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Wireless" }
+                        ToggleItem { index: 1usize, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Wired" }
                     }
                 }
-                p { class: "m1-project-setup-note", if projection.reversible { "Use the same PCB on both halves, turned over on the right." } else { "Both halves use front-facing assemblies." } }
+                p { class: "m-0 text-muted-foreground text-sm leading-normal", if projection.reversible { "Use the same PCB on both halves, turned over on the right." } else { "Both halves use front-facing assemblies." } }
             }
-            label { class: "m1-project-reversible-choice",
-                input {
-                    r#type: "checkbox", checked: projection.reversible, disabled: projection.busy,
-                    onchange: move |event: FormEvent| mount.submit(PhysicalSetupIntent::ProjectReversibleLayout(event.checked()))
+            FieldLabel { html_for: reversible_id.clone(), class: "flex items-center gap-2 text-foreground w-full min-h-control-touch",
+                Checkbox { id: reversible_id.clone(), aria_label: "Reversible layout", checked: Some(if projection.reversible { CheckboxState::Checked } else { CheckboxState::Unchecked }), disabled: projection.busy,
+                    style: "min-width: 1rem; min-height: 1rem", on_checked_change: move |state| mount.submit(PhysicalSetupIntent::ProjectReversibleLayout(state == CheckboxState::Checked))
                 }
-                "Reversible layout"
+                span { "Reversible layout" }
             }
             if let Some(feedback) = projection.project_feedback {
                 p { role: "status", "{feedback}" }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod mounted_setup_tests {
+    use super::*;
+    use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
+    use std::cell::RefCell;
+    use wasm_bindgen_test::*;
+
+    #[derive(Clone)]
+    struct Capture(Rc<RefCell<Vec<PhysicalSetupIntent>>>);
+
+    fn fixture() -> Element {
+        let capture = use_context::<Capture>();
+        let owner = OwnerIdentity {
+            context: OwnerContext::ProjectGuide,
+            session_epoch: boardstudio_application::SessionEpoch(1),
+            document_id: "document".into(),
+            board_id: "board".into(),
+            instance_id: None,
+            token: SnapshotToken(1),
+            revision: 0,
+            generation: 0,
+            scope_transition: None,
+        };
+        let mount = PhysicalSetupMount {
+            projection: PhysicalSetupProjection {
+                topology: HardwareTopology::Split,
+                transport: HardwareTransport::Wireless,
+                reversible: false,
+                case_instance: None,
+                case_boards: Vec::new(),
+                feedback: None,
+                project_feedback: None,
+                busy: false,
+            },
+            busy: use_signal(|| None),
+            project_owner: Some(owner),
+            case_owner: None,
+            on_intent: EventHandler::new(move |request: PhysicalSetupRequest| {
+                capture.0.borrow_mut().push(request.intent)
+            }),
+        };
+        project_setup_controls(mount)
+    }
+
+    #[wasm_bindgen_test]
+    async fn setup_choices_keep_two_column_layout_without_legacy_selectors() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(fixture);
+        dom.provide_root_context(Capture(Rc::new(RefCell::new(Vec::new()))));
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_until("setup mounts", || {
+            by_role_name(&root, "group", "Half connection").is_some()
+        })
+        .await;
+        for name in ["Keyboard configuration", "Half connection"] {
+            let group = by_role_name(&root, "group", name).expect("named setup group");
+            let group_classes = group.get_attribute("class").unwrap_or_default();
+            for expected in ["grid!", "grid-cols-2", "gap-2!"] {
+                assert!(
+                    group_classes
+                        .split_whitespace()
+                        .any(|class| class == expected),
+                    "{name}: missing {expected}"
+                );
+            }
+            let container = group.parent_element().expect("choice container");
+            let classes = container.get_attribute("class").unwrap_or_default();
+            for expected in ["grid", "gap-2"] {
+                assert!(
+                    classes.split_whitespace().any(|class| class == expected),
+                    "{name}: missing {expected}"
+                );
+            }
+        }
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn selecting_the_current_setup_choice_still_submits_its_intent() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let capture = Rc::new(RefCell::new(Vec::new()));
+        let dom = VirtualDom::new(fixture);
+        dom.provide_root_context(Capture(capture.clone()));
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_until("setup mounts", || {
+            by_role_name(&root, "button", "Wireless").is_some()
+        })
+        .await;
+        by_role_name(&root, "button", "Wireless").unwrap().click();
+        wait_until("current transport is submitted", || {
+            capture
+                .borrow()
+                .contains(&PhysicalSetupIntent::ProjectTransport(
+                    HardwareTransport::Wireless,
+                ))
+        })
+        .await;
+        by_role_name(&root, "button", "Split keyboard")
+            .unwrap()
+            .click();
+        wait_until("current topology is submitted", || {
+            capture
+                .borrow()
+                .contains(&PhysicalSetupIntent::ProjectTopology(true))
+        })
+        .await;
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn setup_groups_roving_focus_and_checkbox_submit_existing_intents() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let capture = Rc::new(RefCell::new(Vec::new()));
+        let dom = VirtualDom::new(fixture);
+        dom.provide_root_context(Capture(capture.clone()));
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_until("setup mounts", || {
+            by_role_name(&root, "button", "Wireless").is_some()
+        })
+        .await;
+        let wireless = by_role_name(&root, "button", "Wireless").unwrap();
+        let wired = by_role_name(&root, "button", "Wired").unwrap();
+        wireless.focus().unwrap();
+        let event = web_sys::KeyboardEventInit::new();
+        event.set_key("ArrowRight");
+        event.set_bubbles(true);
+        event.set_cancelable(true);
+        wireless
+            .dispatch_event(
+                &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &event)
+                    .unwrap(),
+            )
+            .unwrap();
+        wait_until("transport focus roves", || {
+            document
+                .active_element()
+                .is_some_and(|active| active == *wired)
+        })
+        .await;
+        wired.click();
+        let checkbox = by_role_name(&root, "checkbox", "Reversible layout").unwrap();
+        let label = checkbox
+            .parent_element()
+            .expect("checkbox has its clickable label");
+        assert_eq!(label.tag_name(), "LABEL");
+        use wasm_bindgen::JsCast;
+        label.dyn_into::<web_sys::HtmlElement>().unwrap().click();
+        wait_until("setup requests emitted", || {
+            capture.borrow().as_slice()
+                == [
+                    PhysicalSetupIntent::ProjectTransport(HardwareTransport::Wired),
+                    PhysicalSetupIntent::ProjectReversibleLayout(true),
+                ]
+        })
+        .await;
+        root.remove();
     }
 }
 
@@ -439,56 +621,6 @@ fn expected_case_reassignment_owner(
     current_owner.generation = next_generation;
     current_owner.scope_transition = Some(transition);
     Some(current_owner)
-}
-
-#[cfg(test)]
-mod case_reassignment_scope_transition_tests {
-    use super::*;
-    use boardstudio_application::SessionEpoch;
-
-    fn owner() -> OwnerIdentity {
-        OwnerIdentity {
-            context: OwnerContext::CaseInspector,
-            session_epoch: SessionEpoch(3),
-            document_id: "project".into(),
-            board_id: "board-a".into(),
-            instance_id: Some("right-half".into()),
-            token: SnapshotToken(41),
-            revision: 8,
-            generation: 12,
-            scope_transition: None,
-        }
-    }
-
-    #[wasm_bindgen_test::wasm_bindgen_test]
-    fn only_the_accepted_reassignment_scope_transition_admits_followup_navigation() {
-        let owner = owner();
-        let accepted_token = SnapshotToken(42);
-        let normalized_owner =
-            expected_case_reassignment_owner(&owner, "board-b", accepted_token, 13)
-                .expect("one accepted scope normalization advances generation once");
-        let expected = normalized_owner
-            .scope_transition
-            .as_ref()
-            .expect("reassignment identity carries its exact transition");
-
-        assert!(expected.matches_current(Some(expected), Some(accepted_token), 13));
-
-        let mut user_cleared = expected.clone();
-        user_cleared.next_token = Some(owner.token);
-        assert!(!expected.matches_current(Some(&user_cleared), Some(accepted_token), 13));
-
-        let mut user_navigated = expected.clone();
-        user_navigated.next_scope = Some(Scope {
-            instance_id: Some("left-half".into()),
-            ..expected
-                .next_scope
-                .clone()
-                .expect("same-board scope exists")
-        });
-        assert!(!expected.matches_current(Some(&user_navigated), Some(accepted_token), 13));
-        assert!(!expected.matches_current(Some(expected), Some(accepted_token), 12));
-    }
 }
 
 fn current_source(
@@ -651,17 +783,13 @@ fn setup_resolver(
     owner: OwnerIdentity,
     intent: PhysicalSetupIntent,
     seed: u64,
-    prepared: Result<(), String>,
+    prepared: Result<PreparedSetup, String>,
 ) -> EditResolver {
     EditResolver::new("physical-setup", move |accepted: &AcceptedSnapshot| {
-        if accepted.session_epoch != owner.session_epoch
-            || accepted.document.id != owner.document_id
-        {
-            return Resolution::Retire(boardstudio_application::DOCUMENT_SESSION_CHANGED.into());
-        }
-        if let Err(reason) = &prepared {
-            return Resolution::Retire(reason.clone());
-        }
+        let prepared = match &prepared {
+            Ok(prepared) => prepared,
+            Err(reason) => return Resolution::Retire(reason.clone()),
+        };
         if !accepted
             .document
             .boards
@@ -685,10 +813,19 @@ fn setup_resolver(
             | PhysicalSetupIntent::ProjectTransport(_)
             | PhysicalSetupIntent::ProjectReversibleLayout(_)
             | PhysicalSetupIntent::CaseTransport(_)) => {
-                boardstudio_web_catalogue::catalogue::prepare_physical_setup_proposal(
+                let setup = setup_intent(&accepted.document, &owner, intent, seed)
+                    .expect("every project setup intent maps to a catalogue intent");
+                match boardstudio_web_catalogue::catalogue::prepare_physical_setup_proposal_with_pair(
                     &accepted.document,
-                    setup_intent(&accepted.document, &owner, intent, seed).unwrap(),
-                )
+                    setup,
+                ) {
+                    Ok(proposal) => match proposal.into_mirrored_operation(prepared.mounting_hole.as_ref()) {
+                        Ok(Some((target_ids, operation))) => return Resolution::submit(target_ids, operation),
+                        Ok(None) => Ok(proposal.document),
+                        Err(reason) => Err(reason),
+                    },
+                    Err(reason) => Err(reason),
+                }
             }
         };
         let proposal = match proposal {
@@ -698,15 +835,12 @@ fn setup_resolver(
         if proposal == *accepted.document {
             return Resolution::Unchanged;
         }
-        Resolution::Submit(EditCommand {
-            base_revision: accepted.document.revision,
-            transaction_id: String::new(),
-            phase: EditPhase::Commit,
-            target_ids: vec![owner.board_id.clone()],
-            operation: EditOperation::ReplaceDocument {
+        Resolution::submit(
+            vec![owner.board_id.clone()],
+            EditOperation::ReplaceDocument {
                 document: Box::new(proposal),
             },
-        })
+        )
     })
 }
 
@@ -715,16 +849,18 @@ fn finish_operation(
     identity: &OwnerIdentity,
     intent: &PhysicalSetupIntent,
     operation_id: OperationId,
-    settlement: Settlement,
-    activity: &OwnerActivity,
-    instance_selection: super::super::InstanceSelection,
-    generation: Signal<u64>,
-    ui: &mut OperationUi,
+    settlement: PendingEditResult<OwnerIdentity>,
+    (activity, instance_selection, generation, ui): (
+        &OwnerActivity,
+        super::super::InstanceSelection,
+        Signal<u64>,
+        &mut OperationUi,
+    ),
 ) {
     if !ui.alive.get() {
         return;
     }
-    let landed = matches!(settlement, Settlement::Landed { .. });
+    let landed = matches!(settlement, PendingEditResult::Landed { .. });
     let model = runtime.model();
     let accepted = model.accepted.as_ref();
     let navigate_to = match intent {
@@ -766,7 +902,7 @@ fn finish_operation(
         return;
     }
     let message = match settlement {
-        Settlement::Landed { .. } => {
+        PendingEditResult::Landed { .. } => {
             if let Some(accepted) = accepted {
                 owner.token = accepted.token;
                 owner.revision = accepted.document.revision;
@@ -794,15 +930,16 @@ fn finish_operation(
                     });
                 }
             }
-            "Physical setup saved.".into()
+            // The accepted document is the confirmation; landing shows no status.
+            ui.settle_silently(operation_id);
+            return;
         }
-        Settlement::Failed { message } => message,
-        Settlement::Retired => {
+        PendingEditResult::Failed { message, .. } => message,
+        PendingEditResult::Retired { .. } => {
             ui.feedback.set(None);
             ui.busy.set(None);
             return;
         }
-        Settlement::Pending => return,
     };
     ui.publish(operation_id, &owner, message, true);
 }
@@ -828,4 +965,54 @@ fn fresh_id(document: &ProjectDoc, prefix: &str, operation: u64) -> String {
             .expect("physical setup ID suffix exhausted");
     }
     candidate
+}
+
+#[cfg(test)]
+mod case_reassignment_scope_transition_tests {
+    use super::*;
+    use boardstudio_application::SessionEpoch;
+
+    fn owner() -> OwnerIdentity {
+        OwnerIdentity {
+            context: OwnerContext::CaseInspector,
+            session_epoch: SessionEpoch(3),
+            document_id: "project".into(),
+            board_id: "board-a".into(),
+            instance_id: Some("right-half".into()),
+            token: SnapshotToken(41),
+            revision: 8,
+            generation: 12,
+            scope_transition: None,
+        }
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn only_the_accepted_reassignment_scope_transition_admits_followup_navigation() {
+        let owner = owner();
+        let accepted_token = SnapshotToken(42);
+        let normalized_owner =
+            expected_case_reassignment_owner(&owner, "board-b", accepted_token, 13)
+                .expect("one accepted scope normalization advances generation once");
+        let expected = normalized_owner
+            .scope_transition
+            .as_ref()
+            .expect("reassignment identity carries its exact transition");
+
+        assert!(expected.matches_current(Some(expected), Some(accepted_token), 13));
+
+        let mut user_cleared = expected.clone();
+        user_cleared.next_token = Some(owner.token);
+        assert!(!expected.matches_current(Some(&user_cleared), Some(accepted_token), 13));
+
+        let mut user_navigated = expected.clone();
+        user_navigated.next_scope = Some(Scope {
+            instance_id: Some("left-half".into()),
+            ..expected
+                .next_scope
+                .clone()
+                .expect("same-board scope exists")
+        });
+        assert!(!expected.matches_current(Some(&user_navigated), Some(accepted_token), 13));
+        assert!(!expected.matches_current(Some(expected), Some(accepted_token), 12));
+    }
 }

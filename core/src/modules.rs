@@ -1,10 +1,26 @@
 //! Daughterboard snapshots, physical attachment frames and editable circuit ownership.
 use crate::model::*;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 #[path = "modules/host_connector.rs"]
 mod host_connector;
+
+/// Allocate a unique component reference for an embedded circuit member.
+pub(crate) fn allocate_reference(source: &str, used: &mut BTreeSet<String>) -> String {
+    if !source.is_empty() && used.insert(source.to_owned()) {
+        return source.to_owned();
+    }
+    let prefix = source.trim_end_matches(|c: char| c.is_ascii_digit());
+    let prefix = if prefix.is_empty() { "U" } else { prefix };
+    for index in 1.. {
+        let candidate = format!("{prefix}{index}");
+        if used.insert(candidate.clone()) {
+            return candidate;
+        }
+    }
+    unreachable!("A finite circuit cannot exhaust component references")
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ModuleCircuitRepair {
@@ -37,6 +53,10 @@ pub struct ModuleBoard {
     pub holes: Vec<Vec<Vec2>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub thickness: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pcb_source: Option<CasePcbSource>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub round_drills: Vec<Mount>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -244,6 +264,10 @@ pub struct ResolvedModule {
     pub board: Vec<CaseOpening>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub board_holes: Vec<Contour>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pcb_source: Option<CasePcbSource>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub round_drills: Vec<Mount>,
     pub volumes: Vec<ModuleVolume>,
     pub openings: Vec<ModuleVolume>,
     pub mounts: Vec<MechanicalPcbHole>,

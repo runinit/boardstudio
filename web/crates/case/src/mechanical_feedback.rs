@@ -28,7 +28,8 @@ pub struct MechanicalSettingsIdentity {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MechanicalSettingsFeedbackState {
     Pending,
-    Saved,
+    /// The edit landed in the accepted document; fields show the accepted value.
+    Landed,
     Failed,
 }
 
@@ -186,6 +187,12 @@ mod tests {
 
     fn configuration() -> MechanicalConfiguration {
         MechanicalConfiguration {
+            // Zero means nothing is reserved yet: Core normalizes it from the
+            // configuration's existing identities on the first allocation.
+            next_opening_identity: 0,
+            next_critical_fit_identity: 0,
+            next_hardware_identity: 0,
+            next_mount_identity: 0,
             internal_gasket: None,
             gasket_layout: None,
             hardware: None,
@@ -270,7 +277,7 @@ mod tests {
 
         // A can finish after B was rejected. The field owner still receives B's exact terminal
         // result, while the summary follows the accepted configuration values for each field.
-        entries[0].feedback.state = MechanicalSettingsFeedbackState::Saved;
+        entries[0].feedback.state = MechanicalSettingsFeedbackState::Landed;
         let mut after_a = basis;
         after_a.plate_thickness += 0.25;
         let mut after_a_identity = owner.clone();
@@ -325,7 +332,7 @@ mod tests {
             &owner,
             3,
             "clearance",
-            MechanicalSettingsFeedbackState::Saved,
+            MechanicalSettingsFeedbackState::Landed,
             Some(saved_basis.clone()),
         )];
 
@@ -342,7 +349,7 @@ mod tests {
             &owner,
             4,
             "clearance",
-            MechanicalSettingsFeedbackState::Saved,
+            MechanicalSettingsFeedbackState::Landed,
             Some(basis.clone()),
         )];
 

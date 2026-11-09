@@ -4,6 +4,12 @@ use super::{
 };
 use crate::runtime::Runtime;
 use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
+use boardstudio_web_ui_shared::ui::{
+    badge::{Badge, BadgeVariant},
+    button::{Button, ButtonVariant},
+    callout::{Callout, CalloutVariant},
+    item::{Item, ItemContent, ItemDescription},
+};
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -172,52 +178,56 @@ pub(crate) fn ready_for_export(
 
 #[component]
 pub(crate) fn ZmkFirmwareExportRow(ready: bool, on_export: EventHandler<()>) -> Element {
+    use boardstudio_web_ui_shared::ui::command::{Command, use_commands};
+    use_commands(vec![Command {
+        group: "Current Workspace",
+        label: "Export ZMK firmware".into(),
+        reason: (!ready).then(|| "Review the layout and resolve controller wiring in PCB.".into()),
+        hint: None,
+        on_select: on_export,
+    }]);
     rsx! {
-        div { class: "m1-export-row",
-            span {
-                class: if ready { "m1-export-ready-dot is-ready" } else { "m1-export-ready-dot" },
-                "aria-hidden": "true",
-            }
-            span { class: "m1-export-row-copy",
-                strong { "ZMK firmware" }
-                small { "ZMK v0.3.0 configuration and editable starter keymap" }
+        div { "data-export-kind": "ZMK firmware",
+          Item { class: "grid grid-cols-[minmax(0,1fr)_auto] gap-3 rounded-none border-0 border-t border-border p-4 bg-card max-[760px]:grid-cols-1",
+            ItemContent { class: "flex-row flex-wrap items-start gap-1 min-w-0 max-[760px]:flex-col",
+                strong { class: "text-[18px]", "ZMK firmware" }
+                Badge { variant: if ready { BadgeVariant::Success } else { BadgeVariant::Warning },
+                    if ready { "Available" } else { "Needs controller wiring" }
+                }
+                ItemDescription { class: "line-clamp-none", "ZMK v0.3.0 configuration and editable starter keymap" }
                 if !ready {
-                    small { class: "m1-export-reason", "Review the layout and resolve controller wiring in PCB." }
+                    Callout { variant: CalloutVariant::Warning, "Review the layout and resolve controller wiring in PCB." }
                 }
             }
-            button {
-                class: "m1-export-row-action",
-                r#type: "button",
+            Button { variant: ButtonVariant::Secondary,
+                class: "min-w-[104px] min-h-9 max-[760px]:col-start-1 max-[760px]:justify-self-start",
+                button_type: "button",
                 aria_label: "Export ZMK firmware",
                 disabled: !ready,
                 onclick: move |_| on_export.call(()),
-                if ready { "Export" } else { "Needs work" }
+                "Export firmware"
             }
+          }
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::super::{ExportPanel, InstanceSelection, RuntimeReportBanner};
+    use super::super::{
+        ExportPanel, InstanceSelection,
+        notifications::{NotificationProvider, RuntimeNotifications},
+    };
     use super::*;
     use crate::runtime::firmware_export_test_support as runtime_test;
     use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
     use boardstudio_core::electrical::{ElectricalMode, ElectricalPlan};
+    use boardstudio_web_ui_shared::test_role::{accessible_name, by_role_name};
+    use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_step};
     use std::cell::RefCell;
     use std::rc::Rc;
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::wasm_bindgen_test;
-
-    #[component]
-    fn row_render_fixture() -> Element {
-        let no_op = use_callback(|()| {});
-        rsx! {
-            style { {include_str!("../../assets/m1.css")} }
-            ZmkFirmwareExportRow { ready: false, on_export: no_op }
-            ZmkFirmwareExportRow { ready: true, on_export: no_op }
-        }
-    }
 
     #[derive(Clone)]
     struct ProductionExportProbe {
@@ -255,13 +265,17 @@ mod tests {
             instance_selection,
         );
         rsx! {
-            style { {include_str!("../../assets/m1.css")} }
-            RuntimeReportBanner {}
+            NotificationProvider {
+            style { {include_str!("../../assets/workbench-base.css")} }
+            RuntimeNotifications {}
             ExportPanel { zmk_firmware: Some(firmware) }
+            }
         }
     }
 
     fn mount_production_export_panel(probe: ProductionExportProbe) -> web_sys::Element {
+        // The fixture's initial open/save predates mounting this consumer.
+        probe.runtime.take_notifications();
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         root.set_id("zmk-production-export-panel-test-root");
@@ -301,10 +315,6 @@ mod tests {
         }
     }
 
-    async fn browser_tick() {
-        gloo_timers::future::TimeoutFuture::new(25).await;
-    }
-
     #[wasm_bindgen_test]
     async fn mounted_export_panel_dispatches_failure_alert_and_successful_retry_from_same_row() {
         let (runtime, accepted, scope) = runtime_test::fixture().await;
@@ -317,7 +327,11 @@ mod tests {
             runtime.electrical_preview_executor_epoch(),
             true,
         ));
-        browser_tick().await;
+        wait_until("the production export panel mounts both workspaces", || {
+            root.query_selector_all("h2")
+                .is_ok_and(|headings| headings.length() == 2)
+        })
+        .await;
 
         let headings = root.query_selector_all("h2").unwrap();
         assert_eq!(headings.length(), 2);
@@ -329,7 +343,8 @@ mod tests {
             headings.item(1).unwrap().text_content().as_deref(),
             Some("Portable project")
         );
-        let row = root.query_selector(".m1-export-row").unwrap().unwrap();
+        let button = by_role_name(&root, "button", "Export ZMK firmware").unwrap();
+        let row = button.parent_element().unwrap();
         assert_eq!(
             row.query_selector("strong")
                 .unwrap()
@@ -339,7 +354,7 @@ mod tests {
             Some("ZMK firmware")
         );
         assert_eq!(
-            row.query_selector("small")
+            row.query_selector("[data-slot=item-description]")
                 .unwrap()
                 .unwrap()
                 .text_content()
@@ -347,21 +362,27 @@ mod tests {
             Some("ZMK v0.3.0 configuration and editable starter keymap")
         );
         assert!(
-            row.query_selector(".m1-export-ready-dot.is-ready")
+            row.query_selector("[data-slot=badge]")
                 .unwrap()
-                .is_some()
+                .unwrap()
+                .text_content()
+                .as_deref()
+                == Some("Available")
         );
-        let button = row
-            .query_selector("button[aria-label='Export ZMK firmware']")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap();
-        assert_eq!(button.text_content().as_deref(), Some("Export"));
+        assert_eq!(button.text_content().as_deref(), Some("Export firmware"));
         button.click();
-        browser_tick().await;
-
-        let effects = runtime_test::take_effects(&runtime);
+        let mut effects = None;
+        wait_until_step("the ZMK export action dispatches", async || {
+            let pending = runtime_test::take_effects(&runtime);
+            if pending.is_empty() {
+                false
+            } else {
+                effects = Some(pending);
+                true
+            }
+        })
+        .await;
+        let effects = effects.expect("the export action dispatches effects");
         assert_eq!(
             effects
                 .iter()
@@ -374,40 +395,62 @@ mod tests {
             "the mounted hook invokes the existing firmware export operation"
         );
         runtime_test::run_effects(&runtime, effects).await;
-        browser_tick().await;
+        let failure_message = "Firmware generation failed: injected firmware-generation failure";
+        wait_until("firmware generation failure renders its Toast", || {
+            by_role_name(&root, "status", failure_message).is_some()
+        })
+        .await;
 
-        let alert = root
-            .query_selector("[role='alert']")
-            .unwrap()
-            .unwrap_or_else(|| {
-                panic!(
-                    "mounted report alert missing; runtime status={:?}, DOM={}",
-                    runtime.status(),
-                    root.inner_html()
-                )
-            });
-        assert_eq!(
-            alert.text_content().as_deref(),
-            Some("Firmware generation failed: injected firmware-generation failure")
-        );
+        let alert = by_role_name(&root, "status", failure_message).unwrap_or_else(|| {
+            panic!(
+                "mounted report alert missing; runtime status={:?}, DOM={}",
+                runtime.status(),
+                root.inner_html()
+            )
+        });
+        assert_eq!(accessible_name(&alert), failure_message);
+        assert_eq!(alert.get_attribute("data-type").as_deref(), Some("error"));
         assert_eq!(runtime_test::session_model(&runtime), before);
         assert!(!runtime_test::has_artifacts(&runtime));
         assert!(runtime_test::take_deliveries(&runtime).is_empty());
-        let row_after_failure = root.query_selector(".m1-export-row").unwrap().unwrap();
+        let row_after_failure = by_role_name(&root, "button", "Export ZMK firmware")
+            .unwrap()
+            .parent_element()
+            .unwrap();
         assert!(
             row.is_same_node(row_after_failure.dyn_ref::<web_sys::Node>()),
             "failure keeps the same row mounted for retry"
         );
 
+        by_role_name(&alert, "button", "close").unwrap().click();
         button.click();
-        browser_tick().await;
-        assert!(root.query_selector("[role='alert']").unwrap().is_none());
-        let retry_effects = runtime_test::take_effects(&runtime);
-        runtime_test::run_effects(&runtime, retry_effects).await;
-        browser_tick().await;
+        wait_until("retry clears the firmware export alert", || {
+            by_role_name(&root, "status", failure_message).is_none()
+        })
+        .await;
+        let mut retry_effects = None;
+        wait_until_step("the firmware retry dispatches", async || {
+            let pending = runtime_test::take_effects(&runtime);
+            if pending.is_empty() {
+                false
+            } else {
+                retry_effects = Some(pending);
+                true
+            }
+        })
+        .await;
+        runtime_test::run_effects(
+            &runtime,
+            retry_effects.expect("the retry dispatches effects"),
+        )
+        .await;
+        wait_until("successful firmware retry renders its status", || {
+            by_role_name(&root, "status", "Saved locally.").is_some()
+        })
+        .await;
 
-        let status = root.query_selector("[role='status']").unwrap().unwrap();
-        assert_eq!(status.text_content().as_deref(), Some("Saved locally."));
+        let status = by_role_name(&root, "status", "Saved locally.").unwrap();
+        assert_eq!(accessible_name(&status), "Saved locally.");
         let deliveries = runtime_test::take_deliveries(&runtime);
         assert_eq!(deliveries.len(), 1);
         assert_eq!(deliveries[0].filename, "ZMK export test-zmk.zip");
@@ -426,43 +469,31 @@ mod tests {
             runtime.electrical_preview_executor_epoch(),
             false,
         ));
-        browser_tick().await;
-        let button = root
-            .query_selector("button[aria-label='Export ZMK firmware']")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap();
+        wait_until(
+            "the unavailable ZMK export control renders disabled",
+            || {
+                by_role_name(&root, "button", "Export ZMK firmware")
+                    .is_some_and(|button| button.has_attribute("disabled"))
+            },
+        )
+        .await;
+        let button = by_role_name(&root, "button", "Export ZMK firmware").unwrap();
         assert!(button.has_attribute("disabled"));
-        assert_eq!(button.text_content().as_deref(), Some("Needs work"));
-        assert_eq!(
-            root.query_selector(".m1-export-reason")
+        assert_eq!(button.text_content().as_deref(), Some("Export firmware"));
+        assert!(
+            root.text_content()
                 .unwrap()
+                .contains("Needs controller wiring")
+        );
+        assert!(
+            root.text_content()
                 .unwrap()
-                .text_content()
-                .as_deref(),
-            Some("Review the layout and resolve controller wiring in PCB.")
+                .contains("Review the layout and resolve controller wiring in PCB.")
         );
         button.click();
-        browser_tick().await;
         assert!(runtime_test::take_effects(&runtime).is_empty());
         assert!(!runtime_test::has_artifacts(&runtime));
         root.remove();
-    }
-
-    fn mount_row_fixture() -> web_sys::Element {
-        let document = web_sys::window().unwrap().document().unwrap();
-        if let Some(previous) = document.get_element_by_id("zmk-export-row-test-root") {
-            previous.remove();
-        }
-        let root = document.create_element("div").unwrap();
-        root.set_id("zmk-export-row-test-root");
-        document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(row_render_fixture),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
-        root
     }
 
     fn identity() -> WiringPlanIdentity {
@@ -710,97 +741,5 @@ mod tests {
             identity.executor_epoch + 1,
             &resolution,
         ));
-    }
-
-    #[wasm_bindgen_test]
-    async fn row_renders_reference_copy_accessible_name_and_ready_marker() {
-        let root = mount_row_fixture();
-        gloo_timers::future::TimeoutFuture::new(40).await;
-        let document = web_sys::window().unwrap().document().unwrap();
-        let rows = document
-            .query_selector_all("#zmk-export-row-test-root .m1-export-row")
-            .unwrap();
-        assert_eq!(rows.length(), 2);
-
-        let unavailable = rows
-            .item(0)
-            .unwrap()
-            .dyn_into::<web_sys::Element>()
-            .unwrap();
-        assert_eq!(
-            unavailable
-                .query_selector("strong")
-                .unwrap()
-                .unwrap()
-                .text_content()
-                .as_deref(),
-            Some("ZMK firmware")
-        );
-        assert_eq!(
-            unavailable
-                .query_selector("button")
-                .unwrap()
-                .unwrap()
-                .get_attribute("aria-label")
-                .as_deref(),
-            Some("Export ZMK firmware")
-        );
-        assert!(
-            unavailable
-                .query_selector("button")
-                .unwrap()
-                .unwrap()
-                .has_attribute("disabled")
-        );
-        assert_eq!(
-            unavailable
-                .query_selector(".m1-export-reason")
-                .unwrap()
-                .unwrap()
-                .text_content()
-                .as_deref(),
-            Some("Review the layout and resolve controller wiring in PCB.")
-        );
-        assert!(
-            !unavailable
-                .query_selector(".m1-export-ready-dot")
-                .unwrap()
-                .unwrap()
-                .get_attribute("class")
-                .unwrap_or_default()
-                .contains("is-ready")
-        );
-
-        let ready = rows
-            .item(1)
-            .unwrap()
-            .dyn_into::<web_sys::Element>()
-            .unwrap();
-        assert!(
-            !ready
-                .query_selector("button")
-                .unwrap()
-                .unwrap()
-                .has_attribute("disabled")
-        );
-        assert_eq!(
-            ready
-                .query_selector("button")
-                .unwrap()
-                .unwrap()
-                .text_content()
-                .as_deref(),
-            Some("Export")
-        );
-        assert!(
-            ready
-                .query_selector(".m1-export-ready-dot")
-                .unwrap()
-                .unwrap()
-                .get_attribute("class")
-                .unwrap_or_default()
-                .contains("is-ready")
-        );
-        root.remove();
     }
 }

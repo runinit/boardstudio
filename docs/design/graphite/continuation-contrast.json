@@ -1,0 +1,21 @@
+{
+  "tokens": {
+    "ink": "#EDF1F7",
+    "muted": "#AFBCCB",
+    "panel": "#202329",
+    "canvas": "#15171B",
+    "accent": "#9AADFF",
+    "on-accent": "#101725",
+    "selection-ink": "#CDD6FF",
+    "selection-surface": "#303B56",
+    "toolbar": "#3A3F48"
+  },
+  "contrast": {
+    "ink/panel": 13.89,
+    "muted/panel": 8.16,
+    "muted/canvas": 9.3,
+    "on-accent/accent": 8.36,
+    "selection-ink/selection-surface": 7.77,
+    "ink/toolbar": 9.34
+  }
+}

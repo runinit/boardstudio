@@ -1,6 +1,7 @@
 //! Independently designed keycap presets and conservative swept-envelope checks.
 //! No KeyV2 source, dimensions, or generated geometry is used here.
 use crate::model::*;
+use boardstudio_contracts::polygon_contains;
 mod edits;
 pub(crate) use edits::apply_edit;
 
@@ -319,7 +320,9 @@ pub(crate) fn resolve(
             dish_depth,
             spherical,
             wall_thickness: settings.wall_thickness,
-            pose: part.pose,
+            // Ticket 12: keycaps render half-frame parts at their evaluated
+            // board pose.
+            pose: crate::matrix::layout::evaluated_part_pose(doc, part),
             side: part.side.clone(),
             z: if part.side == Side::Front {
                 board.thickness + base
@@ -473,19 +476,6 @@ fn point_segment(p: Vec2, a: Vec2, b: Vec2) -> f64 {
     .clamp(0.0, 1.0);
     (p.x - a.x - t * dx).hypot(p.y - a.y - t * dy)
 }
-fn inside(p: Vec2, poly: &[Vec2]) -> bool {
-    let mut result = false;
-    for (a, b) in poly
-        .iter()
-        .zip(poly.iter().cycle().skip(1))
-        .take(poly.len())
-    {
-        if (a.y > p.y) != (b.y > p.y) && p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x {
-            result = !result
-        }
-    }
-    result
-}
 fn segments_cross(a: Vec2, b: Vec2, c: Vec2, d: Vec2) -> bool {
     let cross = |a: Vec2, b: Vec2, c: Vec2| (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
     cross(a, b, c) * cross(a, b, d) < 0.0 && cross(c, d, a) * cross(c, d, b) < 0.0
@@ -507,7 +497,7 @@ fn edge_distance(a: &[Vec2], b: &[Vec2]) -> f64 {
     gap
 }
 fn polygon_distance(a: &[Vec2], b: &[Vec2]) -> f64 {
-    if a.iter().any(|p| inside(*p, b)) || b.iter().any(|p| inside(*p, a)) {
+    if a.iter().any(|p| polygon_contains(b, *p)) || b.iter().any(|p| polygon_contains(a, *p)) {
         0.0
     } else {
         edge_distance(a, b)
@@ -544,7 +534,7 @@ fn rectangle_gap(a: &[Vec2], b: &[Vec2]) -> f64 {
     }
 }
 fn polygon_contains_envelope(poly: &[Vec2], shape: &[Vec2], clearance: f64) -> bool {
-    shape.iter().all(|p| inside(*p, poly))
+    shape.iter().all(|p| polygon_contains(poly, *p))
         && !shape
             .iter()
             .zip(shape.iter().cycle().skip(1))
@@ -642,7 +632,7 @@ mod tests {
         ]
         .map(|(x, y)| Vec2 { x, y });
         let cap = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)].map(|(x, y)| Vec2 { x, y });
-        assert!(cap.iter().all(|point| inside(*point, &cavity)));
+        assert!(cap.iter().all(|point| polygon_contains(&cavity, *point)));
         assert!(!polygon_contains_envelope(&cavity, &cap, 0.0));
     }
     #[test]

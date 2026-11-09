@@ -9,6 +9,29 @@ use web_sys::{
 
 thread_local! {
     static MANIFEST: std::cell::OnceCell<OfflineManifest> = const { std::cell::OnceCell::new() };
+    /// The page whose Update Now request made this worker skip waiting. Set only
+    /// by the opt-in adoption message and consumed by the next activation, so
+    /// ordinary delayed activation never sees it.
+    static ADOPTER: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Whether `source_id` is the only window client of this registration,
+/// uncontrolled legacy windows included. The authoritative check for both the
+/// storage startup probe and update adoption: it runs inside the worker, at the
+/// moment the decision takes effect.
+async fn only_window(source_id: &str) -> Result<bool, JsValue> {
+    let global = js_sys::global().unchecked_into::<ServiceWorkerGlobalScope>();
+    let options = web_sys::ClientQueryOptions::new();
+    options.set_include_uncontrolled(true);
+    options.set_type(web_sys::ClientType::Window);
+    let clients =
+        Array::from(&JsFuture::from(global.clients().match_all_with_options(&options)).await?);
+    Ok(clients.length() == 1
+        && clients.iter().all(|client| {
+            client
+                .dyn_into::<web_sys::Client>()
+                .is_ok_and(|client| client.id() == source_id)
+        }))
 }
 
 /// The release manifest that `start_offline_worker` received from the generated bootstrap.
@@ -50,7 +73,6 @@ async fn open_current_cache(scope_url: &str, manifest: &OfflineManifest) -> Resu
 }
 
 async fn install_policy() -> Result<(), JsValue> {
-    let global = js_sys::global().unchecked_into::<ServiceWorkerGlobalScope>();
     let manifest = manifest()?;
     let scope_url = scope();
     let cache = open_current_cache(&scope_url, &manifest).await?;
@@ -59,7 +81,8 @@ async fn install_policy() -> Result<(), JsValue> {
         files.push(&JsValue::from_str(&format!("{scope_url}{asset}")));
     }
     JsFuture::from(cache.add_all_with_str_sequence(files.as_ref())).await?;
-    JsFuture::from(global.skip_waiting()?).await?;
+    // Let the browser wait for clients of the active worker to close; they may
+    // still need its cache for assets loaded later while offline.
     Ok(())
 }
 
@@ -71,8 +94,16 @@ async fn activate_policy() -> Result<(), JsValue> {
     let names = Array::from(&JsFuture::from(cache_storage.keys()).await?);
     let prefix = cache_prefix(&scope_url)?;
     let active_name = cache_name(&scope_url, &manifest)?;
+    // An adopted activation (ticket 019) skips cleanup when another window
+    // appeared after the adoption decision: that editor may still need the old
+    // build's cache. The old caches wait for the next ordinary activation.
+    let keep_old_caches = match ADOPTER.with(|adopter| adopter.borrow_mut().take()) {
+        Some(adopter) => !only_window(&adopter).await?,
+        None => false,
+    };
     for name in names.iter() {
         if let Some(name) = name.as_string()
+            && !keep_old_caches
             && name.starts_with(&prefix)
             && name != active_name
         {
@@ -133,6 +164,62 @@ pub fn start_offline_worker(version: String, assets: Vec<String>) -> Result<(), 
     });
     global.add_event_listener_with_callback("activate", activate.as_ref().unchecked_ref())?;
     activate.forget();
+
+    let message = Closure::<dyn FnMut(web_sys::ExtendableMessageEvent)>::new(
+        |event: web_sys::ExtendableMessageEvent| {
+            let data = event.data().as_string();
+            let adopt =
+                data.as_deref() == Some(boardstudio_web_host::offline::ADOPT_WAITING_MESSAGE);
+            if !adopt
+                && data.as_deref() != Some(boardstudio_web_host::offline::STORAGE_WINDOW_QUERY)
+            {
+                return;
+            }
+            let Some(source) = event
+                .source()
+                .and_then(|source| source.dyn_into::<web_sys::Client>().ok())
+            else {
+                return;
+            };
+            let port = event.ports().get(0).dyn_into::<web_sys::MessagePort>().ok();
+            if port.is_none() && !adopt {
+                return;
+            }
+            let reply = move |answer: &str| match &port {
+                Some(port) => port.post_message(&JsValue::from_str(answer)),
+                None => Ok(()),
+            };
+            let promise = future_to_promise(async move {
+                let alone = only_window(&source.id()).await?;
+                if adopt {
+                    // Opt-in adoption (ticket 019). The decision is made here,
+                    // against the live clients, immediately before skipping
+                    // waiting: any other open editor may still need the current
+                    // worker's caches, so the standard activation cleanup is
+                    // safe only for a sole client. Ordinary activation stays
+                    // delayed.
+                    if alone {
+                        ADOPTER.with(|adopter| *adopter.borrow_mut() = Some(source.id()));
+                        reply(boardstudio_web_host::offline::ADOPT_ACCEPTED)?;
+                        let global = js_sys::global().unchecked_into::<ServiceWorkerGlobalScope>();
+                        JsFuture::from(global.skip_waiting()?).await?;
+                    } else {
+                        reply(boardstudio_web_host::offline::ADOPT_DECLINED)?;
+                    }
+                } else {
+                    reply(if alone {
+                        boardstudio_web_host::offline::STORAGE_WINDOW_ALONE
+                    } else {
+                        "defer"
+                    })?;
+                }
+                Ok(JsValue::UNDEFINED)
+            });
+            let _ = event.wait_until(&promise);
+        },
+    );
+    global.add_event_listener_with_callback("message", message.as_ref().unchecked_ref())?;
+    message.forget();
 
     let scope_url = scope();
     let fetch = Closure::<dyn FnMut(FetchEvent)>::new(move |event: FetchEvent| {

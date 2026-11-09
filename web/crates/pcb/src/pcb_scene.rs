@@ -53,7 +53,7 @@ pub fn PcbScene(props: PcbSceneProps) -> Element {
 
     if snapshot.session_epoch != scope.session_epoch || snapshot.document.id != scope.document_id {
         return rsx! {
-            g { class: "m1-pcb-scene-state", "data-scene-status": "stale", role: "status" }
+            g { "data-scene-status": "stale", role: "status" }
         };
     }
 
@@ -64,7 +64,7 @@ pub fn PcbScene(props: PcbSceneProps) -> Element {
         .find(|board| board.id == scope.board_id)
     else {
         return rsx! {
-            g { class: "m1-pcb-scene-state", "data-scene-status": "unavailable", role: "status" }
+            g { "data-scene-status": "unavailable", role: "status" }
         };
     };
     let board_id = board.id.as_str();
@@ -79,13 +79,14 @@ pub fn PcbScene(props: PcbSceneProps) -> Element {
     let member_ids: BTreeSet<&str> = board.part_ids.iter().map(String::as_str).collect();
     let scene_transforms = snapshot.scene.transforms.as_slice();
     rsx! {
-        g { class: "m1-pcb-scene", "data-board-id": board_id, "data-scene-status": "ready",
+        g { "data-board-id": board_id, "data-scene-status": "ready",
             if !hidden_layers.contains("Edge.Cuts") {
                 for (index, contour) in contours.iter().enumerate() {
                     polygon {
                         key: "outline-{index}",
+                        "data-layer": "Edge.Cuts",
                         points: points(&contour.points),
-                        class: if contour.hole { "m1-outline is-hole" } else { "m1-outline" },
+                        class: if contour.hole { "fill-canvas stroke-destructive stroke-[0.3] [stroke-dasharray:0.8_0.55]" } else { "fill-geometry-fill stroke-geometry-board stroke-[0.3]" },
                     }
                 }
             }
@@ -121,7 +122,7 @@ pub fn PcbScene(props: PcbSceneProps) -> Element {
                     rsx! {
                         g {
                             key: "part-{part_id}",
-                            class: if selected { "m1-scene-part m1-pcb-part is-selected" } else { "m1-scene-part m1-pcb-part" },
+                            class: "cursor-grab",
                             style: "cursor: pointer",
                             transform: "translate({pose.at.x} {pose.at.y}) rotate({pose.rotation}) {side_transform}",
                             role: "button",
@@ -184,7 +185,7 @@ pub fn PcbScene(props: PcbSceneProps) -> Element {
                                 });
                             },
                             if !courtyard.is_empty() && !hidden_layers.contains("Courtyards") {
-                                polygon { points: "{courtyard}", class: if selected { "m1-part selected" } else { "m1-part" } }
+                                polygon { points: "{courtyard}", "data-layer": "Courtyards", class: if selected { "fill-selected stroke-primary stroke-[0.8] cursor-grab" } else { "fill-geometry-body stroke-geometry-part stroke-[0.4] cursor-grab" } }
                             }
                             if let Some(definition) = definition {
                                 if definition.generator.is_some() {
@@ -210,7 +211,8 @@ pub fn PcbScene(props: PcbSceneProps) -> Element {
                                                 transform: "translate({pad.at.x} {pad.at.y}) rotate({pad_rotation})",
                                                 if super::pcb_layers::pad_is_visible(pad, &part.side, &hidden_layers) {
                                                     rect {
-                                                        class: "m1-part-pad",
+                                                        class: "fill-geometry-part stroke-none",
+                                                        "data-layer": "Pads",
                                                         x: "{-pad.size.x / 2.0}",
                                                         y: "{-pad.size.y / 2.0}",
                                                         width: "{pad.size.x}",
@@ -219,7 +221,7 @@ pub fn PcbScene(props: PcbSceneProps) -> Element {
                                                     }
                                                 }
                                                 if let Some(drill) = drill.filter(|_| !hidden_layers.contains("Holes")) {
-                                                    circle { class: "m1-part-drill", r: "{drill / 2.0}" }
+                                                    circle { class: "fill-canvas stroke-geometry-outline stroke-[0.1]", "data-layer": "Holes", r: "{drill / 2.0}" }
                                                 }
                                             }
                                         }
@@ -227,10 +229,10 @@ pub fn PcbScene(props: PcbSceneProps) -> Element {
                                 }
                             }
                             if !hidden_layers.contains("References") {
-                                text { transform: "scale(1,-1)", text_anchor: "middle", class: "m1-part-label", x: "0", y: "-5.2", "{reference}" }
+                                text { transform: "scale(1,-1)", text_anchor: "middle", class: "font-mono text-[1.8px] fill-geometry-label pointer-events-none", "data-layer": "References", x: "0", y: "-5.2", "{reference}" }
                             }
                             rect {
-                                class: "m1-part-hit-area",
+                                class: "fill-transparent stroke-none [pointer-events:all] cursor-grab",
                                 style: "cursor: pointer",
                                 x: "{hit_bounds.0}",
                                 y: "{hit_bounds.1}",
@@ -292,8 +294,8 @@ mod mounted_layer_tests {
         Board, BoardContours, Contour, Pad, Part, PartDefinition, PartKind, Pose2, ProjectDoc,
         Readiness, SceneDelta,
     };
+    use boardstudio_web_ui_shared::test_role::by_role_name;
     use std::{collections::BTreeMap, sync::Arc};
-    use wasm_bindgen::JsCast;
     use wasm_bindgen_test::wasm_bindgen_test;
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
@@ -358,6 +360,7 @@ mod mounted_layer_tests {
         document.parts.push(Part {
             keycap: None,
             outline: None,
+            anchor: None,
             id: "part".into(),
             definition_id: "definition".into(),
             reference: "U1".into(),
@@ -537,17 +540,8 @@ mod mounted_layer_tests {
             .length()
     }
 
-    fn click(selector: &str) {
-        web_sys::window()
-            .unwrap()
-            .document()
-            .unwrap()
-            .query_selector(&format!("#pcb-layer-mount {selector}"))
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap()
-            .click();
+    fn click(root: &web_sys::Element, name: &str) {
+        by_role_name(root, "button", name).unwrap().click();
     }
 
     async fn settle() {
@@ -566,82 +560,112 @@ mod mounted_layer_tests {
         );
         settle().await;
 
-        assert_eq!(count(".m1-outline"), 1);
-        assert_eq!(count(".m1-part"), 1);
-        assert_eq!(count(".m1-part-pad"), 3);
-        assert_eq!(count(".m1-part-drill"), 1);
-        assert_eq!(count(".m1-part-label"), 1);
-
-        click("#m1-pcb-layers-trigger");
-        settle().await;
-        assert_eq!(count("button[aria-label='Hide F.Cu']"), 1);
-        assert_eq!(count("button[aria-label='Hide B.Cu']"), 1);
-        assert_eq!(
-            web_sys::window()
-                .unwrap()
-                .document()
-                .unwrap()
-                .query_selector("#pcb-layer-mount button[aria-label='Hide F.Cu'] .m1-layer-label")
-                .unwrap()
-                .unwrap()
-                .text_content()
-                .as_deref(),
-            Some("Front copper")
+        let scene = root
+            .query_selector("[data-scene-status=ready]")
+            .unwrap()
+            .unwrap();
+        assert!(
+            scene.get_attribute("class").is_none(),
+            "the scene needs no legacy marker class"
         );
-        click("button[aria-label='Hide F.Cu']");
+        let part = scene
+            .query_selector("[role=button][data-part-id]")
+            .unwrap()
+            .unwrap();
+        assert!(
+            !part
+                .get_attribute("class")
+                .unwrap_or_default()
+                .split_whitespace()
+                .any(|class| class.starts_with("m1-pcb-")),
+            "the part needs no dead PCB marker class"
+        );
+        assert_eq!(
+            count("[data-scene-status=ready] [data-layer='Edge.Cuts']"),
+            1
+        );
+        assert_eq!(
+            count("[data-scene-status=ready] [data-layer='Courtyards']"),
+            1
+        );
+        assert_eq!(count("[data-scene-status=ready] [data-layer='Pads']"), 3);
+        assert_eq!(count("[data-scene-status=ready] [data-layer='Holes']"), 1);
+        assert_eq!(
+            count("[data-scene-status=ready] [data-layer='References']"),
+            1
+        );
+        assert!(by_role_name(&root, "button", "PCB layers").is_some());
+
+        click(&root, "PCB layers");
+        settle().await;
+        assert!(by_role_name(&root, "button", "Hide F.Cu").is_some());
+        assert!(by_role_name(&root, "button", "Hide B.Cu").is_some());
+        assert!(by_role_name(&root, "group", "Front copper visibility").is_some());
+        click(&root, "Hide F.Cu");
         settle().await;
         assert_eq!(
-            count(".m1-part-pad"),
+            count("[data-scene-status=ready] [data-layer='Pads']"),
             2,
             "back and through-hole pads remain"
         );
-        click("button[aria-label='Hide B.Cu']");
+        click(&root, "Hide B.Cu");
         settle().await;
         assert_eq!(
-            count(".m1-part-pad"),
+            count("[data-scene-status=ready] [data-layer='Pads']"),
             0,
             "through-hole needs either copper face"
         );
 
-        click("button[aria-label='Show F.Cu']");
+        click(&root, "Show F.Cu");
         settle().await;
-        assert_eq!(count(".m1-part-pad"), 2);
-        click("button[aria-label='Hide Pads']");
+        assert_eq!(count("[data-scene-status=ready] [data-layer='Pads']"), 2);
+        click(&root, "Hide Pads");
         settle().await;
-        assert_eq!(count(".m1-part-pad"), 0);
-        assert_eq!(count(".m1-part-drill"), 1, "Pads and Holes are independent");
-        click("button[aria-label='Hide Holes']");
-        settle().await;
-        assert_eq!(count(".m1-part-drill"), 0);
-        assert_eq!(count(".m1-part-label"), 1);
-
-        click("button[aria-label='Hide Edge.Cuts']");
-        click("button[aria-label='Hide Courtyards']");
-        click("button[aria-label='Hide References']");
-        settle().await;
-        assert_eq!(count(".m1-outline"), 0);
-        assert_eq!(count(".m1-part"), 0);
-        assert_eq!(count(".m1-part-label"), 0);
-
-        let row = document
-            .query_selector("#pcb-layer-mount button[aria-label='Show References']")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap();
-        row.focus().unwrap();
-        let event_init = web_sys::KeyboardEventInit::new();
-        event_init.set_key("Escape");
-        event_init.set_bubbles(true);
-        let event =
-            web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &event_init)
-                .unwrap();
-        row.dispatch_event(&event).unwrap();
-        settle().await;
-        assert!(count("#m1-pcb-layers-list[hidden]") > 0);
+        assert_eq!(count("[data-scene-status=ready] [data-layer='Pads']"), 0);
         assert_eq!(
-            document.active_element().unwrap().id(),
-            "m1-pcb-layers-trigger"
+            count("[data-scene-status=ready] [data-layer='Holes']"),
+            1,
+            "Pads and Holes are independent"
+        );
+        click(&root, "Hide Holes");
+        settle().await;
+        assert_eq!(count("[data-scene-status=ready] [data-layer='Holes']"), 0);
+        assert_eq!(
+            count("[data-scene-status=ready] [data-layer='References']"),
+            1
+        );
+
+        click(&root, "Hide Edge.Cuts");
+        click(&root, "Hide Courtyards");
+        click(&root, "Hide References");
+        settle().await;
+        assert_eq!(
+            count("[data-scene-status=ready] [data-layer='Edge.Cuts']"),
+            0
+        );
+        assert_eq!(
+            count("[data-scene-status=ready] [data-layer='Courtyards']"),
+            0
+        );
+        assert_eq!(
+            count("[data-scene-status=ready] [data-layer='References']"),
+            0
+        );
+
+        click(&root, "PCB layers");
+        settle().await;
+        let trigger = by_role_name(&root, "button", "PCB layers").unwrap();
+        let panel = document
+            .get_element_by_id(&trigger.get_attribute("aria-controls").unwrap())
+            .unwrap();
+        assert!(
+            panel.has_attribute("hidden") && panel.has_attribute("inert"),
+            "collapsed layers remain mounted, hidden and inert"
+        );
+        assert_eq!(
+            trigger.get_attribute("aria-expanded").as_deref(),
+            Some("false"),
+            "collapsing the layer accordion sets aria-expanded to false"
         );
         root.remove();
     }
@@ -657,13 +681,40 @@ mod mounted_layer_tests {
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         settle().await;
-        assert_eq!(count("button[aria-label='Hide F.Cu']"), 1);
-        click("#switch-pcb-board");
+        if by_role_name(&root, "button", "PCB layers")
+            .unwrap()
+            .get_attribute("aria-expanded")
+            .as_deref()
+            != Some("true")
+        {
+            click(&root, "PCB layers");
+            settle().await;
+        }
+        assert!(by_role_name(&root, "button", "Hide F.Cu").is_some());
+        click(&root, "Switch board");
         settle().await;
-        assert_eq!(count("button[aria-label='Hide F.Cu']"), 0);
-        click("#switch-pcb-board");
+        if by_role_name(&root, "button", "PCB layers")
+            .unwrap()
+            .get_attribute("aria-expanded")
+            .as_deref()
+            != Some("true")
+        {
+            click(&root, "PCB layers");
+            settle().await;
+        }
+        assert!(by_role_name(&root, "button", "Hide F.Cu").is_none());
+        click(&root, "Switch board");
         settle().await;
-        assert_eq!(count("button[aria-label='Hide F.Cu']"), 1);
+        if by_role_name(&root, "button", "PCB layers")
+            .unwrap()
+            .get_attribute("aria-expanded")
+            .as_deref()
+            != Some("true")
+        {
+            click(&root, "PCB layers");
+            settle().await;
+        }
+        assert!(by_role_name(&root, "button", "Hide F.Cu").is_some());
         root.remove();
     }
 

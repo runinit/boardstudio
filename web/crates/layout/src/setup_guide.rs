@@ -3,6 +3,15 @@ use boardstudio_core::{
     model::{PartKind, ProjectDoc, SceneDelta, Severity},
 };
 pub use boardstudio_web_ui_model::state::{PendingNewKeyboard, SetupGuideRequest};
+use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
+use boardstudio_web_ui_shared::ui::field::{Field, FieldLabel};
+use boardstudio_web_ui_shared::ui::input_group::{InputGroup, InputGroupInput};
+use boardstudio_web_ui_shared::ui::stepper::{
+    Stepper, StepperIndicator, StepperItem, StepperOrientation, StepperTitle,
+};
+use boardstudio_web_ui_shared::ui::tooltip::{Tooltip, TooltipContent, TooltipTrigger};
+
+use boardstudio_web_ui_shared::ui::accordion::{Accordion, AccordionItem, AccordionTrigger};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use wasm_bindgen::JsCast;
@@ -33,7 +42,7 @@ impl SetupGuideStage {
             "layout" => Self::Layout,
             "wiring" => Self::Wiring,
             "case" => Self::Case,
-            "review" => Self::Review,
+            "review" => Self::Case,
             _ => Self::Project,
         }
     }
@@ -52,13 +61,31 @@ pub struct SetupGuideStageStatus {
     pub detail: String,
 }
 
-fn step_class(current: bool, ready: bool) -> &'static str {
-    match (current, ready) {
-        (true, true) => "m1-setup-guide__step is-current is-ready",
-        (true, false) => "m1-setup-guide__step is-current",
-        (false, true) => "m1-setup-guide__step is-ready",
-        (false, false) => "m1-setup-guide__step",
-    }
+fn sync_stage_trigger(stage: SetupGuideStage) {
+    let index = match stage {
+        SetupGuideStage::Project => 0,
+        SetupGuideStage::Layout => 1,
+        SetupGuideStage::Wiring => 2,
+        SetupGuideStage::Case => 3,
+        SetupGuideStage::Review => 4,
+    };
+    // Accordion exposes default_open only, so sync after Dioxus commits the new stage.
+    wasm_bindgen_futures::spawn_local(async move {
+        gloo_timers::future::TimeoutFuture::new(0).await;
+        if let Some(trigger) = web_sys::window()
+            .and_then(|window| window.document())
+            .and_then(|document| {
+                document
+                    .query_selector(&format!("[aria-controls='m1-setup-panel-{index}']"))
+                    .ok()
+                    .flatten()
+            })
+            .and_then(|element| element.dyn_into::<web_sys::HtmlElement>().ok())
+            && trigger.get_attribute("aria-expanded").as_deref() != Some("true")
+        {
+            trigger.click();
+        }
+    });
 }
 
 pub fn stage_statuses(
@@ -177,10 +204,10 @@ pub fn stage_statuses(
             && current_nets.len() == plan.nets.len()
             && configuration.mode == plan.mode
             && configuration.controller_part_id == plan.controller_part_id
-            && plan.nets.iter().all(|net| {
-                current_nets.iter().any(|current| *current == net)
-                    && board.net_ids.contains(&net.id)
-            })
+            && plan
+                .nets
+                .iter()
+                .all(|net| current_nets.contains(&net) && board.net_ids.contains(&net.id))
     });
     let wiring_stage_ready = wiring_current && wiring_ready && wiring_applied;
     let case_configured = document
@@ -261,128 +288,235 @@ pub fn ProjectSetupGuide(
     on_stage_change: EventHandler<SetupGuideStage>,
     on_open_workspace: EventHandler<&'static str>,
     on_open_matrix_setup: Option<EventHandler<()>>,
+    #[props(default)] matrix_setup: Option<Element>,
+    #[props(default)] case_basics: Option<Element>,
+    #[props(default)] controller_picker: Option<Element>,
+    #[props(default)] has_matrix: bool,
     on_choose_controller: Option<EventHandler<()>>,
     on_dismiss: EventHandler<()>,
+    on_finish: EventHandler<()>,
     project_controls: Option<Element>,
 ) -> Element {
-    let stage_index = match stage {
-        SetupGuideStage::Project => 0,
-        SetupGuideStage::Layout => 1,
-        SetupGuideStage::Wiring => 2,
-        SetupGuideStage::Case => 3,
-        SetupGuideStage::Review => 4,
+    let mut expanded = use_signal(|| Some(stage));
+    use_effect(use_reactive((&stage,), move |(stage,)| {
+        expanded.set(Some(stage));
+        sync_stage_trigger(stage);
+    }));
+    let stage_change = on_stage_change;
+    let footer = match stage {
+        SetupGuideStage::Project => "Continue to layout",
+        SetupGuideStage::Layout => "Continue to wiring",
+        SetupGuideStage::Wiring => "Continue to case",
+        SetupGuideStage::Case | SetupGuideStage::Review => "Continue to layout",
     };
-    let heading = match stage {
-        SetupGuideStage::Project => "Project & hardware",
-        SetupGuideStage::Layout => "Layout & assemblies",
-        SetupGuideStage::Wiring => "Controller & wiring",
-        SetupGuideStage::Case => "Case (optional)",
-        SetupGuideStage::Review => "Review & export",
+    let next_stage = match stage {
+        SetupGuideStage::Project => Some(SetupGuideStage::Layout),
+        SetupGuideStage::Layout => Some(SetupGuideStage::Wiring),
+        SetupGuideStage::Wiring => Some(SetupGuideStage::Case),
+        SetupGuideStage::Case => None,
+        SetupGuideStage::Review => None,
     };
+    let previous_stage = match stage {
+        SetupGuideStage::Project => None,
+        SetupGuideStage::Layout => Some(SetupGuideStage::Project),
+        SetupGuideStage::Wiring => Some(SetupGuideStage::Layout),
+        SetupGuideStage::Case => Some(SetupGuideStage::Wiring),
+        SetupGuideStage::Review => Some(SetupGuideStage::Case),
+    };
+    let mut expanded_for_trigger = expanded;
     rsx! {
-        aside { class: "m1-setup-guide", "aria-label": "Project setup guide",
-            header { class: "m1-setup-guide__header",
-                div {
-                    h2 {
-                        tabindex: "-1",
-                        onmounted: move |event| async move { let _ = event.set_focus(true).await; },
-                        "Setup guide"
+            aside { class: "grid min-h-0 min-w-0 flex-1 grid-rows-[auto_minmax(0,1fr)_auto] content-start gap-3 overflow-hidden bg-card p-4 text-foreground [&_button]:min-h-control-touch", "aria-label": "Project setup guide",
+            onkeydown: move |event: KeyboardEvent| {
+                if event.key().to_string() == " " {
+                    event.stop_propagation();
+                    if let Some(raw) = event.data().try_as_web_event() {
+                        raw.stop_propagation();
                     }
-                    p { "A step-by-step guide to your keyboard." }
                 }
-                button { class: "m1-setup-guide__dismiss", r#type: "button", onclick: move |_| on_dismiss.call(()), "Back to objects" }
-            }
-            p { class: "m1-setup-guide__intro", "Step {stage_index + 1} of 5. Move between steps freely; your work is kept." }
-            nav { class: "m1-setup-guide__steps", "aria-label": "Setup steps",
-                button {
-                    class: step_class(stage == SetupGuideStage::Project, stage_readiness[0]),
-                    aria_current: (stage == SetupGuideStage::Project).then_some("step"),
-                    onclick: move |_| on_stage_change.call(SetupGuideStage::Project),
-                    span { class: "m1-setup-guide__step-marker", aria_label: stage_readiness[0].then_some("Ready"), if stage_readiness[0] { "✓" } else { "1" } }
-                    strong { "Project & hardware" }
-                }
-                button {
-                    class: step_class(stage == SetupGuideStage::Layout, stage_readiness[1]),
-                    aria_current: (stage == SetupGuideStage::Layout).then_some("step"),
-                    onclick: move |_| on_stage_change.call(SetupGuideStage::Layout),
-                    span { class: "m1-setup-guide__step-marker", aria_label: stage_readiness[1].then_some("Ready"), if stage_readiness[1] { "✓" } else { "2" } }
-                    strong { "Layout & assemblies" }
-                }
-                button {
-                    class: step_class(stage == SetupGuideStage::Wiring, stage_readiness[2]),
-                    aria_current: (stage == SetupGuideStage::Wiring).then_some("step"),
-                    onclick: move |_| on_stage_change.call(SetupGuideStage::Wiring),
-                    span { class: "m1-setup-guide__step-marker", aria_label: stage_readiness[2].then_some("Ready"), if stage_readiness[2] { "✓" } else { "3" } }
-                    strong { "Controller & wiring" }
-                }
-                button {
-                    class: step_class(stage == SetupGuideStage::Case, stage_readiness[3]),
-                    aria_current: (stage == SetupGuideStage::Case).then_some("step"),
-                    onclick: move |_| on_stage_change.call(SetupGuideStage::Case),
-                    span { class: "m1-setup-guide__step-marker", aria_label: stage_readiness[3].then_some("Ready"), if stage_readiness[3] { "✓" } else { "4" } }
-                    strong { "Case (optional)" }
-                }
-                button {
-                    class: step_class(stage == SetupGuideStage::Review, stage_readiness[4]),
-                    aria_current: (stage == SetupGuideStage::Review).then_some("step"),
-                    onclick: move |_| on_stage_change.call(SetupGuideStage::Review),
-                    span { class: "m1-setup-guide__step-marker", aria_label: stage_readiness[4].then_some("Ready"), if stage_readiness[4] { "✓" } else { "5" } }
-                    strong { "Review & export" }
-                }
-            }
-            section { class: "m1-setup-guide__content",
-                h3 { "{heading}" }
-                p { class: "m1-setup-guide__status", "{stage_detail}" }
-                if stage == SetupGuideStage::Project {
-                    label { "Project name"
-                        input {
-                            aria_label: "Project name",
-                            value: "{project_name}",
-                            oninput: move |event| on_name_change.call(event.value()),
-                            onblur: move |_| on_name_commit.call(()),
-                            onkeydown: move |event| {
-                                if event.key() == Key::Enter
-                                    && let Some(input) = event.data().try_as_web_event()
-                                        .and_then(|event| event.target())
-                                        .and_then(|target| target.dyn_into::<HtmlInputElement>().ok())
-                                    {
-                                        let _ = input.blur();
-                                }
+            },
+                header { class: "flex items-start justify-between gap-2 [&_h2]:text-[18px]! [&_p]:mt-1 [&_p]:text-muted-foreground",
+                    div {
+                        h2 {
+                            id: "m1-setup-guide-heading",
+                            tabindex: "-1",
+                            onmounted: move |event| async move {
+                                let _ = event.set_focus(true).await;
                             },
+                            "Setup guide"
                         }
                     }
-                    if let Some(controls) = project_controls { {controls} }
-                    button { class: "m1-setup-guide__primary", r#type: "button", onclick: move |_| on_stage_change.call(SetupGuideStage::Layout), "Continue to layout" }
-                } else if stage == SetupGuideStage::Layout {
-                    p { "Place keys with their switch, diode, and optional lighting assembly. Edit the layout on the canvas." }
-                    if let Some(on_open) = on_open_matrix_setup {
-                        button { class: "m1-setup-guide__primary", r#type: "button", onclick: move |_| on_open.call(()), "Add key matrix" }
+                    Button {
+                        variant: ButtonVariant::Secondary,
+                        class: "min-h-control-touch shrink-0 whitespace-nowrap px-2.5",
+                        button_type: "button",
+                        onclick: move |_| on_dismiss.call(()),
+                        "Hide guide"
                     }
-                    button { class: "m1-setup-guide__secondary", r#type: "button", onclick: move |_| on_dismiss.call(()), "Edit existing objects" }
-                    button { class: "m1-setup-guide__primary", r#type: "button", onclick: move |_| on_stage_change.call(SetupGuideStage::Wiring), "Continue to wiring" }
-                    button { class: "m1-setup-guide__secondary", r#type: "button", onclick: move |_| on_stage_change.call(SetupGuideStage::Project), "Previous step" }
-                } else if stage == SetupGuideStage::Wiring {
-                    p { "Place a controller, then review automatic pin assignments and reversible jumpers in PCB settings." }
-                    if let Some(on_choose) = on_choose_controller {
-                        button { class: "m1-setup-guide__secondary", r#type: "button", onclick: move |_| on_choose.call(()), "Choose controller" }
+                }
+                Accordion { class: "grid content-start gap-2 overflow-y-auto overscroll-contain p-0.5 [scrollbar-width:thin]", allow_multiple_open: false,
+                    for (index, item_stage, title, ready) in [
+                        (0usize, SetupGuideStage::Project, "Project & hardware", stage_readiness[0]),
+                        (1usize, SetupGuideStage::Layout, "Layout & assemblies", stage_readiness[1]),
+                        (2usize, SetupGuideStage::Wiring, "Controller & wiring", stage_readiness[2]),
+                        (3usize, SetupGuideStage::Case, "Case (optional)", stage_readiness[3]),
+                    ]
+                    {
+                        AccordionItem {
+                            index,
+                            default_open: stage == item_stage,
+                            class: "block",
+                            on_change: move |open| {
+                                if open {
+                                    expanded_for_trigger.set(Some(item_stage));
+                                } else if expanded_for_trigger() == Some(item_stage) {
+                                    expanded_for_trigger.set(None);
+                                }
+                            },
+                            on_trigger_click: move || {
+                                if stage != item_stage {
+                                    stage_change.call(item_stage);
+                                }
+                            },
+                            AccordionTrigger {
+                                aria_controls: "m1-setup-panel-{index}",
+                                aria_label: title,
+                                aria_current: (stage == item_stage).then_some("step"),
+                                "aria-description": if ready { "Ready" } else { "Not ready" },
+                                class: if stage == item_stage { "flex min-h-11 w-full items-center gap-2.5 bg-selected px-2 py-1.5 text-left [&_[data-slot=stepper-item]]:items-center [&_[data-slot=stepper-title]]:text-left" } else { "flex min-h-11 w-full items-center gap-2.5 px-2 py-1.5 text-left [&_[data-slot=stepper-item]]:items-center [&_[data-slot=stepper-title]]:text-left" },
+                                // Readiness is independent of stage order; only this status presentation remounts.
+                                Stepper {
+                                    key: "{stage == item_stage}-{ready}",
+                                    total_steps: 2,
+                                    default_step: usize::from(ready && stage != item_stage),
+                                    orientation: StepperOrientation::Vertical,
+                                    StepperItem { step: usize::from(!ready && stage != item_stage),
+                                        StepperIndicator {
+                                            if ready { "✓" } else { "{index + 1}" }
+                                        }
+                                        StepperTitle { "{title}" }
+                                    }
+                                }
+
+                            }
+                            div {
+                                id: "m1-setup-panel-{index}",
+                                class: if expanded() == Some(item_stage) { "grid grid-rows-[1fr] visible opacity-100 transition-[grid-template-rows,opacity,visibility] motion-reduce:transition-none [&>section]:min-h-0 [&>section]:overflow-visible" } else { "grid grid-rows-[0fr] invisible opacity-0 transition-[grid-template-rows,opacity,visibility] motion-reduce:transition-none [&>section]:min-h-0 [&>section]:overflow-hidden [&>section]:border-0 [&>section]:py-0" },
+                                aria_hidden: expanded() != Some(item_stage),
+                                inert: (expanded() != Some(item_stage)).then_some(""),
+                                section { class: "grid content-start gap-4 border-0 px-1 py-4 [&>p]:mt-1 [&>p]:text-muted-foreground [&>[aria-label='New_matrix']]:static! [&>[aria-label='New_matrix']]:grid! [&>[aria-label='New_matrix']]:w-full! [&>[aria-label='New_matrix']]:overflow-visible! [&>[aria-label='New_matrix']]:border-0! [&>[aria-label='New_matrix']]:bg-transparent! [&>[aria-label='New_matrix']]:p-0! [&>[aria-label='New_matrix']]:shadow-none!",
+                                    if item_stage == SetupGuideStage::Project {
+                                        {
+                                            let control_input_id = format!(
+                                                "layout-input-{}-1",
+                                                dioxus::core::current_scope_id().0,
+                                            );
+                                            rsx! {
+                                                Field {
+                                                    FieldLabel { html_for: control_input_id.clone(), "Project name" }
+                                                    InputGroup {
+                                                        InputGroupInput { aria_label: "Project name",
+    value: "{project_name}",
+    oninput: move |event: FormEvent| on_name_change.call(event.value()),
+    id: control_input_id.clone(),
+    attributes: vec![dioxus::events::onblur(move |_| on_name_commit.call(())),dioxus::events::onkeydown(move |event: KeyboardEvent| {
+                                                        if event.key() == Key::Enter
+                                                            && let Some(input) = event.data().try_as_web_event()
+                                                                .and_then(|event| event.target())
+                                                                .and_then(|target| target.dyn_into::<HtmlInputElement>().ok())
+                                                        { let _ = input.blur(); }
+                                                    })], }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        if let Some(controls) = project_controls.clone() {
+                                            {controls}
+                                        }
+                                    } else if item_stage == SetupGuideStage::Layout {
+                                        if let Some(matrix_setup) = matrix_setup.clone() {
+                                            {matrix_setup}
+                                        } else if let Some(on_open) = on_open_matrix_setup {
+                                            Button {
+                                                variant: ButtonVariant::Default,
+                                                onclick: move |_| on_open.call(()),
+                                                if has_matrix {
+                                                    "Add Thumb cluster"
+                                                } else {
+                                                    "Set up key matrix"
+                                                }
+                                            }
+                                        }
+                                    } else if item_stage == SetupGuideStage::Wiring {
+                                        p {
+                                            "Choose a controller. BoardStudio resolves pins and wiring from its footprint."
+                                        }
+                                        if let Some(controller_picker) = controller_picker.clone() {
+                                            {controller_picker}
+                                        } else if let Some(on_choose) = on_choose_controller {
+                                            Button {
+                                                variant: ButtonVariant::Secondary,
+                                                onclick: move |_| on_choose.call(()),
+                                                "Choose controller"
+                                            }
+                                        }
+                                    } else if item_stage == SetupGuideStage::Case {
+                                        p {
+                                            "Optional. Set the basics here, then refine your case in the full editor."
+                                        }
+                                        if let Some(case_basics) = case_basics.clone() {
+                                            {case_basics}
+                                        }
+                                        Button {
+                                            variant: ButtonVariant::Secondary,
+                                            onclick: move |_| on_open_workspace.call("Case"),
+                                            "Open full case settings"
+                                        }
+                                    } else {
+                                        p { "Review the selected board and its available outputs." }
+                                    }
+                                }
+                            }
+                        }
                     }
-                    button { class: "m1-setup-guide__secondary", r#type: "button", onclick: move |_| on_open_workspace.call("PCB"), "Review controller & wiring" }
-                    button { class: "m1-setup-guide__primary", r#type: "button", onclick: move |_| on_stage_change.call(SetupGuideStage::Case), "Continue to case" }
-                    button { class: "m1-setup-guide__secondary", r#type: "button", onclick: move |_| on_stage_change.call(SetupGuideStage::Layout), "Previous step" }
-                } else if stage == SetupGuideStage::Case {
-                    p { "Configure construction and clearances, then generate geometry when you are ready. PCB and firmware exports are available separately." }
-                    button { class: "m1-setup-guide__secondary", r#type: "button", onclick: move |_| on_open_workspace.call("Case"), "Open case settings" }
-                    button { class: "m1-setup-guide__primary", r#type: "button", onclick: move |_| on_stage_change.call(SetupGuideStage::Review), "Continue to review" }
-                    button { class: "m1-setup-guide__secondary", r#type: "button", onclick: move |_| on_stage_change.call(SetupGuideStage::Wiring), "Previous step" }
-                } else {
-                    p { "Review the selected board’s findings and available outputs. Export checks still apply to each output." }
-                    button { class: "m1-setup-guide__secondary", r#type: "button", onclick: move |_| on_open_workspace.call("Export"), "Open export options" }
-                    button { class: "m1-setup-guide__primary", r#type: "button", onclick: move |_| on_dismiss.call(()), "Finish guide" }
-                    button { class: "m1-setup-guide__secondary", r#type: "button", onclick: move |_| on_stage_change.call(SetupGuideStage::Case), "Previous step" }
+                }
+                footer { class: "sticky bottom-0 z-2 mt-auto flex items-center justify-between gap-2 border-t border-border bg-card pt-3",
+                    if let Some(previous) = previous_stage {
+                        Tooltip {
+                            TooltipTrigger {
+                                r#as: move |attributes: Vec<Attribute>| rsx! {
+                                    Button {
+                                        attributes,
+                                        variant: ButtonVariant::Secondary,
+                                        class: "grid w-[42px] min-w-[42px] place-items-center p-2 [&_svg]:size-5 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.8] [&_svg]:[stroke-linecap:round] [&_svg]:[stroke-linejoin:round]",
+                                        aria_label: "Previous step",
+                                        onclick: move |_| on_stage_change.call(previous),
+                                        svg { view_box: "0 0 24 24", "aria-hidden": "true",
+                                            path { d: "M19 12H5m7 7-7-7 7-7" }
+                                        }
+                                    }
+                                },
+                            }
+                            TooltipContent { "Previous step" }
+                        }
+                    } else {
+                        span {}
+                    }
+                    if let Some(next) = next_stage {
+                        Button {
+                            variant: ButtonVariant::Default,
+                            onclick: move |_| on_stage_change.call(next),
+                            "{footer}"
+                        }
+                    } else {
+                        Button {
+                            variant: ButtonVariant::Default,
+                            onclick: move |_| on_finish.call(()),
+                            "{footer}"
+                        }
+                    }
                 }
             }
         }
-    }
 }
 
 pub fn stage_detail(stage: SetupGuideStage, document: &ProjectDoc, board_id: &str) -> String {
@@ -484,7 +618,7 @@ pub fn activate_stage(
 ) {
     let target = match stage {
         SetupGuideStage::Project | SetupGuideStage::Layout => "Layout",
-        SetupGuideStage::Wiring => "PCB",
+        SetupGuideStage::Wiring => "Layout",
         SetupGuideStage::Case => "Case",
         SetupGuideStage::Review => "Export",
     };
@@ -529,7 +663,7 @@ pub fn reveal_panels(
 
 pub fn focus_settings(workspace: &str) {
     let selector = if workspace == "Export" {
-        ".m1-workspace-content :is(input, select, button):not(:disabled)"
+        "#m1-workspace-panel :is(input, select, button):not(:disabled)"
     } else {
         "#m1-inspector-panel-content :is(input, select, button):not(:disabled)"
     };
@@ -544,3 +678,58 @@ pub fn focus_settings(workspace: &str) {
 
 #[cfg(test)]
 mod tests;
+
+/// Physical topology only: these are schematic boards, not generated outlines.
+#[component]
+pub fn SetupHardwarePreview(split: bool, wired: bool) -> Element {
+    rsx! {
+        section {
+            class: "flex min-h-0 flex-1 flex-col justify-center p-8 [&_h2]:text-[18px]! [&_p]:mt-3 [&_p]:text-muted-foreground [&_svg]:max-h-[500px] [&_svg]:w-full [&_svg]:flex-1 [&_rect]:fill-canvas [&_rect]:stroke-geometry-board [&_rect]:stroke-2 [&_text]:fill-muted-foreground [&_text]:text-[16px] [&_text]:[text-anchor:middle]",
+            aria_label: "Assembly preview",
+            h2 { "Assembly preview" }
+            p {
+                if split {
+                    "Split keyboard"
+                } else {
+                    "One keyboard"
+                }
+                if split {
+                    if wired {
+                        " · Wired connection"
+                    } else {
+                        " · Wireless connection"
+                    }
+                }
+            }
+            svg {
+                view_box: "0 0 600 340",
+                role: "img",
+                "aria-label": "Schematic physical board arrangement",
+                rect {
+                    x: if split { "40" } else { "110" },
+                    y: "70",
+                    width: if split { "220" } else { "380" },
+                    height: "180",
+                    rx: "12",
+                }
+                if split {
+                    rect {
+                        x: "340",
+                        y: "70",
+                        width: "220",
+                        height: "180",
+                        rx: "12",
+                    }
+                    if wired {
+                        path { class: "fill-none stroke-primary stroke-4", d: "M260 200H340" }
+                    }
+                    text { x: "150", y: "290", "Left assembly" }
+                    text { x: "450", y: "290", "Right assembly" }
+                } else {
+                    text { x: "300", y: "290", "Keyboard assembly" }
+                }
+            }
+            p { "Schematic arrangement. Add keys in Layout to create board geometry." }
+        }
+    }
+}

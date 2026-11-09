@@ -1,5 +1,5 @@
 name: Web build tools
-description: Install the pinned wasm-pack and Dioxus CLI release binaries (no compilation).
+description: Install pinned web build tools.
 runs:
   using: composite
   steps:

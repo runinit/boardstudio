@@ -1,4 +1,6 @@
 use super::*;
+use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
+use std::sync::Arc;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
 
@@ -23,6 +25,33 @@ fn host() -> Element {
             busy: false,
             on_place: EventHandler::new(move |action| *probe.action.borrow_mut() = Some(action)),
         }
+    }
+}
+
+#[derive(Clone)]
+struct AddObjectProbe {
+    snapshot: AcceptedSnapshot,
+    scope: Scope,
+    actions: Rc<RefCell<Vec<super::super::part_placement::ComponentPlacementAction>>>,
+}
+
+#[component]
+fn add_object_host() -> Element {
+    let probe = use_context::<Rc<AddObjectProbe>>();
+    let query = use_signal(String::new);
+    let layout_target = use_signal(|| None);
+    let generation = use_signal(|| 0_u64);
+    use_context_provider(|| PartsSelectionGeneration(generation));
+    rsx! {
+        AddObjectComponentChooser {
+            snapshot: probe.snapshot.clone(),
+            scope: Some(probe.scope.clone()),
+            layout_target,
+            query,
+            on_browse: EventHandler::default(),
+            on_place: EventHandler::new(move |action| probe.actions.borrow_mut().push(action)),
+        }
+        output { role: "status", aria_label: "Chooser owners", "{layout_target():?}:{query()}:{generation()}" }
     }
 }
 
@@ -57,14 +86,287 @@ async fn mounted_action(
         apply_to_key,
     });
     dioxus_web::launch::launch_virtual_dom(dom, dioxus_web::Config::new().rootnode(root.into()));
-    gloo_timers::future::TimeoutFuture::new(50).await;
-    let button = document
-        .query_selector(&format!("#{root_id} .m1-parts-place-component"))
-        .unwrap()
-        .unwrap()
-        .dyn_into::<web_sys::HtmlElement>()
-        .unwrap();
+    let root = document.get_element_by_id(root_id).unwrap();
+    let name = if apply_to_key {
+        "Apply to selected key"
+    } else {
+        "Place component"
+    };
+    wait_until("the Parts Inspector placement control mounts", || {
+        by_role_name(&root, "button", name).is_some()
+    })
+    .await;
+    let button = by_role_name(&root, "button", name).unwrap();
     (action, button)
+}
+
+fn add_object_snapshot() -> AcceptedSnapshot {
+    let mut document = boardstudio_core::model::ProjectDoc::empty("placement-ui", "Placement UI");
+    for (id, name) in [("board-main", "Main"), ("board-mirror", "Mirror")] {
+        document.boards.push(boardstudio_core::model::Board {
+            id: id.into(),
+            name: name.into(),
+            outline_ids: vec![],
+            part_ids: vec![],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        document.layouts.push(boardstudio_core::model::Layout {
+            id: format!("layout-{id}"),
+            name: format!("{name} layout"),
+            board_id: id.into(),
+            matrix_ids: vec![format!("matrix-{id}")],
+            part_ids: vec![],
+            mirror_link: None,
+        });
+    }
+    document.hardware = Some(
+        serde_json::from_value(serde_json::json!({
+            "topology": "split", "transport": "wired", "instances": [], "boards": [],
+            "pairs": [{
+                "id": "pair-main-mirror", "members": ["instance-main", "instance-mirror"],
+                "mapping": {"at": {"x": 200.0, "y": 0.0}, "rotation": 0.0},
+                "construction": {
+                    "method": "printed", "mount": "rigid", "integratedPlateFrame": false,
+                    "plateThickness": 1.5, "plateFoamThickness": 0.0, "bottomFoamThickness": 0.0,
+                    "bottomThickness": 2.0, "plateToPcb": 3.5, "wallThickness": 2.0, "clearance": 0.2
+                },
+                "halves": {"sourceBoardId": "board-main", "mirrorBoardId": "board-mirror"}
+            }]
+        }))
+        .unwrap(),
+    );
+    AcceptedSnapshot {
+        token: SnapshotToken(4),
+        session_epoch: boardstudio_application::SessionEpoch(3),
+        document: Arc::new(document),
+        scene: Arc::new(
+            serde_json::from_value(serde_json::json!({
+                "revision": 0, "transactionId": "placement-ui", "changedIds": [],
+                "transforms": [], "matrixScenes": [], "contours": [], "boardContours": [],
+                "boardReadiness": [], "findings": [],
+                "readiness": {"layout": false, "outline": false, "pcb": false, "case": false}
+            }))
+            .unwrap(),
+        ),
+    }
+}
+
+#[wasm_bindgen_test]
+fn mirror_only_affordance_requires_one_distinct_owned_mirror_board() {
+    let snapshot = add_object_snapshot();
+    assert!(has_unique_mirror_board_pair(
+        &snapshot.document,
+        "board-mirror"
+    ));
+    assert!(!has_unique_mirror_board_pair(
+        &snapshot.document,
+        "board-main"
+    ));
+
+    let mut ambiguous = (*snapshot.document).clone();
+    let duplicate_pair = ambiguous.hardware.as_ref().unwrap().pairs[0].clone();
+    ambiguous
+        .hardware
+        .as_mut()
+        .unwrap()
+        .pairs
+        .push(duplicate_pair);
+    assert!(!has_unique_mirror_board_pair(&ambiguous, "board-mirror"));
+
+    let mut duplicate_board = (*snapshot.document).clone();
+    duplicate_board
+        .boards
+        .push(duplicate_board.boards[1].clone());
+    assert!(!has_unique_mirror_board_pair(
+        &duplicate_board,
+        "board-mirror"
+    ));
+
+    let mut unpaired = (*snapshot.document).clone();
+    unpaired.hardware = None;
+    assert!(!has_unique_mirror_board_pair(&unpaired, "board-mirror"));
+}
+
+async fn mounted_add_object_chooser(
+    root_id: &str,
+    board_id: &str,
+) -> (
+    Rc<RefCell<Vec<super::super::part_placement::ComponentPlacementAction>>>,
+    web_sys::Element,
+) {
+    let snapshot = add_object_snapshot();
+    let scope = Scope {
+        session_epoch: snapshot.session_epoch,
+        document_id: snapshot.document.id.clone(),
+        board_id: board_id.into(),
+        instance_id: None,
+    };
+    let actions = Rc::new(RefCell::new(Vec::new()));
+    let probe = Rc::new(AddObjectProbe {
+        snapshot,
+        scope,
+        actions: actions.clone(),
+    });
+    let mut ui_definition = definition("catalog:ui-part", "passive");
+    ui_definition.name = "Reset switch".into();
+    let entry = CatalogEntry {
+        definition: Rc::new(ui_definition),
+        source: catalogue::CatalogueSource::Imported,
+    };
+    let entries = Rc::new(vec![entry]);
+    let loader = CatalogueLoadTestPort(Rc::new(move |_| {
+        let entries = entries.clone();
+        Box::pin(async move { Ok(entries) })
+    }));
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = document.create_element("div").unwrap();
+    root.set_id(root_id);
+    document.body().unwrap().append_child(&root).unwrap();
+    let dom = VirtualDom::new(add_object_host);
+    dom.provide_root_context(probe);
+    dom.provide_root_context(loader);
+    dioxus_web::launch::launch_virtual_dom(
+        dom,
+        dioxus_web::Config::new().rootnode(root.clone().into()),
+    );
+    wait_until("the Add Reset switch action mounts", || {
+        by_role_name(&root, "button", "Add Reset switch").is_some()
+    })
+    .await;
+    (actions, root)
+}
+
+#[wasm_bindgen_test]
+async fn mounted_add_object_chooser_keeps_default_and_exposes_mirror_only_only_on_mirror_board() {
+    let (actions, mirror_root) =
+        mounted_add_object_chooser("mirror-only-choice", "board-mirror").await;
+    let default = by_role_name(&mirror_root, "button", "Add Reset switch").unwrap();
+    let mirror_only =
+        by_role_name(&mirror_root, "button", "Add Reset switch to this half only").unwrap();
+    default.click();
+    mirror_only.click();
+    assert_eq!(
+        *actions.borrow(),
+        vec![
+            super::super::part_placement::ComponentPlacementAction::AddObject {
+                definition_id: "catalog:ui-part".into(),
+                kind: boardstudio_core::model::PartKind::Passive,
+            },
+            super::super::part_placement::ComponentPlacementAction::AddMirrorOnlyObject {
+                definition_id: "catalog:ui-part".into(),
+                kind: boardstudio_core::model::PartKind::Passive,
+            },
+        ]
+    );
+    mirror_root.remove();
+
+    let (_source_actions, source_root) =
+        mounted_add_object_chooser("source-only-choice", "board-main").await;
+    assert!(by_role_name(&source_root, "button", "Add Reset switch to this half only").is_none());
+    source_root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn mounted_add_object_chooser_retains_categories_and_board_owned_layout_selection() {
+    let key = |element: &web_sys::HtmlElement, value: &str| {
+        let init = web_sys::KeyboardEventInit::new();
+        init.set_key(value);
+        init.set_bubbles(true);
+        init.set_cancelable(true);
+        element
+            .dispatch_event(
+                &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
+                    .unwrap(),
+            )
+            .unwrap();
+    };
+    let (_actions, root) = mounted_add_object_chooser("chooser-controls", "board-mirror").await;
+    let category = by_role_name(&root, "button", "Components").unwrap();
+    let choice = by_role_name(&root, "button", "Add Reset switch").unwrap();
+    assert!(choice.closest("[data-slot=item]").unwrap().is_some());
+    assert!(choice.closest("[data-slot=item-group]").unwrap().is_some());
+    let content_id = category.get_attribute("aria-controls").unwrap();
+    let document = web_sys::window().unwrap().document().unwrap();
+    let content = document.get_element_by_id(&content_id).unwrap();
+    category.click();
+    wait_until("the actual chooser category closes", || {
+        category.get_attribute("aria-expanded").as_deref() == Some("false")
+            && content.get_attribute("data-open").as_deref() == Some("false")
+    })
+    .await;
+    assert!(content.contains(Some(&choice)));
+    assert!(choice.is_connected());
+    category.click();
+    wait_until("the actual chooser category reopens", || {
+        category.get_attribute("aria-expanded").as_deref() == Some("true")
+    })
+    .await;
+    assert_eq!(
+        by_role_name(&root, "button", "Add Reset switch"),
+        Some(choice)
+    );
+
+    let layout = by_role_name(&root, "button", "Part placement layout").unwrap();
+    layout.focus().unwrap();
+    key(&layout, "ArrowDown");
+    wait_until(
+        "the chooser offers its board's layout with keyboard focus",
+        || {
+            document.active_element()
+                == by_role_name(&root, "option", "Board / ungrouped").map(|e| e.unchecked_into())
+        },
+    )
+    .await;
+    assert!(by_role_name(&root, "option", "Main layout").is_none());
+    key(
+        &by_role_name(&root, "option", "Board / ungrouped").unwrap(),
+        "End",
+    );
+    wait_until("End reaches only the current board's layout", || {
+        document.active_element()
+            == by_role_name(&root, "option", "Mirror layout").map(|e| e.unchecked_into())
+    })
+    .await;
+    key(
+        &by_role_name(&root, "option", "Mirror layout").unwrap(),
+        "Enter",
+    );
+    wait_until("the selected ID reaches the original layout target", || {
+        by_role_name(&root, "status", "Chooser owners")
+            .unwrap()
+            .text_content()
+            .as_deref()
+            == Some("Some(\"layout-board-mirror\")::0")
+    })
+    .await;
+    let search = by_role_name(&root, "searchbox", "Search parts").unwrap();
+    let input: web_sys::HtmlInputElement = search.unchecked_into();
+    input.set_value("reset");
+    let init = web_sys::EventInit::new();
+    init.set_bubbles(true);
+    input
+        .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &init).unwrap())
+        .unwrap();
+    wait_until(
+        "search preserves the original layout target and increments selection generation",
+        || {
+            by_role_name(&root, "status", "Chooser owners")
+                .unwrap()
+                .text_content()
+                .as_deref()
+                == Some("Some(\"layout-board-mirror\"):reset:1")
+        },
+    )
+    .await;
+    assert_eq!(
+        by_role_name(&root, "button", "Part placement layout"),
+        Some(layout)
+    );
+    assert!(by_role_name(&root, "button", "Add Reset switch").is_some());
+    root.remove();
 }
 
 #[wasm_bindgen_test]
@@ -83,7 +385,6 @@ async fn inspector_disables_a_non_input_definition_for_a_selected_key() {
             .contains("Clear the key selection to place it as a standalone component.")
     );
     button.click();
-    gloo_timers::future::TimeoutFuture::new(20).await;
     assert!(action.borrow().is_none());
 }
 
@@ -100,7 +401,6 @@ async fn inspector_click_routes_a_switch_to_the_selected_key_action() {
         Some("Apply to selected key")
     );
     button.click();
-    gloo_timers::future::TimeoutFuture::new(20).await;
     assert_eq!(
         action.borrow().as_ref(),
         Some(
@@ -120,7 +420,6 @@ async fn inspector_disables_a_switch_without_independent_press_contacts() {
 
     assert!(button.has_attribute("disabled"));
     button.click();
-    gloo_timers::future::TimeoutFuture::new(20).await;
     assert!(action.borrow().is_none());
 }
 

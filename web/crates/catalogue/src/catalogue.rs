@@ -1,8 +1,8 @@
 use boardstudio_core::generators;
+use boardstudio_core::hash::sha256_hex;
 use boardstudio_core::model::ProjectDoc;
 use boardstudio_core::model::{PartDefinition, PartKind};
 use serde::Deserialize;
-use sha2::{Digest, Sha256};
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 const IMPORTED_PARTS_JSON: &str = include_str!(concat!(
@@ -89,10 +89,7 @@ thread_local! {
 }
 
 fn imported_parts_hash() -> String {
-    Sha256::digest(IMPORTED_PARTS_JSON.as_bytes())
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
+    sha256_hex(IMPORTED_PARTS_JSON.as_bytes())
 }
 
 pub async fn load_bundled(reversible: bool) -> Result<Rc<Vec<CatalogEntry>>, String> {
@@ -350,6 +347,32 @@ pub async fn prepare_physical_setup_proposal_from_package(
     intent: crate::physical_setup::SetupIntent,
 ) -> Result<ProjectDoc, String> {
     prepare_physical_setup_proposal(accepted, intent)
+}
+
+/// Prepare a pair-aware setup proposal through catalogue-owned helpers.
+///
+/// The document-only [`prepare_physical_setup_proposal`] stays the view for callers
+/// that never establish a pair; the physical-setup caller uses this one so an
+/// eligible mirror pair is not discarded, and applies it through Core's typed
+/// mechanical operation when Session executes the intent.
+pub fn prepare_physical_setup_proposal_with_pair(
+    accepted: &ProjectDoc,
+    intent: crate::physical_setup::SetupIntent,
+) -> Result<crate::physical_setup::PhysicalSetupProposal, String> {
+    use crate::physical_setup::SetupIntent;
+
+    match intent {
+        SetupIntent::ReversibleLayout(enabled) => crate::physical_setup::propose_with_mirror_pair(
+            accepted,
+            SetupIntent::ReversibleLayout(enabled),
+            |definition, enabled| construction_definition_with_support(definition.clone(), enabled),
+        ),
+        intent => {
+            crate::physical_setup::propose_with_mirror_pair(accepted, intent, |definition, _| {
+                Ok((definition.clone(), false))
+            })
+        }
+    }
 }
 
 #[cfg(all(test, target_arch = "wasm32"))]

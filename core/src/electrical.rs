@@ -1,7 +1,7 @@
 //! One reviewed circuit plan feeds the inspector, PCB handoff and firmware.
+use crate::hash::sha256_hex;
 use crate::model::*;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -187,10 +187,7 @@ fn add_net(nets: &mut BTreeMap<String, Net>, prefix: &str, suffix: &str, pins: V
         .extend(pins);
 }
 fn signature<T: Serialize>(value: &T) -> String {
-    Sha256::digest(serde_json::to_vec(value).expect("electrical input serializes"))
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
+    sha256_hex(&serde_json::to_vec(value).expect("electrical input serializes"))
 }
 
 struct MatrixKey<'a> {
@@ -1285,33 +1282,10 @@ pub(crate) fn materialize_reviewed(
         .find(|board| board.id == *board_id)
         .unwrap()
         .part_ids
-        .clone();
-    for part in document
-        .parts
-        .iter_mut()
-        .filter(|part| board_parts.contains(&part.id))
-    {
-        let Some(definition) = document.definitions.iter().find(|definition| {
-            definition.id == part.definition_id && definition.generator.is_some()
-        }) else {
-            continue;
-        };
-        for (terminal, pads) in &definition.terminals {
-            let net = document.nets.iter().find(|net| {
-                net.pins
-                    .iter()
-                    .any(|pin| pin.part_id == part.id && pads.contains(&pin.pad_id))
-            });
-            let parameters = part
-                .generator_parameters
-                .get_or_insert_with(Default::default);
-            if let Some(net) = net {
-                parameters.insert(terminal.clone(), serde_json::json!(net.name));
-            } else {
-                parameters.remove(terminal);
-            }
-        }
-    }
+        .iter()
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    sync_terminal_parameters_for_parts(document, &board_parts);
 
     document
         .boards
@@ -1356,6 +1330,41 @@ pub(crate) fn materialize_reviewed(
     hardware.boards[index].mode = plan.mode;
     hardware.boards[index].controller_part_id = plan.controller_part_id.clone();
     Ok(())
+}
+
+/// Synchronize generated terminal labels from existing nets for selected parts.
+pub(crate) fn sync_terminal_parameters_for_parts(
+    document: &mut ProjectDoc,
+    part_ids: &BTreeSet<String>,
+) {
+    let ProjectDoc {
+        parts,
+        definitions,
+        nets,
+        ..
+    } = document;
+    for part in parts.iter_mut().filter(|part| part_ids.contains(&part.id)) {
+        let Some(definition) = definitions.iter().find(|definition| {
+            definition.id == part.definition_id && definition.generator.is_some()
+        }) else {
+            continue;
+        };
+        for (terminal, pads) in &definition.terminals {
+            let net = nets.iter().find(|net| {
+                net.pins
+                    .iter()
+                    .any(|pin| pin.part_id == part.id && pads.contains(&pin.pad_id))
+            });
+            let parameters = part
+                .generator_parameters
+                .get_or_insert_with(Default::default);
+            if let Some(net) = net {
+                parameters.insert(terminal.clone(), serde_json::json!(net.name));
+            } else {
+                parameters.remove(terminal);
+            }
+        }
+    }
 }
 
 pub(crate) fn handoff_assignments(plan: &ElectricalPlan) -> BTreeMap<String, String> {

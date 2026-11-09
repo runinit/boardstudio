@@ -22,21 +22,31 @@ fn boxed_public_payloads_keep_their_existing_json_shape() {
     assert_eq!(operation["document"]["id"], "boxed-contract");
     assert_eq!(operation["document"]["format"], "boardstudio/v2");
 
-    let mechanical = serde_json::to_value(EditOperation::SetMechanical {
-        configuration: None,
+    // Ticket 37: raw SetMechanical is deleted; the typed mechanical edit keeps a
+    // stable JSON shape for the board-slot write path.
+    let mechanical = serde_json::to_value(EditOperation::ApplyMechanicalEdit {
+        edit: Box::new(boardstudio_core::mechanical::MechanicalEdit {
+            target: boardstudio_core::mechanical::MechanicalTarget::Board {
+                board_id: "board".into(),
+            },
+            change: boardstudio_core::mechanical::MechanicalChange::Disable,
+            mounting_hole: None,
+        }),
     })
     .unwrap();
-    assert_eq!(
-        mechanical,
-        json!({ "kind": "set-mechanical", "configuration": null })
-    );
+    assert_eq!(mechanical["kind"], "apply-mechanical-edit");
+    assert_eq!(mechanical["edit"]["target"]["kind"], "board");
+    assert_eq!(mechanical["edit"]["target"]["boardId"], "board");
+    assert_eq!(mechanical["edit"]["change"], "disable");
+    let parsed: EditOperation = serde_json::from_value(mechanical).unwrap();
+    assert!(matches!(parsed, EditOperation::ApplyMechanicalEdit { .. }));
 
     let mirrored_pair = serde_json::to_value(EditOperation::CreateMirroredPair {
         left: Layout {
             id: "left".into(),
             name: "Left".into(),
             board_id: "board".into(),
-            matrix_id: "matrix".into(),
+            matrix_ids: vec!["matrix".into()],
             part_ids: vec![],
             mirror_link: None,
         },
@@ -44,11 +54,15 @@ fn boxed_public_payloads_keep_their_existing_json_shape() {
             id: "right".into(),
             name: "Right".into(),
             board_id: "board".into(),
-            matrix_id: "matrix-mirror".into(),
+            matrix_ids: vec!["matrix-mirror".into()],
             part_ids: vec![],
             mirror_link: Some(LayoutMirrorLink {
+                correspondences: vec![],
+                exceptions: vec![],
                 source_id: "left".into(),
                 axis_x: 0.0,
+                split_gap: None,
+                spacing: None,
             }),
         },
         matrix: Box::new(Matrix {
@@ -65,11 +79,9 @@ fn boxed_public_payloads_keep_their_existing_json_shape() {
             rotation: None,
             edge_gap: None,
             diode_direction: None,
-            row_offsets: vec![],
-            column_offsets: vec![],
-            column_staggers: vec![],
-            column_splays: vec![],
-            column_origins: vec![],
+            row_layout: vec![],
+            column_layout: vec![],
+            anchor: None,
             cells: vec![],
         }),
         definitions: None,
@@ -79,8 +91,8 @@ fn boxed_public_payloads_keep_their_existing_json_shape() {
         mirrored_pair,
         json!({
             "kind": "create-mirrored-pair",
-            "left": {"id": "left", "name": "Left", "boardId": "board", "matrixId": "matrix", "partIds": []},
-            "right": {"id": "right", "name": "Right", "boardId": "board", "matrixId": "matrix-mirror", "partIds": [], "mirrorLink": {"sourceId": "left", "axisX": 0.0}},
+            "left": {"id": "left", "name": "Left", "boardId": "board", "matrixIds": ["matrix"], "partIds": []},
+            "right": {"id": "right", "name": "Right", "boardId": "board", "matrixIds": ["matrix-mirror"], "partIds": [], "mirrorLink": {"sourceId": "left", "axisX": 0.0}},
             "matrix": {"id": "matrix", "rows": 1, "columns": 1, "pitch": {"x": 19.0, "y": 19.0}, "origin": {"x": 0.0, "y": 0.0}, "definitionId": "switch", "partIds": []}
         })
     );
@@ -336,4 +348,34 @@ fn artifact_import_protocol_preserves_authoritative_source_in_document_json() {
         redone.definitions[0].kicad_source.as_ref().unwrap().source,
         source
     );
+}
+
+/// Ticket 37 RED: the seven dead variants (SelectOutline family, SetNet, raw
+/// SetMechanical/SetOutline) must not deserialize. Live counterparts are
+/// ApplyOutlineEdit/ApplyMechanicalEdit; nets are Core-maintained internally.
+#[test]
+fn removed_outline_net_and_raw_mechanical_kinds_refuse_deserialization() {
+    let feature = json!({
+        "kind": "rect",
+        "id": "o",
+        "center": {"x": 0.0, "y": 0.0},
+        "size": {"x": 20.0, "y": 10.0},
+        "radius": 0.0,
+        "operation": "add"
+    });
+    let payloads = [
+        json!({"kind": "select-outline", "boardId": "b", "versionId": "v"}),
+        json!({"kind": "rename-outline", "boardId": "b", "versionId": "v", "name": "n"}),
+        json!({"kind": "remove-outline", "boardId": "b", "versionId": "v"}),
+        json!({"kind": "copy-outline", "boardId": "b", "versionId": "v", "name": "n"}),
+        json!({"kind": "set-net", "net": {"id": "n", "name": "N", "pins": []}}),
+        json!({"kind": "set-mechanical", "configuration": null}),
+        json!({"kind": "set-outline", "feature": feature}),
+    ];
+    for payload in payloads {
+        assert!(
+            serde_json::from_value::<EditOperation>(payload.clone()).is_err(),
+            "dead variant must not deserialize: {payload}"
+        );
+    }
 }

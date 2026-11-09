@@ -4,6 +4,9 @@ use super::binding_editor::{
     BindingEditFeedback, BindingEditRequest, BindingEditor, BindingTarget,
 };
 use boardstudio_core::model::EncoderDirection;
+use boardstudio_web_ui_shared::ui::collapsible::{
+    Collapsible, CollapsibleContent, CollapsibleTrigger,
+};
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -33,13 +36,13 @@ pub fn EncoderEditor(props: EncoderEditorProps) -> Element {
     let row_count = rows.len();
 
     rsx! {
-        section { class: "m1-keymap-encoder-editor", "aria-label": "Encoders",
-            header { class: "m1-keymap-encoder-heading",
-                h3 { "Encoders" }
-                span { "{row_count}" }
+        section { class: "grid gap-3 mt-3 pt-3 border-t border-border", "aria-label": "Encoders",
+            header { class: "flex items-center justify-between gap-2",
+                h3 { class: "m-0", "Encoders" }
+                span { class: "text-muted-foreground", "{row_count}" }
             }
             if rows.is_empty() {
-                p { class: "m1-keymap-empty", role: "status",
+                p { class: "my-2 text-muted-foreground text-base leading-normal", role: "status",
                     "Add a rotary encoder in Layout. Configure its GPIOs in PCB, then assign rotation here."
                 }
             } else {
@@ -69,12 +72,11 @@ pub fn EncoderEditor(props: EncoderEditorProps) -> Element {
                             _ => None,
                         };
                         rsx! {
-                            div { key: "{row_key}", class: "m1-keymap-encoder-row",
-                                h4 { "{label}" }
-                                details { key: "{clockwise_key}", open: true,
-                                    summary { "Clockwise" }
+                            div { key: "{row_key}", class: "grid gap-2",
+                                h4 { class: "m-0", "{label}" }
+                                EncoderSection { key: "{clockwise_key}", label: clockwise_label.clone(), title: "Clockwise", default_open: true,
                                     for component_key in [clockwise_component_key] {
-                                        BindingEditor {
+                                        { rsx! { BindingEditor {
                                             key: "{component_key}",
                                             scope: input_identity.scope.clone(),
                                             admission_token: input_identity.token,
@@ -91,13 +93,12 @@ pub fn EncoderEditor(props: EncoderEditorProps) -> Element {
                                             enabled,
                                             feedback: feedback.clone(),
                                             on_change,
-                                        }
+                                        } } }
                                     }
                                 }
-                                details { key: "{counterclockwise_key}", open: true,
-                                    summary { "Counterclockwise" }
+                                EncoderSection { key: "{counterclockwise_key}", label: counterclockwise_label.clone(), title: "Counterclockwise", default_open: true,
                                     for component_key in [counterclockwise_component_key] {
-                                        BindingEditor {
+                                        { rsx! { BindingEditor {
                                             key: "{component_key}",
                                             scope: input_identity.scope.clone(),
                                             admission_token: input_identity.token,
@@ -114,7 +115,7 @@ pub fn EncoderEditor(props: EncoderEditorProps) -> Element {
                                             enabled,
                                             feedback: feedback.clone(),
                                             on_change,
-                                        }
+                                        } } }
                                     }
                                 }
                                 if let Some((key_id, binding)) = push {
@@ -127,10 +128,9 @@ pub fn EncoderEditor(props: EncoderEditorProps) -> Element {
                                         let component_key = format!("{editor_instance_id}-{target_key}");
                                         let key_label = format!("{label} push button");
                                         rsx! {
-                                            details { key: "{target_key}",
-                                                summary { "Push button" }
+                                            EncoderSection { key: "{target_key}", label: key_label.clone(), title: "Push button", default_open: false,
                                                 for component_key in [component_key] {
-                                                    BindingEditor {
+                                                    { rsx! { BindingEditor {
                                                         key: "{component_key}",
                                                         scope: input_identity.scope.clone(),
                                                         admission_token: input_identity.token,
@@ -147,7 +147,7 @@ pub fn EncoderEditor(props: EncoderEditorProps) -> Element {
                                                         enabled,
                                                         feedback: feedback.clone(),
                                                         on_change,
-                                                    }
+                                                    } } }
                                                 }
                                             }
                                         }
@@ -159,5 +159,229 @@ pub fn EncoderEditor(props: EncoderEditorProps) -> Element {
                 }
             }
         }
+    }
+}
+
+/// Keep each encoder direction mounted while it is collapsed, as the native disclosure did.
+#[component]
+fn EncoderSection(label: String, title: String, default_open: bool, children: Element) -> Element {
+    let mut open = use_signal(|| default_open);
+    rsx! {
+        Collapsible { open: open(), on_open_change: move |value| open.set(value), keep_mounted: true,
+            CollapsibleTrigger { aria_label: label, class: "w-full p-3 bg-muted text-foreground max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{title}" }
+            CollapsibleContent { hidden: !open(), inert: (!open()).then_some(""), {children} }
+        }
+    }
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod mounted_tests {
+    use super::*;
+    use crate::keymap::binding_controller::EncoderBindingRow;
+    use crate::keymap::binding_editor::EncoderInputIdentity;
+    use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
+    use boardstudio_core::model::KeyBinding;
+    use boardstudio_web_ui_shared::test_role::by_role_name;
+    use wasm_bindgen_test::*;
+
+    wasm_bindgen_test_configure!(run_in_browser);
+
+    #[component]
+    fn fixture() -> Element {
+        let sequence = use_signal(|| 0);
+        let scope = Scope {
+            session_epoch: SessionEpoch(1),
+            document_id: "doc".into(),
+            board_id: "board".into(),
+            instance_id: None,
+        };
+        let projection = EncoderEditorProjection {
+            input_identity: EncoderInputIdentity {
+                scope,
+                token: SnapshotToken(1),
+                revision: 1,
+                projection_generation: 1,
+                electrical_fingerprint: None,
+            },
+            effective_layer_id: "base".into(),
+            rows: Rc::from([EncoderBindingRow {
+                id: Rc::from("encoder"),
+                label: Rc::from("Encoder 1"),
+                clockwise: KeyBinding::None,
+                counterclockwise: KeyBinding::None,
+                push_key_id: Some(Rc::from("key")),
+                push_binding: Some(KeyBinding::None),
+            }]),
+            layers: Rc::from([]),
+            macros: Rc::from([]),
+        };
+        rsx! { EncoderEditor { projection: Rc::new(projection), editor_instance_id: 1, request_sequence: sequence, enabled: true, feedback: None, on_change: |_| {} } }
+    }
+
+    #[component]
+    fn empty_fixture() -> Element {
+        let sequence = use_signal(|| 0);
+        let projection = EncoderEditorProjection {
+            input_identity: EncoderInputIdentity {
+                scope: Scope {
+                    session_epoch: SessionEpoch(1),
+                    document_id: "doc".into(),
+                    board_id: "board".into(),
+                    instance_id: None,
+                },
+                token: SnapshotToken(1),
+                revision: 1,
+                projection_generation: 1,
+                electrical_fingerprint: None,
+            },
+            effective_layer_id: "base".into(),
+            rows: Rc::from([]),
+            layers: Rc::from([]),
+            macros: Rc::from([]),
+        };
+        rsx! { EncoderEditor { projection: Rc::new(projection), editor_instance_id: 1, request_sequence: sequence, enabled: true, feedback: None, on_change: |_| {} } }
+    }
+
+    #[wasm_bindgen_test]
+    async fn empty_encoder_guidance_retains_its_presentation() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(empty_fixture),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        gloo_timers::future::TimeoutFuture::new(50).await;
+        let guidance = by_role_name(&root, "status", "Add a rotary encoder in Layout. Configure its GPIOs in PCB, then assign rotation here.")
+            .expect("encoder guidance");
+        let editor = guidance.parent_element().expect("encoder editor section");
+        let classes = editor.get_attribute("class").unwrap_or_default();
+        for expected in ["grid", "gap-3", "mt-3", "pt-3", "border-t", "border-border"] {
+            assert!(
+                classes.split_whitespace().any(|class| class == expected),
+                "encoder editor: missing {expected}"
+            );
+        }
+        let header = editor.query_selector("header").unwrap().unwrap();
+        let classes = header.get_attribute("class").unwrap_or_default();
+        for expected in ["flex", "items-center", "justify-between", "gap-2"] {
+            assert!(
+                classes.split_whitespace().any(|class| class == expected),
+                "encoder heading: missing {expected}"
+            );
+        }
+        assert!(
+            header
+                .query_selector("h3")
+                .unwrap()
+                .unwrap()
+                .get_attribute("class")
+                .unwrap_or_default()
+                .split_whitespace()
+                .any(|class| class == "m-0")
+        );
+        assert!(
+            header
+                .query_selector("span")
+                .unwrap()
+                .unwrap()
+                .get_attribute("class")
+                .unwrap_or_default()
+                .split_whitespace()
+                .any(|class| class == "text-muted-foreground")
+        );
+        let classes = guidance.get_attribute("class").unwrap_or_default();
+        for expected in [
+            "my-2",
+            "text-muted-foreground",
+            "text-base",
+            "leading-normal",
+        ] {
+            assert!(
+                classes.split_whitespace().any(|class| class == expected),
+                "encoder guidance retains its presentation: {expected}"
+            );
+        }
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn encoder_sections_have_distinct_names_and_retain_their_independent_states() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(fixture),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        gloo_timers::future::TimeoutFuture::new(50).await;
+        let behavior = by_role_name(&root, "button", "Encoder 1 clockwise behavior")
+            .expect("clockwise behavior");
+        let binding = behavior
+            .closest("[aria-label='Key binding']")
+            .unwrap()
+            .unwrap();
+        let classes = binding.get_attribute("class").unwrap_or_default();
+        for expected in [
+            "grid",
+            "gap-2.5",
+            "mt-3",
+            "pt-3",
+            "border-t",
+            "border-border",
+        ] {
+            assert!(
+                classes.split_whitespace().any(|class| class == expected),
+                "binding editor layout must not depend on legacy CSS: {expected}"
+            );
+        }
+        let clockwise =
+            by_role_name(&root, "button", "Encoder 1 clockwise").expect("clockwise section");
+        let row = clockwise
+            .closest("[data-slot=collapsible]")
+            .unwrap()
+            .unwrap()
+            .parent_element()
+            .unwrap();
+        let classes = row.get_attribute("class").unwrap_or_default();
+        for expected in ["grid", "gap-2"] {
+            assert!(classes.split_whitespace().any(|class| class == expected));
+        }
+        let heading = row.query_selector("h4").unwrap().unwrap();
+        assert!(
+            heading
+                .get_attribute("class")
+                .unwrap_or_default()
+                .split_whitespace()
+                .any(|class| class == "m-0")
+        );
+        let counter = by_role_name(&root, "button", "Encoder 1 counterclockwise")
+            .expect("counterclockwise section");
+        let push = by_role_name(&root, "button", "Encoder 1 push button").expect("push section");
+        assert_eq!(
+            clockwise.get_attribute("aria-expanded").as_deref(),
+            Some("true")
+        );
+        assert_eq!(
+            counter.get_attribute("aria-expanded").as_deref(),
+            Some("true")
+        );
+        assert_eq!(
+            push.get_attribute("aria-expanded").as_deref(),
+            Some("false")
+        );
+        clockwise.click();
+        push.click();
+        gloo_timers::future::TimeoutFuture::new(50).await;
+        assert_eq!(
+            clockwise.get_attribute("aria-expanded").as_deref(),
+            Some("false")
+        );
+        assert_eq!(
+            counter.get_attribute("aria-expanded").as_deref(),
+            Some("true")
+        );
+        assert_eq!(push.get_attribute("aria-expanded").as_deref(), Some("true"));
+        root.remove();
     }
 }

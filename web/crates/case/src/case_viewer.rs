@@ -1,17 +1,25 @@
 //! Case owns display persistence and domain selection; the viewer owns GPU state.
 use super::case_bodies::CaseBodyEdit;
+use super::mechanical_settings::MechanicalSettingsPatchExt;
 use super::shared_viewer::{
     CaseDisplay, CaseSharedViewer, HandleGesturePhase, ScopedDisplayChange, ScopedViewerSignal,
     ViewerFocusRequest, ViewerHandle, ViewerHandleTarget, ViewerIdentity, ViewerSignalKind,
 };
-use super::{InstanceSelection, ResolvedTheme, selection::SelectionAdapter};
+use super::{InstanceSelection, ResolvedAppearance, selection::SelectionAdapter};
 use crate::runtime::{CadScene, Runtime};
 use boardstudio_application::{Scope, SnapshotToken};
+use boardstudio_core::model::polygon_contains;
 use boardstudio_core::model::{
     CaseKind, GasketPlacement, MechanicalGasketAnchor, MechanicalGasketSupport,
     MechanicalGasketTrack, MechanicalMount, Mount, MountKind, ProjectDoc, Vec2,
 };
 use boardstudio_web_host::cad_jobs::captured_case_document;
+use boardstudio_web_ui_shared::ui::{
+    alert::{Alert, AlertDescription, AlertVariant},
+    button::{Button, ButtonVariant},
+    collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
+    item::{Item, ItemSize},
+};
 use dioxus::prelude::*;
 use std::{
     cell::{Cell, RefCell},
@@ -121,10 +129,11 @@ impl CaseSelection {
 }
 
 #[cfg(all(test, target_arch = "wasm32"))]
+type EmitHandleGesture = Rc<dyn Fn(HandleGesturePhase, String, Option<[f32; 3]>)>;
+
+#[cfg(all(test, target_arch = "wasm32"))]
 #[derive(Clone, Default)]
-struct CaseViewerGestureProbe(
-    Rc<RefCell<Option<Rc<dyn Fn(HandleGesturePhase, String, Option<[f32; 3]>)>>>>,
-);
+struct CaseViewerGestureProbe(Rc<RefCell<Option<EmitHandleGesture>>>);
 
 #[cfg(all(test, target_arch = "wasm32"))]
 impl CaseViewerGestureProbe {
@@ -289,15 +298,19 @@ fn use_case_keycaps(
     let feedback = rsx! {
         if shown.pending { p { role: "status", "Generating keycap CAD…" } }
         if let Some(error) = &shown.error {
-            div { role: "alert",
-                "Keycap preview failed: {error}"
-                button { type: "button", onclick: move |_| retry += 1, "Retry keycaps" }
+            Alert { variant: AlertVariant::Destructive,
+                AlertDescription { "Keycap preview failed: {error}" }
+                Button { variant: ButtonVariant::Secondary, button_type: "button",
+                    class: "max-[960px]:min-h-11 [@media(pointer:coarse)]:min-h-11",
+                    onclick: move |_| retry += 1, "Retry keycaps" }
             }
         }
         if !shown.findings.is_empty() {
-            details { class: "m1-case-keycap-findings", open: true,
-                summary { "Keycap clearance · {shown.findings.len()} findings" }
-                for finding in &shown.findings { p { key: "{finding.id}", "{finding.message}" } }
+            Collapsible { class: "flex-none max-h-[min(25vh,180px)] overflow-auto overscroll-contain", keep_mounted: true, default_open: true,
+                CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground", aria_label: "Keycap clearance · {shown.findings.len()} findings", "Keycap clearance · {shown.findings.len()} findings" }
+                CollapsibleContent { class: "data-[open=false]:hidden",
+                    for finding in &shown.findings { Item { size: ItemSize::Sm, key: "{finding.id}", p { "{finding.message}" } } }
+                }
             }
         }
     };
@@ -324,7 +337,7 @@ pub fn CaseViewer(
     let _ = runtime_version();
     let selection_adapter = use_context::<SelectionAdapter>();
     let selection = use_context::<CaseSelection>();
-    let theme = use_context::<ResolvedTheme>().0;
+    let theme = use_context::<ResolvedAppearance>().0;
     #[cfg(all(test, target_arch = "wasm32"))]
     let gesture_probe = try_consume_context::<CaseViewerGestureProbe>();
     let selected_reference = {
@@ -517,7 +530,6 @@ pub fn CaseViewer(
     let on_signal = EventHandler::new(on_signal);
     #[cfg(all(test, target_arch = "wasm32"))]
     if let Some(probe) = gesture_probe {
-        let on_signal = on_signal;
         let identity = ViewerIdentity {
             scope: scene.scope.clone(),
             snapshot_token: scene.token,
@@ -566,11 +578,11 @@ pub fn CaseViewer(
         CaseSharedViewer {
             scene: Some(display_scene),
             handle_source: Some(scene.clone()),
-            preview,
+            preview: preview.clone(),
             layout_preview: None,
             keycaps_preview,
             parts_preview: None,
-            model_rows,
+            model_rows: model_rows.clone(),
             selected_layer,
             selected_reference,
             display,
@@ -585,6 +597,7 @@ pub fn CaseViewer(
             focus_request,
         }
         {keycaps_feedback}
+        super::case_collision::CaseCollisionChecks { scene, preview, model_rows }
     }
 }
 
@@ -603,7 +616,7 @@ pub fn CasePreviewViewer(
     let instance_selection = use_context::<InstanceSelection>();
     let selection_adapter = use_context::<SelectionAdapter>();
     let selection = use_context::<CaseSelection>();
-    let theme = use_context::<ResolvedTheme>().0;
+    let theme = use_context::<ResolvedAppearance>().0;
     let selected_reference = {
         let model = runtime.model();
         let selected = selection_adapter
@@ -1273,18 +1286,18 @@ fn direct_gesture_message(
         .iter()
         .rev()
         .find(|entry| entry.field_id == field_id)?;
-    Some(match feedback.state {
+    match feedback.state {
         super::mechanical_settings::MechanicalSettingsFeedbackState::Pending => {
-            "Saving position…".into()
+            Some("Saving position…".into())
         }
-        super::mechanical_settings::MechanicalSettingsFeedbackState::Saved => {
-            "Position saved.".into()
-        }
-        super::mechanical_settings::MechanicalSettingsFeedbackState::Failed => feedback
-            .message
-            .clone()
-            .unwrap_or_else(|| "Position could not be saved.".into()),
-    })
+        super::mechanical_settings::MechanicalSettingsFeedbackState::Landed => None,
+        super::mechanical_settings::MechanicalSettingsFeedbackState::Failed => Some(
+            feedback
+                .message
+                .clone()
+                .unwrap_or_else(|| "Position could not be saved.".into()),
+        ),
+    }
 }
 
 fn submit_settings_patch(
@@ -1307,6 +1320,7 @@ fn submit_settings_patch(
             request_id,
             field_id,
             patch,
+            reviewed_fingerprint: None,
         });
     true
 }
@@ -1625,14 +1639,14 @@ fn move_case_mount(
     if !constraints
         .outer
         .iter()
-        .any(|outer| inside_polygon(point, outer) && edge_distance(point, outer) >= margin)
+        .any(|outer| polygon_contains(outer, point) && edge_distance(point, outer) >= margin)
     {
         return None;
     }
     if constraints
         .holes
         .iter()
-        .any(|hole| inside_polygon(point, hole) || edge_distance(point, hole) < margin)
+        .any(|hole| polygon_contains(hole, point) || edge_distance(point, hole) < margin)
     {
         return None;
     }
@@ -1669,25 +1683,6 @@ fn mount_radius(mount: &Mount) -> f64 {
     } else {
         mount.hole_diameter / 2.0
     }
-}
-
-fn inside_polygon(point: Vec2, polygon: &[Vec2]) -> bool {
-    let mut hit = false;
-    if polygon.len() < 3 {
-        return false;
-    }
-    let mut j = polygon.len() - 1;
-    for i in 0..polygon.len() {
-        let a = &polygon[i];
-        let b = &polygon[j];
-        if (a.y > point.y) != (b.y > point.y)
-            && point.x < (b.x - a.x) * (point.y - a.y) / (b.y - a.y) + a.x
-        {
-            hit = !hit;
-        }
-        j = i;
-    }
-    hit
 }
 
 fn edge_distance(point: Vec2, polygon: &[Vec2]) -> f64 {
@@ -1912,7 +1907,7 @@ mod keycap_consumer_tests {
         super::super::use_test_case_generation_state();
         let mut mounted = use_signal(|| true);
         let mut cad = use_signal(|| false);
-        let mut instance = use_context::<InstanceSelection>();
+        let instance = use_context::<InstanceSelection>();
         let other = runtime.clone();
         let restore = runtime.clone();
         let use_cad = runtime.clone();
@@ -2202,16 +2197,17 @@ mod keycap_consumer_tests {
         }
         release.send(()).unwrap();
         TimeoutFuture::new(50).await;
-        let packets = packets.borrow();
-        let (id, packet) = packets.last().unwrap();
-        assert_eq!(id.scope.instance_id.as_deref(), Some("primary"));
-        let body = cap(packet).expect("late flipped CAD must not replace current keycaps");
-        let mesh = Reflect::get(&body, &"mesh".into()).unwrap();
-        assert_eq!(
-            Float32Array::new(&Reflect::get(&mesh, &"positions".into()).unwrap()).to_vec()[0],
-            20.0
-        );
-        drop(packets);
+        {
+            let packets = packets.borrow();
+            let (id, packet) = packets.last().unwrap();
+            assert_eq!(id.scope.instance_id.as_deref(), Some("primary"));
+            let body = cap(packet).expect("late flipped CAD must not replace current keycaps");
+            let mesh = Reflect::get(&body, &"mesh".into()).unwrap();
+            assert_eq!(
+                Float32Array::new(&Reflect::get(&mesh, &"positions".into()).unwrap()).to_vec()[0],
+                20.0
+            );
+        }
         assert_eq!(runtime.model().accepted.as_ref(), Some(&accepted));
         assert_eq!(
             runtime
@@ -2283,6 +2279,7 @@ mod gesture_cancellation_tests {
             wall_height: Some(20.0),
             wall_thickness: Some(3.0),
             mounts: Some(vec![mount.clone()]),
+            pcb_source: None,
             gasket: None,
         };
         let mut document = ProjectDoc::empty("case-gesture-cancel", "Gesture cancellation");
@@ -2317,7 +2314,9 @@ mod gesture_cancellation_tests {
                     flipped: false,
                     controller_part_id: None,
                     mechanical: None,
-                    construction_linked: false,
+                    construction_ownership:
+                        boardstudio_core::model::MechanicalConstructionOwnership::Local,
+                    mechanical_identity_reservation: None,
                 })
                 .collect(),
             ..Default::default()
@@ -2471,9 +2470,9 @@ mod gesture_cancellation_tests {
         let navigate = runtime.clone();
         let away_source = original.clone();
         let restore = runtime.clone();
-        let mut instance = use_context::<InstanceSelection>();
+        let instance = use_context::<InstanceSelection>();
         rsx! {
-            style { {include_str!("../../../assets/m1.css")} }
+            style { {include_str!("../../../assets/workbench-base.css")} }
             button { id: "case-gesture-scope", onclick: move |_| {
                 instance.reconcile(away_source.scope.session_epoch, away_source.scope.document_id.clone(), "alternate".into());
                 navigate.submit(Event::Navigate {

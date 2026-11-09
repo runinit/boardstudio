@@ -17,6 +17,15 @@ pub enum SplitTransport {
     WiredUart,
 }
 
+/// Physical side of a split half. It never implies a communication role.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum SplitHalf {
+    #[default]
+    Left,
+    Right,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ScanPin {
     pub terminal: String,
@@ -129,6 +138,10 @@ pub struct FirmwareRequest {
     pub peripheral: Option<Box<FirmwareRequest>>,
     #[serde(default)]
     pub matrix_row_offset: usize,
+    /// Which physical half holds the central role. This request describes the central half and
+    /// `peripheral` the other one; key and sensor positions still run left half first.
+    #[serde(default)]
+    pub central_half: SplitHalf,
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
@@ -355,6 +368,20 @@ fn validate_half(request: &FirmwareRequest) -> Result<(), String> {
     Ok(())
 }
 
+/// Reorder a split request so the left half comes first, as the generator expects: keys, sensors
+/// and shield files follow physical position while roles stay in `central_half`.
+fn physical_order(mut central: FirmwareRequest) -> Result<FirmwareRequest, String> {
+    if central.central_half != SplitHalf::Right {
+        return Ok(central);
+    }
+    let Some(left) = central.peripheral.take() else {
+        return Err("split firmware requires a distinct peripheral plan".into());
+    };
+    let mut left = *left;
+    left.peripheral = Some(Box::new(central));
+    Ok(left)
+}
+
 /// Firmware qualification can be satisfied by explicit, supported encoder
 /// configuration. This only clears the three configuration gates for the
 /// matching encoder; electrical contact mapping and unrelated hardware gates
@@ -419,9 +446,12 @@ pub fn generate(request: &FirmwareRequest) -> Result<FirmwarePackage, String> {
             }
         }
     }
+    let central_half = request.central_half;
+    let central_hardware = request.hardware.as_ref();
     let mut normalized = request.clone();
-    encoders::prepare(&mut normalized)?;
     let used_designer_encoder_configuration = clear_configured_thq_encoder_gates(&mut normalized);
+    let mut normalized = physical_order(normalized)?;
+    encoders::prepare(&mut normalized)?;
     if let Some(map) = &normalized.keymap {
         let known = normalized
             .encoder_ids
@@ -536,7 +566,7 @@ pub fn generate(request: &FirmwareRequest) -> Result<FirmwarePackage, String> {
     }
     files.insert(
         "config/boards/shields/boardstudio/README.md".into(),
-        instructions(request, transport),
+        instructions(request, transport, central_half),
     );
     files.insert("config/west.yml".into(), "manifest:\n  remotes:\n    - name: zmkfirmware\n      url-base: https://github.com/zmkfirmware\n  projects:\n    - name: zmk\n      remote: zmkfirmware\n      revision: v0.3.0\n      import: app/west.yml\n".into());
     files.insert("build.yaml".into(), build_yaml(request));
@@ -548,8 +578,8 @@ pub fn generate(request: &FirmwareRequest) -> Result<FirmwarePackage, String> {
             "config/boards/shields/boardstudio/Kconfig.defconfig".into(),
             format!(
                 "if SHIELD_BOARDSTUDIO_LEFT\n{}\nendif\nif SHIELD_BOARDSTUDIO_RIGHT\n{}\nendif\n",
-                role_kconfig(true, transport),
-                role_kconfig(false, transport)
+                role_kconfig(central_half == SplitHalf::Left, transport),
+                role_kconfig(central_half == SplitHalf::Right, transport)
             ),
         );
         files.insert(
@@ -595,7 +625,7 @@ pub fn generate(request: &FirmwareRequest) -> Result<FirmwarePackage, String> {
     if used_designer_encoder_configuration {
         warnings.push("THQ rotary timing and the EC11 driver are designer-supplied digital configuration. Physical detents, quadrature direction, continuity, and operation remain unverified.".into());
     }
-    if request.hardware.as_ref().is_some_and(|hardware| {
+    if central_hardware.is_some_and(|hardware| {
         hardware.modules.iter().any(|module| {
             module
                 .host_instance_id
@@ -828,14 +858,25 @@ west zephyr-export
     script
 }
 
-fn instructions(request: &FirmwareRequest, transport: Option<&str>) -> String {
+fn instructions(
+    request: &FirmwareRequest,
+    transport: Option<&str>,
+    central_half: SplitHalf,
+) -> String {
+    // Left central is the default and keeps its original text; a right central is stated.
+    let central_note = if transport.is_some() && central_half == SplitHalf::Right {
+        "- Central half: right (`boardstudio_right`). Key and sensor positions still run left half first.\n"
+    } else {
+        ""
+    };
     format!(
-        "# BoardStudio ZMK handoff\n\n- Target: ZMK v0.3.0\n- Controller: `{}`\n- Matrix: {} rows x {} columns\n- Diodes: `{}`\n- Split transport: `{}`\n\nUnassigned positions use `&none`; edit bindings in BoardStudio or the generated keymap before building. The included workflow uses ZMK v0.3.0. For a local build, install the ZMK v0.3.0 toolchain and run `sh build-local.sh` from the package root. Builds use isolated directories for each shield. Verify the PCB jumper recipe and local routing obligations before assembly.\n",
+        "# BoardStudio ZMK handoff\n\n- Target: ZMK v0.3.0\n- Controller: `{}`\n- Matrix: {} rows x {} columns\n- Diodes: `{}`\n- Split transport: `{}`\n{}\nUnassigned positions use `&none`; edit bindings in BoardStudio or the generated keymap before building. The included workflow uses ZMK v0.3.0. For a local build, install the ZMK v0.3.0 toolchain and run `sh build-local.sh` from the package root. Builds use isolated directories for each shield. Verify the PCB jumper recipe and local routing obligations before assembly.\n",
         request.controller_profile,
         request.rows.len(),
         request.columns.len(),
         request.diode_direction,
-        transport.unwrap_or("unibody")
+        transport.unwrap_or("unibody"),
+        central_note
     )
 }
 
@@ -905,6 +946,7 @@ mod tests {
             peripheral_overlays: Vec::new(),
             peripheral: None,
             matrix_row_offset: 0,
+            central_half: Default::default(),
         }
     }
     #[test]
@@ -1057,6 +1099,140 @@ mod tests {
                 .matches("&none")
                 .count(),
             3
+        );
+    }
+
+    /// A two-column left half and a one-column right half with distinct bindings and config.
+    fn physical_halves() -> (FirmwareRequest, FirmwareRequest) {
+        let mut left = request();
+        left.columns.push(ScanPin {
+            terminal: "P19".into(),
+            gpio: "P0.02".into(),
+        });
+        left.keys.push(FirmwareKey {
+            id: "k2".into(),
+            row: 0,
+            column: 1,
+        });
+        left.key_bindings = vec!["&kp A".into(), "&kp B".into()];
+        left.peripheral_config = vec!["CONFIG_LEFT_ONLY=y".into()];
+        let mut right = request();
+        right.key_bindings = vec!["&kp C".into()];
+        right.peripheral_config = vec!["CONFIG_RIGHT_ONLY=y".into()];
+        for half in [&mut left, &mut right] {
+            half.transport = Some(SplitTransport::Wireless);
+        }
+        (left, right)
+    }
+
+    fn split_request(
+        central: FirmwareRequest,
+        peripheral: FirmwareRequest,
+        central_half: SplitHalf,
+    ) -> FirmwareRequest {
+        FirmwareRequest {
+            peripheral: Some(Box::new(peripheral)),
+            central_half,
+            ..central
+        }
+    }
+
+    const SHIELD: &str = "config/boards/shields/boardstudio/";
+
+    #[test]
+    fn right_central_export_keeps_left_to_right_positions_and_swaps_only_roles() {
+        let (left, right) = physical_halves();
+        let left_central =
+            generate(&split_request(left.clone(), right.clone(), SplitHalf::Left)).unwrap();
+        let right_central = generate(&split_request(right, left, SplitHalf::Right)).unwrap();
+
+        let defconfig = &right_central.files[&format!("{SHIELD}Kconfig.defconfig")];
+        assert!(
+            defconfig.contains("if SHIELD_BOARDSTUDIO_LEFT\nconfig ZMK_SPLIT\n    default y\nconfig ZMK_SPLIT_ROLE_CENTRAL\n    default n\n\nendif"),
+            "{defconfig}"
+        );
+        assert!(
+            defconfig.contains("if SHIELD_BOARDSTUDIO_RIGHT\nconfig ZMK_SPLIT\n    default y\nconfig ZMK_SPLIT_ROLE_CENTRAL\n    default y\nconfig ZMK_SPLIT_BLE_CENTRAL_PERIPHERALS\n    default 1\n\nendif"),
+            "{defconfig}"
+        );
+        assert!(
+            right_central.files[&format!("{SHIELD}boardstudio.keymap")]
+                .contains("<&kp A &kp B &kp C>")
+        );
+        for file in [
+            "boardstudio.keymap",
+            "boardstudio_left.overlay",
+            "boardstudio_right.overlay",
+            "boardstudio_left.conf",
+            "boardstudio_right.conf",
+        ] {
+            let file = format!("{SHIELD}{file}");
+            assert_eq!(
+                right_central.files[&file], left_central.files[&file],
+                "{file} follows the physical halves, not the roles"
+            );
+        }
+        assert!(
+            right_central.files[&format!("{SHIELD}boardstudio_left.conf")]
+                .contains("CONFIG_LEFT_ONLY=y")
+        );
+        assert!(
+            right_central.files[&format!("{SHIELD}boardstudio_right.conf")]
+                .contains("CONFIG_RIGHT_ONLY=y")
+        );
+        assert!(right_central.files[&format!("{SHIELD}README.md")].contains("Central half: right"));
+        assert_eq!(
+            right_central.files["build.yaml"],
+            left_central.files["build.yaml"]
+        );
+    }
+
+    #[test]
+    fn right_central_requires_a_left_peripheral_half() {
+        let (_, right) = physical_halves();
+        let mut alone = right;
+        alone.central_half = SplitHalf::Right;
+        assert_eq!(
+            generate(&alone).unwrap_err(),
+            "split firmware requires a distinct peripheral plan"
+        );
+    }
+
+    #[test]
+    fn wired_right_central_gives_each_physical_shield_its_own_halfs_uart_pins() {
+        let (mut left, mut right) = physical_halves();
+        let pin = |terminal: &str, gpio: &str| {
+            Some(ScanPin {
+                terminal: terminal.into(),
+                gpio: gpio.into(),
+            })
+        };
+        for half in [&mut left, &mut right] {
+            half.transport = Some(SplitTransport::WiredUart);
+        }
+        // Roles pick the direction: the central half transmits on the pin it was given.
+        right.uart_tx = pin("P1", "P0.06");
+        right.uart_rx = pin("P0", "P0.08");
+        left.uart_tx = pin("P0", "P0.08");
+        left.uart_rx = pin("P1", "P0.06");
+        let package = generate(&split_request(right, left, SplitHalf::Right)).unwrap();
+        let uart = |file: &str| {
+            package.files[&format!("{SHIELD}{file}")]
+                .split("NRF_PSEL(UART_TX, ")
+                .nth(1)
+                .unwrap()
+                .split(">; }; }; }")
+                .next()
+                .unwrap()
+                .to_owned()
+        };
+        assert_eq!(
+            uart("boardstudio_left.overlay"),
+            "0, 8)>, <NRF_PSEL(UART_RX, 0, 6)"
+        );
+        assert_eq!(
+            uart("boardstudio_right.overlay"),
+            "0, 6)>, <NRF_PSEL(UART_RX, 0, 8)"
         );
     }
 }

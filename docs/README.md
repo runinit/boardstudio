@@ -1,7 +1,7 @@
 # Documentation
 
 Start with [development and checks](../README.md), [architecture](architecture.md),
-and the [domain vocabulary](../CONTEXT.md). The [backlog](backlog.md) tracks open
+and the [domain vocabulary](../GLOSSARY.md). The [backlog](backlog.md) tracks open
 problems and completion conditions.
 
 ## Current references
@@ -18,6 +18,10 @@ problems and completion conditions.
 
 ## Investigations
 
+[Universal footprint generation](investigations/universal-footprint-generation.md)
+surveys the built-in generator seam and proposes a template/custom split while
+keeping imported KiCad source preservation intact.
+
 [Layout part editing](investigations/layout-part-editing.md) records the ownership
 review, passing presentation tests, and a reproduced queued-coordinate overwrite.
 It includes a runnable Session/Core reproducer. The live browser timing and the
@@ -31,12 +35,25 @@ the evidence can be checked before implementation.
 installed Rust skills against this codebase, with measured costs and a ranked,
 unimplemented change list.
 
+The [architecture review of 2026-10-07](investigations/architecture-review-2026-10-07.html)
+proposes six module deepenings; the [module deepening](plans/module-deepening/map.md)
+effort plans all of them.
+
+The [CAD deepening](plans/cad-deepening/map.md) effort plans the follow-ups from the
+2026-10-20 review of case generation and the Monstertruck CAD kernel.
+
+The [application workflow verification spec](plans/application-workflow-verification/map.md)
+defines six bounded recovery, offline, renderer, keyboard, assembly and package-notice
+outcomes through three approved public seams. Operational and physical checks remain
+explicitly separate from source/mounted evidence; implementation tickets are not yet published.
+
 [TypeScript and Node removal](investigations/typescript-node-removal.md) inventories
 the remaining provider, content, build and test dependencies, with a phased removal
 plan and completion criteria. It is an assessment, not a completed migration.
 
 ## Design and decisions
 
+- [Architecture decisions](adr/README.md) lists every ADR with the area it governs.
 - [Fixed edited outlines](adr/0001-fixed-edited-outlines.md) and
   [linked outline refinements](adr/0002-linked-outline-refinements.md) are accepted
   domain decisions. Their acceptance does not establish implementation completion.
@@ -44,6 +61,8 @@ plan and completion criteria. It is an assessment, not a completed migration.
   (commits are intents; the direct event carries previews only) and
   [whole-document replacement is for import and recovery](adr/0006-replace-document-for-import-and-recovery.md),
   the direction of the [typed Core edits](plans/typed-core-edits/map.md) effort.
+- [Project context](design/project-context.md) records sessions, business and
+  ethical stance, success criteria and untested assumptions for UX work.
 - [Mirrored layout pairs](design/mirrored-layout-pair.md) describes the interaction
   and ownership contract.
 - [Gasket case redesign](design/gasket-case-redesign.md) preserves the agreed
@@ -57,9 +76,14 @@ These notes retain their original dates and measured revisions. Benchmark result
 old code paths and integration status describe those snapshots; use the current
 architecture and source for present ownership.
 
+Code-formatted `.evidence/` and absolute worktree paths in these records identify
+private diagnostic artifacts owned by the surrounding dated report or ticket.
+Their raw files are absent from a clean checkout; the retained summaries, source
+hashes, review outcomes and limitations describe the original executions.
+
 | Topic | Evidence |
 | --- | --- |
-| CAD selection | [Kernel comparison](research/cad/cad-kernel-options.md), [Cadrum integration](research/cad/cadrum-assessment.md), [opencascade-rs](research/cad/opencascade-rs-assessment.md), [pure Rust alternatives](research/cad/pure-rust-cad-assessment.md) |
+| CAD selection | [Kernel comparison](research/cad/cad-kernel-options.md), [Cadrum integration](research/cad/cadrum-assessment.md), [opencascade-rs](research/cad/opencascade-rs-assessment.md), [pure Rust alternatives](research/cad/pure-rust-cad-assessment.md), [Monstertruck STEP support and migration scope](research/cad/monstertruck-step-support-2026-10-16.md), [full Monstertruck replacement assessment](research/cad/monstertruck-feature-assessment-2026-10-16.md), [executable qualification results](research/cad/monstertruck-qualification-2026-10-16.md) |
 | Generation performance | [Measurements](research/performance/generation-performance.md), [experiment plan](research/performance/generation-optimization-experiments.md), [gasket comparisons](research/performance/gasket-comparison-results.md), [continued OCCT screening](research/performance/occt-optimization-round2.md) |
 | Mechanical hardware | [Gasket preset research](hardware/gasket-hardware-presets-research.md), including supplier evidence and retained images |
 

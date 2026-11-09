@@ -26,7 +26,7 @@ pub(super) fn summarize(model: &ReadModel, context: &TreeContext) -> Option<Cont
             .layouts
             .iter()
             .find(|layout| {
-                layout.matrix_id == id
+                layout.matrix_ids.iter().any(|member| member == id)
                     && layout.board_id == model.active_board_id
                     && !layout.name.is_empty()
             })

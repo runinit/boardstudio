@@ -12,7 +12,7 @@ i_overlay = "=9.0.0"
 lyon_path = "=1.0.19"
 lyon_tessellation = "=1.0.22"
 serde = { version = "1", features = ["derive"] }
-three-d = { version = "=0.19.0", default-features = false }
+three-d = { version = "=0.20.0", git = "https://github.com/asny/three-d.git", rev = "0e5ece5fe124fa21b92fd96fe3e4bbb4357dbf03", default-features = false }
 three-d-asset = { version = "=0.10.0", default-features = false, features = ["stl"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]

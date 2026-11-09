@@ -1,30 +1,42 @@
 //! Accepted-snapshot projection and exact operation lifecycle for transform fields.
 use super::matrix_transform_inspector::{
     MatrixTransformFeedback, MatrixTransformInspectorOwner, MatrixTransformProjection,
-    MatrixTransformRequest, MatrixTransformState,
+    MatrixTransformRequest,
 };
 use super::{ScopedTreeContext, TreeContext};
 use crate::matrix_transform_operation::{
     MatrixTransformField, MatrixTransformFields, MatrixTransformValue, build_operation,
-    catalogue_retry_due, component_edit_admitted_by_catalogue,
+    catalogue_retry_due, column_angle, component_edit_admitted_by_catalogue, key_half_exception,
+    key_half_exception_at_resolver, key_half_exception_omitted,
 };
 use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
 };
 use boardstudio_core::model::{
-    EditCommand, EditOperation, EditPhase, Matrix, MatrixSplayAffect, PartDefinition, ProjectDoc,
-    Vec2,
+    AnchorPart, EditOperation, Matrix, MatrixSplayAffect, PartDefinition, ProjectDoc, Vec2,
+    convert_offset_available,
 };
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+use boardstudio_web_runtime::pending_edits::PendingEditResult;
+use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
 use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen_futures::spawn_local;
 
 #[derive(Clone)]
-struct TransformSubmission {
-    request: MatrixTransformRequest,
-    ticket: EditTicket,
+struct TransformPendingKey {
+    field: MatrixTransformField,
+    splay_affect: MatrixSplayAffect,
+    owner: MatrixTransformInspectorOwner,
+    request_id: u64,
+    one_shot: bool,
+    failure: Option<Signal<Option<String>>>,
+}
+
+impl PartialEq for TransformPendingKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.field == other.field && self.one_shot == other.one_shot
+    }
 }
 
 /// Resolve one transform field edit against the accepted document at execution time. The
@@ -57,7 +69,7 @@ pub fn transform_edit_resolver(
                     "The selected row, column or key no longer exists.".into(),
                 );
             };
-            if field_value(&fields, field).as_ref() == Some(&value) {
+            if field_value(&fields, field, &splay_affect).as_ref() == Some(&value) {
                 return Resolution::Unchanged;
             }
             let operation = match build_operation(
@@ -115,15 +127,219 @@ pub fn transform_edit_resolver(
                 }
                 (_, operation, _) => operation,
             };
-            Resolution::Submit(EditCommand {
-                base_revision: 0,
-                transaction_id: String::new(),
-                phase: EditPhase::Commit,
-                target_ids: vec![matrix.id.clone()],
-                operation,
-            })
+            Resolution::submit(vec![matrix.id.clone()], operation)
         },
     )
+}
+
+// Only the selection identity is captured. Each queued edit reads the current matrix
+// so enabling several keys is one undo step and composes with other field edits.
+fn selected_keys_enabled_resolver(
+    matrix_id: String,
+    board_id: String,
+    coordinates: Vec<(u32, u32)>,
+    enabled: bool,
+) -> EditResolver {
+    EditResolver::new(
+        "layout-matrix-transform",
+        move |accepted: &AcceptedSnapshot| {
+            let Some(matrix) = accepted
+                .document
+                .matrices
+                .iter()
+                .find(|matrix| matrix.id == matrix_id)
+            else {
+                return Resolution::Retire("The selected matrix no longer exists.".into());
+            };
+            let mut next = matrix.clone();
+            for &(row, column) in &coordinates {
+                if row >= next.rows || column >= next.columns {
+                    return Resolution::Retire("A selected key no longer exists.".into());
+                }
+                let context = TreeContext::Key {
+                    matrix_id: matrix_id.clone(),
+                    row,
+                    column,
+                };
+                let Some(fields) = transform_fields(accepted, &board_id, &context, &next) else {
+                    return Resolution::Retire("A selected key no longer exists.".into());
+                };
+                let operation = build_operation(
+                    &next,
+                    &fields,
+                    MatrixTransformField::KeyEnabled,
+                    MatrixTransformValue::Bool(enabled),
+                    MatrixSplayAffect::Column,
+                );
+                match operation {
+                    Ok(EditOperation::SetMatrix { matrix, .. }) => next = matrix,
+                    Ok(_) => {
+                        return Resolution::Retire(
+                            "The key enabled edit could not be built.".into(),
+                        );
+                    }
+                    Err(message) => return Resolution::Retire(message),
+                }
+            }
+            if &next == matrix {
+                return Resolution::Unchanged;
+            }
+            Resolution::submit(
+                vec![matrix.id.clone()],
+                EditOperation::SetMatrix {
+                    matrix: next,
+                    definitions: None,
+                },
+            )
+        },
+    )
+}
+
+fn selected_keys_delete_resolver(matrix_id: String, cells: Vec<(u32, u32)>) -> EditResolver {
+    EditResolver::new(
+        "layout-matrix-transform",
+        move |accepted: &AcceptedSnapshot| {
+            let Some(scene) = accepted
+                .scene
+                .matrix_scenes
+                .iter()
+                .find(|scene| scene.matrix_id == matrix_id)
+            else {
+                return Resolution::Retire("The selected matrix no longer exists.".into());
+            };
+            if cells.iter().any(|(row, column)| {
+                !scene
+                    .cells
+                    .iter()
+                    .any(|cell| cell.row == *row && cell.column == *column)
+            }) {
+                return Resolution::Retire("A selected key no longer exists.".into());
+            }
+            Resolution::submit(
+                vec![matrix_id.clone()],
+                EditOperation::RemoveMatrixCells {
+                    matrix_id: matrix_id.clone(),
+                    cells: cells.clone(),
+                },
+            )
+        },
+    )
+}
+
+/// Resolve a Key's Add anchored matrix against the accepted document at execution
+/// time. The new identity is derived when the edit runs so a queued edit that
+/// claimed the proposed identity retires this one instead of Core refusing a
+/// duplicate; Core still validates the anchor target and assigns Origin
+/// (0, -pitch.y), the Layout and the mirrored counterpart.
+fn add_anchored_matrix_resolver(
+    matrix_id: String,
+    row: u32,
+    column: u32,
+    proposed_id: String,
+) -> EditResolver {
+    EditResolver::new(
+        "layout-matrix-transform",
+        move |accepted: &AcceptedSnapshot| {
+            let document = &accepted.document;
+            let Some(matrix) = document
+                .matrices
+                .iter()
+                .find(|matrix| matrix.id == matrix_id)
+            else {
+                return Resolution::Retire("The selected matrix no longer exists.".into());
+            };
+            if row >= matrix.rows || column >= matrix.columns {
+                return Resolution::Retire("The selected key no longer exists.".into());
+            }
+            // Core refuses a duplicate identity; dedup here so a queued edit that
+            // claimed the proposed identity still lands as one atomic intent.
+            // Only matrix identities can clash: Core derives the new members
+            // from the new matrix identity.
+            let mut id = proposed_id.clone();
+            if document.matrices.iter().any(|matrix| matrix.id == id) {
+                let base = proposed_id.clone();
+                let mut index = 2u64;
+                loop {
+                    let candidate = format!("{base}-{index}");
+                    if !document
+                        .matrices
+                        .iter()
+                        .any(|matrix| matrix.id == candidate)
+                    {
+                        id = candidate;
+                        break;
+                    }
+                    index = index.checked_add(1).expect("matrix identity exhausted");
+                }
+            }
+            Resolution::submit(
+                vec![matrix_id.clone(), id.clone()],
+                EditOperation::AddAnchoredMatrix {
+                    id,
+                    anchor: boardstudio_core::model::MatrixAnchor {
+                        matrix_id: matrix_id.clone(),
+                        row,
+                        column,
+                        follow: boardstudio_core::model::Follow::default(),
+                        aggregate: None,
+                    },
+                },
+            )
+        },
+    )
+}
+
+fn guard_matrix_topology(
+    matrix_id: String,
+    dimensions: (u32, u32),
+    resolver: EditResolver,
+) -> EditResolver {
+    EditResolver::new(
+        "layout-matrix-transform",
+        move |accepted: &AcceptedSnapshot| {
+            let Some(matrix) = accepted
+                .document
+                .matrices
+                .iter()
+                .find(|matrix| matrix.id == matrix_id)
+            else {
+                return Resolution::Retire("The selected matrix no longer exists.".into());
+            };
+            if (matrix.rows, matrix.columns) != dimensions {
+                return Resolution::Retire("The matrix rows or columns changed before this edit ran. Select the key, row or column again.".into());
+            }
+            resolver.resolve(accepted)
+        },
+    )
+}
+
+fn selected_key_coordinates(
+    snapshot: &AcceptedSnapshot,
+    matrix_id: &str,
+    selected_ids: &[String],
+    context: &TreeContext,
+) -> Vec<(u32, u32)> {
+    let mut coordinates = snapshot
+        .scene
+        .matrix_scenes
+        .iter()
+        .find(|scene| scene.matrix_id == matrix_id)
+        .into_iter()
+        .flat_map(|scene| &scene.cells)
+        .filter(|cell| {
+            selected_ids.iter().any(|id| {
+                cell.member_id.as_ref() == Some(id)
+                    || id == &format!("matrix/{matrix_id}/r{}c{}", cell.row, cell.column)
+            })
+        })
+        .map(|cell| (cell.row, cell.column))
+        .collect::<Vec<_>>();
+    if let TreeContext::Key { row, column, .. } = context
+        && !coordinates.contains(&(*row, *column))
+    {
+        coordinates.push((*row, *column));
+    }
+    coordinates
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -141,6 +357,60 @@ struct ContextGeneration {
     value: u64,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct TransformChangeAnnouncement {
+    pub(super) owner: MatrixTransformInspectorOwner,
+    pub(super) revision: u64,
+    pub(super) message: String,
+}
+
+/// The human name of a transform field, used by the change announcement.
+pub(super) fn transform_field_label(field: MatrixTransformField) -> &'static str {
+    match field {
+        MatrixTransformField::OriginX => "Origin X",
+        MatrixTransformField::OriginY => "Origin Y",
+        MatrixTransformField::MatrixRotation => "Rotation",
+        MatrixTransformField::MatrixMirror => "Mirror",
+        MatrixTransformField::RowOffsetX | MatrixTransformField::ColumnOffsetX => "Offset X",
+        MatrixTransformField::RowOffsetY | MatrixTransformField::ColumnOffsetY => "Offset Y",
+        MatrixTransformField::RowOffsetReset | MatrixTransformField::ColumnOffsetReset => {
+            "Reset offsets"
+        }
+        MatrixTransformField::RowShiftX | MatrixTransformField::KeyShiftX => "Shift X",
+        MatrixTransformField::RowShiftY | MatrixTransformField::KeyShiftY => "Shift Y",
+        MatrixTransformField::RowBend | MatrixTransformField::KeyBend => "Bend",
+        MatrixTransformField::RowPadding => "Padding",
+        MatrixTransformField::ColumnStagger => "Stagger",
+        MatrixTransformField::ColumnSpread => "Spread",
+        MatrixTransformField::ColumnSplay => "Splay",
+        MatrixTransformField::SplayOriginMode => "Origin",
+        MatrixTransformField::SplayOriginX => "Origin X",
+        MatrixTransformField::SplayOriginY => "Origin Y",
+        MatrixTransformField::SplayOriginPoint => "Pick origin",
+        MatrixTransformField::SplayOriginSwingPoint => "Pick origin",
+        MatrixTransformField::ColumnOffsetConvert => "Convert to stagger",
+        MatrixTransformField::KeyOffsetX => "Local X",
+        MatrixTransformField::KeyOffsetY => "Local Y",
+        MatrixTransformField::KeyRotation => "Key rotation",
+        MatrixTransformField::KeyTransformReset => "Reset local transform",
+        MatrixTransformField::KeyEnabled => "Enabled",
+        MatrixTransformField::KeyOmit => "Omitted from mirror",
+        MatrixTransformField::KeyAssembly => "Key assembly",
+        MatrixTransformField::KeyAttached => "Attached components",
+        MatrixTransformField::KeyAssembliesLocal => "Use mirrored components",
+        MatrixTransformField::KeyAddAnchoredMatrix => "Add anchored matrix",
+        MatrixTransformField::DeleteSelection => "Delete",
+        MatrixTransformField::MatrixDetach => "Detach",
+        MatrixTransformField::MatrixDetachConfirm => "Confirm detach",
+        MatrixTransformField::MatrixAnchorPick => "Pick anchor",
+        MatrixTransformField::MatrixAnchorMethod => "Anchor method",
+        MatrixTransformField::MatrixAnchorParts => "Anchor parts",
+        MatrixTransformField::MatrixFollowX => "Follow X",
+        MatrixTransformField::MatrixFollowY => "Follow Y",
+        MatrixTransformField::MatrixFollowRotation => "Follow rotation",
+    }
+}
+
 #[derive(Clone, PartialEq)]
 pub struct MatrixTransformInspectorMount {
     pub projection: Option<MatrixTransformProjection>,
@@ -149,10 +419,137 @@ pub struct MatrixTransformInspectorMount {
     pub feedback: Vec<MatrixTransformFeedback>,
     pub on_edit: EventHandler<MatrixTransformRequest>,
     pub splay_affect: Signal<MatrixSplayAffect>,
+    pub(super) inspector_mounted: Signal<bool>,
+    pub(super) canvas_mounted: Signal<bool>,
+    pub(super) numeric_fields: Vec<(MatrixTransformField, Signal<String>, Signal<Option<String>>)>,
+    pub(super) canvas_numeric_fields:
+        Vec<(MatrixTransformField, Signal<String>, Signal<Option<String>>)>,
+    one_shot_fields: Vec<(MatrixTransformField, Signal<bool>)>,
+    pub(super) change_status: Signal<Option<TransformChangeAnnouncement>>,
+    /// The pending canvas multi-Pick draft: the owner it was armed for and the
+    /// picked parts. Owner-tagged so a selection change orphans it instead of
+    /// committing stale parts to another matrix; the armed flag itself stays in
+    /// workspace state beside the ticket-23 single pick.
+    pub aggregate_pick_draft: Signal<Option<(MatrixTransformInspectorOwner, Vec<AnchorPart>)>>,
 }
 
 impl MatrixTransformInspectorMount {
-    pub fn pick_splay_origin(&self, point: Vec2) -> bool {
+    pub(super) fn one_shot_disabled(&self, field: MatrixTransformField) -> Signal<bool> {
+        self.one_shot_fields
+            .iter()
+            .find(|(candidate, _)| *candidate == field)
+            .expect("one-shot transform action has a stable view")
+            .1
+    }
+
+    pub(super) fn numeric_field(
+        &self,
+        field: MatrixTransformField,
+    ) -> (Signal<String>, Signal<Option<String>>) {
+        let (_, draft, failure) = self
+            .numeric_fields
+            .iter()
+            .find(|(candidate, _, _)| *candidate == field)
+            .expect("numeric transform field has a stable view");
+        (*draft, *failure)
+    }
+
+    /// A canvas pick of the anchor key: retargets the anchor to the picked
+    /// key identity, keeping the Follow subset, through one `SetMatrixAnchor`
+    /// intent. Core validates the target (same Layout, no cycle, not
+    /// constraint-driven) and its refusal surfaces through the Inspector
+    /// feedback beside the anchor block.
+    pub fn pick_matrix_anchor(&self, matrix_id: String, row: u32, column: u32) -> bool {
+        let Some(projection) = self.projection.as_ref() else {
+            return false;
+        };
+        let MatrixTransformFields::Matrix { .. } = &projection.fields else {
+            return false;
+        };
+        if !self.editable {
+            return false;
+        }
+        let Some(request_id) = (self.request_sequence)().checked_add(1) else {
+            return false;
+        };
+        let mut request_sequence = self.request_sequence;
+        request_sequence.set(request_id);
+        self.on_edit.call(MatrixTransformRequest {
+            owner: projection.owner.clone(),
+            request_id,
+            snapshot_token: projection.snapshot_token,
+            revision: projection.revision,
+            field: MatrixTransformField::MatrixAnchorPick,
+            baseline: MatrixTransformValue::AnchorKey {
+                matrix_id: String::new(),
+                row: u32::MAX,
+                column: u32::MAX,
+            },
+            value: MatrixTransformValue::AnchorKey {
+                matrix_id,
+                row,
+                column,
+            },
+            splay_affect: (self.splay_affect)(),
+            draft: None,
+            failure: None,
+            submitted_text: None,
+            one_shot: false,
+        });
+        true
+    }
+
+    /// A canvas multi-Pick of one aggregate part: appends the picked key to the
+    /// pending draft without writing, staying armed for the next pick. Core
+    /// validates the whole list at commit; duplicates are a no-op. Returns
+    /// false when there is no aggregate-anchored projection to pick for.
+    pub fn pick_aggregate_part(&self, matrix_id: String, row: u32, column: u32) -> bool {
+        let Some(projection) = self.projection.as_ref() else {
+            return false;
+        };
+        let MatrixTransformFields::Matrix {
+            anchor: Some(anchor),
+            ..
+        } = &projection.fields
+        else {
+            return false;
+        };
+        if anchor.aggregate.is_none() || !self.editable {
+            return false;
+        }
+        let part = AnchorPart {
+            matrix_id,
+            row,
+            column,
+        };
+        let mut draft = self.aggregate_pick_draft;
+        let current = draft.read().clone();
+        match current {
+            Some((owner, parts)) if owner == projection.owner => {
+                if parts.contains(&part) {
+                    return true;
+                }
+                let mut next = parts.clone();
+                next.push(part);
+                draft.set(Some((projection.owner.clone(), next)));
+            }
+            _ => {
+                draft.set(Some((projection.owner.clone(), vec![part])));
+            }
+        }
+        true
+    }
+
+    /// Drop the pending multi-Pick draft without writing.
+    pub fn clear_aggregate_pick(&self) {
+        let mut draft = self.aggregate_pick_draft;
+        draft.set(None);
+    }
+
+    /// A canvas pick of the splay origin. With Ctrl held the pick swings the
+    /// keys: it writes only the origin through `OriginSwing`, never a
+    /// hold-still compensation.
+    pub fn pick_splay_origin(&self, point: Vec2, swing: bool) -> bool {
         let Some(projection) = self.projection.as_ref() else {
             return false;
         };
@@ -172,10 +569,18 @@ impl MatrixTransformInspectorMount {
             request_id,
             snapshot_token: projection.snapshot_token,
             revision: projection.revision,
-            field: MatrixTransformField::SplayOriginPoint,
+            field: if swing {
+                MatrixTransformField::SplayOriginSwingPoint
+            } else {
+                MatrixTransformField::SplayOriginPoint
+            },
             baseline: MatrixTransformValue::Point(*splay_origin),
             value: MatrixTransformValue::Point(point),
             splay_affect: (self.splay_affect)(),
+            draft: None,
+            failure: None,
+            submitted_text: None,
+            one_shot: false,
         });
         true
     }
@@ -219,14 +624,87 @@ pub fn use_workspace_matrix_transform(
         tracker.value
     };
 
+    let numeric_fields = use_hook(|| {
+        [
+            MatrixTransformField::OriginX,
+            MatrixTransformField::OriginY,
+            MatrixTransformField::MatrixRotation,
+            MatrixTransformField::RowOffsetX,
+            MatrixTransformField::RowOffsetY,
+            MatrixTransformField::RowShiftX,
+            MatrixTransformField::RowShiftY,
+            MatrixTransformField::RowBend,
+            MatrixTransformField::RowPadding,
+            MatrixTransformField::ColumnSplay,
+            MatrixTransformField::SplayOriginX,
+            MatrixTransformField::SplayOriginY,
+            MatrixTransformField::ColumnStagger,
+            MatrixTransformField::ColumnSpread,
+            MatrixTransformField::ColumnOffsetX,
+            MatrixTransformField::ColumnOffsetY,
+            MatrixTransformField::KeyOffsetX,
+            MatrixTransformField::KeyOffsetY,
+            MatrixTransformField::KeyShiftX,
+            MatrixTransformField::KeyShiftY,
+            MatrixTransformField::KeyBend,
+            MatrixTransformField::KeyRotation,
+        ]
+        .into_iter()
+        .map(|field| {
+            (
+                field,
+                Signal::new(String::new()),
+                Signal::new(None::<String>),
+            )
+        })
+        .collect::<Vec<_>>()
+    });
+    let canvas_numeric_fields = use_hook(|| {
+        numeric_fields
+            .iter()
+            .map(|(field, _, _)| {
+                (
+                    *field,
+                    Signal::new(String::new()),
+                    Signal::new(None::<String>),
+                )
+            })
+            .collect::<Vec<_>>()
+    });
     let request_sequence = use_signal(|| 0u64);
     let last_request_id = use_signal(|| 0u64);
-    let pending = use_signal(Vec::<TransformSubmission>::new);
+    let pending = use_hook(PendingEditSignals::<TransformPendingKey>::new);
+    let one_shot_fields = use_hook(|| {
+        [
+            MatrixTransformField::RowOffsetReset,
+            MatrixTransformField::ColumnOffsetReset,
+            MatrixTransformField::ColumnOffsetConvert,
+            MatrixTransformField::KeyTransformReset,
+            MatrixTransformField::MatrixDetach,
+            MatrixTransformField::MatrixDetachConfirm,
+            MatrixTransformField::KeyAssembliesLocal,
+            MatrixTransformField::KeyAttached,
+            MatrixTransformField::KeyAddAnchoredMatrix,
+            MatrixTransformField::DeleteSelection,
+        ]
+        .into_iter()
+        .map(|field| (field, Signal::new(false)))
+        .collect::<Vec<_>>()
+    });
     let feedback = use_signal(Vec::<MatrixTransformFeedback>::new);
+    let change_status = use_signal(|| None::<TransformChangeAnnouncement>);
+    let aggregate_pick_draft =
+        use_signal(|| None::<(MatrixTransformInspectorOwner, Vec<AnchorPart>)>);
     let alive = use_hook(|| Rc::new(std::cell::Cell::new(true)));
+    let inspector_mounted = use_signal(|| false);
+    let canvas_mounted = use_signal(|| false);
     use_drop({
         let alive = alive.clone();
-        move || alive.set(false)
+        let pending = pending.clone();
+        move || {
+            alive.set(false);
+            pending.settle(false, |_| String::new());
+        }
     });
     let switch_catalog = use_signal(Vec::<boardstudio_core::model::PartDefinition>::new);
     // The bundled catalogue is built per document reversibility (as in the Parts browser), so
@@ -277,7 +755,7 @@ pub fn use_workspace_matrix_transform(
         current_workspace,
         owner_workspace,
     );
-    let projection = projection.map(|mut projection| {
+    let mut projection = projection.map(|mut projection| {
         if let MatrixTransformFields::Key {
             definition_id,
             choices,
@@ -309,16 +787,120 @@ pub fn use_workspace_matrix_transform(
         }
         projection
     });
+    // Session drops disabled generated part IDs. Keep their cell selection while
+    // this exact inspector context owns it, so the same checkbox can re-enable all.
+    let retained_keys =
+        use_hook(|| Rc::new(RefCell::new(None::<(ContextIdentity, Vec<(u32, u32)>)>)));
+    use_effect({
+        let retained_keys = retained_keys.clone();
+        move || {
+            // Subscribe to explicit selection writes, including reselection of the
+            // same disabled tree key. Accepted revisions do not write this signal.
+            let _selection = selected_context.read();
+            retained_keys.borrow_mut().take();
+        }
+    });
+    {
+        let model = runtime.model();
+        let mut retained = retained_keys.borrow_mut();
+        match (observed_identity.as_ref(), model.accepted.as_ref()) {
+            (Some(identity), Some(snapshot)) => {
+                if let TreeContext::Key { matrix_id, .. } = &identity.context {
+                    if !model.selected_part_ids.is_empty() {
+                        let cells = selected_key_coordinates(
+                            snapshot,
+                            matrix_id,
+                            &model.selected_part_ids,
+                            &identity.context,
+                        );
+                        let preserves_disabled = retained.as_ref().is_some_and(|(owner, held)| {
+                            owner == identity
+                                && cells.iter().all(|cell| held.contains(cell))
+                                && held.iter().all(|(row, column)| {
+                                    cells.contains(&(*row, *column))
+                                        || snapshot
+                                            .scene
+                                            .matrix_scenes
+                                            .iter()
+                                            .find(|scene| scene.matrix_id == *matrix_id)
+                                            .is_some_and(|scene| {
+                                                scene.cells.iter().any(|cell| {
+                                                    cell.row == *row
+                                                        && cell.column == *column
+                                                        && !cell.enabled
+                                                })
+                                            })
+                                })
+                        });
+                        if !preserves_disabled {
+                            *retained = Some((identity.clone(), cells));
+                        }
+                    } else if retained.as_ref().is_none_or(|(owner, cells)| {
+                        owner != identity
+                            || !cells.iter().all(|(row, column)| {
+                                snapshot
+                                    .scene
+                                    .matrix_scenes
+                                    .iter()
+                                    .find(|scene| scene.matrix_id == *matrix_id)
+                                    .is_some_and(|scene| {
+                                        scene.cells.iter().any(|cell| {
+                                            cell.row == *row
+                                                && cell.column == *column
+                                                && !cell.enabled
+                                        })
+                                    })
+                            })
+                    }) {
+                        *retained = None;
+                    }
+                } else {
+                    *retained = None;
+                }
+            }
+            _ => *retained = None,
+        }
+    }
+    if let Some(projection) = &mut projection
+        && let MatrixTransformFields::Key { enabled, .. } = &mut projection.fields
+        && let Some((_, cells)) = retained_keys.borrow().as_ref()
+        && let Some(snapshot) = runtime.model().accepted
+    {
+        *enabled = snapshot
+            .scene
+            .matrix_scenes
+            .iter()
+            .find(|scene| scene.matrix_id == projection.owner.matrix_id)
+            .is_some_and(|scene| {
+                cells.iter().all(|(row, column)| {
+                    scene
+                        .cells
+                        .iter()
+                        .any(|cell| cell.row == *row && cell.column == *column && cell.enabled)
+                })
+            });
+    }
     let identity = observed_identity.clone();
 
     use_effect(use_reactive(
         (&version(), &workspace(), &scope_generation(), &identity),
         {
             let runtime = runtime.clone();
-            let mut pending = pending;
             let mut feedback = feedback;
-            move |(_, _, scope_generation, _)| {
-                settle_pending(&runtime, scope_generation, &mut pending, &mut feedback);
+            let mut change_status = change_status;
+            let pending = pending.clone();
+            let alive = alive.clone();
+            move |(_, current_workspace, _, _)| {
+                let owner_is_live = alive.get()
+                    && (inspector_mounted() || canvas_mounted())
+                    && workspace_route_matches(current_workspace, owner_workspace);
+                settle_pending(
+                    &runtime,
+                    &pending,
+                    owner_is_live,
+                    &mut feedback,
+                    &mut change_status,
+                );
             }
         },
     ));
@@ -326,9 +908,12 @@ pub fn use_workspace_matrix_transform(
     let on_edit = use_callback({
         let runtime = runtime.clone();
         let context_generation = context_generation.clone();
+        let pending = pending.clone();
+        let one_shot_fields = one_shot_fields.clone();
+        let retained_keys = retained_keys.clone();
         let mut last_request_id = last_request_id;
-        let mut pending = pending;
         let mut feedback = feedback;
+        let mut change_status = change_status;
         let mut catalog_requested = catalog_requested;
         move |request: MatrixTransformRequest| {
             let current_generation = context_generation.borrow().value;
@@ -367,11 +952,21 @@ pub fn use_workspace_matrix_transform(
             if current.owner != request.owner {
                 return;
             }
+            let key = TransformPendingKey {
+                field: request.field,
+                splay_affect: request.splay_affect.clone(),
+                owner: request.owner.clone(),
+                request_id: request.request_id,
+                one_shot: request.one_shot,
+                failure: request.failure,
+            };
+            if request.one_shot && pending.is_pending(&key) {
+                return;
+            }
             if !editable {
-                publish_feedback(
+                publish_request_failure(
                     &mut feedback,
                     &request,
-                    MatrixTransformState::Failed,
                     Some("The matrix transform is not ready to edit. Wait for the current operation to finish, then retry.".into()),
                 );
                 return;
@@ -423,29 +1018,34 @@ pub fn use_workspace_matrix_transform(
                 } else {
                     "The component catalogue is not ready yet. Try this change again when it finishes loading."
                 };
-                publish_feedback(
-                    &mut feedback,
-                    &request,
-                    MatrixTransformState::Failed,
-                    Some(message.into()),
-                );
+                publish_request_failure(&mut feedback, &request, Some(message.into()));
                 return;
             }
+            // A fresh anchored-matrix identity is proposed now so the typed build
+            // validates; the resolver re-derives it against whatever is
+            // accepted when the edit runs.
+            let resolved_value = if request.field == MatrixTransformField::KeyAddAnchoredMatrix {
+                let reversible = crate::presentation::parts::reversible_layout(&snapshot.document);
+                MatrixTransformValue::Text(crate::matrix_setup_operation::next_matrix_id(
+                    &snapshot.document.matrices,
+                    &snapshot.document.definitions,
+                    &snapshot.document.parts,
+                    "anchored",
+                    reversible,
+                ))
+            } else {
+                request.value.clone()
+            };
             // Validate the typed value now so a bad entry is explained inline; the resolver
             // repeats the build against whatever is accepted when the edit runs.
             if let Err(message) = build_operation(
                 matrix,
                 &current.fields,
                 request.field,
-                request.value.clone(),
+                resolved_value.clone(),
                 request.splay_affect.clone(),
             ) {
-                publish_feedback(
-                    &mut feedback,
-                    &request,
-                    MatrixTransformState::Failed,
-                    Some(message),
-                );
+                publish_request_failure(&mut feedback, &request, Some(message));
                 return;
             }
             let catalogue_definitions = match (&request.field, &request.value) {
@@ -463,10 +1063,69 @@ pub fn use_workspace_matrix_transform(
                 }
                 _ => Vec::new(),
             };
-            let ticket = EditTicket::begin(
-                &runtime,
-                "layout-matrix-transform",
-                Some("transform".into()),
+            let selected_cells = retained_keys
+                .borrow()
+                .as_ref()
+                .map(|(_, cells)| cells.clone())
+                .unwrap_or_else(|| {
+                    selected_key_coordinates(
+                        snapshot,
+                        &request.owner.matrix_id,
+                        &model.selected_part_ids,
+                        &request.owner.context,
+                    )
+                });
+            if matches!(
+                request.field,
+                MatrixTransformField::KeyEnabled | MatrixTransformField::DeleteSelection
+            ) && matches!(request.owner.context, TreeContext::Key { .. })
+            {
+                *retained_keys.borrow_mut() = Some((
+                    ContextIdentity {
+                        scope: selected.scope.clone(),
+                        context: selected.context.clone(),
+                        workspace: current_workspace,
+                        scope_generation: current_scope_generation,
+                    },
+                    selected_cells.clone(),
+                ));
+            }
+            let resolver = if request.field == MatrixTransformField::DeleteSelection
+                && matches!(request.owner.context, TreeContext::Key { .. })
+            {
+                selected_keys_delete_resolver(request.owner.matrix_id.clone(), selected_cells)
+            } else if request.field == MatrixTransformField::KeyAddAnchoredMatrix
+                && let TreeContext::Key { row, column, .. } = &request.owner.context
+                && let MatrixTransformValue::Text(proposed_id) = &resolved_value
+            {
+                add_anchored_matrix_resolver(
+                    request.owner.matrix_id.clone(),
+                    *row,
+                    *column,
+                    proposed_id.clone(),
+                )
+            } else if let (MatrixTransformField::KeyEnabled, MatrixTransformValue::Bool(enabled)) =
+                (request.field, &request.value)
+            {
+                selected_keys_enabled_resolver(
+                    request.owner.matrix_id.clone(),
+                    request.owner.scope.board_id.clone(),
+                    selected_cells,
+                    *enabled,
+                )
+            } else if let (MatrixTransformField::KeyOmit, MatrixTransformValue::Bool(omit)) =
+                (request.field, &request.value)
+                && let TreeContext::Key { row, column, .. } = &request.owner.context
+            {
+                // Ticket 34: the member and pair re-resolve at execution time, so
+                // a queued omit never lands on a reindexed key.
+                key_half_exception_at_resolver(
+                    request.owner.matrix_id.clone(),
+                    *row,
+                    *column,
+                    *omit,
+                )
+            } else {
                 transform_edit_resolver(
                     request.owner.matrix_id.clone(),
                     request.owner.scope.board_id.clone(),
@@ -475,13 +1134,50 @@ pub fn use_workspace_matrix_transform(
                     request.value.clone(),
                     request.splay_affect.clone(),
                     catalogue_definitions,
-                ),
-            );
-            pending.write().push(TransformSubmission {
-                request: request.clone(),
-                ticket,
-            });
-            publish_feedback(&mut feedback, &request, MatrixTransformState::Pending, None);
+                )
+            };
+            let resolver = if matches!(
+                request.owner.context,
+                TreeContext::Key { .. } | TreeContext::Row { .. } | TreeContext::Column { .. }
+            ) {
+                guard_matrix_topology(
+                    request.owner.matrix_id.clone(),
+                    (matrix.rows, matrix.columns),
+                    resolver,
+                )
+            } else {
+                resolver
+            };
+            if let (Some(draft), Some(failure)) = (request.draft, request.failure) {
+                pending.bind_field(key.clone(), draft, failure);
+            }
+            // A newer submit retires the previous announcement before Core answers.
+            change_status.set(None);
+            if !request.one_shot {
+                pending.begin_field(
+                    &runtime,
+                    key,
+                    "layout-matrix-transform",
+                    Some("transform".into()),
+                    resolver,
+                    request.submitted_text.as_deref().unwrap_or_default(),
+                );
+            } else {
+                let Some((_, disabled)) = one_shot_fields
+                    .iter()
+                    .find(|(field, _)| *field == request.field)
+                else {
+                    return;
+                };
+                pending.bind_one_shot(key.clone(), *disabled);
+                pending.begin_one_shot(
+                    &runtime,
+                    key,
+                    "layout-matrix-transform",
+                    Some("transform".into()),
+                    resolver,
+                );
+            }
         }
     });
 
@@ -492,6 +1188,13 @@ pub fn use_workspace_matrix_transform(
         feedback: feedback.read().clone(),
         on_edit,
         splay_affect,
+        inspector_mounted,
+        canvas_mounted,
+        canvas_numeric_fields,
+        numeric_fields,
+        one_shot_fields,
+        change_status,
+        aggregate_pick_draft,
     }
 }
 
@@ -617,14 +1320,37 @@ fn transform_fields(
             rotation: matrix.rotation.unwrap_or(0.0),
             mirror: matrix.mirror,
             mirror_y_locked: matrix_has_linked_layout(&snapshot.document, board_id, &matrix.id),
+            rotation_followed: matrix
+                .anchor
+                .as_ref()
+                .is_none_or(|anchor| anchor.follow.rotation),
+            anchor: matrix.anchor.clone(),
         },
         TreeContext::Row { row, .. } => MatrixTransformFields::Row {
             row: *row,
             offset: matrix
-                .row_offsets
+                .row_layout
                 .get(*row as usize)
+                .map(|record| &record.offset)
                 .copied()
                 .unwrap_or(Vec2 { x: 0.0, y: 0.0 }),
+            shift: matrix
+                .row_layout
+                .get(*row as usize)
+                .map(|record| &record.shift)
+                .copied()
+                .unwrap_or(Vec2 { x: 0.0, y: 0.0 }),
+            bend: matrix
+                .row_layout
+                .get(*row as usize)
+                .map(|record| &record.bend)
+                .copied()
+                .unwrap_or(0.0),
+            padding: matrix
+                .row_layout
+                .get(*row as usize)
+                .and_then(|record| record.padding),
+            pitch: matrix.pitch.y,
         },
         TreeContext::Column { column, .. } => {
             let scene = snapshot
@@ -636,25 +1362,57 @@ fn transform_fields(
             MatrixTransformFields::Column {
                 column: *column,
                 offset: matrix
-                    .column_offsets
+                    .column_layout
                     .get(*column as usize)
+                    .map(|record| &record.offset)
                     .copied()
                     .unwrap_or(Vec2 { x: 0.0, y: 0.0 }),
                 stagger: matrix
-                    .column_staggers
+                    .column_layout
                     .get(*column as usize)
+                    .map(|record| &record.stagger)
                     .copied()
                     .unwrap_or(0.0),
+                spread: matrix
+                    .column_layout
+                    .get(*column as usize)
+                    .and_then(|record| record.spread),
+                pitch: matrix.pitch.x,
                 splay_angle: basis.splay_angle,
+                rotation: basis.rotation,
                 splay_origin: basis.splay_origin,
                 custom_origin: basis.custom_origin,
+                convert: convert_offset_available(matrix, *column),
             }
         }
         TreeContext::Key { row, column, .. } => {
+            let scene = snapshot
+                .scene
+                .matrix_scenes
+                .iter()
+                .find(|scene| scene.matrix_id == matrix.id)?;
+            let scene_cell = scene
+                .cells
+                .iter()
+                .find(|cell| cell.row == *row && cell.column == *column);
+            // Ticket 34: an omitted key left the scene cell behind; its
+            // Omitted overlay still names the canonical member for the Key
+            // context, so the rejoin affordance keeps working.
+            let member_id = scene_cell
+                .and_then(|cell| cell.member_id.clone())
+                .or_else(|| {
+                    key_half_exception_omitted(&snapshot.document, &matrix.id, *row, *column)
+                        .map(|exception| exception.mirror_id)
+                });
             let cell = matrix
                 .cells
                 .iter()
                 .find(|cell| cell.row == *row && cell.column == *column);
+            // Ticket 34: per-key Omit/Rejoin is owned by the Key context. The
+            // member resolves here; the pair and overlay re-resolve at execution.
+            let half_exception = member_id
+                .as_deref()
+                .and_then(|member| key_half_exception(&snapshot.document, member));
             MatrixTransformFields::Key {
                 row: *row,
                 column: *column,
@@ -672,16 +1430,20 @@ fn transform_fields(
                     })
                     .unwrap_or_default(),
                 component_choices: Vec::new(),
-                mirror_target: snapshot
-                    .document
-                    .layouts
-                    .iter()
-                    .any(|layout| layout.matrix_id == matrix.id && layout.mirror_link.is_some()),
+                mirror_target: snapshot.document.layouts.iter().any(|layout| {
+                    layout.matrix_ids.iter().any(|id| id == &matrix.id)
+                        && layout.mirror_link.is_some()
+                }),
                 assemblies_local: cell.and_then(|cell| cell.assemblies_local).unwrap_or(false),
                 offset: cell
                     .and_then(|cell| cell.offset)
                     .unwrap_or(Vec2 { x: 0.0, y: 0.0 }),
                 rotation: cell.and_then(|cell| cell.rotation).unwrap_or(0.0),
+                shift: cell
+                    .and_then(|cell| cell.shift)
+                    .unwrap_or(Vec2 { x: 0.0, y: 0.0 }),
+                bend: cell.and_then(|cell| cell.bend).unwrap_or(0.0),
+                half_exception,
             }
         }
         _ => return None,
@@ -711,7 +1473,9 @@ fn matrix_has_linked_layout(document: &ProjectDoc, board_id: &str, matrix_id: &s
     document
         .layouts
         .iter()
-        .find(|layout| layout.board_id == board_id && layout.matrix_id == matrix_id)
+        .find(|layout| {
+            layout.board_id == board_id && layout.matrix_ids.iter().any(|id| *id == matrix_id)
+        })
         .is_some_and(|layout| {
             layout.mirror_link.is_some()
                 || document.layouts.iter().any(|other| {
@@ -726,6 +1490,7 @@ fn matrix_has_linked_layout(document: &ProjectDoc, board_id: &str, matrix_id: &s
 fn field_value(
     fields: &MatrixTransformFields,
     field: MatrixTransformField,
+    splay_affect: &MatrixSplayAffect,
 ) -> Option<MatrixTransformValue> {
     use MatrixTransformField as Field;
     use MatrixTransformValue as Value;
@@ -751,6 +1516,16 @@ fn field_value(
         (MatrixTransformFields::Row { offset, .. }, Field::RowOffsetReset) => {
             Some(Value::Offset(*offset))
         }
+        (MatrixTransformFields::Row { shift, .. }, Field::RowShiftX) => {
+            Some(Value::Number(shift.x))
+        }
+        (MatrixTransformFields::Row { shift, .. }, Field::RowShiftY) => {
+            Some(Value::Number(shift.y))
+        }
+        (MatrixTransformFields::Row { bend, .. }, Field::RowBend) => Some(Value::Number(*bend)),
+        (MatrixTransformFields::Row { padding, pitch, .. }, Field::RowPadding) => {
+            Some(Value::Number(padding.unwrap_or(*pitch)))
+        }
         (MatrixTransformFields::Column { offset, .. }, Field::ColumnOffsetX) => {
             Some(Value::Number(offset.x))
         }
@@ -760,12 +1535,29 @@ fn field_value(
         (MatrixTransformFields::Column { offset, .. }, Field::ColumnOffsetReset) => {
             Some(Value::Offset(*offset))
         }
+        // The action is done once the offset Y is zero, so the resolver reports
+        // `Unchanged` against a button value of 0.
+        (MatrixTransformFields::Column { offset, .. }, Field::ColumnOffsetConvert) => {
+            Some(Value::Number(offset.y))
+        }
         (MatrixTransformFields::Column { stagger, .. }, Field::ColumnStagger) => {
             Some(Value::Number(*stagger))
         }
-        (MatrixTransformFields::Column { splay_angle, .. }, Field::ColumnSplay) => {
-            Some(Value::Number(*splay_angle))
+        (MatrixTransformFields::Column { spread, pitch, .. }, Field::ColumnSpread) => {
+            Some(Value::Number(spread.unwrap_or(*pitch)))
         }
+        (
+            MatrixTransformFields::Column {
+                splay_angle,
+                rotation,
+                ..
+            },
+            Field::ColumnSplay,
+        ) => Some(Value::Number(column_angle(
+            *splay_angle,
+            *rotation,
+            splay_affect,
+        ))),
         (MatrixTransformFields::Column { custom_origin, .. }, Field::SplayOriginMode) => {
             Some(Value::OriginMode(*custom_origin))
         }
@@ -778,6 +1570,50 @@ fn field_value(
         (MatrixTransformFields::Column { splay_origin, .. }, Field::SplayOriginPoint) => {
             Some(Value::Point(*splay_origin))
         }
+        (MatrixTransformFields::Column { splay_origin, .. }, Field::SplayOriginSwingPoint) => {
+            Some(Value::Point(*splay_origin))
+        }
+        (
+            MatrixTransformFields::Matrix {
+                anchor: Some(anchor),
+                ..
+            },
+            Field::MatrixAnchorMethod,
+        ) => anchor
+            .aggregate
+            .as_ref()
+            .map(|aggregate| Value::AnchorMethod(aggregate.method)),
+        (
+            MatrixTransformFields::Matrix {
+                anchor: Some(anchor),
+                ..
+            },
+            Field::MatrixAnchorParts,
+        ) => anchor
+            .aggregate
+            .as_ref()
+            .map(|aggregate| Value::AnchorParts(aggregate.parts.clone())),
+        (
+            MatrixTransformFields::Matrix {
+                anchor: Some(anchor),
+                ..
+            },
+            Field::MatrixFollowX,
+        ) => Some(Value::Bool(anchor.follow.x)),
+        (
+            MatrixTransformFields::Matrix {
+                anchor: Some(anchor),
+                ..
+            },
+            Field::MatrixFollowY,
+        ) => Some(Value::Bool(anchor.follow.y)),
+        (
+            MatrixTransformFields::Matrix {
+                anchor: Some(anchor),
+                ..
+            },
+            Field::MatrixFollowRotation,
+        ) => Some(Value::Bool(anchor.follow.rotation)),
         (MatrixTransformFields::Key { offset, .. }, Field::KeyOffsetX) => {
             Some(Value::Number(offset.x))
         }
@@ -787,9 +1623,19 @@ fn field_value(
         (MatrixTransformFields::Key { rotation, .. }, Field::KeyRotation) => {
             Some(Value::Number(*rotation))
         }
+        (MatrixTransformFields::Key { shift, .. }, Field::KeyShiftX) => {
+            Some(Value::Number(shift.x))
+        }
+        (MatrixTransformFields::Key { shift, .. }, Field::KeyShiftY) => {
+            Some(Value::Number(shift.y))
+        }
+        (MatrixTransformFields::Key { bend, .. }, Field::KeyBend) => Some(Value::Number(*bend)),
         (MatrixTransformFields::Key { enabled, .. }, Field::KeyEnabled) => {
             Some(Value::Bool(*enabled))
         }
+        (MatrixTransformFields::Key { half_exception, .. }, Field::KeyOmit) => half_exception
+            .as_ref()
+            .map(|exception| Value::Bool(exception.omitted)),
         (MatrixTransformFields::Key { assemblies, .. }, Field::KeyAttached) => {
             Some(Value::Attached(assemblies.clone()))
         }
@@ -817,66 +1663,126 @@ fn field_value(
 
 fn settle_pending(
     runtime: &Runtime,
-    scope_generation: u64,
-    pending: &mut Signal<Vec<TransformSubmission>>,
+    pending: &PendingEditSignals<TransformPendingKey>,
+    owner_is_live: bool,
     feedback: &mut Signal<Vec<MatrixTransformFeedback>>,
+    change_status: &mut Signal<Option<TransformChangeAnnouncement>>,
 ) {
-    let waiting = pending.read().clone();
-    if waiting.is_empty() {
-        return;
-    }
-    let scope = runtime.scope();
-    let mut remaining = Vec::with_capacity(waiting.len());
-    let mut changed = false;
-    for edit in waiting {
-        let live = scope.as_ref() == Some(&edit.request.owner.scope)
-            && scope_generation == edit.request.owner.scope_generation;
-        match edit.ticket.settlement(live) {
-            Settlement::Pending => remaining.push(edit),
-            Settlement::Landed { .. } => {
-                changed = true;
-                publish_feedback(feedback, &edit.request, MatrixTransformState::Saved, None);
+    for result in pending.settle(owner_is_live, |key| accepted_field_text(runtime, key)) {
+        match result {
+            PendingEditResult::Landed { key, .. } => {
+                if key.failure.is_none() {
+                    publish_feedback(feedback, &key.owner, key.request_id, key.field, None)
+                }
+                let revision = runtime
+                    .model()
+                    .accepted
+                    .map(|snapshot| snapshot.document.revision);
+                if let Some(revision) = revision {
+                    change_status.set(Some(TransformChangeAnnouncement {
+                        owner: key.owner.clone(),
+                        revision,
+                        message: format!(
+                            "Changed {} · one Undo entry",
+                            transform_field_label(key.field)
+                        ),
+                    }));
+                }
             }
-            Settlement::Failed { message } => {
-                changed = true;
-                publish_feedback(
-                    feedback,
-                    &edit.request,
-                    MatrixTransformState::Failed,
-                    Some(message),
-                );
-            }
-            Settlement::Retired => {
-                changed = true;
-                if live {
+            PendingEditResult::Failed { key, message } => {
+                if key.failure.is_none() {
                     publish_feedback(
                         feedback,
-                        &edit.request,
-                        MatrixTransformState::Failed,
-                        Some("The transform did not complete in the active session. Review the current value and retry.".into()),
-                    );
-                } else {
-                    feedback.set(Vec::new());
+                        &key.owner,
+                        key.request_id,
+                        key.field,
+                        Some(message),
+                    )
                 }
+                change_status.set(None);
+            }
+            PendingEditResult::Retired { key } => {
+                clear_feedback(feedback, &key);
             }
         }
     }
-    if changed {
-        pending.set(remaining);
+    // Undo, canvas drags and other writers move the revision without a mount
+    // submit; their result retires an announcement they did not produce.
+    let revision = runtime
+        .model()
+        .accepted
+        .map(|snapshot| snapshot.document.revision);
+    if change_status()
+        .as_ref()
+        .is_some_and(|announcement| Some(announcement.revision) != revision)
+    {
+        change_status.set(None);
     }
+}
+
+fn accepted_field_text(runtime: &Runtime, key: &TransformPendingKey) -> String {
+    let Some(snapshot) = runtime.model().accepted else {
+        return String::new();
+    };
+    let Some(matrix) = snapshot
+        .document
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == key.owner.matrix_id)
+    else {
+        return String::new();
+    };
+    transform_fields(
+        &snapshot,
+        &key.owner.scope.board_id,
+        &key.owner.context,
+        matrix,
+    )
+    .and_then(|fields| field_value(&fields, key.field, &key.splay_affect))
+    .and_then(|value| match value {
+        MatrixTransformValue::Number(value) => Some(value.to_string()),
+        _ => None,
+    })
+    .unwrap_or_default()
+}
+
+fn publish_request_failure(
+    feedback: &mut Signal<Vec<MatrixTransformFeedback>>,
+    request: &MatrixTransformRequest,
+    message: Option<String>,
+) {
+    if let Some(mut failure) = request.failure {
+        failure.set(message);
+    } else {
+        publish_feedback(
+            feedback,
+            &request.owner,
+            request.request_id,
+            request.field,
+            message,
+        );
+    }
+}
+
+fn clear_feedback(feedback: &mut Signal<Vec<MatrixTransformFeedback>>, key: &TransformPendingKey) {
+    let mut entries = feedback.read().clone();
+    entries.retain(|entry| {
+        entry.owner != key.owner || entry.field != key.field || entry.request_id != key.request_id
+    });
+    feedback.set(entries);
 }
 
 fn publish_feedback(
     feedback: &mut Signal<Vec<MatrixTransformFeedback>>,
-    request: &MatrixTransformRequest,
-    state: MatrixTransformState,
+    owner: &MatrixTransformInspectorOwner,
+    request_id: u64,
+    field: MatrixTransformField,
     message: Option<String>,
 ) {
     let next = MatrixTransformFeedback {
-        owner: request.owner.clone(),
-        request_id: request.request_id,
-        field: request.field,
-        state,
+        owner: owner.clone(),
+        request_id,
+        field,
         message,
     };
     let mut entries = feedback.read().clone();
@@ -889,10 +1795,7 @@ fn publish_feedback(
         entries.push(next);
     }
     while entries.len() > 8 {
-        let Some(index) = entries
-            .iter()
-            .position(|entry| entry.state != MatrixTransformState::Pending)
-        else {
+        let Some(index) = entries.iter().position(|entry| entry.message.is_some()) else {
             break;
         };
         entries.remove(index);
@@ -905,6 +1808,7 @@ mod queued_edits {
     use super::*;
     use crate::presentation::objects::matrix_edit_test_support as fixture;
     use crate::runtime::project_name_test_support as support;
+    use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
     use wasm_bindgen_test::wasm_bindgen_test;
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);

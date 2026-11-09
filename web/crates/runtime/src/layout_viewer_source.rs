@@ -570,6 +570,7 @@ mod tests {
             vias: vec![],
         });
         document.parts.push(Part {
+            anchor: None,
             keycap: None,
             outline: None,
             id: "part-1".into(),
@@ -741,6 +742,7 @@ mod tests {
             vias: vec![],
         });
         document.parts.push(Part {
+            anchor: None,
             id: "part-2".into(),
             reference: "U2".into(),
             ..document.parts[0].clone()
@@ -913,6 +915,8 @@ mod tests {
                         positions: vec![0.0; 9],
                         normals: vec![1.0; 9],
                         colors: None,
+                        step_bounds: None,
+                        vendor_step: None,
                     })
                 })
             }),
@@ -1008,6 +1012,7 @@ mod tests {
 
         let mut duplicate = snapshot.document.as_ref().clone();
         duplicate.parts.push(Part {
+            anchor: None,
             id: "part-2".into(),
             ..duplicate.parts[0].clone()
         });
@@ -1191,6 +1196,8 @@ mod tests {
                 height: 1.0,
             }],
             board_holes: vec![],
+            pcb_source: None,
+            round_drills: vec![],
             volumes: vec![],
             openings: vec![],
             mounts: vec![],

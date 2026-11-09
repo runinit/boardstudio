@@ -1,76 +1,41 @@
-//! The Layout Inspector's pending edits: one edit ticket per committed field, and the
-//! resolver builders every action submits through. Each resolver is a pure function of
-//! the accepted snapshot plus what the user captured when they committed — it re-checks
-//! at execution time what admission checked when the action was dispatched (the part
-//! still exists, the anchor is unchanged, locked and driven parts stay ineligible) and
-//! builds the edit operation from the accepted document it is handed, so a queued edit
-//! always applies on top of the edits accepted before it. This module is the pattern the
-//! later cluster tickets copy.
-use crate::edit_ticket::{EditTicket, Settlement};
+//! Resolver builders and logical keys for the Layout Component Inspector.
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution};
 use boardstudio_core::model::{
-    Constraint, EditCommand, EditOperation, EditPhase, Part, PartOutline, Position, ProjectDoc,
-    Vec2,
+    CompanionPlacementTarget, Constraint, ConstraintEndpoint, ConstraintRelation, EditOperation,
+    Follow, HalfExceptionState, MirroredCompanionMode, MirroredCompanionTweak, MirroredItemKind,
+    OffsetAxes, Part, PartAnchorValueChange, PartOutline, Position, ProjectDoc, Vec2,
 };
-use dioxus::prelude::{ReadableExt, WritableExt};
-use std::rc::Rc;
 
 use super::inspector::{ComponentPositionAxis, LayoutConstraintValues};
+use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 
-/// One ticket per committed Inspector field. A new commit for a field replaces its
-/// ticket; the field renders its draft while the ticket is pending.
-#[derive(Clone, Default)]
-pub struct LayoutComponentInspectorEdits {
-    pub x: Option<EditTicket>,
-    pub y: Option<EditTicket>,
-    pub margin: Option<EditTicket>,
-    pub layout: Option<EditTicket>,
-    pub constraint: Option<EditTicket>,
-    pub remove_constraint: Option<EditTicket>,
-}
-
-/// Begin a pending edit and park it on its field.
-pub fn begin_inspector_edit(
-    runtime: &Rc<crate::runtime::Runtime>,
-    field: InspectorField,
-    resolver: EditResolver,
-) -> EditTicket {
-    let ticket = EditTicket::begin(runtime, field.label(), Some("layout".into()), resolver);
-    ticket
-}
-
-/// The Inspector fields that can hold a pending edit ticket.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum InspectorField {
+pub(super) enum InspectorField {
     X,
     Y,
     Margin,
     Layout,
     Constraint,
     RemoveConstraint,
+    MirroredHalfState,
+    PartMirror,
+    CompanionPlacement,
+    PartAnchorValue,
+    PartAnchorFollow,
+    PartAnchorPick,
+    PartAnchorDetach,
 }
 
 impl InspectorField {
-    fn label(self) -> &'static str {
-        match self {
-            InspectorField::X => "layout-inspector-x",
-            InspectorField::Y => "layout-inspector-y",
-            InspectorField::Margin => "layout-inspector-outline",
-            InspectorField::Layout => "layout-inspector-layout",
-            InspectorField::Constraint => "layout-inspector-constraint",
-            InspectorField::RemoveConstraint => "layout-inspector-remove-constraint",
-        }
+    pub(super) fn is_field(self) -> bool {
+        matches!(self, Self::X | Self::Y | Self::Margin)
     }
 }
 
+pub(super) type LayoutComponentInspectorEdits = PendingEditSignals<InspectorField>;
+
 fn commit(command: EditOperation, target_ids: Vec<String>) -> Resolution {
-    Resolution::Submit(EditCommand {
-        base_revision: 0,
-        transaction_id: String::new(),
-        phase: EditPhase::Commit,
-        target_ids,
-        operation: command,
-    })
+    Resolution::submit(target_ids, command)
 }
 
 fn part_of<'a>(document: &'a ProjectDoc, part_id: &str) -> Option<&'a Part> {
@@ -95,12 +60,14 @@ fn position_ineligible_reason(
     if part.locked == Some(true) {
         return Some("This part is locked.");
     }
-    let drives = document.constraints.iter().any(|constraint| {
-        constraint.target() == part_id
-            && board_of(document, board_id)
-                .is_some_and(|board| board.part_ids.iter().any(|id| id == constraint.source()))
-    });
-    drives.then_some("This part is driven by a relationship.")
+    if board_of(document, board_id).is_none() {
+        return Some("The board is unavailable.");
+    }
+    match document.constraint_driving_part(part_id) {
+        Ok(Some(_)) => Some("This part is driven by a relationship."),
+        Ok(None) => None,
+        Err(_) => Some("The saved placement relationship could not be verified."),
+    }
 }
 
 /// Resolve a position edit: set one axis of the anchor part and translate the rest of
@@ -138,27 +105,36 @@ pub fn position_resolver(
                     "A selected part no longer exists; the position was not changed.".into(),
                 );
             }
-            let mut at = part.pose.at;
+            // Ticket 13: typed positions are board-space, so an anchored part
+            // edits from its evaluated pose while a detached part edits from
+            // its stored half-frame pose.
+            let base = if part.anchor.is_some() {
+                boardstudio_core::evaluated_part_pose(document, part).at
+            } else {
+                part.pose.at
+            };
+            let mut at = base;
             match axis {
                 ComponentPositionAxis::X => at.x = value,
                 ComponentPositionAxis::Y => at.y = value,
             }
-            if at == part.pose.at {
+            if at == base {
                 return Resolution::Unchanged;
             }
             let delta = Vec2 {
-                x: at.x - part.pose.at.x,
-                y: at.y - part.pose.at.y,
+                x: at.x - base.x,
+                y: at.y - base.y,
             };
             let positions = selected_part_ids
                 .iter()
                 .map(|selected_id| {
                     let selected = part_of(document, selected_id).expect("checked above");
+                    let board_at = boardstudio_core::evaluated_part_pose(document, selected).at;
                     Position {
                         id: selected.id.clone(),
                         at: Vec2 {
-                            x: selected.pose.at.x + delta.x,
-                            y: selected.pose.at.y + delta.y,
+                            x: board_at.x + delta.x,
+                            y: board_at.y + delta.y,
                         },
                     }
                 })
@@ -279,39 +255,139 @@ pub fn constraint_resolver(
             let Some(board) = board_of(document, &board_id) else {
                 return Resolution::Retire("The board no longer exists.".into());
             };
+            let existing = match document.constraint_driving_part(&part_id) {
+                Ok(existing) => existing,
+                Err(_) => {
+                    return Resolution::Retire(
+                        "The saved placement relationship could not be verified.".into(),
+                    );
+                }
+            };
+            let source_is_existing_endpoint = existing.is_some_and(|constraint| match constraint {
+                Constraint::Framed { source, .. } => match source {
+                    ConstraintEndpoint::Part { part_id } => part_id == &source_part_id,
+                    ConstraintEndpoint::LinkedMirror { mirror_part_id, .. } => {
+                        mirror_part_id == &source_part_id
+                    }
+                },
+                _ => false,
+            });
             if source_part_id == part_id
-                || !board.part_ids.iter().any(|id| id == &source_part_id)
+                || (!source_is_existing_endpoint
+                    && !board.part_ids.iter().any(|id| id == &source_part_id))
                 || part_of(document, &source_part_id).is_none()
             {
                 return Resolution::Retire(
                     "The constraint source is no longer available on this board.".into(),
                 );
             }
-            let existing_id = document
-                .constraints
-                .iter()
-                .find(|constraint| {
-                    constraint.target() == part_id
-                        && board.part_ids.iter().any(|id| id == constraint.source())
-                })
-                .map(|constraint| constraint.id().to_owned());
-            let constraint_id =
-                existing_id.unwrap_or_else(|| format!("layout-component-constraint-{id_seed}"));
-            let constraint = match &values {
-                LayoutConstraintValues::Offset { offset, rotation } => Constraint::Offset {
-                    id: constraint_id,
-                    source_part_id: source_part_id.clone(),
-                    target_part_id: part_id.clone(),
+            let constraint_id = existing
+                .map(|constraint| constraint.id().to_owned())
+                .unwrap_or_else(|| format!("layout-component-constraint-{id_seed}"));
+            let framed_endpoints = existing.and_then(|constraint| match constraint {
+                Constraint::Framed { source, target, .. } => Some((source.clone(), target.clone())),
+                _ => None,
+            });
+            let typed_relation = match &values {
+                LayoutConstraintValues::Framed { relation } => relation.clone(),
+                LayoutConstraintValues::Offset { offset, rotation } => ConstraintRelation::Offset {
                     offset: *offset,
                     rotation: *rotation,
                 },
-                LayoutConstraintValues::Mirror { axis, coordinate } => Constraint::Mirror {
-                    id: constraint_id,
-                    source_part_id: source_part_id.clone(),
-                    target_part_id: part_id.clone(),
-                    axis: axis.clone(),
-                    coordinate: *coordinate,
+                LayoutConstraintValues::PartOffset { offset, rotation } => {
+                    ConstraintRelation::PartOffset {
+                        offset: *offset,
+                        rotation: *rotation,
+                    }
+                }
+                LayoutConstraintValues::Mirror { axis, coordinate } => match axis {
+                    boardstudio_core::model::MirrorAxis::Vertical => {
+                        ConstraintRelation::MirrorLine {
+                            at: Vec2 {
+                                x: *coordinate,
+                                y: 0.0,
+                            },
+                            angle: 90.0,
+                        }
+                    }
+                    boardstudio_core::model::MirrorAxis::Horizontal => {
+                        ConstraintRelation::MirrorLine {
+                            at: Vec2 {
+                                x: 0.0,
+                                y: *coordinate,
+                            },
+                            angle: 0.0,
+                        }
+                    }
                 },
+            };
+            let constraint = if matches!(&values, LayoutConstraintValues::Framed { .. })
+                || framed_endpoints.is_some()
+            {
+                let (source, target) = framed_endpoints
+                    .map(|(source, target)| {
+                        let source_visible_id = match &source {
+                            ConstraintEndpoint::Part { part_id } => part_id.as_str(),
+                            ConstraintEndpoint::LinkedMirror { mirror_part_id, .. } => {
+                                mirror_part_id.as_str()
+                            }
+                        };
+                        let source = if source_visible_id == source_part_id {
+                            source
+                        } else {
+                            ConstraintEndpoint::Part {
+                                part_id: source_part_id.clone(),
+                            }
+                        };
+                        (source, target)
+                    })
+                    .unwrap_or_else(|| {
+                        (
+                            ConstraintEndpoint::Part {
+                                part_id: source_part_id.clone(),
+                            },
+                            ConstraintEndpoint::Part {
+                                part_id: part_id.clone(),
+                            },
+                        )
+                    });
+                Constraint::Framed {
+                    id: constraint_id,
+                    source,
+                    target,
+                    relation: typed_relation,
+                }
+            } else {
+                match &values {
+                    LayoutConstraintValues::Offset { offset, rotation } => Constraint::offset(
+                        OffsetAxes::Board,
+                        constraint_id,
+                        source_part_id.clone(),
+                        part_id.clone(),
+                        *offset,
+                        *rotation,
+                    ),
+                    LayoutConstraintValues::PartOffset { offset, rotation } => Constraint::offset(
+                        OffsetAxes::Part,
+                        constraint_id,
+                        source_part_id.clone(),
+                        part_id.clone(),
+                        *offset,
+                        *rotation,
+                    ),
+                    LayoutConstraintValues::Mirror { axis, coordinate } => Constraint::Mirror {
+                        id: constraint_id,
+                        source_part_id: source_part_id.clone(),
+                        target_part_id: part_id.clone(),
+                        axis: axis.clone(),
+                        coordinate: *coordinate,
+                    },
+                    LayoutConstraintValues::Framed { .. } => {
+                        return Resolution::Retire(
+                            "The typed relationship could not be created.".into(),
+                        );
+                    }
+                }
             };
             if document.constraints.contains(&constraint) {
                 return Resolution::Unchanged;
@@ -325,6 +401,88 @@ pub fn constraint_resolver(
     )
 }
 
+/// Resolve a change of axes on a saved offset constraint: the constraint must still drive the
+/// part, and a mirror has no axes to change. Core moves no part.
+pub fn offset_axes_resolver(
+    part_id: String,
+    constraint_id: String,
+    to: OffsetAxes,
+) -> EditResolver {
+    EditResolver::new(
+        "layout-inspector-offset-axes",
+        move |accepted: &AcceptedSnapshot| {
+            let document = &accepted.document;
+            let constraint = match document.constraint_driving_part(&part_id) {
+                Ok(Some(constraint)) if constraint.id() == constraint_id => constraint,
+                Ok(_) => {
+                    return Resolution::Retire("The constraint no longer drives this part.".into());
+                }
+                Err(_) => {
+                    return Resolution::Retire(
+                        "The saved placement relationship could not be verified.".into(),
+                    );
+                }
+            };
+            if let Constraint::Framed {
+                id,
+                source,
+                target,
+                relation,
+            } = constraint
+            {
+                let (offset, rotation) = match relation {
+                    ConstraintRelation::Offset { offset, rotation } if to == OffsetAxes::Board => {
+                        (*offset, *rotation)
+                    }
+                    ConstraintRelation::Offset { offset, rotation } => (*offset, *rotation),
+                    ConstraintRelation::PartOffset { offset, rotation }
+                        if to == OffsetAxes::Part =>
+                    {
+                        (*offset, *rotation)
+                    }
+                    ConstraintRelation::PartOffset { offset, rotation } => (*offset, *rotation),
+                    ConstraintRelation::MirrorLine { .. } => {
+                        return Resolution::Retire("A mirror line has no offset axes.".into());
+                    }
+                };
+                let relation = match to {
+                    OffsetAxes::Board => ConstraintRelation::Offset { offset, rotation },
+                    OffsetAxes::Part => ConstraintRelation::PartOffset { offset, rotation },
+                };
+                let replacement = Constraint::Framed {
+                    id: id.clone(),
+                    source: source.clone(),
+                    target: target.clone(),
+                    relation,
+                };
+                if replacement == *constraint {
+                    return Resolution::Unchanged;
+                }
+                return commit(
+                    EditOperation::SetConstraint {
+                        constraint: replacement,
+                    },
+                    vec![constraint_id.clone(), part_id.clone()],
+                );
+            }
+            match constraint.offset_axes() {
+                Some(axes) if axes == to => return Resolution::Unchanged,
+                Some(_) => {}
+                None => {
+                    return Resolution::Retire("A mirror constraint has no offset axes.".into());
+                }
+            }
+            commit(
+                EditOperation::ConvertOffsetConstraint {
+                    constraint_id: constraint_id.clone(),
+                    to,
+                },
+                vec![constraint_id.clone(), part_id.clone()],
+            )
+        },
+    )
+}
+
 /// Resolve a constraint removal: the constraint must still drive the part.
 pub fn remove_constraint_resolver(part_id: String, constraint_id: String) -> EditResolver {
     EditResolver::new(
@@ -334,16 +492,278 @@ pub fn remove_constraint_resolver(part_id: String, constraint_id: String) -> Edi
             if part_of(document, &part_id).is_none() {
                 return Resolution::Retire("The selected part no longer exists.".into());
             }
-            if !document.constraints.iter().any(|constraint| {
-                constraint.id() == constraint_id && constraint.target() == part_id
-            }) {
-                return Resolution::Retire("The relationship no longer exists.".into());
+            match document.constraint_driving_part(&part_id) {
+                Ok(Some(constraint)) if constraint.id() == constraint_id => {}
+                Ok(_) => return Resolution::Retire("The relationship no longer exists.".into()),
+                Err(_) => {
+                    return Resolution::Retire(
+                        "The saved placement relationship could not be verified.".into(),
+                    );
+                }
             }
             commit(
                 EditOperation::RemoveConstraint {
                     id: constraint_id.clone(),
                 },
                 vec![constraint_id.clone(), part_id.clone()],
+            )
+        },
+    )
+}
+
+/// Resolve a linked part's exception against the accepted mirrored-half record.
+pub fn mirrored_half_state_resolver(
+    pair_id: String,
+    mirror_id: String,
+    state: HalfExceptionState,
+) -> EditResolver {
+    EditResolver::new(
+        "layout-mirrored-half-state",
+        move |accepted: &AcceptedSnapshot| {
+            let Some(pair) = accepted
+                .document
+                .hardware
+                .as_ref()
+                .and_then(|hardware| hardware.pairs.iter().find(|pair| pair.id == pair_id))
+            else {
+                return Resolution::Retire("The mirrored pair no longer exists.".into());
+            };
+            let Some(halves) = pair.halves.as_ref() else {
+                return Resolution::Retire("The mirrored pair no longer links items.".into());
+            };
+            if !halves
+                .correspondences
+                .iter()
+                .any(|link| link.kind == MirroredItemKind::Part && link.mirror_id == mirror_id)
+            {
+                return Resolution::Retire("The linked part no longer exists.".into());
+            }
+            let current = halves
+                .exceptions
+                .iter()
+                .find(|exception| {
+                    exception.kind == MirroredItemKind::Part && exception.mirror_id == mirror_id
+                })
+                .map(|exception| match exception.state {
+                    boardstudio_core::model::MirroredExceptionState::Local => {
+                        HalfExceptionState::Local
+                    }
+                    boardstudio_core::model::MirroredExceptionState::Omitted => {
+                        HalfExceptionState::Omitted
+                    }
+                })
+                .unwrap_or(HalfExceptionState::Linked);
+            if current == state {
+                return Resolution::Unchanged;
+            }
+            Resolution::submit(
+                vec![pair_id.clone(), mirror_id.clone()],
+                EditOperation::SetHalfException {
+                    pair_id: pair_id.clone(),
+                    kind: MirroredItemKind::Part,
+                    mirror_id: mirror_id.clone(),
+                    state,
+                },
+            )
+        },
+    )
+}
+
+/// Resolve an independent part's "Mirror on both halves" toggle against the
+/// accepted Part correspondence: one Undo entry per flip via SetMirroredPart.
+pub fn part_mirror_resolver(part_id: String, mirrored: bool) -> EditResolver {
+    EditResolver::new("layout-part-mirror", move |accepted: &AcceptedSnapshot| {
+        if part_of(&accepted.document, &part_id).is_none() {
+            return Resolution::Retire("The part no longer exists.".into());
+        }
+        Resolution::submit(
+            vec![part_id.clone()],
+            EditOperation::SetMirroredPart {
+                part_id: part_id.clone(),
+                mirrored,
+            },
+        )
+    })
+}
+
+/// Ticket 13: the shared guard for part anchor edits: the part still exists
+/// and still carries an anchor (Pick also anchors a detached part, so it
+/// skips the anchor check).
+fn anchor_guard(
+    accepted: &AcceptedSnapshot,
+    part_id: &str,
+    needs_anchor: bool,
+) -> Option<Resolution> {
+    let document = &accepted.document;
+    let Some(part) = part_of(document, part_id) else {
+        return Some(Resolution::Retire("The part no longer exists.".into()));
+    };
+    if part.locked == Some(true) {
+        return Some(Resolution::Retire("This part is locked.".into()));
+    }
+    if needs_anchor && part.anchor.is_none() {
+        return Some(Resolution::Retire("The part is no longer anchored.".into()));
+    }
+    match document.constraint_driving_part(part_id) {
+        Ok(Some(_)) => Some(Resolution::Retire(
+            "This part is driven by a relationship.".into(),
+        )),
+        Ok(None) => None,
+        Err(_) => Some(Resolution::Retire(
+            "The saved placement relationship could not be verified.".into(),
+        )),
+    }
+}
+
+/// Ticket 13: edit one carried or local anchor value in one Undo entry via
+/// SetPartAnchorValues.
+pub fn part_anchor_value_resolver(part_id: String, change: PartAnchorValueChange) -> EditResolver {
+    EditResolver::new(
+        "layout-part-anchor-value",
+        move |accepted: &AcceptedSnapshot| {
+            if let Some(resolution) = anchor_guard(accepted, &part_id, true) {
+                return resolution;
+            }
+            commit(
+                EditOperation::SetPartAnchorValues {
+                    part_id: part_id.clone(),
+                    change: change.clone(),
+                },
+                vec![part_id.clone()],
+            )
+        },
+    )
+}
+
+/// Ticket 13: change the Follow subset in one Undo entry via
+/// SetPartAnchorFollow, keeping the pose.
+pub fn part_anchor_follow_resolver(part_id: String, follow: Follow) -> EditResolver {
+    EditResolver::new(
+        "layout-part-anchor-follow",
+        move |accepted: &AcceptedSnapshot| {
+            if let Some(resolution) = anchor_guard(accepted, &part_id, true) {
+                return resolution;
+            }
+            commit(
+                EditOperation::SetPartAnchorFollow {
+                    part_id: part_id.clone(),
+                    follow,
+                },
+                vec![part_id.clone()],
+            )
+        },
+    )
+}
+
+/// Ticket 13, retarget rule 04: retarget the anchor key (or anchor a
+/// detached part) in one Undo entry via SetPartAnchor. The stored values
+/// ride along, so the part moves to the fresh placement from the new key.
+pub fn part_anchor_pick_resolver(
+    part_id: String,
+    matrix_id: String,
+    row: u32,
+    column: u32,
+    follow: Follow,
+) -> EditResolver {
+    EditResolver::new(
+        "layout-part-anchor-pick",
+        move |accepted: &AcceptedSnapshot| {
+            if let Some(resolution) = anchor_guard(accepted, &part_id, false) {
+                return resolution;
+            }
+            commit(
+                EditOperation::SetPartAnchor {
+                    part_id: part_id.clone(),
+                    anchor: boardstudio_core::model::PartAnchor {
+                        matrix_id: matrix_id.clone(),
+                        row,
+                        column,
+                        follow,
+                        spread: 0.0,
+                        stagger: 0.0,
+                        splay: 0.0,
+                        offset: Vec2::default(),
+                        rotation: 0.0,
+                    },
+                },
+                vec![part_id.clone()],
+            )
+        },
+    )
+}
+
+/// Ticket 13: detach the anchor in one Undo entry via DetachPartAnchor,
+/// keeping the pose.
+pub fn part_anchor_detach_resolver(part_id: String) -> EditResolver {
+    EditResolver::new(
+        "layout-part-anchor-detach",
+        move |accepted: &AcceptedSnapshot| {
+            if let Some(resolution) = anchor_guard(accepted, &part_id, true) {
+                return resolution;
+            }
+            commit(
+                EditOperation::DetachPartAnchor {
+                    part_id: part_id.clone(),
+                },
+                vec![part_id.clone()],
+            )
+        },
+    )
+}
+
+pub fn companion_placement_resolver(
+    pair_id: String,
+    targets: Vec<CompanionPlacementTarget>,
+    mode: MirroredCompanionMode,
+    tweak: Option<MirroredCompanionTweak>,
+) -> EditResolver {
+    EditResolver::new(
+        "layout-companion-placement",
+        move |accepted: &AcceptedSnapshot| {
+            let pairs: Vec<_> = accepted
+                .document
+                .hardware
+                .as_ref()
+                .into_iter()
+                .flat_map(|hardware| &hardware.pairs)
+                .filter(|pair| pair.id == pair_id)
+                .collect();
+            let [pair] = pairs.as_slice() else {
+                return Resolution::Retire("The mirrored pair is unavailable or ambiguous.".into());
+            };
+            if pair.halves.is_none() {
+                return Resolution::Retire(
+                    "The mirrored pair no longer links matrix items.".into(),
+                );
+            }
+            if targets.is_empty() {
+                return Resolution::Retire(
+                    "No companion placement targets remain selected.".into(),
+                );
+            }
+            let mut target_ids = vec![pair_id.clone()];
+            for target in &targets {
+                let id = match target {
+                    CompanionPlacementTarget::Pair => None,
+                    CompanionPlacementTarget::Item { mirror_id, .. } => Some(mirror_id),
+                    CompanionPlacementTarget::Row { matrix_id, .. }
+                    | CompanionPlacementTarget::Column { matrix_id, .. }
+                    | CompanionPlacementTarget::Matrix { matrix_id } => Some(matrix_id),
+                };
+                if let Some(id) = id
+                    && !target_ids.contains(id)
+                {
+                    target_ids.push(id.clone());
+                }
+            }
+            Resolution::submit(
+                target_ids,
+                EditOperation::SetCompanionPlacement {
+                    pair_id: pair_id.clone(),
+                    targets: targets.clone(),
+                    mode,
+                    tweak,
+                },
             )
         },
     )
@@ -417,101 +837,10 @@ pub fn commit_position_resolver(
         if delta == Vec2::default() {
             return Resolution::Unchanged;
         }
-        Resolution::Submit(EditCommand {
-            base_revision: 0,
-            transaction_id: transaction_id.clone(),
-            phase: EditPhase::Commit,
-            target_ids: part_ids.clone(),
-            operation: EditOperation::MoveParts { positions },
-        })
+        Resolution::submit_with_transaction_id(
+            part_ids.clone(),
+            transaction_id.clone(),
+            EditOperation::MoveParts { positions },
+        )
     })
-}
-
-/// Read a field's settlement; a terminal settlement drops the ticket so the field shows
-/// the accepted document again. Returns the settlement for the caller to render.
-pub fn settle_field(ticket: &mut Option<EditTicket>, owner_is_live: bool) -> Option<Settlement> {
-    let pending = ticket.as_ref()?;
-    let settlement = pending.settlement(owner_is_live);
-    if settlement != Settlement::Pending {
-        ticket.take();
-    }
-    (settlement != Settlement::Pending).then_some(settlement)
-}
-
-/// Settle the Inspector's pending edits on each render. Pending keeps the draft; a
-/// failure restores the accepted value and reports the message inline; landed and
-/// retired tickets drop so the field follows the accepted document again. The Inspector
-/// itself is the owner-liveness answer: a departed owner unmounts it, so the tickets
-/// here always belong to the live selection.
-pub fn settle_inspector_edits(
-    mut pending_edits: dioxus::prelude::Signal<LayoutComponentInspectorEdits>,
-    accepted_x: f64,
-    accepted_y: f64,
-    accepted_margin: Option<f64>,
-    x: &mut dioxus::prelude::Signal<String>,
-    y: &mut dioxus::prelude::Signal<String>,
-    margin: &mut dioxus::prelude::Signal<String>,
-    error: &mut dioxus::prelude::Signal<Option<String>>,
-) {
-    let mut edits = pending_edits.peek().clone();
-    let mut changed = false;
-    let mut failure: Option<String> = None;
-    fn settle_text_field(
-        ticket: &mut Option<EditTicket>,
-        accepted: &str,
-        draft: &mut dioxus::prelude::Signal<String>,
-        changed: &mut bool,
-        failure: &mut Option<String>,
-    ) {
-        if let Some(settlement) = settle_field(ticket, true) {
-            *changed = true;
-            if let Settlement::Failed { message } = settlement {
-                *failure = Some(message);
-            }
-            if draft.peek().as_str() != accepted {
-                draft.set(accepted.to_owned());
-            }
-        }
-    }
-    settle_text_field(
-        &mut edits.x,
-        &format!("{accepted_x:.2}"),
-        x,
-        &mut changed,
-        &mut failure,
-    );
-    settle_text_field(
-        &mut edits.y,
-        &format!("{accepted_y:.2}"),
-        y,
-        &mut changed,
-        &mut failure,
-    );
-    settle_text_field(
-        &mut edits.margin,
-        &accepted_margin
-            .map(|value| value.to_string())
-            .unwrap_or_default(),
-        margin,
-        &mut changed,
-        &mut failure,
-    );
-    for ticket in [
-        &mut edits.layout,
-        &mut edits.constraint,
-        &mut edits.remove_constraint,
-    ] {
-        if let Some(settlement) = settle_field(ticket, true) {
-            changed = true;
-            if let Settlement::Failed { message } = settlement {
-                failure = Some(message);
-            }
-        }
-    }
-    if changed {
-        pending_edits.set(edits);
-    }
-    if let Some(message) = failure {
-        error.set(Some(message));
-    }
 }

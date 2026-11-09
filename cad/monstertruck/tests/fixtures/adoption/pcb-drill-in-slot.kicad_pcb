@@ -1,0 +1,5 @@
+(kicad_pcb (general (thickness 1.6))
+ (gr_rect (start 0 0) (end 20 -16) (layer "Edge.Cuts") (width 0.05) (tstamp edge))
+ (footprint "fixture" (at 0 0) (tstamp footprint)
+ (pad "0" np_thru_hole circle (at 10 -8) (size 2 2) (drill 1.0) (layers "*.Cu" "*.Mask") (tstamp pad-0))
+(pad "slot" np_thru_hole oval (at 10 -8) (size 4 2) (drill oval 4 2) (layers "*.Cu" "*.Mask") (tstamp slot))))

@@ -1,0 +1,8 @@
+# Vendored Ergogen hardware library: upstream models, footprints and licences. Tracked in Git
+# for offline builds and native tests; default searches and agent traversal skip it.
+ergogen/library/vendor/
+
+# Generated catalogue snapshots written by scripts/import-vik-modules.py and
+# scripts/import-kicad-parts.py. Their hand-edited manifests stay visible.
+catalogue/modules/imported-modules.json
+catalogue/parts/imported-parts.json

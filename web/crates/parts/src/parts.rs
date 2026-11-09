@@ -4,16 +4,32 @@ mod assembly_presets;
 pub use boardstudio_web_catalogue::bundled::{
     generator_parameter_schema, is_generator_source, load_all_catalogue_definitions,
     load_component_definition, load_matrix_templates, normalize_matrix_definition,
-    prepare_physical_setup_proposal, reversible_layout,
+    prepare_physical_setup_proposal, prepare_physical_setup_resources, reversible_layout,
 };
 use boardstudio_web_catalogue::catalogue;
+use boardstudio_web_ui_shared::choice_field::ChoiceField;
+use boardstudio_web_ui_shared::ui::{
+    alert::{Alert, AlertVariant},
+    button::{Button, ButtonSize, ButtonVariant},
+    callout::Callout,
+    collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
+    field::Field,
+    input::InputType,
+    input_group::{InputGroup, InputGroupInput},
+    item::{Item, ItemGroup, ItemSize},
+    label::Label,
+    spinner::Spinner,
+    tooltip::{Tooltip, TooltipContent, TooltipTrigger},
+};
 mod component_model_editor;
 mod details;
+pub(crate) mod editor_fields;
 mod generator_settings;
 #[cfg(any(target_arch = "wasm32", test))]
 mod mechanical_profile_editor;
 #[cfg(target_arch = "wasm32")]
 mod mechanical_profile_ui;
+mod model_axis;
 mod module_profile_editor;
 mod modules_catalogue;
 pub use modules_catalogue::module_attachment::AttachedModuleNavigation;
@@ -24,6 +40,60 @@ pub use assembly_presets::MatrixPresetId;
 /// Data source for the existing Layout matrix-placement lifecycle. Saved
 /// assembly recipes carry only their source definitions; Core still validates
 /// and commits the matrix plus definition snapshots through SetMatrix.
+#[derive(Clone, Copy)]
+struct AssemblyCreateAction(Signal<Option<(ScopeId, EventHandler<MouseEvent>)>>);
+
+pub fn use_assembly_action_provider() {
+    let action = use_signal(|| None);
+    use_context_provider(|| AssemblyCreateAction(action));
+}
+
+#[component]
+fn AssemblyCreateButton() -> Element {
+    let action = try_consume_context::<AssemblyCreateAction>();
+    let current = action.and_then(|action| action.0.read().as_ref().map(|(_, action)| *action));
+    rsx! { Tooltip {
+        TooltipTrigger { as: move |attributes| rsx! {
+            Button { attributes, variant: ButtonVariant::Ghost, size: ButtonSize::IconSm,
+                class: "max-[960px]:min-h-control-touch max-[960px]:min-w-control-touch [@media(pointer:coarse)]:min-h-control-touch [@media(pointer:coarse)]:min-w-control-touch",
+                aria_label: "New assembly", disabled: current.is_none(),
+                onclick: move |event: MouseEvent| { event.prevent_default(); event.stop_propagation(); if let Some(action) = current { action.call(event); } },
+                svg { class: "fill-none stroke-current stroke-[1.5]", view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M10 4v12M4 10h12" } }
+            }
+        } }
+        TooltipContent { "New key assembly" }
+    } }
+}
+
+#[component]
+fn PartsChoiceField(
+    label: String,
+    aria_label: String,
+    value: String,
+    options: Vec<(String, String)>,
+    #[props(default)] disabled: bool,
+    on_value_change: EventHandler<String>,
+) -> Element {
+    rsx! {
+        ChoiceField { label, value, options, aria_label: Some(aria_label), disabled,
+            on_value_change: move |next: Option<String>| if let Some(next) = next { on_value_change.call(next) },
+        }
+    }
+}
+
+#[component]
+fn PartsCatalogueCategory(label: String, reveal: bool, children: Element) -> Element {
+    let mut open = use_signal(|| reveal);
+    use_effect(use_reactive((&reveal,), move |(reveal,)| open.set(reveal)));
+    rsx! {
+        Collapsible { class: "py-1", aria_label: label.clone(), keep_mounted: true,
+            open: Some(open()), on_open_change: move |next| open.set(next),
+            CollapsibleTrigger { class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{label}" }
+            CollapsibleContent { class: "data-[open=false]:hidden", ItemGroup { {children} } }
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum MatrixPlacementSource {
     Preset(MatrixPresetId),
@@ -62,6 +132,8 @@ use mechanical_profile_editor::{
 };
 pub use preview::PartsPreviewPanel;
 pub use standard_profile_lifetime::PartsStandardProfileLifetime;
+#[cfg(all(test, target_arch = "wasm32"))]
+mod controls_tests;
 #[cfg(all(test, target_arch = "wasm32"))]
 mod placement_action_tests;
 
@@ -229,7 +301,6 @@ thread_local! {
 
 /// Reuse the normalized bundled catalogue for project-owned closure projection.
 /// Project overrides never replace this generator template.
-
 pub async fn load_horizontal_host_connector_definition()
 -> Result<boardstudio_core::model::PartDefinition, String> {
     modules_catalogue::load_horizontal_host_connector_definition().await
@@ -237,6 +308,85 @@ pub async fn load_horizontal_host_connector_definition()
 
 pub fn placement_label(definition: &boardstudio_core::model::PartDefinition) -> &str {
     preferred_label(definition)
+}
+
+fn has_unique_mirror_board_pair(document: &ProjectDoc, board_id: &str) -> bool {
+    let Some(hardware) = document.hardware.as_ref() else {
+        return false;
+    };
+    let mut matches = hardware.pairs.iter().filter(|pair| {
+        pair.halves
+            .as_ref()
+            .is_some_and(|halves| halves.mirror_board_id == board_id)
+    });
+    let Some(pair) = matches.next() else {
+        return false;
+    };
+    if matches.next().is_some() {
+        return false;
+    }
+    let Some(halves) = pair.halves.as_ref() else {
+        return false;
+    };
+    halves.source_board_id != halves.mirror_board_id
+        && [
+            halves.source_board_id.as_str(),
+            halves.mirror_board_id.as_str(),
+        ]
+        .into_iter()
+        .all(|id| {
+            document
+                .boards
+                .iter()
+                .filter(|board| board.id == id)
+                .count()
+                == 1
+        })
+}
+
+#[component]
+fn AddObjectChoice(
+    definition_id: String,
+    kind: boardstudio_core::model::PartKind,
+    label: String,
+    mirror_only_available: bool,
+    on_place: EventHandler<super::part_placement::ComponentPlacementAction>,
+) -> Element {
+    let linked_definition_id = definition_id.clone();
+    let linked_kind = kind.clone();
+    let mirror_definition_id = definition_id.clone();
+    let mirror_kind = kind.clone();
+    rsx! {
+        Item { size: ItemSize::Xs, class: "p-0",
+        div { role: "group", "aria-label": "Add {label}", class: "w-full",
+            Button {
+                key: "{definition_id}", variant: ButtonVariant::Ghost,
+                class: "w-full justify-start whitespace-normal text-left max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                aria_label: "Add {label}",
+                onclick: move |_| on_place.call(
+                    super::part_placement::ComponentPlacementAction::AddObject {
+                        definition_id: linked_definition_id.clone(),
+                        kind: linked_kind.clone(),
+                    }
+                ),
+                "{label}"
+            }
+            if mirror_only_available {
+                Button { variant: ButtonVariant::Ghost,
+                    class: "w-full justify-start whitespace-normal text-left max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    aria_label: "Add {label} to this half only",
+                    onclick: move |_| on_place.call(
+                        super::part_placement::ComponentPlacementAction::AddMirrorOnlyObject {
+                            definition_id: mirror_definition_id.clone(),
+                            kind: mirror_kind.clone(),
+                        }
+                    ),
+                    "Only this half"
+                }
+            }
+        }
+        }
+    }
 }
 
 #[component]
@@ -251,6 +401,8 @@ pub fn AddObjectComponentChooser(
     let catalogue = use_catalogue(&snapshot, &scope);
     let mut selection_generation = use_context::<PartsSelectionGeneration>().0;
     let board_id = scope.as_ref().map(|scope| scope.board_id.as_str());
+    let mirror_only_available =
+        board_id.is_some_and(|board_id| has_unique_mirror_board_pair(&snapshot.document, board_id));
     let layouts = snapshot
         .document
         .layouts
@@ -264,63 +416,49 @@ pub fn AddObjectComponentChooser(
     let content = if let Some(entries) = catalogue.entries {
         let choices = add_object_choices(&entries);
         if choices.is_empty() {
-            rsx! { p { class: "m1-parts-empty", role: "status", "No component definitions are available." } }
+            rsx! { div { role: "status", Callout { "No component definitions are available." } } }
         } else if search.is_empty() {
             let groups = add_object_groups(&choices);
             rsx! {
                 for (label, items) in groups {
-                    details { key: "{label}", class: "m1-parts-category", open: label == "Components",
-                        summary { "{label}" }
-                        div { class: "m1-add-part-results",
+                    Collapsible { key: "{label}", class: "py-1", default_open: label == "Components", keep_mounted: true,
+                        CollapsibleTrigger { class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{label}" }
+                        CollapsibleContent { class: "data-[open=false]:hidden", ItemGroup { class: "gap-px",
                             for entry in items {
                                 { let definition_id = entry.definition.id.clone();
                                   let kind = entry.definition.kind.clone();
                                   let label = preferred_label(&entry.definition);
-                                  rsx! {
-                                    button {
-                                        key: "{definition_id}",
-                                        class: "m1-parts-catalogue-choice",
-                                        r#type: "button",
-                                        onclick: move |_| on_place.call(
-                                            super::part_placement::ComponentPlacementAction::AddObject {
-                                                definition_id: definition_id.clone(),
-                                                kind: kind.clone(),
-                                            }
-                                        ),
-                                        "{label}"
-                                    }
-                                  }
+                                  rsx! { AddObjectChoice {
+                                      definition_id,
+                                      kind,
+                                      label: label.to_string(),
+                                      mirror_only_available,
+                                      on_place,
+                                  } }
                                 }
                             }
-                        }
+                        } }
                     }
                 }
             }
         } else {
             let results = add_object_search_results(&entries, &search);
             if results.is_empty() {
-                rsx! { p { class: "m1-parts-empty", role: "status", "No parts match this search." } }
+                rsx! { div { role: "status", Callout { "No parts match this search." } } }
             } else {
                 rsx! {
-                    div { class: "m1-add-part-results",
+                    ItemGroup { class: "gap-px",
                         for entry in results {
                             { let definition_id = entry.definition.id.clone();
                               let kind = entry.definition.kind.clone();
                               let label = preferred_label(&entry.definition);
-                              rsx! {
-                                button {
-                                    key: "{definition_id}",
-                                    class: "m1-parts-catalogue-choice",
-                                    r#type: "button",
-                                    onclick: move |_| on_place.call(
-                                        super::part_placement::ComponentPlacementAction::AddObject {
-                                            definition_id: definition_id.clone(),
-                                            kind: kind.clone(),
-                                        }
-                                    ),
-                                    "{label}"
-                                }
-                              }
+                              rsx! { AddObjectChoice {
+                                  definition_id,
+                                  kind,
+                                  label: label.to_string(),
+                                  mirror_only_available,
+                                  on_place,
+                              } }
                             }
                         }
                     }
@@ -328,45 +466,34 @@ pub fn AddObjectComponentChooser(
             }
         }
     } else if let Some(error) = catalogue.error {
-        rsx! { p { class: "m1-parts-load-error", role: "alert", "Component catalogue could not be loaded: {error}" } }
+        rsx! { Alert { variant: AlertVariant::Destructive, "Component catalogue could not be loaded: {error}" } }
     } else {
-        rsx! { p { class: "m1-parts-loading", role: "status", "Loading component catalogue…" } }
+        rsx! { div { role: "status", Spinner {} "Loading component catalogue…" } }
     };
     rsx! {
-        div { class: "m1-add-component-chooser",
+        div { class: "grid gap-2 min-w-0",
             if !layouts.is_empty() {
-                label { class: "m1-parts-placement-layout",
-                    "Place in"
-                    select {
-                        "aria-label": "Part placement layout",
-                        value: "{selected_layout}",
-                        onchange: move |event| {
-                            layout_target.set((!event.value().is_empty()).then(|| event.value()));
-                        },
-                        option { value: "", "Board / ungrouped" }
-                        for layout in layouts {
-                            option { key: "{layout.id}", value: "{layout.id}", "{layout.name}" }
-                        }
-                    }
+                PartsChoiceField {
+                    label: "Place in", aria_label: "Part placement layout", value: selected_layout,
+                    options: std::iter::once((String::new(), "Board / ungrouped".into()))
+                        .chain(layouts.iter().map(|layout| (layout.id.clone(), layout.name.clone()))).collect(),
+                    on_value_change: move |value: String| layout_target.set((!value.is_empty()).then_some(value)),
                 }
             }
-            label { class: "m1-parts-search-label", "Parts"
-                input {
-                    class: "m1-parts-search",
-                    type: "search",
-                    "aria-label": "Search parts",
-                    placeholder: "Find a part…",
-                    value: "{query()}",
-                    oninput: move |event| {
+            Field {
+                Label { html_for: format!("parts-add-search-{}", dioxus::core::current_scope_id().0), "Parts" }
+                InputGroup { class: "max-[960px]:h-control-touch [@media(pointer:coarse)]:h-control-touch", InputGroupInput { class: "max-[960px]:h-control-touch [@media(pointer:coarse)]:h-control-touch",
+                    id: format!("parts-add-search-{}", dioxus::core::current_scope_id().0),
+                    r#type: InputType::Search, aria_label: "Search parts", placeholder: "Find a part…", value: query(),
+                    oninput: move |event: FormEvent| {
                         query.set(event.value());
                         selection_generation.with_mut(|value| *value = value.wrapping_add(1));
                     },
-                }
+                } }
             }
             {content}
-            button {
-                class: "m1-add-browse",
-                r#type: "button",
+            Button { variant: ButtonVariant::Secondary,
+                class: "mt-1 max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                 onclick: move |_| on_browse.call(()),
                 "Browse all parts"
             }
@@ -451,6 +578,8 @@ fn add_object_groups<'a>(
 mod add_object_menu_tests {
     use super::*;
     use boardstudio_application::SnapshotToken;
+    use boardstudio_web_ui_shared::test_role::by_role_name;
+    use boardstudio_web_ui_shared::test_wait::wait_until;
     use std::{cell::RefCell, rc::Rc, sync::Arc};
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::wasm_bindgen_test;
@@ -629,11 +758,12 @@ mod add_object_menu_tests {
             dom,
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        gloo_timers::future::TimeoutFuture::new(30).await;
+        wait_until("Parts browse chooser mounts", || {
+            by_role_name(&root, "searchbox", "Search parts").is_some()
+        })
+        .await;
 
-        let input = root
-            .query_selector("input[aria-label='Search parts']")
-            .unwrap()
+        let input = by_role_name(&root, "searchbox", "Search parts")
             .unwrap()
             .dyn_into::<web_sys::HtmlInputElement>()
             .unwrap();
@@ -645,16 +775,23 @@ mod add_object_menu_tests {
                 &web_sys::Event::new_with_event_init_dict("input", &input_event).unwrap(),
             )
             .unwrap();
-        gloo_timers::future::TimeoutFuture::new(10).await;
-        root.query_selector("button.m1-add-browse")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
+        let signals = signals.borrow().as_ref().copied().unwrap();
+        wait_until("Parts search draft updates", || {
+            (signals.query)() == "battery"
+        })
+        .await;
+        assert_eq!(
+            boardstudio_web_ui_shared::test_role::accessible_name(input.as_ref()),
+            "Search parts"
+        );
+        by_role_name(&root, "button", "Browse all parts")
             .unwrap()
             .click();
-        gloo_timers::future::TimeoutFuture::new(10).await;
+        wait_until("Parts browse action selects the workspace", || {
+            (signals.generation)() == 1 && (signals.workspace)() == "Parts"
+        })
+        .await;
 
-        let signals = signals.borrow().as_ref().copied().unwrap();
         assert_eq!((signals.query)(), "battery");
         assert_eq!((signals.generation)(), 1);
         assert_eq!((signals.workspace)(), "Parts");
@@ -696,36 +833,30 @@ mod add_object_menu_tests {
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
 
-        for _ in 0..100 {
-            if root
-                .text_content()
-                .unwrap_or_default()
-                .contains("Loading component catalogue…")
-            {
-                break;
-            }
-            gloo_timers::future::TimeoutFuture::new(10).await;
-        }
-        assert!(
+        wait_until("catalogue loading state renders", || {
             root.text_content()
                 .unwrap_or_default()
                 .contains("Loading component catalogue…")
-        );
+        })
+        .await;
         complete
             .send(Err("controlled catalogue source failure".into()))
             .unwrap();
-        for _ in 0..100 {
-            if root
-                .query_selector("p[role='alert']")
-                .unwrap()
-                .and_then(|alert| alert.text_content())
-                .is_some_and(|text| text.contains("controlled catalogue source failure"))
-            {
-                break;
-            }
-            gloo_timers::future::TimeoutFuture::new(10).await;
-        }
-        let alert = root.query_selector("p[role='alert']").unwrap().unwrap();
+        wait_until("catalogue source failure renders", || {
+            by_role_name(
+                &root,
+                "alert",
+                "Component catalogue could not be loaded: controlled catalogue source failure",
+            )
+            .is_some()
+        })
+        .await;
+        let alert = by_role_name(
+            &root,
+            "alert",
+            "Component catalogue could not be loaded: controlled catalogue source failure",
+        )
+        .unwrap();
         assert!(alert.text_content().unwrap().contains(
             "Component catalogue could not be loaded: controlled catalogue source failure"
         ));
@@ -782,25 +913,6 @@ mod add_object_menu_tests {
         let battery_matches = add_object_search_results(&entries, "battery");
         assert_eq!(
             battery_matches
-                .iter()
-                .map(|entry| entry.definition.id.as_str())
-                .collect::<Vec<_>>(),
-            ["battery"]
-        );
-    }
-
-    #[wasm_bindgen_test::wasm_bindgen_test]
-    fn add_menu_search_excludes_retired_and_assembly_snapshot_definitions() {
-        let entries = vec![
-            entry("battery", "Battery connector", "connector"),
-            retired_entry(),
-            assembly_snapshot_entry(),
-        ];
-
-        let results = add_object_search_results(&entries, "battery");
-
-        assert_eq!(
-            results
                 .iter()
                 .map(|entry| entry.definition.id.as_str())
                 .collect::<Vec<_>>(),
@@ -880,50 +992,47 @@ pub fn PartsLibraryPanel(
         let no_matches = groups.is_empty() && !matching_assembly;
 
         rsx! {
-            label { class: "m1-parts-search-label", "Search parts"
-                input {
-                    class: "m1-parts-search",
-                    type: "search",
-                    "aria-label": "Search footprints",
-                    placeholder: "Name or category",
-                    value: "{query()}",
+            Field {
+                Label { html_for: format!("parts-library-search-{}", dioxus::core::current_scope_id().0), "Search parts" }
+                InputGroup { class: "max-[960px]:h-control-touch [@media(pointer:coarse)]:h-control-touch", InputGroupInput { class: "max-[960px]:h-control-touch [@media(pointer:coarse)]:h-control-touch",
+                    id: format!("parts-library-search-{}", dioxus::core::current_scope_id().0),
+                    r#type: InputType::Search, aria_label: "Search footprints", placeholder: "Name or category", value: query(),
                     oninput: move |event: FormEvent| {
                         query.set(event.value());
                         view_generation.set(view_generation() + 1);
                         generation.with_mut(|value| *value = value.wrapping_add(1));
                     },
-                }
+                } }
             }
-            details { class: "m1-parts-catalogue-scroll m1-parts-assembly-list", open: true,
-                summary { "Key assemblies" small { "{visible_assemblies.len()}" } }
-                if assembly_selection().is_some() {
-                    label { class: "m1-parts-search-label", "Switch orientation"
-                        select {
-                            "aria-label": "Switch orientation",
-                            value: if assembly_orientation() == assembly_presets::SwitchOrientation::North { "north" } else { "south" },
-                            onchange: move |event| {
-                                assembly_orientation.set(if event.value() == "north" { assembly_presets::SwitchOrientation::North } else { assembly_presets::SwitchOrientation::South });
-                                selection_generation.with_mut(|value| *value = value.wrapping_add(1));
-                            },
-                            option { value: "south", "South-facing LED" }
-                            option { value: "north", "North-facing LED" }
-                        }
-                        small { "Viewed from the keycap side; rotates the switch and attached parts together." }
-                    }
+            Collapsible { class: "mt-3 min-h-0 flex-none", default_open: true, keep_mounted: true,
+                div { class: "flex items-center justify-between gap-2",
+                    CollapsibleTrigger { aria_label: "Key assemblies", class: "flex-1 justify-start py-2 max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Key assemblies" small { "{visible_assemblies.len()}" } }
+                    AssemblyCreateButton {}
                 }
-                div { role: "listbox", "aria-label": "Key assemblies",
+                CollapsibleContent { class: "data-[open=false]:hidden",
+                if assembly_selection().is_some() {
+                    PartsChoiceField {
+                        label: "Switch orientation", aria_label: "Switch orientation",
+                        value: if assembly_orientation() == assembly_presets::SwitchOrientation::North { "north" } else { "south" },
+                        options: vec![("south".into(), "South-facing LED".into()), ("north".into(), "North-facing LED".into())],
+                        on_value_change: move |value: String| {
+                            assembly_orientation.set(if value == "north" { assembly_presets::SwitchOrientation::North } else { assembly_presets::SwitchOrientation::South });
+                            selection_generation.with_mut(|value| *value = value.wrapping_add(1));
+                        },
+                    }
+                    small { "Viewed from the keycap side; rotates the switch and attached parts together." }
+                }
+                div { role: "group", "aria-label": "Key assemblies",
+                    ItemGroup {
                     for preset in visible_assemblies {
                         { let is_selected = assembly_selection() == Some(preset.id);
                           let preset_id = preset.id;
                           let definition_id = preset.definition_id.to_owned();
                           let scope = scope.clone();
-                          rsx! {
-                            button {
-                                key: "{preset.name}",
-                                class: "m1-parts-catalogue-choice",
-                                type: "button",
-                                role: "option",
-                                "aria-selected": "{is_selected}",
+                          rsx! { Item { size: ItemSize::Xs, class: "p-0",
+                            Button { key: "{preset.name}", variant: ButtonVariant::Ghost,
+                                class: "w-full justify-start whitespace-normal text-left aria-pressed:bg-selected aria-pressed:text-selected-foreground max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                aria_pressed: is_selected,
                                 onclick: move |_| {
                                     assembly_selection.set(Some(preset_id));
                                     selected.set(Some((scope.clone(), definition_id.clone())));
@@ -934,32 +1043,32 @@ pub fn PartsLibraryPanel(
                                 },
                                 "{preset.name}"
                             }
-                          }
+                          } }
                         }
                     }
+                    }
+                }
                 }
             }
             if entries.is_empty() {
-                p { class: "m1-parts-empty", role: "status", "No component definitions are available." }
+                div { role: "status", Callout { "No component definitions are available." } }
             } else if !groups.is_empty() {
-                details { class: "m1-parts-catalogue-scroll", open: true,
-                    summary { "Components" small { "{result_count}" } }
-                    div { role: "listbox", "aria-label": "Footprint library",
+                Collapsible { class: "mt-3 min-h-0 flex-none", default_open: true, keep_mounted: true,
+                    CollapsibleTrigger { aria_label: "Components", class: "w-full justify-start py-2 max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Components" small { "{result_count}" } }
+                    CollapsibleContent { class: "data-[open=false]:hidden", div { role: "group", "aria-label": "Footprint library",
                         for (group, items) in groups {
-                            section { key: "{group.label}", class: "m1-parts-category", "aria-label": "{group.label}",
-                                h3 { "{group.label}" }
+                            PartsCatalogueCategory { key: "{group.label}", label: group.label,
+                                reveal: !query().trim().is_empty() || items.iter().any(|entry| selected_id.as_deref() == Some(entry.definition.id.as_str())),
                                 for entry in items {
                                     { let is_selected = assembly_selection().is_none() && selected_id.as_deref() == Some(entry.definition.id.as_str());
                                       let id = entry.definition.id.clone();
                                       let scope = scope.clone();
                                       rsx! {
-                                        button {
-                                            key: "{entry.definition.id}",
-                                            class: "m1-parts-catalogue-choice",
-                                            type: "button",
-                                            role: "option",
-                                            "aria-selected": "{is_selected}",
-                                            title: entry.definition.generator.as_ref().map(|generator| generator.source.as_str()).unwrap_or(""),
+                                        Item { size: ItemSize::Xs, class: "p-0",
+                                        Button {
+                                            key: "{entry.definition.id}", variant: ButtonVariant::Ghost,
+                                            class: "w-full justify-start whitespace-normal text-left aria-pressed:bg-selected aria-pressed:text-selected-foreground max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                                            aria_pressed: is_selected,
                                             onclick: move |_| {
                                                 assembly_selection.set(None);
                                                 selected.set(Some((scope.clone(), id.clone())));
@@ -969,38 +1078,38 @@ pub fn PartsLibraryPanel(
                                                 on_select.call(());
                                             },
                                             "{preferred_label(&entry.definition)}"
-                                        }
+                                        } }
                                       }
                                     }
                                 }
                             }
                         }
-                    }
+                    } }
                 }
             }
             if no_matches && !search.is_empty() {
-                p { class: "m1-parts-empty", role: "status", "No parts match this search." }
+                div { role: "status", Callout { "No parts match this search." } }
             }
         }
     } else if let Some(error) = catalogue.error {
         rsx! {
-            p { class: "m1-parts-load-error", role: "alert", "Component catalogue could not be loaded: {error}" }
+            Alert { variant: AlertVariant::Destructive, "Component catalogue could not be loaded: {error}" }
         }
     } else {
         rsx! {
-            p { class: "m1-parts-loading", role: "status", "Loading component catalogue…" }
+            div { role: "status", Spinner {} "Loading component catalogue…" }
         }
     };
 
     rsx! {
-        section { class: "m1-parts-library", "aria-label": "Parts library",
+        section { class: "flex flex-1 flex-col min-h-0 px-3 py-4 text-foreground [&>h2]:mt-0 [&>h2]:mb-4 [&>h2]:text-xl", "aria-label": "Parts library",
             crate::parts_view_generation::PartsViewGenerationOwner {
                 workspace,
                 view_generation,
             }
             h2 { "Parts library" }
             {content}
-            div { class: "m1-parts-actions",
+            div { class: "grid gap-1 pt-3 mt-3 border-t border-border",
                 crate::presentation::parts_import_footprint::ImportKiCadFootprintAction {
                     scope: scope.clone(),
                     view_generation,
@@ -1020,6 +1129,155 @@ pub fn PartsLibraryPanel(
                     on_select,
                 }
             }
+        }
+    }
+}
+
+/// Focused setup picker; uses the same catalogue and source-backed preview as Parts.
+#[component]
+pub fn ControllerSetupPicker(
+    snapshot: AcceptedSnapshot,
+    scope: Option<Scope>,
+    mut selected: PartsSelection,
+    on_place: EventHandler<String>,
+    busy: bool,
+    enabled: bool,
+    error: Option<String>,
+) -> Element {
+    let catalogue = use_catalogue(&snapshot, &scope);
+    let mut generation = use_context::<PartsSelectionGeneration>().0;
+    let mut activation = use_context::<PartsPreviewActivation>().0;
+    let mut assembly = use_context::<PartsAssemblySelection>().0;
+    let mut search = use_signal(String::new);
+    let loaded = catalogue.entries.is_some();
+    let entries = catalogue.entries.unwrap_or_default();
+    let controllers = catalogue_choices(&entries)
+        .into_iter()
+        .filter(|entry| entry.definition.kind == boardstudio_core::model::PartKind::Controller)
+        .collect::<Vec<_>>();
+    let selection = selected().filter(|(owner, _)| owner == &scope);
+    let needle = search().trim().to_lowercase();
+    let matches = controllers
+        .iter()
+        .copied()
+        .filter(|entry| {
+            preferred_label(&entry.definition)
+                .to_lowercase()
+                .contains(&needle)
+        })
+        .collect::<Vec<_>>();
+    let chosen = matches
+        .iter()
+        .copied()
+        .find(|entry| {
+            selection
+                .as_ref()
+                .is_some_and(|(_, id)| id == &entry.definition.id)
+        })
+        .or_else(|| matches.first().copied());
+    let chosen_id = chosen.map(|entry| entry.definition.id.clone());
+    let position = matches
+        .iter()
+        .position(|entry| Some(&entry.definition.id) == chosen_id.as_ref())
+        .unwrap_or(0);
+    let previous = (!matches.is_empty()).then(|| {
+        matches[(position + matches.len() - 1) % matches.len()]
+            .definition
+            .id
+            .clone()
+    });
+    let next = (!matches.is_empty()).then(|| {
+        matches[(position + 1) % matches.len()]
+            .definition
+            .id
+            .clone()
+    });
+    let owner = scope.clone();
+    let choose = EventHandler::new(move |id: String| {
+        selected.set(Some((owner.clone(), id)));
+        assembly.set(None);
+        generation.with_mut(|value| *value = value.wrapping_add(1));
+        activation.with_mut(|value| *value = value.wrapping_add(1));
+    });
+    use_effect(use_reactive((&loaded, &needle, &chosen_id), move |_| {
+        let _ = document::eval(
+            r#"
+            const rail = document.querySelector('[role="group"][aria-label="Controllers"]');
+            const card = rail?.querySelector('[aria-pressed="true"]');
+            if (rail && card) rail.scrollTo({left: card.offsetLeft - rail.offsetLeft - (rail.clientWidth - card.offsetWidth) / 2,
+                behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth'});
+        "#,
+        );
+    }));
+    let navigation_disabled = matches.len() < 2;
+    rsx! {
+        section { class: "grid grid-cols-1 gap-3 min-w-0", aria_label: "Controller selection", aria_roledescription: "carousel",
+            Field {
+                Label { html_for: format!("parts-controller-search-{}", dioxus::core::current_scope_id().0), "Search controllers" }
+                InputGroup { class: "max-[960px]:h-control-touch [@media(pointer:coarse)]:h-control-touch", InputGroupInput { class: "max-[960px]:h-control-touch [@media(pointer:coarse)]:h-control-touch", id: format!("parts-controller-search-{}", dioxus::core::current_scope_id().0), r#type: InputType::Search, aria_label: "Search controllers", placeholder: "Find a controller…", value: search(), oninput: move |event: FormEvent| search.set(event.value()) } }
+            }
+            div { class: "flex items-center gap-1 text-muted-foreground text-xs [&>span]:flex-1 [&>span]:tabular-nums [&_svg]:size-5 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.5]",
+                span { role: "status", aria_live: "polite", if matches.is_empty() { "0 controllers" } else { "{position + 1} of {matches.len()}" } }
+                Tooltip {
+                    TooltipTrigger { as: move |attributes| { let previous = previous.clone(); rsx! {
+                        Button { attributes, variant: ButtonVariant::Secondary, size: ButtonSize::IconSm,
+                            class: "max-[960px]:h-control-touch max-[960px]:min-w-control-touch [@media(pointer:coarse)]:h-control-touch [@media(pointer:coarse)]:min-w-control-touch",
+                            aria_label: "Previous controller", disabled: navigation_disabled,
+                            onclick: move |_| { if let Some(id) = previous.clone() { choose.call(id); } },
+                            boardstudio_web_ui_shared::ui::icons::ChevronDown { class: "rotate-90" }
+                        }
+                    } } }
+                    TooltipContent { "Previous controller" }
+                }
+                Tooltip {
+                    TooltipTrigger { as: move |attributes| { let next = next.clone(); rsx! {
+                        Button { attributes, variant: ButtonVariant::Secondary, size: ButtonSize::IconSm,
+                            class: "max-[960px]:h-control-touch max-[960px]:min-w-control-touch [@media(pointer:coarse)]:h-control-touch [@media(pointer:coarse)]:min-w-control-touch",
+                            aria_label: "Next controller", disabled: navigation_disabled,
+                            onclick: move |_| { if let Some(id) = next.clone() { choose.call(id); } },
+                            boardstudio_web_ui_shared::ui::icons::ChevronDown { class: "-rotate-90" }
+                        }
+                    } } }
+                    TooltipContent { "Next controller" }
+                }
+            }
+            div { class: "relative flex flex-nowrap overflow-x-auto snap-x snap-mandatory [scrollbar-width:thin] pt-1 pb-3", role: "group", aria_label: "Controllers",
+                for entry in &controllers {
+                    {
+                        let id = entry.definition.id.clone();
+                        let active = chosen_id.as_ref() == Some(&id);
+                        let matching = preferred_label(&entry.definition).to_lowercase().contains(&needle);
+                        rsx! { Button {
+                            key: "{id}", class: "flex h-auto flex-[0_0_192px] flex-col items-stretch gap-3 max-w-[192px] min-w-0 mr-2 p-3 rounded-full bg-secondary text-center snap-center overflow-hidden transition-all motion-reduce:transition-none data-[match=false]:basis-0 data-[match=false]:max-w-0 data-[match=false]:px-0 data-[match=false]:mr-0 data-[match=false]:opacity-0 data-[match=false]:invisible aria-pressed:bg-selected aria-pressed:text-selected-foreground [&_strong]:block [&_strong]:min-w-[168px] [&_strong]:text-[11px] [&_strong]:font-semibold [&_strong]:leading-[1.4]", variant: ButtonVariant::Ghost, aria_pressed: active,
+                            attributes: {
+                                let mut attributes = vec![Attribute::new("data-match", matching, None, false)];
+                                if !matching { attributes.push(Attribute::new("aria-hidden", "true", None, false)); }
+                                attributes
+                            },
+                            disabled: !matching,
+                            onclick: move |_| choose.call(id.clone()),
+                            preview::ControllerFootprintThumbnail { definition: entry.definition.clone() }
+                            strong { "{preferred_label(&entry.definition)}" }
+                        } }
+                    }
+                }
+            }
+            if let Some(entry) = chosen {
+                {
+                    let id = entry.definition.id.clone();
+                    rsx! { Button {
+                        class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                        disabled: busy || !enabled, onclick: move |_| { choose.call(id.clone()); on_place.call(id.clone()); },
+                        if busy { "Preparing controller…" } else { "Place controller" }
+                    } }
+                }
+            } else {
+                if !loaded {
+                    if let Some(error) = catalogue.error { Alert { variant: AlertVariant::Destructive, "{error}" } }
+                    else { div { role: "status", Spinner {} "Loading controllers…" } }
+                } else { div { role: "status", Callout { "No controllers match this search." } } }
+            }
+            if let Some(error) = error { Alert { variant: AlertVariant::Destructive, "{error}" } }
         }
     }
 }
@@ -1136,14 +1394,14 @@ pub fn PartsInspectorPanel(
     });
 
     rsx! {
-        section { class: "m1-parts-inspector", "aria-label": "Selected component details",
+        section { class: "flex flex-1 flex-col min-w-0 min-h-0 overflow-auto p-4 text-foreground", "aria-label": "Selected component details",
             assembly_editor::SavedAssembliesEditor {
                 snapshot: snapshot.clone(),
                 scope: scope.clone(),
                 definitions: snapshot.document.definitions.iter().cloned().chain(catalogue.entries.as_ref().into_iter().flat_map(|entries| entries.iter()).map(|entry| (*entry.definition).clone())).collect(),
                 preset_definitions: catalogue.entries.as_ref().into_iter().flat_map(|entries| entries.iter()).map(|entry| (*entry.definition).clone()).collect(),
                 selected_context,
-                on_place: on_place_assembly.clone(),
+                on_place: on_place_assembly,
                 on_board_placed,
             }
             if let Some(module_id) = selected_module_id.as_deref() {
@@ -1152,21 +1410,20 @@ pub fn PartsInspectorPanel(
                       rsx! { modules_catalogue::ModuleInspector { snapshot: snapshot.clone(), module: module.clone(), variants, scope: scope.clone(), selected, placement_id: selected_module_placement.clone(), on_open_placement: on_open_module_placement, on_attached: on_module_attached } }
                     }
                 } else if let Some(error) = module_catalogue.error.as_ref() {
-                    p { class: "m1-parts-load-error", role: "alert", "Module sources could not be loaded: {error}" }
+                    Alert { variant: AlertVariant::Destructive, "Module sources could not be loaded: {error}" }
                 } else {
-                    p { class: "m1-parts-loading", role: "status", "Loading module sources…" }
+                    div { role: "status", Spinner {} "Loading module sources…" }
                 }
             } else {
             if let Some(error) = catalogue.error.as_ref() {
-                p { class: "m1-parts-load-error", role: "alert", "Component catalogue could not be loaded: {error}" }
+                Alert { variant: AlertVariant::Destructive, "Component catalogue could not be loaded: {error}" }
             } else if catalogue.entries.is_none() {
-                p { class: "m1-parts-loading", role: "status", "Loading component catalogue…" }
+                div { role: "status", Spinner {} "Loading component catalogue…" }
             }
             SelectedDefinition { entry: entry.clone() }
             if let Some(preset) = active_assembly {
-                button {
-                    class: "m1-parts-place-assembly",
-                    r#type: "button",
+                Button {
+                    class: "w-full max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     disabled: placement_busy,
                     onclick: move |_| on_place_assembly.call(super::objects::MatrixPlacementSource::Preset(preset)),
                     "Place key assembly"
@@ -1215,25 +1472,16 @@ pub fn PartsInspectorPanel(
             }
             if controller_placement_enabled {
                 if !layouts.is_empty() {
-                    label { class: "m1-parts-placement-layout",
-                        "Place in"
-                        select {
-                            aria_label: "Part placement layout",
-                            value: "{selected_layout}",
-                            onchange: move |event| {
-                                layout_target.set((!event.value().is_empty()).then(|| event.value()));
-                            },
-                            option { value: "", "Board / ungrouped" }
-                            for layout in layouts {
-                                option { value: "{layout.id}", "{layout.name}" }
-                            }
-                        }
+                    PartsChoiceField {
+                        label: "Place in", aria_label: "Part placement layout", value: selected_layout,
+                        options: std::iter::once((String::new(), "Board / ungrouped".into()))
+                            .chain(layouts.iter().map(|layout| (layout.id.clone(), layout.name.clone()))).collect(),
+                        on_value_change: move |value: String| layout_target.set((!value.is_empty()).then_some(value)),
                     }
                 }
                 if let Some(definition_id) = controller_id {
-                    button {
-                        class: "m1-parts-place-controller",
-                        r#type: "button",
+                    Button {
+                        class: "w-full max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         disabled: placement_busy,
                         onclick: move |_| on_place_controller.call(definition_id.clone()),
                         if placement_busy { "Preparing controller…" } else { "Place component" }
@@ -1243,7 +1491,7 @@ pub fn PartsInspectorPanel(
             }
         }
         if let Some(message) = placement_error {
-            p { class: "m1-parts-placement-error", role: "alert", "{message}" }
+            Alert { variant: AlertVariant::Destructive, "{message}" }
         }
     }
 }
@@ -1259,9 +1507,8 @@ fn PartsInspectorPlacementAction(
     let kind = entry.definition.kind.clone();
     let can_apply_to_key = matrix_input_available(&entry.definition);
     rsx! {
-        button {
-            class: "m1-parts-place-component",
-            r#type: "button",
+        Button {
+            class: "w-full max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
             disabled: busy || (apply_to_key && !can_apply_to_key),
             onclick: move |_| on_place.call(
                 super::part_placement::ComponentPlacementAction::PartsInspector {
@@ -1272,7 +1519,7 @@ fn PartsInspectorPlacementAction(
             if apply_to_key { "Apply to selected key" } else { "Place component" }
         }
         if apply_to_key && !can_apply_to_key {
-            p { class: "m1-parts-empty", "This footprint needs an independent press contact pair to replace a matrix key. Clear the key selection to place it as a standalone component." }
+            Callout { "This footprint needs an independent press contact pair to replace a matrix key. Clear the key selection to place it as a standalone component." }
         }
     }
 }
@@ -1373,25 +1620,25 @@ pub fn PartsPreviewWorkspace(
         }
         if let Some(error) = module_catalogue.error {
             return rsx! {
-                section { class: "m1-workspace-content m1-parts-preview", "aria-label": "Module source preview",
-                    p { class: "m1-parts-preview-error", role: "alert", "Module source preview could not be loaded: {error}" }
+                section { class: "relative order-2 flex flex-1 flex-col min-w-0 min-h-0 overflow-hidden rounded-xl bg-card shadow-sm", "aria-label": "Module source preview",
+                    Alert { variant: AlertVariant::Destructive, "Module source preview could not be loaded: {error}" }
                 }
             };
         }
         return rsx! {
-            section { class: "m1-workspace-content m1-parts-preview", "aria-label": "Module source preview",
-                p { class: "m1-parts-preview-status", role: "status", "Loading module source preview…" }
+            section { class: "relative order-2 flex flex-1 flex-col min-w-0 min-h-0 overflow-hidden rounded-xl bg-card shadow-sm", "aria-label": "Module source preview",
+                div { role: "status", Spinner {} "Loading module source preview…" }
             }
         };
     }
     let Some(entries) = catalogue.entries else {
         return if let Some(error) = catalogue.error {
             rsx! {
-                p { class: "m1-parts-load-error", role: "alert", "Component catalogue could not be loaded: {error}" }
+                Alert { variant: AlertVariant::Destructive, "Component catalogue could not be loaded: {error}" }
             }
         } else {
             rsx! {
-                p { class: "m1-parts-loading", role: "status", "Loading component catalogue…" }
+                div { role: "status", Spinner {} "Loading component catalogue…" }
             }
         };
     };

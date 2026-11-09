@@ -1,8 +1,8 @@
 //! Stateless ZIP operations. Browser persistence is performed only after verification.
 mod zip_directory;
 
+use crate::hash::sha256_hex;
 use crate::model::{ArchiveAssetBuffer, ArchiveEntry, ArchiveReply, ArchiveRequest};
-use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::{Cursor, Read, Write};
 use zip::{CompressionMethod, ZipArchive, ZipWriter, write::SimpleFileOptions};
@@ -17,8 +17,10 @@ struct Limits {
 }
 
 const MIB: usize = 1024 * 1024;
+/// Maximum compressed project archive accepted by Core and browser file admission.
+pub const MAX_PROJECT_ARCHIVE_BYTES: usize = 128 * MIB;
 const LIMITS: Limits = Limits {
-    compressed: 128 * MIB,
+    compressed: MAX_PROJECT_ARCHIVE_BYTES,
     project: 8 * MIB,
     entry: 64 * MIB,
     total: 256 * MIB,
@@ -64,7 +66,7 @@ fn dispatch(request: ArchiveRequest, buffers: &[Vec<u8>], limits: Limits) -> Arc
             let indexed: BTreeMap<_, _> = files.iter().copied().collect();
             verify_references(&references, &indexed)?;
             for (name, bytes) in &files {
-                if asset_path(name) && digest(bytes) != name[7..] {
+                if asset_path(name) && sha256_hex(bytes) != name[7..] {
                     return Err(format!("Asset hash mismatch: {name}"));
                 }
             }
@@ -86,8 +88,9 @@ fn dispatch(request: ArchiveRequest, buffers: &[Vec<u8>], limits: Limits) -> Arc
                     .ok_or("Archive has no project.json")?,
             )
             .map_err(|_| "Project JSON is not UTF-8")?;
-            let references = asset_references(&project_json)?;
+            // Inspect the version before any schema-dependent interpretation.
             let (project_json, _) = crate::migrate::migrate_json(&project_json)?;
+            let references = asset_references(&project_json)?;
             let indexed = files
                 .iter()
                 .map(|(name, bytes)| (name.as_str(), bytes.as_slice()))
@@ -155,6 +158,7 @@ fn safe_path(path: &str) -> bool {
             .all(|component| !matches!(component, "" | "." | ".."))
 }
 
+// The format check stays: PackProject calls this without a prior version gate.
 fn asset_references(json: &str) -> Result<Vec<(String, String)>, String> {
     let value: serde_json::Value =
         serde_json::from_str(json).map_err(|error| format!("Invalid project JSON: {error}"))?;
@@ -185,13 +189,6 @@ fn asset_references(json: &str) -> Result<Vec<(String, String)>, String> {
         .collect()
 }
 
-fn digest(bytes: &[u8]) -> String {
-    Sha256::digest(bytes)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
-}
-
 fn verify_references(
     references: &[(String, String)],
     files: &BTreeMap<&str, &[u8]>,
@@ -204,7 +201,7 @@ fn verify_references(
         let bytes = files
             .get(format!("assets/{hash}").as_str())
             .ok_or_else(|| format!("Archive has no asset: {name}"))?;
-        if digest(bytes) != *hash {
+        if sha256_hex(bytes) != *hash {
             return Err(format!("Asset hash mismatch: {name}"));
         }
     }
@@ -248,10 +245,7 @@ fn pack(files: &[(&str, &[u8])], limit: Option<usize>) -> Result<Vec<u8>, String
             return Err("Duplicate archive entry".into());
         }
     }
-    let output = BoundedWriter {
-        inner: Cursor::new(Vec::new()),
-        limit,
-    };
+    let output = BoundedWriter::new(limit);
     let mut writer = ZipWriter::new(output);
     let options = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
     for (name, bytes) in files {
@@ -260,30 +254,62 @@ fn pack(files: &[(&str, &[u8])], limit: Option<usize>) -> Result<Vec<u8>, String
             .map_err(|error| error.to_string())?;
         writer.write_all(bytes).map_err(|error| error.to_string())?;
     }
-    Ok(writer
-        .finish()
-        .map_err(|error| error.to_string())?
-        .inner
-        .into_inner())
+    let output = writer.finish().map_err(|error| error.to_string())?;
+    if output.exhausted {
+        return Err(SIZE_ERROR.into());
+    }
+    Ok(output.inner.into_inner())
 }
 
+/// A size-bounded sink with sticky exhaustion.
+///
+/// The first write past the limit returns the size error. Later writes are discarded
+/// while advancing a logical position, so `ZipWriter`'s fallible Drop finalization
+/// succeeds against the exhausted sink and never writes its diagnostic to process
+/// stderr. The backing buffer is never grown by those teardown writes.
 struct BoundedWriter {
     inner: Cursor<Vec<u8>>,
     limit: Option<usize>,
+    position: u64,
+    length: u64,
+    exhausted: bool,
+}
+
+impl BoundedWriter {
+    fn new(limit: Option<usize>) -> Self {
+        Self {
+            inner: Cursor::new(Vec::new()),
+            limit,
+            position: 0,
+            length: 0,
+            exhausted: false,
+        }
+    }
 }
 
 impl Write for BoundedWriter {
     fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-        if self.limit.is_some_and(|limit| {
-            self.inner
-                .position()
-                .checked_add(bytes.len() as u64)
-                .is_none_or(|end| end > limit as u64)
-        }) {
+        let len = bytes.len() as u64;
+        if self.exhausted {
+            self.position = self.position.saturating_add(len);
+            self.length = self.length.max(self.position);
+            return Ok(bytes.len());
+        }
+        let end = self.position.checked_add(len).ok_or_else(|| {
+            self.exhausted = true;
+            std::io::Error::other(SIZE_ERROR)
+        })?;
+        if self.limit.is_some_and(|limit| end > limit as u64) {
+            self.exhausted = true;
             return Err(std::io::Error::other(SIZE_ERROR));
         }
-        self.inner.write(bytes)
+        std::io::Seek::seek(&mut self.inner, std::io::SeekFrom::Start(self.position))?;
+        let written = self.inner.write(bytes)?;
+        self.position = self.position.saturating_add(written as u64);
+        self.length = self.length.max(self.position);
+        Ok(written)
     }
+
     fn flush(&mut self) -> std::io::Result<()> {
         self.inner.flush()
     }
@@ -291,7 +317,19 @@ impl Write for BoundedWriter {
 
 impl std::io::Seek for BoundedWriter {
     fn seek(&mut self, position: std::io::SeekFrom) -> std::io::Result<u64> {
-        std::io::Seek::seek(&mut self.inner, position)
+        let target = match position {
+            std::io::SeekFrom::Start(offset) => offset,
+            std::io::SeekFrom::Current(offset) => self
+                .position
+                .checked_add_signed(offset)
+                .ok_or_else(|| std::io::Error::other("Archive position overflow"))?,
+            std::io::SeekFrom::End(offset) => self
+                .length
+                .checked_add_signed(offset)
+                .ok_or_else(|| std::io::Error::other("Archive position overflow"))?,
+        };
+        self.position = target;
+        Ok(target)
     }
 }
 
@@ -369,10 +407,11 @@ fn read_bounded(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::migrate::CURRENT_VERSION;
     use serde_json::json;
 
     fn document(hashes: &[String]) -> String {
-        json!({"format":"boardstudio/v2","formatVersion":2,"parts":[],"boards":[],"assets":hashes.iter().map(|hash| json!({"id":hash,"name":"fixture.step","sha256":hash})).collect::<Vec<_>>(),"future":{"keep":true}}).to_string()
+        json!({"format":"boardstudio/v2","formatVersion":CURRENT_VERSION,"parts":[],"boards":[],"assets":hashes.iter().map(|hash| json!({"id":hash,"name":"fixture.step","sha256":hash})).collect::<Vec<_>>(),"future":{"keep":true}}).to_string()
     }
 
     fn pack_project(json: String, files: &[(String, Vec<u8>)], limits: Limits) -> ArchiveResult {
@@ -398,23 +437,61 @@ mod tests {
     }
 
     #[test]
-    fn unpacking_a_version_1_project_migrates_it() {
+    fn unpacking_an_unversioned_project_refuses_without_conversion() {
         let json = json!({
             "format": "boardstudio/v2", "parts": [], "boards": [], "assets": [],
             "definitions": [{ "id": "ergogen:ceoloide/switch_mx" }],
         })
         .to_string();
         let (_, packed) = pack_project(json, &[], LIMITS).unwrap();
-        let (reply, _) = dispatch(ArchiveRequest::UnpackProject, &packed, LIMITS).unwrap();
-        let ArchiveReply::Unpacked { project_json, .. } = reply else {
-            panic!("expected project")
-        };
-        let project: serde_json::Value = serde_json::from_str(&project_json).unwrap();
-        assert_eq!(project["formatVersion"], 2);
-        assert_eq!(
-            project["definitions"][0]["id"],
-            "generator:ceoloide/switch_mx"
+        let error = dispatch(ArchiveRequest::UnpackProject, &packed, LIMITS).unwrap_err();
+        assert!(
+            error.contains("legacy") && error.contains("No conversion"),
+            "{error}"
         );
+    }
+
+    #[test]
+    fn unpacking_refuses_every_version_before_reading_the_asset_table() {
+        // Each project has a malformed asset table; the version gate must win.
+        for (version, explanation) in [
+            (
+                Some(json!(CURRENT_VERSION - 1)),
+                "No conversion is available",
+            ),
+            (Some(json!(CURRENT_VERSION + 1)), "compatible newer build"),
+            (Some(json!(0)), "invalid formatVersion"),
+            (Some(json!("7")), "invalid formatVersion"),
+            (Some(json!(7.5)), "invalid formatVersion"),
+            (Some(json!(null)), "invalid formatVersion"),
+            (None, "no formatVersion"),
+        ] {
+            let mut document = json!({"format": "boardstudio/v2", "assets": "broken"});
+            if let Some(version) = version {
+                document["formatVersion"] = version;
+            }
+            let packed =
+                vec![pack(&[("project.json", document.to_string().as_bytes())], None).unwrap()];
+            let error = dispatch(ArchiveRequest::UnpackProject, &packed, LIMITS).unwrap_err();
+            assert!(error.contains(explanation), "{document}: {error}");
+        }
+    }
+
+    #[test]
+    fn unpacking_an_unrecognized_format_is_unsupported_without_conversion() {
+        let json = json!({"format": "boardstudio/v1", "formatVersion": CURRENT_VERSION - 1,
+            "parts": [], "boards": [], "assets": []})
+        .to_string();
+        let packed = vec![pack(&[("project.json", json.as_bytes())], None).unwrap()];
+        let error = dispatch(ArchiveRequest::UnpackProject, &packed, LIMITS).unwrap_err();
+        assert!(error.contains("Unsupported document format"), "{error}");
+    }
+
+    #[test]
+    fn unpacking_malformed_json_text_is_refused_as_invalid_project_json() {
+        let packed = vec![pack(&[("project.json", b"{not json")], None).unwrap()];
+        let error = dispatch(ArchiveRequest::UnpackProject, &packed, LIMITS).unwrap_err();
+        assert!(error.contains("Invalid project JSON"), "{error}");
     }
 
     #[test]
@@ -425,13 +502,13 @@ mod tests {
         .to_string();
         let (_, packed) = pack_project(json, &[], LIMITS).unwrap();
         let error = dispatch(ArchiveRequest::UnpackProject, &packed, LIMITS).unwrap_err();
-        assert!(error.contains("newer than this app supports"), "{error}");
+        assert!(error.contains("compatible newer build"), "{error}");
     }
 
     #[test]
     fn project_roundtrip_keeps_json_and_deduplicates_shared_references() {
         let data = b"component STEP".to_vec();
-        let hash = digest(&data);
+        let hash = sha256_hex(&data);
         let json = format!("  {}\n", document(&[hash.clone(), hash.clone()]));
         let (_, packed) = pack_project(
             json.clone(),
@@ -459,9 +536,70 @@ mod tests {
     }
 
     #[test]
+    fn version_5_mirrored_halves_are_refused_without_rewriting_their_payload() {
+        let json = json!({
+            "format": "boardstudio/v2", "formatVersion": 5, "parts": [], "boards": [], "assets": [],
+            "hardware": { "pairs": [{
+                "id": "pair", "members": ["left", "right"],
+                "mapping": { "at": { "x": 200.0, "y": 0.0 }, "rotation": 0.0 },
+                "construction": { "method": "printed", "mount": "tray", "integratedPlateFrame": false,
+                    "plateThickness": 1.3, "plateFoamThickness": 2.0, "bottomFoamThickness": 2.0,
+                    "bottomThickness": 3.0, "plateToPcb": 2.2, "wallThickness": 2.0, "clearance": 0.3 },
+                "constructionSource": "left",
+                "halves": { "sourceBoardId": "left-board", "mirrorBoardId": "right-board",
+                    "correspondences": [{ "kind": "part", "sourceId": "l-key", "mirrorId": "r-key" }],
+                    "exceptions": [{ "kind": "part", "mirrorId": "r-extra", "state": "omitted" }] }
+            }] },
+            "future": { "keep": true }
+        })
+        .to_string();
+        let (_, packed) = pack_project(json.clone(), &[], LIMITS).unwrap();
+        let error = dispatch(ArchiveRequest::UnpackProject, &packed, LIMITS).unwrap_err();
+        assert!(
+            error.contains("format 5") && error.contains("No conversion"),
+            "{error}"
+        );
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&json).unwrap()["formatVersion"],
+            5
+        );
+    }
+
+    #[test]
+    fn framed_endpoint_relations_cross_the_archive_boundary_without_reinterpretation() {
+        let json = json!({
+            "format": "boardstudio/v2", "formatVersion": CURRENT_VERSION,
+            "constraints": [
+                {"kind":"framed", "id":"c/offset",
+                 "source":{"kind":"part", "partId":"left/source"},
+                 "target":{"kind":"linked-mirror", "pairId":"pair", "sourcePartId":"left/target", "mirrorPartId":"right/target"},
+                 "relation":{"kind":"offset", "offset":{"x":5.0,"y":-2.0},"rotation":15.0}},
+                {"kind":"framed", "id":"c/part-offset",
+                 "source":{"kind":"linked-mirror", "pairId":"pair", "sourcePartId":"left/source", "mirrorPartId":"right/source"},
+                 "target":{"kind":"part", "partId":"local/target"},
+                 "relation":{"kind":"part-offset", "offset":{"x":-3.0,"y":8.0},"rotation":-22.0}},
+                {"kind":"framed", "id":"c/mirror-line",
+                 "source":{"kind":"part", "partId":"local/source"},
+                 "target":{"kind":"part", "partId":"local/target-2"},
+                 "relation":{"kind":"mirror-line", "at":{"x":2.25,"y":-5.5},"angle":37.0}}
+            ],
+            "parts": [], "boards": [], "assets": []
+        })
+        .to_string();
+        let (_, packed) = pack_project(json.clone(), &[], LIMITS).unwrap();
+
+        let (reply, _) = dispatch(ArchiveRequest::UnpackProject, &packed, LIMITS).unwrap();
+
+        let ArchiveReply::Unpacked { project_json, .. } = reply else {
+            panic!("expected project")
+        };
+        assert_eq!(project_json, json);
+    }
+
+    #[test]
     fn pack_verifies_missing_hash_mismatch_and_duplicate_assets() {
         let bytes = b"asset".to_vec();
-        let hash = digest(&bytes);
+        let hash = sha256_hex(&bytes);
         let entry = (format!("assets/{hash}"), bytes);
         let json = document(std::slice::from_ref(&hash));
         assert!(
@@ -488,7 +626,7 @@ mod tests {
     #[test]
     fn unpack_verifies_missing_assets_and_hashes_before_any_output() {
         let data = b"asset";
-        let hash = digest(data);
+        let hash = sha256_hex(data);
         let json = document(std::slice::from_ref(&hash));
         let missing = pack(&[("project.json", json.as_bytes())], None).unwrap();
         assert!(
@@ -511,7 +649,7 @@ mod tests {
 
     #[test]
     fn unreferenced_assets_are_checked_for_archive_integrity_but_not_returned() {
-        let hash = digest(b"unused");
+        let hash = sha256_hex(b"unused");
         let (_, packed) = pack_project(
             document(&[]),
             &[(format!("assets/{hash}"), b"unused".to_vec())],
@@ -613,6 +751,111 @@ mod tests {
             r#"{"format":"boardstudio/v2","parts":[],"boards":[],"assets":null}"#,
         ] {
             assert!(pack_project(json.into(), &[], LIMITS).is_err());
+        }
+    }
+
+    /// Child-process probe: packs one limit case and reports the error on stdout, so the
+    /// parent can inspect the process's direct stderr separately from libtest capture.
+    #[test]
+    #[ignore = "spawned by the archive teardown regression tests"]
+    fn archive_child_probe() {
+        let Ok(case) = std::env::var("BOARDSTUDIO_ARCHIVE_LIMIT_CASE") else {
+            return;
+        };
+        let incompressible: Vec<u8> = (0..4096).map(|index| (index % 251) as u8).collect();
+        let result = match case.as_str() {
+            "header" => pack(&[("project.json", b"payload")], Some(0)),
+            "data" => pack(
+                &[("project.json", &incompressible), ("second.txt", b"next")],
+                Some(80),
+            ),
+            "central-directory" => pack(&[("project.json", b"hello")], Some(80)),
+            other => {
+                eprintln!("unknown archive limit case {other}");
+                std::process::exit(2);
+            }
+        };
+        match result {
+            Ok(_) => {
+                eprintln!("an over-limit pack returned an archive");
+                std::process::exit(4);
+            }
+            Err(message) => {
+                println!("ARCHIVE_RESULT={message}");
+                if !message.contains(SIZE_ERROR) {
+                    std::process::exit(3);
+                }
+            }
+        }
+    }
+
+    fn archive_child(case: &str) -> std::process::Output {
+        std::process::Command::new(std::env::current_exe().unwrap())
+            .arg("--exact")
+            .arg("archive::tests::archive_child_probe")
+            .arg("--ignored")
+            .arg("--nocapture")
+            .env("BOARDSTUDIO_ARCHIVE_LIMIT_CASE", case)
+            .output()
+            .unwrap()
+    }
+
+    fn assert_clean_limit_failure(case: &str) {
+        let output = archive_child(case);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            output.status.success(),
+            "{case}: child failed\nstdout:\n{stdout}\nstderr:\n{stderr}"
+        );
+        assert!(
+            stdout.contains("ARCHIVE_RESULT=") && stdout.contains(SIZE_ERROR),
+            "{case}: the size-limit error was not reported\nstdout:\n{stdout}"
+        );
+        assert!(
+            !stderr.contains("ZipWriter::drop"),
+            "{case}: ZipWriter wrote a Drop diagnostic to stderr:\n{stderr}"
+        );
+        assert!(
+            !stderr.contains(SIZE_ERROR),
+            "{case}: the Drop diagnostic leaked the production error:\n{stderr}"
+        );
+    }
+
+    #[test]
+    fn bounded_writer_discards_teardown_writes_without_growing_past_the_cap() {
+        let mut writer = BoundedWriter::new(Some(8));
+        writer.write_all(b"12345").unwrap();
+        assert!(writer.write_all(b"6789").is_err());
+        assert_eq!(
+            writer.inner.get_ref().len(),
+            5,
+            "the refused write grew the buffer"
+        );
+
+        // Teardown writes after exhaustion are discarded but keep logical positions
+        // coherent, so a finalizing ZipWriter sees a successful sink.
+        assert_eq!(
+            std::io::Seek::seek(&mut writer, std::io::SeekFrom::Start(100)).unwrap(),
+            100
+        );
+        writer.write_all(&[0; 10]).unwrap();
+        assert_eq!(writer.inner.get_ref().len(), 5, "teardown grew the buffer");
+        assert_eq!(
+            std::io::Seek::seek(&mut writer, std::io::SeekFrom::End(0)).unwrap(),
+            110
+        );
+        assert_eq!(
+            std::io::Seek::seek(&mut writer, std::io::SeekFrom::Current(-10)).unwrap(),
+            100
+        );
+        assert!(writer.exhausted);
+    }
+
+    #[test]
+    fn limit_failures_do_not_write_zipwriter_drop_diagnostics() {
+        for case in ["header", "data", "central-directory"] {
+            assert_clean_limit_failure(case);
         }
     }
 

@@ -45,6 +45,7 @@ pub fn fit_camera(
     target_bounds: (f64, f64, f64, f64),
     surface: (f64, f64),
     toolbar_height: f64,
+    left_inset: f64,
 ) -> Option<FitCamera> {
     let values = [
         canvas_bounds.0,
@@ -58,6 +59,7 @@ pub fn fit_camera(
         surface.0,
         surface.1,
         toolbar_height,
+        left_inset,
     ];
     if values.iter().any(|value| !value.is_finite()) || surface.0 <= 0.0 || surface.1 <= 0.0 {
         return None;
@@ -77,7 +79,7 @@ pub fn fit_camera(
     let visible_height = canvas_height.max(canvas_width / aspect);
     let top = toolbar_height + 24.0;
     let bottom = 24.0;
-    let usable_width = (surface.0 - 32.0).max(1.0);
+    let usable_width = (surface.0 - left_inset - 32.0).max(1.0);
     let usable_height = (surface.1 - top - bottom).max(1.0);
     let zoom = (visible_width / target_width * usable_width / surface.0)
         .min(visible_height / target_height * usable_height / surface.1)
@@ -85,10 +87,54 @@ pub fn fit_camera(
 
     Some(FitCamera {
         center: Vec2 {
-            x: (target_bounds.0 + target_bounds.1 - canvas_bounds.0 - canvas_bounds.1) * 0.5,
+            // Increasing viewBox X moves content left; the left overlay needs the opposite.
+            x: (target_bounds.0 + target_bounds.1 - canvas_bounds.0 - canvas_bounds.1) * 0.5
+                - left_inset / 2.0 * visible_width / zoom / surface.0,
             y: (target_bounds.2 + target_bounds.3 - canvas_bounds.2 - canvas_bounds.3) * 0.5
                 + (top - bottom) / 2.0 * visible_height / zoom / surface.1,
         },
         zoom,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fit_camera_preserves_unobstructed_camera() {
+        // Pin the pre-guide camera contract, including the toolbar's screen-space shift.
+        let camera = fit_camera(
+            (0.0, 60.0, 0.0, 20.0),
+            (10.0, 86.0, 10.0, 46.0),
+            (1000.0, 600.0),
+            60.0,
+            0.0,
+        )
+        .unwrap();
+        assert_eq!(camera.zoom, 0.82);
+        assert_eq!(camera.center.x, 18.0);
+        assert_eq!(camera.center.y, 21.658536585365855);
+    }
+
+    #[test]
+    fn fit_camera_reserves_left_guide_and_moves_content_right() {
+        let camera = fit_camera(
+            (0.0, 60.0, 0.0, 20.0),
+            (10.0, 86.0, 10.0, 46.0),
+            (1000.0, 600.0),
+            60.0,
+            300.0,
+        )
+        .unwrap();
+        // Base extent 100x60, padded target 100x60. Width now limits zoom:
+        // (1000 - 300 - 32)/1000 = .668. The free center is at screen x=650,
+        // so subtract 150px * (100/.668)/1000 from the world center (18).
+        assert_eq!(camera.zoom, 0.668);
+        assert!((camera.center.x - -4.45508982035928).abs() < 1e-12);
+        assert!((camera.center.y - 22.491017964071856).abs() < 1e-12);
+        // The padded target starts at 316px; geometry has another 12mm of margin.
+        let left_px = 500.0 + (10.0 - 30.0 - camera.center.x) * camera.zoom * 10.0;
+        assert!((left_px - 396.16).abs() < 1e-10);
+    }
 }

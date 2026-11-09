@@ -1,6 +1,5 @@
 //! PCB-owned workspace surface composition.
 use super::objects;
-use super::pcb_layers::PcbLayerControls;
 use super::pcb_scene::{PcbPartHit, PcbPartPointerDown, PcbScene};
 use super::workspace_composition::{CanvasEventHandlers, SharedObjectsInput};
 use boardstudio_application::{AcceptedSnapshot, Scope};
@@ -37,7 +36,6 @@ pub(super) struct CanvasInput {
 pub(super) struct ObjectsInput {
     pub(super) shared: SharedObjectsInput,
     pub(super) matrix_setup: objects::MatrixSetupMount,
-    pub(super) mirrored_pair: objects::MirroredPairMount,
     pub(super) on_place_component: EventHandler<super::part_placement::ComponentPlacementAction>,
     pub(super) layout_target: Signal<Option<String>>,
     pub(super) parts_query: super::parts::PartsQuery,
@@ -47,6 +45,7 @@ pub(super) struct ObjectsInput {
 
 pub(super) fn objects(input: ObjectsInput) -> Element {
     rsx! {
+        div {
         objects::Objects {
             selected_context: input.shared.selected_context,
             on_select: input.shared.on_select,
@@ -55,7 +54,6 @@ pub(super) fn objects(input: ObjectsInput) -> Element {
             on_open_geometry_scripts: input.shared.on_open_geometry_scripts,
             board_setup: Some(input.shared.board_setup),
             matrix_setup: Some(input.matrix_setup),
-            mirrored_pair: Some(input.mirrored_pair),
             pair_created: None,
             on_place_component: Some(input.on_place_component),
             layout_target: Some(input.layout_target),
@@ -63,13 +61,16 @@ pub(super) fn objects(input: ObjectsInput) -> Element {
             on_browse_parts: Some(input.on_browse_parts),
             placement_error: input.placement_error,
             matrix_inspector: None,
+            add_object_menu_open: None,
+        }
         }
     }
 }
 
 pub(super) fn toolbar(input: ToolbarInput) -> Element {
     rsx! {
-        div { class: "m1-canvas-toolbar",
+        div { class: "pointer-events-none absolute inset-0 z-[12] [container:layout-toolbar/inline-size]", "data-workspace-toolbar": "pcb",
+        div { class: "pointer-events-none absolute inset-x-3 top-3 max-[760px]:inset-x-2 max-[760px]:top-2",
             objects::LayoutCommandPill {
                 command_label: input.command_label,
                 menu_owner_key: input.menu_owner_key,
@@ -85,15 +86,16 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
                 on_show_relationships: input.on_show_relationships,
             }
         }
+        }
     }
 }
 
 pub(super) fn canvas(input: CanvasInput) -> Element {
     let handlers = input.handlers;
     rsx! {
-        section { class: "m1-pcb-workspace", "aria-label": "PCB workspace",
+        section { class: "flex min-h-0 min-w-0 flex-1", "aria-label": "PCB workspace",
             svg {
-                class: "m1-canvas m1-pcb-canvas",
+                class: "block h-full min-h-[250px] min-w-0 w-full flex-1 touch-none bg-canvas max-[760px]:min-h-0",
                 view_box: "{input.view_box}",
                 preserve_aspect_ratio: "xMidYMid meet",
                 tabindex: "0",
@@ -123,14 +125,123 @@ pub(super) fn canvas(input: CanvasInput) -> Element {
                     }
                 }
             }
-            PcbLayerControls {
-                snapshot: input.snapshot.clone(),
-                scope: input.scope.clone(),
-            }
+
         }
     }
 }
 
 pub(super) fn inspector() -> Element {
     rsx! {}
+}
+
+/// Both panes stay mounted so changing the presentation mode retains numeric drafts.
+#[component]
+pub(super) fn PcbInspector(selected: bool, children: Element) -> Element {
+    use boardstudio_web_ui_shared::ui::collapsible::{
+        Collapsible, CollapsibleContent, CollapsibleTrigger,
+    };
+    use boardstudio_web_ui_shared::ui::toggle_group::{ToggleGroup, ToggleItem};
+    let mut wiring = use_signal(|| true);
+    let mut position_open = use_signal(|| true);
+    rsx! {
+        section { aria_label: "PCB inspector",
+            ToggleGroup { class: "mb-4 flex gap-0 border-b border-border", aria_label: "PCB inspector mode", horizontal: true,
+                pressed: Some([if wiring() { 1usize } else { 0usize }].into_iter().collect()),
+                on_pressed_change: move |pressed: std::collections::HashSet<usize>| {
+                    if pressed.contains(&1) { wiring.set(true); }
+                    else if pressed.contains(&0) && selected { wiring.set(false); }
+                },
+                ToggleItem { index: 0usize, disabled: !selected, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Selection" }
+                ToggleItem { index: 1usize, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Routing & nets" }
+            }
+            div { hidden: wiring(), inert: wiring().then_some(""),
+                Collapsible { open: position_open(), on_open_change: move |next| position_open.set(next), keep_mounted: true, class: "border-0 border-t border-border py-4",
+                    CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Position" }
+                    CollapsibleContent { hidden: !position_open(), inert: (!position_open()).then_some(""), super::inspector::Inspector {} }
+                }
+            }
+            div { hidden: !wiring(), inert: (!wiring()).then_some(""), {children} }
+        }
+    }
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod mounted_tests {
+    use super::*;
+    use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
+    use wasm_bindgen_test::*;
+
+    fn fixture() -> Element {
+        use_context_provider(|| crate::runtime::Runtime::new().unwrap());
+        use_context_provider(|| Signal::new(0u64));
+        rsx! { PcbInspector { selected: true, div { role: "status", aria_label: "Routing content", "Wiring remains mounted" } } }
+    }
+
+    #[wasm_bindgen_test]
+    async fn pcb_inspector_mode_roves_and_preserves_mounted_panes() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(fixture),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_until("PCB inspector mounts", || {
+            by_role_name(&root, "button", "Routing & nets").is_some()
+        })
+        .await;
+        let routing = by_role_name(&root, "button", "Routing & nets").unwrap();
+        let selection = by_role_name(&root, "button", "Selection").unwrap();
+        assert_eq!(
+            routing.get_attribute("aria-pressed").as_deref(),
+            Some("true")
+        );
+        routing.focus().unwrap();
+        let event = web_sys::KeyboardEventInit::new();
+        event.set_key("ArrowLeft");
+        event.set_bubbles(true);
+        event.set_cancelable(true);
+        routing
+            .dispatch_event(
+                &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &event)
+                    .unwrap(),
+            )
+            .unwrap();
+        wait_until("selection receives roving focus", || {
+            document
+                .active_element()
+                .is_some_and(|active| active == *selection)
+        })
+        .await;
+        let event = web_sys::KeyboardEventInit::new();
+        event.set_key(" ");
+        event.set_bubbles(true);
+        event.set_cancelable(true);
+        selection
+            .dispatch_event(
+                &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &event)
+                    .unwrap(),
+            )
+            .unwrap();
+        selection.click();
+        wait_until("selection pane is active", || {
+            selection.get_attribute("aria-pressed").as_deref() == Some("true")
+        })
+        .await;
+        assert!(
+            by_role_name(&root, "status", "Routing content").is_some(),
+            "hidden routing pane remains mounted"
+        );
+        let disclosure = by_role_name(&root, "button", "Position").unwrap();
+        assert_eq!(
+            disclosure.get_attribute("aria-expanded").as_deref(),
+            Some("true")
+        );
+        disclosure.click();
+        wait_until("position collapses", || {
+            disclosure.get_attribute("aria-expanded").as_deref() == Some("false")
+        })
+        .await;
+        root.remove();
+    }
 }

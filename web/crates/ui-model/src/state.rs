@@ -32,6 +32,104 @@ pub struct LayoutOwnerIdentity {
     pub workspace: &'static str,
 }
 
+/// Transient amber at-rest preview for one Inspector number field (ticket
+/// 16): the part IDs a change to the hovered or focused field would move,
+/// plus the canvas hint ("Moves N keys (n per half)"). It is view state
+/// only; it never reaches the document, history, saves or the selection.
+/// Distinct from the violet dashed Relations reference highlight and from
+/// the whole-scene amber of an active transform drag.
+#[derive(Clone, Debug, PartialEq)]
+pub struct FieldPreviewState {
+    pub parts: Vec<String>,
+    pub hint: String,
+}
+
+#[derive(Clone, Copy)]
+pub struct FieldPreview(pub Signal<Option<FieldPreviewState>>);
+
+impl FieldPreview {
+    pub fn show(mut self, state: FieldPreviewState) {
+        // A handler can fire after the Editor owning the signal has unmounted.
+        if let Ok(mut preview) = self.0.try_write() {
+            *preview = Some(state);
+        }
+    }
+
+    /// Clears the preview only while it still belongs to `parts`, so leaving
+    /// one field never clears the preview of another that has focus. A field
+    /// that unmounts with its owner may find the signal gone, which is not
+    /// an error.
+    pub fn release(self, parts: &[String]) {
+        let owned = self
+            .0
+            .try_peek()
+            .is_ok_and(|current| current.as_ref().is_some_and(|state| state.parts == parts));
+        if owned {
+            self.clear();
+        }
+    }
+
+    pub fn clear(self) {
+        let lit = self.0.try_peek().is_ok_and(|current| current.is_some());
+        if !lit {
+            return;
+        }
+        let mut signal = self.0;
+        if let Ok(mut current) = signal.try_write() {
+            *current = None;
+        }
+    }
+}
+
+/// The accepted document and scene one field preview resolves against.
+/// Provided per render by the Editor root; the hovered field computes its
+/// own affected set from these instead of the Inspector plumbing carrying
+/// the document to every number field.
+#[derive(Clone)]
+pub struct FieldPreviewSource {
+    pub document: std::sync::Arc<boardstudio_core::model::ProjectDoc>,
+    pub scene: std::sync::Arc<boardstudio_core::model::SceneDelta>,
+}
+
+/// Transient Relations highlight: the part IDs a hovered or focused Relations reference marks
+/// on the Layout canvas. It is view state only; it never reaches the document, history, saves
+/// or the selection.
+#[derive(Clone, Copy)]
+pub struct RelationHighlight(pub Signal<Option<Vec<String>>>);
+
+impl RelationHighlight {
+    pub fn show(mut self, part_ids: &[String]) {
+        // A handler can fire after the Editor owning the signal has unmounted.
+        if let Ok(mut highlight) = self.0.try_write() {
+            *highlight = Some(part_ids.to_vec());
+        }
+    }
+
+    /// Clears the highlight only while it still belongs to `part_ids`, so leaving one reference
+    /// never clears the highlight of another that has focus. A reference that unmounts with its
+    /// owner may find the signal gone, which is not an error.
+    pub fn release(self, part_ids: &[String]) {
+        let owned = self
+            .0
+            .try_peek()
+            .is_ok_and(|current| current.as_deref() == Some(part_ids));
+        if owned {
+            self.clear();
+        }
+    }
+
+    pub fn clear(self) {
+        let lit = self.0.try_peek().is_ok_and(|current| current.is_some());
+        if !lit {
+            return;
+        }
+        let mut signal = self.0;
+        if let Ok(mut current) = signal.try_write() {
+            *current = None;
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 pub struct WorkspaceState(pub Signal<&'static str>);
 #[derive(Clone, Copy)]
@@ -91,7 +189,7 @@ pub enum ProjectMenuPage {
 }
 
 #[derive(Clone, Copy)]
-pub struct ResolvedTheme(pub Memo<&'static str>);
+pub struct ResolvedAppearance(pub Memo<&'static str>);
 
 #[derive(Clone, Copy)]
 pub struct LayerVisibility {
@@ -130,6 +228,10 @@ pub struct TreeCellAnchor {
     pub column: u32,
 }
 
+/// Appearance preference: "system", "light" or "dark" (`ResolvedAppearance` is light or dark).
+#[derive(Clone, Copy)]
+pub struct AppearanceState(pub Signal<&'static str>);
+/// Theme preference: "original" or "shadcn".
 #[derive(Clone, Copy)]
 pub struct ThemeState(pub Signal<&'static str>);
 #[derive(Clone, Copy)]
@@ -152,6 +254,10 @@ pub struct PendingNewKeyboard {
 #[derive(Clone, Debug, PartialEq)]
 pub enum ComponentPlacementAction {
     AddObject {
+        definition_id: String,
+        kind: boardstudio_core::model::PartKind,
+    },
+    AddMirrorOnlyObject {
         definition_id: String,
         kind: boardstudio_core::model::PartKind,
     },

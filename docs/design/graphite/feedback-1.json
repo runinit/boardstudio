@@ -1,0 +1,79 @@
+{
+  "reviewer": "local-browser",
+  "decision": "changes-requested",
+  "revision": "daa64cc9e29f41fde1f7846f15e0714f9e6b18f6a8bcbd59b93eef0ee58d305e",
+  "decisions": {
+    "header": {
+      "revision": "329fbda9c5ed66170da258b4e7017cab4be04688ba3a5ce4e6809f612614f52c",
+      "action": "approve",
+      "feedback": "",
+      "split": false
+    },
+    "project": {
+      "revision": "658f1949f977e3617d0617da18a5ebdfdd652ede0870f38123b15ac9174bd585",
+      "action": "approve",
+      "feedback": "",
+      "split": false
+    },
+    "history-save-export": {
+      "revision": "439cb469e1947fa98dacea52454604980a3cd8ba0fefab2c3d24ab5345c75b04",
+      "action": "approve",
+      "feedback": "",
+      "split": false
+    },
+    "objects": {
+      "revision": "e422fe01487779e941c304706fad0dbb78c3cc723b0e98dbad6d1517a662f9a7",
+      "action": "revise",
+      "feedback": "this is good, but I wouldnt mind having the PCB and Case visible here as well as keycaps.. we would just add some more second level tree items (i..e atthe same level as board).",
+      "split": false
+    },
+    "tree": {
+      "revision": "8cb431c51e41bbf48a6932a30d9304a5327d649ae2b7ef29403670dd65eca4c6",
+      "action": "revise",
+      "feedback": "this is good, but I wouldnt mind having the PCB and Case visible here as well as keycaps.. we would just add some more second level tree items (i..e atthe same level as board).",
+      "split": false
+    },
+    "snapping": {
+      "revision": "9ad64294b00abac13553590a4c5fcee1cc5fada803a53fe123b1e4f2044d14f4",
+      "action": "approve",
+      "feedback": "",
+      "split": false
+    },
+    "canvas": {
+      "revision": "96fd59f9bc86eb7e4e4ec6cd62c1cf96d25f457aa546e084da6923d7dffb4b25",
+      "action": "approve",
+      "feedback": "",
+      "split": false
+    },
+    "context-toolbar": {
+      "revision": "5b2df4e3015fd6b90f2ce5fde2d207faf04c36da806d4c55379b6e9909b9d4ad",
+      "action": "revise",
+      "feedback": "lets add a compact kmode (icons only) and include selection tools (select matrix, row, column, key) as individual icons",
+      "split": false
+    },
+    "keyboard-geometry": {
+      "revision": "f4f2a2435be6a141cabf4dca184a3f97a2403138e3901bbe7f88dbe274e7af30",
+      "action": "approve",
+      "feedback": "",
+      "split": false
+    },
+    "inspector": {
+      "revision": "f6962e81f6b851a57d83ab5c7bcf5e1502c82981df876c293a4769177641d38f",
+      "action": "approve",
+      "feedback": "",
+      "split": false
+    },
+    "inspector-controls": {
+      "revision": "ff9ec6f9bc430fbd32ac1cfad6c58972fc50ebca0818ac41c604459cee2b4057",
+      "action": "approve",
+      "feedback": "",
+      "split": false
+    },
+    "status-footer": {
+      "revision": "cdc4a71e07957613cf535d552d9d43f92b791cd4142fc6e889f16dd5a79da738",
+      "action": "approve",
+      "feedback": "",
+      "split": false
+    }
+  }
+}

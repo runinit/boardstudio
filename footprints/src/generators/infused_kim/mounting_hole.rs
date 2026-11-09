@@ -5,6 +5,7 @@
 //! Author: @infused-kim
 use crate::Result;
 use crate::context::RenderContext;
+use crate::generators::util::json_string;
 use crate::number::js_number as n;
 use crate::params::ParamSpec;
 use crate::registry::{GeneratorSpec, License};
@@ -29,7 +30,7 @@ pub static SPEC: GeneratorSpec = GeneratorSpec {
         spdx: "CC-BY-NC-SA-4.0",
         author: "@infused-kim",
     },
-    body,
+    body: crate::registry::Body::Text(body),
 };
 
 fn body(p: &RenderContext<'_>) -> Result<String> {
@@ -49,12 +50,12 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         r#"
             (module mounting_hole (layer F.Cu) (tedit 64B5A986)
                 {at}
-                (fp_text reference "{reference}" (at 0 3) (layer F.SilkS) {hide}
+                (fp_text reference {reference} (at 0 3) (layer F.SilkS) {hide}
                     (effects (font (size 1 1) (thickness 0.15)))
                 )
         "#,
         at = p.at(),
-        reference = p.reference(),
+        reference = json_string(p.reference()),
         hide = p.ref_hide(),
     );
     if size_x == size_y {

@@ -2,15 +2,24 @@
 use super::keycaps_scene::{self, KeycapsKey, KeycapsView};
 use crate::runtime::Runtime;
 use boardstudio_application::{
-    AcceptedSnapshot, Durability, EditResolver, Lifecycle, OperationId, Resolution, Scope,
-    SnapshotToken,
+    AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope, SnapshotToken,
 };
 use boardstudio_core::model::{
-    EditCommand, EditOperation, EditPhase, KeycapBoardChange, KeycapBoardSettings, KeycapKeyChange,
-    KeycapKeySettings, KeycapMatrixChange, KeycapMatrixSettings, KeycapMount, KeycapProfile,
-    ProjectDoc, Vec2,
+    EditOperation, KeycapBoardChange, KeycapBoardSettings, KeycapKeyChange, KeycapKeySettings,
+    KeycapMatrixChange, KeycapMatrixSettings, KeycapMount, KeycapProfile, ProjectDoc, Vec2,
 };
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+use boardstudio_web_runtime::pending_edits::PendingEditResult;
+use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
+use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
+use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
+use boardstudio_web_ui_shared::ui::collapsible::{
+    Collapsible, CollapsibleContent, CollapsibleTrigger,
+};
+use boardstudio_web_ui_shared::ui::field::{Field, FieldError, FieldLabel};
+use boardstudio_web_ui_shared::ui::input::InputType;
+use boardstudio_web_ui_shared::ui::input_group::{InputGroup, InputGroupInput};
+use boardstudio_web_ui_shared::ui::select::{Select, SelectOption};
+use boardstudio_web_ui_shared::ui::spinner::Spinner;
 use dioxus::prelude::*;
 use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
 
@@ -108,24 +117,16 @@ pub struct KeycapsEditRequest {
     pub change: KeycapEditChange,
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub enum KeycapsEditStatus {
-    Pending,
-    Blocked(String),
-    Saved,
-    Failed(String),
-}
-
+/// The newest keycap edit still pending for the visible owner. Failures are reported
+/// inline at their field and as retry drafts; there is no Saved or Failed status here.
 #[derive(Clone, Debug, PartialEq)]
 pub struct KeycapsEditFeedback {
     pub editor_instance_id: u64,
-    pub operation_id: Option<OperationId>,
     pub scope: Scope,
     pub scope_generation: u64,
     pub selection_generation: u64,
     pub target: KeycapsEditTarget,
     pub field: KeycapEditField,
-    pub status: KeycapsEditStatus,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -170,36 +171,176 @@ pub struct KeycapsSettingsActions {
     pub on_discard: EventHandler<KeycapsRetryIdentity>,
 }
 
+/// A field's logical identity: the latest edit for it replaces the earlier observation.
+/// The key carries its request for follow-ups; keys compare by target and field only.
 #[derive(Clone)]
-struct KeycapsTicket {
-    request: KeycapsEditRequest,
-    ticket: EditTicket,
+struct KeycapsPendingKey {
+    target: KeycapsEditTarget,
+    field: KeycapEditField,
+    request: Option<Rc<KeycapsEditRequest>>,
+}
+
+impl PartialEq for KeycapsPendingKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.target == other.target && self.field == other.field
+    }
+}
+
+impl KeycapsPendingKey {
+    fn of(request: &KeycapsEditRequest) -> Self {
+        Self {
+            target: request.target.clone(),
+            field: request.change.field(),
+            request: Some(Rc::new(request.clone())),
+        }
+    }
+
+    fn bound(target: KeycapsEditTarget, field: KeycapEditField) -> Self {
+        Self {
+            target,
+            field,
+            request: None,
+        }
+    }
+}
+
+type KeycapsHelper = PendingEditSignals<KeycapsPendingKey>;
+
+/// The edit observers, one per owner lifetime. Board and Matrix edits live while the Editor
+/// owns the scope in the Keycaps workspace; a Key edit also needs its selection. A changed
+/// owner replaces the helper, silently retiring the observation; the Session edit still runs.
+struct KeycapsEdits {
+    shared: KeycapsHelper,
+    shared_owner: Option<(Option<Scope>, u64, &'static str)>,
+    key: KeycapsHelper,
+    key_owner: u64,
+    /// Caller projection memory: the requests whose edits are still observed.
+    requests: Vec<KeycapsPendingKey>,
+}
+
+impl Default for KeycapsEdits {
+    fn default() -> Self {
+        Self {
+            shared: KeycapsHelper::new(),
+            shared_owner: None,
+            key: KeycapsHelper::new(),
+            key_owner: 0,
+            requests: Vec::new(),
+        }
+    }
+}
+
+impl KeycapsEdits {
+    fn helper(&self, target: &KeycapsEditTarget) -> &KeycapsHelper {
+        match target {
+            KeycapsEditTarget::Key(_) => &self.key,
+            _ => &self.shared,
+        }
+    }
+
+    /// Replace a helper whose owner lifetime ended. Returns whether anything was dropped.
+    fn follow_owner(
+        &mut self,
+        scope: Option<&Scope>,
+        scope_generation: u64,
+        workspace: &'static str,
+        owner_generation: u64,
+    ) -> bool {
+        let shared_owner = (scope.cloned(), scope_generation, workspace);
+        let mut dropped = false;
+        if self.shared_owner.as_ref() != Some(&shared_owner) {
+            if self.shared_owner.is_some() {
+                self.shared = KeycapsHelper::new();
+                dropped = true;
+            }
+            self.shared_owner = Some(shared_owner);
+        }
+        if self.key_owner != owner_generation {
+            if self.key_owner != 0 {
+                self.key = KeycapsHelper::new();
+                dropped = true;
+            }
+            self.key_owner = owner_generation;
+        }
+        dropped
+    }
+
+    fn owners_changed(
+        &self,
+        scope: Option<&Scope>,
+        scope_generation: u64,
+        workspace: &'static str,
+        owner_generation: u64,
+    ) -> bool {
+        self.shared_owner.as_ref() != Some(&(scope.cloned(), scope_generation, workspace))
+            || self.key_owner != owner_generation
+    }
+
+    /// Bind the selected key's legend Signals to the key helper.
+    fn bind_legend(
+        &self,
+        selected_key_id: Option<&str>,
+        draft: Signal<String>,
+        failure: Signal<Option<String>>,
+    ) {
+        if let Some(id) = selected_key_id {
+            self.key.bind_field(
+                KeycapsPendingKey::bound(
+                    KeycapsEditTarget::Key(id.to_owned()),
+                    KeycapEditField::Legend,
+                ),
+                draft,
+                failure,
+            );
+        }
+    }
+
+    fn has_terminal(&self) -> bool {
+        self.requests.iter().any(|entry| !self.is_pending(entry))
+    }
+
+    fn prune(&mut self) {
+        let (shared, key) = (&self.shared, &self.key);
+        self.requests.retain(|entry| match entry.target {
+            KeycapsEditTarget::Key(_) => key.is_pending(entry),
+            _ => shared.is_pending(entry),
+        });
+    }
+
+    fn is_pending(&self, key: &KeycapsPendingKey) -> bool {
+        self.helper(&key.target).is_pending(key)
+    }
 }
 
 #[derive(Clone, Copy)]
-struct KeycapsTickets(Signal<Vec<KeycapsTicket>>);
+struct KeycapsEditsContext {
+    edits: Signal<KeycapsEdits>,
+    legend_draft: Signal<String>,
+    legend_failure: Signal<Option<String>>,
+}
 
-// These values belong only to outstanding field tickets. They are presentation drafts,
+// These values belong only to outstanding field edits. They are presentation drafts,
 // never used to construct a replacement document or as the accepted baseline.
 fn pending_changes(
     actions: &KeycapsSettingsActions,
     target: &KeycapsEditTarget,
 ) -> Vec<KeycapEditChange> {
-    let Some(tickets) = try_consume_context::<KeycapsTickets>() else {
+    let Some(context) = try_consume_context::<KeycapsEditsContext>() else {
         return vec![];
     };
-    tickets
-        .0
-        .read()
+    let edits = context.edits.read();
+    edits
+        .requests
         .iter()
-        .filter(|entry| {
-            entry.request.scope == actions.scope
-                && entry.request.scope_generation == actions.scope_generation
-                && entry.request.selection_generation == actions.selection_generation
-                && entry.request.target == *target
-                && entry.ticket.is_pending()
+        .filter_map(|entry| {
+            let request = entry.request.as_ref()?;
+            (request.scope == actions.scope
+                && request.scope_generation == actions.scope_generation
+                && request.selection_generation == actions.selection_generation
+                && request.target == *target
+                && edits.is_pending(entry))
+            .then(|| request.change.clone())
         })
-        .map(|entry| entry.request.change.clone())
         .collect()
 }
 
@@ -213,11 +354,11 @@ fn field_pending(
         .any(|change| change.field() == field)
 }
 
-#[derive(Clone)]
-struct FeedbackState {
-    request: KeycapsEditRequest,
-    operation_id: Option<OperationId>,
-    status: KeycapsEditStatus,
+/// The legend text an accepted keycap shows; none is the empty draft.
+fn accepted_legend_text(document: &ProjectDoc, key_id: &str) -> String {
+    settings_for_key(document, key_id)
+        .legend
+        .unwrap_or_default()
 }
 
 #[derive(Default)]
@@ -263,9 +404,14 @@ pub fn use_keycaps_settings_actions(
     });
     let request_sequence = use_signal(|| 0_u64);
     let last_request_id = use_signal(|| 0_u64);
-    let pending = use_signal(Vec::<KeycapsTicket>::new);
-    use_context_provider(|| KeycapsTickets(pending));
-    let feedback = use_signal(|| None::<FeedbackState>);
+    let edits = use_signal(KeycapsEdits::default);
+    let legend_draft = use_signal(String::new);
+    let legend_failure = use_signal(|| None::<String>);
+    use_context_provider(|| KeycapsEditsContext {
+        edits,
+        legend_draft,
+        legend_failure,
+    });
     let mut retry_drafts =
         use_signal(BTreeMap::<(KeycapsEditTarget, KeycapEditField), KeycapsRetryDraft>::new);
     let owner_tracker = use_hook(|| Rc::new(RefCell::new(OwnerTracker::default())));
@@ -321,69 +467,86 @@ pub fn use_keycaps_settings_actions(
 
     use_effect(use_reactive((&version,), {
         let runtime = runtime.clone();
-        let mut pending = pending;
-        let mut feedback = feedback;
+        let mut edits = edits;
         let mut retry_drafts = retry_drafts;
         let owner_tracker = owner_tracker.clone();
         move |_| {
             let live_key_id = live_selected_key_id(&runtime);
             let live_scope = runtime.scope();
             let generation = scope_generation();
+            let live_workspace = workspace();
             let owner_generation = owner_tracker.borrow_mut().observe(
                 live_scope.as_ref(),
                 generation,
-                workspace(),
+                live_workspace,
                 live_key_id.as_deref(),
             );
-            let mut tickets = pending.peek().clone();
-            let before = tickets.len();
-            tickets.retain(|entry| {
+            if edits.peek().owners_changed(
+                live_scope.as_ref(),
+                generation,
+                live_workspace,
+                owner_generation,
+            ) {
+                let mut guard = edits.write();
+                guard.follow_owner(
+                    live_scope.as_ref(),
+                    generation,
+                    live_workspace,
+                    owner_generation,
+                );
+                guard.prune();
+                guard.bind_legend(live_key_id.as_deref(), legend_draft, legend_failure);
+            }
+            if !edits.peek().has_terminal() {
+                return;
+            }
+            let document = runtime.model().accepted.map(|snapshot| snapshot.document);
+            let results = {
+                let guard = edits.peek();
+                let accepted = |key: &KeycapsPendingKey| match (&key.target, &document) {
+                    (KeycapsEditTarget::Key(id), Some(document)) => {
+                        accepted_legend_text(document, id)
+                    }
+                    _ => String::new(),
+                };
+                let mut results = guard.shared.settle(true, accepted);
+                results.extend(guard.key.settle(true, accepted));
+                results
+            };
+            for result in results {
+                let (PendingEditResult::Landed { key, .. }
+                | PendingEditResult::Failed { key, .. }
+                | PendingEditResult::Retired { key }) = &result;
+                let Some(request) = key.request.as_deref() else {
+                    continue;
+                };
                 let live = request_owner_is_current(
-                    &entry.request,
+                    request,
                     editor_instance_id,
                     live_scope.as_ref(),
                     generation,
                     owner_generation,
                     live_key_id.as_deref(),
-                    workspace(),
+                    live_workspace,
                 );
-                let status = match entry.ticket.settlement(live) {
-                    Settlement::Pending => return true,
-                    Settlement::Landed { .. } => {
-                        remove_retry_draft_through(
-                            &mut retry_drafts,
-                            &entry.request.target,
-                            &entry.request.change.field(),
-                            entry.request.request_id,
-                        );
-                        Some(KeycapsEditStatus::Saved)
+                match &result {
+                    PendingEditResult::Landed { .. } if live => remove_retry_draft_through(
+                        &mut retry_drafts,
+                        &request.target,
+                        &request.change.field(),
+                        request.request_id,
+                    ),
+                    PendingEditResult::Failed { message, .. } if live => {
+                        keep_retry_draft(&mut retry_drafts, request, message.clone());
                     }
-                    Settlement::Failed { message } => {
-                        keep_retry_draft(&mut retry_drafts, &entry.request, message.clone());
-                        Some(KeycapsEditStatus::Failed(message))
-                    }
-                    Settlement::Retired => None,
-                };
-                if feedback
-                    .peek()
-                    .as_ref()
-                    .is_some_and(|state| state.request.request_id == entry.request.request_id)
-                {
-                    feedback.set(status.map(|status| FeedbackState {
-                        request: entry.request.clone(),
-                        operation_id: Some(entry.ticket.operation()),
-                        status,
-                    }));
+                    _ => {}
                 }
-                false
-            });
-            if before != tickets.len() {
-                pending.set(tickets);
             }
+            edits.write().prune();
         }
     }));
 
-    let visible_feedback = feedback.read().as_ref().and_then(|state| {
+    let visible_feedback = {
         let live_key_id = live_selected_key_id(&runtime);
         let live_scope = runtime.scope();
         let live_scope_generation = scope_generation();
@@ -393,33 +556,39 @@ pub fn use_keycaps_settings_actions(
             workspace(),
             live_key_id.as_deref(),
         );
-        let owner_matches = request_owner_is_current(
-            &state.request,
-            editor_instance_id,
-            live_scope.as_ref(),
-            live_scope_generation,
-            owner_generation,
-            live_key_id.as_deref(),
-            workspace(),
-        );
-        owner_matches.then(|| KeycapsEditFeedback {
-            editor_instance_id: state.request.editor_instance_id,
-            operation_id: state.operation_id,
-            scope: state.request.scope.clone(),
-            scope_generation: state.request.scope_generation,
-            selection_generation: state.request.selection_generation,
-            target: state.request.target.clone(),
-            field: state.request.change.field(),
-            status: state.status.clone(),
-        })
-    });
+        let guard = edits.read();
+        guard
+            .requests
+            .iter()
+            .filter(|key| guard.is_pending(key))
+            .filter_map(|key| key.request.as_deref())
+            .filter(|request| {
+                request_owner_is_current(
+                    request,
+                    editor_instance_id,
+                    live_scope.as_ref(),
+                    live_scope_generation,
+                    owner_generation,
+                    live_key_id.as_deref(),
+                    workspace(),
+                )
+            })
+            .max_by_key(|request| request.request_id)
+            .map(|request| KeycapsEditFeedback {
+                editor_instance_id: request.editor_instance_id,
+                scope: request.scope.clone(),
+                scope_generation: request.scope_generation,
+                selection_generation: request.selection_generation,
+                target: request.target.clone(),
+                field: request.change.field(),
+            })
+    };
 
     let on_change = use_callback({
         let runtime = runtime.clone();
         let source = active_source.clone();
         let owner_tracker = owner_tracker.clone();
-        let mut pending = pending;
-        let mut feedback = feedback;
+        let mut edits = edits;
         let mut retry_drafts = retry_drafts;
         let mut last_request_id = last_request_id;
         move |request: KeycapsEditRequest| {
@@ -476,7 +645,23 @@ pub fn use_keycaps_settings_actions(
                 &request.change.field(),
                 request.request_id,
             );
-            submit_keycap_edit(&runtime, &mut pending, &mut feedback, request);
+            if edits.peek().owners_changed(
+                live_scope.as_ref(),
+                live_scope_generation,
+                live_workspace,
+                live_selection_generation,
+            ) {
+                let mut guard = edits.write();
+                guard.follow_owner(
+                    live_scope.as_ref(),
+                    live_scope_generation,
+                    live_workspace,
+                    live_selection_generation,
+                );
+                guard.prune();
+                guard.bind_legend(live_key_id.as_deref(), legend_draft, legend_failure);
+            }
+            submit_keycap_edit(&runtime, &mut edits, request);
         }
     });
 
@@ -553,7 +738,7 @@ pub fn use_keycaps_settings_actions(
 
     let on_discard = use_callback({
         let mut retry_drafts = retry_drafts;
-        let mut feedback = feedback;
+        let mut legend_failure = legend_failure;
         let runtime = runtime.clone();
         let owner_tracker = owner_tracker.clone();
         move |identity: KeycapsRetryIdentity| {
@@ -588,7 +773,9 @@ pub fn use_keycaps_settings_actions(
                 drafts.remove(&(identity.target.clone(), identity.field.clone()));
             }
             drop(drafts);
-            clear_feedback_through_identity(&mut feedback, &identity);
+            if identity.field == KeycapEditField::Legend {
+                legend_failure.set(None);
+            }
         }
     });
 
@@ -1003,31 +1190,6 @@ fn remove_retry_draft_through_map(
     }
 }
 
-fn clear_feedback_through_identity(
-    feedback: &mut Signal<Option<FeedbackState>>,
-    identity: &KeycapsRetryIdentity,
-) {
-    let should_clear = feedback
-        .read()
-        .as_ref()
-        .is_some_and(|state| feedback_is_cleared_by_identity(state, identity));
-    if should_clear {
-        feedback.set(None);
-    }
-}
-
-fn feedback_is_cleared_by_identity(state: &FeedbackState, identity: &KeycapsRetryIdentity) -> bool {
-    let request = &state.request;
-    !matches!(state.status, KeycapsEditStatus::Pending)
-        && request.editor_instance_id == identity.editor_instance_id
-        && request.scope == identity.scope
-        && request.scope_generation == identity.scope_generation
-        && request.selection_generation == identity.selection_generation
-        && request.target == identity.target
-        && request.change.field() == identity.field
-        && request.request_id <= identity.request_id
-}
-
 fn draft_owner_mismatch(
     draft: &KeycapsRetryDraft,
     editor_instance_id: u64,
@@ -1094,16 +1256,12 @@ fn retry_identity_is_current(
 
 fn submit_keycap_edit(
     runtime: &Rc<Runtime>,
-    pending: &mut Signal<Vec<KeycapsTicket>>,
-    feedback: &mut Signal<Option<FeedbackState>>,
+    edits: &mut Signal<KeycapsEdits>,
     request: KeycapsEditRequest,
 ) {
     let intent = request.clone();
     let resolver = EditResolver::new("keycaps", move |accepted: &AcceptedSnapshot| {
-        if accepted.session_epoch != intent.scope.session_epoch
-            || accepted.document.id != intent.scope.document_id
-            || !valid_edit_target(accepted, &intent.scope, &intent.target)
-        {
+        if !valid_edit_target(accepted, &intent.scope, &intent.target) {
             return Resolution::Retire("This keycap settings target no longer exists.".into());
         }
         let Some(operation) = edit_operation(
@@ -1122,21 +1280,24 @@ fn submit_keycap_edit(
         ) {
             return Resolution::Unchanged;
         }
-        Resolution::Submit(EditCommand {
-            base_revision: 0,
-            transaction_id: String::new(),
-            phase: EditPhase::Commit,
-            target_ids: vec![target_id(&intent.target, &intent.scope)],
-            operation,
-        })
+        Resolution::submit(vec![target_id(&intent.target, &intent.scope)], operation)
     });
-    let ticket = EditTicket::begin(runtime, "keycaps", Some("keycap settings".into()), resolver);
-    feedback.set(Some(FeedbackState {
-        request: request.clone(),
-        operation_id: Some(ticket.operation()),
-        status: KeycapsEditStatus::Pending,
-    }));
-    pending.write().push(KeycapsTicket { request, ticket });
+    let key = KeycapsPendingKey::of(&request);
+    let submitted = match &request.change {
+        KeycapEditChange::Legend(value) => value.clone().unwrap_or_default(),
+        change => change_label(change),
+    };
+    let mut guard = edits.write();
+    guard.helper(&key.target).begin_field(
+        runtime,
+        key.clone(),
+        "keycaps",
+        Some("keycap settings".into()),
+        resolver,
+        &submitted,
+    );
+    guard.requests.retain(|existing| *existing != key);
+    guard.requests.push(key);
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -1203,6 +1364,96 @@ fn emit_settings_change(
     });
 }
 
+const PROFILES: &[(&str, &str)] = &[
+    ("cherry", "Cherry"),
+    ("oem", "OEM"),
+    ("dcs", "DCS"),
+    ("dsa", "DSA"),
+    ("sa", "SA"),
+    ("hi-pro", "Hi-Pro"),
+    ("g20", "G20"),
+    ("choc", "Choc"),
+];
+const MOUNTS: &[(&str, &str)] = &[
+    ("mx", "MX cross"),
+    ("choc-v1", "Choc v1"),
+    ("choc-v2", "Choc v2 cross"),
+    ("alps", "Alps"),
+];
+
+#[component]
+fn SettingsSection(
+    label: String,
+    #[props(default)] class: String,
+    #[props(default)] default_open: bool,
+    children: Element,
+) -> Element {
+    let mut open = use_signal(|| default_open);
+    rsx! {
+        Collapsible { class, open: open(), on_open_change: move |value| open.set(value), keep_mounted: true,
+            CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{label}" }
+            CollapsibleContent { hidden: !open(), inert: (!open()).then_some(""), {children} }
+        }
+    }
+}
+
+#[component]
+fn SettingsChoice(
+    label: String,
+    aria_label: String,
+    value: String,
+    options: Vec<(String, String)>,
+    on_change: EventHandler<String>,
+) -> Element {
+    let id = format!("keycaps-choice-{}", dioxus::core::current_scope_id().0);
+    let current = use_memo(use_reactive((&value,), |(value,)| Some(value)));
+    rsx! {
+        Field { class: "gap-1.5", FieldLabel { html_for: id.clone(), "{label}" }
+            Select::<String> {
+                id, aria_label, value: Some(current.into()),
+                class: "max-[960px]:[&_[data-slot=select-trigger]]:min-h-control-touch [@media(pointer:coarse)]:[&_[data-slot=select-trigger]]:min-h-control-touch",
+                on_value_change: move |value: Option<String>| if let Some(value) = value { on_change.call(value); },
+                for (index, (value, text)) in options.into_iter().enumerate() {
+                    SelectOption::<String> { index, value, text_value: text.clone(), class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{text}" }
+                }
+            }
+        }
+    }
+}
+
+fn settings_options(first: &str, remaining: &[(&str, &str)]) -> Vec<(String, String)> {
+    std::iter::once((String::new(), first.to_owned()))
+        .chain(
+            remaining
+                .iter()
+                .map(|(value, label)| ((*value).to_owned(), (*label).to_owned())),
+        )
+        .collect()
+}
+
+#[component]
+fn SettingsInput(
+    label: String,
+    aria_label: String,
+    value: String,
+    r#type: InputType,
+    #[props(default)] min: Option<String>,
+    #[props(default)] max: Option<String>,
+    #[props(default)] step: Option<String>,
+    #[props(default)] placeholder: Option<String>,
+    oninput: EventHandler<FormEvent>,
+) -> Element {
+    let id = format!("keycaps-input-{}", dioxus::core::current_scope_id().0);
+    rsx! {
+        Field { class: "gap-1.5", FieldLabel { html_for: id.clone(), "{label}" }
+            InputGroup { InputGroupInput { id, aria_label, r#type, value, min, max, step, placeholder,
+                class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                oninput: move |event: FormEvent| oninput.call(event),
+            } }
+        }
+    }
+}
+
 #[derive(Props, Clone, PartialEq)]
 pub struct KeycapsBoardSettingsEditorProps {
     pub settings: KeycapBoardSettings,
@@ -1240,20 +1491,17 @@ pub fn KeycapsBoardSettingsEditor(props: KeycapsBoardSettingsEditorProps) -> Ele
     let clearance_target = target.clone();
     let clearance_baseline = baseline.clone();
     rsx! {
-        details { class: "m1-keycaps-disclosure", open: true,
-            summary { "Board colors" }
-            section { class: "m1-keycaps-settings", aria_label: "Board colors",
-                label { "Keycap color",
-                    input { r#type: "color", aria_label: "Board keycap color", value: "{settings.color}",
-                        oninput: move |event| emit_settings_change(&color_actions, color_target.clone(), color_baseline.clone(), KeycapEditChange::BoardColor(event.value())) }
+        SettingsSection { class: "min-w-0", label: "Board colors", default_open: true,
+            section { class: "grid min-w-0 gap-2 p-3 text-foreground", aria_label: "Board colors",
+                SettingsInput { label: "Keycap color", aria_label: "Board keycap color", r#type: InputType::Color, value: settings.color.clone(),
+                    oninput: move |event: FormEvent| emit_settings_change(&color_actions, color_target.clone(), color_baseline.clone(), KeycapEditChange::BoardColor(event.value()))
                 }
-                label { "Legend color",
-                    input { r#type: "color", aria_label: "Board legend color", value: "{settings.legend_color}",
-                        oninput: move |event| emit_settings_change(&legend_actions, legend_target.clone(), legend_baseline.clone(), KeycapEditChange::BoardLegendColor(event.value())) }
+                SettingsInput { label: "Legend color", aria_label: "Board legend color", r#type: InputType::Color, value: settings.legend_color.clone(),
+                    oninput: move |event: FormEvent| emit_settings_change(&legend_actions, legend_target.clone(), legend_baseline.clone(), KeycapEditChange::BoardLegendColor(event.value()))
                 }
-                label { "Minimum clearance (mm)",
-                    input { r#type: "number", aria_label: "Keycap clearance", min: "0", max: "5", step: "0.1", value: "{settings.clearance}",
-                        oninput: move |event| if let Ok(value) = event.value().parse::<f64>() { emit_settings_change(&clearance_actions, clearance_target.clone(), clearance_baseline.clone(), KeycapEditChange::BoardClearance(value)); } }
+                SettingsInput { label: "Minimum clearance (mm)", aria_label: "Keycap clearance", r#type: InputType::Number,
+                    min: Some("0".into()), max: Some("5".into()), step: Some("0.1".into()), value: settings.clearance.to_string(),
+                    oninput: move |event: FormEvent| if let Ok(value) = event.value().parse::<f64>() { emit_settings_change(&clearance_actions, clearance_target.clone(), clearance_baseline.clone(), KeycapEditChange::BoardClearance(value)); }
                 }
                 {settings_feedback(feedback, retries, &actions)}
             }
@@ -1306,34 +1554,24 @@ pub fn KeycapsMatrixSettingsEditor(props: KeycapsMatrixSettingsEditorProps) -> E
     let mount_target = target.clone();
     let mount_baseline = baseline.clone();
     rsx! {
-        fieldset { class: "m1-keycaps-matrix-settings",
-            legend { "{props.matrix_name}" }
-            label { "Profile",
-                select { aria_label: "Keycap profile for {props.matrix_name}", value: "{profile}",
-                    onchange: move |event| emit_settings_change(&profile_actions, profile_target.clone(), profile_baseline.clone(), KeycapEditChange::MatrixProfile(parse_profile(&event.value()))),
-                    option { value: "", "No generated keycap" }
-                    option { value: "cherry", "Cherry" } option { value: "oem", "OEM" }
-                    option { value: "dcs", "DCS" } option { value: "dsa", "DSA" }
-                    option { value: "sa", "SA" } option { value: "hi-pro", "Hi-Pro" }
-                    option { value: "g20", "G20" } option { value: "choc", "Choc" }
-                }
+        fieldset { class: "m-0 mb-2 min-w-0 border-0 p-2",
+            legend { class: "px-1 text-sm text-foreground", "{props.matrix_name}" }
+            SettingsChoice { label: "Profile", aria_label: format!("Keycap profile for {}", props.matrix_name), value: profile.to_owned(),
+                options: settings_options("No generated keycap", PROFILES),
+                on_change: move |value: String| emit_settings_change(&profile_actions, profile_target.clone(), profile_baseline.clone(), KeycapEditChange::MatrixProfile(parse_profile(&value))),
             }
-            details {
-                summary { "Profile dimensions & socket" }
-                label { "First profile row",
-                    input { r#type: "number", aria_label: "First profile row for {props.matrix_name}", min: "1", max: "5", step: "1", value: "{settings.first_row}",
-                        oninput: move |event| if let Ok(value) = event.value().parse::<u8>() { emit_settings_change(&row_actions, row_target.clone(), row_baseline.clone(), KeycapEditChange::MatrixFirstRow(value)); } }
+            SettingsSection { label: "Profile dimensions & socket", default_open: false,
+                SettingsInput { label: "First profile row", aria_label: format!("First profile row for {}", props.matrix_name), r#type: InputType::Number,
+                    min: Some("1".into()), max: Some("5".into()), step: Some("1".into()), value: settings.first_row.to_string(),
+                    oninput: move |event: FormEvent| if let Ok(value) = event.value().parse::<u8>() { emit_settings_change(&row_actions, row_target.clone(), row_baseline.clone(), KeycapEditChange::MatrixFirstRow(value)); }
                 }
-                label { "Wall thickness (mm)",
-                    input { r#type: "number", aria_label: "Wall thickness for {props.matrix_name}", min: "0.8", max: "2", step: "0.1", value: "{settings.wall_thickness}",
-                        oninput: move |event| if let Ok(value) = event.value().parse::<f64>() { emit_settings_change(&wall_actions, wall_target.clone(), wall_baseline.clone(), KeycapEditChange::MatrixWallThickness(value)); } }
+                SettingsInput { label: "Wall thickness (mm)", aria_label: format!("Wall thickness for {}", props.matrix_name), r#type: InputType::Number,
+                    min: Some("0.8".into()), max: Some("2".into()), step: Some("0.1".into()), value: settings.wall_thickness.to_string(),
+                    oninput: move |event: FormEvent| if let Ok(value) = event.value().parse::<f64>() { emit_settings_change(&wall_actions, wall_target.clone(), wall_baseline.clone(), KeycapEditChange::MatrixWallThickness(value)); }
                 }
-                label { "Socket",
-                    select { aria_label: "Keycap socket for {props.matrix_name}", value: "{mount}",
-                        onchange: move |event| emit_settings_change(&mount_actions, mount_target.clone(), mount_baseline.clone(), KeycapEditChange::MatrixMount(parse_mount(&event.value()))),
-                        option { value: "", "From switch profile" } option { value: "mx", "MX cross" }
-                        option { value: "choc-v1", "Choc v1" } option { value: "choc-v2", "Choc v2 cross" } option { value: "alps", "Alps" }
-                    }
+                SettingsChoice { label: "Socket", aria_label: format!("Keycap socket for {}", props.matrix_name), value: mount.to_owned(),
+                    options: settings_options("From switch profile", MOUNTS),
+                    on_change: move |value: String| emit_settings_change(&mount_actions, mount_target.clone(), mount_baseline.clone(), KeycapEditChange::MatrixMount(parse_mount(&value))),
                 }
             }
             {settings_feedback(feedback, retries, &actions)}
@@ -1349,19 +1587,14 @@ fn settings_feedback(
     let on_retry = actions.on_retry;
     let on_discard = actions.on_discard;
     rsx! {
-        if let Some(feedback) = feedback {
-            match &feedback.status {
-                KeycapsEditStatus::Pending => rsx! { p { role: "status", "Saving keycap settings…" } },
-                KeycapsEditStatus::Blocked(message) => rsx! { p { role: "status", "{message}" } },
-                KeycapsEditStatus::Saved => rsx! { p { role: "status", "Keycap settings saved." } },
-                KeycapsEditStatus::Failed(message) => rsx! { p { role: "alert", "{message}" } },
-            }
+        if feedback.is_some() {
+            p { role: "status", Spinner {} "Saving keycap settings…" }
         }
         for draft in retries {
-            div { class: "m1-keycaps-retry-draft",
-                p { role: "status", "Unaccepted {field_label(&draft.field)} change: {change_label(&draft.change)}. {draft.message}" }
-                button { onclick: { let id = retry_identity(&draft); move |_| on_retry.call(id.clone()) }, "Retry" }
-                button { onclick: { let id = retry_identity(&draft); move |_| on_discard.call(id.clone()) }, "Discard" }
+            Alert { variant: AlertVariant::Destructive,
+                p { "Unaccepted {field_label(&draft.field)} change: {change_label(&draft.change)}. {draft.message}" }
+                Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", onclick: { let id = retry_identity(&draft); move |_| on_retry.call(id.clone()) }, "Retry" }
+                Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", onclick: { let id = retry_identity(&draft); move |_| on_discard.call(id.clone()) }, "Discard" }
             }
         }
     }
@@ -1401,7 +1634,12 @@ pub fn KeycapsSettingsEditor(props: KeycapsSettingsEditorProps) -> Element {
     let accepted_mount = settings.mount;
     let accepted_row = settings.row;
     let accepted_units = settings.units;
-    let mut legend_draft = use_signal(|| accepted_legend.clone().unwrap_or_default());
+    // The controller provides the legend Signals; an editor mounted without one keeps its own.
+    let own_draft = use_signal(String::new);
+    let own_failure = use_signal(|| None::<String>);
+    let edits_context = try_consume_context::<KeycapsEditsContext>();
+    let mut legend_draft = edits_context.map_or(own_draft, |context| context.legend_draft);
+    let mut legend_failure = edits_context.map_or(own_failure, |context| context.legend_failure);
     let mut legend_dirty = use_signal(|| false);
     let legend_pending = field_pending(
         &actions,
@@ -1501,16 +1739,22 @@ pub fn KeycapsSettingsEditor(props: KeycapsSettingsEditorProps) -> Element {
     let row_change = actions.on_change;
     let width_change = actions.on_change;
     let depth_change = actions.on_change;
+    let legend_id = format!("keycaps-legend-{}", dioxus::core::current_scope_id().0);
+    let legend_error_id = format!("{legend_id}-error");
+    let legend_error = legend_failure();
     rsx! {
-        section { class: "m1-keycaps-settings", aria_label: "Keycap overrides for {key.reference}",
-            label { "Legend",
-                input {
+        section { class: "grid min-w-0 gap-2 text-foreground", aria_label: "Keycap overrides for {key.reference}",
+            Field { class: "gap-1.5", invalid: legend_error.is_some(),
+                FieldLabel { html_for: legend_id.clone(), "Legend" }
+                InputGroup { InputGroupInput {
+                    id: legend_id,
                     aria_label: "Legend for {key.reference}",
-                    maxlength: "12",
                     value: "{legend_draft()}",
                     placeholder: if key.binding_label.is_empty() { "From binding" } else { key.binding_label.as_ref() },
-                    oninput: move |event| { legend_dirty.set(true); legend_draft.set(event.value()); },
-                    onblur: move |_| {
+                    class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    aria_invalid: legend_error.is_some(), aria_describedby: legend_error.as_ref().map(|_| legend_error_id.clone()),
+                    oninput: move |event: FormEvent| { legend_dirty.set(true); legend_failure.set(None); legend_draft.set(event.value()); },
+                    attributes: vec![Attribute::new("maxlength", "12", None, false), dioxus::events::onblur(move |_| {
                         let value = legend_draft();
                         if legend_dirty() || legend_blur_requires_reconciliation(&value, accepted_legend.as_deref(), legend_retry_pending) {
                             legend_dirty.set(false);
@@ -1521,63 +1765,38 @@ pub fn KeycapsSettingsEditor(props: KeycapsSettingsEditorProps) -> Element {
                             };
                             request(change, &mut legend_sequence, legend_change, &legend_actions);
                         }
-                    },
+                    })],
+                } }
+                if let Some(message) = legend_error.as_deref() {
+                    div { id: legend_error_id, FieldError { "{message}" } }
                 }
             }
-            div { class: "m1-keycaps-settings-actions",
-                button { onclick: move |_| request(KeycapEditChange::Legend(None), &mut inherit_sequence, inherit_change, &inherit_actions), "Use binding legend" }
-                button { onclick: move |_| request(KeycapEditChange::Legend(Some(String::new())), &mut blank_sequence, blank_change, &blank_actions), "Blank keycap" }
+            div { class: "flex flex-wrap gap-1.5",
+                Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", onclick: move |_| { legend_draft.set(String::new()); request(KeycapEditChange::Legend(None), &mut inherit_sequence, inherit_change, &inherit_actions) }, "Use binding legend" }
+                Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", onclick: move |_| { legend_draft.set(String::new()); request(KeycapEditChange::Legend(Some(String::new())), &mut blank_sequence, blank_change, &blank_actions) }, "Blank keycap" }
             }
-            label { "Keycap color",
-                input {
-                    aria_label: "Keycap color for {key.reference}",
-                    r#type: "color",
-                    value: "{accepted_color.as_deref().unwrap_or(&selected.board_color)}",
-                    oninput: move |event| request(KeycapEditChange::Color(Some(event.value())), &mut color_sequence, color_change, &color_actions),
-                }
+            SettingsInput { label: "Keycap color", aria_label: format!("Keycap color for {}", key.reference), r#type: InputType::Color,
+                value: accepted_color.as_deref().unwrap_or(&selected.board_color).to_owned(),
+                oninput: move |event: FormEvent| request(KeycapEditChange::Color(Some(event.value())), &mut color_sequence, color_change, &color_actions),
             }
             if accepted_color.is_some() {
-                button { onclick: move |_| request(KeycapEditChange::Color(None), &mut reset_color_sequence, reset_color_change, &reset_color_actions), "Use board color" }
+                Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", onclick: move |_| request(KeycapEditChange::Color(None), &mut reset_color_sequence, reset_color_change, &reset_color_actions), "Use board color" }
             }
-            details {
-                summary { "Keycap overrides" }
-                label { "Profile",
-                    select {
-                        aria_label: "Profile override for {key.reference}",
-                        value: "{profile}",
-                        onchange: move |event| request(KeycapEditChange::Profile(parse_profile(&event.value())), &mut profile_sequence, profile_change, &profile_actions),
-                        option { value: "", "From matrix" }
-                        option { value: "cherry", "Cherry" }
-                        option { value: "oem", "OEM" }
-                        option { value: "dcs", "DCS" }
-                        option { value: "dsa", "DSA" }
-                        option { value: "sa", "SA" }
-                        option { value: "hi-pro", "Hi-Pro" }
-                        option { value: "g20", "G20" }
-                        option { value: "choc", "Choc" }
-                    }
+            SettingsSection { label: "Keycap overrides", default_open: false,
+                SettingsChoice {
+                    label: "Profile", aria_label: format!("Profile override for {}", key.reference), value: profile.to_owned(),
+                    options: settings_options("From matrix", PROFILES),
+                    on_change: move |value: String| request(KeycapEditChange::Profile(parse_profile(&value)), &mut profile_sequence, profile_change, &profile_actions),
                 }
-                label { "Socket",
-                    select {
-                        aria_label: "Socket override for {key.reference}",
-                        value: "{mount}",
-                        onchange: move |event| request(KeycapEditChange::Mount(parse_mount(&event.value())), &mut mount_sequence, mount_change, &mount_actions),
-                        option { value: "", "From matrix / switch" }
-                        option { value: "mx", "MX cross" }
-                        option { value: "choc-v1", "Choc v1" }
-                        option { value: "choc-v2", "Choc v2 cross" }
-                        option { value: "alps", "Alps" }
-                    }
+                SettingsChoice {
+                    label: "Socket", aria_label: format!("Socket override for {}", key.reference), value: mount.to_owned(),
+                    options: settings_options("From matrix / switch", MOUNTS),
+                    on_change: move |value: String| request(KeycapEditChange::Mount(parse_mount(&value)), &mut mount_sequence, mount_change, &mount_actions),
                 }
-                label { "Profile row",
-                    input {
-                        aria_label: "Profile row for {key.reference}",
-                        r#type: "number",
-                        min: "1",
-                        max: "5",
-                        value: "{accepted_row.map_or_else(String::new, |row| row.to_string())}",
-                        placeholder: "From matrix",
-                        oninput: move |event| {
+                SettingsInput { label: "Profile row", aria_label: format!("Profile row for {}", key.reference), r#type: InputType::Number,
+                    min: Some("1".into()), max: Some("5".into()),
+                    value: accepted_row.map_or_else(String::new, |row| row.to_string()), placeholder: Some("From matrix".into()),
+                        oninput: move |event: FormEvent| {
                             let value = event.value();
                             if value.is_empty() {
                                 request(KeycapEditChange::Row(None), &mut row_sequence, row_change, &row_actions);
@@ -1585,18 +1804,11 @@ pub fn KeycapsSettingsEditor(props: KeycapsSettingsEditorProps) -> Element {
                                 request(KeycapEditChange::Row(Some(row)), &mut row_sequence, row_change, &row_actions);
                             }
                         },
-                    }
                 }
-                label { "Width (u)",
-                    input {
-                        aria_label: "Keycap width for {key.reference}",
-                        r#type: "number",
-                        min: "0.75",
-                        max: "7",
-                        step: "0.25",
-                        value: "{width}",
-                        placeholder: "From envelope",
-                        oninput: move |event| {
+                SettingsInput { label: "Width (u)", aria_label: format!("Keycap width for {}", key.reference), r#type: InputType::Number,
+                    min: Some("0.75".into()), max: Some("7".into()), step: Some("0.25".into()),
+                    value: width, placeholder: Some("From envelope".into()),
+                        oninput: move |event: FormEvent| {
                             let value = event.value();
                             if value.is_empty() {
                             request(KeycapEditChange::ClearUnits(KeycapEditField::UnitsWidth), &mut width_sequence, width_change, &width_actions);
@@ -1604,18 +1816,11 @@ pub fn KeycapsSettingsEditor(props: KeycapsSettingsEditorProps) -> Element {
                                 request(KeycapEditChange::UnitsWidth(width), &mut width_sequence, width_change, &width_actions);
                             }
                         },
-                    }
                 }
-                label { "Depth (u)",
-                    input {
-                        aria_label: "Keycap depth for {key.reference}",
-                        r#type: "number",
-                        min: "0.75",
-                        max: "7",
-                        step: "0.25",
-                        value: "{depth}",
-                        placeholder: "From envelope",
-                        oninput: move |event| {
+                SettingsInput { label: "Depth (u)", aria_label: format!("Keycap depth for {}", key.reference), r#type: InputType::Number,
+                    min: Some("0.75".into()), max: Some("7".into()), step: Some("0.25".into()),
+                    value: depth, placeholder: Some("From envelope".into()),
+                        oninput: move |event: FormEvent| {
                             let value = event.value();
                             if value.is_empty() {
                             request(KeycapEditChange::ClearUnits(KeycapEditField::UnitsDepth), &mut depth_sequence, depth_change, &depth_actions);
@@ -1623,22 +1828,16 @@ pub fn KeycapsSettingsEditor(props: KeycapsSettingsEditorProps) -> Element {
                                 request(KeycapEditChange::UnitsDepth(depth), &mut depth_sequence, depth_change, &depth_actions);
                             }
                         },
-                    }
                 }
             }
-            if let Some(feedback) = feedback {
-                match &feedback.status {
-                    KeycapsEditStatus::Pending => rsx! { p { role: "status", "Saving keycap override…" } },
-                    KeycapsEditStatus::Blocked(message) => rsx! { p { role: "status", "{message}" } },
-                    KeycapsEditStatus::Saved => rsx! { p { role: "status", "Keycap override saved." } },
-                    KeycapsEditStatus::Failed(message) => rsx! { p { role: "alert", "{message}" } },
-                }
+            if feedback.is_some() {
+                p { role: "status", Spinner {} "Saving keycap override…" }
             }
             for draft in retry_drafts.iter() {
-                div { class: "m1-keycaps-retry-draft",
-                    p { role: "status", "Unaccepted {field_label(&draft.field)} change: {change_label(&draft.change)}. {draft.message}" }
-                    button { onclick: { let identity = retry_identity(draft); move |_| on_retry.call(identity.clone()) }, "Retry" }
-                    button { onclick: { let identity = retry_identity(draft); move |_| on_discard.call(identity.clone()) }, "Discard" }
+                Alert { variant: AlertVariant::Destructive,
+                    p { "Unaccepted {field_label(&draft.field)} change: {change_label(&draft.change)}. {draft.message}" }
+                    Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", onclick: { let identity = retry_identity(draft); move |_| on_retry.call(identity.clone()) }, "Retry" }
+                    Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", onclick: { let identity = retry_identity(draft); move |_| on_discard.call(identity.clone()) }, "Discard" }
                 }
             }
         }
@@ -2011,88 +2210,53 @@ mod tests {
             &KeycapEditChange::MatrixFirstRow(KeycapMatrixSettings::default().first_row)
         ));
     }
-
-    #[wasm_bindgen_test]
-    fn discard_feedback_cleanup_is_exact_and_never_hides_pending_work() {
-        let scope = Scope {
-            session_epoch: boardstudio_application::SessionEpoch(1),
-            document_id: "doc".into(),
-            board_id: "board".into(),
-            instance_id: None,
-        };
-        let request = KeycapsEditRequest {
-            scope: scope.clone(),
-            scope_generation: 2,
-            selection_generation: 3,
-            editor_instance_id: 4,
-            request_id: 5,
-            admission_token: SnapshotToken(6),
-            admission_revision: 7,
-            target: KeycapsEditTarget::Key("sw1".into()),
-            baseline: KeycapsEditBaseline::Key(KeycapKeySettings::default()),
-            change: KeycapEditChange::Legend(Some("X".into())),
-        };
-        let identity = KeycapsRetryIdentity {
-            editor_instance_id: 4,
-            scope,
-            scope_generation: 2,
-            selection_generation: 3,
-            target: KeycapsEditTarget::Key("sw1".into()),
-            request_id: 5,
-            field: KeycapEditField::Legend,
-        };
-        let state = |request_id, status| FeedbackState {
-            request: KeycapsEditRequest {
-                request_id,
-                ..request.clone()
-            },
-            operation_id: None,
-            status,
-        };
-
-        assert!(feedback_is_cleared_by_identity(
-            &state(5, KeycapsEditStatus::Failed("rejected".into())),
-            &identity
-        ));
-        assert!(!feedback_is_cleared_by_identity(
-            &state(6, KeycapsEditStatus::Failed("newer".into())),
-            &identity
-        ));
-        assert!(!feedback_is_cleared_by_identity(
-            &state(5, KeycapsEditStatus::Pending),
-            &identity
-        ));
-        assert!(!feedback_is_cleared_by_identity(
-            &FeedbackState {
-                request: KeycapsEditRequest {
-                    change: KeycapEditChange::Color(Some("#ffffff".into())),
-                    ..request.clone()
-                },
-                operation_id: None,
-                status: KeycapsEditStatus::Failed("another field".into()),
-            },
-            &identity
-        ));
-    }
 }
 
 #[cfg(test)]
 mod queued_settings_tests {
     use super::*;
     use crate::runtime::project_name_test_support as support;
-    use boardstudio_application::Event;
+    use boardstudio_application::{Event, TerminalOutcome};
+    use boardstudio_web_ui_shared::test_role::by_role_name;
+    use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_future, wait_until_step};
     use wasm_bindgen_test::*;
+
+    #[derive(Clone)]
+    struct RetirementExpectation {
+        request: KeycapsEditRequest,
+        original_workspace: &'static str,
+        outcome: Rc<RefCell<Option<TerminalOutcome>>>,
+    }
+
+    #[derive(Clone, PartialEq)]
+    struct RetirementCheckpoint {
+        original_workspace: &'static str,
+        shared_owner: Option<(Option<Scope>, u64, &'static str)>,
+        key_owner: u64,
+        request: Option<KeycapsEditRequest>,
+        observed_requests: Vec<(Option<KeycapsEditRequest>, bool)>,
+        request_pending: bool,
+        terminal_outcome: Option<TerminalOutcome>,
+        render_generation: u64,
+        effect_generation: u64,
+    }
 
     #[derive(Clone)]
     struct Probe {
         runtime: Rc<Runtime>,
         actions: Rc<RefCell<Option<KeycapsSettingsActions>>>,
+        workspace: Rc<RefCell<Option<Signal<&'static str>>>>,
+        retirement: Rc<RefCell<Option<RetirementExpectation>>>,
+        retirement_checkpoint: Rc<RefCell<Option<RetirementCheckpoint>>>,
+        edits: Rc<RefCell<Option<KeycapsEditsContext>>>,
     }
 
     fn host() -> Element {
         let probe = use_context::<Probe>();
         let runtime = probe.runtime.clone();
         let version = use_signal(|| 0u64);
+        let retirement_render_generation = use_hook(|| Rc::new(RefCell::new(0u64)));
+        let retirement_effect_generation = use_hook(|| Rc::new(RefCell::new(0u64)));
         use_context_provider(|| version);
         let observed = runtime.clone();
         use_hook(move || {
@@ -2103,6 +2267,7 @@ mod queued_settings_tests {
         });
         let _ = version();
         let workspace = use_signal(|| "Keycaps");
+        *probe.workspace.borrow_mut() = Some(workspace);
         let generation = use_signal(|| 0u64);
         let accepted = runtime.model().accepted.unwrap();
         let source = runtime.scope().map(|scope| KeycapsEditSource {
@@ -2113,8 +2278,89 @@ mod queued_settings_tests {
         let scope = runtime.scope().unwrap();
         let view = keycaps_scene::project(&accepted, &scope, &scope.board_id).unwrap();
         let selected = project_selected_key(&accepted.document, &view, Some("key")).unwrap();
-        let actions = use_keycaps_settings_actions(runtime, source, workspace, generation).unwrap();
-        *probe.actions.borrow_mut() = Some(actions.clone());
+        // Outside the Keycaps workspace the hook offers no actions and nothing renders.
+        let actions = use_keycaps_settings_actions(runtime, source, workspace, generation);
+        *probe.actions.borrow_mut() = actions.clone();
+        let edit_context = use_context::<KeycapsEditsContext>();
+        *probe.edits.borrow_mut() = Some(edit_context);
+        let edits = edit_context.edits.read();
+        let render_generation = if probe.retirement.borrow().is_some() {
+            let mut generation = retirement_render_generation.borrow_mut();
+            *generation += 1;
+            *generation
+        } else {
+            0
+        };
+        let retirement_checkpoint = probe.retirement.borrow().as_ref().map(|expected| {
+            let entry = edits.requests.iter().find(|entry| {
+                entry
+                    .request
+                    .as_deref()
+                    .is_some_and(|request| request == &expected.request)
+            });
+            RetirementCheckpoint {
+                original_workspace: expected.original_workspace,
+                shared_owner: edits.shared_owner.clone(),
+                key_owner: edits.key_owner,
+                request: entry
+                    .and_then(|entry| entry.request.as_ref())
+                    .map(|request| (**request).clone()),
+                observed_requests: edits
+                    .requests
+                    .iter()
+                    .map(|entry| (entry.request.as_deref().cloned(), edits.is_pending(entry)))
+                    .collect(),
+                request_pending: entry.is_some_and(|entry| edits.is_pending(entry)),
+                terminal_outcome: expected.outcome.borrow().clone(),
+                render_generation,
+                effect_generation: 0,
+            }
+        });
+        drop(edits);
+        let checkpoint = probe.retirement_checkpoint.clone();
+        let effect_generation = retirement_effect_generation.clone();
+        use_effect(use_reactive(
+            (&retirement_checkpoint,),
+            move |(retirement_checkpoint,)| {
+                if let Some(mut retirement_checkpoint) = retirement_checkpoint.clone() {
+                    let mut generation = effect_generation.borrow_mut();
+                    *generation += 1;
+                    retirement_checkpoint.effect_generation = *generation;
+                    let request_ids = retirement_checkpoint
+                        .observed_requests
+                        .iter()
+                        .map(|(request, pending)| {
+                            request.as_ref().map_or_else(
+                                || format!("<none>:pending={pending}"),
+                                |request| format!("{}:pending={pending}", request.request_id),
+                            )
+                        })
+                        .collect::<Vec<_>>();
+                    let shared_owner = retirement_checkpoint
+                        .shared_owner
+                        .as_ref()
+                        .map(|(_, generation, workspace)| (*workspace, *generation));
+                    web_sys::console::debug_1(
+                    &format!(
+                        "ticket 128 retirement checkpoint: expected_request={}, observed_requests={request_ids:?}, owner={shared_owner:?}, key_owner={}, outcome={:?}, render_generation={}, effect_generation={}",
+                        retirement_checkpoint
+                            .request
+                            .as_ref()
+                            .map_or(0, |request| request.request_id),
+                        retirement_checkpoint.key_owner,
+                        retirement_checkpoint.terminal_outcome,
+                        retirement_checkpoint.render_generation,
+                        retirement_checkpoint.effect_generation,
+                    )
+                    .into(),
+                );
+                    *checkpoint.borrow_mut() = Some(retirement_checkpoint);
+                }
+            },
+        ));
+        let Some(actions) = actions else {
+            return rsx! {};
+        };
         rsx! { KeycapsSettingsEditor { selected, actions } }
     }
 
@@ -2135,6 +2381,10 @@ mod queued_settings_tests {
         let probe = Probe {
             runtime: runtime.clone(),
             actions: Rc::new(RefCell::new(None)),
+            workspace: Rc::new(RefCell::new(None)),
+            retirement: Rc::new(RefCell::new(None)),
+            retirement_checkpoint: Rc::new(RefCell::new(None)),
+            edits: Rc::new(RefCell::new(None)),
         };
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
@@ -2145,7 +2395,14 @@ mod queued_settings_tests {
             dom,
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        gloo_timers::future::TimeoutFuture::new(50).await;
+        wait_until(
+            "the keycap editor actions and width input are mounted",
+            || {
+                probe.actions.borrow().is_some()
+                    && by_role_name(&root, "spinbutton", "Keycap width for SW1").is_some()
+            },
+        )
+        .await;
         let submit = |change| {
             let borrowed = probe.actions.borrow();
             let actions = borrowed.as_ref().unwrap();
@@ -2167,9 +2424,7 @@ mod queued_settings_tests {
         };
         let (entered, release) = support::gate_next_core_reply(&runtime);
         use wasm_bindgen::JsCast;
-        let width = root
-            .query_selector("input[aria-label='Keycap width for SW1']")
-            .unwrap()
+        let width = by_role_name(&root, "spinbutton", "Keycap width for SW1")
             .unwrap()
             .dyn_into::<web_sys::HtmlInputElement>()
             .unwrap();
@@ -2180,15 +2435,30 @@ mod queued_settings_tests {
             .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
             .unwrap();
         support::drive_pending(&runtime);
-        entered.await.unwrap();
-        gloo_timers::future::TimeoutFuture::new(20).await;
+        wait_until_future("the width request reaches the held Core executor", entered)
+            .await
+            .unwrap();
+        wait_until("the width draft is visible before the sibling edit", || {
+            width.value() == "2"
+                && probe
+                    .actions
+                    .borrow()
+                    .as_ref()
+                    .is_some_and(|actions| (actions.request_sequence)() >= 1)
+        })
+        .await;
         assert_eq!(width.value(), "2");
         submit(KeycapEditChange::UnitsDepth(1.5));
         release.send(()).unwrap();
-        for _ in 0..20 {
-            support::run_pending(&runtime).await;
-            gloo_timers::future::TimeoutFuture::new(10).await;
-        }
+        wait_until_step(
+            "the accepted dimensions include the queued sibling edit",
+            async || {
+                support::run_pending(&runtime).await;
+                settings_for_key(&runtime.model().accepted.unwrap().document, "key").units
+                    == Some(Vec2 { x: 2.0, y: 1.5 })
+            },
+        )
+        .await;
         assert_eq!(
             settings_for_key(&runtime.model().accepted.unwrap().document, "key").units,
             Some(Vec2 { x: 2.0, y: 1.5 })
@@ -2196,7 +2466,15 @@ mod queued_settings_tests {
         runtime.submit(Event::Undo {
             operation_id: runtime.operation(),
         });
-        support::run_pending(&runtime).await;
+        wait_until_step(
+            "Undo restores the preceding accepted dimensions",
+            async || {
+                support::run_pending(&runtime).await;
+                settings_for_key(&runtime.model().accepted.unwrap().document, "key").units
+                    == Some(Vec2 { x: 2.0, y: 1.0 })
+            },
+        )
+        .await;
         assert_eq!(
             settings_for_key(&runtime.model().accepted.unwrap().document, "key").units,
             Some(Vec2 { x: 2.0, y: 1.0 })
@@ -2204,19 +2482,56 @@ mod queued_settings_tests {
         runtime.submit(Event::Undo {
             operation_id: runtime.operation(),
         });
-        support::run_pending(&runtime).await;
+        wait_until_step(
+            "Undo restores the original accepted dimensions",
+            async || {
+                support::run_pending(&runtime).await;
+                settings_for_key(&runtime.model().accepted.unwrap().document, "key")
+                    .units
+                    .is_none()
+            },
+        )
+        .await;
         assert_eq!(
             settings_for_key(&runtime.model().accepted.unwrap().document, "key").units,
             None
         );
-        gloo_timers::future::TimeoutFuture::new(50).await;
         // A return to the old accepted legend is still a newer committed intent.
-        let input = root
-            .query_selector("input[aria-label='Legend for SW1']")
-            .unwrap()
+        wait_until("the legend input is mounted after dimension undos", || {
+            by_role_name(&root, "textbox", "Legend for SW1").is_some()
+        })
+        .await;
+        let input = by_role_name(&root, "textbox", "Legend for SW1")
             .unwrap()
             .dyn_into::<web_sys::HtmlInputElement>()
             .unwrap();
+        wait_until(
+            "the legend input and edit source match the accepted snapshot after dimension undos",
+            || {
+                let accepted = runtime.model().accepted.unwrap();
+                let Some(scope) = runtime.scope() else {
+                    return false;
+                };
+                let expected_settings = settings_for_key(&accepted.document, "key");
+                let actions = probe.actions.borrow();
+                let Some(actions) = actions.as_ref() else {
+                    return false;
+                };
+                input.value() == accepted_legend_text(&accepted.document, "key")
+                    && probe
+                        .workspace
+                        .borrow()
+                        .as_ref()
+                        .is_some_and(|workspace| workspace() == "Keycaps")
+                    && actions.scope == scope
+                    && actions.token == accepted.token
+                    && actions.revision == accepted.document.revision
+                    && actions.selected_key_id == "key"
+                    && actions.accepted_settings.units == expected_settings.units
+                    && actions.accepted_settings.legend == expected_settings.legend
+            },
+        )
+        .await;
         let commit = |value: &str| {
             input.focus().unwrap();
             input.set_value(value);
@@ -2227,17 +2542,86 @@ mod queued_settings_tests {
                 .unwrap();
             input.blur().unwrap();
         };
+        let b_request_id = {
+            let actions = probe.actions.borrow();
+            (actions.as_ref().unwrap().request_sequence)() + 1
+        };
+        let b_outcome = support::observe_next(&runtime);
         let (entered, release) = support::gate_next_core_reply(&runtime);
         commit("B");
         support::drive_pending(&runtime);
-        entered.await.unwrap();
-        gloo_timers::future::TimeoutFuture::new(20).await;
+        wait_until_future(
+            "the first legend edit reaches the held Core executor",
+            entered,
+        )
+        .await
+        .unwrap();
+        wait_until(
+            "the first legend draft is visible before it is replaced",
+            || {
+                input.value() == "B"
+                    && probe
+                        .actions
+                        .borrow()
+                        .as_ref()
+                        .is_some_and(|actions| (actions.request_sequence)() == b_request_id)
+            },
+        )
+        .await;
+        let empty_request_id = {
+            let actions = probe.actions.borrow();
+            (actions.as_ref().unwrap().request_sequence)() + 1
+        };
+        let empty_outcome = support::observe_next(&runtime);
+        assert!(
+            !Rc::ptr_eq(&b_outcome, &empty_outcome),
+            "the B and empty requests must observe distinct Runtime operations"
+        );
         commit("");
+        wait_until("the newer empty legend draft is registered", || {
+            input.value().is_empty()
+                && probe
+                    .actions
+                    .borrow()
+                    .as_ref()
+                    .is_some_and(|actions| (actions.request_sequence)() == empty_request_id)
+        })
+        .await;
         release.send(()).unwrap();
-        for _ in 0..20 {
+        wait_until_step("both legend operations settle before Undo", async || {
             support::run_pending(&runtime).await;
-            gloo_timers::future::TimeoutFuture::new(10).await;
-        }
+            let accepted = runtime.model().accepted.unwrap();
+            let settings = settings_for_key(&accepted.document, "key");
+            let actions_ready = probe.actions.borrow().as_ref().is_some_and(|actions| {
+                actions.revision == accepted.document.revision
+                    && actions.token == accepted.token
+                    && actions.selected_key_id == "key"
+                    && actions.accepted_settings.legend == settings.legend
+            });
+            b_outcome.borrow().is_some()
+                && empty_outcome.borrow().is_some()
+                && (probe.actions.borrow().as_ref().unwrap().request_sequence)() == empty_request_id
+                && input.value().is_empty()
+                && settings.legend.is_none()
+                && actions_ready
+        })
+        .await;
+        assert!(
+            matches!(
+                b_outcome.borrow().as_ref(),
+                Some(TerminalOutcome::Completed)
+            ),
+            "B request {b_request_id} terminal outcome: {:?}",
+            b_outcome.borrow().as_ref()
+        );
+        assert!(
+            matches!(
+                empty_outcome.borrow().as_ref(),
+                Some(TerminalOutcome::Completed)
+            ),
+            "empty request {empty_request_id} terminal outcome: {:?}",
+            empty_outcome.borrow().as_ref()
+        );
         assert_eq!(
             settings_for_key(&runtime.model().accepted.unwrap().document, "key").legend,
             None
@@ -2253,10 +2637,20 @@ mod queued_settings_tests {
                 .as_deref(),
             Some("B")
         );
-        gloo_timers::future::TimeoutFuture::new(50).await;
-        let width = root
-            .query_selector("input[aria-label='Keycap width for SW1']")
-            .unwrap()
+        wait_until(
+            "the width input remains mounted after the legend undo",
+            || {
+                let accepted = runtime.model().accepted.unwrap();
+                accepted_legend_text(&accepted.document, "key") == "B"
+                    && by_role_name(&root, "spinbutton", "Keycap width for SW1").is_some()
+                    && probe.actions.borrow().as_ref().is_some_and(|actions| {
+                        actions.revision == accepted.document.revision
+                            && actions.token == accepted.token
+                    })
+            },
+        )
+        .await;
+        let width = by_role_name(&root, "spinbutton", "Keycap width for SW1")
             .unwrap()
             .dyn_into::<web_sys::HtmlInputElement>()
             .unwrap();
@@ -2267,10 +2661,21 @@ mod queued_settings_tests {
         width
             .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
             .unwrap();
-        for _ in 0..20 {
-            support::run_pending(&runtime).await;
-            gloo_timers::future::TimeoutFuture::new(10).await;
-        }
+        wait_until_step(
+            "the failed width draft restores accepted settings and reports inline",
+            async || {
+                support::run_pending(&runtime).await;
+                settings_for_key(&runtime.model().accepted.unwrap().document, "key")
+                    .units
+                    .is_none()
+                    && width.value().is_empty()
+                    && root
+                        .text_content()
+                        .unwrap()
+                        .contains("keycap executor failed")
+            },
+        )
+        .await;
         assert_eq!(
             settings_for_key(&runtime.model().accepted.unwrap().document, "key").units,
             None
@@ -2280,6 +2685,432 @@ mod queued_settings_tests {
             root.text_content()
                 .unwrap()
                 .contains("keycap executor failed")
+        );
+        root.remove();
+    }
+
+    async fn mounted_legend(
+        id: &str,
+    ) -> (
+        Rc<Runtime>,
+        Probe,
+        web_sys::Element,
+        web_sys::HtmlInputElement,
+    ) {
+        use wasm_bindgen::JsCast;
+        let runtime = support::new_runtime();
+        let mut doc = ProjectDoc::empty(id, "Keycaps");
+        doc.boards.push(serde_json::from_value(serde_json::json!({"id":"board","name":"Board","outlineIds":[],"partIds":["key"],"netIds":[],"thickness":1.6,"traces":[],"vias":[]})).unwrap());
+        doc.definitions.push(serde_json::from_value(serde_json::json!({"id":"switch","name":"Switch","kind":"switch","courtyard":[],"pads":[]})).unwrap());
+        doc.parts.push(serde_json::from_value(serde_json::json!({"id":"key","definitionId":"switch","reference":"SW1","pose":{"at":{"x":0,"y":0},"rotation":0},"side":"front"})).unwrap());
+        support::open_document(&runtime, doc).await;
+        runtime.submit(Event::SelectParts {
+            operation_id: runtime.operation(),
+            part_ids: vec!["key".into()],
+            range_part_ids: vec![],
+            mode: boardstudio_application::SelectionMode::Replace,
+        });
+        let probe = Probe {
+            runtime: runtime.clone(),
+            actions: Rc::new(RefCell::new(None)),
+            workspace: Rc::new(RefCell::new(None)),
+            retirement: Rc::new(RefCell::new(None)),
+            retirement_checkpoint: Rc::new(RefCell::new(None)),
+            edits: Rc::new(RefCell::new(None)),
+        };
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(host);
+        dom.provide_root_context(probe.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_until("the legend editor actions and input are mounted", || {
+            probe.actions.borrow().is_some()
+                && by_role_name(&root, "textbox", "Legend for SW1").is_some()
+        })
+        .await;
+        let input = by_role_name(&root, "textbox", "Legend for SW1")
+            .unwrap()
+            .dyn_into::<web_sys::HtmlInputElement>()
+            .unwrap();
+        (runtime, probe, root, input)
+    }
+
+    #[wasm_bindgen_test]
+    async fn keycap_overrides_are_named_and_profile_picker_selects_by_keyboard() {
+        let (_runtime, _probe, root, _) = mounted_legend("keycaps-choice-floor").await;
+        let disclosure =
+            by_role_name(&root, "button", "Keycap overrides").expect("override disclosure");
+        assert_eq!(
+            disclosure.get_attribute("aria-expanded").as_deref(),
+            Some("false")
+        );
+        disclosure.click();
+        wait_until("override controls appear", || {
+            by_role_name(&root, "button", "Profile override for SW1").is_some()
+        })
+        .await;
+        let trigger = by_role_name(&root, "button", "Profile override for SW1").unwrap();
+        trigger.focus().unwrap();
+        let key = |target: &web_sys::HtmlElement, value: &str| {
+            let event = web_sys::KeyboardEventInit::new();
+            event.set_key(value);
+            event.set_bubbles(true);
+            event.set_cancelable(true);
+            target
+                .dispatch_event(
+                    &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &event)
+                        .unwrap(),
+                )
+                .unwrap();
+        };
+        key(&trigger, "Enter");
+        wait_until("profile list opens", || {
+            by_role_name(&root, "listbox", "Profile override for SW1").is_some()
+        })
+        .await;
+        let list = by_role_name(&root, "listbox", "Profile override for SW1").unwrap();
+        key(&list, "o");
+        wait_until("OEM is focused", || {
+            by_role_name(&root, "option", "OEM")
+                .is_some_and(|option| option.matches(":focus").unwrap())
+        })
+        .await;
+        key(&by_role_name(&root, "option", "OEM").unwrap(), "Enter");
+        wait_until("profile select returns focus", || {
+            trigger.matches(":focus").unwrap()
+                && trigger.get_attribute("aria-expanded").as_deref() == Some("false")
+        })
+        .await;
+        root.remove();
+    }
+
+    fn type_legend(input: &web_sys::HtmlInputElement, value: &str) {
+        input.focus().unwrap();
+        input.set_value(value);
+        let event = web_sys::EventInit::new();
+        event.set_bubbles(true);
+        input
+            .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
+            .unwrap();
+    }
+
+    #[wasm_bindgen_test]
+    async fn a_newer_legend_draft_survives_an_older_failure_that_reports_inline() {
+        let (runtime, _probe, root, input) = mounted_legend("keycaps-newer-draft").await;
+        support::fail_next_core_reply(&runtime, "legend executor failed");
+        type_legend(&input, "A");
+        input.blur().unwrap();
+        // The older edit has not settled when the user types the next draft.
+        type_legend(&input, "AB");
+        wait_until_step(
+            "the older legend failure is inline while the newer draft survives",
+            async || {
+                support::run_pending(&runtime).await;
+                input.value() == "AB"
+                    && root
+                        .text_content()
+                        .unwrap()
+                        .contains("legend executor failed")
+            },
+        )
+        .await;
+        assert_eq!(input.value(), "AB", "a newer draft is never overwritten");
+        assert!(
+            root.text_content()
+                .unwrap()
+                .contains("legend executor failed"),
+            "the older failure still reports inline"
+        );
+        assert_eq!(
+            settings_for_key(&runtime.model().accepted.unwrap().document, "key").legend,
+            None
+        );
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn a_failed_unchanged_legend_restores_the_accepted_text_with_an_inline_failure() {
+        let (runtime, _probe, root, input) = mounted_legend("keycaps-unchanged-failure").await;
+        support::fail_next_core_reply(&runtime, "legend executor failed");
+        type_legend(&input, "A");
+        input.blur().unwrap();
+        wait_until_step(
+            "the unchanged failed legend restores accepted text and reports inline",
+            async || {
+                support::run_pending(&runtime).await;
+                input.value().is_empty()
+                    && root
+                        .text_content()
+                        .unwrap()
+                        .contains("legend executor failed")
+            },
+        )
+        .await;
+        assert_eq!(
+            input.value(),
+            "",
+            "the unchanged draft restores the accepted text"
+        );
+        assert!(
+            root.text_content()
+                .unwrap()
+                .contains("legend executor failed"),
+            "the failure reports inline"
+        );
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn a_second_legend_edit_replaces_the_observation_and_both_edits_undo() {
+        let (runtime, _probe, root, input) = mounted_legend("keycaps-latest-per-key").await;
+        let legend = |runtime: &Rc<Runtime>| {
+            accepted_legend_text(&runtime.model().accepted.unwrap().document, "key")
+        };
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        type_legend(&input, "A");
+        input.blur().unwrap();
+        support::drive_pending(&runtime);
+        wait_until_future(
+            "the first legend edit reaches the held Core executor",
+            entered,
+        )
+        .await
+        .unwrap();
+        type_legend(&input, "B");
+        input.blur().unwrap();
+        support::drive_pending(&runtime);
+        wait_until("the second legend edit replaces the request", || {
+            input.value() == "B"
+                && _probe
+                    .actions
+                    .borrow()
+                    .as_ref()
+                    .is_some_and(|actions| (actions.request_sequence)() >= 2)
+        })
+        .await;
+        release.send(()).unwrap();
+        wait_until_step("the second legend edit is accepted", async || {
+            support::run_pending(&runtime).await;
+            legend(&runtime) == "B" && input.value() == "B"
+        })
+        .await;
+        assert_eq!(legend(&runtime), "B");
+        assert_eq!(input.value(), "B");
+        for expected in ["A", ""] {
+            runtime.submit(Event::Undo {
+                operation_id: runtime.operation(),
+            });
+            support::run_pending(&runtime).await;
+            assert_eq!(legend(&runtime), expected, "each edit has an Undo step");
+        }
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn leaving_the_keycaps_workspace_retires_a_pending_edit_silently() {
+        let (runtime, probe, root, input) = mounted_legend("keycaps-owner-departs").await;
+        let actions = probe.actions.borrow().as_ref().unwrap().clone();
+        let request_id = (actions.request_sequence)()
+            .checked_add(1)
+            .expect("the test request sequence has room for one edit");
+        let request = KeycapsEditRequest {
+            scope: actions.scope.clone(),
+            scope_generation: actions.scope_generation,
+            selection_generation: actions.selection_generation,
+            editor_instance_id: actions.editor_instance_id,
+            request_id,
+            admission_token: actions.token,
+            admission_revision: actions.revision,
+            target: KeycapsEditTarget::Key(actions.selected_key_id.clone()),
+            baseline: KeycapsEditBaseline::Key(actions.accepted_settings.clone()),
+            change: KeycapEditChange::Legend(Some("Gone".into())),
+        };
+        let outcome = support::observe_next(&runtime);
+        *probe.retirement.borrow_mut() = Some(RetirementExpectation {
+            request: request.clone(),
+            original_workspace: "Keycaps",
+            outcome: outcome.clone(),
+        });
+        let reason = "late keycap executor failure";
+        let (entered, release) = support::gate_next_core_reply_then_fail(&runtime, reason);
+        type_legend(&input, "Gone");
+        input.blur().unwrap();
+        support::drive_pending(&runtime);
+        wait_until_future(
+            "the exact legend edit reaches the held Core executor",
+            entered,
+        )
+        .await
+        .unwrap();
+        let last_live_diagnostics = Rc::new(RefCell::new(None::<String>));
+        let reported_live_diagnostics = last_live_diagnostics.clone();
+        wait_until("the exact submitted edit is pending while its reply is held", || {
+            let context = probe.edits.borrow();
+            let Some(context) = context.as_ref() else {
+                return false;
+            };
+            let edits = context.edits.peek();
+            let entry = edits.requests.iter().find(|entry| {
+                entry
+                    .request
+                    .as_deref()
+                    .is_some_and(|candidate| candidate == &request)
+            });
+            let request_ids = edits
+                .requests
+                .iter()
+                .map(|entry| {
+                    entry.request.as_deref().map_or_else(
+                        || format!("<none>:pending={}", edits.is_pending(entry)),
+                        |request| format!("{}:pending={}", request.request_id, edits.is_pending(entry)),
+                    )
+                })
+                .collect::<Vec<_>>();
+            let shared_owner = edits
+                .shared_owner
+                .as_ref()
+                .map(|(_, generation, workspace)| (*workspace, *generation));
+            let diagnostic = format!(
+                "request_ids={request_ids:?}, owner={shared_owner:?}, key_owner={}, outcome={:?}",
+                edits.key_owner,
+                outcome.borrow(),
+            );
+            let mut last = reported_live_diagnostics.borrow_mut();
+            if last.as_ref() != Some(&diagnostic) {
+                web_sys::console::debug_1(
+                    &format!("ticket 128 live held-reply state: {diagnostic}").into(),
+                );
+                *last = Some(diagnostic);
+            }
+            probe
+                .retirement
+                .borrow()
+                .as_ref()
+                .is_some_and(|expected| expected.original_workspace == "Keycaps")
+                && entry.is_some_and(|entry| {
+                    entry.request.as_deref() == Some(&request)
+                        && edits.is_pending(entry)
+                        && outcome.borrow().is_none()
+                        && edits.shared_owner.as_ref()
+                            == Some(&(
+                                Some(request.scope.clone()),
+                                request.scope_generation,
+                                "Keycaps",
+                            ))
+                        && edits.key_owner == request.selection_generation
+                })
+        })
+        .await;
+        assert!(outcome.borrow().is_none(), "the Core reply is still held");
+        let mut workspace = probe
+            .workspace
+            .borrow()
+            .expect("host exposes its workspace");
+        workspace.set("Layout");
+        wait_until(
+            "owner effects replace and prune the submitted edit before its reply",
+            || {
+                let context = probe.edits.borrow();
+                let Some(context) = context.as_ref() else {
+                    return false;
+                };
+                let edits = context.edits.peek();
+                probe
+                    .retirement
+                    .borrow()
+                    .as_ref()
+                    .is_some_and(|expected| expected.original_workspace == "Keycaps")
+                    && edits.shared_owner.as_ref()
+                        == Some(&(
+                            Some(request.scope.clone()),
+                            request.scope_generation,
+                            "Layout",
+                        ))
+                    && edits.key_owner != request.selection_generation
+                    && !edits.requests.iter().any(|entry| {
+                        entry
+                            .request
+                            .as_deref()
+                            .is_some_and(|candidate| candidate == &request)
+                    })
+                    && outcome.borrow().is_none()
+            },
+        )
+        .await;
+        assert!(
+            outcome.borrow().is_none(),
+            "the exact Core operation remains unsettled after owner retirement"
+        );
+        release.send(()).unwrap();
+        wait_until_step(
+            "the retired edit reaches its exact terminal outcome",
+            async || {
+                support::run_pending(&runtime).await;
+                outcome.borrow().is_some()
+            },
+        )
+        .await;
+        let terminal_outcome = outcome.borrow().clone().unwrap();
+        assert!(
+            !matches!(&terminal_outcome, TerminalOutcome::Completed),
+            "the injected late Core failure should remain a failure: {terminal_outcome:?}"
+        );
+        assert_eq!(
+            terminal_outcome,
+            TerminalOutcome::ExecutorFailed(reason.into()),
+            "the retired edit reports the specific injected late executor failure"
+        );
+        wait_until(
+            "the rendered retirement checkpoint captures the terminal failure",
+            || {
+                probe
+                    .retirement_checkpoint
+                    .borrow()
+                    .as_ref()
+                    .is_some_and(|checkpoint| {
+                        checkpoint.shared_owner.as_ref()
+                            == Some(&(
+                                Some(request.scope.clone()),
+                                request.scope_generation,
+                                "Layout",
+                            ))
+                            && checkpoint.key_owner != request.selection_generation
+                            && checkpoint.original_workspace == "Keycaps"
+                            && checkpoint.request.is_none()
+                            && !checkpoint.request_pending
+                            && checkpoint.terminal_outcome.as_ref() == Some(&terminal_outcome)
+                    })
+            },
+        )
+        .await;
+        workspace.set("Keycaps");
+        wait_until(
+            "the remounted Keycaps owner and legend input are ready",
+            || {
+                let accepted = runtime.model().accepted.unwrap();
+                by_role_name(&root, "textbox", "Legend for SW1").is_some()
+                    && probe.actions.borrow().as_ref().is_some_and(|actions| {
+                        probe
+                            .workspace
+                            .borrow()
+                            .as_ref()
+                            .is_some_and(|workspace| workspace() == "Keycaps")
+                            && actions.scope == request.scope
+                            && actions.revision == accepted.document.revision
+                            && actions.token == accepted.token
+                            && actions.selected_key_id == "key"
+                    })
+            },
+        )
+        .await;
+        let text = root.text_content().unwrap();
+        assert!(
+            !text.contains("Unaccepted") && !text.contains("Saving keycap"),
+            "a departed owner leaves no status or retry draft: {text}"
         );
         root.remove();
     }

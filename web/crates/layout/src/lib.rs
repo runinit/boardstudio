@@ -22,9 +22,11 @@ pub(crate) use boardstudio_web_keycaps::{keycaps_finding_marker, keycaps_fit};
 #[cfg(target_arch = "wasm32")]
 #[allow(unused_imports)]
 pub(crate) use boardstudio_web_parts::parts;
+#[cfg(target_arch = "wasm32")]
+pub(crate) use boardstudio_web_runtime::runtime;
 #[allow(unused_imports)]
 pub(crate) use boardstudio_web_runtime::{
-    case_generation_lifecycle, layout_viewer_source, model_delivery, operation_outcomes, runtime,
+    case_generation_lifecycle, layout_viewer_source, model_delivery, operation_outcomes,
 };
 #[cfg(target_arch = "wasm32")]
 #[allow(unused_imports)]
@@ -37,7 +39,7 @@ pub(crate) use boardstudio_web_ui_model::state::*;
 #[cfg(target_arch = "wasm32")]
 #[allow(unused_imports)]
 pub(crate) use boardstudio_web_ui_model::svg_coordinates::{
-    PointerLocation, coordinates, coordinates_at, pointer_location,
+    PointerLocation, coordinates, coordinates_at, coordinates_with_scale, pointer_location,
 };
 #[cfg(target_arch = "wasm32")]
 #[allow(unused_imports)]
@@ -51,17 +53,26 @@ pub(crate) use boardstudio_web_ui_shared::{
 #[allow(unused_imports)]
 pub(crate) use part_placement::{LayoutPlacementCancellation, layout_view_mode_handler};
 
+pub mod anchor_badge;
+pub mod anchor_pick;
+pub mod matrix_relations;
 pub mod matrix_transform_lifecycle;
 pub mod matrix_transform_operation;
+pub mod mirror_existing_half;
 pub mod mirrored_pair_geometry;
 pub mod mirrored_pair_lifecycle;
+pub mod outline;
 pub mod outline_settings;
+pub mod part_rail;
+pub mod screen_scale;
 pub mod setup_guide_state;
 
 #[cfg(target_arch = "wasm32")]
 pub mod board_inspector;
 #[cfg(target_arch = "wasm32")]
 pub mod layout_findings;
+#[cfg(target_arch = "wasm32")]
+pub mod layout_findings_state;
 #[cfg(target_arch = "wasm32")]
 pub mod layout_viewer;
 #[cfg(target_arch = "wasm32")]

@@ -1,0 +1,238 @@
+#!/usr/bin/env python3
+"""Ticket 014: production shell keyboard, camera and theme/width checks."""
+import argparse
+import json
+from pathlib import Path
+import re
+import subprocess
+from uuid import uuid4
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("url")
+    parser.add_argument("--evidence", type=Path, required=True)
+    args = parser.parse_args()
+    args.evidence.mkdir(parents=True, exist_ok=True)
+    session = "shell-014-" + uuid4().hex
+
+    def browser(*command):
+        result = subprocess.run(["agent-browser", "--session", session, *command],
+                                text=True, capture_output=True, timeout=90)
+        assert result.returncode == 0, (command, result.stdout, result.stderr)
+        return result.stdout
+
+    def action(role, name, verb="click"):
+        return browser("find", "role", role, verb, "--name", name, "--exact")
+
+    def camera(name, verb="click", toolbar="Canvas view controls"):
+        snapshot = json.loads(browser("snapshot", "-i", "--json", "--selector",
+            f'[role="toolbar"][aria-label="{toolbar}"]'))["data"]
+        refs = re.findall(r'^\s*- button "' + re.escape(name) + r'" \[[^\]\n]*\bref=(e\d+)',
+                          snapshot["snapshot"], re.MULTILINE)
+        assert len(refs) == 1, (name, snapshot)
+        assert snapshot["refs"][refs[0]]["role"] == "button"
+        assert snapshot["refs"][refs[0]]["name"] == name
+        return browser(verb, "@" + refs[0])
+
+    def check(js):
+        browser("eval", "(() => { " + js + "; return true; })()")
+
+    def dismiss_notices():
+        snapshot = json.loads(browser("snapshot", "-i", "--json"))["data"]
+        for ref, item in snapshot["refs"].items():
+            if item.get("role") == "button" and item.get("name") == "close":
+                browser("click", "@" + ref)
+
+    try:
+        browser("set", "viewport", "1440", "960")
+        browser("open", args.url)
+        browser("wait", '[aria-label="Create new keyboard"]')
+        action("button", "Project")
+        action("menuitem", "New project")
+        for name in ("Continue to layout", "Hide guide", "Cancel"):
+            browser("wait", "--text", name)
+            action("button", name)
+        browser("wait", "--text", "Browse parts")
+        camera("Fit board", "focus")
+        check("""
+            const toolbar = document.activeElement.closest('[role=toolbar]');
+            if (toolbar.getAttribute('aria-label') !== 'Canvas view controls') throw Error('camera owner');
+            const items = [...toolbar.querySelectorAll('[data-slot=toolbar-button]')];
+            if (items.filter(e => !e.disabled && e.tabIndex === 0).length !== 1) throw Error('single camera tab stop');
+            if (!items.find(e => e.textContent.trim() === 'Fit selection').disabled) throw Error('empty selection disabled');
+        """)
+        browser("press", "End")
+        check("if (document.activeElement.getAttribute('aria-label') !== 'Zoom in') throw Error('camera End')")
+        browser("wait", '[role=tooltip]')
+        check("""
+            const ids = document.activeElement.getAttribute('aria-describedby');
+            if (!ids || !ids.split(' ').some(id => document.getElementById(id)?.getAttribute('role') === 'tooltip')) throw Error('zoom tooltip description');
+        """)
+        browser("press", "Escape")
+        browser("wait", "--fn", "!document.querySelector('[role=tooltip]')")
+        check("if (document.activeElement.getAttribute('aria-label') !== 'Zoom in') throw Error('tooltip keeps focus')")
+        browser("press", "Home")
+        check("if (document.activeElement.textContent.trim() !== 'Fit board') throw Error('camera Home')")
+        browser("press", "ArrowRight")
+        check("if (document.activeElement.getAttribute('aria-label') !== 'Zoom out') throw Error('camera skips disabled selection')")
+        before = browser("get", "text", '[role="toolbar"][aria-label="Canvas view controls"]')
+        camera("Zoom in")
+        percent = re.search(r"\d+%", before).group()
+        browser("wait", "--fn", f"!document.querySelector('[role=toolbar][aria-label=\"Canvas view controls\"]').textContent.includes('{percent}')")
+        after = browser("get", "text", '[role="toolbar"][aria-label="Canvas view controls"]')
+        assert before != after, ("zoom reaches the existing camera owner", before, after)
+        camera("Fit board")
+        dismiss_notices()
+        # Keep the empty state visible in all twelve requested combinations.
+        for theme in ("original", "shadcn"):
+            for appearance in ("light", "dark"):
+                browser("eval", f"localStorage.setItem('boardstudio:v2:workbench-theme', '{theme}'); localStorage.setItem('boardstudio:v2:appearance', '{appearance}')")
+                browser("reload")
+                browser("wait", "--fn", f"document.documentElement.dataset.theme === '{theme}' && document.documentElement.dataset.appearance === '{appearance}' && [...document.querySelectorAll('[data-slot=empty-title]')].some(e => e.textContent === 'Build your keyboard layout')")
+                dismiss_notices()
+                for width, height in ((1440, 960), (1100, 900), (390, 844)):
+                    browser("set", "viewport", str(width), str(height))
+                    check("""
+                        const root = document.documentElement;
+                        if (root.scrollWidth > root.clientWidth) throw Error('shell horizontal overflow');
+                        const controls = [...document.querySelectorAll('[role=toolbar][aria-label="Canvas view controls"] [data-slot=toolbar-button], [data-slot=empty] [data-slot=button]')];
+                        for (const el of controls) {
+                            const r = el.getBoundingClientRect();
+                            if (r.width <= 0 || r.left < 0 || r.right > innerWidth || r.bottom > innerHeight) throw Error('clipped shell control: ' + el.textContent);
+                        }
+                    """)
+                    path = args.evidence / f"shell-{theme}-{appearance}-{width}.png"
+                    browser("screenshot", str(path.resolve()))
+        browser("set", "viewport", "1440", "960")
+        # The shell dispatches through the existing matrix owner and palette registry.
+        action("button", "Add key matrix")
+        browser("wait", "--text", "New matrix")
+        action("button", "Create matrix")
+        browser("wait", "--fn", "![...document.querySelectorAll('[data-slot=empty-title]')].some(e => e.textContent === 'Build your keyboard layout')")
+        camera("Fit selection")
+        browser("set", "viewport", "1100", "900")
+        camera("Undo", "focus", "Footer edit history")
+        browser("press", "End")
+        check("if (document.activeElement.getAttribute('aria-label') !== 'Redo') throw Error('history End')")
+        browser("press", "Home")
+        check("if (document.activeElement.getAttribute('aria-label') !== 'Undo') throw Error('history Home')")
+        camera("Undo", toolbar="Footer edit history")
+        browser("wait", "--text", "Build your keyboard layout")
+        camera("Redo", toolbar="Footer edit history")
+        browser("wait", "--fn", "![...document.querySelectorAll('[data-slot=empty-title]')].some(e => e.textContent === 'Build your keyboard layout')")
+        browser("press", "Control+k")
+        browser("wait", "--fn", "document.activeElement?.getAttribute('role') === 'combobox' && document.activeElement?.getAttribute('aria-label') === 'Search commands and objects'")
+        browser("press", "Escape")
+        browser("wait", "--fn", "document.activeElement?.getAttribute('aria-label') === 'Redo'")
+        browser("set", "viewport", "1440", "960")
+        action("button", "Open Keymap workspace")
+        browser("wait", '[role=toolbar][aria-label="Keymap tools"]')
+        camera("Assign", "focus", "Keymap tools")
+        browser("press", "End")
+        check("if (document.activeElement.getAttribute('aria-label') !== 'Encoders') throw Error('Inspector shortcut End')")
+        browser("press", "Home")
+        browser("press", "ArrowRight")
+        check("if (document.activeElement.getAttribute('aria-label') !== 'Macros') throw Error('Inspector shortcut arrow')")
+        browser("press", "Enter")
+        browser("wait", "--fn", "document.activeElement.textContent.trim() === 'Macros' && document.activeElement.getAttribute('aria-pressed') === 'true'")
+        # All shortcuts must activate and focus the corresponding real Inspector editor.
+        for shortcut, editor in (("Assign", "Keys"), ("Encoders", "Encoders"), ("Macros", "Macros")):
+            camera(shortcut, toolbar="Keymap tools")
+            browser("wait", "--fn", f"document.activeElement.getAttribute('aria-label') === '{editor}' && document.activeElement.getAttribute('aria-pressed') === 'true'")
+        for width, height in ((1440, 960), (1100, 900), (390, 844)):
+            browser("set", "viewport", str(width), str(height))
+            path = args.evidence / f"keymap-shortcuts-shadcn-dark-{width}.png"
+            browser("screenshot", str(path.resolve()))
+        browser("set", "viewport", "1440", "960")
+        action("button", "Open Keycaps workspace")
+        browser("wait", '[role=toolbar][aria-label="Keycaps tools"]')
+        action("button", "Edit key SW1")
+        browser("wait", "--text", "SW1 · key")
+        # The Inspector is a card: its heading follows both Themes without a legacy divider.
+        check("""
+            const panel = document.querySelector('[aria-label="Keycaps inspector"]');
+            const heading = panel.firstElementChild;
+            const html = document.documentElement;
+            const prior = [html.dataset.theme, html.dataset.appearance];
+            for (const theme of ['original', 'shadcn']) for (const appearance of ['light', 'dark']) {
+                html.dataset.theme = theme; html.dataset.appearance = appearance;
+                const p = getComputedStyle(panel), h = getComputedStyle(heading);
+                if (h.borderBottomWidth !== '0px') throw Error('Inspector header must not have an old divider');
+                if (p.color !== getComputedStyle(document.body).color) throw Error('Inspector text must follow the current Theme');
+                if (h.display !== 'flex') throw Error('Inspector heading must keep its layout');
+                if (getComputedStyle(heading.firstElementChild).fontSize !== '24px') throw Error('Inspector title must keep its size');
+            }
+            [html.dataset.theme, html.dataset.appearance] = prior;
+        """)
+        check("""
+            const selected = document.querySelector('[aria-label="Keycap overrides for SW1"]');
+            const board = document.querySelector('[aria-label="Board colors"]');
+            const html = document.documentElement;
+            const prior = [html.dataset.theme, html.dataset.appearance];
+            for (const theme of ['original', 'shadcn']) for (const appearance of ['light', 'dark']) {
+                html.dataset.theme = theme; html.dataset.appearance = appearance;
+                for (const settings of [selected, board]) {
+                    const style = getComputedStyle(settings);
+                    if (style.borderTopWidth !== '0px') throw Error('Keycap settings must not use old framed controls');
+                    if (style.color !== getComputedStyle(document.body).color) throw Error('Keycap settings must follow the Theme');
+                    if (style.display !== 'grid') throw Error('Keycap fields must remain grouped');
+                }
+            }
+            [html.dataset.theme, html.dataset.appearance] = prior;
+        """)
+        dismiss_notices()
+        action("button", "Matrix profiles")
+        browser("wait", "--fn", "document.querySelector('[aria-label=\"Keycap profile for matrix-1\"]')?.checkVisibility()")
+        check("if (getComputedStyle(document.querySelector('[aria-label=\"Keycap profile for matrix-1\"]').closest('fieldset')).borderTopWidth !== '0px') throw Error('Matrix settings must not use old frames')")
+        action("button", "Matrix profiles")
+        action("button", "Clearance findings 0")
+        browser("wait", "--fn", "!!document.querySelector('[aria-label=\"Clearance findings details\"]') && !document.querySelector('[aria-label=\"Clearance findings details\"]').closest('[hidden], [inert]')")
+        check("""
+            const details = document.querySelector('[aria-label="Clearance findings details"]');
+            const disclosure = details.closest('[data-slot=collapsible]');
+            const html = document.documentElement;
+            const prior = [html.dataset.theme, html.dataset.appearance];
+            for (const theme of ['original', 'shadcn']) for (const appearance of ['light', 'dark']) {
+                html.dataset.theme = theme; html.dataset.appearance = appearance;
+                if (getComputedStyle(disclosure).borderTopWidth !== '0px' || getComputedStyle(details).borderTopWidth !== '0px')
+                    throw Error('Findings must use the card layout without old dividers');
+                if (getComputedStyle(details).color !== getComputedStyle(document.body).color)
+                    throw Error('Findings must follow the current Theme');
+                if (getComputedStyle(details).display !== 'grid') throw Error('Findings must remain grouped');
+            }
+            [html.dataset.theme, html.dataset.appearance] = prior;
+        """)
+        action("button", "Clearance findings 0")
+        # Both the selected-key and override disclosures can be closed by the user.
+        action("button", "SW1 · key")
+        camera("Profile", toolbar="Keycaps tools")
+        browser("wait", "--fn", "document.activeElement?.getAttribute('aria-label') === 'Profile override for SW1'")
+        check("if (document.activeElement.closest('[hidden], [inert]')) throw Error('Profile editor must be revealed')")
+        browser("press", "Enter")
+        browser("wait", '[role=listbox][aria-label="Profile override for SW1"]')
+        browser("press", "Escape")
+        browser("wait", "--fn", "document.activeElement?.getAttribute('aria-label') === 'Profile override for SW1'")
+        for shortcut, editor in (("Legend", "Legend for SW1"), ("Color", "Keycap color for SW1")):
+            action("button", "SW1 · key")
+            camera(shortcut, toolbar="Keycaps tools")
+            browser("wait", "--fn", f"document.activeElement?.getAttribute('aria-label') === '{editor}'")
+            check("if (document.activeElement.closest('[hidden], [inert]')) throw Error('Keycap editor must be revealed')")
+        browser("set", "viewport", "390", "844")
+        camera("Profile", toolbar="Keycaps tools")
+        browser("wait", "--fn", "document.activeElement?.getAttribute('aria-label') === 'Profile override for SW1'")
+        check("if (document.activeElement.closest('[hidden], [inert]')) throw Error('Compact Profile editor must be revealed')")
+        (args.evidence / "final-snapshot.txt").write_text(browser("snapshot", "-i"))
+        (args.evidence / "result.json").write_text(json.dumps({"result": "passed", "captures": 15,
+            "limits": "Chromium keyboard and DOM checks; no screen reader, first-paint timing or human review"}, indent=2) + "\n")
+        print("PASS: shell camera, palette, Inspector shortcuts including Keycaps, and 15 captures")
+    except BaseException:
+        (args.evidence / "failure-snapshot.txt").write_text(browser("snapshot", "-i"))
+        browser("screenshot", str((args.evidence / "failure.png").resolve()))
+        raise
+    finally:
+        browser("close")
+
+
+if __name__ == "__main__":
+    main()

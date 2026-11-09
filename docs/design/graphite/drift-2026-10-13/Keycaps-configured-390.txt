@@ -1,0 +1,188 @@
+Your app is being rebuilt.
+
+A non-hot-reloadable change occurred and we must rebuild.
+
+Corne
+Profile
+Legend
+Color
+2D
+3D assembly
+Fit Keycaps
+View controls
+Layers
+
+3D preview updated.
+
+Case layers and colors
+Inspect
+Keycaps
+0/21 assigned
+Matrix profiles
+left-keys-SW1 · key
+Find a key
+Selected key
+Choose on the layout…
+left-keys-SW1 · Unassigned
+left-keys-SW2 · Unassigned
+left-keys-SW3 · Unassigned
+left-keys-SW4 · Unassigned
+left-keys-SW5 · Unassigned
+left-keys-SW6 · Unassigned
+left-keys-SW7 · Unassigned
+left-keys-SW8 · Unassigned
+left-keys-SW9 · Unassigned
+left-keys-SW10 · Unassigned
+left-keys-SW11 · Unassigned
+left-keys-SW12 · Unassigned
+left-keys-SW13 · Unassigned
+left-keys-SW14 · Unassigned
+left-keys-SW15 · Unassigned
+left-keys-SW16 · Unassigned
+left-keys-SW17 · Unassigned
+left-keys-SW18 · Unassigned
+left-thumbs-SW1 · Unassigned
+left-thumbs-SW2 · Unassigned
+left-thumbs-SW3 · Unassigned
+Legend
+Use binding legend
+Blank keycap
+Keycap color
+Keycap overrides
+Clearance findings
+21
+
+Current Case walls and solids have not been checked. Generate or update the Case preview for this revision.
+
+left-diode-17-keys · diode tht sod123
+Warning
+
+left-diode-17-keys: saved keycap settings are retained, but this input has no verified keycap mount. Choose a suitable knob or qualify its fit before generating a keycap.
+
+Select affected geometry
+left-diode-18-keys · diode tht sod123
+Warning
+
+left-diode-18-keys: saved keycap settings are retained, but this input has no verified keycap mount. Choose a suitable knob or qualify its fit before generating a keycap.
+
+Select affected geometry
+left-diode-14-keys · diode tht sod123
+Warning
+
+left-diode-14-keys: saved keycap settings are retained, but this input has no verified keycap mount. Choose a suitable knob or qualify its fit before generating a keycap.
+
+Select affected geometry
+left-diode-13-keys · diode tht sod123
+Warning
+
+left-diode-13-keys: saved keycap settings are retained, but this input has no verified keycap mount. Choose a suitable knob or qualify its fit before generating a keycap.
+
+Select affected geometry
+left-diode-15-keys · diode tht sod123
+Warning
+
+left-diode-15-keys: saved keycap settings are retained, but this input has no verified keycap mount. Choose a suitable knob or qualify its fit before generating a keycap.
+
+Select affected geometry
+left-diode-16-keys · diode tht sod123
+Warning
+
+left-diode-16-keys: saved keycap settings are retained, but this input has no verified keycap mount. Choose a suitable knob or qualify its fit before generating a keycap.
+
+Select affected geometry
+left-diode-11-keys · diode tht sod123
+Warning
+
+left-diode-11-keys: saved keycap settings are retained, but this input has no verified keycap mount. Choose a suitable knob or qualify its fit before generating a keycap.
+
+Select affected geometry
+left-diode-12-keys · diode tht sod123
+Warning
+
+left-diode-12-keys: saved keycap settings are retained, but this input has no verified keycap mount. Choose a suitable knob or qualify its fit before generating a keycap.
+
+Select affected geometry
+left-diode-8-keys · diode tht sod123
+Warning
+
+left-diode-8-keys: saved keycap settings are retained, but this input has no verified keycap mount. Choose a suitable knob or qualify its fit before generating a keycap.
+
+Select affected geometry
+left-diode-7-keys · diode tht sod123
+Warning
+
+left-diode-7-keys: saved keycap settings are retained, but this input has no verified keycap mount. Choose a suitable knob or qualify its fit before generating a keycap.
+
+Select affected geometry
+left-diode-9-keys · diode tht sod123
+Warning
+
+left-diode-9-keys: saved keycap settings are retained, but this input has no verified keycap mount. Choose a suitable knob or qualify its fit before generating a keycap.
+
+Select affected geometry
+left-diode-10-keys · diode tht sod123
+Warning
+
+left-diode-10-keys: saved keycap settings are retained, but this input has no verified keycap mount. Choose a suitable knob or qualify its fit before generating a keycap.
+
+Select affected geometry
+left-diode-5-keys · diode tht sod123
+Warning
+
+left-diode-5-keys: saved keycap settings are retained, but this input has no verified keycap mount. Choose a suitable knob or qualify its fit before generating a keycap.
+
+Select affected geometry
+left-diode-6-keys · diode tht sod123
+Warning
+
+left-diode-6-keys: saved keycap settings are retained, but this input has no verified keycap mount. Choose a suitable knob or qualify its fit before generating a keycap.
+
+Select affected geometry
+left-diode-2-keys · diode tht sod123
+Warning
+
+left-diode-2-keys: saved keycap settings are retained, but this input has no verified keycap mount. Choose a suitable knob or qualify its fit before generating a keycap.
+
+Select affected geometry
+left-diode-1-keys · diode tht sod123
+Warning
+
+left-diode-1-keys: saved keycap settings are retained, but this input has no verified keycap mount. Choose a suitable knob or qualify its fit before generating a keycap.
+
+Select affected geometry
+left-diode-3-keys · diode tht sod123
+Warning
+
+left-diode-3-keys: saved keycap settings are retained, but this input has no verified keycap mount. Choose a suitable knob or qualify its fit before generating a keycap.
+
+Select affected geometry
+left-diode-4-keys · diode tht sod123
+Warning
+
+left-diode-4-keys: saved keycap settings are retained, but this input has no verified keycap mount. Choose a suitable knob or qualify its fit before generating a keycap.
+
+Select affected geometry
+left-diode-1-thumbs · diode tht sod123
+Warning
+
+left-diode-1-thumbs: saved keycap settings are retained, but this input has no verified keycap mount. Choose a suitable knob or qualify its fit before generating a keycap.
+
+Select affected geometry
+left-diode-2-thumbs · diode tht sod123
+Warning
+
+left-diode-2-thumbs: saved keycap settings are retained, but this input has no verified keycap mount. Choose a suitable knob or qualify its fit before generating a keycap.
+
+Select affected geometry
+left-diode-3-thumbs · diode tht sod123
+Warning
+
+left-diode-3-thumbs: saved keycap settings are retained, but this input has no verified keycap mount. Choose a suitable knob or qualify its fit before generating a keycap.
+
+Select affected geometry
+
+Checks use conservative keycap envelopes through full switch travel. Case walls and solids are included only for a current Case preview.
+
+Export keycap STEP
+100%
+Layout findings: 23

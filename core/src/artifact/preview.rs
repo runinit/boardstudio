@@ -1,6 +1,8 @@
 //! Read-only board projection. Original source remains the export authority.
+use super::parsed_board::{BoardParseError, ParsedBoard};
 use super::sexpr::{atom, child, children, head, items};
 use crate::model::*;
+use boardstudio_contracts::polygon_contains;
 use kiutils_sexpr::Node;
 use std::f64::consts::{PI, TAU};
 
@@ -9,6 +11,19 @@ fn error(message: impl Into<String>) -> ArtifactError {
 }
 fn value(n: &Node, i: usize) -> &str {
     items(n).and_then(|v| v.get(i)).and_then(atom).unwrap_or("")
+}
+/// A quoted text value decoded from the raw source, so control escapes agree with
+/// the export instead of the CST's lossy generic unescaping.
+fn decoded(source: &str, n: &Node, i: usize) -> String {
+    items(n)
+        .and_then(|v| v.get(i))
+        .map(|item| match item {
+            Node::Atom { span, .. } => super::sexpr::kicad_quoted(source, *span)
+                .or_else(|| atom(item).map(str::to_owned))
+                .unwrap_or_default(),
+            Node::List { .. } => String::new(),
+        })
+        .unwrap_or_default()
 }
 fn number(n: &Node, i: usize, fallback: f64) -> Result<f64, ArtifactError> {
     let s = value(n, i);
@@ -89,26 +104,41 @@ fn round_rect(size: Vec2, radius: f64) -> Vec<Vec2> {
 }
 fn arc(n: &Node) -> Result<Vec<Vec2>, ArtifactError> {
     let a = xy(n, "start")?;
-    let b = xy(n, "mid")?;
     let c = xy(n, "end")?;
-    let d = 2. * (a.x * (b.y - c.y) + b.x * (c.y - a.y) + c.x * (a.y - b.y));
-    if d.abs() < 1e-10 {
-        return Err(error("Degenerate board arc"));
-    }
-    let aa = a.x * a.x + a.y * a.y;
-    let bb = b.x * b.x + b.y * b.y;
-    let cc = c.x * c.x + c.y * c.y;
-    let o = Vec2 {
-        x: (aa * (b.y - c.y) + bb * (c.y - a.y) + cc * (a.y - b.y)) / d,
-        y: (aa * (c.x - b.x) + bb * (a.x - c.x) + cc * (b.x - a.x)) / d,
+    let (o, start, sweep, radius) = if let Some(legacy) = child(n, "angle") {
+        if child(n, "mid").is_some() {
+            return Err(error("Arc needs either a midpoint or a legacy angle"));
+        }
+        let degrees = number(legacy, 1, 0.)?;
+        if degrees == 0. || degrees.abs() > 360. {
+            return Err(error("Invalid legacy board arc"));
+        }
+        super::legacy_arc_parameters(a, c, degrees)
+            .ok_or_else(|| error("Invalid legacy board arc"))?
+    } else {
+        let b = child(n, "mid")
+            .map(point)
+            .ok_or_else(|| error("Arc needs either a midpoint or a legacy angle"))??;
+        let d = 2. * (a.x * (b.y - c.y) + b.x * (c.y - a.y) + c.x * (a.y - b.y));
+        if d.abs() < 1e-10 {
+            return Err(error("Degenerate board arc"));
+        }
+        let aa = a.x * a.x + a.y * a.y;
+        let bb = b.x * b.x + b.y * b.y;
+        let cc = c.x * c.x + c.y * c.y;
+        let o = Vec2 {
+            x: (aa * (b.y - c.y) + bb * (c.y - a.y) + cc * (a.y - b.y)) / d,
+            y: (aa * (c.x - b.x) + bb * (a.x - c.x) + cc * (b.x - a.x)) / d,
+        };
+        let start = (a.y - o.y).atan2(a.x - o.x);
+        let middle = ((b.y - o.y).atan2(b.x - o.x) - start).rem_euclid(TAU);
+        let mut sweep = ((c.y - o.y).atan2(c.x - o.x) - start).rem_euclid(TAU);
+        if middle > sweep {
+            sweep -= TAU;
+        }
+        let radius = (a.x - o.x).hypot(a.y - o.y);
+        (o, start, sweep, radius)
     };
-    let start = (a.y - o.y).atan2(a.x - o.x);
-    let middle = ((b.y - o.y).atan2(b.x - o.x) - start).rem_euclid(TAU);
-    let mut sweep = ((c.y - o.y).atan2(c.x - o.x) - start).rem_euclid(TAU);
-    if middle > sweep {
-        sweep -= TAU;
-    }
-    let radius = (a.x - o.x).hypot(a.y - o.y);
     let steps = ((radius * sweep.abs() / 0.1).ceil() as usize).clamp(8, 2048);
     Ok((0..=steps)
         .map(|i| {
@@ -144,6 +174,7 @@ fn layers(n: &Node) -> Vec<String> {
     result
 }
 fn graphic(
+    source: &str,
     n: &Node,
     placement: &Pose2,
     out: &mut PcbPreview,
@@ -205,9 +236,9 @@ fn graphic(
             pose(n)?
         };
         let text = if tag == "fp_text" || tag == "property" {
-            value(n, 2)
+            decoded(source, n, 2)
         } else {
-            value(n, 1)
+            decoded(source, n, 1)
         };
         let size = child(n, "effects")
             .and_then(|n| child(n, "font"))
@@ -219,7 +250,7 @@ fn graphic(
             points: vec![transform(at.at, placement)],
             width: 0.,
             filled: true,
-            text: text.into(),
+            text,
             rotation: at.rotation,
             text_size: size,
         });
@@ -328,17 +359,6 @@ fn xyz(n: &Node, key: &str, default: f64) -> Result<Vec3, ArtifactError> {
         }),
     }
 }
-fn inside(p: Vec2, poly: &[Vec2]) -> bool {
-    let mut result = false;
-    for i in 0..poly.len() {
-        let a = poly[i];
-        let b = poly[(i + 1) % poly.len()];
-        if (a.y > p.y) != (b.y > p.y) && p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x {
-            result = !result;
-        }
-    }
-    result
-}
 fn close(a: Vec2, b: Vec2) -> bool {
     (a.x - b.x).hypot(a.y - b.y) < 0.002
 }
@@ -373,7 +393,7 @@ fn contours(mut edges: Vec<Vec<Vec2>>) -> Result<Vec<Contour>, ArtifactError> {
             hole: loops
                 .iter()
                 .enumerate()
-                .filter(|(j, p)| *j != i && inside(points[0], p))
+                .filter(|(j, p)| *j != i && polygon_contains(p, points[0]))
                 .count()
                 % 2
                 == 1,
@@ -381,20 +401,48 @@ fn contours(mut edges: Vec<Vec<Vec2>>) -> Result<Vec<Contour>, ArtifactError> {
         .collect())
 }
 pub(super) fn board(source: &str, revision: u64) -> Result<PcbPreview, ArtifactError> {
+    board_source(source, revision).map(|(preview, _)| preview)
+}
+
+fn check_board_size(source: &str) -> Result<(), ArtifactError> {
     if source.len() > 32 * 1024 * 1024 {
         return Err(error("Board exceeds the 32 MiB preview limit"));
     }
-    let parsed = kiutils_sexpr::parse_one(source).map_err(|e| error(e.to_string()))?;
-    let root = parsed.nodes.first().ok_or_else(|| error("Empty board"))?;
-    if head(root) != Some("kicad_pcb") {
-        return Err(error("Expected a .kicad_pcb board"));
-    }
+    Ok(())
+}
+
+/// The size limit is checked before the raw source is parsed.
+pub(super) fn parse_board(source: &str) -> Result<ParsedBoard<'_>, ArtifactError> {
+    check_board_size(source)?;
+    ParsedBoard::parse(source).map_err(|failure| match failure {
+        BoardParseError::Syntax(message) => error(message),
+        BoardParseError::NotBoard => error("Expected a .kicad_pcb board"),
+    })
+}
+
+pub(super) fn board_source(
+    source: &str,
+    revision: u64,
+) -> Result<(PcbPreview, Option<f64>), ArtifactError> {
+    board_parsed(&parse_board(source)?, revision)
+}
+
+pub(super) fn board_parsed(
+    board: &ParsedBoard,
+    revision: u64,
+) -> Result<(PcbPreview, Option<f64>), ArtifactError> {
+    check_board_size(board.source())?;
+    let (source, root) = (board.source(), board.root());
     let thickness = child(root, "general")
         .map(|n| scalar(n, "thickness", 1.6))
         .unwrap_or(Ok(1.6))?;
     if thickness <= 0. || thickness > 100. {
         return Err(error("Invalid PCB thickness"));
     }
+    let source_thickness = child(root, "general")
+        .and_then(|general| child(general, "thickness"))
+        .filter(|node| !value(node, 1).is_empty())
+        .map(|_| thickness);
     let mut out = PcbPreview {
         revision,
         thickness,
@@ -446,7 +494,7 @@ pub(super) fn board(source: &str, revision: u64) -> Result<PcbPreview, ArtifactE
                             }
                         }
                         tag if tag.starts_with("fp_") || tag == "property" => {
-                            graphic(node, &fp, &mut out, &mut edges, false)?
+                            graphic(source, node, &fp, &mut out, &mut edges, false)?
                         }
                         _ => {}
                     }
@@ -483,7 +531,7 @@ pub(super) fn board(source: &str, revision: u64) -> Result<PcbPreview, ArtifactE
                 }
             }
             tag if tag.starts_with("gr_") || tag == "segment" || tag == "arc" => {
-                graphic(n, &origin, &mut out, &mut edges, false)?
+                graphic(source, n, &origin, &mut out, &mut edges, false)?
             }
             _ => {}
         }
@@ -494,7 +542,7 @@ pub(super) fn board(source: &str, revision: u64) -> Result<PcbPreview, ArtifactE
     }
     out.diagnostics.sort();
     out.diagnostics.dedup();
-    Ok(out)
+    Ok((out, source_thickness))
 }
 
 /// Project only source-local front/back silkscreen and fabrication artwork from a footprint.
@@ -527,7 +575,7 @@ pub(super) fn footprint_surfaces(source: &str) -> Result<Vec<PcbSurface>, Artifa
     for node in items(root).unwrap_or(&[]).iter().skip(1) {
         let tag = head(node).unwrap_or("");
         if tag.starts_with("fp_") || tag == "property" {
-            graphic(node, &identity, &mut out, &mut edges, true)?;
+            graphic(source, node, &identity, &mut out, &mut edges, true)?;
         }
     }
     out.surfaces.retain(|surface| {
@@ -565,6 +613,21 @@ mod tests {
         );
         assert!(result.surfaces.iter().any(|s| s.layer == "B.Mask"));
     }
+    #[test]
+    fn decodes_escaped_text_whitespace_in_preview() {
+        let input = format!(
+            "(kicad_pcb {EDGE} (gr_text \"line\\nnext\\tend\" (at 0 0 0) (layer \"F.SilkS\")) (footprint \"switch\" (layer \"F.Cu\") (at 0 0) (fp_text user \"quote: \\\" slash: \\\\\" (at 0 0) (layer \"F.SilkS\"))))"
+        );
+        let result = board(&input, 0).unwrap();
+        let texts: Vec<&str> = result
+            .surfaces
+            .iter()
+            .map(|surface| surface.text.as_str())
+            .collect();
+        assert!(texts.contains(&"line\nnext\tend"));
+        assert!(texts.contains(&"quote: \" slash: \\"));
+    }
+
     #[test]
     fn footprint_projection_includes_fab_without_changing_board_preview_layers() {
         let footprint = "(footprint \"resistor\" (layer \"B.Cu\") (at 0 0) (fp_line (start 0 0) (end 2 0) (stroke (width 0.1)) (layer \"B.SilkS\")) (fp_rect (start -1 -1) (end 1 1) (stroke (width 0.05)) (layer \"B.Fab\")))";

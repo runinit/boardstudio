@@ -5,7 +5,14 @@
 
 use super::{case_display::CaseDisplay, model_delivery::ModelDeliveryRows};
 use boardstudio_core::model::PcbModel;
+use boardstudio_web_ui_shared::ui::{
+    collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
+    icons::ChevronDown,
+    toggle_group::{ToggleGroup, ToggleItem},
+    tooltip::{Tooltip, TooltipContent, TooltipTrigger},
+};
 use dioxus::prelude::*;
+use std::collections::HashSet;
 use wasm_bindgen::JsCast;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -145,6 +152,7 @@ pub fn physical_component_layers(
 
 #[component]
 pub fn CaseAssemblyLayers(
+    #[props(default)] initially_open: bool,
     assembly: Vec<CaseAssemblyLayer>,
     components: Vec<CaseComponentLayer>,
     selectable_layers: Vec<String>,
@@ -153,7 +161,7 @@ pub fn CaseAssemblyLayers(
     display: CaseDisplay,
     on_display_change: EventHandler<CaseDisplay>,
 ) -> Element {
-    let mut open = use_signal(|| false);
+    let mut open = use_signal(|| initially_open);
     let display_for_toggle = display.clone();
     let toggle = move |id: String| {
         let mut next = display_for_toggle.clone();
@@ -173,28 +181,26 @@ pub fn CaseAssemblyLayers(
     };
     rsx! {
         section {
-            class: "m1-case-assembly-layers",
-            "aria-label": "Assembly layers",
+            class: "absolute right-2.5 bottom-2.5 z-[6] w-[min(360px,calc(100%-20px))] text-foreground max-[640px]:right-2 max-[640px]:bottom-2 max-[640px]:w-[min(340px,calc(100%-16px))] [[id=m1-objects-panel]_&]:static [[id=m1-objects-panel]_&]:w-full",
+            "aria-label": "Assembly visibility",
             "data-open": "{open()}",
             onkeydown: keydown,
-            button {
+            Collapsible { keep_mounted: true, open: Some(open()), on_open_change: move |next| open.set(next),
+            CollapsibleTrigger {
                 id: "m1-case-assembly-layers-trigger",
-                class: "m1-case-assembly-layers-trigger",
-                "aria-expanded": "{open()}",
-                "aria-controls": "m1-case-assembly-layers-list",
-                onclick: move |_| open.set(!open()),
-                "Layers",
-                svg { view_box: "0 0 20 20", "aria-hidden": "true",
-                    path { d: if open() { "m5 12 5-5 5 5" } else { "m5 8 5 5 5-5" } }
-                }
+                aria_label: "Assembly visibility",
+                class: "min-h-11 w-full justify-between px-3 py-2 text-sm font-medium",
+                span { "Assembly visibility" }
+                ChevronDown { class: if open() { "size-4 shrink-0 transition-transform rotate-180" } else { "size-4 shrink-0 transition-transform" } }
             }
-            div {
+            CollapsibleContent {
                 id: "m1-case-assembly-layers-list",
-                class: "m1-case-assembly-layers-list",
+                class: "mb-2 grid max-h-[min(55vh,440px)] gap-2.5 overflow-auto rounded-[10px] border border-border-strong bg-card p-3 shadow-[0_10px_30px_#0005] [&[hidden]]:hidden max-[640px]:max-h-[52vh] [[id=m1-objects-panel]_&]:absolute [[id=m1-objects-panel]_&]:bottom-full [[id=m1-objects-panel]_&]:left-0 [[id=m1-objects-panel]_&]:z-30 [[id=m1-objects-panel]_&]:m-0 [[id=m1-objects-panel]_&]:box-border [[id=m1-objects-panel]_&]:w-full [[id=m1-objects-panel]_&]:max-h-[min(65vh,520px)] [[id=m1-objects-panel]_&]:rounded-b-none [[id=m1-objects-panel]_&]:rounded-t-xl",
                 hidden: !open(),
+                inert: (!open()).then_some(""),
                 if !assembly.is_empty() {
-                    div { class: "m1-case-assembly-layer-group", role: "group", "aria-label": "Assembly",
-                        div { class: "m1-case-assembly-layer-heading", "Assembly" }
+                    div { class: "grid gap-1", role: "group", "aria-label": "Assembly",
+                        div { class: "px-1 pt-0.5 pb-[5px] text-[0.78rem] font-bold tracking-[0.04em] text-muted-foreground uppercase", "Assembly" }
                         for layer in assembly {
                             {
                                 let toggle = toggle.clone();
@@ -214,13 +220,14 @@ pub fn CaseAssemblyLayers(
                     }
                 }
                 if !components.is_empty() {
-                    div { class: "m1-case-assembly-layer-group", role: "group", "aria-label": "Components",
-                        div { class: "m1-case-assembly-layer-heading", "Components" }
+                    div { class: "grid gap-1", role: "group", "aria-label": "Components",
+                        div { class: "px-1 pt-0.5 pb-[5px] text-[0.78rem] font-bold tracking-[0.04em] text-muted-foreground uppercase", "Components" }
                         for layer in components {
                             { let toggle = toggle.clone(); rsx! { ComponentLayerButton { layer, display: display.clone(), on_toggle: toggle } } }
                         }
                     }
                 }
+            }
             }
         }
     }
@@ -253,41 +260,60 @@ fn CaseLayerButton(
     } else {
         selection_label.clone()
     };
-    let selection_title = if selectable {
-        selection_aria_label.clone()
+    let visibility_label = if visible {
+        format!("Hide {}", layer.label)
     } else {
-        unavailable.unwrap_or(&selection_label).to_owned()
+        format!("Show {}", layer.label)
     };
+    let row_disabled = !selectable || unavailable.is_some();
+    let visibility_disabled = unavailable.is_some();
     rsx! {
         div {
-            class: "m1-case-layer-controls",
-            style: "display: grid; grid-template-columns: minmax(0, 1fr) 32px; align-items: center; gap: 4px",
-            button {
-                class: "m1-case-assembly-layer-row",
-                "aria-pressed": "{selected}",
-                "aria-label": "{selection_aria_label}",
-                disabled: !selectable || unavailable.is_some(),
-                title: "{selection_title}",
-                style: "grid-template-columns: 18px minmax(0, 1fr) auto; width: 100%",
-                onclick: move |_| {
-                    if let Some(id) = selected_id.clone() {
+            class: "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-1",
+            ToggleGroup {
+                aria_label: selection_label.clone(),
+                disabled: row_disabled,
+                pressed: Some(if selected { HashSet::from([0usize]) } else { HashSet::new() }),
+                on_pressed_change: move |next: HashSet<usize>| {
+                    if next.contains(&0) != selected
+                        && let Some(id) = selected_id.clone()
+                    {
                         on_select_layer.call(id);
                     }
                 },
-                span { class: "m1-case-assembly-layer-swatch", "data-layer": "{layer.label}" }
-                span { class: "m1-case-assembly-layer-label", "{layer.label}" }
-                if let Some(state) = unavailable { small { "{state}" } }
+                style: "width: 100%",
+                ToggleItem {
+                    index: 0usize,
+                    aria_label: selection_aria_label,
+                    disabled: row_disabled,
+                    class: "max-[960px]:min-h-11 [@media(pointer:coarse)]:min-h-11",
+                    style: "width: 100%; justify-content: flex-start;",
+                    span { class: "m-auto size-2.5 rounded-[2px] border border-current bg-primary data-[layer=PCB]:bg-[#51b98b] data-[layer=Copper]:bg-[#ce8a49]", "data-layer": "{layer.label}" }
+                    span { class: "flex-1 truncate text-left", "{layer.label}" }
+                    if let Some(state) = unavailable { small { class: "whitespace-nowrap text-xs text-muted-foreground", "{state}" } }
+                }
             }
-            button {
-                r#type: "button",
-                class: "m1-case-layer-visibility",
-                "aria-pressed": "{visible}",
-                "aria-label": if visible { "Hide {layer.label}" } else { "Show {layer.label}" },
-                disabled: unavailable.is_some(),
-                title: unavailable.unwrap_or(&layer.label),
-                style: "display: grid; place-items: center; width: 32px; min-width: 32px; min-height: 32px; padding: 4px; border: 0; border-radius: 5px; background: transparent; color: inherit",
-                onclick: move |_| on_toggle.call(id.clone()),
-                LayerEye { visible }
+            ToggleGroup {
+                aria_label: format!("{} visibility", layer.label),
+                disabled: visibility_disabled,
+                pressed: Some(if visible { HashSet::from([0usize]) } else { HashSet::new() }),
+                on_pressed_change: move |next: HashSet<usize>| {
+                    if next.contains(&0) != visible { on_toggle.call(id.clone()); }
+                },
+                Tooltip {
+                    TooltipTrigger { r#as: {
+                        let visibility_label = visibility_label.clone();
+                        move |attributes: Vec<Attribute>| rsx! {
+                            ToggleItem { index: 0usize, aria_label: visibility_label.clone(),
+                                disabled: visibility_disabled,
+                                class: "max-[960px]:min-h-11 max-[960px]:min-w-11 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11",
+                                attributes,
+                                LayerEye { visible }
+                            }
+                        }
+                    } }
+                    TooltipContent { "{visibility_label}" }
+                }
             }
         }
     }
@@ -313,31 +339,39 @@ fn ComponentLayerButton(
 ) -> Element {
     let available = layer.availability == LayerAvailability::Available;
     let visible = available && !display.hidden.iter().any(|id| id == &layer.id);
-    let (unavailable, tooltip) = match &layer.availability {
-        LayerAvailability::Available => (None, layer.label()),
-        LayerAvailability::Pending => (
-            Some("Loading model…"),
-            format!("{} — Loading model", layer.label()),
-        ),
-        LayerAvailability::Unavailable(reason) => (
-            Some("Missing model"),
-            format!("{} — {reason}", layer.label()),
-        ),
+    let unavailable = match &layer.availability {
+        LayerAvailability::Available => None,
+        LayerAvailability::Pending => Some("Loading model…"),
+        LayerAvailability::Unavailable(_) => Some("Missing model"),
     };
     let id = layer.id.clone();
     let label = layer.label();
+    let toggle_label = if visible {
+        format!("Hide {label}")
+    } else {
+        format!("Show {label}")
+    };
+    let row_disabled = unavailable.is_some();
     rsx! {
-        button {
-            class: "m1-case-assembly-layer-row is-component",
-            "aria-pressed": "{visible}",
-            "aria-label": if visible { "Hide {label}" } else { "Show {label}" },
-            disabled: unavailable.is_some(),
-            title: "{tooltip}",
-            onclick: move |_| on_toggle.call(id.clone()),
-            span { class: "m1-case-assembly-layer-swatch is-component", "data-layer": "Components" }
-            span { class: "m1-case-assembly-layer-label", "{label}" }
-            if let Some(state) = unavailable { small { "{state}" } }
-            LayerEye { visible }
+        ToggleGroup {
+            aria_label: format!("{label} visibility"),
+            disabled: row_disabled,
+            pressed: Some(if visible { HashSet::from([0usize]) } else { HashSet::new() }),
+            on_pressed_change: move |next: HashSet<usize>| {
+                if next.contains(&0) != visible { on_toggle.call(id.clone()); }
+            },
+            style: "width: 100%",
+            ToggleItem {
+                index: 0usize,
+                aria_label: toggle_label,
+                disabled: row_disabled,
+                class: "max-[960px]:min-h-11 [@media(pointer:coarse)]:min-h-11",
+                style: "width: 100%; justify-content: flex-start;",
+                span { class: "m-auto size-2.5 rounded-full border border-current bg-[#879acb]", "data-layer": "Components" }
+                span { class: "flex-1 truncate text-left", "{label}" }
+                if let Some(state) = unavailable { small { class: "whitespace-nowrap text-xs text-muted-foreground", "{state}" } }
+                LayerEye { visible }
+            }
         }
     }
 }
@@ -365,6 +399,7 @@ fn focus_layers_trigger() {
 mod tests {
     use super::*;
     use crate::presentation::model_delivery::{DeliveredModel, ValidatedMesh};
+    use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
     use std::rc::Rc;
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::wasm_bindgen_test;
@@ -413,6 +448,8 @@ mod tests {
                         positions: Rc::from([0.0_f32; 9]),
                         normals: Rc::from([0.0_f32; 9]),
                         colors: None,
+                        step_bounds: None,
+                        vendor_step: None,
                     }),
                     matrix: None,
                 })
@@ -475,6 +512,8 @@ mod tests {
                     positions: Rc::from([0.0_f32; 9]),
                     normals: Rc::from([0.0_f32; 9]),
                     colors: None,
+                    step_bounds: None,
+                    vendor_step: None,
                 }),
                 matrix: None,
             }],
@@ -550,7 +589,10 @@ mod tests {
     async fn layer_menu_toggles_exact_rows_and_unavailable_rows_are_not_checked() {
         let document = web_sys::window().unwrap().document().unwrap();
         let stylesheet = document.create_element("style").unwrap();
-        stylesheet.set_text_content(Some(include_str!("../../../assets/m1.css")));
+        stylesheet.set_text_content(Some(concat!(
+            include_str!("../../../assets/workbench-base.css"),
+            include_str!("../../../assets/tailwind.css")
+        )));
         document.head().unwrap().append_child(&stylesheet).unwrap();
         let root = document.create_element("div").unwrap();
         root.set_id("case-assembly-layer-test-root");
@@ -561,27 +603,61 @@ mod tests {
         );
         rendered().await;
 
+        let scope = root.clone();
         let list = element("#m1-case-assembly-layers-list");
         assert!(list.has_attribute("hidden"));
         assert_eq!(computed_display(&list), "none");
         assert_eq!(list.get_bounding_client_rect().height(), 0.0);
-        let battery = element("#m1-case-assembly-layers-list [aria-label='Show battery']");
+        let trigger = by_role_name(&scope, "button", "Assembly visibility")
+            .expect("assembly visibility trigger");
+        assert_eq!(
+            trigger.text_content().unwrap().trim(),
+            "Assembly visibility"
+        );
+        assert_eq!(
+            trigger.get_attribute("aria-expanded").as_deref(),
+            Some("false")
+        );
+        let battery =
+            by_role_name(&scope, "button", "Show battery").expect("unavailable battery row");
         assert!(battery.has_attribute("disabled"));
         assert_eq!(
             battery.get_attribute("aria-pressed").as_deref(),
             Some("false")
         );
-        let plate = element("#m1-case-assembly-layers-list [aria-label='Hide Plate']");
+        let plate = by_role_name(&scope, "button", "Hide Plate").expect("plate visibility toggle");
         assert!(!plate.has_attribute("disabled"));
         assert_eq!(plate.get_attribute("aria-pressed").as_deref(), Some("true"));
 
-        element("#m1-case-assembly-layers-trigger").click();
+        trigger.click();
         rendered().await;
         assert!(!list.has_attribute("hidden"));
         assert_eq!(computed_display(&list), "grid");
         assert!(list.get_bounding_client_rect().height() > 0.0);
-        let select_plate =
-            element("#m1-case-assembly-layers-list [aria-label='Select Plate for appearance']");
+        assert_eq!(
+            by_role_name(&scope, "button", "Assembly visibility")
+                .unwrap()
+                .get_attribute("aria-expanded")
+                .as_deref(),
+            Some("true")
+        );
+        // The icon-only visibility toggle describes itself through its tooltip.
+        plate.focus().unwrap();
+        wait_until("visibility tooltip describes the toggle", || {
+            by_role_name(&scope, "button", "Hide Plate").is_some_and(|toggle| {
+                toggle
+                    .get_attribute("aria-describedby")
+                    .and_then(|id| document.get_element_by_id(&id))
+                    .is_some_and(|tip| {
+                        tip.text_content()
+                            .unwrap_or_default()
+                            .contains("Hide Plate")
+                    })
+            })
+        })
+        .await;
+        let select_plate = by_role_name(&scope, "button", "Select Plate for appearance")
+            .expect("plate appearance row");
         select_plate.click();
         rendered().await;
         assert_eq!(
@@ -591,25 +667,28 @@ mod tests {
             Some("plate")
         );
         assert_eq!(
-            element("#m1-case-assembly-layers-list [aria-label='Select Plate for appearance']")
+            by_role_name(&scope, "button", "Select Plate for appearance")
+                .unwrap()
                 .get_attribute("aria-pressed")
                 .as_deref(),
             Some("true")
         );
         assert_eq!(
-            element("#m1-case-assembly-layers-list [aria-label='Hide Plate']")
+            by_role_name(&scope, "button", "Hide Plate")
+                .unwrap()
                 .get_attribute("aria-pressed")
                 .as_deref(),
             Some("true")
         );
-        let hidden_component =
-            element("#m1-case-assembly-layers-list [aria-label='Hide SW1 · switch.step']");
+        let hidden_component = by_role_name(&scope, "button", "Hide SW1 · switch.step")
+            .expect("component visibility toggle");
         assert_eq!(
             hidden_component.get_attribute("aria-pressed").as_deref(),
             Some("true")
         );
         assert_eq!(
-            element("#m1-case-assembly-layers-list [aria-label='Hide SW1 · companion.step']")
+            by_role_name(&scope, "button", "Hide SW1 · companion.step")
+                .unwrap()
                 .get_attribute("aria-pressed")
                 .as_deref(),
             Some("true")
@@ -617,13 +696,15 @@ mod tests {
         hidden_component.click();
         rendered().await;
         assert_eq!(
-            element("#m1-case-assembly-layers-list [aria-label='Show SW1 · switch.step']")
+            by_role_name(&scope, "button", "Show SW1 · switch.step")
+                .unwrap()
                 .get_attribute("aria-pressed")
                 .as_deref(),
             Some("false")
         );
         assert_eq!(
-            element("#m1-case-assembly-layers-list [aria-label='Hide SW1 · companion.step']")
+            by_role_name(&scope, "button", "Hide SW1 · companion.step")
+                .unwrap()
                 .get_attribute("aria-pressed")
                 .as_deref(),
             Some("true"),
@@ -635,10 +716,13 @@ mod tests {
                 .as_deref(),
             Some("switch-mesh-1")
         );
-        element("#m1-case-assembly-layers-list [aria-label='Show SW1 · switch.step']").click();
+        by_role_name(&scope, "button", "Show SW1 · switch.step")
+            .unwrap()
+            .click();
         rendered().await;
         assert_eq!(
-            element("#m1-case-assembly-layers-list [aria-label='Hide SW1 · switch.step']")
+            by_role_name(&scope, "button", "Hide SW1 · switch.step")
+                .unwrap()
                 .get_attribute("aria-pressed")
                 .as_deref(),
             Some("true")
@@ -650,13 +734,14 @@ mod tests {
             Some("")
         );
         assert_eq!(
-            element("#m1-case-assembly-layers-list [aria-label='Hide SW1 · companion.step']")
+            by_role_name(&scope, "button", "Hide SW1 · companion.step")
+                .unwrap()
                 .get_attribute("aria-pressed")
                 .as_deref(),
             Some("true")
         );
         let unavailable =
-            element("#m1-case-assembly-layers-list [aria-label='Show D1 · diode.step']");
+            by_role_name(&scope, "button", "Show D1 · diode.step").expect("missing model row");
         assert!(unavailable.has_attribute("disabled"));
         assert_eq!(
             unavailable.get_attribute("aria-pressed").as_deref(),
@@ -669,7 +754,8 @@ mod tests {
         let event =
             web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &event_init)
                 .unwrap();
-        element("#m1-case-assembly-layers-list [aria-label='Hide SW1 · switch.step']")
+        by_role_name(&scope, "button", "Hide SW1 · switch.step")
+            .unwrap()
             .dispatch_event(&event)
             .unwrap();
         rendered().await;

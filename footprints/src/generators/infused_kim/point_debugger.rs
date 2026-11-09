@@ -8,6 +8,7 @@
 //! printed `undefined`; the label is now an empty string.
 use crate::Result;
 use crate::context::RenderContext;
+use crate::generators::util::atom_or_string;
 use crate::number::js_number as n;
 use crate::params::ParamSpec;
 use crate::registry::{GeneratorSpec, License};
@@ -30,7 +31,7 @@ pub static SPEC: GeneratorSpec = GeneratorSpec {
         spdx: "CC-BY-NC-SA-4.0",
         author: "@infused-kim",
     },
-    body,
+    body: crate::registry::Body::Text(body),
 };
 
 fn body(p: &RenderContext<'_>) -> Result<String> {
@@ -56,7 +57,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
             )
 "#,
         at = p.at(),
-        reference = p.reference(),
+        reference = atom_or_string(p.reference()),
         hide = p.ref_hide(),
         rotation = n(p.rotation()),
     ))

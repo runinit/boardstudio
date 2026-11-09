@@ -51,6 +51,11 @@ pub mod case_display;
 pub mod case_generation_admission;
 pub mod closure_clearance;
 pub mod mechanical_feedback;
+pub mod mechanical_pair;
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+#[path = "mechanical_session_tests.rs"]
+mod mechanical_session_tests;
 
 #[cfg(target_arch = "wasm32")]
 pub mod cad_presentation;
@@ -58,6 +63,8 @@ pub mod cad_presentation;
 pub mod case_assembly_layers;
 #[cfg(target_arch = "wasm32")]
 pub mod case_bodies;
+#[cfg(target_arch = "wasm32")]
+mod case_collision;
 #[cfg(target_arch = "wasm32")]
 pub mod case_controller;
 #[cfg(target_arch = "wasm32")]

@@ -1,7 +1,31 @@
-//! Contextual Properties and Relations for one accepted standalone Layout part.
+//! Contextual Properties and Relationships for one accepted standalone Layout part.
 use crate::presentation::layout_workspace::LayoutInspectorTab;
+use crate::runtime::Runtime;
 use boardstudio_application::{Scope, SnapshotToken};
-use boardstudio_core::model::{Constraint, MirrorAxis, PartOutline, Vec2};
+use boardstudio_core::model::{
+    Constraint, ConstraintRelation, Follow, HalfExceptionState, MirrorAxis, OffsetAxes,
+    PartAnchorValueChange, PartOutline, Vec2,
+};
+use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
+use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
+use boardstudio_web_ui_shared::ui::checkbox::{Checkbox, CheckboxState};
+use boardstudio_web_ui_shared::ui::collapsible::{
+    Collapsible, CollapsibleContent, CollapsibleTrigger,
+};
+use boardstudio_web_ui_shared::ui::label::Label;
+use boardstudio_web_ui_shared::ui::tabs::{Tabs, TabsContent, TabsList, TabsTrigger};
+use boardstudio_web_ui_shared::ui::{
+    combobox::{Combobox, ComboboxOption},
+    field::{Field, FieldError, FieldLabel},
+    select::{Select, SelectOption},
+};
+use boardstudio_web_ui_shared::ui::{
+    input::InputType,
+    input_group::{InputGroup, InputGroupInput},
+};
+
+use boardstudio_web_runtime::pending_edits::PendingEditResult;
+use boardstudio_web_ui_shared::ui::icons::ChevronDown;
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use std::{
@@ -9,6 +33,14 @@ use std::{
     rc::Rc,
 };
 use wasm_bindgen::JsCast;
+
+type InspectorOwnerIdentity = (
+    boardstudio_application::Scope,
+    u64,
+    u64,
+    String,
+    Vec<String>,
+);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LayoutComponentInspectorOwnerKey {
@@ -66,6 +98,56 @@ pub struct LayoutComponentInspectorProjection {
     pub board_parts: Vec<BoardPartChoice>,
     pub active_constraint: Option<Constraint>,
     pub relationship_summary: String,
+    pub mirrored_half: Option<MirroredHalfProjection>,
+    /// Ticket 12: an independent part on a stored-gap half shows a
+    /// "Mirror on both halves" toggle instead of the member exception
+    /// buttons. `Some(true)` mirrors it today; `Some(false)` keeps it local.
+    pub part_mirror: Option<bool>,
+    /// Ticket 13: the part's column-vocabulary anchor and the anchor-key
+    /// choices on its layout for Pick. `None` is a detached part; parts
+    /// without a layout home cannot anchor.
+    pub anchor: Option<PartAnchorProjection>,
+    pub anchor_choices: Vec<AnchorKeyChoice>,
+}
+
+/// Ticket 13: what the part follows (anchor key plus Follow subset), what the
+/// anchor carries (Spread/Stagger/Splay) and what stays local to the part
+/// (Offset/Rotation).
+#[derive(Clone, Debug, PartialEq)]
+pub struct PartAnchorProjection {
+    pub matrix_id: String,
+    pub matrix_name: String,
+    pub row: u32,
+    pub column: u32,
+    pub follow: Follow,
+    pub spread: f64,
+    pub stagger: f64,
+    pub splay: f64,
+    pub offset: Vec2,
+    pub rotation: f64,
+}
+
+impl PartAnchorProjection {
+    pub fn key_label(&self) -> String {
+        format!("{} R{}C{}", self.matrix_name, self.row + 1, self.column + 1)
+    }
+}
+
+/// Ticket 13: one anchor-key choice for Pick: a matrix on the part's layout
+/// with its live dimensions.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AnchorKeyChoice {
+    pub matrix_id: String,
+    pub matrix_name: String,
+    pub rows: u32,
+    pub columns: u32,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MirroredHalfProjection {
+    pub pair_id: String,
+    pub mirror_id: String,
+    pub state: HalfExceptionState,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -78,12 +160,245 @@ pub struct LayoutChoice {
 pub struct BoardPartChoice {
     pub id: String,
     pub reference: String,
+    /// A matrix key: a new offset from it defaults to its own axes.
+    pub matrix_key: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum LayoutConstraintValues {
     Offset { offset: Vec2, rotation: f64 },
+    PartOffset { offset: Vec2, rotation: f64 },
     Mirror { axis: MirrorAxis, coordinate: f64 },
+    Framed { relation: ConstraintRelation },
+}
+
+/// A new offset from a matrix key follows the key's own axes; any other source uses the board's.
+pub(crate) fn default_offset_axes(source_is_matrix_key: bool) -> OffsetAxes {
+    if source_is_matrix_key {
+        OffsetAxes::Part
+    } else {
+        OffsetAxes::Board
+    }
+}
+
+/// The default axes for an offset from the board part `source_id`.
+fn default_axes_for_source(board_parts: &[BoardPartChoice], source_id: &str) -> OffsetAxes {
+    default_offset_axes(
+        board_parts
+            .iter()
+            .any(|part| part.id == source_id && part.matrix_key),
+    )
+}
+
+/// The value the Offset axes `<select>` uses for `axes`, and the inverse.
+fn offset_axes_value(axes: OffsetAxes) -> &'static str {
+    match axes {
+        OffsetAxes::Board => "board",
+        OffsetAxes::Part => "part",
+    }
+}
+
+fn offset_axes_from_value(value: &str) -> OffsetAxes {
+    if value == offset_axes_value(OffsetAxes::Part) {
+        OffsetAxes::Part
+    } else {
+        OffsetAxes::Board
+    }
+}
+
+/// What the Properties form shows for one part's layout constraint: the source part, the
+/// offset axes and the Offset X / Y and rotation drafts. The form's first render, every
+/// accepted-constraint resync and the reset all take their values from here.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct OffsetDrafts {
+    pub source_part_id: String,
+    pub axes: OffsetAxes,
+    pub offset_x: String,
+    pub offset_y: String,
+    pub rotation: String,
+}
+
+/// The drafts for `part_id` given the constraint that drives it, if any. A saved Framed
+/// constraint keeps its endpoint source, even when that part is on the paired board. A legacy
+/// constraint with an off-board source falls back to the first other part. Saved offset axes
+/// and numbers are preserved; otherwise axes follow the source and numbers are zero.
+pub(crate) fn offset_drafts(
+    constraint: Option<&Constraint>,
+    board_parts: &[BoardPartChoice],
+    part_id: &str,
+) -> OffsetDrafts {
+    let source_part_id = constraint
+        .filter(|constraint| {
+            matches!(constraint, Constraint::Framed { .. })
+                || board_parts
+                    .iter()
+                    .any(|part| part.id == constraint.source())
+        })
+        .map(Constraint::source)
+        .map(str::to_owned)
+        .or_else(|| {
+            board_parts
+                .iter()
+                .find(|part| part.id != part_id)
+                .map(|part| part.id.clone())
+        })
+        .unwrap_or_default();
+    let axes = constraint
+        .and_then(Constraint::offset_axes)
+        .unwrap_or_else(|| default_axes_for_source(board_parts, &source_part_id));
+    let (offset, rotation) = constraint
+        .and_then(Constraint::offset_numbers)
+        .unwrap_or((Vec2::default(), 0.0));
+    OffsetDrafts {
+        source_part_id,
+        axes,
+        offset_x: offset.x.to_string(),
+        offset_y: offset.y.to_string(),
+        rotation: rotation.to_string(),
+    }
+}
+
+/// The constraint values the Save button submits for the chosen axes.
+pub(crate) fn offset_values(
+    axes: OffsetAxes,
+    offset: Vec2,
+    rotation: f64,
+) -> LayoutConstraintValues {
+    match axes {
+        OffsetAxes::Board => LayoutConstraintValues::Offset { offset, rotation },
+        OffsetAxes::Part => LayoutConstraintValues::PartOffset { offset, rotation },
+    }
+}
+
+/// Ticket 011: one number the way `save_constraint` parses it. A finite parse
+/// encodes as its exact round-trip text; anything else encodes distinctly from
+/// every valid baseline, so realistic invalid drafts stay unresolved.
+fn constraint_number_canonical(raw: &str) -> String {
+    match raw.parse::<f64>() {
+        Ok(value) if value.is_finite() => format!("v:{value}"),
+        _ => format!("x:{raw}"),
+    }
+}
+
+fn mirror_axis_canonical(axis: &MirrorAxis) -> &'static str {
+    match axis {
+        MirrorAxis::Vertical => "vertical",
+        MirrorAxis::Horizontal => "horizontal",
+    }
+}
+
+/// Ticket 011: the constraint form's submittable state in the shape the Save
+/// button submits it. Only the active kind's fields participate downstream.
+struct ConstraintFormState<'a> {
+    kind: ConstraintKind,
+    source_part_id: &'a str,
+    axes: OffsetAxes,
+    offset_x: &'a str,
+    offset_y: &'a str,
+    rotation: &'a str,
+    mirror_axis: &'a MirrorAxis,
+    mirror_coordinate: &'a str,
+    mirror_line_x: &'a str,
+    mirror_line_y: &'a str,
+    mirror_line_angle: &'a str,
+}
+
+/// Ticket 011: the canonical constraint draft — exactly the state the Save
+/// button submits, with each number parsed the way `save_constraint` parses
+/// it. Only the active kind's fields participate, so stray text in an inactive
+/// kind never blocks. Formatting variants of one value ("1.0" vs "1") are
+/// the same draft; invalid text never equals a valid baseline.
+fn constraint_draft_canonical(state: ConstraintFormState<'_>) -> String {
+    let kind_name = match state.kind {
+        ConstraintKind::Offset => "offset",
+        ConstraintKind::Mirror => "mirror",
+        ConstraintKind::MirrorLine => "mirror-line",
+    };
+    match state.kind {
+        ConstraintKind::Offset => format!(
+            "{kind_name}|{source}|{axes}|{x}|{y}|{rotation}",
+            source = state.source_part_id,
+            axes = offset_axes_value(state.axes),
+            x = constraint_number_canonical(state.offset_x),
+            y = constraint_number_canonical(state.offset_y),
+            rotation = constraint_number_canonical(state.rotation),
+        ),
+        ConstraintKind::Mirror => format!(
+            "{kind_name}|{source}|{axis}|{coordinate}",
+            source = state.source_part_id,
+            axis = mirror_axis_canonical(state.mirror_axis),
+            coordinate = constraint_number_canonical(state.mirror_coordinate),
+        ),
+        ConstraintKind::MirrorLine => format!(
+            "{kind_name}|{source}|{x}|{y}|{angle}",
+            source = state.source_part_id,
+            x = constraint_number_canonical(state.mirror_line_x),
+            y = constraint_number_canonical(state.mirror_line_y),
+            angle = constraint_number_canonical(state.mirror_line_angle),
+        ),
+    }
+}
+
+/// Ticket 011: the canonical baseline for the constraint form: the accepted
+/// constraint driving the part (or the mount defaults when none exists)
+/// encoded through the same canonicalizer as the live draft, so equality
+/// means what the owning form means by "unchanged".
+fn constraint_baseline_canonical(
+    constraint: Option<&Constraint>,
+    board_parts: &[BoardPartChoice],
+    part_id: &str,
+) -> String {
+    let kind = match constraint {
+        Some(Constraint::Mirror { .. }) => ConstraintKind::Mirror,
+        Some(Constraint::Framed {
+            relation: ConstraintRelation::MirrorLine { .. },
+            ..
+        }) => ConstraintKind::MirrorLine,
+        _ => ConstraintKind::Offset,
+    };
+    let drafts = offset_drafts(constraint, board_parts, part_id);
+    let (mirror_axis, mirror_coordinate, mirror_line_x, mirror_line_y, mirror_line_angle) =
+        match constraint {
+            Some(Constraint::Mirror {
+                axis, coordinate, ..
+            }) => (
+                axis.clone(),
+                coordinate.to_string(),
+                "0".to_owned(),
+                "0".to_owned(),
+                "90".to_owned(),
+            ),
+            Some(Constraint::Framed {
+                relation: ConstraintRelation::MirrorLine { at, angle },
+                ..
+            }) => (
+                MirrorAxis::Vertical,
+                "0".to_owned(),
+                at.x.to_string(),
+                at.y.to_string(),
+                angle.to_string(),
+            ),
+            _ => (
+                MirrorAxis::Vertical,
+                "0".to_owned(),
+                "0".to_owned(),
+                "0".to_owned(),
+                "90".to_owned(),
+            ),
+        };
+    constraint_draft_canonical(ConstraintFormState {
+        kind,
+        source_part_id: &drafts.source_part_id,
+        axes: drafts.axes,
+        offset_x: &drafts.offset_x,
+        offset_y: &drafts.offset_y,
+        rotation: &drafts.rotation,
+        mirror_axis: &mirror_axis,
+        mirror_coordinate: &mirror_coordinate,
+        mirror_line_x: &mirror_line_x,
+        mirror_line_y: &mirror_line_y,
+        mirror_line_angle: &mirror_line_angle,
+    })
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -122,6 +437,7 @@ pub enum LayoutComponentInspectorAction {
         owner: LayoutComponentInspectorOwner,
         axis: ComponentPositionAxis,
         value: f64,
+        submitted_draft: String,
     },
     AssignLayout {
         owner: LayoutComponentInspectorOwner,
@@ -130,6 +446,7 @@ pub enum LayoutComponentInspectorAction {
     SetOutline {
         owner: LayoutComponentInspectorOwner,
         outline: PartOutline,
+        submitted_draft: String,
     },
     SetConstraint {
         owner: LayoutComponentInspectorOwner,
@@ -140,7 +457,50 @@ pub enum LayoutComponentInspectorAction {
         owner: LayoutComponentInspectorOwner,
         constraint_id: String,
     },
+    /// Re-expresses the saved offset constraint on the other axes without moving a part.
+    ConvertOffsetAxes {
+        owner: LayoutComponentInspectorOwner,
+        constraint_id: String,
+        to: OffsetAxes,
+    },
     NavigateElectrical {
+        owner: LayoutComponentInspectorOwner,
+    },
+    SetMirroredHalfState {
+        owner: LayoutComponentInspectorOwner,
+        pair_id: String,
+        mirror_id: String,
+        state: HalfExceptionState,
+    },
+    SetPartMirrored {
+        owner: LayoutComponentInspectorOwner,
+        part_id: String,
+        mirrored: bool,
+    },
+    /// Ticket 13: edit one carried (Spread/Stagger/Splay) or local
+    /// (Offset/Rotation) anchor value of an anchored part.
+    SetPartAnchorValue {
+        owner: LayoutComponentInspectorOwner,
+        change: PartAnchorValueChange,
+    },
+    /// Ticket 13: change the Follow subset of an anchored part.
+    SetPartAnchorFollow {
+        owner: LayoutComponentInspectorOwner,
+        follow: Follow,
+    },
+    /// Ticket 13, retarget rule 04: retarget an anchored part's anchor key
+    /// (Pick), keeping its stored values so the part moves to the fresh
+    /// placement from the new key — or anchor a detached part, which lands
+    /// on the picked key with the submitted values.
+    SetPartAnchor {
+        owner: LayoutComponentInspectorOwner,
+        matrix_id: String,
+        row: u32,
+        column: u32,
+        follow: Follow,
+    },
+    /// Ticket 13: detach an anchored part (Detach), keeping its pose.
+    DetachPartAnchor {
         owner: LayoutComponentInspectorOwner,
     },
 }
@@ -149,7 +509,19 @@ pub enum LayoutComponentInspectorAction {
 pub struct LayoutComponentInspectorProps {
     pub projection: LayoutComponentInspectorProjection,
     pub inspector_tab: Signal<LayoutInspectorTab>,
-    pub pending_edits: Signal<super::super::layout_component_edits::LayoutComponentInspectorEdits>,
+    pub(in crate::presentation) pending_edits:
+        Signal<super::super::layout_component_edits::LayoutComponentInspectorEdits>,
+    pub(in crate::presentation) x: Signal<String>,
+    pub(in crate::presentation) y: Signal<String>,
+    pub(in crate::presentation) margin: Signal<String>,
+    pub(in crate::presentation) x_failure: Signal<Option<String>>,
+    pub(in crate::presentation) y_failure: Signal<Option<String>>,
+    pub(in crate::presentation) margin_failure: Signal<Option<String>>,
+    pub(in crate::presentation) error: Signal<Option<String>>,
+    pub(in crate::presentation) layout_pending: Signal<bool>,
+    pub(in crate::presentation) constraint_pending: Signal<bool>,
+    pub(in crate::presentation) remove_pending: Signal<bool>,
+    pub(in crate::presentation) mirrored_half_pending: Signal<bool>,
     pub on_action: EventHandler<LayoutComponentInspectorAction>,
 }
 
@@ -157,6 +529,7 @@ pub struct LayoutComponentInspectorProps {
 enum ConstraintKind {
     Offset,
     Mirror,
+    MirrorLine,
 }
 
 /// X/Y are unavailable when the part is locked or when a saved relationship on
@@ -169,6 +542,21 @@ fn position_input_disabled(locked: bool) -> bool {
     locked
 }
 
+/// Ticket 13: an anchor number draft, two decimals like the position drafts.
+fn anchor_draft(
+    anchor: Option<&PartAnchorProjection>,
+    value: impl Fn(&PartAnchorProjection) -> f64,
+) -> String {
+    anchor
+        .map(|anchor| format!("{:.2}", value(anchor)))
+        .unwrap_or_default()
+}
+
+/// Ticket 13: parse an anchor number draft; `None` is unparseable or infinite.
+fn anchor_commit_value(draft: &str) -> Option<f64> {
+    draft.parse::<f64>().ok().filter(|value| value.is_finite())
+}
+
 fn position_commit_value(draft: &str, locked: bool) -> Option<f64> {
     if locked {
         return None;
@@ -177,21 +565,422 @@ fn position_commit_value(draft: &str, locked: bool) -> Option<f64> {
 }
 
 #[cfg(test)]
-mod locked_position_tests {
-    use super::{position_commit_value, position_input_disabled};
+mod constraint_canonical_tests {
+    use super::{constraint_baseline_canonical, constraint_draft_canonical};
+    use boardstudio_core::model::{Constraint, MirrorAxis, OffsetAxes, Vec2};
+
+    fn board_parts() -> Vec<super::BoardPartChoice> {
+        vec![
+            super::BoardPartChoice {
+                id: "selected-part".into(),
+                reference: "S".into(),
+                matrix_key: false,
+            },
+            super::BoardPartChoice {
+                id: "source-part".into(),
+                reference: "R".into(),
+                matrix_key: false,
+            },
+        ]
+    }
+
+    fn offset_draft(offset_x: &str) -> String {
+        constraint_draft_canonical(super::ConstraintFormState {
+            kind: super::ConstraintKind::Offset,
+            source_part_id: "source-part",
+            axes: OffsetAxes::Board,
+            offset_x,
+            offset_y: "-4",
+            rotation: "5",
+            mirror_axis: &MirrorAxis::Vertical,
+            mirror_coordinate: "0",
+            mirror_line_x: "0",
+            mirror_line_y: "0",
+            mirror_line_angle: "90",
+        })
+    }
+
+    fn offset_state(
+        kind: super::ConstraintKind,
+        source: &str,
+        axes: OffsetAxes,
+        offset_x: &str,
+    ) -> String {
+        constraint_draft_canonical(super::ConstraintFormState {
+            kind,
+            source_part_id: source,
+            axes,
+            offset_x,
+            offset_y: "-4",
+            rotation: "5",
+            mirror_axis: &MirrorAxis::Vertical,
+            mirror_coordinate: "0",
+            mirror_line_x: "0",
+            mirror_line_y: "0",
+            mirror_line_angle: "90",
+        })
+    }
+
+    fn offset_baseline(x: f64) -> String {
+        constraint_baseline_canonical(
+            Some(&Constraint::Offset {
+                id: "c".into(),
+                source_part_id: "source-part".into(),
+                target_part_id: "selected-part".into(),
+                offset: Vec2 { x, y: -4.0 },
+                rotation: 5.0,
+            }),
+            &board_parts(),
+            "selected-part",
+        )
+    }
 
     #[wasm_bindgen_test::wasm_bindgen_test]
-    fn locked_position_is_unavailable_and_cannot_dispatch_a_value() {
-        assert!(position_input_disabled(true));
-        assert_eq!(position_commit_value("124.73", true), None);
+    fn formatting_variants_of_one_value_compare_equal() {
+        assert_eq!(offset_draft("1.0"), offset_baseline(1.0));
+        assert_eq!(offset_draft("1.00"), offset_baseline(1.0));
+    }
 
-        assert!(!position_input_disabled(false));
-        assert_eq!(position_commit_value("125.73", false), Some(125.73));
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn invalid_or_non_finite_text_never_matches_a_valid_baseline() {
+        let baseline = offset_baseline(1.0);
+        for raw in ["not-a-number", "", "NaN", "inf", "-inf"] {
+            assert_ne!(offset_draft(raw), baseline, "{raw:?} must stay unresolved");
+        }
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn changed_values_sources_and_axes_compare_unequal() {
+        let baseline = offset_baseline(1.0);
+        assert_ne!(offset_draft("2"), baseline);
+        assert_ne!(
+            offset_state(
+                super::ConstraintKind::Offset,
+                "other-part",
+                OffsetAxes::Board,
+                "1"
+            ),
+            baseline
+        );
+        assert_ne!(
+            offset_state(
+                super::ConstraintKind::Offset,
+                "source-part",
+                OffsetAxes::Part,
+                "1"
+            ),
+            baseline
+        );
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn inactive_kind_fields_never_block() {
+        // Stray text in the mirror fields while the Offset kind is active is
+        // not submitted by Save, so it must not defer.
+        let baseline = offset_baseline(1.0);
+        assert_eq!(
+            constraint_draft_canonical(super::ConstraintFormState {
+                kind: super::ConstraintKind::Offset,
+                source_part_id: "source-part",
+                axes: OffsetAxes::Board,
+                offset_x: "1",
+                offset_y: "-4",
+                rotation: "5",
+                mirror_axis: &MirrorAxis::Horizontal,
+                mirror_coordinate: "not-a-number",
+                mirror_line_x: "nope",
+                mirror_line_y: "nil",
+                mirror_line_angle: "nah",
+            }),
+            baseline
+        );
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn no_accepted_constraint_falls_back_to_mount_defaults() {
+        let baseline = constraint_baseline_canonical(None, &board_parts(), "selected-part");
+        assert_eq!(
+            constraint_draft_canonical(super::ConstraintFormState {
+                kind: super::ConstraintKind::Offset,
+                source_part_id: "source-part",
+                axes: OffsetAxes::Board,
+                offset_x: "0",
+                offset_y: "0",
+                rotation: "0",
+                mirror_axis: &MirrorAxis::Vertical,
+                mirror_coordinate: "0",
+                mirror_line_x: "0",
+                mirror_line_y: "0",
+                mirror_line_angle: "90",
+            }),
+            baseline
+        );
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn mirror_baseline_round_trips_through_the_canonical_form() {
+        let baseline = constraint_baseline_canonical(
+            Some(&Constraint::Mirror {
+                id: "m".into(),
+                source_part_id: "source-part".into(),
+                target_part_id: "selected-part".into(),
+                axis: MirrorAxis::Horizontal,
+                coordinate: 2.5,
+            }),
+            &board_parts(),
+            "selected-part",
+        );
+        assert_eq!(
+            constraint_draft_canonical(super::ConstraintFormState {
+                kind: super::ConstraintKind::Mirror,
+                source_part_id: "source-part",
+                axes: OffsetAxes::Board,
+                offset_x: "0",
+                offset_y: "0",
+                rotation: "0",
+                mirror_axis: &MirrorAxis::Horizontal,
+                mirror_coordinate: "2.50",
+                mirror_line_x: "9",
+                mirror_line_y: "9",
+                mirror_line_angle: "9",
+            }),
+            baseline
+        );
+    }
+}
+
+#[cfg(test)]
+mod offset_axes_tests {
+    use super::{
+        BoardPartChoice, OffsetDrafts, default_offset_axes, offset_axes_from_value,
+        offset_axes_value, offset_drafts, offset_values,
+    };
+    use crate::presentation::inspector::LayoutConstraintValues;
+    use boardstudio_core::model::{
+        Constraint, ConstraintEndpoint, ConstraintRelation, MirrorAxis, OffsetAxes, Vec2,
+    };
+
+    fn offsets() -> (Constraint, Constraint, Constraint) {
+        let board = Constraint::Offset {
+            id: "c".into(),
+            source_part_id: "a".into(),
+            target_part_id: "b".into(),
+            offset: Vec2 { x: 1.0, y: -4.0 },
+            rotation: 5.0,
+        };
+        let part = Constraint::PartOffset {
+            id: "c".into(),
+            source_part_id: "a".into(),
+            target_part_id: "b".into(),
+            offset: Vec2 { x: 1.0, y: -4.0 },
+            rotation: 5.0,
+        };
+        let mirror = Constraint::Mirror {
+            id: "m".into(),
+            source_part_id: "a".into(),
+            target_part_id: "b".into(),
+            axis: MirrorAxis::Vertical,
+            coordinate: 0.0,
+        };
+        (board, part, mirror)
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn a_matrix_key_source_defaults_to_part_axes_and_any_other_source_to_board_axes() {
+        assert_eq!(default_offset_axes(true), OffsetAxes::Part);
+        assert_eq!(default_offset_axes(false), OffsetAxes::Board);
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn the_axes_select_value_round_trips_for_both_axes() {
+        for axes in [OffsetAxes::Board, OffsetAxes::Part] {
+            assert_eq!(offset_axes_from_value(offset_axes_value(axes)), axes);
+        }
+        assert_eq!(offset_axes_value(OffsetAxes::Board), "board");
+        assert_eq!(offset_axes_value(OffsetAxes::Part), "part");
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn the_axes_choice_and_the_numbers_read_both_offset_kinds() {
+        let (board, part, mirror) = offsets();
+        assert_eq!(board.offset_axes(), Some(OffsetAxes::Board));
+        assert_eq!(part.offset_axes(), Some(OffsetAxes::Part));
+        assert_eq!(mirror.offset_axes(), None);
+        let numbers = (Vec2 { x: 1.0, y: -4.0 }, 5.0);
+        assert_eq!(board.offset_numbers(), Some(numbers));
+        assert_eq!(part.offset_numbers(), Some(numbers));
+        assert_eq!(mirror.offset_numbers(), None);
+    }
+
+    /// A key, a diode and a plain part, in board order.
+    fn board() -> Vec<BoardPartChoice> {
+        let part = |id: &str, matrix_key| BoardPartChoice {
+            id: id.into(),
+            reference: id.to_uppercase(),
+            matrix_key,
+        };
+        vec![
+            part("key", true),
+            part("diode", false),
+            part("plain", false),
+        ]
+    }
+
+    fn zero_drafts(source: &str, axes: OffsetAxes) -> OffsetDrafts {
+        OffsetDrafts {
+            source_part_id: source.into(),
+            axes,
+            offset_x: "0".into(),
+            offset_y: "0".into(),
+            rotation: "0".into(),
+        }
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn a_saved_offset_shows_its_own_source_axes_and_numbers_for_either_kind() {
+        let (board_axes, part_axes, _) = offsets();
+        let saved = |axes| OffsetDrafts {
+            source_part_id: "a".into(),
+            axes,
+            offset_x: "1".into(),
+            offset_y: "-4".into(),
+            rotation: "5".into(),
+        };
+        let parts = [
+            BoardPartChoice {
+                id: "a".into(),
+                reference: "A".into(),
+                matrix_key: true,
+            },
+            BoardPartChoice {
+                id: "b".into(),
+                reference: "B".into(),
+                matrix_key: false,
+            },
+        ];
+        // The source is a matrix key, whose default is part axes: the saved kind still wins.
+        assert_eq!(
+            offset_drafts(Some(&board_axes), &parts, "b"),
+            saved(OffsetAxes::Board)
+        );
+        assert_eq!(
+            offset_drafts(Some(&part_axes), &parts, "b"),
+            saved(OffsetAxes::Part)
+        );
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn an_unconstrained_part_defaults_the_axes_by_its_first_other_part() {
+        // The diode's first other part is the key; the key's is the diode. The default is
+        // taken for the part now selected, not for the one the form first opened on.
+        assert_eq!(
+            offset_drafts(None, &board(), "diode"),
+            zero_drafts("key", OffsetAxes::Part)
+        );
+        assert_eq!(
+            offset_drafts(None, &board(), "key"),
+            zero_drafts("diode", OffsetAxes::Board)
+        );
+        assert_eq!(
+            offset_drafts(None, &board(), "plain"),
+            zero_drafts("key", OffsetAxes::Part)
+        );
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn a_mirror_constraint_or_an_off_board_source_shows_the_default_and_zeros() {
+        let (_, _, mirror) = offsets();
+        assert_eq!(
+            offset_drafts(Some(&mirror), &board(), "diode"),
+            zero_drafts("key", OffsetAxes::Part)
+        );
+        // `a` is not on this board, so the form falls back to the first other part.
+        let (off_board, _, _) = offsets();
+        let drafts = offset_drafts(Some(&off_board), &board(), "key");
+        assert_eq!(drafts.source_part_id, "diode");
+        assert_eq!(
+            drafts,
+            OffsetDrafts {
+                source_part_id: "diode".into(),
+                axes: OffsetAxes::Board,
+                offset_x: "1".into(),
+                offset_y: "-4".into(),
+                rotation: "5".into(),
+            }
+        );
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn an_off_board_part_offset_keeps_saved_axes_instead_of_the_fallback_default() {
+        let (_, off_board, _) = offsets();
+        assert_eq!(
+            offset_drafts(Some(&off_board), &board(), "key"),
+            OffsetDrafts {
+                source_part_id: "diode".into(),
+                axes: OffsetAxes::Part,
+                offset_x: "1".into(),
+                offset_y: "-4".into(),
+                rotation: "5".into(),
+            }
+        );
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn an_off_board_framed_source_keeps_its_endpoint_axes_and_numbers() {
+        let framed = Constraint::Framed {
+            id: "framed-offset".into(),
+            source: ConstraintEndpoint::Part {
+                part_id: "paired-board-source".into(),
+            },
+            target: ConstraintEndpoint::Part {
+                part_id: "key".into(),
+            },
+            relation: ConstraintRelation::PartOffset {
+                offset: Vec2 { x: 1.0, y: -4.0 },
+                rotation: 5.0,
+            },
+        };
+        assert_eq!(
+            offset_drafts(Some(&framed), &board(), "key"),
+            OffsetDrafts {
+                source_part_id: "paired-board-source".into(),
+                axes: OffsetAxes::Part,
+                offset_x: "1".into(),
+                offset_y: "-4".into(),
+                rotation: "5".into(),
+            }
+        );
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn saving_builds_the_constraint_kind_the_axes_choice_names() {
+        let offset = Vec2 { x: 2.0, y: 3.0 };
+        assert_eq!(
+            offset_values(OffsetAxes::Board, offset, 7.0),
+            LayoutConstraintValues::Offset {
+                offset,
+                rotation: 7.0
+            }
+        );
+        assert_eq!(
+            offset_values(OffsetAxes::Part, offset, 7.0),
+            LayoutConstraintValues::PartOffset {
+                offset,
+                rotation: 7.0
+            }
+        );
+        assert!(super::position_input_disabled(true));
+        assert!(!super::position_input_disabled(false));
+        assert_eq!(super::position_commit_value("12.5", true), None);
+        assert_eq!(super::position_commit_value("12.5", false), Some(12.5));
     }
 }
 
 #[component]
 pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element {
+    let mut mirror_section_open = use_signal(|| false);
+    let mut outline_section_open = use_signal(|| false);
+
     let projection = props.projection.clone();
     let owner = projection.owner.clone();
     // Selection lifetime is independent from the accepted snapshot. A newer
@@ -212,46 +1001,30 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
     }));
     let mut tab = props.inspector_tab;
     let mut constraint_open = use_signal(|| projection.active_constraint.is_some());
-    let mut x = use_signal(|| format!("{:.2}", projection.position.x));
-    let mut y = use_signal(|| format!("{:.2}", projection.position.y));
-    let mut margin = use_signal(|| {
-        projection
-            .outline
-            .margin
-            .map(|value| value.to_string())
-            .unwrap_or_default()
-    });
+    let mut x = props.x;
+    let mut y = props.y;
+    let mut margin = props.margin;
+    let x_failure = props.x_failure;
+    let y_failure = props.y_failure;
+    let margin_failure = props.margin_failure;
     let mut constraint_kind = use_signal(|| match projection.active_constraint.as_ref() {
         Some(Constraint::Mirror { .. }) => ConstraintKind::Mirror,
+        Some(Constraint::Framed {
+            relation: ConstraintRelation::MirrorLine { .. },
+            ..
+        }) => ConstraintKind::MirrorLine,
         _ => ConstraintKind::Offset,
     });
-    let initial_source = projection
-        .active_constraint
-        .as_ref()
-        .map(Constraint::source)
-        .filter(|source| projection.board_parts.iter().any(|part| part.id == *source))
-        .map(str::to_owned)
-        .or_else(|| {
-            projection
-                .board_parts
-                .iter()
-                .find(|part| part.id != owner.part_id)
-                .map(|part| part.id.clone())
-        })
-        .unwrap_or_default();
-    let mut source_part_id = use_signal(|| initial_source.clone());
-    let mut offset_x = use_signal(|| match projection.active_constraint.as_ref() {
-        Some(Constraint::Offset { offset, .. }) => offset.x.to_string(),
-        _ => "0".to_owned(),
-    });
-    let mut offset_y = use_signal(|| match projection.active_constraint.as_ref() {
-        Some(Constraint::Offset { offset, .. }) => offset.y.to_string(),
-        _ => "0".to_owned(),
-    });
-    let mut rotation = use_signal(|| match projection.active_constraint.as_ref() {
-        Some(Constraint::Offset { rotation, .. }) => rotation.to_string(),
-        _ => "0".to_owned(),
-    });
+    let drafts = offset_drafts(
+        projection.active_constraint.as_ref(),
+        &projection.board_parts,
+        &owner.part_id,
+    );
+    let mut source_part_id = use_signal(|| drafts.source_part_id.clone());
+    let mut offset_axes = use_signal(|| drafts.axes);
+    let mut offset_x = use_signal(|| drafts.offset_x.clone());
+    let mut offset_y = use_signal(|| drafts.offset_y.clone());
+    let mut rotation = use_signal(|| drafts.rotation.clone());
     let mut mirror_axis = use_signal(|| match projection.active_constraint.as_ref() {
         Some(Constraint::Mirror { axis, .. }) => axis.clone(),
         _ => MirrorAxis::Vertical,
@@ -260,7 +1033,219 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
         Some(Constraint::Mirror { coordinate, .. }) => coordinate.to_string(),
         _ => "0".to_owned(),
     });
-    let mut error = use_signal(|| None::<String>);
+    let mut mirror_line_x = use_signal(|| match projection.active_constraint.as_ref() {
+        Some(Constraint::Framed {
+            relation: ConstraintRelation::MirrorLine { at, .. },
+            ..
+        }) => at.x.to_string(),
+        _ => "0".to_owned(),
+    });
+    let mut mirror_line_y = use_signal(|| match projection.active_constraint.as_ref() {
+        Some(Constraint::Framed {
+            relation: ConstraintRelation::MirrorLine { at, .. },
+            ..
+        }) => at.y.to_string(),
+        _ => "0".to_owned(),
+    });
+    let mut mirror_line_angle = use_signal(|| match projection.active_constraint.as_ref() {
+        Some(Constraint::Framed {
+            relation: ConstraintRelation::MirrorLine { angle, .. },
+            ..
+        }) => angle.to_string(),
+        _ => "90".to_owned(),
+    });
+    let layout_choice = use_memo(use_reactive((&projection.layout_id,), |(layout,)| {
+        Some(layout.unwrap_or_default())
+    }));
+    let kind_choice = use_memo(move || {
+        Some(
+            match constraint_kind() {
+                ConstraintKind::Offset => "offset",
+                ConstraintKind::Mirror => "mirror",
+                ConstraintKind::MirrorLine => "mirror-line",
+            }
+            .to_owned(),
+        )
+    });
+    let source_choice = use_memo(move || Some(source_part_id()));
+    let axes_choice = use_memo(move || Some(offset_axes_value(offset_axes()).to_owned()));
+    let axis_choice = use_memo(move || {
+        Some(
+            if mirror_axis() == MirrorAxis::Vertical {
+                "vertical"
+            } else {
+                "horizontal"
+            }
+            .to_owned(),
+        )
+    });
+    let mut error = props.error;
+    // Ticket 011: the canonical value the constraint Save button last submitted
+    // (set only on the validated path), the previously seen accepted baseline
+    // for the clean-gated resync, the count of drained landings for the
+    // constraint admission key, and the draft-owner registry guard. The guard
+    // is registered under WorkbenchApp's production Runtime provider;
+    // isolated display-only fixtures may omit it.
+    let draft_owner_runtime = try_use_context::<Rc<Runtime>>();
+    let mut submitted_constraint = use_signal(|| None::<String>);
+    let mut submitted_remove = use_signal(|| None::<(InspectorOwnerIdentity, String)>);
+    let constraint_baseline_seen = use_signal(|| None::<String>);
+    let mut constraint_landed_nonce = use_signal(|| 0u64);
+    let constraint_landed_seen = use_signal(|| None::<u64>);
+    let draft_owner_guard =
+        use_signal(|| None::<boardstudio_web_runtime::draft_owners::DraftOwnerGuard>);
+    let draft_owner_scope = draft_owner_runtime.as_ref().and_then(|runtime| {
+        runtime
+            .model()
+            .accepted
+            .as_ref()
+            .map(|snapshot| (snapshot.document.id.clone(), snapshot.session_epoch))
+    });
+    // Ticket 13: column-vocabulary drafts. They reset from the accepted
+    // anchor whenever a committed edit bumps the revision; typing never
+    // commits until Enter or blur.
+    let mut anchor_spread =
+        use_signal(|| anchor_draft(projection.anchor.as_ref(), |anchor| anchor.spread));
+    let mut anchor_stagger =
+        use_signal(|| anchor_draft(projection.anchor.as_ref(), |anchor| anchor.stagger));
+    let mut anchor_splay =
+        use_signal(|| anchor_draft(projection.anchor.as_ref(), |anchor| anchor.splay));
+    let mut anchor_offset_x =
+        use_signal(|| anchor_draft(projection.anchor.as_ref(), |anchor| anchor.offset.x));
+    let mut anchor_offset_y =
+        use_signal(|| anchor_draft(projection.anchor.as_ref(), |anchor| anchor.offset.y));
+    let mut anchor_rotation =
+        use_signal(|| anchor_draft(projection.anchor.as_ref(), |anchor| anchor.rotation));
+    let mut pick_matrix = use_signal(|| {
+        projection
+            .anchor
+            .as_ref()
+            .map(|anchor| anchor.matrix_id.clone())
+            .or_else(|| {
+                projection
+                    .anchor_choices
+                    .first()
+                    .map(|choice| choice.matrix_id.clone())
+            })
+            .unwrap_or_default()
+    });
+    let pick_matrix_choice = use_memo(move || Some(pick_matrix()));
+    let mut pick_row = use_signal(|| {
+        projection
+            .anchor
+            .as_ref()
+            .map(|anchor| (anchor.row + 1).to_string())
+            .unwrap_or_else(|| "1".to_owned())
+    });
+    let mut pick_column = use_signal(|| {
+        projection
+            .anchor
+            .as_ref()
+            .map(|anchor| (anchor.column + 1).to_string())
+            .unwrap_or_else(|| "1".to_owned())
+    });
+    let mut pick_follow_x = use_signal(|| {
+        projection
+            .anchor
+            .as_ref()
+            .map(|anchor| anchor.follow.x)
+            .unwrap_or(true)
+    });
+    let mut pick_follow_y = use_signal(|| {
+        projection
+            .anchor
+            .as_ref()
+            .map(|anchor| anchor.follow.y)
+            .unwrap_or(true)
+    });
+    let mut pick_follow_rotation = use_signal(|| {
+        projection
+            .anchor
+            .as_ref()
+            .map(|anchor| anchor.follow.rotation)
+            .unwrap_or(true)
+    });
+    {
+        let projection = projection.clone();
+        let revision = owner.revision;
+        use_effect(use_reactive((&revision,), move |_| {
+            anchor_spread.set(anchor_draft(projection.anchor.as_ref(), |anchor| {
+                anchor.spread
+            }));
+            anchor_stagger.set(anchor_draft(projection.anchor.as_ref(), |anchor| {
+                anchor.stagger
+            }));
+            anchor_splay.set(anchor_draft(projection.anchor.as_ref(), |anchor| {
+                anchor.splay
+            }));
+            anchor_offset_x.set(anchor_draft(projection.anchor.as_ref(), |anchor| {
+                anchor.offset.x
+            }));
+            anchor_offset_y.set(anchor_draft(projection.anchor.as_ref(), |anchor| {
+                anchor.offset.y
+            }));
+            anchor_rotation.set(anchor_draft(projection.anchor.as_ref(), |anchor| {
+                anchor.rotation
+            }));
+        }));
+    }
+    let pending = props.pending_edits.peek().clone();
+    let last_owner = use_hook(|| Rc::new(RefCell::new(None::<LayoutComponentInspectorOwnerKey>)));
+    let owner_is_live = {
+        let mut previous = last_owner.borrow_mut();
+        let changed = previous.as_ref().is_some_and(|old| {
+            old != &LayoutComponentInspectorOwnerKey {
+                scope: Some(owner.scope.clone()),
+                workspace: "Layout",
+                part_id: Some(owner.part_id.clone()),
+                selected_part_ids: owner.selected_part_ids.clone(),
+            }
+        });
+        *previous = Some(LayoutComponentInspectorOwnerKey {
+            scope: Some(owner.scope.clone()),
+            workspace: "Layout",
+            part_id: Some(owner.part_id.clone()),
+            selected_part_ids: owner.selected_part_ids.clone(),
+        });
+        !changed
+    };
+    pending.bind_one_shot(
+        super::super::layout_component_edits::InspectorField::Layout,
+        props.layout_pending,
+    );
+    pending.bind_one_shot(
+        super::super::layout_component_edits::InspectorField::Constraint,
+        props.constraint_pending,
+    );
+    pending.bind_one_shot(
+        super::super::layout_component_edits::InspectorField::RemoveConstraint,
+        props.remove_pending,
+    );
+    pending.bind_one_shot(
+        super::super::layout_component_edits::InspectorField::MirroredHalfState,
+        props.mirrored_half_pending,
+    );
+    // The member exception buttons and the independent-part toggle never show
+    // together, so they share one pending slot.
+    pending.bind_one_shot(
+        super::super::layout_component_edits::InspectorField::PartMirror,
+        props.mirrored_half_pending,
+    );
+    let mirrored_half_action = |state| {
+        let mirrored_half = projection.mirrored_half.clone();
+        let owner = latest_capture;
+        let action = props.on_action;
+        move |_| {
+            if let Some(mirrored_half) = mirrored_half.as_ref() {
+                action.call(LayoutComponentInspectorAction::SetMirroredHalfState {
+                    owner: owner(),
+                    pair_id: mirrored_half.pair_id.clone(),
+                    mirror_id: mirrored_half.mirror_id.clone(),
+                    state,
+                });
+            }
+        }
+    };
 
     let initial_position = projection.position;
     let initial_outline = projection.outline.clone();
@@ -274,69 +1259,144 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
             error.set(None);
         }
     }));
+    let mut previous_x = use_signal(|| None::<(InspectorOwnerIdentity, f64)>);
     let accepted_x = (identity.clone(), initial_position.x);
+    let identity_x = identity.clone();
+    let pending_x = pending.clone();
     use_effect(use_reactive((&accepted_x,), move |((_, value),)| {
-        x.set(format!("{value:.2}"));
+        let previous = previous_x.peek().clone();
+        let clean = previous.as_ref().is_none_or(|(old_identity, old_value)| {
+            old_identity != &identity_x || x.peek().as_str() == format!("{old_value:.2}")
+        });
+        if clean && !pending_x.is_pending(&super::super::layout_component_edits::InspectorField::X)
+        {
+            x.set(format!("{value:.2}"));
+        }
+        previous_x.set(Some((identity_x.clone(), value)));
     }));
+    let mut previous_y = use_signal(|| None::<(InspectorOwnerIdentity, f64)>);
     let accepted_y = (identity.clone(), initial_position.y);
+    let identity_y = identity.clone();
+    let pending_y = pending.clone();
     use_effect(use_reactive((&accepted_y,), move |((_, value),)| {
-        y.set(format!("{value:.2}"));
+        let previous = previous_y.peek().clone();
+        let clean = previous.as_ref().is_none_or(|(old_identity, old_value)| {
+            old_identity != &identity_y || y.peek().as_str() == format!("{old_value:.2}")
+        });
+        if clean && !pending_y.is_pending(&super::super::layout_component_edits::InspectorField::Y)
+        {
+            y.set(format!("{value:.2}"));
+        }
+        previous_y.set(Some((identity_y.clone(), value)));
     }));
+    let mut previous_margin = use_signal(|| None::<(InspectorOwnerIdentity, Option<f64>)>);
     let accepted_margin = (identity.clone(), initial_outline.margin);
+    let identity_margin = identity.clone();
+    let pending_margin = pending.clone();
     use_effect(use_reactive((&accepted_margin,), move |((_, value),)| {
-        margin.set(value.map(|value| value.to_string()).unwrap_or_default());
+        let previous = previous_margin.peek().clone();
+        let old_text = previous
+            .as_ref()
+            .map(|(_, value)| value.map(|value| value.to_string()).unwrap_or_default());
+        let clean = previous
+            .as_ref()
+            .is_none_or(|(old_identity, _)| old_identity != &identity_margin)
+            || old_text.as_deref() == Some(margin.peek().as_str());
+        if clean
+            && !pending_margin
+                .is_pending(&super::super::layout_component_edits::InspectorField::Margin)
+        {
+            margin.set(value.map(|value| value.to_string()).unwrap_or_default());
+        }
+        previous_margin.set(Some((identity_margin.clone(), value)));
     }));
     let accepted_constraint = (identity.clone(), initial_constraint.clone());
-    use_effect(use_reactive((&accepted_constraint,), {
-        move |((_, constraint),)| {
-            constraint_open.set(constraint.is_some());
-            constraint_kind.set(if matches!(constraint, Some(Constraint::Mirror { .. })) {
-                ConstraintKind::Mirror
-            } else {
-                ConstraintKind::Offset
+    let landed_nonce_value = constraint_landed_nonce();
+    use_effect(use_reactive((&accepted_constraint, &landed_nonce_value), {
+        let board_parts = board_parts.clone();
+        let part_id = part_id.clone();
+        let mut constraint_baseline_seen = constraint_baseline_seen;
+        let mut constraint_landed_seen = constraint_landed_seen;
+        let submitted_constraint = submitted_constraint;
+        move |((_, constraint), nonce)| {
+            // Ticket 011: settlement-time draft preservation. The resync runs
+            // while the live form still matches the previously seen baseline
+            // (a clean form follows a new accepted value). It also runs when
+            // the matching own submission just landed: an own Save or axes
+            // conversion landing re-expresses the numbers, so the form
+            // follows the landed result — but only while the screen still
+            // shows exactly what was submitted, so newer typing across an
+            // older settlement is never clobbered. Any other divergence is
+            // an open draft that survives the accepted update — including
+            // the 007 clobber — until its own Save/Remove lands or the
+            // designer reverts it. The seen baseline always advances to the
+            // current accepted value so a later revert compares against the
+            // latest.
+            let live = constraint_draft_canonical(ConstraintFormState {
+                kind: *constraint_kind.peek(),
+                source_part_id: &source_part_id.peek(),
+                axes: *offset_axes.peek(),
+                offset_x: &offset_x.peek(),
+                offset_y: &offset_y.peek(),
+                rotation: &rotation.peek(),
+                mirror_axis: &mirror_axis.peek(),
+                mirror_coordinate: &mirror_coordinate.peek(),
+                mirror_line_x: &mirror_line_x.peek(),
+                mirror_line_y: &mirror_line_y.peek(),
+                mirror_line_angle: &mirror_line_angle.peek(),
             });
-            let source = constraint
+            let current =
+                constraint_baseline_canonical(constraint.as_ref(), &board_parts, &part_id);
+            let clean = constraint_baseline_seen
+                .peek()
                 .as_ref()
-                .map(Constraint::source)
-                .filter(|source| board_parts.iter().any(|part| part.id == *source))
-                .map(str::to_owned)
-                .or_else(|| {
-                    board_parts
-                        .iter()
-                        .find(|part| part.id != part_id)
-                        .map(|part| part.id.clone())
-                })
-                .unwrap_or_default();
-            source_part_id.set(source);
-            match constraint {
-                Some(Constraint::Offset {
-                    offset,
-                    rotation: degrees,
-                    ..
-                }) => {
-                    offset_x.set(offset.x.to_string());
-                    offset_y.set(offset.y.to_string());
-                    rotation.set(degrees.to_string());
+                .is_none_or(|seen| *seen == live);
+            let just_landed = constraint_landed_seen.peek().as_ref() != Some(&nonce);
+            constraint_landed_seen.set(Some(nonce));
+            let follows_own_landing =
+                just_landed && submitted_constraint.peek().as_ref() == Some(&live);
+            if clean || follows_own_landing {
+                constraint_open.set(constraint.is_some());
+                constraint_kind.set(match constraint.as_ref() {
+                    Some(Constraint::Mirror { .. }) => ConstraintKind::Mirror,
+                    Some(Constraint::Framed {
+                        relation: ConstraintRelation::MirrorLine { .. },
+                        ..
+                    }) => ConstraintKind::MirrorLine,
+                    _ => ConstraintKind::Offset,
+                });
+                let drafts = offset_drafts(constraint.as_ref(), &board_parts, &part_id);
+                source_part_id.set(drafts.source_part_id);
+                offset_axes.set(drafts.axes);
+                offset_x.set(drafts.offset_x);
+                offset_y.set(drafts.offset_y);
+                rotation.set(drafts.rotation);
+                match constraint {
+                    Some(Constraint::Mirror {
+                        axis, coordinate, ..
+                    }) => {
+                        mirror_axis.set(axis.clone());
+                        mirror_coordinate.set(coordinate.to_string());
+                    }
+                    Some(Constraint::Framed {
+                        relation: ConstraintRelation::MirrorLine { at, angle },
+                        ..
+                    }) => {
+                        mirror_line_x.set(at.x.to_string());
+                        mirror_line_y.set(at.y.to_string());
+                        mirror_line_angle.set(angle.to_string());
+                    }
+                    _ => {
+                        mirror_axis.set(MirrorAxis::Vertical);
+                        mirror_coordinate.set("0".to_owned());
+                        mirror_line_x.set("0".to_owned());
+                        mirror_line_y.set("0".to_owned());
+                        mirror_line_angle.set("90".to_owned());
+                    }
                 }
-                _ => {
-                    offset_x.set("0".to_owned());
-                    offset_y.set("0".to_owned());
-                    rotation.set("0".to_owned());
-                }
+                error.set(None);
             }
-            match constraint {
-                Some(Constraint::Mirror {
-                    axis, coordinate, ..
-                }) => {
-                    mirror_axis.set(axis.clone());
-                    mirror_coordinate.set(coordinate.to_string());
-                }
-                _ => {
-                    mirror_axis.set(MirrorAxis::Vertical);
-                    mirror_coordinate.set("0".to_owned());
-                }
-            }
-            error.set(None);
+            constraint_baseline_seen.set(Some(current));
         }
     }));
     let reset_properties_drafts = {
@@ -346,15 +1406,19 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
         let mut constraint_open = constraint_open;
         let mut constraint_kind = constraint_kind;
         let mut source_part_id = source_part_id;
+        let mut offset_axes = offset_axes;
         let mut offset_x = offset_x;
         let mut offset_y = offset_y;
         let mut rotation = rotation;
         let mut mirror_axis = mirror_axis;
         let mut mirror_coordinate = mirror_coordinate;
+        let mut mirror_line_x = mirror_line_x;
+        let mut mirror_line_y = mirror_line_y;
+        let mut mirror_line_angle = mirror_line_angle;
         let mut error = error;
         let initial_margin = initial_outline.margin;
         let initial_constraint = initial_constraint.clone();
-        let initial_source = initial_source.clone();
+        let initial_drafts = drafts.clone();
         move || {
             x.set(format!("{:.2}", initial_position.x));
             y.set(format!("{:.2}", initial_position.y));
@@ -364,30 +1428,20 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                     .unwrap_or_default(),
             );
             constraint_open.set(initial_constraint.is_some());
-            constraint_kind.set(
-                if matches!(initial_constraint.as_ref(), Some(Constraint::Mirror { .. })) {
-                    ConstraintKind::Mirror
-                } else {
-                    ConstraintKind::Offset
-                },
-            );
-            source_part_id.set(initial_source.clone());
-            match initial_constraint.as_ref() {
-                Some(Constraint::Offset {
-                    offset,
-                    rotation: degrees,
+            constraint_kind.set(match initial_constraint.as_ref() {
+                Some(Constraint::Mirror { .. }) => ConstraintKind::Mirror,
+                Some(Constraint::Framed {
+                    relation: ConstraintRelation::MirrorLine { .. },
                     ..
-                }) => {
-                    offset_x.set(offset.x.to_string());
-                    offset_y.set(offset.y.to_string());
-                    rotation.set(degrees.to_string());
-                }
-                _ => {
-                    offset_x.set("0".to_owned());
-                    offset_y.set("0".to_owned());
-                    rotation.set("0".to_owned());
-                }
-            }
+                }) => ConstraintKind::MirrorLine,
+                _ => ConstraintKind::Offset,
+            });
+            let drafts = initial_drafts.clone();
+            source_part_id.set(drafts.source_part_id);
+            offset_axes.set(drafts.axes);
+            offset_x.set(drafts.offset_x);
+            offset_y.set(drafts.offset_y);
+            rotation.set(drafts.rotation);
             match initial_constraint.as_ref() {
                 Some(Constraint::Mirror {
                     axis, coordinate, ..
@@ -395,34 +1449,243 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                     mirror_axis.set(axis.clone());
                     mirror_coordinate.set(coordinate.to_string());
                 }
+                Some(Constraint::Framed {
+                    relation: ConstraintRelation::MirrorLine { at, angle },
+                    ..
+                }) => {
+                    mirror_line_x.set(at.x.to_string());
+                    mirror_line_y.set(at.y.to_string());
+                    mirror_line_angle.set(angle.to_string());
+                }
                 _ => {
                     mirror_axis.set(MirrorAxis::Vertical);
                     mirror_coordinate.set("0".to_owned());
+                    mirror_line_x.set("0".to_owned());
+                    mirror_line_y.set("0".to_owned());
+                    mirror_line_angle.set("90".to_owned());
                 }
             }
             error.set(None);
         }
     };
-
-    // Settle the pending edit tickets before rendering: pending fields keep their
-    // drafts, failures restore the accepted value with the message inline, and landed
-    // or retired tickets drop so the fields follow the accepted document again.
-    {
-        let mut settle_x = x;
-        let mut settle_y = y;
-        let mut settle_margin = margin;
-        let mut settle_error = error;
-        super::super::layout_component_edits::settle_inspector_edits(
-            props.pending_edits,
-            projection.position.x,
-            projection.position.y,
-            projection.outline.margin,
-            &mut settle_x,
-            &mut settle_y,
-            &mut settle_margin,
-            &mut settle_error,
-        );
+    pending.bind_field(
+        super::super::layout_component_edits::InspectorField::X,
+        x,
+        x_failure,
+    );
+    pending.bind_field(
+        super::super::layout_component_edits::InspectorField::Y,
+        y,
+        y_failure,
+    );
+    pending.bind_field(
+        super::super::layout_component_edits::InspectorField::Margin,
+        margin,
+        margin_failure,
+    );
+    let accepted_projection = projection.clone();
+    let settle_results = pending.settle(owner_is_live, move |key| match key {
+        super::super::layout_component_edits::InspectorField::X => {
+            format!("{:.2}", accepted_projection.position.x)
+        }
+        super::super::layout_component_edits::InspectorField::Y => {
+            format!("{:.2}", accepted_projection.position.y)
+        }
+        super::super::layout_component_edits::InspectorField::Margin => accepted_projection
+            .outline
+            .margin
+            .map(|value| value.to_string())
+            .unwrap_or_default(),
+        _ => String::new(),
+    });
+    // Remove resolves only the draft it observed at the click. A newer
+    // editable value survives its older landing; failure/refusal never resets.
+    // A Landed Save (or axes conversion, which shares the Constraint key)
+    // bumps the landing nonce so the accepted-constraint effect can follow
+    // the landed result while the screen still shows the submitted value.
+    let mut constraint_landed = false;
+    let mut remove_landed = false;
+    for result in &settle_results {
+        match result {
+            PendingEditResult::Landed {
+                key: super::super::layout_component_edits::InspectorField::Constraint,
+                ..
+            } => constraint_landed = true,
+            PendingEditResult::Landed {
+                key: super::super::layout_component_edits::InspectorField::RemoveConstraint,
+                ..
+            } => remove_landed = true,
+            PendingEditResult::Failed {
+                key: super::super::layout_component_edits::InspectorField::RemoveConstraint,
+                ..
+            }
+            | PendingEditResult::Retired {
+                key: super::super::layout_component_edits::InspectorField::RemoveConstraint,
+            } => submitted_remove.set(None),
+            _ => {}
+        }
     }
+    if constraint_landed {
+        constraint_landed_nonce.set(constraint_landed_nonce() + 1);
+    }
+    let remove_may_reset = remove_landed
+        && submitted_remove
+            .write()
+            .take()
+            .is_some_and(|(submitted_owner, submitted)| {
+                submitted_owner == identity
+                    && submitted
+                        == constraint_draft_canonical(ConstraintFormState {
+                            kind: *constraint_kind.peek(),
+                            source_part_id: &source_part_id.peek(),
+                            axes: *offset_axes.peek(),
+                            offset_x: &offset_x.peek(),
+                            offset_y: &offset_y.peek(),
+                            rotation: &rotation.peek(),
+                            mirror_axis: &mirror_axis.peek(),
+                            mirror_coordinate: &mirror_coordinate.peek(),
+                            mirror_line_x: &mirror_line_x.peek(),
+                            mirror_line_y: &mirror_line_y.peek(),
+                            mirror_line_angle: &mirror_line_angle.peek(),
+                        })
+            });
+    if remove_may_reset {
+        let defaults = offset_drafts(None, &board_parts, &part_id);
+        constraint_kind.set(ConstraintKind::Offset);
+        source_part_id.set(defaults.source_part_id);
+        offset_axes.set(defaults.axes);
+        offset_x.set(defaults.offset_x);
+        offset_y.set(defaults.offset_y);
+        rotation.set(defaults.rotation);
+        mirror_axis.set(MirrorAxis::Vertical);
+        mirror_coordinate.set("0".to_owned());
+        mirror_line_x.set("0".to_owned());
+        mirror_line_y.set("0".to_owned());
+        mirror_line_angle.set("90".to_owned());
+        error.set(None);
+        submitted_constraint.set(None);
+    }
+    let retired_pending = pending.clone();
+    use_drop(move || {
+        retired_pending.settle(false, |_| String::new());
+    });
+    // Ticket 011: register the constraint admission key with the Runtime-owned
+    // draft registry. Unresolved = the live form differs from the live-projected
+    // accepted constraint under owner-canonical equality, and no in-flight
+    // Save for this key carries the current draft value. Invalid text never
+    // equals the always-valid baseline, so realistic invalid drafts defer.
+    // Hidden and keep-mounted instances keep blocking through the same guard;
+    // genuine unmount retires explicitly, and the gate's poll-prune drops
+    // anything left dead. Registration is skipped without a Runtime context.
+    let draft_owner_binding = (
+        draft_owner_scope.clone(),
+        identity.clone(),
+        board_parts
+            .iter()
+            .map(|part| part.id.clone())
+            .collect::<Vec<_>>(),
+    );
+    use_effect(use_reactive((&draft_owner_binding,), {
+        let draft_owner_runtime = draft_owner_runtime.clone();
+        let constraint_kind = constraint_kind;
+        let source_part_id = source_part_id;
+        let offset_axes = offset_axes;
+        let offset_x = offset_x;
+        let offset_y = offset_y;
+        let rotation = rotation;
+        let mirror_axis = mirror_axis;
+        let mirror_coordinate = mirror_coordinate;
+        let mirror_line_x = mirror_line_x;
+        let mirror_line_y = mirror_line_y;
+        let mirror_line_angle = mirror_line_angle;
+        let submitted_constraint = submitted_constraint;
+        let pending = pending.clone();
+        let board_parts = board_parts.clone();
+        let part_id = part_id.clone();
+        let mut draft_owner_guard = draft_owner_guard;
+        let draft_owner_scope = draft_owner_scope.clone();
+        move |(_binding,)| {
+            let Some(runtime) = draft_owner_runtime.clone() else {
+                return;
+            };
+            let retired = draft_owner_guard.write().take();
+            if let Some(retired) = retired {
+                runtime.retire_draft_owner(retired);
+            }
+            let Some(scope) = draft_owner_scope.clone() else {
+                return;
+            };
+            let probe_runtime = runtime.clone();
+            let probe_pending = pending.clone();
+            let probe_board_parts = board_parts.clone();
+            let probe_part_id = part_id.clone();
+            let probe_scope = scope.clone();
+            let is_unresolved = std::rc::Rc::new(move || {
+                let live = constraint_draft_canonical(ConstraintFormState {
+                    kind: *constraint_kind.peek(),
+                    source_part_id: &source_part_id.peek(),
+                    axes: *offset_axes.peek(),
+                    offset_x: &offset_x.peek(),
+                    offset_y: &offset_y.peek(),
+                    rotation: &rotation.peek(),
+                    mirror_axis: &mirror_axis.peek(),
+                    mirror_coordinate: &mirror_coordinate.peek(),
+                    mirror_line_x: &mirror_line_x.peek(),
+                    mirror_line_y: &mirror_line_y.peek(),
+                    mirror_line_angle: &mirror_line_angle.peek(),
+                });
+                let model = probe_runtime.model();
+                let Some(snapshot) = model.accepted.as_ref() else {
+                    return false;
+                };
+                if snapshot.document.id != probe_scope.0 || snapshot.session_epoch != probe_scope.1
+                {
+                    return false;
+                }
+                let baseline = match snapshot.document.constraint_driving_part(&probe_part_id) {
+                    Ok(constraint) => constraint_baseline_canonical(
+                        constraint,
+                        &probe_board_parts,
+                        &probe_part_id,
+                    ),
+                    // An unverifiable store cannot prove the draft clean.
+                    Err(_) => return true,
+                };
+                if live == baseline {
+                    return false;
+                }
+                if probe_pending
+                    .is_pending(&super::super::layout_component_edits::InspectorField::Constraint)
+                    && submitted_constraint.peek().as_ref() == Some(&live)
+                {
+                    return false;
+                }
+                true
+            });
+            draft_owner_guard.set(Some(runtime.register_draft_owner(
+                boardstudio_web_runtime::draft_owners::DraftOwnerRegistration {
+                    project_scope: scope,
+                    workspace: "Layout",
+                    owner: "layout-constraint",
+                    admission_key: "save",
+                    area: "Layout constraint".to_owned(),
+                    remedy: "Save or remove the constraint, or restore its saved values".to_owned(),
+                    is_unresolved,
+                },
+            )));
+        }
+    }));
+    use_drop({
+        let draft_owner_runtime = draft_owner_runtime.clone();
+        let mut draft_owner_guard = draft_owner_guard;
+        move || {
+            if let Some(retired) = draft_owner_guard.write().take()
+                && let Some(runtime) = draft_owner_runtime.clone()
+            {
+                runtime.retire_draft_owner(retired);
+            }
+        }
+    });
 
     let last_enter_commit = use_hook(|| Rc::new(RefCell::new(None::<PositionEnterCommit>)));
     let commit_position: Rc<dyn Fn(ComponentPositionAxis, PositionCommitTrigger)> = {
@@ -474,7 +1737,12 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
             let untouched_blur =
                 trigger == PositionCommitTrigger::Blur && draft == format!("{current:.2}");
             if value != current && !untouched_blur {
-                action.call(LayoutComponentInspectorAction::SetPosition { owner, axis, value });
+                action.call(LayoutComponentInspectorAction::SetPosition {
+                    owner,
+                    axis,
+                    value,
+                    submitted_draft: draft,
+                });
             }
         })
     };
@@ -485,11 +1753,212 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
             action.call(LayoutComponentInspectorAction::SetOutline {
                 owner: latest_capture(),
                 outline,
+                submitted_draft: margin(),
             })
         })
     };
+    // Ticket 13: column-vocabulary commits. Number fields parse on Enter or
+    // blur; Follow, Pick and Detach submit immediately.
+    let commit_anchor_value: Rc<dyn Fn(PartAnchorValueChange)> = {
+        let latest_capture = latest_capture;
+        let action = props.on_action;
+        Rc::new(move |change| {
+            action.call(LayoutComponentInspectorAction::SetPartAnchorValue {
+                owner: latest_capture(),
+                change,
+            })
+        })
+    };
+    let commit_anchor_follow: Rc<dyn Fn(Follow)> = {
+        let latest_capture = latest_capture;
+        let action = props.on_action;
+        Rc::new(move |follow| {
+            action.call(LayoutComponentInspectorAction::SetPartAnchorFollow {
+                owner: latest_capture(),
+                follow,
+            })
+        })
+    };
+    let commit_anchor_pick: Rc<dyn Fn(String, u32, u32, Follow)> = {
+        let latest_capture = latest_capture;
+        let action = props.on_action;
+        Rc::new(move |matrix_id, row, column, follow| {
+            action.call(LayoutComponentInspectorAction::SetPartAnchor {
+                owner: latest_capture(),
+                matrix_id,
+                row,
+                column,
+                follow,
+            })
+        })
+    };
+    let commit_anchor_detach: Rc<dyn Fn()> = {
+        let latest_capture = latest_capture;
+        let action = props.on_action;
+        Rc::new(move || {
+            action.call(LayoutComponentInspectorAction::DetachPartAnchor {
+                owner: latest_capture(),
+            })
+        })
+    };
+    // Ticket 13: Enter-then-blur submits once. The stamp carries the last
+    // Enter commit per field; a blur carrying the same field and value only
+    // clears it.
+    let last_anchor_commit = use_hook(|| Rc::new(RefCell::new(None::<(String, f64)>)));
+    // Ticket 13: the accepted Follow subset, copied for 'static event handlers.
+    let anchor_follow = projection.anchor.as_ref().map(|anchor| anchor.follow);
+    let anchor_follow_text = projection.anchor.as_ref().map(|anchor| {
+        let mut parts = Vec::new();
+        if anchor.follow.x {
+            parts.push("X");
+        }
+        if anchor.follow.y {
+            parts.push("Y");
+        }
+        if anchor.follow.rotation {
+            parts.push("rotation");
+        }
+        if parts.is_empty() {
+            "none".to_owned()
+        } else {
+            parts.join(", ")
+        }
+    });
+    let anchor_locked = position_unavailable(&projection);
+    // Ticket 13: cloned before the render so Pick closures borrow the list,
+    // not the projection the anchor sections also read.
+    let anchor_choices = projection.anchor_choices.clone();
+    // Ticket 13: one number field in the column vocabulary. `change` wraps
+    // the parsed value (an Offset field keeps the other axis from the
+    // accepted anchor). Enter-then-blur submits once via the stamp.
+    let anchor_number_field = {
+        let commit_anchor_value = commit_anchor_value.clone();
+        let last_anchor_commit = last_anchor_commit.clone();
+        move |label: &'static str,
+              aria: &'static str,
+              field: &'static str,
+              draft: Signal<String>,
+              current_text: String,
+              current: Option<f64>,
+              change: Rc<dyn Fn(f64) -> PartAnchorValueChange>| {
+            let commit = commit_anchor_value.clone();
+            let last_anchor_commit = last_anchor_commit.clone();
+            let input_id = format!("part-anchor-{field}");
+            rsx! {
+                Field {
+                  FieldLabel { html_for: input_id.clone(), "{label}" }
+                  InputGroup {
+                   InputGroupInput {
+                    id: input_id, r#type: InputType::Number, step: "any", value: "{draft}", aria_label: "{aria}",
+                    disabled: position_input_disabled(anchor_locked),
+                    oninput: { let mut draft = draft; move |event: FormEvent| draft.set(event.value()) },
+                    attributes: vec![dioxus::events::onblur({
+                        let mut error = error;
+                        let last_anchor_commit = last_anchor_commit.clone();
+                        let commit = commit.clone();
+                        let change = change.clone();
+                        move |_| {
+                            let Some(value) = anchor_commit_value(&draft()) else {
+                                error.set(Some(format!("Enter a finite {label}.")));
+                                return;
+                            };
+                            if Some(value) == current {
+                                return;
+                            }
+                            error.set(None);
+                            if last_anchor_commit
+                                .borrow_mut()
+                                .take()
+                                .is_some_and(|stamp| stamp == (field.to_owned(), value))
+                            {
+                                return;
+                            }
+                            commit(change(value));
+                        }
+                    }),
+                    dioxus::events::onkeydown({
+                        let mut draft = draft;
+                        let mut error = error;
+                        let current_text = current_text.clone();
+                        let last_anchor_commit = last_anchor_commit.clone();
+                        let commit = commit.clone();
+                        let change = change.clone();
+                        move |event: KeyboardEvent| {
+                            match event.data().key().to_string().as_str() {
+                                "Enter" => {
+                                    event.prevent_default();
+                                    let Some(value) = anchor_commit_value(&draft()) else {
+                                        error.set(Some(format!("Enter a finite {label}.")));
+                                        return;
+                                    };
+                                    if Some(value) == current {
+                                        return;
+                                    }
+                                    error.set(None);
+                                    *last_anchor_commit.borrow_mut() = Some((field.to_owned(), value));
+                                    commit(change(value));
+                                }
+                                "Escape" => { draft.set(current_text.clone()); error.set(None); }
+                                _ => {}
+                            }
+                        }
+                    })],
+                   }
+                  }
+                }
+            }
+        }
+    };
+    let has_active_constraint = projection.active_constraint.is_some();
+    // A choice on a saved offset converts it at once; a new one only sets the default.
+    let mut choose_offset_axes = {
+        let latest_capture = latest_capture;
+        let action = props.on_action;
+        let mut submitted_constraint = submitted_constraint;
+        let saved_offset_id = projection
+            .active_constraint
+            .as_ref()
+            .filter(|constraint| constraint.offset_axes().is_some())
+            .map(|constraint| constraint.id().to_owned());
+        let mut offset_axes = offset_axes;
+        move |to: OffsetAxes| {
+            offset_axes.set(to);
+            if let Some(constraint_id) = saved_offset_id.as_ref() {
+                // Ticket 011: the conversion submits through the Constraint
+                // key, so the submitted draft is recorded here too: the
+                // landed conversion re-expresses the numbers.
+                submitted_constraint.set(Some(constraint_draft_canonical(ConstraintFormState {
+                    kind: constraint_kind(),
+                    source_part_id: &source_part_id(),
+                    axes: to,
+                    offset_x: &offset_x(),
+                    offset_y: &offset_y(),
+                    rotation: &rotation(),
+                    mirror_axis: &mirror_axis(),
+                    mirror_coordinate: &mirror_coordinate(),
+                    mirror_line_x: &mirror_line_x(),
+                    mirror_line_y: &mirror_line_y(),
+                    mirror_line_angle: &mirror_line_angle(),
+                })));
+                action.call(LayoutComponentInspectorAction::ConvertOffsetAxes {
+                    owner: latest_capture(),
+                    constraint_id: constraint_id.clone(),
+                    to,
+                });
+            }
+        }
+    };
     let save_constraint = {
         let latest_capture = latest_capture;
+        let offset_axes = offset_axes;
+        let mirror_line_x = mirror_line_x;
+        let mirror_line_y = mirror_line_y;
+        let mirror_line_angle = mirror_line_angle;
+        let mut submitted_constraint = submitted_constraint;
+        let retain_legacy_form = projection
+            .active_constraint
+            .as_ref()
+            .is_some_and(|constraint| !matches!(constraint, Constraint::Framed { .. }));
         let action = props.on_action;
         let mut error = error;
         move |_| {
@@ -513,9 +1982,20 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                         error.set(Some("Enter finite constraint values.".to_owned()));
                         return;
                     }
-                    LayoutConstraintValues::Offset {
-                        offset: Vec2 { x, y },
-                        rotation,
+                    let offset = Vec2 { x, y };
+                    if retain_legacy_form {
+                        offset_values(offset_axes(), offset, rotation)
+                    } else {
+                        LayoutConstraintValues::Framed {
+                            relation: match offset_axes() {
+                                OffsetAxes::Board => {
+                                    ConstraintRelation::Offset { offset, rotation }
+                                }
+                                OffsetAxes::Part => {
+                                    ConstraintRelation::PartOffset { offset, rotation }
+                                }
+                            },
+                        }
                     }
                 }
                 ConstraintKind::Mirror => {
@@ -527,13 +2007,73 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                         error.set(Some("Enter a finite axis coordinate.".to_owned()));
                         return;
                     }
-                    LayoutConstraintValues::Mirror {
-                        axis: mirror_axis(),
-                        coordinate,
+                    if retain_legacy_form {
+                        LayoutConstraintValues::Mirror {
+                            axis: mirror_axis(),
+                            coordinate,
+                        }
+                    } else {
+                        let axis = mirror_axis();
+                        let at = match axis {
+                            MirrorAxis::Vertical => Vec2 {
+                                x: coordinate,
+                                y: 0.0,
+                            },
+                            MirrorAxis::Horizontal => Vec2 {
+                                x: 0.0,
+                                y: coordinate,
+                            },
+                        };
+                        LayoutConstraintValues::Framed {
+                            relation: ConstraintRelation::MirrorLine {
+                                at,
+                                angle: if axis == MirrorAxis::Vertical {
+                                    90.0
+                                } else {
+                                    0.0
+                                },
+                            },
+                        }
+                    }
+                }
+                ConstraintKind::MirrorLine => {
+                    let (Ok(x), Ok(y), Ok(angle)) = (
+                        mirror_line_x().parse::<f64>(),
+                        mirror_line_y().parse::<f64>(),
+                        mirror_line_angle().parse::<f64>(),
+                    ) else {
+                        error.set(Some("Enter finite mirror line values.".to_owned()));
+                        return;
+                    };
+                    if !x.is_finite() || !y.is_finite() || !angle.is_finite() {
+                        error.set(Some("Enter finite mirror line values.".to_owned()));
+                        return;
+                    }
+                    LayoutConstraintValues::Framed {
+                        relation: ConstraintRelation::MirrorLine {
+                            at: Vec2 { x, y },
+                            angle,
+                        },
                     }
                 }
             };
             error.set(None);
+            // Ticket 011: remember the submitted draft so the in-flight
+            // exemption covers exactly the current value: newer typing still
+            // defers, and the exemption dies with the pending record.
+            submitted_constraint.set(Some(constraint_draft_canonical(ConstraintFormState {
+                kind: constraint_kind(),
+                source_part_id: &source,
+                axes: offset_axes(),
+                offset_x: &offset_x(),
+                offset_y: &offset_y(),
+                rotation: &rotation(),
+                mirror_axis: &mirror_axis(),
+                mirror_coordinate: &mirror_coordinate(),
+                mirror_line_x: &mirror_line_x(),
+                mirror_line_y: &mirror_line_y(),
+                mirror_line_angle: &mirror_line_angle(),
+            })));
             action.call(LayoutComponentInspectorAction::SetConstraint {
                 owner: owner.clone(),
                 source_part_id: source,
@@ -547,9 +2087,30 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
         .map(|constraint| constraint.id().to_owned());
     let remove_constraint = {
         let latest_capture = latest_capture;
+        let identity = identity.clone();
+        let mut submitted_constraint = submitted_constraint;
         let action = props.on_action;
         move |_| {
             if let Some(constraint_id) = active_constraint_id.as_ref() {
+                // Ticket 011: a removal carries no draft value; drop any
+                // older submitted memory so it can never exempt newer input.
+                submitted_constraint.set(None);
+                submitted_remove.set(Some((
+                    identity.clone(),
+                    constraint_draft_canonical(ConstraintFormState {
+                        kind: constraint_kind(),
+                        source_part_id: &source_part_id(),
+                        axes: offset_axes(),
+                        offset_x: &offset_x(),
+                        offset_y: &offset_y(),
+                        rotation: &rotation(),
+                        mirror_axis: &mirror_axis(),
+                        mirror_coordinate: &mirror_coordinate(),
+                        mirror_line_x: &mirror_line_x(),
+                        mirror_line_y: &mirror_line_y(),
+                        mirror_line_angle: &mirror_line_angle(),
+                    }),
+                )));
                 action.call(LayoutComponentInspectorAction::RemoveConstraint {
                     owner: latest_capture(),
                     constraint_id: constraint_id.clone(),
@@ -568,199 +2129,1055 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
             board_parts
                 .iter()
                 .find(|part| part.id == constraint.source())
+                .map(|part| part.reference.clone())
+                .or_else(|| Some(constraint.source().to_owned()))
         })
-        .map(|part| part.reference.clone())
         .unwrap_or_else(|| "A part".to_owned());
+    let constraint_target_reference = active_constraint
+        .as_ref()
+        .and_then(|constraint| {
+            board_parts
+                .iter()
+                .find(|part| part.id == constraint.target())
+                .map(|part| part.reference.clone())
+                .or_else(|| Some(constraint.target().to_owned()))
+        })
+        .unwrap_or_else(|| projection.reference.clone());
 
     rsx! {
-        section { class: "m1-layout-component-inspector", aria_label: "Component inspector",
-            header { class: "m1-layout-component-inspector-heading",
-                h2 { "{projection.reference}" }
-                if projection.locked { span { class: "m1-inspector-lock", "Locked" } }
-            }
-            div { role: "tablist", aria_label: "Inspector details", class: "m1-layout-component-tabs",
-                button { r#type: "button", role: "tab", aria_selected: "{tab() == LayoutInspectorTab::Properties}", onclick: { let mut reset = reset_properties_drafts; move |_| { if *tab.peek() != LayoutInspectorTab::Properties { reset(); } tab.set(LayoutInspectorTab::Properties); } }, "Properties" }
-                button { r#type: "button", role: "tab", aria_selected: "{tab() == LayoutInspectorTab::Relations}", onclick: move |_| tab.set(LayoutInspectorTab::Relations), "Relations" }
-            }
-            if tab() == LayoutInspectorTab::Properties {
-                if group_selection {
-                    p { class: "m1-layout-component-selection-note", "{projection.selection_count} parts selected. Position edits apply to the selection." }
-                } else {
-                    p { class: "m1-layout-component-definition", "{projection.definition_name}", span { "{projection.definition_kind}" } }
-                    if let Some(notice) = projection.envelope_notice.as_ref() { p { class: "m1-layout-component-notice", "{notice}" } }
-                }
-                if !group_selection && !projection.layouts.is_empty() {
-                    label { class: "m1-layout-component-layout", "Layout"
-                        select {
-                            aria_label: "Component layout",
-                            value: projection.layout_id.as_deref().unwrap_or(""),
-                            onchange: {
-                                let latest_capture = latest_capture;
-                                let action = props.on_action;
-                                move |event: FormEvent| action.call(LayoutComponentInspectorAction::AssignLayout {
-                                    owner: latest_capture(),
-                                    layout_id: (!event.value().is_empty()).then_some(event.value()),
-                                })
+                section {
+                    class: "grid min-w-0 content-start gap-3 px-4 pt-3 pb-5 text-foreground [&_h2]:m-0 [&_h3]:m-0 [&_p]:m-0 [&_fieldset_small]:text-[11px] [&_fieldset_small]:leading-[1.45] [&_fieldset_small]:text-muted-foreground",
+                    aria_label: "Component inspector",
+                onkeydown: move |event: KeyboardEvent| {
+                    if event.key().to_string() == " " {
+                        event.stop_propagation();
+                        if let Some(raw) = event.data().try_as_web_event() {
+                            raw.stop_propagation();
+                        }
+                    }
+                },
+                    header { class: "flex items-start justify-between gap-2 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:[overflow-wrap:anywhere]",
+                        h2 { "{projection.reference}" }
+                        if projection.locked {
+                            span { class: "flex-none rounded-[9px] border border-border px-1.5 py-0.5 text-[11px] text-muted-foreground", "Locked" }
+                        }
+                    }
+                    Tabs { horizontal: true,
+    value: Some(
+                            if tab() == LayoutInspectorTab::Properties {
+                                "properties".to_owned()
+                            } else {
+                                "relations".to_owned()
                             },
-                            option { value: "", selected: projection.layout_id.is_none(), "Board / ungrouped" }
-                            for layout in &projection.layouts {
-                                option {
-                                    value: "{layout.id}",
-                                    selected: projection.layout_id.as_deref() == Some(layout.id.as_str()),
-                                    "{layout.name}"
+                        ),
+    on_value_change: { let mut reset = reset_properties_drafts; move |value: String| { let next = if value == "relations" { LayoutInspectorTab::Relations } else { LayoutInspectorTab::Properties }; if next == LayoutInspectorTab::Properties && *tab.peek() != next { reset(); } tab.set(next); } },
+                        TabsList {
+                            aria_label: "Inspector details",
+                            class: "layout-inspector-tabs",
+                            TabsTrigger { index: 0usize, value: "properties", "Properties" }
+                            TabsTrigger { index: 1usize, value: "relations", "Relations" }
+                        }
+                        TabsContent { index: 0usize, value: "properties",
+                            if group_selection {
+                                p {
+                                    "{projection.selection_count} parts selected. Position edits apply to the selection."
+                                }
+                            } else {
+                                p { class: "grid min-w-0 grid-cols-[1fr_auto] items-baseline gap-[5px] text-[13px] text-foreground [&_span]:text-xs [&_span]:leading-[1.45] [&_span]:text-muted-foreground",
+                                    "{projection.definition_name}"
+                                    span { "{projection.definition_kind}" }
+                                }
+                                if let Some(notice) = projection.envelope_notice.as_ref() {
+                                    Callout { class: "text-xs leading-[1.45] text-muted-foreground", variant: CalloutVariant::Info, "{notice}" }
                                 }
                             }
-                        }
-                    }
-                }
-                h3 { class: "m1-layout-component-subtitle", "Position", small { "millimetres" } }
-                div { class: "m1-layout-component-position",
-                    label { "X (mm)" input {
-                        r#type: "number", step: "0.1", value: "{x}", aria_label: "X mm",
-                        disabled: position_input_disabled(position_unavailable(&projection)),
-                        oninput: { let last_enter_commit = last_enter_commit.clone(); move |event| { last_enter_commit.borrow_mut().take(); x.set(event.value()); } },
-                        onblur: { let commit = commit_position.clone(); move |_| commit(ComponentPositionAxis::X, PositionCommitTrigger::Blur) },
-                        onkeydown: { let commit = commit_position.clone(); move |event: KeyboardEvent| {
-                            match event.data().key().to_string().as_str() {
-                                "Enter" => { event.prevent_default(); commit(ComponentPositionAxis::X, PositionCommitTrigger::Enter); }
-                                "Escape" => { x.set(format!("{:.2}", position.x)); error.set(None); }
-                                _ => {}
+                            if let Some(mirrored) = projection.part_mirror {
+                                Collapsible {
+                                    keep_mounted: true,
+                                    open: Some(mirror_section_open()),
+                                    on_open_change: move |next| mirror_section_open.set(next),
+                                    CollapsibleTrigger { class: "group min-h-control-touch w-full justify-start px-3 py-2 text-left text-sm font-semibold", aria_label: "Mirrored half",
+                                        span { "Mirrored half" }
+                                        small { if mirrored { "Both halves" } else { "Local" } }
+                                        ChevronDown { class: "ml-auto size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" }
+                                    }
+                                    CollapsibleContent {
+                                        hidden: !mirror_section_open(), inert: (!mirror_section_open()).then_some(""),
+                                        Label { html_for: "component-inspector-part-mirror",
+                                            Checkbox {
+                                                id: "component-inspector-part-mirror", aria_label: "Mirror on both halves",
+                                                checked: Some(if mirrored { CheckboxState::Checked } else { CheckboxState::Unchecked }),
+                                                disabled: (props.mirrored_half_pending)(),
+                                                on_checked_change: {
+                                                    let action = props.on_action;
+                                                    let part_id = owner.part_id.clone();
+                                                    move |next| action.call(LayoutComponentInspectorAction::SetPartMirrored {
+                                                        owner: latest_capture(), part_id: part_id.clone(), mirrored: next == CheckboxState::Checked,
+                                                    })
+                                                },
+                                            }
+                                            "Mirror on both halves"
+                                        }
+                                        p { "A mirrored part edits both halves together and stops at the split axis." }
+                                    }
+                                }
+                            } else if let Some(mirrored_half) = projection.mirrored_half.as_ref() {
+                                Collapsible {
+                                    keep_mounted: true,
+                                    open: Some(mirror_section_open()),
+                                    on_open_change: move |next| mirror_section_open.set(next),
+                                    CollapsibleTrigger { class: "group min-h-control-touch w-full justify-start px-3 py-2 text-left text-sm font-semibold", aria_label: "Mirrored half",
+                                        span { "Mirrored half" }
+                                        small {
+                                            match mirrored_half.state {
+                                                HalfExceptionState::Linked => "Linked",
+                                                HalfExceptionState::Local => "Local",
+                                                HalfExceptionState::Omitted => "Omitted",
+                                            }
+                                        }
+                                     ChevronDown { class: "ml-auto size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" } }
+                                    CollapsibleContent {
+                                        hidden: !mirror_section_open(),
+                                        inert: (!mirror_section_open()).then_some(""),
+
+                                        div {
+                                            p { "This part's state on the mirrored half." }
+                                            Button {
+                                                variant: ButtonVariant::Secondary,
+                                                id: "component-inspector-mirrored-half-local",
+                                                button_type: "button",
+                                                disabled: (props.mirrored_half_pending)() || mirrored_half.state == HalfExceptionState::Local,
+                                                onclick: mirrored_half_action(HalfExceptionState::Local),
+
+                                                "Make local"
+
+                                            }
+                                            Button {
+                                                variant: ButtonVariant::Secondary,
+                                                id: "component-inspector-mirrored-half-omit",
+                                                button_type: "button",
+                                                disabled: (props.mirrored_half_pending)()
+                                                    || mirrored_half.state == HalfExceptionState::Omitted,
+                                                onclick: mirrored_half_action(HalfExceptionState::Omitted),
+
+                                                "Omit"
+
+                                            }
+                                            Button {
+                                                variant: ButtonVariant::Secondary,
+                                                id: "component-inspector-mirrored-half-rejoin",
+                                                button_type: "button",
+                                                disabled: (props.mirrored_half_pending)() || mirrored_half.state == HalfExceptionState::Linked,
+                                                onclick: mirrored_half_action(HalfExceptionState::Linked),
+
+                                                "Rejoin"
+
+                                            }
+                                        }
+                                    }
+                                }
                             }
-                        } },
-                    } }
-                    label { "Y (mm)" input {
-                        r#type: "number", step: "0.1", value: "{y}", aria_label: "Y mm",
-                        disabled: position_input_disabled(position_unavailable(&projection)),
-                        oninput: { let last_enter_commit = last_enter_commit.clone(); move |event| { last_enter_commit.borrow_mut().take(); y.set(event.value()); } },
-                        onblur: { let commit = commit_position.clone(); move |_| commit(ComponentPositionAxis::Y, PositionCommitTrigger::Blur) },
-                        onkeydown: { let commit = commit_position.clone(); move |event: KeyboardEvent| {
-                            match event.data().key().to_string().as_str() {
-                                "Enter" => { event.prevent_default(); commit(ComponentPositionAxis::Y, PositionCommitTrigger::Enter); }
-                                "Escape" => { y.set(format!("{:.2}", position.y)); error.set(None); }
-                                _ => {}
-                            }
-                        } },
-                    } }
+                            if !group_selection && !projection.layouts.is_empty() {
+                                {
+                                    let control_label = "Layout".to_owned();
+                                    let control_aria_label = "Component layout".to_owned();
+                                    let control_id = format!(
+                                        "layout-choice-{}-{}",
+                                        dioxus::core::current_scope_id().0,
+                                        control_aria_label.replace(' ', "-"),
+                                    );
+
+                                    let mut control_choices: Vec<(String, String, bool)> = Vec::new();
+                                    control_choices.push(("".to_owned(), "Board / ungrouped".to_owned(), false));
+                                    for layout in &projection.layouts {
+                                        control_choices
+                                            .push((layout.id.to_string(), layout.name.to_string(), false));
+                                    }
+                                    let on_value_change = EventHandler::new({
+                let latest_capture = latest_capture;
+                let action = props.on_action;
+                move |choice: Option<String>| {
+                    let Some(choice) = choice else {
+                        return;
+                    };
+                    action.call(LayoutComponentInspectorAction::AssignLayout {
+                        owner: latest_capture(),
+                        layout_id: (!choice.is_empty()).then_some(choice),
+                    })
                 }
-                if !group_selection {
-                details { class: "m1-layout-component-outline",
-                    summary { span { "Board outline" } small { if projection.outline.excluded { "Excluded" } else { "Included" } } }
-                    fieldset { disabled: projection.locked,
-                    label { input {
-                        r#type: "checkbox", aria_label: "Include in outline", checked: !projection.outline.excluded,
-                        onchange: { let baseline = outline.clone(); let submit = set_outline.clone(); move |event| { let mut outline = baseline.clone(); outline.excluded = !event.checked(); submit(outline); } },
-                    } "Include in outline" }
-                    if !projection.outline.excluded {
-                        label { input {
-                            r#type: "checkbox", aria_label: "Use board margin", checked: projection.outline.margin.is_none(),
-                            onchange: { let baseline = outline.clone(); let submit = set_outline.clone(); move |event| { let mut outline = baseline.clone(); outline.margin = if event.checked() { None } else { Some(0.0) }; margin.set(outline.margin.map(|value| value.to_string()).unwrap_or_default()); submit(outline); } },
-                        } "Use board margin" }
-                        if outline.margin.is_some() {
-                            label { "Part edge margin" input {
-                                r#type: "number", step: "any", min: "0", value: "{margin}", aria_label: "Part edge margin",
-                                oninput: move |event| margin.set(event.value()),
-                                onblur: {
-                                    let margin_outline = outline.clone();
-                                    let save_outline = set_outline.clone();
-                                    move |_| {
-                                        match margin().parse::<f64>() {
-                                            Ok(value) if value.is_finite() && value >= 0.0 => {
-                                                if value != margin_outline.margin.unwrap_or(value) {
-                                                    let mut next = margin_outline.clone(); next.margin = Some(value); save_outline(next);
+            });
+            rsx! {
+
+                                        Field {
+                                            FieldLabel { html_for: control_id.clone(), "{control_label}" }
+                                            if control_choices.len() > 12 {
+                                                Combobox::<String> {
+                                                    id: control_id.clone(),
+                                                    aria_label: control_aria_label.clone(),
+                                                    list_aria_label: control_aria_label.clone(),
+                                                    value: Some(layout_choice.into()),
+                                                    disabled: (props.layout_pending)(),
+                                                    on_value_change,
+                                                    for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
+                                                        ComboboxOption::<String> {
+                                                            index,
+                                                            value: value.clone(),
+                                                            text_value: label.clone(),
+                                                            disabled: *disabled,
+                                                            "{label}"
+                                                        }
+                                                    }
                                                 }
-                                                error.set(None);
+                                            } else {
+                                                Select::<String> {
+                                                    id: control_id.clone(),
+                                                    aria_label: control_aria_label.clone(),
+                                                    value: Some(layout_choice.into()),
+                                                    disabled: (props.layout_pending)(),
+                                                    on_value_change,
+                                                    for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
+                                                        SelectOption::<String> {
+                                                            index,
+                                                            value: value.clone(),
+                                                            text_value: label.clone(),
+                                                            disabled: *disabled,
+                                                            "{label}"
+                                                        }
+                                                    }
+                                                }
                                             }
-                                            _ => error.set(Some("Enter 0 or greater for the part edge margin.".to_owned())),
                                         }
                                     }
-                                },
-                                onkeydown: {
-                                    let accepted_margin = outline.margin.unwrap_or_default().to_string();
-                                    move |event: KeyboardEvent| match event.data().key().to_string().as_str() {
-                                        "Enter" => {
-                                            event.prevent_default();
-                                            if let Some(input) = event.data().try_as_web_event()
-                                                .and_then(|event| event.target())
-                                                .and_then(|target| target.dyn_into::<web_sys::HtmlInputElement>().ok())
+                                }
+                            }
+                if !group_selection && !projection.anchor_choices.is_empty() {
+                    h3 { class: "flex items-baseline justify-between text-[13px]", "Part anchor", small { "column vocabulary" } }
+                    if let Some(anchor) = projection.anchor.as_ref() {
+                        p { "Anchored to {anchor.key_label()} · follows {anchor_follow_text.as_deref().unwrap_or(\"none\")}" }
+                        h3 { class: "flex items-baseline justify-between text-[13px]", "Carried from the anchor", small { "anchor frame" } }
+                        div { class: "grid grid-cols-2 gap-2",
+                            {anchor_number_field("Spread (mm)", "Anchor spread millimetres", "spread", anchor_spread,
+                                anchor_draft(projection.anchor.as_ref(), |anchor| anchor.spread),
+                                projection.anchor.as_ref().map(|anchor| anchor.spread),
+                                Rc::new(PartAnchorValueChange::Spread))}
+                            {anchor_number_field("Stagger (mm)", "Anchor stagger millimetres", "stagger", anchor_stagger,
+                                anchor_draft(projection.anchor.as_ref(), |anchor| anchor.stagger),
+                                projection.anchor.as_ref().map(|anchor| anchor.stagger),
+                                Rc::new(PartAnchorValueChange::Stagger))}
+                            {anchor_number_field("Splay (degrees)", "Anchor splay degrees", "splay", anchor_splay,
+                                anchor_draft(projection.anchor.as_ref(), |anchor| anchor.splay),
+                                projection.anchor.as_ref().map(|anchor| anchor.splay),
+                                Rc::new(PartAnchorValueChange::Splay))}
+                        }
+                        h3 { class: "flex items-baseline justify-between text-[13px]", "This part only", small { "millimetres, degrees" } }
+                        div { class: "grid grid-cols-2 gap-2",
+                            {anchor_number_field("Offset X (mm)", "Anchor offset X millimetres", "offset-x", anchor_offset_x,
+                                anchor_draft(projection.anchor.as_ref(), |anchor| anchor.offset.x),
+                                projection.anchor.as_ref().map(|anchor| anchor.offset.x),
+                                Rc::new({
+                                    let other = anchor_offset_y;
+                                    let fallback = projection.anchor.as_ref().map(|anchor| anchor.offset.y).unwrap_or(0.0);
+                                    move |value: f64| PartAnchorValueChange::Offset(Vec2 {
+                                        x: value,
+                                        y: anchor_commit_value(&other()).unwrap_or(fallback),
+                                    })
+                                }))}
+                            {anchor_number_field("Offset Y (mm)", "Anchor offset Y millimetres", "offset-y", anchor_offset_y,
+                                anchor_draft(projection.anchor.as_ref(), |anchor| anchor.offset.y),
+                                projection.anchor.as_ref().map(|anchor| anchor.offset.y),
+                                Rc::new({
+                                    let other = anchor_offset_x;
+                                    let fallback = projection.anchor.as_ref().map(|anchor| anchor.offset.x).unwrap_or(0.0);
+                                    move |value: f64| PartAnchorValueChange::Offset(Vec2 {
+                                        x: anchor_commit_value(&other()).unwrap_or(fallback),
+                                        y: value,
+                                    })
+                                }))}
+                            {anchor_number_field("Rotation (degrees)", "Anchor rotation degrees", "rotation", anchor_rotation,
+                                anchor_draft(projection.anchor.as_ref(), |anchor| anchor.rotation),
+                                projection.anchor.as_ref().map(|anchor| anchor.rotation),
+                                Rc::new(PartAnchorValueChange::Rotation))}
+                        }
+                        fieldset { class: "flex flex-wrap gap-3", disabled: anchor_locked,
+                            legend { "Follow" }
+                            Label { html_for: "anchor-follow-x", Checkbox {
+                                id: "anchor-follow-x", aria_label: "Follow X", disabled: anchor_locked,
+                                checked: Some(if anchor_follow.is_some_and(|follow| follow.x) { CheckboxState::Checked } else { CheckboxState::Unchecked }),
+                                on_checked_change: { let commit = commit_anchor_follow.clone();
+                                    let previous = anchor_follow.unwrap_or(Follow { x: true, y: true, rotation: true });
+                                    move |next| commit(Follow { x: next == CheckboxState::Checked, y: previous.y, rotation: previous.rotation }) },
+                            } "X" }
+                            Label { html_for: "anchor-follow-y", Checkbox {
+                                id: "anchor-follow-y", aria_label: "Follow Y", disabled: anchor_locked,
+                                checked: Some(if anchor_follow.is_some_and(|follow| follow.y) { CheckboxState::Checked } else { CheckboxState::Unchecked }),
+                                on_checked_change: { let commit = commit_anchor_follow.clone();
+                                    let previous = anchor_follow.unwrap_or(Follow { x: true, y: true, rotation: true });
+                                    move |next| commit(Follow { x: previous.x, y: next == CheckboxState::Checked, rotation: previous.rotation }) },
+                            } "Y" }
+                            Label { html_for: "anchor-follow-rotation", Checkbox {
+                                id: "anchor-follow-rotation", aria_label: "Follow rotation", disabled: anchor_locked,
+                                checked: Some(if anchor_follow.is_some_and(|follow| follow.rotation) { CheckboxState::Checked } else { CheckboxState::Unchecked }),
+                                on_checked_change: { let commit = commit_anchor_follow.clone();
+                                    let previous = anchor_follow.unwrap_or(Follow { x: true, y: true, rotation: true });
+                                    move |next| commit(Follow { x: previous.x, y: previous.y, rotation: next == CheckboxState::Checked }) },
+                            } "Rotation" }
+                        }
+                        Button { button_type: "button", variant: ButtonVariant::Secondary, disabled: anchor_locked,
+                            onclick: { let commit = commit_anchor_detach.clone(); move |_| commit() },
+                            "Detach" }
+                    } else {
+                        p { "Detached · placed from the half origin." }
+                    }
+                    div { class: "grid grid-cols-2 gap-2",
+                        Field { FieldLabel { html_for: "anchor-matrix", "Anchor matrix" }
+                          Select::<String> {
+                            id: "anchor-matrix", aria_label: "Anchor matrix", value: Some(pick_matrix_choice.into()), disabled: anchor_locked,
+                            on_value_change: move |choice: Option<String>| { if let Some(choice) = choice { pick_matrix.set(choice); } },
+                            for (index, choice) in projection.anchor_choices.iter().enumerate() {
+                                SelectOption::<String> { index, value: choice.matrix_id.clone(), text_value: choice.matrix_name.clone(), "{choice.matrix_name}" }
+                            }
+                          }
+                        }
+                        Field { FieldLabel { html_for: "anchor-row", "Row" }
+                          InputGroup { InputGroupInput {
+                            id: "anchor-row", r#type: InputType::Number, min: "1", step: "1", value: "{pick_row}", aria_label: "Anchor row",
+                            disabled: anchor_locked, oninput: move |event: FormEvent| pick_row.set(event.value()),
+                          } }
+                        }
+                        Field { FieldLabel { html_for: "anchor-column", "Column" }
+                          InputGroup { InputGroupInput {
+                            id: "anchor-column", r#type: InputType::Number, min: "1", step: "1", value: "{pick_column}", aria_label: "Anchor column",
+                            disabled: anchor_locked, oninput: move |event: FormEvent| pick_column.set(event.value()),
+                          } }
+                        }
+                        Label { html_for: "pick-follow-x", Checkbox {
+                            id: "pick-follow-x", aria_label: "Pick follows X", disabled: anchor_locked,
+                            checked: Some(if pick_follow_x() { CheckboxState::Checked } else { CheckboxState::Unchecked }),
+                            on_checked_change: move |next| pick_follow_x.set(next == CheckboxState::Checked),
+                        } "X" }
+                        Label { html_for: "pick-follow-y", Checkbox {
+                            id: "pick-follow-y", aria_label: "Pick follows Y", disabled: anchor_locked,
+                            checked: Some(if pick_follow_y() { CheckboxState::Checked } else { CheckboxState::Unchecked }),
+                            on_checked_change: move |next| pick_follow_y.set(next == CheckboxState::Checked),
+                        } "Y" }
+                        Label { html_for: "pick-follow-rotation", Checkbox {
+                            id: "pick-follow-rotation", aria_label: "Pick follows rotation", disabled: anchor_locked,
+                            checked: Some(if pick_follow_rotation() { CheckboxState::Checked } else { CheckboxState::Unchecked }),
+                            on_checked_change: move |next| pick_follow_rotation.set(next == CheckboxState::Checked),
+                        } "Rotation" }
+                        Button { button_type: "button", variant: ButtonVariant::Secondary, disabled: anchor_locked,
+                            onclick: {
+                                let commit = commit_anchor_pick.clone();
+                                let mut error = error;
+                                let anchor_choices = anchor_choices.clone();
+                                move |_| {
+                                    let matrix_id = pick_matrix();
+                                    let Some(choice) = anchor_choices.iter().find(|choice| choice.matrix_id == matrix_id) else {
+                                        error.set(Some("Choose an anchor matrix.".to_owned()));
+                                        return;
+                                    };
+                                    let (Ok(row), Ok(column)) = (pick_row().trim().parse::<u32>(), pick_column().trim().parse::<u32>()) else {
+                                        error.set(Some("Enter a finite anchor row and column.".to_owned()));
+                                        return;
+                                    };
+                                    if row == 0 || row > choice.rows || column == 0 || column > choice.columns {
+                                        error.set(Some(format!("Row and column must fit {} ({} rows, {} columns).", choice.matrix_name, choice.rows, choice.columns)));
+                                        return;
+                                    }
+                                    error.set(None);
+                                    commit(matrix_id, row - 1, column - 1, Follow {
+                                        x: pick_follow_x(),
+                                        y: pick_follow_y(),
+                                        rotation: pick_follow_rotation(),
+                                    });
+                                }
+                            },
+                            "Pick anchor key" }
+                    }
+                }
+                            h3 { class: "flex items-baseline justify-between text-[13px] [&_small]:text-[11px] [&_small]:font-normal [&_small]:text-muted-foreground",
+                                "Position"
+                                small { "millimetres" }
+                            }
+                            div { class: "grid grid-cols-2 gap-2",
+                                {
+                                    let control_input_id = format!(
+                                        "layout-input-{}-10",
+                                        dioxus::core::current_scope_id().0,
+                                    );
+                                    rsx! {
+                                        Field {
+                                            FieldLabel { html_for: control_input_id.clone(), "X (mm)" }
+                                            InputGroup { class: "max-[760px]:h-control-touch",
+                                                InputGroupInput { class: "max-[760px]:h-control-touch", r#type: InputType::Number,
+        step: "0.1",
+        value: "{x}",
+        aria_label: "X mm",
+        disabled: position_input_disabled(position_unavailable(&projection)),
+        oninput: { let last_enter_commit = last_enter_commit.clone(); move |event: FormEvent| { last_enter_commit.borrow_mut().take(); x.set(event.value()); } },
+        id: control_input_id.clone(),
+        attributes: vec![dioxus::events::onblur({ let commit = commit_position.clone(); move |_| commit(ComponentPositionAxis::X, PositionCommitTrigger::Blur) }),dioxus::events::onkeydown({ let commit = commit_position.clone(); move |event: KeyboardEvent| {
+                                        match event.data().key().to_string().as_str() {
+                                            "Enter" => { event.prevent_default(); commit(ComponentPositionAxis::X, PositionCommitTrigger::Enter); }
+                                            "Escape" => { x.set(format!("{:.2}", position.x)); error.set(None); }
+                                            _ => {}
+                                        }
+                                    } })], }
+                                            }
+                                        }
+                                    }
+                                }
+                                {
+                                    let control_input_id = format!(
+                                        "layout-input-{}-9",
+                                        dioxus::core::current_scope_id().0,
+                                    );
+                                    rsx! {
+                                        Field {
+                                            FieldLabel { html_for: control_input_id.clone(), "Y (mm)" }
+                                            InputGroup { class: "max-[760px]:h-control-touch",
+                                                InputGroupInput { class: "max-[760px]:h-control-touch", r#type: InputType::Number,
+        step: "0.1",
+        value: "{y}",
+        aria_label: "Y mm",
+        disabled: position_input_disabled(position_unavailable(&projection)),
+        oninput: { let last_enter_commit = last_enter_commit.clone(); move |event: FormEvent| { last_enter_commit.borrow_mut().take(); y.set(event.value()); } },
+        id: control_input_id.clone(),
+        attributes: vec![dioxus::events::onblur({ let commit = commit_position.clone(); move |_| commit(ComponentPositionAxis::Y, PositionCommitTrigger::Blur) }),dioxus::events::onkeydown({ let commit = commit_position.clone(); move |event: KeyboardEvent| {
+                                        match event.data().key().to_string().as_str() {
+                                            "Enter" => { event.prevent_default(); commit(ComponentPositionAxis::Y, PositionCommitTrigger::Enter); }
+                                            "Escape" => { y.set(format!("{:.2}", position.y)); error.set(None); }
+                                            _ => {}
+                                        }
+                                    } })], }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            if !group_selection {
+                                Collapsible {
+                                    class: "[&_fieldset]:grid [&_fieldset]:min-w-0 [&_fieldset]:gap-[9px] [&_fieldset]:border-0 [&_fieldset]:px-0 [&_fieldset]:pt-0 [&_fieldset]:pb-3",
+                                    keep_mounted: true,
+                                    open: Some(outline_section_open()),
+                                    on_open_change: move |next| outline_section_open.set(next),
+                                    CollapsibleTrigger { class: "group min-h-control-touch w-full justify-start px-3 py-2 text-left text-sm font-semibold", aria_label: "Board outline",
+                                        span { "Board outline" }
+                                        small {
+                                            if projection.outline.excluded {
+                                                "Excluded"
+                                            } else {
+                                                "Included"
+                                            }
+                                        }
+                                     ChevronDown { class: "ml-auto size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" } }
+                                    CollapsibleContent {
+                                        hidden: !outline_section_open(),
+                                        inert: (!outline_section_open()).then_some(""),
+
+                                        fieldset { disabled: projection.locked,
                                             {
-                                                let _ = input.blur();
+                                                let check_id = format!(
+                                                    "layout-check-{}-{}",
+                                                    dioxus::core::current_scope_id().0,
+                                                    ("Include in outline").replace(' ', "-"),
+                                                );
+                                                rsx! {
+                                                    Label { html_for: check_id.clone(),
+                                                        Checkbox {
+                                                            id: check_id.clone(),
+                                                            aria_label: "Include in outline",
+                                                            checked: Some(
+                                                                if !projection.outline.excluded {
+                                                                    CheckboxState::Checked
+                                                                } else {
+                                                                    CheckboxState::Unchecked
+                                                                },
+                                                            ),
+                                                            on_checked_change: {
+                                                                let baseline = outline.clone();
+                                                                let submit = set_outline.clone();
+                                                                move |checked: CheckboxState| {
+                                                                    let mut outline = baseline.clone();
+                                                                    outline.excluded = !bool::from(checked);
+                                                                    submit(outline);
+                                                                }
+                                                            },
+                                                            disabled: projection.locked,
+                                                        }
+                                                        "Include in outline"
+                                                    }
+                                                }
+                                            }
+                                            if !projection.outline.excluded {
+                                                {
+                                                    let check_id = format!(
+                                                        "layout-check-{}-{}",
+                                                        dioxus::core::current_scope_id().0,
+                                                        ("Use board margin").replace(' ', "-"),
+                                                    );
+                                                    rsx! {
+                                                        Label { html_for: check_id.clone(),
+                                                            Checkbox {
+                                                                id: check_id.clone(),
+                                                                aria_label: "Use board margin",
+                                                                checked: Some(
+                                                                    if projection.outline.margin.is_none() {
+                                                                        CheckboxState::Checked
+                                                                    } else {
+                                                                        CheckboxState::Unchecked
+                                                                    },
+                                                                ),
+                                                                on_checked_change: {
+                                                                    let baseline = outline.clone();
+                                                                    let submit = set_outline.clone();
+                                                                    move |checked: CheckboxState| {
+                                                                        let mut outline = baseline.clone();
+                                                                        outline.margin = if bool::from(checked) { None } else { Some(0.0) };
+                                                                        margin
+                                                                            .set(outline.margin.map(|value| value.to_string()).unwrap_or_default());
+                                                                        submit(outline);
+                                                                    }
+                                                                },
+                                                                disabled: projection.locked,
+                                                            }
+                                                            "Use board margin"
+                                                        }
+                                                    }
+                                                }
+                                                if outline.margin.is_some() {
+                                                    {
+                                                        let control_input_id = format!(
+                                                            "layout-input-{}-8",
+                                                            dioxus::core::current_scope_id().0,
+                                                        );
+                                                        rsx! {
+                                                            Field {
+                                                                FieldLabel { html_for: control_input_id.clone(), "Part edge margin" }
+                                                                InputGroup { class: "max-[760px]:h-control-touch",
+                                                                    InputGroupInput { class: "max-[760px]:h-control-touch", r#type: InputType::Number,
+        step: "any",
+        min: "0",
+        value: "{margin}",
+        aria_label: "Part edge margin",
+        oninput: move |event: FormEvent| margin.set(event.value()),
+        id: control_input_id.clone(),
+        attributes: vec![dioxus::events::onblur({
+                                                let margin_outline = outline.clone();
+                                                let save_outline = set_outline.clone();
+                                                move |_| {
+                                                    match margin().parse::<f64>() {
+                                                        Ok(value) if value.is_finite() && value >= 0.0 => {
+                                                            if value != margin_outline.margin.unwrap_or(value) {
+                                                                let mut next = margin_outline.clone(); next.margin = Some(value); save_outline(next);
+                                                            }
+                                                            error.set(None);
+                                                        }
+                                                        _ => error.set(Some("Enter 0 or greater for the part edge margin.".to_owned())),
+                                                    }
+                                                }
+                                            }),dioxus::events::onkeydown({
+                                                let accepted_margin = outline.margin.unwrap_or_default().to_string();
+                                                move |event: KeyboardEvent| match event.data().key().to_string().as_str() {
+                                                    "Enter" => {
+                                                        event.prevent_default();
+                                                        if let Some(input) = event.data().try_as_web_event()
+                                                            .and_then(|event| event.target())
+                                                            .and_then(|target| target.dyn_into::<web_sys::HtmlInputElement>().ok())
+                                                        {
+                                                            let _ = input.blur();
+                                                        }
+                                                    }
+                                                    "Escape" => {
+                                                        event.prevent_default();
+                                                        margin.set(accepted_margin.clone());
+                                                        error.set(None);
+                                                    }
+                                                    _ => {}
+                                                }
+                                            })], }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            {
+                                                let check_id = format!(
+                                                    "layout-check-{}-{}",
+                                                    dioxus::core::current_scope_id().0,
+                                                    ("Allow component body overhang").replace(' ', "-"),
+                                                );
+                                                rsx! {
+                                                    Label { html_for: check_id.clone(),
+                                                        Checkbox {
+                                                            id: check_id.clone(),
+                                                            aria_label: "Allow component body overhang",
+                                                            checked: Some(
+                                                                if projection.outline.allow_body_overhang {
+                                                                    CheckboxState::Checked
+                                                                } else {
+                                                                    CheckboxState::Unchecked
+                                                                },
+                                                            ),
+                                                            on_checked_change: {
+                                                                let baseline = outline.clone();
+                                                                let submit = set_outline.clone();
+                                                                move |checked: CheckboxState| {
+                                                                    let mut outline = baseline.clone();
+                                                                    outline.allow_body_overhang = bool::from(checked);
+                                                                    submit(outline);
+                                                                }
+                                                            },
+                                                            disabled: projection.locked,
+                                                        }
+                                                        "Allow component body overhang"
+                                                    }
+                                                }
+                                            }
+                                            small {
+                                                "Pad and drill support remains required when a part is excluded or body overhang is allowed."
                                             }
                                         }
-                                        "Escape" => {
-                                            event.prevent_default();
-                                            margin.set(accepted_margin.clone());
-                                            error.set(None);
+                                    }
+                                }
+                                Collapsible {
+                                    class: "grid gap-2.5 [&>label]:grid [&>label]:gap-[5px]",
+                                    keep_mounted: true,
+                                    open: Some(constraint_open()),
+                                    on_open_change: move |next| constraint_open.set(next),
+                                    CollapsibleTrigger { class: "group min-h-control-touch w-full justify-start px-3 py-2 text-left text-sm font-semibold", aria_label: "Layout constraint",
+                                        span { "Layout constraint" }
+                                        small {
+                                            if active_constraint.is_some() {
+                                                "Active"
+                                            } else {
+                                                "Optional"
+                                            }
                                         }
-                                        _ => {}
-                                    }
-                                },
-                            } }
-                        }
+                                     ChevronDown { class: "ml-auto size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" } }
+                                    CollapsibleContent {
+                                        class: "data-[open=true]:overflow-visible",
+                                        hidden: !constraint_open(),
+                                        inert: (!constraint_open()).then_some(""),
+
+                                        if board_parts.iter().filter(|part| part.id != owner.part_id).count() > 0 {
+                                            {
+                                                let control_label = "Constraint type".to_owned();
+                                                let control_aria_label = "Constraint type".to_owned();
+                                                let control_id = format!(
+                                                    "layout-choice-{}-{}",
+                                                    dioxus::core::current_scope_id().0,
+                                                    control_aria_label.replace(' ', "-"),
+                                                );
+
+                                                let control_choices = [
+                                                    ("offset".to_owned(), "Offset from part".to_owned(), false),
+                                                    ("mirror".to_owned(), "Mirror placement across axis".to_owned(), false),
+                                                    ("mirror-line".to_owned(), "Mirror line".to_owned(), false),
+                                                ];
+                                                let on_value_change = EventHandler::new(move |choice: Option<String>| {
+                let Some(choice) = choice else {
+                    return;
+                };
+                constraint_kind.set(match choice.as_str() {
+                    "mirror" => ConstraintKind::Mirror,
+                    "mirror-line" => ConstraintKind::MirrorLine,
+                    _ => ConstraintKind::Offset,
+                })
+            });
+            rsx! {
+
+                                                    Field { class: "",
+                                                        FieldLabel { html_for: control_id.clone(), "{control_label}" }
+                                                        Select::<String> {
+                                                            id: control_id,
+                                                            aria_label: control_aria_label,
+                                                            value: Some(kind_choice.into()),
+                                                            disabled: false,
+                                                            on_value_change,
+                                                            for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
+                                                                SelectOption::<String> {
+                                                                    index,
+                                                                    value: value.clone(),
+                                                                    text_value: label.clone(),
+                                                                    disabled: *disabled,
+                                                                    "{label}"
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            {
+                                                let control_label = "Source part".to_owned();
+                                                let control_aria_label = "Constraint source part".to_owned();
+                                                let control_id = format!(
+                                                    "layout-choice-{}-{}",
+                                                    dioxus::core::current_scope_id().0,
+                                                    control_aria_label.replace(' ', "-"),
+                                                );
+
+                                                let mut control_choices: Vec<(String, String, bool)> = Vec::new();
+                                                if !board_parts.iter().any(|part| part.id == source_part_id()) {
+                                                    control_choices
+                                                        .push((
+                                                            source_part_id.to_string(),
+                                                            constraint_source_reference.to_string(),
+                                                            false,
+                                                        ));
+                                                }
+                                                for part in board_parts.iter().filter(|part| part.id != owner.part_id) {
+                                                    control_choices
+                                                        .push((part.id.to_string(), part.reference.to_string(), false));
+                                                }
+                                                let on_value_change = EventHandler::new({
+                let board_parts = board_parts.clone();
+                move |choice: Option<String>| {
+                    let Some(choice) = choice else {
+                        return;
+                    };
+                    let value = choice;
+                    if !has_active_constraint {
+                        offset_axes.set(default_axes_for_source(&board_parts, &value));
                     }
-                    label { input {
-                        r#type: "checkbox", aria_label: "Allow component body overhang", checked: projection.outline.allow_body_overhang,
-                        onchange: { let baseline = outline.clone(); let submit = set_outline.clone(); move |event| { let mut outline = baseline.clone(); outline.allow_body_overhang = event.checked(); submit(outline); } },
-                    } "Allow component body overhang" }
-                    small { "Pad and drill support remains required when a part is excluded or body overhang is allowed." }
-                    }
+                    source_part_id.set(value);
                 }
-                details { class: "m1-layout-component-constraint", open: constraint_open(),
-                    summary { onclick: move |_| constraint_open.set(!constraint_open()), span { "Layout constraint" } small { if active_constraint.is_some() { "Active" } else { "Optional" } } }
-                    if board_parts.iter().filter(|part| part.id != owner.part_id).count() > 0 {
-                        label { "Relationship"
-                            select { aria_label: "Constraint type", value: if constraint_kind() == ConstraintKind::Offset { "offset" } else { "mirror" }, onchange: move |event| constraint_kind.set(if event.value() == "mirror" { ConstraintKind::Mirror } else { ConstraintKind::Offset }),
-                                option { value: "offset", selected: constraint_kind() == ConstraintKind::Offset, "Offset from part" }
-                                option { value: "mirror", selected: constraint_kind() == ConstraintKind::Mirror, "Mirror placement across axis" }
-                            }
-                        }
-                        label { "Source part"
-                            select { aria_label: "Constraint source part", value: "{source_part_id}", onchange: move |event| source_part_id.set(event.value()),
-                                for part in board_parts.iter().filter(|part| part.id != owner.part_id) {
-                                    option {
-                                        value: "{part.id}",
-                                        selected: source_part_id().as_str() == part.id.as_str(),
-                                        "{part.reference}"
+            });
+            rsx! {
+
+                                                    Field { class: "",
+                                                        FieldLabel { html_for: control_id.clone(), "{control_label}" }
+                                                        Combobox::<String> {
+                                                            id: control_id,
+                                                            aria_label: control_aria_label.clone(),
+                                                            list_aria_label: control_aria_label.clone(),
+                                                            value: Some(source_choice.into()),
+                                                            disabled: false,
+                                                            on_value_change,
+                                                            for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
+                                                                ComboboxOption::<String> {
+                                                                    index,
+                                                                    value: value.clone(),
+                                                                    text_value: label.clone(),
+                                                                    disabled: *disabled,
+                                                                    "{label}"
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            if constraint_kind() == ConstraintKind::Offset {
+                                                {
+                                                    let control_label = "Offset axes".to_owned();
+                                                    let control_aria_label = "Offset axes".to_owned();
+                                                    let control_id = format!(
+                                                        "layout-choice-{}-{}",
+                                                        dioxus::core::current_scope_id().0,
+                                                        control_aria_label.replace(' ', "-"),
+                                                    );
+
+                                                    let control_choices = [
+                                                        (
+                                                            (offset_axes_value(OffsetAxes::Board)).to_string(),
+                                                            "Offset on board axes".to_owned(),
+                                                            false,
+                                                        ),
+                                                        (
+                                                            (offset_axes_value(OffsetAxes::Part)).to_string(),
+                                                            "Offset along part axes".to_owned(),
+                                                            false,
+                                                        ),
+                                                    ];
+                                                    let on_value_change = EventHandler::new(move |choice: Option<String>| {
+                let Some(choice) = choice else {
+                    return;
+                };
+                choose_offset_axes(offset_axes_from_value(&choice))
+            });
+            rsx! {
+
+                                                        Field { class: "",
+                                                            FieldLabel { html_for: control_id.clone(), "{control_label}" }
+                                                            Select::<String> {
+                                                                id: control_id,
+                                                                aria_label: control_aria_label,
+                                                                value: Some(axes_choice.into()),
+                                                                disabled: false,
+                                                                on_value_change,
+                                                                for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
+                                                                    SelectOption::<String> {
+                                                                        index,
+                                                                        value: value.clone(),
+                                                                        text_value: label.clone(),
+                                                                        disabled: *disabled,
+                                                                        "{label}"
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+
+                                                    }
+                                                }
+                                                div { class: "grid grid-cols-2 gap-2",
+                                                    {
+                                                        let control_input_id = format!(
+                                                            "layout-input-{}-7",
+                                                            dioxus::core::current_scope_id().0,
+                                                        );
+                                                        rsx! {
+                                                            Field {
+                                                                FieldLabel { html_for: control_input_id.clone(), "Offset X (mm)" }
+                                                                InputGroup { class: "max-[760px]:h-control-touch",
+                                                                    InputGroupInput { class: "max-[760px]:h-control-touch", r#type: InputType::Number,
+        step: "any",
+        aria_label: "Offset X (mm)",
+        value: "{offset_x}",
+        oninput: move |event: FormEvent| offset_x.set(event.value()),
+        id: control_input_id.clone(), }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                    {
+                                                        let control_input_id = format!(
+                                                            "layout-input-{}-6",
+                                                            dioxus::core::current_scope_id().0,
+                                                        );
+                                                        rsx! {
+                                                            Field {
+                                                                FieldLabel { html_for: control_input_id.clone(), "Offset Y (mm)" }
+                                                                InputGroup { class: "max-[760px]:h-control-touch",
+                                                                    InputGroupInput { class: "max-[760px]:h-control-touch", r#type: InputType::Number,
+        step: "any",
+        aria_label: "Offset Y (mm)",
+        value: "{offset_y}",
+        oninput: move |event: FormEvent| offset_y.set(event.value()),
+        id: control_input_id.clone(), }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                {
+                                                    let control_input_id = format!(
+                                                        "layout-input-{}-5",
+                                                        dioxus::core::current_scope_id().0,
+                                                    );
+                                                    rsx! {
+                                                        Field {
+                                                            FieldLabel { html_for: control_input_id.clone(), "Rotation (degrees)" }
+                                                            InputGroup { class: "max-[760px]:h-control-touch",
+                                                                InputGroupInput { class: "max-[760px]:h-control-touch", r#type: InputType::Number,
+        step: "any",
+        aria_label: "Rotation (degrees)",
+        value: "{rotation}",
+        oninput: move |event: FormEvent| rotation.set(event.value()),
+        id: control_input_id.clone(), }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            } else if constraint_kind() == ConstraintKind::Mirror {
+                                                {
+                                                    let control_label = "Axis".to_owned();
+                                                    let control_aria_label = "Mirror axis".to_owned();
+                                                    let control_id = format!(
+                                                        "layout-choice-{}-{}",
+                                                        dioxus::core::current_scope_id().0,
+                                                        control_aria_label.replace(' ', "-"),
+                                                    );
+
+                                                    let control_choices = [
+                                                        ("vertical".to_owned(), "Vertical".to_owned(), false),
+                                                        ("horizontal".to_owned(), "Horizontal".to_owned(), false),
+                                                    ];
+                                                    let on_value_change = EventHandler::new(move |choice: Option<String>| {
+                let Some(choice) = choice else {
+                    return;
+                };
+                mirror_axis.set(if choice == "horizontal" {
+                    MirrorAxis::Horizontal
+                } else {
+                    MirrorAxis::Vertical
+                })
+            });
+            rsx! {
+
+                                                        Field { class: "",
+                                                            FieldLabel { html_for: control_id.clone(), "{control_label}" }
+                                                            Select::<String> {
+                                                                id: control_id,
+                                                                aria_label: control_aria_label,
+                                                                value: Some(axis_choice.into()),
+                                                                disabled: false,
+                                                                on_value_change,
+                                                                for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
+                                                                    SelectOption::<String> {
+                                                                        index,
+                                                                        value: value.clone(),
+                                                                        text_value: label.clone(),
+                                                                        disabled: *disabled,
+                                                                        "{label}"
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                {
+                                                    let control_input_id = format!(
+                                                        "layout-input-{}-4",
+                                                        dioxus::core::current_scope_id().0,
+                                                    );
+                                                    rsx! {
+                                                        Field {
+                                                            FieldLabel { html_for: control_input_id.clone(), "Axis coordinate (mm)" }
+                                                            InputGroup { class: "max-[760px]:h-control-touch",
+                                                                InputGroupInput { class: "max-[760px]:h-control-touch", r#type: InputType::Number,
+        step: "any",
+        aria_label: "Axis coordinate (mm)",
+        value: "{mirror_coordinate}",
+        oninput: move |event: FormEvent| mirror_coordinate.set(event.value()),
+        id: control_input_id.clone(), }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                p {
+                                                    "Footprint geometry stays unchanged. Use a handed definition where needed."
+                                                }
+                                            } else {
+                                                div { class: "grid grid-cols-2 gap-2",
+                                                    {
+                                                        let control_input_id = format!(
+                                                            "layout-input-{}-3",
+                                                            dioxus::core::current_scope_id().0,
+                                                        );
+                                                        rsx! {
+                                                            Field {
+                                                                FieldLabel { html_for: control_input_id.clone(), "Line anchor X (mm)" }
+                                                                InputGroup { class: "max-[760px]:h-control-touch",
+                                                                    InputGroupInput { class: "max-[760px]:h-control-touch", r#type: InputType::Number,
+        step: "any",
+        aria_label: "Mirror line anchor X (mm)",
+        value: "{mirror_line_x}",
+        oninput: move |event: FormEvent| mirror_line_x.set(event.value()),
+        id: control_input_id.clone(), }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                    {
+                                                        let control_input_id = format!(
+                                                            "layout-input-{}-2",
+                                                            dioxus::core::current_scope_id().0,
+                                                        );
+                                                        rsx! {
+                                                            Field {
+                                                                FieldLabel { html_for: control_input_id.clone(), "Line anchor Y (mm)" }
+                                                                InputGroup { class: "max-[760px]:h-control-touch",
+                                                                    InputGroupInput { class: "max-[760px]:h-control-touch", r#type: InputType::Number,
+        step: "any",
+        aria_label: "Mirror line anchor Y (mm)",
+        value: "{mirror_line_y}",
+        oninput: move |event: FormEvent| mirror_line_y.set(event.value()),
+        id: control_input_id.clone(), }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                {
+                                                    let control_input_id = format!(
+                                                        "layout-input-{}-1",
+                                                        dioxus::core::current_scope_id().0,
+                                                    );
+                                                    rsx! {
+                                                        Field {
+                                                            FieldLabel { html_for: control_input_id.clone(), "Line angle (degrees)" }
+                                                            InputGroup { class: "max-[760px]:h-control-touch",
+                                                                InputGroupInput { class: "max-[760px]:h-control-touch", r#type: InputType::Number,
+        step: "any",
+        aria_label: "Mirror line angle (degrees)",
+        value: "{mirror_line_angle}",
+        oninput: move |event: FormEvent| mirror_line_angle.set(event.value()),
+        id: control_input_id.clone(), }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                p {
+                                                    "Footprint geometry stays unchanged. Use a handed definition where needed."
+                                                }
+                                            }
+                                            if active_constraint.is_some() {
+                                                p { class: "text-[11px] leading-[1.45] text-muted-foreground",
+                                                    "{constraint_source_reference} drives {constraint_target_reference}."
+                                                }
+                                            }
+                                            div { class: "flex flex-wrap gap-2 [&_button]:min-h-[34px]",
+                                                Button {
+                                                    variant: ButtonVariant::Secondary,
+                                                    button_type: "button",
+                                                    disabled: (props.constraint_pending)(),
+                                                    onclick: save_constraint,
+                                                    if active_constraint.is_some() {
+                                                        "Save constraint"
+                                                    } else {
+                                                        "Add constraint"
+                                                    }
+                                                }
+                                                if active_constraint.is_some() {
+                                                    Button {
+                                                        variant: ButtonVariant::Secondary,
+                                                        button_type: "button",
+                                                        disabled: (props.remove_pending)(),
+                                                        onclick: remove_constraint,
+                                                        "Remove"
+                                                    }
+                                                }
+                                            }
+                                        } else {
+                                            p { "Add another part on this board to create a layout constraint." }
+                                        }
                                     }
                                 }
                             }
-                        }
-                        if constraint_kind() == ConstraintKind::Offset {
-                            div { class: "m1-layout-component-constraint-grid",
-                                label { "Offset X (mm)" input { r#type: "number", step: "any", aria_label: "Offset X (mm)", value: "{offset_x}", oninput: move |event| offset_x.set(event.value()) } }
-                                label { "Offset Y (mm)" input { r#type: "number", step: "any", aria_label: "Offset Y (mm)", value: "{offset_y}", oninput: move |event| offset_y.set(event.value()) } }
+                            if let Some(message) = x_failure()
+                                .or_else(&*y_failure)
+                                .or_else(&*margin_failure)
+                                .or_else(&*error)
+                            {
+                                FieldError {  "{message}"  }
                             }
-                            label { "Rotation (degrees)" input { r#type: "number", step: "any", aria_label: "Rotation (degrees)", value: "{rotation}", oninput: move |event| rotation.set(event.value()) } }
-                        } else {
-                            label { "Axis"
-                                select { aria_label: "Mirror axis", value: if mirror_axis() == MirrorAxis::Vertical { "vertical" } else { "horizontal" }, onchange: move |event| mirror_axis.set(if event.value() == "horizontal" { MirrorAxis::Horizontal } else { MirrorAxis::Vertical }),
-                                    option { value: "vertical", selected: mirror_axis() == MirrorAxis::Vertical, "Vertical" }
-                                    option { value: "horizontal", selected: mirror_axis() == MirrorAxis::Horizontal, "Horizontal" }
-                                }
+                            Button { variant: ButtonVariant::Secondary,
+    class: "min-h-[34px] justify-self-start text-left",
+    button_type: "button",
+    onclick: {
+                            let latest_capture = latest_capture; let action = props.on_action;
+                            move |_| action.call(LayoutComponentInspectorAction::NavigateElectrical { owner: latest_capture() })
+                        },
+                                "Edit electrical connections"
+                             }
+                        }
+                        TabsContent { index: 1usize, value: "relations",
+                            h2 { "Relationships" }
+                            p { class: "text-xs leading-normal",
+                                "{projection.relationship_summary}"
                             }
-                            label { "Axis coordinate (mm)" input { r#type: "number", step: "any", aria_label: "Axis coordinate (mm)", value: "{mirror_coordinate}", oninput: move |event| mirror_coordinate.set(event.value()) } }
-                            p { "Footprint geometry stays unchanged. Use a handed definition where needed." }
+                            Button {
+                                variant: ButtonVariant::Secondary,
+                                button_type: "button",
+                                onclick: move |_| tab.set(LayoutInspectorTab::Properties),
+                                "Go to Properties"
+                            }
+                            p { class: "text-xs leading-[1.45] text-muted-foreground",
+                                "Matrix rows and columns share pitch, stagger and splay. Edit those in Properties."
+                            }
                         }
-                        if active_constraint.is_some() {
-                            p { class: "m1-layout-component-constraint-note", "{constraint_source_reference} drives {projection.reference}." }
-                        }
-                        div { class: "m1-layout-component-constraint-actions",
-                            button { r#type: "button", onclick: save_constraint, if active_constraint.is_some() { "Save constraint" } else { "Add constraint" } }
-                            if active_constraint.is_some() { button { r#type: "button", onclick: remove_constraint, "Remove" } }
-                        }
-                    } else { p { "Add another part on this board to create a layout constraint." } }
+                     }
                 }
-                }
-                if let Some(message) = error() { p { role: "alert", "{message}" } }
-                button { class: "m1-layout-component-electrical", r#type: "button", onclick: {
-                    let latest_capture = latest_capture; let action = props.on_action;
-                    move |_| action.call(LayoutComponentInspectorAction::NavigateElectrical { owner: latest_capture() })
-                }, "Edit electrical connections" }
-            } else {
-                h2 { "Relationships" }
-                p { class: "m1-layout-component-relation-summary", "{projection.relationship_summary}" }
-                button { r#type: "button", onclick: move |_| tab.set(LayoutInspectorTab::Properties), "Edit placement relationship" }
-                p { class: "m1-layout-component-matrix-note", "Matrix rows and columns share pitch, stagger and splay. Edit those in Properties." }
             }
-        }
-    }
 }

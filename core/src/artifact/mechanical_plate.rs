@@ -76,6 +76,21 @@ pub(super) fn export(
 mod tests {
     use super::*;
     use std::process::Command;
+    /// `kicad-cli` without an AppImage launcher's library paths, which break KiCad's binaries.
+    fn kicad_cli() -> Command {
+        let mut command = Command::new("kicad-cli");
+        if std::env::var_os("APPIMAGE").is_some() || std::env::var_os("APPDIR").is_some() {
+            for name in [
+                "APPDIR",
+                "APPIMAGE",
+                "LD_LIBRARY_PATH",
+                "GSETTINGS_SCHEMA_DIR",
+            ] {
+                command.env_remove(name);
+            }
+        }
+        command
+    }
     fn fixture() -> (ProjectDoc, Vec<Contour>) {
         let mut doc = ProjectDoc::empty("plate-test", "Plate test");
         doc.boards.push(serde_json::from_value(serde_json::json!({"id":"board","name":"Board","outlineIds":[],"partIds":[],"netIds":[],"thickness":1.6,"traces":[],"vias":[]})).unwrap());
@@ -138,7 +153,7 @@ mod tests {
     #[test]
     #[ignore = "requires KiCad CLI 10; run explicitly for manufacturing export validation"]
     fn kicad_10_exports_actual_gerber_and_npth_drill() {
-        let version = Command::new("kicad-cli").arg("--version").output().unwrap();
+        let version = kicad_cli().arg("--version").output().unwrap();
         assert!(String::from_utf8_lossy(&version.stdout).starts_with("10."));
         let (doc, contours) = fixture();
         let result = export(&doc, &contours).unwrap();
@@ -161,7 +176,7 @@ mod tests {
                 "--excellon-separate-th",
             ],
         ] {
-            let result = Command::new("kicad-cli")
+            let result = kicad_cli()
                 .args(args)
                 .arg("--output")
                 .arg(&output)

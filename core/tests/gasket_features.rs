@@ -24,6 +24,101 @@ fn assembly(features: Value) -> CaseAssemblyIR {
     .unwrap()
 }
 
+fn support_owner_contour(hole: bool, points: &[[f64; 2]]) -> Value {
+    json!({"hole":hole,"points":points.iter().map(|[x,y]| json!({"x":x,"y":y})).collect::<Vec<_>>()})
+}
+
+fn support_owner_case(points: &[[f64; 2]], contours: Vec<Value>) -> CaseAssemblyIR {
+    let support = points
+        .iter()
+        .map(|[x, y]| json!({"x":x,"y":y}))
+        .collect::<Vec<_>>();
+    serde_json::from_value(json!({"revision":1,"bodies":[{
+        "revision":1,"contours":contours,"body":{"id":"owner-case","name":"Owner case","boardId":"board","kind":"plate",
+            "thickness":1.0,"clearance":0.0,"features":[{"kind":"support-prism","id":"owner-support","points":support,"z":0.0,"height":1.0}]}
+    }]})).unwrap()
+}
+
+#[test]
+fn support_owner_cutoff_is_exact_and_strict_for_prepared_inputs() {
+    let exterior = [[-2.0, 0.0], [0.0, 0.0], [0.0, 10.0], [-2.0, 10.0]];
+    for edge in [1e-8, f64::from_bits(1e-8_f64.to_bits() + 1)] {
+        let support = [[-1.0, 2.0], [edge, 2.0], [edge, 3.0], [-1.0, 3.0]];
+        let error = prepare(support_owner_case(
+            &support,
+            vec![support_owner_contour(false, &exterior)],
+        ))
+        .unwrap_err();
+        assert!(error.contains("owner-support"), "{error}");
+        assert!(error.contains("one case exterior"), "{error}");
+    }
+
+    let below = [[-1.0, 2.0], [5e-9, 2.0], [5e-9, 3.0], [-1.0, 3.0]];
+    assert!(
+        prepare(support_owner_case(
+            &below,
+            vec![support_owner_contour(false, &exterior)]
+        ))
+        .is_ok()
+    );
+    let touching = [[-1.0, 2.0], [0.0, 2.0], [0.0, 3.0], [-1.0, 3.0]];
+    assert!(
+        prepare(support_owner_case(
+            &touching,
+            vec![support_owner_contour(false, &exterior)]
+        ))
+        .is_ok()
+    );
+}
+
+#[test]
+fn support_owner_keeps_concavity_multiple_owners_and_hole_contract() {
+    let concave = [
+        [0.0, 0.0],
+        [10.0, 0.0],
+        [10.0, 3.0],
+        [3.0, 3.0],
+        [3.0, 10.0],
+        [0.0, 10.0],
+    ];
+    let crossing_notch = [[2.5, 2.5], [3.5, 2.5], [3.5, 3.5], [2.5, 3.5]];
+    assert!(
+        prepare(support_owner_case(
+            &crossing_notch,
+            vec![support_owner_contour(false, &concave)]
+        ))
+        .is_err()
+    );
+
+    let overlap_support = [[6.0, 2.0], [7.0, 2.0], [7.0, 3.0], [6.0, 3.0]];
+    let left = [[0.0, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0]];
+    let right = [[5.0, 0.0], [15.0, 0.0], [15.0, 10.0], [5.0, 10.0]];
+    assert!(
+        prepare(support_owner_case(
+            &overlap_support,
+            vec![
+                support_owner_contour(false, &left),
+                support_owner_contour(false, &right)
+            ]
+        ))
+        .is_err()
+    );
+
+    let hole_exterior = [[-2.0, 0.0], [0.0, 0.0], [0.0, 10.0], [-2.0, 10.0]];
+    let hole = [[-0.75, 4.0], [-0.25, 4.0], [-0.25, 6.0], [-0.75, 6.0]];
+    let in_hole = [[-0.6, 4.5], [-0.4, 4.5], [-0.4, 5.5], [-0.6, 5.5]];
+    assert!(
+        prepare(support_owner_case(
+            &in_hole,
+            vec![
+                support_owner_contour(false, &hole_exterior),
+                support_owner_contour(true, &hole)
+            ]
+        ))
+        .is_ok()
+    );
+}
+
 #[test]
 fn wall_supports_and_blind_seats_survive_preparation() {
     let features = json!([
@@ -36,6 +131,122 @@ fn wall_supports_and_blind_seats_survive_preparation() {
     let prepared = prepare(assembly(features.clone())).unwrap();
     let encoded = serde_json::to_value(prepared).unwrap();
     assert_eq!(encoded["bodies"][0]["body"]["features"], features);
+}
+
+#[test]
+fn support_prism_rejects_self_crossing_polygon_at_prepare_boundary() {
+    let points = (0..5)
+        .map(|i| {
+            let angle =
+                std::f64::consts::TAU * ((i * 2) % 5) as f64 / 5.0 - std::f64::consts::FRAC_PI_2;
+            json!({"x": 10.0 + 8.0 * angle.cos(), "y": 10.0 + 8.0 * angle.sin()})
+        })
+        .collect::<Vec<_>>();
+    let error = prepare(assembly(json!([{
+        "kind":"support-prism","id":"crossed-support","points":points,"z":1.0,"height":1.0
+    }])))
+    .unwrap_err();
+    assert!(error.contains("crossed-support"), "{error}");
+    assert!(
+        error.contains("cross") || error.contains("intersect"),
+        "{error}"
+    );
+}
+
+#[test]
+fn support_prism_keeps_existing_finite_and_height_errors_before_topology() {
+    let crossed = (0..5)
+        .map(|i| {
+            let angle =
+                std::f64::consts::TAU * ((i * 2) % 5) as f64 / 5.0 - std::f64::consts::FRAC_PI_2;
+            boardstudio_core::model::Vec2 {
+                x: 10.0 + 8.0 * angle.cos(),
+                y: 10.0 + 8.0 * angle.sin(),
+            }
+        })
+        .collect::<Vec<_>>();
+    let invalid_height = serde_json::from_value::<CaseAssemblyIR>(json!({
+        "revision":1,
+        "bodies":[{
+            "revision":1,
+            "contours":[{"hole":false,"points":[{"x":0.0,"y":0.0},{"x":30.0,"y":0.0},{"x":30.0,"y":20.0},{"x":0.0,"y":20.0}]}],
+            "body":{"id":"bottom","name":"Tray","boardId":"board","kind":"tray","thickness":2.0,"clearance":0.0,"z":0.0,"wallHeight":8.0,"wallThickness":2.0,
+                "features":[{"kind":"support-prism","id":"bad-height-support","points":crossed,"z":1.0,"height":0.0}]}
+        }]
+    })).unwrap();
+    let height_error = match CoreEngine::new().handle(CoreRequest::PrepareCase {
+        id: "features".into(),
+        ir: invalid_height,
+    }) {
+        CoreReply::Error { message, .. } => message,
+        other => panic!("invalid support height was accepted: {other:?}"),
+    };
+    assert!(
+        height_error.contains("bad-height-support"),
+        "{height_error}"
+    );
+    assert!(
+        height_error.contains("finite positive geometry"),
+        "{height_error}"
+    );
+
+    let mut invalid_coordinate = assembly(json!([{
+        "kind":"support-prism","id":"bad-coordinate-support","points":[
+            {"x":1.0,"y":1.0},{"x":6.0,"y":1.0},{"x":6.0,"y":6.0},{"x":1.0,"y":6.0}
+        ],"z":1.0,"height":1.0
+    }]));
+    if let CaseFeature::SupportPrism { points, .. } =
+        &mut invalid_coordinate.bodies[0].body.features.as_mut().unwrap()[0]
+    {
+        points[0].x = f64::NAN;
+    }
+    let coordinate_error = prepare(invalid_coordinate).unwrap_err();
+    assert!(
+        coordinate_error.contains("bad-coordinate-support"),
+        "{coordinate_error}"
+    );
+    assert!(
+        coordinate_error.contains("finite positive geometry"),
+        "{coordinate_error}"
+    );
+}
+
+#[test]
+fn support_prism_preserves_exact_duplicates_large_rings_and_nearby_edges() {
+    let duplicates = json!([{
+        "kind":"support-prism","id":"duplicate-support","points":[
+            {"x":1.0,"y":1.0},{"x":1.0,"y":1.0},{"x":6.0,"y":1.0},
+            {"x":6.0,"y":6.0},{"x":1.0,"y":6.0},{"x":1.0,"y":1.0}
+        ],"z":1.0,"height":1.0
+    }]);
+    let prepared_duplicates = prepare(assembly(duplicates.clone())).unwrap();
+    let encoded = serde_json::to_value(prepared_duplicates).unwrap();
+    assert_eq!(
+        encoded["bodies"][0]["body"]["features"][0]["points"],
+        duplicates[0]["points"]
+    );
+
+    let nearby = json!([{
+        "kind":"support-prism","id":"nearby-support","points":[
+            {"x":1.0,"y":1.0},{"x":20.0,"y":1.0},{"x":20.0,"y":19.0},
+            {"x":1.0000000001,"y":19.0},{"x":1.0000000001,"y":10.0},
+            {"x":1.0,"y":10.0}
+        ],"z":1.0,"height":1.0
+    }]);
+    assert!(prepare(assembly(nearby)).is_ok());
+
+    let points = (0..1025)
+        .map(|i| {
+            let angle = std::f64::consts::TAU * i as f64 / 1025.0;
+            json!({"x": 10.0 + 8.0 * angle.cos(), "y": 10.0 + 8.0 * angle.sin()})
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        prepare(assembly(json!([{
+            "kind":"support-prism","id":"large-support","points":points,"z":1.0,"height":1.0
+        }])))
+        .is_ok()
+    );
 }
 
 #[test]
@@ -65,6 +276,201 @@ fn resolve_internal_sized(doc: Value, width: f64, height: f64) -> Value {
         .to_string(),
     );
     serde_json::from_str::<Value>(&reply).unwrap()["assembly"].clone()
+}
+
+fn adoption_reachability_case(id: &str) -> (Value, Value, PreparedCaseIR) {
+    let fixture: Value =
+        serde_json::from_str(include_str!("fixtures/adoption-reachability.json")).unwrap();
+    let case = fixture["cases"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|case| case["prototypeId"] == id)
+        .unwrap()
+        .clone();
+    let mut original =
+        serde_json::to_value(serde_json::from_value::<ProjectDoc>(internal_document()).unwrap())
+            .unwrap();
+    original["formatVersion"] = json!(boardstudio_core::migrate::CURRENT_VERSION);
+    // Ticket 37: raw SetMechanical is deleted. The case mechanical is setup, not
+    // behavior: open the document with it in place instead of writing it by edit.
+    let mut authored = original.clone();
+    authored["mechanical"] = case["request"]["document"]["mechanical"].clone();
+    let mut engine = CoreEngine::new();
+    let call = |engine: &mut CoreEngine, input: Value| {
+        serde_json::from_str::<Value>(&engine.request(&input.to_string())).unwrap()
+    };
+    let opened = call(
+        &mut engine,
+        json!({"kind":"open","id":"open","document":authored}),
+    );
+    assert_eq!(opened["kind"], "scene", "{opened}");
+    let edited = opened;
+    assert_eq!(edited["kind"], "scene", "{edited}");
+    assert_eq!(
+        edited["document"]["mechanical"], case["request"]["document"]["mechanical"],
+        "the authored mechanical is established"
+    );
+    let resolved = call(&mut engine, case["request"].clone());
+    assert_eq!(resolved["kind"], "mechanical-resolved", "{resolved}");
+    let assembly = &resolved["assembly"];
+    assert_eq!(assembly["generationBlocked"], false, "{resolved}");
+    assert!(
+        assembly["diagnostics"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|f| f["severity"] != "error")
+    );
+    let prepared = prepare(serde_json::from_value(assembly["case"].clone()).unwrap()).unwrap();
+    let body = prepared
+        .bodies
+        .into_iter()
+        .find(|body| body.body.id == case["preparedBody"]["body"]["id"])
+        .unwrap();
+    assert_eq!(serde_json::to_value(&body).unwrap(), case["preparedBody"]);
+    let mut changed = case["request"]["document"]["mechanical"].clone();
+    if id.contains("opening") {
+        changed.as_object_mut().unwrap().remove("openings");
+    } else {
+        let fields: &[&str] = if id == "cone-wall" {
+            &["headProfile", "lengthDatum"]
+        } else {
+            &["seatDepth"]
+        };
+        for field in fields {
+            changed["internalGasket"]["hardware"][field] =
+                original["mechanical"]["internalGasket"]["hardware"][field].clone();
+        }
+    }
+    assert_eq!(
+        changed, original["mechanical"],
+        "only the relevant authoring fields change"
+    );
+    (fixture, case, body)
+}
+
+#[test]
+fn adoption_reachability_countersunk_hardware_still_emits_contained_surface_seats() {
+    let (_, case, prepared) = adoption_reachability_case("cone-wall");
+    let hardware = &case["request"]["document"]["mechanical"]["internalGasket"]["hardware"];
+    assert_eq!(hardware["headProfile"], "countersunk");
+    assert_eq!(hardware["lengthDatum"], "overall");
+    let features = prepared.body.features.unwrap();
+    let heads: Vec<_> = features
+        .iter()
+        .filter_map(|feature| match feature {
+            CaseFeature::ConicalSeat {
+                at,
+                z,
+                height,
+                diameter,
+                ..
+            } => Some((at, z, height, diameter)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(heads.len(), 4);
+    for (at, z, height, diameter) in heads {
+        assert_eq!(Some(*z), prepared.body.z);
+        assert!(*z + height < z + prepared.body.thickness);
+        let radius = diameter / 2.;
+        // This retained source has a rectangular floor; every head fits inside it.
+        for axis in [0, 1] {
+            let coordinates: Vec<_> = prepared.regions[0]
+                .outer
+                .iter()
+                .map(|p| if axis == 0 { p.x } else { p.y })
+                .collect();
+            let centre = if axis == 0 { at.x } else { at.y };
+            assert!(centre - radius > coordinates.iter().copied().fold(f64::INFINITY, f64::min));
+            assert!(
+                centre + radius
+                    < coordinates
+                        .iter()
+                        .copied()
+                        .fold(f64::NEG_INFINITY, f64::max)
+            );
+        }
+    }
+    let attempt = &case["blockedWallAxisAttempt"];
+    let blocked: Value =
+        serde_json::from_str(&CoreEngine::new().request(&attempt["request"].to_string())).unwrap();
+    assert_eq!(blocked["assembly"]["generationBlocked"], true);
+    assert!(
+        blocked["assembly"]["diagnostics"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|finding| {
+                finding["severity"] == "error"
+                    && finding["message"]
+                        .as_str()
+                        .unwrap()
+                        .contains(attempt["expectedReason"].as_str().unwrap())
+            })
+    );
+}
+
+#[test]
+fn adoption_reachability_deeper_insert_seats_still_start_at_the_part_surface() {
+    let (_, _, prepared) = adoption_reachability_case("sealed-round-seat");
+    let seats: Vec<_> = prepared
+        .body
+        .features
+        .as_ref()
+        .unwrap()
+        .iter()
+        .filter_map(|feature| match feature {
+            CaseFeature::RoundSeat { z, height, .. } => Some((z, height)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(seats.len(), 4);
+    for (z, height) in seats {
+        assert_eq!(Some(*z), prepared.body.z);
+        assert_eq!(*height, 5.);
+        assert_eq!(prepared.body.thickness - height, 1.5);
+    }
+}
+
+fn check_authored_opening_reachability(id: &str, original: &str, removed_volume: f64) {
+    let (fixture, case, prepared) = adoption_reachability_case(id);
+    let prototype: PreparedCaseIR = serde_json::from_str(original).unwrap();
+    let openings = prepared.body.openings.as_ref().unwrap();
+    let source = prototype.body.openings.as_ref().unwrap();
+    for (actual, expected) in openings.iter().zip(source) {
+        assert_eq!(actual.points, expected.points);
+        assert_eq!(actual.height, expected.height);
+        assert!(actual.z > prepared.body.z.unwrap());
+        assert!(actual.z + actual.height <= prepared.body.z.unwrap() + prepared.body.thickness);
+    }
+    assert_eq!(case["expectedBackend"]["removedVolumeMm3"], removed_volume);
+    let mut body = serde_json::to_value(&prepared).unwrap();
+    body["body"]["openings"] = json!(&openings[source.len()..]);
+    assert_eq!(body["body"], fixture["baselinePreparedBottom"]["body"]);
+    assert_eq!(
+        body["regions"],
+        fixture["baselinePreparedBottom"]["regions"]
+    );
+}
+
+#[test]
+fn adoption_reachability_authored_sealed_opening_survives_real_tray_preparation() {
+    check_authored_opening_reachability(
+        "sealed-opening",
+        include_str!("../../cad/monstertruck/tests/fixtures/adoption/sealed-opening.json"),
+        16.,
+    );
+}
+
+#[test]
+fn adoption_reachability_authored_ring_island_survives_real_tray_preparation() {
+    check_authored_opening_reachability(
+        "opening-ring-island",
+        include_str!("../../cad/monstertruck/tests/fixtures/adoption/opening-ring-island.json"),
+        164.,
+    );
 }
 
 #[test]
@@ -352,8 +758,8 @@ fn linked_split_supports_use_mirrored_tracks() {
         {"id":"left-marker","definitionId":"marker","reference":"L","pose":{"at":{"x":50,"y":35},"rotation":0},"side":"front"},
         {"id":"right-marker","definitionId":"marker","reference":"R","pose":{"at":{"x":250,"y":35},"rotation":0},"side":"front"}]);
     input["document"]["layouts"] = json!([
-        {"id":"left","name":"Left","boardId":"board","matrixId":"left","partIds":["left-marker"]},
-        {"id":"right","name":"Right","boardId":"board","matrixId":"right","partIds":["right-marker"],"mirrorLink":{"sourceId":"left","axisX":150}}]);
+        {"id":"left","name":"Left","boardId":"board","matrixIds":["left"],"partIds":["left-marker"]},
+        {"id":"right","name":"Right","boardId":"board","matrixIds":["right"],"partIds":["right-marker"],"mirrorLink":{"sourceId":"left","axisX":150}}]);
     for automatic in [false, true] {
         input["document"]["mechanical"]["gasketLayout"]["autoSize"] = json!(automatic);
         input["document"]["mechanical"]["internalGasket"]["autoCount"] = json!(automatic);
@@ -717,48 +1123,6 @@ fn automatic_count_keeps_saved_support_slots_when_outline_target_is_smaller() {
 }
 
 #[test]
-fn automatic_layout_centers_long_runs_and_covers_sofle_ledges() {
-    let fixture = include_str!("fixtures/internal-gasket-v1/sofle-outline.json");
-    let reply: Value = serde_json::from_str(&CoreEngine::new().request(fixture)).unwrap();
-    let result = &reply["assembly"];
-    assert_eq!(
-        result["generationBlocked"], false,
-        "{}",
-        result["diagnostics"]
-    );
-    let supports = result["gasketSupports"].as_array().unwrap();
-    let left: Vec<_> = supports
-        .iter()
-        .filter(|s| s["at"]["x"].as_f64().unwrap() < -3.)
-        .collect();
-    assert_eq!(
-        left.len(),
-        1,
-        "one long pad should replace fragmented left-edge pads: {left:?}"
-    );
-    assert!(left[0]["length"].as_f64().unwrap() >= 60., "{left:?}");
-    assert!(
-        (left[0]["at"]["y"].as_f64().unwrap() + 49.5).abs() < 2.,
-        "left pad must be centered: {left:?}"
-    );
-    for (min_x, max_x, min_y, max_y) in [
-        (36., 52., 0., 2.),
-        (99., 117., -2., 0.),
-        (36., 59., -102., -100.),
-        (94., 110., -109., -101.),
-    ] {
-        assert!(
-            supports.iter().any(|s| {
-                let x = s["at"]["x"].as_f64().unwrap();
-                let y = s["at"]["y"].as_f64().unwrap();
-                x > min_x && x < max_x && y > min_y && y < max_y
-            }),
-            "missing support on ledge {min_x}..{max_x}, {min_y}..{max_y}: {supports:?}"
-        );
-    }
-}
-
-#[test]
 fn automatic_long_edge_pairs_are_centered_and_symmetric() {
     let mut doc = internal_document();
     doc["mechanical"]["gasketLayout"]["autoSize"] = json!(true);
@@ -854,20 +1218,6 @@ fn automatic_closures_scale_with_case_perimeter() {
             }
         }
     }
-    let input: Value = serde_json::from_str(include_str!(
-        "fixtures/internal-gasket-v1/sofle-outline.json"
-    ))
-    .unwrap();
-    let reply: Value =
-        serde_json::from_str(&CoreEngine::new().request(&input.to_string())).unwrap();
-    assert_eq!(reply["assembly"]["generationBlocked"], false, "{reply}");
-    assert_eq!(
-        reply["assembly"]["suggestedMounts"]
-            .as_array()
-            .unwrap()
-            .len(),
-        6
-    );
 }
 
 #[test]

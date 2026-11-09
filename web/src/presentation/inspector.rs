@@ -1,30 +1,49 @@
 use crate::runtime::Runtime;
-use boardstudio_application::Event;
-use boardstudio_core::model::{EditCommand, EditOperation, EditPhase, Position, Vec2};
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+use boardstudio_application::{Event, Scope};
+use boardstudio_core::model::{EditOperation, Position, Vec2};
+use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
+use boardstudio_web_ui_shared::ui::{
+    button::Button,
+    callout::{Callout, CalloutVariant},
+    field::{Field, FieldError, FieldLabel},
+    input::InputType,
+    input_group::{InputGroup, InputGroupInput, InputGroupText},
+};
 use dioxus::prelude::*;
 use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::JsCast;
 use web_sys::HtmlInputElement;
 
+mod companion_placement;
 mod layout_component_inspector;
+pub(super) use companion_placement::{
+    CompanionPlacementAction, CompanionPlacementInspector, CompanionPlacementOwner,
+    CompanionPlacementProjection,
+};
 pub(super) use layout_component_inspector::{
-    BoardPartChoice, ComponentPositionAxis, LayoutChoice, LayoutComponentInspector,
-    LayoutComponentInspectorAction, LayoutComponentInspectorLifetime,
+    AnchorKeyChoice, BoardPartChoice, ComponentPositionAxis, LayoutChoice,
+    LayoutComponentInspector, LayoutComponentInspectorAction, LayoutComponentInspectorLifetime,
     LayoutComponentInspectorOwner, LayoutComponentInspectorOwnerKey,
-    LayoutComponentInspectorProjection, LayoutConstraintValues,
+    LayoutComponentInspectorProjection, LayoutConstraintValues, MirroredHalfProjection,
+    PartAnchorProjection,
 };
 
 #[derive(Clone)]
 struct NumericEdit {
     id: String,
-    revision: u64,
     transaction_id: String,
     start: Vec2,
     part_ids: Vec<String>,
     board_id: String,
     x_changed: bool,
     y_changed: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct NumericOwner {
+    scope: Option<Scope>,
+    part_ids: Vec<String>,
+    board_id: String,
 }
 type KeyboardHandler = Rc<RefCell<Box<dyn FnMut(KeyboardEvent)>>>;
 #[component]
@@ -42,11 +61,15 @@ pub(super) fn Inspector() -> Element {
                 .find(|p| model.selected_part_ids.first() == Some(&p.id))
         })
         .cloned();
-    let mut x = use_signal(String::new);
-    let mut y = use_signal(String::new);
+    let mut draft = use_signal(|| (String::new(), String::new()));
+    let mut dirty_axes = use_signal(|| (None::<String>, false, false));
     let numeric_edit = use_hook(|| Rc::new(RefCell::new(None::<NumericEdit>)));
-    let tickets = use_hook(|| Rc::new(RefCell::new(Vec::<(NumericEdit, EditTicket)>::new())));
+    let pending = use_signal(PendingEditSignals::<(), (String, String)>::new);
+    let apply_disabled = use_signal(|| false);
+    pending.peek().bind_one_shot((), apply_disabled);
+    let mut pending_owner = use_signal(|| None::<NumericOwner>);
     let mut failure = use_signal(|| None::<String>);
+    pending.peek().bind_field((), draft, failure);
     use_drop({
         let runtime = runtime.clone();
         let numeric_edit = numeric_edit.clone();
@@ -54,73 +77,179 @@ pub(super) fn Inspector() -> Element {
             let pending = numeric_edit.borrow_mut().take();
             if let Some(edit) = pending {
                 let start = edit.start;
-                submit_position(&runtime, &numeric_edit, edit, start, EditPhase::Preview);
+                submit_position(&runtime, &numeric_edit, edit, start);
+            }
+        }
+    });
+    use_drop({
+        move || {
+            pending.peek().unbind_field(&());
+            pending.peek().unbind_one_shot(&());
+            pending
+                .peek()
+                .settle(false, |_| (String::new(), String::new()));
+        }
+    });
+    // Ticket 011: register the single Apply admission key with the Runtime-owned
+    // draft registry. Unresolved = the live draft differs from the live-projected
+    // accepted position under owner-canonical (parsed) equality, and no in-flight
+    // submission for this key carries the current draft. Invalid text never equals
+    // the always-parseable accepted baseline, so realistic invalid drafts defer.
+    // Previews are transient Session state, not the safety predicate. Hidden and
+    // keep-mounted instances keep blocking through the same guard; genuine unmount
+    // retires explicitly, and the gate's poll-prune drops anything left dead.
+    let draft_owner_guard =
+        use_signal(|| None::<boardstudio_web_runtime::draft_owners::DraftOwnerGuard>);
+    let draft_owner_scope = runtime
+        .model()
+        .accepted
+        .as_ref()
+        .map(|snapshot| (snapshot.document.id.clone(), snapshot.session_epoch));
+    use_effect(use_reactive((&draft_owner_scope,), {
+        let runtime = runtime.clone();
+        let draft = draft;
+        let mut draft_owner_guard = draft_owner_guard;
+        let draft_owner_scope = draft_owner_scope.clone();
+        move |(scope,)| {
+            let _ = scope;
+            let retired = draft_owner_guard.write().take();
+            if let Some(retired) = retired {
+                runtime.retire_draft_owner(retired);
+            }
+            let Some(scope) = draft_owner_scope.clone() else {
+                return;
+            };
+            let probe_runtime = runtime.clone();
+            let probe_pending = pending.peek().clone();
+            let probe_scope = scope.clone();
+            let is_unresolved = std::rc::Rc::new(move || {
+                let live = draft.peek().clone();
+                let model = probe_runtime.model();
+                let Some(snapshot) = model.accepted.as_ref() else {
+                    return false;
+                };
+                if snapshot.document.id != probe_scope.0 || snapshot.session_epoch != probe_scope.1
+                {
+                    return false;
+                }
+                let Some(part) = model
+                    .selected_part_ids
+                    .first()
+                    .and_then(|id| snapshot.document.parts.iter().find(|part| &part.id == id))
+                else {
+                    return false;
+                };
+                if position_draft_equals_baseline(&live, (part.pose.at.x, part.pose.at.y)) {
+                    return false;
+                }
+                if probe_pending.submitted_draft(&()).as_ref() == Some(&live) {
+                    return false;
+                }
+                true
+            });
+            draft_owner_guard.set(Some(
+                runtime.register_draft_owner(
+                    boardstudio_web_runtime::draft_owners::DraftOwnerRegistration {
+                        project_scope: scope,
+                        workspace: "Layout",
+                        owner: "legacy-position",
+                        admission_key: "apply",
+                        area: "Legacy position".to_owned(),
+                        remedy: "Press Enter or Apply position to save, or press Escape to cancel"
+                            .to_owned(),
+                        is_unresolved,
+                    },
+                ),
+            ));
+        }
+    }));
+    use_drop({
+        let runtime = runtime.clone();
+        let mut draft_owner_guard = draft_owner_guard;
+        move || {
+            let retired = draft_owner_guard.write().take();
+            if let Some(retired) = retired {
+                runtime.retire_draft_owner(retired);
             }
         }
     });
     let key = selected
         .as_ref()
         .map(|p| (p.id.clone(), p.pose.at.x, p.pose.at.y));
-    use_effect(use_reactive((&key, &version), {
-        let runtime = runtime.clone();
-        let numeric_edit = numeric_edit.clone();
-        let tickets = tickets.clone();
-        move |(key, _)| {
-            let selected_ids = runtime.model().selected_part_ids;
-            tickets.borrow_mut().retain(|(edit, ticket)| {
-                match ticket.settlement(edit.part_ids == selected_ids) {
-                    Settlement::Pending => true,
-                    Settlement::Failed { message } => {
-                        failure.set(Some(message));
-                        false
+    let current_owner = selected.as_ref().map(|_| NumericOwner {
+        scope: runtime.scope(),
+        part_ids: model.selected_part_ids.clone(),
+        board_id: model.active_board_id.clone(),
+    });
+    use_effect(use_reactive(
+        (&key, &version, &current_owner, &pending_owner),
+        {
+            let runtime = runtime.clone();
+            let numeric_edit = numeric_edit.clone();
+            move |(key, _, current_owner, captured_owner)| {
+                let owner_is_live = current_owner.is_some() && current_owner == captured_owner();
+                pending.peek().settle(owner_is_live, |_| {
+                    key.as_ref()
+                        .map(|(_, px, py)| (px.to_string(), py.to_string()))
+                        .unwrap_or_default()
+                });
+                if !pending.peek().is_pending(&()) && pending_owner.peek().is_some() {
+                    pending_owner.set(None);
+                }
+                let (draft_id, x_dirty, y_dirty) = dirty_axes.peek().clone();
+                let selected_id = key.as_ref().map(|(id, _, _)| id);
+                let same_target = draft_id.as_ref() == selected_id;
+                if !same_target {
+                    dirty_axes.set((selected_id.cloned(), false, false));
+                }
+                if let Some((_, px, py)) = key.as_ref()
+                    && !pending.peek().is_pending(&())
+                {
+                    let mut projected = draft.peek().clone();
+                    if !same_target || !x_dirty {
+                        projected.0 = px.to_string();
                     }
-                    Settlement::Landed { .. } | Settlement::Retired => false,
+                    if !same_target || !y_dirty {
+                        projected.1 = py.to_string();
+                    }
+                    if *draft.peek() != projected {
+                        draft.set(projected);
+                    }
                 }
-            });
-            if let Some((_, px, py)) = key.as_ref() {
-                let draft = numeric_edit.borrow();
-                if !draft.as_ref().is_some_and(|edit| edit.x_changed)
-                    && !tickets.borrow().iter().any(|(edit, _)| edit.x_changed)
-                {
-                    x.set(px.to_string());
-                }
-                if !draft.as_ref().is_some_and(|edit| edit.y_changed)
-                    && !tickets.borrow().iter().any(|(edit, _)| edit.y_changed)
-                {
-                    y.set(py.to_string());
+                let changed_target = numeric_edit
+                    .borrow()
+                    .as_ref()
+                    .is_some_and(|edit| key.as_ref().is_none_or(|(id, _, _)| id != &edit.id));
+                if changed_target && let Some(edit) = numeric_edit.borrow_mut().take() {
+                    let start = edit.start;
+                    submit_position(&runtime, &Rc::new(RefCell::new(None)), edit, start);
                 }
             }
-            let changed_target = numeric_edit
-                .borrow()
-                .as_ref()
-                .is_some_and(|edit| key.as_ref().is_none_or(|(id, _, _)| id != &edit.id));
-            if changed_target && let Some(edit) = numeric_edit.borrow_mut().take() {
-                let start = edit.start;
-                submit_position(
-                    &runtime,
-                    &Rc::new(RefCell::new(None)),
-                    edit,
-                    start,
-                    EditPhase::Preview,
-                );
-            }
-        }
-    }));
+        },
+    ));
     let submit = {
-        let tickets = tickets.clone();
+        let mut pending_owner = pending_owner;
+        let mut dirty_axes = dirty_axes;
         let runtime = runtime.clone();
         let numeric_edit = numeric_edit.clone();
         move |_| {
             failure.set(None);
-            commit_numeric(&runtime, &numeric_edit, &tickets, &x(), &y());
+            commit_numeric(
+                &runtime,
+                &numeric_edit,
+                &pending,
+                &mut pending_owner,
+                &mut dirty_axes,
+                &draft(),
+            );
         }
     };
     let cancel_numeric: KeyboardHandler = {
-        let tickets = tickets.clone();
+        let mut pending_owner = pending_owner;
+        let mut dirty_axes = dirty_axes;
         let runtime = runtime.clone();
         let numeric_edit = numeric_edit.clone();
-        let mut x = x;
-        let mut y = y;
+        let mut draft = draft;
         Rc::new(RefCell::new(Box::new(move |event: KeyboardEvent| {
             let key = event.data().key().to_string();
             if key == "Escape" {
@@ -128,7 +257,7 @@ pub(super) fn Inspector() -> Element {
                 let edit = numeric_edit.borrow_mut().take();
                 if let Some(edit) = edit {
                     let start = edit.start;
-                    submit_position(&runtime, &numeric_edit, edit, start, EditPhase::Preview);
+                    submit_position(&runtime, &numeric_edit, edit, start);
                 }
                 if let Some(part) = runtime.model().accepted.and_then(|s| {
                     s.document
@@ -153,46 +282,70 @@ pub(super) fn Inspector() -> Element {
                             input.set_value(&restored_y);
                         }
                     }
-                    x.set(restored_x);
-                    y.set(restored_y);
+                    draft.set((restored_x, restored_y));
+                    dirty_axes.set((Some(part.id), false, false));
                 }
                 runtime.report("Position preview canceled.");
             } else if key == "Enter" {
                 event.prevent_default();
                 failure.set(None);
-                commit_numeric(&runtime, &numeric_edit, &tickets, &x(), &y());
+                commit_numeric(
+                    &runtime,
+                    &numeric_edit,
+                    &pending,
+                    &mut pending_owner,
+                    &mut dirty_axes,
+                    &draft(),
+                );
             }
         })))
     };
-    rsx! { aside { class: "m1-inspector", "aria-label": "Inspect",
-        header { h2 { "Inspect" } }
-        h2 { "Position" }
+    let (x, y) = draft();
+    rsx! { aside { class: "flex flex-col min-w-0 min-h-0 overflow-auto bg-transparent max-[760px]:overflow-visible", "aria-label": "Inspect",
+        header { class: "hidden", h2 { "Inspect" } }
+        h2 { class: "hidden", "Position" }
         if let Some(part) = selected {
-            p { "{part.reference}" }
-            label { "X (mm)" input { id: "m1-position-x", r#type: "number", step: "any", value: "{x}", onkeydown: { let cancel = cancel_numeric.clone(); move |event| (cancel.borrow_mut())(event) }, oninput: { let runtime = runtime.clone(); let numeric_edit = numeric_edit.clone(); move |event: FormEvent| {
-                x.set(event.value());
-                let (Ok(px), Ok(py)) = (event.value().parse::<f64>(), y().parse::<f64>()) else { return; };
+            p { class: "mx-4 text-muted-foreground", "{part.reference}" }
+            div { onkeydown: { let cancel = cancel_numeric.clone(); move |event| (cancel.borrow_mut())(event) },
+            Field {
+            FieldLabel { html_for: "m1-position-x", "X (mm)" }
+            InputGroup {
+            InputGroupInput { id: "m1-position-x", r#type: InputType::Number, step: "any", value: "{x}", oninput: { let runtime = runtime.clone(); let numeric_edit = numeric_edit.clone(); move |event: FormEvent| {
+                draft.write().0 = event.value();
+                let id = runtime.model().selected_part_ids.first().cloned();
+                let (draft_id, _, y_dirty) = dirty_axes.peek().clone();
+                let same_target = draft_id == id;
+                dirty_axes.set((id, true, same_target && y_dirty));
+                let (Ok(px), Ok(py)) = (event.value().parse::<f64>(), draft().1.parse::<f64>()) else { return; };
                 if !px.is_finite() || !py.is_finite() { return; }
                 let Some(snapshot) = runtime.model().accepted else { return; };
                 let Some(part) = snapshot.document.parts.iter().find(|p| runtime.model().selected_part_ids.first() == Some(&p.id)) else { return; };
-                let mut edit = numeric_edit.borrow_mut().take().unwrap_or_else(|| NumericEdit { id: part.id.clone(), revision: snapshot.document.revision, transaction_id: format!("position-{}", runtime.operation().0), start: part.pose.at, part_ids: runtime.model().selected_part_ids, board_id: runtime.model().active_board_id, x_changed: false, y_changed: false });
+                let mut edit = numeric_edit.borrow_mut().take().unwrap_or_else(|| NumericEdit { id: part.id.clone(), transaction_id: format!("position-{}", runtime.operation().0), start: part.pose.at, part_ids: runtime.model().selected_part_ids, board_id: runtime.model().active_board_id, x_changed: false, y_changed: false });
                 edit.x_changed = true;
-                submit_position(&runtime, &numeric_edit, edit, Vec2 { x: px, y: py }, EditPhase::Preview);
-            }} } }
-            label { "Y (mm)" input { id: "m1-position-y", r#type: "number", step: "any", value: "{y}", onkeydown: { let cancel = cancel_numeric.clone(); move |event| (cancel.borrow_mut())(event) }, oninput: { let runtime = runtime.clone(); let numeric_edit = numeric_edit.clone(); move |event: FormEvent| {
-                y.set(event.value());
-                let (Ok(px), Ok(py)) = (x().parse::<f64>(), event.value().parse::<f64>()) else { return; };
+                submit_position(&runtime, &numeric_edit, edit, Vec2 { x: px, y: py });
+            }} } InputGroupText { "mm" } } } }
+            div { onkeydown: { let cancel = cancel_numeric.clone(); move |event| (cancel.borrow_mut())(event) },
+            Field {
+            FieldLabel { html_for: "m1-position-y", "Y (mm)" }
+            InputGroup {
+            InputGroupInput { id: "m1-position-y", r#type: InputType::Number, step: "any", value: "{y}", oninput: { let runtime = runtime.clone(); let numeric_edit = numeric_edit.clone(); move |event: FormEvent| {
+                draft.write().1 = event.value();
+                let id = runtime.model().selected_part_ids.first().cloned();
+                let (draft_id, x_dirty, _) = dirty_axes.peek().clone();
+                let same_target = draft_id == id;
+                dirty_axes.set((id, same_target && x_dirty, true));
+                let (Ok(px), Ok(py)) = (draft().0.parse::<f64>(), event.value().parse::<f64>()) else { return; };
                 if !px.is_finite() || !py.is_finite() { return; }
                 let Some(snapshot) = runtime.model().accepted else { return; };
                 let Some(part) = snapshot.document.parts.iter().find(|p| runtime.model().selected_part_ids.first() == Some(&p.id)) else { return; };
-                let mut edit = numeric_edit.borrow_mut().take().unwrap_or_else(|| NumericEdit { id: part.id.clone(), revision: snapshot.document.revision, transaction_id: format!("position-{}", runtime.operation().0), start: part.pose.at, part_ids: runtime.model().selected_part_ids, board_id: runtime.model().active_board_id, x_changed: false, y_changed: false });
+                let mut edit = numeric_edit.borrow_mut().take().unwrap_or_else(|| NumericEdit { id: part.id.clone(), transaction_id: format!("position-{}", runtime.operation().0), start: part.pose.at, part_ids: runtime.model().selected_part_ids, board_id: runtime.model().active_board_id, x_changed: false, y_changed: false });
                 edit.y_changed = true;
-                submit_position(&runtime, &numeric_edit, edit, Vec2 { x: px, y: py }, EditPhase::Preview);
-            }} } }
-            button { onclick: submit, "Apply position" }
-            if let Some(message) = failure() { p { role: "alert", "{message}" } }
-            if numeric_edit.borrow().is_some() { p { role: "status", "Preview only. Press Enter or Apply position to save, or Escape to cancel." } }
-        } else { p { "Select a component to edit its position." } }
+                submit_position(&runtime, &numeric_edit, edit, Vec2 { x: px, y: py });
+            }} } InputGroupText { "mm" } } } }
+            Button { class: "mx-4 mt-1", disabled: apply_disabled(), onclick: submit, "Apply position" }
+            if let Some(message) = failure() { FieldError { "{message}" } }
+            if numeric_edit.borrow().is_some() { div { role: "status", Callout { variant: CalloutVariant::Info, "Preview only. Press Enter or Apply position to save, or Escape to cancel." } } }
+        } else { Callout { variant: CalloutVariant::Info, "Select a component to edit its position." } }
     }}
 }
 
@@ -201,38 +354,80 @@ fn submit_position(
     current: &Rc<RefCell<Option<NumericEdit>>>,
     edit: NumericEdit,
     at: Vec2,
-    phase: EditPhase,
 ) {
-    runtime.submit(Event::Edit {
+    runtime.submit(Event::PreviewEdit {
         operation_id: runtime.operation(),
-        command: EditCommand {
-            base_revision: edit.revision,
-            transaction_id: edit.transaction_id.clone(),
-            phase,
-            target_ids: vec![edit.id.clone()],
-            operation: EditOperation::MoveParts {
-                positions: vec![Position {
-                    id: edit.id.clone(),
-                    at,
-                }],
-            },
+        transaction_id: edit.transaction_id.clone(),
+        target_ids: vec![edit.id.clone()],
+        operation: EditOperation::MoveParts {
+            positions: vec![Position {
+                id: edit.id.clone(),
+                at,
+            }],
         },
     });
-    if phase == EditPhase::Preview && at != edit.start {
+    if at != edit.start {
         *current.borrow_mut() = Some(edit);
     } else {
         current.borrow_mut().take();
     }
 }
 
+/// Ticket 011: owner-canonical equality for the legacy position draft. The commit
+/// path parses both axes, so two texts submitting the same finite pair are the
+/// same draft ("1.0" vs "1"); anything unparseable or non-finite never equals
+/// the always-parseable accepted baseline, so invalid text stays unresolved.
+fn position_draft_equals_baseline(draft: &(String, String), baseline: (f64, f64)) -> bool {
+    let (Ok(x), Ok(y)) = (draft.0.parse::<f64>(), draft.1.parse::<f64>()) else {
+        return false;
+    };
+    x.is_finite() && y.is_finite() && x == baseline.0 && y == baseline.1
+}
+
+#[cfg(test)]
+mod position_draft_canonical_tests {
+    use super::position_draft_equals_baseline;
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn formatting_variants_of_one_value_compare_equal() {
+        assert!(position_draft_equals_baseline(
+            &("1.0".into(), "-4.50".into()),
+            (1.0, -4.5)
+        ));
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn invalid_or_non_finite_text_never_matches() {
+        for raw in ["not-a-number", "", "NaN", "inf", "-inf"] {
+            assert!(
+                !position_draft_equals_baseline(&(raw.into(), "0".into()), (0.0, 0.0)),
+                "{raw:?} must stay unresolved"
+            );
+            assert!(
+                !position_draft_equals_baseline(&("0".into(), raw.into()), (0.0, 0.0)),
+                "{raw:?} must stay unresolved"
+            );
+        }
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn changed_values_compare_unequal() {
+        assert!(!position_draft_equals_baseline(
+            &("2".into(), "0".into()),
+            (1.0, 0.0)
+        ));
+    }
+}
+
 fn commit_numeric(
     runtime: &Rc<Runtime>,
     current: &Rc<RefCell<Option<NumericEdit>>>,
-    tickets: &Rc<RefCell<Vec<(NumericEdit, EditTicket)>>>,
-    x: &str,
-    y: &str,
+    pending: &Signal<PendingEditSignals<(), (String, String)>>,
+    pending_owner: &mut Signal<Option<NumericOwner>>,
+    dirty_axes: &mut Signal<(Option<String>, bool, bool)>,
+    draft: &(String, String),
 ) {
-    let (Ok(x), Ok(y)) = (x.parse::<f64>(), y.parse::<f64>()) else {
+    let (Ok(x), Ok(y)) = (draft.0.parse::<f64>(), draft.1.parse::<f64>()) else {
         runtime.report("Enter finite X and Y coordinates.");
         return;
     };
@@ -255,7 +450,6 @@ fn commit_numeric(
     let start = part.pose.at;
     let edit = current.borrow_mut().take().unwrap_or_else(|| NumericEdit {
         id: part.id.clone(),
-        revision: snapshot.document.revision,
         transaction_id: format!("position-{}", runtime.operation().0),
         start,
         part_ids: model.selected_part_ids.clone(),
@@ -266,17 +460,291 @@ fn commit_numeric(
     if edit.part_ids != model.selected_part_ids || edit.board_id != model.active_board_id {
         return;
     }
-    let ticket = EditTicket::begin(
+    let owner = NumericOwner {
+        scope: runtime.scope(),
+        part_ids: edit.part_ids.clone(),
+        board_id: edit.board_id.clone(),
+    };
+    pending_owner.set(Some(owner));
+    dirty_axes.set((Some(edit.id.clone()), false, false));
+    pending.peek().begin_value(
         runtime,
+        (),
         "layout-old-position",
         Some("position".into()),
         super::layout_component_edits::commit_position_resolver(
-            edit.part_ids.clone(),
-            edit.board_id.clone(),
+            edit.part_ids,
+            edit.board_id,
             edit.x_changed.then_some(x),
             edit.y_changed.then_some(y),
-            edit.transaction_id.clone(),
+            edit.transaction_id,
         ),
+        draft,
     );
-    tickets.borrow_mut().push((edit, ticket));
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod tests {
+    use super::*;
+    use crate::runtime::project_name_test_support as support;
+    use boardstudio_core::model::{Board, Part, Pose2, ProjectDoc, Side};
+    use boardstudio_web_ui_shared::test_role::by_role_name;
+    use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_step};
+    use wasm_bindgen_test::*;
+
+    fn host() -> Element {
+        let runtime = use_context::<Rc<Runtime>>();
+        let version = use_signal(|| 0_u64);
+        use_context_provider(|| version);
+        let subscription_runtime = runtime.clone();
+        use_hook(move || {
+            subscription_runtime.subscribe(Rc::new(move || {
+                let mut version = version;
+                version += 1;
+            }))
+        });
+        rsx! {
+            Inspector {}
+            button {
+                id: "position-test-deselect",
+                onclick: {
+                    let runtime = runtime.clone();
+                    move |_| {
+                        runtime.submit(Event::SelectParts {
+                            operation_id: runtime.operation(),
+                            part_ids: vec![],
+                            range_part_ids: vec![],
+                            mode: boardstudio_application::SelectionMode::Replace,
+                        });
+                    }
+                },
+                "Deselect"
+            }
+            button {
+                id: "position-test-select-a",
+                onclick: move |_| {
+                    runtime.submit(Event::SelectParts {
+                        operation_id: runtime.operation(),
+                        part_ids: vec!["a".into()],
+                        range_part_ids: vec![],
+                        mode: boardstudio_application::SelectionMode::Replace,
+                    });
+                },
+                "Select A"
+            }
+        }
+    }
+
+    async fn mounted_position_inspector() -> (Rc<Runtime>, web_sys::Element) {
+        let runtime = support::new_runtime();
+        let mut document = ProjectDoc::empty("position-draft-doc", "Position draft");
+        document.definitions.push(
+            serde_json::from_value(serde_json::json!({
+                "id": "switch:base",
+                "name": "MX switch",
+                "kind": "switch",
+                "courtyard": [{"x": -3.0, "y": -3.0}, {"x": 3.0, "y": -3.0}, {"x": 3.0, "y": 3.0}],
+                "pads": []
+            }))
+            .unwrap(),
+        );
+        document.parts.push(Part {
+            id: "a".into(),
+            definition_id: "switch:base".into(),
+            reference: "A".into(),
+            pose: Pose2 {
+                at: Vec2 { x: 0.0, y: 0.0 },
+                rotation: 0.0,
+            },
+            side: Side::Front,
+            anchor: None,
+            locked: None,
+            keycap: None,
+            outline: None,
+            properties: None,
+            generator_parameters: None,
+        });
+        document.boards.push(Board {
+            id: "board".into(),
+            name: "Board".into(),
+            outline_ids: vec![],
+            part_ids: vec!["a".into()],
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        support::open_document(&runtime, document).await;
+        runtime.submit(Event::SelectParts {
+            operation_id: runtime.operation(),
+            part_ids: vec!["a".into()],
+            range_part_ids: vec![],
+            mode: boardstudio_application::SelectionMode::Replace,
+        });
+        let dom_document = web_sys::window().unwrap().document().unwrap();
+        let root = dom_document.create_element("div").unwrap();
+        dom_document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(host);
+        dom.provide_root_context(runtime.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_until("the mounted position Inspector renders", || {
+            by_role_name(&root, "spinbutton", "X (mm)").is_some()
+        })
+        .await;
+        (runtime, root)
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_position_keeps_native_precision_escape_enter_and_focus_owner() {
+        let (runtime, root) = mounted_position_inspector().await;
+        let x = by_role_name(&root, "spinbutton", "X (mm)")
+            .unwrap()
+            .dyn_into::<HtmlInputElement>()
+            .unwrap();
+        assert_eq!(x.step(), "any");
+        assert_eq!(
+            x.get_attribute("data-slot").as_deref(),
+            Some("input-group-control")
+        );
+        x.focus().unwrap();
+        let bubbling = web_sys::EventInit::new();
+        bubbling.set_bubbles(true);
+        let keyboard = |key: &str| {
+            let init = web_sys::KeyboardEventInit::new();
+            init.set_key(key);
+            init.set_bubbles(true);
+            x.dispatch_event(
+                &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
+                    .unwrap(),
+            )
+            .unwrap();
+        };
+        let input = |value: &str| {
+            x.set_value(value);
+            x.dispatch_event(
+                &web_sys::Event::new_with_event_init_dict("input", &bubbling).unwrap(),
+            )
+            .unwrap();
+        };
+        let accepted_x = || {
+            runtime.model().accepted.unwrap().document.parts[0]
+                .pose
+                .at
+                .x
+        };
+        input("0.1234567890123456");
+        support::run_pending(&runtime).await;
+        keyboard("Escape");
+        support::run_pending(&runtime).await;
+        assert_eq!(accepted_x(), 0.0);
+        assert_eq!(x.value(), "0");
+        input("0.1234567890123456");
+        support::run_pending(&runtime).await;
+        keyboard("Enter");
+        support::run_pending(&runtime).await;
+        assert_eq!(accepted_x(), 0.1234567890123456);
+        assert_eq!(
+            web_sys::window()
+                .unwrap()
+                .document()
+                .unwrap()
+                .active_element(),
+            Some(x.clone().into())
+        );
+        assert_eq!(
+            by_role_name(&root, "spinbutton", "X (mm)").unwrap(),
+            x.clone().into()
+        );
+        runtime.submit(Event::Undo {
+            operation_id: runtime.operation(),
+        });
+        support::run_pending(&runtime).await;
+        assert_eq!(accepted_x(), 0.0);
+        runtime.unsubscribe();
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_failed_position_restores_the_clean_axis_and_preserves_a_newer_draft() {
+        let (runtime, root) = mounted_position_inspector().await;
+        let x = by_role_name(&root, "spinbutton", "X (mm)")
+            .unwrap()
+            .dyn_into::<HtmlInputElement>()
+            .unwrap();
+        let y = by_role_name(&root, "spinbutton", "Y (mm)")
+            .unwrap()
+            .dyn_into::<HtmlInputElement>()
+            .unwrap();
+        let apply = by_role_name(&root, "button", "Apply position").unwrap();
+        let bubbling = web_sys::EventInit::new();
+        bubbling.set_bubbles(true);
+        for (field, value) in [(&x, "5"), (&y, "7")] {
+            field.set_value(value);
+            field
+                .dispatch_event(
+                    &web_sys::Event::new_with_event_init_dict("input", &bubbling).unwrap(),
+                )
+                .unwrap();
+        }
+        support::run_pending(&runtime).await;
+        support::fail_next_persist(&runtime, "legacy position durable write failure");
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        apply.click();
+        support::drive_pending(&runtime);
+        entered.await.expect("the position commit reached Core");
+        x.set_value("9");
+        x.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &bubbling).unwrap())
+            .unwrap();
+        assert_eq!(
+            y.value(),
+            "7",
+            "the submitted Y stays visible while pending"
+        );
+        assert!(apply.has_attribute("disabled"));
+
+        release.send(()).expect("release the held position result");
+        wait_until_step(
+            "the failed save enters recovery and renders feedback",
+            async || {
+                support::run_pending(&runtime).await;
+                runtime.model().lifecycle == boardstudio_application::Lifecycle::RecoveryRequired
+                    && root
+                        .query_selector("[role='alert']")
+                        .is_ok_and(|alert| alert.is_some())
+            },
+        )
+        .await;
+        let model = runtime.model();
+        assert_eq!(
+            model.accepted.unwrap().document.parts[0].pose.at,
+            Vec2 { x: 0.0, y: 0.0 },
+            "a failed durable save leaves the accepted pair unchanged"
+        );
+        assert_eq!(
+            model.lifecycle,
+            boardstudio_application::Lifecycle::RecoveryRequired
+        );
+        assert_eq!(x.value(), "9", "failure preserves the newer X draft");
+        assert_eq!(
+            y.value(),
+            "0",
+            "the unchanged submitted Y restores its accepted value"
+        );
+        assert!(!apply.has_attribute("disabled"));
+        let alert = root
+            .query_selector("[role='alert']")
+            .unwrap()
+            .expect("the failed save is explained inline")
+            .text_content()
+            .unwrap();
+        assert!(
+            alert.contains("legacy position durable write failure"),
+            "{alert}"
+        );
+        runtime.unsubscribe();
+        root.remove();
+    }
 }

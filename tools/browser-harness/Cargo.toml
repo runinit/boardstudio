@@ -1,0 +1,63 @@
+# Minimal Rust browser harness for the real-page checks.
+#
+# Excluded from the main workspace (own manifest + lockfile) so browser tooling
+# never changes what the app builds against. See
+# docs/plans/cad-deepening/issues/016-rust-browser-harness.md.
+[package]
+name = "boardstudio-browser-harness"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace]
+members = ["vendor/chromiumoxide"]
+
+[dependencies]
+base64 = "0.22"
+chromiumoxide = "=0.9.1"
+futures = "0.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
+sha2 = "0.10"
+tempfile = "3"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "net", "io-util"] }
+
+async-tungstenite = { version = "0.32", features = ["tokio-runtime"] }
+
+[[bin]]
+name = "drag-smoke"
+path = "src/bin/drag_smoke.rs"
+
+[[bin]]
+name = "skew-probe"
+path = "src/bin/skew_probe.rs"
+
+[patch.crates-io]
+chromiumoxide = { path = "vendor/chromiumoxide" }
+
+[profile.dev]
+debug = false
+
+[[bin]]
+name = "cad-response-probe"
+path = "src/bin/cad_response_probe.rs"
+
+[[bin]]
+name = "face-completeness-web"
+path = "src/bin/face_completeness_web.rs"
+
+[[bin]]
+name = "cad-provider-pages"
+path = "src/bin/cad_provider_pages.rs"
+
+[[bin]]
+name = "cad-capture"
+path = "src/bin/cad_capture.rs"
+
+[[bin]]
+name = "graphite-feedback"
+path = "src/bin/graphite_feedback.rs"
+
+[[bin]]
+name = "parts-inspector-scroll"
+path = "src/bin/parts_inspector_scroll.rs"

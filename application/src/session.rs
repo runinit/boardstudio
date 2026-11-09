@@ -3,7 +3,7 @@
 //! This crate deliberately contains no browser handles. A host runs each emitted effect and
 //! returns its completion through [`Session::complete`].
 
-use crate::interactions::{DragSnapOptions, SnapGuide, normalize_drag};
+use crate::interactions::{DragSnapOptions, MagneticSnapState, SnapGuide, normalize_drag};
 use boardstudio_core::{CoreEngine, model::*};
 use std::collections::{HashSet, VecDeque};
 use std::fmt;
@@ -188,6 +188,35 @@ pub enum Resolution {
     Retire(String),
 }
 
+impl Resolution {
+    /// Submit a committed edit intent. Session fills in the accepted revision
+    /// and a transaction ID when one was not supplied by the resolver.
+    pub fn submit(target_ids: Vec<String>, operation: EditOperation) -> Self {
+        Self::Submit(EditCommand {
+            base_revision: 0,
+            transaction_id: String::new(),
+            phase: EditPhase::Commit,
+            target_ids,
+            operation,
+        })
+    }
+
+    /// Submit a committed edit intent that belongs to a caller-managed transaction.
+    pub fn submit_with_transaction_id(
+        target_ids: Vec<String>,
+        transaction_id: impl Into<String>,
+        operation: EditOperation,
+    ) -> Self {
+        Self::Submit(EditCommand {
+            base_revision: 0,
+            transaction_id: transaction_id.into(),
+            phase: EditPhase::Commit,
+            target_ids,
+            operation,
+        })
+    }
+}
+
 /// The owner-captured intent of a pending edit: a pure function of the accepted snapshot
 /// and the values the owner captured when the user committed. Session calls it exactly
 /// once, when the edit reaches the head of the queue with nothing else running — the
@@ -243,9 +272,12 @@ pub enum Event {
         operation_id: OperationId,
         document: ProjectDoc,
     },
-    Edit {
+    /// Display a transient edit preview. Commits are submitted as [`Event::ResolveEdit`].
+    PreviewEdit {
         operation_id: OperationId,
-        command: EditCommand,
+        transaction_id: String,
+        target_ids: Vec<String>,
+        operation: EditOperation,
     },
     /// Submit a pending edit as intent rather than as a ready-made command. See
     /// [`EditResolver`] for when the resolver runs and what it may read.
@@ -319,11 +351,13 @@ pub enum Event {
         snap_fraction: f64,
         geometry_snap: bool,
         gap: Option<f64>,
+        pixels_per_world: Option<f64>,
         alt: bool,
     },
     GestureSample {
         pointer_id: i64,
         positions: Vec<Position>,
+        pixels_per_world: Option<f64>,
         alt: bool,
     },
     GestureFrame {
@@ -332,6 +366,7 @@ pub enum Event {
     GestureEnd {
         pointer_id: i64,
         final_positions: Vec<Position>,
+        pixels_per_world: Option<f64>,
         alt: bool,
     },
     GestureCancel {
@@ -579,6 +614,8 @@ struct Gesture {
     snap_fraction: f64,
     geometry_snap: bool,
     gap: Option<f64>,
+    pixels_per_world: Option<f64>,
+    snap_state: MagneticSnapState,
     alt: bool,
     frame_pending: bool,
     changed: bool,
@@ -645,6 +682,16 @@ impl Session {
             instance_id: self.model.active_instance_id.clone(),
         })
     }
+    /// Whether committed edits are still moving through the engine: queued intents
+    /// or an executing Core request. Ticket 019's refresh safety gate reads this
+    /// because Durability alone cannot see a submitted edit that has not yet
+    /// produced its save; the save leg itself stays owned by Durability (plus the
+    /// Runtime's retained save buffer), so the two signals never double-count.
+    /// Derived previews and re-runnable generation/export jobs are not counted:
+    /// losing them costs a retry, not work.
+    pub fn has_pending_work(&self) -> bool {
+        !self.queue.is_empty() || self.active_core.is_some()
+    }
     /// Whether an asynchronous export is still owned by this session and its
     /// captured document, board, instance, and snapshot remain current.
     /// Checking membership also closes the cancellation window before a host
@@ -697,6 +744,12 @@ impl Session {
                         TerminalOutcome::Rejected("session is not awaiting recovery".into()),
                         &mut effects,
                     );
+                } else if let Err(reason) = CoreEngine::validate_open(&document) {
+                    self.settle(
+                        operation_id,
+                        TerminalOutcome::Rejected(reason),
+                        &mut effects,
+                    );
                 } else {
                     // The user chose the last known persisted document. Discard the
                     // failed retained candidate so it cannot block the explicit reopen.
@@ -713,10 +766,30 @@ impl Session {
                     self.queue_open(operation_id, document, &mut effects);
                 }
             }
-            Event::Edit {
+            Event::PreviewEdit {
                 operation_id,
-                command,
-            } => self.enqueue(operation_id, IntentKind::Edit(command), false, &mut effects),
+                transaction_id,
+                target_ids,
+                operation,
+            } => {
+                let base_revision = self
+                    .model
+                    .accepted
+                    .as_ref()
+                    .map_or(0, |snapshot| snapshot.document.revision);
+                self.enqueue(
+                    operation_id,
+                    IntentKind::Edit(EditCommand {
+                        base_revision,
+                        transaction_id,
+                        phase: EditPhase::Preview,
+                        target_ids,
+                        operation,
+                    }),
+                    false,
+                    &mut effects,
+                )
+            }
             Event::ResolveEdit {
                 operation_id,
                 label,
@@ -1069,6 +1142,7 @@ impl Session {
                 snap_fraction,
                 geometry_snap,
                 gap,
+                pixels_per_world,
                 alt,
             } => {
                 if self.gesture.is_none() && self.model.lifecycle == Lifecycle::Ready {
@@ -1094,6 +1168,8 @@ impl Session {
                         snap_fraction,
                         geometry_snap,
                         gap,
+                        pixels_per_world,
+                        snap_state: MagneticSnapState::default(),
                         alt,
                         frame_pending: false,
                         changed: false,
@@ -1107,14 +1183,36 @@ impl Session {
             Event::GestureSample {
                 pointer_id,
                 positions,
+                pixels_per_world,
                 alt,
-            } => self.gesture_sample(pointer_id, positions, alt, false, &mut effects),
+            } => {
+                if let Some(pixels_per_world) = pixels_per_world
+                    && let Some(gesture) = self
+                        .gesture
+                        .as_mut()
+                        .filter(|gesture| gesture.pointer_id == pointer_id)
+                {
+                    gesture.pixels_per_world = Some(pixels_per_world);
+                }
+                self.gesture_sample(pointer_id, positions, alt, false, &mut effects)
+            }
             Event::GestureFrame { generation } => self.gesture_frame(generation, &mut effects),
             Event::GestureEnd {
                 pointer_id,
                 final_positions,
+                pixels_per_world,
                 alt,
-            } => self.gesture_sample(pointer_id, final_positions, alt, true, &mut effects),
+            } => {
+                if let Some(pixels_per_world) = pixels_per_world
+                    && let Some(gesture) = self
+                        .gesture
+                        .as_mut()
+                        .filter(|gesture| gesture.pointer_id == pointer_id)
+                {
+                    gesture.pixels_per_world = Some(pixels_per_world);
+                }
+                self.gesture_sample(pointer_id, final_positions, alt, true, &mut effects)
+            }
             Event::GestureCancel { pointer_id } => {
                 if self
                     .gesture
@@ -1306,7 +1404,18 @@ impl Session {
         document: ProjectDoc,
         effects: &mut Vec<Effect>,
     ) {
-        self.invalidate_gesture(effects);
+        if let Err(reason) = CoreEngine::validate_open(&document) {
+            self.settle(operation_id, TerminalOutcome::Rejected(reason), effects);
+            return;
+        }
+        // Pointer-up already owns its commit, including one waiting for a preview reply.
+        let committing = self
+            .gesture
+            .as_ref()
+            .is_some_and(|gesture| gesture.commit_queued || gesture.final_positions.is_some());
+        if !committing {
+            self.invalidate_gesture(effects);
+        }
         self.cancel_job(effects);
         self.cancel_exports(effects);
         self.queue.push_back(Intent {
@@ -1430,6 +1539,17 @@ impl Session {
                     TerminalOutcome::Rejected(DOCUMENT_SESSION_CHANGED.into()),
                     effects,
                 );
+                continue;
+            }
+            if let IntentKind::Edit(command) = &intent.kind
+                && command.phase == EditPhase::Preview
+                && self
+                    .model
+                    .accepted
+                    .as_ref()
+                    .is_none_or(|snapshot| snapshot.document.revision != command.base_revision)
+            {
+                self.settle(intent.operation_id, TerminalOutcome::Superseded, effects);
                 continue;
             }
             if let IntentKind::Generate(scope) = &intent.kind {
@@ -1758,7 +1878,9 @@ impl Session {
                 if active.gesture_generation.is_none() {
                     self.settle(active.operation_id, TerminalOutcome::Completed, effects);
                 }
-                if let Some(g) = &mut self.gesture {
+                if let Some(g) = &mut self.gesture
+                    && active.gesture_generation == Some(g.generation)
+                {
                     g.preview_in_flight = false;
                 }
                 self.dispatch_latest_gesture_preview(effects);
@@ -1824,7 +1946,9 @@ impl Session {
                 } else {
                     Lifecycle::Empty
                 };
-                self.finish_gesture_commit(active.gesture_generation, false, effects);
+                if active.gesture_generation.is_some() {
+                    self.finish_gesture_commit(active.gesture_generation, false, effects);
+                }
             }
             _ => {
                 let reason = "core returned an unexpected reply variant".to_string();
@@ -2140,6 +2264,8 @@ impl Session {
                             gap: g.gap,
                             targets: &g.targets,
                             alt: g.alt,
+                            pixels_per_world: g.pixels_per_world,
+                            state: &mut g.snap_state,
                         },
                     )
                 });
@@ -2178,7 +2304,10 @@ impl Session {
         let Some(g) = &mut self.gesture else {
             return;
         };
-        if g.preview_in_flight || g.commit_queued || (!g.changed && g.final_positions.is_none()) {
+        if g.preview_in_flight
+            || g.commit_queued
+            || (!g.changed && g.final_positions.is_none() && g.sent_positions.is_none())
+        {
             return;
         }
         let is_commit = g.final_positions.is_some();
@@ -2186,6 +2315,9 @@ impl Session {
             .final_positions
             .clone()
             .unwrap_or_else(|| g.latest.clone());
+        if !is_commit && g.sent_positions.as_ref() == Some(&positions) {
+            return;
+        }
         let generation = g.generation;
         let operation_id = g.operation_id;
         let command = EditCommand {
@@ -2254,8 +2386,10 @@ impl Session {
                 pointer_id: g.pointer_id,
             });
             self.model.gesture = None;
-            self.model.display_preview = None;
-            self.display_preview_transaction_id = None;
+            if self.display_preview_transaction_id.as_deref() == Some(&g.transaction_id) {
+                self.model.display_preview = None;
+                self.display_preview_transaction_id = None;
+            }
             self.model.snap_guide = None;
             if self.model.lifecycle == Lifecycle::Applying
                 && self
@@ -2473,7 +2607,7 @@ fn event_operation(event: &Event) -> Option<OperationId> {
         Event::Open { operation_id, .. }
         | Event::GestureBegin { operation_id, .. }
         | Event::RecoverWithDocument { operation_id, .. }
-        | Event::Edit { operation_id, .. }
+        | Event::PreviewEdit { operation_id, .. }
         | Event::ClearPreview { operation_id, .. }
         | Event::ReviewElectricalRemap { operation_id, .. }
         | Event::Undo { operation_id }

@@ -17,15 +17,24 @@ pub(crate) use boardstudio_web_ui_model::state::*;
 
 pub mod footprint_forms;
 pub mod layout_camera;
+pub mod owned_edits;
+pub mod pending_edit_helpers;
+pub mod ui;
 
 #[cfg(target_arch = "wasm32")]
 pub mod board_reference_effect;
 #[cfg(target_arch = "wasm32")]
 pub mod canvas_layers;
 #[cfg(target_arch = "wasm32")]
+pub mod canvas_navigation;
+#[cfg(target_arch = "wasm32")]
+pub mod choice_field;
+#[cfg(target_arch = "wasm32")]
 pub mod footprint_graphics;
 #[cfg(target_arch = "wasm32")]
 pub mod geometry_scripts;
+#[cfg(target_arch = "wasm32")]
+pub mod layer_dock;
 #[cfg(target_arch = "wasm32")]
 pub mod model_asset_import;
 #[cfg(target_arch = "wasm32")]
@@ -34,6 +43,12 @@ pub mod object_options;
 pub mod panels;
 #[cfg(target_arch = "wasm32")]
 pub mod project_menu;
+// Bounded waits for the browser tests of the workspace crates (test-support only).
+#[cfg(all(target_arch = "wasm32", any(test, feature = "test-support")))]
+pub mod test_wait;
+// Finds controls by accessible role and name, as a user or assistive technology would (test-support only).
+#[cfg(all(target_arch = "wasm32", any(test, feature = "test-support")))]
+pub mod test_role;
 // Panel policy is plain logic; compile it natively too so its unit tests run under `cargo test`.
 #[cfg(not(target_arch = "wasm32"))]
 mod panels {
@@ -44,3 +59,6 @@ mod panels {
 
 #[cfg(all(test, target_arch = "wasm32"))]
 wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod toolbar_toggle_slider_toast_tests;

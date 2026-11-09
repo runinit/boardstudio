@@ -1,9 +1,16 @@
 //! Private read-only projection and typed view for saved Keymap macros.
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::{KeymapMacro, MacroChange, MacroStep, ProjectDoc};
+use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
+use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
+use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
+use boardstudio_web_ui_shared::ui::field::{Field, FieldError, FieldLabel};
+use boardstudio_web_ui_shared::ui::input::InputType;
+use boardstudio_web_ui_shared::ui::input_group::{InputGroup, InputGroupInput};
+use boardstudio_web_ui_shared::ui::select::{Select, SelectOption};
 use dioxus::prelude::*;
-use std::rc::Rc;
 use std::sync::Arc;
+use std::{cell::RefCell, rc::Rc};
 
 #[derive(Clone)]
 pub struct MacroReadSource {
@@ -49,50 +56,11 @@ impl PartialEq for MacroStepSequence {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum MacroEditTarget {
-    AddMacro,
-    RemoveMacro,
-    Name,
-    TapMs,
-    WaitMs,
-    AddStep,
-    RemoveStep { index: usize },
-    StepKind { index: usize },
-    StepDelay { index: usize },
-    StepKeycode { index: usize },
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct MacroEditRequest {
-    pub scope: Scope,
-    pub scope_generation: u64,
-    pub admission_token: SnapshotToken,
-    pub admission_revision: u64,
-    pub editor_instance_id: u64,
-    pub request_id: u64,
-    pub macro_id: Option<String>,
-    pub target: MacroEditTarget,
-    pub step_sequence: Option<Rc<[MacroStep]>>,
-    pub change: MacroEditChange,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum MacroEditChange {
-    Add {
-        name: String,
-        tap_ms: u32,
-        wait_ms: u32,
-        steps: Vec<MacroStep>,
-    },
-    Remove,
-    Change(MacroChange),
-}
+pub use crate::macro_edit::{MacroEditChange, MacroEditRequest, MacroEditTarget};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum MacroEditStatus {
     Pending,
-    Saved,
     Failed(String),
 }
 
@@ -208,20 +176,19 @@ pub fn MacroEditor(props: MacroEditorProps) -> Element {
     });
     let feedback_text = feedback.and_then(|feedback| match &feedback.status {
         MacroEditStatus::Pending => None,
-        MacroEditStatus::Saved => Some("Macro saved".to_owned()),
         MacroEditStatus::Failed(message) => Some(message.clone()),
     });
 
     let add_context = MacroRequestContext::from(&props);
     let macro_count = macros.len();
     rsx! {
-        section { class: "m1-keymap-macros",
+        section { class: "grid gap-3 min-w-0 pt-3 border-t border-border",
             h3 { "Macros" }
             if let Some(message) = feedback_text {
-                p { class: "m1-keymap-macro-status", role: "status", "{message}" }
+                Alert { variant: AlertVariant::Destructive, "{message}" }
             }
             if macros.is_empty() {
-                p { class: "m1-keymap-empty", "Build a sequence of key taps, presses, releases and delays, then assign it to a key." }
+                Callout { variant: CalloutVariant::Info, "Build a sequence of key taps, presses, releases and delays, then assign it to a key." }
             }
             for item in macros.iter() {
                 if let Some(sequence) = sequence_for(&props.sequences, &item.id).cloned() {
@@ -240,8 +207,9 @@ pub fn MacroEditor(props: MacroEditorProps) -> Element {
                     }
                 }
             }
-            button {
-                r#type: "button",
+            Button {
+                variant: ButtonVariant::Secondary,
+                class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                 disabled: busy || macros.len() >= 128 || super::macro_controller::action_pending(None, MacroEditTarget::AddMacro),
                 onclick: move |_| {
                     if macro_count >= 128 { return; }
@@ -341,21 +309,24 @@ fn MacroCard(props: MacroCardProps) -> Element {
     let remove_macro_id = macro_id.clone();
     let add_sequence = sequence.clone();
     rsx! {
-        fieldset { class: "m1-keymap-macro",
+        fieldset { class: "grid gap-2 min-w-0 m-0 p-2.5 border border-border rounded-[4px] bg-card [&_legend]:px-1 [&_legend]:text-foreground [&_legend]:[overflow-wrap:anywhere]",
             legend { "{value.name}" }
             TextDraft {
                 label: "Name", aria_label: format!("Macro name {}", value.name),
-                accepted: value.name.clone(), max_length: Some(32), identity: format!("{:?}:{}:{}:name:{}", props.scope, props.editor_instance_id, value.id, value.name),
+                macro_id: macro_id.clone(), target: MacroEditTarget::Name,
+                accepted: value.name.clone(), max_length: Some(32), identity: format!("{:?}:{}:{}:{}:name", props.scope, props.scope_generation, props.editor_instance_id, value.id),
                 enabled: props.enabled, feedback: super::macro_controller::field_feedback(&props.scope, &macro_id, MacroEditTarget::Name), on_commit: EventHandler::new(name_change),
             }
             NumberDraft {
                 label: "Tap duration (ms)", aria_label: format!("{} tapMs", value.name),
-                accepted: value.tap_ms, identity: format!("{:?}:{}:{}:tap:{}", props.scope, props.editor_instance_id, value.id, value.tap_ms),
+                macro_id: macro_id.clone(), target: MacroEditTarget::TapMs,
+                accepted: value.tap_ms, identity: format!("{:?}:{}:{}:{}:tap", props.scope, props.scope_generation, props.editor_instance_id, value.id),
                 enabled: props.enabled, feedback: super::macro_controller::field_feedback(&props.scope, &macro_id, MacroEditTarget::TapMs), on_commit: EventHandler::new(tap_change),
             }
             NumberDraft {
                 label: "Between actions (ms)", aria_label: format!("{} waitMs", value.name),
-                accepted: value.wait_ms, identity: format!("{:?}:{}:{}:wait:{}", props.scope, props.editor_instance_id, value.id, value.wait_ms),
+                macro_id: macro_id.clone(), target: MacroEditTarget::WaitMs,
+                accepted: value.wait_ms, identity: format!("{:?}:{}:{}:{}:wait", props.scope, props.scope_generation, props.editor_instance_id, value.id),
                 enabled: props.enabled, feedback: super::macro_controller::field_feedback(&props.scope, &macro_id, MacroEditTarget::WaitMs), on_commit: EventHandler::new(wait_change),
             }
             for (index, _) in value.steps.iter().enumerate() {
@@ -374,16 +345,16 @@ fn MacroCard(props: MacroCardProps) -> Element {
                     } }
                 }
             }
-            button {
-                r#type: "button", disabled: !props.enabled || !can_add_step || super::macro_controller::action_pending(Some(&props.macro_id), MacroEditTarget::AddStep),
+            Button {
+                variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: !props.enabled || !can_add_step || super::macro_controller::action_pending(Some(&props.macro_id), MacroEditTarget::AddStep),
                 onclick: move |_| {
                     if !can_add_step { return; }
                     request(&add_context, MacroEditTarget::AddStep, Some(add_macro_id.clone()), Some(add_sequence.clone()),
                         MacroEditChange::Change(MacroChange::AddStep { value: tap_a() }));
                 }, "Add step"
             }
-            button {
-                r#type: "button", disabled: !props.enabled || super::macro_controller::action_pending(Some(&props.macro_id), MacroEditTarget::RemoveMacro),
+            Button {
+                variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: !props.enabled || super::macro_controller::action_pending(Some(&props.macro_id), MacroEditTarget::RemoveMacro),
                 onclick: move |_| request(&remove_context, MacroEditTarget::RemoveMacro,
                     Some(remove_macro_id.clone()), None, MacroEditChange::Remove),
                 "Remove macro"
@@ -428,14 +399,21 @@ fn StepEditor(props: StepEditorProps) -> Element {
         return rsx! {};
     };
     let displayed = super::macro_controller::draft_step(&props.scope, &macro_id, index, accepted);
-    let accepted = &displayed;
-    let accepted_step = accepted.clone();
-    let kind = step_kind(accepted);
-    let value = match accepted {
+    let accepted_step = displayed.clone();
+    let kind = step_kind(&displayed);
+    // Pending kind changes choose the mounted control and its initial value. A field
+    // editing the current kind projects only the accepted document; its bound draft
+    // and the shared helper already display and settle the submitted text.
+    let field_value = if step_kind(accepted) == kind {
+        accepted
+    } else {
+        &displayed
+    };
+    let value = match field_value {
         MacroStep::Wait { ms } => *ms,
         _ => 0,
     };
-    let keycode = match accepted {
+    let keycode = match field_value {
         MacroStep::Tap { binding }
         | MacroStep::Press { binding }
         | MacroStep::Release { binding } => match binding {
@@ -444,37 +422,41 @@ fn StepEditor(props: StepEditorProps) -> Element {
         },
         MacroStep::Wait { .. } => String::new(),
     };
-    let keycode_identity = keycode.clone();
-    let stamp_identity = Rc::as_ptr(&sequence) as *const MacroStep as usize;
     let identity = format!(
         "{:?}:{}:{}:{}:{}",
-        props.scope, props.editor_instance_id, props.macro_id, index, stamp_identity
+        props.scope, props.scope_generation, props.editor_instance_id, props.macro_id, index
     );
+    let select_id = format!("macro-step-kind-{}", dioxus::core::current_scope_id().0);
+    let current_kind = use_memo(use_reactive((&kind,), |(kind,)| Some(kind.to_owned())));
     rsx! {
-        div { class: "m1-keymap-macro-step",
-            label {
-                "Step {index + 1}"
-                select {
-                    aria_label: crate::macro_accessible_names::step_kind_control_name(&props.macro_name, index),
-                    value: "{kind}", disabled: !props.enabled,
-                    onchange: { let context = request_context.clone(); let macro_id = macro_id.clone(); let sequence = sequence.clone(); move |event| {
-                        let next = match event.value().as_str() {
+        div { class: "grid gap-2 min-w-0 p-2 border border-border rounded-[4px] bg-accent",
+            Field { class: "gap-1.5", disabled: !props.enabled,
+                FieldLabel { html_for: select_id.clone(), "Step {index + 1}" }
+                Select::<String> {
+                id: select_id,
+                class: "max-[960px]:[&_[data-slot=select-trigger]]:min-h-control-touch [@media(pointer:coarse)]:[&_[data-slot=select-trigger]]:min-h-control-touch",
+                aria_label: crate::macro_accessible_names::step_kind_control_name(&props.macro_name, index),
+                value: Some(current_kind.into()),
+                disabled: !props.enabled,
+                on_value_change: { let context = request_context.clone(); let macro_id = macro_id.clone(); let sequence = sequence.clone(); move |value: Option<String>| {
+                        let Some(value) = value else { return; };
+                        let next = match value.as_str() {
                             "wait" => MacroStep::Wait { ms: 100 },
                             "press" => press_a(), "release" => release_a(), _ => tap_a(),
                         };
                         request(&context, MacroEditTarget::StepKind { index }, Some(macro_id.clone()), Some(sequence.clone()),
                             MacroEditChange::Change(MacroChange::Step { index, value: next }));
                     } },
-                    option { value: "tap", "tap" }
-                    option { value: "press", "press" }
-                    option { value: "release", "release" }
-                    option { value: "wait", "wait" }
+                for (option_index, option) in ["tap", "press", "release", "wait"].into_iter().enumerate() {
+                    SelectOption::<String> { index: option_index, value: option, text_value: option, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{option}" }
+                }
                 }
             }
-            if let MacroStep::Wait { .. } = accepted {
+            if let MacroStep::Wait { .. } = displayed {
                 NumberDraft {
                     label: "Delay (ms)", aria_label: crate::macro_accessible_names::step_value_control_name(true).to_owned(),
-                    accepted: value, identity: format!("{}:delay:{}", identity, value), enabled: props.enabled,
+                    macro_id: macro_id.clone(), target: MacroEditTarget::StepDelay { index },
+                    accepted: value, identity: format!("{identity}:delay"), enabled: props.enabled,
                     feedback: super::macro_controller::field_feedback(&props.scope, &macro_id, MacroEditTarget::StepDelay { index }),
                     on_commit: { let context = request_context.clone(); let macro_id = macro_id.clone(); let sequence = sequence.clone(); EventHandler::new(move |ms| {
                         request(&context, MacroEditTarget::StepDelay { index }, Some(macro_id.clone()), Some(sequence.clone()),
@@ -484,7 +466,8 @@ fn StepEditor(props: StepEditorProps) -> Element {
             } else {
                 TextDraft {
                     label: "Keycode", aria_label: crate::macro_accessible_names::step_value_control_name(false).to_owned(),
-                    accepted: keycode, identity: format!("{}:keycode:{}", identity, keycode_identity), enabled: props.enabled,
+                    macro_id: macro_id.clone(), target: MacroEditTarget::StepKeycode { index },
+                    accepted: keycode, identity: format!("{identity}:keycode"), enabled: props.enabled,
                     feedback: super::macro_controller::field_feedback(&props.scope, &macro_id, MacroEditTarget::StepKeycode { index }),
                     trim_on_commit: true,
                     // React skips an unchanged valid keycode, but blurring an
@@ -502,8 +485,8 @@ fn StepEditor(props: StepEditorProps) -> Element {
                     }) },
                 }
             }
-            button {
-                r#type: "button", disabled: !props.enabled || props.sequence.len() <= 1 || super::macro_controller::action_pending(Some(&props.macro_id), MacroEditTarget::RemoveStep { index }),
+            Button {
+                variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: !props.enabled || props.sequence.len() <= 1 || super::macro_controller::action_pending(Some(&props.macro_id), MacroEditTarget::RemoveStep { index }),
                 onclick: { let context = request_context.clone(); let macro_id = macro_id.clone(); let sequence = sequence.clone(); move |_| {
                     if sequence_len <= 1 { return; }
                     request(&context, MacroEditTarget::RemoveStep { index }, Some(macro_id.clone()), Some(sequence.clone()),
@@ -520,6 +503,8 @@ struct TextDraftProps {
     aria_label: String,
     accepted: String,
     identity: String,
+    macro_id: String,
+    target: MacroEditTarget,
     enabled: bool,
     #[props(default = false)]
     trim_on_commit: bool,
@@ -536,40 +521,45 @@ struct TextDraftProps {
 fn TextDraft(props: TextDraftProps) -> Element {
     let mut draft = use_signal(|| props.accepted.clone());
     let mut dirty = use_signal(|| false);
-    let accepted_for_effect = props.accepted.clone();
-    use_effect(use_reactive(
-        (&props.identity, &props.accepted, &props.feedback),
-        {
-            let mut draft = draft;
-            move |(_, _, feedback)| {
-                if !dirty()
-                    && !feedback
-                        .as_ref()
-                        .is_some_and(|entry| matches!(entry.status, MacroEditStatus::Pending))
-                {
-                    draft.set(accepted_for_effect.clone());
-                }
-            }
-        },
-    ));
+    let mut failure = use_signal(|| None::<String>);
+    super::macro_controller::use_bound_macro_field(&props.macro_id, props.target, draft, failure);
+    use_accepted_macro_draft(
+        &props.identity,
+        props.accepted.clone(),
+        draft,
+        dirty,
+        failure,
+        props
+            .feedback
+            .as_ref()
+            .is_some_and(|entry| matches!(entry.status, MacroEditStatus::Pending)),
+    );
     let on_commit = props.on_commit;
     let trim = props.trim_on_commit;
     let commit_if_unchanged = props.commit_if_unchanged;
+    let id = format!("macro-text-{}", dioxus::core::current_scope_id().0);
+    let error_id = format!("{id}-error");
+    let message = failure();
     rsx! {
-        label { "{props.label}"
-            input {
-                aria_label: "{props.aria_label}", maxlength: props.max_length, value: "{draft}", disabled: !props.enabled,
-                oninput: move |event| { draft.set(event.value()); dirty.set(true); },
-                onblur: move |_| {
+        Field { class: "gap-1.5", disabled: !props.enabled, invalid: message.is_some(),
+            FieldLabel { html_for: id.clone(), "{props.label}" }
+            InputGroup { InputGroupInput {
+                id, aria_label: props.aria_label, value: "{draft}", disabled: !props.enabled,
+                class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                aria_invalid: message.is_some(), aria_describedby: message.as_ref().map(|_| error_id.clone()),
+                oninput: move |event: FormEvent| { failure.set(None); draft.set(event.value()); dirty.set(true); },
+                attributes: {
+                    let mut attributes = vec![dioxus::events::onblur(move |_| {
                     let raw = draft();
                     let value = if trim { raw.trim().to_owned() } else { raw };
                     if dirty() || commit_if_unchanged { dirty.set(false); on_commit.call(value); }
+                    })];
+                    if let Some(max) = props.max_length { attributes.push(Attribute::new("maxlength", max.to_string(), None, false)); }
+                    attributes
                 }
-            }
-            if !dirty() {
-                if let Some(MacroEditFeedback { status: MacroEditStatus::Failed(message), .. }) = props.feedback.as_ref() {
-                    small { role: "alert", "{message}" }
-                }
+            } }
+            if let Some(message) = message.as_deref() {
+                div { id: error_id, FieldError { "{message}" } }
             }
         }
     }
@@ -581,6 +571,8 @@ struct NumberDraftProps {
     aria_label: String,
     accepted: u32,
     identity: String,
+    macro_id: String,
+    target: MacroEditTarget,
     enabled: bool,
     #[props(default)]
     feedback: Option<MacroEditFeedback>,
@@ -591,42 +583,78 @@ struct NumberDraftProps {
 fn NumberDraft(props: NumberDraftProps) -> Element {
     let mut draft = use_signal(|| props.accepted.to_string());
     let mut dirty = use_signal(|| false);
-    let accepted_for_effect = props.accepted;
-    use_effect(use_reactive(
-        (&props.identity, &props.accepted, &props.feedback),
-        {
-            let mut draft = draft;
-            move |(_, _, feedback)| {
-                if !dirty()
-                    && !feedback
-                        .as_ref()
-                        .is_some_and(|entry| matches!(entry.status, MacroEditStatus::Pending))
-                {
-                    draft.set(accepted_for_effect.to_string());
-                }
-            }
-        },
-    ));
+    let mut failure = use_signal(|| None::<String>);
+    super::macro_controller::use_bound_macro_field(&props.macro_id, props.target, draft, failure);
+    use_accepted_macro_draft(
+        &props.identity,
+        props.accepted.to_string(),
+        draft,
+        dirty,
+        failure,
+        props
+            .feedback
+            .as_ref()
+            .is_some_and(|entry| matches!(entry.status, MacroEditStatus::Pending)),
+    );
     let on_commit = props.on_commit;
+    let id = format!("macro-number-{}", dioxus::core::current_scope_id().0);
+    let error_id = format!("{id}-error");
+    let message = failure();
     rsx! {
-        label { "{props.label}"
-            input {
-                aria_label: "{props.aria_label}", r#type: "number", min: "0", max: "10000",
+        Field { class: "gap-1.5", disabled: !props.enabled, invalid: message.is_some(),
+            FieldLabel { html_for: id.clone(), "{props.label}" }
+            InputGroup { InputGroupInput {
+                id, aria_label: props.aria_label, r#type: InputType::Number, min: "0", max: "10000",
+                class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                 value: "{draft}", disabled: !props.enabled,
-                oninput: move |event| { draft.set(event.value()); dirty.set(true); },
-                onblur: move |_| {
+                aria_invalid: message.is_some(), aria_describedby: message.as_ref().map(|_| error_id.clone()),
+                oninput: move |event: FormEvent| { failure.set(None); draft.set(event.value()); dirty.set(true); },
+                attributes: vec![dioxus::events::onblur(move |_| {
                     let raw = draft();
                     let parsed = if raw.is_empty() { Some(0) } else { raw.parse::<u32>().ok() };
                     if let Some(value) = parsed && dirty() { dirty.set(false); on_commit.call(value); }
-                }
-            }
-            if !dirty() {
-                if let Some(MacroEditFeedback { status: MacroEditStatus::Failed(message), .. }) = props.feedback.as_ref() {
-                    small { role: "alert", "{message}" }
-                }
+                })],
+            } }
+            if let Some(message) = message.as_deref() {
+                div { id: error_id, FieldError { "{message}" } }
             }
         }
     }
+}
+
+/// Initialize a new field owner and follow ordinary accepted changes such as Undo.
+/// Submission settlement belongs to the bound helper: feedback disappearance is not
+/// a dependency, and an accepted change only updates a draft still following its
+/// previous accepted baseline, with no dirty input or observed submission.
+fn use_accepted_macro_draft(
+    identity: &str,
+    accepted: String,
+    mut draft: Signal<String>,
+    mut dirty: Signal<bool>,
+    mut failure: Signal<Option<String>>,
+    pending: bool,
+) {
+    let previous = use_hook(|| Rc::new(RefCell::new((identity.to_owned(), accepted.clone()))));
+    let identity = identity.to_owned();
+    use_effect(use_reactive(
+        (&identity, &accepted),
+        move |(identity, accepted)| {
+            let mut previous = previous.borrow_mut();
+            let owner_changed = previous.0 != identity;
+            if owner_changed {
+                dirty.set(false);
+                if failure.peek().is_some() {
+                    failure.set(None);
+                }
+            }
+            if (owner_changed || (!dirty() && !pending && *draft.peek() == previous.1))
+                && *draft.peek() != accepted
+            {
+                draft.set(accepted.clone());
+            }
+            *previous = (identity, accepted);
+        },
+    ));
 }
 
 fn step_kind(step: &MacroStep) -> &'static str {
@@ -678,8 +706,10 @@ mod mounted_accessible_name_tests {
     use super::*;
     use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
     use boardstudio_core::model::{KeyBinding, KeymapConfiguration, KeymapLayer, KeymapMacro};
+    use boardstudio_web_ui_shared::test_role::by_role_name;
+    use boardstudio_web_ui_shared::test_wait::wait_until;
     use std::cell::RefCell;
-    use wasm_bindgen::{JsCast, JsValue};
+    use wasm_bindgen::JsCast;
     use wasm_bindgen_test::*;
     use web_sys::{Element as DomElement, HtmlInputElement};
 
@@ -730,7 +760,7 @@ mod mounted_accessible_name_tests {
         };
         let request_sequence = use_signal(|| 0);
         rsx! {
-            style { {include_str!("../../../../assets/m1.css")} }
+            style { {include_str!("../../../../assets/workbench-base.css")} }
             MacroEditor {
                 scope,
                 scope_generation: 1,
@@ -752,11 +782,57 @@ mod mounted_accessible_name_tests {
         let (root, _) = mount();
         settle().await;
 
-        assert!(element("select[aria-label='Macro 1 step 1']").is_ok());
-        assert!(element("select[aria-label='Macro 1 step 2']").is_ok());
-        assert!(element("input[aria-label='Keycode']").is_ok());
-        assert!(element("input[aria-label='Delay (ms)']").is_ok());
-        assert!(element("[aria-label^='keymap-macro-11-131081']").is_err());
+        let step = by_role_name(&root, "button", "Macro 1 step 1").unwrap();
+        let editor = step.closest("section").unwrap().unwrap();
+        let editor_classes = editor.get_attribute("class").unwrap_or_default();
+        for expected in [
+            "grid",
+            "gap-3",
+            "min-w-0",
+            "pt-3",
+            "border-t",
+            "border-border",
+        ] {
+            assert!(
+                editor_classes
+                    .split_whitespace()
+                    .any(|class| class == expected),
+                "macro editor: missing {expected}"
+            );
+        }
+        let card = step.closest("fieldset").unwrap().unwrap();
+        let classes = card.get_attribute("class").unwrap_or_default();
+        for expected in [
+            "grid",
+            "gap-2",
+            "min-w-0",
+            "m-0",
+            "p-2.5",
+            "border",
+            "border-border",
+            "rounded-[4px]",
+            "bg-card",
+        ] {
+            assert!(classes.split_whitespace().any(|class| class == expected));
+        }
+        let step_field = step.closest("[data-slot=field]").unwrap().unwrap();
+        let step_row = step_field.parent_element().unwrap();
+        let classes = step_row.get_attribute("class").unwrap_or_default();
+        for expected in [
+            "grid",
+            "gap-2",
+            "min-w-0",
+            "p-2",
+            "border",
+            "border-border",
+            "rounded-[4px]",
+            "bg-accent",
+        ] {
+            assert!(classes.split_whitespace().any(|class| class == expected));
+        }
+        assert!(by_role_name(&root, "button", "Macro 1 step 2").is_some());
+        assert!(by_role_name(&root, "textbox", "Keycode").is_some());
+        assert!(by_role_name(&root, "spinbutton", "Delay (ms)").is_some());
 
         root.remove();
     }
@@ -766,9 +842,7 @@ mod mounted_accessible_name_tests {
         let (root, requests) = mount();
         settle().await;
 
-        let input: HtmlInputElement = root
-            .query_selector("input[aria-label='Keycode']")
-            .unwrap()
+        let input: HtmlInputElement = by_role_name(&root, "textbox", "Keycode")
             .unwrap()
             .dyn_into()
             .unwrap();
@@ -777,6 +851,67 @@ mod mounted_accessible_name_tests {
         settle().await;
 
         assert!(requests.borrow().is_empty());
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn step_kind_select_supports_typeahead_selection_and_escape() {
+        let (root, requests) = mount();
+        settle().await;
+        let trigger = by_role_name(&root, "button", "Macro 1 step 1").unwrap();
+        let key = |target: &web_sys::HtmlElement, value: &str| {
+            let event = web_sys::KeyboardEventInit::new();
+            event.set_key(value);
+            event.set_bubbles(true);
+            event.set_cancelable(true);
+            target
+                .dispatch_event(
+                    &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &event)
+                        .unwrap(),
+                )
+                .unwrap();
+        };
+        trigger.focus().unwrap();
+        key(&trigger, "Enter");
+        wait_until("step kind list opens", || {
+            by_role_name(&root, "listbox", "Macro 1 step 1").is_some()
+        })
+        .await;
+        let list = by_role_name(&root, "listbox", "Macro 1 step 1").unwrap();
+        key(&list, "w");
+        wait_until("wait is focused by typeahead", || {
+            by_role_name(&root, "option", "wait")
+                .is_some_and(|option| option.matches(":focus").unwrap())
+        })
+        .await;
+        key(&by_role_name(&root, "option", "wait").unwrap(), "Enter");
+        wait_until("step kind edit is emitted", || {
+            !requests.borrow().is_empty()
+        })
+        .await;
+        assert_eq!(
+            requests.borrow()[0].target,
+            MacroEditTarget::StepKind { index: 0 }
+        );
+        wait_until("select closes and returns focus", || {
+            trigger.get_attribute("aria-expanded").as_deref() == Some("false")
+                && trigger.matches(":focus").unwrap()
+        })
+        .await;
+        key(&trigger, "Enter");
+        wait_until("step kind list reopens", || {
+            trigger.get_attribute("aria-expanded").as_deref() == Some("true")
+        })
+        .await;
+        key(
+            &by_role_name(&root, "listbox", "Macro 1 step 1").unwrap(),
+            "Escape",
+        );
+        wait_until("escape closes and returns focus", || {
+            trigger.get_attribute("aria-expanded").as_deref() == Some("false")
+                && trigger.matches(":focus").unwrap()
+        })
+        .await;
         root.remove();
     }
 
@@ -799,14 +934,5 @@ mod mounted_accessible_name_tests {
 
     async fn settle() {
         gloo_timers::future::TimeoutFuture::new(40).await;
-    }
-
-    fn element(selector: &str) -> Result<DomElement, JsValue> {
-        web_sys::window()
-            .unwrap()
-            .document()
-            .unwrap()
-            .query_selector(&format!("#keymap-macro-label-test-root {selector}"))?
-            .ok_or_else(|| JsValue::from_str("expected mounted macro editor control"))
     }
 }

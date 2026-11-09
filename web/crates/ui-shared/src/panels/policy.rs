@@ -37,7 +37,6 @@ impl PanelSide {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum PanelMode {
     Pinned,
-    Autohide,
     Collapsed,
 }
 
@@ -45,7 +44,7 @@ impl PanelMode {
     pub fn parse(value: &str) -> Option<Self> {
         match value {
             "pinned" => Some(Self::Pinned),
-            "autohide" => Some(Self::Autohide),
+            "autohide" => Some(Self::Pinned),
             "collapsed" => Some(Self::Collapsed),
             _ => None,
         }
@@ -54,7 +53,6 @@ impl PanelMode {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Pinned => "pinned",
-            Self::Autohide => "autohide",
             Self::Collapsed => "collapsed",
         }
     }
@@ -102,6 +100,15 @@ mod tests {
 
     #[test]
     fn valid_mode_survives_an_invalid_or_missing_right_width() {
+        for (side, width) in [(PanelSide::Objects, 250.0), (PanelSide::Inspector, 340.0)] {
+            assert_eq!(
+                decode_settings(side, Some("autohide"), Some(width)),
+                PanelSettings {
+                    mode: PanelMode::Pinned,
+                    width: Some(width),
+                }
+            );
+        }
         assert_eq!(
             decode_settings(PanelSide::Inspector, Some("collapsed"), None),
             PanelSettings {
@@ -112,7 +119,7 @@ mod tests {
         assert_eq!(
             decode_settings(PanelSide::Inspector, Some("autohide"), Some(f64::INFINITY)),
             PanelSettings {
-                mode: PanelMode::Autohide,
+                mode: PanelMode::Pinned,
                 width: None,
             }
         );

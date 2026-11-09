@@ -6,6 +6,7 @@
 //! Author: @ceoloide
 use crate::Result;
 use crate::context::RenderContext;
+use crate::generators::util::json_string;
 use crate::number::js_number as n;
 use crate::params::ParamSpec;
 use crate::registry::{GeneratorSpec, License};
@@ -31,7 +32,7 @@ pub static SPEC: GeneratorSpec = GeneratorSpec {
         spdx: "MIT",
         author: "@ceoloide",
     },
-    body,
+    body: crate::registry::Body::Text(body),
 };
 
 fn body(p: &RenderContext<'_>) -> Result<String> {
@@ -44,7 +45,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
   (footprint "ceoloide:reset_switch_tht_top"
     (layer "{e0}.Cu")
     {e1}
-    (property "Reference" "{e2}"
+    (property "Reference" {e2}
       (at 0 2.55 {e3})
       (layer "{e0}.SilkS")
       {e4}
@@ -53,7 +54,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         "####,
         e0 = p.side(),
         e1 = p.at(),
-        e2 = p.reference(),
+        e2 = json_string(p.reference()),
         e3 = n(90.0 + p.rotation()),
         e4 = p.ref_hide(),
     );

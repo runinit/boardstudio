@@ -1,0 +1,182 @@
+Your app is being rebuilt.
+
+A non-hot-reloadable change occurred and we must rebuild.
+
+BoardStudio
+Corne
+Saved
+Export
+Assembly
+⌄
+▰
+Left case assembly
+▱
+Plate
+▱
+Plate foam
+▱
+Bottom foam
+▱
+Bottom case
+›
+▱
+PCB
+49 components
+›
+▰
+Right case assembly
+left-keys-SW1
+Left PCB / Case / keys
+1 selected
+Layout
+PCB
+Keymap
+Keycaps
+Case
+Parts
+Case assembly
+Live preview
+Update preview
+Cancel
+Export geometry
+
+Exact case geometry ready.
+
+Shaded
+Wireframe
+Hybrid
+Assembled
+Exploded
+Section
+Edit mounts
+Explode amount
+left-keys-SW1
+Fit
+Top
+Bottom
+Isometric
+Layers
+
+3D preview updated.
+
+Keycap clearance · 21 findings
+
+left-diode-17-keys: saved keycap settings are retained, but this input has no verified keycap mount. Choose a suitable knob or qualify its fit before generating a keycap.
+
+left-diode-18-keys: saved keycap settings are retained, but this input has no verified keycap mount. Choose a suitable knob or qualify its fit before generating a keycap.
+
+left-diode-14-keys: saved keycap settings are retained, but this input has no verified keycap mount. Choose a suitable knob or qualify its fit before generating a keycap.
+
+left-diode-13-keys: saved keycap settings are retained, but this input has no verified keycap mount. Choose a suitable knob or qualify its fit before generating a keycap.
+
+left-diode-15-keys: saved keycap settings are retained, but this input has no verified keycap mount. Choose a suitable knob or qualify its fit before generating a keycap.
+
+left-diode-16-keys: saved keycap settings are retained, but this input has no verified keycap mount. Choose a suitable knob or qualify its fit before generating a keycap.
+
+left-diode-11-keys: saved keycap settings are retained, but this input has no verified keycap mount. Choose a suitable knob or qualify its fit before generating a keycap.
+
+left-diode-12-keys: saved keycap settings are retained, but this input has no verified keycap mount. Choose a suitable knob or qualify its fit before generating a keycap.
+
+left-diode-8-keys: saved keycap settings are retained, but this input has no verified keycap mount. Choose a suitable knob or qualify its fit before generating a keycap.
+
+left-diode-7-keys: saved keycap settings are retained, but this input has no verified keycap mount. Choose a suitable knob or qualify its fit before generating a keycap.
+
+left-diode-9-keys: saved keycap settings are retained, but this input has no verified keycap mount. Choose a suitable knob or qualify its fit before generating a keycap.
+
+left-diode-10-keys: saved keycap settings are retained, but this input has no verified keycap mount. Choose a suitable knob or qualify its fit before generating a keycap.
+
+left-diode-5-keys: saved keycap settings are retained, but this input has no verified keycap mount. Choose a suitable knob or qualify its fit before generating a keycap.
+
+left-diode-6-keys: saved keycap settings are retained, but this input has no verified keycap mount. Choose a suitable knob or qualify its fit before generating a keycap.
+
+left-diode-2-keys: saved keycap settings are retained, but this input has no verified keycap mount. Choose a suitable knob or qualify its fit before generating a keycap.
+
+left-diode-1-keys: saved keycap settings are retained, but this input has no verified keycap mount. Choose a suitable knob or qualify its fit before generating a keycap.
+
+left-diode-3-keys: saved keycap settings are retained, but this input has no verified keycap mount. Choose a suitable knob or qualify its fit before generating a keycap.
+
+left-diode-4-keys: saved keycap settings are retained, but this input has no verified keycap mount. Choose a suitable knob or qualify its fit before generating a keycap.
+
+left-diode-1-thumbs: saved keycap settings are retained, but this input has no verified keycap mount. Choose a suitable knob or qualify its fit before generating a keycap.
+
+left-diode-2-thumbs: saved keycap settings are retained, but this input has no verified keycap mount. Choose a suitable knob or qualify its fit before generating a keycap.
+
+left-diode-3-thumbs: saved keycap settings are retained, but this input has no verified keycap mount. Choose a suitable knob or qualify its fit before generating a keycap.
+
+Inspect
+
+Left PCB / Case / keys
+
+Assembly setup
+Case construction
+Mirrored pair
+
+Shared mechanical features stay linked to the other half. Make one local, remove it on this half, or rejoin it from the other half.
+
+Closure mount · linked to the other half
+Make localRemove on this half
+Closure mount · linked to the other half
+Make localRemove on this half
+Closure mount · linked to the other half
+Make localRemove on this half
+Closure mount · linked to the other half
+Make localRemove on this half
+Opening · linked to the other half
+Make localRemove on this half
+Opening · linked to the other half
+Make localRemove on this half
+
+Authored Case bodies remain saved while the generated stack is active. Disable the stack to return to authored bodies.
+
+Construction
+Plate method
+PCB FR-4
+3D printed
+CNC machined
+Cut sheet
+Mount style
+Tray
+Rigid mount
+Gasket mount
+Bottom construction
+Tray shell
+Flat sheet
+Integrate plate frame into case
+Switch fit profiles
+Manufacturing overrides
+Dimensions and clearances · mm
+Plate thickness
+mm
+Plate foam
+mm
+PCB thickness
+mm
+Bottom foam
+mm
+Bottom thickness
+mm
+Wall thickness
+mm
+Clearance
+mm
+Radial opening allowance
+mm
+Resolved stack
+Mechanical diagnostics
+Battery
+Case openings · 2
+Mounting & hardware
+Suspension mounts · 0
+Closure screws · 4
+Suggested mount locations · 4 candidates
+Hardware & critical fits · 0 hardware · 0 fits
+Unlink and disable this half
+
+This half is linked with right. Disabling removes that link and disables only this half's mechanical stack: the other half keeps its geometry and settings, and neither PCB is removed. One Undo restores the link and this stack.
+
+Removing this assembly clears the link and removes only it; the other half stays as its own local assembly.
+
+Remove this assembly…
+Routed PCB reference
+100%
+Layout findings: 23

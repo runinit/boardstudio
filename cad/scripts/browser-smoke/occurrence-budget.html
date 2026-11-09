@@ -1,0 +1,15 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>STEP occurrence budget worker recovery</title>
+<pre id="result">pending</pre>
+<script type="module">
+import { checkWorkerQualification } from './qualification.mjs';
+const checks = [];
+let error = null;
+try {
+  const response = await fetch('../../wasm/tests/fixtures/generated-analysis-contract.json');
+  if (!response.ok) throw new Error('worker contract unavailable');
+  await checkWorkerQualification((name, ok, detail = '') => checks.push({name, ok, detail}), await response.json(), true);
+} catch (failure) { error = String(failure.stack ?? failure); }
+document.getElementById('result').textContent = JSON.stringify({ok: !error && checks.every(item => item.ok), checks, error});
+</script>

@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Architecture review for BoardStudio</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose", flowchart: { curve: "basis" } });
+    </script>
+    <style>
+      .seam { stroke-dasharray: 4 4; }
+      .leak { stroke: #dc2626; }
+      .deep { background: linear-gradient(135deg, #0f172a, #1e293b); color: #e2e8f0; }
+      .seam-line { border-top: 2px dashed #64748b; }
+      .label { font-size: .68rem; letter-spacing: .08em; text-transform: uppercase; }
+      .dia { min-height: 320px; }
+      .stripe { background: repeating-linear-gradient(45deg, #fee2e2, #fee2e2 6px, #fff 6px, #fff 12px); }
+    </style>
+  </head>
+  <body class="bg-stone-50 text-slate-900 font-sans">
+    <main class="max-w-6xl mx-auto px-4 sm:px-6 py-12 space-y-14">
+      <header class="space-y-4">
+        <p class="label text-slate-500">Architecture review · 2026-10-07 · branch dev @ 915d305c0</p>
+        <h1 class="font-serif text-4xl">BoardStudio: deepening opportunities</h1>
+        <p class="text-slate-600 max-w-3xl">Scoped to the last ~150 commits: edit settlement (tickets 01–19), the Runtime, the page shell and the typed Core edits direction. ADR-0005 and ADR-0006 are taken as given.</p>
+        <div class="flex flex-wrap gap-5 text-sm text-slate-600 items-center pt-2">
+          <span class="flex items-center gap-2"><span class="inline-block w-6 h-4 border border-slate-400 bg-white"></span>module</span>
+          <span class="flex items-center gap-2"><span class="inline-block w-8 seam-line"></span>seam</span>
+          <span class="flex items-center gap-2"><svg width="30" height="10"><line x1="0" y1="5" x2="24" y2="5" stroke="#dc2626" stroke-width="2"/><path d="M24 1 L30 5 L24 9 Z" fill="#dc2626"/></svg>leakage / duplication</span>
+          <span class="flex items-center gap-2"><span class="inline-block w-6 h-4 deep rounded-sm"></span>deep module</span>
+        </div>
+      </header>
+
+      <section id="candidates" class="space-y-14">
+
+        <!-- 1 -->
+        <article id="c1" class="rounded-xl border border-slate-200 bg-white shadow-sm p-6 space-y-5">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-slate-400 font-mono">01</span>
+            <h2 class="font-serif text-2xl">Deepen settlement above the edit ticket</h2>
+            <span class="ml-auto rounded-full bg-emerald-100 text-emerald-800 px-3 py-1 text-xs font-semibold">Strong</span>
+            <span class="rounded-full bg-slate-100 text-slate-700 px-3 py-1 text-xs">in-process</span>
+          </div>
+          <ul class="font-mono text-sm text-slate-600 grid sm:grid-cols-2 gap-x-6">
+            <li>web/crates/runtime/src/edit_ticket.rs</li>
+            <li>web/crates/layout/src/objects/*_controller.rs (6 files)</li>
+            <li>web/crates/layout/src/board_inspector.rs</li>
+            <li>web/crates/parts/src/parts_custom_definition.rs:165</li>
+            <li>web/src/presentation/layout_component_edits.rs:432</li>
+            <li>web/crates/case/src/{case,mechanical_settings}_controller.rs</li>
+          </ul>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 p-4 dia">
+              <p class="label text-red-600 mb-3">Before · each panel rebuilds the pending-edit state machine</p>
+              <div class="grid grid-cols-3 gap-2 text-[11px]">
+                <div class="border border-red-300 rounded p-2 stripe"><b>Matrix Inspector</b><br>MatrixSubmission<br>MatrixEditState<br>settle_pending</div>
+                <div class="border border-red-300 rounded p-2 stripe"><b>Matrix Transform</b><br>TransformSubmission<br>MatrixTransformState<br>settle_pending</div>
+                <div class="border border-red-300 rounded p-2 stripe"><b>Keycap size</b><br>KeycapSizeSubmission<br>KeySizeState<br><i>drops Retired</i></div>
+                <div class="border border-red-300 rounded p-2 stripe"><b>Mirrored pair</b><br>PairSubmission<br>same_lineage<br>owner check ×3</div>
+                <div class="border border-red-300 rounded p-2 stripe"><b>Parts definition</b><br>settle_ticket<br>owner_is_live ×2</div>
+                <div class="border border-red-300 rounded p-2 stripe"><b>Layout Inspector</b><br>settle_field<br><i>(same bytes)</i></div>
+                <div class="col-span-3 text-center text-slate-400">… 15 <code>*Submission</code> structs · 14 <code>{Pending, Saved, Failed}</code> enums · 4 <code>owner_is_live</code></div>
+              </div>
+              <div class="seam-line my-3"></div>
+              <div class="deep rounded p-3 text-center text-sm"><span class="label">EditTicket</span><br><code class="text-xs">begin · is_pending · settlement(owner_is_live)</code></div>
+            </div>
+            <div class="rounded-lg border border-slate-200 p-4 dia">
+              <p class="label text-emerald-700 mb-3">After · panels project; one module settles</p>
+              <div class="grid grid-cols-3 gap-2 text-[11px] text-center">
+                <div class="border border-slate-300 rounded p-2">Matrix Inspector<br><span class="text-slate-400">projection</span></div>
+                <div class="border border-slate-300 rounded p-2">Transform<br><span class="text-slate-400">projection</span></div>
+                <div class="border border-slate-300 rounded p-2">Keycap size<br><span class="text-slate-400">projection</span></div>
+                <div class="border border-slate-300 rounded p-2">Mirrored pair</div>
+                <div class="border border-slate-300 rounded p-2">Parts definition</div>
+                <div class="border border-slate-300 rounded p-2">Layout Inspector</div>
+              </div>
+              <div class="seam-line my-3"></div>
+              <div class="deep rounded-lg p-4 border-4 border-slate-900">
+                <p class="label text-center">Pending edits (per panel, keyed by field or action)</p>
+                <div class="grid grid-cols-2 gap-2 mt-3 text-[11px] text-slate-400">
+                  <div class="border border-slate-600 rounded p-1">latest ticket per field edit</div>
+                  <div class="border border-slate-600 rounded p-1">one-shot action disabled while pending</div>
+                  <div class="border border-slate-600 rounded p-1">one Retired policy</div>
+                  <div class="border border-slate-600 rounded p-1">failure → accepted value + message</div>
+                  <div class="border border-slate-600 rounded p-1 col-span-2">owner liveness from captured scope</div>
+                </div>
+                <div class="mt-3 rounded bg-slate-700/60 p-2 text-center text-[11px]">EditTicket (unchanged, now internal)</div>
+              </div>
+            </div>
+          </div>
+
+          <dl class="grid sm:grid-cols-[7rem_1fr] gap-x-4 gap-y-2 text-sm">
+            <dt class="label text-slate-500 pt-1">Problem</dt>
+            <dd>The edit ticket is deep, but settlement stops at one ticket. Each panel re-implements the pending → landed / failed / retired handling, and the panels disagree about <code>Settlement::Retired</code>. Example: <code>settle_ticket</code> and <code>settle_field</code> are byte-identical.</dd>
+            <dt class="label text-slate-500 pt-1">Solution</dt>
+            <dd>Add one Dioxus-free pending-edits module on top of the edit ticket. It owns ADR-0005's rules (field edits queue and the latest value wins; one-shot actions disable), restoring the accepted value on failure, and the owner-liveness check, which reads the captured scope instead of four hand-written <code>owner_is_live</code> checks. It also absorbs resolver boilerplate (31 × <code>base_revision: 0</code>, 47 × empty <code>transaction_id</code>, and 18 resolver epoch checks that Session's own epoch rejection already makes unreachable).</dd>
+            <dt class="label text-slate-500 pt-1">Wins</dt>
+            <dd>
+              <ul class="list-disc pl-5 grid sm:grid-cols-2">
+                <li>Locality: one Retired policy</li>
+                <li>Leverage: one interface, ~15 panels</li>
+                <li>Native suite replaces wasm-only proofs</li>
+                <li>Delete 15 holders, 14 enums</li>
+                <li>"Retire" stops meaning two things</li>
+                <li>New panels get ADR-0005 for free</li>
+              </ul>
+            </dd>
+          </dl>
+        </article>
+
+        <!-- 2 -->
+        <article id="c2" class="rounded-xl border border-slate-200 bg-white shadow-sm p-6 space-y-5">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-slate-400 font-mono">02</span>
+            <h2 class="font-serif text-2xl">Native tests on the real Session and Core</h2>
+            <span class="ml-auto rounded-full bg-emerald-100 text-emerald-800 px-3 py-1 text-xs font-semibold">Strong</span>
+            <span class="rounded-full bg-slate-100 text-slate-700 px-3 py-1 text-xs">local-substitutable</span>
+          </div>
+          <ul class="font-mono text-sm text-slate-600 grid sm:grid-cols-2 gap-x-6">
+            <li>web/crates/runtime/src/lib.rs:36-39</li>
+            <li>web/crates/runtime/src/runtime_test_stub.rs</li>
+            <li>web/crates/runtime/src/edit_ticket.rs (NativeEditDriver, tests)</li>
+            <li>web/crates/runtime/src/in_process_support.rs</li>
+            <li>web/crates/layout/src/part_placement.rs:304, :2057-2105</li>
+            <li>matrix_transform_lifecycle.rs:398 · parts/mechanical_profile.rs:511</li>
+          </ul>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 p-4 dia">
+              <p class="label text-red-600 mb-2">Before · four routes, one of them real</p>
+              <pre class="mermaid">
+flowchart TB
+  T1[mounted wasm tests] --> IP[InProcessAdapters<br/>real Session + Core]
+  T2[native panel tests] --> ST[runtime_test_stub<br/>records events, never resolves]
+  T2 -. hand-calls .-> R[EditResolver::resolve]
+  T3[placement tests] --> HP[HookPort<br/>re-encodes Session rules]
+  T4[lifecycle tests] --> SL[bare Session loops]
+  ND[NativeEditDriver<br/>private to edit_ticket tests]
+  classDef bad fill:#fee2e2,stroke:#dc2626;
+  classDef good fill:#0f172a,color:#e2e8f0,stroke:#0f172a;
+  class ST,HP,SL bad
+  class IP,ND good
+              </pre>
+            </div>
+            <div class="rounded-lg border border-slate-200 p-4 dia">
+              <p class="label text-emerald-700 mb-2">After · one Runtime, two adapters behind real seams</p>
+              <pre class="mermaid">
+flowchart TB
+  T1[mounted wasm tests] --> RT
+  T2[native panel tests] --> RT
+  RT[Runtime<br/>real Session + resolution]:::good
+  RT -. CoreExecutor seam .-> C1[CoreWorker]
+  RT -. CoreExecutor seam .-> C2[InProcessCore]
+  RT -. DocumentPersistence seam .-> P1[BrowserStore]
+  RT -. DocumentPersistence seam .-> P2[in-memory saves<br/>hold / fail gates]
+  classDef good fill:#0f172a,color:#e2e8f0,stroke:#0f172a;
+              </pre>
+            </div>
+          </div>
+
+          <dl class="grid sm:grid-cols-[7rem_1fr] gap-x-4 gap-y-2 text-sm">
+            <dt class="label text-slate-500 pt-1">Problem</dt>
+            <dd>On native builds the whole runtime module is swapped for a 65-line stub. Panel tests either call resolvers by hand or use <code>HookPort</code>, a second copy of Session's resolution rules that can drift. ADR-0005 asks that tests use the route production uses.</dd>
+            <dt class="label text-slate-500 pt-1">Solution</dt>
+            <dd>Promote <code>NativeEditDriver</code> into the native test Runtime: the real Session and CoreEngine, in-memory saves, and the same hold/fail gates under the <code>test-support</code> vocabulary <code>InProcessAdapters</code> already uses. The Core and persistence seams already have two adapters each, so the seam is real.</dd>
+            <dt class="label text-slate-500 pt-1">Wins</dt>
+            <dd>
+              <ul class="list-disc pl-5 grid sm:grid-cols-2">
+                <li>Delete HookPort, PlacementRuntime, stub</li>
+                <li>Tests cross the production seam</li>
+                <li>Shorter <code>browser</code> check step</li>
+                <li>Verifies candidate 01 natively</li>
+              </ul>
+            </dd>
+          </dl>
+        </article>
+
+        <!-- 3 -->
+        <article id="c3" class="rounded-xl border border-slate-200 bg-white shadow-sm p-6 space-y-5">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-slate-400 font-mono">03</span>
+            <h2 class="font-serif text-2xl">One export lease module out of the Runtime</h2>
+            <span class="ml-auto rounded-full bg-emerald-100 text-emerald-800 px-3 py-1 text-xs font-semibold">Strong</span>
+            <span class="rounded-full bg-slate-100 text-slate-700 px-3 py-1 text-xs">in-process</span>
+          </div>
+          <ul class="font-mono text-sm text-slate-600">
+            <li>web/crates/runtime/src/runtime.rs :268-312 (captures), :390-399 (fields), :4772, :4922, :4945, :5000, :5156 (currency checks), :6633-7231 (mechanical package formatting)</li>
+          </ul>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 p-4 dia space-y-2">
+              <p class="label text-red-600 mb-2">Before · four kinds × (capture + map + check + delivery)</p>
+              <div class="grid grid-cols-4 gap-2 text-[10px] text-center">
+                <div class="label text-slate-500 col-span-1">Firmware</div><div class="label text-slate-500">Footprint</div><div class="label text-slate-500">PCB handoff</div><div class="label text-slate-500">Mechanical</div>
+                <div class="border border-red-300 stripe rounded p-1">Capture<br>7 fields + 1</div><div class="border border-red-300 stripe rounded p-1">Capture<br>7 fields + 1</div><div class="border border-red-300 stripe rounded p-1">Capture<br>7 fields + 1</div><div class="border border-red-300 stripe rounded p-1">Capture<br>7 fields + 1</div>
+                <div class="border border-slate-300 rounded p-1">map in Runtime</div><div class="border border-slate-300 rounded p-1">map in Runtime</div><div class="border border-slate-300 rounded p-1">map in Runtime</div><div class="border border-slate-300 rounded p-1">map in Runtime</div>
+                <div class="border border-red-300 stripe rounded p-1">*_is_current<br>9 clauses</div><div class="border border-red-300 stripe rounded p-1">*_is_current<br>9 clauses</div><div class="border border-red-300 stripe rounded p-1">*_is_current<br>+ require_*</div><div class="border border-red-300 stripe rounded p-1">*_is_current<br>9 clauses</div>
+              </div>
+              <div class="h-24 rounded bg-slate-100 border border-slate-300 flex items-center justify-center text-xs text-slate-500">runtime.rs · 8,377 lines · ~45 fields · 19 currency checks</div>
+            </div>
+            <div class="rounded-lg border border-slate-200 p-4 dia space-y-3">
+              <p class="label text-emerald-700 mb-2">After</p>
+              <div class="deep rounded-lg p-4 border-4 border-slate-900">
+                <p class="label">Export jobs</p>
+                <code class="text-xs block mt-1">begin(kind, extra) → lease · lease.require_current() · finish / cancel</code>
+                <p class="text-[11px] text-slate-400 mt-2">owns capture, executor + worker identity, cancellation, one currency rule over Session's export check</p>
+              </div>
+              <div class="seam-line"></div>
+              <div class="grid grid-cols-2 gap-2 text-[11px] text-center">
+                <div class="border border-slate-300 rounded p-2">Runtime keeps byte producers</div>
+                <div class="border border-slate-300 rounded p-2">Mechanical package formatting<br><span class="text-slate-400">native-testable module</span></div>
+              </div>
+            </div>
+          </div>
+
+          <dl class="grid sm:grid-cols-[7rem_1fr] gap-x-4 gap-y-2 text-sm">
+            <dt class="label text-slate-500 pt-1">Problem</dt>
+            <dd>Three of the per-kind "capture is current" checks are line-for-line the same nine clauses. Adding an export means copying a capture, a map, a check and a delivery path into the Runtime.</dd>
+            <dt class="label text-slate-500 pt-1">Solution</dt>
+            <dd>Introduce one export-lease module that captures scope and executor identity and answers whether an export is still current. Move the pure mechanical-package formatting out next to it.</dd>
+            <dt class="label text-slate-500 pt-1">Wins</dt>
+            <dd>
+              <ul class="list-disc pl-5 grid sm:grid-cols-2">
+                <li>Locality: one stale-export rule</li>
+                <li>Firmware's worker-swap tests cover all</li>
+                <li>Runtime sheds ~1,500 lines</li>
+                <li>New export: one call, no copy</li>
+              </ul>
+            </dd>
+          </dl>
+          <div class="rounded-md bg-emerald-50 border border-emerald-200 px-4 py-2 text-sm text-emerald-900">Consistent with ADR-0005: export commits keep strict captured-revision checks, now in one place.</div>
+        </article>
+
+        <!-- 4 -->
+        <article id="c4" class="rounded-xl border border-slate-200 bg-white shadow-sm p-6 space-y-5">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-slate-400 font-mono">04</span>
+            <h2 class="font-serif text-2xl">Mechanical settings rules move behind a Core intent</h2>
+            <span class="ml-auto rounded-full bg-amber-100 text-amber-800 px-3 py-1 text-xs font-semibold">Worth exploring</span>
+            <span class="rounded-full bg-slate-100 text-slate-700 px-3 py-1 text-xs">in-process</span>
+          </div>
+          <ul class="font-mono text-sm text-slate-600 grid sm:grid-cols-2 gap-x-6">
+            <li>web/crates/case/src/mechanical_settings_controller.rs:767-2459</li>
+            <li>web/crates/case/src/mechanical_settings.rs:453</li>
+            <li>core/src/mechanical.rs:18, :72</li>
+            <li>battery_patch_tests (controller.rs:2460-3631)</li>
+          </ul>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 p-4 dia">
+              <p class="label text-red-600 mb-2">Before · rules on the wrong side of the seam</p>
+              <pre class="mermaid">
+flowchart LR
+  subgraph web[Case crate]
+    C[Controller shell<br/>ports, ordering]:::good
+    AP[apply_patch ~1,060 lines<br/>defaults · normalize · validate]:::bad
+  end
+  subgraph core[Core]
+    M[mechanical.rs<br/>default_material · mounting datum]
+  end
+  C --> AP
+  AP == ReplaceDocument ==> core
+  AP -. copies .-> M
+  classDef bad fill:#fee2e2,stroke:#dc2626;
+  classDef good fill:#0f172a,color:#e2e8f0;
+  linkStyle 2 stroke:#dc2626,stroke-width:2px;
+              </pre>
+            </div>
+            <div class="rounded-lg border border-slate-200 p-4 dia">
+              <p class="label text-emerald-700 mb-2">After · Core owns the patch</p>
+              <pre class="mermaid">
+flowchart LR
+  subgraph web[Case crate]
+    C[Controller shell<br/>unchanged]:::good
+    R[resolver: patch → intent]
+  end
+  subgraph core[Core]
+    MP[Apply mechanical patch<br/>defaults · validation · precise changed IDs]:::good
+  end
+  C --> R
+  R -- typed intent --> MP
+  classDef good fill:#0f172a,color:#e2e8f0;
+              </pre>
+            </div>
+          </div>
+
+          <dl class="grid sm:grid-cols-[7rem_1fr] gap-x-4 gap-y-2 text-sm">
+            <dt class="label text-slate-500 pt-1">Problem</dt>
+            <dd>The resolver contains a web-side domain engine that copies Core's defaults (<code>default_material</code>, the 3.5/5.0 mounting datum) and answers with a whole-document replacement, so either copy can drift.</dd>
+            <dt class="label text-slate-500 pt-1">Solution</dt>
+            <dd>Make it a typed-core-edits slice: Core applies a mechanical patch, keeps one copy of the defaults, and reports precise changed IDs. The controller shell, which is already deep, stays as it is.</dd>
+            <dt class="label text-slate-500 pt-1">Wins</dt>
+            <dd>
+              <ul class="list-disc pl-5 grid sm:grid-cols-2">
+                <li>One copy of mechanical defaults</li>
+                <li>~1,170 lines of tests become Core contract tests</li>
+                <li>No outline recompute for scalars</li>
+                <li>One fewer ReplaceDocument resolver (57 today)</li>
+              </ul>
+            </dd>
+          </dl>
+          <div class="rounded-md bg-emerald-50 border border-emerald-200 px-4 py-2 text-sm text-emerald-900">Follows ADR-0006. Sequence it after <code>SetWiringMode</code> settles the pattern.</div>
+        </article>
+
+        <!-- 5 -->
+        <article id="c5" class="rounded-xl border border-slate-200 bg-white shadow-sm p-6 space-y-5">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-slate-400 font-mono">05</span>
+            <h2 class="font-serif text-2xl">Workspace state out of the page shell's Editor</h2>
+            <span class="ml-auto rounded-full bg-amber-100 text-amber-800 px-3 py-1 text-xs font-semibold">Worth exploring</span>
+            <span class="rounded-full bg-slate-100 text-slate-700 px-3 py-1 text-xs">in-process</span>
+          </div>
+          <ul class="font-mono text-sm text-slate-600">
+            <li>web/src/presentation.rs:2989-9015 (fn Editor) · :187-224 (WorkspaceCallbackSlots) · :1081 (regression tests in-file)</li>
+          </ul>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 p-4 dia">
+              <p class="label text-red-600 mb-3">Before · mass diagram</p>
+              <div class="flex items-end gap-6 h-60">
+                <div class="flex flex-col items-center gap-1">
+                  <div class="w-24 bg-red-200 border border-red-400" style="height:110px"></div>
+                  <span class="label text-slate-500">interface</span>
+                  <span class="text-[10px] text-slate-400 text-center">33 callback slots<br>37 signals reachable</span>
+                </div>
+                <div class="flex flex-col items-center gap-1">
+                  <div class="w-24 bg-slate-300 border border-slate-500" style="height:220px"></div>
+                  <span class="label text-slate-500">implementation</span>
+                  <span class="text-[10px] text-slate-400 text-center">~6,000 lines<br>12 effects</span>
+                </div>
+              </div>
+              <p class="text-[11px] text-slate-500 mt-2">Editor holds case, keymap, parts, layout findings, splay pick and canvas pan/zoom state.</p>
+            </div>
+            <div class="rounded-lg border border-slate-200 p-4 dia">
+              <p class="label text-emerald-700 mb-3">After · Editor composes deep per-workspace state</p>
+              <div class="flex items-end gap-3 h-60">
+                <div class="flex flex-col items-center gap-1"><div class="w-14 bg-emerald-200 border border-emerald-500" style="height:18px"></div><div class="w-14 deep" style="height:120px"></div><span class="text-[10px] text-slate-500">canvas<br>navigation</span></div>
+                <div class="flex flex-col items-center gap-1"><div class="w-14 bg-emerald-200 border border-emerald-500" style="height:18px"></div><div class="w-14 deep" style="height:140px"></div><span class="text-[10px] text-slate-500">layout<br>findings</span></div>
+                <div class="flex flex-col items-center gap-1"><div class="w-14 bg-emerald-200 border border-emerald-500" style="height:18px"></div><div class="w-14 deep" style="height:110px"></div><span class="text-[10px] text-slate-500">case<br>state</span></div>
+                <div class="flex flex-col items-center gap-1"><div class="w-14 bg-emerald-200 border border-emerald-500" style="height:18px"></div><div class="w-14 deep" style="height:100px"></div><span class="text-[10px] text-slate-500">parts<br>state</span></div>
+                <div class="flex flex-col items-center gap-1"><div class="w-14 bg-slate-200 border border-slate-400" style="height:40px"></div><span class="text-[10px] text-slate-500">Editor<br>composes</span></div>
+              </div>
+            </div>
+          </div>
+
+          <dl class="grid sm:grid-cols-[7rem_1fr] gap-x-4 gap-y-2 text-sm">
+            <dt class="label text-slate-500 pt-1">Problem</dt>
+            <dd>One 6,000-line component owns the state for every workspace. The per-workspace files under <code>presentation/</code> render, but their state lives in <code>Editor</code>, so its behaviour can only be reached through mounted tests.</dd>
+            <dt class="label text-slate-500 pt-1">Solution</dt>
+            <dd>Extract per-workspace state modules (canvas navigation and layout findings first) that own their signals. <code>Editor</code> then composes them. Do it one workspace at a time, as concrete feature work touches each one (backlog: Feature ownership).</dd>
+            <dt class="label text-slate-500 pt-1">Wins</dt>
+            <dd>
+              <ul class="list-disc pl-5 grid sm:grid-cols-2">
+                <li>Locality per workspace</li>
+                <li>Callback slots shrink</li>
+                <li>Smaller recompile surface</li>
+                <li>Findings navigation testable alone</li>
+              </ul>
+            </dd>
+          </dl>
+          <div class="rounded-md bg-amber-50 border border-amber-200 px-4 py-2 text-sm text-amber-900">The backlog warns against "a general framework rewrite". Keep each extraction tied to a feature change.</div>
+        </article>
+
+        <!-- 6 -->
+        <article id="c6" class="rounded-xl border border-slate-200 bg-white shadow-sm p-6 space-y-5">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-slate-400 font-mono">06</span>
+            <h2 class="font-serif text-2xl">Separate outline version planning from its UI</h2>
+            <span class="ml-auto rounded-full bg-slate-200 text-slate-700 px-3 py-1 text-xs font-semibold">Speculative</span>
+            <span class="rounded-full bg-slate-100 text-slate-700 px-3 py-1 text-xs">in-process</span>
+          </div>
+          <ul class="font-mono text-sm text-slate-600">
+            <li>web/crates/layout/src/outline_lifecycle.rs (3,574 lines): plan_action :1430 · Inspector UI :1884-2830 · canvas overlays :2875-3400</li>
+          </ul>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 p-4 dia">
+              <p class="label text-red-600 mb-3">Before · cross-section of one file</p>
+              <div class="space-y-1 text-xs">
+                <div class="h-10 border-l-4 border-slate-400 bg-slate-50 pl-3 flex items-center">lifecycle hook</div>
+                <div class="h-24 border-l-4 border-red-500 stripe pl-3 flex items-center"><b>plan_action</b>&nbsp;~450 lines · version IDs · polygon validity · active-version ownership · ReplaceDocument</div>
+                <div class="h-16 border-l-4 border-slate-400 bg-slate-50 pl-3 flex items-center">Inspector UI ~950 lines</div>
+                <div class="h-14 border-l-4 border-slate-400 bg-slate-50 pl-3 flex items-center">canvas overlays ~520 lines</div>
+              </div>
+            </div>
+            <div class="rounded-lg border border-slate-200 p-4 dia">
+              <p class="label text-emerald-700 mb-3">After</p>
+              <div class="space-y-2 text-xs">
+                <div class="grid grid-cols-2 gap-2">
+                  <div class="h-14 border border-slate-300 rounded flex items-center justify-center">Inspector UI</div>
+                  <div class="h-14 border border-slate-300 rounded flex items-center justify-center">canvas overlays</div>
+                </div>
+                <div class="seam-line"></div>
+                <div class="deep rounded-lg h-24 flex flex-col items-center justify-center border-4 border-slate-900">
+                  <span class="label">Outline version intents (Core)</span>
+                  <span class="text-[11px] text-slate-400">identity · validity · active outline</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <dl class="grid sm:grid-cols-[7rem_1fr] gap-x-4 gap-y-2 text-sm">
+            <dt class="label text-slate-500 pt-1">Problem</dt>
+            <dd>The rules for outline versions and active outlines are mixed into a 3,574-line file with the Inspector and the overlays. The typed-core-edits map names these as the strongest outline-rule duplication.</dd>
+            <dt class="label text-slate-500 pt-1">Solution</dt>
+            <dd>Split the planning code from the UI now, which is a cheap locality gain. Later, move the planning into Core intents through typed-core-edits.</dd>
+            <dt class="label text-slate-500 pt-1">Wins</dt>
+            <dd>
+              <ul class="list-disc pl-5 grid sm:grid-cols-2">
+                <li>Planner tests become Core contract tests</li>
+                <li>UI edits stop touching rules</li>
+              </ul>
+            </dd>
+          </dl>
+          <div class="rounded-md bg-amber-50 border border-amber-200 px-4 py-2 text-sm text-amber-900">Already on the typed-core-edits map; the semantics (identity, version-only storage) need a decision first.</div>
+        </article>
+
+        <div class="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600 space-y-2">
+          <p class="label text-slate-500">Checked and already deep · not proposed</p>
+          <ul class="list-disc pl-5 grid sm:grid-cols-2 gap-x-6">
+            <li><code>EditTicket</code>: small interface; tests use the real Session</li>
+            <li>Session <code>ResolveEdit</code>: one owner for base revision, transaction id and Unchanged</li>
+            <li><code>CoreExecutor</code> and <code>DocumentPersistence</code>: two adapters each</li>
+            <li>Port-based controllers: mechanical settings shell, model delivery, PCB handoff</li>
+            <li><code>matrix_transform_operation</code> and <code>keycap_resize</code>: pure planners with native tests</li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="top-recommendation" class="deep rounded-2xl p-8 space-y-3">
+        <p class="label text-emerald-300">Top recommendation</p>
+        <h2 class="font-serif text-3xl"><a href="#c1" class="underline decoration-emerald-400 underline-offset-4">01 · Deepen settlement above the edit ticket</a></h2>
+        <p class="text-slate-300 max-w-3xl">This is where all the recent churn landed: about 15 panels carry their own copy of ADR-0005's rules, and they already disagree about retirement. One in-process module puts that behaviour behind one native test surface and makes every future panel and typed-core-edits slice cheaper. Pair it with <a href="#c2" class="underline">02</a> so the module is tested against the real Session without a browser. Sequence it alongside ticket 20, which also touches the resolver surface.</p>
+      </section>
+    </main>
+  </body>
+</html>

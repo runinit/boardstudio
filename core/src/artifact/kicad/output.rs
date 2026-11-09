@@ -1,5 +1,5 @@
 use super::*;
-use sha2::{Digest, Sha256};
+use crate::hash::sha256_hex;
 
 pub fn finish_export(request: FinishExportRequest) -> Result<ExportArtifact, ArtifactError> {
     validate_plan(&request.plan)?;
@@ -170,13 +170,12 @@ fn validate_generated_forms(
     let mut forms = Vec::new();
     for node in &parsed.nodes {
         let safe_node = restore_kicad_quoted_atoms(node, source_text)?;
-        let form = CstDocument {
+        let canonical = CstDocument {
             raw: source_text.to_owned(),
             nodes: vec![safe_node],
         }
-        .to_canonical_string()
-        .trim_end()
-        .to_owned();
+        .to_canonical_string();
+        let form = escape_quoted_controls(canonical.trim_end())?;
         let kind = list_head(node).unwrap_or("");
         if !matches!(
             kind,
@@ -201,6 +200,44 @@ fn validate_generated_forms(
         forms.push(form);
     }
     Ok(forms)
+}
+
+/// Canonical output writes decoded control characters literally; KiCad expects
+/// them escaped, and the board parser rejects a literal newline inside a string.
+fn escape_quoted_controls(form: &str) -> Result<String, ArtifactError> {
+    let mut out = String::with_capacity(form.len());
+    let mut quoted = false;
+    let mut escaped = false;
+    for character in form.chars() {
+        if !quoted {
+            quoted = character == '"';
+            out.push(character);
+            continue;
+        }
+        if escaped {
+            escaped = false;
+            out.push(character);
+            continue;
+        }
+        match character {
+            '"' => {
+                quoted = false;
+                out.push(character);
+            }
+            '\\' => {
+                escaped = true;
+                out.push(character);
+            }
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            control if control <= '\u{1f}' => {
+                return Err(validation("KiCad text contains a control character"));
+            }
+            _ => out.push(character),
+        }
+    }
+    Ok(out)
 }
 
 fn restore_kicad_quoted_atoms(node: &Node, source_text: &str) -> Result<Node, ArtifactError> {
@@ -324,10 +361,7 @@ fn standalone_footprint_names(definitions: &[&PartDefinition]) -> Vec<String> {
             if counts.get(&base) == Some(&1) {
                 return base;
             }
-            let digest = Sha256::digest(definition.id.as_bytes())
-                .iter()
-                .map(|byte| format!("{byte:02x}"))
-                .collect::<String>();
+            let digest = sha256_hex(definition.id.as_bytes());
             let mut length = 10;
             loop {
                 let candidate = format!("{base}__{}", &digest[..length]);
@@ -520,9 +554,13 @@ fn finish_board(
     let mut generated_traces = Vec::new();
     let mut generated_vias = Vec::new();
     for part_id in &board.part_ids {
-        let part = parts
+        let stored = parts
             .get(part_id.as_str())
             .ok_or_else(|| validation(format!("Missing part or definition: {part_id}")))?;
+        // Ticket 12: exports place half-frame parts at their evaluated board
+        // pose; storage stays within-half. The borrow extends the owned
+        // shadow only while a half-frame offset applies.
+        let part: &Part = &crate::matrix::layout::evaluated_part(doc, stored);
         let definition = definitions
             .get(part.definition_id.as_str())
             .ok_or_else(|| validation(format!("Missing part or definition: {part_id}")))?;
@@ -539,7 +577,7 @@ fn finish_board(
                         &plan.model_paths,
                     )?);
                 } else {
-                    board_objects_here.push(render(&form)?);
+                    board_objects_here.push(form);
                 }
             }
             if !board_objects_here.is_empty() && part.pose.at != Vec2::default() {

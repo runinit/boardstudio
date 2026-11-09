@@ -1,0 +1,2 @@
+# Parts is a first-party Rust crate, not a generated artifact directory.
+!web/crates/parts/

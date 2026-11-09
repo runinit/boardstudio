@@ -1,12 +1,25 @@
 //! Owner-checked Layout action for linking copies of existing unpaired matrices.
+use crate::mirror_existing_half::prepare_existing_half;
 use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Resolution, Scope, SnapshotToken,
 };
-use boardstudio_core::model::{
-    EditCommand, EditOperation, EditPhase, Layout, LayoutMirrorLink, PartKind, ProjectDoc, Vec2,
+use boardstudio_core::model::{EditOperation, PartKind, ProjectDoc, Vec2};
+use boardstudio_web_runtime::pending_edits::PendingEditResult;
+use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
+use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
+use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
+use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
+use boardstudio_web_ui_shared::ui::card::Card;
+use boardstudio_web_ui_shared::ui::{
+    combobox::{Combobox, ComboboxOption},
+    field::{Field, FieldLabel},
+    select::{Select, SelectOption},
 };
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+use boardstudio_web_ui_shared::ui::{
+    input::InputType,
+    input_group::{InputGroup, InputGroupInput},
+};
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -34,7 +47,6 @@ pub struct ExistingHalfProjection {
     pub editable: bool,
     pub can_cancel: bool,
     pub error: Option<String>,
-    pub status: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -54,10 +66,16 @@ pub struct ExistingHalfMount {
     pub on_create: EventHandler<ExistingHalfCreateRequest>,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ExistingHalfAction {
+    Create,
+}
+
+// Private controller/form bridge; terminal tickets never exempt a draft.
 #[derive(Clone)]
-struct ExistingHalfSubmission {
-    owner: ExistingHalfOwner,
-    ticket: EditTicket,
+struct ExistingHalfAdmission {
+    pending: PendingEditSignals<ExistingHalfAction>,
+    submitted: Signal<Option<ExistingHalfCreateRequest>>,
 }
 
 /// Resolve mirroring existing halves against the accepted document at execution time. The
@@ -85,15 +103,12 @@ fn mirror_existing_half_resolver(
                 axis_x,
                 &mut id_factory,
             ) {
-                Ok(prepared) => Resolution::Submit(EditCommand {
-                    base_revision: 0,
-                    transaction_id: String::new(),
-                    phase: EditPhase::Commit,
-                    target_ids: matrix_ids.clone(),
-                    operation: EditOperation::ReplaceDocument {
+                Ok(prepared) => Resolution::submit(
+                    matrix_ids.clone(),
+                    EditOperation::ReplaceDocument {
                         document: Box::new(prepared.document),
                     },
-                }),
+                ),
                 Err(message) => Resolution::Retire(message),
             }
         },
@@ -113,8 +128,15 @@ pub fn use_existing_half(
     let open_id = use_signal(|| 0_u64);
     let open = use_signal(|| None::<ExistingHalfOwner>);
     let error = use_signal(|| None::<String>);
-    let status = use_signal(|| None::<String>);
-    let pending = use_signal(|| None::<ExistingHalfSubmission>);
+    let pending = use_hook(PendingEditSignals::<ExistingHalfAction>::new);
+    let pending_create = use_signal(|| false);
+    pending.bind_one_shot(ExistingHalfAction::Create, pending_create);
+    let create_owner = use_signal(|| None::<ExistingHalfOwner>);
+    let submitted_create = use_signal(|| None::<ExistingHalfCreateRequest>);
+    use_context_provider(|| ExistingHalfAdmission {
+        pending: pending.clone(),
+        submitted: submitted_create,
+    });
 
     use_effect(use_reactive(
         (&version(), &workspace(), &scope_generation()),
@@ -122,19 +144,18 @@ pub fn use_existing_half(
             let runtime = runtime.clone();
             let mut open = open;
             let mut error = error;
-            let mut status = status;
-            let mut pending = pending;
+            let pending = pending.clone();
+            let mut create_owner = create_owner;
             move |(_, current_workspace, current_generation)| {
                 settle_pending(
                     &runtime,
-                    current_workspace,
-                    current_generation,
-                    &mut pending,
+                    (current_workspace, current_generation, editor_instance_id),
+                    &pending,
+                    &mut create_owner,
                     &mut open,
                     &mut error,
-                    &mut status,
                 );
-                if pending.read().is_none()
+                if create_owner.read().is_none()
                     && open.read().as_ref().is_some_and(|owner| {
                         current_workspace != "Layout"
                             || owner.scope_generation != current_generation
@@ -143,7 +164,6 @@ pub fn use_existing_half(
                 {
                     open.set(None);
                     error.set(None);
-                    status.set(None);
                 }
             }
         },
@@ -154,16 +174,15 @@ pub fn use_existing_half(
         .as_ref()
         .map(|(snapshot, scope)| eligible_options(&snapshot.document, &scope.board_id))
         .unwrap_or_default();
-    let can_open = !options.is_empty() && pending.read().is_none();
+    let can_open = !options.is_empty() && !pending_create();
 
     let on_open = use_callback({
         let runtime = runtime.clone();
         let mut open = open;
         let mut open_id = open_id;
         let mut error = error;
-        let mut status = status;
         move |_| {
-            if pending.read().is_some() {
+            if pending_create() {
                 return;
             }
             let Some((snapshot, scope)) = existing_half_source(&runtime, workspace()) else {
@@ -183,7 +202,6 @@ pub fn use_existing_half(
             };
             open_id.set(next_open_id);
             error.set(None);
-            status.set(None);
             let default_axis_x = default_axis_x(&snapshot, &scope.board_id);
             open.set(Some(ExistingHalfOwner {
                 editor_instance_id,
@@ -201,23 +219,23 @@ pub fn use_existing_half(
     let on_cancel = use_callback({
         let mut open = open;
         let mut error = error;
-        let mut status = status;
         move |owner: ExistingHalfOwner| {
-            if pending.read().is_none() && open.read().as_ref() == Some(&owner) {
+            if !pending_create() && open.read().as_ref() == Some(&owner) {
                 open.set(None);
                 error.set(None);
-                status.set(None);
+                super::focus_add_object();
             }
         }
     });
 
     let on_create = use_callback({
         let runtime = runtime.clone();
-        let mut pending = pending;
+        let pending = pending.clone();
+        let mut create_owner = create_owner;
+        let mut submitted_create = submitted_create;
         let mut error = error;
-        let mut status = status;
         move |request: ExistingHalfCreateRequest| {
-            if pending.read().is_some()
+            if pending_create()
                 || open.read().as_ref() != Some(&request.owner)
                 || request.owner.editor_instance_id != editor_instance_id
             {
@@ -235,7 +253,6 @@ pub fn use_existing_half(
                     "The accepted board changed. Cancel this setup and reopen it before mirroring."
                         .into(),
                 ));
-                status.set(None);
                 return;
             }
             if !request.axis_x.is_finite() {
@@ -278,7 +295,6 @@ pub fn use_existing_half(
                     Ok(id) => id_pool.push(id),
                     Err(message) => {
                         error.set(Some(message));
-                        status.set(None);
                         return;
                     }
                 }
@@ -297,11 +313,12 @@ pub fn use_existing_half(
                 &mut id_factory,
             ) {
                 error.set(Some(message));
-                status.set(None);
                 return;
             }
-            let ticket = EditTicket::begin(
+            submitted_create.set(Some(request.clone()));
+            pending.begin_one_shot(
                 &runtime,
+                ExistingHalfAction::Create,
                 "layout-mirror-existing-half",
                 Some("mirror".into()),
                 mirror_existing_half_resolver(
@@ -311,29 +328,25 @@ pub fn use_existing_half(
                     id_pool,
                 ),
             );
-            pending.set(Some(ExistingHalfSubmission {
-                owner: request.owner.clone(),
-                ticket,
-            }));
+            create_owner.set(Some(request.owner.clone()));
             error.set(None);
-            status.set(Some("Creating linked half…".into()));
         }
     });
 
     let projection = open.read().as_ref().map(|owner| {
-        let is_pending = pending.read().is_some();
-        let editable = owner_is_current(&runtime, owner, workspace(), scope_generation());
+        let is_pending = pending_create();
+        let editable =
+            !is_pending && owner_is_current(&runtime, owner, workspace(), scope_generation());
         ExistingHalfProjection {
             owner: owner.clone(),
             editable,
             can_cancel: !is_pending,
-            error: (!is_pending).then(|| error()).flatten().or_else(|| {
+            error: (!is_pending).then(&*error).flatten().or_else(|| {
                 (!editable).then(|| {
                     "The accepted board changed. Cancel this setup and reopen it before mirroring."
                         .into()
                 })
             }),
-            status: status(),
         }
     });
 
@@ -347,135 +360,6 @@ pub fn use_existing_half(
     }
 }
 
-#[derive(Clone)]
-struct PreparedExistingHalf {
-    document: ProjectDoc,
-}
-
-fn prepare_existing_half(
-    document: &ProjectDoc,
-    board_id: &str,
-    matrix_ids: &[String],
-    axis_x: f64,
-    new_id: &mut impl FnMut() -> Result<String, String>,
-) -> Result<PreparedExistingHalf, String> {
-    if matrix_ids.is_empty() || !axis_x.is_finite() {
-        return Err("Select a layout and a finite mirror axis.".into());
-    }
-    let mut next = document.clone();
-    let mut used_ids = document
-        .boards
-        .iter()
-        .map(|item| item.id.clone())
-        .chain(document.matrices.iter().map(|item| item.id.clone()))
-        .chain(document.layouts.iter().map(|item| item.id.clone()))
-        .chain(document.parts.iter().map(|item| item.id.clone()))
-        .collect::<std::collections::BTreeSet<_>>();
-
-    for matrix_id in matrix_ids {
-        let source = next
-            .matrices
-            .iter()
-            .find(|matrix| matrix.id == *matrix_id)
-            .cloned()
-            .ok_or_else(|| "The selected matrix no longer exists.".to_string())?;
-        if source.board_id.as_deref() != Some(board_id) {
-            return Err("The layout must belong to the active board.".into());
-        }
-        if source.mirror == Some(boardstudio_core::model::Mirror::Y) {
-            return Err(
-                "Y-mirrored layouts cannot be linked. Use an independent layout or an X-mirrored source."
-                    .into(),
-            );
-        }
-        if source.part_ids.iter().any(|part_id| {
-            next.constraints
-                .iter()
-                .any(|constraint| constraint.target() == part_id)
-        }) {
-            return Err("Remove key placement constraints before linking this layout.".into());
-        }
-        let existing = next
-            .layouts
-            .iter()
-            .find(|layout| layout.matrix_id == source.id && layout.board_id == board_id)
-            .cloned();
-        if existing.as_ref().is_some_and(|layout| {
-            layout.mirror_link.is_some()
-                || next.layouts.iter().any(|candidate| {
-                    candidate
-                        .mirror_link
-                        .as_ref()
-                        .is_some_and(|link| link.source_id == layout.id)
-                })
-        }) {
-            return Err("This layout already belongs to a linked pair.".into());
-        }
-        let source_layout = if let Some(layout) = existing {
-            layout
-        } else {
-            let id = fresh_id(&mut used_ids, new_id)?;
-            let name = source
-                .name
-                .as_deref()
-                .filter(|name| !name.is_empty())
-                .unwrap_or("Original half")
-                .to_owned();
-            let layout = Layout {
-                id,
-                name,
-                board_id: board_id.to_owned(),
-                matrix_id: source.id.clone(),
-                part_ids: Vec::new(),
-                mirror_link: None,
-            };
-            next.layouts.push(layout.clone());
-            layout
-        };
-
-        let target_matrix_id = fresh_id(&mut used_ids, new_id)?;
-        let target_layout_id = fresh_id(&mut used_ids, new_id)?;
-        let target_name = format!("{} · mirrored", source_layout.name);
-        let mut target_matrix = source.clone();
-        target_matrix.id = target_matrix_id.clone();
-        target_matrix.name = Some(target_name.clone());
-        target_matrix.part_ids.clear();
-        for cell in &mut target_matrix.cells {
-            for assembly in &mut cell.assemblies {
-                assembly.offset.x = -assembly.offset.x;
-                assembly.rotation = assembly.rotation.map(|rotation| -rotation);
-            }
-        }
-        next.matrices.push(target_matrix);
-        next.layouts.push(Layout {
-            id: target_layout_id.clone(),
-            name: target_name,
-            board_id: board_id.to_owned(),
-            matrix_id: target_matrix_id.clone(),
-            part_ids: Vec::new(),
-            mirror_link: Some(LayoutMirrorLink {
-                source_id: source_layout.id,
-                axis_x,
-            }),
-        });
-    }
-
-    Ok(PreparedExistingHalf { document: next })
-}
-
-fn fresh_id(
-    used: &mut std::collections::BTreeSet<String>,
-    new_id: &mut impl FnMut() -> Result<String, String>,
-) -> Result<String, String> {
-    for _ in 0..8 {
-        let id = new_id()?;
-        if !id.trim().is_empty() && used.insert(id.clone()) {
-            return Ok(id);
-        }
-    }
-    Err("Could not allocate a unique layout identity.".into())
-}
-
 fn eligible_options(document: &ProjectDoc, board_id: &str) -> Vec<ExistingHalfOption> {
     let mut options = Vec::new();
     for matrix in document
@@ -483,10 +367,9 @@ fn eligible_options(document: &ProjectDoc, board_id: &str) -> Vec<ExistingHalfOp
         .iter()
         .filter(|matrix| super::matrix_visible_on_board(document, board_id, &matrix.id))
     {
-        let layout = document
-            .layouts
-            .iter()
-            .find(|layout| layout.matrix_id == matrix.id && layout.board_id == board_id);
+        let layout = document.layouts.iter().find(|layout| {
+            layout.matrix_ids.iter().any(|id| id == &matrix.id) && layout.board_id == board_id
+        });
         let linked = layout.is_some_and(|layout| {
             layout.mirror_link.is_some()
                 || document.layouts.iter().any(|candidate| {
@@ -640,44 +523,32 @@ fn owner_is_current(
 
 fn settle_pending(
     runtime: &Rc<Runtime>,
-    workspace: &'static str,
-    scope_generation: u64,
-    pending: &mut Signal<Option<ExistingHalfSubmission>>,
+    (workspace, scope_generation, editor_instance_id): (&'static str, u64, u64),
+    pending: &PendingEditSignals<ExistingHalfAction>,
+    create_owner: &mut Signal<Option<ExistingHalfOwner>>,
     open: &mut Signal<Option<ExistingHalfOwner>>,
     error: &mut Signal<Option<String>>,
-    status: &mut Signal<Option<String>>,
 ) {
-    let Some(waiting) = pending.read().clone() else {
+    let Some(owner) = create_owner.read().clone() else {
         return;
     };
     let model = runtime.model();
-    let same_lineage = runtime.scope().as_ref() == Some(&waiting.owner.scope)
-        && model.accepted.as_ref().is_some_and(|snapshot| {
-            snapshot.session_epoch == waiting.owner.scope.session_epoch
-                && snapshot.document.id == waiting.owner.scope.document_id
-        });
-    let settlement = waiting.ticket.settlement(same_lineage);
-    if settlement == Settlement::Pending {
+    let owner_is_live = owner.editor_instance_id == editor_instance_id
+        && workspace == "Layout"
+        && scope_generation == owner.scope_generation;
+    let results = pending.settle(owner_is_live, |_| String::new());
+    let Some(result) = results.into_iter().next() else {
         return;
-    }
-    if !same_lineage {
-        pending.set(None);
-        open.set(None);
-        error.set(None);
-        status.set(None);
-        return;
-    }
-    match settlement {
-        Settlement::Pending => {}
-        Settlement::Landed { .. } => {
+    };
+    create_owner.set(None);
+    match result {
+        PendingEditResult::Landed { .. } => {
             let current_owner = workspace == "Layout"
-                && scope_generation == waiting.owner.scope_generation
-                && model.active_board_id == waiting.owner.scope.board_id
-                && model.active_instance_id == waiting.owner.scope.instance_id;
-            pending.set(None);
+                && scope_generation == owner.scope_generation
+                && model.active_board_id == owner.scope.board_id
+                && model.active_instance_id == owner.scope.instance_id;
             open.set(None);
             error.set(None);
-            status.set(None);
             if current_owner {
                 runtime.submit(Event::SetCamera {
                     operation_id: runtime.operation(),
@@ -686,20 +557,15 @@ fn settle_pending(
                 });
             }
         }
-        Settlement::Failed { message } => {
-            pending.set(None);
-            if open.read().as_ref() == Some(&waiting.owner) {
+        PendingEditResult::Failed { message, .. } => {
+            if open.read().as_ref() == Some(&owner) {
                 error.set(Some(message));
-                status.set(None);
             }
         }
-        Settlement::Retired => {
-            pending.set(None);
-            if open.read().as_ref() == Some(&waiting.owner) {
-                error.set(Some(
-                    "The mirror operation did not complete. Reopen the form and try again.".into(),
-                ));
-                status.set(None);
+        PendingEditResult::Retired { .. } => {
+            if open.read().as_ref() == Some(&owner) {
+                open.set(None);
+                error.set(None);
             }
         }
     }
@@ -716,9 +582,64 @@ pub struct ExistingHalfProps {
 pub fn ExistingHalfSetup(props: ExistingHalfProps) -> Element {
     let owner = props.projection.owner.clone();
     let mut default_choice = use_signal(|| "all".to_owned());
+    let source_choice = use_memo(move || Some(default_choice()));
     let choice = default_choice();
     let default_axis = format!("{:.2}", owner.default_axis_x);
     let mut axis = use_signal(|| default_axis.clone());
+    let starting_values = use_hook(|| (choice.clone(), default_axis.clone()));
+    let admission = try_use_context::<ExistingHalfAdmission>();
+    let mut submitted_values = use_signal(|| None::<(ExistingHalfCreateRequest, String, String)>);
+    let runtime = try_use_context::<Rc<Runtime>>();
+    let guard = use_signal(|| None::<boardstudio_web_runtime::draft_owners::DraftOwnerGuard>);
+    let project_scope = (owner.scope.document_id.clone(), owner.scope.session_epoch);
+    use_effect(use_reactive((&project_scope,), {
+        let runtime = runtime.clone();
+        let mut guard = guard;
+        let admission = admission.clone();
+        move |(project_scope,)| {
+            let Some(runtime) = runtime.as_ref() else {
+                return;
+            };
+            if let Some(old) = guard.write().take() {
+                runtime.retire_draft_owner(old);
+            }
+            let baseline = starting_values.clone();
+            let admission = admission.clone();
+            guard.set(Some(runtime.register_draft_owner(
+                boardstudio_web_runtime::draft_owners::DraftOwnerRegistration {
+                    project_scope,
+                    workspace: "Layout",
+                    owner: "existing-half-setup",
+                    admission_key: "create",
+                    area: "Mirror existing half".into(),
+                    remedy: "Create the linked half or cancel the setup".into(),
+                    is_unresolved: Rc::new(move || {
+                        let changed =
+                            *default_choice.peek() != baseline.0 || *axis.peek() != baseline.1;
+                        let carried = admission.as_ref().is_some_and(|admission| {
+                            admission.pending.is_pending(&ExistingHalfAction::Create)
+                                && submitted_values.peek().as_ref().is_some_and(
+                                    |(request, choice, submitted_axis)| {
+                                        admission.submitted.peek().as_ref() == Some(request)
+                                            && *default_choice.peek() == *choice
+                                            && *axis.peek() == *submitted_axis
+                                    },
+                                )
+                        });
+                        changed && !carried
+                    }),
+                },
+            )));
+        }
+    }));
+    use_drop(move || {
+        let mut guard = guard;
+        if let Some(runtime) = runtime
+            && let Some(old) = guard.write().take()
+        {
+            runtime.retire_draft_owner(old);
+        }
+    });
     let axis_value = axis();
     let axis_number = axis_value
         .trim()
@@ -754,63 +675,626 @@ pub fn ExistingHalfSetup(props: ExistingHalfProps) -> Element {
                 .map(|option| vec![option.matrix_id.clone()])
                 .unwrap_or_default()
         };
-        on_create.call(ExistingHalfCreateRequest {
+        let request = ExistingHalfCreateRequest {
             owner: owner_submit.clone(),
             matrix_ids,
             axis_x,
-        });
+        };
+        if admission
+            .as_ref()
+            .is_some_and(|admission| !admission.pending.is_pending(&ExistingHalfAction::Create))
+        {
+            submitted_values.set(Some((
+                request.clone(),
+                choice_submit.clone(),
+                axis_submit.clone(),
+            )));
+        }
+        on_create.call(request);
     };
     let cancel = props.on_cancel;
     let owner_escape = owner.clone();
+    let can_cancel = props.projection.can_cancel;
     let error = props.projection.error.clone();
-    let status = props.projection.status.clone();
 
     rsx! {
-        div {
-            role: "dialog",
-            aria_label: "Mirror existing half",
-            onkeydown: move |event: KeyboardEvent| {
-                if event.key().to_string() == "Escape" && props.projection.can_cancel {
-                    event.prevent_default();
-                    event.stop_propagation();
-                    cancel.call(owner_escape.clone());
-                }
-            },
-            section { class: "m1-matrix-setup m1-mirrored-pair-setup",
-                header { class: "m1-matrix-setup-heading", h2 { "Mirror existing half" } }
-                p { class: "m1-mirrored-pair-intro", "Keep the original in place and mirror its components too. Replace a component on one side when the halves need different hardware." }
-                form { onsubmit: submit,
-                    label { "Source layouts"
-                        select {
-                            aria_label: "Source layouts",
-                            value: "{choice}",
-                            disabled: !props.projection.editable,
-                            onchange: move |event| default_choice.set(event.value()),
-                            option { value: "all", "All unpaired layouts on this board" }
-                            for option in owner.options.iter() {
-                                option { key: "{option.matrix_id}", value: "{option.matrix_id}", "{option.label}" }
+                section {
+                    role: "region",
+                    aria_label: "Mirror existing half",
+                    onkeydown: move |event: KeyboardEvent| {
+                        if event.key() == Key::Escape && can_cancel {
+                            event.prevent_default();
+                            event.stop_propagation();
+                            cancel.call(owner_escape.clone());
+                        }
+                    },
+                    Card { class: "layout-mirror-dock gap-4 p-4",
+                        header { class: "flex items-baseline justify-between gap-2",
+                            h2 { class: "m-0! text-[16px]!", "Mirror existing half" }
+                        }
+                        Callout { variant: CalloutVariant::Info,
+                            "Keep the original in place and mirror its components too. Replace a component on one side when the halves need different hardware."
+                        }
+                        form { class: "grid gap-4", onsubmit: submit,
+                            {
+                                let control_label = "Source layouts".to_owned();
+                                let control_aria_label = "Source layouts".to_owned();
+                                let control_id = format!(
+                                    "layout-choice-{}-{}",
+                                    dioxus::core::current_scope_id().0,
+                                    control_aria_label.replace(' ', "-"),
+                                );
+                                let mut control_choices: Vec<(String, String, bool)> = Vec::new();
+                                control_choices
+                                    .push((
+                                        "all".to_owned(),
+                                        "All unpaired layouts on this board".to_owned(),
+                                        false,
+                                    ));
+                                for option in owner.options.iter() {
+                                    control_choices
+                                        .push((
+                                            option.matrix_id.to_string(),
+                                            option.label.to_string(),
+                                            false,
+                                        ));
+                                }
+                                let on_value_change = EventHandler::new(move |choice: Option<String>| {
+            let Some(choice) = choice else {
+                return;
+            };
+            default_choice.set(choice)
+        });
+        rsx! {
+
+                                    Field { class: "min-w-0",
+                                        FieldLabel { html_for: control_id.clone(), "{control_label}" }
+                                        if control_choices.len() > 12 {
+                                            Combobox::<String> { class: "max-[760px]:[&_[data-slot=combobox-input]]:min-h-control-touch",
+                                                id: control_id.clone(),
+                                                aria_label: control_aria_label.clone(),
+                                                list_aria_label: control_aria_label.clone(),
+                                                value: Some(source_choice.into()),
+                                                disabled: !props.projection.editable,
+                                                on_value_change,
+                                                for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
+                                                    ComboboxOption::<String> {
+                                                        index,
+                                                        value: value.clone(),
+                                                        text_value: label.clone(),
+                                                        disabled: *disabled,
+                                                        "{label}"
+                                                    }
+                                                }
+                                            }
+                                        } else {
+                                            Select::<String> { class: "min-w-0 w-full [&_[data-placeholder]]:min-w-0 [&_[data-placeholder]]:truncate max-[760px]:[&_[data-slot=select-trigger]]:min-h-control-touch",
+                                                id: control_id.clone(),
+                                                aria_label: control_aria_label.clone(),
+                                                value: Some(source_choice.into()),
+                                                disabled: !props.projection.editable,
+                                                on_value_change,
+                                                for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
+                                                    SelectOption::<String> {
+                                                        index,
+                                                        value: value.clone(),
+                                                        text_value: label.clone(),
+                                                        disabled: *disabled,
+                                                        "{label}"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            {
+                                let control_input_id = format!(
+                                    "layout-input-{}-1",
+                                    dioxus::core::current_scope_id().0,
+                                );
+                                rsx! {
+                                    Field {
+                                        FieldLabel { html_for: control_input_id.clone(), "Mirror axis X (mm)" }
+                                        InputGroup { class: "max-[760px]:h-control-touch",
+                                            InputGroupInput { class: "max-[760px]:h-control-touch", aria_label: "Mirror axis X",
+    r#type: InputType::Number,
+    step: "any",
+    required: true,
+    value: "{axis_value}",
+    disabled: !props.projection.editable,
+    oninput: move |event: FormEvent| axis.set(event.value()),
+    id: control_input_id.clone(), }
+                                        }
+                                    }
+                                }
+                            }
+                            if let Some(message) = error {
+                                Alert {
+        variant: AlertVariant::Destructive,AlertDescription {  "{message}"  } }
+                            }
+                            footer { class: "flex flex-wrap justify-end gap-2",
+                                Button {
+                                    variant: ButtonVariant::Secondary,
+                                    class: "max-[760px]:min-h-control-touch",
+                                    button_type: "button",
+                                    disabled: !props.projection.can_cancel,
+                                    onclick: move |_| cancel.call(owner.clone()),
+                                    "Cancel"
+                                }
+                                Button {
+                                    variant: ButtonVariant::Default,
+                                    class: "max-[760px]:min-h-control-touch",
+                                    button_type: "submit",
+                                    disabled: !can_create,
+                                    "Create linked half"
+                                }
                             }
                         }
                     }
-                    label { "Mirror axis X (mm)"
-                        input {
-                            aria_label: "Mirror axis X",
-                            r#type: "number",
-                            step: "any",
-                            required: true,
-                            value: "{axis_value}",
-                            disabled: !props.projection.editable,
-                            oninput: move |event| axis.set(event.value()),
-                        }
-                    }
-                    if let Some(message) = error { p { class: "m1-mirrored-pair-error", role: "alert", "{message}" } }
-                    if let Some(message) = status { p { class: "m1-mirrored-pair-status", role: "status", "{message}" } }
-                    footer { class: "m1-mirrored-pair-actions",
-                        button { class: "wb-secondary", r#type: "button", disabled: !props.projection.can_cancel, onclick: move |_| cancel.call(owner.clone()), "Cancel" }
-                        button { class: "wb-primary", r#type: "submit", disabled: !can_create, "Create linked half" }
+                }
+            }
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod draft_safety_tests {
+    use super::super::mirrored_pair::draft_safety_tests::{Chrome, Fixture};
+    use super::*;
+    use boardstudio_web_runtime::runtime::project_name_test_support as support;
+    use boardstudio_web_ui_shared::test_wait::wait_until;
+    use std::cell::Cell;
+
+    fn form() -> Element {
+        let accepted = use_context::<Rc<Runtime>>().model().accepted.unwrap();
+        let mut mounted = use_signal(|| true);
+        let mut hidden = use_signal(|| false);
+        let mut refused = use_signal(|| false);
+        let requests = use_context::<Rc<Cell<u32>>>();
+        rsx! {
+            div { hidden: hidden(),
+                if mounted() {
+                    ExistingHalfSetup {
+                        projection: ExistingHalfProjection {
+                            owner: ExistingHalfOwner {
+                                editor_instance_id: 1, open_id: 1, scope_generation: 1,
+                                scope: Scope { session_epoch: accepted.session_epoch, document_id: accepted.document.id.clone(), board_id: "board".into(), instance_id: None },
+                                snapshot_token: SnapshotToken(1), revision: 0,
+                                options: vec![ExistingHalfOption { matrix_id: "matrix".into(), label: "Left".into() }],
+                                default_axis_x: 12.125,
+                            },
+                            editable: true, can_cancel: true,
+                            error: refused().then(|| "Creation refused".into()),
+                        },
+                        on_cancel: move |_| mounted.set(false),
+                        on_create: move |_| { requests.set(requests.get() + 1); refused.set(true); },
                     }
                 }
             }
+            Chrome {}
+            button { onclick: move |_| hidden.set(true), "Hide form" }
+            button { onclick: move |_| mounted.set(false), "Unmount form" }
+            button { onclick: move |_| mounted.set(true), "Mount form" }
         }
+    }
+
+    const AREA: &str = "Mirror existing half";
+    const REMEDY: &str = "Create the linked half or cancel the setup";
+
+    // Unlike the rendering fixture above, this mounts the real admission/settlement owner.
+    fn runtime_form() -> Element {
+        let runtime = use_context::<Rc<Runtime>>();
+        let version = use_signal(|| 0u64);
+        use_hook({
+            let runtime = runtime.clone();
+            move || {
+                runtime.subscribe(Rc::new(move || {
+                    let mut version = version;
+                    version += 1;
+                }))
+            }
+        });
+        use_drop({
+            let runtime = runtime.clone();
+            move || runtime.unsubscribe()
+        });
+        let _ = version();
+        let workspace = use_signal(|| "Layout");
+        let generation = use_signal(|| 1u64);
+        let mount = use_existing_half(runtime, version, workspace, generation);
+        rsx! {
+            button { aria_label: "Open half", onclick: move |_| mount.on_open.call(()), "Open half" }
+            if let Some(projection) = mount.projection {
+                ExistingHalfSetup { projection, on_create: mount.on_create, on_cancel: mount.on_cancel }
+            }
+            Chrome {}
+        }
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn existing_half_real_create_pending_exempts_only_submitted_draft() {
+        use boardstudio_core::model::Board;
+        use boardstudio_web_runtime::update_safety::{UpdateBlocker, UpdateDialog};
+        let f = Fixture::mount(runtime_form, "Open half").await;
+        let mut document = ProjectDoc::empty("creation-draft", "Creation draft");
+        document.boards.push(Board {
+            id: "board".into(),
+            name: "Board".into(),
+            thickness: 1.6,
+            outline_ids: vec![],
+            part_ids: vec![],
+            net_ids: vec![],
+            traces: vec![],
+            vias: vec![],
+        });
+        document.matrices.push(
+            serde_json::from_value(serde_json::json!({
+                "id": "matrix-source", "name": "Source half", "rows": 2, "columns": 3,
+                "pitch": {"x": 19.05, "y": 19.05}, "origin": {"x": 0.0, "y": 0.0},
+                "definitionId": "switch", "partIds": [], "boardId": "board", "cells": []
+            }))
+            .unwrap(),
+        );
+        support::replace_document(&f.runtime, "half-source", "board", document).await;
+        f.click("Open half");
+        wait_until("real half owner opens", || {
+            f.root.query_selector("form").unwrap().is_some()
+        })
+        .await;
+        f.input("Mirror axis X", "").await;
+        wait_until("empty axis renders disabled Create", || {
+            f.root
+                .query_selector("button[type=submit]")
+                .unwrap()
+                .unwrap()
+                .has_attribute("disabled")
+        })
+        .await;
+        f.no_invalid_marker();
+        f.deferred("Update Now (toast)", AREA, REMEDY).await;
+        f.submit();
+        support::run_pending(&f.runtime).await;
+        f.deferred("Update Now (header)", AREA, REMEDY).await;
+        f.input("Mirror axis X", "24").await;
+        wait_until("submitted axis renders enabled Create", || {
+            !f.root
+                .query_selector("button[type=submit]")
+                .unwrap()
+                .unwrap()
+                .has_attribute("disabled")
+        })
+        .await;
+        f.deferred("Update Now (toast)", AREA, REMEDY).await;
+        let (entered, release) =
+            support::gate_next_core_reply_then_fail(&f.runtime, "held creation failed");
+        f.click("Create linked half");
+        support::drive_pending(&f.runtime);
+        entered.await.expect("the real Create reached Core");
+        wait_until("real pending owner disables editing", || {
+            f.root
+                .query_selector("input[aria-label='Mirror axis X']")
+                .unwrap()
+                .unwrap()
+                .has_attribute("disabled")
+        })
+        .await;
+        f.click("Update Now (header)");
+        let Some(UpdateDialog::Deferred { blockers }) = f.runtime.update_dialog() else {
+            panic!("held Core work must independently block update");
+        };
+        let unresolved = blockers.iter().any(|blocker| {
+            matches!(blocker,
+            UpdateBlocker::UnresolvedDraft { area, .. } if area == AREA)
+        });
+        f.runtime.cancel_update_dialog();
+        // Always release before the assertion, including RED, so a failed probe leaks no hold.
+        release.send(()).unwrap();
+        support::run_pending(&f.runtime).await;
+        wait_until("real Create failure returns to the form", || {
+            f.root
+                .text_content()
+                .unwrap()
+                .contains("held creation failed")
+        })
+        .await;
+        f.click("Update Now (toast)");
+        assert!(
+            matches!(f.runtime.update_dialog(), Some(UpdateDialog::Deferred { blockers })
+            if blockers.contains(&UpdateBlocker::UnresolvedDraft { area: AREA.into(), remedy: REMEDY.into() })),
+            "failure leaves the draft unresolved even when recovery also blocks"
+        );
+        f.runtime.cancel_update_dialog();
+        assert_eq!(
+            f.value("Mirror axis X"),
+            "24",
+            "failure never clears the draft"
+        );
+        f.click("Cancel");
+        wait_until("real owner cancels", || {
+            f.root.query_selector("form").unwrap().is_none()
+        })
+        .await;
+        f.root.remove();
+        assert!(
+            !unresolved,
+            "same-key in-flight Create carries the live draft; only pending work may block"
+        );
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn existing_half_mount_revert_failure_hidden_and_unmount_gate() {
+        let f = Fixture::mount(form, "Mirror axis X").await;
+        assert_eq!(
+            f.value("Mirror axis X"),
+            "12.12",
+            "baseline is the rendered starting axis, not the unrounded owner value"
+        );
+        f.clear("Update Now (toast)").await;
+        f.input("Mirror axis X", "19.123456789").await;
+        for opener in ["Update Now (toast)", "Update Now (header)"] {
+            f.deferred(opener, AREA, REMEDY).await;
+            assert_eq!(f.value("Mirror axis X"), "19.123456789");
+        }
+        f.input("Mirror axis X", "12.12").await;
+        f.clear("Update Now (header)").await;
+        f.input("Mirror axis X", "19.123456789").await;
+        f.click("Create linked half");
+        wait_until("create refusal arrives", || {
+            f.root.text_content().unwrap().contains("Creation refused")
+        })
+        .await;
+        f.deferred("Update Now (toast)", AREA, REMEDY).await;
+        f.click("Hide form");
+        wait_until("half is hidden but mounted", || {
+            f.root.query_selector("[hidden] form").unwrap().is_some()
+        })
+        .await;
+        f.deferred("Update Now (header)", AREA, REMEDY).await;
+        f.click("Unmount form");
+        wait_until("unsubmitted half unmounts", || {
+            f.root.query_selector("form").unwrap().is_none()
+        })
+        .await;
+        f.clear("Update Now (toast)").await;
+        f.root.remove();
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn existing_half_silently_rejected_axis_and_cancel_gate() {
+        let f = Fixture::mount(form, "Mirror axis X").await;
+        // Clearing a number input is realistic browser input; parse returns silently.
+        f.input("Mirror axis X", "").await;
+        f.no_invalid_marker();
+        f.deferred("Update Now (toast)", AREA, REMEDY).await;
+        f.click("Unmount form");
+        wait_until("half unmounts without a submit attempt", || {
+            f.root.query_selector("form").unwrap().is_none()
+        })
+        .await;
+        f.clear("Update Now (header)").await;
+        f.click("Mount form");
+        wait_until("half remounts", || {
+            f.root.query_selector("form").unwrap().is_some()
+        })
+        .await;
+        f.clear("Update Now (toast)").await;
+        f.input("Mirror axis X", "").await;
+        wait_until("empty axis disables create after render", || {
+            f.root
+                .query_selector("button[type=submit]")
+                .unwrap()
+                .unwrap()
+                .has_attribute("disabled")
+        })
+        .await;
+        f.submit();
+        support::run_pending(&f.runtime).await;
+        assert_eq!(
+            f.requests.get(),
+            0,
+            "invalid submit returns without a request"
+        );
+        f.no_invalid_marker();
+        f.deferred("Update Now (header)", AREA, REMEDY).await;
+        assert_eq!(f.value("Mirror axis X"), "");
+        f.click("Cancel");
+        wait_until("cancel retires half form", || {
+            f.root.query_selector("form").unwrap().is_none()
+        })
+        .await;
+        f.clear("Update Now (header)").await;
+        f.root.remove();
+    }
+}
+
+#[cfg(test)]
+mod adoption_tests {
+    use super::*;
+    use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
+    use wasm_bindgen::JsCast;
+
+    fn form() -> Element {
+        let owner = ExistingHalfOwner {
+            editor_instance_id: 1,
+            open_id: 1,
+            scope_generation: 1,
+            scope: Scope {
+                session_epoch: boardstudio_application::SessionEpoch(1),
+                document_id: "dock".into(),
+                board_id: "board".into(),
+                instance_id: None,
+            },
+            snapshot_token: SnapshotToken(1),
+            revision: 1,
+            options: vec![ExistingHalfOption {
+                matrix_id: "matrix".into(),
+                label: "Left".into(),
+            }],
+            default_axis_x: 12.125,
+        };
+        let mut submitted = use_signal(|| None::<f64>);
+        let mut cancellable = use_signal(|| true);
+        let mut cancelled = use_signal(Vec::<u64>::new);
+        rsx! {
+            ExistingHalfSetup {
+                projection: ExistingHalfProjection {
+                    owner,
+                    editable: true,
+                    can_cancel: cancellable(),
+                    error: None,
+                },
+                on_cancel: move |owner: ExistingHalfOwner| cancelled.write().push(owner.open_id),
+                on_create: move |request: ExistingHalfCreateRequest| submitted.set(Some(request.axis_x)),
+            }
+            output { role: "status", aria_label: "Submitted axis", "{submitted:?}" }
+            output { role: "status", aria_label: "Cancelled owners", "{cancelled:?}" }
+            Button { onclick: move |_| cancellable.set(false), "Hold Mirror cancellation" }
+        }
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn mirror_dock_heading_keeps_its_layout_without_legacy_classes() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let stylesheet = document.create_element("style").unwrap();
+        stylesheet.set_text_content(Some(&format!(
+            "{}\n{}",
+            include_str!("../../../../assets/workbench-base.css"),
+            include_str!("../../../../assets/tailwind.css")
+        )));
+        document.head().unwrap().append_child(&stylesheet).unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(form),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_until("Mirror dock mounts", || {
+            by_role_name(&root, "region", "Mirror existing half").is_some()
+        })
+        .await;
+        let region = by_role_name(&root, "region", "Mirror existing half").unwrap();
+        let heading = region.query_selector("h2").unwrap().unwrap();
+        let header = heading.parent_element().unwrap();
+        let classes = header.get_attribute("class").unwrap_or_default();
+        header
+            .set_attribute(
+                "class",
+                &classes
+                    .split_whitespace()
+                    .filter(|class| !class.starts_with("m1-"))
+                    .collect::<Vec<_>>()
+                    .join(" "),
+            )
+            .unwrap();
+        let window = web_sys::window().unwrap();
+        let header_style = window.get_computed_style(&header).unwrap().unwrap();
+        assert_eq!(header_style.get_property_value("display").unwrap(), "flex");
+        assert_eq!(header_style.get_property_value("gap").unwrap(), "8px");
+        assert_eq!(
+            window
+                .get_computed_style(&heading)
+                .unwrap()
+                .unwrap()
+                .get_property_value("font-size")
+                .unwrap(),
+            "16px"
+        );
+        stylesheet.remove();
+        root.remove();
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn mirror_existing_half_is_an_in_dock_view_with_its_own_precise_axis_draft() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(form),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_until("actual Mirror form mounts", || {
+            by_role_name(&root, "spinbutton", "Mirror axis X").is_some()
+        })
+        .await;
+        assert!(
+            by_role_name(&root, "dialog", "Mirror existing half").is_none(),
+            "Mirror must stay in the Objects dock, without dialog semantics"
+        );
+        assert!(
+            by_role_name(&root, "region", "Mirror existing half").is_some(),
+            "the dock view has a name"
+        );
+        let axis = by_role_name(&root, "spinbutton", "Mirror axis X")
+            .unwrap()
+            .dyn_into::<web_sys::HtmlInputElement>()
+            .unwrap();
+        let create = by_role_name(&root, "button", "Create linked half").unwrap();
+        let init = web_sys::EventInit::new();
+        init.set_bubbles(true);
+        axis.set_value("");
+        axis.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &init).unwrap())
+            .unwrap();
+        wait_until("empty local axis disables creation", || {
+            create.has_attribute("disabled")
+        })
+        .await;
+        axis.set_value("12.123456789");
+        axis.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &init).unwrap())
+            .unwrap();
+        wait_until("valid local axis enables creation after render", || {
+            !create.has_attribute("disabled")
+        })
+        .await;
+        assert_eq!(axis.value(), "12.123456789");
+        create.click();
+        wait_until("precise draft submitted", || {
+            by_role_name(&root, "status", "Submitted axis")
+                .unwrap()
+                .text_content()
+                .as_deref()
+                == Some("Some(12.123456789)")
+        })
+        .await;
+        let escape = web_sys::KeyboardEventInit::new();
+        escape.set_key("Escape");
+        escape.set_bubbles(true);
+        escape.set_cancelable(true);
+        let event =
+            web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &escape).unwrap();
+        axis.dispatch_event(&event).unwrap();
+        assert!(event.default_prevented());
+        wait_until("Escape calls the same cancel owner once", || {
+            by_role_name(&root, "status", "Cancelled owners")
+                .unwrap()
+                .text_content()
+                .as_deref()
+                == Some("[1]")
+        })
+        .await;
+        by_role_name(&root, "button", "Hold Mirror cancellation")
+            .unwrap()
+            .click();
+        wait_until("the pending owner disables Cancel", || {
+            by_role_name(&root, "button", "Cancel")
+                .unwrap()
+                .has_attribute("disabled")
+        })
+        .await;
+        let event =
+            web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &escape).unwrap();
+        axis.dispatch_event(&event).unwrap();
+        assert!(!event.default_prevented());
+        assert_eq!(
+            by_role_name(&root, "status", "Cancelled owners")
+                .unwrap()
+                .text_content()
+                .as_deref(),
+            Some("[1]")
+        );
+        assert_eq!(
+            axis.value(),
+            "12.123456789",
+            "the actual local draft survives parent availability changes"
+        );
+        root.remove();
     }
 }

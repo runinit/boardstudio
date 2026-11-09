@@ -14,7 +14,10 @@ mod mechanical;
 mod wasm;
 
 pub use assets::decode_stl;
-pub use math::{component_model_transform, pcb_model_transform, transform_point};
+pub use math::{
+    component_model_transform, mat4_to_f64_cols, pcb_model_transform, physical_pcb_transform,
+    transform_point,
+};
 pub use wrl::decode_wrl;
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -100,6 +103,71 @@ mod tests {
         );
     }
 
+    fn assert_outward_unit_normals(mesh: &ModelMesh) {
+        assert!(!mesh.positions.is_empty());
+        assert_eq!(mesh.positions.len(), mesh.normals.len());
+        for (pos, norm) in mesh
+            .positions
+            .as_chunks::<9>()
+            .0
+            .iter()
+            .zip(mesh.normals.as_chunks::<9>().0.iter())
+        {
+            let centroid = [
+                (pos[0] + pos[3] + pos[6]) / 3.0,
+                (pos[1] + pos[4] + pos[7]) / 3.0,
+                (pos[2] + pos[5] + pos[8]) / 3.0,
+            ];
+            let n = [norm[0], norm[1], norm[2]];
+            let length = (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]).sqrt();
+            assert!(
+                (length - 1.0).abs() < 1e-4,
+                "expected unit normal, got {n:?}"
+            );
+            let dot = centroid[0] * n[0] + centroid[1] * n[1] + centroid[2] * n[2];
+            assert!(
+                dot > 0.0,
+                "expected outward normal at {centroid:?}, got {n:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn decodes_wrl_sphere_with_finite_outward_normals() {
+        let mesh = decode_wrl(&bytes(
+            "#VRML V2.0 utf8\nShape { geometry Sphere { radius 1 } }",
+        ))
+        .unwrap();
+        assert_outward_unit_normals(&mesh);
+    }
+
+    #[test]
+    fn assigns_per_face_colors_by_face_index_without_color_index() {
+        let mesh = decode_wrl(&bytes(
+            "#VRML V2.0 utf8\nShape { geometry IndexedFaceSet { coord Coordinate { point [ 0 0 0, 1 0 0, 0 1 0, 0 0 1 ] } coordIndex [ 0 1 2 -1, 0 2 3 -1 ] color Color { color [ 1 0 0, 0 1 0 ] } colorPerVertex FALSE } }",
+        ))
+        .unwrap();
+        let colors = mesh.colors.as_ref().unwrap();
+        assert_eq!(
+            &colors[0..9],
+            &[1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0]
+        );
+        assert_eq!(
+            &colors[9..18],
+            &[0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0]
+        );
+    }
+
+    #[test]
+    fn winds_wrl_box_triangles_with_outward_normals() {
+        let mesh = decode_wrl(&bytes(
+            "#VRML V2.0 utf8\nShape { geometry Box { size 10 8 4 } }",
+        ))
+        .unwrap();
+        assert_eq!(mesh.positions.len(), 12 * 9);
+        assert_outward_unit_normals(&mesh);
+    }
+
     #[test]
     fn applies_static_wrl_translation_and_axis_rotation() {
         let mesh = decode_wrl(&bytes(
@@ -127,6 +195,132 @@ mod tests {
     fn rejects_cyclic_wrl_use_nodes() {
         let source = bytes("#VRML V2.0 utf8\nDEF loop Group { children [ USE loop ] }");
         assert!(decode_wrl(&source).unwrap_err().contains("cyclic USE"));
+    }
+
+    /// Nested groups around one shape, counting `depth` traversed node frames.
+    fn nested_wrl(depth: usize) -> String {
+        let mut source = String::from("#VRML V2.0 utf8\n");
+        for _ in 1..depth {
+            source.push_str("Group { children [ ");
+        }
+        source.push_str("Shape { geometry Box {} }");
+        for _ in 1..depth {
+            source.push_str(" ] }");
+        }
+        source
+    }
+
+    /// A doubling chain of shared groups over one triangle. Level N visits 2^(N+1)-1
+    /// frames; the file's top-level scan also walks each `DEF`, and the last level's
+    /// `USE` is the root. Every level stays inside the depth limit.
+    fn doubling_chain(prefix: &str, levels: usize) -> Vec<String> {
+        let mut definitions = vec![format!(
+            "DEF {prefix}0 Shape {{ geometry IndexedFaceSet {{ coord Coordinate {{ point [ 0 0 0, 1 0 0, 0 1 0 ] }} coordIndex [ 0 1 2 -1 ] }} }}"
+        )];
+        for level in 1..=levels {
+            definitions.push(format!(
+                "DEF {prefix}{level} Group {{ children [ USE {prefix}{} USE {prefix}{} ] }}",
+                level - 1,
+                level - 1
+            ));
+        }
+        definitions
+    }
+
+    #[test]
+    fn admits_wrl_nesting_to_the_supported_depth_and_refuses_deeper_input() {
+        let admitted = nested_wrl(crate::wrl::MAX_WRL_TRAVERSAL_DEPTH);
+        assert!(decode_wrl(admitted.as_bytes()).is_ok());
+
+        let refused = nested_wrl(crate::wrl::MAX_WRL_TRAVERSAL_DEPTH + 1);
+        let error = decode_wrl(refused.as_bytes()).unwrap_err();
+        assert!(error.contains("depth"), "unexpected error: {error}");
+    }
+
+    #[test]
+    fn admits_wrl_shared_node_work_within_the_budget_and_refuses_more() {
+        // 14 doubling levels visit 98286 frames; 18 visit 1572842.
+        let mut admitted = String::from("#VRML V2.0 utf8\n");
+        for definition in doubling_chain("a", 14) {
+            admitted.push_str(&definition);
+            admitted.push('\n');
+        }
+        admitted.push_str("USE a14");
+        assert!(decode_wrl(admitted.as_bytes()).is_ok());
+
+        let mut refused = String::from("#VRML V2.0 utf8\n");
+        for definition in doubling_chain("b", 18) {
+            refused.push_str(&definition);
+            refused.push('\n');
+        }
+        refused.push_str("USE b18");
+        let error = decode_wrl(refused.as_bytes()).unwrap_err();
+        assert!(error.contains("work"), "unexpected error: {error}");
+    }
+
+    #[test]
+    fn charges_separate_admitted_wrl_roots_against_one_shared_budget() {
+        // Two 15-level chains visit 196589 frames each: each fits the budget alone, together not.
+        let mut source = String::from("#VRML V2.0 utf8\n");
+        for definition in doubling_chain("a", 15)
+            .into_iter()
+            .chain(doubling_chain("b", 15))
+        {
+            source.push_str(&definition);
+            source.push('\n');
+        }
+        source.push_str("USE a15\nUSE b15");
+        let error = decode_wrl(source.as_bytes()).unwrap_err();
+        assert!(error.contains("work"), "unexpected error: {error}");
+    }
+
+    #[test]
+    fn admits_bounded_noncyclic_wrl_reuse() {
+        let mut source = String::from(
+            "#VRML V2.0 utf8\nDEF tri Shape { geometry IndexedFaceSet { coord Coordinate { point [ 0 0 0, 1 0 0, 0 1 0 ] } coordIndex [ 0 1 2 -1 ] } }\n",
+        );
+        for _ in 0..1000 {
+            source.push_str("USE tri\n");
+        }
+        // The DEF root is walked once before its 1000 references.
+        let mesh = decode_wrl(source.as_bytes()).unwrap();
+        assert_eq!(mesh.positions.len(), 1001 * 9);
+    }
+
+    #[test]
+    fn keeps_the_wrl_output_size_refusal_within_the_traversal_budget() {
+        // 166_667 box references stay well inside the traversal budget but exceed the
+        // 18M position-float limit, so the output-size refusal must still fire.
+        let mut source = String::from("#VRML V2.0 utf8\nDEF b Shape { geometry Box {} }\n");
+        for _ in 0..166_667 {
+            source.push_str("USE b\n");
+        }
+        let error = decode_wrl(source.as_bytes()).unwrap_err();
+        assert!(
+            error.contains("triangle limits"),
+            "unexpected error: {error}"
+        );
+    }
+
+    #[test]
+    fn refuses_nonconvex_declared_nontriangular_wrl_faces() {
+        let u_shape = "#VRML V2.0 utf8\nShape { geometry IndexedFaceSet { convex FALSE coord Coordinate { point [ 0 0 0, 3 0 0, 3 3 0, 2 3 0, 2 1 0, 1 1 0, 1 3 0, 0 3 0 ] } coordIndex [ 0 1 2 3 4 5 6 7 -1 ] } }";
+        let error = decode_wrl(u_shape.as_bytes()).unwrap_err();
+        assert!(error.contains("convex"), "unexpected error: {error}");
+
+        for control in [
+            // `convex` omitted: VRML default TRUE, still fan-triangulated.
+            "#VRML V2.0 utf8\nShape { geometry IndexedFaceSet { coord Coordinate { point [ 0 0 0, 2 0 0, 2 2 0, 0 2 0 ] } coordIndex [ 0 1 2 3 -1 ] } }",
+            // Explicitly convex polygon.
+            "#VRML V2.0 utf8\nShape { geometry IndexedFaceSet { convex TRUE coord Coordinate { point [ 0 0 0, 2 0 0, 2 2 0, 0 2 0 ] } coordIndex [ 0 1 2 3 -1 ] } }",
+            // A nonconvex declaration does not refuse a triangle.
+            "#VRML V2.0 utf8\nShape { geometry IndexedFaceSet { convex FALSE coord Coordinate { point [ 0 0 0, 2 0 0, 0 2 0 ] } coordIndex [ 0 1 2 -1 ] } }",
+        ] {
+            assert!(
+                decode_wrl(control.as_bytes()).is_ok(),
+                "supported control was refused: {control}"
+            );
+        }
     }
 
     #[test]

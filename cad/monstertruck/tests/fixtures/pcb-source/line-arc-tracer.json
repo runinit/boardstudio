@@ -1,0 +1,93 @@
+{
+  "revision": 1,
+  "body": {
+    "id": "source-line-arc-tracer",
+    "name": "Authored half disc",
+    "boardId": "source-board",
+    "kind": "plate",
+    "thickness": 2.0,
+    "clearance": 0.0,
+    "pcb_source": {
+      "contours": [
+        {
+          "id": "outline",
+          "outerId": null,
+          "primitives": [
+            {
+              "sourceId": "authored-half-circle",
+              "segmentIndex": 0,
+              "geometry": {
+                "kind": "arc",
+                "start": {
+                  "x": 0.0,
+                  "y": -2.0
+                },
+                "mid": {
+                  "x": 2.0,
+                  "y": 0.0
+                },
+                "end": {
+                  "x": 0.0,
+                  "y": 2.0
+                },
+                "angleDegrees": null,
+                "width": null
+              },
+              "curveSupport": {
+                "center": {
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "radiusMm": 2.0,
+                "startDirection": {
+                  "x": 0.0,
+                  "y": -1.0
+                },
+                "sweepRadians": 3.141592653589793
+              }
+            },
+            {
+              "sourceId": "authored-diameter",
+              "segmentIndex": 0,
+              "geometry": {
+                "kind": "line",
+                "start": {
+                  "x": 0.0,
+                  "y": 2.0
+                },
+                "end": {
+                  "x": 0.0,
+                  "y": -2.0
+                },
+                "width": null
+              }
+            }
+          ]
+        }
+      ],
+      "slots": []
+    }
+  },
+  "regions": [
+    {
+      "outer": [
+        {
+          "x": 0.0,
+          "y": -2.0
+        },
+        {
+          "x": 2.0,
+          "y": 0.0
+        },
+        {
+          "x": 0.0,
+          "y": 2.0
+        }
+      ],
+      "holes": [],
+      "cavities": [],
+      "gaskets": [],
+      "mounts": []
+    }
+  ]
+}

@@ -9,7 +9,7 @@
 //! the zone. That behaviour is kept until it is decided separately.
 use crate::Result;
 use crate::context::RenderContext;
-use crate::generators::util::{points_text, yes_no};
+use crate::generators::util::{json_string, points_text, yes_no};
 use crate::number::js_number as n;
 use crate::params::ParamSpec;
 use crate::registry::{GeneratorSpec, License};
@@ -50,7 +50,7 @@ pub static SPEC: GeneratorSpec = GeneratorSpec {
         spdx: "MIT",
         author: "@ceoloide",
     },
-    body,
+    body: crate::registry::Body::Text(body),
 };
 
 fn body(p: &RenderContext<'_>) -> Result<String> {
@@ -106,7 +106,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         net_name = net.name,
         locked = yes_no(p.flag("locked")),
         side = p.side(),
-        name_form = when(!name.is_empty(), format!("(name \"{name}\")")),
+        name_form = when(!name.is_empty(), format!("(name {})", json_string(name))),
         // `p.prority` never exists in the source, so priority is never written.
         priority = "",
         connect_pads = p.text("connect_pads"),

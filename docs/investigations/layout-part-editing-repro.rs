@@ -57,6 +57,7 @@ fn settle(session: &mut Session, engine: &mut CoreEngine, effects: Vec<Effect>) 
     })
 }
 fn edit(op: u64, x: f64, y: f64) -> Event {
+    // This reproduces the pre-ADR-0005 event; Event::Edit has since been removed.
     Event::Edit {
         operation_id: OperationId(op),
         command: EditCommand {

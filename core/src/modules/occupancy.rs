@@ -546,6 +546,7 @@ pub(crate) fn attach_board_supports(
                     wall_height: None,
                     wall_thickness: None,
                     mounts: None,
+                    pcb_source: None,
                     gasket: None,
                 },
             });
@@ -582,6 +583,7 @@ fn module_board_material(revision: u64, board_id: &str, module: &ResolvedModule)
             wall_height: None,
             wall_thickness: None,
             mounts: None,
+            pcb_source: None,
             gasket: None,
         },
     })
@@ -628,25 +630,12 @@ fn support_contact_area(body: &CaseIR, support: &ResolvedModuleSupport) -> f64 {
         contact_area += contact
             .iter()
             .map(|contour| {
-                let area = polygon_area(&contour.points);
+                let area = boardstudio_contracts::polygon_signed_area(&contour.points).abs();
                 if contour.hole { -area } else { area }
             })
             .sum::<f64>();
     }
     contact_area.max(0.0)
-}
-
-fn polygon_area(points: &[Vec2]) -> f64 {
-    if points.len() < 3 {
-        return 0.0;
-    }
-    let sum = points
-        .iter()
-        .zip(points.iter().cycle().skip(1))
-        .take(points.len())
-        .map(|(a, b)| a.x * b.y - b.x * a.y)
-        .sum::<f64>();
-    sum.abs() / 2.0
 }
 
 // Circumscribe positive round material and inscribe its drill cuts: the polygon
@@ -736,6 +725,7 @@ fn occupied(volume: &CaseOpening, holes: &[Contour], clearance: f64) -> Result<S
                     wall_height: None,
                     wall_thickness: None,
                     mounts: None,
+                    pcb_source: None,
                     gasket: None,
                 },
             }],
@@ -851,7 +841,10 @@ pub(super) fn collisions(doc: &ProjectDoc, board_id: &str, result: &mut ModuleRe
             .into_iter()
             .flat_map(|profile| profile.clearance_volumes.iter().flatten())
         {
-            let (sin, cos) = part.pose.rotation.to_radians().sin_cos();
+            // Ticket 12: collision solids follow the evaluated board pose of
+            // half-frame parts.
+            let pose = crate::matrix::layout::evaluated_part_pose(doc, part);
+            let (sin, cos) = pose.rotation.to_radians().sin_cos();
             let surface_frame = definition.is_some_and(|definition| {
                 definition
                     .hardware_profile
@@ -873,8 +866,8 @@ pub(super) fn collisions(doc: &ProjectDoc, board_id: &str, result: &mut ModuleRe
                                     point.x
                                 };
                                 Vec2 {
-                                    x: part.pose.at.x + x * cos - point.y * sin,
-                                    y: part.pose.at.y + x * sin + point.y * cos,
+                                    x: pose.at.x + x * cos - point.y * sin,
+                                    y: pose.at.y + x * sin + point.y * cos,
                                 }
                             })
                             .collect(),

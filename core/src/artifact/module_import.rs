@@ -1,5 +1,7 @@
 //! Retain PCB source, constituent footprints and net identities without inventing bought-board internals.
+use super::parsed_board::{BoardParseError, ParsedBoard};
 use super::{mechanical_extract, sexpr, source};
+use crate::hash::sha256_hex;
 use crate::model::*;
 use kiutils_sexpr::Node;
 use std::collections::{BTreeMap, BTreeSet};
@@ -74,12 +76,11 @@ pub(super) fn import(
     variant: String,
     repair: Option<ModuleCircuitRepair>,
 ) -> Result<ModuleDefinition, ArtifactError> {
-    let parsed = kiutils_sexpr::parse_one(raw).map_err(|e| error(e.to_string()))?;
-    let root = parsed
-        .nodes
-        .first()
-        .filter(|n| sexpr::head(n) == Some("kicad_pcb"))
-        .ok_or_else(|| error("Expected a KiCad PCB source"))?;
+    let board = ParsedBoard::parse(raw).map_err(|failure| match failure {
+        BoardParseError::Syntax(message) => error(message),
+        BoardParseError::NotBoard => error("Expected a KiCad PCB source"),
+    })?;
+    let root = board.root();
     if id.is_empty() || name.is_empty() {
         return Err(error("A module import requires a stable identity and name"));
     }
@@ -101,13 +102,7 @@ pub(super) fn import(
             )));
         }
     }
-    use sha2::{Digest, Sha256};
-    provenance.sha256 = Some(
-        Sha256::digest(raw.as_bytes())
-            .iter()
-            .map(|b| format!("{b:02x}"))
-            .collect(),
-    );
+    provenance.sha256 = Some(sha256_hex(raw.as_bytes()));
     let thickness = sexpr::child(root, "general")
         .and_then(|n| sexpr::child(n, "thickness"))
         .and_then(|n| number(n, 1))
@@ -196,7 +191,7 @@ pub(super) fn import(
         max.x = max.x.max(p.x);
         max.y = max.y.max(p.y);
     }
-    let center = if min.x.is_finite() {
+    let polygon_center = if min.x.is_finite() {
         Vec2 {
             x: (min.x + max.x) / 2.0,
             y: (min.y + max.y) / 2.0,
@@ -204,32 +199,66 @@ pub(super) fn import(
     } else {
         Vec2::default()
     };
+    let center = polygon_center;
+    let source_geometry = match mechanical_extract::extract_board_source(&board, center) {
+        Ok(source_geometry) => Some(source_geometry),
+        Err(error) => {
+            gates.push(gate(
+                HardwareOutput::Mechanical,
+                "board-source-profile",
+                &format!(
+                    "Exact authored PCB source geometry is unavailable: {}",
+                    error.message
+                ),
+            ));
+            None
+        }
+    };
     for polygon in &mut polygons {
         for p in polygon {
             p.x -= center.x;
             p.y -= center.y;
         }
     }
-    let contours = polygons
+    let mut contours = polygons
         .into_iter()
         .map(|points| Contour {
             points,
             hole: false,
         })
         .collect();
-    let holes = match super::preview::board(raw, 0) {
-        Ok(preview) => preview
-            .holes
-            .into_iter()
-            .map(|hole| {
-                hole.into_iter()
-                    .map(|p| Vec2 {
-                        x: p.x - center.x,
-                        y: p.y - center.y,
+    let holes = match super::preview::board_parsed(&board, 0).map(|(preview, _)| preview) {
+        Ok(preview) => {
+            if source_geometry
+                .as_ref()
+                .is_some_and(|(source, _)| source.contours.len() > 1)
+            {
+                // Multi-loop compatibility needs the same hole parity as the source profile.
+                contours = preview
+                    .contours
+                    .into_iter()
+                    .map(|mut contour| {
+                        for p in &mut contour.points {
+                            p.x -= center.x;
+                            p.y -= center.y;
+                        }
+                        contour
                     })
-                    .collect()
-            })
-            .collect(),
+                    .collect();
+            }
+            preview
+                .holes
+                .into_iter()
+                .map(|hole| {
+                    hole.into_iter()
+                        .map(|p| Vec2 {
+                            x: p.x - center.x,
+                            y: p.y - center.y,
+                        })
+                        .collect()
+                })
+                .collect()
+        }
         Err(error) => {
             gates.push(gate(
                 HardwareOutput::Mechanical,
@@ -396,6 +425,7 @@ pub(super) fn import(
             reference,
             pose,
             side,
+            anchor: None,
             locked: None,
             keycap: None,
             outline: None,
@@ -443,6 +473,10 @@ pub(super) fn import(
             contours,
             thickness,
             holes,
+            pcb_source: source_geometry.as_ref().map(|(profile, _)| profile.clone()),
+            round_drills: source_geometry
+                .map(|(_, round_drills)| round_drills)
+                .unwrap_or_default(),
         },
         mounts,
         volumes: vec![],

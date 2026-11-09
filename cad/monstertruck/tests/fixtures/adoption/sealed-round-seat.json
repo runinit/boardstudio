@@ -1,0 +1,50 @@
+{
+  "revision": 1,
+  "body": {
+    "id": "sealed-round-seat",
+    "name": "sealed-round-seat",
+    "boardId": "adoption-board",
+    "kind": "plate",
+    "thickness": 4.0,
+    "clearance": 0.0,
+    "features": [
+      {
+        "kind": "round-seat",
+        "id": "sealed-seat",
+        "at": {
+          "x": 10.0,
+          "y": 8.0
+        },
+        "z": 1.0,
+        "height": 1.0,
+        "diameter": 2.0
+      }
+    ]
+  },
+  "regions": [
+    {
+      "outer": [
+        {
+          "x": 0,
+          "y": 0
+        },
+        {
+          "x": 20,
+          "y": 0
+        },
+        {
+          "x": 20,
+          "y": 16
+        },
+        {
+          "x": 0,
+          "y": 16
+        }
+      ],
+      "holes": [],
+      "cavities": [],
+      "gaskets": [],
+      "mounts": []
+    }
+  ]
+}

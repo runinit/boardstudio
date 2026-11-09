@@ -42,10 +42,14 @@ pub enum Settlement {
     Retired,
 }
 
-/// The submit/observe port a ticket drives. Two adapters exist: the browser Runtime
-/// (wasm) and, for native tests, the in-process driver in [`tests`].
+/// The submit/observe port a ticket drives. Its read-only scope source retains Runtime
+/// access for the observation lifetime. Scope contains session epoch, document, board and
+/// instance identity; revisions and tokens do not affect ticket liveness. A mismatch
+/// retires observation permanently without cancelling the Session operation.
 pub trait EditTicketPort {
     fn allocate_operation(&self) -> OperationId;
+    /// Return a reader that remains valid after `begin` returns.
+    fn scope_source(&self) -> std::rc::Rc<dyn Fn() -> Option<boardstudio_application::Scope>>;
     fn observe(&self, operation: OperationId) -> (OutcomeSlot, LandingSlot);
     fn submit(&self, event: Event);
 }
@@ -55,6 +59,9 @@ pub struct EditTicket {
     outcome: OutcomeSlot,
     landing: LandingSlot,
     feature: Option<String>,
+    captured_scope: Option<boardstudio_application::Scope>,
+    current_scope: std::rc::Rc<dyn Fn() -> Option<boardstudio_application::Scope>>,
+    retired: std::rc::Rc<std::cell::Cell<bool>>,
 }
 
 impl Clone for EditTicket {
@@ -65,20 +72,26 @@ impl Clone for EditTicket {
             outcome: self.outcome.clone(),
             landing: self.landing.clone(),
             feature: self.feature.clone(),
+            captured_scope: self.captured_scope.clone(),
+            current_scope: self.current_scope.clone(),
+            retired: self.retired.clone(),
         }
     }
 }
 
 impl EditTicket {
-    /// Begin a pending edit for `resolver`. The outcome and landing are observed before
-    /// the event is submitted, so a synchronous settlement cannot be missed. `feature` is
-    /// the noun used in failure wording (for example `"layout"`).
+    /// Begin a pending edit for `resolver`. Scope is captured before submission and the
+    /// outcome and landing are observed before the event is submitted, so a synchronous
+    /// settlement cannot be missed. Clones share the latched retirement state. `feature`
+    /// is the noun used in failure wording (for example `"layout"`).
     pub fn begin(
         port: &dyn EditTicketPort,
         label: &str,
         feature: Option<String>,
         resolver: EditResolver,
     ) -> Self {
+        let current_scope = port.scope_source();
+        let captured_scope = current_scope();
         let operation = port.allocate_operation();
         let (outcome, landing) = port.observe(operation);
         port.submit(Event::ResolveEdit {
@@ -91,6 +104,9 @@ impl EditTicket {
             outcome,
             landing,
             feature,
+            captured_scope,
+            current_scope,
+            retired: std::rc::Rc::new(std::cell::Cell::new(false)),
         }
     }
 
@@ -102,14 +118,18 @@ impl EditTicket {
     /// Whether the edit has not settled yet. One-shot actions disable their control while
     /// this answers true.
     pub fn is_pending(&self) -> bool {
-        self.outcome.borrow().is_none()
+        self.is_live() && self.outcome.borrow().is_none()
     }
 
-    /// Read the settlement. `owner_is_live` answers whether the ticket's owner (the
-    /// selection, panel or project the edit belongs to) is still current; a departed owner
-    /// retires the ticket whatever the outcome.
+    /// Read the settlement. `owner_is_live` answers only whether the panel's selection or
+    /// mounted target still owns this observation; Scope lineage is checked by the ticket.
+    /// A departed owner permanently retires the ticket whatever the outcome.
     pub fn settlement(&self, owner_is_live: bool) -> Settlement {
         if !owner_is_live {
+            self.retired.set(true);
+            return Settlement::Retired;
+        }
+        if !self.is_live() {
             return Settlement::Retired;
         }
         let Some(outcome) = self.outcome.borrow().clone() else {
@@ -117,6 +137,17 @@ impl EditTicket {
         };
         let landing = *self.landing.borrow();
         settlement_of(outcome, landing, self.feature.as_deref())
+    }
+
+    fn is_live(&self) -> bool {
+        if self.retired.get() {
+            return false;
+        }
+        if (self.current_scope)() != self.captured_scope {
+            self.retired.set(true);
+            return false;
+        }
+        true
     }
 }
 
@@ -165,8 +196,10 @@ fn settlement_of(
 
 mod runtime_port {
     use super::*;
+    #[cfg(any(target_arch = "wasm32", test, feature = "test-support"))]
     use crate::runtime::Runtime;
 
+    #[cfg(any(target_arch = "wasm32", test, feature = "test-support"))]
     impl EditTicketPort for std::rc::Rc<Runtime> {
         fn allocate_operation(&self) -> OperationId {
             Runtime::operation(self)
@@ -183,216 +216,26 @@ mod runtime_port {
             }
         }
 
+        fn scope_source(&self) -> std::rc::Rc<dyn Fn() -> Option<boardstudio_application::Scope>> {
+            let runtime = self.clone();
+            std::rc::Rc::new(move || Runtime::scope(&runtime))
+        }
+
         fn submit(&self, event: Event) {
             Runtime::submit(self, event)
         }
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
     use super::*;
-    use boardstudio_application::{
-        Completion, Effect, ExecutorEpoch, RequestId, Resolution, SaveAttemptId, SaveResult,
-        Session,
-    };
+    use boardstudio_application::{EditResolver, Event, Landing, Resolution, SnapshotToken};
     use boardstudio_core::model::{
-        CoreRequest, Part, PartDefinition, PartKind, Pose2, ProjectDoc, Side, Vec2,
+        Board, EditOperation, EditPhase, Part, PartDefinition, PartKind, Pose2, ProjectDoc, Side,
+        Vec2,
     };
-    use std::cell::{Cell, RefCell};
-    use std::collections::{BTreeMap, VecDeque};
     use std::rc::Rc;
-
-    /// Drives a real `Session` and `CoreEngine` in-process, keeping saves in memory, with
-    /// gates that park the next Core reply or save so tests can observe Pending.
-    struct NativeEditDriver {
-        session: RefCell<Session>,
-        engine: RefCell<boardstudio_core::CoreEngine>,
-        outcomes: crate::operation_outcomes::OperationOutcomes,
-        next_operation: Cell<u64>,
-        saves: RefCell<BTreeMap<String, ProjectDoc>>,
-        hold_next_core: Cell<bool>,
-        hold_next_save: Cell<bool>,
-        fail_next_core: RefCell<Option<String>>,
-        fail_next_save: RefCell<Option<String>>,
-        parked_core: RefCell<Option<(RequestId, ExecutorEpoch, Box<CoreRequest>)>>,
-        parked_save: RefCell<Option<SaveAttemptId>>,
-    }
-
-    impl NativeEditDriver {
-        fn new() -> Self {
-            Self {
-                session: RefCell::new(Session::new()),
-                engine: RefCell::new(boardstudio_core::CoreEngine::new()),
-                outcomes: Default::default(),
-                next_operation: Cell::new(1),
-                saves: RefCell::new(BTreeMap::new()),
-                hold_next_core: Cell::new(false),
-                hold_next_save: Cell::new(false),
-                fail_next_core: RefCell::new(None),
-                fail_next_save: RefCell::new(None),
-                parked_core: RefCell::new(None),
-                parked_save: RefCell::new(None),
-            }
-        }
-
-        fn hold_next_core(&self) {
-            self.hold_next_core.set(true);
-        }
-
-        fn hold_next_save(&self) {
-            self.hold_next_save.set(true);
-        }
-
-        fn fail_next_core(&self, reason: &str) {
-            *self.fail_next_core.borrow_mut() = Some(reason.into());
-        }
-
-        fn fail_next_save(&self, reason: &str) {
-            *self.fail_next_save.borrow_mut() = Some(reason.into());
-        }
-
-        fn release_core(&self) {
-            let Some((request_id, executor_epoch, request)) = self.parked_core.borrow_mut().take()
-            else {
-                panic!("no parked core request");
-            };
-            let reply = self.engine.borrow_mut().handle(*request);
-            let effects = self.session.borrow_mut().complete(Completion::Core {
-                request_id,
-                executor_epoch,
-                reply: Box::new(reply),
-            });
-            self.drive(effects.into());
-        }
-
-        fn release_save(&self) {
-            let Some(save_attempt_id) = self.parked_save.borrow_mut().take() else {
-                panic!("no parked save");
-            };
-            self.finish_save(save_attempt_id);
-        }
-
-        fn finish_save(&self, save_attempt_id: SaveAttemptId) {
-            let result = match self.fail_next_save.borrow_mut().take() {
-                Some(reason) => SaveResult::Aborted(reason),
-                None => SaveResult::Committed,
-            };
-            let effects = self.session.borrow_mut().complete(Completion::Persist {
-                save_attempt_id,
-                result,
-            });
-            self.drive(effects.into());
-        }
-
-        fn drive(&self, mut effects: VecDeque<Effect>) {
-            while let Some(effect) = effects.pop_front() {
-                match effect {
-                    Effect::Core {
-                        request_id,
-                        executor_epoch,
-                        request,
-                        ..
-                    } => {
-                        if let Some(reason) = self.fail_next_core.borrow_mut().take() {
-                            effects.extend(self.session.borrow_mut().complete(
-                                Completion::CoreFailed {
-                                    request_id,
-                                    executor_epoch,
-                                    reason,
-                                },
-                            ));
-                            continue;
-                        }
-                        if self.hold_next_core.get() {
-                            self.hold_next_core.set(false);
-                            *self.parked_core.borrow_mut() =
-                                Some((request_id, executor_epoch, request));
-                            continue;
-                        }
-                        let reply = self.engine.borrow_mut().handle(*request);
-                        effects.extend(self.session.borrow_mut().complete(Completion::Core {
-                            request_id,
-                            executor_epoch,
-                            reply: Box::new(reply),
-                        }));
-                    }
-                    Effect::Persist {
-                        save_attempt_id,
-                        document,
-                        ..
-                    } => {
-                        if let Some(reason) = self.fail_next_save.borrow_mut().take() {
-                            effects.extend(self.session.borrow_mut().complete(
-                                Completion::Persist {
-                                    save_attempt_id,
-                                    result: SaveResult::Aborted(reason),
-                                },
-                            ));
-                            continue;
-                        }
-                        if self.hold_next_save.get() {
-                            self.hold_next_save.set(false);
-                            *self.parked_save.borrow_mut() = Some(save_attempt_id);
-                            continue;
-                        }
-                        self.saves
-                            .borrow_mut()
-                            .insert(document.id.clone(), (*document).clone());
-                        self.finish_save(save_attempt_id);
-                    }
-                    Effect::Settled {
-                        operation_id,
-                        outcome,
-                        landing,
-                    } => {
-                        self.outcomes
-                            .settle_with_landing(operation_id, outcome, landing);
-                    }
-                    Effect::RestartCoreExecutor { executor_epoch } => {
-                        effects.extend(
-                            self.session
-                                .borrow_mut()
-                                .complete(Completion::ExecutorRestarted { executor_epoch }),
-                        );
-                    }
-                    _ => {}
-                }
-            }
-        }
-
-        fn read_model(&self) -> boardstudio_application::ReadModel {
-            self.session.borrow().read_model().clone()
-        }
-
-        fn saved_document(&self, id: &str) -> Option<ProjectDoc> {
-            self.saves.borrow().get(id).cloned()
-        }
-
-        fn open_fixture(&self, id: &str, name: &str) {
-            self.submit(Event::Open {
-                operation_id: self.allocate_operation(),
-                document: fixture_document(id, name),
-            });
-        }
-    }
-
-    impl EditTicketPort for NativeEditDriver {
-        fn allocate_operation(&self) -> OperationId {
-            let operation = OperationId(self.next_operation.get());
-            self.next_operation.set(self.next_operation.get() + 1);
-            operation
-        }
-
-        fn observe(&self, operation: OperationId) -> (OutcomeSlot, LandingSlot) {
-            self.outcomes.observe_with_landing(operation)
-        }
-
-        fn submit(&self, event: Event) {
-            let effects = self.session.borrow_mut().submit(event);
-            self.drive(effects.into());
-        }
-    }
 
     fn fixture_document(id: &str, name: &str) -> ProjectDoc {
         let mut document = ProjectDoc::empty(id, name);
@@ -415,6 +258,7 @@ mod tests {
             generator: None,
         });
         document.parts.push(Part {
+            anchor: None,
             id: "key".into(),
             definition_id: "key".into(),
             reference: "SW1".into(),
@@ -432,215 +276,132 @@ mod tests {
         document
     }
 
+    fn runtime_with_project(id: &str, name: &str) -> Rc<crate::runtime::Runtime> {
+        let runtime = crate::runtime::Runtime::new();
+        runtime.submit(Event::Open {
+            operation_id: runtime.operation(),
+            document: fixture_document(id, name),
+        });
+        runtime
+    }
+
+    fn runtime_with_two_boards() -> Rc<crate::runtime::Runtime> {
+        let mut document = fixture_document("two-board-project", "Two board project");
+        document.boards = ["board-1", "board-2"]
+            .into_iter()
+            .map(|id| Board {
+                id: id.into(),
+                name: id.into(),
+                outline_ids: vec![],
+                part_ids: vec![],
+                net_ids: vec![],
+                thickness: 1.6,
+                traces: vec![],
+                vias: vec![],
+            })
+            .collect();
+        let runtime = crate::runtime::Runtime::new();
+        runtime.submit(Event::Open {
+            operation_id: runtime.operation(),
+            document,
+        });
+        runtime
+    }
+
     fn rename_resolver(name: &'static str) -> EditResolver {
         EditResolver::new(
             "layout-inspector",
             move |accepted: &boardstudio_application::AcceptedSnapshot| {
                 let mut document = (*accepted.document).clone();
                 document.name = name.into();
-                Resolution::Submit(boardstudio_core::model::EditCommand {
-                    base_revision: accepted.document.revision,
-                    transaction_id: String::new(),
-                    phase: boardstudio_core::model::EditPhase::Commit,
-                    target_ids: vec![document.id.clone()],
-                    operation: boardstudio_core::model::EditOperation::ReplaceDocument {
+                Resolution::submit(
+                    vec![document.id.clone()],
+                    EditOperation::ReplaceDocument {
                         document: Box::new(document),
                     },
-                })
+                )
             },
         )
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
     #[test]
-    fn native_runtime_owner_observes_the_real_sessions_landing() {
-        let driver = NativeEditDriver::new();
-        driver.open_fixture("ticket-test", "Ticket test");
-        let runtime = crate::runtime::Runtime::new(
-            driver.read_model(),
-            driver.session.borrow().scope().unwrap(),
-        );
-        runtime.operation(); // The driver's Open used operation 1.
+    fn native_runtime_settles_a_ticket_through_the_real_session_and_core() {
+        let runtime = runtime_with_project("ticket-test", "Ticket test");
         let ticket = EditTicket::begin(
             &runtime,
             "native-owner",
             Some("field".into()),
             rename_resolver("Renamed"),
         );
-        assert_eq!(ticket.settlement(true), Settlement::Pending);
-        let (outcome, landing) = driver.observe(ticket.operation());
-        driver.submit(runtime.events.borrow_mut().remove(0));
-        runtime.outcomes.settle_with_landing(
-            ticket.operation(),
-            outcome.borrow().clone().unwrap(),
-            *landing.borrow(),
-        );
         assert_eq!(ticket.settlement(true), Settlement::Landed { revision: 1 });
+        assert_eq!(runtime.model().accepted.unwrap().document.name, "Renamed");
         assert_eq!(
-            driver.read_model().accepted.unwrap().document.name,
+            runtime.saved_document("ticket-test").unwrap().name,
             "Renamed"
         );
     }
 
     #[test]
-    fn an_edit_lands_at_the_revision_it_produced_and_saves_into_memory() {
-        let driver = NativeEditDriver::new();
-        driver.open_fixture("ticket-test", "Ticket test");
-        let ticket = EditTicket::begin(
-            &driver,
+    fn held_core_and_save_keep_a_ticket_pending_until_released() {
+        let runtime = runtime_with_project("ticket-test", "Ticket test");
+        runtime.hold_next_core();
+        let core_ticket = EditTicket::begin(
+            &runtime,
             "layout-inspector",
             Some("layout".into()),
-            rename_resolver("Renamed"),
+            rename_resolver("Core held"),
         );
-        assert_eq!(ticket.settlement(true), Settlement::Landed { revision: 1 });
-        assert!(!ticket.is_pending());
+        assert!(runtime.core_entered());
+        assert_eq!(core_ticket.settlement(true), Settlement::Pending);
+        runtime.release_core();
         assert_eq!(
-            driver
-                .saved_document("ticket-test")
-                .expect("saved in memory")
-                .name,
-            "Renamed"
+            core_ticket.settlement(true),
+            Settlement::Landed { revision: 1 }
+        );
+
+        runtime.hold_next_save();
+        let save_ticket = EditTicket::begin(
+            &runtime,
+            "layout-inspector",
+            Some("layout".into()),
+            rename_resolver("Save held"),
+        );
+        assert!(runtime.save_entered());
+        assert_eq!(save_ticket.settlement(true), Settlement::Pending);
+        runtime.release_save();
+        assert_eq!(
+            save_ticket.settlement(true),
+            Settlement::Landed { revision: 2 }
         );
     }
 
     #[test]
-    fn a_held_core_reply_keeps_the_ticket_pending_until_released() {
-        let driver = NativeEditDriver::new();
-        driver.open_fixture("ticket-test", "Ticket test");
-        driver.hold_next_core();
-        let ticket = EditTicket::begin(
-            &driver,
+    fn core_and_save_failures_settle_the_ticket_without_a_resolver() {
+        let runtime = runtime_with_project("ticket-test", "Ticket test");
+        runtime.fail_next_core("engine died");
+        let core_failure = EditTicket::begin(
+            &runtime,
             "layout-inspector",
             Some("layout".into()),
-            rename_resolver("Renamed"),
-        );
-        assert_eq!(ticket.settlement(true), Settlement::Pending);
-        assert!(ticket.is_pending());
-        driver.release_core();
-        assert_eq!(ticket.settlement(true), Settlement::Landed { revision: 1 });
-    }
-
-    #[test]
-    fn a_held_save_keeps_the_ticket_pending_until_released() {
-        let driver = NativeEditDriver::new();
-        driver.open_fixture("ticket-test", "Ticket test");
-        driver.hold_next_save();
-        let ticket = EditTicket::begin(
-            &driver,
-            "layout-inspector",
-            Some("layout".into()),
-            rename_resolver("Renamed"),
-        );
-        assert_eq!(ticket.settlement(true), Settlement::Pending);
-        driver.release_save();
-        assert_eq!(ticket.settlement(true), Settlement::Landed { revision: 1 });
-    }
-
-    #[test]
-    fn an_unchanged_resolution_lands_at_the_current_revision_without_a_core_request() {
-        let driver = NativeEditDriver::new();
-        driver.open_fixture("ticket-test", "Ticket test");
-        let before = driver.read_model().accepted.clone().unwrap();
-        let ticket = EditTicket::begin(
-            &driver,
-            "layout-inspector",
-            Some("layout".into()),
-            EditResolver::new("layout-inspector", |_accepted| Resolution::Unchanged),
+            rename_resolver("Core failure"),
         );
         assert_eq!(
-            ticket.settlement(true),
-            Settlement::Landed {
-                revision: before.document.revision
-            }
-        );
-        let after = driver.read_model().accepted.clone().unwrap();
-        assert_eq!(after.document.revision, before.document.revision);
-        assert_eq!(after.token, before.token);
-    }
-
-    #[test]
-    fn a_retired_target_fails_with_the_resolvers_reason() {
-        let driver = NativeEditDriver::new();
-        driver.open_fixture("ticket-test", "Ticket test");
-        let ticket = EditTicket::begin(
-            &driver,
-            "layout-inspector",
-            Some("layout".into()),
-            EditResolver::new("layout-inspector", |_accepted| {
-                Resolution::Retire("the selected part was deleted".into())
-            }),
-        );
-        assert_eq!(
-            ticket.settlement(true),
+            core_failure.settlement(true),
             Settlement::Failed {
-                message: "The layout change was refused: the selected part was deleted".into()
+                message: "The layout change could not be applied: engine died".into()
             }
         );
-    }
 
-    #[test]
-    fn a_departed_owner_retires_whatever_the_outcome() {
-        let driver = NativeEditDriver::new();
-        driver.open_fixture("ticket-test", "Ticket test");
-        driver.hold_next_core();
-        let ticket = EditTicket::begin(
-            &driver,
+        let runtime = runtime_with_project("ticket-save-test", "Ticket save test");
+        runtime.fail_next_save("quota exceeded");
+        let save_failure = EditTicket::begin(
+            &runtime,
             "layout-inspector",
             Some("layout".into()),
-            rename_resolver("Renamed"),
-        );
-        assert_eq!(ticket.settlement(false), Settlement::Retired);
-        driver.release_core();
-        assert_eq!(
-            ticket.settlement(false),
-            Settlement::Retired,
-            "a settled outcome is still retired for a departed owner"
-        );
-    }
-
-    #[test]
-    fn a_session_reopen_retires_the_queued_ticket() {
-        let driver = NativeEditDriver::new();
-        driver.open_fixture("ticket-test", "Ticket test");
-        driver.hold_next_core();
-        let first = EditTicket::begin(
-            &driver,
-            "layout-inspector",
-            Some("layout".into()),
-            rename_resolver("Renamed"),
-        );
-        driver.submit(Event::Open {
-            operation_id: driver.allocate_operation(),
-            document: fixture_document("ticket-test-2", "Second"),
-        });
-        let second = EditTicket::begin(
-            &driver,
-            "layout-inspector",
-            Some("layout".into()),
-            rename_resolver("Renamed again"),
-        );
-        driver.release_core();
-        assert_eq!(first.settlement(true), Settlement::Landed { revision: 1 });
-        assert_eq!(
-            second.settlement(true),
-            Settlement::Retired,
-            "the reopen moved the session on before the queued edit ran"
-        );
-    }
-
-    #[test]
-    fn a_save_failure_fails_the_ticket_with_the_recovery_wording() {
-        let driver = NativeEditDriver::new();
-        driver.open_fixture("ticket-test", "Ticket test");
-        driver.fail_next_save("quota exceeded");
-        let ticket = EditTicket::begin(
-            &driver,
-            "layout-inspector",
-            Some("layout".into()),
-            rename_resolver("Renamed"),
+            rename_resolver("Save failure"),
         );
         assert_eq!(
-            ticket.settlement(true),
+            save_failure.settlement(true),
             Settlement::Failed {
                 message: "The layout completed, but the accepted document did not save: quota exceeded. Retry after recovery.".into()
             }
@@ -648,107 +409,215 @@ mod tests {
     }
 
     #[test]
-    fn a_refusal_during_recovery_fails_with_the_recovery_reason() {
-        let driver = NativeEditDriver::new();
-        driver.open_fixture("ticket-test", "Ticket test");
-        driver.fail_next_save("quota exceeded");
-        let failed = EditTicket::begin(
-            &driver,
+    fn unchanged_and_retired_resolutions_use_session_settlement() {
+        let runtime = runtime_with_project("ticket-test", "Ticket test");
+        let before = runtime.model().accepted.unwrap();
+        let unchanged = EditTicket::begin(
+            &runtime,
             "layout-inspector",
             Some("layout".into()),
-            rename_resolver("Renamed"),
-        );
-        assert!(matches!(failed.settlement(true), Settlement::Failed { .. }));
-
-        let refused = EditTicket::begin(
-            &driver,
-            "layout-inspector",
-            Some("layout".into()),
-            rename_resolver("Renamed again"),
+            EditResolver::new("layout-inspector", |_accepted| Resolution::Unchanged),
         );
         assert_eq!(
-            refused.settlement(true),
+            unchanged.settlement(true),
+            Settlement::Landed {
+                revision: before.document.revision
+            }
+        );
+        let retired = EditTicket::begin(
+            &runtime,
+            "layout-inspector",
+            Some("layout".into()),
+            EditResolver::new("layout-inspector", |_accepted| {
+                Resolution::Retire("the selected part was deleted".into())
+            }),
+        );
+        assert_eq!(
+            retired.settlement(true),
             Settlement::Failed {
-                message: "The layout change was refused while saving is in recovery: save recovery is required".into()
+                message: "The layout change was refused: the selected part was deleted".into()
             }
         );
     }
 
     #[test]
-    fn an_executor_failure_fails_the_ticket() {
-        let driver = NativeEditDriver::new();
-        driver.open_fixture("ticket-test", "Ticket test");
-        driver.fail_next_core("engine died");
+    fn changing_the_session_retires_its_held_ticket() {
+        let runtime = runtime_with_project("ticket-test", "Ticket test");
+        runtime.hold_next_core();
         let ticket = EditTicket::begin(
-            &driver,
+            &runtime,
             "layout-inspector",
             Some("layout".into()),
-            rename_resolver("Renamed"),
+            rename_resolver("Old project edit"),
         );
+        runtime.submit(Event::Open {
+            operation_id: runtime.operation(),
+            document: fixture_document("ticket-test-2", "Second project"),
+        });
+        let queued = EditTicket::begin(
+            &runtime,
+            "layout-inspector",
+            Some("layout".into()),
+            rename_resolver("Queued edit"),
+        );
+        runtime.release_core();
+        assert_eq!(ticket.settlement(true), Settlement::Retired);
+        assert_eq!(queued.settlement(true), Settlement::Retired);
+    }
+
+    #[test]
+    fn a_scope_departure_retires_every_ticket_clone_permanently() {
+        let runtime = runtime_with_project("ticket-test", "Ticket test");
+        runtime.hold_next_core();
+        let ticket = EditTicket::begin(
+            &runtime,
+            "layout-inspector",
+            Some("layout".into()),
+            rename_resolver("Old project edit"),
+        );
+        let clone = ticket.clone();
+        assert_eq!(ticket.settlement(true), Settlement::Pending);
+
+        runtime.submit(Event::Open {
+            operation_id: runtime.operation(),
+            document: fixture_document("ticket-test-2", "Second project"),
+        });
+        assert_eq!(ticket.settlement(true), Settlement::Pending);
+        runtime.release_core();
+        assert_eq!(ticket.settlement(true), Settlement::Retired);
+        assert_eq!(clone.settlement(true), Settlement::Retired);
+
+        runtime.submit(Event::Open {
+            operation_id: runtime.operation(),
+            document: fixture_document("ticket-test", "Ticket test again"),
+        });
+        assert_eq!(ticket.settlement(true), Settlement::Retired);
+        assert_eq!(clone.settlement(true), Settlement::Retired);
+    }
+
+    #[test]
+    fn returning_to_the_captured_board_scope_does_not_revive_observation() {
+        let runtime = runtime_with_two_boards();
+        let captured_scope = runtime.scope().unwrap();
+        runtime.hold_next_core();
+        let ticket = EditTicket::begin(
+            &runtime,
+            "layout-inspector",
+            Some("layout".into()),
+            rename_resolver("Edit while navigating"),
+        );
+        let unobserved_clone = ticket.clone();
+
+        runtime.submit(Event::Navigate {
+            operation_id: runtime.operation(),
+            board_id: "board-2".into(),
+            instance_id: None,
+        });
+        assert_eq!(ticket.settlement(true), Settlement::Retired);
+
+        runtime.submit(Event::Navigate {
+            operation_id: runtime.operation(),
+            board_id: "board-1".into(),
+            instance_id: None,
+        });
+        assert_eq!(runtime.scope(), Some(captured_scope));
+        assert_eq!(ticket.settlement(true), Settlement::Retired);
+        assert_eq!(unobserved_clone.settlement(true), Settlement::Retired);
+        runtime.release_core();
+    }
+
+    #[test]
+    fn open_waits_for_a_held_save_then_retires_the_landed_ticket() {
+        let runtime = runtime_with_project("ticket-test", "Ticket test");
+        runtime.hold_next_save();
+        let ticket = EditTicket::begin(
+            &runtime,
+            "layout-inspector",
+            Some("layout".into()),
+            rename_resolver("Saved before open"),
+        );
+        assert_eq!(ticket.settlement(true), Settlement::Pending);
+        assert!(runtime.save_entered());
+
+        runtime.submit(Event::Open {
+            operation_id: runtime.operation(),
+            document: fixture_document("ticket-test-2", "Second project"),
+        });
+        assert_eq!(ticket.settlement(true), Settlement::Pending);
+        runtime.release_save();
+        assert_eq!(ticket.settlement(true), Settlement::Retired);
+    }
+
+    #[test]
+    fn close_drains_held_core_work_while_the_accepted_scope_remains_current() {
+        let runtime = runtime_with_project("ticket-test", "Ticket test");
+        let captured_scope = runtime.scope();
+        runtime.hold_next_core();
+        let ticket = EditTicket::begin(
+            &runtime,
+            "layout-inspector",
+            Some("layout".into()),
+            rename_resolver("Complete before close"),
+        );
+
+        runtime.submit(Event::Close {
+            operation_id: runtime.operation(),
+        });
+        assert_eq!(ticket.settlement(true), Settlement::Pending);
+        assert_eq!(runtime.scope(), captured_scope);
         assert_eq!(
-            ticket.settlement(true),
-            Settlement::Failed {
-                message: "The layout change could not be applied: engine died".into()
-            }
+            runtime.model().lifecycle,
+            boardstudio_application::Lifecycle::Closing
         );
+
+        runtime.release_core();
+        assert_eq!(
+            runtime.model().lifecycle,
+            boardstudio_application::Lifecycle::Closed
+        );
+        assert_eq!(runtime.scope(), captured_scope);
+        assert_eq!(ticket.settlement(true), Settlement::Landed { revision: 1 });
+    }
+
+    #[test]
+    fn same_scope_revision_changes_and_owner_departure_have_separate_lifetimes() {
+        let runtime = runtime_with_project("ticket-test", "Ticket test");
+        let ticket = EditTicket::begin(
+            &runtime,
+            "layout-inspector",
+            Some("layout".into()),
+            rename_resolver("First revision"),
+        );
+        assert_eq!(ticket.settlement(true), Settlement::Landed { revision: 1 });
+        let newer = EditTicket::begin(
+            &runtime,
+            "layout-inspector",
+            Some("layout".into()),
+            rename_resolver("A later revision"),
+        );
+        assert_eq!(newer.settlement(true), Settlement::Landed { revision: 2 });
+        assert_eq!(ticket.settlement(true), Settlement::Landed { revision: 1 });
+        assert_eq!(ticket.settlement(false), Settlement::Retired);
+        assert_eq!(ticket.settlement(true), Settlement::Retired);
     }
 
     #[test]
     fn every_outcome_maps_to_one_settlement() {
         let landing = Some(Landing {
             revision: 4,
-            token: boardstudio_application::SnapshotToken(9),
+            token: SnapshotToken(9),
         });
         let table: Vec<(TerminalOutcome, Option<Landing>, Settlement)> = vec![
-            (
-                TerminalOutcome::Completed,
-                landing,
-                Settlement::Landed { revision: 4 },
-            ),
-            (
-                TerminalOutcome::Rejected(DOCUMENT_SESSION_CHANGED.into()),
-                None,
-                Settlement::Retired,
-            ),
-            (
-                TerminalOutcome::Rejected("stale".into()),
-                None,
-                Settlement::Failed {
-                    message: "The edit change was refused: stale".into(),
-                },
-            ),
-            (
-                TerminalOutcome::BlockedByRecovery("recovery".into()),
-                None,
-                Settlement::Failed {
-                    message: "The edit change was refused while saving is in recovery: recovery"
-                        .into(),
-                },
-            ),
-            (
-                TerminalOutcome::PersistenceFailed("disk".into()),
-                None,
-                Settlement::Failed {
-                    message: "The edit completed, but the accepted document did not save: disk. Retry after recovery.".into(),
-                },
-            ),
-            (
-                TerminalOutcome::ExecutorFailed("engine".into()),
-                None,
-                Settlement::Failed {
-                    message: "The edit change could not be applied: engine".into(),
-                },
-            ),
+            (TerminalOutcome::Completed, landing, Settlement::Landed { revision: 4 }),
+            (TerminalOutcome::Rejected(DOCUMENT_SESSION_CHANGED.into()), None, Settlement::Retired),
+            (TerminalOutcome::Rejected("stale".into()), None, Settlement::Failed { message: "The edit change was refused: stale".into() }),
+            (TerminalOutcome::BlockedByRecovery("recovery".into()), None, Settlement::Failed { message: "The edit change was refused while saving is in recovery: recovery".into() }),
+            (TerminalOutcome::PersistenceFailed("disk".into()), None, Settlement::Failed { message: "The edit completed, but the accepted document did not save: disk. Retry after recovery.".into() }),
+            (TerminalOutcome::ExecutorFailed("engine".into()), None, Settlement::Failed { message: "The edit change could not be applied: engine".into() }),
             (TerminalOutcome::Superseded, None, Settlement::Retired),
             (TerminalOutcome::Cancelled, None, Settlement::Retired),
             (TerminalOutcome::Closed, None, Settlement::Retired),
-            (
-                TerminalOutcome::Completed,
-                None,
-                Settlement::Failed {
-                    message: "The edit change could not be confirmed where it landed. The accepted value was restored.".into(),
-                },
-            ),
+            (TerminalOutcome::Completed, None, Settlement::Failed { message: "The edit change could not be confirmed where it landed. The accepted value was restored.".into() }),
         ];
         for (outcome, landing, expected) in table {
             assert_eq!(settlement_of(outcome, landing, None), expected);

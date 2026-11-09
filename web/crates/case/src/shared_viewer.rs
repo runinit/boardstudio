@@ -6,6 +6,7 @@ use super::case_assembly_layers::{
     CaseAssemblyLayers, assembly_layers_with_stack, physical_component_layers,
 };
 use super::layout_viewer_source::LayoutPreviewSnapshot;
+use super::mechanical_settings::MechanicalSettingsPatchExt;
 use super::model_delivery::ModelDeliveryRows;
 use crate::case_model_lifecycle::ProjectionInputs;
 use crate::case_preview::NativePreviewSnapshot;
@@ -13,6 +14,17 @@ use crate::renderer_host_page::RendererPageHost;
 use crate::runtime::CadScene;
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_web_host::cad_jobs::captured_case_document;
+use boardstudio_web_ui_shared::ui::{
+    button::{Button as UiButton, ButtonSize as UiButtonSize, ButtonVariant as UiButtonVariant},
+    checkbox::{Checkbox as UiCheckbox, CheckboxState},
+    collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
+    field::Field,
+    label::Label,
+    select::{Select, SelectOption},
+    slider::Slider,
+    toggle_group::{ToggleGroup, ToggleItem},
+    tooltip::{Tooltip, TooltipContent, TooltipTrigger},
+};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use js_sys::{Array, Float32Array, Object, Reflect};
@@ -66,6 +78,8 @@ use super::case_display::{ComponentModelSource, component_models_for_source};
 /// The page owner supplies guarded actions and the accepted shared view state.
 #[derive(Props, Clone, PartialEq)]
 pub struct DesignViewToolbarProps {
+    #[props(default)]
+    pub contextual_tools: Option<Element>,
     pub label: String,
     pub detail: String,
     pub assembly_3d: bool,
@@ -82,12 +96,13 @@ pub fn DesignViewToolbar(props: DesignViewToolbarProps) -> Element {
     let footprints_visible = props.footprints_visible;
     rsx! {
         div {
-            class: "m1-canvas-toolbar m1-design-canvas-toolbar",
-            role: "toolbar",
+            class: "absolute top-4 left-1/2 z-[1] flex min-h-10 w-fit max-w-[calc(100%-32px)] -translate-x-1/2 items-center gap-2 rounded-2xl border border-border-strong bg-card px-2.5 py-1.5",
+            role: "group",
             aria_label: "{label} commands",
-            div { class: "m1-canvas-context",
+            if let Some(tools) = props.contextual_tools { {tools} } else {
+            div { class: "flex items-center gap-3 p-0 [&_strong]:text-xs [&_strong]:text-foreground [&_span]:p-0 [&_span]:text-xs [&_span]:text-muted-foreground",
                 svg {
-                    class: "m1-tab-icon",
+                    class: "size-[17px] flex-none max-[760px]:w-3.5",
                     view_box: "0 0 20 20",
                     fill: "none",
                     stroke: "currentColor",
@@ -101,26 +116,32 @@ pub fn DesignViewToolbar(props: DesignViewToolbarProps) -> Element {
                 strong { "{label}" }
                 span { "{detail}" }
             }
-        }
-        div { class: "m1-design-view-group", role: "group", aria_label: "Design view",
-            button {
-                r#type: "button",
-                aria_pressed: "{!assembly_3d}",
-                onclick: move |_| props.on_view_mode.call(false),
-                "2D"
             }
-            button {
-                r#type: "button",
-                aria_pressed: "{assembly_3d}",
-                onclick: move |_| props.on_view_mode.call(true),
-                "3D assembly"
+        }
+        div { class: "absolute bottom-3 left-3 z-[11] flex gap-0.5 rounded-lg border border-border bg-card p-[3px] max-[760px]:left-2",
+            ToggleGroup {
+                aria_label: "View mode",
+                pressed: Some(if assembly_3d { [1].into_iter().collect() } else { [0].into_iter().collect() }),
+                on_pressed_change: move |next: std::collections::HashSet<usize>| {
+                    if next.contains(&1) {
+                        props.on_view_mode.call(true);
+                    } else if next.contains(&0) {
+                        props.on_view_mode.call(false);
+                    }
+                },
+                ToggleItem { index: 0usize, class: "max-[960px]:min-h-11 [@media(pointer:coarse)]:min-h-11", "2D" }
+                ToggleItem { index: 1usize, class: "max-[960px]:min-h-11 [@media(pointer:coarse)]:min-h-11", "3D assembly" }
             }
             if !assembly_3d {
-                button {
-                    r#type: "button",
-                    aria_pressed: "{footprints_visible}",
-                    onclick: move |_| props.on_toggle_footprints.call(()),
-                    "Footprints"
+                ToggleGroup {
+                    aria_label: "Footprints",
+                    pressed: Some(if footprints_visible { [0].into_iter().collect() } else { Default::default() }),
+                    on_pressed_change: move |next: std::collections::HashSet<usize>| {
+                        if next.contains(&0) != footprints_visible {
+                            props.on_toggle_footprints.call(());
+                        }
+                    },
+                    ToggleItem { index: 0usize, class: "max-[960px]:min-h-11 [@media(pointer:coarse)]:min-h-11", "Footprints" }
                 }
             }
         }
@@ -326,6 +347,7 @@ pub fn CaseSharedViewer(
     on_display_change: EventHandler<ScopedDisplayChange>,
     mechanical_settings: Option<super::MechanicalSettingsProps>,
     #[props(default)] inline_case_controls: bool,
+    #[props(default)] toolbar_leading: Option<Element>,
     #[props(default)] handle_source: Option<Rc<CadScene>>,
     #[props(default)] handles: Vec<ViewerHandle>,
     #[props(default)] handle_preview: Option<Vec<ViewerHandle>>,
@@ -602,6 +624,7 @@ pub fn CaseSharedViewer(
             on_display_change,
             mechanical_settings,
             inline_case_controls,
+            toolbar_leading,
             handle_projection,
             handles,
             handle_preview,
@@ -1142,6 +1165,12 @@ fn layout_module_model_bodies(
                 })
                 .map(|definition| format!("{} · 3D model", definition.name))
                 .unwrap_or_else(|| "Mounted module · 3D model".to_owned());
+            let lines = model
+                .mesh
+                .vendor_step
+                .as_ref()
+                .filter(|step| !step.line_render_positions.is_empty())
+                .map(|step| transformed_module_points(&step.line_render_positions, &matrix));
             Some(serde_json::json!({
                 "id": model.id,
                 "name": name,
@@ -1151,6 +1180,7 @@ fn layout_module_model_bodies(
                     "normals": normals,
                     "colors": model.mesh.colors.as_ref().map(|colors| colors.as_ref()),
                 },
+                "lines": lines,
             }))
         })
         .collect()
@@ -1159,6 +1189,28 @@ fn layout_module_model_bodies(
 /// Apply Core's column-major affine transform exactly once before generic mesh
 /// bodies enter the renderer. This mirrors the existing React AssemblyPreview
 /// transform while keeping Core authoritative for module pose and model offsets.
+fn transformed_module_points(source_positions: &[f32], matrix: &[f64; 16]) -> Vec<f32> {
+    let mut positions = vec![0.0; source_positions.len()];
+    for index in (0..source_positions.len()).step_by(3) {
+        let x = source_positions[index];
+        let y = source_positions[index + 1];
+        let z = source_positions[index + 2];
+        positions[index] = (matrix[0] as f32) * x
+            + (matrix[4] as f32) * y
+            + (matrix[8] as f32) * z
+            + matrix[12] as f32;
+        positions[index + 1] = (matrix[1] as f32) * x
+            + (matrix[5] as f32) * y
+            + (matrix[9] as f32) * z
+            + matrix[13] as f32;
+        positions[index + 2] = (matrix[2] as f32) * x
+            + (matrix[6] as f32) * y
+            + (matrix[10] as f32) * z
+            + matrix[14] as f32;
+    }
+    positions
+}
+
 fn transformed_module_mesh(
     source_positions: &[f32],
     source_normals: &[f32],
@@ -1361,6 +1413,15 @@ fn loaded_model_inputs(rows: Option<&ModelDeliveryRows>) -> Array {
                 );
             }
             let _ = Reflect::set(&value, &"mesh".into(), &mesh);
+            if let Some(vendor_step) = &model.mesh.vendor_step
+                && !vendor_step.line_render_positions.is_empty()
+            {
+                let _ = Reflect::set(
+                    &value,
+                    &"lines".into(),
+                    &Float32Array::from(vendor_step.line_render_positions.as_slice()),
+                );
+            }
             loaded.push(&value);
         }
     }
@@ -1525,8 +1586,11 @@ impl PointerOwner {
 }
 
 #[cfg(all(test, target_arch = "wasm32"))]
+type ArmHandleCapture = Rc<dyn Fn(String)>;
+
+#[cfg(all(test, target_arch = "wasm32"))]
 #[derive(Clone, Default)]
-pub struct SharedViewerEscapeProbe(Rc<RefCell<Option<Rc<dyn Fn(String)>>>>);
+pub struct SharedViewerEscapeProbe(Rc<RefCell<Option<ArmHandleCapture>>>);
 
 #[cfg(all(test, target_arch = "wasm32"))]
 impl SharedViewerEscapeProbe {
@@ -1557,6 +1621,7 @@ fn SharedViewer(
     on_display_change: EventHandler<ScopedDisplayChange>,
     mechanical_settings: Option<super::MechanicalSettingsProps>,
     inline_case_controls: bool,
+    #[props(default)] toolbar_leading: Option<Element>,
     handle_projection: Option<CaseHandleProjection>,
     handles: Vec<ViewerHandle>,
     handle_preview: Option<Vec<ViewerHandle>>,
@@ -2635,110 +2700,317 @@ fn SharedViewer(
     });
     let unlink_message = unlink_feedback
         .as_ref()
-        .map(|feedback| match feedback.state {
+        .and_then(|feedback| match feedback.state {
             super::mechanical_settings::MechanicalSettingsFeedbackState::Pending => {
-                (false, "Unlinking selected support…".to_owned())
+                Some((false, "Unlinking selected support…".to_owned()))
             }
-            super::mechanical_settings::MechanicalSettingsFeedbackState::Saved => {
-                (false, "Selected support unlinked.".to_owned())
-            }
-            super::mechanical_settings::MechanicalSettingsFeedbackState::Failed => (
+            super::mechanical_settings::MechanicalSettingsFeedbackState::Landed => None,
+            super::mechanical_settings::MechanicalSettingsFeedbackState::Failed => Some((
                 true,
                 feedback
                     .message
                     .clone()
                     .unwrap_or_else(|| "The support could not be unlinked.".to_owned()),
-            ),
+            )),
         });
     let unlink_source = current_source.clone();
     let unlink_owner = owner.clone();
     let unlink_projection = projection.clone();
     let unlink_runtime = runtime.clone();
     let show_assembly_controls = projection.layers.iter().any(|(id, _)| id != "pcb");
+    let gaskets_edit_disabled = mechanical_settings
+        .as_ref()
+        .is_none_or(|settings| !settings.editable);
     let select_assembly_layer = select_layer.clone();
 
+    let section_plane = use_memo(move || Some(transient().section_plane.to_owned()));
+    let docked_layers = boardstudio_web_ui_shared::layer_dock::use_docked_layers(rsx! {
+        CaseAssemblyLayers {
+            initially_open: false,
+            assembly: assembly_layers,
+            components: component_layers,
+            selectable_layers: selectable_layers.clone(),
+            selected_layer: selected_layer.clone(),
+            on_select_layer: select_assembly_layer,
+            display: display.clone(),
+            on_display_change: assembly_change_display,
+        }
+    if !inline_case_controls {
+    Collapsible { keep_mounted: true,
+        CollapsibleTrigger { "Case layers and colors" }
+        CollapsibleContent { class: "data-[open=false]:hidden max-[960px]:[&_[data-slot=button]]:min-h-11 max-[960px]:[&_[data-slot=toggle-group-item]]:min-h-11",
+        div { role: "group", "aria-label": "Case layers",
+        for (id, label) in &projection.layers {
+            {
+            let id = id.clone();
+            let label = label.clone();
+            let ids = preference_ids(&id);
+            let visible = !ids.iter().all(|entry| display.hidden.contains(entry));
+            let color = display.color(&id).unwrap_or("#b0b5bd").to_owned();
+            let has_color = display.has_color(&id);
+            let toggle_next = display.clone();
+            let color_next = display.clone();
+            let reset_next = display.clone();
+            let toggle_display = change_display.clone();
+            let select_layer = select_layer.clone();
+            let set_color = change_display.clone();
+            let reset_color = change_display.clone();
+            let select_id = id.clone();
+            let toggle_id = id.clone();
+            let color_id = id.clone();
+            let reset_id = id.clone();
+            rsx! {
+                div { class: "flex flex-wrap items-center gap-1.5 border-b border-border py-2 [&_label]:flex [&_label]:gap-1.5 [&_label]:text-muted-foreground [&_input[type=color]]:w-11 [&_input[type=color]]:p-[3px]", key: "{id}",
+                    UiButton { variant: UiButtonVariant::Ghost,
+                        aria_pressed: selected_layer == id,
+                        onclick: move |_| select_layer(select_id.clone()),
+                        "Select {label}"
+                    }
+                    ToggleGroup {
+                        aria_label: format!("Visibility for {label}"), horizontal: true,
+                        pressed: Some(if visible { [0].into_iter().collect() } else { Default::default() }),
+                        on_pressed_change: move |_| {
+                            let mut next_display = toggle_next.clone();
+                            let aliases = preference_ids(&toggle_id);
+                            let is_hidden = aliases.iter().all(|entry| next_display.hidden.contains(entry));
+                            if is_hidden {
+                                next_display.hidden.retain(|entry| !aliases.contains(entry));
+                            } else {
+                                for entry in aliases {
+                                    if !next_display.hidden.contains(&entry) { next_display.hidden.push(entry); }
+                                }
+                            }
+                            toggle_display(next_display.clone());
+                        },
+                        ToggleItem { index: 0usize, aria_label: format!("Toggle visibility for {label}"),
+                            if visible { "Visible" } else { "Hidden" }
+                        }
+                    }
+                    Field {
+                        Label { html_for: format!("viewer-color-{}-{id}", dioxus::core::current_scope_id().0), "Color for {label}" }
+                        input {
+                            id: format!("viewer-color-{}-{id}", dioxus::core::current_scope_id().0),
+                            aria_label: format!("Color for {label}"),
+                            r#type: "color", value: "{color}",
+                            oninput: move |event: FormEvent| {
+                                let mut next_display = color_next.clone();
+                                next_display.set_color(&color_id, &event.value());
+                                set_color(next_display.clone());
+                            }
+                        }
+                    }
+                    UiButton { variant: UiButtonVariant::Secondary,
+                        disabled: !has_color,
+                        onclick: move |_| {
+                            let mut next_display = reset_next.clone();
+                            next_display.set_color(&reset_id, "");
+                            reset_color(next_display.clone());
+                        },
+                        "Reset color"
+                    }
+                }
+            }
+            }
+        }
+        }
+    }
+    }
+    }    });
+
     rsx! {
-        div { class: "m1-case-view m1-shared-viewer",
-            div { class: "m1-case-view-toolbar",
+        div { class: "relative flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden",
+            style: (!inline_case_controls).then_some("container-type: size"),
+            div { class: if inline_case_controls { "relative z-[5] m-3 flex w-max max-w-[calc(100%-24px)] flex-none flex-wrap items-center self-start gap-1 overflow-visible rounded-2xl bg-toolbar p-[5px] shadow-[0_6px_18px_rgb(0_0_0/16%)] [&_[role=group]]:m-0 [&_[role=group]]:flex-none [&_[role=group]]:gap-0.5 [&_[role=group]]:p-0" } else { "relative flex flex-none flex-wrap items-center justify-center gap-1 rounded-md bg-toolbar p-1" },
+                {toolbar_leading}
                 if inline_case_controls {
-                    div { role: "group", "aria-label": "Display mode",
-                        for mode in [RenderMode::Shaded, RenderMode::Wireframe, RenderMode::Hybrid] {
+                    div { class: "static flex flex-wrap items-center gap-0.5 border-0 bg-transparent p-0", role: "group", "aria-label": "Assembly camera",
+                        Tooltip {
+                            TooltipTrigger { as: move |attributes| { let fit = case_fit.clone(); rsx! {
+                                UiButton { attributes, variant: UiButtonVariant::Secondary, size: UiButtonSize::IconSm,
+                                    class: "max-[960px]:min-h-11 max-[960px]:min-w-11 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.5]",
+                                    aria_label: "Fit",
+                                    onclick: move |_| run_host(&fit, |host| host.fit(), &mut status),
+                                    {viewer_control_icon("Fit")}
+                                }
+                            } } }
+                            TooltipContent { "Fit model" }
+                        }
+                        Tooltip {
+                            TooltipTrigger { as: move |attributes| { let top = case_top.clone(); rsx! {
+                                UiButton { attributes, variant: UiButtonVariant::Secondary, size: UiButtonSize::IconSm,
+                                    class: "max-[960px]:min-h-11 max-[960px]:min-w-11 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.5]",
+                                    aria_label: "Top",
+                                    onclick: move |_| run_host(&top, |host| host.view("top"), &mut status),
+                                    {viewer_control_icon("Top")}
+                                }
+                            } } }
+                            TooltipContent { "Top view" }
+                        }
+                        Tooltip {
+                            TooltipTrigger { as: move |attributes| { let bottom = case_bottom.clone(); rsx! {
+                                UiButton { attributes, variant: UiButtonVariant::Secondary, size: UiButtonSize::IconSm,
+                                    class: "max-[960px]:min-h-11 max-[960px]:min-w-11 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.5]",
+                                    aria_label: "Bottom",
+                                    onclick: move |_| run_host(&bottom, |host| host.view("bottom"), &mut status),
+                                    {viewer_control_icon("Bottom")}
+                                }
+                            } } }
+                            TooltipContent { "Bottom view" }
+                        }
+                        Tooltip {
+                            TooltipTrigger { as: move |attributes| { let iso = case_iso.clone(); rsx! {
+                                UiButton { attributes, variant: UiButtonVariant::Secondary, size: UiButtonSize::IconSm,
+                                    class: "max-[960px]:min-h-11 max-[960px]:min-w-11 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.5]",
+                                    aria_label: "Isometric",
+                                    onclick: move |_| run_host(&iso, |host| host.view("isometric"), &mut status),
+                                    {viewer_control_icon("Isometric")}
+                                }
+                            } } }
+                            TooltipContent { "Isometric view" }
+                        }
+                    }
+                }
+
+                if inline_case_controls {
+                    ToggleGroup {
+                        aria_label: "Display mode",
+                        pressed: Some([match transient().mode { RenderMode::Shaded => 0, RenderMode::Wireframe => 1, RenderMode::Hybrid => 2 }].into_iter().collect()),
+                        on_pressed_change: move |next: std::collections::HashSet<usize>| {
+                            if let Some(index) = next.iter().next() {
+                                transient.with_mut(|view| view.mode = [RenderMode::Shaded, RenderMode::Wireframe, RenderMode::Hybrid][*index]);
+                            }
+                        },
+                        for (index, mode) in [RenderMode::Shaded, RenderMode::Wireframe, RenderMode::Hybrid].into_iter().enumerate() {
                             {
-                                let mut transient = transient;
                                 let label = match mode {
                                     RenderMode::Shaded => "Shaded",
                                     RenderMode::Wireframe => "Wireframe",
                                     RenderMode::Hybrid => "Hybrid",
                                 };
-                                rsx! { button {
-                                    "aria-pressed": transient().mode == mode,
-                                    onclick: move |_| transient.with_mut(|view| view.mode = mode),
-                                    "{label}"
-                                } }
-                            }
-                        }
-                        button {
-                            "aria-label": "Show hidden lines",
-                            title: "Show hidden lines",
-                            "aria-pressed": transient().show_hidden,
-                            onclick: move |_| transient.with_mut(|view| view.show_hidden = !view.show_hidden),
-                            svg { view_box: "0 0 24 24", "aria-hidden": "true",
-                                path { d: "m12 2 9 5v10l-9 5-9-5V7ZM3 7l9 5 9-5M12 12v10" }
-                                path { stroke_dasharray: "2 2", d: "M12 2v10M3 17l9-5 9 5" }
-                            }
-                        }
-                    }
-                if show_assembly_controls {
-                    div { role: "group", "aria-label": "Mechanical assembly view",
-                            for view in [AssemblyView::Assembled, AssemblyView::Exploded, AssemblyView::Section] {
-                                {
-                                    let mut transient = transient;
-                                    let label = match view {
-                                        AssemblyView::Assembled => "Assembled",
-                                        AssemblyView::Exploded => "Exploded",
-                                        AssemblyView::Section => "Section",
-                                    };
-                                    rsx! { button {
-                                        "aria-pressed": transient().assembly == view,
-                                        onclick: move |_| transient.with_mut(|state| state.assembly = view),
-                                        "{label}"
-                                    } }
+                                rsx! {
+                                    Tooltip {
+                                        TooltipTrigger { as: move |attributes: Vec<Attribute>| rsx! {
+                                            ToggleItem { index, aria_label: label,
+                                                class: "max-[960px]:min-h-11 max-[960px]:min-w-11 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.5]",
+                                                attributes,
+                                                {viewer_control_icon(label)}
+                                            }
+                                        } }
+                                        TooltipContent { "{label}" }
+                                    }
                                 }
                             }
                         }
                     }
-                }
-                if can_edit_gaskets {
-                    button {
-                        r#type: "button",
-                        aria_pressed: editing_gaskets(),
-                        disabled: mechanical_settings.as_ref().is_none_or(|settings| !settings.editable),
-                        onclick: move |_| {
-                            let enable = !editing_gaskets();
-                            editing_gaskets.set(enable);
-                            editing_mounts.set(false);
-                            if enable { run_host(&top_for_gaskets, |host| host.view("top"), &mut status); }
+                    ToggleGroup {
+                        aria_label: "Hidden lines",
+                        pressed: Some(if transient().show_hidden { [0].into_iter().collect() } else { Default::default() }),
+                        on_pressed_change: move |next: std::collections::HashSet<usize>| {
+                            if next.contains(&0) != transient().show_hidden {
+                                transient.with_mut(|view| view.show_hidden = !view.show_hidden);
+                            }
                         },
-                        "Edit gaskets"
+                        Tooltip {
+                            TooltipTrigger { as: move |attributes: Vec<Attribute>| rsx! {
+                                ToggleItem { index: 0usize, aria_label: "Show hidden lines",
+                                    class: "max-[960px]:min-h-11 max-[960px]:min-w-11 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.5]",
+                                    attributes,
+                                    svg { view_box: "0 0 24 24", "aria-hidden": "true",
+                                        path { d: "m12 2 9 5v10l-9 5-9-5V7ZM3 7l9 5 9-5M12 12v10" }
+                                        path { stroke_dasharray: "2 2", d: "M12 2v10M3 17l9-5 9 5" }
+                                    }
+                                }
+                            } }
+                            TooltipContent { "Show hidden lines" }
+                        }
+                    }
+                if show_assembly_controls {
+                    ToggleGroup {
+                        aria_label: "Mechanical assembly view",
+                        pressed: Some([match transient().assembly { AssemblyView::Assembled => 0, AssemblyView::Exploded => 1, AssemblyView::Section => 2 }].into_iter().collect()),
+                        on_pressed_change: move |next: std::collections::HashSet<usize>| {
+                            if let Some(index) = next.iter().next() {
+                                transient.with_mut(|view| view.assembly = [AssemblyView::Assembled, AssemblyView::Exploded, AssemblyView::Section][*index]);
+                            }
+                        },
+                        for (index, view) in [AssemblyView::Assembled, AssemblyView::Exploded, AssemblyView::Section].into_iter().enumerate() {
+                            {
+                                let label = match view {
+                                    AssemblyView::Assembled => "Assembled",
+                                    AssemblyView::Exploded => "Exploded",
+                                    AssemblyView::Section => "Section",
+                                };
+                                rsx! {
+                                    Tooltip {
+                                        TooltipTrigger { as: move |attributes: Vec<Attribute>| rsx! {
+                                            ToggleItem { index, aria_label: label,
+                                                class: "max-[960px]:min-h-11 max-[960px]:min-w-11 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.5]",
+                                                attributes,
+                                                {viewer_control_icon(label)}
+                                            }
+                                        } }
+                                        TooltipContent { "{label}" }
+                                    }
+                                }
+                            }
+                        }
+                    }
                     }
                 }
-                if can_edit_mounts {
-                    button {
-                        r#type: "button",
-                        aria_pressed: editing_mounts(),
-                        onclick: move |_| {
-                            let enable = !editing_mounts();
-                            editing_mounts.set(enable);
-                            editing_gaskets.set(false);
-                            if enable { run_host(&top_for_mounts, |host| host.view("top"), &mut status); }
+                if can_edit_gaskets || can_edit_mounts {
+                    ToggleGroup {
+                        aria_label: "Edit mode",
+                        pressed: Some({
+                            let mut pressed: std::collections::HashSet<usize> = Default::default();
+                            if editing_gaskets() { pressed.insert(0); }
+                            if editing_mounts() { pressed.insert(1); }
+                            pressed
+                        }),
+                        on_pressed_change: move |next: std::collections::HashSet<usize>| {
+                            let enable_gaskets = next.contains(&0);
+                            let enable_mounts = !enable_gaskets && next.contains(&1);
+                            if enable_gaskets != editing_gaskets() || enable_mounts != editing_mounts() {
+                                editing_gaskets.set(enable_gaskets);
+                                editing_mounts.set(enable_mounts);
+                                if enable_gaskets {
+                                    run_host(&top_for_gaskets, |host| host.view("top"), &mut status);
+                                }
+                                if enable_mounts {
+                                    run_host(&top_for_mounts, |host| host.view("top"), &mut status);
+                                }
+                            }
                         },
-                        "Edit mounts"
+                        if can_edit_gaskets {
+                            Tooltip {
+                                TooltipTrigger { as: move |attributes: Vec<Attribute>| rsx! {
+                                    ToggleItem { index: 0usize, aria_label: "Edit gaskets",
+                                        disabled: gaskets_edit_disabled,
+                                        class: "max-[960px]:min-h-11 max-[960px]:min-w-11 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.5]",
+                                        attributes,
+                                        {viewer_control_icon("Edit gaskets")}
+                                    }
+                                } }
+                                TooltipContent { "Edit gaskets" }
+                            }
+                        }
+                        if can_edit_mounts {
+                            Tooltip {
+                                TooltipTrigger { as: move |attributes: Vec<Attribute>| rsx! {
+                                    ToggleItem { index: 1usize, aria_label: "Edit mounts",
+                                        class: "max-[960px]:min-h-11 max-[960px]:min-w-11 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.5]",
+                                        attributes,
+                                        {viewer_control_icon("Edit mounts")}
+                                    }
+                                } }
+                                TooltipContent { "Edit mounts" }
+                            }
+                        }
                     }
                 }
                 if editing_gaskets() {
                     if let Some((support_id, pair_id, anchors, identity, mut sequence, on_request, editable)) = unlink_request.clone() {
-                        button {
-                            r#type: "button",
+                        UiButton { variant: UiButtonVariant::Secondary, button_type: "button",
+                            class: "max-[960px]:min-h-11 [@media(pointer:coarse)]:min-h-11",
                             disabled: !editable || selected_support.is_some_and(|support| support.unlinked),
                             onclick: move |_| {
                                 if !(unlink_source.0)()
@@ -2757,6 +3029,7 @@ fn SharedViewer(
                                     request_id,
                                     field_id: patch.field_id(),
                                     patch,
+                                    reviewed_fingerprint: None,
                                 });
                             },
                             "Unlink selected support"
@@ -2765,147 +3038,153 @@ fn SharedViewer(
                             p { role: if alert { "alert" } else { "status" }, "{message}" }
                         }
                         if selected_support.is_some_and(|support| support.unlinked) {
-                            p { class: "m1-case-edit-hint", "This gasket is unlinked from its pair." }
+                            p { "This gasket is unlinked from its pair." }
                         }
                     } else {
-                        p { class: "m1-case-edit-hint", "Select a gasket in Objects to unlink its mirrored support pair." }
+                        p { "Select a gasket in Objects to unlink its mirrored support pair." }
                     }
                 }
                 if !inline_case_controls {
-                button { onclick: move |_| run_host(&fit, |host| host.fit(), &mut status), "{canvas_context.fit_label()}" }
-                details { class: "m1-case-view-settings",
-                    summary { "View controls" }
-                    div { class: "m1-case-view-settings-body",
-            div { role: "group", "aria-label": "{canvas_context.camera_label()}",
-                button { onclick: move |_| run_host(&top, |host| host.view("top"), &mut status), "Top view" }
-                button { onclick: move |_| run_host(&bottom, |host| host.view("bottom"), &mut status), "Bottom view" }
-                button { onclick: move |_| run_host(&iso, |host| host.view("isometric"), &mut status), "Isometric view" }
-                button { onclick: move |_| run_host(&left, |host| host.orbit(-50.0, 0.0), &mut status), "Rotate left" }
-                button { onclick: move |_| run_host(&right, |host| host.orbit(50.0, 0.0), &mut status), "Rotate right" }
-                button { onclick: move |_| run_host(&zoom_in, |host| host.zoom(0.85), &mut status), "Zoom in" }
-                button { onclick: move |_| run_host(&zoom_out, |host| host.zoom(1.15), &mut status), "Zoom out" }
-            }
-            div { role: "group", "aria-label": "{canvas_context.display_label()}",
-                for mode in [RenderMode::Shaded, RenderMode::Wireframe, RenderMode::Hybrid] {
-                    {
-                        let mut transient = transient;
-                        let label = mode.renderer_value();
-                        rsx! { button {
-                            "aria-pressed": transient().mode == mode,
-                            onclick: move |_| transient.with_mut(|view| view.mode = mode),
-                            "{label}"
+                Tooltip {
+                    TooltipTrigger { as: move |attributes| { let fit = fit.clone(); rsx! {
+                        UiButton { attributes, variant: UiButtonVariant::Secondary, size: UiButtonSize::IconSm,
+                            class: "max-[960px]:min-h-11 max-[960px]:min-w-11 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.5]",
+                            aria_label: canvas_context.fit_label(),
+                            onclick: move |_| run_host(&fit, |host| host.fit(), &mut status),
+                            {viewer_control_icon("Fit")}
+                        }
+                    } } }
+                    TooltipContent { "{canvas_context.fit_label()}" }
+                }
+                Collapsible { keep_mounted: true,
+                    Tooltip {
+                        TooltipTrigger { as: move |attributes| rsx! {
+                            CollapsibleTrigger { aria_label: "View controls", class: "size-control-compact justify-center max-[960px]:min-h-11 max-[960px]:min-w-11 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.5]", attributes, {viewer_control_icon("View controls")} }
                         } }
+                        TooltipContent { "View controls" }
                     }
+                    CollapsibleContent { class: "absolute left-0 top-full z-50 mt-2 max-h-[min(60vh,max(0px,calc(100cqh-5rem)))] w-[min(320px,calc(100vw-32px))] overflow-auto rounded-md bg-card p-3 shadow-md data-[open=false]:hidden max-[960px]:[&_[data-slot=button]]:min-h-11 max-[960px]:[&_[data-slot=toggle-group-item]]:min-h-11 max-[960px]:[&_[data-slot=select-trigger]]:min-h-11",
+            div { role: "group", "aria-label": "{canvas_context.camera_label()}",
+                UiButton { variant: UiButtonVariant::Ghost, onclick: move |_| run_host(&top, |host| host.view("top"), &mut status), "Top view" }
+                UiButton { variant: UiButtonVariant::Ghost, onclick: move |_| run_host(&bottom, |host| host.view("bottom"), &mut status), "Bottom view" }
+                UiButton { variant: UiButtonVariant::Ghost, onclick: move |_| run_host(&iso, |host| host.view("isometric"), &mut status), "Isometric view" }
+                UiButton { variant: UiButtonVariant::Ghost, onclick: move |_| run_host(&left, |host| host.orbit(-50.0, 0.0), &mut status), "Rotate left" }
+                UiButton { variant: UiButtonVariant::Ghost, onclick: move |_| run_host(&right, |host| host.orbit(50.0, 0.0), &mut status), "Rotate right" }
+                UiButton { variant: UiButtonVariant::Ghost, onclick: move |_| run_host(&zoom_in, |host| host.zoom(0.85), &mut status), "Zoom in" }
+                UiButton { variant: UiButtonVariant::Ghost, onclick: move |_| run_host(&zoom_out, |host| host.zoom(1.15), &mut status), "Zoom out" }
+            }
+            ToggleGroup {
+                aria_label: canvas_context.display_label(), horizontal: true,
+                pressed: Some([match transient().mode { RenderMode::Shaded => 0, RenderMode::Wireframe => 1, RenderMode::Hybrid => 2 }].into_iter().collect()),
+                on_pressed_change: move |next: std::collections::HashSet<usize>| {
+                    if let Some(index) = next.iter().next() {
+                        transient.with_mut(|view| view.mode = [RenderMode::Shaded, RenderMode::Wireframe, RenderMode::Hybrid][*index]);
+                    }
+                },
+                for (index, mode) in [RenderMode::Shaded, RenderMode::Wireframe, RenderMode::Hybrid].into_iter().enumerate() {
+                    ToggleItem { index, "{mode.renderer_value()}" }
                 }
             }
-            div { role: "group", "aria-label": "{canvas_context.assembly_label()}",
-                for view in [AssemblyView::Assembled, AssemblyView::Exploded, AssemblyView::Section] {
-                    {
-                        let mut transient = transient;
-                        let label = view.renderer_value();
-                        rsx! { button {
-                            "aria-pressed": transient().assembly == view,
-                            onclick: move |_| transient.with_mut(|state| state.assembly = view),
-                            "{label}"
-                        } }
+            ToggleGroup {
+                aria_label: canvas_context.assembly_label(), horizontal: true,
+                pressed: Some([match transient().assembly { AssemblyView::Assembled => 0, AssemblyView::Exploded => 1, AssemblyView::Section => 2 }].into_iter().collect()),
+                on_pressed_change: move |next: std::collections::HashSet<usize>| {
+                    if let Some(index) = next.iter().next() {
+                        transient.with_mut(|view| view.assembly = [AssemblyView::Assembled, AssemblyView::Exploded, AssemblyView::Section][*index]);
                     }
+                },
+                for (index, view) in [AssemblyView::Assembled, AssemblyView::Exploded, AssemblyView::Section].into_iter().enumerate() {
+                    ToggleItem { index, "{view.renderer_value()}" }
                 }
             }
             if transient().assembly == AssemblyView::Exploded {
-                label { "Explode amount"
-                    input {
-                        r#type: "range", min: "0", max: "10", step: "0.1",
-                        value: "{transient().explode_amount}",
-                        oninput: move |event: FormEvent| {
-                            if let Ok(value) = event.value().parse::<f32>() {
-                                transient.with_mut(|state| state.explode_amount = value.clamp(0.0, 10.0));
-                            }
-                        }
-                    }
+                Slider {
+                    label: "Explode amount", min: 0.0, max: 10.0, step: 0.1, class: "min-h-control max-[960px]:min-h-11 [&_[data-slot=slider-track]]:overflow-visible [&_[data-slot=slider-thumb]]:absolute [&_[data-slot=slider-thumb]]:top-1/2 [&_[data-slot=slider-thumb]]:-translate-x-1/2 [&_[data-slot=slider-thumb]]:-translate-y-1/2 [&_[data-slot=slider-thumb]]:scroll-m-1",
+                    value: Some(f64::from(transient().explode_amount)),
+                    on_value_change: move |value: f64| transient.with_mut(|state| state.explode_amount = (value as f32).clamp(0.0, 10.0)),
                 }
             }
             if transient().assembly == AssemblyView::Section {
-                label { "Section plane"
-                    select {
-                        value: "{transient().section_plane}",
-                        onchange: move |event: FormEvent| {
-                            transient.with_mut(|state| state.section_plane = match event.value().as_str() { "XY" => "XY", "XZ" => "XZ", _ => "YZ" });
-                        },
-                        option { value: "XY", "XY" }
-                        option { value: "XZ", "XZ" }
-                        option { value: "YZ", "YZ" }
-                    }
-                }
-                label { "Section position"
-                    input {
-                        r#type: "range", min: "-100", max: "100", step: "1",
-                        value: "{transient().section_position}",
-                        oninput: move |event: FormEvent| {
-                            if let Ok(value) = event.value().parse::<f32>() {
-                                transient.with_mut(|state| state.section_position = value.clamp(-100.0, 100.0));
+                Field {
+                    Label { html_for: format!("viewer-section-plane-{}", dioxus::core::current_scope_id().0), "Section plane" }
+                    Select::<String> {
+                        id: format!("viewer-section-plane-{}", dioxus::core::current_scope_id().0), aria_label: "Section plane",
+                        value: Some(section_plane.into()),
+                        on_value_change: move |value: Option<String>| {
+                            if let Some(value) = value {
+                                transient.with_mut(|state| state.section_plane = match value.as_str() { "XY" => "XY", "XZ" => "XZ", _ => "YZ" });
                             }
+                        },
+                        for (index, plane) in ["XY", "XZ", "YZ"].into_iter().enumerate() {
+                            SelectOption::<String> { index, value: plane.to_owned(), text_value: plane, "{plane}" }
                         }
                     }
                 }
-                label { input {
-                    r#type: "checkbox", checked: transient().show_section_plane,
-                    onchange: move |_| transient.with_mut(|state| state.show_section_plane = !state.show_section_plane),
-                } "Show section plane" }
+                Slider {
+                    label: "Section position", min: -100.0, max: 100.0, step: 1.0, class: "min-h-control max-[960px]:min-h-11 [&_[data-slot=slider-track]]:overflow-visible [&_[data-slot=slider-thumb]]:absolute [&_[data-slot=slider-thumb]]:top-1/2 [&_[data-slot=slider-thumb]]:-translate-x-1/2 [&_[data-slot=slider-thumb]]:-translate-y-1/2 [&_[data-slot=slider-thumb]]:scroll-m-1",
+                    value: Some(f64::from(transient().section_position)),
+                    on_value_change: move |value: f64| transient.with_mut(|state| state.section_position = (value as f32).clamp(-100.0, 100.0)),
+                }
+                Label { html_for: format!("viewer-show-plane-{}", dioxus::core::current_scope_id().0), class: "max-[960px]:min-h-11",
+                    UiCheckbox { id: format!("viewer-show-plane-{}", dioxus::core::current_scope_id().0), aria_label: "Show section plane",
+                        checked: Some(if transient().show_section_plane { CheckboxState::Checked } else { CheckboxState::Unchecked }),
+                        on_checked_change: move |value| transient.with_mut(|state| state.show_section_plane = bool::from(value)),
+                    }
+                    "Show section plane"
+                }
             }
-            label { input {
-                r#type: "checkbox", checked: transient().show_hidden,
-                onchange: move |_| transient.with_mut(|state| state.show_hidden = !state.show_hidden),
-            } "Show hidden lines" }
+            Label { html_for: format!("viewer-show-hidden-{}", dioxus::core::current_scope_id().0), class: "max-[960px]:min-h-11",
+                UiCheckbox { id: format!("viewer-show-hidden-{}", dioxus::core::current_scope_id().0), aria_label: "Show hidden lines",
+                    checked: Some(if transient().show_hidden { CheckboxState::Checked } else { CheckboxState::Unchecked }),
+                    on_checked_change: move |value| transient.with_mut(|state| state.show_hidden = bool::from(value)),
+                }
+                "Show hidden lines"
+            }
                     }
                 }
                 }
             }
             if inline_case_controls && show_assembly_controls && transient().assembly == AssemblyView::Exploded {
-                label { class: "m1-case-view-adjustment", "Explode amount"
-                    input {
-                        r#type: "range", min: "0", max: "10", step: "0.1",
-                        value: "{transient().explode_amount}",
-                        oninput: move |event: FormEvent| {
-                            if let Ok(value) = event.value().parse::<f32>() {
-                                transient.with_mut(|state| state.explode_amount = value.clamp(0.0, 10.0));
-                            }
-                        }
-                    }
+                Slider {
+                    label: "Explode amount", min: 0.0, max: 10.0, step: 0.1, class: "min-h-control max-[960px]:min-h-11 [&_[data-slot=slider-track]]:overflow-visible [&_[data-slot=slider-thumb]]:absolute [&_[data-slot=slider-thumb]]:top-1/2 [&_[data-slot=slider-thumb]]:-translate-x-1/2 [&_[data-slot=slider-thumb]]:-translate-y-1/2 [&_[data-slot=slider-thumb]]:scroll-m-1",
+                    value: Some(f64::from(transient().explode_amount)),
+                    on_value_change: move |value: f64| transient.with_mut(|state| state.explode_amount = (value as f32).clamp(0.0, 10.0)),
                 }
             }
             if inline_case_controls && show_assembly_controls && transient().assembly == AssemblyView::Section {
-                div { class: "m1-case-view-adjustments",
-                    label { "Section plane"
-                        select {
-                            value: "{transient().section_plane}",
-                            onchange: move |event: FormEvent| {
-                                transient.with_mut(|state| state.section_plane = match event.value().as_str() { "XY" => "XY", "XZ" => "XZ", _ => "YZ" });
-                            },
-                            option { value: "XY", "XY" }
-                            option { value: "XZ", "XZ" }
-                            option { value: "YZ", "YZ" }
-                        }
-                    }
-                    label { "Section position"
-                        input {
-                            r#type: "range", min: "-100", max: "100", step: "1",
-                            value: "{transient().section_position}",
-                            oninput: move |event: FormEvent| {
-                                if let Ok(value) = event.value().parse::<f32>() {
-                                    transient.with_mut(|state| state.section_position = value.clamp(-100.0, 100.0));
+                div { class: "flex flex-wrap items-center gap-3 border-b border-border px-2.5 py-1.5",
+                    Field {
+                        Label { html_for: format!("viewer-section-plane-{}", dioxus::core::current_scope_id().0), "Section plane" }
+                        Select::<String> {
+                            id: format!("viewer-section-plane-{}", dioxus::core::current_scope_id().0), aria_label: "Section plane",
+                            value: Some(section_plane.into()),
+                            on_value_change: move |value: Option<String>| {
+                                if let Some(value) = value {
+                                    transient.with_mut(|state| state.section_plane = match value.as_str() { "XY" => "XY", "XZ" => "XZ", _ => "YZ" });
                                 }
+                            },
+                            for (index, plane) in ["XY", "XZ", "YZ"].into_iter().enumerate() {
+                                SelectOption::<String> { index, value: plane.to_owned(), text_value: plane, "{plane}" }
                             }
                         }
                     }
-                    label { input {
-                        r#type: "checkbox", checked: transient().show_section_plane,
-                        onchange: move |_| transient.with_mut(|state| state.show_section_plane = !state.show_section_plane),
-                    } "Show plane" }
+                    Slider {
+                        label: "Section position", min: -100.0, max: 100.0, step: 1.0, class: "min-h-control max-[960px]:min-h-11 [&_[data-slot=slider-track]]:overflow-visible [&_[data-slot=slider-thumb]]:absolute [&_[data-slot=slider-thumb]]:top-1/2 [&_[data-slot=slider-thumb]]:-translate-x-1/2 [&_[data-slot=slider-thumb]]:-translate-y-1/2 [&_[data-slot=slider-thumb]]:scroll-m-1",
+                        value: Some(f64::from(transient().section_position)),
+                        on_value_change: move |value: f64| transient.with_mut(|state| state.section_position = (value as f32).clamp(-100.0, 100.0)),
+                    }
+                    Label { html_for: format!("viewer-show-plane-{}", dioxus::core::current_scope_id().0), class: "max-[960px]:min-h-11",
+                        UiCheckbox { id: format!("viewer-show-plane-{}", dioxus::core::current_scope_id().0), aria_label: "Show plane",
+                            checked: Some(if transient().show_section_plane { CheckboxState::Checked } else { CheckboxState::Unchecked }),
+                            on_checked_change: move |value| transient.with_mut(|state| state.show_section_plane = bool::from(value)),
+                        }
+                        "Show plane"
+                    }
                 }
             }
-            div { class: "m1-case-view-canvas-shell",
+            div { class: "relative flex min-h-[160px] min-w-0 flex-1 [&>canvas]:h-full [&>canvas]:min-h-0 [&>canvas]:min-w-0 [&>canvas]:w-full [&>canvas]:flex-1 [&>canvas]:border-0",
                 if let Some(reference) = selected_reference.as_deref() {
-                    div { class: "m1-case-picked-part-badge", "aria-hidden": "true", "{reference}" }
+                    div { class: "pointer-events-none absolute bottom-14 left-3 z-[2] max-w-[min(70%,320px)] overflow-hidden truncate rounded-sm border border-border bg-card px-[9px] py-[7px] font-mono text-sm leading-[1.45] text-foreground", "aria-hidden": "true", "{reference}" }
                 }
                 canvas {
                     style: "width:100%;height:100%;display:block",
@@ -2920,103 +3199,40 @@ fn SharedViewer(
                     onkeydown: on_key_down,
                     onwheel: on_wheel,
                 }
-                if inline_case_controls {
-                    div { class: "m1-case-camera-controls", role: "group", "aria-label": "Assembly camera",
-                        button { onclick: move |_| run_host(&case_fit, |host| host.fit(), &mut status), "Fit" }
-                        button { onclick: move |_| run_host(&case_top, |host| host.view("top"), &mut status), "Top" }
-                        button { onclick: move |_| run_host(&case_bottom, |host| host.view("bottom"), &mut status), "Bottom" }
-                        button { onclick: move |_| run_host(&case_iso, |host| host.view("isometric"), &mut status), "Isometric" }
-                    }
-                }
-                CaseAssemblyLayers {
-                    assembly: assembly_layers,
-                    components: component_layers,
-                    selectable_layers: selectable_layers.clone(),
-                    selected_layer: selected_layer.clone(),
-                    on_select_layer: move |id| select_assembly_layer(id),
-                    display: display.clone(),
-                    on_display_change: assembly_change_display,
-                }
                 if let Some(message) = gesture_message.as_deref() {
-                    p { class: "m1-case-edit-hint", role: "status", "{message}" }
+                    p { class: "pointer-events-none absolute top-14 left-3 z-[3] m-0 max-w-[calc(100%-24px)] rounded-sm border border-border bg-card px-2 py-1.5 text-foreground", role: "status", "aria-label": "Case edit guidance", "{message}" }
                 }
-                p { class: "m1-case-view-status", role: if status().to_ascii_lowercase().contains("unavailable") || status().contains("failed") { "alert" } else { "status" }, "aria-live": "polite", "{status()}" }
-            }
-            if !inline_case_controls {
-            details {
-                summary { "Case layers and colors" }
-                div { role: "group", "aria-label": "Case layers",
-                for (id, label) in &projection.layers {
-                    {
-                    let id = id.clone();
-                    let label = label.clone();
-                    let ids = preference_ids(&id);
-                    let visible = !ids.iter().all(|entry| display.hidden.contains(entry));
-                    let color = display.color(&id).unwrap_or("#b0b5bd").to_owned();
-                    let has_color = display.has_color(&id);
-                    let toggle_next = display.clone();
-                    let color_next = display.clone();
-                    let reset_next = display.clone();
-                    let toggle_display = change_display.clone();
-                    let select_layer = select_layer.clone();
-                    let set_color = change_display.clone();
-                    let reset_color = change_display.clone();
-                    let select_id = id.clone();
-                    let toggle_id = id.clone();
-                    let color_id = id.clone();
-                    let reset_id = id.clone();
-                    rsx! {
-                        div { class: "m1-viewer-layer", key: "{id}",
-                            button {
-                                "aria-pressed": selected_layer == id,
-                                onclick: move |_| select_layer(select_id.clone()),
-                                "Select {label}"
-                            }
-                            button {
-                                "aria-pressed": visible,
-                                "aria-label": "Toggle visibility for {label}",
-                                onclick: move |_| {
-                                    let mut next_display = toggle_next.clone();
-                                    let aliases = preference_ids(&toggle_id);
-                                    let is_hidden = aliases.iter().all(|entry| next_display.hidden.contains(entry));
-                                    if is_hidden {
-                                        next_display.hidden.retain(|entry| !aliases.contains(entry));
-                                    } else {
-                                        for entry in aliases {
-                                            if !next_display.hidden.contains(&entry) { next_display.hidden.push(entry); }
-                                        }
-                                    }
-                                    toggle_display(next_display.clone());
-                                },
-                                if visible { "Visible" } else { "Hidden" }
-                            }
-                            label { "Color for {label}"
-                                input {
-                                    r#type: "color", value: "{color}",
-                                    oninput: move |event: FormEvent| {
-                                        let mut next_display = color_next.clone();
-                                        next_display.set_color(&color_id, &event.value());
-                                        set_color(next_display.clone());
-                                    }
-                                }
-                            }
-                            button {
-                                disabled: !has_color,
-                                onclick: move |_| {
-                                    let mut next_display = reset_next.clone();
-                                    next_display.set_color(&reset_id, "");
-                                    reset_color(next_display.clone());
-                                },
-                                "Reset color"
-                            }
-                        }
-                    }
-                    }
-                }
+                if !status().is_empty() && !matches!(status().as_str(), "3D preview updated." | "3D preview ready." | "Starting the 3D renderer…" | "A stale 3D scene update was ignored.") {
+                    p { class: "pointer-events-none absolute top-3 left-3 z-[3] m-0 max-w-[min(70%,420px)] rounded-md bg-card px-[7px] py-1 text-sm text-muted-foreground [&[role=alert]]:pointer-events-auto [&[role=alert]]:text-destructive", role: if status().to_ascii_lowercase().contains("unavailable") || status().contains("failed") { "alert" } else { "status" }, "aria-live": "polite", "{status()}" }
                 }
             }
-            }
+            {docked_layers}
+
         }
+    }
+}
+
+fn viewer_control_icon(label: &str) -> Element {
+    let path = match label {
+        "Fit" => "M7 2H2v5M13 2h5v5M2 13v5h5M18 13v5h-5M6 6h8v8H6z",
+        "Top" => "M3 5h14v11H3zM3 5l7-3 7 3M7 8h6",
+        "Bottom" => "M3 4h14v11H3zM3 15l7 3 7-3M7 12h6",
+        "Shaded" => "m10 2 7 4v8l-7 4-7-4V6ZM3 6l7 4 7-4M10 10v8",
+        "Wireframe" => "m10 2 7 4v8l-7 4-7-4V6ZM3 6l7 4 7-4M10 10v8M10 2v8M3 14l7-4 7 4",
+        "Hybrid" => "m10 2 7 4v8l-7 4-7-4V6ZM3 6l7 4 7-4M10 10v8M13 8v8",
+        "Assembled" => "m10 2 7 4v8l-7 4-7-4V6ZM3 6l7 4 7-4M10 10v8M3 10l7 4 7-4",
+        "Exploded" => "m3 5 7-3 7 3-7 3ZM3 10l7 3 7-3M3 15l7 3 7-3",
+        "Section" => "M3 3h14v14H3zM10 1v18M12 5l3 3M12 10l3 3",
+        "Edit gaskets" => "M5 3h10l3 4v6l-3 4H5l-3-4V7ZM6 7h8v6H6z",
+        "Edit mounts" => {
+            "M10 2v4M10 14v4M2 10h4M14 10h4M15 10a5 5 0 1 1-10 0 5 5 0 0 1 10 0ZM12 10a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z"
+        }
+        "View controls" => "M2 5h16M2 10h16M2 15h16M6 3v4M14 8v4M8 13v4",
+        _ => "m10 2 7 4v8l-7 4-7-4V6ZM3 6l7 4 7-4M10 10v8",
+    };
+    rsx! {
+        svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: path } }
+        span { class: "sr-only", "{label}" }
     }
 }
 
@@ -3284,6 +3500,8 @@ mod tests {
                 z: 0.0,
                 height: 1.2,
             }],
+            pcb_source: None,
+            round_drills: vec![],
             board_holes: vec![boardstudio_core::model::Contour {
                 points: vec![
                     Vec2 { x: 0.5, y: 0.5 },
@@ -3395,7 +3613,9 @@ mod tests {
                 flipped: false,
                 controller_part_id: None,
                 mechanical: None,
-                construction_linked: false,
+                construction_ownership:
+                    boardstudio_core::model::MechanicalConstructionOwnership::Local,
+                mechanical_identity_reservation: None,
             }],
             ..Default::default()
         });
@@ -3602,6 +3822,8 @@ mod tests {
                     positions: Rc::from([1.0_f32, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]),
                     normals: Rc::from([1.0_f32, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0]),
                     colors: None,
+                    step_bounds: None,
+                    vendor_step: None,
                 }),
                 matrix: Some(matrix),
             }],
@@ -3633,6 +3855,74 @@ mod tests {
         assert_eq!(packet["bodies"][0]["mesh"]["positions"][0], 13.0);
         assert_eq!(packet["bodies"][0]["mesh"]["positions"][1], 13.0);
         assert_eq!(packet["bodies"][0]["mesh"]["positions"][2], 14.0);
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn vendor_step_sibling_lines_attach_to_pcb_and_module_models_with_single_row_transform() {
+        use super::super::model_delivery::{DeliveredModel, ModelDeliveryRows, ValidatedMesh};
+        use boardstudio_core::model::{BoardReference, Pose2, Vec2};
+        use boardstudio_web_host::cad_jobs::CadVendorStep;
+        use std::collections::BTreeMap;
+
+        let vendor_step = Rc::new(CadVendorStep {
+            line_render_positions: vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+            ..CadVendorStep::default()
+        });
+        let mesh = Rc::new(ValidatedMesh {
+            positions: Rc::from([1.0_f32, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]),
+            normals: Rc::from([0.0_f32, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0]),
+            colors: None,
+            step_bounds: None,
+            vendor_step: Some(vendor_step),
+        });
+        let matrix = [
+            2.0, 0.0, 0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 0.0, 4.0, 0.0, 10.0, 20.0, 30.0, 1.0,
+        ];
+        let rows = ModelDeliveryRows {
+            delivered: vec![
+                DeliveredModel {
+                    id: "pcb-step-row".into(),
+                    mesh: mesh.clone(),
+                    matrix: None,
+                },
+                DeliveredModel {
+                    id: "module-model/placement-a/0".into(),
+                    mesh,
+                    matrix: Some(matrix),
+                },
+            ],
+            pending: Vec::new(),
+            failures: Vec::new(),
+        };
+        let loaded = loaded_model_inputs(Some(&rows));
+        assert_eq!(loaded.length(), 1);
+        let pcb_item = loaded.get(0);
+        let pcb_lines =
+            js_sys::Float32Array::from(Reflect::get(&pcb_item, &"lines".into()).unwrap()).to_vec();
+        assert_eq!(pcb_lines, [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+
+        let projection = imported_layout_projection(
+            BoardReference {
+                id: "routed-board-1".into(),
+                board_id: "board-1".into(),
+                asset_id: "routed-source".into(),
+                enabled: true,
+                pose: Pose2 {
+                    at: Vec2 { x: 0.0, y: 0.0 },
+                    rotation: 0.0,
+                },
+                elevation: 0.0,
+                model_assets: BTreeMap::new(),
+            },
+            Some(rows),
+        );
+        let serialized = js_sys::JSON::stringify(&projection.input)
+            .unwrap()
+            .as_string()
+            .unwrap();
+        let packet: serde_json::Value = serde_json::from_str(&serialized).unwrap();
+        let lines: Vec<f32> = serde_json::from_value(packet["bodies"][0]["lines"].clone()).unwrap();
+        assert_eq!(lines, [12.0, 26.0, 42.0, 18.0, 35.0, 54.0]);
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]
@@ -4142,8 +4432,9 @@ mod tests {
             })
         });
         rsx! {
-            style { {include_str!("../../../assets/m1.css")} }
-            section { class: "m1-case-panel", style: "width:725px;height:560px",
+            style { {include_str!("../../../assets/workbench-base.css")} }
+            style { {include_str!("../../../assets/tailwind.css")} }
+            section { class: "relative flex min-h-0 flex-col overflow-hidden bg-canvas", style: "width:725px;height:560px",
                 SharedViewer {
                     projection,
                     assembly_layers: vec![],
@@ -4211,7 +4502,7 @@ mod tests {
             let mut rendered = false;
             for _ in 0..50 {
                 let hint = root
-                    .query_selector(".m1-case-view-canvas-shell > .m1-case-edit-hint")
+                    .query_selector("[role='status'][aria-label='Case edit guidance']")
                     .unwrap();
                 if hint
                     .as_ref()
@@ -4248,3 +4539,7 @@ mod tests {
         root.remove();
     }
 }
+
+#[cfg(all(test, target_arch = "wasm32"))]
+#[path = "shared_viewer_020_tests.rs"]
+mod rust_ui_020_tests;

@@ -8,10 +8,15 @@
 #![cfg_attr(not(target_arch = "wasm32"), allow(dead_code, unused_imports))]
 
 // Presentation code addresses the runtime as `crate::runtime`, as in the page bin.
-pub(crate) use boardstudio_web_runtime::{case_generation_lifecycle, runtime};
+pub(crate) use boardstudio_web_runtime::case_generation_lifecycle;
+#[cfg(target_arch = "wasm32")]
+pub(crate) use boardstudio_web_runtime::runtime;
 
 pub mod instance_selection;
+pub mod spacing_ghost;
+pub mod split_focus;
 pub mod state;
+pub mod transform_feedback;
 pub mod tree;
 pub mod wiring;
 

@@ -17,7 +17,7 @@ const EDGE_WIDTH: f64 = 0.05;
 const COURTYARD_WIDTH: f64 = 0.05;
 const TEXT_STROKE: f64 = 0.15;
 const TEXT_SIZE: f64 = 1.0;
-const MAX_COORD: f64 = 1_000_000.0;
+const MAX_COORD: f64 = boardstudio_contracts::MAX_COORDINATE_MM;
 
 fn err(code: ArtifactErrorCode, message: impl Into<String>) -> ArtifactError {
     ArtifactError::new(code, message)

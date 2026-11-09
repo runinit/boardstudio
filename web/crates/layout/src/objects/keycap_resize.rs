@@ -1,5 +1,7 @@
 //! Private accepted-document planner for the Layout key-size interaction.
-use boardstudio_core::model::{Layout, Matrix, MatrixCell, MatrixScene, Mirror, ProjectDoc, Vec2};
+use boardstudio_core::model::{
+    KeycapCellOffset, Layout, Matrix, MatrixCell, MatrixScene, Position, ProjectDoc, Vec2,
+};
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -23,6 +25,12 @@ pub struct KeycapPlacement {
 pub struct KeycapResizePlan {
     pub document: ProjectDoc,
     pub target_ids: Vec<String>,
+    /// Ticket 33: the same resize expressed as a typed Core edit payload.
+    pub sizes: BTreeMap<String, Vec2>,
+    /// Absolute poses after the reflow, in sorted part-id order.
+    pub moves: Vec<Position>,
+    /// Cell offsets that changed, in matrix/row/column order.
+    pub offsets: Vec<KeycapCellOffset>,
 }
 
 /// Returns overlapping oriented keycap-envelope pairs in input order.
@@ -154,7 +162,7 @@ pub fn plan_resize(input: KeycapResizeInput<'_>) -> Option<KeycapResizePlan> {
     {
         let owner = layouts
             .iter()
-            .find(|layout| layout.matrix_id == placement.matrix_id);
+            .find(|layout| layout.matrix_ids.contains(&placement.matrix_id));
         let canonical_layout = owner
             .and_then(|owner| {
                 owner
@@ -163,9 +171,10 @@ pub fn plan_resize(input: KeycapResizeInput<'_>) -> Option<KeycapResizePlan> {
                     .and_then(|link| layouts.iter().find(|layout| layout.id == link.source_id))
             })
             .or(owner);
-        let matrix_id = canonical_layout.map_or(placement.matrix_id.as_str(), |layout| {
-            layout.matrix_id.as_str()
-        });
+        let matrix_id = owner
+            .and_then(|owner| owner.mirror_link.as_ref())
+            .and_then(|link| link.partner_matrix(&placement.matrix_id))
+            .unwrap_or(placement.matrix_id.as_str());
         let Some(matrix) = matrix_by_id.get(matrix_id).copied() else {
             continue;
         };
@@ -238,8 +247,12 @@ pub fn plan_resize(input: KeycapResizeInput<'_>) -> Option<KeycapResizePlan> {
                     .as_ref()
                     .is_some_and(|link| link.source_id == canonical_layout.id)
             })
+            && let Some(paired_matrix_id) = paired
+                .mirror_link
+                .as_ref()
+                .and_then(|link| link.partner_matrix(matrix_id))
             && let Some(paired_id) =
-                scene_member(scenes, &paired.matrix_id, placement.row, placement.column)
+                scene_member(scenes, paired_matrix_id, placement.row, placement.column)
             && placements.iter().any(|candidate| candidate.id == paired_id)
         {
             updated_sizes.insert(paired_id.to_owned(), next_size);
@@ -250,7 +263,7 @@ pub fn plan_resize(input: KeycapResizeInput<'_>) -> Option<KeycapResizePlan> {
     }
 
     let resize_values: Vec<_> = resize_by_cell.values().cloned().collect();
-    let deltas = reflow(&resize_values, placements);
+    let mut deltas = reflow(&resize_values, placements);
     let mut updated_matrices = BTreeMap::<String, Matrix>::new();
     for (id, delta) in &deltas {
         let Some(placement) = placement_by_id.get(id.as_str()).copied() else {
@@ -268,7 +281,14 @@ pub fn plan_resize(input: KeycapResizeInput<'_>) -> Option<KeycapResizePlan> {
             .find(|cell| cell.row == placement.row && cell.column == placement.column)
             .and_then(|cell| cell.offset)
             .unwrap_or(Vec2 { x: 0.0, y: 0.0 });
-        let local = local_matrix_delta(matrix, *delta, placement.column as usize);
+        let frame = &scenes
+            .iter()
+            .find(|scene| scene.matrix_id == matrix.id)?
+            .cells
+            .iter()
+            .find(|cell| cell.row == placement.row && cell.column == placement.column)?
+            .offset_frame;
+        let local = frame.inverse_vector(*delta);
         let mut next = matrix.clone();
         set_cell_offset(
             &mut next,
@@ -281,6 +301,28 @@ pub fn plan_resize(input: KeycapResizeInput<'_>) -> Option<KeycapResizePlan> {
         );
         updated_matrices.insert(next.id.clone(), next);
     }
+
+    // Cell assembly IDs identify the companions owned by each moved switch. Carry
+    // the same world-space translation through the immutable document edit, while
+    // the cell offset remains the assembly's shared matrix placement authority.
+    let companion_deltas: Vec<_> = deltas
+        .iter()
+        .filter_map(|(id, delta)| {
+            let placement = placement_by_id.get(id.as_str())?;
+            let matrix = matrix_by_id.get(placement.matrix_id.as_str())?;
+            let cell = matrix
+                .cells
+                .iter()
+                .find(|cell| cell.row == placement.row && cell.column == placement.column)?;
+            Some(
+                cell.assemblies
+                    .iter()
+                    .map(move |assembly| (format!("{id}/{}", assembly.id), *delta)),
+            )
+        })
+        .flatten()
+        .collect();
+    deltas.extend(companion_deltas);
 
     let next_document = ProjectDoc {
         parts: document
@@ -319,9 +361,48 @@ pub fn plan_resize(input: KeycapResizeInput<'_>) -> Option<KeycapResizePlan> {
     targets.extend(updated_sizes.keys().cloned());
     targets.extend(deltas.keys().cloned());
     targets.extend(updated_matrices.keys().cloned());
+    // Ticket 33: expose the same resize as explicit typed-edit payloads so the
+    // controller submits SetKeycapSize instead of a document replacement.
+    let mut moves = Vec::new();
+    for (id, delta) in &deltas {
+        let Some(part) = document.parts.iter().find(|part| &part.id == id) else {
+            continue;
+        };
+        moves.push(Position {
+            id: id.clone(),
+            at: Vec2 {
+                x: part.pose.at.x + delta.x,
+                y: part.pose.at.y + delta.y,
+            },
+        });
+    }
+    let mut offsets = Vec::new();
+    for (matrix_id, updated) in &updated_matrices {
+        let original = matrix_by_id.get(matrix_id.as_str()).copied();
+        for cell in &updated.cells {
+            let before = original.and_then(|matrix| {
+                matrix
+                    .cells
+                    .iter()
+                    .find(|candidate| candidate.row == cell.row && candidate.column == cell.column)
+                    .and_then(|candidate| candidate.offset)
+            });
+            if cell.offset != before {
+                offsets.push(KeycapCellOffset {
+                    matrix_id: (*matrix_id).clone(),
+                    row: cell.row,
+                    column: cell.column,
+                    offset: cell.offset,
+                });
+            }
+        }
+    }
     Some(KeycapResizePlan {
         document: next_document,
         target_ids: targets.into_iter().collect(),
+        sizes: updated_sizes,
+        moves,
+        offsets,
     })
 }
 
@@ -556,6 +637,9 @@ fn set_cell_offset(matrix: &mut Matrix, row: u32, column: u32, offset: Vec2) {
         cell.offset = Some(offset);
     } else {
         matrix.cells.push(MatrixCell {
+            shift: None,
+            bend: None,
+            deleted: false,
             row,
             column,
             enabled: true,
@@ -568,35 +652,12 @@ fn set_cell_offset(matrix: &mut Matrix, row: u32, column: u32, offset: Vec2) {
         });
     }
 }
-fn local_matrix_delta(matrix: &Matrix, delta: Vec2, column: usize) -> Vec2 {
-    let angle = -matrix.rotation.unwrap_or_default().to_radians();
-    let (sin, cos) = angle.sin_cos();
-    let mut x = delta.x * cos - delta.y * sin;
-    let mut y = delta.x * sin + delta.y * cos;
-    match matrix.mirror {
-        Some(Mirror::X) => x = -x,
-        Some(Mirror::Y) => y = -y,
-        _ => {}
-    }
-    let splay = -matrix
-        .column_splays
-        .iter()
-        .take(column + 1)
-        .sum::<f64>()
-        .to_radians();
-    let (sin, cos) = splay.sin_cos();
-    Vec2 {
-        x: x * cos - y * sin,
-        y: x * sin + y * cos,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use boardstudio_core::model::{
         Board, CoreReply, CoreRequest, EditCommand, EditOperation, EditPhase, MatrixCell,
-        MatrixColumnBasis, MatrixSceneCell, Part, Pose2, Side,
+        MatrixColumnBasis, MatrixSceneCell, Mirror, Part, Pose2, Side,
     };
 
     fn point(x: f64, y: f64) -> Vec2 {
@@ -615,6 +676,7 @@ mod tests {
                 rotation: 0.0,
             },
             side: Side::Front,
+            anchor: None,
             locked: None,
             properties: None,
             generator_parameters: None,
@@ -636,14 +698,15 @@ mod tests {
             rotation: None,
             edge_gap: Some(point(1.0, 1.0)),
             diode_direction: None,
-            row_offsets: vec![],
-            column_offsets: vec![],
-            column_staggers: vec![],
-            column_splays: vec![],
-            column_origins: vec![],
+            row_layout: vec![],
+            column_layout: vec![],
+            anchor: None,
             cells: vec![0, 1, 2]
                 .into_iter()
                 .map(|column| MatrixCell {
+                    shift: None,
+                    bend: None,
+                    deleted: false,
                     row: 0,
                     column,
                     enabled: true,
@@ -681,6 +744,14 @@ mod tests {
             matrix_id: "m".into(),
             cells: (0..3)
                 .map(|column| MatrixSceneCell {
+                    shift_frame: Default::default(),
+                    offset_frame: Default::default(),
+                    row_shift: Default::default(),
+                    key_shift: Default::default(),
+                    row_bend: 0.0,
+                    key_bend: 0.0,
+                    cumulative_shift: Default::default(),
+                    cumulative_bend: 0.0,
                     row: 0,
                     column,
                     enabled: true,
@@ -693,14 +764,20 @@ mod tests {
                 .collect(),
             columns: (0..3)
                 .map(|column| MatrixColumnBasis {
+                    base: Default::default(),
+                    rotation: 0.0,
+                    relative_origin: Default::default(),
+                    spread_axis: None,
                     column,
                     splay_origin: point(0.0, 0.0),
                     splay_angle: 0.0,
                     custom_origin: false,
                     axis_x: point(1.0, 0.0),
                     axis_y: point(0.0, 1.0),
+                    stagger_axis: point(0.0, 1.0),
                 })
                 .collect(),
+            companions: vec![],
         }
     }
 
@@ -818,6 +895,74 @@ mod tests {
         assert_eq!(plan.target_ids, vec!["a", "b", "c", "m"]);
     }
 
+    /// Ticket 33: the planner exposes the same resize as typed-edit payloads,
+    /// so the controller submits SetKeycapSize instead of ReplaceDocument.
+    #[test]
+    fn resize_plan_exposes_typed_keycap_size_sizes_moves_and_offsets() {
+        let matrix = matrix();
+        let document = document(&matrix);
+        let matrix_scene = scene();
+        let placements = placements();
+        let selected_ids = BTreeSet::from(["b".into()]);
+        let plan = plan_resize(KeycapResizeInput {
+            document: &document,
+            matrices: &[matrix],
+            scenes: &[matrix_scene],
+            layouts: &[],
+            placements: &placements,
+            selected_ids: &selected_ids,
+            units: point(2.0, 1.0),
+            axis: None,
+        })
+        .expect("supported accepted selection should make one plan");
+
+        assert_eq!(
+            plan.sizes,
+            BTreeMap::from([("b".to_owned(), point(37.0, 18.0))])
+        );
+        // Absolute poses match the planned document exactly, in sorted id order.
+        let expected_moves: Vec<(String, Vec2)> = plan
+            .document
+            .parts
+            .iter()
+            .filter(|part| {
+                document
+                    .parts
+                    .iter()
+                    .find(|before| before.id == part.id)
+                    .is_some_and(|before| before.pose.at != part.pose.at)
+            })
+            .map(|part| (part.id.clone(), part.pose.at))
+            .collect();
+        assert_eq!(
+            plan.moves
+                .iter()
+                .map(|position| (position.id.clone(), position.at))
+                .collect::<Vec<_>>(),
+            expected_moves
+        );
+        // Every changed cell offset matches the planned matrix exactly.
+        let planned: Vec<_> = plan
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "m")
+            .unwrap()
+            .cells
+            .iter()
+            .filter(|cell| cell.offset.is_some())
+            .map(|cell| (cell.row, cell.column, cell.offset.unwrap()))
+            .collect();
+        assert_eq!(
+            plan.offsets
+                .iter()
+                .map(|offset| (offset.row, offset.column, offset.offset.unwrap()))
+                .collect::<Vec<_>>(),
+            planned
+        );
+        assert!(plan.offsets.iter().all(|offset| offset.matrix_id == "m"));
+    }
+
     #[test]
     fn axis_resize_preserves_other_axis_for_each_mixed_selected_key() {
         let matrix = matrix();
@@ -883,6 +1028,9 @@ mod tests {
         matrix.part_ids = vec!["a".into(), "b".into(), "c".into()];
         matrix.cells = (0..3)
             .map(|row| MatrixCell {
+                shift: None,
+                bend: None,
+                deleted: false,
                 row,
                 column: 0,
                 enabled: true,
@@ -903,6 +1051,14 @@ mod tests {
             matrix_id: "m".into(),
             cells: (0..3)
                 .map(|row| MatrixSceneCell {
+                    shift_frame: Default::default(),
+                    offset_frame: Default::default(),
+                    row_shift: Default::default(),
+                    key_shift: Default::default(),
+                    row_bend: 0.0,
+                    key_bend: 0.0,
+                    cumulative_shift: Default::default(),
+                    cumulative_bend: 0.0,
                     row,
                     column: 0,
                     enabled: true,
@@ -914,13 +1070,19 @@ mod tests {
                 })
                 .collect(),
             columns: vec![MatrixColumnBasis {
+                base: Default::default(),
+                rotation: 0.0,
+                relative_origin: Default::default(),
+                spread_axis: None,
                 column: 0,
                 splay_origin: point(0.0, 0.0),
                 splay_angle: 0.0,
                 custom_origin: false,
                 axis_x: point(1.0, 0.0),
                 axis_y: point(0.0, 1.0),
+                stagger_axis: point(0.0, 1.0),
             }],
+            companions: vec![],
         };
         let placements: Vec<_> = ["a", "b", "c"]
             .into_iter()
@@ -952,6 +1114,295 @@ mod tests {
         assert!((plan.document.parts[2].pose.at.y - 47.5).abs() < 1e-8);
     }
 
+    #[test]
+    fn tall_resize_moves_neighbor_assembly_parts_with_their_switch() {
+        let mut matrix = matrix();
+        matrix.rows = 3;
+        matrix.columns = 1;
+        matrix.part_ids = vec!["a".into(), "b".into(), "c".into()];
+        matrix.cells = (0..3)
+            .map(|row| MatrixCell {
+                shift: None,
+                bend: None,
+                deleted: false,
+                row,
+                column: 0,
+                enabled: true,
+                definition_id: None,
+                variant: None,
+                offset: None,
+                rotation: None,
+                assemblies: vec![],
+                assemblies_local: None,
+            })
+            .collect();
+        for cell in &mut matrix.cells {
+            cell.assemblies = ["diode", "led"]
+                .into_iter()
+                .map(|id| boardstudio_core::model::MatrixAssembly {
+                    id: id.into(),
+                    definition_id: "switch".into(),
+                    offset: point(3.0, 4.0),
+                    rotation: None,
+                    side: None,
+                })
+                .collect();
+        }
+        let mut document = document(&matrix);
+        for (index, part) in document.parts.iter_mut().enumerate() {
+            part.pose.at = point(0.0, index as f64 * 19.0);
+        }
+        for (index, id) in ["a", "b", "c"].into_iter().enumerate() {
+            for suffix in ["diode", "led"] {
+                let mut companion = part(&format!("{id}/{suffix}"), 3.0);
+                companion.pose.at.y = index as f64 * 19.0 + 4.0;
+                companion.keycap = None;
+                document.parts.push(companion);
+            }
+        }
+        document.boards[0].part_ids = document.parts.iter().map(|part| part.id.clone()).collect();
+        let scene = MatrixScene {
+            matrix_id: "m".into(),
+            cells: (0..3)
+                .map(|row| MatrixSceneCell {
+                    shift_frame: Default::default(),
+                    offset_frame: Default::default(),
+                    row_shift: Default::default(),
+                    key_shift: Default::default(),
+                    row_bend: 0.0,
+                    key_bend: 0.0,
+                    cumulative_shift: Default::default(),
+                    cumulative_bend: 0.0,
+                    row,
+                    column: 0,
+                    enabled: true,
+                    member_id: Some(["a", "b", "c"][row as usize].into()),
+                    pose: Pose2 {
+                        at: point(0.0, row as f64 * 19.0),
+                        rotation: 0.0,
+                    },
+                })
+                .collect(),
+            columns: vec![MatrixColumnBasis {
+                base: Default::default(),
+                rotation: 0.0,
+                relative_origin: Default::default(),
+                spread_axis: None,
+                column: 0,
+                splay_origin: point(0.0, 0.0),
+                splay_angle: 0.0,
+                custom_origin: false,
+                axis_x: point(1.0, 0.0),
+                axis_y: point(0.0, 1.0),
+                stagger_axis: point(0.0, 1.0),
+            }],
+            companions: vec![],
+        };
+        let placements: Vec<_> = ["a", "b", "c"]
+            .into_iter()
+            .enumerate()
+            .map(|(row, id)| KeycapPlacement {
+                id: id.into(),
+                matrix_id: "m".into(),
+                row: row as u32,
+                column: 0,
+                at: point(0.0, row as f64 * 19.0),
+                rotation: 0.0,
+                size: point(18.0, 18.0),
+            })
+            .collect();
+        let selected_ids = BTreeSet::from(["b".into()]);
+        let plan = plan_resize(KeycapResizeInput {
+            document: &document,
+            matrices: &[matrix],
+            scenes: &[scene],
+            layouts: &[],
+            placements: &placements,
+            selected_ids: &selected_ids,
+            units: point(1.0, 2.0),
+            axis: None,
+        })
+        .unwrap();
+        for id in ["a", "b", "c"] {
+            let host = plan
+                .document
+                .parts
+                .iter()
+                .find(|part| part.id == id)
+                .unwrap();
+            for suffix in ["diode", "led"] {
+                let companion = plan
+                    .document
+                    .parts
+                    .iter()
+                    .find(|part| part.id == format!("{id}/{suffix}"))
+                    .unwrap();
+                assert!((companion.pose.at.x - host.pose.at.x - 3.0).abs() < 1e-8);
+                assert!(
+                    (companion.pose.at.y - host.pose.at.y - 4.0).abs() < 1e-8,
+                    "{id}/{suffix} must follow its switch during key-size reflow"
+                );
+            }
+        }
+        assert_eq!(plan.document.parts[1].keycap, Some(point(18.0, 37.0)));
+        assert!((plan.document.parts[0].pose.at.y + 9.5).abs() < 1e-8);
+        assert!((plan.document.parts[2].pose.at.y - 47.5).abs() < 1e-8);
+    }
+
+    #[test]
+    fn accepted_rotated_and_mirrored_resize_preserves_assemblies_through_history() {
+        let unpack = |reply| match reply {
+            CoreReply::Scene {
+                document, scene, ..
+            } => (*document, scene),
+            other => panic!("Core edit did not settle: {other:?}"),
+        };
+        for mirror in [None, Some(Mirror::X)] {
+            let mut engine = boardstudio_core::CoreEngine::new();
+            let mut initial = ProjectDoc::empty("project", "Assembly resize");
+            initial.boards = document(&matrix()).boards;
+            initial.boards[0].part_ids.clear();
+            initial.definitions.push(serde_json::from_value(serde_json::json!({
+                "id": "switch", "name": "Switch", "kind": "switch",
+                "courtyard": [{"x": -3.0, "y": -3.0}, {"x": 3.0, "y": -3.0}, {"x": 3.0, "y": 3.0}],
+                "pads": []
+            })).unwrap());
+            unpack(engine.handle(CoreRequest::Open {
+                id: "open".into(),
+                document: initial,
+            }));
+            let mut matrix = matrix();
+            matrix.rows = 3;
+            matrix.columns = 1;
+            matrix.rotation = Some(23.0);
+            matrix.mirror = mirror;
+            matrix.part_ids.clear();
+            matrix.cells = (0..3)
+                .map(|row| MatrixCell {
+                    shift: None,
+                    bend: None,
+                    deleted: false,
+                    row,
+                    column: 0,
+                    enabled: true,
+                    definition_id: None,
+                    variant: None,
+                    offset: None,
+                    rotation: None,
+                    assemblies_local: None,
+                    assemblies: ["diode", "led"]
+                        .into_iter()
+                        .map(|id| boardstudio_core::model::MatrixAssembly {
+                            id: id.into(),
+                            definition_id: "switch".into(),
+                            offset: point(3.0, 4.0),
+                            rotation: Some(17.0),
+                            side: Some(Side::Back),
+                        })
+                        .collect(),
+                })
+                .collect();
+            let (accepted, scene) = unpack(engine.handle(CoreRequest::Edit {
+                id: "create-matrix".into(),
+                command: EditCommand {
+                    base_revision: 0,
+                    transaction_id: "create".into(),
+                    phase: EditPhase::Commit,
+                    target_ids: vec![matrix.id.clone()],
+                    operation: EditOperation::SetMatrix {
+                        matrix,
+                        definitions: None,
+                    },
+                },
+            }));
+            let placements: Vec<_> = scene.matrix_scenes[0]
+                .cells
+                .iter()
+                .map(|cell| KeycapPlacement {
+                    id: cell.member_id.clone().unwrap(),
+                    matrix_id: "m".into(),
+                    row: cell.row,
+                    column: cell.column,
+                    at: cell.pose.at,
+                    rotation: cell.pose.rotation,
+                    size: point(18.0, 18.0),
+                })
+                .collect();
+            let selected = BTreeSet::from([placements[1].id.clone()]);
+            let plan = plan_resize(KeycapResizeInput {
+                document: &accepted,
+                matrices: &accepted.matrices,
+                scenes: &scene.matrix_scenes,
+                layouts: &accepted.layouts,
+                placements: &placements,
+                selected_ids: &selected,
+                units: point(1.0, 2.0),
+                axis: Some(ResizeAxis::Y),
+            })
+            .unwrap();
+            let (saved, saved_scene) = unpack(engine.handle(CoreRequest::Edit {
+                id: "resize".into(),
+                command: EditCommand {
+                    base_revision: accepted.revision,
+                    transaction_id: "resize".into(),
+                    phase: EditPhase::Commit,
+                    // Ticket 33: the planner output commits as the typed edit.
+                    target_ids: plan.target_ids.clone(),
+                    operation: EditOperation::SetKeycapSize {
+                        sizes: plan.sizes.clone(),
+                        moves: plan.moves.clone(),
+                        offsets: plan.offsets.clone(),
+                    },
+                },
+            }));
+            for placement in &placements {
+                let original_host = accepted
+                    .parts
+                    .iter()
+                    .find(|part| part.id == placement.id)
+                    .unwrap();
+                let host = saved
+                    .parts
+                    .iter()
+                    .find(|part| part.id == placement.id)
+                    .unwrap();
+                let projected = saved_scene.matrix_scenes[0]
+                    .cells
+                    .iter()
+                    .find(|cell| cell.row == placement.row)
+                    .unwrap();
+                assert!((projected.pose.at.x - host.pose.at.x).abs() < 1e-8);
+                assert!((projected.pose.at.y - host.pose.at.y).abs() < 1e-8);
+                for suffix in ["diode", "led"] {
+                    let id = format!("{}/{suffix}", placement.id);
+                    let before = accepted.parts.iter().find(|part| part.id == id).unwrap();
+                    let after = saved.parts.iter().find(|part| part.id == id).unwrap();
+                    assert!(
+                        (after.pose.at.x - host.pose.at.x - before.pose.at.x
+                            + original_host.pose.at.x)
+                            .abs()
+                            < 1e-8
+                    );
+                    assert!(
+                        (after.pose.at.y - host.pose.at.y - before.pose.at.y
+                            + original_host.pose.at.y)
+                            .abs()
+                            < 1e-8,
+                        "{id} must retain its assembly offset in the accepted document"
+                    );
+                    assert_eq!(after.pose.rotation, before.pose.rotation);
+                    assert_eq!(after.side, before.side);
+                }
+            }
+            let (undone, _) = unpack(engine.handle(CoreRequest::Undo { id: "undo".into() }));
+            assert_eq!(undone.parts, accepted.parts);
+            assert_eq!(undone.matrices, accepted.matrices);
+            let (redone, _) = unpack(engine.handle(CoreRequest::Redo { id: "redo".into() }));
+            assert_eq!(redone.parts, saved.parts);
+            assert_eq!(redone.matrices, saved.matrices);
+        }
+    }
+
     /// End-to-end Core seam for linked key resize. Set `KEYCAPS_MIRROR_PROJECT_JSON` to the
     /// extracted `project.json` from the pinned Sofle archive to run this opt-in fixture test.
     #[test]
@@ -971,12 +1422,16 @@ mod tests {
             .iter()
             .position(|layout| layout.id == "right-keys-layout")
             .unwrap();
-        let right_matrix_id = document.layouts[right_index].matrix_id.clone();
+        let right_matrix_id = document.layouts[right_index].matrix_ids[0].clone();
         document.layouts[right_index].board_id = left.board_id.clone();
         document.layouts[right_index].mirror_link =
             Some(boardstudio_core::model::LayoutMirrorLink {
+                correspondences: vec![],
+                exceptions: vec![],
                 source_id: left.id.clone(),
                 axis_x: 0.0,
+                split_gap: None,
+                spacing: None,
             });
         let right_matrix_index = document
             .matrices
@@ -1024,7 +1479,7 @@ mod tests {
             .iter()
             .find(|layout| layout.id == "left-keys-layout")
             .unwrap()
-            .matrix_id
+            .matrix_ids[0]
             .clone();
         let source_matrix = accepted
             .matrices
@@ -1099,11 +1554,14 @@ mod tests {
         .expect("linked source selection should make a plan");
         let command = EditCommand {
             base_revision: accepted.revision,
-            transaction_id: "keycaps-replace-document-mirror".into(),
+            transaction_id: "keycaps-typed-mirror".into(),
             phase: EditPhase::Commit,
             target_ids: plan.target_ids.clone(),
-            operation: EditOperation::ReplaceDocument {
-                document: Box::new(plan.document.clone()),
+            // Ticket 33: the linked planner output commits as the typed edit.
+            operation: EditOperation::SetKeycapSize {
+                sizes: plan.sizes.clone(),
+                moves: plan.moves.clone(),
+                offsets: plan.offsets.clone(),
             },
         };
         let committed = engine.handle(CoreRequest::Edit {
@@ -1114,7 +1572,7 @@ mod tests {
             CoreReply::Scene {
                 document, scene, ..
             } => (*document, scene),
-            other => panic!("ReplaceDocument resize was rejected: {other:?}"),
+            other => panic!("typed keycap-size resize was rejected: {other:?}"),
         };
         assert_eq!(saved.revision, accepted.revision + 1);
         let partner_layout = saved
@@ -1125,12 +1583,12 @@ mod tests {
         let original_partner_scene = scene
             .matrix_scenes
             .iter()
-            .find(|scene| scene.matrix_id == partner_layout.matrix_id)
+            .find(|scene| partner_layout.matrix_ids.contains(&scene.matrix_id))
             .unwrap();
         let partner_scene = saved_scene
             .matrix_scenes
             .iter()
-            .find(|scene| scene.matrix_id == partner_layout.matrix_id)
+            .find(|scene| partner_layout.matrix_ids.contains(&scene.matrix_id))
             .unwrap();
         let partner_id = partner_scene
             .cells

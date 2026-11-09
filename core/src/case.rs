@@ -6,6 +6,10 @@ use crate::model::{
     CaseAssemblyIR, CaseIR, CaseKind, Contour, PreparedCaseAssemblyIR, PreparedCaseIR,
     PreparedCaseRegion, PreparedGasketRegion, Vec2,
 };
+use boardstudio_contracts::polygon_contains;
+use boardstudio_contracts::{
+    support_polygon_has_self_intersection, support_polygon_outside_area_below_owner_cutoff,
+};
 use i_overlay::i_float::int::{angle::Angle, point::IntPoint};
 use i_overlay::mesh::{
     int::{
@@ -72,20 +76,19 @@ fn prepare_body(ir: &CaseIR) -> Result<PreparedCaseIR, String> {
 
     for feature in ir.body.features.iter().flatten() {
         if let crate::model::CaseFeature::SupportPrism { id, points, .. } = feature {
-            use i_overlay::{
-                core::{fill_rule::FillRule, overlay_rule::OverlayRule},
-                float::single::SingleFloatOverlay,
-            };
             let footprint: Vec<[f64; 2]> = points.iter().map(|p| [p.x, p.y]).collect();
-            let owners = regions
-                .iter()
-                .filter(|(outer, _)| {
+            let owners = regions.iter().enumerate().try_fold(
+                0,
+                |owners, (region_index, (outer, _))| -> Result<usize, String> {
                     let boundary: Vec<[f64; 2]> = outer.iter().map(|p| [p.x, p.y]).collect();
-                    footprint
-                        .overlay(&boundary, OverlayRule::Difference, FillRule::EvenOdd)
-                        .is_empty()
-                })
-                .count();
+                    let inside = support_polygon_outside_area_below_owner_cutoff(&footprint, &boundary)
+                        .map_err(|error| format!(
+                            "Case body '{}' support feature '{id}' region {region_index} has invalid owner geometry: {error}",
+                            ir.body.id
+                        ))?;
+                    Ok(owners + usize::from(inside))
+                },
+            )?;
             if owners != 1 {
                 return Err(format!(
                     "Support feature '{id}' must remain inside one case exterior"
@@ -109,7 +112,9 @@ fn prepare_body(ir: &CaseIR) -> Result<PreparedCaseIR, String> {
                     let holes = groove_inner
                         .iter()
                         .filter(|inner| {
-                            inner.first().is_some_and(|point| contains(&groove, *point))
+                            inner
+                                .first()
+                                .is_some_and(|point| polygon_contains(&groove, *point))
                         })
                         .cloned()
                         .collect();
@@ -127,7 +132,7 @@ fn prepare_body(ir: &CaseIR) -> Result<PreparedCaseIR, String> {
             .as_deref()
             .unwrap_or_default()
             .iter()
-            .filter(|mount| contains(&outer, mount.at))
+            .filter(|mount| polygon_contains(&outer, mount.at))
             .cloned()
             .collect::<Vec<_>>();
         prepared.push(PreparedCaseRegion {
@@ -214,7 +219,7 @@ fn group_unoffset_contours(contours: Vec<(Vec<Vec2>, bool)>) -> Vec<(Vec<Vec2>, 
         let parent = regions
             .iter()
             .enumerate()
-            .filter(|(_, (outer, _))| contains(outer, point))
+            .filter(|(_, (outer, _))| polygon_contains(outer, point))
             .min_by(|(_, (a, _)), (_, (b, _))| area_float(a).total_cmp(&area_float(b)))
             .map(|(index, _)| index);
         if let Some(index) = parent {
@@ -320,6 +325,17 @@ fn validate_body(ir: &CaseIR) -> Result<(), String> {
             return Err(format!(
                 "Case body '{id}' feature '{feature_id}' requires a unique ID and finite positive geometry"
             ));
+        }
+        if let CaseFeature::SupportPrism { points, .. } = feature {
+            let coordinates = points
+                .iter()
+                .map(|point| [point.x, point.y])
+                .collect::<Vec<_>>();
+            if support_polygon_has_self_intersection(&coordinates) {
+                return Err(format!(
+                    "Case body '{id}' support feature '{feature_id}' polygon must not self-intersect or self-touch"
+                ));
+            }
         }
     }
     for opening in body.openings.as_deref().unwrap_or_default() {
@@ -511,6 +527,7 @@ fn from_path(path: &[IntPoint<i64>]) -> Vec<Vec2> {
         .collect()
 }
 
+// Exact integer shoelace about the first point: the winding decision must not round.
 fn signed_area_i128(path: &[IntPoint<i64>]) -> i128 {
     let Some(origin) = path.first() else { return 0 };
     let (ox, oy) = (origin.x as i128, origin.y as i128);
@@ -523,6 +540,7 @@ fn signed_area_i128(path: &[IntPoint<i64>]) -> i128 {
     area
 }
 
+// Origin-translated so large offsets do not cancel; the shared area sums raw coordinates.
 fn signed_area_float(path: &[Vec2]) -> f64 {
     let Some(origin) = path.first() else {
         return 0.0;
@@ -547,24 +565,14 @@ fn area_float(path: &[Vec2]) -> f64 {
     signed_area_float(path).abs()
 }
 
-fn contains(path: &[Vec2], point: Vec2) -> bool {
-    let mut inside = false;
-    for index in 0..path.len() {
-        let a = path[index];
-        let b = path[(index + path.len() - 1) % path.len()];
-        if (a.y > point.y) != (b.y > point.y)
-            && point.x < (b.x - a.x) * (point.y - a.y) / (b.y - a.y) + a.x
-        {
-            inside = !inside;
-        }
-    }
-    inside
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::model::{CaseBody, Gasket, Mount, MountKind};
+
+    fn area(points: &[Vec2]) -> f64 {
+        crate::model::polygon_signed_area(points).abs()
+    }
 
     fn rectangle(x: f64, y: f64, width: f64, height: f64, hole: bool) -> Contour {
         Contour {
@@ -598,6 +606,7 @@ mod tests {
                 wall_height: Some(10.0),
                 wall_thickness: Some(2.0),
                 mounts: None,
+                pcb_source: None,
                 gasket: None,
             },
             contours,
@@ -894,18 +903,5 @@ mod tests {
                 .unwrap_err()
                 .contains("derived offset exceeds")
         );
-    }
-
-    fn area(points: &[Vec2]) -> f64 {
-        points
-            .iter()
-            .enumerate()
-            .map(|(index, point)| {
-                let next = points[(index + 1) % points.len()];
-                point.x * next.y - next.x * point.y
-            })
-            .sum::<f64>()
-            .abs()
-            / 2.0
     }
 }
