@@ -1131,3 +1131,338 @@ The human review remains in progress; batch closure and correction disposition
 have not been stated in this message. No new correction, rebuilt candidate or
 acceptance is claimed by this report. R1's stale mechanical footer and earlier
 unresolved observations remain open. **011 stays ready-for-human; 001 stays open.**
+
+### Agent investigation — second batch D10–D16 (2026-11-09, investigation only)
+
+Research sub-agent run. **No production, test, build or candidate change; nothing
+here is acceptance.** HEAD `9d642fa`; the candidate
+(`web/target/site-011-candidate`, built from `2694b189`, server PID 1511513) was
+used unchanged and left running. All browser work used one isolated
+agent-browser session (`r2inv-011-opus`, headless Chromium 155, 1440×900 unless
+stated, dark scheme → `data-appearance=dark`, `data-theme=original`) and
+disposable projects created there; the session was closed afterwards. The
+user's browser and storage were not touched. Counterfactuals were injected CSS
+in that session only, removed after measurement and re-measured restored.
+Source facts come from the exact Gortex worktree view at `9d642fa`.
+
+Provenance key: **N** = newly executed in this run; **A** = user attachment
+(`_4`, `_6`, `_c`, `_f`, `_i`, `_k`, `_15`, `image_eae1dd72`); no earlier logs
+were reused as evidence. Logs: `.evidence/011-round2-investigation/`. Images:
+`web/target/test-results/011-round2-investigation/`. The temporary probe
+helpers (`d11-seq.js`, `d11-arm-fn.js`, `geom.js`) are in `~/.cache/tmp/011r2/`.
+The shadcn theme was not exercised. D12–D16 are layout-structure causes and do
+not depend on colour, but D14's contrast was measured only for Original/dark.
+The user's client, viewport and CPU remain unconfirmed. From the attachment
+scale, `_k` is consistent with a panel about 670 px wide (reproduced at
+`vw=1322` with the tree and Inspector open).
+
+| ID | Reproduced (N) | Cause | Smallest proposed correction (not implemented) |
+| --- | --- | --- | --- |
+| D11 | Yes | **Ordering proven:** the visible pressed state and Assembly preview publish only after the durable IndexedDB write. The cold +≈140 ms main-thread task is **not attributed**. | Paint pending feedback from the submitted intent; durability semantics are a decision |
+| D12 | Yes | **Proven:** setup overlay `section` is flush (`absolute inset-y-0 left-0`, no radius) | Inset the overlay by the 8 px gutter, add `rounded-xl` and a border |
+| D13 | Yes | **Proven:** shared `Slider` thumb is static inside the `overflow-hidden` track, so it is clipped and not hit-testable | Absolutely centre the thumb and make the track overflow visible, at the call site or in the shared Slider (decision) |
+| D14 | Yes | **Proven:** `bg-card` panel lanes around an inset `bg-canvas` svg | Paint the Layout panel with the canvas colour, keeping lane geometry |
+| D15 | Yes | **Proven:** the ghost paints one grid and receives no topology | Reuse `project_mirrored_pair` for Split, using topology from the accepted snapshot |
+| D16 | Yes | **Proven:** the context-strip grid collapses and an empty `.layout-action-slot` row stays reserved | Order or collapse the rows so Align/Transform sit directly under the scope strip |
+| D10/005 | Yes | **Proven:** every scope click opens the `{Scope} actions` dialog, which duplicates the inline action toolbar | **Grill 005 first**; boundaries below |
+
+#### D11 — Split keyboard delay (N)
+
+- **Loop.** New project → Setup guide → trusted CDP click (`isTrusted:true`) on
+  `[aria-label="Keyboard configuration"] > button:nth-of-type(2)`. A
+  MutationObserver plus a `longtask` PerformanceObserver and wrapped
+  `IDBDatabase.transaction` recorded times from `pointerdown`. Run it with:
+  `agent-browser eval "($(cat ~/.cache/tmp/011r2/d11-seq.js))('Split keyboard')"`,
+  then `agent-browser find role button click --name "Split keyboard"`, then read
+  `window.__seq`.
+- **Warm (alternating One/Split, at least 16 clicks):**
+  - Buttons become `disabled` at 6.5–7.9 ms. This is the only immediate
+    feedback; the pressed state does not change yet.
+  - The `projects,assets` readwrite transaction opens at about 19–25 ms and
+    commits at 20–39 ms.
+  - `aria-pressed`, `data-state=on`, the preview text and the second schematic
+    `rect` land in one mutation at 33–56 ms (one 113 ms outlier). No long tasks.
+  - Logs: `d11-warm-toggle.log`, `d11-sequence-warm.log`,
+    `d11-usertiming-counterfactual.log`.
+- **Cold:**
+  - First Split in a fresh project: DOM at 103 ms, then a 168 ms long task, with
+    the first frame after it at about 245 ms. Repeated under the eager-wasm flag:
+    DOM at 75 ms, 150 ms long task.
+  - First Split after reload, 2 sessions × 3 runs: the DOM lands at 67–97 ms,
+    inside a 133–157 ms long task that starts at the IndexedDB commit. The first
+    frame after the mutation comes at 190–235 ms.
+  - Logs: `d11-cold.log`, `d11-sequence-cold.log`,
+    `d11-eager-wasm-counterfactual.log`.
+  - **The trigger is not pinned.** Six later reload → first-Split runs had no
+    long task, while the first Reversible-on edit in each reloaded
+    page had one of 136–143 ms in 4 of 4 runs (`d11-observer-discriminator.log`,
+    `d11-first-edit-discriminator.log`).
+- **Proven ordering (one-variable probe, `d11-idb-hold-probe.log`).** Holding a
+  competing `projects` readwrite transaction for about 590 ms (gets only, no
+  writes) delayed pressed state + preview to 606–608 ms, about 17 ms after the
+  app's commit. Without the hold it was 41 ms. Visible latency therefore tracks
+  storage latency one to one.
+- **Matching source.** In `web/crates/pcb/src/pcb_physical_setup/controller.rs`,
+  `use_controller` sets only `busy` on click (line 236). `project_setup_controls`
+  derives `ToggleGroup.pressed` from the accepted `projection.topology` (around
+  lines 331–337). Settlement is polled with `TimeoutFuture::new(16)` (line 306),
+  which matches the 13–20 ms post-commit lag.
+- **Hypothesis, not isolated:** the runtime's `PendingEdits`/persistence path
+  publishes the accepted snapshot only after durability (`DocumentPersistence`,
+  `web/crates/runtime/src/runtime.rs:251-258`).
+- **Falsified (N):**
+  1. dioxus `performance.mark`/`measure`. They were 60 % of profiled main-thread
+     samples (`d11-cold-profile-summary.log`), but stubbing them left the long
+     task at 133–140 ms against 139–142 ms, so the profile share was a profiler
+     artifact.
+  2. V8 lazy wasm compilation. With `--js-flags=--no-wasm-lazy-compilation`
+     (verified on `chrome://version`) the long task stayed at 139–150 ms.
+  3. A persisted derived cache. The `assets` store has 0 rows
+     (`d11-idb-stores.log`).
+- **Caveats.** These absolute numbers come from this fast headless host. No
+  latency threshold and no backend-versus-UI split is claimed.
+- **Smallest correction (needs a decision).** While `busy`, paint the requested
+  topology's pressed state and schematic preview from the submitted intent,
+  reverting on Retire. The accepted, history and durability semantics stay
+  unchanged. The alternative, publishing accepted state before durability, is
+  architectural and needs an ADR check.
+- **Regression oracle.** Packaged probe with the IndexedDB hold: visible Split
+  feedback must appear within about one frame of `pointerdown` while a 600 ms
+  hold is active. This is red today at 606 ms. A retired edit must restore One.
+- **Next experiment for the cold task.** Capture a symbolized wasm profile
+  (name section kept; the build is coordinator-owned) of the two repeatable
+  triggers: new project → first Split (2 of 2) and reload → first Reversible-on
+  (4 of 4).
+
+#### D12 — Setup guide flush rectangle (N)
+
+- **Bounds at 1440×900** (`d12-geometry-1440x900.log`,
+  `d12-guide-dark-1440.png`):
+  - The header pill ends at bottom=64. The `aside[aria-label="Project setup guide"]`
+    and its parent `section[aria-label="Keyboard setup"]` start at x=0, y=64,
+    radius 0, margin 0, with bottom=860, which is the shell-footer top.
+  - The gap to the pill is therefore **0 px**, and both surfaces use the same
+    rgb(36,40,49).
+  - The adjacent workspace panel has an 8 px gutter and a 14 px radius.
+  - Matches `_6` (A).
+- **Cause.** `web/src/presentation.rs:9666` gives the guide overlay
+  `absolute inset-y-0 left-0 … border-r … bg-card`, with no inset or radius.
+  The supplied aside class (`web/crates/layout/src/setup_guide.rs:328`) is the
+  inner content, not the box.
+- **Counterfactual (N, restored).** `top/bottom/left: 8px`, `border-radius: 14px`
+  and a 1 px border give the overlay y=72–852, x=8, radius 14. That is an 8 px
+  gap to the header, the footer and the viewport edge
+  (`d12-counterfactual-geometry.log`, `d12-counterfactual-inset8-radius14.png`).
+- **Proposal.** Change the overlay to `top-2 bottom-2 left-2 rounded-xl border
+  border-border-strong` and give it the matching width or max-width budget. Then
+  decide the `max-[760px]` phone variant separately.
+- **Oracle.** Rendered bounds at 1440, 1024 and phone width: the gap to the
+  header pill and to the shell footer is ≥ 8 px, left ≥ 8 px, radius > 0, and
+  internal scrolling and the sticky footer are unchanged.
+
+#### D13 — Slider thumb not painted (N)
+
+- **Computed** (`d13-slider-computed.log`):
+  - Each Rows and Columns `[data-slot=slider-thumb]` is `position: static`, so
+    its inline `left: 36.36%` has no effect. It sits at x=22, the track start.
+  - It is 16 × 44 px because the guide's `[&_button]:min-h-control-touch` applies
+    to it, and the 6 px `overflow:hidden` track clips it.
+  - The screenshot shows only the range fills (`d13-new-matrix-dark.png`, which
+    matches `_c` (A)).
+- **Interaction** (`d13-drag-live.log`):
+  - At the thumb's nominal centre the hit target is the `LABEL`, and a drag
+    there changes nothing.
+  - Keyboard still works: ArrowLeft takes Rows 5→4. That does not satisfy D13.
+- **Cause.** The shared
+  `web/crates/ui-shared/src/ui/slider.rs::Slider` (lines 22–94) nests
+  `SliderThumb` inside the `overflow-hidden` `SliderTrack` and gives it no
+  absolute or centering classes.
+- **Precedent.** The Case sliders patch this per call site
+  (`web/crates/case/src/shared_viewer.rs:3102/3124/3149/3172`). The 020 lane
+  decision recorded "no shared Slider edit".
+- **Counterfactual (N, restored).** Thumb absolute at `top:50%` with
+  `translate(-50%,-50%)`, 16 px tall, and the track `overflow:visible`:
+  - The thumb appears at the correct fraction (Rows x=105.4 at 4 of 1–12).
+  - `elementFromPoint` returns the thumb.
+  - A real +80 px drag moved Rows 4→7 and the thumb followed.
+  - The counterfactual also showed the thumb crowding the next label, so the row
+    needs an activation height, as in the Case precedent's `min-h-control`
+    (`d13-counterfactual-thumb.png`).
+- **Proposal.** Either add the Case class set plus a row height to the New
+  matrix sliders (`MatrixDimensionSliders`, in
+  `web/crates/layout/src/objects/matrix_setup_fields.rs`), or fix the shared
+  Slider once. The shared fix touches every slider and makes the Case overrides
+  redundant; that is a scope decision. The Inspector Rows slider
+  (`matrix_inspector.rs:444`) probably shares the defect; not verified.
+- **Open question for the user.** Is a visible round thumb enough, or does "drag
+  icon" mean an added grip glyph?
+- **Oracle.** Mounted plus packaged checks:
+  - A 16 × 16 thumb, centred on the track at the value fraction.
+  - The hit-test lands on the thumb.
+  - Pointer drag changes `aria-valuenow`, the `strong` label and the ghost.
+  - Keyboard and touch target are retained.
+
+#### D14 — Full-width top/bottom bands (N)
+
+- **Layers** (`d14-panel-layers-setup-split.log`, `d16-toolbar-geometry-1440.log`):
+  - `#m1-workspace-panel` is `bg-card` rgb(36,40,49).
+  - Its canvas `svg` is `bg-canvas` rgb(24,27,33) with
+    `mt-[76px] h-[calc(100%-120px)]`.
+  - In a 780 px panel that leaves a 76 px top band and a 44 px bottom band of
+    panel colour.
+  - The bands are present with no annotation tint or overlay, during setup with
+    the toolbar hidden (`d15-split-ghost-full.png`) and in a populated Layout
+    (`d14-d16-populated-1440.png`). They match `_f`/`_k` (A).
+  - They are unrelated to the dimension popovers.
+- **Cause.** `web/src/presentation.rs:9764` (svg class) inside the panel at
+  `presentation.rs:9666` context. The bands are the toolbar and view-dock lanes.
+- **Counterfactual (N, restored).** Painting the panel with the canvas colour
+  removes both bands (`d14-1322-cf-panel-canvas-bg.png`). The thin blue lines in
+  that image are the svg focus outline left by the probe, not bands. The
+  grid-dot pattern still covers only the svg area.
+- **Options.**
+  - (a) Paint the Layout panel `bg-canvas`, or give the lanes `bg-canvas`.
+    Lowest risk: lane geometry, camera and fit are unchanged. Recommended.
+  - (b) Make the svg full height with the toolbars floating over it. This
+    changes the viewBox, fit, hit-testing and setup-ghost clear space, so it
+    needs camera and fit regressions.
+- **D9 link.** No black bar was observed. The relation to historical D9 remains
+  **unproven**.
+- **Oracle.** Sample rendered pixels at the top, centre and bottom lane, away
+  from controls: one canvas colour in both appearances and in Original and
+  shadcn.
+
+#### D15 — Split ghost shows one half (N)
+
+- **Reproduced in a Split project** (`d15-split-ghost-full.png`). The canvas
+  ghost `g[aria-label="New matrix preview"]` and the guide thumbnail both show
+  one 7 × 6 grid. Create then commits a Left half plus a
+  "Right half · linked mirror" (`d15-after-create-split.png`). Matches `_i` (A).
+- **Cause.**
+  - `MatrixSetupCanvasPreview`
+    (`web/crates/layout/src/objects/matrix_setup_preview.rs`) paints only the
+    private `Paint{owner, rows, columns}` and has no topology input.
+  - The Create resolver
+    (`web/crates/layout/src/objects/matrix_setup_controller.rs:71-100`) reads the
+    accepted `document.hardware.topology` and, for Split, calls the pure
+    `mirrored_pair_geometry::project_mirrored_pair(…, gap_mm: 40.0)`.
+- **Proposed narrow seam:**
+  - Carry `split` from the same accepted snapshot. The Layout call site
+    (`presentation.rs:9870`) already has
+    `physical_setup_mount.projection.topology` in scope (used at
+    `presentation.rs:9743`). Pass it as either a `MatrixSetupProjection` field or
+    a `MatrixSetupCanvasPreview` prop.
+  - Inside the component, project both halves with the same
+    `project_mirrored_pair`/`preview_cells` geometry as Create, and include the
+    40 mm gap and both widths in the fit scale.
+  - Keep the paint store private. Add no runtime request and no accepted-state,
+    history, selection, camera or fit writes.
+  - Either option widens a `pub` layout-crate type or prop, so the coordinator
+    must choose against the "no public API widening" constraint.
+- **Oracle.** Extend
+  `web/src/presentation/layout_field_preview_tests.rs::new_matrix_sliders_preview_on_canvas_without_changing_accepted_state`
+  (line 521) with Split and One cases:
+  - Two mirrored footprints for Split, one for One, updating with Rows/Columns.
+  - The full accepted model, history, selection and camera stay unchanged.
+  - Add a packaged visual check.
+
+#### D16 — Align/Transform floating away (N)
+
+- **Reproduced at user-like geometry** (`vw=1322`, panel 670 px, Key scope, no
+  selection after reload): Align is 128 px from the panel top (the user's `_k`
+  is about 124 at its capture scale) and 68 px below the scope strip
+  (`d16-noselect-counterfactual.log`, `d16-1322-baseline-noselect.png`).
+- **Width sweep** (`d16-width-sweep.log`): at 1440 the gap is 12 px, but Align
+  is centred in the right grid column, away from the scope strip. At a 372 px
+  panel the scope strip wraps to 90 px and the gap is 110 px.
+- **Cause:**
+  - `web/assets/layout-toolbar.css:6`: `.layout-context-strip` uses
+    `grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr))`.
+    Below about 720 px it collapses to one column, so `.layout-action-slot`
+    takes row 1 and `.layout-menu-actions` takes row 2.
+  - `layout-toolbar.css:7` and `:16-19` deliberately reserve the slot's height
+    "including when selection has no actions".
+  - `web/crates/layout/src/objects/layout_toolbar.rs:1326-1334` always renders
+    `.layout-action-slot` when pointer tools are visible, even without
+    `has_selection_context`.
+- **Counterfactual (N, restored).** `.layout-action-slot:empty{display:none}`
+  brings Align to 72 px from the panel top, 12 px under the scope strip.
+- **Trade-off.** The reservation exists to stop the toolbar shifting when a
+  selection appears.
+- **Options.**
+  - (a) In single-column mode, place `.layout-menu-actions` before the action
+    slot.
+  - (b) Collapse the empty slot and accept the shift.
+  - (c) Move Align/Transform into the scope-strip row.
+  - Coarse-pointer rules (`layout-toolbar.css` `@media (pointer: coarse)`)
+    reserve the same way.
+- **Relation to D14.** The causes are independent but share a region. The
+  svg's 76 px top lane covers only the scope strip (y 84–132); the context strip
+  (y 140–244) overlaps the canvas top (148). Fixing either defect does not fix
+  the other.
+- **Oracle.** Rendered bounds at 1440, 1322, 1024 and phone width, with and
+  without selection: `align.top − scope.bottom` stays within the agreed compact
+  gap, nothing overlaps, and the menus, keyboard access and focus behave as
+  before.
+
+#### D10 / 005 — Scope popup duplication (N; no implementation)
+
+- **Reproduced at 1322** (`d10-row-actions.log`, `d10-row-actions-1322.png`):
+  `#m1-layout-scope-Row` press → `role=dialog` "Row actions" at x473 y140,
+  276 × 173, with the hint, "Close Row actions" and "Open Inspector". It covers
+  the context-strip lane where Align/Transform sit, and the Inspector was
+  already open. Matches `image_eae1dd72` (A).
+- With a Key selected, the Key scope press opened "Key actions" containing
+  Position, Stagger, Offset and Spread above the identical inline strip
+  (`d16-key-noselect-1322.png`), which duplicates interactive controls.
+- **Cause.** `web/crates/layout/src/objects/layout_toolbar.rs::LayoutSelectionToolbar`
+  (line 1373; popover around lines 1393–1447):
+  - Each scope `ToggleItem` click both sets the scope and runs
+    `open_menu.set(Some(LayoutCommandMenu::Select))`.
+  - With actions, the popover renders the same `LayoutContextActionToolbar` used
+    inline at lines 1328–1331.
+- **Proposed boundary:**
+  - D16 owns only strip geometry and order. It must not change the popup's open
+    semantics, the Select menu or action availability, and it must keep the
+    popup anchoring and focus.
+  - 005 owns whether, and when, a scope press opens a popup, plus duplicate
+    removal.
+  - If 005 moves the empty-selection hint inline, it would occupy the reserved
+    slot that causes D16's empty row. Agree the sequencing first.
+- **Questions for 005's required grill-with-docs (do not implement before it):**
+  1. With inline tools present, should a scope press ever open a popup?
+  2. With no selection, should the hint stay a popup, or render inline in the
+     action slot?
+  3. Are Key and Part in scope? 005 names Matrix/Row/Column, but Key duplicates
+     too.
+  4. Is "Open Inspector" wanted when the Inspector is already open?
+  5. Should pressing the active scope again keep toggling the popup?
+- 004 and 006 remain deferred and outside these findings.
+
+#### Unresolved and next experiments
+
+- **D11 cold long task:** capture the symbolized profile described above, and
+  check whether Reversible-on and fresh-project Split share one first-time
+  derivation. Two hypotheses were falsified, so no third blind probe was run.
+- **Theme and client:** repeat the D14 sampling under shadcn, and confirm the
+  reviewing client's viewport and scale.
+- **D13:** confirm the Inspector slider defect.
+- **Fix decisions:** D15's seam owner and D13's shared-versus-call-site fix need
+  coordinator or user decisions.
+
+No correction, rebuilt candidate or acceptance is claimed. **011 stays
+ready-for-human; 001 stays open.**
+
+**Coordinator receipt:** all 321 appended investigation lines were read through
+exact Gortex, plus the raw IndexedDB-hold, slider-drag and empty-slot measurement
+logs. The visual causes have evidence; D11's ordering is demonstrated, but the
+cold long-task cause and the user's full perceived latency remain unresolved.
+Only 011 changed in the assigned work; production/test source and candidate
+remain unchanged. Documentation links (741 files) and whitespace passed; no
+product gate was rerun for this report. Implementation remains a separate phase.
+Execution caveats: the delegate also read the ticket through the shell at startup
+and during append verification, contrary to the required Gortex-only source
+route. The coordinator's complete report read used Gortex. The delegate left a
+filesystem checkpoint at `~/.cache/tmp/011r2/notes-checkpoint.md`, not the required
+virtual notes handoff; the coordinator's virtual checkpoint is authoritative.
+These deviations are recorded, not described as compliant tool use.
