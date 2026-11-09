@@ -877,3 +877,181 @@ earlier; final acceptance depends on 010's verified candidate.
   intact. **G scoped commit READY**. **011 acceptance BLOCKED** on the full gate,
   refreshed candidate, complete required matrix, affected human re-review and
   explicit approval. Parent 001 open; D9 historical black-bar cause still unproven.
+- 2026-11-09, **Refreshed human-review handoff**: all implementation slices are
+  committed through `2694b18913821b08c5b79da8414ef13f29c26863`.
+  [010's refreshed record](010-final-technical-verification.md#candidate-refresh-coordinator-2026-11-09)
+  supplies the new full-default PASS (657.7s), bound 17-check drag/reload receipt,
+  strict old-CSS 0/0 and separate optimized root/subpath build/smoke identities.
+  Candidate `web/target/site-011-candidate` is now served at
+  http://127.0.0.1:4173/boardstudio/; the previous artifact is retained as
+  `web/target/site-011-candidate-pre-2694b189`. No user browser/storage was touched.
+  A cold promoted-page check verified the new script and narrow matrix CSS.
+  **Scoped implementation complete; human acceptance BLOCKED pending actual
+  affected re-review, triage of observations below and explicit approval.**
+  The checklist below is prepared evidence, not a user decision. All acceptance
+  checkboxes and `ready-for-human` remain unchanged; parent 001 stays open.
+
+## Candidate review matrix — 2694b189
+
+**Project:** `011 recovery review`, created through the public new-project/setup
+flow: 5×7 linked split, 70 accepted keys, compiled MX switch/diode footprints and
+four mounting holes (144 placed parts). The controller placement was not
+completed; wiring, keymap and keycap assignments remain incomplete. Export's
+controller/wiring blockers are expected fixture state, not a fabrication or
+firmware-success claim. The public portable-project download is
+`web/target/test-results/011-final-candidate/011-recovery-review.boardstudio`
+for import into another browser. The initial Split 42 demo lacks a required
+switch courtyard and was excluded from Case proof. The valid review project's
+battery and cable were moved inside its left assembly via actual Inspector
+fields (X −86 and −69 respectively), after which Case reported exact geometry
+ready with enabled geometry export and populated 3D plate/foam/battery/tray/PCB.
+This fixture correction is not a claimed product repair or hardware validation.
+
+**Evidence/result key:** every cell marked **O / pending** has an actual capture
+and correct observed Theme/Appearance/viewport, visually inspected by the
+coordinator in its labelled contact sheet. It means **observed / human decision
+pending**, never PASS or approval. All 108 cells were populated, with no horizontal
+page overflow; no empty capture slot or assumed pass is counted. The complete
+per-cell project, screenshot and observed DOM record is
+`.evidence/011-full-gate/matrix/observations.json`; snapshots/command logs are in
+that directory. Capture driver outcome: `matrix-capture.log` one directory up.
+
+**Screenshot for each cell:** under `web/target/test-results/011-final-candidate/`,
+use `<column-prefix>-<viewport>-<section-slug>.png`, where column prefixes are
+`original-light`, `original-dark`, `shadcn-light`, `shadcn-dark`, viewport uses
+ASCII `x`, and the section slug is stated below. E.g.
+`original-light-1440x900-layout.png`. All 108 named images exist. Each combo's
+nine images also appear in `contact-<theme>-<appearance>-<width>.png`.
+
+### Layout (`layout`)
+
+Observed: both populated halves inside the canvas, nested half/column tree,
+visible view-mode icons and scope-role fills. Reopened 005's duplicate actions
+remain deferred. Dense labels/contrast/interaction fit still require the user's
+judgment, not a geometry-only automatic pass.
+
+| Viewport | Original Light | Original Dark | shadcn Light | shadcn Dark |
+| --- | --- | --- | --- | --- |
+| 1440x900 | O / pending | O / pending | O / pending | O / pending |
+| 1024x900 | O / pending | O / pending | O / pending | O / pending |
+| 390x844 | O / pending | O / pending | O / pending | O / pending |
+
+### Case (`case`)
+
+Observed: exact geometry ready, populated interactive 3D assembly, construction
+and long Inspector content; compact Inspector Sheet visible on phone. **R1**
+below is not waived by the valid geometry.
+
+| Viewport | Original Light | Original Dark | shadcn Light | shadcn Dark |
+| --- | --- | --- | --- | --- |
+| 1440x900 | O / pending | O / pending | O / pending | O / pending |
+| 1024x900 | O / pending | O / pending | O / pending | O / pending |
+| 390x844 | O / pending | O / pending | O / pending | O / pending |
+
+### Parts (`parts`)
+
+Observed: controller-library results, actual nice!nano footprint viewport and
+component Inspector. This is an unapplied generator preview, not an accepted
+controller/wiring assignment or a manufacturing-ready footprint claim.
+
+| Viewport | Original Light | Original Dark | shadcn Light | shadcn Dark |
+| --- | --- | --- | --- | --- |
+| 1440x900 | O / pending | O / pending | O / pending | O / pending |
+| 1024x900 | O / pending | O / pending | O / pending | O / pending |
+| 390x844 | O / pending | O / pending | O / pending | O / pending |
+
+### PCB (`pcb`)
+
+Observed: populated split footprint scene, Objects and routing Inspector;
+controller/wiring errors are visible for this deliberately incomplete fixture.
+
+| Viewport | Original Light | Original Dark | shadcn Light | shadcn Dark |
+| --- | --- | --- | --- | --- |
+| 1440x900 | O / pending | O / pending | O / pending | O / pending |
+| 1024x900 | O / pending | O / pending | O / pending | O / pending |
+| 390x844 | O / pending | O / pending | O / pending | O / pending |
+
+### Keymap (`keymap`)
+
+Observed: base layer, 70-key scene, assignment controls and unassigned-key list;
+no configured or hardware-validated firmware is claimed.
+
+| Viewport | Original Light | Original Dark | shadcn Light | shadcn Dark |
+| --- | --- | --- | --- | --- |
+| 1440x900 | O / pending | O / pending | O / pending | O / pending |
+| 1024x900 | O / pending | O / pending | O / pending | O / pending |
+| 390x844 | O / pending | O / pending | O / pending | O / pending |
+
+### Keycaps (`keycaps`)
+
+Observed: 70-key scene, profile/legend/color controls, selection Inspector and
+0/70 assigned state; no finished keycap assignment is claimed.
+
+| Viewport | Original Light | Original Dark | shadcn Light | shadcn Dark |
+| --- | --- | --- | --- | --- |
+| 1440x900 | O / pending | O / pending | O / pending | O / pending |
+| 1024x900 | O / pending | O / pending | O / pending | O / pending |
+| 390x844 | O / pending | O / pending | O / pending | O / pending |
+
+### Library (`library`)
+
+Observed: populated project library with two saved projects; phone's saved cards
+are below the introductory actions. Additional actual scroll capture:
+`shadcn-dark-390x844-library-saved-projects.png`.
+
+| Viewport | Original Light | Original Dark | shadcn Light | shadcn Dark |
+| --- | --- | --- | --- | --- |
+| 1440x900 | O / pending | O / pending | O / pending | O / pending |
+| 1024x900 | O / pending | O / pending | O / pending | O / pending |
+| 390x844 | O / pending | O / pending | O / pending | O / pending |
+
+### Project menu (`project-menu`)
+
+Observed: New/Open/Save-copy/Browse/Setup/Undo/Redo/Export/settings menu remains
+within each viewport; menu commands used for fixture setup and navigation.
+
+| Viewport | Original Light | Original Dark | shadcn Light | shadcn Dark |
+| --- | --- | --- | --- | --- |
+| 1440x900 | O / pending | O / pending | O / pending | O / pending |
+| 1024x900 | O / pending | O / pending | O / pending | O / pending |
+| 390x844 | O / pending | O / pending | O / pending | O / pending |
+
+### Export (`export`)
+
+Observed: current project/revision/local-save state, portable download and
+readiness-gated design files. Portable-project download succeeded; final KiCad
+and firmware remain controller/wiring-blocked. Additional actual long-page
+scroll capture: `shadcn-dark-390x844-export-scrolled.png`.
+
+| Viewport | Original Light | Original Dark | shadcn Light | shadcn Dark |
+| --- | --- | --- | --- | --- |
+| 1440x900 | O / pending | O / pending | O / pending | O / pending |
+| 1024x900 | O / pending | O / pending | O / pending | O / pending |
+| 390x844 | O / pending | O / pending | O / pending | O / pending |
+
+### Supplemental affected checks and open observations
+
+- Final optimized G check: actual Columns keyboard input at 390×844 shadcn Dark
+  showed **5×7 / 35 ghost keys**, while accepted scene stayed at 70 keys. Ghost
+  bounds `(138.38,559.18)–(251.62,639.82)` clear the form bottom 510 and view
+  controls top 689. Cancel clears ghost/form without changing accepted keys.
+  Captures `shadcn-dark-390x844-new-matrix-5x7.png` and
+  `shadcn-dark-390x844-cancelled.png`; `.evidence/011-full-gate/candidate-smoke.log`.
+  This desktop-start/phone-resize case does not establish that a previously
+  closed Sheet must open on Cancel; its unconditional Sheet-open wait was
+  inapplicable. Prior phone-start G checks separately prove preservation of an
+  already-open Sheet. No false success is inferred from that wait.
+- **Agent observation R1 — human triage pending:** the footer still reads
+  `mechanical findings block case generation` after the corrected fixture's
+  Case workspace says `Exact case geometry ready`, has visible geometry and
+  enabled Export geometry. The stale wording also persists in other Workspace
+  captures. Cause not diagnosed, no repair or acceptance claimed. Do not assign
+  it a user-reported D-number or silently absorb it into the completed slices.
+- All 12 contact sheets were inspected, not just generated. These captures
+  support review of geometry/overflow/scrolling/selected and disabled states;
+  they do not certify all contrast, keyboard/touch or application sequences.
+  The full gate reran the bounded accessibility floor. Safari, screen readers,
+  physical touch and broad accessibility certification remain unrun.
+- Existing user D10 belongs to reopened 005; 004/005/006 still need their
+  separately approved grills and work. D9's historical black-bar cause remains
+  unproven. **Every human result above remains pending; 011 and 001 stay open.**

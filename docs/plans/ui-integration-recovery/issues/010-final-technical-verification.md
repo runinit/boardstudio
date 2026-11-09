@@ -60,6 +60,70 @@ replacement is authorized by this gate. Product acceptance still requires 011.
   findings. Reconcile final acceptance scope with that decision when running
   the independent review and human acceptance.
 
+## Candidate refresh (coordinator, 2026-11-09)
+
+Current checked implementation: `2694b18913821b08c5b79da8414ef13f29c26863`
+(`fix/ui-integration-recovery`), including 011 slices A, B+C, E, D, F, D9 and G.
+**Technical handoff READY; product acceptance BLOCKED on 011's human decision.**
+The historical record below is retained, not silently promoted to this source.
+
+Newly executed, serialized through the inherited FD9 build lock:
+
+```sh
+python3 scripts/check.py --receipt /home/chris/.cache/tmp/011-full-gate-receipt.json
+python3 scripts/build-web.py --output web/target/site-011-candidate-next --routes root,subpath
+```
+
+- **Full default gate PASS**, 657.7s: repo, tooling, build, lint, native test
+  guard and full browser plan. `.evidence/011-full-gate/full-gate.log` includes
+  225 page tests, 270 Layout tests and the **17-check real drag/save/exact Undo,
+  saved-edit/saved-Undo reload and collision/provider smoke**. Its bound receipt
+  is `web/target/test-results/drag-browser/20261109T155819Z-ac2429f5b400/receipt.json`;
+  run `035b56eec87d47c6a3b8e3779d376380`, attempt
+  `e98ecf23962f4d1b9c32fcf4e9897e28`, Chrome/ChromeDriver 156.0.8078.73.
+  The supported check receipt records HEAD above, source digest
+  `691c5258a62b67d41587957a218bbfb21624fdf14e3233aba03dc617cbe84815`
+  and the five protected external documentation/retrieval changes. They remain
+  outside this implementation. No native baseline or assertion was removed.
+- **Strict old CSS PASS, 0/0**: `python3 scripts/check-old-css.py --strict`,
+  `.evidence/011-full-gate/old-css-strict.log`. Accessibility floor reran inside
+  the full gate; broader screen-reader, Safari, physical-touch and axe validation
+  remain unrun. An additional unbound default drag rerun passed but does not
+  replace the gate's bound receipt (`additional-default-drag-run.log`).
+- **Fresh full optimized package PASS**, both root and `/boardstudio/`, including
+  rebuilt providers; `candidate-build.log` in the same evidence directory. The
+  full gate binds the checked fast site `web/target/site/site-subpath/boardstudio`
+  (site SHA-256 `cdfd193686162cf4c609fe1049b3158c8d2c1b8ec87b4bbcb05e90347ba3fdba`),
+  not this separately built optimized artifact. The optimized artifact received
+  its own cold root/subpath smoke, actual 108-cell populated capture matrix and
+  narrow live-preview/Cancel checks (`candidate-smoke.log`, `matrix/`).
+  Agent-browser used HeadlessChrome 155.0.0.0; it is not the gate browser identity.
+- Validated staging artifact promoted without rebuilding to
+  `web/target/site-011-candidate`, served at http://127.0.0.1:4173/boardstudio/.
+  Retained previous artifact: `web/target/site-011-candidate-pre-2694b189`.
+  Fresh promoted-page smoke found the correct subpath script
+  `boardstudio-web-dxhc11f3cd5bcae3759.js` and narrow matrix CSS rules; root uses
+  `boardstudio-web-dxh794a8fd37ee179d2.js`. No existing user browser or project
+  storage was changed. A mixed old-CSS/new-WASM cache attempt was excluded;
+  existing-client cache races remain a residual risk, not certified away.
+
+**Reused, with limits:** the historical integrated-review aggregate and its
+**Spec PARTIAL coverage cap remain unchanged**; this is not a new line-read of
+that 445-path baseline. New per-slice combined reviews and coordinator follow-ups,
+full owned-hunk reads, RED/GREEN and independent mutation/rejection evidence are
+in [011](011-populated-workspace-acceptance.md). They cover the added delta;
+unchanged draft-safety/019/020/021 and earlier bounded repair records remain
+applicable. D9's historical black-bar cause is still unproven. Reopened
+004/005/006 remain deferred to their separately approved grill/implementation
+sequence; 007 remains cancelled. The new capture matrix also records a stale
+mechanical-blocker footer for human triage, not an accepted or repaired defect.
+
+Only this documentation refresh follows the checked implementation. Product
+source and packaged bytes are unchanged; documentation links and whitespace are
+rechecked rather than rerunning the full product gate without cause. 010 stays
+resolved under its stated coverage disposition. **011 stays ready-for-human and
+001 open; no acceptance, push or merge is inferred.**
+
 ## Completion record (coordinator, 2026-11-08)
 
 Source HEAD `18d4d7f535dca096a811c9e71bbf823f475485fc`; Status `resolved`.
