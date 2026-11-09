@@ -1,0 +1,418 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>BoardStudio · Toolbar tool-panel study</title><style>
+:root{--lab-bg:#181b21;--lab-panel:#242831;--lab-canvas:#171b20;--lab-field:#303643;--lab-text:#edf0f6;--lab-muted:#b1bdcc;--lab-rule:#414b5c;--lab-primary:#9aadff;--lab-on-primary:#101725;--lab-selected:#354363;--lab-key:#90a7d3;--lab-dot:#344050;--lab-violet:#bc9aef;--lab-board:#5bc6b0;--lab-light-bg:#e9eef2;--lab-light-panel:#fff;--lab-light-canvas:#f3f6f9;--lab-light-field:#e9eef4;--lab-light-text:#202a3a;--lab-light-muted:#536177;--lab-light-rule:#c6cfdd;--lab-light-primary:#3858d6;--lab-light-on-primary:#fff;--lab-light-selected:#e4eaff;--lab-light-key:#59719e;--lab-light-dot:#d4dde7;--lab-light-violet:#7650ad;--lab-light-board:#127b69}
+*{box-sizing:border-box}body{margin:0;font-family:var(--font-sans,system-ui,sans-serif);color:var(--foreground)}main{width:100%;min-width:0}button,select,input{font:inherit}button{cursor:pointer;color:inherit}button:disabled{cursor:not-allowed}button:focus-visible,select:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--primary);outline-offset:2px}svg{display:block}.icon{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}.chevron{width:11px;height:11px}.study-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 12px;font-size:13px}.study-head p{margin:0;color:var(--muted-foreground);line-height:1.5}.theme-button{display:flex;align-items:center;gap:6px;flex-shrink:0;background:transparent;color:var(--foreground);border:1px solid var(--border);border-radius:6px;padding:7px 9px;font-size:12px}
+.lab{--background:var(--lab-bg);--card:var(--lab-panel);--canvas:var(--lab-canvas);--secondary:var(--lab-field);--foreground:var(--lab-text);--muted-foreground:var(--lab-muted);--border:var(--lab-rule);--primary:var(--lab-primary);--primary-foreground:var(--lab-on-primary);--accent:var(--lab-selected);--key:var(--lab-key);--dot:var(--lab-dot);--violet:var(--lab-violet);--board:var(--lab-board);background:var(--background);color:var(--foreground);border-radius:12px;padding:16px;font-size:12px;color-scheme:dark}
+.lab[data-appearance=light]{--background:var(--lab-light-bg);--card:var(--lab-light-panel);--canvas:var(--lab-light-canvas);--secondary:var(--lab-light-field);--foreground:var(--lab-light-text);--muted-foreground:var(--lab-light-muted);--border:var(--lab-light-rule);--primary:var(--lab-light-primary);--primary-foreground:var(--lab-light-on-primary);--accent:var(--lab-light-selected);--key:var(--lab-light-key);--dot:var(--lab-light-dot);--violet:var(--lab-light-violet);--board:var(--lab-light-board);color-scheme:light}
+.lab ::selection{background:var(--primary);color:var(--primary-foreground)}.header{height:42px;padding-bottom:12px;display:flex;align-items:center;gap:11px}.brand{color:var(--muted-foreground)}.project{font-weight:600;display:flex;align-items:center;gap:5px}.workspace{padding:5px 9px;background:var(--accent);color:var(--primary);border-radius:5px}.save{margin-left:auto;font-size:11px;color:var(--muted-foreground)}.export{font-size:11px;color:var(--muted-foreground);border:1px solid var(--border);padding:5px 9px;border-radius:5px}.surface{position:relative;border-radius:9px;background:var(--card)}
+.strip{height:42px;display:flex;align-items:center;gap:3px;padding:5px 7px;border-bottom:1px solid var(--border);position:relative;z-index:2}.group{display:flex;align-items:center;flex-shrink:0;min-width:0;border-radius:5px;transition:background-color 160ms ease}.group.open{background:var(--secondary);flex:1}.trigger{height:31px;display:flex;align-items:center;gap:6px;padding:5px 8px;background:none;border:0;white-space:nowrap;border-radius:5px;flex-shrink:0;font-size:12px;color:var(--muted-foreground)}.trigger:hover,.utility:hover{background:var(--secondary);color:var(--foreground)}.trigger[aria-expanded=true]{color:var(--primary)}.trigger .label{display:flex;align-items:center;gap:5px;max-width:150px;opacity:1;overflow:hidden;transition:max-width 280ms cubic-bezier(.22,.61,.36,1)}.trigger .detail{font-weight:600;color:var(--foreground)}.trigger .group-name{font-size:11px}.group[data-group=align] .group-name,.group[data-group=view] .group-name{font-size:12px}.strip[data-open]:not([data-open=""]) .trigger .label{max-width:0}.strip[data-open]:not([data-open=""]) .trigger{gap:0;padding:5px 8px}.reveal{display:grid;grid-template-columns:0fr;transition:grid-template-columns 180ms cubic-bezier(.2,.8,.2,1);min-width:0}.group.open .reveal{grid-template-columns:1fr;flex:1}.reveal-inner{overflow:hidden;min-width:0}.reveal-scroll{display:flex;align-items:center;gap:2px;overflow-x:auto;scrollbar-width:none;padding:1px 3px 1px 0;min-width:0}.reveal-scroll::-webkit-scrollbar{display:none}.tool{position:relative;flex-shrink:0;height:29px;min-width:29px;display:flex;align-items:center;justify-content:center;gap:5px;padding:5px 6px;border:0;border-radius:4px;background:transparent;color:var(--muted-foreground);font-size:11px;white-space:nowrap}.tool:hover:not(:disabled){background:var(--card);color:var(--foreground)}.tool[aria-pressed=true]{background:var(--accent);color:var(--primary)}.tool:disabled{opacity:.35}.tool .tool-label{display:none}.tool[aria-pressed=true] .tool-label{display:inline}.strip>.utility{margin-left:auto}.utility{height:30px;width:30px;display:flex;align-items:center;justify-content:center;padding:5px;border:0;border-radius:5px;background:transparent;color:var(--muted-foreground);flex-shrink:0}.snap-select{font-family:var(--font-mono,monospace);font-size:11px;height:28px;border:1px solid var(--border);border-radius:4px;background:var(--card);color:var(--foreground);padding:3px;max-width:75px}.inline-label{font-size:11px;color:var(--muted-foreground);white-space:nowrap;margin:0 5px}.no-tools{font-size:11px;color:var(--muted-foreground);padding:0 8px;white-space:nowrap}.canvas{background:var(--canvas);position:relative;overflow:hidden;min-width:0}.canvas-top{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;font-size:11px;color:var(--muted-foreground);height:42px}.canvas-top strong{font-weight:500;color:var(--foreground)}.scope-status{display:flex;align-items:center;gap:7px}.scope-status .icon{width:14px;height:14px;color:var(--primary)}.scene{width:100%;height:315px}.scene .key{fill:var(--secondary);stroke:var(--key);stroke-width:1;cursor:pointer}.scene .face{fill:var(--canvas);stroke:var(--border);stroke-width:.7;pointer-events:none}.scene .selected .key{fill:var(--accent);stroke:var(--primary);stroke-width:1.5}.scene .selected .face{fill:var(--accent)}.scene text{font-family:var(--font-mono,monospace);font-size:9px;fill:var(--muted-foreground)}.scene .origin{stroke:var(--violet);fill:var(--canvas);stroke-width:1.5}.canvas-help{font-size:11px;line-height:1.5;color:var(--muted-foreground);min-height:34px;padding:5px 14px 10px}.canvas-help strong{font-weight:500;color:var(--foreground)}.footer{display:flex;gap:12px;align-items:center;min-height:31px;border-top:1px solid var(--border);padding:6px 10px;color:var(--muted-foreground);font-size:11px}.footer button{background:none;border:0;padding:0;color:inherit;font-size:11px}.footer .readout{margin-left:auto;font-family:var(--font-mono,monospace);font-size:10px}.footer .finding{color:var(--primary)}.panel{position:absolute;z-index:5;top:46px;right:8px;background:var(--card);padding:16px;border-radius:9px;border:1px solid var(--border);width:266px;max-width:calc(100% - 16px);box-shadow:0 9px 22px color-mix(in srgb,var(--background) 65%,transparent);animation:slide-panel 150ms ease-out}.panel[hidden]{display:none}.panel-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;font-size:13px;font-weight:600}.panel .utility{width:26px;height:26px}.panel .field{display:flex;flex-direction:column;gap:5px;font-size:11px;color:var(--muted-foreground);margin:10px 0}.panel select,.panel input[type=number]{width:100%;min-width:0;background:var(--secondary);color:var(--foreground);padding:8px;border:1px solid var(--border);border-radius:5px;font-size:12px}.panel .check{display:flex;align-items:center;gap:8px;font-size:12px;margin:13px 0}.panel input[type=checkbox]{accent-color:var(--primary);margin:0;width:15px;height:15px}.panel small{font-size:11px;line-height:1.5;color:var(--muted-foreground);display:block;margin-top:12px}.panel-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.panel .text-button{width:100%;padding:8px;border:1px solid var(--border);border-radius:5px;background:transparent;color:var(--foreground);font-size:12px;text-align:left}.panel .text-button:disabled{opacity:.4}.demo-controls{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:14px 0 8px;font-size:12px}.demo-controls label{color:var(--muted-foreground)}.demo-controls select{font-size:12px;max-width:100%;padding:7px;background:var(--card);color:var(--foreground);border:1px solid var(--border);border-radius:6px}.demo-controls .space-meter{margin-left:auto;font-size:11px;color:var(--muted-foreground);font-family:var(--font-mono,monospace)}.explanation{font-size:13px;line-height:1.6;color:var(--muted-foreground);margin:10px 0}.explanation strong{color:var(--foreground);font-weight:600}.map{border-top:1px solid var(--border);padding-top:12px;margin-top:16px;font-size:12px;line-height:1.6}.map summary{font-weight:600;cursor:pointer;min-height:28px}.map p{color:var(--muted-foreground);margin:8px 0}.map b{color:var(--foreground);font-weight:500}.state{font-size:11px;line-height:1.5;color:var(--muted-foreground);font-family:var(--font-mono,monospace);margin:8px 0}.caption{color:var(--muted-foreground);font-size:12px;line-height:1.5;margin-top:12px}@keyframes slide-panel{from{opacity:.5;clip-path:inset(0 0 18% 0)}to{opacity:1;clip-path:inset(0)}}@media(max-width:590px){.header .save{display:none}.header .export{margin-left:auto}.group .trigger{padding:5px 6px;gap:4px}.group .group-name{display:none!important}.group[data-group=align] .label,.group[data-group=view] .label{display:none}.trigger .detail{font-weight:500;font-size:11px}.strip{gap:1px;padding:5px}.strip[data-open]:not([data-open=""]) .trigger{padding:5px 5px}.tool{padding:5px;min-width:27px}.tool[aria-pressed=true] .tool-label{display:none}.lab{padding:12px}.scene{height:280px}.footer{gap:9px}.footer .readout{display:none}.footer .finding{margin-left:auto}.canvas-top{padding:10px;font-size:11px}.canvas-help{padding:5px 10px 10px}.demo-controls .space-meter{width:100%;margin-left:0}.study-head p{font-size:12px}.header{gap:8px}.project{font-size:11px}.export{padding:4px 7px}.group.open .trigger .chevron{display:none}}@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+.strip[data-open]:not([data-open=""]) .trigger .chevron{display:none}.group[data-group=view] .tool-label{display:none}
+.reveal-scroll{scrollbar-width:thin;scrollbar-color:var(--border) transparent}.reveal-scroll::-webkit-scrollbar{display:block;height:3px}.reveal-scroll::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+/* Label the actual controls first; spend leftover width on section names. */
+.group[data-action-labels=full] .tool .tool-label{display:inline}.group[data-action-labels=full] .tool,.group[data-action-labels=adaptive] .tool{font-size:12px}
+.group[data-action-labels=adaptive] .tool .tool-label{display:none}.group[data-action-labels=adaptive] .tool[data-show-label] .tool-label{display:inline}
+.group[data-action-labels=active] .tool .tool-label,.group[data-action-labels=icons] .tool .tool-label{display:none}
+.group[data-action-labels=active] .tool[data-tool][aria-pressed=true] .tool-label,.group[data-action-labels=active] .tool[data-scope][aria-pressed=true] .tool-label{display:inline}
+.strip[data-open][data-fit-headers=active] .group.open .trigger .label,.strip[data-open][data-fit-headers=all] .trigger .label{display:flex;max-width:150px;opacity:1}
+.strip[data-open][data-fit-headers=active] .group.open .trigger .group-name,.strip[data-open][data-fit-headers=all] .trigger .group-name{display:inline!important}
+.strip[data-open][data-fit-headers] .trigger .detail{display:none}
+.strip[data-open][data-fit-headers=active] .group.open .trigger,.strip[data-open][data-fit-headers=all] .trigger{gap:6px}
+.strip>.utility{width:auto;min-width:30px;gap:5px}.utility-label{display:none;font-size:12px;white-space:nowrap}.strip[data-position-label=full]>.utility .utility-label{display:inline}
+/* One settled layout, followed by a bounded reveal. Outgoing labels keep their widths. */
+.reveal{transition:grid-template-columns 170ms cubic-bezier(.22,.61,.36,1)}.group.open .reveal{transition-duration:280ms}
+.strip.measuring,.strip.measuring *{transition:none!important;animation:none!important}
+@media(prefers-reduced-motion:reduce){.reveal,.group.open .reveal{transition:none!important}}
+
+/* Standalone canvas-first study. The approved toolbar archive is unchanged. */
+:root{--radius:10px;color-scheme:light dark}body{color:var(--foreground,CanvasText);font-family:var(--font-sans,system-ui,sans-serif)}main{min-width:0}.study-head,.demo-controls,.explanation,.map,.caption,.state{display:none}
+.lab{padding:16px;border-radius:var(--radius);font-size:12px}.shell-study{position:relative;min-width:0}.shell-study button{font-family:inherit}.shell-study button:disabled{opacity:.4}.shell-study .icon{width:16px;height:16px}
+.shell-study .header{height:40px;padding:0;margin-bottom:10px;gap:8px}.topbar .project-button{display:flex;align-items:center;gap:7px;border:0;background:transparent;color:var(--foreground);font-size:13px;font-weight:600;padding:5px 4px;white-space:nowrap;height:32px}.topbar .project-button>.icon{width:21px;height:21px}.topbar .project-button .chevron{width:11px;height:11px}
+.topbar .saved{display:flex;align-items:center;gap:5px;background:transparent;border:0;border-radius:4px;padding:4px;color:var(--muted-foreground);font-size:12px;white-space:nowrap;margin-right:8px}.saved-dot{width:5px;height:5px;border-radius:50%;background:var(--board);display:inline-block}
+.workspaces{display:flex;align-items:center;gap:2px;min-width:0}.workspaces button{padding:7px 9px;border:0;border-radius:5px;background:transparent;color:var(--muted-foreground);font-size:12px;white-space:nowrap}.workspaces button[aria-current=page]{background:var(--accent);color:var(--primary);font-weight:600}.workspaces button:hover:not([aria-current]){background:var(--secondary);color:var(--foreground)}
+.top-utilities{display:flex;align-items:center;gap:2px;margin-left:auto;flex-shrink:0}.shell-icon{width:28px;height:28px;border:0;border-radius:5px;background:transparent;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;padding:5px;color:var(--muted-foreground)}.shell-icon:hover{background:var(--secondary);color:var(--foreground)}.shell-icon[aria-expanded=true]{background:var(--accent);color:var(--primary)}.topbar .compact-workspaces{display:none}.topbar .export-button{height:30px;font-size:12px;background:var(--secondary);color:var(--foreground);border:1px solid var(--border);border-radius:5px;padding:5px 10px;margin-left:5px}
+.workbench{position:relative;min-width:0;overflow:hidden;border-radius:var(--radius)}.surface{min-width:0;height:564px;display:flex;flex-direction:column;overflow:hidden;container-type:inline-size}.strip{flex-shrink:0;background:var(--card)}
+.strip>.utility{margin-left:0;width:auto;gap:5px}.strip>.utility[data-objects]{margin-left:auto}.strip>.utility[aria-expanded=true]{background:var(--accent);color:var(--primary)}.strip[data-open=""] .trigger[data-closed-hide] .label,.strip[data-open=""] .trigger[data-closed-hide]>.chevron{display:none!important}
+.canvas{flex:1;display:flex;flex-direction:column;min-height:0;background:var(--canvas)}.canvas-top{height:39px;padding:8px 12px;gap:6px;font-size:12px;justify-content:flex-start;flex-shrink:0}.canvas-top .scope-status{gap:5px;min-width:0}.canvas-top .scope-status>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.canvas-top .scope-status .icon{width:14px;height:14px;flex-shrink:0}.canvas-top #target-status{display:none}.half-button{background:transparent;border:0;border-radius:4px;color:var(--muted-foreground);display:flex;align-items:center;gap:4px;height:26px;padding:4px;font-size:12px;margin-left:8px}.half-button:hover{background:var(--secondary);color:var(--foreground)}.half-button .icon{width:13px;height:13px}
+#drawing{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;overflow:hidden}.shell-scene{width:100%;height:100%;display:block;min-height:0}.shell-scene .key{fill:var(--secondary);stroke:var(--key);stroke-width:1;cursor:pointer}.shell-scene .face{fill:var(--canvas);stroke:var(--border);stroke-width:.8;pointer-events:none}.shell-scene .key-selected .key{stroke:var(--primary);fill:var(--accent);stroke-width:1.8}.shell-scene .key-selected .face{fill:var(--accent)}
+.shell-scene .board-shape{fill:color-mix(in srgb,var(--board) 4%,transparent);stroke:var(--board);stroke-width:1.4;vector-effect:non-scaling-stroke;cursor:pointer}.shell-scene .board-shape.is-selected{stroke:var(--primary);stroke-width:2;fill:color-mix(in srgb,var(--primary) 5%,transparent)}.shell-scene .matrix-frame{fill:none;stroke:var(--key);stroke-width:1;stroke-dasharray:4 5;vector-effect:non-scaling-stroke;opacity:.6}.shell-scene .matrix-frame.is-selected{stroke:var(--primary);stroke-width:1.5;opacity:1}
+.shell-scene .component-body{fill:var(--card);stroke:var(--violet);stroke-width:1.4;vector-effect:non-scaling-stroke;cursor:pointer}.shell-scene .component-body.is-selected{stroke:var(--primary);fill:var(--accent);stroke-width:2}.shell-scene .component-label,.shell-scene .matrix-label{font-family:var(--font-mono,monospace);font-size:11px;fill:var(--muted-foreground)}.shell-scene .half-inactive .key,.shell-scene .half-inactive .face,.shell-scene .half-inactive .component-body,.shell-scene .half-inactive .board-shape{opacity:.6}
+.shell-scene .anchor-link{fill:none;stroke:var(--violet);stroke-width:1.2;stroke-dasharray:3 4;vector-effect:non-scaling-stroke}.shell-scene .anchor-ring{fill:var(--canvas);stroke:var(--violet);stroke-width:1.5;vector-effect:non-scaling-stroke}.shell-scene .origin-line{stroke:var(--violet);stroke-width:1;stroke-dasharray:4 5;fill:none;vector-effect:non-scaling-stroke}.shell-scene .tool-handle{fill:var(--primary);stroke:var(--canvas);stroke-width:1.5;vector-effect:non-scaling-stroke}
+.canvas-help{margin-top:auto;min-height:37px;padding:7px 12px 9px;font-size:12px;line-height:1.45}.shell-study .footer{font-size:12px;gap:10px;padding:8px 10px;min-height:35px;flex-shrink:0}.shell-study .footer button,.shell-study .footer .readout{font-size:12px}.shell-study .footer .finding{font-size:12px;margin-left:auto}
+/* One temporary tool panel at a time; neither takes canvas width. */
+.inspector{position:absolute;top:50px;right:8px;bottom:8px;width:280px;max-width:calc(100% - 16px);z-index:8;display:flex;flex-direction:column;background:var(--card);border-radius:var(--radius);min-height:0;overflow:hidden;box-shadow:0 10px 28px color-mix(in srgb,var(--background) 65%,transparent);transform:translateX(0);visibility:visible;transition:transform 220ms cubic-bezier(.22,.61,.36,1),visibility 0s}
+.inspector.is-closed{transform:translateX(calc(100% + 16px));visibility:hidden;pointer-events:none;transition:transform 170ms cubic-bezier(.22,.61,.36,1),visibility 0s 170ms}
+.inspector-heading{padding:12px 12px 10px;display:flex;align-items:flex-start;gap:6px;flex-shrink:0}.inspector-title{min-width:0;margin-right:auto}.inspector-title strong{display:block;font-size:14px;font-weight:600;line-height:1.4}.inspector-title span{display:block;font-size:12px;color:var(--muted-foreground);margin-top:3px}.inspector-heading .shell-icon{width:25px;height:25px}.inspector-body{padding:0 12px 12px;overflow-y:auto;min-height:0;flex:1;scrollbar-width:thin;scrollbar-color:var(--border) transparent}
+.inspect-section{border-top:1px solid var(--border)}.inspect-section>summary{min-height:37px;display:flex;align-items:center;gap:6px;cursor:pointer;list-style:none;font-size:12px;font-weight:600;user-select:none}.inspect-section>summary::-webkit-details-marker{display:none}.inspect-section>summary .chevron{width:11px;height:11px;color:var(--muted-foreground)}.inspect-section[open]>summary .chevron{transform:rotate(180deg)}.inspect-section>summary>span:not(.section-value){white-space:nowrap}.inspect-section>summary .section-value{font-size:12px;color:var(--muted-foreground);font-weight:400;margin-left:auto;max-width:44%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.section-content{padding:0 0 12px}
+.field-pair{display:grid;grid-template-columns:1fr 1fr;gap:8px}.inspector-field{display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--muted-foreground);margin:0 0 9px;min-width:0}.input-unit{display:flex;align-items:center;border:1px solid var(--border);border-radius:5px;background:var(--secondary);height:33px;min-width:0}.input-unit:focus-within{outline:2px solid var(--primary);outline-offset:1px}.input-unit input{border:0;background:transparent;color:var(--foreground);padding:5px 7px;min-width:0;width:100%;font-family:var(--font-mono,monospace);font-size:12px;font-variant-numeric:tabular-nums;outline:none!important}.input-unit>span{font-size:12px;padding-right:8px;color:var(--muted-foreground);flex-shrink:0}.inspector-field select{background:var(--secondary);color:var(--foreground);border:1px solid var(--border);border-radius:5px;height:33px;padding:5px 7px;font-size:12px;min-width:0;width:100%}
+.field-note{font-size:12px;line-height:1.5;color:var(--muted-foreground);margin:1px 0 9px}.placement-reference{font-size:12px;line-height:1.55;color:var(--muted-foreground);margin:0 0 9px}.placement-reference strong{display:block;color:var(--foreground);font-weight:500}.inspect-check{display:flex;align-items:center;gap:7px;line-height:1.45;font-size:12px;margin:0 0 10px;color:var(--foreground)}.inspect-check input{accent-color:var(--primary);width:14px;height:14px;margin:0}.subtle-button{display:inline-flex;align-items:center;justify-content:center;gap:5px;background:transparent;color:var(--foreground);border:1px solid var(--border);border-radius:5px;font-size:12px;padding:6px 8px;min-height:30px}.subtle-button:hover{background:var(--secondary)}.subtle-button.wide{width:100%;justify-content:flex-start}.section-content>.subtle-button+.subtle-button{margin-top:7px}.inspect-status{padding:9px 12px;border-top:1px solid var(--border);font-size:12px;color:var(--muted-foreground);display:flex;align-items:center;gap:5px;flex-shrink:0}
+.objects-popover{position:absolute;z-index:10;top:50px;right:8px;width:304px;max-width:calc(100% - 16px);max-height:calc(100% - 58px);overflow-y:auto;padding:12px;background:var(--card);border-radius:var(--radius);box-shadow:0 10px 28px color-mix(in srgb,var(--background) 65%,transparent);scrollbar-width:thin;scrollbar-color:var(--border) transparent}.objects-popover[hidden]{display:none}.popover-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;font-size:13px}.objects-popover input[type=search]{width:100%;height:32px;padding:6px 8px;border:1px solid var(--border);border-radius:5px;background:var(--secondary);color:var(--foreground);font-size:12px;margin:0 0 9px}.objects-popover input::placeholder{color:var(--muted-foreground);opacity:1}
+.object-item{display:flex;align-items:center;gap:7px;width:100%;border:0;background:transparent;border-radius:5px;color:var(--foreground);padding:8px 7px;min-height:34px;text-align:left;font-size:12px}.object-item:hover{background:var(--secondary)}.object-item[aria-pressed=true]{background:var(--accent);color:var(--primary)}.object-item>.icon{width:15px;height:15px;flex-shrink:0}.object-copy{min-width:0;display:flex;flex-direction:column;gap:3px}.object-name{font-weight:500}.object-meta{font-size:12px;color:var(--muted-foreground);line-height:1.35}.object-item .count{margin-left:auto;color:var(--muted-foreground);font-size:12px}.object-label{font-size:12px;font-weight:500;color:var(--muted-foreground);margin:15px 7px 5px}.matrix-row{display:flex;align-items:center;gap:3px}.matrix-row>.object-item{flex:1;min-width:0}.component-refs{margin:0 0 5px 19px;padding-left:8px;border-left:1px solid var(--border)}.component-refs .object-label{margin-top:7px}.object-hint{font-size:12px;color:var(--muted-foreground);line-height:1.5;margin:12px 7px 0}.tree-line{display:flex;align-items:center;gap:6px;border:0;background:transparent;color:var(--foreground);width:100%;min-height:30px;text-align:left;font-size:12px;padding:5px 10px}.tree-line:hover{background:var(--secondary)}.tree-line .icon{width:13px;height:13px}.columns-list{margin-left:20px}.object-empty{font-size:12px;margin:12px 7px;color:var(--muted-foreground)}
+.shell-menu{position:absolute;z-index:30;top:51px;right:16px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:10px;width:236px;color:var(--foreground);max-width:calc(100% - 32px);font-size:12px}.shell-menu[hidden]{display:none}.shell-menu h3{font-size:13px;font-weight:600;margin:1px 4px 9px}.shell-menu p{font-size:12px;line-height:1.5;color:var(--muted-foreground);margin:5px 4px 9px}.shell-menu button.menu-row{display:flex;align-items:center;gap:7px;width:100%;padding:8px 7px;border:0;background:transparent;border-radius:4px;color:var(--foreground);text-align:left;font-size:12px}.shell-menu button.menu-row:hover{background:var(--secondary)}.menu-row small{font-size:12px;color:var(--muted-foreground);margin-left:auto}.shell-menu label{display:flex;align-items:center;justify-content:space-between;margin:7px 4px;gap:8px}.shell-menu select,.shell-menu input[type=search]{font-size:12px;min-width:0;background:var(--secondary);color:var(--foreground);border:1px solid var(--border);border-radius:5px;padding:7px;max-width:100%}.shell-menu input[type=search]{width:100%;margin-bottom:7px}.shell-menu .menu-close{position:absolute;top:8px;right:8px;width:24px;height:24px}.shell-menu.project-menu{left:16px;right:auto}.panel{animation:none}
+.preview-controls{display:flex;align-items:center;justify-content:center;gap:12px;margin:14px 0 0;font-size:12px;color:var(--muted-foreground)}.preview-controls button{display:flex;align-items:center;gap:5px;padding:6px 9px;border:1px solid var(--border);border-radius:5px;background:var(--card);color:var(--foreground);font-size:12px}.preview-controls .icon{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.5}.study-caption,.study-state{font-size:12px;line-height:1.5;color:var(--muted-foreground);margin:8px 0 0}.study-state{min-height:18px}.inspector summary:focus-visible{outline:2px solid var(--primary);outline-offset:-2px}.shell-study ::selection{background:var(--primary);color:var(--primary-foreground)}.shell-study input{caret-color:var(--primary)}
+@container(max-width:580px){.strip:not([data-open=""])[data-fit-headers=all] .trigger .group-name{display:none!important}.strip{gap:1px;padding-left:5px;padding-right:5px}.strip[data-open]:not([data-open=""]) .trigger{padding:5px}.trigger{padding:5px 6px}.tool{min-width:27px;padding:5px}.footer .readout{display:none}}
+@media(max-width:1100px){.topbar .saved-label{display:none}.topbar .saved{margin-right:2px}.workspaces button{padding:7px 7px}}
+@media(max-width:800px){.workspaces{gap:0}.workspaces button{padding:7px 5px}.topbar .project-button{font-size:12px;gap:5px}.topbar .project-button>.icon{display:none}.topbar .saved{margin-right:0;padding:2px}.topbar .export-button{padding:5px 7px;margin-left:2px}.top-utilities{gap:0}.shell-study .footer .finding{display:none}}
+@media(max-width:600px){.topbar .workspaces{display:none}.topbar .saved{margin-right:auto}.topbar .project-button>.icon{display:block;width:18px;height:18px}.topbar .project-button{font-size:13px}.topbar .compact-workspaces{display:inline-flex}.canvas-top{padding:7px 9px}.canvas-top .scope-status>span{max-width:130px}.shell-study .footer [data-camera="Fit selection"],.shell-study .footer .readout{display:none}.shell-study .footer{gap:8px}.canvas-help{padding:7px 9px}.inspector{width:264px}.objects-popover{width:288px}}
+@media(max-width:380px){.topbar .history-button{display:none}}
+@media(prefers-reduced-motion:reduce){.shell-study *,.preview-controls *{transition:none!important;animation:none!important}}
+</style></head><body><main>
+<div class="lab shell-study" data-appearance="dark" id="lab">
+  <header class="header topbar" role="group" aria-label="Project and workspaces">
+    <button class="project-button" data-shell-menu="project" aria-expanded="false" title="Project menu"><span id="brand"></span><span>Split 42</span><svg class="icon chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m5 8 5 5 5-5"/></svg></button>
+    <button class="saved" data-shell-menu="save" aria-label="Saved locally, illustrative status" title="Illustrative local-save status" aria-expanded="false"><span class="saved-dot"></span><span class="saved-label">Saved locally</span></button>
+    <nav class="workspaces" aria-label="Workspaces"><button aria-current="page" data-workspace="Layout">Layout</button><button data-workspace="PCB">PCB</button><button data-workspace="Keymap">Keymap</button><button data-workspace="Keycaps">Keycaps</button><button data-workspace="Case">Case</button><button data-workspace="Parts">Parts</button></nav>
+    <div class="top-utilities">
+      <button class="shell-icon compact-workspaces" data-shell-menu="workspaces" aria-label="Workspaces" title="Workspaces" aria-expanded="false"></button>
+      <button class="shell-icon" data-shell-menu="search" aria-label="Search commands" title="Search commands · Ctrl/Cmd K" aria-expanded="false"></button>
+      <button class="shell-icon history-button" id="undo" data-history="undo" aria-label="Undo" title="Undo · Ctrl/Cmd Z" disabled></button>
+      <button class="shell-icon history-button" id="redo" data-history="redo" aria-label="Redo" title="Redo · Ctrl/Cmd Shift Z" disabled></button>
+      <button class="shell-icon" data-shell-menu="settings" aria-label="Settings" title="Settings and appearance" aria-expanded="false"></button>
+      <button class="export-button" data-shell-menu="export" aria-expanded="false">Export</button>
+    </div>
+  </header>
+  <div class="workbench" id="workbench">
+    <section class="surface" aria-label="Layout canvas">
+      <div class="strip" id="strip" data-open="" role="group" aria-label="Layout tools"></div>
+      <div class="canvas">
+        <div class="canvas-top"><span class="scope-status" id="scope-status"></span><span id="target-status"></span><button class="half-button" data-switch-half title="Switch editing focus between linked halves"><span class="half-label" id="half-label">Left half</span><span id="half-icon"></span></button></div>
+        <div id="drawing"></div>
+        <div class="canvas-help" id="hint" aria-live="polite"></div>
+      </div>
+      <footer class="footer"><button data-camera="Fit board">Fit board</button><button data-camera="Fit selection" id="fit-selection">Fit selection</button><span>100%</span><span class="readout" id="position-readout">mm</span><span class="finding">Layout study</span></footer>
+      <div class="panel" id="panel" hidden></div>
+    </section>
+    <section class="objects-popover" id="objects-popover" aria-label="Objects" hidden>
+      <div class="popover-heading"><strong>Objects</strong><button class="shell-icon" data-close-objects aria-label="Close Objects" title="Close Objects"></button></div>
+      <input type="search" id="object-search" aria-label="Find an object" placeholder="Find an object…" autocomplete="off">
+      <div id="object-list"></div>
+      <p class="object-hint">Components are listed by the matrix key they are placed from.</p>
+    </section>
+    <aside class="inspector is-closed" id="inspector" aria-label="Inspector" aria-hidden="true" tabindex="-1" inert>
+      <div class="inspector-heading"><div class="inspector-title"><strong id="inspector-name">Outline</strong><span id="inspector-context">Generated · Main board</span></div><button class="shell-icon" data-close-inspector aria-label="Close Inspector" title="Close Inspector"></button></div>
+      <div class="inspector-body" id="inspector-fields"></div>
+      <div class="inspect-status"><span class="saved-dot"></span><span>Illustrative values · preview only</span></div>
+    </aside>
+  </div>
+  <div class="shell-menu" id="shell-menu" hidden></div>
+</div>
+<div class="preview-controls"><span>Tool-panel study</span><button id="theme" aria-label="Use light appearance">Light appearance</button></div>
+<p class="study-state" id="study-state" aria-live="polite"></p>
+<p class="study-caption">Try <strong>Objects → Outline → Inspect</strong>, or choose a component to see its matrix anchor. No permanent sidebars, no icon rail, no pinning. Mockup only: values and geometry are illustrative and stay in memory. The saved Option A toolbar is untouched.</p>
+<div hidden><select id="scenario" aria-label="Toolbar scenario"><option value="column">Column</option><option value="row">Row</option><option value="key">Key</option><option value="matrix">Anchored matrix</option><option value="matrix-unanchored">Unanchored matrix</option><option value="rotate-off">Follow rotation off</option><option value="first">First column</option><option value="part">Anchored part</option><option value="part-first">First-column part</option><option value="detached">Detached part</option><option value="locked">Locked part</option><option value="empty">No selection</option></select><span id="state"></span><span id="meter"></span></div>
+</main>
+<script>
+const $=s=>document.querySelector(s);
+const paths={Select:'M3 2l12 8-6 1-3 6z',Transform:'M3 16A13 13 0 0 1 16 3M12 1l4 2-2 4M3 16h5',Matrix:'M3 3h14v14H3zM3 8h14M3 12h14M8 3v14M12 3v14',Row:'M2 6h16v8H2zM7 6v8M13 6v8',Column:'M6 2h8v16H6zM6 7h8M6 13h8',Key:'M4 4h12v12H4zM7 7h6v6H7z',Part:'M6 6h8v8H6zM8 2v4M12 2v4M8 14v4M12 14v4M2 8h4M2 12h4M14 8h4M14 12h4',Move:'M10 2v16M2 10h16M7 5l3-3 3 3M7 15l3 3 3-3M5 7l-3 3 3 3M15 7l3 3-3 3',Rotate:'M16 7a7 7 0 1 0 1 7M16 3v4h-4',Stagger:'M4 2v16M1 5l3-3 3 3M1 15l3 3 3-3M11 5h6v4h-6zM11 12h6v4h-6z',Spread:'M2 10h16M6 7l-4 3 4 3M14 7l4 3-4 3M7 3v3M13 3v3M7 14v3M13 14v3',Offset:'M3 3h6v6H3zM11 11h6v6h-6zM10 5h5v5M12 8l3 2 2-2',Shift:'M2 10h16M5 7l-3 3 3 3M15 7l3 3-3 3M5 3h10M5 17h10',Bend:'M4 16C4 8 7 4 15 4M12 1l3 3-3 3M7 16h8',Splay:'M4 16A12 12 0 0 1 16 4M12 2l4 2-2 4M4 16h5M4 16V11',Origin:'M10 2v4M10 14v4M2 10h4M14 10h4M14 10a4 4 0 1 1-8 0 4 4 0 0 1 8 0',Anchor:'M10 7v11M6 10h8M3 13a7 7 0 0 0 14 0M12 4a2 2 0 1 1-4 0 2 2 0 0 1 4 0',Align:'M3 2v16M6 4h10v4H6zM6 12h6v4H6z',Snap:'M4 3v8a6 6 0 0 0 12 0V3h-4v8a2 2 0 0 1-4 0V3zM4 7h4M12 7h4',View:'M1 10s3-6 9-6 9 6 9 6-3 6-9 6-9-6-9-6M13 10a3 3 0 1 1-6 0 3 3 0 0 1 6 0',Position:'M3 3h14v14H3zM3 8h5V3M12 17v-5h5',Settings:'M10 2v3M10 15v3M2 10h3M15 10h3M4 4l2 2M14 14l2 2M4 16l2-2M14 6l2-2M14 10a4 4 0 1 1-8 0 4 4 0 0 1 8 0',Gap:'M3 4v12M17 4v12M6 10h8M8 8l-2 2 2 2M12 8l2 2-2 2',Close:'M5 5l10 10M15 5 5 15',Left:'M3 2v16M6 5h11v3H6zM6 12h7v3H6z',CenterX:'M10 1v18M3 5h14v3H3zM5 12h10v3H5z',Right:'M17 2v16M3 5h11v3H3zM7 12h7v3H7z',Top:'M2 3h16M5 6h3v11H5zM12 6h3v7h-3z',CenterY:'M1 10h18M5 3h3v14H5zM12 5h3v10h-3z',Bottom:'M2 17h16M5 3h3v11H5zM12 7h3v7h-3z',Keys:'M3 3h6v6H3zM11 3h6v6h-6zM3 11h6v6H3zM11 11h6v6h-6z',Components:'M6 6h8v8H6zM8 2v4M12 2v4M8 14v4M12 14v4M2 8h4M14 8h4',Keycaps:'M3 5h14l2 12H1zM6 3h8l3 10H3z',Footprints:'M4 4h12v12H4zM7 2v4M13 2v4M7 14v4M13 14v4M2 7h4M14 7h4',Board:'M3 3h11l3 3v11H3zM6 6h3v3H6zM6 13h8',Handles:'M3 3h14v14H3zM1 1h4v4H1zM15 1h4v4h-4zM1 15h4v4H1zM15 15h4v4h-4z'};
+function ico(n,cls=''){return `<svg class="icon ${cls}" viewBox="0 0 20 20" aria-hidden="true"><path d="${paths[n]||paths.Position}"/></svg>`}const chevron='<svg class="icon chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m5 8 5 5 5-5"/></svg>';
+const s={open:'transform',panel:null,scope:'Column',selected:true,tool:'Splay',scenario:'column',column:2,row:1,angle:12,snap:'¼u',geometry:true,gapSnap:true,gap:'1',reference:'Encoder 1',appearance:'dark',visibility:{Keys:true,Components:true,Keycaps:true,Footprints:false,Board:true,Handles:true},notice:''};
+const groups=[['select','Select'],['transform','Transform'],['align','Align'],['snap','Snap'],['view','View']];
+const scopes=['Matrix','Row','Column','Key','Part'];
+const hints={Stagger:'Drag along the column · Ctrl: quick Offset · Alt: bypass snap',Spread:'Adjust the inherited spread · Alt: bypass snap',Offset:'Adjust independent offset · Alt: bypass snap',Shift:'Move the running frame in two dimensions',Bend:'Turn the running frame · Alt: bypass snap',Splay:'Drag the angle handle · Ctrl: swing origin · Alt: bypass snap',Origin:'Move the splay origin · Ctrl: swing',Move:'Move through the selected object’s origin',Rotate:'Rotate the selected object',Anchor:'Pick a key on the canvas · this is not a drag'};
+function tools(){if(s.scope==='Matrix')return['Move','Rotate',...(s.scenario==='matrix-unanchored'?[]:['Anchor'])];if(s.scope==='Column')return['Stagger','Spread','Offset','Splay','Origin'];if(s.scope==='Row')return['Offset','Shift','Bend'];if(s.scope==='Key')return['Shift','Bend'];return s.scenario==='detached'?['Move','Rotate','Anchor']:['Move','Rotate','Spread','Stagger','Anchor'];}
+function disabled(t){return!s.selected||s.scenario==='locked'||t==='Rotate'&&s.scenario==='rotate-off'||t==='Spread'&&(s.scope==='Column'&&s.column===0||s.scenario==='part-first');}
+function target(){return!s.selected?'No selection':s.scope==='Column'?`Column ${s.column+1}`:s.scope==='Row'?`Row ${s.row+1}`:s.scope==='Key'?`Key R${s.row+1} · C${s.column+1}`:s.scope==='Part'?'Encoder 1':'Matrix 1';}
+function toolButton(n,kind,pressed=false,off=false,title=n){return `<button class="tool" data-${kind}="${n}" aria-label="${title}" title="${title}" ${kind==='align'?'':`aria-pressed="${pressed}"`} ${off?'disabled':''}>${ico(n.replace(/ /g,''))}<span class="tool-label">${kind==='pref'?(n==='Snap'?'Geometry snap':'Envelope gap'):kind==='view'&&n==='Handles'?'Canvas handles':n}</span></button>`;}
+function contents(g){if(g==='select')return scopes.map(k=>toolButton(k,'scope',s.scope===k,false,'Select '+k)).join('');if(g==='transform')return!s.selected?'<span class="no-tools">Select a target on the canvas</span>':s.scenario==='locked'?'<span class="no-tools">Locked · inspect Position</span>':tools().map(t=>toolButton(t,'tool',s.tool===t,disabled(t),disabled(t)?t==='Spread'?'Spread unavailable: first column':'Rotate unavailable: Follow rotation off':t+' · '+hints[t])).join('');if(g==='align')return['Left','Center X','Right','Top','Center Y','Bottom'].map(a=>toolButton(a,'align',false,!s.selected||s.scenario==='locked','Align '+a+' to '+s.reference)).join('')+`<button class="tool" data-panel="align" title="Alignment reference and Relationships" aria-label="Alignment reference and Relationships">${ico('Settings')}<span class="tool-label">Reference</span></button>`;if(g==='snap')return `<select class="snap-select" id="increment" aria-label="Snap increment">${['Off','⅛u','¼u','½u','1u','1 mm','0.5 mm','0.1 mm'].map(n=>`<option ${s.snap===n?'selected':''}>${n}</option>`).join('')}</select>${toolButton('Snap','pref',s.geometry,false,'Geometry snap')}${toolButton('Gap','pref',s.gapSnap,!s.geometry,'Envelope gap')}<button class="tool" data-panel="snap" title="Gap override and snapping details" aria-label="Gap override and snapping details">${ico('Settings')}<span class="tool-label">Settings</span></button>`;return Object.entries(s.visibility).map(([k,v])=>toolButton(k,'view',v,false,k==='Handles'?'Canvas handles':k)).join('');}
+function buildStrip(){const markup=groups.map(([g,label])=>`<div class="group" data-group="${g}"><button class="trigger" data-group-trigger="${g}" aria-label="${label}" aria-expanded="false" aria-controls="section-${g}" title="${label} · click to expand in place">${ico(g==='select'?'Select':g==='transform'?'Transform':label)}<span class="label"><span class="group-name">${label}</span>${g==='select'?'<span class="detail" id="scope-caption"></span>':g==='transform'?'<span class="detail" id="tool-caption"></span>':g==='snap'?'<span class="detail" id="snap-caption"></span>':''}</span>${chevron}</button><div class="reveal" id="section-${g}" inert><div class="reveal-inner"><div class="reveal-scroll" data-content="${g}"></div></div></div></div>`).join('');$('#strip').innerHTML=markup+`<button class="utility" data-panel="position" aria-label="Position and rotation" title="Position and rotation">${ico('Position')}<span class="utility-label">Position</span></button>`;}
+function refresh(){for(const[g]of groups){const node=$(`[data-content="${g}"]`);node.innerHTML=contents(g);}$('#scope-caption').textContent=s.scope;$('#tool-caption').textContent=s.tool||'Tools';$('#snap-caption').textContent=s.snap;$('#scope-status').innerHTML=ico(s.scope)+`<strong>${target()}</strong>${s.tool&&s.selected?' · '+s.tool:''}`;$('#target-status').textContent=s.selected?'Matrix 1 · 20 keys':'Pick on canvas';$('#hint').innerHTML=s.notice||(!s.selected?`<strong>Select ${s.scope.toLowerCase()}:</strong> click a target on the drawing.`:s.scenario==='locked'?'<strong>Locked part:</strong> editing tools are unavailable.':s.tool?`<strong>${s.tool}:</strong> ${hints[s.tool]} · Esc: leave tool`:'Choose a tool from Transform. The canvas stays clear until a tool is active.');$('#fit-selection').disabled=!s.selected;$('#state').textContent=`${s.open?'Open: '+s.open:'All sections folded'} · ${s.scope} · ${s.selected?target():'no target'} · ${s.tool||'no active tool'} · presentation only`;$('#lab').dataset.appearance=s.appearance;$('#theme').textContent=s.appearance==='dark'?'Light appearance':'Dark appearance';renderDrawing();setOpen(s.open,false);renderPanel();}
+function setOpen(g,moveFocus=false){const previous=s.open;s.open=g;$('#strip').dataset.open=g||'';for(const[key]of groups){const is=key===g;const group=$(`[data-group="${key}"]`);group.classList.toggle('open',is);group.querySelector('.trigger').setAttribute('aria-expanded',is);const section=$('#section-'+key);section.inert=!is;}$('#state').textContent=`${g?'Open: '+g:'All sections folded'} · ${s.scope} · ${s.selected?target():'no target'} · ${s.tool||'no active tool'} · presentation only`;if(moveFocus)$(`[data-group-trigger="${g}"]`)?.focus({preventScroll:true});cancelAnimationFrame(labelFitFrame);applyFinalFit();if(previous!==g)animateSection(previous,g);}
+let labelFitFrame=0;
+let sectionAnimations=[];
+function scheduleLabelFit(){cancelAnimationFrame(labelFitFrame);labelFitFrame=requestAnimationFrame(applyFinalFit);}
+function applyFinalFit(){
+ const live=$('#strip');
+ if(!s.open){delete live.dataset.fitHeaders;delete live.dataset.positionLabel;return;}
+ // Measure the final pose offscreen; never refit against an intermediate slide width.
+ const probe=live.cloneNode(true);probe.removeAttribute('id');probe.querySelectorAll('[id]').forEach(n=>n.removeAttribute('id'));
+ probe.classList.add('measuring');probe.inert=true;probe.setAttribute('aria-hidden','true');
+ probe.style.cssText=`position:fixed;left:-10000px;top:0;width:${live.getBoundingClientRect().width}px;visibility:hidden;pointer-events:none`;
+ $('#lab').append(probe);fitLabels(probe);
+ for(const attr of ['fitHeaders','positionLabel']){if(probe.dataset[attr]!==undefined)live.dataset[attr]=probe.dataset[attr];else delete live.dataset[attr];}
+ const measured=probe.querySelector(`[data-group="${s.open}"]`),actual=live.querySelector(`[data-group="${s.open}"]`);
+ actual.dataset.actionLabels=measured.dataset.actionLabels;
+ const buttons=actual.querySelectorAll('.tool');measured.querySelectorAll('.tool').forEach((button,index)=>{if(button.hasAttribute('data-show-label'))buttons[index].dataset.showLabel='';else delete buttons[index].dataset.showLabel;});
+ probe.remove();
+}
+function animateSection(previous,next){
+ sectionAnimations.forEach(a=>a.cancel());sectionAnimations=[];
+ if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+ // Translate the complete icon-and-label strip under its stationary clip.
+ // No opacity, text animation, stagger, or delayed label reveal.
+ const slide=(group,entering)=>{
+  const section=$(`[data-group="${group}"] .reveal-scroll`);
+  const distance=section.scrollWidth;
+  const frames=entering?[{transform:`translateX(${distance}px)`},{transform:'translateX(0px)'}]:[{transform:'translateX(0px)'},{transform:`translateX(${distance}px)`}];
+  sectionAnimations.push(section.animate(frames,{duration:entering?280:170,easing:'cubic-bezier(.22,.61,.36,1)',fill:entering?'backwards':'forwards'}));
+ };
+ if(previous)slide(previous,false);
+ if(next)slide(next,true);
+}
+function fitLabels(strip){
+ if(!s.open){delete strip.dataset.fitHeaders;delete strip.dataset.positionLabel;return;}
+ const group=strip.querySelector(`[data-group="${s.open}"]`),track=group.querySelector('.reveal-scroll');
+ strip.dataset.fitHeaders='none';delete strip.dataset.positionLabel;group.dataset.actionLabels='full';
+ const fits=()=>track.clientWidth>0&&track.scrollWidth<=track.clientWidth+1;
+ if(!fits()){
+  group.dataset.actionLabels='adaptive';
+  const buttons=[...track.querySelectorAll('.tool')];buttons.forEach(b=>delete b.dataset.showLabel);
+  const priority=b=>b.matches('[data-tool][aria-pressed=true],[data-scope][aria-pressed=true]')?0:1;
+  for(const button of buttons.sort((a,b)=>priority(a)-priority(b))){button.dataset.showLabel='';if(!fits())delete button.dataset.showLabel;}
+  strip.dataset.positionLabel='full';if(!fits())delete strip.dataset.positionLabel;
+  return;
+ }
+ strip.dataset.positionLabel='full';if(!fits())delete strip.dataset.positionLabel;
+ strip.dataset.fitHeaders='active';if(!fits())strip.dataset.fitHeaders='none';
+ const previous=strip.dataset.fitHeaders;strip.dataset.fitHeaders='all';if(!fits())strip.dataset.fitHeaders=previous;
+}
+function renderDrawing(){let content='';for(let c=0;c<5;c++){let col='';for(let r=0;r<4;r++){const selected=s.selected&&(s.scope==='Matrix'||s.scope==='Column'&&c===s.column||s.scope==='Row'&&r===s.row||s.scope==='Key'&&r===s.row&&c===s.column);const y=r*40;col+=`<g class="${selected?'selected':''}" data-cell="${r},${c}"><rect class="key" x="${c*40}" y="${y}" width="35" height="35" rx="5"/>${s.visibility.Keycaps?`<rect class="face" x="${c*40+5}" y="${y+5}" width="25" height="24" rx="3"/>`:''}${s.visibility.Footprints?`<path d="M${c*40+9} ${y+9}h17v17h-17z" fill="none" stroke="var(--violet)"/>`:''}${s.tool==='Anchor'?`<circle class="origin" cx="${c*40+17.5}" cy="${y+17.5}" r="4"/>`:''}</g>`;}const angle=s.scope==='Column'&&c===s.column&&s.tool==='Splay'?s.angle:0;content+=`<g transform="rotate(${angle} ${c*40+17.5} 180)">${col}</g>`;}
+const x=s.column*40+17.5;const origin=s.selected&&['Splay','Origin'].includes(s.tool)?`<path d="M${x} -16v196" fill="none" stroke="var(--violet)" stroke-dasharray="3 4"/><circle class="origin" cx="${x}" cy="180" r="4"/><text x="${x+9}" y="183" style="fill:var(--violet)">origin</text><path d="M${x} 137a43 43 0 0 1 10 1" fill="none" stroke="var(--primary)"/><circle cx="${x+10}" cy="138" r="4" fill="var(--primary)"/>`:'';
+$('#drawing').innerHTML=`<svg class="scene" viewBox="0 0 660 315" role="img" aria-label="Illustrative keyboard layout; click a key to choose a target"><defs><pattern id="dot-grid" width="17" height="17" patternUnits="userSpaceOnUse"><circle cx="8" cy="8" r=".6" fill="var(--dot)"/></pattern></defs><rect width="660" height="315" fill="url(#dot-grid)"/><g transform="translate(214 65)">${s.visibility.Board?'<rect x="-14" y="-14" width="222" height="182" rx="13" fill="none" stroke="var(--board)" stroke-width=".7" opacity=".6"/>':''}${s.visibility.Keys?content:''}${origin}</g>${s.visibility.Components?`<g data-part="true" style="cursor:pointer"><circle cx="480" cy="194" r="13" fill="var(--secondary)" stroke="${s.scope==='Part'?'var(--primary)':'var(--violet)'}" stroke-width="1.3"/><path d="M480 183v9" stroke="var(--muted-foreground)"/><text x="457" y="224">Encoder 1</text></g>`:''}</svg>`;}
+function renderPanel(){const node=$('#panel');node.hidden=!s.panel;if(!s.panel)return;let text='',title='';if(s.panel==='snap'){title='Snap settings';text=`<label class="field">Snap increment<select id="panel-increment">${['Off','⅛u','¼u','½u','1u','1 mm','0.5 mm','0.1 mm'].map(n=>`<option ${s.snap===n?'selected':''}>${n}</option>`).join('')}</select></label><label class="check"><input type="checkbox" data-check="geometry" ${s.geometry?'checked':''}>Geometry snap</label><label class="check"><input type="checkbox" data-check="gapSnap" ${s.gapSnap?'checked':''} ${s.geometry?'':'disabled'}>Envelope gap</label><label class="field">Gap override (mm)<input id="gap" type="number" min="0" step="0.1" value="${s.gap}"></label><small>Unit steps use matrix pitch; mm steps use world coordinates. Alt bypasses snapping.</small>`;}else if(s.panel==='align'){title='Alignment reference';text=`<label class="field">Reference part<select id="reference">${['Encoder 1','Key R1 · C1','Key R4 · C5'].map(n=>`<option ${s.reference===n?'selected':''}>${n}</option>`).join('')}</select></label><small>Choose a reference here; run one of the six alignment actions in the strip.</small><button class="text-button" data-panel="relationships" ${!s.selected?'disabled':''} style="margin-top:14px">Open Relationships</button>`;}else if(s.panel==='relationships'){title='Relationships';text='<small>Production shortcut: reveal and focus the existing Relationships editor. This study does not edit anchors or relationships.</small>';}else{title='Position · '+target();const angular=['Splay','Bend','Rotate'].includes(s.tool);text=!s.selected?'<small>Select a target on the canvas first.</small>':`<div class="panel-grid">${angular?`<label class="field">${s.tool} (°)<input type="number" id="angle" value="${s.angle}" step=".5" ${s.scenario==='locked'?'disabled':''}></label>`:`<label class="field">X (mm)<input type="number" value="0" ${s.scenario==='locked'?'disabled':''}></label><label class="field">Y (mm)<input type="number" value="0" ${s.scenario==='locked'?'disabled':''}></label>`}</div><small>Illustrative exact-value editor. In production this action focuses the existing Inspector.</small>`;}node.innerHTML=`<div class="panel-head">${title}<button class="utility" data-close-panel aria-label="Close settings">${ico('Close')}</button></div>${text}`;}
+function changeScenario(v){s.scenario=v;s.selected=v!=='empty';s.scope=v.includes('matrix')||v==='rotate-off'?'Matrix':['part','part-first','detached','locked'].includes(v)?'Part':v==='row'?'Row':v==='key'?'Key':'Column';s.column=v==='first'?0:2;s.tool=v==='column'?'Splay':null;s.panel=null;s.notice='';refresh();}
+buildStrip();$('#brand').innerHTML=ico('Matrix');
+new ResizeObserver(scheduleLabelFit).observe($('#strip'));
+document.fonts.ready.then(scheduleLabelFit);
+document.addEventListener('click',e=>{const b=e.target.closest('button');if(b){if(b.disabled)return;if(b.id==='theme'){s.appearance=s.appearance==='dark'?'light':'dark';refresh();return;}if(b.dataset.groupTrigger){s.panel=null;renderPanel();setOpen(s.open===b.dataset.groupTrigger?null:b.dataset.groupTrigger);return;}if(b.dataset.scope){s.scope=b.dataset.scope;s.tool=null;s.notice='';if(!['column','empty'].includes(s.scenario)){s.scenario='column';$('#scenario').value='column';}refresh();$(`[data-scope="${s.scope}"]`)?.focus({preventScroll:true});return;}if(b.dataset.tool){s.tool=s.tool===b.dataset.tool?null:b.dataset.tool;s.notice='';refresh();$(`[data-tool="${b.dataset.tool}"]`)?.focus({preventScroll:true});return;}if(b.dataset.view){const k=b.dataset.view;s.visibility[k]=!s.visibility[k];refresh();$(`[data-view="${k}"]`)?.focus({preventScroll:true});return;}if(b.dataset.pref){const k=b.dataset.pref==='Snap'?'geometry':'gapSnap';s[k]=!s[k];refresh();$(`[data-pref="${b.dataset.pref}"]`)?.focus({preventScroll:true});return;}if(b.dataset.panel){s.panel=s.panel===b.dataset.panel?null:b.dataset.panel;renderPanel();$('#panel select,#panel input,#panel button')?.focus({preventScroll:true});return;}if(b.hasAttribute('data-close-panel')){const old=s.panel;s.panel=null;renderPanel();$(`[data-panel="${old}"]`)?.focus({preventScroll:true});return;}if(b.dataset.align){s.notice=`UI simulation: ${target()} → Align ${b.dataset.align} to ${s.reference}. Document unchanged.`;refresh();return;}if(b.dataset.camera){s.notice='Camera controls stay in the footer; this mockup does not change the camera.';refresh();return;}}
+const cell=e.target.closest('[data-cell]');if(cell){[s.row,s.column]=cell.dataset.cell.split(',').map(Number);s.selected=true;if(s.tool==='Anchor'){s.notice=`UI simulation: anchor target Key R${s.row+1} · C${s.column+1}. No document edit.`;s.tool=null;}else s.notice='';s.panel=null;s.open=null;refresh();return;}if(e.target.closest('[data-part]')){s.scope='Part';s.scenario='part';s.selected=true;s.tool=null;s.open=null;s.panel=null;s.notice='';$('#scenario').value='part';refresh();return;}if(!e.target.closest('.strip,.panel,.demo-controls,.study-head')){s.panel=null;setOpen(null);renderPanel();}});
+document.addEventListener('change',e=>{const t=e.target;if(t.id==='scenario'){changeScenario(t.value);return;}if(t.id==='increment'||t.id==='panel-increment'){s.snap=t.value;refresh();return;}if(t.dataset.check){s[t.dataset.check]=t.checked;refresh();return;}if(t.id==='gap'){s.gap=t.value;return;}if(t.id==='reference'){s.reference=t.value;refresh();return;}if(t.id==='angle'){s.angle=Number(t.value)||0;refresh();}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(s.panel){const old=s.panel;s.panel=null;renderPanel();$(`[data-panel="${old}"]`)?.focus({preventScroll:true});}else if(s.open){const old=s.open;setOpen(null);$(`[data-group-trigger="${old}"]`)?.focus({preventScroll:true});}else{s.tool=null;s.notice='';refresh();}}});
+document.addEventListener('focusin',e=>{if(e.target.matches('.tool'))$('#hint').textContent=e.target.getAttribute('aria-label');});
+
+/* Canvas-first tool-panel study. Objects and Inspect share the approved 42px strip.
+   In-memory presentation only; no application mutations, saving or CAD evaluation. */
+paths.Outline='M3 3h8v3h6v11H3zM7 10h6M7 13h4';
+paths.Panel='M3 3h14v14H3zM11 3v14M14 7v6';
+paths.Objects='M3 3h5v5H3zM3 12h5v5H3zM12 3h5v5h-5zM12 12h5v5h-5z';
+paths.More='M4 10h.01M10 10h.01M16 10h.01';
+paths.Search='M13 13l5 5M15 8a7 7 0 1 1-14 0 7 7 0 0 1 14 0';
+paths.Undo='M7 4 2 9l5 5M2 9h10a5 5 0 0 1 0 10';
+paths.Redo='M13 4l5 5-5 5M18 9H8a5 5 0 0 0 0 10';
+paths.Pin='M6 2h8M7 2v5l-3 4h12l-3-4V2M10 11v7';
+paths.Prev='M12 4 6 10l6 6';paths.Next='m8 4 6 6-6 6';
+paths.Sun='M10 1v2M10 17v2M1 10h2M17 10h2M3.6 3.6 5 5M15 15l1.4 1.4M3.6 16.4 5 15M15 5l1.4-1.4M14 10a4 4 0 1 1-8 0 4 4 0 0 1 8 0';
+paths.Moon='M17 12A8 8 0 0 1 8 2a8 8 0 1 0 9 10';
+paths.Link='M7 7 5 9a4 4 0 0 0 6 6l2-2M13 13l2-2a4 4 0 0 0-6-6L7 7M7 13l6-6';
+paths.Check='m4 10 4 4 8-8';
+const study={drawer:false,selection:'outline',half:'left',objectsOpen:false,columns:false,menu:null,past:[],future:[],notice:'',focusAnchor:false,sections:{},drafts:{outline:{margin:'2.0'},'left-main':{x:'-50.05',y:'-19.05',angle:'0'},thumb:{x:'19.05',y:'38.10',angle:'-12'},encoder:{x:'88.90',y:'19.05',angle:'0',include:true,follow:true},controller:{x:'78.00',y:'43.00',angle:'90',include:true,follow:true},key:{x:'0.00',y:'0.00',angle:'0'},board:{margin:'2.0'}}};
+const names={outline:'Outline','left-main':'Left main',thumb:'Thumb',encoder:'Encoder 1',controller:'Controller 1',board:'Main board',key:'Selected key'};
+const oldRefresh=refresh,oldRenderPanel=renderPanel,oldTarget=target,oldApplyFinalFit=applyFinalFit;
+// Replace the old Position shortcut, rather than adding a second route to the editor.
+const inspectTrigger=$('#strip > [data-panel="position"]');
+inspectTrigger.removeAttribute('data-panel');inspectTrigger.setAttribute('data-inspect','');
+inspectTrigger.setAttribute('aria-label','Inspect');inspectTrigger.setAttribute('aria-controls','inspector');
+inspectTrigger.innerHTML=ico('Panel')+'<span class="utility-label">Inspect</span>';
+inspectTrigger.insertAdjacentHTML('beforebegin',`<button class="utility" data-objects aria-label="Objects" title="Objects" aria-controls="objects-popover" aria-expanded="false">${ico('Objects')}<span class="utility-label">Objects</span></button>`);
+function fitClosedToolbar(){
+ const live=$('#strip');if(s.open)return;
+ const probe=live.cloneNode(true);probe.removeAttribute('id');probe.querySelectorAll('[id]').forEach(n=>n.removeAttribute('id'));
+ probe.classList.add('measuring');probe.inert=true;probe.setAttribute('aria-hidden','true');probe.style.cssText=`position:fixed;left:-10000px;top:0;width:${live.getBoundingClientRect().width}px;visibility:hidden;pointer-events:none`;
+ probe.dataset.positionLabel='full';probe.querySelectorAll('.trigger').forEach(b=>b.removeAttribute('data-closed-hide'));live.parentElement.append(probe);
+ for(const key of ['view','align','snap','transform','select']){if(probe.scrollWidth<=probe.clientWidth+1)break;probe.querySelector(`[data-group-trigger="${key}"]`).dataset.closedHide='';}
+ if(probe.scrollWidth>probe.clientWidth+1)delete probe.dataset.positionLabel;
+ live.toggleAttribute('data-utility-labels',probe.dataset.positionLabel==='full');
+ if(probe.dataset.positionLabel==='full')live.dataset.positionLabel='full';else delete live.dataset.positionLabel;
+ probe.querySelectorAll('.trigger').forEach((b,index)=>live.querySelectorAll('.trigger')[index].toggleAttribute('data-closed-hide',b.hasAttribute('data-closed-hide')));probe.remove();
+}
+applyFinalFit=()=>{oldApplyFinalFit();fitClosedToolbar();positionObjects();};
+const escapeHTML=t=>String(t).replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]));
+const fields=()=>study.drafts[study.selection]||study.drafts.key;
+const isComponent=()=>['encoder','controller'].includes(study.selection);
+const originalDisabled=disabled;
+disabled=t=>originalDisabled(t)||(t==='Rotate'&&isComponent()&&!fields().follow);
+function prettyTarget(){return study.selection==='key'?(s.scope==='Matrix'?'Left main':oldTarget()):names[study.selection];}
+target=()=>prettyTarget()||oldTarget();
+function section(id,title,body,value='',initial=false){const key=study.selection+':'+id;const open=study.sections[key]??initial;return `<details class="inspect-section" data-section="${key}" ${open?'open':''}><summary>${chevron}<span>${title}</span>${value?`<span class="section-value">${value}</span>`:''}</summary><div class="section-content">${body}</div></details>`;}
+function field(name,key,unit='mm'){return `<label class="inspector-field">${name}<span class="input-unit"><input aria-label="${name}" data-field="${key}" type="number" step="0.05" value="${escapeHTML(fields()[key]??'0')}" ${key==='margin'?'min="0"':''}><span>${unit}</span></span></label>`;}
+function objectButton(id,icon,name,meta='',count=''){return `<button class="object-item" data-select="${id}" aria-label="${name}${meta?', '+meta:''}" title="${name}${meta?' · '+meta:''}" aria-pressed="${study.selection===id}">${ico(icon)}<span class="object-copy"><span class="object-name">${name}</span>${meta?`<span class="object-meta">${meta}</span>`:''}</span>${count?`<span class="count">${count}</span>`:''}</button>`;}
+function renderObjects(){
+ const query=$('#object-search').value.trim().toLowerCase(),match=text=>!query||text.toLowerCase().includes(query);
+ let html=match('Outline Generated Main board')?objectButton('outline','Outline','Outline','Generated · Main board'):'';
+ const left=match('Left main Encoder 1 Controller 1 R1 C6 R2 C6');
+ if(left||match('Thumb'))html+='<div class="object-label">Matrices</div>';
+ if(left){
+  html+='<div class="matrix-row">'+objectButton('left-main','Matrix','Left main','','18 keys')+`<button class="shell-icon" data-tree-toggle aria-label="${study.columns?'Hide':'Show'} Left main columns" title="${study.columns?'Hide':'Show'} columns" aria-expanded="${study.columns}">${ico(study.columns?'Prev':'Next')}</button></div>`;
+  if(study.columns)html+='<div class="columns-list">'+Array.from({length:6},(_,c)=>`<button class="tree-line" data-tree-column="${c}">${ico('Column')}Column ${c+1} · 3 keys</button>`).join('')+'</div>';
+  const components=[['encoder','Rotate','Encoder 1','R1 / C6'],['controller','Part','Controller 1','R2 / C6']].filter(([, ,name,anchor])=>match('Left main '+name+' '+anchor));
+  if(components.length)html+='<div class="component-refs"><div class="object-label">Placed from Left main</div>'+components.map(([id,icon,name,anchor])=>objectButton(id,icon,name,anchor)).join('')+'</div>';
+ }
+ if(match('Thumb'))html+=objectButton('thumb','Matrix','Thumb','','3 keys');
+ $('#object-list').innerHTML=html||'<p class="object-empty">No matching objects.</p>';
+}
+function closeObjects(restoreFocus=false){study.objectsOpen=false;$('#objects-popover').hidden=true;$('[data-objects]').setAttribute('aria-expanded','false');updateShellChrome();if(restoreFocus)$('[data-objects]').focus({preventScroll:true});}
+function positionObjects(){
+ if(!study.objectsOpen)return;
+ const popup=$('#objects-popover'),box=$('#workbench').getBoundingClientRect(),anchor=$('[data-objects]').getBoundingClientRect();
+ popup.style.right=Math.max(8,Math.min(box.right-anchor.right,box.width-popup.offsetWidth-8))+'px';
+}
+function openObjects(){
+ if(study.objectsOpen){closeObjects(true);return;}
+ closeMenu();study.drawer=false;study.objectsOpen=true;updateShellChrome();
+ const popup=$('#objects-popover');popup.hidden=false;$('#object-search').value='';renderObjects();popup.scrollTop=0;
+ positionObjects();$('#object-search').focus({preventScroll:true});
+}
+function renderInspector(){
+ const id=study.selection,part=isComponent();
+ $('#inspector-name').textContent=prettyTarget();
+ $('#inspector-context').textContent=id==='outline'?'Generated · Main board':part?(id==='encoder'?'Encoder':'Controller')+' · '+(study.half==='left'?'Left source':'Right linked mirror'):id==='board'?'Shared board design':id==='key'?s.scope+' · Left main':'Matrix · '+(id==='thumb'?'3 keys':'18 keys');
+ let html='';
+ if(id==='outline'||id==='board'){
+  html+=section('shape','Outline',`<label class="inspector-field">Active version<select aria-label="Active outline version"><option>Generated</option></select></label>${field('Envelope margin','margin')}<p class="field-note">Derived from the parts included in the board outline.</p>`, 'Generated',true);
+  html+=section('included','Included parts',`<p class="field-note">Keys and the included independent components contribute to the generated envelope.</p><button class="subtle-button wide" data-select="encoder">${ico('Rotate')}Encoder 1${ico('Next')}</button><button class="subtle-button wide" data-select="controller">${ico('Part')}Controller 1${ico('Next')}</button>`, 'Keys + components');
+  html+=section('versions','Versions','<p class="field-note">Generated is the active outline in this example. Authored refinements would appear here.</p>','1');
+  html+=section('geometry','Geometry features','<p class="field-note">Outline points, features and connections remain available in their dedicated editors. This study does not evaluate CAD geometry.</p>','None');
+ }else{
+  html+=section('position','Position',`<div class="field-pair">${field('X','x')}${field('Y','y')}</div>${field('Rotation','angle','°')}`,'mm',true);
+  if(part){
+   const anchor=id==='encoder'?'R1 · C6':'R2 · C6';
+   html+=section('placement','Placement',`<p class="placement-reference">Placed from<strong>Left main · ${anchor}</strong></p><button class="subtle-button wide" data-reveal-anchor>${ico('Link')}${study.focusAnchor?'Hide anchor highlight':'Reveal anchor on canvas'}</button><label class="inspect-check" style="margin-top:11px"><input type="checkbox" data-field="follow" ${fields().follow?'checked':''}>Follow rotation</label>`,'Anchored',true);
+   html+=section('outline','Board outline',`<label class="inspect-check"><input type="checkbox" data-field="include" ${fields().include?'checked':''}>Include this component</label><p class="field-note">Controls envelope participation, not canvas visibility.</p>`,fields().include?'Included':'Excluded');
+   html+=section('relations','Relations','<p class="field-note">The anchor is a key in Left main. The reference and canvas highlight make the relationship visible; neither proves physical clearance.</p><button class="subtle-button wide" data-select="left-main">Inspect Left main</button>','Left main');
+   html+=section('connections','Electrical connections','<p class="field-note">Electrical editing stays with the existing PCB workspace.</p><button class="subtle-button wide" data-workspace="PCB">Edit electrical connections</button>');
+  }else if(id==='key'&&s.scope!=='Matrix'){
+   html+=section('relations','Relations','<p class="placement-reference">Source matrix<strong>Left main</strong></p><button class="subtle-button wide" data-select="left-main">Inspect Left main</button>','Left main');
+  }else{
+   html+=section('matrix','Matrix',`<div class="field-pair"><label class="inspector-field">Columns<span class="input-unit"><input aria-label="Columns" value="${id==='thumb'?3:6}" readonly></span></label><label class="inspector-field">Rows<span class="input-unit"><input aria-label="Rows" value="${id==='thumb'?1:3}" readonly></span></label></div><p class="field-note">Use Select to work on a row, column or key directly on the canvas.</p>`,id==='thumb'?'3 keys':'18 keys');
+   html+=section('relations','Relations',id==='thumb'?'<p class="field-note">No independent components are placed from Thumb in this example.</p>':'<p class="field-note">Independent components placed from keys in Left main:</p><button class="subtle-button wide" data-select="encoder">Encoder 1 · R1/C6</button><button class="subtle-button wide" data-select="controller">Controller 1 · R2/C6</button>');
+  }
+ }
+ $('#inspector-fields').innerHTML=html;
+}
+function drawHalf(mirror,label,unit,interactive=true){
+ const active=(mirror?'right':'left')===study.half;
+ let keys='';
+ for(let c=0;c<6;c++){
+  let column='';const stagger=[16,8,0,5,12,16][c];
+  for(let r=0;r<3;r++){
+   const x=c*44,y=r*44+stagger;
+   const selected=s.selected&&(study.selection==='left-main'||study.selection==='key'&&(s.scope==='Matrix'||s.scope==='Column'&&c===s.column||s.scope==='Row'&&r===s.row||s.scope==='Key'&&c===s.column&&r===s.row));
+   column+=`<g class="${selected&&active?'key-selected':''}" data-demo-cell="${r},${c}" data-half="${mirror?'right':'left'}"><rect class="key" x="${x}" y="${y}" width="38" height="38" rx="4"/>${s.visibility.Keycaps?`<rect class="face" x="${x+4}" y="${y+4}" width="30" height="29" rx="3"/>`:''}${s.visibility.Footprints?`<rect x="${x+9}" y="${y+9}" width="20" height="20" rx="1" fill="none" stroke="var(--violet)"/>`:''}</g>`;
+  }
+  keys+=`<g transform="rotate(${s.tool==='Splay'&&s.scope==='Column'&&s.column===c&&active?s.angle:0} ${c*44+19} 150)">${column}</g>`;
+ }
+ for(let c=0;c<3;c++){const x=190+c*44,y=173;keys+=`<g class="${study.selection==='thumb'&&active?'key-selected':''}" data-select="thumb" data-half="${mirror?'right':'left'}"><rect class="key" x="${x}" y="${y}" width="38" height="38" rx="4"/>${s.visibility.Keycaps?`<rect class="face" x="${x+4}" y="${y+4}" width="30" height="29" rx="3"/>`:''}</g>`;}
+ let components='';
+ if(s.visibility.Components){for(const [id,x0,y0,labelName]of[['encoder',302,54,'ENC1'],['controller',298,109,'MCU1']]){
+  const d=study.drafts[id],dx=Number.parseFloat(d.x),dy=Number.parseFloat(d.y),startX=id==='encoder'?88.9:78,startY=id==='encoder'?19.05:43;
+  const x=x0+((Number.isFinite(dx)?dx:startX)-startX)*2,y=y0+((Number.isFinite(dy)?dy:startY)-startY)*2;
+  const selected=study.selection===id&&active;
+  const anchorY=id==='encoder'?35:79;
+  const link=selected?`<path class="anchor-link" d="M239 ${anchorY}L${x} ${y}"/><circle class="anchor-ring" cx="239" cy="${anchorY}" r="${study.focusAnchor?7:4}"/>`:'';
+  const labelText=mirror?`<g transform="translate(${x} ${y-20}) scale(-1 1)"><text class="component-label" text-anchor="middle" style="font-size:${12*unit}px">${labelName}</text></g>`:`<text class="component-label" x="${x}" y="${y-20}" text-anchor="middle" style="font-size:${12*unit}px">${labelName}</text>`;
+  components+=`${link}<g data-select="${id}" data-half="${mirror?'right':'left'}" tabindex="${interactive?'0':'-1'}" role="button" aria-hidden="${!interactive}" aria-label="Select ${names[id]}, ${label} half">${id==='encoder'?`<circle class="component-body ${selected?'is-selected':''}" cx="${x}" cy="${y}" r="13"/><path d="M${x} ${y-10}v9" stroke="var(--muted-foreground)"/>`:`<rect class="component-body ${selected?'is-selected':''}" x="${x-13}" y="${y-17}" width="26" height="34" rx="3"/><path d="M${x-9} ${y-10}h18M${x-9} ${y-5}h18M${x-9} ${y}h18M${x-9} ${y+5}h18M${x-9} ${y+10}h18" stroke="var(--muted-foreground)" stroke-width=".6"/>`}${labelText}</g>`;
+ }}
+ const outline=s.visibility.Board?`<path class="board-shape ${['outline','board'].includes(study.selection)?'is-selected':''}" data-select="outline" data-half="${mirror?'right':'left'}" d="M-14 2H70V-10H158V-4H246V6H330V148H340V223H183V170H-14Z"/>`:'';
+ const frame=study.selection==='left-main'||isComponent()?`<rect class="matrix-frame ${study.selection==='left-main'&&active?'is-selected':''}" x="-6" y="-6" width="270" height="157" rx="7"/>`:'';
+ const origin=s.selected&&['Splay','Origin'].includes(s.tool)&&active?`<path class="origin-line" d="M${s.column*44+19} -15v188"/><circle class="anchor-ring" cx="${s.column*44+19}" cy="173" r="4"/><circle class="tool-handle" cx="${s.column*44+30}" cy="130" r="4"/>`:'';
+ return `<g transform="${mirror?'translate(940 90) scale(-1 1)':'translate(45 90)'}" class="${active?'half-active':'half-inactive'}">${outline}${frame}${s.visibility.Keys?keys:''}${components}${origin}</g>`;
+}
+renderDrawing=()=>{
+ const rect=$('#drawing').getBoundingClientRect(),width=rect.width||600;
+ const one=width<550,viewWidth=one?410:1000,unit=Math.max(viewWidth/width,(one?350:430)/(rect.height||430));
+ const box=one?(study.half==='left'?'10 20 410 350':'560 20 410 350'):'0 0 1000 430';
+ const [vx,vy,vw,vh]=box.split(' ');
+ $('#drawing').innerHTML=`<svg class="shell-scene" viewBox="${box}" role="group" aria-label="Illustrative linked split keyboard, selected ${escapeHTML(prettyTarget())}"><defs><pattern id="shell-grid" width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="10" cy="10" r=".6" fill="var(--dot)"/></pattern></defs><rect x="${vx}" y="${vy}" width="${vw}" height="${vh}" fill="url(#shell-grid)"/>${drawHalf(false,'Left',unit,!one||study.half==='left')}${drawHalf(true,'Right',unit,!one||study.half==='right')}</svg>`;
+};
+renderPanel=()=>{
+ if(s.panel==='position'||s.panel==='relationships'){
+  if(s.panel==='relationships')study.sections[study.selection+':relations']=true;
+  closeObjects();study.drawer=true;s.panel=null;$('#panel').hidden=true;renderInspector();updateShellChrome();
+  requestAnimationFrame(()=>$('#inspector-fields input,#inspector-fields summary')?.focus({preventScroll:true}));return;
+ }
+ oldRenderPanel();
+};
+function updateShellChrome(){
+ const visible=study.drawer;
+ $('#inspector').classList.toggle('is-closed',!visible);$('#inspector').inert=!visible;$('#inspector').setAttribute('aria-hidden',!visible);
+ document.querySelectorAll('[data-inspect]').forEach(b=>{b.setAttribute('aria-expanded',visible);b.title=visible?'Close Inspector':'Inspect '+prettyTarget();});
+ $('[data-objects]').setAttribute('aria-expanded',study.objectsOpen);
+ $('#half-label').textContent=study.half==='left'?'Left half':'Right mirror';$('#half-icon').innerHTML=ico(study.half==='left'?'Next':'Prev');
+ $('[data-switch-half]').setAttribute('aria-label',study.half==='left'?'Show right linked mirror':'Show left source');
+ $('#theme').innerHTML=ico(s.appearance==='dark'?'Sun':'Moon')+`<span class="appearance-label">${s.appearance==='dark'?'Light':'Dark'}</span>`;
+ $('#theme').setAttribute('aria-label',s.appearance==='dark'?'Use light appearance':'Use dark appearance');
+ $('#undo').disabled=!study.past.length;$('#redo').disabled=!study.future.length;
+ $('#study-state').textContent=study.notice||`${study.objectsOpen?'Objects open':study.drawer?'Inspect open':'Canvas clear'} · ${prettyTarget()} · ${study.half==='left'?'Left source':'Right linked mirror'} · in-memory preview`;
+ $('#position-readout').textContent=fields().x!==undefined?`mm · X ${fields().x} Y ${fields().y}`:'mm';
+}
+refresh=()=>{
+ oldRefresh();renderInspector();renderObjects();updateShellChrome();
+ $('#brand').innerHTML=ico('Matrix');
+ $('#scope-status').innerHTML=ico(study.selection==='outline'?'Outline':isComponent()?'Part':s.scope)+`<span>${escapeHTML(prettyTarget())}</span>`;
+ $('#target-status').textContent=study.half==='left'?'Left source':'Right linked mirror';
+ $('#hint').innerHTML=study.notice?escapeHTML(study.notice):study.selection==='outline'?'Select a component to see its matrix anchor on the canvas.':isComponent()?`<strong>Placed from:</strong> Left main · ${study.selection==='encoder'?'R1/C6':'R2/C6'} · violet line shows the anchor.`:s.tool?`<strong>${s.tool}:</strong> ${hints[s.tool]}`:'Select a row, column or key with the toolbar.';
+ $('#fit-selection').disabled=false;
+};
+function selectItem(id,half){
+ study.selection=id;study.focusAnchor=false;study.notice='';if(half)study.half=half;
+ s.panel=null;s.open=null;s.tool=null;s.selected=!['outline','board'].includes(id);s.column=2;s.row=1;
+ s.scope=isComponent()?'Part':'Matrix';s.scenario=isComponent()?'part':s.selected?'matrix-unanchored':'empty';
+ refresh();
+}
+function feedback(text){study.notice=text;updateShellChrome();}
+function menuMarkup(kind){
+ if(kind==='settings')return '<h3>Settings</h3><label>Appearance<select id="menu-appearance" aria-label="Preview appearance"><option value="dark">Dark</option><option value="light">Light</option></select></label><p>The same workbench in either appearance. Theme selection is outside this study.</p>';
+ if(kind==='save')return '<h3>Local-save status</h3><p>This is an illustrative status. No project or browser storage is written by this mockup.</p>';
+ if(kind==='project')return '<h3>Split 42</h3><button class="menu-row" data-demo-action="Open project">Open project</button><button class="menu-row" data-demo-action="Rename project">Rename project</button><button class="menu-row" data-demo-action="Save project file">Save project file</button><p>Project actions stay here—not in the canvas toolbar.</p>';
+ if(kind==='workspaces')return '<h3>Workspaces</h3>'+['Layout','PCB','Keymap','Keycaps','Case','Parts'].map(n=>`<button class="menu-row" data-workspace="${n}">${n}${n==='Layout'?'<small>Current</small>':''}</button>`).join('')+'<button class="menu-row" data-history="undo" '+(!study.past.length?'disabled':'')+'>Undo preview edit</button><button class="menu-row" data-history="redo" '+(!study.future.length?'disabled':'')+'>Redo preview edit</button>';
+ if(kind==='search')return '<h3>Search commands</h3><input type="search" id="command-search" placeholder="Outline, component, matrix…" aria-label="Find an object"><div id="command-results"></div>';
+ return '<h3>Export</h3><p>Export remains a project-wide action. This presentation prototype does not save or generate files.</p>';
+}
+function renderSearch(){const q=($('#command-search')?.value||'').toLowerCase();$('#command-results').innerHTML=Object.entries(names).filter(([id,n])=>id!=='key'&&n.toLowerCase().includes(q)).map(([id,n])=>`<button class="menu-row" data-select="${id}">${escapeHTML(n)}</button>`).join('')||'<p>No matching objects.</p>';}
+function openMenu(kind){
+ closeObjects();study.menu=study.menu===kind?null:kind;const node=$('#shell-menu');node.hidden=!study.menu;
+ document.querySelectorAll('[data-shell-menu]').forEach(b=>b.setAttribute('aria-expanded',b.dataset.shellMenu===study.menu));
+ if(!study.menu)return;node.className='shell-menu '+kind+'-menu';node.innerHTML=`<button class="shell-icon menu-close" data-close-menu aria-label="Close menu">${ico('Close')}</button>`+menuMarkup(kind);
+ if(kind==='settings')$('#menu-appearance').value=s.appearance;
+ if(kind==='search'){renderSearch();$('#command-search').focus();}
+}
+function closeMenu(){if(!study.menu)return;const old=study.menu;study.menu=null;$('#shell-menu').hidden=true;document.querySelectorAll('[data-shell-menu]').forEach(b=>b.setAttribute('aria-expanded','false'));return old;}
+function editHistory(direction){
+ const from=direction==='undo'?study.past:study.future,to=direction==='undo'?study.future:study.past,edit=from.pop();if(!edit)return;
+ to.push(edit);study.drafts[edit.id][edit.key]=direction==='undo'?edit.before:edit.after;refresh();feedback((direction==='undo'?'Undid':'Redid')+' preview value change. No project edited.');
+}
+function recordField(input){const id=study.selection,key=input.dataset.field;const before=Object.hasOwn(input.dataset,'before')?input.dataset.before:study.drafts[id][key];const after=input.type==='checkbox'?input.checked:input.value;if(String(before)!==String(after)){study.past.push({id,key,before:input.type==='checkbox'?before==='true'||before===true:before,after});study.future=[];}study.drafts[id][key]=after;delete input.dataset.before;if(key==='include')document.querySelector('[data-section="'+id+':outline"] .section-value').textContent=after?'Included':'Excluded';if(key==='follow'){if(!after&&s.tool==='Rotate')s.tool=null;refresh();$('[data-field="follow"]')?.focus({preventScroll:true});}else{updateShellChrome();renderDrawing();}}
+for(const [sel,name]of[['[data-shell-menu="search"]','Search'],['#undo','Undo'],['#redo','Redo'],['[data-shell-menu="settings"]','Settings'],['.compact-workspaces','Objects'],['[data-close-objects]','Close'],['[data-close-inspector]','Close'],['#half-icon','Next']]){const node=$(sel);if(node)node.innerHTML=ico(name);}
+// Capture shell controls before the copied toolbar's document delegation.
+document.addEventListener('click',e=>{
+ const b=e.target.closest('button,[data-demo-cell],[data-select]');
+ if(study.objectsOpen&&!e.target.closest('#objects-popover')&&!b?.hasAttribute('data-objects'))closeObjects();
+ if(!b){if(study.menu&&!e.target.closest('#shell-menu'))closeMenu();return;}
+ const handled=b.matches('[data-select],[data-demo-cell],[data-objects],[data-close-objects],[data-tree-toggle],[data-inspect],[data-close-inspector],[data-shell-menu],[data-close-menu],[data-reveal-anchor],[data-switch-half],[data-history],[data-workspace],[data-demo-action],[data-tree-column]');
+ if(!handled)return;e.stopImmediatePropagation();if(b.disabled)return;
+ if(b.dataset.select){const half=b.dataset.half,fromObjects=!!b.closest('#objects-popover');closeMenu();closeObjects();selectItem(b.dataset.select,half);if(fromObjects)$('[data-objects]').focus({preventScroll:true});return;}
+ if(b.dataset.demoCell){const [r,c]=b.dataset.demoCell.split(',').map(Number),scope=s.scope;study.selection='key';study.half=b.dataset.half;study.notice='';s.selected=true;s.row=r;s.column=c;s.scope=scope==='Part'?'Key':scope;s.scenario='column';s.open=null;s.panel=null;refresh();return;}
+ if(b.hasAttribute('data-objects')){openObjects();return;}
+ if(b.hasAttribute('data-close-objects')){closeObjects(true);updateShellChrome();return;}
+ if(b.hasAttribute('data-tree-toggle')){study.columns=!study.columns;renderObjects();$('[data-tree-toggle]').focus({preventScroll:true});return;}
+ if(b.hasAttribute('data-inspect')){closeMenu();closeObjects();study.drawer=!study.drawer;updateShellChrome();if(study.drawer)$('#inspector').focus({preventScroll:true});return;}
+ if(b.hasAttribute('data-close-inspector')){study.drawer=false;updateShellChrome();$('[data-inspect]')?.focus({preventScroll:true});return;}
+ if(b.dataset.shellMenu){openMenu(b.dataset.shellMenu);return;}
+ if(b.hasAttribute('data-close-menu')){const old=closeMenu();$(`[data-shell-menu="${old}"]`)?.focus({preventScroll:true});return;}
+ if(b.hasAttribute('data-reveal-anchor')){study.focusAnchor=!study.focusAnchor;renderDrawing();renderInspector();$('[data-reveal-anchor]')?.focus({preventScroll:true});return;}
+ if(b.hasAttribute('data-switch-half')){study.half=study.half==='left'?'right':'left';refresh();return;}
+ if(b.dataset.history){editHistory(b.dataset.history);return;}
+ if(b.dataset.workspace){closeMenu();feedback(b.dataset.workspace==='Layout'?'Layout is the active workspace.':b.dataset.workspace+' is outside this Layout design study; navigation is not implemented.');return;}
+ if(b.dataset.demoAction){closeMenu();feedback(b.dataset.demoAction+' is outside this presentation prototype. No project data changed.');return;}
+ if(b.dataset.treeColumn!==undefined){const c=Number(b.dataset.treeColumn);closeMenu();closeObjects();study.selection='key';s.scope='Column';s.selected=true;s.column=c;s.row=1;s.scenario='column';s.tool=null;s.open='transform';refresh();return;}
+},true);
+document.addEventListener('input',e=>{
+ const t=e.target;if(t.id==='object-search'){renderObjects();return;}if(t.id==='command-search'){renderSearch();return;}
+ if(t.matches('[data-field]')&&t.type!=='checkbox'){
+  const key=t.dataset.field;if(!Object.hasOwn(t.dataset,'before'))t.dataset.before=fields()[key];fields()[key]=t.value;renderDrawing();updateShellChrome();
+ }
+},true);
+document.addEventListener('change',e=>{const t=e.target;if(t.matches('[data-field]')){recordField(t);return;}if(t.id==='menu-appearance'){s.appearance=t.value;refresh();}},true);
+document.addEventListener('toggle',e=>{if(e.target.matches('details[data-section]'))study.sections[e.target.dataset.section]=e.target.open;},true);
+document.addEventListener('keydown',e=>{
+ const editing=e.target.closest('input,textarea,select,[contenteditable="true"]');
+ if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();e.stopImmediatePropagation();openMenu('search');return;}
+ if(e.target.id==='command-search'&&e.key==='Enter'){e.preventDefault();$('#command-results button')?.click();return;}
+ if(e.key==='Escape'&&(study.objectsOpen||study.menu||study.drawer)){
+  e.preventDefault();e.stopImmediatePropagation();if(study.objectsOpen){closeObjects(true);updateShellChrome();}else if(study.menu){const old=closeMenu();$(`[data-shell-menu="${old}"]`)?.focus({preventScroll:true});}else{study.drawer=false;updateShellChrome();$('[data-inspect]')?.focus({preventScroll:true});}return;
+ }
+ if(editing)return;
+ if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();editHistory(e.shiftKey?'redo':'undo');}
+ if((e.key==='Enter'||e.key===' ')&&e.target.matches('[data-select]')){e.preventDefault();e.target.click();}
+},true);
+new ResizeObserver(()=>{renderDrawing();scheduleLabelFit();fitClosedToolbar();}).observe($('#drawing'));
+s.selected=false;s.scope='Matrix';s.scenario='empty';s.tool=null;s.open=null;s.panel=null;refresh();
+</script></body></html>
