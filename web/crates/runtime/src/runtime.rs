@@ -134,6 +134,7 @@ struct RuntimeReport {
     message: String,
     severity: RuntimeReportSeverity,
     notification_error: Option<bool>,
+    retire_on_save: bool,
 }
 
 /// A one-shot result for the shell's single notification consumer.
@@ -149,6 +150,7 @@ impl RuntimeReport {
             message: message.into(),
             severity: RuntimeReportSeverity::Status,
             notification_error: None,
+            retire_on_save: false,
         }
     }
 
@@ -157,7 +159,13 @@ impl RuntimeReport {
             message: message.into(),
             severity: RuntimeReportSeverity::Alert,
             notification_error: None,
+            retire_on_save: false,
         }
+    }
+
+    fn until_saved(mut self) -> Self {
+        self.retire_on_save = true;
+        self
     }
 
     fn transient(mut self) -> Self {
@@ -492,9 +500,10 @@ impl Runtime {
             frames: RefCell::new(BTreeMap::new()),
             surface: RefCell::new(None),
             notify: RefCell::new(None),
-            status: RefCell::new(RuntimeReport::status(
-                "Open a saved keyboard or an editable demo copy.",
-            )),
+            status: RefCell::new(
+                RuntimeReport::status("Open a saved keyboard or an editable demo copy.")
+                    .until_saved(),
+            ),
             notifications: RefCell::default(),
             update_waiting: Cell::new(false),
             update_observer: RefCell::new(None),
@@ -2161,6 +2170,13 @@ impl Runtime {
     }
 
     fn complete(self: &Rc<Self>, event: Completion) -> Vec<Effect> {
+        let persist_committed = matches!(
+            &event,
+            Completion::Persist {
+                result: SaveResult::Committed,
+                ..
+            }
+        );
         let previous_scope = self.scope();
         let previous_snapshot = self
             .model()
@@ -2177,6 +2193,17 @@ impl Runtime {
         if self.scope() != previous_scope || accepted_snapshot != previous_snapshot {
             self.cancel_active_case_gesture_preview();
             self.cancel_keycaps_cad_preview();
+        }
+        // A landing alone can be an unchanged edit. Only an accepted persistence ack
+        // retires save-owned reports; stale acks and view completions leave them alone.
+        if persist_committed
+            && accepted_snapshot != previous_snapshot
+            && matches!(self.model().durability, Durability::Saved { .. })
+        {
+            let mut report = self.status.borrow_mut();
+            if report.retire_on_save {
+                *report = RuntimeReport::status("Saved locally.");
+            }
         }
         self.changed();
         effects
@@ -2380,11 +2407,21 @@ impl Runtime {
                 } else {
                     match outcome {
                         TerminalOutcome::Completed => {
-                            self.apply_report(RuntimeReport::status("Saved locally.").transient());
+                            if observed {
+                                self.changed();
+                            }
+                        }
+                        TerminalOutcome::PersistenceFailed(reason) => {
+                            self.apply_report(RuntimeReport::status(reason).until_saved());
+                        }
+                        TerminalOutcome::BlockedByRecovery(reason) => {
+                            let mut report = RuntimeReport::status(reason);
+                            if matches!(self.model().durability, Durability::Failed { .. }) {
+                                report = report.until_saved();
+                            }
+                            self.apply_report(report);
                         }
                         TerminalOutcome::Rejected(reason)
-                        | TerminalOutcome::PersistenceFailed(reason)
-                        | TerminalOutcome::BlockedByRecovery(reason)
                         | TerminalOutcome::ExecutorFailed(reason) => self.report(reason),
                         TerminalOutcome::Cancelled => {
                             self.apply_report(RuntimeReport::status("Cancelled.").transient());
@@ -9320,6 +9357,161 @@ mod notification_tests {
     use wasm_bindgen_test::wasm_bindgen_test;
 
     #[wasm_bindgen_test]
+    async fn view_completions_preserve_save_state_and_inline_failure_without_toasts() {
+        let (runtime, accepted, scope) = support::fixture().await;
+        runtime.take_notifications();
+        let mut document = (*accepted.document).clone();
+        document.name = "Retried autosave".into();
+        super::project_name_test_support::fail_next_persist(&runtime, "injected save failure");
+        super::project_name_test_support::replace_document(
+            &runtime,
+            "retry-autosave",
+            &accepted.document.id,
+            document,
+        )
+        .await;
+        let failure = runtime.status();
+        assert!(failure.contains("injected save failure"));
+        let durability = runtime.model().durability;
+        assert!(matches!(durability, Durability::Failed { .. }));
+        assert!(runtime.take_notifications().is_empty());
+        let camera = boardstudio_application::CameraState {
+            center: boardstudio_core::model::Vec2 { x: 12.0, y: -8.0 },
+            zoom: 1.5,
+        };
+        let selected = accepted.document.boards[0].part_ids[0].clone();
+        for (label, event) in [
+            (
+                "camera",
+                Event::SetCamera {
+                    operation_id: runtime.operation(),
+                    center: camera.center,
+                    zoom: camera.zoom,
+                },
+            ),
+            (
+                "navigation",
+                Event::Navigate {
+                    operation_id: runtime.operation(),
+                    board_id: scope.board_id.clone(),
+                    instance_id: None,
+                },
+            ),
+            (
+                "selection",
+                Event::SelectParts {
+                    operation_id: runtime.operation(),
+                    part_ids: vec![selected.clone()],
+                    range_part_ids: vec![],
+                    mode: boardstudio_application::SelectionMode::Replace,
+                },
+            ),
+        ] {
+            let effects = runtime.session.borrow_mut().submit(event);
+            assert!(
+                !effects
+                    .iter()
+                    .any(|effect| matches!(effect, Effect::Persist { .. })),
+                "{label} must not request persistence"
+            );
+            support::run_effects(&runtime, effects).await;
+            let model = runtime.model();
+            assert_eq!(model.camera, camera, "{label}");
+            assert_eq!(model.active_board_id, scope.board_id, "{label}");
+            if label == "selection" {
+                assert_eq!(model.selected_part_ids, vec![selected.clone()]);
+            }
+            assert_eq!(model.durability, durability, "{label}");
+            assert_eq!(model.accepted.unwrap().token, accepted.token, "{label}");
+            assert_eq!(
+                (runtime.take_notifications(), runtime.status()),
+                (vec![], failure.clone()),
+                "{label} must neither Toast nor clobber the inline report"
+            );
+        }
+        // A committed ack for a different attempt is ignored by Session, not a recovery.
+        super::project_name_test_support::deliver_completion(
+            &runtime,
+            Completion::Persist {
+                save_attempt_id: boardstudio_application::SaveAttemptId(u64::MAX),
+                result: SaveResult::Committed,
+            },
+        );
+        super::project_name_test_support::run_pending(&runtime).await;
+        assert_eq!(runtime.status(), failure);
+        assert_eq!(runtime.model().durability, durability);
+        runtime.submit(Event::RetrySave {
+            operation_id: runtime.operation(),
+        });
+        super::project_name_test_support::run_pending(&runtime).await;
+        let model = runtime.model();
+        let saved = model.accepted.unwrap();
+        assert_eq!(saved.document.name, "Retried autosave");
+        assert_eq!(saved.document.revision, accepted.document.revision + 1);
+        assert_eq!(model.lifecycle, Lifecycle::Ready);
+        assert_eq!(
+            model.durability,
+            Durability::Saved {
+                revision: saved.document.revision,
+            },
+            "the header's save-state source must be Saved"
+        );
+        assert_eq!(
+            super::project_name_test_support::saved_document(&runtime, &saved.document.id).unwrap(),
+            *saved.document
+        );
+        assert_eq!(
+            runtime.status(),
+            "Saved locally.",
+            "successful retry must retire the obsolete inline failure"
+        );
+        assert!(!runtime.status_is_alert());
+        assert!(!runtime.status_is_transient());
+        assert!(
+            runtime.take_notifications().is_empty(),
+            "retry must not Toast"
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn ordinary_edit_saves_the_document_without_a_success_toast() {
+        let (runtime, accepted, _) = support::fixture().await;
+        assert_eq!(
+            runtime.status(),
+            "Saved locally.",
+            "successful Open retires the initial library prompt without a Toast"
+        );
+        assert!(runtime.take_notifications().is_empty());
+        let mut document = (*accepted.document).clone();
+        document.name = "Quiet autosave".into();
+        let current = super::project_name_test_support::replace_document(
+            &runtime,
+            "quiet-autosave",
+            &accepted.document.id,
+            document,
+        )
+        .await;
+        assert_eq!(current.document.name, "Quiet autosave");
+        assert_eq!(current.document.revision, accepted.document.revision + 1);
+        assert_eq!(
+            runtime.model().durability,
+            Durability::Saved {
+                revision: current.document.revision,
+            }
+        );
+        assert_eq!(
+            super::project_name_test_support::saved_document(&runtime, &accepted.document.id)
+                .unwrap(),
+            *current.document,
+            "TestPersistence must contain the real edit, not merely a Saved label"
+        );
+        assert!(
+            runtime.take_notifications().is_empty(),
+            "ordinary autosave is header-only"
+        );
+    }
+
+    #[wasm_bindgen_test]
     async fn notification_queue_keeps_repeated_events_and_drains_once_without_notifying() {
         let (runtime, _, _) = support::fixture().await;
         runtime.take_notifications();
@@ -9407,6 +9599,41 @@ mod notification_tests {
         );
         assert!(success.iter().all(|n| !n.is_error));
         assert_eq!(support::take_deliveries(&runtime).len(), 1);
+
+        let accepted = runtime.model().accepted.unwrap();
+        let operation = runtime.operation();
+        runtime.begin_export_lease(
+            operation,
+            ExportKind::BoardOutline { dxf: false },
+            &accepted,
+            &runtime.scope().unwrap(),
+        );
+        runtime
+            .run(Effect::Settled {
+                operation_id: operation,
+                outcome: TerminalOutcome::PersistenceFailed("injected save failure".into()),
+                landing: None,
+            })
+            .await;
+        let mut document = (*accepted.document).clone();
+        document.name = "Save unrelated to failed export".into();
+        super::project_name_test_support::replace_document(
+            &runtime,
+            "save-after-export-failure",
+            &accepted.document.id,
+            document,
+        )
+        .await;
+        assert!(matches!(
+            runtime.model().durability,
+            Durability::Saved { .. }
+        ));
+        assert_eq!(runtime.status(), "injected save failure");
+        assert!(
+            runtime.status_is_alert(),
+            "an unrelated save cannot retire an export failure"
+        );
+        assert!(runtime.take_notifications().is_empty());
     }
 
     #[wasm_bindgen_test]

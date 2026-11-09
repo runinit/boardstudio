@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Ticket 013: one-shot notifications on the packaged production shell."""
+"""Tickets 013/021: quiet autosaves and explicit results on the packaged shell."""
 import argparse
 import atexit
 from pathlib import Path
@@ -136,28 +136,66 @@ def main():
         """)
         print("PASS: refused project-copy delivery settles as one error Toast without false success")
         return
-    # A real settled save must produce an announced, dismissible notification.
+    # 023: routine saves are header-only; zoom is a view change, not a save.
     check("""
-        const toast = [...document.querySelectorAll('[role=status]')].find(e =>
+        window.saveToasts = () => [...document.querySelectorAll('[role=status][data-type]')].filter(e =>
             document.getElementById(e.getAttribute('aria-labelledby'))?.textContent === 'Saved locally.');
-        if (!toast) throw Error('Settled save must announce Saved locally. as a Toast; no named status exists');
-        if (toast.getAttribute('aria-atomic') !== 'true' || toast.getAttribute('tabindex') !== '-1') throw Error('Passive atomic announcement');
-        if (toast.contains(document.activeElement)) throw Error('Save notification stole focus');
-        if (document.querySelector('[role=alertdialog]')) throw Error('Notification must not be modal');
-        window.savedToast = toast;
+        if (saveToasts().length) throw Error('Routine autosave must not create a save Toast');
+        window.readToastProject = async () => {
+            const database = 'boardstudio-m1-' + (location.pathname.startsWith('/boardstudio/') ? 'boardstudio' : 'root');
+            const id = localStorage.getItem('boardstudio-m1-active-project:' + database);
+            if (!id) throw Error('Expected an active durable project');
+            return await new Promise((resolve, reject) => {
+                const request = indexedDB.open(database);
+                request.onerror = () => reject(request.error);
+                request.onupgradeneeded = () => { request.transaction.abort(); reject(Error('Expected existing project database')); };
+                request.onsuccess = () => {
+                    const db = request.result, tx = db.transaction('projects', 'readonly');
+                    const read = tx.objectStore('projects').get(id);
+                    read.onsuccess = () => resolve(read.result);
+                    read.onerror = () => reject(read.error);
+                    tx.oncomplete = () => db.close();
+                    tx.onabort = () => { db.close(); reject(tx.error); };
+                };
+            });
+        };
     """)
-    close_refs = re.findall(r'button "close" \[ref=(e\d+)\]', browser("snapshot", "-i"))
-    assert close_refs, "The announced Toast exposes a close button"
-    browser("focus", "@" + close_refs[0])
-    browser("press", "Shift+Tab")
+    browser("eval", """(async () => {
+        const before = await readToastProject();
+        if (!before) throw Error('Initial project must be durably stored');
+        window.beforeZoomBytes = JSON.stringify(before);
+        window.beforeZoomRevision = before.revision;
+        const zoomInFirst = parseFloat(document.querySelector('.shell-zoom-label')?.textContent) < 100;
+        for (let i = 0; i < 20; i++) {
+            const label = document.querySelector('.shell-zoom-label');
+            if (!label) throw Error('Expected the real layout zoom indicator');
+            const previous = label.textContent;
+            const direction = (i % 2 === 0) === zoomInFirst ? 'Zoom in' : 'Zoom out';
+            document.querySelector('[aria-label="' + direction + '"]').click();
+            await new Promise(resolve => setTimeout(resolve, 100));
+            if (label.textContent === previous) throw Error('Zoom must actually change the camera');
+            if (saveToasts().length) throw Error('021: zoom floods save Toasts');
+            if (!document.querySelector('[aria-label="Saved locally"]')) throw Error('Zoom changed the Saved header');
+        }
+        if (JSON.stringify(await readToastProject()) !== beforeZoomBytes) throw Error('Zoom must not change stored project bytes');
+    })()""")
+    # A real edit must still persist; absence of Toasts alone is not save proof.
+    action("button", "Project")
+    action("menuitem", "Browse projects")
+    browser("wait", "--text", "Your keyboards")
+    original_name = browser("get", "text", '[aria-label="Project"]').strip()
+    action("button", "Preview " + original_name)
+    browser("find", "text", "Rename project", "click", "--exact")
+    browser("find", "role", "textbox", "fill", "Quiet autosave 021", "--name", "Project name", "--exact")
     browser("press", "Tab")
-    check("if (document.activeElement.getAttribute('aria-label') !== 'close') throw Error('Dismiss button must be reachable by Tab');")
-    browser("press", "Enter")
-    browser("wait", "--fn", "!savedToast.isConnected")
-    check("window.remainingSaveToasts = [...document.querySelectorAll('[role=status]')];")
+    browser("wait", "--fn", "(async () => { const doc = await readToastProject(); return doc?.name === 'Quiet autosave 021' && doc.revision > beforeZoomRevision && JSON.stringify(doc) !== beforeZoomBytes; })()")
+    action("button", "Project")
+    action("menuitem", "Return to editor")
+    browser("wait", '[aria-label="Saved locally"]')
+    check("if (saveToasts().length) throw Error('Real autosave must use only the Saved header');")
     action("button", "Export")
     browser("wait", "--text", "Export package")
-    check("if ([...document.querySelectorAll('[role=status]')].some(e => e.textContent.includes('Saved locally.') && !remainingSaveToasts.includes(e))) throw Error('Route change redrained save');")
+    check("if (saveToasts().length) throw Error('Navigation must not announce a save');")
     action("button", "Download .boardstudio project")
     browser("wait", "--fn", "[...document.querySelectorAll('[role=status]')].some(e => e.textContent.includes('Export started.'))")
     browser("wait", "--fn", "[...document.querySelectorAll('[role=status]')].some(e => e.textContent.includes('Project copy downloaded.'))")
@@ -169,6 +207,22 @@ def main():
         if (portable.querySelector('[role=status]')) throw Error('One-shot result remains inline');
     """)
     browser("screenshot", str((args.evidence / "export-results.png").resolve()))
+    check("""
+        const toast = [...document.querySelectorAll('[role=status][data-type]')].find(e =>
+            document.getElementById(e.getAttribute('aria-labelledby'))?.textContent === 'Export started.');
+        if (toast.getAttribute('aria-atomic') !== 'true' || toast.getAttribute('tabindex') !== '-1') throw Error('Passive atomic announcement');
+        if (toast.contains(document.activeElement)) throw Error('Explicit result stole focus');
+        if (document.querySelector('[role=alertdialog]')) throw Error('Notification must not be modal');
+    """)
+    close_refs = re.findall(r'button "close" \[ref=(e\d+)\]', browser("snapshot", "-i"))
+    assert close_refs, "Explicit result Toast exposes a close button"
+    browser("focus", "@" + close_refs[0])
+    check("window.dismissedToast = document.activeElement.closest('[role=status]');")
+    browser("press", "Shift+Tab")
+    browser("press", "Tab")
+    check("if (document.activeElement.getAttribute('aria-label') !== 'close') throw Error('Dismiss button must be reachable by Tab');")
+    browser("press", "Enter")
+    browser("wait", "--fn", "!dismissedToast.isConnected")
     # Refuse a real browser download; keep the operation and its error handling intact.
     check("window.originalObjectURL = URL.createObjectURL; URL.createObjectURL = () => { throw Error('013 refused download'); };")
     action("button", "Download .boardstudio project")
@@ -179,7 +233,7 @@ def main():
         if (failures.length !== 1 || failures[0].dataset.type !== 'error') throw Error('Download failure must Toast once with error severity');
         if ([...document.querySelectorAll('[role=alert]')].some(e => e.textContent.includes('013 refused download'))) throw Error('One-shot download failure remains inline');
     """)
-    print("PASS: save, project-copy and download failure Toast once; atomic status, passive focus, Tab/Enter dismissal and route changes")
+    print("PASS: zoom preserves stored bytes and Saved header without Toasts; real edit persists quietly; project-copy and failure Toasts retain atomic status, passive focus and keyboard dismissal")
 
 
 if __name__ == "__main__":

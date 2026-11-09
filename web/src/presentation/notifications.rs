@@ -539,6 +539,75 @@ mod tests {
         }
     }
 
+    #[wasm_bindgen_test]
+    async fn mounted_routine_completions_stay_quiet_but_explicit_export_results_toast() {
+        let (runtime, accepted, scope) = support::fixture().await;
+        runtime.take_notifications();
+        let (root, _) = update_root(&runtime, production_shell_fixture);
+        wait_until("production notification bridge is mounted", || {
+            by_role_name(&root, "region", "0 notifications").is_some()
+        })
+        .await;
+        for zoom in [1.2, 1.0, 1.4, 1.1] {
+            runtime.submit(boardstudio_application::Event::SetCamera {
+                operation_id: runtime.operation(),
+                center: boardstudio_core::model::Vec2 { x: 5.0, y: 10.0 },
+                zoom,
+            });
+            runtime.submit(boardstudio_application::Event::Navigate {
+                operation_id: runtime.operation(),
+                board_id: scope.board_id.clone(),
+                instance_id: None,
+            });
+            pnsupport::run_pending(&runtime).await;
+        }
+        let mut document = (*accepted.document).clone();
+        document.name = "Quiet mounted autosave".into();
+        let current = pnsupport::replace_document(
+            &runtime,
+            "quiet-mounted-autosave",
+            &accepted.document.id,
+            document,
+        )
+        .await;
+        assert_eq!(
+            runtime.model().durability,
+            boardstudio_application::Durability::Saved {
+                revision: current.document.revision,
+            }
+        );
+        assert_eq!(
+            pnsupport::saved_document(&runtime, &accepted.document.id)
+                .unwrap()
+                .name,
+            "Quiet mounted autosave"
+        );
+        // A real explicit result is also a render barrier: the bridge has consumed
+        // all earlier routine completions before these two export results appear.
+        support::fail(&runtime, support::Stage::Generation);
+        let effects = support::start_export(&runtime);
+        support::run_effects(&runtime, effects).await;
+        let failure = "Firmware generation failed: injected firmware-generation failure";
+        wait_until("explicit export results still Toast", || {
+            by_role_name(&root, "status", "Export started.").is_some()
+                && by_role_name(&root, "status", failure).is_some()
+        })
+        .await;
+        assert!(
+            all_by_role_name(&root, "status", "Saved locally.").is_empty(),
+            "view completions and autosave must not create save Toasts"
+        );
+        assert!(by_role_name(&root, "region", "2 notifications").is_some());
+        assert_eq!(
+            by_role_name(&root, "status", failure)
+                .unwrap()
+                .get_attribute("data-type")
+                .as_deref(),
+            Some("error")
+        );
+        root.remove();
+    }
+
     fn location_href() -> String {
         web_sys::window()
             .unwrap()

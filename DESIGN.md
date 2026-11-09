@@ -284,8 +284,9 @@ field is a subtle translucent fill, rather than Original's solid fill.
 
 Short fixed lists use Select and searchable lists use Combobox; Toggle Group,
 Toolbar, Dropdown Menu, Slider and Collapsible supply the corresponding shared
-interaction patterns. The shell uses Toasts for transient action results;
-persistent problems, readiness blockers and field errors remain inline.
+interaction patterns. The shell uses Toasts for explicit, transient action results;
+ordinary autosave success lives only in the header. Persistent problems,
+readiness blockers and field errors remain inline.
 
 ### Workspace navigation and preview switching
 
