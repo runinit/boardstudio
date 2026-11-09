@@ -50,3 +50,16 @@ earlier; final acceptance depends on 010's verified candidate.
 
 - 2026-11-06: Published as the final accepted gate. One checklist per Workspace
   keeps review manageable without creating a ticket for every visual combination.
+- **Coordinator handoff 2026-11-08:** candidate `18d4d7f53` plus documentation-only
+  changes thereafter; [010 is resolved](010-final-technical-verification.md#completion-record-coordinator-2026-11-08).
+  Its record supplies the full candidate/build/browser identity and fresh full-gate
+  and strict-CSS receipts. The restorations in cancelled 004–007 are **ABSENT by
+  user cancellation** — do not score their absence as defects. Expect retained
+  Relations tabs, duplicate scope popups, abrupt disclosures (restored motion
+  unproven) and unrepaired chevrons; verify retained placement/split-focus,
+  anchor/reference, amber-preview, spacing-ghost, Snap, save/Undo/reload and
+  collision/provider behaviors across the unchanged acceptance matrix above.
+  The MCU premise is withdrawn; Class B and worker/cache residual risks remain;
+  firmware is not hardware-validated; autosave success is header-only. This is a
+  handoff for human acceptance, not an automated pass or permission to replace
+  the live preview. Status remains `ready-for-human`.

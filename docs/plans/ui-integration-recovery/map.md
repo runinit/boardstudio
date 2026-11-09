@@ -7,7 +7,8 @@ the missing acceptance evidence for the reconciled application.
 
 - [001: UI integration recovery specification](issues/001-ui-integration-recovery-spec.md)
   — `ready-for-agent`; owner `fix/ui-integration-recovery`. The parent specification
-  remains unchanged by ticket publication; repairs and product acceptance are open.
+  remains unchanged; bounded technical verification is resolved in 010 and product
+  acceptance remains open in 011.
 
 ## Accepted child tickets
 
@@ -23,9 +24,9 @@ neither is deferred to a separate cleanup ticket.
 | [005: Restore nonduplicated scope actions](issues/005-restore-scope-actions.md) | wontfix | none | Cancelled by the user; no completion evidence |
 | [006: Restore shared disclosure motion](issues/006-restore-disclosure-motion.md) | wontfix | none | Cancelled by the user; no completion evidence |
 | [007: Correct disclosure chevrons](issues/007-correct-disclosure-chevrons.md) | wontfix | none | Cancelled by the user; no completion evidence |
-| [008: Restore real drag/save/Undo proof](issues/008-restore-drag-save-undo-proof.md) | resolved | none | Drag, save, cancel and exact Undo pass on a pinned build; the complete runner still fails later at the unrelated Case collision control (see Answer) |
-| [009: Verify persistence across reload](issues/009-verify-reload-persistence.md) | resolved | 008 | Saved edit and saved Undo result survive an actual reload with exact document/scene/identity/revision proof; the complete runner still fails later at the unrelated Case collision control (see Answer) |
-| [010: Final technical verification and independent review](issues/010-final-technical-verification.md) | ready-for-agent | 009, 022 | Full combined gates and independent spec+standards review |
+| [008: Restore real drag/save/Undo proof](issues/008-restore-drag-save-undo-proof.md) | resolved | none | Drag, save, cancel and exact Undo pass on a pinned build; the complete runner still failed later at the unrelated Case collision control at that time (see Answer) |
+| [009: Verify persistence across reload](issues/009-verify-reload-persistence.md) | resolved | 008 | Saved edit and saved Undo result survive an actual reload with exact document/scene/identity/revision proof; the complete runner still failed later at the unrelated Case collision control at that time (see Answer) |
+| [010: Final technical verification and independent review](issues/010-final-technical-verification.md#answer) | resolved | 009, 022 | Fresh full gate/drag/floor and strict CSS pass; required Standards finding resolved, Spec PARTIAL with explicit aggregate-coverage acceptance; 011 remains the human gate |
 | [011: Populated-workspace human acceptance](issues/011-populated-workspace-acceptance.md) | ready-for-human | 010 | User review of the checked candidate across the complete review matrix |
 
 Dependencies cover 008 through 009. 002 is resolved and 003 is `wontfix`.
@@ -41,10 +42,10 @@ The user added these on 2026-11-06 after 002 and 003 closed. They do not block
 | Ticket | Status | Blocked by | Delivers |
 | --- | --- | --- | --- |
 | [012: Review the mirrored-heading ADRs](issues/012-review-mirrored-heading-adrs.md) | resolved | none | ADR-0010 amended with one heading table and the controller rule; ADR-0039 pointer; Core unchanged (carries the A8 controller-heading item) |
-| [013: Make a stale or updated build visible](issues/013-surface-build-updates.md) | ready-for-agent | none for coordination | Umbrella for specification 017 and implementation children; retains the user decisions |
-| [017: Build update notification specification](issues/017-build-update-spec.md) | ready-for-agent | none for planning | Source-grounded behavior, test seams, assumptions and open questions for 013 |
+| [013: Make a stale or updated build visible](issues/013-surface-build-updates.md#answer) | resolved | none for coordination | Umbrella reconciled against resolved 018/019 and draft-safety proof; user decisions and residual risks retained |
+| [017: Build update notification specification](issues/017-build-update-spec.md#answer) | resolved | none for planning | Stories and seams discharged by reviewed 018/019 and draft-safety; historical source limits explicitly superseded |
 | [018: Notify the editor when a build is waiting](issues/018-notify-waiting-build.md) | resolved | none | Real waiting installation to a persistent dismissible Toast, with mounted and packaged RED/GREEN |
-| [019: Adopt the waiting build through protected Refresh](issues/019-adopt-build-safely.md) | ready-for-agent | 018 | "Update Now" in the Toast and a persistent header notice, with work/cache protection and real A-to-B adoption evidence |
+| [019: Adopt the waiting build through protected Refresh](issues/019-adopt-build-safely.md#answer) | resolved | 018 | Protected Update Now reviewed Spec/Standards PASS; combined packaged draft + held-save proof, exact reopening and retained risks recorded |
 | [014: Correct controller heading comments](issues/014-correct-controller-heading-comments.md) | resolved | none | Describe plain reflection accurately without changing Core behavior |
 | [015: Decide headings for other y-symmetric parts](issues/015-decide-y-symmetric-part-headings.md) | resolved | none | Decided 2026-11-06: keep `180 - r`; no change |
 | [016: Audit ADR decisions](issues/016-audit-adr-decisions.md) | resolved | none | All 40 indexed primary decisions audited; delivery gaps and uncertainties recorded |
@@ -54,13 +55,22 @@ The user added these on 2026-11-06 after 002 and 003 closed. They do not block
 | [023: Truthful and quiet save feedback specification](issues/023-truthful-save-feedback-spec.md#answer) | resolved | none | Policy implemented by 021; DESIGN autosave exception documented; decisions unchanged |
 
 For the build-update addition, 013 remains the decision-owning umbrella; 017 is
-the specification, 018 is complete, and 019 is now unblocked. Both children must
-complete before 013 can close. These additions do not
-block 010/011. Publication does not claim implementation or browser evidence.
+the specification. 018 and reviewed 019 are resolved, and 013/017 are reconciled
+and resolved with their evidence and residual risks preserved. 020/021/023 are
+also resolved as recorded above. These closures do not establish human acceptance
+in 011 or close parent 001.
 
 ## Evidence and decisions
 
-- 009: Saved accepted edits and saved Undo results survive an actual reload of the same saved project (exact document, revision, project identity, rendered scene and mounted-document re-save/Undo proof); nine reload/Undo mutants killed by their intended messages. The complete runner still fails later at the unrelated Case collision control, so no full smoke pass is claimed. See [009](issues/009-verify-reload-persistence.md#answer).
+- 010 (2026-11-08): Source `18d4d7f53` passed the fresh full combined gate (442.9s,
+  including 17 drag/reload checks and the accessibility floor) and strict old-CSS
+  0/0. Required Standards evidence-hygiene finding resolved; optional debt accepted.
+  Spec remains PARTIAL: aggregate per-ticket reviews, sampled cross-checks and gate
+  evidence were explicitly accepted without claiming a full 445-path line-read.
+  Candidate identities, retained-proof rationale, cancellations and 011 handoff
+  are in [010's Answer](issues/010-final-technical-verification.md#answer).
+
+- 009: Saved accepted edits and saved Undo results survive an actual reload of the same saved project (exact document, revision, project identity, rendered scene and mounted-document re-save/Undo proof); nine reload/Undo mutants killed by their intended messages. The complete runner still failed later at the unrelated Case collision control at that time, so no full smoke pass was claimed. See [009](issues/009-verify-reload-persistence.md#answer).
 
 - 016: Completed the bounded 40-record source audit; four acknowledged delivery gaps and explicit unverified areas remain. No ADR or implementation changes. See [016](issues/016-audit-adr-decisions.md#answer).
 
@@ -68,7 +78,7 @@ block 010/011. Publication does not claim implementation or browser evidence.
 
 - Preserve the [2026-11-06 integration audit](../../research/2026-11-06-dev-ui-integration-audit.md)
   unchanged with this plan. Its findings A1–A8 retain their identifiers.
-- The source candidate is `1fda4f48a964568b98dde9c82556350c4bc50911`;
+- The original planning source candidate was `1fda4f48a964568b98dde9c82556350c4bc50911`;
   `510861b11` is the integrated behavioral reference, `c79de4708` the problematic
   reconciliation, and `ef1c8a008` the approved split-board prototype.
 - The original plan retained the newer controls and deliberate shell changes,
@@ -92,13 +102,12 @@ block 010/011. Publication does not claim implementation or browser evidence.
 
 ## Next step and boundaries
 
-022 is resolved following independent review and user-approved closure; 010 is
-now unblocked. 019 is also unblocked. 020 is resolved: the gate is green and its
-wired/encoder Runtime proof gaps are closed as of 2026-11-08, superseding the
-recorded full-gate limitation. Claim the selected ticket before working it, keep
-execution bounded to that ticket, and retain the
-next blockers and stopping point in its completion record. Final acceptance
-remains open; a focused pass does not close 010 or 011.
+010 is resolved with the combined technical evidence and explicit review
+coverage disposition in its completion record. 013/017/019/020/021/022/023 are
+resolved; their historical limitations and retained risks remain in their tickets.
+The next step is **011 populated-workspace human acceptance only**, across its
+complete surfaces × Themes/Appearances × widths matrix on the checked candidate.
+011 remains `ready-for-human`; technical completion does not close it or parent 001.
 
 Continue in the already-bound `fix/ui-integration-recovery` worktree. Preserve
 the original `ci-wall-time-plan` and detached `dev-live-review` checkouts. This
