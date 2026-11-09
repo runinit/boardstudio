@@ -49,9 +49,9 @@ The user added these on 2026-11-06 after 002 and 003 closed. They do not block
 | [015: Decide headings for other y-symmetric parts](issues/015-decide-y-symmetric-part-headings.md) | resolved | none | Decided 2026-11-06: keep `180 - r`; no change |
 | [016: Audit ADR decisions](issues/016-audit-adr-decisions.md) | resolved | none | All 40 indexed primary decisions audited; delivery gaps and uncertainties recorded |
 | [020: Export split firmware with either half as central](issues/020-split-firmware-either-half-central.md#answer) | resolved | none | Either central side preserves physical key/sensor order; gate green and wired/encoder Runtime proof gaps closed 2026-11-08 (see Answer) |
-| [021: Stop repeated save Toasts](issues/021-repeated-save-toasts.md) | ready-for-agent | none | Reproduced zoom flood; agreed truthful save-feedback behavior and test seams in 023 |
+| [021: Stop repeated save Toasts](issues/021-repeated-save-toasts.md#answer) | resolved | none | Header-only autosave success and silent view completion; packaged checks and full-gate rerun pass; initial gate cause unproven (see Answer) |
 | [022: Restore collision/provider browser proof](issues/022-restore-collision-provider-browser-proof.md#answer) | resolved | none | Closed on user approval: 17 packaged smoke checks and validated receipt; independent review has 0 required and 2 optional findings; unblocks 010 |
-| [023: Truthful and quiet save feedback specification](issues/023-truthful-save-feedback-spec.md) | ready-for-agent | none | Ordinary autosave status in the header; no save notification for camera/navigation completion |
+| [023: Truthful and quiet save feedback specification](issues/023-truthful-save-feedback-spec.md#answer) | resolved | none | Policy implemented by 021; DESIGN autosave exception documented; decisions unchanged |
 
 For the build-update addition, 013 remains the decision-owning umbrella; 017 is
 the specification, 018 is complete, and 019 is now unblocked. Both children must
