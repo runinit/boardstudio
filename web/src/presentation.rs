@@ -918,6 +918,72 @@ fn keymap_toolbar_height() -> f64 {
         .unwrap_or(42.0)
 }
 
+fn setup_guide_left_inset() -> f64 {
+    web_sys::window()
+        .and_then(|window| window.document())
+        .and_then(|document| {
+            document
+                .query_selector("[data-setup-guide-overlay]")
+                .ok()
+                .flatten()
+        })
+        .map(|guide| guide.get_bounding_client_rect().width())
+        .filter(|width| width.is_finite() && *width > 0.0)
+        .unwrap_or(0.0)
+}
+
+// The creation schematic has no camera: reserve the same measured guide area in layout.
+#[component]
+fn GuideHardwarePreview(split: bool, wired: bool) -> Element {
+    let mut left_inset = use_signal(|| 0.0);
+    let observer = use_hook(|| {
+        Rc::new(RefCell::new(
+            None::<(
+                web_sys::ResizeObserver,
+                Closure<dyn FnMut(js_sys::Array, web_sys::ResizeObserver)>,
+            )>,
+        ))
+    });
+    use_effect({
+        let observer = observer.clone();
+        move || {
+            left_inset.set(setup_guide_left_inset());
+            let guide = web_sys::window()
+                .and_then(|window| window.document())
+                .and_then(|document| {
+                    document
+                        .query_selector("[data-setup-guide-overlay]")
+                        .ok()
+                        .flatten()
+                });
+            let Some(guide) = guide else {
+                return;
+            };
+            let callback =
+                Closure::<dyn FnMut(js_sys::Array, web_sys::ResizeObserver)>::new(move |_, _| {
+                    let width = setup_guide_left_inset();
+                    if width != *left_inset.peek() {
+                        left_inset.set(width);
+                    }
+                });
+            if let Ok(next) = web_sys::ResizeObserver::new(callback.as_ref().unchecked_ref()) {
+                next.observe(&guide);
+                *observer.borrow_mut() = Some((next, callback));
+            }
+        }
+    });
+    use_drop(move || {
+        if let Some((observer, _)) = observer.borrow_mut().take() {
+            observer.disconnect();
+        }
+    });
+    rsx! {
+        div { class: "flex min-h-0 min-w-0 flex-1", style: "padding-left:{left_inset}px",
+            setup_guide::SetupHardwarePreview { split, wired }
+        }
+    }
+}
+
 fn keycaps_bounds(
     view: &keycaps_scene::KeycapsView,
     contours: &[Contour],
@@ -5149,7 +5215,7 @@ fn Editor() -> Element {
     let footer_runtime = runtime.clone();
     let footer_workspace = workspace;
     let footer_adapter = adapter.clone();
-    let on_fit_keymap_board = move |_| {
+    let on_fit_keymap_board = EventHandler::new(move |_| {
         if current_layout_owner(&footer_runtime, footer_workspace, &footer_adapter) != footer_owner
         {
             return;
@@ -5172,6 +5238,7 @@ fn Editor() -> Element {
             target_bounds,
             (rect.width(), rect.height()),
             keymap_toolbar_height(),
+            setup_guide_left_inset(),
         ) else {
             return;
         };
@@ -5180,7 +5247,7 @@ fn Editor() -> Element {
             center: camera.center,
             zoom: camera.zoom,
         });
-    };
+    });
     let selection_owner = layout_owner.clone();
     let selection_runtime = runtime.clone();
     let selection_workspace = workspace;
@@ -5220,6 +5287,7 @@ fn Editor() -> Element {
             target_bounds,
             (rect.width(), rect.height()),
             keymap_toolbar_height(),
+            setup_guide_left_inset(),
         ) else {
             return;
         };
@@ -8558,6 +8626,33 @@ fn Editor() -> Element {
     });
     let has_matrix = !matrices.is_empty();
     let setup_guide_active = guide.is_some();
+    let matrix_count = matrices.len();
+    let placing_matrix = matrix_placement.placement.is_some() || matrix_placement.busy;
+    let setup_fit_owner = (document.id.clone(), render_scope.board_id.clone());
+    let fitted_matrix_count =
+        use_hook(|| Rc::new(RefCell::new((setup_fit_owner.clone(), matrix_count))));
+    use_effect(use_reactive(
+        (
+            &setup_fit_owner,
+            &matrix_count,
+            &placing_matrix,
+            &setup_guide_active,
+            &active_workspace,
+        ),
+        move |(owner, count, placing, guide_open, active_workspace)| {
+            // Placement hides the guide. Wait for accepted geometry AND the guide's
+            // post-commit DOM before refitting; cancellation has no new matrix to fit.
+            if placing || !guide_open || active_workspace != "Layout" {
+                return;
+            }
+            let mut previous = fitted_matrix_count.borrow_mut();
+            let added = previous.0 == owner && count > previous.1;
+            *previous = (owner, count);
+            if added {
+                on_fit_keymap_board.call(());
+            }
+        },
+    ));
     let mut setup_wiring_error = use_signal(|| None::<String>);
     use_effect(use_reactive(
         (&guide_preferences(), &pcb_wiring_mount.resolution),
@@ -8617,8 +8712,6 @@ fn Editor() -> Element {
             }
         },
     ));
-    let matrix_count = matrices.len();
-    let placing_matrix = matrix_placement.placement.is_some() || matrix_placement.busy;
     let auto_open_matrix = use_reactive(
         (
             &guide_preferences(),
@@ -9289,7 +9382,6 @@ fn Editor() -> Element {
     } else {
         None
     };
-    let on_fit_keymap_board = EventHandler::new(on_fit_keymap_board);
     let on_zoom_keymap_out = EventHandler::new(on_zoom_keymap_out);
     let on_zoom_keymap_in = EventHandler::new(on_zoom_keymap_in);
     let object_commands = use_memo(use_reactive(
@@ -9465,7 +9557,7 @@ fn Editor() -> Element {
                     }
                     }) } else { None },
                 if guide.is_some() {
-                    section { class: "absolute inset-y-0 left-0 z-24 flex w-[min(380px,calc(100vw-32px))] max-w-[calc(100%-16px)] flex-col overflow-hidden border-r border-border-strong bg-card shadow-[8px_0_24px_rgb(0_0_0/16%)] [&>[role=alert]]:mx-4 [&>[role=alert]]:mt-3 [&>[role=alert]]:text-destructive max-[760px]:z-40 max-[760px]:w-[min(380px,calc(100vw-16px))]", aria_label: "Keyboard setup",
+                    section { class: "absolute inset-y-0 left-0 z-24 flex w-[min(380px,calc(100vw-32px))] max-w-[calc(100%-16px)] flex-col overflow-hidden border-r border-border-strong bg-card shadow-[8px_0_24px_rgb(0_0_0/16%)] [&>[role=alert]]:mx-4 [&>[role=alert]]:mt-3 [&>[role=alert]]:text-destructive max-[760px]:z-40 max-[760px]:w-[min(380px,calc(100vw-16px))]", aria_label: "Keyboard setup", "data-setup-guide-overlay": "",
                     if full_case_settings() && active_workspace == "Case" {
                         aside { class: "flex min-h-0 flex-1 flex-col bg-card p-4 [&>header]:flex [&>header]:items-center [&>header]:gap-3 [&>header]:pb-4 [&>header_h2]:m-0 [&>header_h2]:text-lg", aria_label: "Full case settings",
                             header {
@@ -9541,7 +9633,7 @@ fn Editor() -> Element {
                     }
                     {workspace_composition::toolbar(toolbar_input)}
                     if guide.as_ref().is_some_and(|guide| guide.current_stage == SetupGuideStage::Project) {
-                        setup_guide::SetupHardwarePreview {
+                        GuideHardwarePreview {
                             split: physical_setup_mount.projection.topology == boardstudio_core::model::HardwareTopology::Split,
                             wired: physical_setup_mount.projection.transport == boardstudio_core::model::HardwareTransport::Wired,
                         }
