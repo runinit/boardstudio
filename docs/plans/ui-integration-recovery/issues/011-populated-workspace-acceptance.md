@@ -1055,3 +1055,79 @@ scroll capture: `shadcn-dark-390x844-export-scrolled.png`.
 - Existing user D10 belongs to reopened 005; 004/005/006 still need their
   separately approved grills and work. D9's historical black-bar cause remains
   unproven. **Every human result above remains pending; 011 and 001 stay open.**
+
+## Human re-review — second reported batch, 2026-11-09
+
+The user reports “getting a bit better”, followed by the defects below on
+http://127.0.0.1:4173/boardstudio/. **This is not approval.** The delivered
+implementation is still `2694b189`, with documentation through `4edad33` before
+these reports. Dark Appearance is visible in the attachments; exact Theme,
+viewport and the reviewing client's loaded asset/cache identity are not yet
+independently confirmed. Do not dismiss the reports as stale assets or promote
+agent captures to human acceptance.
+
+- **D11 — Split keyboard feedback delay.** Selecting `Split keyboard` under
+  `[aria-label="Keyboard configuration"]` has a large delay before the assembly
+  preview appears. Annotation `annotation_57l58y1y0h2ym_4`, screenshot
+  `image_annotation_57l58y1y0h2ym_4`. Actual elapsed time, cold/warm distinction
+  and cause have not been measured; no performance improvement is claimed.
+- **D12 — Setup guide shape and separation.** The
+  `[aria-label="Project setup guide"]` pane touches the upper pill. User asks
+  for a rounded box with margin around it and clear separation, not a flush
+  rectangular continuation. Annotation `annotation_57l58y1y0h2ym_6`, screenshot
+  `image_annotation_57l58y1y0h2ym_6`.
+- **D13 — Missing slider drag affordance.** New matrix Rows/Columns sliders
+  lack the visible drag icon/handle. The reported Rows target is
+  `[aria-label="Rows"][role="slider"]`, `data-slot="slider-thumb"`; the
+  annotation also identifies both `data-slot="slider-range"` fills and values
+  5/6. Annotation `annotation_57l58y1y0h2ym_c`, screenshot
+  `image_annotation_57l58y1y0h2ym_c`. Do not equate a functional invisible thumb
+  or retained keyboard control with satisfying this visual defect.
+- **D14 — Canvas background still has full-width bands.** User identifies a
+  broad bar at the top and another at the bottom, and says the workspace is not
+  one solid background. Drawing `annotation_57l58y1y0h2ym_f` and selected
+  `#m1-workspace-panel` in `annotation_57l58y1y0h2ym_k`; corresponding screenshots
+  `image_annotation_57l58y1y0h2ym_f` / `image_annotation_57l58y1y0h2ym_k`.
+  Track these visible canvas/toolbar-lane bands separately from the bounded
+  dimension-popover correction. Their cause and relation to historical D9's
+  black-bar report remain unproven; no shared-cause assertion is made.
+- **D15 — Split New matrix preview shows only one half.** When Split keyboard
+  was selected, the transient preview must show both left and right sides,
+  not one 5×7 grid. Drawing `annotation_57l58y1y0h2ym_i`, screenshot
+  `image_annotation_57l58y1y0h2ym_i`. Current G's single-grid visibility proof
+  does not satisfy this split-configuration expectation. Preserve transient
+  paint ownership and no accepted-state/history/camera writes when correcting it.
+- **D16 — Align/Transform separated too far from scope toolbar.** Keep these
+  controls visually associated with the Matrix/Row/Column/Key/Part strip;
+  current secondary pill floats far below it. Annotation
+  `annotation_57l58y1y0h2ym_15`, screenshot `image_annotation_57l58y1y0h2ym_15`;
+  targets include `#m1-layout-align-trigger`, `#m1-layout-transform-trigger`,
+  `#m1-layout-scope-Key`, `#m1-layout-scope-Part` and `#m1-layout-scope-Row`.
+- **D10 reiterated — Row actions popup still present.** The accompanying
+  `image_eae1dd72-770a-4823-8d92-287f03efca16` shows the `Row actions` popup,
+  `Close Row actions` control and `Open Inspector` beside the scope selector.
+  This is the already-reopened [005](005-restore-scope-actions.md) duplication
+  issue, not a delivered restoration. Route its toolbar overlap through 005's
+  required grill-with-docs before implementation; do not silently fold the
+  deferred behavior into an unrelated styling correction.
+
+### Next-correction proof map (planned, not executed)
+
+Each row needs a faithful failing loop before its production correction. These
+are user-reported symptoms and supplied visual evidence, not newly run automated
+RED/GREEN or timing results.
+
+| Requirement | Preconditions → exact action → independent oracle | Tier / status |
+| --- | --- | --- |
+| D11 response latency | Empty project, providers cold then warm → select Split keyboard → measure trusted click to visible assembly preview and distinguish first feedback from completed geometry; record actual before/after timings | Packaged / planned |
+| D12 guide presentation | Setup guide open → inspect against actual upper pill and viewport → visible margin on all intended edges, rounded guide surface and non-touching bounds | Packaged/rendered / planned |
+| D13 slider affordance | New matrix open → inspect Rows/Columns and drag each → visible themed handle/icon with usable hit region, live dimensions and retained keyboard behavior | Mounted + packaged / planned |
+| D14 solid canvas | Layout before and after creation → inspect top/center/bottom away from controls and annotation overlays → one intended canvas paint with no full-width contrasting bands | Packaged/rendered / planned |
+| D15 split ghost | Select Split keyboard, New matrix still uncommitted → change Rows/Columns → both left/right transient footprints update, while complete accepted model/history/selection/camera remain unchanged; single-keyboard case stays single | Existing real-Editor scenario + packaged / planned |
+| D16 toolbar grouping | Populated Layout at agreed widths → inspect scope, Align and Transform, then open their menus → compact deliberate inter-group gap, no separated lane/overlap or lost keyboard/focus behavior | Rendered + packaged / planned |
+| D10 / 005 | Selected Row, with scope selector → open the current actions surface → reproduce duplication and use 005's approved grill/spec to define the single intended action path | Existing 005 protocol / planned |
+
+The human review remains in progress; batch closure and correction disposition
+have not been stated in this message. No new correction, rebuilt candidate or
+acceptance is claimed by this report. R1's stale mechanical footer and earlier
+unresolved observations remain open. **011 stays ready-for-human; 001 stays open.**
