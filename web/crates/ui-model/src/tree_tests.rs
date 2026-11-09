@@ -12,6 +12,169 @@ fn synthetic_outline_document() -> ProjectDoc {
     .expect("synthetic outline fixture should deserialize")
 }
 
+#[test]
+fn loaded_split_defaults_expose_columns_and_reachable_selectable_parts() {
+    use boardstudio_application::{AcceptedSnapshot, SessionEpoch, SnapshotToken};
+    use boardstudio_core::{CoreEngine, model::*};
+    use std::sync::Arc;
+
+    let mut document = synthetic_outline_document();
+    let mut matrix = document.matrices.remove(0);
+    document.layouts.clear();
+    matrix.id = "left-keys".into();
+    matrix.part_ids.clear();
+    matrix.cells[0].assemblies.push(
+        serde_json::from_value(serde_json::json!({
+            "id": "companion", "definitionId": "synthetic/controller",
+            "offset": {"x": 0, "y": 8}
+        }))
+        .unwrap(),
+    );
+    let left = Layout {
+        id: "left".into(),
+        name: "Left".into(),
+        board_id: "main".into(),
+        matrix_ids: vec!["left-keys".into()],
+        part_ids: vec![],
+        mirror_link: None,
+    };
+    let right = Layout {
+        id: "right".into(),
+        name: "Right".into(),
+        board_id: "main".into(),
+        matrix_ids: vec!["right-keys".into()],
+        part_ids: vec![],
+        mirror_link: Some(
+            serde_json::from_value(serde_json::json!({
+                "sourceId": "left", "axisX": 0
+            }))
+            .unwrap(),
+        ),
+    };
+    let mut engine = CoreEngine::new();
+    assert!(matches!(
+        engine.handle(CoreRequest::Open {
+            id: "open".into(),
+            document
+        }),
+        CoreReply::Scene { .. }
+    ));
+    let CoreReply::Scene { document, .. } = engine.handle(CoreRequest::Edit {
+        id: "create".into(),
+        command: EditCommand {
+            base_revision: 0,
+            transaction_id: "split".into(),
+            phase: EditPhase::Commit,
+            target_ids: vec![],
+            operation: EditOperation::CreateMirroredPair {
+                left,
+                right,
+                matrix: Box::new(matrix),
+                definitions: None,
+            },
+        },
+    }) else {
+        panic!("Core must accept the split fixture")
+    };
+    // Reopen the accepted result: defaults must work without a transient creation signal.
+    let CoreReply::Scene {
+        document, scene, ..
+    } = engine.handle(CoreRequest::Open {
+        id: "reopen".into(),
+        document: *document,
+    })
+    else {
+        panic!("Core must reopen its accepted split")
+    };
+    let model = ReadModel {
+        active_board_id: "main".into(),
+        accepted: Some(AcceptedSnapshot {
+            token: SnapshotToken(1),
+            session_epoch: SessionEpoch(1),
+            document: Arc::new(*document),
+            scene: Arc::new(scene),
+        }),
+        ..ReadModel::default()
+    };
+    let snapshot = model.accepted.as_ref().unwrap();
+    let mut expanded = super::default_disclosures(&snapshot.document, "main");
+    let project = |expanded: &BTreeSet<String>| {
+        build_tree(
+            &snapshot.document,
+            "main",
+            Grouping::Column,
+            expanded,
+            &snapshot.scene.matrix_scenes,
+            &snapshot.scene.board_outline_scenes,
+        )
+    };
+    let defaults = project(&expanded);
+    for (half_label, layout_id) in [("Left half", "left"), ("Right half", "right")] {
+        let half = defaults
+            .iter()
+            .find(|item| item.kind == TreeKind::HalfGroup && item.label == half_label)
+            .expect("the accepted split has both physical half groups");
+        assert_eq!(
+            half.context,
+            Some(TreeContext::LayoutGroup {
+                board_id: "main".into(),
+                layout_ids: vec![layout_id.into()],
+            })
+        );
+    }
+    for matrix_id in ["left-keys", "right-keys"] {
+        let column = defaults
+            .iter()
+            .find(|item| item.id == format!("column:{matrix_id}:0"))
+            .expect("loaded split exposes columns under each half by default");
+        assert_eq!(
+            column.expanded,
+            Some(false),
+            "do not flood the dock with every key"
+        );
+        assert_eq!(
+            super::resolve_selection(&model, column.context.as_ref().unwrap())
+                .unwrap()
+                .len(),
+            2
+        );
+        expanded.insert(column.id.clone());
+    }
+    assert!(!defaults.iter().any(|item| item.kind == TreeKind::Key));
+    for key in project(&expanded)
+        .iter()
+        .filter(|item| item.kind == TreeKind::Key)
+    {
+        assert!(
+            super::resolve_selection(&model, key.context.as_ref().unwrap())
+                .unwrap()
+                .contains(key.primary_id.as_ref().unwrap())
+        );
+        expanded.insert(key.id.clone());
+    }
+    // Expand remaining columns and their keys; every actual board Part must have a route.
+    expanded.extend(
+        project(&expanded)
+            .iter()
+            .filter(|item| item.kind == TreeKind::Column)
+            .map(|item| item.id.clone()),
+    );
+    expanded.extend(
+        project(&expanded)
+            .iter()
+            .filter(|item| item.kind == TreeKind::Key)
+            .map(|item| item.id.clone()),
+    );
+    let all = project(&expanded);
+    for id in &snapshot.document.boards[0].part_ids {
+        assert!(
+            all.iter().any(|item| item.primary_id.as_ref() == Some(id)),
+            "missing Part {id}"
+        );
+    }
+    assert!(all.iter().any(|item| matches!(&item.context, Some(TreeContext::Component { assembly_id: Some(id), .. }) if id == "companion")));
+}
+
 fn bridge_scene(board_id: &str, matrix_id: &str, bridge_id: &str) -> BoardOutlineScene {
     BoardOutlineScene {
         board_id: board_id.into(),

@@ -464,3 +464,127 @@ earlier; final acceptance depends on 010's verified candidate.
   and unchanged geometry evidence above reused. No source correction required.
   Commit D READY; next is F's tree recovery. Full gate, candidate refresh and
   affected human re-review remain open; this does not approve or close 011.
+- 2026-11-09, **Slice F (D8) proof map — targeted implementation complete**:
+  - Loaded split depth — real Core CreateMirroredPair result reopened as accepted
+    state → project defaults, then expand columns/keys → both halves expose
+    selectable columns and keys, companions and every accepted board Part · native
+    · **RED → GREEN**: `.evidence/011-sliceF/native-red.log` (missing column),
+    `native-green.log` (all 38 UI-model tests). Independent oracle: user's
+    keys-as-nodes/all-parts-visible decision and accepted Part membership, not
+    copied projection logic or source strings. Fixture reuses synthetic-outline;
+    final GREEN also pins Left/Right layout ownership on the default creation axis.
+  - Setup Create owner — Objects mounted before actual Matrix Setup Create → create
+    split, expand column/select key, collapse an existing layout, create another
+    split → new branches open, old layout stays collapsed and setup retains its
+    new-matrix selection · mounted · **RED → GREEN**. Logs in the same directory:
+    `mounted-depth-red.log` (new split has no columns),
+    `mounted-persistence-red.log` (old collapsed layout reopened after seeding all
+    defaults), `mounted-green.log` (2 setup-guide + 267 other passes, 269 total).
+    RED runs' later panic-hook/timeouts are follow-on poisoning. Existing
+    tree-build/disclosure/grouping/commit guard is unchanged and passes.
+  - Packaged split — source-equivalent `web/target/site-011-sliceD-after`, then
+    fresh `web/target/site-011-sliceF-after` → create 5×6 split and load Split 42
+    → columns appear by default, keys/companions remain expandable real nodes
+    · packaged · **RED → GREEN**. Before/after screenshots under
+    `web/target/test-results/011-sliceF/`: `created-{before,after}.png` and
+    `populated-{before,after}.png`; all inspected. Qualitative tree comparisons,
+    not a pixel/fit comparison (the later flow explicitly used Fit board).
+    `key-and-companion-after.png`, `populated-key-parts-after.png` and
+    `right-bridge-after.png` show actual selectable key/diode and MCU/bridge routes.
+    `all-parts-reachability.log` in the log directory observes all **122 accepted
+    Parts**, 60 primary Key rows + 62 component rows, none missing, after expansion.
+    `loaded-split42-after.log` observes all four matrices' 18 default column rows
+    with zero default key rows: the dock does not expand every key on load.
+  **Bridge ownership confirmed, unchanged:** a read-only observer captured actual
+  Core worker Scene replies for the created split with mirrored nice!nano MCUs
+  moved to Y=140. `bridge-ownership.log` records Bridge 1's endpoints U1_M and
+  right key SW113, `matrixIds=[matrix-1-right]`, and its right-layout tree occurrence;
+  the reflected left span is a distinct Bridge 2 (U1 + SW53, `matrixIds=[matrix-1]`).
+  This matches GLOSSARY's outline-bridge meaning and Core `bridge_metadata` in
+  `core/src/outline_cleanup.rs`: membership follows endpoint Parts, including
+  layout-owned independent components. `append_matrix_bridge_occurrences` follows
+  that accepted membership, not a hard-coded right-half rule. Do not duplicate
+  one span under the other physical half or renumber it as a product decision.
+  The existing shared-context/distinct-occurrence bridge guard also passes.
+  Production scope: seed visible board layouts' `half:{layout}` disclosures;
+  setup Create seeds only new defaults within the same scope, preserving existing
+  collapse choices. No projection/Part identities, ownership, selection, fit/dock,
+  split-focus or linked-mirror owner was rewritten. Actual linked MCU movement
+  and Key selection/Inspector context were observed. No D9, G, 004/005/006 work.
+  Newly executed: locked `cargo test -p boardstudio-web-ui-model`; inherited-FD9
+  `python3 scripts/check.py browser --only layout` (both REDs then GREEN); inherited-FD9
+  `python3 scripts/build-web.py --fast --skip-providers --output web/target/site-011-sliceF-after`
+  (`build-after.log`, unchanged providers reused); changed-file rustfmt and
+  whitespace checks (`rustfmt.log`, `whitespace.log`). Package identity/cache
+  observation: `package-identity.log`; fresh independent browser, Original Light,
+  1440×900. Browser error logs are empty; own sessions and port-4183 servers stopped.
+  Port 4173 was not acted on. Native first unqualified `--exact` attempt ran zero
+  tests and is not RED/GREEN evidence; the qualified rerun above is actual RED.
+  Gortex initially refused exact impact after six 60-second retry cycles (seven
+  calls); disclosed authorized native fallback covered initial proof/tests and
+  the initial default-seeding trial. Routing recovered at HEAD `19786498`, commit
+  generation 6130; root/HEAD were verified,
+  final production edits used exact/fresh Gortex. Post detect/tests/guards/contract
+  ran: native tree tests mapped; mounted Objects is graph-unmapped, not absent;
+  no guard rules configured. Contract analysis warns about broad existing Objects
+  reach/parameter count; no signature or visibility changed, and no broad refactor
+  was made to silence it. Final tree formatting is package-source-equivalent only.
+  Coordinator still owns independent rejection/mutation checks, combined review,
+  full gate, candidate refresh and commits. Human matrix/re-review and final
+  acceptance remain outstanding. **011 remains ready-for-human; no approval inferred.**
+- 2026-11-09, **Slice F/D8 fresh combined Spec + Standards review** — endpoints
+  `197864988116e20687269f395f7e3a8b049c7df8` → uncommitted worktree;
+  root and HEAD verified. Exact worktree Gortex source reads cover all owned
+  hunks: `web/crates/ui-model/src/tree.rs` 136–154, `tree_tests.rs` 15–177;
+  `web/crates/layout/src/objects.rs` 242–255, `objects/tree_projection_tests.rs`
+  import and 27–221; this ticket's F proof map 467–534. Unread owned hunks:
+  none. Output truncation occurred in whole-file reads, but all listed changed
+  portions were present in those outputs; other portions are not claimed reviewed.
+  Protected AGENTS/standards changes and untracked files are outside F; current
+  standards were consulted as rules, not reviewed as this slice's changes.
+  - **Standards: PASS.** Required findings: none; optional findings: none.
+    Reviewed correctness, readability, architecture, security, performance and
+    all twelve Fowler heuristics as judgment calls. The native accepted-Core
+    scenario and mounted real setup scenario cover independently failing owners,
+    reuse existing fixture/runtime support and use observable membership/state
+    oracles; no line-count or test-ratio objection. No new API or dependency.
+  - **Spec: PASS.** Required findings: none; optional findings: none. Default
+    disclosures match projected visible layouts; created defaults are differenced
+    against previous defaults within scope, so the covered old collapse survives.
+    The reopened Core test and actual mounted setup exercise distinct paths; columns
+    remain collapsed until requested. Existing bridge projection keys occurrences
+    from accepted matrix membership, not an invented half rule. Inspected
+    `bridge-ownership.log` records U1_M/SW113 and right matrix for Bridge 1 and
+    U1/SW53 and left matrix for distinct Bridge 2; this is specific observed
+    geometry, not a universal Bridge 1 identity. `all-parts-reachability.log`
+    records 122 accepted Parts, none missing, after expansion; this is evidence
+    for that packaged fixture, not a proof for every possible accepted document.
+    No projection identity, domain ownership, selection, fit, split-focus or mirror
+    implementation was edited; excluded D9/G/004/005/006 changes are absent.
+  - **Commit F: READY** on this scoped review, subject to coordinator's independent
+    guardrail/mutation checks and commit procedure. Independently read native RED
+    and GREEN (38), mounted GREEN summary (267 plus separate 2 setup-guide tests),
+    packaged 122-Part/bridge and Split 42 summaries, and build receipt; other
+    reported RED/GREEN and screenshots are reused from the implementer, not
+    independently inspected in full. No tests, builds, mutations, browser or
+    server were run in this review. Full gate and refreshed checked candidate,
+    complete Theme/Appearance/viewport matrix, affected human re-review and
+    explicit user decision remain outstanding: **final 011 acceptance BLOCKED**;
+    status stays `ready-for-human`, with no approval inferred.
+- 2026-11-09, **Coordinator F commit receipt** — pre-commit HEAD `19786498`;
+  Spec PASS / Standards PASS above. Independently read all five owned files'
+  changed hunks via exact Gortex; none unread. Inspected populated-after and
+  populated-key-parts-after screenshots; reused the documented all-122-Part and
+  actual bridge ownership observations, 269-test Layout GREEN and package build.
+  Newly executed locked mutation baseline passed 38 UI-model tests plus both
+  mounted tree-projection scenarios. Independently removed effective loaded-half
+  disclosure seeding (killed by missing-column assertion) and replaced new-default
+  differencing with all-default seeding (killed by old-collapse preservation
+  assertion). `scripts/mutation-check.py`: **2 killed, 0 survived, 0 compile
+  failures**, source restored byte-for-byte. Spec: outside repo at
+  `~/.cache/tmp/011-f-disclosure-mutations.json`; logs:
+  `.evidence/011-sliceF/coordinator-mutation.log` and `coordinator-mutation/`.
+  No invalid-input admission guard added (rejection N/A); the independently
+  failing persistence invariant was exercised. Whitespace/rustfmt passed.
+  No source correction required; commit F READY. Next: all-dimension popover D9.
+  Full gate/candidate refresh/matrix/human re-review remain open; 011 is not closed.
