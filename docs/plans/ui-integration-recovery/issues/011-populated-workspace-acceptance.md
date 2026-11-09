@@ -251,3 +251,112 @@ earlier; final acceptance depends on 010's verified candidate.
   awaits remaining slices, followed by affected human re-review. Old candidate
   server was down and restarted unchanged on 4173 (PID 871065); isolated B+C
   browser/server stopped. Next action: commit B+C and implement fenced D7 Slice E.
+- 2026-11-09, **Slice E (D7) proof map — targeted implementation complete**:
+  B+C committed at `eca34d64`; this slice changes only the dock Canvas visibility
+  and Snap triggers to decorative shared ChevronDown icons and 14px medium text.
+  Floating-pill triggers, cancelled 007's other sites and reopened 006 motion
+  are excluded. The Canvas utilities are scoped to the existing Layout trigger
+  `m1-layers-trigger` inside `m1-objects-panel`, not every LayerPanel dock.
+  - D7 dock affordance — populated Layout, dock rows open or closed → inspect
+    Canvas visibility and Snap, activate disclosures → visible decorative
+    ChevronDown, 14px/500 text and preserved expansion/ARIA · mounted + packaged
+    · **RED → GREEN**. Reused packaged baseline:
+    `.evidence/011-sliceE/packaged-before-shadcn-dark-red.log` (12px/400 Canvas,
+    16px/400 Snap, no chevrons). Newly observed mounted RED: `mounted-red.log`
+    in that directory (Canvas 12px and Snap 16px vs required 14px); subsequent
+    WASM panic-hook failures/timeouts are follow-on poisoning, not extra defects.
+    Final mounted GREEN: `mounted-green-scoped.log`; final packaged GREEN:
+    `packaged-after-scoped.log` in the same log directory. Both Themes and both
+    expansion states retain visible, aria-hidden chevrons with computed Theme
+    stroke 1.5px/2px; packaged icons measure 16px. Trusted Enter on Canvas and
+    Space on Snap open and close them; existing mounted Snap keyboard/pan-key
+    and options-accessibility checks are reused, not duplicated.
+  - Non-dock preservation — floating-pill LayerPanel → inspect and toggle →
+    existing 12px/400, text-only compact presentation and expansion unchanged
+    · mounted · **GREEN**, same scoped mounted log. The same scenario also
+    protects other dock headers (PCB layers: 12px/400, no visible chevron);
+    packaged PCB inspection confirms that exclusion. The floating variant's
+    existing shell metrics, content, owners and Escape logic are unchanged.
+  Newly executed commands used the shared FD9 lock and exported
+  `BOARDSTUDIO_BUILD_LOCK_FD=9`: `python3 scripts/check.py browser --only ui-shared layout`
+  (94 ui-shared + 268 Layout passed) and `python3 scripts/build-web.py --fast --skip-providers --output web/target/site-011-sliceE-after`
+  (`build-after-scoped.log`, providers reused). Changed-file rustfmt, diff
+  whitespace and Impeccable detector passed (`rustfmt-scoped.log`,
+  `impeccable-detect-scoped.log`). No full gate or mutation run is claimed here.
+  Before captures reused unchanged from the source-equivalent B+C package
+  `web/target/site-011-sliceBC-after`; final after captures use this slice's fresh
+  package, Split 42, 1440×900, isolated port 4183. Screenshots:
+  `web/target/test-results/011-sliceE/before-original-light-closed.png`,
+  `before-original-light-open.png`, `before-shadcn-dark-closed.png`,
+  `before-shadcn-dark-open.png`, and matching `after-*` names in that directory.
+  Inspected captures show matching row typography and right-aligned disclosure
+  chevrons in Original Light and shadcn Dark, open and closed. shadcn open was
+  recaptured after the Theme menu finished closing. Fresh final selector markup
+  was verified before capture; no service-worker cache replacement was needed.
+  Browser errors were empty; own browsers/server stopped; old candidate
+  4173/PID 871065 left running unchanged.
+  The prior implementer's stale-HEAD blocker is historical: coordinator recovered
+  exact Gortex mutation routing at `eca34d64`; all source reads/edits here used
+  that exact checkout without fallback. Pre-impact and post detect/tests/guards/
+  contract ran: zero graph-mapped tests is not behavioral absence; no guards are
+  configured. The shared-renderer reach warning was checked against the scoped
+  mounted and packaged preservation evidence; no signature/refactor change.
+  Current HEAD remains `eca34d64` plus the owned uncommitted diff. Remaining:
+  coordinator independent checks/review and full gate/candidate refresh, then
+  affected human re-review under AC7. These captures are NOT full-matrix
+  acceptance. **011 remains ready-for-human, with no approval inferred.**
+- 2026-11-09, **Slice E combined Spec + Standards review** — fixed endpoints
+  `eca34d64de0f8a9064a845b6bd019f46b43c4f45` → working tree in checkout
+  `01a1b3cf-a8df-75da-ab9e-d3fe3b2d3378`; HEAD and checkout root verified.
+  Exact/fresh Gortex source reads covered every owned changed hunk: imports,
+  LayerPanel trigger and mounted fixture/test in
+  `web/crates/ui-shared/src/canvas_layers.rs`; import, extended mounted test and
+  LayoutSnapDock trigger in `web/crates/layout/src/objects/layout_toolbar.rs`;
+  and Slice E proof map/receipt in this ticket. Unread owned source hunks: none.
+  External AGENTS, standards modifications and untracked files were not reviewed
+  as slice changes; current standards and test economy were consulted as rules.
+  - **Standards: PASS.** No required findings in correctness, readability,
+    architecture, security, performance or the requested Fowler smell heuristics.
+    **Optional maintenance note:** the shared LayerPanel now additionally relies
+    on the Layout ancestor/trigger IDs for this presentation, extending an
+    existing ancestor-selector coupling. A future owner/layout ID change should
+    update the selector and its mounted regression together; the narrow scope is
+    preferable here to altering other shared callers or widening the API.
+  - **Spec: PASS.** The two requested dock triggers use the shared decorative
+    ChevronDown and 14px medium text; their labels, disclosure owners, handlers
+    and ARIA remain intact. The shared LayerPanel change is limited to the
+    Layout ancestor plus trigger ID, with the floating pill and PCB presentation
+    protected; no eye, 007-wide chevron or 006 motion change in the owned source.
+    No required spec findings.
+  - **Acceptance for committing E: READY**, not final 011 acceptance. Evidence
+    inspected: `mounted-red.log` reports Canvas 12px and Snap 16px vs 14px,
+    with follow-on panic poisoning; `mounted-green-scoped.log` reports 94
+    ui-shared and 268 Layout passes; `build-after-scoped.log` reports successful
+    fast package and `packaged-after-scoped.log` records Original Light and
+    shadcn Dark open/closed computed 14px/500, decorative 16px icons with
+    1.5/2px Theme strokes, trusted keyboard activation and unchanged PCB header.
+    Packaged shadcn before RED also inspected. The eight named screenshots exist
+    but were not independently viewed in this review. `verification.log` and
+    `gortex.log` do not exist in the slice directory; the individual receipts
+    above and exact/fresh Gortex reads were used instead. No test, mutation,
+    build or browser was run by this reviewer. The fast build reused providers;
+    the full gate, refreshed candidate, complete matrix and affected human
+    re-review remain coordinator-owned. **011 remains ready-for-human; human
+    acceptance is blocked and no approval is inferred.**
+- 2026-11-09, **Coordinator E commit receipt** — pre-commit HEAD `eca34d64`.
+  Combined review above is Standards PASS / Spec PASS, commit READY. Coordinator
+  re-read every owned changed hunk through exact Gortex (both source imports,
+  LayerPanel trigger and full new mounted test; LayoutSnapDock trigger and all
+  extended mounted assertions; this ticket's E additions); unread hunks: none.
+  Newly executed independent mutation check: scoped regression baseline passed;
+  removing the chevron's default hiding was killed by the floating-pill
+  text-only assertion, not compilation (1 killed, 0 survived), and source was
+  restored byte-for-byte. Logs: `.evidence/011-sliceE/coordinator-mutation.log`
+  and `coordinator-mutation/` in that directory; spec lives outside the repo at
+  `~/.cache/tmp/011-e-scope-mutation.json`. Changed-file rustfmt and whitespace
+  passed. No invalid-input admission guard was added; rejection rerun N/A.
+  Reused full targeted GREEN: 94 ui-shared + 268 Layout, plus fresh scoped
+  package and trusted keyboard checks above. Coordinator inspected the shadcn
+  Dark closed screenshot and packaged metrics; no new source correction needed.
+  Remaining full gate, candidate refresh and human acceptance are not waived.
+  Next action: commit E, then implement D5's layered scope-strip fill correction.

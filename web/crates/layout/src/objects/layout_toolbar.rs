@@ -9,6 +9,7 @@ use boardstudio_web_ui_shared::ui::{
     checkbox::Checkbox,
     collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
     dropdown_menu::{DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger},
+    icons::ChevronDown,
     input::InputType,
     input_group::{InputGroup, InputGroupInput},
     label::Label,
@@ -226,6 +227,50 @@ mod tests {
                 .unwrap(),
             "1px"
         );
+        for (theme, stroke) in [("original", "1.5px"), ("shadcn", "2px")] {
+            root.set_attribute("data-theme", theme).unwrap();
+            for open in [false, true] {
+                let style = window.get_computed_style(&trigger).unwrap().unwrap();
+                assert_eq!(
+                    style.get_property_value("font-size").unwrap(),
+                    "14px",
+                    "{theme}, open={open}"
+                );
+                assert_eq!(
+                    style.get_property_value("font-weight").unwrap(),
+                    "500",
+                    "{theme}, open={open}"
+                );
+                let chevron = trigger
+                    .query_selector("svg[data-slot=icon]")
+                    .unwrap()
+                    .expect("shared disclosure chevron");
+                assert_eq!(
+                    chevron.get_attribute("aria-hidden").as_deref(),
+                    Some("true")
+                );
+                assert!(chevron.get_bounding_client_rect().width() > 0.0);
+                assert_eq!(
+                    window
+                        .get_computed_style(&chevron)
+                        .unwrap()
+                        .unwrap()
+                        .get_property_value("stroke-width")
+                        .unwrap(),
+                    stroke
+                );
+                assert_eq!(
+                    trigger.get_attribute("aria-expanded").as_deref(),
+                    Some(if open { "true" } else { "false" })
+                );
+                trigger.click();
+                wait_until("snap disclosure toggles", || {
+                    trigger.get_attribute("aria-expanded").as_deref()
+                        == Some(if open { "false" } else { "true" })
+                })
+                .await;
+            }
+        }
         stylesheet.remove();
         root.remove();
     }
@@ -1413,7 +1458,7 @@ pub fn LayoutSnapDock(
             open: Some(snap_open()), on_open_change: move |open| snap_open.set(open),
             CollapsibleTrigger {
                 id: "m1-layout-snap-trigger", aria_label: "Snap",
-                class: "flex w-full min-h-control-touch items-center justify-start gap-2 rounded-none border-0 bg-transparent px-3 py-2.5 text-left text-foreground hover:bg-accent",
+                class: "flex w-full min-h-control-touch items-center justify-start gap-2 rounded-none border-0 bg-transparent px-3 py-2.5 text-left text-sm font-medium text-foreground hover:bg-accent",
                 attributes: vec![dioxus::events::onkeydown(move |event: KeyboardEvent| {
                     // Space must activate the button, not the Layout window's pan shortcut.
                     if event.key().to_string() == " " {
@@ -1423,6 +1468,7 @@ pub fn LayoutSnapDock(
                 })],
                 svg { class: "size-[18px] fill-none stroke-current stroke-[1.5]", view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M5 3v8a5 5 0 0 0 10 0V3h-4v7a1 1 0 0 1-2 0V3ZM5 6h4M11 6h4" } }
                 span { "Snap" } small { class: "ml-auto text-muted-foreground", "{snap_label(settings.snap_fraction)}" }
+                ChevronDown { class: "shrink-0" }
             }
             CollapsibleContent {
                 LayoutSnapOptions { settings, on_snap_intent }
