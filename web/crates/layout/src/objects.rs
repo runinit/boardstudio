@@ -48,6 +48,7 @@ mod matrix_placement_controller;
 mod matrix_setup;
 mod matrix_setup_controller;
 mod matrix_setup_fields;
+mod matrix_setup_preview;
 mod matrix_transform_controller;
 mod matrix_transform_inspector;
 mod mirrored_pair;
@@ -85,6 +86,7 @@ pub use matrix_setup::{
     MatrixSetup, MatrixSetupMount,
 };
 pub use matrix_setup_controller::use_matrix_setup;
+pub use matrix_setup_preview::{MatrixSetupCanvasPreview, use_matrix_setup_preview_provider};
 pub use matrix_transform_controller::{
     MatrixTransformInspectorMount, use_workspace_matrix_transform,
 };

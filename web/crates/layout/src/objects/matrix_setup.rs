@@ -117,6 +117,11 @@ pub fn MatrixSetup(props: MatrixSetupProps) -> Element {
     let return_focus = use_signal(|| None::<web_sys::HtmlElement>);
     let rows_value = rows();
     let columns_value = columns();
+    super::matrix_setup_preview::use_matrix_setup_preview(
+        &props.projection.owner,
+        &rows_value,
+        &columns_value,
+    );
     let choc = family().is_some_and(|choice| choice.contains(&1));
     let hotswap = mounting().is_some_and(|choice| choice.contains(&1));
     let rgb = lighting().is_some_and(|choice| choice.contains(&1));
@@ -250,7 +255,7 @@ pub fn MatrixSetup(props: MatrixSetupProps) -> Element {
 
     rsx! {
         section {
-            class: "absolute inset-x-2 top-[100px] bottom-2 z-6 flex flex-col gap-2.5 overflow-auto rounded-md border border-border-strong bg-card p-3 text-foreground shadow-md [&_form]:grid [&_form]:gap-2 [&_footer]:flex [&_footer]:justify-end [&_footer]:gap-2",
+            class: "absolute left-2 top-[100px] bottom-2 z-6 flex w-[min(340px,calc(100%-16px))] flex-col gap-2.5 overflow-auto rounded-md border border-border-strong bg-card p-3 text-foreground shadow-md [&_form]:grid [&_form]:gap-2 [&_footer]:flex [&_footer]:justify-end [&_footer]:gap-2",
             aria_label: "New matrix",
             onkeydown: move |event: KeyboardEvent| {
                 if event.key().to_string() == " " {
@@ -309,6 +314,8 @@ mod draft_safety_tests {
     const REMEDY: &str = "Create the matrix or cancel the setup";
 
     fn runtime_form() -> Element {
+        crate::objects::use_matrix_setup_preview_provider();
+        let mut form_mounted = use_signal(|| true);
         let runtime = use_context::<Rc<crate::runtime::Runtime>>();
         let version = use_signal(|| 0u64);
         use_hook({
@@ -332,11 +339,22 @@ mod draft_safety_tests {
         let mount = super::super::matrix_setup_controller::use_matrix_setup(
             runtime, version, selected, anchor, workspace, generation,
         );
+        let preview_mount = mount.clone();
         rsx! {
             button { aria_label: "Open matrix", onclick: move |_| mount.on_open.call(()), "Open matrix" }
-            if let Some(projection) = mount.projection {
-                MatrixSetup { projection, on_create: mount.on_create, on_cancel: mount.on_cancel }
+            if form_mounted() {
+                if let Some(projection) = mount.projection {
+                    MatrixSetup { projection, on_create: mount.on_create, on_cancel: mount.on_cancel }
+                }
             }
+            // Keep the real controller projection/outlet alive when only the form unmounts:
+            // otherwise projection retirement would mask a missing painter cleanup.
+            svg { crate::objects::MatrixSetupCanvasPreview {
+                setup: preview_mount, center: boardstudio_core::model::Vec2::default(),
+                available_size: boardstudio_core::model::Vec2 { x: 200.0, y: 200.0 },
+            } }
+            button { onclick: move |_| form_mounted.set(false), "Unmount setup form" }
+            button { onclick: move |_| form_mounted.set(true), "Remount setup form" }
             Chrome {}
         }
     }
@@ -365,6 +383,26 @@ mod draft_safety_tests {
         })
         .await;
         key(&f, "Rows", "ArrowRight", "6").await;
+        let ghost = "[aria-label='New matrix preview'] rect";
+        wait_until("the real form paints 6 by 6 before submission", || {
+            f.root.query_selector_all(ghost).unwrap().length() == 36
+        })
+        .await;
+        f.click("Unmount setup form");
+        wait_until(
+            "form unmount clears paint even while the controller/outlet remain live",
+            || {
+                f.root.query_selector("form").unwrap().is_none()
+                    && f.root.query_selector_all(ghost).unwrap().length() == 0
+            },
+        )
+        .await;
+        f.click("Remount setup form");
+        wait_until("remount paints fresh defaults, not the old draft", || {
+            f.root.query_selector_all(ghost).unwrap().length() == 30
+        })
+        .await;
+        key(&f, "Rows", "ArrowRight", "6").await;
         f.deferred("Update Now (toast)", AREA, REMEDY).await;
         let (mut entered, release) =
             support::gate_next_core_reply_then_fail(&f.runtime, "held matrix failed");
@@ -378,6 +416,11 @@ mod draft_safety_tests {
                 .is_some()
         })
         .await;
+        assert_eq!(
+            f.root.query_selector_all(ghost).unwrap().length(),
+            0,
+            "Create clears the ghost while the real edit is pending"
+        );
         f.click("Update Now (header)");
         let Some(UpdateDialog::Deferred { blockers }) = f.runtime.update_dialog() else {
             panic!("held Core work must independently block update");
@@ -406,6 +449,7 @@ mod draft_safety_tests {
         f.click("Cancel");
         wait_until("real matrix owner cancels", || {
             f.root.query_selector("form").unwrap().is_none()
+                && f.root.query_selector_all(ghost).unwrap().length() == 0
         })
         .await;
         f.root.remove();

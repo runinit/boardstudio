@@ -25,6 +25,7 @@ struct Probe {
     adapter: Rc<RefCell<Option<SelectionAdapter>>>,
     version: Rc<RefCell<Option<Signal<u64>>>>,
     hidden: Rc<RefCell<Option<Signal<BTreeSet<String>>>>>,
+    workspace: Rc<RefCell<Option<Signal<&'static str>>>>,
 }
 
 impl Probe {
@@ -175,10 +176,26 @@ fn dispatch(element: &web_sys::Element, kind: &str) {
 fn host() -> Element {
     let probe = use_context::<Probe>();
     let workspace = use_signal(|| "Layout");
+    *probe.workspace.borrow_mut() = Some(workspace);
     use_context_provider(|| WorkspaceState(workspace));
     use_context_provider(|| ExportReturnWorkspace(workspace));
     let version = use_signal(|| 0u64);
     *probe.version.borrow_mut() = Some(version);
+    // Like the page host, deliver accepted runtime changes to the mounted Editor.
+    // Hover-only cases previously advanced this signal manually; Create must settle too.
+    use_hook({
+        let runtime = probe.runtime.clone();
+        move || {
+            runtime.subscribe(Rc::new(move || {
+                let mut version = version;
+                version += 1;
+            }))
+        }
+    });
+    use_drop({
+        let runtime = probe.runtime.clone();
+        move || runtime.unsubscribe()
+    });
     use_context_provider(|| version);
     let created = use_signal(|| None::<SetupGuideRequest>);
     use_context_provider(|| created);
@@ -210,7 +227,15 @@ fn host() -> Element {
         footprints,
     });
     boardstudio_web_ui_model::state::use_test_case_generation_state();
-    rsx! { boardstudio_web_ui_shared::ui::toast::ToastProvider { Editor {} } }
+    rsx! {
+        // Canvas visibility needs production layout CSS, not only the previous DOM markers.
+        style { {include_str!("../../assets/workbench-base.css")} }
+        style { {include_str!("../../assets/tailwind.css")} }
+        style { {include_str!("../../assets/shell.css")} }
+        div { class: "flex h-[900px] flex-col",
+            boardstudio_web_ui_shared::ui::toast::ToastProvider { Editor {} }
+        }
+    }
 }
 
 /// Open the mirrored pair through the Session and Core and mount the real
@@ -226,6 +251,7 @@ async fn mount_bare(root_id: &'static str) -> Probe {
         adapter: Rc::default(),
         version: Rc::default(),
         hidden: Rc::default(),
+        workspace: Rc::default(),
     };
     let dom_document = web_sys::window().unwrap().document().unwrap();
     let root = dom_document.create_element("div").unwrap();
@@ -294,6 +320,389 @@ fn previewed_keys(root_id: &str) -> Vec<(String, String, String)> {
 fn hint_text(root_id: &str) -> Option<String> {
     query(root_id, "[data-field-preview-hint]")
         .map(|element| element.text_content().unwrap_or_default())
+}
+
+// The guide can cover the entire narrow canvas independently of Add's floating form.
+#[wasm_bindgen_test]
+async fn new_matrix_canvas_preview_avoids_the_resized_setup_guide() {
+    let storage = web_sys::window().unwrap().local_storage().unwrap().unwrap();
+    let panel_preferences = ["objects", "inspector"].map(|side| {
+        let key = format!("boardstudio:v2:panel:{side}");
+        let value = storage.get_item(&key).unwrap();
+        (key, value)
+    });
+    let preferences = setup_guide::read_preferences("field-preview");
+    setup_guide::write_preferences(&setup_guide::SetupGuidePreferences {
+        project_id: "field-preview".into(),
+        open: true,
+        current_stage: SetupGuideStage::Layout,
+    });
+    let root_id = "new-matrix-preview-guide";
+    let probe = mount_bare(root_id).await;
+    let root = web_sys::window()
+        .unwrap()
+        .document()
+        .unwrap()
+        .get_element_by_id(root_id)
+        .unwrap();
+    root.set_attribute("style", "width:390px;height:844px")
+        .unwrap();
+    wait_until("the real setup guide offers another matrix", || {
+        boardstudio_web_ui_shared::test_role::by_role_name(&root, "button", "Add Thumb cluster")
+            .is_some()
+    })
+    .await;
+    probe
+        .element("div.flex.h-\\[900px\\]")
+        .set_attribute("style", "height:844px")
+        .unwrap();
+    boardstudio_web_ui_shared::test_role::by_role_name(&root, "button", "Add Thumb cluster")
+        .unwrap()
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap()
+        .click();
+    let ghost = "#m1-workspace-panel svg[role='group'] g[aria-label='New matrix preview']";
+    wait_until("the guide publishes the live matrix footprint", || {
+        count(root_id, &format!("{ghost} rect")) == 30
+    })
+    .await;
+    let before = probe.runtime.model();
+    let unobscured = || {
+        let canvas = probe
+            .element("#m1-workspace-panel svg[role='group']")
+            .get_bounding_client_rect();
+        let guide = probe
+            .element("[data-setup-guide-overlay]")
+            .get_bounding_client_rect();
+        let preview = probe.element(ghost).get_bounding_client_rect();
+        preview.width() >= 80.0
+            && preview.height() >= 60.0
+            && preview.left() >= canvas.left()
+            && preview.right() <= canvas.right()
+            && preview.top() >= canvas.top()
+            && preview.bottom() <= canvas.bottom()
+            && (preview.left() >= guide.right() || preview.top() >= guide.bottom())
+    };
+    wait_until(
+        "the 390px guide leaves a visible main-canvas matrix, not covered space",
+        unobscured,
+    )
+    .await;
+    assert_eq!(
+        probe.runtime.model(),
+        before,
+        "reserving paint space writes no accepted state"
+    );
+    root.set_attribute("style", "width:820px;height:844px")
+        .unwrap();
+    wait_until("the wider guide leaves the footprint beside it", || {
+        let guide = probe
+            .element("[data-setup-guide-overlay]")
+            .get_bounding_client_rect();
+        probe.element(ghost).get_bounding_client_rect().left() >= guide.right() && unobscured()
+    })
+    .await;
+    // Content/dock geometry can change without resizing the SVG. Observe the guide itself.
+    probe
+        .element("[data-setup-guide-overlay]")
+        .set_attribute("style", "width:600px;height:65%;bottom:auto")
+        .unwrap();
+    wait_until(
+        "changed guide dimensions move the footprint below, outside its actual bounds",
+        || {
+            let guide = probe
+                .element("[data-setup-guide-overlay]")
+                .get_bounding_client_rect();
+            probe.element(ghost).get_bounding_client_rect().top() >= guide.bottom() && unobscured()
+        },
+    )
+    .await;
+    // A second settled change cannot borrow a late callback from the width resize above.
+    probe
+        .element("[data-setup-guide-overlay]")
+        .set_attribute("style", "width:500px;height:100%;bottom:auto")
+        .unwrap();
+    wait_until(
+        "a subsequent guide-only resize returns the footprint beside it",
+        || {
+            let guide = probe
+                .element("[data-setup-guide-overlay]")
+                .get_bounding_client_rect();
+            probe.element(ghost).get_bounding_client_rect().left() >= guide.right() && unobscured()
+        },
+    )
+    .await;
+    assert_eq!(
+        probe.runtime.model(),
+        before,
+        "responsive painting does not change camera or geometry"
+    );
+    boardstudio_web_ui_shared::test_role::by_role_name(&root, "button", "Hide guide")
+        .unwrap()
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap()
+        .click();
+    wait_until(
+        "hiding the guide hands setup back to its floating form",
+        || {
+            query(root_id, "[data-setup-guide-overlay]").is_none()
+                && query(root_id, "[aria-label='New matrix']").is_some()
+                && count(root_id, &format!("{ghost} rect")) == 30
+        },
+    )
+    .await;
+    // This fixture retains the desktop viewport. Collapse its real docks before
+    // narrowing the container, rather than squeezing pinned docks into a zero-width canvas.
+    for label in ["Collapse objects", "Collapse inspector"] {
+        if let Some(button) =
+            boardstudio_web_ui_shared::test_role::by_role_name(&root, "button", label)
+        {
+            button.dyn_into::<web_sys::HtmlElement>().unwrap().click();
+        }
+    }
+    root.set_attribute("style", "width:390px;height:844px")
+        .unwrap();
+    wait_until(
+        "the floating setup also leaves its ghost clear of stationary view controls",
+        || {
+            let Some(preview) = query(root_id, ghost) else {
+                return false;
+            };
+            let preview = preview.get_bounding_client_rect();
+            let controls = probe
+                .element("[aria-label='Design view']")
+                .get_bounding_client_rect();
+            let canvas = probe
+                .element("#m1-workspace-panel svg[role='group']")
+                .get_bounding_client_rect();
+            canvas.width() >= 200.0
+                && preview.bottom() <= controls.top()
+                && preview.right() <= canvas.right()
+                && preview.left() >= canvas.left()
+                && preview.top() >= canvas.top()
+        },
+    )
+    .await;
+    assert_eq!(probe.runtime.model(), before);
+    boardstudio_web_ui_shared::test_role::by_role_name(&root, "button", "Cancel")
+        .unwrap()
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap()
+        .click();
+    root.set_attribute("style", "width:1440px;height:844px")
+        .unwrap();
+    for label in ["Show objects", "Show inspector"] {
+        if let Some(button) =
+            boardstudio_web_ui_shared::test_role::by_role_name(&root, "button", label)
+        {
+            button.dyn_into::<web_sys::HtmlElement>().unwrap().click();
+        }
+    }
+    wait_until("restore the fixture's dock owners before cleanup", || {
+        query(root_id, "#m1-objects-panel[data-mode='pinned']").is_some()
+            && query(root_id, "#m1-inspector-panel[data-mode='pinned']").is_some()
+            && query(root_id, "[aria-label='New matrix']").is_none()
+    })
+    .await;
+    setup_guide::write_preferences(&preferences);
+    root.remove();
+    // Dock controls persist browser preferences; don't leak the narrow fixture into its siblings.
+    for (key, value) in panel_preferences {
+        if let Some(value) = value {
+            storage.set_item(&key, &value).unwrap();
+        } else {
+            storage.remove_item(&key).unwrap();
+        }
+    }
+}
+
+// D2 uses the real setup owner and main canvas, not a hand-built ghost projection.
+#[wasm_bindgen_test]
+async fn new_matrix_sliders_preview_on_canvas_without_changing_accepted_state() {
+    let root_id = "new-matrix-canvas-preview";
+    let probe = mount(root_id).await;
+    wait_until("the accepted board renders before adding a matrix", || {
+        count(root_id, "[data-matrix-id][data-row][data-column]") == ROWS * COLUMNS * 2
+    })
+    .await;
+    let root = web_sys::window()
+        .unwrap()
+        .document()
+        .unwrap()
+        .get_element_by_id(root_id)
+        .unwrap();
+    let click = |name: &str| {
+        boardstudio_web_ui_shared::test_role::by_role_name(&root, "button", name)
+            .unwrap_or_else(|| panic!("missing {name}"))
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap()
+            .click();
+    };
+    let open_setup = || async {
+        click("Add object");
+        wait_until("the real Add menu opens", || {
+            query(root_id, "[aria-label='Add']").is_some()
+        })
+        .await;
+        click("Matrix…Single or mirrored-pair rows, columns & key assemblies");
+        wait_until("New matrix owns the live sliders", || {
+            query(root_id, "[role='slider'][aria-label='Rows']").is_some()
+        })
+        .await;
+    };
+    open_setup().await;
+    let before = probe.runtime.model();
+    let ghost = "#m1-workspace-panel svg[role='group'] g[aria-label='New matrix preview']";
+    wait_until(
+        "New matrix draws 30 candidate footprints on the main canvas before Create",
+        || count(root_id, &format!("{ghost} rect")) == 30,
+    )
+    .await;
+    let canvas_view_box = probe
+        .element("#m1-workspace-panel svg[role='group']")
+        .get_attribute("viewBox");
+    let mut previous_bounds = probe.element(ghost).get_bounding_client_rect();
+    let form_bounds = probe
+        .element("[aria-label='New matrix']")
+        .get_bounding_client_rect();
+    assert!(
+        previous_bounds.left() >= form_bounds.right(),
+        "the main-canvas ghost must be visible beside, not behind, the setup form"
+    );
+    for (label, expected, keys) in [("Rows", "6", 36), ("Columns", "7", 42)] {
+        let slider = probe.element(&format!("[role='slider'][aria-label='{label}']"));
+        let init = web_sys::KeyboardEventInit::new();
+        init.set_key("ArrowRight");
+        init.set_bubbles(true);
+        slider
+            .dispatch_event(
+                &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
+                    .unwrap(),
+            )
+            .unwrap();
+        wait_until("the slider updates the main-canvas footprint live", || {
+            slider.get_attribute("aria-valuenow").as_deref() == Some(expected)
+                && count(root_id, &format!("{ghost} rect")) == keys
+        })
+        .await;
+        let bounds = probe.element(ghost).get_bounding_client_rect();
+        if label == "Rows" {
+            assert!(bounds.height() > previous_bounds.height());
+            assert!((bounds.width() - previous_bounds.width()).abs() < 0.01);
+        } else {
+            assert!(bounds.width() > previous_bounds.width());
+            assert!((bounds.height() - previous_bounds.height()).abs() < 0.01);
+        }
+        previous_bounds = bounds;
+        assert_eq!(
+            probe
+                .element("#m1-workspace-panel svg[role='group']")
+                .get_attribute("viewBox"),
+            canvas_view_box
+        );
+        assert_eq!(
+            count(root_id, "[data-matrix-id][data-row][data-column]"),
+            ROWS * COLUMNS * 2
+        );
+        assert_eq!(
+            probe.runtime.model(),
+            before,
+            "setup painting must not alter accepted document, scene, revision, preview, camera or selection"
+        );
+    }
+    click("Cancel");
+    wait_until("Cancel retires the setup and its canvas ghost", || {
+        query(root_id, "[aria-label='New matrix']").is_none() && query(root_id, ghost).is_none()
+    })
+    .await;
+    assert_eq!(
+        probe.runtime.model(),
+        before,
+        "Cancel writes no accepted state"
+    );
+    open_setup().await;
+    wait_until("reopening starts a fresh 5 by 6 ghost", || {
+        count(root_id, &format!("{ghost} rect")) == 30
+    })
+    .await;
+    let mut workspace = probe.workspace.borrow().expect("mounted workspace");
+    workspace.set("PCB");
+    wait_until("leaving Layout retires the form and ghost", || {
+        query(root_id, "[aria-label='New matrix']").is_none() && query(root_id, ghost).is_none()
+    })
+    .await;
+    assert_eq!(
+        probe.runtime.model(),
+        before,
+        "stage exit writes no accepted state"
+    );
+    workspace.set("Layout");
+    wait_until(
+        "Layout returns without resurrecting the setup ghost",
+        || {
+            query(
+                root_id,
+                "#m1-workspace-panel svg[aria-label^='Keyboard layout;']",
+            )
+            .is_some()
+                && query(root_id, ghost).is_none()
+        },
+    )
+    .await;
+    open_setup().await;
+    wait_until("Create begins with a visible draft ghost", || {
+        count(root_id, &format!("{ghost} rect")) == 30
+    })
+    .await;
+    click("Create matrix");
+    wait_until("normal Create lands and retires the ghost", || {
+        support::drive_pending(&probe.runtime);
+        let feedback = query(root_id, "[aria-label='New matrix'] [role='alert']")
+            .and_then(|alert| alert.text_content());
+        assert!(feedback.is_none(), "Create refused: {feedback:?}");
+        probe.revision() == before.accepted.as_ref().unwrap().document.revision + 1
+            && query(root_id, "[aria-label='New matrix']").is_none()
+            && query(root_id, ghost).is_none()
+    })
+    .await;
+    let after = probe.runtime.model();
+    let document = &after.accepted.as_ref().unwrap().document;
+    assert_eq!(
+        document.matrices.len(),
+        before.accepted.as_ref().unwrap().document.matrices.len() + 1
+    );
+    let created = document
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id != "left-matrix" && matrix.id != "right-matrix")
+        .unwrap();
+    assert_eq!((created.rows, created.columns), (5, 6));
+    assert_eq!(after.camera, before.camera);
+    assert!(after.display_preview.is_none());
+    assert!(
+        matches!(probe.adapter.borrow().as_ref().unwrap().selected_context.peek().as_ref(), Some(selected) if matches!(&selected.context, objects::TreeContext::Matrix { matrix_id, .. } if matrix_id == &created.id))
+    );
+    assert_eq!(
+        count(root_id, "[data-matrix-id][data-row][data-column]"),
+        ROWS * COLUMNS * 2 + 30
+    );
+    probe.runtime.submit(boardstudio_application::Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    support::run_pending(&probe.runtime).await;
+    let undone = probe.runtime.model().accepted.unwrap();
+    assert_eq!(undone.document.revision, document.revision + 1);
+    assert_eq!(
+        undone.document.matrices,
+        before.accepted.as_ref().unwrap().document.matrices,
+        "one Undo removes exactly the normal Create"
+    );
+    assert_eq!(
+        undone.document.parts,
+        before.accepted.as_ref().unwrap().document.parts
+    );
+    assert!(query(root_id, ghost).is_none());
+    root.remove();
 }
 
 #[wasm_bindgen_test]

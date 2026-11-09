@@ -716,3 +716,164 @@ earlier; final acceptance depends on 010's verified candidate.
   Next G's transient matrix ghost. Historical reproduction limitation, full
   gate/refreshed candidate/required matrix/human re-review remain open; no 011
   acceptance inferred.
+- 2026-11-09, **Slice G (D2) — approved presentation seam implemented;
+  focused proof GREEN**, uncommitted over `11a3513d`:
+  The user approved only the narrow public presentation provider/outlet between
+  private Matrix Setup sliders and the page canvas, with private transient paint
+  storage. This resolved the previous blocker, not other visibility/API changes.
+  - Live draft — actual New matrix form open over the real accepted Editor →
+    rows/columns keyboard input before Create → candidate key footprints update
+    on the main canvas; accepted document/scene/revision, runtime preview,
+    camera and selection remain unchanged · mounted · **GREEN**:
+    `.evidence/011-sliceG/mounted-lifecycle.log`, test
+    `new_matrix_sliders_preview_on_canvas_without_changing_accepted_state`.
+    Original **RED** retained in `.evidence/011-sliceG/mounted-red.log`: the
+    real Add menu/sliders mounted but 30 main-canvas footprints were absent.
+    Its three panic-poisoned followers were not independent REDs. The regression
+    now also checks visible separation from the form and each dimension's extent.
+  - Lifetime and writes — Cancel, stage exit and actual Create → no stale
+    candidate; Cancel/stage exit write nothing, Create keeps its normal single
+    accepted commit and selection behavior · mounted + packaged · **GREEN**.
+    The same Editor scenario checks complete ReadModel equality during input,
+    Cancel and workspace exit, one revision/Create, selected created matrix and
+    one Undo restoring prior matrices/Parts. Its host now subscribes to runtime
+    delivery (previous hover-only cases manually advanced the version signal).
+    `.evidence/011-sliceG/layout-mounted.log` extends the existing real Create
+    fixture: form-only unmount clears paint while the controller/outlet remain
+    live; remount starts at defaults; pending Create clears paint.
+  - Separate wiring — empty new-keyboard Layout step versus Add matrix on an
+    accepted board → both show the live footprint only during their real setup
+    lifetime, preserving existing board visibility and linked-half semantics ·
+    mounted + packaged · **GREEN**. Packaged before evidence independently
+    reproduces the empty split flow: trusted slider keys change 5×6 to 6×7;
+    the panel shows 42 keys while the main canvas has zero key rectangles.
+    Logs: `.evidence/011-sliceG/packaged-before.log`, `packaged-red.log`;
+    full-frame captures: `web/target/test-results/011-sliceG/maincanvas-before.png`
+    and `maincanvas-before-6x7.png` in that directory (Original Light, 1440×900).
+  Fresh after package: `web/target/site-011-sliceG-after` (fast, skip-providers;
+  existing provider artifacts reused, not rebuilt), isolated port 4183. Logs:
+  `.evidence/011-sliceG/packaged-after.log`, `packaged-live.log`. Final captures
+  under `web/target/test-results/011-sliceG/`: `empty-after-final-{5x6,6x7,created}.png`
+  (Original Light) and `add-after-visible-{5x6,6x7,created}.png` (shadcn Dark),
+  full-frame 1440×900. The final rebuild/adoption is also captured in
+  `final-package-smoke-6x7.png` with visible, pointer-transparent paint and clean
+  Cancel. Trusted inputs change both dimensions live; Cancel and
+  workspace exit clear the ghost; Create leaves accepted linked halves with no
+  ghost. Add-existing keeps accepted key markup and canvas viewBox unchanged.
+  A stale worker was observed and adopted via trusted Update Now; old full-width
+  form captures are not final GREEN. The existing form is now narrow, with its
+  measured area reserved only for the schematic; accepted fit/camera are unchanged.
+  The only new public interface is `use_matrix_setup_preview_provider` and
+  `MatrixSetupCanvasPreview` using the existing setup mount. Dimensions are copied
+  read-only; private paint cleanup is scoped to its mounted publisher. Core's
+  read-only matrix projection and existing footprint adapter supply geometry.
+  No runtime geometry requests, draft registry/owner, accepted scene or history
+  writes were added. Existing input admission guards are unchanged.
+  Focused Layout native/mounted, WASM Clippy, rustfmt, whitespace and doc links
+  are recorded in `.evidence/011-sliceG/`; no full gate or mutation run is claimed.
+  All source reads/edits used the exact Gortex checkout; no native source fallback.
+  Coordinator full gate, independent rejections/mutations, fresh combined review,
+  candidate refresh and human acceptance remain outstanding; **011 remains
+  ready-for-human**, not accepted.
+- 2026-11-09, **Slice G (D2) fresh combined Spec + Standards review**
+  (one reviewer per explicit user instruction): fixed `11a3513dfebf0b23c8ee5a1e4deb25b29fd684a2`
+  to the uncommitted worktree on `fix/ui-integration-recovery`; root and HEAD
+  verified. Exact Gortex worktree source read: new
+  `web/crates/layout/src/objects/matrix_setup_preview.rs` (entire file),
+  `web/crates/layout/src/objects.rs` 51, 89;
+  `web/crates/layout/src/objects/matrix_setup.rs` 120–124, 258, 317–452;
+  `web/src/presentation.rs` 3267, 8744–8773, 9788–9800;
+  `web/src/presentation/layout_field_preview_tests.rs` 28, 179–198, 230–238,
+  254, 325–513; this ticket 719–777. **No owned changed hunk unread.**
+  Protected external work was not reviewed as part of the diff.
+  - **Standards: PASS**, bounded to this slice; no required or optional
+    findings. Correctness, readability, architecture, security and performance
+    reviewed. The provider exposes only the approved presentation seam; paint and
+    source identity stay private. Dimensions are bounded by existing input
+    parsing; projection uses Core and the existing footprint adapter. The long
+    Editor test uses the real owner and existing fixture to check distinct live,
+    cleanup, Create and Undo promises; its cost is justified, not an assertion
+    count rule. Considered the twelve baseline smells as judgment calls, not
+    automatic violations: mysterious names, duplication, feature envy, data
+    clumps, primitive obsession, repeated switches, shotgun surgery, divergent
+    change, speculative generality, message chains, middle man and refused
+    bequest; no actionable new smell found.
+  - **Spec: PARTIAL**. Required verification: `web/src/presentation.rs:9789–9798`
+    clamps the measured form inset to 80% of the canvas, while
+    `web/crates/layout/src/objects/matrix_setup.rs:258` allows a form nearly as
+    wide as its containing area. When the measured form extends beyond that
+    clamp, the computed preview region includes covered space; the 1440px
+    separation assertion does not establish visibility at narrow widths. D2
+    requires a live main-canvas ghost, and the approved change must be dock-safe.
+    Independently exercise the real narrow Editor and setup-guide layouts,
+    including 390×844 and changed dock/form geometry; if obscured, reserve the
+    actual unobscured region or adapt the form without changing camera/fit, and
+    add a faithful regression. This is an unverified risk, not a claim that a
+    particular 390px screenshot failed. Otherwise the reviewed publisher reacts
+    to local sliders, filters by editable current owner and clears on publisher
+    drop; the mounted Editor scenario checks no accepted-state writes, normal
+    Create/selection and one Undo. No extra runtime geometry or draft ownership
+    changes are in this slice. No conclusion about historical D9 black bars.
+  - **Evidence audited, not rerun:** `.evidence/011-sliceG/mounted-red.log`
+    shows the missing 30-key ghost first; its three followers are panic-poisoned,
+    not independent REDs. `mounted-lifecycle.log` reports 5 passing, and
+    `layout-mounted.log` 6 passing, including pending Create and form-only drop.
+    `packaged-live.log` records 1440×900 trusted-slider geometry, unchanged
+    viewBox and pointer-events none; provider artifacts were reused. Other
+    producer evidence and screenshots were not independently inspected here.
+    No tests, builds, mutations, browser or server were executed by this reviewer.
+  - **Slice G commit readiness: BLOCKED** pending the narrow-visibility proof
+    above and coordinator's independent disconnected/frozen publisher, drop,
+    editable-filter and form-width mutation/fail-path reruns and scope checks.
+    **011 acceptance: BLOCKED** pending full gate, refreshed candidate, required
+    Theme/Appearance/viewport matrix, affected human re-review and explicit
+    approval. 011 remains `ready-for-human`, parent 001 open; no acceptance or
+    permission to merge is inferred.
+- 2026-11-09, **Coordinator G follow-up and commit receipt**, pre-commit HEAD
+  `11a3513d`. All seven owned files' source/test/doc changed hunks read through
+  exact Gortex, including the new module and added `web/assets/shell.css`; none
+  unread. The review's narrow-screen risk was independently reproduced at
+  **390×844**: the full guide hid the ghost, then Add-existing's compact Sheet
+  and stationary controls covered it. Bounded correction reserves the measured
+  whole guide/form and view-control region, observes their size changes, and
+  paints beside or below them without changing camera/fit or accepted geometry.
+  Narrow authoring surfaces scroll within part of the canvas; the compact Sheet
+  is temporarily hidden, keeping its owners mounted and preference unchanged.
+  Other setup stages and desktop dock ownership remain unchanged.
+  - Proof row — real Editor/guide → narrow canvas, resize, two subsequent
+    guide-only geometry changes and floating-form handoff → visible footprint
+    outside measured chrome with complete ReadModel equality · mounted ·
+    **RED→GREEN**: `coordinator-narrow-red.log`, `coordinator-final-green.log`
+    under `.evidence/011-sliceG/`. The fixture collapses/restores real desktop
+    docks before narrowing its container; a zero-width pinned-dock fixture was
+    diagnosed, not used as product evidence. Restoring live dock state and saved
+    preferences avoids leaking that scenario into keyboard-focus siblings.
+  - Newly executed independent mutation baselines passed. Disconnected and frozen
+    publisher, missing painter cleanup, pending-Create editable-filter removal,
+    full-width form and full-height narrow guide were killed. A missing guide
+    observer initially survived; a second settled resize strengthened the same
+    scenario. Final observer rerun killed it: **7 distinct targets killed,
+    0 outstanding survivors, 0 compile failures**, source restored. Logs:
+    `coordinator-{web,layout}-mutation.log` plus their directories and
+    `coordinator-final-observer-mutation.log`/directory in the same evidence area;
+    mutation specifications under `~/.cache/tmp/011-g-*.json`.
+  - Newly executed restored checks: **6 field/spacing tests GREEN**, fresh fast
+    package in `coordinator-final-green.log`; **270 Layout tests GREEN** in
+    `coordinator-restored-green.log`. Native 168-pass/1-ignored and producer
+    targeted Clippy evidence above reused; full gate still next. Rustfmt,
+    whitespace and Impeccable detector passed. No new input-admission guard;
+    pending paint rejection and form-only cleanup independently rerun.
+  - Packaged trusted-input proof at 390×844, Original Light and shadcn Dark,
+    plus 1440×900 resized docks: `coordinator-packaged-narrow.log`. A correctly
+    hit slider track updated the ghost while the mouse remained held before
+    pointerup. Final package clears both form and stationary controls; final
+    capture is **7×6**, `coordinator-narrow-final-clear-controls-7x6.png`, under
+    `web/target/test-results/011-sliceG/`; earlier 6×7 and guide/Create/Cancel
+    captures are there too. Cancel restores the compact Sheet. Stale cached CSS
+    was detected and excluded; final proof used a clean isolated browser.
+    Chromium viewport/keyboard/mouse evidence, not Safari or physical-touch proof.
+  Coordinator delta review: **Standards PASS; Spec PASS for G**, resolving the
+  required visibility verification above; the original reviewer report remains
+  intact. **G scoped commit READY**. **011 acceptance BLOCKED** on the full gate,
+  refreshed candidate, complete required matrix, affected human re-review and
+  explicit approval. Parent 001 open; D9 historical black-bar cause still unproven.

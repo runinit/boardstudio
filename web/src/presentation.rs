@@ -3264,6 +3264,7 @@ fn use_setup_project_name(runtime: Rc<Runtime>) -> SetupProjectNameEdit {
 #[component]
 fn Editor() -> Element {
     boardstudio_web_ui_shared::layer_dock::use_layer_dock_provider();
+    objects::use_matrix_setup_preview_provider();
     parts::use_assembly_action_provider();
     let mut workspace_routing = use_hook(|| WorkspaceRoutingSlots {
         select_tree: EventHandler::new(|_: objects::TreeSelectRequest| {}),
@@ -8740,6 +8741,110 @@ fn Editor() -> Element {
         },
     );
     use_effect(auto_open_matrix);
+    let mut setup_preview_frame_px = use_signal(|| (0.0, 0.0, 0.0, 0.0));
+    let setup_preview_observer = use_hook(|| {
+        Rc::new(RefCell::new(
+            None::<(
+                web_sys::ResizeObserver,
+                Closure<dyn FnMut(js_sys::Array, web_sys::ResizeObserver)>,
+            )>,
+        ))
+    });
+    use_effect(use_reactive(
+        (
+            &matrix_setup.projection.is_some(),
+            &guide.is_some(),
+            &zoom_surface_size(),
+        ),
+        {
+            let svg = svg.clone();
+            let observer = setup_preview_observer.clone();
+            move |(open, _, _)| {
+                if let Some((previous, _)) = observer.borrow_mut().take() {
+                    previous.disconnect();
+                }
+                setup_preview_frame_px.set((0.0, 0.0, 0.0, 0.0));
+                if !open {
+                    return;
+                }
+                let Some(surface) = svg.borrow().clone() else {
+                    return;
+                };
+                let editor = surface
+                    .closest("[aria-label='Keyboard editor']")
+                    .ok()
+                    .flatten();
+                let form = editor.as_ref().and_then(|editor| {
+                    editor
+                        .query_selector("[aria-label='New matrix']")
+                        .ok()
+                        .flatten()
+                });
+                let controls = editor.as_ref().and_then(|editor| {
+                    editor
+                        .query_selector("[aria-label='Design view']")
+                        .ok()
+                        .flatten()
+                });
+                let measured_controls = controls.clone();
+                let Some(form) = form else {
+                    return;
+                };
+                // The entire guide occludes the canvas, not only its nested form.
+                let obstacle = form
+                    .closest("[data-setup-guide-overlay]")
+                    .ok()
+                    .flatten()
+                    .unwrap_or(form);
+                let measured_surface = surface.clone();
+                let measured_obstacle = obstacle.clone();
+                let mut measure = move || {
+                    let surface = measured_surface.get_bounding_client_rect();
+                    let obstacle = measured_obstacle.get_bounding_client_rect();
+                    let clear_height = measured_controls
+                        .as_ref()
+                        .map(|controls| controls.get_bounding_client_rect())
+                        .filter(|controls| controls.height() > 0.0)
+                        .map(|controls| {
+                            (controls.top() - surface.top() - 8.0).clamp(0.0, surface.height())
+                        })
+                        .unwrap_or(surface.height());
+                    let right =
+                        (obstacle.right() - surface.left() + 8.0).clamp(0.0, surface.width());
+                    let bottom = (obstacle.bottom() - surface.top() + 8.0).clamp(0.0, clear_height);
+                    // Reserve actual covered space, with no percentage cap. Narrow setup
+                    // surfaces scroll above a preview; wider ones leave it beside them.
+                    let next = if (surface.width() - right) * clear_height
+                        >= surface.width() * (clear_height - bottom)
+                    {
+                        (right, 0.0, surface.width() - right, clear_height)
+                    } else {
+                        (0.0, bottom, surface.width(), clear_height - bottom)
+                    };
+                    if next != *setup_preview_frame_px.peek() {
+                        setup_preview_frame_px.set(next);
+                    }
+                };
+                measure();
+                let callback = Closure::<dyn FnMut(js_sys::Array, web_sys::ResizeObserver)>::new(
+                    move |_, _| measure(),
+                );
+                if let Ok(next) = web_sys::ResizeObserver::new(callback.as_ref().unchecked_ref()) {
+                    next.observe(&surface);
+                    next.observe(&obstacle);
+                    if let Some(controls) = controls {
+                        next.observe(&controls);
+                    }
+                    *observer.borrow_mut() = Some((next, callback));
+                }
+            }
+        },
+    ));
+    use_drop(move || {
+        if let Some((observer, _)) = setup_preview_observer.borrow_mut().take() {
+            observer.disconnect();
+        }
+    });
     let inline_matrix_setup = if guide.is_some() {
         matrix_setup.projection.clone().map(|mut projection| {
             projection.can_cancel &= has_matrix;
@@ -9497,6 +9602,7 @@ fn Editor() -> Element {
 
     rsx! {
         section { class: "flex min-h-0 flex-1 flex-col", "aria-label": "Keyboard editor",
+            "data-matrix-preview-stacked": (matrix_setup.projection.is_some() && zoom_surface_size().0 < 760.0).then_some(""),
             div { class: if active_workspace == "Export" { "dock-desk relative flex min-h-0 flex-1 flex-row gap-2 overflow-hidden bg-background p-2 [&_[id=workspace-panel-sheet]]:hidden!" } else { "dock-desk relative flex min-h-0 flex-1 flex-row gap-2 overflow-hidden bg-background p-2" },
                 DockLayout {
                     objects: if guide.is_none() { Some(rsx! {
@@ -9753,6 +9859,20 @@ fn Editor() -> Element {
                                 && !(layer_visibility.hidden)().contains("Footprints"),
                             on_matrix_pointer_down: matrix_pointer_down,
                             on_part_pointer_down: part_pointer_down,
+                        }
+                        {
+                            // Project only the schematic into measured clear space. Accepted
+                            // geometry, camera and Slice A's fit owner stay intact.
+                            let (left, top, frame_width, frame_height) = setup_preview_frame_px();
+                            let world_per_px_x = width / zoom_surface_size().0.max(1.0);
+                            let world_per_px_y = height / zoom_surface_size().1.max(1.0);
+                            rsx! {
+                                objects::MatrixSetupCanvasPreview {
+                                    setup: matrix_setup.clone(),
+                                    center: Vec2 { x: view_x + (left + frame_width / 2.0) * world_per_px_x, y: -view_y - (top + frame_height / 2.0) * world_per_px_y },
+                                    available_size: Vec2 { x: frame_width * world_per_px_x, y: frame_height * world_per_px_y },
+                                }
+                            }
                         }
                         if let Some((x, y, scale)) = selection_geometry_anchor
                             && let Some(tools) = canvas_transform_menu.clone()
