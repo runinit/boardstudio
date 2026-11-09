@@ -588,3 +588,131 @@ earlier; final acceptance depends on 010's verified candidate.
   failing persistence invariant was exercised. Whitespace/rustfmt passed.
   No source correction required; commit F READY. Next: all-dimension popover D9.
   Full gate/candidate refresh/matrix/human re-review remain open; 011 is not closed.
+- 2026-11-09, **D9 proof map — targeted implementation complete** — approved
+  scope is every in-canvas dimension-edit chip, not a Stagger-only correction.
+  - Shared size/paint — accepted matrix tools → hover Stagger, Spread, Offset,
+    Splay, Shift, Bend, Move and Rotate; Stagger additionally at 2/4/8 screen
+    px per world unit → compact chip (100–280px wide, 40–110px high), contained
+    readable text, full hint and Theme icon paint · mounted + packaged · RED:
+    `.evidence/011-D9/mounted-red.log`; GREEN: `mounted-green.log` and
+    `layout-browser-green.log` in that directory. The latter includes the
+    added Theme-stroke assertion. Test:
+    `dimension_popups_stay_compact_above_handles_at_screen_size`.
+  - Anchor/hit target — hover a dimension handle → chip entirely above handle,
+    4–14px clear gap; original 20×24px drag target and pointer-transparent chip
+    unchanged · mounted + packaged · same mounted RED/GREEN; packaged RED:
+    `packaged-before-geometry.log` in `.evidence/011-D9/` (344.86px width and
+    −60.1px gap). `packaged-after-*.log` records 265.69×81.8px with a 7px gap
+    at fit and zoomed out, in Original Light/Dark and shadcn Dark. Actual
+    text contrast minima: 5.87, 7.65 and 6.94 respectively (`contrast-*.log`).
+  - Interaction — newly reran the unchanged accepted-state popup-follow,
+    live-delta, one-commit/expiry test and existing capture/cancel/Esc/Undo,
+    independent-part and Inspector-draft guards in the 270-test Layout subset
+    (2 setup-guide + 268 other tests), all GREEN: `layout-browser-green.log`.
+    No edit ownership, units, hit-target transform or viewport code changed.
+  Before package reused: `web/target/site-011-sliceF-after`, source-equivalent
+  to `b8ae4a88`. Actual current render is already correctly inverse-scaled and
+  Theme-colored, not the earlier black board-wide bar. It still covers the
+  rail/keys: the y-down panel's **top**, not its bottom, anchors 8px above the
+  rail; its unbroken footer also overallocates width. This observed current
+  defect, rather than the unconfirmed board-unit hypothesis, governs the fix.
+  Shared `feedback_popup_panel` now anchors using the rendered panel's height
+  and retains the full instruction on two lines. Existing Theme fill/stroke
+  colors remain; measurement font and glyph stroke now consume Theme tokens.
+  Producer audit: `LayoutTransformToolOverlay` supplies matrix/column/row/key
+  dimension chips; `LayoutPartToolOverlay` supplies independent-part
+  Move/Rotate/Spread/Stagger chips; `LayoutAnchorPickOverlay` hover uses the
+  same renderer. Armed Anchor pick stays top-right using its separate panel
+  (only the shared measurement font follows the Theme). Origin's point has
+  no hover chip. `LayoutCanvasControls` is an HTML measurement grid currently
+  mounted only in tests, not another shipped popup; `OutlineDimension` is an
+  Inspector field, not transformed canvas chrome. No producer was special-cased.
+  Fresh AFTER package: `web/target/site-011-D9-after`, fast build with unchanged
+  providers reused (`build-after.log`), isolated port 4183. Applied Update Now
+  before final captures; two footer rows and new glyph paint confirm fresh
+  markup. Screenshots in `web/target/test-results/011-D9/`:
+  `stagger-before.png` / `stagger-after.png`, `splay-before.png` /
+  `splay-after.png` (Original Light); paired
+  `stagger-{before,after}-original-dark-zoom-out.png` and
+  `splay-{before,after}-shadcn-dark-zoom-out.png`; supplemental
+  `stagger-after-shadcn-dark-fit.png`, `splay-after-shadcn-dark-fit.png`.
+  Full-frame captures show the chip just above its handle, no longer over the
+  rail/top key row; other geometry can still lie behind this small floating chip.
+  Newly executed: locked `check.py browser --only layout` (including CSS build),
+  targeted WASM Clippy `--lib --tests -D warnings`, rustfmt, whitespace and doc
+  links passed. `scripts/mutation-check.py` killed all three mutants (bad
+  vertical anchor, board-unit panel, fixed icon stroke), zero survivors or
+  compile failures; source restored byte-for-byte. Spec:
+  `~/.cache/tmp/011-D9-mutations.json`; logs: `.evidence/011-D9/mutation.log`
+  and `mutations/`. No input admission/rejection guard was added (N/A).
+  Gortex exact worktree reads/edits, impact, detect/tests/guards/contract ran;
+  initial change routing recovered after six 60-second retry cycles, with no
+  native source fallback. No mapped coverage/configured graph guards; actual
+  mounted tests above supply behavioral proof. Contract warns about shared
+  caller reach, not a broken signature. Impeccable reports only pre-existing
+  shadow-color advisories (`impeccable.log`); no new CSS file or tokens needed.
+  HEAD remains `b8ae4a88` plus this uncommitted two-file slice. Coordinator owns
+  independent mutation/rejection reruns, combined Spec/Standards review, full
+  gate and candidate refresh. Historical black-bar cause was not reproduced
+  on the current baseline; no claim about its original cause or the complete
+  Theme/Appearance/viewport matrix is made. Affected human re-review and explicit
+  acceptance remain outstanding: **011 stays ready-for-human, not resolved**.
+- 2026-11-09, **D9 fresh combined Spec + Standards review** (user-authorized
+  single reviewer): fixed endpoints `b8ae4a88b3670fed31f30ec467341e2232aeebfb`
+  to its uncommitted worktree on `fix/ui-integration-recovery`; root and HEAD
+  verified. D9 owned diff files/hunks read via exact worktree source: this ticket
+  591–659; `web/crates/layout/src/objects/layout_transform_toolbar.rs` 296–319,
+  369–394, 428–432 and 10303–10465. No owned changed hunk unread. Protected
+  external changes excluded. Commit-ref baseline source view was building;
+  current exact worktree source and mechanical hunk inventory were available.
+  - **Standards: PASS**, bounded to D9. No required or optional findings.
+    Reviewed correctness, readability, architecture, security and performance;
+    the existing large file is a maintenance concern, but this focused shared
+    renderer change does not justify an unrelated decomposition here. Considered
+    all 12 Fowler heuristics (mysterious names, duplication, feature envy, data
+    clumps, primitive obsession, repeated switches, shotgun surgery, divergent
+    change, speculative generality, message chains, middle man, refused bequest):
+    no actionable new smell. Test economy: one shared mounted scenario exercises
+    equivalent tools and representative zooms with rendered geometry oracles.
+  - **Spec: PASS**, for the bounded current-baseline correction, not historical
+    black-bar resolution. No required or optional code findings. Shared y-down
+    panel now accounts for its height over the rail; height and width remain
+    screen-pixel-scaled, hint retained, hit geometry unchanged. Common renderer
+    reaches dimension and Anchor-hover producers; independent-part wiring and
+    interaction preservation rely on existing guards and producer audit, not a
+    new packaged matrix of every owner. Toast is independently top-centred; no
+    toast positioning change is required by this hover-anchor correction.
+  - Independently inspected existing mounted RED/GREEN logs, mutation summary,
+    packaged before and Original Light after geometry, shadcn Dark contrast,
+    Layout browser log boundaries, and Stagger light / Splay dark before-after
+    screenshots. RED demonstrates current 344.86px chip and −60.1px gap, not the
+    historical black bar; after log gives 265.69×81.8px and 7px gap. Reused
+    reports for other Theme/zoom cases, complete 270-test result, source restore,
+    packaging provenance and remaining checks; no commands were rerun here.
+    Historical black-bar cause/reproduction remains unresolved; no causal claim.
+  - **D9 commit readiness: BLOCKED** pending coordinator-owned independent
+    mutation/fail-path reruns and final scope/commit checks; no new input
+    rejection guard was introduced. **011 acceptance: BLOCKED** pending full
+    gate and refreshed candidate, complete required Theme/Appearance/viewport
+    matrix, affected human re-review and explicit approval, plus remaining
+    ordered slices. This review does not authorize closing 011.
+- 2026-11-09, **Coordinator D9 commit receipt** — pre-commit HEAD `b8ae4a88`.
+  All owned changed source/test/ticket hunks independently read through exact
+  Gortex, none unread; no source correction required. Spec/Standards PASS above
+  remain bounded to the observed current-baseline chip defect, not proof of the
+  historical black bar's cause. Inspected Stagger Light and Splay shadcn Dark
+  zoom-out after captures; reused other packaged comparisons/producer audit.
+  Newly executed independent locked mutation-check baseline passed; all three
+  existing mutants independently killed: top-vs-bottom anchor (negative gap),
+  board-unit panel (screen-size text), fixed icon stroke (shadcn token mismatch).
+  **3 killed, 0 survived, 0 compile failures**, source restored byte-for-byte.
+  Spec reused from `~/.cache/tmp/011-D9-mutations.json`; new logs:
+  `.evidence/011-D9/coordinator-mutation.log` and `coordinator-mutation/`.
+  Fresh restored `check.py browser --only layout` rebuilt test CSS and passed
+  **270 tests** (2 setup-guide + 268 other), including interaction guards:
+  `coordinator-restored-green.log` in the same directory. Rustfmt/whitespace
+  passed; no invalid-input admission guard added (rejection N/A).
+  Independent rerun/final scope prerequisites now met: **D9 commit READY**.
+  Next G's transient matrix ghost. Historical reproduction limitation, full
+  gate/refreshed candidate/required matrix/human re-review remain open; no 011
+  acceptance inferred.

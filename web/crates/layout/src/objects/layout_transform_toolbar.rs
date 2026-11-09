@@ -296,21 +296,27 @@ fn feedback_popup_panel(
     if let Some(delta) = popup.delta.as_ref() {
         rows.push((delta.clone(), 12.0, "var(--primary)", false));
     }
-    rows.push((
-        "Drag the handle, or type in the Inspector · Esc: close".to_owned(),
-        10.5,
-        "var(--muted-foreground)",
-        false,
-    ));
+    // Keep the full hint, but don't make every chip as wide as its footer.
+    for line in ["Drag the handle, or type in the Inspector", "· Esc: close"] {
+        rows.push((line.to_owned(), 10.5, "var(--muted-foreground)", false));
+    }
     let panel_w = rows
         .iter()
         .map(|(text, size, _, _)| feedback_line_width(text, *size))
         .fold(0.0_f64, f64::max)
         + 16.0;
-    // A following drag anchors its own top-left; a hover or focus centres
-    // the panel above the rail.
-    let top_left: Option<(f64, f64)> = follow
-        .or_else(|| rail.map(|(x, y, w, h)| (x + w / 2.0 - panel_w * px / 2.0, y + h + 8.0 * px)));
+    let panel_h = feedback_panel_height(&rows);
+    // The world is y-up, but the panel contents are y-down. Anchor its
+    // bottom above the rail, not its top (which covered the rail and keys).
+    // A following drag already supplies its own top-left in world units.
+    let top_left: Option<(f64, f64)> = follow.or_else(|| {
+        rail.map(|(x, y, w, h)| {
+            (
+                x + w / 2.0 - panel_w * px / 2.0,
+                y + h + (8.0 + panel_h) * px,
+            )
+        })
+    });
     let (panel_x, panel_y) = top_left?;
     Some(rsx! {
         g {
@@ -363,13 +369,17 @@ fn feedback_toast_panel(
     }
 }
 
+fn feedback_panel_height(rows: &[(String, f64, &'static str, bool)]) -> f64 {
+    rows.iter().map(|(_, size, _, _)| size * 1.4).sum::<f64>() + 16.0
+}
+
 /// Ticket 06: the rect plus left-aligned text rows of one view-only chrome
 /// panel, drawn in a y-down px group the caller positions. Rows carry
 /// (text, size px, fill, mono-600). Static panels only: reduced motion drops
 /// travel, and there is no travel to drop.
 fn feedback_panel_contents(width_px: f64, rows: Vec<(String, f64, &'static str, bool)>) -> Element {
     let pad = 8.0;
-    let height_px: f64 = rows.iter().map(|(_, size, _, _)| size * 1.4).sum::<f64>() + pad * 2.0;
+    let height_px = feedback_panel_height(&rows);
     let mut baseline = pad;
     let placed: Vec<(String, f64, &'static str, String, f64)> = rows
         .into_iter()
@@ -378,7 +388,7 @@ fn feedback_panel_contents(width_px: f64, rows: Vec<(String, f64, &'static str, 
             let y = baseline;
             baseline += size * 0.4;
             let style = if mono {
-                "font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-weight:600".to_owned()
+                "font-family:var(--theme-font-mono);font-weight:600".to_owned()
             } else {
                 String::new()
             };
@@ -418,7 +428,7 @@ fn rail_token_glyph(
     stroke: &str,
 ) -> Element {
     let style = format!(
-        "fill:none;stroke:{stroke};stroke-width:1.5px;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke"
+        "fill:none;stroke:{stroke};stroke-width:var(--icon-stroke);stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke"
     );
     match (tool, quick_offset) {
         (LayoutTransformTool::Spread, _) => rsx! {
@@ -10291,6 +10301,163 @@ mod tool_tests {
             "one Undo restores the key's shift"
         );
         root.remove();
+    }
+
+    /// D9: observe rendered pixels, not transform strings. The fixture's SVG
+    /// is reflected here to match the production canvas's y-up world group.
+    #[wasm_bindgen_test]
+    async fn dimension_popups_stay_compact_above_handles_at_screen_size() {
+        use LayoutTransformTool::{Bend, Move, Offset, Rotate, Shift, Splay, Spread, Stagger};
+        let document = web_sys::window().unwrap().document().unwrap();
+        let stylesheet = document.create_element("style").unwrap();
+        stylesheet.set_text_content(Some(&format!(
+            "{}\n{}",
+            include_str!("../../../../assets/workbench-base.css"),
+            include_str!("../../../../assets/tailwind.css")
+        )));
+        document.head().unwrap().append_child(&stylesheet).unwrap();
+        let runtime = fixture::open_matrix_runtime().await;
+        wait_until_editable(&runtime).await;
+        let revision = fixture_revision(&runtime);
+        // Equivalent producers once; only Stagger repeats the shared zoom path.
+        let cases = [
+            (Stagger, "column", 200),
+            (Stagger, "column", 400),
+            (Stagger, "column", 800),
+            (Spread, "column", 400),
+            (Offset, "column", 400),
+            (Splay, "column", 400),
+            (Shift, "row", 400),
+            (Bend, "key", 400),
+            (Move, "matrix", 400),
+            (Rotate, "matrix", 400),
+        ];
+        let mut failures = Vec::new();
+        for (tool, kind, size) in cases {
+            let mut context = context_of(kind);
+            match &mut context {
+                TreeContext::Column { matrix_id, column } => {
+                    *matrix_id = fixture::MATRIX_ID.into();
+                    *column = 1;
+                }
+                TreeContext::Row { matrix_id, row } => {
+                    *matrix_id = fixture::MATRIX_ID.into();
+                    *row = 0;
+                }
+                TreeContext::Key {
+                    matrix_id,
+                    row,
+                    column,
+                } => {
+                    *matrix_id = fixture::MATRIX_ID.into();
+                    *row = 0;
+                    *column = 1;
+                }
+                TreeContext::Matrix { matrix_id } => *matrix_id = fixture::MATRIX_ID.into(),
+                _ => unreachable!(),
+            }
+            let (root, handle) = mount_context_overlay(&runtime, tool, context).await;
+            root.set_attribute(
+                "data-theme",
+                if size == 800 { "shadcn" } else { "original" },
+            )
+            .unwrap();
+            let svg = root.query_selector("svg").unwrap().unwrap();
+            svg.set_attribute("width", &size.to_string()).unwrap();
+            svg.set_attribute("height", &size.to_string()).unwrap();
+            svg.set_attribute("style", "transform:scaleY(-1)").unwrap();
+            dispatch_pointer(&handle, "pointerenter", false, false, 0, (100, 100));
+            gloo_timers::future::TimeoutFuture::new(60).await;
+            let popup = root
+                .query_selector("[data-feedback-popup]")
+                .unwrap()
+                .expect("hover popup");
+            let panel = popup.query_selector("rect").unwrap().unwrap();
+            let bounds = panel.get_bounding_client_rect();
+            let hit = handle
+                .query_selector("rect[width='20']")
+                .unwrap()
+                .expect("drag hit area");
+            let hit_bounds = hit.get_bounding_client_rect();
+            let gap = hit_bounds.top() - bounds.bottom();
+            if !(100.0..=280.0).contains(&bounds.width())
+                || !(40.0..=110.0).contains(&bounds.height())
+            {
+                failures.push(format!(
+                    "{tool:?}/{size}: chip {}x{} is not compact",
+                    bounds.width(),
+                    bounds.height()
+                ));
+            }
+            if !(4.0..=14.0).contains(&gap) {
+                failures.push(format!(
+                    "{tool:?}/{size}: chip-to-handle gap {gap}, expected above without overlap"
+                ));
+            }
+            assert!(
+                (hit_bounds.width() - 20.0).abs() < 0.1 && (hit_bounds.height() - 24.0).abs() < 0.1,
+                "{tool:?}: drag target stays 20x24 screen px"
+            );
+            let window = web_sys::window().unwrap();
+            let style = window.get_computed_style(&popup).unwrap().unwrap();
+            assert_eq!(style.get_property_value("pointer-events").unwrap(), "none");
+            let panel_fill = window
+                .get_computed_style(&panel)
+                .unwrap()
+                .unwrap()
+                .get_property_value("fill")
+                .unwrap();
+            let texts = popup.query_selector_all("text").unwrap();
+            for index in 0..texts.length() {
+                let text = texts
+                    .item(index)
+                    .unwrap()
+                    .dyn_into::<web_sys::Element>()
+                    .unwrap();
+                let rect = text.get_bounding_client_rect();
+                assert!(
+                    rect.height() >= 10.0 && rect.height() <= 24.0,
+                    "{tool:?}: readable screen-sized text"
+                );
+                assert!(
+                    rect.left() >= bounds.left()
+                        && rect.right() <= bounds.right() + 1.0
+                        && rect.top() >= bounds.top()
+                        && rect.bottom() <= bounds.bottom() + 1.0,
+                    "{tool:?}: full text stays inside chip"
+                );
+                let fill = window
+                    .get_computed_style(&text)
+                    .unwrap()
+                    .unwrap()
+                    .get_property_value("fill")
+                    .unwrap();
+                assert_ne!(fill, panel_fill, "{tool:?}: readable Theme foreground");
+            }
+            let glyph = handle.query_selector("path").unwrap().unwrap();
+            let paint = window.get_computed_style(&glyph).unwrap().unwrap();
+            assert_eq!(paint.get_property_value("fill").unwrap(), "none");
+            assert_ne!(paint.get_property_value("stroke").unwrap(), "none");
+            assert_eq!(
+                paint.get_property_value("stroke-width").unwrap(),
+                if size == 800 { "2px" } else { "1.5px" },
+                "{tool:?}: Theme owns icon stroke"
+            );
+            let content = popup.text_content().unwrap_or_default();
+            assert!(
+                content.contains("Drag the handle, or type in the Inspector")
+                    && content.contains("· Esc: close"),
+                "instructional content retained"
+            );
+            assert!(
+                content.contains(feedback_tool_name(tool)),
+                "dimension name retained"
+            );
+            assert_eq!(fixture_revision(&runtime), revision, "hover is view-only");
+            root.remove();
+        }
+        stylesheet.remove();
+        assert!(failures.is_empty(), "{}", failures.join("\n"));
     }
 
     /// Ticket 06: the value popup docks above the rail on hover, follows the
