@@ -60,6 +60,73 @@ replacement is authorized by this gate. Product acceptance still requires 011.
   findings. Reconcile final acceptance scope with that decision when running
   the independent review and human acceptance.
 
+## Candidate refresh (Builder, 2026-11-10)
+
+Current checked implementation (R5/R6 candidate): `83d81100702e33bf734c71d6505f38306b39ee41`
+(`fix/ui-integration-recovery`), "011: UI integration recovery corrections
+(A/B/C1/C2/D0/D1/E) + records", 17 recovery files.
+**Technical handoff READY; product acceptance BLOCKED on 011's human decision.**
+The historical record below is retained, not silently promoted to this source.
+
+Excluded from candidate claims: dirty foreign `AGENTS.md` / `CODING_STANDARDS.md`
+and 3 untracked files (`.gortex.yaml`, `docs/agents/ai-documentation.md`,
+`docs/research/2026-11-07-ai-agent-test-economy.md`). HEAD `1e2c9f418` sits 3
+docs-only commits ahead of R5 (`docs/agents/model-routing.md`,
+`docs/agents/issue-tracker.md`, foreign `AGENTS.md`); no recovery source changed
+after the checked source.
+
+Newly executed evidence, all under `.evidence/011-round2-full-gate/`:
+
+- **Full default gate PASS, 531.0s**: `gate-rerun.log` ends `total 531.0s` and
+  `check: all steps passed: repo, tooling, build, lint, test, browser`. The bound
+  receipt `/home/chris/.cache/tmp/011-round2-full-gate-receipt.json` records
+  revision `83d81100702e33bf734c71d6505f38306b39ee41`, source digest
+  `d41aa351b3bfe64ee144ddedfc12ef689ca6d1d1f8265d8958417a12e4a4ed1c`
+  (dirty, 5 local changes — the foreign/untracked exclusions above) and the
+  packaged site `web/target/site/site-subpath/boardstudio` (SHA-256
+  `4994d2121a48050f6fb03fb359b891af335a99d9afcbe583a38b04364786d5e1`),
+  78 commands. The first attempt (`gate.log`) stopped 60/78 on a CAD
+  session-cleanup timeout (`RuntimeError: cleanup incomplete: session deletion
+  failed: timed out`) with zero test failures — infra, not product. Prior
+  receipt `/home/chris/.cache/tmp/011-full-gate-receipt.json` (rev
+  `2694b18913821b08c5b79da8414ef13f29c26863`) is retained.
+- **Strict old CSS PASS, 0/0**: `strict-css.log` — 0 `.board-*`/`.m1-*`
+  selectors and 0 `--wb-*` variables remain.
+- **Cross-checks GREEN**: Layout 268 passed / 0 failed (+2 `setup_guide`
+  partition passed) in `layout-crosscheck.log`; page 226-partitioned
+  (`model_decode_boundary_tests::`, `presentation::`,
+  `presentation::case_workspace::`) executed 226, failed 0 in
+  `page-crosscheck.log`. Browser identity: Chrome/ChromeDriver 156.0.8078.73.
+- **Fresh optimized NORMAL package PASS**, both root and `/boardstudio/`:
+  `optimized-build-both.log` (both `dx build --web --release` invocations
+  succeeded) → `web/target/site-011-round2` (`site-root` + `site-subpath`).
+  Bundles/digests in `bundle-digests.log`: root
+  `boardstudio-web-dxhfe40477564856048.js` SHA-256
+  `d50401a3408f0d665b5146d66ed559a93f8612422d5504258ab243aa103df226`;
+  subpath `boardstudio-web-dxh46fab3367b53b2aa.js` SHA-256
+  `4fe12847cf18ec6ffd10f34fc88132a63f1efc255cc3a4ae3754eb9a1090f7a0`.
+- **Capture matrix 108/108, 0 gaps**: `capture-run.log` ends "108/108
+  captured, 0 gaps"; `matrix/gaps.json` is `[]`; `matrix/observations.json`
+  has 108 rows, all with source `83d81100702e33bf734c71d6505f38306b39ee41`
+  and `human_result` pending.
+
+Human review set (USER DECISION, verbatim): Layout + PCB + Case × 2 themes ×
+2 appearances × 1440/390 = 24 cells; remaining 84 captured on disk, explicitly
+not-human-reviewed (prior candidate's 108 were likewise all pending).
+
+**Reused, with limits:** the historical integrated-review aggregate and its
+**Spec PARTIAL coverage cap remain unchanged**; this refresh adds no new
+line-read of the baseline. Per-slice combined reviews and coordinator
+follow-ups are in [011](011-populated-workspace-acceptance.md) and cover the
+added delta; unchanged draft-safety/019/020/021 and earlier bounded repair
+records remain applicable.
+
+Only this documentation refresh follows the checked implementation. Product
+source and packaged bytes are unchanged. 010 stays resolved under its stated
+coverage disposition. **011 stays ready-for-human (Blocked by 010) and 001
+open; no 011/005 acceptance checkbox is closed here (that is R7/R8 with the
+user); no acceptance, push or merge is inferred.**
+
 ## Candidate refresh (coordinator, 2026-11-09)
 
 Current checked implementation: `2694b18913821b08c5b79da8414ef13f29c26863`

@@ -1,6 +1,6 @@
 # 005: Restore nonduplicated scope actions
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: none
 Parent: [001: Recovery specification](001-ui-integration-recovery-spec.md)
@@ -21,27 +21,27 @@ This is the user's approved 2026-11-09 scope/placement decision, shared with
 
 ## Acceptance criteria
 
-- [ ] For Matrix, Row, Column, Key and Part, choosing or reselecting scope
+- [x] For Matrix, Row, Column, Key and Part, choosing or reselecting scope
   preserves the intended active state and action availability without opening
   an action or hint popup, including when no applicable object is selected.
-- [ ] With no applicable selection, useful selection guidance appears inline.
+- [x] With no applicable selection, useful selection guidance appears inline.
   Selecting an applicable object replaces the guidance with its inline actions;
   the old hint popup and its redundant controls do not remain interactive.
-- [ ] Each intended action appears once across the competing toolbar/popover
+- [x] Each intended action appears once across the competing toolbar/popover
   surfaces, including scope changes and reselection. Hidden duplicate labels
   alone are not sufficient if duplicate interactive controls remain.
-- [ ] Keyboard scope navigation, action access and focus remain correct. Escape
+- [x] Keyboard scope navigation, action access and focus remain correct. Escape
   still dismisses actual action menus and restores their trigger focus, but scope
   presses themselves do not create a popup or move focus into one. Preserved
   canvas handles and Command palette actions are not unwanted duplicates.
-- [ ] Align and Transform are beside the scope choices when they fit and wrap
+- [x] Align and Transform are beside the scope choices when they fit and wrap
   directly underneath when necessary, with no empty reserved row separating
   them. A selection change does not displace this compact scope/menu grouping.
-- [ ] Restore and strengthen the original Matrix/Row/Column assertions (A4),
+- [x] Restore and strengthen the original Matrix/Row/Column assertions (A4),
   covering equivalent Key/Part inputs in the same stories. Combine focused
   toolbar fixtures with production Layout checks for real selection and focus
   transitions, recording actual RED/GREEN rather than source-presence proof.
-- [ ] Update relevant design and recovery records alongside the behavior (A8).
+- [x] Update relevant design and recovery records alongside the behavior (A8).
   Preserve the shared control migration and avoid changes to transform semantics
   or unrelated command surfaces.
 
@@ -143,3 +143,20 @@ sensitivity, DESIGN, integrated/optimized and human gates are not waived.
   guide-overlay frame and uniform-canvas-paint contracts, and the 011/D0
   execution records are current. No acceptance checkbox is closed; remaining
   toolbar sensitivity, integrated/optimized and human gates stay open.
+
+### Completion record — 2026-11-10 (R8 close-out)
+
+Status set to `resolved`; all 7 acceptance boxes checked.
+
+- Inline-only 5 scopes, guidance handoff, uniqueness, keyboard/focus, compact
+  grouping, strengthened A4 assertions, A8 design+records — each proven by cited
+  receipts in this ticket (approved proof map, retired guard mapping,
+  D0/D0-cleanup RED/GREEN logs, coordinator page-guard kills, A8 design update).
+- R5 source `83d81100`; R6 gate GREEN.
+- Candidate promoted to `:4173` from `web/target/site-011-round2`.
+- User approval 2026-11-10 ordering close-out. Human acceptance was granted
+  WITHOUT itemized per-cell verdicts on the 24-cell set (matrix on disk at
+  `.evidence/011-round2-full-gate/matrix/`, all `human_result` pending) —
+  recorded honestly; no cell reviews fabricated.
+- Parent 001 stays OPEN (004/006 grills + `/retro` follow-ups outstanding);
+  not touched by this close-out.

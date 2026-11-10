@@ -1,6 +1,6 @@
 # 011: Complete populated-workspace human acceptance
 
-Status: ready-for-human
+Status: resolved
 Type: acceptance
 Blocked by: [010: Final technical verification](010-final-technical-verification.md)
 Parent: [001: Recovery specification](001-ui-integration-recovery-spec.md)
@@ -15,27 +15,27 @@ implementation-complete record.
 
 ## Acceptance criteria
 
-- [ ] Identify the checked source and packaged artifact from 010 and the
+- [x] Identify the checked source and packaged artifact from 010 and the
   representative populated projects used for review. Review the actual
   candidate without replacing the user's existing live preview.
-- [ ] Review Layout, Case, Parts, PCB, Keymap, Keycaps, Library, the project menu
+- [x] Review Layout, Case, Parts, PCB, Keymap, Keycaps, Library, the project menu
   and Export in each combination of Original/shadcn Theme, Light/Dark Appearance
   and desktop/mid/narrow width. Use the agreed sizes 1440×900, 1024×900 and 390×844.
-- [ ] Keep a per-Workspace/surface checklist with the project, Theme, Appearance,
+- [x] Keep a per-Workspace/surface checklist with the project, Theme, Appearance,
   viewport, screenshot and result for every combination. Populate the checklist
   with observed results, not assumed passes or empty automated capture slots.
-- [ ] Include real Case geometry and a populated 3D canvas. In Layout, inspect
+- [x] Include real Case geometry and a populated 3D canvas. In Layout, inspect
   the recovered placement and scope workflows, split focus, anchor/reference
   feedback, amber previews, spacing ghosts, Snap and nested disclosures.
-- [ ] Exercise representative editable fields, menus, dialogs and long Inspector
+- [x] Exercise representative editable fields, menus, dialogs and long Inspector
   content. Review contrast, geometry visibility, overflow/clipping, scrolling,
   keyboard focus, touch targets and selected/disabled states across the matrix.
-- [ ] Record the user's explicit approval or reported defects. Automated captures
+- [x] Record the user's explicit approval or reported defects. Automated captures
   support the review but cannot stand in for human acceptance.
-- [ ] Keep unresolved defects and incomplete combinations open. If a correction
+- [x] Keep unresolved defects and incomplete combinations open. If a correction
   changes the candidate, refresh the applicable 010 verification and affected
   human review before final sign-off.
-- [ ] Reconcile the acceptance records with the reviewed candidate, actual scope
+- [x] Reconcile the acceptance records with the reviewed candidate, actual scope
   and user decision (A8), preserving historical evidence. Do not change or close
   the parent specification or infer permission to push or merge.
 
@@ -1817,3 +1817,25 @@ Builder task ec51fe58 (3 files, SHAs `de2beb8a…` controller / `beab38bd…` pa
 Process: Fable compliance review (task 9083bee1, MINOR DRIFT) found stash use (balanced, verified), one hand-applied Python mutant (residue excluded via SHAs), missing FD9 nesting (no concurrent builds, no collision) and partial change protocol (coordinator reran: tests 0/3 graph-unmapped as expected for wasm, guards none, contract WARN reviewed). No damage; rules made explicit in later briefs.
 
 Review: first pass (task 04fb9585) Spec CHANGES REQUIRED on one valid BLOCKS (P3/P4 never observed rendered pressed state) + Standards PARTIAL on breadth. Follow-up Builder (task 69bd3378, test-only, same host file + same two tests) rendered the production controls and asserted pressed/retirement display; P4 mutant now kills AT the One-pressed assert, P3 establishes Split-pressed before its accepted-only checks. Delta re-review (task d38094b1) Spec PASS, no new findings; Standards no-violation with a preservation evidence limitation that the coordinator closed by byte-proof (current page minus the C1 hunk hashes exactly to pre-C1 reviewed SHA `afc6cfc4…`). C1 review-complete.
+
+### R8 completion record — 2026-11-10 (close-out)
+
+Status set to `resolved`; acceptance boxes checked per evidence + user waiver.
+
+- Reviewed slices A/B/C1/C2/D0/D1/E with fresh combined Spec + Standards
+  reviews, boundary/sensitivity kills, gate and promotion as recorded in this
+  ticket.
+- R5 source `83d81100`; R6 gate GREEN.
+- Candidate promoted to `:4173` from `web/target/site-011-round2`.
+- 24-cell human matrix defined on disk at `.evidence/011-round2-full-gate/matrix/`
+  (all `human_result` pending).
+- User approval 2026-11-10 ordering close-out, WITHOUT itemized per-cell
+  verdicts — recorded honestly; no cell reviews fabricated. AC2–AC5 closed by
+  this waiver, not by observed per-cell results. AC1/AC6/AC7/AC8 by direct
+  evidence: source/artifact identified, approval recorded, unresolved items
+  carried, records reconciled; parent 001 stays OPEN, no push/merge inferred.
+- Follow-ups F1–F4 explicitly CARRIED (not closed):
+  - F1: C2 remove-guard already RED-covered; extra D0 toolbar sensitivity as recorded.
+  - F2: D1 real-390/card; reload→Reversible.
+  - F3: 004/006 grills + `/retro` follow-ups.
+  - F4: 445-path cap + D9 cause as recorded.
