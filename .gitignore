@@ -10,9 +10,13 @@ cad/wasm/pkg/
 renderer/pkg/
 .env.local
 
-# Local AI agents, skills, indexes, and memory.
-.agents/
-.claude/
+# Local AI agent state, indexes, and memory. Project skills are tracked; generated ones are not.
+.agents/*
+!.agents/skills/
+.agents/skills/gortex-*/
+.claude/*
+!.claude/skills/
+.claude/skills/gortex-*
 .codex/
 .cursor/
 .cursorignore
@@ -55,7 +59,7 @@ renderer/pkg/
 /agent/skills/
 AGENTS.md
 CLAUDE.md
-SKILL.md
+/SKILL.md
 /skills-lock.json
 /data/skills/
 /data/iii-config.yaml

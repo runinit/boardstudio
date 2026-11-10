@@ -12,6 +12,7 @@
 - CAD migration review: follow the [map decisions](docs/plans/cad-backend-replacement/map.md#closure-and-workflow-decisions-2026-10-18-user). Run one combined spec+standards review at ticket closure or when a change touches public API, geometry, allowances or a cross-crate contract; private storage and test-only slices get RED/GREEN evidence and a diff read instead. An explicit `code-review` request and 012's final two-axis review still apply.
 - Verification: mutation checks use `scripts/mutation-check.py`; `check.py test` guards native test counts by test name.
 - Tests: before adding, changing or reviewing test code, read [test economy](CODING_STANDARDS.md#test-economy).
+- Stop rule: a review finding, surviving mutation or new test idea adds work only when it shows a required check or acceptance criterion unmet; otherwise list it as a follow-up and continue. After two attempts that leave the result unchanged, stop and report. Full rule: [slice boundary](docs/agents/issue-tracker.md#slice-boundary).
 - Evidence: `.evidence/` holds logs only, except committed handoff records; redirect long check and mutation output there and report only results and relevant failures. Never create Cargo `target` directories or copy crate source trees inside `.evidence/`. Never generate `PREIMAGES.json`, `POSTIMAGES.json`, `before/` or `after/` file copies, or custom SHA-256 manifest files—Git already tracks source state.
 
 ## Environment & Build Guardrails
@@ -36,7 +37,7 @@ Core workflow:
 
 ### Issue tracker
 
-Committed Markdown tickets under `docs/plans/<plan>/issues/`. Authoring, implementing or reviewing a ticket: follow its proof-map, review-report and completion-record protocol in [issue tracker](docs/agents/issue-tracker.md#building-and-verifying-a-ticket).
+Committed Markdown tickets under `docs/plans/<plan>/issues/`. Authoring, implementing or reviewing a ticket: follow its proof-map, slice-boundary, review-report and completion-record protocol in [issue tracker](docs/agents/issue-tracker.md#building-and-verifying-a-ticket). That protocol sets review cadence, reviewer count and mutation scope; where a skill's defaults differ, the protocol wins.
 
 ### Triage labels
 

@@ -39,6 +39,31 @@ observable failure story:
   `proof gap`: new proof that passes the existing product. Record a proof gap as GREEN; a RED is
   observed, never fabricated.
 
+### Slice boundary
+
+The proof map, the checks the acceptance list names and the mutations below form the slice's
+**boundary**, fixed before implementation. The slice is done when the boundary is met. Changing
+the boundary is the user's decision.
+
+- **Mutations.** A `RED` row has shown that its test can fail. A `proof gap` row names the one
+  mutation that must turn it red. Run those, plus any the acceptance list names.
+- **Order.** RED → fix → affected checks → boundary mutations → one fresh reviewer covering
+  Spec and Standards → the ticket's integrated gate. Each step runs once on a stable candidate.
+- **Findings.** A review finding or surviving mutation **blocks** when it shows a boundary row
+  or a mandatory criterion unmet; fix it in the slice. List every other finding as a follow-up
+  in the completion record, open a `needs-triage` ticket when it is a real defect, and continue.
+  Setting aside a finding against a mandatory criterion needs the user.
+- **Re-review.** After the review, a change to production code, or one that weakens, replaces or
+  retires an oracle, gets one review of that delta. Added assertions and new cases get RED or
+  mutation evidence and the author's diff read.
+- **Attempts.** An attempt is a finished fix or diagnosis that left its target result unchanged.
+  Expected RED, build waits and infrastructure retries are not attempts. After two, stop and
+  report the evidence, the blocker and one materially different next experiment.
+- **Stops.** Fixes inside the boundary proceed and are reported. Stop and ask the user when the
+  boundary must change, scope grows or the next step is a new phase. A met boundary closes the
+  slice; ticket acceptance stays with the ticket's own gates and, for `ready-for-human`, the
+  human.
+
 ### Review reports
 
 - Standards and Spec each end with their own verdict: `PASS`, `PARTIAL` or `CHANGES REQUIRED`.
@@ -54,8 +79,8 @@ observable failure story:
 ### Completion record
 
 Keep it small: current `HEAD`; checks newly executed versus reused (log pointers); unmet gates and
-retained cleanup; pointers; next action. The ticket's `## Answer` and the logs hold the detail; do
-not restate historical receipts. Native source counts and test-graph coverage show reach, not
+retained cleanup; follow-ups; pointers; next action. The ticket's `## Answer` and the logs hold the
+detail; do not restate historical receipts. Native source counts and test-graph coverage show reach, not
 behaviour: behaviour needs a proof row's oracle.
 
 ## When a skill says "publish to the issue tracker"
