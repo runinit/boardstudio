@@ -1,6 +1,6 @@
 # 004: Restore placement and Relationships
 
-Status: ready-for-human
+Status: resolved
 Type: build
 Blocked by: none
 Parent: [001: Recovery specification](001-ui-integration-recovery-spec.md)
@@ -15,25 +15,25 @@ coherent navigation contract and are recovered together.
 
 ## Acceptance criteria
 
-- [ ] Breadcrumbs, carried relationships and every applicable mirror-partner,
+- [x] Breadcrumbs, carried relationships and every applicable mirror-partner,
   follows and anchor fact are available alongside editing without opening a
   Relations tab. Both matrix-context and component inspection obey the contract.
-- [ ] Breadcrumb and reference navigation use normal selection rules without
+- [x] Breadcrumb and reference navigation use normal selection rules without
   accepted-document or Undo-history writes. Hidden references explain their
   layer and remain navigable; removed targets have no dead navigation action.
-- [ ] A populated split fixture establishes an observable focused half before
+- [x] A populated split fixture establishes an observable focused half before
   breadcrumb and reference navigation. The same half remains focused afterward;
   missing labels or an absent split must fail the test, not compare equal.
-- [ ] Hover and keyboard focus mark the intended reference targets in violet,
+- [x] Hover and keyboard focus mark the intended reference targets in violet,
   distinct from amber edit previews and persistent anchor feedback. Transient
   feedback clears on leave, blur, selection change and target removal.
-- [ ] Restore the approved behavioral assertions and show RED before the repair
+- [x] Restore the approved behavioral assertions and show RED before the repair
   and GREEN afterward (A4). Use the real mounted Layout/Inspector and existing
   split-focus, relation-highlight and field-preview fixture patterns.
-- [ ] Retain shared controls, field editing and draft ownership while retiring
+- [x] Retain shared controls, field editing and draft ownership while retiring
   obsolete tab machinery made unused by this repair. Do not restore old styles
   or refactor unrelated Inspector behavior.
-- [ ] Update the placement/design and historical ticket records with the recovered
+- [x] Update the placement/design and historical ticket records with the recovered
   behavior and its actual verification scope (A8). Preserve earlier evidence as
   history; do not mark the full acceptance gate complete.
 
@@ -248,6 +248,106 @@ fresh Spec+Standards review → integrated gate (Checker/Reviewer/coordinator).
   findings and any proposed boundary amendments (M3b/M5b/M7b in the follow-up
   handoff).
 
+## Acceptance record (004 human acceptance, 2026-11-10)
+
+- Human approval: user stated 'Human acceptance approved.. next ticket please'
+  after code commit `4f42cbae03f23ad9123b40770e10a5affde06c5f` and live 004
+  preview. No per-test or screenshot observations were stated; none are
+  recorded here. Earlier explicit behavior decisions unchanged: standalone
+  Relationships beside fields with no invented breadcrumb; finding return
+  prefers the first native text/number field even before a dropdown/checkbox
+  button; unsaved choices persist across view changes until committed or the
+  selected owner changes (`.evidence/004-recovery/acceptance-handoff.log`).
+  The 004 preview was served at :4173; the earlier 011 build remains on disk.
+- HEAD: accepted code `4f42cbae03f23ad9123b40770e10a5affde06c5f`; this record is
+  ticket-only, no production/test change. No commit/push by this agent;
+  coordinator handles the authorized 004 acceptance record commit.
+- Checks newly executed: none (no test/source changes, no additional gates,
+  no screenshots, no preview/server changes per brief). Reused GREEN: Builder
+  focused mounted 112 executed / 0 failed + `layout_findings_state` 2 passed
+  + `cargo fmt --check` + `cargo clippy --workspace --all-targets` +
+  `cargo test -p boardstudio-web --no-run` (logs in `.evidence/004-recovery/`);
+  follow-up focused 65/65 GREEN (`green-followup-65.log`); review-fix focused
+  65/65 GREEN (`review-fix-focused.log`); full default gate 78/78 PASS in
+  732.8s (`.evidence/004-recovery/integrated-gate.log`, receipt
+  `/home/chris/.cache/tmp/004-integrated-gate-receipt.json`) before later
+  ticket-only record edits; source correlation and build/served binding
+  unknown.
+- Review provenance/limitations: independent combined Spec+Standards review
+  initially partial (base diff view unavailable); blocking unused-`mut` wasm
+  lint finding RED (`review-lint-red.log`) then full lint GREEN after removal
+  (`review-lint-green.log`). Follow-up scoped review of previously unreviewed
+  removed hunks + lint fix returned Spec PASS / Standards PASS, comparing
+  exact Gortex base and worktree reads; for five large files it used `difflib`
+  on saved Gortex tool outputs because `review.diff_context` returned no diff.
+  Other findings classified as follow-ups. Focus helper as reviewed: first
+  enabled visible native input, select or textarea; button-based controls only
+  as fallback when no eligible native field exists.
+- Mutations preserved (Checker via `scripts/mutation-check.py`; a kill anywhere
+  but the named assertion is a survivor): M1, M2, M4 killed as specified; M6
+  killed at its named assertion in the focused single-test rerun with exact
+  restoration (`checker/component-followup/`); M5 SURVIVED as
+  nonrepresentative (Editor-level `highlight_context` clear, not
+  `RelationReference` `use_drop`); M7 SURVIVED as unreachable (resync branch
+  never runs on the fixture's unrelated revision; 011 guard, untouched by
+  004); M3 KILLED at the setup assertion only, proving fixture setup rather
+  than navigation-preserves-focus. Reviewer treated M3b/M5b/M7b as optional
+  follow-ups; they are not relabelled as kills and no optional work was
+  demanded. See Slice boundary and
+  `.evidence/004-recovery/builder-followup-handoff.log`.
+- Criterion disposition (each checked only as supported by existing proof +
+  independent review + human approval):
+  - C1 placement + Relationships beside fields, no Relations tab (matrix +
+    component): SUPPORTED — R1/R2/R3 GREEN with RED
+    (`red-relation-component.log`, `red-one-hover-inherited.log` pattern,
+    `red-one-mounted_component_….log`); review Spec/Standards PASS; human
+    approved after live 004 preview.
+  - C2 no-write navigation, hidden-layer note + navigable, removed inert:
+    SUPPORTED — R4/R5 reused GREEN (chip/reference/constraint, hidden/inert);
+    review PASS; human approved.
+  - C3 populated split focus established then preserved, vacuous compare
+    rejected: SUPPORTED — R6 GREEN with RED (`red-one-split-focus.log`),
+    M3/M4 kills as specified with M3 setup-only limitation preserved and M3b
+    optional per reviewer; review PASS; human approved.
+  - C4 violet hover/focus lifecycle, distinct from amber/anchor, clears on
+    leave/blur/selection-change/removal: SUPPORTED — R7 reused GREEN + R8
+    GREEN with RED (`red-one-navigate-clears.log`); M5 nonrepresentative
+    survival preserved with mechanism proven and M5b optional per reviewer;
+    review PASS; human approved.
+  - C5 approved assertions with RED before and GREEN after on the real mounted
+    Layout/Inspector (A4): SUPPORTED — RED to GREEN per R1/R2-pattern/R3/R6/
+    R8/R9/R10 with mounted logs in `.evidence/004-recovery/`; R4/R5/R7 reused
+    GREEN; R9 proof-gap GREEN; R10 Board/Outline reused GREEN; review PASS;
+    human approved.
+  - C6 shared controls/field editing/draft ownership retained, tab machinery
+    retired, no unrelated refactor: SUPPORTED — R9/R10 GREEN with RED, M6
+    named-assertion kill, M7 unreachable with draft preservation proven (R9
+    RED to GREEN + offset tail GREEN); changed/untouched scope per Builder
+    completion (`layout_matrix_relations.rs` unchanged; 006, 001, audit
+    unchanged; no public API widened); review PASS (blocking lint fixed);
+    human approved including draft retention.
+  - C7 records updated with actual scope, history preserved, full gate not
+    claimed (A8): SUPPORTED by this record — proof map/boundary/completion
+    herein, ticket 15 history appended 2026-11-10 (record otherwise
+    unchanged), earlier 004 evidence preserved as history; parent/full
+    acceptance gate remains unclaimed. All 7 boxes checked; Status `resolved`.
+- Unmet gates / retained cleanup: none required by the slice boundary. M3b/M5b/M7b
+  remain optional follow-ups, not prerequisites. No production/test cleanup
+  retained.
+- Follow-ups (optional, not blocking): M3b cross-half navigation proof +
+  canvas-focused-half derivation; M5b/M7b as specified in
+  `.evidence/004-recovery/builder-followup-handoff.log`; review non-blocking
+  findings as classified by the independent reviewer. Open `needs-triage`
+  tickets only if a real defect is confirmed.
+- Pointers: this ticket; `.evidence/004-recovery/` (RED/GREEN, mutations,
+  `builder-followup-handoff.log`, `review-lint-red.log`,
+  `review-lint-green.log`, `review-fix-focused.log`, `integrated-gate.log`,
+  `acceptance-handoff.log`); receipt
+  `/home/chris/.cache/tmp/004-integrated-gate-receipt.json`;
+  [015](../../split-board-editing/issues/15-placement-breadcrumb-retire-relations.md).
+- Next action: coordinator commits this authorized 004 acceptance record;
+  user said 'next ticket please'.
+
 ## Comments
 
 - 2026-11-06: Cancelled by the user. This ticket will not be actioned; its
@@ -312,3 +412,8 @@ fresh Spec+Standards review → integrated gate (Checker/Reviewer/coordinator).
   its unchecked criteria (placement + Relationships, finding-return focus,
   draft retention); acceptance boxes remain unchecked. M3b/M5b/M7b are optional
   follow-ups, not prerequisites for acceptance under the slice boundary.
+- 2026-11-10: Human acceptance approved. User stated 'Human acceptance approved..
+  next ticket please' after commit `4f42cbae03f23ad9123b40770e10a5affde06c5f`
+  and live 004 preview. No per-test or screenshot observations were stated.
+  Acceptance record above dispositions all 7 criteria as supported; Status set
+  to `resolved`. Parent/full acceptance gate remains unclaimed.
