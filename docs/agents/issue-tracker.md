@@ -29,7 +29,8 @@ observable failure story:
 
 `requirement — precondition (critical timing) → exact action → independent oracle · tier · status`
 
-- A row is a claim to prove, not a test to write. Reuse sufficient existing evidence first;
+- A row is a claim to prove, not a test to write. Reuse sufficient existing evidence first
+  (Gortex `change` operation `tests` lists the tests that already reach a symbol);
   parameterize equivalent inputs; keep one row per timing, ownership, admission or failure path
   that can fail independently, never the cross product.
 - The oracle is observable outside the code under test (rendered or saved state, a spec literal,
