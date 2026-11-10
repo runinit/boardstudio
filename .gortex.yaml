@@ -1,0 +1,13 @@
+# Disposable agent state; keep committed specifications and handoff records searchable.
+# These are Gortex indexing/watch exclusions, independent of Git's ignore rules.
+exclude:
+  - "/.scratch/"
+  - "/.memsearch/"
+  - "/.agents/"
+  - "/.gitnexus/"
+  - "/.evidence/**/*.log"
+
+index:
+  coverage:
+    clones:
+      enabled: false

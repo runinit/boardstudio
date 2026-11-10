@@ -20,24 +20,35 @@ Read before adding or changing tests, and during review. Mechanical rules live i
 
 - **Distinct failure.** Each new case catches an observable failure existing cases miss.
   Keep related assertions in one coherent scenario rather than splitting them into new setups.
+  Derive expectations from an independent spec, worked example or known-good reference, not
+  copied implementation logic. Literals, goldens and compatibility checks earn their place by
+  pinning an agreed contract.
 - **Shared setup, explicit story.** Reuse existing fixtures, builders and mounting/cleanup
   helpers. Keep actions and expected outcomes visible in the test; share substantial repeated
-  setup, not coincidentally similar lines or a new configurable testing framework.
+  setup where fixture purposes match, not coincidentally similar lines or a new configurable
+  testing framework. Keep display, static-owner and live-projector purposes distinct.
 - **Parameterize data, not stories.** Table-drive equivalent input variants with clear case
   labels. Keep materially different timing, ownership, admission and failure paths distinct.
 - **Synthetic data, production behavior.** Construct small valid fixtures, but exercise the
   production path whose contract is under test. Hand-built projections suit isolated rendering
-  tests; they do not substitute for accepted-state/projector integration. Consolidate overlapping
-  host plumbing where purposes match instead of keeping parallel fixture implementations.
+  tests; they do not substitute for accepted-state/projector integration. Use existing dependency
+  boundaries; justify and obtain required approval for new test-only APIs, flags or wider
+  visibility. Approved dependency injection and diagnostic seams remain valid.
 - **Earn repeated coverage.** Test common mechanics at their agreed seam; repeat coverage for
   owner wiring, canonicalization or lifetime only where it can fail independently. Repeating a
-  whole matrix at another layer needs a distinct failure rationale.
+  whole matrix at another layer needs a distinct failure rationale. Use the cheapest tier faithful
+  to the boundary; focused runs do not replace required integrated acceptance or final gates.
 - **Review maintenance cost.** Hold fixtures and helpers to the production-code quality bar.
-  Large test additions must explain the uncovered risks and why existing setup is insufficient.
-  Judge failure coverage and upkeep, not test counts or a test-to-production line quota.
+  New fixtures, helpers or mount paths must explain why existing setup is insufficient.
+  Refactor tests for repeated setup edits, diagnosed flakiness or measured runtime cost, not
+  test volume or cosmetic line savings. Judge failure coverage and upkeep, not counts or ratios.
 - **Preserve proof.** Consolidation preserves required acceptance cases, named baseline guards
-  and RED/GREEN or mutation evidence. Reduce duplication, not meaningful assertions or safety
-  coverage; never delete tests merely to improve a ratio.
+  and RED/GREEN or mutation evidence. Map every retired or renamed test to the surviving case
+  carrying its assertions; rerun affected mutation checks when consolidation could weaken them.
+- **Protect the oracle.** Fix production code to reach GREEN; never weaken assertions, expected
+  values, goldens or baselines merely to pass. Correct a genuinely wrong test only with independent
+  evidence (spec, worked example or known-good reference); record that evidence. Contract changes
+  require approval, not silent oracle updates.
 - **Stop at the boundary.** Write the cases the request or the ticket's
   [slice boundary](docs/agents/issue-tracker.md#slice-boundary) names. A further case or a
   surviving mutation joins the change only when it shows a named case cannot fail; otherwise
