@@ -53,6 +53,8 @@ the boundary is the user's decision.
   failure.
 - **Order.** RED → fix → affected checks → boundary mutations → one fresh reviewer covering
   Spec and Standards → the ticket's integrated gate. Each step runs once on a stable candidate.
+  When browser-gated or `wasm32`-only Rust changes, affected checks include
+  `python3 scripts/check.py lint`: native Clippy compiles only those modules' non-WASM stubs.
 - **Findings.** A review finding or surviving mutation **blocks** when it shows a boundary row
   or a mandatory criterion unmet; fix it in the slice. List every other finding as a follow-up
   in the completion record, open a `needs-triage` ticket when it is a real defect, and continue.

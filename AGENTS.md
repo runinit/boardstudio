@@ -37,6 +37,10 @@ Core workflow:
 3. `agent-browser click @e1` / `fill @e2 "text"` - Interact using refs
 4. Re-snapshot after page changes
 
+### Agent documentation and retrieval
+
+For agent drafts, research, handoffs or Gortex exclusions, follow [documentation and retrieval](docs/agents/ai-documentation.md).
+
 ### Issue tracker
 
 Committed Markdown tickets under `docs/plans/<plan>/issues/`. Authoring, implementing or reviewing a ticket: follow its proof-map, slice-boundary, review-report and completion-record protocol in [issue tracker](docs/agents/issue-tracker.md#building-and-verifying-a-ticket). That protocol sets review cadence, reviewer count and mutation scope; where a skill's defaults differ, the protocol wins.

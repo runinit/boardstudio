@@ -712,11 +712,28 @@ pub fn use_workspace_matrix_transform(
     let mut catalog_requested = use_signal(|| None::<bool>);
     let mut catalog_loading = use_signal(|| false);
     let catalog_built_for = use_signal(|| None::<bool>);
-    use_effect({
+    let (projection, editable) = project_current(
+        &runtime,
+        selected.as_ref(),
+        editor_instance_id,
+        generation,
+        current_scope_generation,
+        current_workspace,
+        owner_workspace,
+    );
+    // Only Key fields consume these choices. In particular, empty Project setup
+    // must not normalize the entire catalogue after each accepted construction change.
+    let needs_catalogue = projection
+        .as_ref()
+        .is_some_and(|projection| matches!(projection.fields, MatrixTransformFields::Key { .. }));
+    use_effect(use_reactive((&needs_catalogue,), {
         let alive = alive.clone();
         let runtime = runtime.clone();
-        move || {
+        move |(needs_catalogue,)| {
             let _ = version();
+            if !needs_catalogue {
+                return;
+            }
             let Some(reversible) = runtime
                 .model()
                 .accepted
@@ -745,16 +762,7 @@ pub fn use_workspace_matrix_transform(
                 }
             });
         }
-    });
-    let (projection, editable) = project_current(
-        &runtime,
-        selected.as_ref(),
-        editor_instance_id,
-        generation,
-        current_scope_generation,
-        current_workspace,
-        owner_workspace,
-    );
+    }));
     let mut projection = projection.map(|mut projection| {
         if let MatrixTransformFields::Key {
             definition_id,

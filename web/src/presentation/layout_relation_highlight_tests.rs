@@ -4,7 +4,10 @@ use super::*;
 use crate::runtime::project_name_test_support as support;
 use boardstudio_application::{Event, Session};
 use boardstudio_core::CoreEngine;
-use boardstudio_core::model::{EditCommand, EditPhase, ProjectDoc};
+use boardstudio_core::model::{
+    EditCommand, EditPhase, Layout, LayoutMirrorLink, MirroredCorrespondence, MirroredItemKind,
+    ProjectDoc,
+};
 use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
 use serde_json::json;
 use std::cell::RefCell;
@@ -52,29 +55,19 @@ impl Probe {
         query(self.root_id, selector).unwrap_or_else(|| panic!("no element for {selector}"))
     }
 
-    async fn open_any_relations(&self) {
-        // A changed selection resets the tab after the inspector renders. Wait
-        // for that reset before opening Relations for the new context.
-        wait_until("the selection's Properties tab is active", || {
-            control(self.root_id, "tab", "Properties")
-                .and_then(|tab| tab.get_attribute("aria-selected"))
-                .as_deref()
-                == Some("true")
-        })
-        .await;
-        control(self.root_id, "tab", "Relations").unwrap().click();
-        wait_until("the Relations tab is active", || {
-            control(self.root_id, "tab", "Relations")
-                .and_then(|tab| tab.get_attribute("aria-selected"))
-                .as_deref()
-                == Some("true")
-        })
+    /// Wait for the Relationships section beside the fields. There is no
+    /// Relations tab: facts render with the selection's fields.
+    async fn settle_relations(&self) {
+        wait_until(
+            "the Relationships section renders beside the fields",
+            || query(self.root_id, "#m1-relations-heading").is_some(),
+        )
         .await;
     }
 
-    /// Open the migration Relations tab and wait for its reference.
+    /// Wait for the Relationships section beside the fields to list the
+    /// Inherited by references for the current selection.
     async fn open_relations(&self) {
-        self.open_any_relations().await;
         wait_until(
             "the Relationships section lists the Inherited by references",
             || {
@@ -197,9 +190,10 @@ fn count(root_id: &str, selector: &str) -> u32 {
         .length()
 }
 
-/// The new breadcrumb coexists with the migration's accessible Relations tab.
+/// Ticket 15 restored by 004: the Relations tab is gone. The breadcrumb sits
+/// above the fields and the facts live beside them in a Relationships section.
 #[wasm_bindgen_test]
-async fn the_breadcrumb_and_relations_tab_both_expose_placement_facts() {
+async fn the_relations_tab_is_gone_and_facts_live_beside_the_fields() {
     let root_id = "relation-tab-retired";
     let probe = mount(root_id).await;
     probe.select(objects::TreeContext::Column {
@@ -210,11 +204,11 @@ async fn the_breadcrumb_and_relations_tab_both_expose_placement_facts() {
         query(root_id, "nav[aria-label='How it is placed']").is_some()
     })
     .await;
-    probe.open_any_relations().await;
-    wait_until("Relationships facts render", || {
-        query(root_id, "#m1-relations-heading").is_some()
-    })
-    .await;
+    probe.settle_relations().await;
+    assert!(
+        query(root_id, ".layout-inspector-tabs").is_none(),
+        "no Inspector tab bar remains"
+    );
     assert_eq!(
         probe
             .element("#m1-relations-heading")
@@ -226,6 +220,15 @@ async fn the_breadcrumb_and_relations_tab_both_expose_placement_facts() {
     assert!(
         query(root_id, "li[data-relation-label='Inherited by']").is_some(),
         "every Relations fact stays reachable"
+    );
+    assert!(
+        query(
+            root_id,
+            "nav[aria-label='How it is placed'] [data-crumb-label='Inherited by']"
+        )
+        .is_some()
+            && query(root_id, "[aria-label='Matrix transform properties'] input").is_some(),
+        "breadcrumb and editable fields render at once with the facts"
     );
 }
 
@@ -247,8 +250,6 @@ async fn breadcrumb_carries_chip_selects_its_column_without_writing() {
         .is_some()
     })
     .await;
-    let focus_before =
-        query(root_id, "[data-focus-label='split']").and_then(|label| label.text_content());
     let before = probe.revision();
     click(
         root_id,
@@ -274,11 +275,6 @@ async fn breadcrumb_carries_chip_selects_its_column_without_writing() {
         probe.revision(),
         before,
         "chip navigation writes nothing, so no Undo entry"
-    );
-    assert_eq!(
-        query(root_id, "[data-focus-label='split']").and_then(|label| label.text_content()),
-        focus_before,
-        "chip navigation never moves split focus"
     );
 }
 
@@ -424,17 +420,39 @@ async fn mount(root_id: &'static str) -> Probe {
 }
 
 async fn mount_with(root_id: &'static str, matrix: serde_json::Value) -> Probe {
+    mount_document(root_id, base(), &[matrix], Vec::new()).await
+}
+
+/// Open `document`, land each matrix through the Session and Core, then mount
+/// the real Layout editor.
+async fn mount_document(
+    root_id: &'static str,
+    document: ProjectDoc,
+    matrices: &[serde_json::Value],
+    layouts: Vec<Layout>,
+) -> Probe {
     let runtime = support::new_runtime();
     support::install(&runtime, Session::new(), CoreEngine::new());
     support::install_memory_persistence(&runtime);
     runtime.submit(Event::Open {
         operation_id: runtime.operation(),
-        document: base(),
+        document,
     });
     support::run_pending(&runtime).await;
-    let revision = runtime.model().accepted.unwrap().document.revision;
-    support::submit_fixed_command(&runtime, set_matrix_command(revision, matrix));
-    support::run_pending(&runtime).await;
+    for matrix in matrices {
+        let revision = runtime.model().accepted.unwrap().document.revision;
+        support::submit_fixed_command(&runtime, set_matrix_command(revision, matrix.clone()));
+        support::run_pending(&runtime).await;
+    }
+    if !layouts.is_empty() {
+        // Layouts reference live matrices, so they join after the matrices land.
+        let accepted = runtime.model().accepted.expect("accepted document");
+        let mut landed = (*accepted.document).clone();
+        landed.layouts.extend(layouts);
+        let revision = landed.revision;
+        support::submit_fixed_command(&runtime, replace_command(revision, landed));
+        support::run_pending(&runtime).await;
+    }
     let probe = Probe {
         runtime: runtime.clone(),
         root_id,
@@ -460,17 +478,14 @@ async fn mount_with(root_id: &'static str, matrix: serde_json::Value) -> Probe {
     probe
 }
 
-/// Column 3 is selected with its Relationships section open; "Inherited by Column 4" is first.
+/// Column 3 is selected with its Relationships section beside the fields;
+/// "Inherited by Column 4" is first.
 async fn mount_column_relations(root_id: &'static str) -> Probe {
     let probe = mount(root_id).await;
     probe.select(objects::TreeContext::Column {
         matrix_id: MATRIX.into(),
         column: 2,
     });
-    wait_until("the Relations tab button renders", || {
-        control(root_id, "tab", "Relations").is_some()
-    })
-    .await;
     probe.open_relations().await;
     assert_eq!(
         probe.inherited_by_reference().text_content().unwrap(),
@@ -654,7 +669,7 @@ async fn bent_key_explains_its_cumulative_shift_and_opens_its_row() {
         row: 1,
         column: 0,
     });
-    probe.open_any_relations().await;
+    probe.settle_relations().await;
     wait_until(
         "the key chain shows its Core-backed cumulative shift",
         || {
@@ -780,7 +795,7 @@ async fn anchored_follows_navigates_to_its_key_without_writing() {
         row: 0,
         column: 0,
     });
-    probe.open_any_relations().await;
+    probe.settle_relations().await;
     wait_until("the anchor key names the matrix following it", || {
         query(root_id, "li[data-relation-label='Followed by']").is_some_and(|item| {
             item.text_content()
@@ -792,7 +807,7 @@ async fn anchored_follows_navigates_to_its_key_without_writing() {
     probe.select(objects::TreeContext::Matrix {
         matrix_id: "thumb".into(),
     });
-    probe.open_any_relations().await;
+    probe.settle_relations().await;
     wait_until("the anchored matrix names its anchor key", || {
         query(root_id, "li[data-relation-label='Follows']").is_some_and(|item| {
             item.text_content()
@@ -838,7 +853,7 @@ async fn a_removed_anchor_key_leaves_its_follows_reference_inert() {
     probe.select(objects::TreeContext::Matrix {
         matrix_id: "thumb".into(),
     });
-    probe.open_any_relations().await;
+    probe.settle_relations().await;
     wait_until("the anchored matrix names its anchor key", || {
         query(root_id, "li[data-relation-label='Follows']").is_some()
     })
@@ -901,7 +916,7 @@ async fn hidden_reference_names_its_layer_and_still_navigates() {
         row: 0,
         column: 0,
     });
-    probe.open_any_relations().await;
+    probe.settle_relations().await;
     wait_until("the key chain renders", || {
         query(root_id, "li[data-relation-label='Row shift']").is_some()
     })
@@ -952,7 +967,7 @@ async fn hovering_follows_highlights_the_anchor_key() {
     probe.select(objects::TreeContext::Matrix {
         matrix_id: "thumb".into(),
     });
-    probe.open_any_relations().await;
+    probe.settle_relations().await;
     wait_until("the anchored matrix names its anchor key", || {
         query(root_id, "li[data-relation-label='Follows']").is_some()
     })
@@ -1001,7 +1016,7 @@ async fn selecting_parts_in_two_matrices_explains_the_single_context_chain() {
         mode: boardstudio_application::SelectionMode::Replace,
     });
     support::run_pending(&probe.runtime).await;
-    probe.open_any_relations().await;
+    probe.settle_relations().await;
     wait_until("the spanning selection is explained, not merged", || {
         query(root_id, "[role='note']").is_some_and(|note| {
             note.text_content()
@@ -1031,8 +1046,8 @@ async fn hovering_an_aggregate_part_highlights_only_its_key() {
     probe.select(objects::TreeContext::Matrix {
         matrix_id: MATRIX.into(),
     });
-    probe.open_any_relations().await;
-    wait_until("the Relations tab lists the matrix", || {
+    probe.settle_relations().await;
+    wait_until("the Relationships section lists the matrix", || {
         query(root_id, "li[data-relation-label='Matrix']").is_some()
     })
     .await;
@@ -1061,7 +1076,7 @@ async fn hovering_an_aggregate_part_highlights_only_its_key() {
     probe.select(objects::TreeContext::Matrix {
         matrix_id: "thumb".into(),
     });
-    probe.open_any_relations().await;
+    probe.settle_relations().await;
     wait_until("the aggregate names one entry per part", || {
         count(root_id, "li[data-relation-label='Anchor part']") == 2
     })
@@ -1130,7 +1145,7 @@ async fn hovering_an_aggregate_part_highlights_only_its_key() {
         .unwrap()
         .click();
     // The reference navigates by changing the selection; selecting another
-    // object returns to Properties, so poll the selection itself.
+    // object re-projects the rows, so poll the selection itself.
     let adapter = probe.adapter.clone();
     let part_key = objects::TreeContext::Key {
         matrix_id: MATRIX.into(),
@@ -1155,26 +1170,39 @@ async fn hovering_an_aggregate_part_highlights_only_its_key() {
     );
 }
 
+/// 004 replaces the tab-unmount oracle: navigating a reference unmounts the
+/// old rows and releases their highlight through the real selection lifecycle.
 #[wasm_bindgen_test]
-async fn unmounting_the_actual_relations_reference_releases_its_highlight() {
-    let root_id = "relation-highlight-unmount";
+async fn navigating_a_reference_releases_its_highlight() {
+    let root_id = "relation-highlight-navigate-clears";
     let probe = mount_column_relations(root_id).await;
     let reference = probe.inherited_by_reference();
     let revision = probe.revision();
-    reference.focus().unwrap();
-    wait_until(
-        "actual Relations reference highlights its canvas keys",
-        || count(root_id, "[data-matrix-id][data-relation-highlight='true']") == ROWS,
-    )
+    dispatch(&reference, "pointerenter");
+    wait_until("hovering the reference highlights its canvas keys", || {
+        count(root_id, "[data-matrix-id][data-relation-highlight='true']") == ROWS
+    })
     .await;
-    control(root_id, "tab", "Properties").unwrap().click();
-    wait_until(
-        "Properties unmounts the reference and releases its highlight",
-        || {
-            !reference.is_connected()
-                && count(root_id, "[data-matrix-id][data-relation-highlight='true']") == 0
-        },
-    )
+    reference.click();
+    let column = objects::TreeContext::Column {
+        matrix_id: MATRIX.into(),
+        column: 3,
+    };
+    wait_until("the reference selects Column 4", || {
+        probe
+            .adapter
+            .borrow()
+            .clone()
+            .expect("mounted adapter")
+            .selected_context
+            .read()
+            .clone()
+            .is_some_and(|scoped| scoped.context == column)
+    })
+    .await;
+    wait_until("navigation releases the old rows' highlight", || {
+        count(root_id, "[data-matrix-id][data-relation-highlight='true']") == 0
+    })
     .await;
     assert_eq!(
         count(root_id, "[data-matrix-id][data-selected='true']"),
@@ -1183,6 +1211,146 @@ async fn unmounting_the_actual_relations_reference_releases_its_highlight() {
     assert_eq!(
         probe.revision(),
         revision,
-        "visual cleanup creates no Undo entry"
+        "navigation writes nothing, so no Undo entry"
+    );
+}
+
+/// Two mirrored half layouts for a real populated split. The focus label
+/// only renders once both halves exist.
+fn split_layouts() -> Vec<Layout> {
+    vec![
+        Layout {
+            id: "source-layout".into(),
+            name: "Left half".into(),
+            board_id: "board".into(),
+            matrix_ids: vec!["left".into()],
+            part_ids: vec![],
+            mirror_link: None,
+        },
+        Layout {
+            id: "paired-layout".into(),
+            name: "Right half".into(),
+            board_id: "board".into(),
+            matrix_ids: vec!["right".into()],
+            part_ids: vec![],
+            mirror_link: Some(LayoutMirrorLink {
+                correspondences: vec![MirroredCorrespondence {
+                    companion_mode: None,
+                    companion_tweak: None,
+                    kind: MirroredItemKind::Matrix,
+                    source_id: "left".into(),
+                    mirror_id: "right".into(),
+                }],
+                exceptions: vec![],
+                source_id: "source-layout".into(),
+                axis_x: 0.0,
+                split_gap: None,
+                spacing: None,
+            }),
+        },
+    ]
+}
+
+async fn mount_split(root_id: &'static str) -> Probe {
+    mount_document(
+        root_id,
+        base(),
+        &[
+            matrix_json(json!({"id": "left", "rows": 1, "columns": 3})),
+            matrix_json(json!({"id": "right", "rows": 1, "columns": 3})),
+        ],
+        split_layouts(),
+    )
+    .await
+}
+
+fn split_focus_label(root_id: &str) -> String {
+    query(root_id, "[data-focus-label='split']")
+        .unwrap_or_else(|| panic!("a populated split renders its focus label"))
+        .text_content()
+        .unwrap_or_default()
+}
+
+/// 004: on a real populated split, breadcrumb and reference navigation keep
+/// the same focused half. The focus label must be positively present before
+/// and after each navigation: a missing label fails, it never compares equal.
+#[wasm_bindgen_test]
+async fn split_navigation_keeps_a_present_focus_label_on_the_same_half() {
+    let root_id = "relation-split-focus";
+    let probe = mount_split(root_id).await;
+    probe.select(objects::TreeContext::Column {
+        matrix_id: "left".into(),
+        column: 0,
+    });
+    wait_until("the Carries chip for Column 2 renders", || {
+        query(
+            root_id,
+            "nav[aria-label='How it is placed'] [data-crumb-label='Inherited by'] button",
+        )
+        .is_some()
+    })
+    .await;
+    let label_before = split_focus_label(root_id);
+    assert!(
+        label_before.contains("Right half"),
+        "focus starts on the source half, so the label names the dimmed mirror: {label_before}"
+    );
+    let before = probe.revision();
+    click(
+        root_id,
+        "nav[aria-label='How it is placed'] [data-crumb-label='Inherited by'] button",
+    );
+    let second = objects::TreeContext::Column {
+        matrix_id: "left".into(),
+        column: 1,
+    };
+    wait_until("the chip selects Column 2", || {
+        probe
+            .adapter
+            .borrow()
+            .clone()
+            .expect("mounted adapter")
+            .selected_context
+            .read()
+            .clone()
+            .is_some_and(|scoped| scoped.context == second)
+    })
+    .await;
+    assert_eq!(
+        split_focus_label(root_id),
+        label_before,
+        "breadcrumb navigation never moves split focus"
+    );
+    wait_until("Column 2 names the column it carries", || {
+        query(root_id, "li[data-relation-label='Inherited by'] button")
+            .is_some_and(|row| row.text_content().as_deref() == Some("Column 3"))
+    })
+    .await;
+    click(root_id, "li[data-relation-label='Inherited by'] button");
+    let third = objects::TreeContext::Column {
+        matrix_id: "left".into(),
+        column: 2,
+    };
+    wait_until("the reference selects Column 3", || {
+        probe
+            .adapter
+            .borrow()
+            .clone()
+            .expect("mounted adapter")
+            .selected_context
+            .read()
+            .clone()
+            .is_some_and(|scoped| scoped.context == third)
+    })
+    .await;
+    assert_eq!(
+        split_focus_label(root_id),
+        label_before,
+        "reference navigation never moves split focus"
+    );
+    assert_eq!(
+        probe.revision(),
+        before,
+        "navigation writes nothing, so no Undo entry"
     );
 }

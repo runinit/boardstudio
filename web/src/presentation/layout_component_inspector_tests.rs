@@ -1062,7 +1062,6 @@ fn mounted_component_inspector_host() -> Element {
     let selection_kind = use_signal(objects::LayoutSelectionKind::default);
     let inspect_open = use_signal(|| true);
     let mut selected_context = use_signal(|| None::<objects::ScopedTreeContext>);
-    let inspector_tab = use_signal(super::layout_workspace::LayoutInspectorTab::default);
     let mut show_component = use_signal(|| true);
     let anchor_scope = use_signal(|| None::<Scope>);
     let scope_generation = use_signal(|| 1u64);
@@ -1103,7 +1102,6 @@ fn mounted_component_inspector_host() -> Element {
     if selected_context.peek().clone() != next_context {
         selected_context.set(next_context.clone());
     }
-    super::layout_workspace::use_contextual_inspector_tab_reset(selected_context, inspector_tab);
     *probe.adapter_context.borrow_mut() = selected_context.peek().clone();
     let owner_key =
         layout_component_inspector_owner_key(&model, workspace(), next_context.as_ref());
@@ -1155,7 +1153,7 @@ fn mounted_component_inspector_host() -> Element {
         button { id: "component-inspector-toggle-view", onclick: move |_| show_component.set(!show_component()), "Toggle Inspector view" }
         if let Some(projection) = projection {
             if show_component() {
-                LayoutComponentInspector { projection, inspector_tab, pending_edits, x: x_draft, y: y_draft, margin: margin_draft, x_failure, y_failure, margin_failure, error, layout_pending, constraint_pending, remove_pending, mirrored_half_pending, on_action: action_handler }
+                LayoutComponentInspector { projection, pending_edits, x: x_draft, y: y_draft, margin: margin_draft, x_failure, y_failure, margin_failure, error, layout_pending, constraint_pending, remove_pending, mirrored_half_pending, on_action: action_handler }
             }
         }
         output { "data-test-render-generation": "", "{render_generation()}" }
@@ -2276,31 +2274,49 @@ async fn mounted_component_position_draft_survives_unrelated_acceptance_and_blur
     );
     assert!(accepted_revision > initial_revision);
 
-    // The Relations tab holds its selection across a further unrelated acceptance on the
-    // same mounted Inspector these draft checks use.
-    click_component_inspector(probe.root_id, "tab", "Relations");
-    settle_mounted_component_inspector(&probe).await;
+    // The Relationships facts stay rendered beside the fields across a further
+    // unrelated acceptance on the same mounted Inspector these draft checks use.
     let relations_revision = probe.accept_unrelated_revision().await;
     settle_mounted_component_inspector(&probe).await;
     assert_eq!(
         probe.projection.borrow().as_ref().unwrap().owner.revision,
         relations_revision
     );
+    // `by_role_name` has no implicit heading selector, so the section heading
+    // is pinned by its stable ID.
     assert_eq!(
-        component_inspector_control(probe.root_id, "tab", "Relations")
-            .get_attribute("aria-selected")
+        root.query_selector("#component-relationships-heading")
+            .unwrap()
+            .unwrap()
+            .text_content()
             .as_deref(),
-        Some("true"),
-        "Relations tab survives an unrelated accepted revision"
+        Some("Relationships"),
+        "the Relationships section stays rendered across an unrelated accepted revision"
+    );
+    let summary = probe
+        .projection
+        .borrow()
+        .as_ref()
+        .unwrap()
+        .relationship_summary
+        .clone();
+    let section = root
+        .query_selector("[aria-label='Component inspector']")
+        .unwrap()
+        .unwrap();
+    assert!(
+        section
+            .text_content()
+            .unwrap_or_default()
+            .contains(&summary),
+        "the projected facts stay rendered across an unrelated accepted revision"
     );
     root.remove();
 }
 
 #[wasm_bindgen_test]
-async fn mounted_finding_return_focus_reaches_the_selected_copied_inspector_tab() {
-    let (probe, root) = mounted_probe("layout-finding-return-tab-focus-root").await;
-    settle_mounted_component_inspector(&probe).await;
-    click_component_inspector(probe.root_id, "tab", "Relations");
+async fn mounted_finding_return_focus_reaches_the_first_editable_field() {
+    let (probe, root) = mounted_probe("layout-finding-return-field-focus-root").await;
     settle_mounted_component_inspector(&probe).await;
 
     let document = web_sys::window().unwrap().document().unwrap();
@@ -2312,30 +2328,73 @@ async fn mounted_finding_return_focus_reaches_the_selected_copied_inspector_tab(
     body.insert_before(&inspector, body.first_child().as_ref())
         .unwrap();
     inspector.append_child(&root).unwrap();
-    let properties = component_inspector_control(probe.root_id, "tab", "Properties");
-    properties
-        .dyn_ref::<web_sys::HtmlElement>()
-        .unwrap()
-        .focus()
-        .unwrap();
-    let selected = component_inspector_control(probe.root_id, "tab", "Relations");
-
     assert_eq!(
-        document
-            .query_selector("#m1-inspector-panel-content .layout-inspector-tabs [role='tab'][aria-selected='true']")
-            .unwrap(),
-        Some(selected.clone().into()),
-        "finding return selector must resolve to this fixture's selected tab"
+        root.query_selector("[role='tab']").unwrap(),
+        None,
+        "no Inspector tab bar remains: the obsolete finding-return tab target is gone"
     );
+    // The anchor pick form renders before Position and the headless
+    // selects/checkboxes are buttons, so Anchor row is the first native field.
+    let first = component_inspector_control(probe.root_id, "spinbutton", "Anchor row");
+    position_input(probe.root_id, "X mm").focus().unwrap();
     assert!(
         boardstudio_web_layout::layout_findings_state::focus_layout_finding_return_destination()
     );
     assert_eq!(
         document.active_element(),
-        Some(selected.into()),
-        "finding return restores the selected tab on the actual mounted Inspector"
+        Some(first.into()),
+        "finding return focuses the first editable field on the actual mounted Inspector"
     );
     inspector.remove();
+}
+
+#[wasm_bindgen_test]
+async fn mounted_component_facts_live_beside_the_fields_without_tabs() {
+    let (probe, root) = mounted_probe("layout-component-no-tabs-root").await;
+    settle_mounted_component_inspector(&probe).await;
+    assert_eq!(
+        root.query_selector("[role='tab']").unwrap(),
+        None,
+        "no Inspector tab bar remains on the standalone component"
+    );
+    assert!(
+        !position_input(probe.root_id, "X mm").disabled(),
+        "editable fields render"
+    );
+    // `by_role_name` has no implicit heading selector, so the section heading
+    // is pinned by its stable ID.
+    assert_eq!(
+        root.query_selector("#component-relationships-heading")
+            .unwrap()
+            .unwrap()
+            .text_content()
+            .as_deref(),
+        Some("Relationships"),
+        "the Relationships section renders beside the fields"
+    );
+    let summary = probe
+        .projection
+        .borrow()
+        .as_ref()
+        .unwrap()
+        .relationship_summary
+        .clone();
+    assert!(
+        !summary.is_empty(),
+        "the standalone projection carries relationship facts"
+    );
+    let section = root
+        .query_selector("[aria-label='Component inspector']")
+        .unwrap()
+        .unwrap();
+    assert!(
+        section
+            .text_content()
+            .unwrap_or_default()
+            .contains(&summary),
+        "the projected facts render beside the fields"
+    );
+    root.remove();
 }
 
 fn position_input(root_id: &str, label: &str) -> web_sys::HtmlInputElement {
@@ -2838,9 +2897,10 @@ async fn choose_offset_axes_in_form(root_id: &str, option: &str) {
 
 /// The Properties form takes its source, axes and numbers from `offset_drafts` on every
 /// path: the first render, a change of selection, an accepted change of the saved constraint
-/// (a conversion and its undo) and the reset when Properties is shown again.
+/// (a conversion and its undo); unsaved choices survive an unrelated acceptance.
 #[wasm_bindgen_test]
-async fn mounted_offset_form_follows_the_selection_a_conversion_its_undo_and_the_reset() {
+async fn mounted_offset_form_follows_the_selection_a_conversion_its_undo_and_keeps_unsaved_choices()
+{
     const KEY: &str = "matrix/component-matrix/r0c0";
     let (probe, root) = mounted_probe_configured("layout-offset-form-test-root", |document| {
         // The key sits between the two standalone parts, so the first part that is not
@@ -2982,8 +3042,8 @@ async fn mounted_offset_form_follows_the_selection_a_conversion_its_undo_and_the
         "after undoing the conversion"
     );
 
-    // The reset: an unconstrained part's unsaved axes choice goes back to the default when
-    // Properties is shown again.
+    // No tab machinery remains to reset drafts: an unconstrained part's unsaved
+    // axes choice survives an unrelated acceptance on the same Inspector.
     click_component_inspector(root_id, "button", "Select source");
     settle_mounted_component_inspector(&probe).await;
     choose_offset_axes_in_form(root_id, "Offset along part axes").await;
@@ -2993,14 +3053,12 @@ async fn mounted_offset_form_follows_the_selection_a_conversion_its_undo_and_the
         "Offset along part axes",
         "the unsaved choice shows"
     );
-    click_component_inspector(root_id, "tab", "Relations");
-    settle_mounted_component_inspector(&probe).await;
-    click_component_inspector(root_id, "tab", "Properties");
+    probe.accept_unrelated_revision().await;
     settle_mounted_component_inspector(&probe).await;
     assert_eq!(
         offset_form(root_id),
-        ("0".into(), "Offset on board axes".into(), "U1".into()),
-        "after the reset"
+        ("0".into(), "Offset along part axes".into(), "U1".into()),
+        "the unsaved choice survives an unrelated acceptance"
     );
     root.remove();
 }
@@ -3133,9 +3191,13 @@ mod matrix_relations_panel {
                 .is_some()
         }
 
-        async fn open_relations_tab(&self) {
-            self.click("tab", "Relations");
+        async fn settle_relations(&self) {
             self.settle().await;
+            wait_until(
+                "the Relationships section renders beside the fields",
+                || self.exists("#m1-relations-heading"),
+            )
+            .await;
         }
 
         fn matrix(&self) -> boardstudio_core::model::Matrix {
@@ -3262,7 +3324,6 @@ mod matrix_relations_panel {
                 on_pick_anchor: EventHandler::new(|()| {}),
                 anchor_pick_pending: false,
                 on_cancel_anchor_pick: EventHandler::new(|()| {}),
-                inspector_tab: state.inspector_tab(),
                 matrix_relations: matrix_context_relations(&model, selected.as_ref()),
                 relation_target: {
                     let runtime = runtime.clone();
@@ -3412,7 +3473,7 @@ mod matrix_relations_panel {
         .await;
         probe.select(column_ctx(1));
         probe.land().await;
-        probe.open_relations_tab().await;
+        probe.settle_relations().await;
         assert!(probe.exists("[data-relation-departure='Column offset']"));
 
         probe.click("button", "Reset offsets: Column offset");
@@ -3480,7 +3541,7 @@ mod matrix_relations_panel {
             .revision;
         probe.select(column_ctx(1));
         probe.land().await;
-        probe.open_relations_tab().await;
+        probe.settle_relations().await;
         assert!(
             probe.exists("[data-relation-departure='Column offset']"),
             "the departure is listed: {}",
@@ -3538,7 +3599,7 @@ mod matrix_relations_panel {
         let (probe, root) = mount("relations-precedence-test", document, None).await;
         probe.select(matrix_ctx());
         probe.land().await;
-        probe.open_relations_tab().await;
+        probe.settle_relations().await;
         let row = root
             .query_selector("[data-relation-constraint='tie']")
             .unwrap()
@@ -3606,7 +3667,7 @@ mod matrix_relations_panel {
         let (probe, root) = mount("relations-constraint-test", document, None).await;
         probe.select(matrix_ctx());
         probe.land().await;
-        probe.open_relations_tab().await;
+        probe.settle_relations().await;
         assert!(
             probe.exists("[data-relation-constraint='tie']"),
             "the constraint is listed: {}",
@@ -3619,7 +3680,7 @@ mod matrix_relations_panel {
 
         probe.select(matrix_ctx());
         probe.land().await;
-        probe.open_relations_tab().await;
+        probe.settle_relations().await;
         probe.reference(&companion).click();
         probe.land().await;
         assert!(
@@ -3661,7 +3722,7 @@ mod matrix_relations_panel {
         let (probe, root) = mount("relations-removed-test", document, None).await;
         probe.select(matrix_ctx());
         probe.land().await;
-        probe.open_relations_tab().await;
+        probe.settle_relations().await;
         let source = "[data-relation-constraint='tie'] [data-relation-role='source']";
         assert!(probe.exists(source), "{}", probe.text());
 

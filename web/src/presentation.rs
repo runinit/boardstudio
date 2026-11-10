@@ -3586,6 +3586,12 @@ fn Editor() -> Element {
         }
     };
     let model = runtime.model();
+    // Read the same accepted topology as Create, not physical-setup pending feedback.
+    objects::use_matrix_setup_preview_provider(model.accepted.as_ref().is_some_and(|snapshot| {
+        snapshot.document.hardware.as_ref().is_some_and(|hardware| {
+            hardware.topology == boardstudio_core::model::HardwareTopology::Split
+        })
+    }));
     let current_scope = runtime.scope();
     let accepted_token = model.accepted.as_ref().map(|snapshot| snapshot.token);
     let layout_owner = LayoutOwnerIdentity {
@@ -4157,6 +4163,10 @@ fn Editor() -> Element {
             }
             selection_kind.set(kind);
             let model = runtime.model();
+            // Canvas deselection retains Inspector context, not a selection to rescope.
+            if model.selected_part_ids.is_empty() {
+                return;
+            }
             let Some(scope) = owner.scope.as_ref() else {
                 tree_cell_anchor.borrow_mut().take();
                 return;
@@ -7785,6 +7795,11 @@ fn Editor() -> Element {
             }
         },
     );
+    // Inspector context can outlive canvas selection. Only the live selection
+    // admits Layout actions; retain the context for Inspector editing itself.
+    let toolbar_selection_context = selected_tree_context
+        .clone()
+        .filter(|_| active_workspace != "Layout" || !model.selected_part_ids.is_empty());
     let retained_toolbar_cell = tree_cell_anchor_for_owner(&tree_cell_anchor, &layout_owner);
     let toolbar_selection_availability = use_memo(use_reactive(
         (
@@ -7792,7 +7807,7 @@ fn Editor() -> Element {
             &snapshot.token,
             &snapshot.session_epoch,
             &model.active_instance_id,
-            &selected_tree_context,
+            &toolbar_selection_context,
             &retained_toolbar_cell,
             &active_workspace,
         ),
@@ -7830,7 +7845,7 @@ fn Editor() -> Element {
     ))();
     let toolbar_input = match active_workspace {
         "Layout" => {
-            let properties_available = selected_tree_context.as_ref().is_some_and(|selected| {
+            let properties_available = toolbar_selection_context.as_ref().is_some_and(|selected| {
                 matches!(
                     &selected.context,
                     objects::TreeContext::Matrix { .. }
@@ -7856,7 +7871,8 @@ fn Editor() -> Element {
                     inspect_open.set(true);
                 }
             });
-            let pointer_tools_available = layout_transform_target.is_some();
+            let pointer_tools_available =
+                toolbar_selection_context.is_some() && layout_transform_target.is_some();
             let on_transform_tool = EventHandler::new({
                 let runtime = runtime.clone();
                 let adapter = adapter.clone();
@@ -7955,8 +7971,9 @@ fn Editor() -> Element {
                     on_selection_kind: on_layout_selection_kind_handler,
                     on_snap_intent: layout_snap_intent,
                     show_relationships: true,
-                    has_selection_context: matrix_transform_inspector.projection.is_some()
-                        || component_inspector.is_some(),
+                    has_selection_context: toolbar_selection_context.is_some()
+                        && (matrix_transform_inspector.projection.is_some()
+                            || component_inspector.is_some()),
                     on_show_relationships: EventHandler::new(move |()| {
                         inspect_open.set(true);
                     }),
@@ -8491,7 +8508,6 @@ fn Editor() -> Element {
                     let mut pending = pending_splay_origin_pick;
                     EventHandler::new(move |()| pending.set(None))
                 },
-                inspector_tab: layout_state.inspector_tab(),
                 matrix_relations: matrix_context_relations(&model, selected_tree_context.as_ref()),
                 relation_target: {
                     let runtime = runtime.clone();
@@ -8740,6 +8756,110 @@ fn Editor() -> Element {
         },
     );
     use_effect(auto_open_matrix);
+    let mut setup_preview_frame_px = use_signal(|| (0.0, 0.0, 0.0, 0.0));
+    let setup_preview_observer = use_hook(|| {
+        Rc::new(RefCell::new(
+            None::<(
+                web_sys::ResizeObserver,
+                Closure<dyn FnMut(js_sys::Array, web_sys::ResizeObserver)>,
+            )>,
+        ))
+    });
+    use_effect(use_reactive(
+        (
+            &matrix_setup.projection.is_some(),
+            &guide.is_some(),
+            &zoom_surface_size(),
+        ),
+        {
+            let svg = svg.clone();
+            let observer = setup_preview_observer.clone();
+            move |(open, _, _)| {
+                if let Some((previous, _)) = observer.borrow_mut().take() {
+                    previous.disconnect();
+                }
+                setup_preview_frame_px.set((0.0, 0.0, 0.0, 0.0));
+                if !open {
+                    return;
+                }
+                let Some(surface) = svg.borrow().clone() else {
+                    return;
+                };
+                let editor = surface
+                    .closest("[aria-label='Keyboard editor']")
+                    .ok()
+                    .flatten();
+                let form = editor.as_ref().and_then(|editor| {
+                    editor
+                        .query_selector("[aria-label='New matrix']")
+                        .ok()
+                        .flatten()
+                });
+                let controls = editor.as_ref().and_then(|editor| {
+                    editor
+                        .query_selector("[aria-label='Design view']")
+                        .ok()
+                        .flatten()
+                });
+                let measured_controls = controls.clone();
+                let Some(form) = form else {
+                    return;
+                };
+                // The entire guide occludes the canvas, not only its nested form.
+                let obstacle = form
+                    .closest("[data-setup-guide-overlay]")
+                    .ok()
+                    .flatten()
+                    .unwrap_or(form);
+                let measured_surface = surface.clone();
+                let measured_obstacle = obstacle.clone();
+                let mut measure = move || {
+                    let surface = measured_surface.get_bounding_client_rect();
+                    let obstacle = measured_obstacle.get_bounding_client_rect();
+                    let clear_height = measured_controls
+                        .as_ref()
+                        .map(|controls| controls.get_bounding_client_rect())
+                        .filter(|controls| controls.height() > 0.0)
+                        .map(|controls| {
+                            (controls.top() - surface.top() - 8.0).clamp(0.0, surface.height())
+                        })
+                        .unwrap_or(surface.height());
+                    let right =
+                        (obstacle.right() - surface.left() + 8.0).clamp(0.0, surface.width());
+                    let bottom = (obstacle.bottom() - surface.top() + 8.0).clamp(0.0, clear_height);
+                    // Reserve actual covered space, with no percentage cap. Narrow setup
+                    // surfaces scroll above a preview; wider ones leave it beside them.
+                    let next = if (surface.width() - right) * clear_height
+                        >= surface.width() * (clear_height - bottom)
+                    {
+                        (right, 0.0, surface.width() - right, clear_height)
+                    } else {
+                        (0.0, bottom, surface.width(), clear_height - bottom)
+                    };
+                    if next != *setup_preview_frame_px.peek() {
+                        setup_preview_frame_px.set(next);
+                    }
+                };
+                measure();
+                let callback = Closure::<dyn FnMut(js_sys::Array, web_sys::ResizeObserver)>::new(
+                    move |_, _| measure(),
+                );
+                if let Ok(next) = web_sys::ResizeObserver::new(callback.as_ref().unchecked_ref()) {
+                    next.observe(&surface);
+                    next.observe(&obstacle);
+                    if let Some(controls) = controls {
+                        next.observe(&controls);
+                    }
+                    *observer.borrow_mut() = Some((next, callback));
+                }
+            }
+        },
+    ));
+    use_drop(move || {
+        if let Some((observer, _)) = setup_preview_observer.borrow_mut().take() {
+            observer.disconnect();
+        }
+    });
     let inline_matrix_setup = if guide.is_some() {
         matrix_setup.projection.clone().map(|mut projection| {
             projection.can_cancel &= has_matrix;
@@ -9497,6 +9617,7 @@ fn Editor() -> Element {
 
     rsx! {
         section { class: "flex min-h-0 flex-1 flex-col", "aria-label": "Keyboard editor",
+            "data-matrix-preview-stacked": (matrix_setup.projection.is_some() && zoom_surface_size().0 < 760.0).then_some(""),
             div { class: if active_workspace == "Export" { "dock-desk relative flex min-h-0 flex-1 flex-row gap-2 overflow-hidden bg-background p-2 [&_[id=workspace-panel-sheet]]:hidden!" } else { "dock-desk relative flex min-h-0 flex-1 flex-row gap-2 overflow-hidden bg-background p-2" },
                 DockLayout {
                     objects: if guide.is_none() { Some(rsx! {
@@ -9557,7 +9678,7 @@ fn Editor() -> Element {
                     }
                     }) } else { None },
                 if guide.is_some() {
-                    section { class: "absolute inset-y-0 left-0 z-24 flex w-[min(380px,calc(100vw-32px))] max-w-[calc(100%-16px)] flex-col overflow-hidden border-r border-border-strong bg-card shadow-[8px_0_24px_rgb(0_0_0/16%)] [&>[role=alert]]:mx-4 [&>[role=alert]]:mt-3 [&>[role=alert]]:text-destructive max-[760px]:z-40 max-[760px]:w-[min(380px,calc(100vw-16px))]", aria_label: "Keyboard setup", "data-setup-guide-overlay": "",
+                    section { class: "absolute inset-y-2 left-2 z-24 flex w-[min(380px,calc(100vw-32px))] max-w-[calc(100%-16px)] flex-col overflow-hidden rounded-xl border-0 bg-card shadow-sm [&>[role=alert]]:mx-4 [&>[role=alert]]:mt-3 [&>[role=alert]]:text-destructive max-[760px]:z-40 max-[760px]:w-[min(380px,calc(100vw-16px))]", aria_label: "Keyboard setup", "data-setup-guide-overlay": "",
                     if full_case_settings() && active_workspace == "Case" {
                         aside { class: "flex min-h-0 flex-1 flex-col bg-card p-4 [&>header]:flex [&>header]:items-center [&>header]:gap-3 [&>header]:pb-4 [&>header_h2]:m-0 [&>header_h2]:text-lg", aria_label: "Full case settings",
                             header {
@@ -9610,7 +9731,10 @@ fn Editor() -> Element {
                     }
                     }
                 }
-                section { class: if setup_guide_active { "relative order-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border-0 bg-card shadow-sm [container:layout-canvas/inline-size] [&>[data-workspace-toolbar]]:hidden" } else if active_workspace == "Export" { "relative order-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-auto rounded-xl border-0 bg-card shadow-sm" } else { "relative order-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border-0 bg-card shadow-sm [container:layout-canvas/inline-size]" }, role: "region", id: "m1-workspace-panel", aria_label: "{active_workspace} workspace",
+                section { class: format!("relative order-2 flex min-h-0 min-w-0 flex-1 flex-col rounded-xl border-0 shadow-sm {} {} {}",
+                    if active_workspace == "Export" && !setup_guide_active { "overflow-auto" } else { "overflow-hidden [container:layout-canvas/inline-size]" },
+                    if active_workspace == "Layout" { "bg-canvas" } else { "bg-card" },
+                    if setup_guide_active { "[&>[data-workspace-toolbar]]:hidden" } else { "" }), role: "region", id: "m1-workspace-panel", aria_label: "{active_workspace} workspace",
                     onfocusin: {
                         let mut objects_open = objects_open;
                         let mut inspect_open = inspect_open;
@@ -9634,7 +9758,10 @@ fn Editor() -> Element {
                     {workspace_composition::toolbar(toolbar_input)}
                     if guide.as_ref().is_some_and(|guide| guide.current_stage == SetupGuideStage::Project) {
                         GuideHardwarePreview {
-                            split: physical_setup_mount.projection.topology == boardstudio_core::model::HardwareTopology::Split,
+                            split: physical_setup_mount
+                                .pending_topology()
+                                .unwrap_or(physical_setup_mount.projection.topology)
+                                == boardstudio_core::model::HardwareTopology::Split,
                             wired: physical_setup_mount.projection.transport == boardstudio_core::model::HardwareTransport::Wired,
                         }
                     } else if matches!(active_workspace, "Layout" | "Keymap" | "Keycaps")
@@ -9753,6 +9880,20 @@ fn Editor() -> Element {
                                 && !(layer_visibility.hidden)().contains("Footprints"),
                             on_matrix_pointer_down: matrix_pointer_down,
                             on_part_pointer_down: part_pointer_down,
+                        }
+                        {
+                            // Project only the schematic into measured clear space. Accepted
+                            // geometry, camera and Slice A's fit owner stay intact.
+                            let (left, top, frame_width, frame_height) = setup_preview_frame_px();
+                            let world_per_px_x = width / zoom_surface_size().0.max(1.0);
+                            let world_per_px_y = height / zoom_surface_size().1.max(1.0);
+                            rsx! {
+                                objects::MatrixSetupCanvasPreview {
+                                    setup: matrix_setup.clone(),
+                                    center: Vec2 { x: view_x + (left + frame_width / 2.0) * world_per_px_x, y: -view_y - (top + frame_height / 2.0) * world_per_px_y },
+                                    available_size: Vec2 { x: frame_width * world_per_px_x, y: frame_height * world_per_px_y },
+                                }
+                            }
                         }
                         if let Some((x, y, scale)) = selection_geometry_anchor
                             && let Some(tools) = canvas_transform_menu.clone()

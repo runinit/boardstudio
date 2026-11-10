@@ -133,10 +133,23 @@ pub fn default_disclosures(document: &ProjectDoc, board_id: &str) -> BTreeSet<St
     };
     let board_parts = board.part_ids.iter().map(String::as_str).collect();
     let mut defaults = BTreeSet::from([format!("board:{board_id}"), format!("layout:{board_id}")]);
+    let matrices = visible_matrices(document, board_id, &board_parts);
     defaults.extend(
-        visible_matrices(document, board_id, &board_parts)
+        matrices
             .iter()
             .map(|matrix| format!("matrix:{}", matrix.id)),
+    );
+    defaults.extend(
+        document
+            .layouts
+            .iter()
+            .filter(|layout| {
+                layout.board_id == board_id
+                    && matrices
+                        .iter()
+                        .any(|matrix| layout.matrix_ids.contains(&matrix.id))
+            })
+            .map(|layout| format!("half:{}", layout.id)),
     );
     defaults
 }

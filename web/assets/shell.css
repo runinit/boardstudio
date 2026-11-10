@@ -1,4 +1,20 @@
 /* Shell presentation only; viewport, document and focus owners stay in Rust. */
+/* While authoring a matrix on a narrow canvas, keep a visible preview below the
+   independently scrolling guide/form. Other setup stages retain their full height. */
+/* The compact Sheet would otherwise cover the preview below the form. Keep its
+   owners mounted and its open preference intact; it returns when setup retires. */
+[data-matrix-preview-stacked] #workspace-panel-sheet[role='dialog'] {
+  display: none;
+}
+[data-matrix-preview-stacked] [data-setup-guide-overlay] {
+  bottom: auto;
+  height: 60%;
+}
+[data-matrix-preview-stacked] [aria-label='New matrix']:not([data-setup-guide-overlay] *) {
+  bottom: auto;
+  max-height: 50%;
+  z-index: 40;
+}
 .shell-footer {
   display: flex;
   flex: 0 0 auto;

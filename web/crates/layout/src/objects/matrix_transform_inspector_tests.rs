@@ -1403,6 +1403,18 @@ async fn mounted_attached_component_choices_are_current_item_scoped_and_emit_the
         by_role_name(&root, "option", "Unrelated LED snapshot").is_none(),
         "exclude an unrelated assembly snapshot"
     );
+    // Deferred controller catalogue work must populate bundled choices for a
+    // selected Key; without it only document definitions appear. This catches
+    // the inverted Key-demand guard refusing actual Key demand.
+    wait_until(
+        "deferred controller catalogue work populates bundled choices for the selected Key",
+        || by_role_name(&root, "option", "switch mx").is_some(),
+    )
+    .await;
+    assert!(
+        by_role_name(&root, "option", "switch mx").is_some(),
+        "deferred controller catalogue work actually happens for a selected Key"
+    );
     let option = by_role_name(&root, "option", "Replacement LED").unwrap();
     // The primitive selects on a complete pointer gesture, not a synthetic click.
     for phase in ["pointerdown", "pointerup"] {

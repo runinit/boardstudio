@@ -48,6 +48,7 @@ mod matrix_placement_controller;
 mod matrix_setup;
 mod matrix_setup_controller;
 mod matrix_setup_fields;
+mod matrix_setup_preview;
 mod matrix_transform_controller;
 mod matrix_transform_inspector;
 mod mirrored_pair;
@@ -85,6 +86,7 @@ pub use matrix_setup::{
     MatrixSetup, MatrixSetupMount,
 };
 pub use matrix_setup_controller::use_matrix_setup;
+pub use matrix_setup_preview::{MatrixSetupCanvasPreview, use_matrix_setup_preview_provider};
 pub use matrix_transform_controller::{
     MatrixTransformInspectorMount, use_workspace_matrix_transform,
 };
@@ -239,10 +241,20 @@ pub fn Objects(
         document.id.clone(),
         board_id.clone(),
     );
+    let mut seeded_defaults = use_signal(|| (disclosure_scope.clone(), defaults.clone()));
     use_effect(use_reactive(
         (&disclosure_scope, &defaults, &created_pair),
-        move |(_, defaults, created_pair)| {
-            expanded.write().extend(defaults);
+        move |(scope, defaults, created_pair)| {
+            let (previous_scope, previous_defaults) = seeded_defaults.peek().clone();
+            if previous_scope == scope {
+                // Create opens new branches without reopening the user's collapsed layouts.
+                expanded
+                    .write()
+                    .extend(defaults.difference(&previous_defaults).cloned());
+            } else {
+                expanded.write().extend(defaults.iter().cloned());
+            }
+            seeded_defaults.set((scope, defaults));
             if let Some(created) = created_pair {
                 let mut tree = expanded.write();
                 tree.insert(format!("half:{}", created.left_layout_id));

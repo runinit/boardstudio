@@ -135,6 +135,7 @@ struct RuntimeReport {
     severity: RuntimeReportSeverity,
     notification_error: Option<bool>,
     retire_on_save: bool,
+    case_generation: Option<(crate::case_generation_lifecycle::CaseGenerationOwner, JobId)>,
 }
 
 /// A one-shot result for the shell's single notification consumer.
@@ -151,6 +152,7 @@ impl RuntimeReport {
             severity: RuntimeReportSeverity::Status,
             notification_error: None,
             retire_on_save: false,
+            case_generation: None,
         }
     }
 
@@ -160,6 +162,7 @@ impl RuntimeReport {
             severity: RuntimeReportSeverity::Alert,
             notification_error: None,
             retire_on_save: false,
+            case_generation: None,
         }
     }
 
@@ -1119,6 +1122,45 @@ impl Runtime {
         }
         *self.status.borrow_mut() = report;
         self.changed();
+    }
+    // Retire only a report produced by generation, never an unrelated report with the
+    // same text. Reuse the completed-result rebind rule at accepted-state transitions,
+    // not on notifications or status reads.
+    fn retire_obsolete_case_report(&self, completed_job: Option<JobId>) {
+        let Some((owner, failed_job)) = self.status.borrow().case_generation.clone() else {
+            return;
+        };
+        let Some(accepted) = self.model().accepted else {
+            return;
+        };
+        if self.scope().as_ref() != Some(&owner.scope)
+            || self.model().durability
+                != (Durability::Saved {
+                    revision: accepted.document.revision,
+                })
+        {
+            return;
+        }
+        let generation = self.model().generation;
+        let replacement_completed = completed_job.is_some_and(|job_id| {
+            job_id != failed_job
+                && matches!(generation,
+                    boardstudio_application::GenerationStatus::Ready { job_id: current, exact: true }
+                    if current == job_id)
+        });
+        let reusable = completed_job.is_none()
+            && owner.token != accepted.token
+            && !matches!(
+                generation,
+                boardstudio_application::GenerationStatus::Preparing { .. }
+                    | boardstudio_application::GenerationStatus::Running { .. }
+            )
+            && self
+                .cad_scene()
+                .is_some_and(|scene| scene.exact && scene.token == accepted.token);
+        if replacement_completed || reusable {
+            *self.status.borrow_mut() = RuntimeReport::status("Saved locally.");
+        }
     }
     fn clear_alert(&self) {
         self.status.borrow_mut().clear_alert();
@@ -2205,6 +2247,9 @@ impl Runtime {
                 *report = RuntimeReport::status("Saved locally.");
             }
         }
+        if accepted_snapshot != previous_snapshot {
+            self.retire_obsolete_case_report(None);
+        }
         self.changed();
         effects
     }
@@ -2239,6 +2284,13 @@ impl Runtime {
         });
     }
     async fn run(self: &Rc<Self>, effect: Effect) -> Vec<Effect> {
+        self.run_with_case_report_owner(effect, None).await
+    }
+    async fn run_with_case_report_owner(
+        self: &Rc<Self>,
+        effect: Effect,
+        case_report_owner: Option<(crate::case_generation_lifecycle::CaseGenerationOwner, JobId)>,
+    ) -> Vec<Effect> {
         match effect {
             Effect::Core {
                 request_id,
@@ -2407,6 +2459,11 @@ impl Runtime {
                 } else {
                     match outcome {
                         TerminalOutcome::Completed => {
+                            if let Some((owner, job_id)) = case_report_owner.as_ref()
+                                && self.snapshot_current(owner.token, &owner.scope)
+                            {
+                                self.retire_obsolete_case_report(Some(*job_id));
+                            }
                             // Silent completion still wakes views without an outcome observer.
                             self.changed();
                         }
@@ -2421,7 +2478,19 @@ impl Runtime {
                             self.apply_report(report);
                         }
                         TerminalOutcome::Rejected(reason)
-                        | TerminalOutcome::ExecutorFailed(reason) => self.report(reason),
+                        | TerminalOutcome::ExecutorFailed(reason) => {
+                            if case_report_owner.as_ref().is_none_or(|(owner, job_id)| {
+                                self.snapshot_current(owner.token, &owner.scope)
+                                    && matches!(self.model().generation,
+                                        boardstudio_application::GenerationStatus::Blocked { job_id: current, .. }
+                                        | boardstudio_application::GenerationStatus::Failed { job_id: current, .. }
+                                        if current == *job_id)
+                            }) {
+                                let mut report = RuntimeReport::status(reason);
+                                report.case_generation = case_report_owner;
+                                self.apply_report(report);
+                            }
+                        }
                         TerminalOutcome::Cancelled => {
                             self.apply_report(RuntimeReport::status("Cancelled.").transient());
                         }
@@ -2696,11 +2765,11 @@ impl Runtime {
                 vec![]
             }
             Effect::RunGeneration {
+                operation_id,
                 job_id,
                 scope,
                 snapshot,
-                ..
-            } => self.generate(job_id, scope, snapshot).await,
+            } => self.generate(operation_id, job_id, scope, snapshot).await,
             Effect::CancelJob { job_id } => {
                 if let Some(cancelled) = self.cad_jobs.borrow_mut().remove(&job_id) {
                     cancelled.set(true);
@@ -6675,6 +6744,7 @@ impl Runtime {
     }
     async fn generate(
         self: &Rc<Self>,
+        operation_id: OperationId,
         job_id: JobId,
         scope: Scope,
         snapshot: AcceptedSnapshot,
@@ -6694,7 +6764,12 @@ impl Runtime {
         {
             worker.close();
         }
-        match result {
+        let owner = crate::case_generation_lifecycle::CaseGenerationOwner {
+            scope: scope.clone(),
+            token: snapshot.token,
+            revision: snapshot.document.revision,
+        };
+        let effects = match result {
             Ok(()) => self.complete(Completion::GenerationFinished {
                 job_id,
                 scope,
@@ -6713,7 +6788,24 @@ impl Runtime {
                 })
             }
             Err(CadJobError::Cancelled) => vec![],
+        };
+        let mut remaining = Vec::new();
+        for effect in effects {
+            if matches!(&effect, Effect::Settled { operation_id: settled, .. } if *settled == operation_id)
+            {
+                // Only Session-admitted terminal effects carry generation provenance.
+                // Stale completions produce no matching settlement.
+                remaining.extend(
+                    Box::pin(
+                        self.run_with_case_report_owner(effect, Some((owner.clone(), job_id))),
+                    )
+                    .await,
+                );
+            } else {
+                remaining.push(effect);
+            }
         }
+        remaining
     }
     async fn generate_current(
         &self,
@@ -9930,6 +10022,245 @@ mod cad_scene_rebind_tests {
             previous.snapshot.document.revision,
             original.document.revision
         );
+    }
+
+    #[wasm_bindgen_test]
+    async fn reusable_exact_case_result_retires_only_its_obsolete_generation_report() {
+        let (runtime, original, scope) = runtime_with_scene(true).await;
+        edited(&runtime, &scope, Some(2.0)).await;
+        runtime.submit(Event::StartGeneration {
+            operation_id: runtime.operation(),
+            scope: scope.clone(),
+        });
+        project_name_test_support::run_pending(&runtime).await;
+        assert!(matches!(
+            runtime.model().generation,
+            boardstudio_application::GenerationStatus::Blocked { .. }
+                | boardstudio_application::GenerationStatus::Failed { .. }
+        ));
+        let failure = runtime.status();
+        assert_ne!(failure, "Saved locally.");
+        assert_eq!(runtime.cad_scene().unwrap().token, original.token);
+        runtime.take_notifications();
+
+        let repaired = edited(&runtime, &scope, Some(1.6)).await;
+        assert_eq!(runtime.status(), "Saved locally.");
+        assert_eq!(runtime.cad_scene().unwrap().token, repaired.token);
+        assert!(runtime.take_notifications().is_empty());
+    }
+
+    #[wasm_bindgen_test]
+    async fn admitted_case_generation_success_retires_only_its_own_report() {
+        for unrelated_report in [false, true] {
+            let (runtime, _, scope) = runtime_with_scene(true).await;
+            runtime.submit(Event::StartGeneration {
+                operation_id: runtime.operation(),
+                scope: scope.clone(),
+            });
+            project_name_test_support::run_pending(&runtime).await;
+            assert!(matches!(
+                runtime.model().generation,
+                boardstudio_application::GenerationStatus::Blocked { .. }
+            ));
+            let failure = runtime.status();
+            if unrelated_report {
+                runtime.report(&failure);
+            }
+            // Unlike the display/rebind fixture, this rectangle and mechanical setup
+            // must pass real Core preparation before the controlled worker can reply.
+            let mut document = (*runtime.model().accepted.unwrap().document).clone();
+            document.boards[0].outline_ids.push("outline".into());
+            document.outline.push(OutlineFeature::Rect {
+                anchor_part_id: None,
+                id: "outline".into(),
+                center: boardstudio_core::model::Vec2 { x: 0., y: 0. },
+                size: boardstudio_core::model::Vec2 { x: 40., y: 30. },
+                radius: 0.,
+                rotation: None,
+                operation: Operation::Add,
+            });
+            document.mechanical = Some(serde_json::from_value(serde_json::json!({
+                "boardId":"main-board","method":"printed","mount":"rigid", "plateThickness":1.5,
+                "plateFoamThickness":0.5,"pcbThickness":1.6,"bottomFoamThickness":0.4,"batteryHeight":4.,
+                "bottomThickness":3.,"plateToPcb":3.5,"wallThickness":2.,"clearance":0.3,
+                "bottomStyle":"shell","middleFrame":false,"openingAllowance":0.25,"mounts":[],"closureMounts":[],"profiles":[]
+            })).unwrap());
+            let accepted = project_name_test_support::replace_document(
+                &runtime,
+                "prepare-current-case",
+                &scope.board_id,
+                document,
+            )
+            .await;
+            assert_eq!(
+                runtime.status(),
+                failure,
+                "repair alone has no reusable exact result"
+            );
+            assert_ne!(runtime.cad_scene().unwrap().token, accepted.token);
+            // Same real CadWorker/transfer boundary used by collision browser fixtures.
+            // Geometry is synthetic; this test proves report admission, not CAD quality.
+            let source = r#"
+                self.postMessage({kind:'ready'});
+                self.onmessage = event => {
+                    if (event.data.kind !== 'request') return;
+                    const input = JSON.parse(event.data.frame);
+                    const positions = new Float32Array([0,0,0,1,0,0,0,1,0]);
+                    const normals = new Float32Array([0,0,1,0,0,1,0,0,1]);
+                    const bodies = input.prepared.bodies.map(body => ({id:body.body.id,name:'controlled case body',positions,normals}));
+                    const result = {revision:input.identity.revision,bodies};
+                    if (input.operation === 'exact') {
+                        result.mesh = {positions,normals};
+                        result.step = new TextEncoder().encode('ISO-10303-21;');
+                    }
+                    const frame = {requestId:input.requestId,jobId:input.jobId,
+                        identity:input.identity,operation:input.operation,outcome:'completed'};
+                    self.postMessage({kind:'reply',frame:JSON.stringify(frame),result});
+                };
+            "#;
+            let properties = BlobPropertyBag::new();
+            properties.set_type("text/javascript");
+            let blob = Blob::new_with_str_sequence_and_options(
+                &Array::of1(&JsValue::from_str(source)),
+                &properties,
+            )
+            .unwrap();
+            let url = Url::create_object_url_with_blob(&blob).unwrap();
+            let worker = Rc::new(CadWorker::new(&url).unwrap());
+            worker.ready().await.unwrap();
+            *runtime.cad_worker.borrow_mut() = Some((scope.clone(), worker.clone()));
+            runtime.take_notifications();
+            runtime.submit(Event::StartGeneration {
+                operation_id: runtime.operation(),
+                scope,
+            });
+            project_name_test_support::run_pending(&runtime).await;
+            worker.close();
+            Url::revoke_object_url(&url).unwrap();
+            assert!(
+                matches!(
+                    runtime.model().generation,
+                    boardstudio_application::GenerationStatus::Ready { exact: true, .. }
+                ),
+                "{:?}: {}",
+                runtime.model().generation,
+                runtime.status()
+            );
+            assert_eq!(runtime.cad_scene().unwrap().token, accepted.token);
+            assert_eq!(
+                runtime.status(),
+                if unrelated_report {
+                    failure.as_str()
+                } else {
+                    "Saved locally."
+                }
+            );
+            assert!(runtime.take_notifications().is_empty());
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn unrelated_report_survives_case_recovery_even_with_identical_text() {
+        for identical_text in [false, true] {
+            let (runtime, _, scope) = runtime_with_scene(true).await;
+            edited(&runtime, &scope, Some(2.0)).await;
+            runtime.submit(Event::StartGeneration {
+                operation_id: runtime.operation(),
+                scope: scope.clone(),
+            });
+            project_name_test_support::run_pending(&runtime).await;
+            assert!(matches!(
+                runtime.model().generation,
+                boardstudio_application::GenerationStatus::Blocked { .. }
+            ));
+            let unrelated = if identical_text {
+                runtime.status()
+            } else {
+                "An unrelated operation failed.".into()
+            };
+            runtime.report(&unrelated);
+            let repaired = edited(&runtime, &scope, Some(1.6)).await;
+            assert_eq!(runtime.status(), unrelated);
+            assert_eq!(runtime.cad_scene().unwrap().token, repaired.token);
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn current_case_block_and_replacement_report_survive_stale_generation_completion() {
+        let (runtime, accepted, scope) = runtime_with_scene(true).await;
+        runtime.submit(Event::StartGeneration {
+            operation_id: runtime.operation(),
+            scope: scope.clone(),
+        });
+        project_name_test_support::run_pending(&runtime).await;
+        let boardstudio_application::GenerationStatus::Blocked {
+            job_id: old_job, ..
+        } = runtime.model().generation
+        else {
+            panic!("the real generation request must reject the unready board");
+        };
+        let failure = runtime.status();
+        // Existing exact output is not permission to erase a current request's block.
+        assert_eq!(runtime.cad_scene().unwrap().token, accepted.token);
+        assert_eq!(runtime.status(), failure);
+        edited(&runtime, &scope, Some(2.0)).await;
+        assert_eq!(runtime.status(), failure);
+        runtime.submit(Event::StartGeneration {
+            operation_id: runtime.operation(),
+            scope: scope.clone(),
+        });
+        project_name_test_support::run_pending(&runtime).await;
+        let replacement = runtime.status();
+        project_name_test_support::deliver_completion(
+            &runtime,
+            Completion::GenerationFinished {
+                job_id: old_job,
+                scope: scope.clone(),
+                exact: true,
+            },
+        );
+        project_name_test_support::run_pending(&runtime).await;
+        assert_eq!(runtime.status(), replacement);
+        project_name_test_support::navigate(&runtime, "other-board").await;
+        project_name_test_support::deliver_completion(
+            &runtime,
+            Completion::GenerationFinished {
+                job_id: old_job,
+                scope,
+                exact: true,
+            },
+        );
+        project_name_test_support::run_pending(&runtime).await;
+        assert_eq!(runtime.status(), replacement);
+    }
+
+    #[wasm_bindgen_test]
+    async fn failed_save_during_case_repair_keeps_its_own_report_until_retry() {
+        let (runtime, _, scope) = runtime_with_scene(true).await;
+        edited(&runtime, &scope, Some(2.0)).await;
+        runtime.submit(Event::StartGeneration {
+            operation_id: runtime.operation(),
+            scope: scope.clone(),
+        });
+        project_name_test_support::run_pending(&runtime).await;
+        assert!(matches!(
+            runtime.model().generation,
+            boardstudio_application::GenerationStatus::Blocked { .. }
+        ));
+        project_name_test_support::fail_next_persist(&runtime, "case repair save failed");
+        edited(&runtime, &scope, Some(1.6)).await;
+        let failure = runtime.status();
+        assert!(failure.contains("case repair save failed"));
+        assert!(matches!(
+            runtime.model().durability,
+            Durability::Failed { .. }
+        ));
+        runtime.submit(Event::RetrySave {
+            operation_id: runtime.operation(),
+        });
+        project_name_test_support::run_pending(&runtime).await;
+        assert_eq!(runtime.status(), "Saved locally.");
+        assert!(runtime.take_notifications().is_empty());
     }
 
     #[wasm_bindgen_test]

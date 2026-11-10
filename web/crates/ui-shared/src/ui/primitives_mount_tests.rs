@@ -35,6 +35,204 @@ use crate::ui::checkbox::Checkbox;
 use crate::ui::tabs::{Tabs, TabsContent, TabsList, TabsTrigger};
 use crate::ui::toolbar::{Toolbar, ToolbarButton};
 
+#[wasm_bindgen_test]
+async fn slider_round_thumb_tracks_value_and_remains_hit_testable_in_touch_rows() {
+    let window = web_sys::window().unwrap();
+    let document = window.document().unwrap();
+    // Extend ticket 008's actual controlled/uncontrolled story, not another Slider fixture.
+    crate::toolbar_toggle_slider_toast_tests::mount_ticket_008_fixture();
+    let root = document.get_element_by_id("ticket-008-fixture").unwrap();
+    // Match the setup guide's descendant-button touch target utility.
+    root.set_attribute("class", "[&_button]:min-h-control-touch")
+        .unwrap();
+    root.set_attribute("style", "width:320px;margin:24px")
+        .unwrap();
+    let stylesheet = document.create_element("style").unwrap();
+    stylesheet.set_text_content(Some(include_str!("../../../../assets/tailwind.css")));
+    root.append_child(&stylesheet).unwrap();
+    wait_until("existing sliders render", || {
+        by_role_name(&root, "slider", "Controlled zoom").is_some()
+    })
+    .await;
+    for name in ["Zoom", "Controlled zoom"] {
+        let thumb = by_role_name(&root, "slider", name).unwrap();
+        thumb.scroll_into_view();
+        let track = thumb.parent_element().unwrap();
+        let activation = track.parent_element().unwrap();
+        for (action, expected, fraction) in [
+            (None, "40", 0.375),
+            (Some("End"), "90", 1.0),
+            (Some("Home"), "10", 0.0),
+            (Some("PageUp"), "30", 0.25),
+        ] {
+            if let Some(action) = action {
+                thumb.focus().unwrap();
+                key(&thumb, action);
+                wait_until("value keys update the existing slider", || {
+                    thumb.get_attribute("aria-valuenow").as_deref() == Some(expected)
+                })
+                .await;
+                assert!(focused(&thumb));
+            }
+            let rect = thumb.get_bounding_client_rect();
+            let rail = track.get_bounding_client_rect();
+            let style = window.get_computed_style(&thumb).unwrap().unwrap();
+            let x = rect.x() + rect.width() / 2.0;
+            let y = rect.y() + rect.height() / 2.0;
+            let hit = document.element_from_point(x as f32, y as f32);
+            let radius = style.get_property_value("border-top-left-radius").unwrap();
+            let radius = radius.trim_end_matches("px").parse::<f64>().unwrap();
+            assert!(
+                rect.width() == 16.0
+                    && rect.height() == 16.0
+                    && radius >= 8.0
+                    && (x - (rail.x() + rail.width() * fraction)).abs() < 1.0
+                    && (y - (rail.y() + rail.height() / 2.0)).abs() < 1.0
+                    && hit.as_ref() == Some(thumb.as_ref())
+                    && activation.get_bounding_client_rect().height() >= 44.0,
+                "{name} at {expected}: round 16px thumb must be centred at {fraction}, painted/hit-testable in a 44px activation row; size={}x{}, centre=({x},{y}), track=({},{},{}x{}), radius={radius}, hit={:?}, row_height={}",
+                rect.width(),
+                rect.height(),
+                rail.x(),
+                rail.y(),
+                rail.width(),
+                rail.height(),
+                hit.map(|element| element.tag_name()),
+                activation.get_bounding_client_rect().height(),
+            );
+        }
+    }
+    let disabled = by_role_name(&root, "slider", "Disabled zoom").unwrap();
+    assert!(disabled.has_attribute("disabled"));
+    assert_eq!(
+        disabled.get_attribute("aria-disabled").as_deref(),
+        Some("true")
+    );
+    root.remove();
+}
+
+fn icon_geometry_fixture() -> Element {
+    use crate::canvas_layers::LayerToggleButton;
+    use crate::ui::toggle_group::{ToggleGroup, ToggleItem};
+    rsx! {
+        style { {include_str!("../../../../assets/tailwind.css")} }
+        for (name, href) in [("Button geometry", None), ("Link geometry", Some("#geometry".to_owned()))] {
+            Button { aria_label: name, href,
+                svg { view_box: "0 0 20 20", "aria-hidden": "true" }
+                svg { class: "size-6", view_box: "0 0 20 20", "aria-hidden": "true" }
+                span { class: "[&_svg]:w-full [&_svg]:h-full", style: "display:block;width:152px;height:116px",
+                    svg { view_box: "0 0 20 20", "aria-hidden": "true" }
+                }
+            }
+        }
+        ToggleGroup { aria_label: "Geometry modes",
+            ToggleItem { index: 0usize, aria_label: "Toggle geometry",
+                svg { view_box: "0 0 20 20", "aria-hidden": "true" }
+                svg { class: "size-6", view_box: "0 0 20 20", "aria-hidden": "true" }
+                span { class: "[&_svg]:w-full [&_svg]:h-full", style: "display:block;width:152px;height:116px",
+                    svg { view_box: "0 0 20 20", "aria-hidden": "true" }
+                }
+            }
+        }
+        for visible in [true, false] {
+            LayerToggleButton { label: "Keys", swatch: "Keys",
+                aria_label: if visible { "Hide fixture keys" } else { "Show fixture keys" },
+                visible, on_toggle: move |_| {},
+            }
+        }
+    }
+}
+
+#[wasm_bindgen_test]
+async fn action_icons_keep_default_and_explicit_sizes_without_resizing_nested_geometry() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = document.create_element("div").unwrap();
+    document.body().unwrap().append_child(&root).unwrap();
+    dioxus_web::launch::launch_virtual_dom(
+        VirtualDom::new(icon_geometry_fixture),
+        dioxus_web::Config::new().rootnode(root.clone().into()),
+    );
+    wait_until("geometry controls render", || {
+        by_role_name(&root, "button", "Toggle geometry").is_some()
+    })
+    .await;
+    for (role, name) in [
+        ("button", "Button geometry"),
+        ("link", "Link geometry"),
+        ("button", "Toggle geometry"),
+    ] {
+        let control = by_role_name(&root, role, name).unwrap();
+        let svgs = control.query_selector_all("svg").unwrap();
+        let dimensions = (0..svgs.length())
+            .map(|index| {
+                let svg = svgs
+                    .item(index)
+                    .unwrap()
+                    .dyn_into::<web_sys::Element>()
+                    .unwrap();
+                let rect = svg.get_bounding_client_rect();
+                (rect.width(), rect.height())
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            dimensions,
+            [(16.0, 16.0), (24.0, 24.0), (152.0, 116.0)],
+            "{name}"
+        );
+    }
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn visibility_eyes_use_unfilled_current_color_strokes_in_both_states() {
+    let window = web_sys::window().unwrap();
+    let document = window.document().unwrap();
+    let root = document.create_element("div").unwrap();
+    document.body().unwrap().append_child(&root).unwrap();
+    dioxus_web::launch::launch_virtual_dom(
+        VirtualDom::new(icon_geometry_fixture),
+        dioxus_web::Config::new().rootnode(root.clone().into()),
+    );
+    wait_until("visibility controls render", || {
+        by_role_name(&root, "button", "Show fixture keys").is_some()
+    })
+    .await;
+    for (theme, stroke_width) in [("original", 1.5), ("shadcn", 2.0)] {
+        root.set_attribute("data-theme", theme).unwrap();
+        for name in ["Hide fixture keys", "Show fixture keys"] {
+            let control = by_role_name(&root, "button", name).unwrap();
+            let svg = control.query_selector("svg").unwrap().unwrap();
+            let style = window.get_computed_style(&svg).unwrap().unwrap();
+            assert_eq!(
+                style.get_property_value("fill").unwrap(),
+                "none",
+                "{theme}: {name}"
+            );
+            assert_eq!(
+                style.get_property_value("stroke").unwrap(),
+                style.get_property_value("color").unwrap(),
+                "{theme}: {name}"
+            );
+            assert_eq!(
+                style
+                    .get_property_value("stroke-width")
+                    .unwrap()
+                    .trim_end_matches("px")
+                    .parse::<f64>()
+                    .unwrap(),
+                stroke_width,
+                "{theme}: {name}"
+            );
+            assert_eq!(
+                svg.get_bounding_client_rect().width(),
+                16.0,
+                "{theme}: {name}"
+            );
+        }
+    }
+    root.remove();
+}
+
 fn fixture() -> Element {
     rsx! {
         Button { "Plain button" }

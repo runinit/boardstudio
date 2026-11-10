@@ -115,6 +115,8 @@ shared between Themes. First-paint timing has not been verified.
 
 - **Neutral canvas:** `canvas` is the drawing, footprint, and 3D preview field.
   `grid-small` and `grid-large` form its quiet measurement grid.
+  Layout paints its toolbar lanes and drawing field as one uniform `canvas`
+  surface.
 - **Shell surfaces:** `background`, `card`, `muted`, and `accent`
   distinguish the desk, panels, quieter surfaces, and hovered areas.
 - **Field and toolbar surfaces:** `field` distinguishes editable controls; `toolbar` and `toolbar-border` back contextual actions.
@@ -193,6 +195,9 @@ sections remain freely navigable. Hide guide returns to the normal tree.
 In Case, Full settings opens the existing mechanical settings in the guide's
 left overlay; Back to guide returns without dismissing it. Guide state is a
 project-scoped browser preference, while completion derives from the document.
+The guide is an inset overlay card with an 8 px surrounding gutter and Theme
+radius at desktop, mid and narrow widths. At narrow widths the overlay spans
+the panel within the gutters.
 
 Objects holds the active workspace's contextual tree and view controls; Layout
 places Add beside its heading. Inspector presents the selected object's edits.
@@ -432,6 +437,8 @@ part turning accent. Amber is only for keys that move — the field and drag
 previews — and the spacing note. Key hover is a 1.5 px accent stroke over a
 60% selection fill, and solid muted on the dimmed half.
 
+Layout's toolbar lanes and drawing field paint one uniform canvas surface.
+
 ### Motion and browser surfaces
 
 Shared controls provide brief state feedback, and menus and other transient
@@ -468,6 +475,13 @@ Dropdown Menu patterns. Scope selection, Align, Transform and Snap stay with
 the canvas; workspace switching remains in the header. Groups can wrap in
 constrained space, and coarse-pointer rules enlarge the strip controls.
 Domain-specific trees and visibility owners stay with each workspace.
+
+Scope actions are inline-only: choosing or reselecting Matrix, Row, Column,
+Key or Part keeps the active scope and shows its actions on the inline
+surface, or useful inline guidance when nothing applicable is selected —
+never a scope popup. Align and Transform sit beside the scope strip when
+they fit and wrap directly beneath it otherwise, with a normal control gap
+and no empty reserved row; selection changes do not displace the grouping.
 
 Shared controls live in `web/crates/ui-shared/src/ui/`, with token-based
 styles in `web/tailwind.css`. Use `Button` variants for form and task actions;

@@ -74,7 +74,7 @@ impl MatrixTransformInspectorMount {
         })
     }
 
-    /// The Relations tab stands in for the Inspector form while it is shown, so pending
+    /// The Relationships section renders beside the Inspector form, so pending
     /// departure actions settle with feedback rather than retiring.
     pub fn set_inspector_mounted(&self, mounted: bool) {
         let mut signal = self.inspector_mounted;

@@ -1,6 +1,6 @@
 # 001: UI integration recovery specification
 
-Status: ready-for-agent
+Status: resolved
 Type: planning
 Owner: fix/ui-integration-recovery
 Blocked by: none for ticket planning; implementation awaits the to-tickets step
@@ -301,3 +301,32 @@ Next: run `to-tickets`, present the bounded behavior slices and actual blocking
 edges for confirmation, then publish those implementation tickets. Attach A4
 and A8 to the relevant slices, retain A1's diagnostic uncertainty, keep A6/A7
 separate, and reserve a final acceptance step covering the reconciled candidate.
+
+## Answer
+
+Resolved 2026-11-10 on the user's instruction "lets commmit and close off the
+remaining tickets", given after the user cancelled 006 ("skip animation for
+now, cancel tickets regarding this"). The specification above is unchanged.
+This closes the plan; it does not claim every requirement was met. User
+cancellations and the 011 waiver changed the boundary as recorded below.
+
+| Finding | Disposition | Evidence |
+| --- | --- | --- |
+| A1 | Closed on the user's stale-build report; not reproduced; 003 not applicable | [002](002-diagnose-mcu-rotation.md#answer), [003](003-resolve-mcu-orientation.md) |
+| A2 | Delivered with RED/GREEN, review PASS/PASS, gate 78/78, human approval | [004](004-restore-placement-relationships.md#acceptance-record-004-human-acceptance-2026-11-10) |
+| A3 | Delivered as approved inline-only actions for all five scopes; approved without per-cell verdicts | [005](005-restore-scope-actions.md#completion-record--2026-11-10-r8-close-out) |
+| A4 | RED/GREEN with 004, 005, 008 and 009; none for A6/A7 | those tickets |
+| A5 | 008/009/010 resolved (010 Spec PARTIAL with aggregate acceptance); 011 approved without per-cell verdicts (AC2–AC5 by waiver; 108 captures on disk, all `human_result` pending; 24-cell human set proposed, no per-cell results recorded) | [010](010-final-technical-verification.md#answer), [011](011-populated-workspace-acceptance.md#r8-completion-record--2026-11-10-close-out) |
+| A6 | Cancelled by the user; no motion implemented or verified; wrapper description and records not corrected | [006](006-restore-disclosure-motion.md) |
+| A7 | Cancelled by the user 2026-11-06; chevron binding not corrected | [007](007-correct-disclosure-chevrons.md) |
+| A8 | Reconciled with each delivered slice (004, 005, 012, 014); not for A6/A7 | those tickets |
+
+Carried, not closed: 011 follow-ups F1–F4 (F3: 004's decisions were answered
+2026-11-10; 006's are moot after cancellation; `/retro` is pending) and 004's
+optional M3b/M5b/M7b. `/retro` runs as a separate step after this record is
+committed. No push or merge is authorized.
+
+Completion record: HEAD `a1d001702` plus uncommitted closure edits (001, map,
+006); coordinator commits. Newly executed: doc-link and whitespace checks
+only; reused: the cited child tickets' checks and logs.
+Next action: `/retro`.

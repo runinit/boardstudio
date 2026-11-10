@@ -26,6 +26,18 @@ struct Probe {
     nets: Rc<RefCell<Option<PartNetActions>>>,
     /// The accepted revision the host rendered last: Core state reaches a hook only through a render.
     rendered_revision: Rc<Cell<u64>>,
+    /// C1 gate for the setup preparer: existing tests leave it on passthrough.
+    setup_prepare_gate: Rc<RefCell<SetupPrepareGate>>,
+}
+
+/// How the mounted setup preparer resolves: passthrough calls the real bundled
+/// preparer; a held gate waits until the test releases it (real prepare or an
+/// injected refusal that retires the edit).
+#[derive(Clone)]
+enum SetupPrepareGate {
+    Passthrough,
+    Awaiting,
+    ReleaseRetire(String),
 }
 
 fn plan(document: &ProjectDoc) -> Rc<ElectricalPlan> {
@@ -122,6 +134,7 @@ fn host() -> Element {
     let setup_runtime = probe.runtime.clone();
     let current_runtime = setup_runtime.clone();
     let preference = use_signal(|| None);
+    let setup_prepare_gate = probe.setup_prepare_gate.clone();
     *probe.setup.borrow_mut() = Some(crate::pcb_physical_setup::use_controller(
         setup_runtime,
         version,
@@ -141,20 +154,33 @@ fn host() -> Element {
                             && owner.revision == accepted.document.revision)
             })
         }),
-        Rc::new(|document, intent| {
+        Rc::new(move |document, intent| {
+            let gate = setup_prepare_gate.clone();
             Box::pin(async move {
-                // The catalogued mounting-hole template a topology pair needs is the
-                // bundled definition; the resolver recomputes the proposal itself.
-                boardstudio_web_catalogue::bundled::prepare_physical_setup_resources(
-                    document, intent,
-                )
-                .await
+                loop {
+                    let decision = gate.borrow().clone();
+                    match decision {
+                        // The catalogued mounting-hole template a topology pair needs is the
+                        // bundled definition; the resolver recomputes the proposal itself.
+                        SetupPrepareGate::Passthrough => {
+                            break boardstudio_web_catalogue::bundled::prepare_physical_setup_resources(
+                                document, intent,
+                            )
+                            .await;
+                        }
+                        SetupPrepareGate::ReleaseRetire(reason) => break Err(reason),
+                        SetupPrepareGate::Awaiting => {
+                            gloo_timers::future::TimeoutFuture::new(16).await;
+                        }
+                    }
+                }
             })
         }),
     ));
     let actions = probe.mode.borrow().as_ref().unwrap().clone();
     let mode_value = (actions.draft)();
     let nets = probe.nets.borrow().as_ref().unwrap().clone();
+    let setup = probe.setup.borrow().as_ref().unwrap().clone();
     rsx! { div {
         select { aria_label: "Queued wiring mode", value: mode_value, disabled: !actions.editable,
             option { value: "matrix", "Matrix" } option { value: "direct", "Direct GPIO" }
@@ -170,6 +196,7 @@ fn host() -> Element {
             },
             "Add net"
         }
+        {crate::pcb_physical_setup::controller::project_setup_controls(setup)}
     } }
 }
 
@@ -192,6 +219,7 @@ async fn mounted_with_document(document_fixture: ProjectDoc) -> (Probe, web_sys:
         apply: Rc::new(RefCell::new(None)),
         nets: Rc::new(RefCell::new(None)),
         rendered_revision: Rc::new(Cell::new(0)),
+        setup_prepare_gate: Rc::new(RefCell::new(SetupPrepareGate::Passthrough)),
     };
     let document = web_sys::window().unwrap().document().unwrap();
     let root = document.create_element("div").unwrap();
@@ -998,4 +1026,165 @@ fn document() -> ProjectDoc {
     });
     document.boards[0].net_ids.push("net".into());
     document
+}
+
+#[wasm_bindgen_test]
+async fn held_setup_prepare_shows_split_pending_while_accepted_stays_unibody() {
+    let (probe, root) = mounted().await;
+    let runtime = &probe.runtime;
+    assert!(
+        runtime
+            .model()
+            .accepted
+            .unwrap()
+            .document
+            .hardware
+            .as_ref()
+            .is_none_or(|hardware| hardware.topology == HardwareTopology::Unibody),
+        "the mode-test fixture starts without split hardware"
+    );
+    *probe.setup_prepare_gate.borrow_mut() = SetupPrepareGate::Awaiting;
+    probe
+        .setup
+        .borrow()
+        .as_ref()
+        .unwrap()
+        .submit(crate::pcb_physical_setup::PhysicalSetupIntent::ProjectTopology(true));
+    // The preparer is held: no begin, no settlement — only the pending display.
+    settle_until(runtime, "the split shows pending", || {
+        probe.setup.borrow().as_ref().unwrap().pending_topology() == Some(HardwareTopology::Split)
+    })
+    .await;
+    rendered().await;
+    let split = by_role_name(&root, "button", "Split keyboard").expect("split toggle renders");
+    assert_eq!(
+        split.get_attribute("aria-pressed").as_deref(),
+        Some("true"),
+        "Split shows pressed while the prepare is held"
+    );
+    let one = by_role_name(&root, "button", "One keyboard").expect("one toggle renders");
+    assert_eq!(
+        one.get_attribute("aria-pressed").as_deref(),
+        Some("false"),
+        "One shows unpressed while the split is pending"
+    );
+    let mount = probe.setup.borrow().as_ref().unwrap().clone();
+    assert!(
+        mount.projection.busy,
+        "the mount snapshot postdates the submit, so its accepted-only topology below is meaningful"
+    );
+    assert_eq!(
+        mount.pending_topology(),
+        Some(HardwareTopology::Split),
+        "the pressed state and schematic read the pending topology while busy"
+    );
+    assert_eq!(
+        mount.projection.topology,
+        HardwareTopology::Unibody,
+        "the projection stays accepted-only while the edit is in flight"
+    );
+    assert!(
+        runtime
+            .model()
+            .accepted
+            .unwrap()
+            .document
+            .hardware
+            .as_ref()
+            .is_none_or(|hardware| hardware.topology == HardwareTopology::Unibody),
+        "accepted stays un-split while the prepare is held"
+    );
+    *probe.setup_prepare_gate.borrow_mut() = SetupPrepareGate::Passthrough;
+    settle_until(runtime, "the released split topology lands", || {
+        runtime
+            .model()
+            .accepted
+            .unwrap()
+            .document
+            .hardware
+            .as_ref()
+            .is_some_and(|hardware| hardware.topology == HardwareTopology::Split)
+    })
+    .await;
+    assert_eq!(
+        runtime
+            .model()
+            .accepted
+            .unwrap()
+            .document
+            .hardware
+            .as_ref()
+            .unwrap()
+            .topology,
+        HardwareTopology::Split
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn refused_setup_prepare_retires_to_one_keyboard_and_clears_busy() {
+    let (probe, root) = mounted().await;
+    let runtime = &probe.runtime;
+    *probe.setup_prepare_gate.borrow_mut() = SetupPrepareGate::Awaiting;
+    probe
+        .setup
+        .borrow()
+        .as_ref()
+        .unwrap()
+        .submit(crate::pcb_physical_setup::PhysicalSetupIntent::ProjectTopology(true));
+    settle_until(runtime, "the split shows pending", || {
+        probe.setup.borrow().as_ref().unwrap().pending_topology() == Some(HardwareTopology::Split)
+    })
+    .await;
+    *probe.setup_prepare_gate.borrow_mut() =
+        SetupPrepareGate::ReleaseRetire("injected setup refusal".into());
+    // Busy owns the retirement wait: the accessor hides the stored value exactly
+    // when busy clears, so this waits for the same state while leaving a
+    // busy-gate regression for the display asserts below to catch.
+    settle_until(runtime, "the refused setup retires and clears busy", || {
+        let mount = probe.setup.borrow();
+        let mount = mount.as_ref().unwrap();
+        mount.busy.peek().is_none()
+    })
+    .await;
+    rendered().await;
+    let one = by_role_name(&root, "button", "One keyboard").expect("one toggle renders");
+    assert_eq!(
+        one.get_attribute("aria-pressed").as_deref(),
+        Some("true"),
+        "retirement leaves One pressed"
+    );
+    let split = by_role_name(&root, "button", "Split keyboard").expect("split toggle renders");
+    assert_eq!(
+        split.get_attribute("aria-pressed").as_deref(),
+        Some("false"),
+        "retirement leaves Split unpressed"
+    );
+    let mount = probe.setup.borrow().as_ref().unwrap().clone();
+    assert_eq!(
+        mount.pending_topology(),
+        None,
+        "a cleared busy gate hides the stored pending value"
+    );
+    assert!(
+        !mount.projection.busy,
+        "the retired edit leaves the controls idle"
+    );
+    assert_eq!(
+        mount.projection.topology,
+        HardwareTopology::Unibody,
+        "One keyboard shows again after the refusal"
+    );
+    assert!(
+        runtime
+            .model()
+            .accepted
+            .unwrap()
+            .document
+            .hardware
+            .as_ref()
+            .is_none_or(|hardware| hardware.topology == HardwareTopology::Unibody),
+        "the refused edit leaves accepted un-split"
+    );
+    root.remove();
 }

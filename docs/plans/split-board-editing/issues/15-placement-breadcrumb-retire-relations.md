@@ -127,3 +127,9 @@ dashed outline, which stays distinct from amber edit previews.
   (`check.py` single command) stays unchecked: blocked only by the named
   foreign/environment causes; every gate runnable against ticket-15 code is
   green.
+- 2026-11-10 (004 Builder): the merge had restored the Relations tab; 004
+  re-retired it in matrix and component Inspectors (facts beside fields, no
+  tab bar) and moved finding return to the first editable field, reusing this
+  ticket's oracles. Proof map and RED/GREEN evidence live in
+  [004](../../ui-integration-recovery/issues/004-restore-placement-relationships.md)
+  and `.evidence/004-recovery/`; this record is otherwise unchanged.
