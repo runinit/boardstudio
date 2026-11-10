@@ -47,7 +47,10 @@ The proof map, the checks the acceptance list names and the mutations below form
 the boundary is the user's decision.
 
 - **Mutations.** A `RED` row has shown that its test can fail. A `proof gap` row names the one
-  mutation that must turn it red. Run those, plus any the acceptance list names.
+  mutation that must turn it red. Run those, plus any the acceptance list names. The boundary
+  gives each mutation its test command, its tier and the assertion that must fail; a kill
+  anywhere else is a survivor. Use the mounted tier unless only the packaged build shows the
+  failure.
 - **Order.** RED → fix → affected checks → boundary mutations → one fresh reviewer covering
   Spec and Standards → the ticket's integrated gate. Each step runs once on a stable candidate.
 - **Findings.** A review finding or surviving mutation **blocks** when it shows a boundary row
@@ -56,7 +59,8 @@ the boundary is the user's decision.
   Setting aside a finding against a mandatory criterion needs the user.
 - **Re-review.** After the review, a change to production code, or one that weakens, replaces or
   retires an oracle, gets one review of that delta. Added assertions and new cases get RED or
-  mutation evidence and the author's diff read.
+  mutation evidence and the author's diff read, including when they close a blocking finding:
+  the kill at the named assertion closes it.
 - **Attempts.** An attempt is a finished fix or diagnosis that left its target result unchanged.
   Expected RED, build waits and infrastructure retries are not attempts. After two, stop and
   report the evidence, the blocker and one materially different next experiment.
