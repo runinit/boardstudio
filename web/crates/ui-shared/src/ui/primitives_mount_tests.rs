@@ -35,6 +35,82 @@ use crate::ui::checkbox::Checkbox;
 use crate::ui::tabs::{Tabs, TabsContent, TabsList, TabsTrigger};
 use crate::ui::toolbar::{Toolbar, ToolbarButton};
 
+#[wasm_bindgen_test]
+async fn slider_round_thumb_tracks_value_and_remains_hit_testable_in_touch_rows() {
+    let window = web_sys::window().unwrap();
+    let document = window.document().unwrap();
+    // Extend ticket 008's actual controlled/uncontrolled story, not another Slider fixture.
+    crate::toolbar_toggle_slider_toast_tests::mount_ticket_008_fixture();
+    let root = document.get_element_by_id("ticket-008-fixture").unwrap();
+    // Match the setup guide's descendant-button touch target utility.
+    root.set_attribute("class", "[&_button]:min-h-control-touch")
+        .unwrap();
+    root.set_attribute("style", "width:320px;margin:24px")
+        .unwrap();
+    let stylesheet = document.create_element("style").unwrap();
+    stylesheet.set_text_content(Some(include_str!("../../../../assets/tailwind.css")));
+    root.append_child(&stylesheet).unwrap();
+    wait_until("existing sliders render", || {
+        by_role_name(&root, "slider", "Controlled zoom").is_some()
+    })
+    .await;
+    for name in ["Zoom", "Controlled zoom"] {
+        let thumb = by_role_name(&root, "slider", name).unwrap();
+        thumb.scroll_into_view();
+        let track = thumb.parent_element().unwrap();
+        let activation = track.parent_element().unwrap();
+        for (action, expected, fraction) in [
+            (None, "40", 0.375),
+            (Some("End"), "90", 1.0),
+            (Some("Home"), "10", 0.0),
+            (Some("PageUp"), "30", 0.25),
+        ] {
+            if let Some(action) = action {
+                thumb.focus().unwrap();
+                key(&thumb, action);
+                wait_until("value keys update the existing slider", || {
+                    thumb.get_attribute("aria-valuenow").as_deref() == Some(expected)
+                })
+                .await;
+                assert!(focused(&thumb));
+            }
+            let rect = thumb.get_bounding_client_rect();
+            let rail = track.get_bounding_client_rect();
+            let style = window.get_computed_style(&thumb).unwrap().unwrap();
+            let x = rect.x() + rect.width() / 2.0;
+            let y = rect.y() + rect.height() / 2.0;
+            let hit = document.element_from_point(x as f32, y as f32);
+            let radius = style.get_property_value("border-top-left-radius").unwrap();
+            let radius = radius.trim_end_matches("px").parse::<f64>().unwrap();
+            assert!(
+                rect.width() == 16.0
+                    && rect.height() == 16.0
+                    && radius >= 8.0
+                    && (x - (rail.x() + rail.width() * fraction)).abs() < 1.0
+                    && (y - (rail.y() + rail.height() / 2.0)).abs() < 1.0
+                    && hit.as_ref() == Some(thumb.as_ref())
+                    && activation.get_bounding_client_rect().height() >= 44.0,
+                "{name} at {expected}: round 16px thumb must be centred at {fraction}, painted/hit-testable in a 44px activation row; size={}x{}, centre=({x},{y}), track=({},{},{}x{}), radius={radius}, hit={:?}, row_height={}",
+                rect.width(),
+                rect.height(),
+                rail.x(),
+                rail.y(),
+                rail.width(),
+                rail.height(),
+                hit.map(|element| element.tag_name()),
+                activation.get_bounding_client_rect().height(),
+            );
+        }
+    }
+    let disabled = by_role_name(&root, "slider", "Disabled zoom").unwrap();
+    assert!(disabled.has_attribute("disabled"));
+    assert_eq!(
+        disabled.get_attribute("aria-disabled").as_deref(),
+        Some("true")
+    );
+    root.remove();
+}
+
 fn icon_geometry_fixture() -> Element {
     use crate::canvas_layers::LayerToggleButton;
     use crate::ui::toggle_group::{ToggleGroup, ToggleItem};

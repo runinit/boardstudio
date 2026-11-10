@@ -78,6 +78,7 @@ pub struct PhysicalSetupProjection {
 pub struct PhysicalSetupMount {
     pub projection: PhysicalSetupProjection,
     pub busy: Signal<Option<OperationId>>,
+    pending_topology: Signal<Option<HardwareTopology>>,
     project_owner: Option<OwnerIdentity>,
     case_owner: Option<OwnerIdentity>,
     on_intent: EventHandler<PhysicalSetupRequest>,
@@ -90,6 +91,18 @@ struct PhysicalSetupRequest {
 }
 
 impl PhysicalSetupMount {
+    /// The submitted-but-unsettled keyboard topology, while a setup operation
+    /// is in flight. The busy gate (any id: the seed yields to the
+    /// `PendingEdits::begin` id) reverts the display on every existing
+    /// settlement path, so this adds no lifecycle of its own.
+    pub fn pending_topology(&self) -> Option<HardwareTopology> {
+        if self.busy.peek().is_some() {
+            *self.pending_topology.peek()
+        } else {
+            None
+        }
+    }
+
     pub fn submit(&self, intent: PhysicalSetupIntent) {
         let owner = match intent {
             PhysicalSetupIntent::CaseTransport(_)
@@ -172,6 +185,7 @@ pub fn use_controller(
     let current_generation = generation();
     let feedback = use_signal(|| None::<OperationFeedback>);
     let busy = use_signal(|| None::<OperationId>);
+    let pending_topology = use_signal(|| None::<HardwareTopology>);
     let alive = use_hook(|| Rc::new(Cell::new(true)));
     use_drop({
         let alive = alive.clone();
@@ -234,6 +248,12 @@ pub fn use_controller(
             let activity = activity.clone();
             let mut ui = ui.clone();
             ui.busy.set(Some(OperationId(seed)));
+            let mut pending_topology = pending_topology;
+            pending_topology.set(match &intent {
+                PhysicalSetupIntent::ProjectTopology(true) => Some(HardwareTopology::Split),
+                PhysicalSetupIntent::ProjectTopology(false) => Some(HardwareTopology::Unibody),
+                _ => None,
+            });
             ui.feedback.set(None);
             spawn_local(async move {
                 let prepared = match preparation {
@@ -311,6 +331,7 @@ pub fn use_controller(
     PhysicalSetupMount {
         projection,
         busy,
+        pending_topology,
         project_owner,
         case_owner,
         on_intent,
@@ -323,7 +344,8 @@ pub fn project_setup_controls(mount: PhysicalSetupMount) -> Element {
     let topology_split = mount.clone();
     let wireless = mount.clone();
     let wired = mount.clone();
-    let split = projection.topology == HardwareTopology::Split;
+    let displayed = mount.pending_topology().unwrap_or(projection.topology);
+    let split = displayed == HardwareTopology::Split;
     let reversible_id = format!("project-reversible-{}", dioxus::core::current_scope_id().0);
     rsx! {
         section { class: "grid gap-3.5", "aria-label": "Physical assembly",
@@ -402,6 +424,7 @@ mod mounted_setup_tests {
                 busy: false,
             },
             busy: use_signal(|| None),
+            pending_topology: use_signal(|| None),
             project_owner: Some(owner),
             case_owner: None,
             on_intent: EventHandler::new(move |request: PhysicalSetupRequest| {

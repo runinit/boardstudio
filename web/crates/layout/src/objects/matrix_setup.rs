@@ -314,7 +314,7 @@ mod draft_safety_tests {
     const REMEDY: &str = "Create the matrix or cancel the setup";
 
     fn runtime_form() -> Element {
-        crate::objects::use_matrix_setup_preview_provider();
+        crate::objects::use_matrix_setup_preview_provider(false);
         let mut form_mounted = use_signal(|| true);
         let runtime = use_context::<Rc<crate::runtime::Runtime>>();
         let version = use_signal(|| 0u64);

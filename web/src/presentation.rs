@@ -3264,7 +3264,6 @@ fn use_setup_project_name(runtime: Rc<Runtime>) -> SetupProjectNameEdit {
 #[component]
 fn Editor() -> Element {
     boardstudio_web_ui_shared::layer_dock::use_layer_dock_provider();
-    objects::use_matrix_setup_preview_provider();
     parts::use_assembly_action_provider();
     let mut workspace_routing = use_hook(|| WorkspaceRoutingSlots {
         select_tree: EventHandler::new(|_: objects::TreeSelectRequest| {}),
@@ -3587,6 +3586,12 @@ fn Editor() -> Element {
         }
     };
     let model = runtime.model();
+    // Read the same accepted topology as Create, not physical-setup pending feedback.
+    objects::use_matrix_setup_preview_provider(model.accepted.as_ref().is_some_and(|snapshot| {
+        snapshot.document.hardware.as_ref().is_some_and(|hardware| {
+            hardware.topology == boardstudio_core::model::HardwareTopology::Split
+        })
+    }));
     let current_scope = runtime.scope();
     let accepted_token = model.accepted.as_ref().map(|snapshot| snapshot.token);
     let layout_owner = LayoutOwnerIdentity {
@@ -4158,6 +4163,10 @@ fn Editor() -> Element {
             }
             selection_kind.set(kind);
             let model = runtime.model();
+            // Canvas deselection retains Inspector context, not a selection to rescope.
+            if model.selected_part_ids.is_empty() {
+                return;
+            }
             let Some(scope) = owner.scope.as_ref() else {
                 tree_cell_anchor.borrow_mut().take();
                 return;
@@ -7786,6 +7795,11 @@ fn Editor() -> Element {
             }
         },
     );
+    // Inspector context can outlive canvas selection. Only the live selection
+    // admits Layout actions; retain the context for Inspector editing itself.
+    let toolbar_selection_context = selected_tree_context
+        .clone()
+        .filter(|_| active_workspace != "Layout" || !model.selected_part_ids.is_empty());
     let retained_toolbar_cell = tree_cell_anchor_for_owner(&tree_cell_anchor, &layout_owner);
     let toolbar_selection_availability = use_memo(use_reactive(
         (
@@ -7793,7 +7807,7 @@ fn Editor() -> Element {
             &snapshot.token,
             &snapshot.session_epoch,
             &model.active_instance_id,
-            &selected_tree_context,
+            &toolbar_selection_context,
             &retained_toolbar_cell,
             &active_workspace,
         ),
@@ -7831,7 +7845,7 @@ fn Editor() -> Element {
     ))();
     let toolbar_input = match active_workspace {
         "Layout" => {
-            let properties_available = selected_tree_context.as_ref().is_some_and(|selected| {
+            let properties_available = toolbar_selection_context.as_ref().is_some_and(|selected| {
                 matches!(
                     &selected.context,
                     objects::TreeContext::Matrix { .. }
@@ -7857,7 +7871,8 @@ fn Editor() -> Element {
                     inspect_open.set(true);
                 }
             });
-            let pointer_tools_available = layout_transform_target.is_some();
+            let pointer_tools_available =
+                toolbar_selection_context.is_some() && layout_transform_target.is_some();
             let on_transform_tool = EventHandler::new({
                 let runtime = runtime.clone();
                 let adapter = adapter.clone();
@@ -7956,8 +7971,9 @@ fn Editor() -> Element {
                     on_selection_kind: on_layout_selection_kind_handler,
                     on_snap_intent: layout_snap_intent,
                     show_relationships: true,
-                    has_selection_context: matrix_transform_inspector.projection.is_some()
-                        || component_inspector.is_some(),
+                    has_selection_context: toolbar_selection_context.is_some()
+                        && (matrix_transform_inspector.projection.is_some()
+                            || component_inspector.is_some()),
                     on_show_relationships: EventHandler::new(move |()| {
                         inspect_open.set(true);
                     }),
@@ -9663,7 +9679,7 @@ fn Editor() -> Element {
                     }
                     }) } else { None },
                 if guide.is_some() {
-                    section { class: "absolute inset-y-0 left-0 z-24 flex w-[min(380px,calc(100vw-32px))] max-w-[calc(100%-16px)] flex-col overflow-hidden border-r border-border-strong bg-card shadow-[8px_0_24px_rgb(0_0_0/16%)] [&>[role=alert]]:mx-4 [&>[role=alert]]:mt-3 [&>[role=alert]]:text-destructive max-[760px]:z-40 max-[760px]:w-[min(380px,calc(100vw-16px))]", aria_label: "Keyboard setup", "data-setup-guide-overlay": "",
+                    section { class: "absolute inset-y-2 left-2 z-24 flex w-[min(380px,calc(100vw-32px))] max-w-[calc(100%-16px)] flex-col overflow-hidden rounded-xl border-0 bg-card shadow-sm [&>[role=alert]]:mx-4 [&>[role=alert]]:mt-3 [&>[role=alert]]:text-destructive max-[760px]:z-40 max-[760px]:w-[min(380px,calc(100vw-16px))]", aria_label: "Keyboard setup", "data-setup-guide-overlay": "",
                     if full_case_settings() && active_workspace == "Case" {
                         aside { class: "flex min-h-0 flex-1 flex-col bg-card p-4 [&>header]:flex [&>header]:items-center [&>header]:gap-3 [&>header]:pb-4 [&>header_h2]:m-0 [&>header_h2]:text-lg", aria_label: "Full case settings",
                             header {
@@ -9716,7 +9732,10 @@ fn Editor() -> Element {
                     }
                     }
                 }
-                section { class: if setup_guide_active { "relative order-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border-0 bg-card shadow-sm [container:layout-canvas/inline-size] [&>[data-workspace-toolbar]]:hidden" } else if active_workspace == "Export" { "relative order-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-auto rounded-xl border-0 bg-card shadow-sm" } else { "relative order-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border-0 bg-card shadow-sm [container:layout-canvas/inline-size]" }, role: "region", id: "m1-workspace-panel", aria_label: "{active_workspace} workspace",
+                section { class: format!("relative order-2 flex min-h-0 min-w-0 flex-1 flex-col rounded-xl border-0 shadow-sm {} {} {}",
+                    if active_workspace == "Export" && !setup_guide_active { "overflow-auto" } else { "overflow-hidden [container:layout-canvas/inline-size]" },
+                    if active_workspace == "Layout" { "bg-canvas" } else { "bg-card" },
+                    if setup_guide_active { "[&>[data-workspace-toolbar]]:hidden" } else { "" }), role: "region", id: "m1-workspace-panel", aria_label: "{active_workspace} workspace",
                     onfocusin: {
                         let mut objects_open = objects_open;
                         let mut inspect_open = inspect_open;
@@ -9740,7 +9759,10 @@ fn Editor() -> Element {
                     {workspace_composition::toolbar(toolbar_input)}
                     if guide.as_ref().is_some_and(|guide| guide.current_stage == SetupGuideStage::Project) {
                         GuideHardwarePreview {
-                            split: physical_setup_mount.projection.topology == boardstudio_core::model::HardwareTopology::Split,
+                            split: physical_setup_mount
+                                .pending_topology()
+                                .unwrap_or(physical_setup_mount.projection.topology)
+                                == boardstudio_core::model::HardwareTopology::Split,
                             wired: physical_setup_mount.projection.transport == boardstudio_core::model::HardwareTransport::Wired,
                         }
                     } else if matches!(active_workspace, "Layout" | "Keymap" | "Keycaps")

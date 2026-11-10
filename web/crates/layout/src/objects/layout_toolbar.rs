@@ -4,7 +4,6 @@ use boardstudio_application::ReadModel;
 use boardstudio_core::model::Vec2;
 pub use boardstudio_web_ui_model::state::{LayoutSnapSettings, TreeCellAnchor};
 use boardstudio_web_ui_shared::ui::{
-    button::{Button, ButtonVariant},
     callout::Callout,
     checkbox::Checkbox,
     collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
@@ -378,7 +377,7 @@ mod tests {
     }
 
     #[wasm_bindgen_test]
-    async fn direct_selection_choices_open_scope_panels_and_support_keyboard() {
+    async fn direct_selection_choices_stay_inline_and_support_keyboard() {
         let window = web_sys::window().unwrap();
         let document = window.document().unwrap();
         let stylesheet = document.create_element("style").unwrap();
@@ -420,23 +419,42 @@ mod tests {
                 &format!("Select {}", kind.label()),
             )
             .unwrap();
+            button.focus().unwrap();
             button.click();
             gloo_timers::future::TimeoutFuture::new(30).await;
+            assert_eq!(
+                document.active_element().as_ref(),
+                Some(button.as_ref()),
+                "scope choice retains trigger focus"
+            );
             assert_eq!(
                 root.query_selector("#direct-selection-state")
                     .unwrap()
                     .unwrap()
                     .text_content(),
-                Some(format!("{}:false", kind.label()))
+                Some(format!("{}:true", kind.label()))
             );
             assert_eq!(
                 button.get_attribute("aria-pressed").as_deref(),
                 Some("true")
             );
             assert_eq!(
-                button.get_attribute("aria-expanded").as_deref(),
+                button.get_attribute("aria-haspopup"),
+                None,
+                "a scope choice is not a popup trigger"
+            );
+            button.click();
+            gloo_timers::future::TimeoutFuture::new(30).await;
+            assert_eq!(
+                button.get_attribute("aria-pressed").as_deref(),
                 Some("true")
             );
+            assert!(
+                root.query_selector("[role=dialog], [role=menu]")
+                    .unwrap()
+                    .is_none()
+            );
+            assert_eq!(document.active_element().as_ref(), Some(button.as_ref()));
             assert_eq!(button.get_attribute("data-state").as_deref(), Some("on"));
             assert_eq!(
                 window
@@ -487,15 +505,19 @@ mod tests {
     fn pill_duplicate_probe_host(props: PillDuplicateProbeProps) -> Element {
         let mut open_menu = use_signal(|| None::<LayoutCommandMenu>);
         let target = props.open;
-        let tools = props.tools;
+        let mut kind = use_signal(|| LayoutSelectionKind::Column);
+        let mut selected = use_signal(|| props.tools);
+        let tools = selected();
         let transform = super::super::layout_transform_toolbar::LayoutTransformMenuMount {
-            properties_available: tools,
+            // A real selected Part has a Component Inspector, not the matrix
+            // transform projection that sets these two availability flags.
+            properties_available: tools && kind() != LayoutSelectionKind::Part,
             column_available: true,
             row_available: true,
             // The real pill keeps the scope row visible and only swaps the tools;
             // `tools` here models whether a selection backs them, not the row itself.
             pointer_tools_visible: true,
-            pointer_tools_available: tools,
+            pointer_tools_available: tools && kind() != LayoutSelectionKind::Part,
             active_tool: None,
             matrix_rotate_followed: None,
             on_selection_kind: EventHandler::new(|_: LayoutSelectionKind| {}),
@@ -522,26 +544,34 @@ mod tests {
                 onclick: move |_| open_menu.set(target),
                 "Open probe menu"
             }
+            button {
+                id: "scope-probe-select-column",
+                onclick: move |_| { selected.set(true); kind.set(LayoutSelectionKind::Column); },
+                "Simulate column selection"
+            }
             LayoutCommandPill {
                 command_label: "Layout".to_owned(),
                 menu_owner_key: "duplicate-probe".to_owned(),
                 open_menu,
-                selection_kind: LayoutSelectionKind::Column,
+                selection_kind: kind(),
                 snap_settings: LayoutSnapSettings::default(),
                 transform,
                 align,
                 show_relationships: false,
-                on_selection_kind: EventHandler::new(|_: LayoutSelectionKind| {}),
+                on_selection_kind: EventHandler::new(move |next| kind.set(next)),
                 on_snap_intent: EventHandler::new(|_: LayoutSnapIntent| {}),
-                has_selection_context: true,
+                has_selection_context: tools,
                 on_show_relationships: EventHandler::new(|_: ()| {}),
+                snap_in_dock: true,
             }
           }
         }
     }
 
     fn tool_button_count(root: &web_sys::Element, label: &str) -> usize {
-        let buttons = root.query_selector_all("button").unwrap();
+        let buttons = root
+            .query_selector_all("button, [role=menuitem], [role=menuitemradio]")
+            .unwrap();
         (0..buttons.length())
             .filter_map(|index| buttons.item(index))
             .filter(|node| node.text_content().is_some_and(|text| text.trim() == label))
@@ -604,132 +634,296 @@ mod tests {
     }
 
     #[wasm_bindgen_test]
-    async fn scope_popover_keeps_hint_when_nothing_selected() {
-        let root = mount_pill_with_tools(Some(LayoutCommandMenu::Select), false).await;
-        click(
-            &root
-                .query_selector("#pill-probe-open")
+    async fn scope_choices_keep_inline_guidance_when_nothing_selected() {
+        let root = mount_pill_with_tools(None, false).await;
+        for kind in LayoutSelectionKind::ALL {
+            let trigger = scope_trigger(&root, kind.label());
+            trigger.focus().unwrap();
+            for _ in 0..2 {
+                click(&trigger).await;
+                assert_eq!(
+                    trigger.get_attribute("aria-pressed").as_deref(),
+                    Some("true")
+                );
+                assert!(
+                    root.query_selector("[role=dialog], [role=menu]")
+                        .unwrap()
+                        .is_none()
+                );
+                let hint = root
+                    .query_selector("[role=status]")
+                    .unwrap()
+                    .expect("inline selection guidance");
+                assert!(hint.text_content().unwrap_or_default().contains(&format!(
+                    "Select a {} on the canvas",
+                    kind.label().to_lowercase()
+                )));
+                assert_eq!(
+                    web_sys::window()
+                        .unwrap()
+                        .document()
+                        .unwrap()
+                        .active_element()
+                        .as_ref(),
+                    Some(trigger.as_ref())
+                );
+            }
+        }
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn scope_actions_appear_once_on_choice_reselection_and_transform_menu() {
+        let root = mount_pill(Some(LayoutCommandMenu::Transform)).await;
+        // Restore A4's Matrix/Row/Column guards and apply the same oracle to Key/Part.
+        for (kind, labels) in [
+            (
+                "Matrix",
+                &[
+                    "Position", "Move", "Rotate", "Stagger", "Spread", "Offset", "Splay",
+                ][..],
+            ),
+            ("Row", &["Row offsets", "Stagger", "Spread", "Offset"][..]),
+            (
+                "Column",
+                &["Position", "Stagger", "Spread", "Offset", "Splay"][..],
+            ),
+            ("Key", &["Position", "Stagger", "Spread", "Offset"][..]),
+            ("Part", &["Position"][..]),
+        ] {
+            let trigger = scope_trigger(&root, kind);
+            trigger.focus().unwrap();
+            for _ in 0..2 {
+                click(&trigger).await;
+                assert!(
+                    root.query_selector("[role=dialog], [role=menu]")
+                        .unwrap()
+                        .is_none(),
+                    "{kind} has no scope popup"
+                );
+                assert_eq!(
+                    trigger.get_attribute("aria-pressed").as_deref(),
+                    Some("true")
+                );
+                for label in labels {
+                    assert_eq!(
+                        tool_button_count(&root, label),
+                        1,
+                        "{kind}: {label} occurs once inline"
+                    );
+                }
+            }
+            let transform = root
+                .query_selector("#m1-layout-transform-trigger")
                 .unwrap()
                 .unwrap()
                 .dyn_into::<web_sys::HtmlElement>()
-                .unwrap(),
-        )
-        .await;
-        let hint =
-            boardstudio_web_ui_shared::test_role::by_role_name(&root, "dialog", "Column actions")
-                .expect("the no-selection scope popover still opens with a hint");
-        assert!(
-            hint.text_content()
-                .unwrap_or_default()
-                .contains("Select a column on the canvas"),
-            "the no-selection hint points at the canvas"
-        );
-        root.remove();
-    }
-
-    #[wasm_bindgen_test]
-    async fn column_scope_trigger_opens_migration_actions_when_tools_visible() {
-        let root = mount_pill(Some(LayoutCommandMenu::Select)).await;
-        click(&scope_trigger(&root, "Column")).await;
-        let dialog =
-            boardstudio_web_ui_shared::test_role::by_role_name(&root, "dialog", "Column actions")
-                .expect("the migrated scope action popover opens");
-        for name in [
-            "Activate Stagger for the selected column",
-            "Activate Spread for the selected column",
-            "Activate Offset for the selected column",
-        ] {
-            assert!(
-                boardstudio_web_ui_shared::test_role::by_role_name(&dialog, "button", name)
-                    .is_some()
+                .unwrap();
+            transform.focus().unwrap();
+            click(&transform).await;
+            for label in labels {
+                assert_eq!(
+                    tool_button_count(&root, label),
+                    1,
+                    "{kind}: {label} stays inline even with Transform open"
+                );
+            }
+            let menu = root
+                .query_selector("#m1-layout-transform-menu")
+                .unwrap()
+                .unwrap();
+            assert_eq!(
+                tool_button_count(&menu, "Origin"),
+                1,
+                "Transform retains its non-inline action"
+            );
+            let init = web_sys::KeyboardEventInit::new();
+            init.set_key("Escape");
+            init.set_bubbles(true);
+            init.set_cancelable(true);
+            web_sys::window()
+                .unwrap()
+                .document()
+                .unwrap()
+                .active_element()
+                .unwrap()
+                .dispatch_event(
+                    &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
+                        .unwrap(),
+                )
+                .unwrap();
+            gloo_timers::future::TimeoutFuture::new(40).await;
+            assert!(root.query_selector("[role=menu]").unwrap().is_none());
+            assert_eq!(
+                web_sys::window()
+                    .unwrap()
+                    .document()
+                    .unwrap()
+                    .active_element()
+                    .as_ref(),
+                Some(transform.as_ref())
             );
         }
+        // Align uses Popover (not DropdownMenu): its Escape relies on the explicit
+        // restore_layout_command_focus, while DropdownMenu restores itself. This
+        // catches removal of that restore; Transform alone would still pass.
+        let align = root
+            .query_selector("#m1-layout-align-trigger")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap();
+        align.focus().unwrap();
+        click(&align).await;
+        let align_menu = root
+            .query_selector("#m1-layout-align-menu")
+            .unwrap()
+            .expect("Align popover opens");
+        assert_eq!(
+            align_menu.get_attribute("role").as_deref(),
+            Some("dialog"),
+            "Align uses the Popover dialog seam"
+        );
+        let close = align_menu
+            .query_selector("button[aria-label='Close Align']")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap();
+        close.focus().unwrap();
+        gloo_timers::future::TimeoutFuture::new(20).await;
+        let document = web_sys::window().unwrap().document().unwrap();
+        assert_eq!(
+            document.active_element().as_ref(),
+            Some(close.as_ref()),
+            "focus moves inside Align before Escape"
+        );
+        let init = web_sys::KeyboardEventInit::new();
+        init.set_key("Escape");
+        init.set_bubbles(true);
+        init.set_cancelable(true);
+        align_menu
+            .dispatch_event(
+                &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
+                    .unwrap(),
+            )
+            .unwrap();
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        assert!(
+            root.query_selector("[role=dialog]").unwrap().is_none(),
+            "Align closes on Escape"
+        );
+        assert_eq!(
+            document.active_element().as_ref(),
+            Some(align.as_ref()),
+            "Align trigger regains DOM focus after Escape"
+        );
         root.remove();
-    }
-
-    #[component]
-    fn scope_reselect_probe_host() -> Element {
-        let mut kind = use_signal(|| LayoutSelectionKind::Key);
-        let mut has_selection = use_signal(|| false);
-        let open_menu = use_signal(|| None::<LayoutCommandMenu>);
-        let transform = has_selection().then(|| {
-            super::super::layout_transform_toolbar::LayoutTransformMenuMount {
-                properties_available: true,
-                column_available: true,
-                row_available: true,
-                pointer_tools_visible: true,
-                pointer_tools_available: true,
-                active_tool: None,
-                matrix_rotate_followed: None,
-                on_selection_kind: EventHandler::new(|_: LayoutSelectionKind| {}),
-                on_show_properties: EventHandler::new(|()| {}),
-                on_transform_tool: EventHandler::new(
-                    |_: super::super::layout_transform_toolbar::LayoutTransformTool| {},
-                ),
-            }
-        });
-        rsx! {
-            button {
-                id: "scope-probe-select-column",
-                onclick: move |_| {
-                    has_selection.set(true);
-                    kind.set(LayoutSelectionKind::Column);
-                },
-                "Simulate column selection"
-            }
-            LayoutSelectionToolbar {
-                open_menu,
-                selection_kind: kind(),
-                on_selection_kind: move |next| kind.set(next),
-                transform,
-            }
-        }
     }
 
     #[wasm_bindgen_test]
-    async fn scope_panel_updates_when_column_selection_arrives_and_can_close() {
+    async fn inline_guidance_yields_to_actions_without_displacing_compact_scope_menus() {
         let document = web_sys::window().unwrap().document().unwrap();
-        let root = document.create_element("div").unwrap();
-        document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(scope_reselect_probe_host),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
-        gloo_timers::future::TimeoutFuture::new(40).await;
-        click(&scope_trigger(&root, "Column")).await;
-        assert!(
-            boardstudio_web_ui_shared::test_role::by_role_name(&root, "dialog", "Column actions")
-                .is_some(),
-            "the no-selection scope trigger still opens its hint panel"
-        );
-        click(
-            &boardstudio_web_ui_shared::test_role::by_role_name(
+        let stylesheet = document.create_element("style").unwrap();
+        stylesheet.set_text_content(Some(&format!(
+            "{}\n{}\n{}",
+            include_str!("../../../../assets/workbench-base.css"),
+            include_str!("../../../../assets/tailwind.css"),
+            include_str!("../../../../assets/layout-toolbar.css")
+        )));
+        document.head().unwrap().append_child(&stylesheet).unwrap();
+        for width in [800, 430, 280] {
+            let root = mount_pill_with_tools(None, false).await;
+            root.set_attribute("style", &format!("width: {width}px"))
+                .unwrap();
+            click(&scope_trigger(&root, "Column")).await;
+            let scope = boardstudio_web_ui_shared::test_role::by_role_name(
                 &root,
-                "button",
-                "Simulate column selection",
+                "toolbar",
+                "Selection scope",
             )
-            .unwrap(),
-        )
-        .await;
-        assert!(
-            boardstudio_web_ui_shared::test_role::by_role_name(&root, "dialog", "Column actions")
-                .is_some(),
-            "the migrated scope popover stays open and updates to the selected column's actions"
-        );
-        click(&scope_trigger(&root, "Column")).await;
-        assert!(
-            boardstudio_web_ui_shared::test_role::by_role_name(&root, "dialog", "Column actions")
-                .is_none(),
-            "re-selecting the active Column scope closes its actions"
-        );
-        assert_eq!(
-            scope_trigger(&root, "Column")
-                .get_attribute("aria-pressed")
-                .as_deref(),
-            Some("true"),
-            "the Column scope stays selected"
-        );
-        root.remove();
+            .unwrap();
+            let menus = boardstudio_web_ui_shared::test_role::by_role_name(
+                &root,
+                "group",
+                "Selection actions",
+            )
+            .unwrap();
+            let before = menus.get_bounding_client_rect();
+            let scope_bounds = scope.parent_element().unwrap().get_bounding_client_rect();
+            if width == 800 {
+                assert!(
+                    (before.top() - scope_bounds.top()).abs() <= 1.0,
+                    "wide controls share a row"
+                );
+                assert!(
+                    (0.0..=12.0).contains(&(before.left() - scope_bounds.right())),
+                    "normal adjacent gap"
+                );
+            } else {
+                assert!(
+                    (0.0..=12.0).contains(&(before.top() - scope_bounds.bottom())),
+                    "menus wrap immediately beneath scope, not beneath an empty row"
+                );
+            }
+            assert!(
+                root.query_selector("[role=status]").unwrap().is_some(),
+                "inline guidance before selection"
+            );
+            let root_bounds = root.get_bounding_client_rect();
+            let buttons = root
+                .query_selector_all("#m1-layout-command-pill button")
+                .unwrap();
+            for index in 0..buttons.length() {
+                let button = buttons
+                    .item(index)
+                    .unwrap()
+                    .dyn_into::<web_sys::Element>()
+                    .unwrap();
+                let bounds = button.get_bounding_client_rect();
+                assert!(
+                    bounds.left() >= root_bounds.left() - 1.0
+                        && bounds.right() <= root_bounds.right() + 1.0,
+                    "{width}px: no horizontal control clipping"
+                );
+            }
+            click(
+                &root
+                    .query_selector("#scope-probe-select-column")
+                    .unwrap()
+                    .unwrap()
+                    .dyn_into::<web_sys::HtmlElement>()
+                    .unwrap(),
+            )
+            .await;
+            assert!(
+                root.query_selector("[role=status]").unwrap().is_none(),
+                "actions replace guidance"
+            );
+            for label in ["Position", "Stagger", "Spread", "Offset", "Splay"] {
+                assert_eq!(tool_button_count(&root, label), 1);
+            }
+            let after = menus.get_bounding_client_rect();
+            assert_eq!(
+                (before.x(), before.y()),
+                (after.x(), after.y()),
+                "selection does not displace scope/menu grouping"
+            );
+            click(&scope_trigger(&root, "Column")).await;
+            assert_eq!(
+                scope_trigger(&root, "Column")
+                    .get_attribute("aria-pressed")
+                    .as_deref(),
+                Some("true")
+            );
+            assert!(
+                root.query_selector("[role=dialog], [role=menu]")
+                    .unwrap()
+                    .is_none()
+            );
+            root.remove();
+        }
+        stylesheet.remove();
     }
 
     #[wasm_bindgen_test]
@@ -1172,6 +1366,21 @@ pub fn LayoutCommandPill(
     #[props(default)] snap_in_dock: bool,
 ) -> Element {
     let pointer_tools_visible = transform.pointer_tools_visible;
+    let mut transform = transform;
+    // Part's existing Component Inspector is a valid properties destination even
+    // without a matrix-transform projection or matrix pointer tools.
+    if pointer_tools_visible && selection_kind == LayoutSelectionKind::Part && has_selection_context
+    {
+        transform.properties_available = true;
+    }
+    let has_inline_actions = has_selection_context
+        && (transform.properties_available || transform.pointer_tools_available);
+    // The inline strip owns contextual actions. Transform keeps Origin, which has no
+    // inline control; the non-Layout menu keeps its existing full set of actions.
+    let mut menu_transform = transform.clone();
+    if pointer_tools_visible {
+        menu_transform.pointer_tools_visible = false;
+    }
     let geometry_snap_enabled = snap_settings.geometry_snap;
     let workspace = try_use_context::<boardstudio_web_ui_model::state::WorkspaceState>();
     let mut commands = Vec::new();
@@ -1186,7 +1395,7 @@ pub fn LayoutCommandPill(
                 on_select: EventHandler::new(move |()| {
                     on_selection_kind.call(kind);
                     let mut menu = open_menu;
-                    menu.set(Some(LayoutCommandMenu::Select));
+                    menu.set(None);
                 }),
             });
         }
@@ -1309,36 +1518,27 @@ pub fn LayoutCommandPill(
                         .is_some_and(|target| target.id() == "m1-layout-snap-trigger"
                             || (target.tag_name() == "BUTTON"
                                 && target.closest("#m1-layout-command-pill").ok().flatten().is_some()
-                                && target.matches(".layout-scope-trigger, .layout-action-control, .layout-geometry-control, .layout-popup-close, .layout-menu-actions [data-slot=popover-trigger], .layout-menu-actions [data-slot=dropdown-menu-trigger], .layout-scope-popup [data-slot=button], .layout-settings-popup [data-slot=button], .layout-settings-popup [data-slot=checkbox][aria-label='Geometry snap'], .layout-settings-popup [data-slot=checkbox][aria-label='Envelope gap']").unwrap_or(false)))
+                                && target.matches(".layout-scope-trigger, .layout-action-control, .layout-geometry-control, .layout-popup-close, .layout-menu-actions [data-slot=popover-trigger], .layout-menu-actions [data-slot=dropdown-menu-trigger], .layout-settings-popup [data-slot=button], .layout-settings-popup [data-slot=checkbox][aria-label='Geometry snap'], .layout-settings-popup [data-slot=checkbox][aria-label='Envelope gap']").unwrap_or(false)))
                 {
                     // Native control activation must not become the canvas's Space-pan shortcut.
                     event.stop_propagation();
                     raw.stop_propagation();
                 }
             },
-            div { class: "layout-scope-strip",
-                if pointer_tools_visible {
-                    LayoutSelectionToolbar { open_menu, selection_kind, on_selection_kind, transform: Some(transform.clone()) }
-                } else {
-                    LayoutSelectMenu { open_menu, selection_kind, on_selection_kind }
-                }
-            }
-            div { class: "layout-context-strip",
-                if pointer_tools_visible {
-                div { class: "layout-action-slot",
-                if has_selection_context {
-                    super::layout_transform_toolbar::LayoutContextActionToolbar {
-                        mount: transform.clone(), open_menu, selection_kind,
+            div { class: "layout-command-strip",
+                div { class: "layout-scope-strip",
+                    if pointer_tools_visible {
+                        LayoutSelectionToolbar { open_menu, selection_kind, on_selection_kind }
+                    } else {
+                        LayoutSelectMenu { open_menu, selection_kind, on_selection_kind }
                     }
-                }
-                }
                 }
                 div { class: "layout-menu-actions", role: "group", aria_label: "Selection actions",
                     super::layout_align::LayoutAlignToolbar {
                         mount: align, open_menu, show_relationships, has_selection_context, on_show_relationships,
                     }
                     super::layout_transform_toolbar::LayoutTransformToolbar {
-                        open_menu, mount: transform.clone(),
+                        open_menu, mount: menu_transform,
                         selection_kind: pointer_tools_visible.then_some(selection_kind),
                     }
                     if !snap_in_dock {
@@ -1364,6 +1564,21 @@ pub fn LayoutCommandPill(
                     }
                 }
             }
+            if pointer_tools_visible {
+                div { class: "layout-context-strip",
+                    div { class: "layout-action-slot",
+                        if has_inline_actions {
+                            super::layout_transform_toolbar::LayoutContextActionToolbar {
+                                mount: transform, open_menu, selection_kind,
+                            }
+                        } else {
+                            p { class: "layout-selection-guidance", role: "status",
+                                "Select a {selection_kind.label().to_lowercase()} on the canvas to edit it."
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -1374,78 +1589,23 @@ fn LayoutSelectionToolbar(
     mut open_menu: Signal<Option<LayoutCommandMenu>>,
     selection_kind: LayoutSelectionKind,
     on_selection_kind: EventHandler<LayoutSelectionKind>,
-    #[props(default)] transform: Option<super::layout_transform_toolbar::LayoutTransformMenuMount>,
 ) -> Element {
-    let has_actions = transform
-        .as_ref()
-        .is_some_and(|mount| mount.properties_available || mount.pointer_tools_available);
-    use_effect(use_reactive((&selection_kind,), move |(kind,)| {
-        if open_menu() == Some(LayoutCommandMenu::Select) {
-            focus_layout_popup(&format!("m1-layout-scope-panel-{}", kind.label()));
-        }
-    }));
     rsx! {
         Toolbar { class: "layout-scope-toolbar", aria_label: "Selection scope",
             ToggleGroup {
                 aria_label: "Selection scope choices", horizontal: true,
                 pressed: Some(std::collections::HashSet::from([LayoutSelectionKind::ALL.iter().position(|kind| *kind == selection_kind).unwrap()])),
                 for (index, kind) in LayoutSelectionKind::ALL.into_iter().enumerate() {
-                    Popover {
-                        open: open_menu() == Some(LayoutCommandMenu::Select) && kind == selection_kind,
-                        is_modal: false,
-                        on_open_change: move |next| {
-                            if next {
-                                on_selection_kind.call(kind);
-                                open_menu.set(Some(LayoutCommandMenu::Select));
-                            } else if kind == selection_kind && open_menu() == Some(LayoutCommandMenu::Select) {
-                                dismiss_layout_popup(open_menu, LayoutCommandMenu::Select, &format!("m1-layout-scope-panel-{}", kind.label()));
-                            }
-                        },
-                        ToggleItem {
-                            index, class: "layout-scope-trigger",
-                            id: format!("m1-layout-scope-{}", kind.label()),
-                            aria_label: format!("Select {}", kind.label()),
-                            aria_haspopup: "dialog",
-                            aria_expanded: open_menu() == Some(LayoutCommandMenu::Select) && kind == selection_kind,
-                            aria_controls: (open_menu() == Some(LayoutCommandMenu::Select) && kind == selection_kind).then(|| format!("m1-layout-scope-panel-{}", kind.label())),
-                            attributes: vec![onclick(move |_| {
-                                let was_open = kind == selection_kind && open_menu() == Some(LayoutCommandMenu::Select);
-                                on_selection_kind.call(kind);
-                                open_menu.set((!was_open).then_some(LayoutCommandMenu::Select));
-                            })],
-                            LayoutSelectionIcon { kind }
-                            span { "{kind.label()}" }
-                        }
-                        PopoverContent {
-                            id: format!("m1-layout-scope-panel-{}", kind.label()),
-                            class: "layout-scope-popup", role: "dialog", aria_label: format!("{} actions", kind.label()),
-                            aria_labelledby: Option::<String>::None,
-                            inert: (open_menu() != Some(LayoutCommandMenu::Select) || kind != selection_kind).then_some(""),
-                            attributes: vec![onmounted(move |_| {
-                                if open_menu() == Some(LayoutCommandMenu::Select) && kind == selection_kind {
-                                    focus_layout_popup(&format!("m1-layout-scope-panel-{}", kind.label()));
-                                }
-                            })],
-                            LayoutCommandMenuHeader {
-                                label: format!("{} actions", kind.label()), close_label: format!("Close {} actions", kind.label()),
-                                open_menu, menu: LayoutCommandMenu::Select,
-                            }
-                            if has_actions {
-                                if let Some(mount) = transform.clone() {
-                                    super::layout_transform_toolbar::LayoutContextActionToolbar { mount, open_menu, selection_kind: kind }
-                                }
-                            } else {
-                                Callout { "Select a {kind.label().to_lowercase()} on the canvas to edit it." }
-                                if let Some(mount) = transform.clone() {
-                                    Button { variant: ButtonVariant::Secondary,
-                                        onclick: move |_| {
-                                            mount.on_show_properties.call(());
-                                            close_layout_command_menu(open_menu, LayoutCommandMenu::Select);
-                                        }, "Open Inspector"
-                                    }
-                                }
-                            }
-                        }
+                    ToggleItem {
+                        index, class: "layout-scope-trigger",
+                        id: format!("m1-layout-scope-{}", kind.label()),
+                        aria_label: format!("Select {}", kind.label()),
+                        attributes: vec![onclick(move |_| {
+                            on_selection_kind.call(kind);
+                            open_menu.set(None);
+                        })],
+                        LayoutSelectionIcon { kind }
+                        span { "{kind.label()}" }
                     }
                 }
             }

@@ -150,6 +150,12 @@ pub struct MatrixPreviewProps {
 #[component]
 pub fn MatrixPreview(props: MatrixPreviewProps) -> Element {
     let preview = parse_matrix_dimensions(&props.rows, &props.columns);
+    let split = super::matrix_setup_preview::preview_is_split();
+    let cells = preview
+        .map(|(rows, columns)| super::matrix_setup_preview::preview_cells(rows, columns, split))
+        .unwrap_or_default();
+    let (left, bottom, width, height) = super::matrix_setup_preview::preview_bounds(&cells);
+    let key_count = cells.len();
     rsx! {
         if let Some((preview_rows, preview_columns)) = preview {
             figure { class: "m-0 rounded-md border border-border bg-muted p-2 [&_svg]:mx-auto [&_svg]:block [&_svg]:max-h-[128px] [&_svg]:w-[min(100%,220px)] [&_svg]:fill-primary [&_figcaption]:mt-1 [&_figcaption]:text-center [&_figcaption]:text-[11px] [&_figcaption]:text-muted-foreground",
@@ -157,16 +163,28 @@ pub fn MatrixPreview(props: MatrixPreviewProps) -> Element {
                     view_box: "-1 -1 {preview_columns * 10 + 1} {preview_rows * 10 + 1}",
                     role: "img",
                     "aria-label": "{preview_rows} rows by {preview_columns} columns matrix preview",
-                    for index in 0..(preview_rows * preview_columns) {
-                        rect {
-                            key: "{index}",
-                            x: "{(index % preview_columns) * 10}",
-                            y: "{(index / preview_columns) * 10}",
-                            width: "8", height: "8", rx: "1",
+                    {
+                        // Keep the existing thumbnail frame while fitting the whole candidate pair.
+                        let frame_width = f64::from(preview_columns * 10 - 2);
+                        let frame_height = f64::from(preview_rows * 10 - 2);
+                        let scale = (frame_width / width).min(frame_height / height);
+                        let x = (frame_width - width * scale) / 2.0;
+                        let y = (frame_height - height * scale) / 2.0;
+                        rsx! {
+                            g { transform: "translate({x} {y}) scale({scale}) translate({-left} {-bottom})",
+                                for (index, cell) in cells.iter().enumerate() {
+                                    rect {
+                                        key: "{index}",
+                                        x: "{cell.center.x - cell.size.x / 2.0}",
+                                        y: "{cell.center.y - cell.size.y / 2.0}",
+                                        width: "{cell.size.x}", height: "{cell.size.y}", rx: "1",
+                                    }
+                                }
+                            }
                         }
                     }
                 }
-                figcaption { "{preview_rows * preview_columns} keys · {preview_rows} × {preview_columns}" }
+                figcaption { "{key_count} keys · {preview_rows} × {preview_columns}" if split { " per half" } }
             }
         }
     }

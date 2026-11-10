@@ -24,8 +24,10 @@ pub fn Slider(props: SliderProps) -> Element {
         dioxus_primitives::use_controlled(props.value, props.default_value, props.on_value_change);
     let controlled_value = use_memo(move || Some(value()));
     let mut attributes = props.attributes;
+    // The root supplies the touch target; guide-wide button sizing must not stretch
+    // the round thumb. Keep its focus ring outside the unclipped track.
     let base = attributes!(div {
-        class: "relative flex w-full touch-none items-center select-none data-[disabled=true]:opacity-50 data-[orientation=vertical]:h-full data-[orientation=vertical]:min-h-44 data-[orientation=vertical]:w-auto data-[orientation=vertical]:flex-col",
+        class: "relative flex min-h-control-touch w-full touch-none items-center select-none [&_[data-slot=slider-thumb]]:min-h-0 data-[disabled=true]:opacity-50 data-[orientation=vertical]:h-full data-[orientation=vertical]:min-h-44 data-[orientation=vertical]:w-auto data-[orientation=vertical]:min-w-control-touch data-[orientation=vertical]:flex-col",
         "data-slot": "slider",
         onkeydown: move |event: KeyboardEvent| {
             if (props.disabled)() { return; }
@@ -74,10 +76,10 @@ pub fn Slider(props: SliderProps) -> Element {
             label: props.label,
             attributes: merged,
             slider::SliderTrack {
-                class: "relative grow overflow-hidden rounded-full bg-muted data-[orientation=horizontal]:h-1.5 data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-1.5",
+                class: "relative grow overflow-visible rounded-full bg-muted data-[orientation=horizontal]:h-1.5 data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-1.5",
                 "data-slot": "slider-track",
                 slider::SliderRange {
-                    class: "absolute bg-primary data-[orientation=horizontal]:h-full data-[orientation=vertical]:w-full",
+                    class: "absolute rounded-full bg-primary data-[orientation=horizontal]:h-full data-[orientation=vertical]:w-full",
                     "data-slot": "slider-range",
                 }
                 slider::SliderThumb {
@@ -85,7 +87,7 @@ pub fn Slider(props: SliderProps) -> Element {
                         disabled: (props.disabled)(),
                         aria_disabled: (props.disabled)(),
                     }),
-                    class: "block size-4 shrink-0 rounded-full bg-background shadow-sm ring-2 ring-primary transition-[color,box-shadow] hover:ring-4 focus-visible:ring-4 focus-visible:outline-hidden disabled:pointer-events-none",
+                    class: "absolute block size-4 shrink-0 -translate-x-1/2 rounded-full bg-background data-[orientation=horizontal]:top-1/2 data-[orientation=horizontal]:-translate-y-1/2 data-[orientation=vertical]:left-1/2 data-[orientation=vertical]:translate-y-1/2 shadow-sm ring-2 ring-primary transition-[color,box-shadow] hover:ring-4 focus-visible:ring-4 focus-visible:outline-hidden disabled:pointer-events-none",
                     "data-slot": "slider-thumb",
                 }
             }

@@ -1466,3 +1466,354 @@ route. The coordinator's complete report read used Gortex. The delegate left a
 filesystem checkpoint at `~/.cache/tmp/011r2/notes-checkpoint.md`, not the required
 virtual notes handoff; the coordinator's virtual checkpoint is authoritative.
 These deviations are recorded, not described as compliant tool use.
+
+## Second-batch correction execution plan — 2026-11-09
+
+User decision after investigation: **round slider thumb; fix all identified
+issues using Sol medium subagents via Pi**. This authorizes the correction
+phase and the necessary read-only split-mode input on the existing presentation
+preview; it does not authorize broader API visibility, accepted-state-before-save
+semantics or new draft/runtime ownership. New delegates use Pi
+`openai-codex/gpt-6.1-sol`, `thinking=medium`, including independent re-checks.
+
+The existing planned proof rows above remain the starting map; each owner must
+record actual RED before production correction, reuse adequate existing tests,
+and return GREEN evidence and owned-file inventories. No screenshot or prior
+source presence stands in for acceptance. The coordinator owns this ticket's
+tracking and all final gates/commits/candidate promotion; children must not edit
+this ticket or each other's files.
+
+| Lane | Exclusive initial ownership | Required result / sequencing |
+| --- | --- | --- |
+| A — D13 round thumbs | `web/crates/ui-shared/src/ui/slider.rs`, `web/crates/ui-shared/src/ui/primitives_mount_tests.rs`; existing Case slider consumer inspected read-only | Implementation returned: 95 shared browser / 23 native checks and 16 packaged interaction cases reported GREEN; fresh combined review Standards PASS / Spec PASS; coordinator final-fixture baseline/restored GREEN and all four meaningful mutants killed; acceptance BLOCKED on integrated gate and human review, no new matrix/page edits or Case cleanup |
+| B — D15 split ghost | `web/crates/layout/src/objects/matrix_setup_preview.rs`, `web/crates/layout/src/objects/matrix_setup.rs`, `web/crates/layout/src/objects/matrix_setup_fields.rs`, `web/src/presentation.rs`, `web/src/presentation/layout_field_preview_tests.rs` | Implementation returned and page ownership released: approved provider input `accepted_split: bool`, pure mirrored geometry and both-half canvas/thumbnail; producer RED 30/60 cells, then 5 field-preview + 1 spacing + 7 Layout mounted + 168 native checks GREEN (1 ignored); fresh combined source Standards PASS / Spec PASS; coordinator's first five mutations killed three and exposed two proof gaps; only the existing Editor story was extended (+72) and now kills the fit/topology survivors; 23 affected browser checks, formatting and WASM Clippy GREEN; test-delta review Standards PASS / Spec PASS (task 3ffba…, read-only receipt reuse, recorded in coordinator notes); B closed (kills + diff read also satisfy the re-review rule) |
+| C1 — D11 pending feedback | Initial PCB physical-setup scope returned unchanged; further implementation waits for the narrow preview accessor approval and page wiring after lane B releases it | Hold RED recorded (601 ms IDB → 659 ms DOM / ~826 ms RAF opportunity, not presentation proof); user approved R4 new phase. Planner boundary + Builder shipped narrow busy-gated pending_topology() (accepted-only preserved): P1a/P1b 627.8→14.8 ms, P2–P4 GREEN, 5/5 mutants killed, T1 recorded; fresh Spec PASS after display-proof close. Reload→Reversible stays follow-up F2. Detail in the C1 section below |
+| C2 — D11 cold catalogue work | `web/crates/layout/src/objects/matrix_transform_controller.rs`, including its existing regression seam; other files require allocation | Implementation and fresh review returned: Standards PASS / Spec PASS for the actual Key-projection demand guard; same-path debug RED/GREEN and later-Key positive demand, 168 native / 50 targeted browser checks reported GREEN; remove direction RED-covered; invert mutant killed after same-story strengthening (R2 closed); optimized timings have shared-checkout comparability limits; C1 done (see below), reload→Reversible is follow-up F2 |
+| D0 — D16 and D10/005 | Toolbar/CSS returned/frozen; private `presentation.rs` correction returned/released; coordinator corrected only existing page-test host teardown, preserving all scope assertions and B/D1; 005 tracking remains coordinator-owned | Original popup-focus/grouping/Part-action RED then 13 toolbar / 268 Layout plus 2 guide / 168 native and packaged handoffs GREEN; persistent Matrix-clear RED corrected without a new owner; all five unchanged scope cycles now pass, including managed teardown after independently evidenced host correction; 23 affected browser checks / formatting / WASM Clippy / whitespace GREEN; fresh combined Standards PASS / Spec PASS, all 71 hunks read and no findings; both page-guard mutants killed with restored GREEN; trigger-focus mutant killed after same-story strengthening (R2 closed); extra toolbar guards are follow-up F1; integrated/HITL gates pending |
+| D1 — D12/D14 | `web/src/presentation.rs`, `web/src/presentation/layout_field_preview_tests.rs`, `web/crates/layout/src/setup_guide.rs`, `web/assets/shell.css`; B's fresh review completed, exclusive page writing now released to this lane | Implementation returned and page ownership released to the coordinator: only the two page files changed, guide/stylesheet files unchanged; actual gutter and paint RED, then 6 page / 268 Layout / 168 native checks plus formatting/Clippy/fast-package GREEN; fresh combined Standards PASS / Spec PASS, no unread hunks and owned postimages unchanged; review hold released, only the existing page-test file passes to D0's regression owner; coordinator sensitivity and integrated/HITL gates remain |
+| E — remaining R1 footer | Implementation returned and ownership released: only `web/crates/runtime/src/runtime.rs`, private bounded report provenance/retirement plus existing in-file lifecycle seam; no presentation/CSS/public API changes | Faithful Runtime rebind RED then 62 Runtime browser / 138 native checks reported GREEN; original same-owner battery −86 → 0 → −86 / Update preview loop GREEN with populated exact geometry, enabled Export and no stale footer; fresh combined Standards PASS / Spec PASS, no unread hunks or required findings; coordinator sensitivity closed (provenance-removal + indiscriminate-clear both killed); integrated/HITL gates pending |
+
+Lane A must request ownership before changing any unlisted consumer. Lane B may
+use only the narrow approved presentation input, not widen unrelated members.
+Lane C2 now owns only the additional matrix-transform controller file; it must
+request ownership before any other runtime/Core/page edits or architectural
+proposal. C1's proposed pending-topology accessor is not yet approved.
+All builds/tests share inherited FD9 lock; no overlapping Cargo or
+wasm-pack, no per-agent full gate. Temporary mutation experiments are
+coordinator-owned so one lane cannot measure another lane's in-flight edits.
+
+**005 grill completed:** user answered **“yes, yes”** to one inline action/hint
+surface for all five scopes (no scope popup on choice or reselection), and
+Align/Transform beside the scope strip when space permits or directly beneath
+it otherwise, without the empty reserved row. [005's current criteria and proof
+map](005-restore-scope-actions.md#approved-proof-map) explicitly replace its old
+empty-selection hint-panel requirement while preserving useful guidance,
+selection transitions and focus. Lane D0 can proceed independently of lane B;
+lane D1 received exclusive page-file ownership after B's completed review. Historical cancellation
+and investigation records remain intact; no result or acceptance is inferred.
+
+Lane A handoff limits are explicit: its mounted RED preceded correction of the
+synthetic selector to the real guide utility, so final-fixture sensitivity against
+unfixed styling remains a coordinator gate. Lane C1 made no tracked changes and
+claims no GREEN; its debug catalogue attribution is not optimized before/after
+proof or an explanation of the separate reload→Reversible trace. Handoff logs:
+`.evidence/011-round2-A/` and `.evidence/011-round2-C/handoff.log`.
+A's reviewer specifically identified a possible clipping-proof gap: the final
+fixture probes only the thumb centre, so restoring track clipping might survive.
+The coordinator must measure it, then add upper/lower thumb hit probes in the
+same scenario if needed; absolute positioning, guide sizing protection and the
+activation-row minimum also need independent sensitivity checks.
+
+Coordinator resolution: the corrected final fixture passed its unmutated run,
+then **all four** mutants were killed by the intended rendered oracle, with zero
+compile failures or survivors and exact source restoration. Track clipping failed
+at End/value 90 because the thumb centre hit BODY rather than BUTTON; removing
+absolute positioning misplaced the centre; removing the guide exception stretched
+the thumb to 16 × 44 px; removing the activation minimum shrank the row to 6 px.
+The restored scenario passed again. Thus the suspected clipping survivor was
+falsified; extra upper/lower probes were not added without a distinct uncovered
+failure. Logs: `.evidence/011-round2-A/coordinator-sensitivity/`. The earlier
+synthetic-fixture RED limitation remains historical, not silently relabelled.
+
+B's fresh fast-package proof reused providers and included concurrent Slider
+changes; logs/captures are in the `011-round2-B` evidence directories. Broader
+Theme verification and integrated gates remain outstanding. B's fresh combined
+review is complete: Standards **PASS**, Spec **PASS**, acceptance **BLOCKED** on
+coordinator sensitivity, integration/build, broader capture checks and human
+review. All five owned postimages returned `not_modified` against their initial
+ETags despite parallel global graph generations changing 6331 → 6334. Optional
+memo-transition/caption coverage is not represented as an executed test.
+
+R1 planned proof: one real Editor owner with a blocked generation → repair the
+accepted physical inputs (or Undo to a reusable valid result), then await current
+exact geometry → no obsolete mechanical-blocker footer while geometry export
+remains correctly enabled; an unrelated live error must remain visible. Tier:
+production mounted/packaged; the original public loop is now GREEN in
+`.evidence/011-round2-E-fix/original-public-loop.log`, with the bounded fresh
+E review below. The existing `case_generation_title` native regression remains
+insufficient alone for this separate global-footer behavior.
+
+### A/B fresh review scope receipts
+
+Both compare fixed base `bb70ba0df640521291720cfe7a86ac9531e7d773` with their
+reserved working postimages; HEAD did not move. Each independently reports
+Standards **PASS** and Spec **PASS**, **no unread changed hunks**, and acceptance
+**BLOCKED** on the remaining coordinator/human gates. This is not an aggregate
+re-review or a waiver of the earlier 445-path cap. Paths below are under `web/`.
+
+| Slice | File | Changed postimage ranges read (baseline/postimage recovered exactly) |
+| --- | --- | --- |
+| A | `crates/ui-shared/src/ui/slider.rs` | Full baseline/postimage; 27–28, 30, 79, 82, 90 |
+| A | `crates/ui-shared/src/ui/primitives_mount_tests.rs` | Baseline 1–55, postimage 1–160; insertion 38–113 complete |
+| B | `crates/layout/src/objects/matrix_setup.rs` | 317 |
+| B | `crates/layout/src/objects/matrix_setup_fields.rs` | 153–158, 166–183, 187 |
+| B | `crates/layout/src/objects/matrix_setup_preview.rs` | 33–36, 40–46, 106–117, 119–120, 125–126, 134–138, 150, 160–180, 184, 186–194, 198–218 |
+| B | `src/presentation.rs` | Deleted baseline 3267; 3589–3594 |
+| B | `src/presentation/layout_field_preview_tests.rs` | 246–249, 251, 280–284, 290, deletion seam 292, 530–549, 554, 584–669, 696, 699, 737, 766, 784, 792–813, 821 |
+
+A independently executed scoped whitespace verification and reused producer
+checks; B executed no behavioral checks and reused its producer receipts. Neither
+review mutated source. A recorded commit generation 6286 / dirty 6320; B recorded
+commit 6286 / dirty 6331 → 6334 with owned content unchanged. Their source/evidence
+judgments do not establish final-fixture sensitivity or a new full-gate result.
+
+C2's returned correction is 20 added / 12 removed lines in the single allocated
+controller, mostly moving the existing projection before the effect and adding
+a reactive actual-Key demand guard. Its public same-path profiling and positive
+later-Key experiment are the performance proof, not a fake private-helper unit
+test. Logs: `.evidence/011-round2-C2/handoff.log`. Fresh independent combined
+review: Standards **PASS**, Spec **PASS**, no required source findings or unread
+changed hunks; baseline/postimage ranges were 715 → 715–729, 718 → 732,
+after 719 → 734–736, and 748–757 → 765. Owned content returned `not_modified`
+while foreign dirty generations changed 6344 → 6346. The reviewer newly checked
+whitespace and independently reanalyzed the three existing RED/GREEN/later-Key
+traces; it reused the producer's build/test receipts. Sampled absence is not
+absolute no-call proof, and optimized observations are paint-opportunity proxies,
+not actual presentation timings. Acceptance remains **BLOCKED**: the coordinator
+must remove the guard and reject first-Split absence, invert it and reject later-Key
+positive demand, restore and verify both, then complete integration. C2's earlier
+blocked broader Layout run and follow-on WASM panic-hook failures are not called
+GREEN; D0's later Layout-only success below does not retroactively change that run.
+
+D0 returned its toolbar/CSS implementation without page edits. Logs:
+`.evidence/011-round2-D0/`; packaged measurements put Align/Transform 8 px beside
+the scope strip at 1322/1440 px and 8 px below at 1024 px, unchanged by selection,
+across both Themes/Appearances. Five real canvas handoffs replaced inline guidance
+with actions, including Part Position, without scope popups. Existing production
+focus/selection checks passed separately. Its final Layout run passed 268 general
+plus 2 setup-guide tests, but the page field-preview run encountered D1's in-flight
+guide-gutter RED and is **not GREEN**. Persistent production-mounted guidance
+coverage still needs the existing page-test seam after D1 releases it; toolbar
+projection fixtures and packaged captures are not substituted for that planned
+regression. Independent combined review and coordinator sensitivity remain pending.
+
+D1 returned only `presentation.rs` and its field-preview test file; no guide
+component or stylesheet edit was needed. Its existing resized-guide story gained
+51 computed geometry/paint assertion lines, without a new fixture or API. Actual
+REDs were the flush 0 px/radius-0 guide and unequal Layout panel/SVG paint;
+corrected page-plus-spacing checks passed 6/6. Logs:
+`.evidence/011-round2-D1/handoff.log`. Twelve guide and twelve populated Layout
+captures covered both Themes/Appearances at 1440/1024/390 px: 8 px guide gutters,
+14 px Theme radius, no horizontal overflow, and identical top/centre/bottom canvas
+paint. The existing phone 60% form budget, hidden-but-mounted compact Sheet,
+B's accepted split preview and Export/setup overflow precedence were retained.
+Its fast package reused providers and is not an optimized/full-gate handoff.
+Fresh independent review returned Standards **PASS**, Spec **PASS**, no required
+source findings and no unread changed hunks. It read all baseline/current page
+hunks and independently viewed the eight contact sheets plus full desktop/phone
+captures. D1 deltas: presentation 9666 → 9671 and 9719 → 9724–9727;
+field test insertion after 358 → 367–417. Both full-file ETags returned
+`not_modified` at generations 6356/6366, epoch 4068. New scoped whitespace passed;
+behavioral/build receipts were reused. Readiness remains **BLOCKED** on independent
+sensitivity/integrated/HITL gates. Container-width assertions do not change browser
+media queries: phone-width sensitivity must use a real 390 px packaged viewport;
+non-Layout card preservation needs its own oracle. The review hold is released.
+D0's test owner initially returned **only** `layout_field_preview_tests.rs`, adding
+one five-scope real Editor story (249 lines); B/D1 hunks were preserved. Parent
+read the story and both RED logs. Matrix guidance → real canvas selection →
+usable inline actions → Inspector reopening passed. Ctrl-click demonstrably
+cleared Runtime selection, but inline guidance did not return; the independent
+Runtime-empty assertion passed before the guidance timeout. Four other scopes
+were then unreached, not passing. Initial field/spacing/focus run: **7 passed,
+1 failed**; WASM Clippy, rustfmt and whitespace pass. Logs:
+`.evidence/011-round2-D0-mounted/final-affected.log` and
+`clear-selection-diagnostic.log`; test-owner task
+`25c2948e-44cf-4b1e-9185-28275949bed8`. PAGE-TEST ownership released; new file
+SHA-256 `ba8bab0423e6e311bee806980835123a73f344b6aba549f9d0e36d5bfa3233d7`.
+The fresh corrective owner returned **only** `presentation.rs` (+16/−5, six
+hunks), preserving B/D1: retained Inspector context no longer admits Layout
+commands or reselects objects after canvas deselection. Parent read all six
+baseline/current hunks. All **five** unchanged scope cycles then passed, reaching
+a separate Close cleanup RED twice: the test host mounted Editor unconditionally,
+but `application/src/session.rs:2560–2585` deliberately retains accepted state
+while setting lifecycle Closed. The coordinator independently reproduced that
+precise timeout, then corrected only the existing test host: read its existing
+version signal and conditionally unmount Editor at Closed before restoring pane
+preferences. No scope assertion, production lifecycle, API or selection owner
+changed. Fixture-only delta: +7/−1; test-file SHA after correction
+`2ccfb5756df63d84bd5ddf5dd0fbc361838a02eeb5dba0d4ba092d76e7894746`.
+Parent read the exact new hunks before checks. All **23** affected browser checks
+passed: six field stories including the full five-scope/cleanup story, relation,
+spacing and focus coverage. Formatting, WASM Clippy and whitespace also passed.
+RED/GREEN logs: `.evidence/011-round2-D0-cleanup/{baseline-real-red,green-affected}.log`.
+The earlier `baseline-red.log` is a helper-argument invocation failure, not a
+semantic RED. Native Gortex mutation succeeded on the fifth spaced attempt after
+four `view_building` responses; no CLI/reset/fallback was used. Host graph coverage
+is unmapped and contract risk remains WARN/high lower-bound; actual mounted proof
+above is not replaced by the graph.
+
+### D0 fresh combined review — 2026-11-09
+
+Standards **PASS** / Spec **PASS**; no required or optional findings. One fresh
+Pi Sol medium reviewer read all **71/71** baseline/current hunks, unread **NONE**:
+`layout_toolbar.rs` 36, `layout-toolbar.css` 6, `presentation.rs` 10 and
+`layout_field_preview_tests.rs` 19. BASE
+`bb70ba0df640521291720cfe7a86ac9531e7d773` → unstaged working tree; HEAD stayed
+`ec26e46d1fca0e38f5f690d368d73edf7704dc3f`. B/D1 page/test hunks were read for
+preservation; their prior bounded reviews stand. R1 and foreign changes are
+excluded. The [005 guard mapping](005-restore-scope-actions.md#retired-guard-mapping)
+records every replaced/retained popup, guidance, selection and focus guard.
+All four identical-shape ETags returned `not_modified`; additional physical reads
+confirmed full-file pins:
+
+| File | SHA-256 |
+| --- | --- |
+| `layout_toolbar.rs` | `809032f972d6226261ae19388da1e32afe10fa8406a2cb8d97e30fc2e158bf41` |
+| `layout-toolbar.css` | `95a0c544a28a7fe42631e6ccd7db27870d98c10013e60655761d95d98278c768` |
+| `presentation.rs` | `afc6cfc412ad9ab5fa17e0abc8c27dcd4cf6d178682f4806b4300cc293992ad1` |
+| `layout_field_preview_tests.rs` | `2ccfb5756df63d84bd5ddf5dd0fbc361838a02eeb5dba0d4ba092d76e7894746` |
+
+New review work: mechanical inventory, endpoint checks, exact source review and
+physical pins only; no tests/builds/mutations or tracked edits. Actual RED/GREEN,
+23 affected browser checks, 22 production-selection checks, packaged handoffs and
+format/Clippy receipts above were reused. The reviewer did not view captures or
+rerun browser automation; empty-log exit statuses rely on the coordinator's
+recorded results. Synthetic DOM input over real production behavior does not
+prove trusted input or optimized/full-gate behavior, and sensitivity is not
+established by inspection. All twelve structural heuristics and five quality
+axes had no actionable findings. Task
+`48e458af-8d1f-4e4f-9e5b-a11be510d3b0`; review hold **released**.
+Acceptance readiness **BLOCKED**: DESIGN update, coordinator sensitivity
+(including separate removal of the empty-selection filter and handler return),
+integrated/full/strict-CSS gates, optimized replacement verification and human
+acceptance. No aggregate/candidate approval; the 445-path PARTIAL cap remains.
+C1 stays unapproved and unwired.
+
+E's read-only diagnosis reproduced the exact R1 footer twice in fresh isolated
+sessions: battery X −86 → 0 → −86, then Update preview, retaining instance
+`physical-primary-22`; populated 3D, exact-ready title and enabled Export geometry
+coexisted with the raw global blocker. Command:
+`python3 /home/chris/.cache/tmp/011-r1-E-loop.py --fresh`, exit 1 in approximately
+34 seconds; `.evidence/011-round2-E/fresh-repeat-red.log`. Timing/owner steps were
+minimized, but the supplied geometry fixture is not claimed irreducible. Parent
+read the RED and capture, and the real Runtime settlement/report path: rejected
+or executor-failed unleased outcomes call `report`, whereas completion only
+notifies views. Fresh E implementation receives **only** `runtime.rs` for private
+provenance and retirement, with no new lifecycle authority or public/test API.
+Proof extension: real generation rejection → admitted current success/reusable
+exact result → obsolete generation-owned global status retires; an intervening
+unrelated report (including identical text), save failure or current block must
+survive stale/unrelated completion. Use the existing Runtime lifecycle seam plus
+the original packaged footer loop; a `case_generation_title` helper test alone
+is insufficient. E returned only `runtime.rs` (+335/−4), private bounded
+provenance carried by Session-admitted generation settlements and retirement at
+current success or canonical exact-result rebind. Five lifecycle tests extend the
+existing Runtime seam: rejection/rebind, real Core preparation plus controlled
+worker success, unrelated identical-text reports, stale completion/current block,
+and failed-save/retry. Producer reports 62 Runtime browser / 138 native checks,
+native/WASM Clippy, rustfmt and whitespace GREEN. Parent read the new lifecycle
+stories, current production hunks, `red-rebind.log`, the 62-test final receipt and
+`original-public-loop.log`. Original public reproduction now passes: same
+`physical-primary-22`, populated exact geometry, enabled Export geometry and no
+stale global footer. The intermediate repaired-before-update stage also has no
+stale footer, but Export remains disabled until the explicit update. Pre-fix
+Runtime failure: `.evidence/011-round2-E-fix/red-rebind.log`; all final logs are
+in that directory. Controlled-worker geometry is synthetic; the public loop
+uses a FAST/unoptimized package with existing providers, not an optimized/full
+gate. E ownership is released. Fresh single combined review returned Standards
+**PASS**, Spec **PASS**, no required/optional findings and **no unread hunks**.
+Only `runtime.rs` was reviewed against base `bb70ba0d` and HEAD `ec0a6165`:
+base→current after137→138, after153→155, after162→165, after1122→1126–1164,
+after2207→2250–2252, after2241→2287–2293, after2409→2462–2466,
+2424→2481–2493, after2698→2768, 2702–2703→2772, after6677→6747,
+6697→6767–6772, after6715→6791–6806, after6716→6808, after9934→10027–10265.
+Identical physical reads at 20:39:46Z / 20:40:51Z pinned full SHA
+`198d30f47d209c0d79f67d137e5c2eb4157d7a40536c16c0f2c5e71e48c41bc5`
+(467,335 bytes / 11,523 lines; ETag `ef8d33e0ec46d5e9`); all seven changed-source
+windows separately returned `not_modified`. New review verification was scoped
+whitespace and mechanical inventory; 62 browser / 138 native / Clippy / formatting
+and actual public RED/GREEN receipts were read and reused, not rerun. No behavioral
+reruns, mutations or full gate were executed by the reviewer. Existing admission,
+observation/export leases and notification behavior were reviewed as preserved;
+all twelve structural heuristics and five quality axes had no actionable finding.
+Coordinator sensitivity remains pending: remove provenance, independently remove
+success/rebind retirement, indiscriminately clear unrelated identical-text status.
+Integrated/optimized/HITL gates and the legacy aggregate PARTIAL cap remain.
+
+A separate process advanced HEAD to `ec0a61652c688a02b25671c4b2b80fa7b51eeddc`
+with only the two `docs/design/workbench-redesign/option-a/` prototype documents.
+Those unrelated committed changes are preserved and excluded from recovery
+source review; a mechanical committed diff confirmed no recovery source changed.
+A later foreign commit advanced HEAD to
+`ec26e46d1fca0e38f5f690d368d73edf7704dc3f`, adding only
+`docs/design/workbench-redesign/tool-panels/{README.md,template.html}` (486 lines).
+Mechanical committed inventory confirmed recovery source again unchanged; these
+design documents are preserved and excluded. Fixed review base
+`bb70ba0df640521291720cfe7a86ac9531e7d773` remains valid. Neither foreign HEAD
+movement is a coordinator commit, source-review invalidation or push.
+
+Each completed slice gets a fresh independent combined Spec + Standards review
+through a new Pi Sol medium delegate, then coordinator full-hunk read and
+independent rejection/sensitivity checks. The coordinator reruns the full gate,
+strict CSS, optimized build and affected Theme/Appearance/viewport checks before
+promoting a replacement candidate. Keep the current 4173 candidate intact until
+then. **011 remains ready-for-human; parent 001 open; no push authorized.**
+
+### Coordinator D0/B sensitivity — 2026-11-09
+
+D0: the unchanged real Editor story independently killed both page-guard mutants:
+removing the empty-selection toolbar filter failed Matrix clear→guidance;
+removing the scope-handler return failed the next scope's initial guidance
+assertion. Both built, neither runner timed out, and reviewed page bytes restored
+exactly. Baseline/restored five-scope GREEN and canonical results:
+`.evidence/011-round2-D0/coordinator-page-sensitivity/`. Remaining toolbar guards
+are not claimed sensitive yet.
+
+B: the first five canonical mutations killed force-One, unmirrored-source and
+zero-40-mm-gap at their existing count/orientation/gap assertions. Fit-from-only-
+one-half and frozen provider topology **survived**; original receipts remain in
+`.evidence/011-round2-B/coordinator-sensitivity/`. Their six-test restored run was
+interrupted before a verdict (exit 137); process absence and an unchanged native
+ETag were verified before the resumed run passed all six. Only the existing
+`new_matrix_preview_case` story then gained **72 lines**, no production edits,
+new mount, helper, API or owner: the public Columns End input exercises 6×18
+bounds outside the form and view controls; the existing `replace_document`
+helper drives real Session/Core accepted One↔Split edits within the same session,
+then both canvas and thumbnail must follow the newly accepted topology. This is
+accepted-state integration, not a fabricated projection; it does not test the
+physical-setup checkbox's pending feedback or approve C1's accessor.
+The added proof passed unchanged production: a **proof gap**, not a product RED.
+Native test-file SHA after mutation 179/reindex 204:
+`fa88ad2b32a7014126344c55ceabff8cb6286f3472105e927b312d88a72dd6ec`.
+This supersedes only the historical field-test pin in D0's completed review.
+
+The two survivors were rerun against the stronger story and both **killed** at
+the new maximum-width bounds and accepted-topology assertions; zero compile
+failures, exact production restoration, six-test baseline GREEN. Canonical logs:
+`.evidence/011-round2-B/coordinator-strengthened-sensitivity/`. The three original
+killed mutants' unchanged oracles are reused, not described as rerun on the new
+fixture. A subsequent **23 affected browser checks**, formatting, WASM Clippy and
+whitespace passed: `.evidence/011-round2-B/proof-strengthening/`. Failure cascades
+after each primary WASM assertion are not independent guardrail proofs. Native
+coverage remains unmapped and the helper's contract risk WARN/high lower-bound;
+actual behavioral receipts supply the proof. Fresh combined test-delta review returned Standards PASS / Spec PASS (task 3ffba…, read-only reuse of the receipts above; no .evidence report); B closed. Prior unchanged production reviews stand. DESIGN, R5/R6 and human gates remain open.
+
+### C1 pending-topology accessor — 2026-11-10 (R4 approved)
+
+User approved the pending accessor as a new phase; accepted projection stays accepted-only. Planner task 8a78d26c wrote the boundary: private `pending_topology` Signal + public `pending_topology()` (only new public item) on `PhysicalSetupMount`, set in `on_intent` beside `busy`, returned only while busy is Some (any id — seed yields to begin id), displayed as `pending.unwrap_or(projection)` in setup controls + the one `GuideHardwarePreview split:` argument. Proof rows P1a/P1b (packaged RED→GREEN), P2 (no flicker), P3/P4 (mounted accepted-only/retire), P5 (B-story rerun), T1 (before/after timings), each new oracle with one boundary mutation.
+
+Builder task ec51fe58 (3 files, SHAs `de2beb8a…` controller / `beab38bd…` page / `128c8a23…` host): P1a/P1b 627.8 ms → **14.8/14.8 ms** pressed/preview under the 600 ms hold (×3 pre-runs 628.5/628.7/627.8; trace shows feedback at +15 ms with the hold tx open); P2 firstFeedback 15.1 ms, unpress [] / oneRect [], landing 658.4 ms accepted Split; P3/P4 GREEN; P5 rerun GREEN. T1 same-profile before→after: cold btnDom 76.2→23.4, btnRaf 133.7→57.9; warm n=16 btnDom median 65.8→13.25 (11.1/16.2), btnRaf median 68.15→26.35 (21.9/31.1); after-warm longtasks count=14 max=52 (Builder attributes to fresh-profile warmup; warm2 n=8 shows lt:[] at the same fast timings, supporting it). All 5 boundary mutants KILLED at intended assertions with exact restoration. PCB browser suite 66/66 GREEN; coordinator-verified filtered field-preview 6/6 GREEN with C1 present; full-page 19 FAILs match the no-C1 baseline modulo one flake swap each side (canvas story fails both ways — pre-existing full-suite instability, known-failures file empty); layout crate has zero references to the changed types (30 full-lib FAILs outside blast radius, non-canonical profile). Logs: `.evidence/011-round2-C1/`.
+
+Process: Fable compliance review (task 9083bee1, MINOR DRIFT) found stash use (balanced, verified), one hand-applied Python mutant (residue excluded via SHAs), missing FD9 nesting (no concurrent builds, no collision) and partial change protocol (coordinator reran: tests 0/3 graph-unmapped as expected for wasm, guards none, contract WARN reviewed). No damage; rules made explicit in later briefs.
+
+Review: first pass (task 04fb9585) Spec CHANGES REQUIRED on one valid BLOCKS (P3/P4 never observed rendered pressed state) + Standards PARTIAL on breadth. Follow-up Builder (task 69bd3378, test-only, same host file + same two tests) rendered the production controls and asserted pressed/retirement display; P4 mutant now kills AT the One-pressed assert, P3 establishes Split-pressed before its accepted-only checks. Delta re-review (task d38094b1) Spec PASS, no new findings; Standards no-violation with a preservation evidence limitation that the coordinator closed by byte-proof (current page minus the C1 hunk hashes exactly to pre-C1 reviewed SHA `afc6cfc4…`). C1 review-complete.
