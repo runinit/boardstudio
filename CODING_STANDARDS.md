@@ -38,3 +38,7 @@ Read before adding or changing tests, and during review. Mechanical rules live i
 - **Preserve proof.** Consolidation preserves required acceptance cases, named baseline guards
   and RED/GREEN or mutation evidence. Reduce duplication, not meaningful assertions or safety
   coverage; never delete tests merely to improve a ratio.
+- **Stop at the boundary.** Write the cases the request or the ticket's
+  [slice boundary](docs/agents/issue-tracker.md#slice-boundary) names. A further case or a
+  surviving mutation joins the change only when it shows a named case cannot fail; otherwise
+  list it as a follow-up.

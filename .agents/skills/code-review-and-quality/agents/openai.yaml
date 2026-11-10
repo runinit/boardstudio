@@ -1,0 +1,5 @@
+interface:
+  display_name: "Code Review Lens"
+  short_description: "Five-axis lens for one review pass"
+policy:
+  allow_implicit_invocation: false
