@@ -8,7 +8,7 @@ A delegated task names one **role**. The role fixes what the delegate does and w
 
 | Role | Does | Done when | Route (fallback) |
 | --- | --- | --- | --- |
-| Planner | Writes a ticket's proof map and [slice boundary](issue-tracker.md#slice-boundary), and splits work into slices. Reads only. | Every boundary row has an oracle and a tier. | Opus 5.5 high via Claude (Wonder max via the Meta provider) |
+| Planner | Writes a ticket's proof map and [slice boundary](issue-tracker.md#slice-boundary), and splits work into slices. Reads only. | Every boundary row has an oracle and a tier. | Opus 5.5 high via Claude or Astra xhigh via Codex (Wonder max via the Meta provider) |
 | Scout | Finds files, symbols, prior decisions and library facts with Gortex, memsearch and Context7. Reads only. | The question is answered with pointers, or the gap is named. | Spark 1.3 low via the Meta provider (Terra 6.1 low via Pi) |
 | Builder | Implements one slice inside its boundary: RED, fix, affected checks, boundary mutations. | The boundary's rows are GREEN with logs, or the blocker is reported. | Spark 1.3 Contributor max via Pi (`providerInstanceId: pi`, model `meta/muse-spark-1.3-contributor`, `thinking=max`) |
 | Checker | Runs the named check and mutation commands and reports results and relevant failures. Changes nothing. | Every named command has a result. | Terra 6.1 low via Pi (Spark 1.3 low via the Meta provider) |
