@@ -8,14 +8,13 @@ use boardstudio_web_ui_shared::ui::collapsible::{
     Collapsible, CollapsibleContent, CollapsibleTrigger,
 };
 use boardstudio_web_ui_shared::ui::icons::ChevronDown;
-use boardstudio_web_ui_shared::ui::tabs::{Tabs, TabsContent, TabsList, TabsTrigger};
 use boardstudio_web_ui_shared::ui::{
     toggle_group::{ToggleGroup, ToggleItem},
     tooltip::{Tooltip, TooltipContent, TooltipTrigger},
 };
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
-use std::{cell::RefCell, rc::Rc};
+use std::rc::Rc;
 
 type TransformToolOwner = (
     Option<boardstudio_application::Scope>,
@@ -108,7 +107,6 @@ pub(super) struct InspectorInput {
     pub(super) on_cancel_anchor_pick: EventHandler<()>,
     /// Select an aggregate anchor part's key without writing.
     pub(super) on_navigate_anchor_part: EventHandler<objects::TreeContext>,
-    pub(super) inspector_tab: Signal<LayoutInspectorTab>,
     pub(super) matrix_relations: Option<boardstudio_web_layout::matrix_relations::MatrixRelations>,
     /// Resolves a Relations reference against the live accepted document at click time:
     /// the request to submit (a component opens its Inspector context), or `None` when the
@@ -125,20 +123,12 @@ pub(super) struct InspectorInput {
     pub(super) findings_page: Option<super::layout_findings::InspectorMount>,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum LayoutInspectorTab {
-    #[default]
-    Properties,
-    Relations,
-}
-
 /// Layout's selection, command, transform, and view state. Editor retains the
 /// cross-workspace owner and supplies the current selected tree context.
 #[derive(Clone, Copy)]
 pub(super) struct LayoutWorkspaceState {
     selection_kind: Signal<objects::LayoutSelectionKind>,
     snap_settings: Signal<objects::LayoutSnapSettings>,
-    inspector_tab: Signal<LayoutInspectorTab>,
     command_menu: Signal<Option<objects::LayoutCommandMenu>>,
     transform_tool: Signal<Option<objects::LayoutTransformTool>>,
     transform_tool_owner: Signal<Option<TransformToolOwner>>,
@@ -171,13 +161,12 @@ pub(super) struct LayoutWorkspaceState {
 }
 
 pub(super) fn use_layout_workspace_state(
-    selected_context: Signal<Option<objects::ScopedTreeContext>>,
+    _selected_context: Signal<Option<objects::ScopedTreeContext>>,
     workspace: Signal<&'static str>,
 ) -> LayoutWorkspaceState {
     let mut state = LayoutWorkspaceState {
         selection_kind: use_signal(objects::LayoutSelectionKind::default),
         snap_settings: use_signal(objects::LayoutSnapSettings::default),
-        inspector_tab: use_signal(LayoutInspectorTab::default),
         command_menu: use_signal(|| None),
         transform_tool: use_signal(|| None),
         transform_tool_owner: use_signal(|| None),
@@ -209,7 +198,6 @@ pub(super) fn use_layout_workspace_state(
         ),
         add_object_menu_open: use_signal(|| false),
     };
-    use_contextual_inspector_tab_reset(selected_context, state.inspector_tab);
     let observed_workspace = workspace();
     use_effect(use_reactive!(|observed_workspace| {
         if observed_workspace != "Layout" {
@@ -235,9 +223,6 @@ impl LayoutWorkspaceState {
     }
     pub(super) fn snap_settings(self) -> Signal<objects::LayoutSnapSettings> {
         self.snap_settings
-    }
-    pub(super) fn inspector_tab(self) -> Signal<LayoutInspectorTab> {
-        self.inspector_tab
     }
     pub(super) fn command_menu(self) -> Signal<Option<objects::LayoutCommandMenu>> {
         self.command_menu
@@ -371,22 +356,6 @@ pub(super) fn selection_kind_for_tree_context(
         | objects::TreeContext::Board { .. }
         | objects::TreeContext::LayoutGroup { .. } => None,
     }
-}
-
-/// Reset the tab only when the selection changes, not on unrelated revisions.
-pub(super) fn use_contextual_inspector_tab_reset(
-    selected_context: Signal<Option<objects::ScopedTreeContext>>,
-    inspector_tab: Signal<LayoutInspectorTab>,
-) {
-    let observed_context = selected_context();
-    let previous_context = use_hook(|| Rc::new(RefCell::new(observed_context.clone())));
-    use_effect(use_reactive!(|observed_context| {
-        let mut inspector_tab = inspector_tab;
-        if previous_context.borrow().as_ref() != observed_context.as_ref() {
-            inspector_tab.set(LayoutInspectorTab::Properties);
-        }
-        *previous_context.borrow_mut() = observed_context.clone();
-    }));
 }
 
 pub(super) fn objects(input: ObjectsInput) -> Element {
@@ -616,7 +585,6 @@ mod workspace_state_tests {
         let mut selected_context = use_signal(|| None::<objects::ScopedTreeContext>);
         let mut workspace = use_signal(|| "Layout");
         let state = use_layout_workspace_state(selected_context, workspace);
-        let mut inspector_tab = state.inspector_tab();
         let selection_kind = state.selection_kind();
         let mut pending_pick = state.pending_splay_origin_pick();
         let mut pending_anchor_pick = state.pending_anchor_pick();
@@ -647,18 +615,8 @@ mod workspace_state_tests {
             objects::LayoutSelectionKind::Key => "Key",
             objects::LayoutSelectionKind::Part => "Part",
         };
-        let inspector_tab_label = match inspector_tab() {
-            LayoutInspectorTab::Properties => "Properties",
-            LayoutInspectorTab::Relations => "Relations",
-        };
         let selection_present = selected_context().is_some();
         rsx! {
-                    Button {
-                        variant: ButtonVariant::Secondary,
-                        id: "layout-state-relations",
-                        onclick: move |_| inspector_tab.set(LayoutInspectorTab::Relations),
-                        "Relations"
-                    }
                     Button { variant: ButtonVariant::Secondary,
         id: "layout-state-select",
         onclick: move |_| {
@@ -701,7 +659,6 @@ mod workspace_state_tests {
                         onclick: move |_| workspace.set("Keycaps"),
                         "Switch workspace"
                     }
-                    output { id: "layout-state-tab", "{inspector_tab_label}" }
                     output { id: "layout-state-selection-kind", "{selection_kind_label}" }
                     output { id: "layout-state-selection-present", "{selection_present}" }
                     output { id: "layout-state-pending", "{pending_pick().is_some()}" }
@@ -826,7 +783,7 @@ mod workspace_state_tests {
     }
 }
 
-pub(super) fn inspector(mut input: InspectorInput) -> Element {
+pub(super) fn inspector(input: InspectorInput) -> Element {
     let mut key_size_open = use_signal(|| true);
     let mut matrix_relationship_escape_target = use_signal(|| None::<objects::TreeSelectRequest>);
     let component_owner = input
@@ -851,19 +808,16 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
             }
         }
     ));
-    let mut inspector_tab = input.inspector_tab;
     let mut return_target = matrix_relationship_escape_target;
     let on_matrix_relationship_escape =
         EventHandler::new(move |request: objects::TreeSelectRequest| {
             return_target.set(None);
-            inspector_tab.set(LayoutInspectorTab::Properties);
             input.on_select_context.call(request);
         });
     let relation_scope = input.relation_scope.clone();
     let relation_target = input.relation_target.clone();
     let relation_select = input.on_select_context;
     let mut relation_escape_target = matrix_relationship_escape_target;
-    let mut relation_tab = input.inspector_tab;
     let on_navigate_relation = EventHandler::new(move |context: objects::TreeContext| {
         let Some(scope) = relation_scope.clone() else {
             return;
@@ -881,7 +835,6 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
         };
         if matches!(request.context, objects::TreeContext::Component { .. }) {
             relation_escape_target.set(Some(request.clone()));
-            relation_tab.set(LayoutInspectorTab::Properties);
         }
         relation_select.call(request);
     });
@@ -934,7 +887,7 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
     let board_context_header = input.board_inspector_mount.projection.is_some();
     let show_context_header =
         input.outline_inspector.is_none() && input.component_inspector.is_none();
-    let matrix_context_tabs = input.component_inspector.is_none()
+    let matrix_context_relations = input.component_inspector.is_none()
         && input.outline_inspector.is_none()
         && input.board_inspector_mount.projection.is_none()
         && input.matrix_transform_inspector.projection.is_some();
@@ -943,7 +896,6 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
             if let Some(projection) = input.component_inspector {
                 super::inspector::LayoutComponentInspector {
                     projection,
-                    inspector_tab: input.inspector_tab,
                     pending_edits: input.component_inspector_pending_edits,
                     x: input.component_inspector_x,
                     y: input.component_inspector_y,
@@ -1024,94 +976,68 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
         }
     };
     rsx! {
-            PendingSplayOriginPickEscape {
-                pending: input.splay_origin_pick_pending,
-                on_cancel: input.on_cancel_splay_origin_pick,
-            }
-            super::layout_key_selection_actions::SelectedKeysActions {}
-            MatrixRelationshipEscape {
-                target: matrix_relationship_escape_target(),
-                component_owner,
-                on_escape: on_matrix_relationship_escape,
-            }
-            if input.findings_return_available {
-                div { class: "flex items-center gap-2 text-sm text-muted-foreground",
-                onkeydown: move |event: KeyboardEvent| {
-                    if event.key().to_string() == " " {
-                        event.stop_propagation();
-                        if let Some(raw) = event.data().try_as_web_event() {
-                            raw.stop_propagation();
-                        }
-                    }
-                },
-                    Button {
-                        variant: ButtonVariant::Secondary,
-                        class: "max-[760px]:min-h-control-touch",
-                        id: "m1-layout-findings-back-to-selection",
-                        button_type: "button",
-                        onclick: move |_| input.on_findings_return.call(()),
-
-                        "Back to selection"
-
+        PendingSplayOriginPickEscape {
+            pending: input.splay_origin_pick_pending,
+            on_cancel: input.on_cancel_splay_origin_pick,
+        }
+        super::layout_key_selection_actions::SelectedKeysActions {}
+        MatrixRelationshipEscape {
+            target: matrix_relationship_escape_target(),
+            component_owner,
+            on_escape: on_matrix_relationship_escape,
+        }
+        if input.findings_return_available {
+            div { class: "flex items-center gap-2 text-sm text-muted-foreground",
+            onkeydown: move |event: KeyboardEvent| {
+                if event.key().to_string() == " " {
+                    event.stop_propagation();
+                    if let Some(raw) = event.data().try_as_web_event() {
+                        raw.stop_propagation();
                     }
                 }
-            }
-            if show_context_header {
-                if let Some(title) = input.context_title.as_ref() {
-                    section {
-                        class: if board_context_header { "border-b border-border bg-card px-4 pt-6 pb-4 [&_h2]:m-0 [&_h2]:text-2xl [&_h2]:leading-tight [&_p]:mt-1.5 [&_p]:text-muted-foreground" } else { "border-b border-border bg-card px-4 pt-6 pb-4 [&_h2]:m-0 [&_h2]:text-xl [&_h2]:leading-tight [&_p]:mt-1.5 [&_p]:text-muted-foreground" },
-                        "aria-label": "Selected context",
-                        h2 { "{title}" }
-                        if let Some(detail) = input.context_detail.as_ref() {
-                            p { "{detail}" }
-                        }
-                    }
-                }
-            }
+            },
+                Button {
+                    variant: ButtonVariant::Secondary,
+                    class: "max-[760px]:min-h-control-touch",
+                    id: "m1-layout-findings-back-to-selection",
+                    button_type: "button",
+                    onclick: move |_| input.on_findings_return.call(()),
 
-            if matrix_context_tabs {
-                if let Some(relations) = input.matrix_relations.clone() {
-                    super::layout_matrix_relations::PlacementBreadcrumb {
-                        relations, on_navigate: on_navigate_relation, on_open_owner: on_open_owner_relation,
-                    }
+                    "Back to selection"
+
                 }
-                Tabs { horizontal: true,
-                attributes: vec![dioxus::events::onkeydown(move |event: KeyboardEvent| {
-                    if event.key().to_string() == " " {
-                        event.stop_propagation();
-                        if let Some(raw) = event.data().try_as_web_event() {
-                            raw.stop_propagation();
-                        }
-                    }
-                })],
-    value: Some(
-                        if (input.inspector_tab)() == LayoutInspectorTab::Properties {
-                            "properties".to_owned()
-                        } else {
-                            "relations".to_owned()
-                        },
-                    ),
-    on_value_change: move |value: String| input.inspector_tab.set(if value == "relations" { LayoutInspectorTab::Relations } else { LayoutInspectorTab::Properties }),
-                    TabsList {
-                        aria_label: "Inspector details",
-                        class: "layout-inspector-tabs",
-                        TabsTrigger { index: 0usize, value: "properties", "Properties" }
-                        TabsTrigger { index: 1usize, value: "relations", "Relations" }
-                    }
-                    TabsContent { index: 0usize, value: "properties", {properties.clone()} }
-                    TabsContent { index: 1usize, value: "relations",
-                        super::layout_matrix_relations::MatrixRelationsPanel {
-                            relations: input.matrix_relations.clone(),
-                            mount: input.matrix_transform_inspector.clone(),
-                            on_navigate: on_navigate_relation,
-                            on_open_owner: on_open_owner_relation,
-                        }
-                    }
-                 }
-            } else {
-                {properties}
             }
         }
+        if show_context_header {
+            if let Some(title) = input.context_title.as_ref() {
+                section {
+                    class: if board_context_header { "border-b border-border bg-card px-4 pt-6 pb-4 [&_h2]:m-0 [&_h2]:text-2xl [&_h2]:leading-tight [&_p]:mt-1.5 [&_p]:text-muted-foreground" } else { "border-b border-border bg-card px-4 pt-6 pb-4 [&_h2]:m-0 [&_h2]:text-xl [&_h2]:leading-tight [&_p]:mt-1.5 [&_p]:text-muted-foreground" },
+                    "aria-label": "Selected context",
+                    h2 { "{title}" }
+                    if let Some(detail) = input.context_detail.as_ref() {
+                        p { "{detail}" }
+                    }
+                }
+            }
+        }
+
+        if matrix_context_relations {
+            if let Some(relations) = input.matrix_relations.clone() {
+                super::layout_matrix_relations::PlacementBreadcrumb {
+                    relations, on_navigate: on_navigate_relation, on_open_owner: on_open_owner_relation,
+                }
+            }
+            {properties}
+            super::layout_matrix_relations::MatrixRelationsPanel {
+                relations: input.matrix_relations.clone(),
+                mount: input.matrix_transform_inspector.clone(),
+                on_navigate: on_navigate_relation,
+                on_open_owner: on_open_owner_relation,
+            }
+        } else {
+            {properties}
+        }
+    }
 }
 
 #[component]

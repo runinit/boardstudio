@@ -8508,7 +8508,6 @@ fn Editor() -> Element {
                     let mut pending = pending_splay_origin_pick;
                     EventHandler::new(move |()| pending.set(None))
                 },
-                inspector_tab: layout_state.inspector_tab(),
                 matrix_relations: matrix_context_relations(&model, selected_tree_context.as_ref()),
                 relation_target: {
                     let runtime = runtime.clone();

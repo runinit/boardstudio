@@ -206,21 +206,47 @@ pub fn layout_finding_return_is_current(
         })
 }
 
+/// Focus the first editable field of the Inspector the finding return lands
+/// on. Native fields come first in document order; fields hidden inside
+/// closed disclosures match the selector but cannot take focus, so they are
+/// skipped. When the Inspector has no native field (headless controls only),
+/// the first action that is not the return itself takes focus instead.
 pub fn focus_layout_finding_return_destination() -> bool {
     let Some(document) = web_sys::window().and_then(|window| window.document()) else {
         return false;
     };
-    for selector in [
-        "#m1-inspector-panel-content .layout-inspector-tabs [role='tab'][aria-selected='true']",
-        "#m1-inspector-panel-content [aria-label='Board Inspector'] :is(input, select, button):not(:disabled)",
-        "#m1-inspector-panel-content [aria-label='Board outline'] :is(input, select, button):not(:disabled)",
-    ] {
-        if let Some(element) = document
-            .query_selector(selector)
-            .ok()
-            .flatten()
-            .and_then(|element| element.dyn_into::<HtmlElement>().ok())
-        {
+    if let Ok(fields) = document.query_selector_all(
+        "#m1-inspector-panel-content :is(input, select, textarea):not(:disabled)",
+    ) {
+        for index in 0..fields.length() {
+            let Some(element) = fields
+                .item(index)
+                .and_then(|node| node.dyn_into::<HtmlElement>().ok())
+            else {
+                continue;
+            };
+            if element.closest("[hidden]").ok().flatten().is_some() {
+                continue;
+            }
+            let _ = element.focus();
+            return true;
+        }
+    }
+    if let Ok(actions) = document.query_selector_all(
+        "#m1-inspector-panel-content :is(button, [role='button']):not(:disabled)",
+    ) {
+        for index in 0..actions.length() {
+            let Some(element) = actions
+                .item(index)
+                .and_then(|node| node.dyn_into::<HtmlElement>().ok())
+            else {
+                continue;
+            };
+            if element.id() == "m1-layout-findings-back-to-selection"
+                || element.closest("[hidden]").ok().flatten().is_some()
+            {
+                continue;
+            }
             let _ = element.focus();
             return true;
         }

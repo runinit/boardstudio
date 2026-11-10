@@ -601,7 +601,6 @@ fn layout_constraint_fixture() -> Element {
     let adapter =
         use_hook(|| SelectionAdapter::new(selected_context, anchor_scope, scope_generation));
     let lifetime = use_hook(|| Rc::new(LayoutComponentInspectorLifetime::default()));
-    let inspector_tab = use_signal(super::layout_workspace::LayoutInspectorTab::default);
     let inspect_open = use_signal(|| true);
     let mut show = use_signal(|| true);
     let pending_edits =
@@ -660,7 +659,6 @@ fn layout_constraint_fixture() -> Element {
             if let Some(projection) = projection {
                 LayoutComponentInspector {
                     projection,
-                    inspector_tab,
                     pending_edits,
                     x: x_draft,
                     y: y_draft,
