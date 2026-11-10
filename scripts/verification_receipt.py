@@ -10,6 +10,7 @@ scope, exit status and observed results, and keeps scopes separate:
   * `page-suite` the `web/src` page runner JSON (a scoped part of the browser gate, not all of it).
   * `smoke`      the real-browser drag smoke and CAD provider checks: a separate evidence
                  scope, never added to Rust test counts.
+  * `compile-only` `cargo test --no-run` prebuilds, with exit status only and no test counts.
 
 Focused module groupings are recomputed from each launch's observed names. A before/after
 group delta is only reported when a caller explicitly supplies a previously written base
@@ -43,6 +44,7 @@ WASM_CRATE = "wasm-crate"
 PAGE_SUITE = "page-suite"
 SMOKE = "smoke"
 OTHER = "other"
+COMPILE = "compile-only"
 
 SMOKE_SCRIPTS = {"run-drag-browser.py", "test-cad-provider.py", "test-cad-browser.py", "face-completeness-gate.py"}
 
@@ -81,6 +83,11 @@ def script_name(command: list[str]) -> str:
 
 def scope_of(command: list[str]) -> str:
     if command[:2] == ["cargo", "test"]:
+        args = command[2:]
+        if "--" in args:
+            args = args[:args.index("--")]
+        if "--no-run" in args:
+            return COMPILE
         return NATIVE
     if command[:2] == ["wasm-pack", "test"]:
         return WASM_CRATE if crate_of(command) else OTHER
@@ -319,6 +326,9 @@ def _command_record(step: str, command: list[str], observation: Observation | No
         record.update(page_record(observation.page_report if observation.page_captured else
                                   (page_loader(path) if path else None), path=path,
                                   exit_code=observation.exit_code))
+    elif scope == COMPILE:
+        record.update({"complete": None, "passed": observation.exit_code == 0,
+                       "counts": None, "tests": [], "groups": {}, "problems": []})
     else:
         record.update({"complete": None, "passed": observation.exit_code == 0,
                        "counts": None, "tests": [], "groups": {}, "problems": []})

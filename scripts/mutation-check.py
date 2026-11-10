@@ -10,6 +10,10 @@ one of:
   survived                         the tests passed: nothing noticed the mutation
   compile-failure (does not count) the mutant did not build, so it says nothing about the tests
 
+Each result keeps `failed_tests` (every observed failing name, in order) and
+`first_failure` (the root wasm cause line when the killed output has wasm evidence,
+else null). Native kills, compile failures and survivors have no cause.
+
 Spec file (JSON): a list of
   {"name": "m1-...", "description": "what the mutation does",
    "edits": [{"file": "core/src/x.rs", "old": "exact text", "new": "replacement", "count": 1}]}
@@ -45,7 +49,9 @@ KILLED = "killed"
 SURVIVED = "survived"
 COMPILE_FAILURE = "compile-failure (does not count)"
 COMPILE_MARKER = "could not compile"
-FAILED_TEST = re.compile(r"^test (\S+) \.\.\. FAILED$")
+FAILED_TEST = re.compile(r"^test (\S+) \.\.\. (FAILED|FAIL)$")
+# run-wasm-tests `  FAILED <rust::name>` only; excludes generic `FAILED (failures=N)` footers.
+FAILED_SUMMARY = re.compile(r"^FAILED ([A-Za-z0-9_:]+)$")
 
 
 class SpecError(Exception):
@@ -160,7 +166,14 @@ def run_command(command: list[str], root: Path, timeout: float | None) -> tuple[
 
 
 def classify(code: int, output: str, timed_out: bool) -> tuple[str, list[str]]:
-    failed = [match.group(1) for line in output.splitlines() if (match := FAILED_TEST.match(line.strip()))]
+    failed: list[str] = []
+    for line in output.splitlines():
+        stripped = line.strip()
+        if match := FAILED_TEST.match(stripped):
+            # Identical names can fail in distinct native test binaries.
+            failed.append(match.group(1))
+        elif (match := FAILED_SUMMARY.match(stripped)) and match.group(1) not in failed:
+            failed.append(match.group(1))
     if timed_out:
         return KILLED, failed  # a mutant that hangs the tests is noticed by them
     if COMPILE_MARKER in output:
@@ -168,6 +181,33 @@ def classify(code: int, output: str, timed_out: bool) -> tuple[str, list[str]]:
     if failed or code != 0:
         return KILLED, failed
     return SURVIVED, failed
+
+
+def first_failure(output: str) -> str | None:
+    """The root wasm failure line, or None when the output has no wasm evidence.
+
+    Prefers the verbatim `first failure [` summary line from run-wasm-tests (which names
+    the cause and the cascade count); otherwise summarizes direct `wasm-bindgen-test`
+    output via check.py. Native, compile-failure and survived outputs have no cause.
+    """
+    for line in output.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("first failure ["):
+            return stripped
+    # Cargo dependency messages alone are not evidence that a wasm test ran.
+    wasm_evidence = "/wasm-bindgen-test" in output or "Running Wasm tests" in output
+    if not wasm_evidence:
+        return None
+    try:
+        scripts_dir = str(Path(__file__).resolve().parent)
+        if scripts_dir not in sys.path:
+            sys.path.insert(0, scripts_dir)
+        import check as _check  # lazy, run-wasm-tests precedent; no fallback parser
+
+        summary = _check.format_wasm_failure_summary(output)
+        return summary or None
+    except Exception:
+        return None
 
 
 def restore(root: Path, originals: dict[str, bytes]) -> dict[str, bool]:
@@ -202,6 +242,7 @@ def run_mutation(root: Path, mutation: dict, command: list[str], evidence: Path,
         # Runs on success, on error and on Ctrl-C alike.
         restored = restore(root, originals)
     status, failed = classify(code, output, timed_out)
+    cause = first_failure(output) if status == KILLED else None
     (evidence / f"{name}.log").write_text(output, encoding="utf-8")
     after = {file: sha256(read_bytes(root / file)) for file in files if (root / file).exists()}
     return {
@@ -211,6 +252,7 @@ def run_mutation(root: Path, mutation: dict, command: list[str], evidence: Path,
         "exit_code": code,
         "timed_out": timed_out,
         "failed_tests": failed,
+        "first_failure": cause,
         "restored_exact": all(restored.values()) and before == after,
         "files": {file: {"sha256_before": before[file], "sha256_after": after.get(file)} for file in files},
         "seconds": round(time.monotonic() - started, 1),

@@ -415,6 +415,67 @@ class ReceiptBoundaryTests(unittest.TestCase):
         self.assertNotIn("all tests passed", text)
 
 
+# Trimmed literal excerpt from .evidence/004-recovery/integrated-gate.log BROWSER_PREBUILD
+# output (Compiling + Finished `test` profile + Executable unittests lines). No libtest
+# summary or binary results; a native record of this output is incomplete.
+COMPILE_ONLY_PREBUILD_OUTPUT = """\
+   Compiling boardstudio-web-keycaps v0.1.0 (/home/chris/.t3/worktrees/ts-boardstudio2/fix-ui-integration-recovery/web/crates/keycaps)
+   Compiling boardstudio-web-layout v0.1.0 (/home/chris/.t3/worktrees/ts-boardstudio2/fix-ui-integration-recovery/web/crates/layout)
+    Finished `test` profile [unoptimized] target(s) in 11.19s
+  Executable unittests src/lib.rs (target/wasm32-unknown-unknown/debug/deps/boardstudio_web_case-9cd344440777a933.wasm)
+  Executable unittests src/lib.rs (target/wasm32-unknown-unknown/debug/deps/boardstudio_web_ui_shared-666c76900574e814.wasm)
+"""
+
+COMPILE_ONLY_FAILURE_OUTPUT = """\
+error: could not compile `boardstudio-web-case` (lib test) due to 1 previous error
+"""
+
+
+class CompileOnlyTests(unittest.TestCase):
+    def _finish(self, step, command, output, exit_code):
+        with tempfile.TemporaryDirectory() as directory:
+            collector = receipt.Collector(path=Path(directory) / "r.json", source={})
+            collector.plan_commands([(step, [command])])
+            collector.observe(step, command, exit_code, 1.0, output)
+            return collector.finish(exit_code)
+
+    def test_compile_only_success_is_accepted_without_native_counts(self):
+        built = self._finish("browser", check.BROWSER_PREBUILD, COMPILE_ONLY_PREBUILD_OUTPUT, 0)
+        record = built["commands"][0]
+        self.assertEqual(record["scope"], "compile-only")
+        self.assertIsNone(record["complete"])
+        self.assertTrue(record["passed"])
+        self.assertIsNone(record["counts"])
+        self.assertEqual(record["tests"], [])
+        self.assertEqual(record["groups"], {})
+        self.assertEqual(record["problems"], [])
+        self.assertIsNone(built["native"])
+        self.assertTrue(built["invocation"]["accepted"])
+        self.assertEqual(built["source_binding"]["build_served_binding"], "unknown")
+        self.assertEqual(built["source_binding"]["status"], "unknown")
+
+    def test_compile_only_failure_is_not_accepted(self):
+        built = self._finish("browser", check.BROWSER_PREBUILD, COMPILE_ONLY_FAILURE_OUTPUT, 101)
+        record = built["commands"][0]
+        self.assertEqual(record["scope"], "compile-only")
+        self.assertIsNone(record["complete"])
+        self.assertFalse(record["passed"])
+        self.assertFalse(built["invocation"]["accepted"])
+
+    def test_compile_only_native_guard_still_rejects_empty_results(self):
+        built = self._finish("test", NATIVE_COMMAND, COMPILE_ONLY_PREBUILD_OUTPUT, 0)
+        record = built["commands"][0]
+        self.assertEqual(record["scope"], "native")
+        self.assertFalse(record["passed"])
+        self.assertFalse(built["invocation"]["accepted"])
+        self.assertTrue(any("no native binary results observed" in problem for problem in record["problems"]))
+
+    def test_compile_only_separator_keeps_libtest_filter_native(self):
+        # `--no-run` after `--` is a libtest filter, not a cargo flag: stays native.
+        self.assertEqual(receipt.scope_of(["cargo", "test", "--", "--no-run"]), "native")
+        self.assertEqual(receipt.scope_of(["cargo", "test", "--no-run", "--", "filter"]), "compile-only")
+
+
 class NativeLaunchReconciliationTests(unittest.TestCase):
     """Terminal completeness per launched native binary is separate from pass/fail."""
 

@@ -22,6 +22,7 @@ SOURCE = "alpha GOOD omega\nsecond GOOD line\n"
 PROBE = (
     "import pathlib, sys\n"
     "text = pathlib.Path('sample.txt').read_text()\n"
+    "print('   Compiling wasm-bindgen-test v0.3.50')\n"
     "if 'SYNTAX' in text:\n"
     "    print('error: could not compile `sample`'); sys.exit(101)\n"
     "if 'BAD' in text:\n"
@@ -32,6 +33,83 @@ PROBE = (
 
 def edit(old, new, count=1, file="sample.txt"):
     return {"file": file, "old": old, "new": new, "count": count}
+
+
+# Trimmed literal excerpts from real wasm failure logs. Tests never read .evidence.
+# (A) run-wasm-tests summary shape: `first failure [...]` + `FAILED <name>` lines.
+# From .evidence/004-recovery/checker/relation/004-M1-matrix-tab-chrome-restored.log.
+WASM_M1_FIRST_FAILURE = (
+    "first failure [Rust panic/assertion]: "
+    "presentation::layout_relation_highlight_tests::the_relations_tab_is_gone_and_facts_live_beside_the_fields "
+    "at web/src/presentation/layout_relation_highlight_tests.rs:208:5 — no Inspector tab bar remains; "
+    "follow-on symptom: 15 later test(s) hit 'cannot modify the panic hook from a panicking thread' "
+    "in shared WASM state (re-run after fixing first failure)"
+)
+WASM_M1_OUTPUT = """\
+--- presentation::layout_relation_highlight_tests:: ---
+first failure [Rust panic/assertion]: presentation::layout_relation_highlight_tests::the_relations_tab_is_gone_and_facts_live_beside_the_fields at web/src/presentation/layout_relation_highlight_tests.rs:208:5 — no Inspector tab bar remains; follow-on symptom: 15 later test(s) hit 'cannot modify the panic hook from a panicking thread' in shared WASM state (re-run after fixing first failure)
+run-wasm-tests: executed 16, failed 16 (filters: presentation::layout_relation_highlight_tests::)
+  FAILED presentation::layout_relation_highlight_tests::a_key_removed_while_highlighted_leaves_nothing_highlighted
+  FAILED presentation::layout_relation_highlight_tests::a_removed_anchor_key_leaves_its_follows_reference_inert
+  FAILED presentation::layout_relation_highlight_tests::anchored_follows_navigates_to_its_key_without_writing
+  FAILED presentation::layout_relation_highlight_tests::bent_key_explains_its_cumulative_shift_and_opens_its_row
+  FAILED presentation::layout_relation_highlight_tests::breadcrumb_carries_chip_selects_its_column_without_writing
+  FAILED presentation::layout_relation_highlight_tests::changing_the_selection_clears_the_highlight
+  FAILED presentation::layout_relation_highlight_tests::hidden_reference_names_its_layer_and_still_navigates
+  FAILED presentation::layout_relation_highlight_tests::hovering_a_breadcrumb_chip_highlights_only_its_keys
+  FAILED presentation::layout_relation_highlight_tests::hovering_an_aggregate_part_highlights_only_its_key
+  FAILED presentation::layout_relation_highlight_tests::hovering_an_inherited_column_highlights_only_its_keys
+  FAILED presentation::layout_relation_highlight_tests::hovering_follows_highlights_the_anchor_key
+  FAILED presentation::layout_relation_highlight_tests::keyboard_focus_highlights_and_blur_clears
+  FAILED presentation::layout_relation_highlight_tests::navigating_a_reference_releases_its_highlight
+  FAILED presentation::layout_relation_highlight_tests::selecting_parts_in_two_matrices_explains_the_single_context_chain
+  FAILED presentation::layout_relation_highlight_tests::split_navigation_keeps_a_present_focus_label_on_the_same_half
+  FAILED presentation::layout_relation_highlight_tests::the_relations_tab_is_gone_and_facts_live_beside_the_fields
+"""
+WASM_M1_EXPECTED = [
+    "presentation::layout_relation_highlight_tests::a_key_removed_while_highlighted_leaves_nothing_highlighted",
+    "presentation::layout_relation_highlight_tests::a_removed_anchor_key_leaves_its_follows_reference_inert",
+    "presentation::layout_relation_highlight_tests::anchored_follows_navigates_to_its_key_without_writing",
+    "presentation::layout_relation_highlight_tests::bent_key_explains_its_cumulative_shift_and_opens_its_row",
+    "presentation::layout_relation_highlight_tests::breadcrumb_carries_chip_selects_its_column_without_writing",
+    "presentation::layout_relation_highlight_tests::changing_the_selection_clears_the_highlight",
+    "presentation::layout_relation_highlight_tests::hidden_reference_names_its_layer_and_still_navigates",
+    "presentation::layout_relation_highlight_tests::hovering_a_breadcrumb_chip_highlights_only_its_keys",
+    "presentation::layout_relation_highlight_tests::hovering_an_aggregate_part_highlights_only_its_key",
+    "presentation::layout_relation_highlight_tests::hovering_an_inherited_column_highlights_only_its_keys",
+    "presentation::layout_relation_highlight_tests::hovering_follows_highlights_the_anchor_key",
+    "presentation::layout_relation_highlight_tests::keyboard_focus_highlights_and_blur_clears",
+    "presentation::layout_relation_highlight_tests::navigating_a_reference_releases_its_highlight",
+    "presentation::layout_relation_highlight_tests::selecting_parts_in_two_matrices_explains_the_single_context_chain",
+    "presentation::layout_relation_highlight_tests::split_navigation_keeps_a_present_focus_label_on_the_same_half",
+    "presentation::layout_relation_highlight_tests::the_relations_tab_is_gone_and_facts_live_beside_the_fields",
+]
+# (B) direct wasm cargo-test runner shape: `test <name> ... FAIL` + panicked/assertion.
+# From .evidence/004-recovery/checker/component-followup/004-M6-component-relationships-suppressed.log.
+WASM_M6_TEST = "presentation::layout_component_inspector_tests::mounted_component_facts_live_beside_the_fields_without_tabs"
+WASM_M6_OUTPUT = """\
+running 1 test
+test presentation::layout_component_inspector_tests::mounted_component_facts_live_beside_the_fields_without_tabs ... FAIL
+
+failures:
+
+---- presentation::layout_component_inspector_tests::mounted_component_facts_live_beside_the_fields_without_tabs output ----
+    error output:
+        panicked at web/src/presentation/layout_component_inspector_tests.rs:2366:5:
+        assertion `left == right` failed: the Relationships section renders beside the fields
+          left: Some("")
+         right: Some("Relationships")
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 227 filtered out; finished in 0.35s
+
+console output:
+    Invoking test: presentation::layout_component_inspector_tests::mounted_component_facts_live_beside_the_fields_without_tabs
+    panicked at web/src/presentation/layout_component_inspector_tests.rs:2366:5:
+    assertion `left == right` failed: the Relationships section renders beside the fields
+      left: Some("")
+     right: Some("Relationships")
+        at http://127.0.0.1:35839/wasm-bindgen-test:1979:25
+"""
 
 
 class MutationCheckTests(unittest.TestCase):
@@ -68,8 +146,22 @@ class MutationCheckTests(unittest.TestCase):
             "m-compile": "compile-failure (does not count)",
         })
         self.assertEqual(results[0]["failed_tests"], ["sample::checks"])
+        self.assertIsNone(results[0].get("first_failure"))
+        self.assertIsNone(results[1].get("first_failure"))
+        self.assertIsNone(results[2].get("first_failure"))
         self.assertTrue(all(r["restored_exact"] for r in results))
         self.assert_original()
+
+    def test_native_logs_do_not_claim_wasm_failures_or_collapse_binary_results(self):
+        for cargo_line in ("Downloaded wasm-bindgen-test v0.3.50",
+                           "Running wasm-bindgen-test v0.3.50", "Dirty wasm-bindgen-test v0.3.50"):
+            with self.subTest(cargo_line=cargo_line):
+                output = f"{cargo_line}\ntest sample::checks ... FAILED\ntest sample::checks ... FAILED\n"
+                self.assertIsNone(mutation_check.first_failure(output))
+        with self.subTest(case="two native binaries with the same test name"):
+            output = "test sample::checks ... FAILED\ntest sample::checks ... FAILED\n"
+            self.assertEqual(mutation_check.classify(1, output, False),
+                             ("killed", ["sample::checks", "sample::checks"]))
 
     def test_evidence_logs_and_hashes_are_written(self):
         results, _, _ = self.run_check([{"name": "m1", "description": "", "edits": [edit("alpha GOOD", "alpha BAD")]}])
@@ -194,6 +286,59 @@ class MutationCheckTests(unittest.TestCase):
     def test_the_default_evidence_directory_is_gitignored(self):
         ignored = (HERE.parent / ".gitignore").read_text().splitlines()
         self.assertIn(".evidence/", ignored)
+
+    def test_wasm_run_summary_keeps_all_failed_names_and_first_cause(self):
+        (self.root / "fixture.txt").write_text(WASM_M1_OUTPUT, encoding="utf-8")
+        self.command = [sys.executable, "-c",
+                        "import sys; sys.stdout.write(open('fixture.txt', encoding='utf-8').read()); sys.exit(1)"]
+        results, status, _ = self.run_check(
+            [{"name": "m-wasm", "description": "", "edits": [edit("omega", "OMEGA")]}],
+            skip_baseline=True)
+        self.assertEqual(status, 0)
+        result = results[0]
+        self.assertEqual(result["status"], "killed")
+        self.assertEqual(result["failed_tests"], WASM_M1_EXPECTED)
+        self.assertEqual(result.get("first_failure"), WASM_M1_FIRST_FAILURE)
+        self.assertFalse(result["timed_out"])
+        self.assertTrue(result["restored_exact"])
+        self.assert_original()
+
+    def test_wasm_direct_runner_keeps_fail_name_and_first_cause(self):
+        (self.root / "fixture.txt").write_text(WASM_M6_OUTPUT, encoding="utf-8")
+        self.command = [sys.executable, "-c",
+                        "import sys; sys.stdout.write(open('fixture.txt', encoding='utf-8').read()); sys.exit(1)"]
+        results, status, _ = self.run_check(
+            [{"name": "m-wasm", "description": "", "edits": [edit("omega", "OMEGA")]}],
+            skip_baseline=True)
+        self.assertEqual(status, 0)
+        result = results[0]
+        self.assertEqual(result["status"], "killed")
+        self.assertEqual(result["failed_tests"], [WASM_M6_TEST])
+        cause = result.get("first_failure")
+        self.assertIn(WASM_M6_TEST, cause)
+        self.assertIn("web/src/presentation/layout_component_inspector_tests.rs:2366:5", cause)
+        self.assertIn("the Relationships section renders beside the fields", cause)
+        self.assertFalse(result["timed_out"])
+        self.assertTrue(result["restored_exact"])
+        self.assert_original()
+
+    def test_python_failed_footer_is_not_a_failed_test_name(self):
+        # Checker RX1: `FAILED (failures=8)` must not become `["(failures=8)"]`.
+        output = WASM_M1_OUTPUT + "FAILED (failures=8)\n"
+        (self.root / "fixture.txt").write_text(output, encoding="utf-8")
+        self.command = [sys.executable, "-c",
+                        "import sys; sys.stdout.write(open('fixture.txt', encoding='utf-8').read()); sys.exit(1)"]
+        results, status, _ = self.run_check(
+            [{"name": "m-wasm", "description": "", "edits": [edit("omega", "OMEGA")]}],
+            skip_baseline=True)
+        self.assertEqual(status, 0)
+        result = results[0]
+        self.assertEqual(result["status"], "killed")
+        self.assertEqual(result["failed_tests"], WASM_M1_EXPECTED)
+        self.assertEqual(result.get("first_failure"), WASM_M1_FIRST_FAILURE)
+        self.assertFalse(result["timed_out"])
+        self.assertTrue(result["restored_exact"])
+        self.assert_original()
 
 
 if __name__ == "__main__":
