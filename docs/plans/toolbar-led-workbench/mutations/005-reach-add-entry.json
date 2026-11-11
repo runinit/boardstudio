@@ -1,0 +1,14 @@
+[
+  {
+    "name": "remove-new-add-matrix-entry",
+    "description": "Remove the Matrix entry from the contextual Add menu so the retained creation command is unreachable",
+    "edits": [
+      {
+        "file": "web/crates/layout/src/objects.rs",
+        "old": "                                    if let Some((can_open, on_open)) = matrix_open {",
+        "new": "                                    if let Some((can_open, on_open)) = matrix_open.filter(|_| false) {",
+        "count": 1
+      }
+    ]
+  }
+]

@@ -1,0 +1,14 @@
+[
+  {
+    "name": "swap-reference-row-column",
+    "description": "Swap row and column in the Objects part association label so R1/C6 is reported transposed",
+    "edits": [
+      {
+        "file": "web/crates/ui-model/src/tree.rs",
+        "old": "        return format!(\n            \"Placed from {name} · R{}/C{}\",\n            anchor.row + 1,\n            anchor.column + 1\n        );",
+        "new": "        return format!(\n            \"Placed from {name} · R{}/C{}\",\n            anchor.column + 1,\n            anchor.row + 1\n        );",
+        "count": 1
+      }
+    ]
+  }
+]

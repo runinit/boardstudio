@@ -1,0 +1,14 @@
+[
+  {
+    "name": "restore-old-scope-registration",
+    "description": "Never prune stale-scope draft-owner registrations at poll, restoring the old-scope registration after session replacement",
+    "edits": [
+      {
+        "file": "web/crates/runtime/src/draft_owners.rs",
+        "old": "            if current_scope.is_none_or(|scope| *scope != entry.project_scope) {\n                self.entries.remove(index);\n                continue;\n            }",
+        "new": "            if current_scope.is_none() {\n                self.entries.remove(index);\n                continue;\n            }",
+        "count": 1
+      }
+    ]
+  }
+]

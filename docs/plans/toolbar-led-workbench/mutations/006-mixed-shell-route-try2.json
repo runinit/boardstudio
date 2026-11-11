@@ -1,0 +1,14 @@
+[
+  {
+    "name": "dispatch-review-reveal-to-layout",
+    "description": "Export Review wiring reveal is dispatched to Layout instead of its captured PCB destination",
+    "edits": [
+      {
+        "file": "web/src/presentation/export_workspace.rs",
+        "old": "            // Route first, then reveal in PCB's current (legacy) Inspector\n            // authority; Layout's host is never touched from Export.\n            workspace.set(\"PCB\");",
+        "new": "            // Route first, then reveal in PCB's current (legacy) Inspector\n            // authority; Layout's host is never touched from Export.\n            workspace.set(\"Layout\");",
+        "count": 1
+      }
+    ]
+  }
+]

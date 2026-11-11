@@ -1,0 +1,14 @@
+[
+  {
+    "name": "leave-task-visible-after-accepted-route",
+    "description": "An accepted route that invalidates the MatrixSetup owner no longer closes its task: the scope-generation clause of the controller close predicate is dropped",
+    "edits": [
+      {
+        "file": "web/crates/layout/src/objects/matrix_setup_controller.rs",
+        "old": "                    && open.read().as_ref().is_some_and(|owner| {\n                        owner.scope_generation != scope_generation\n                            || runtime.scope().as_ref() != Some(&owner.scope)\n                    })",
+        "new": "                    && open.read().as_ref().is_some_and(|owner| {\n                        owner.scope_generation == u64::MAX\n                            || runtime.scope().as_ref() != Some(&owner.scope)\n                    })",
+        "count": 1
+      }
+    ]
+  }
+]

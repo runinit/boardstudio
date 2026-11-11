@@ -1,0 +1,20 @@
+[
+  {
+    "name": "restore-old-scope-registration-alive",
+    "description": "Old-scope MatrixSetup registration survives session replacement: its guard is leaked instead of retired on scope change and the registry poll no longer prunes stale scopes",
+    "edits": [
+      {
+        "file": "web/crates/layout/src/objects/matrix_setup.rs",
+        "old": "            if let Some(old) = guard.write().take() {\n                runtime.retire_draft_owner(old);\n            }",
+        "new": "            if let Some(old) = guard.write().take() {\n                std::mem::forget(old);\n            }",
+        "count": 1
+      },
+      {
+        "file": "web/crates/runtime/src/draft_owners.rs",
+        "old": "            if current_scope.is_none_or(|scope| *scope != entry.project_scope) {\n                self.entries.remove(index);\n                continue;\n            }",
+        "new": "            if current_scope.is_none() {\n                self.entries.remove(index);\n                continue;\n            }",
+        "count": 1
+      }
+    ]
+  }
+]

@@ -1,0 +1,20 @@
+[
+  {
+    "name": "restore-old-scope-registration-unmount",
+    "description": "Old-scope MatrixSetup registration survives session replacement: unmount leaks its guard instead of retiring it and the registry poll no longer prunes stale scopes",
+    "edits": [
+      {
+        "file": "web/crates/layout/src/objects/matrix_setup.rs",
+        "old": "    use_drop(move || {\n        let mut guard = guard;\n        if let Some(runtime) = runtime\n            && let Some(old) = guard.write().take()\n        {\n            runtime.retire_draft_owner(old);\n        }\n    });",
+        "new": "    use_drop(move || {\n        let mut guard = guard;\n        if let Some(_runtime) = runtime\n            && let Some(old) = guard.write().take()\n        {\n            std::mem::forget(old);\n        }\n    });",
+        "count": 1
+      },
+      {
+        "file": "web/crates/runtime/src/draft_owners.rs",
+        "old": "            if current_scope.is_none_or(|scope| *scope != entry.project_scope) {\n                self.entries.remove(index);\n                continue;\n            }",
+        "new": "            if current_scope.is_none() {\n                self.entries.remove(index);\n                continue;\n            }",
+        "count": 1
+      }
+    ]
+  }
+]

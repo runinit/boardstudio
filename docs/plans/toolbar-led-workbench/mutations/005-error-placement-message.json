@@ -1,0 +1,14 @@
+[
+  {
+    "name": "drop-failed-placement-message",
+    "description": "Drop the failed-placement Alert from Layout Objects so the failure no longer stays visible",
+    "edits": [
+      {
+        "file": "web/crates/layout/src/objects.rs",
+        "old": "                    if let Some(error) = placement_error {",
+        "new": "                    if let Some(error) = placement_error.filter(|_| false) {",
+        "count": 1
+      }
+    ]
+  }
+]

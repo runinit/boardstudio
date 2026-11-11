@@ -1,0 +1,20 @@
+[
+  {
+    "name": "clear-pending-create-admission",
+    "description": "Clear the real Create admission: the projection stays editable while a Create is pending and the create handler no longer refuses a pending resubmission",
+    "edits": [
+      {
+        "file": "web/crates/layout/src/objects/matrix_setup_controller.rs",
+        "old": "        let idle = !pending_create() && preparing.read().is_none();",
+        "new": "        let idle = preparing.read().is_none();",
+        "count": 1
+      },
+      {
+        "file": "web/crates/layout/src/objects/matrix_setup_controller.rs",
+        "old": "            if open.read().as_ref() != Some(&request.owner)\n                || pending_create()\n                || preparing.read().is_some()",
+        "new": "            if open.read().as_ref() != Some(&request.owner)\n                || preparing.read().is_some()",
+        "count": 1
+      }
+    ]
+  }
+]

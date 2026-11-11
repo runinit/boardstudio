@@ -1,0 +1,14 @@
+[
+  {
+    "name": "leave-task-visible-after-domain-cancel",
+    "description": "MatrixSetup domain Cancel no longer closes its task, leaving the task visible after its owner Cancel",
+    "edits": [
+      {
+        "file": "web/crates/layout/src/objects/matrix_setup_controller.rs",
+        "old": "        move |owner: MatrixSetupOwner| {\n            if open.read().as_ref() == Some(&owner) && !pending_create() {",
+        "new": "        move |owner: MatrixSetupOwner| {\n            if open.read().as_ref() != Some(&owner) && !pending_create() {",
+        "count": 1
+      }
+    ]
+  }
+]

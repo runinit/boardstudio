@@ -1,0 +1,14 @@
+[
+  {
+    "name": "drop-hidden-inspector-guard",
+    "description": "Legacy position Inspector registration never reports an unresolved draft, so a hidden retained draft no longer defers Update Now while its text is retained",
+    "edits": [
+      {
+        "file": "web/src/presentation/inspector.rs",
+        "old": "            let is_unresolved = std::rc::Rc::new(move || {\n                let live = draft.peek().clone();",
+        "new": "            let is_unresolved = std::rc::Rc::new(move || {\n                return false;\n                #[allow(unreachable_code)]\n                let live = draft.peek().clone();",
+        "count": 1
+      }
+    ]
+  }
+]

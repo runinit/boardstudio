@@ -1,0 +1,14 @@
+[
+  {
+    "name": "misname-hidden-inspector-remedy",
+    "description": "Equivalent at the same registration point: the hidden Inspector owner's deferral no longer names its existing remedy, so Update Now does not name Layout/editor/remedy",
+    "edits": [
+      {
+        "file": "web/src/presentation/inspector.rs",
+        "old": "                        remedy: \"Press Enter or Apply position to save, or press Escape to cancel\"\n                            .to_owned(),",
+        "new": "                        remedy: \"Press Enter to save\"\n                            .to_owned(),",
+        "count": 1
+      }
+    ]
+  }
+]
