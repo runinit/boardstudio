@@ -66,10 +66,14 @@ fn close(mut panel: Signal<Option<ToolPanel>>, restore_focus: bool) {
 
 /// Retained Show/hide commands toggle through the same dismissal as the utilities:
 /// closing restores focus to the utility instead of stranding it in hidden content.
-pub(super) fn toggle_tool_panel(panel: Signal<Option<ToolPanel>>, kind: ToolPanel) {
+pub(super) fn toggle_tool_panel(
+    panel: Signal<Option<ToolPanel>>,
+    kind: ToolPanel,
+    on_hide_transient: Callback<(), bool>,
+) {
     if *panel.peek() == Some(kind) {
         close(panel, true);
-    } else {
+    } else if on_hide_transient.call(()) {
         let mut panel = panel;
         panel.set(Some(kind));
     }
@@ -648,15 +652,7 @@ pub(super) fn PanelUtilities(
                 aria_label: kind.utility_label(), aria_expanded: panel() == Some(kind),
                 aria_controls: kind.id(),
                 on_click: move |_| {
-                    if *panel.peek() == Some(kind) {
-                        close(panel, true);
-                    } else {
-                        if !on_hide_transient.call(()) {
-                            return;
-                        }
-                        let mut panel = panel;
-                        panel.set(Some(kind));
-                    }
+                    toggle_tool_panel(panel, kind, on_hide_transient);
                 },
                 svg { view_box: "0 0 20 20", "aria-hidden": "true",
                     path { d: kind.icon_path() }

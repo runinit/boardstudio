@@ -60,6 +60,7 @@ pub(super) struct ToolbarInput {
     pub(super) transform: objects::LayoutTransformMenuMount,
     pub(super) menu_owner_key: String,
     pub(super) open_menu: Signal<Option<objects::LayoutCommandMenu>>,
+    pub(super) on_hide_transient: Callback<(), bool>,
     pub(super) on_selection_kind: EventHandler<objects::LayoutSelectionKind>,
     pub(super) on_snap_intent: EventHandler<objects::LayoutSnapIntent>,
     pub(super) has_selection_context: bool,
@@ -423,11 +424,6 @@ pub(super) fn add_object_header_action(mut menu_open: Signal<bool>) -> Element {
 }
 
 pub(super) fn toolbar(input: ToolbarInput) -> Element {
-    let mut transient_menu = input.open_menu;
-    let hide_transient = Callback::new(move |()| {
-        transient_menu.set(None);
-        true
-    });
     let fit_key = format!(
         "{:?}|{:?}|{:?}|{:?}|{}|{}|{}|{}|{}|{}|{}|{}|{:?}|{}|{}|{:?}",
         (input.open_menu)(),
@@ -450,7 +446,7 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
     let utilities = rsx! {
         super::workbench_shell::PanelUtilities {
             panel: input.panel,
-            on_hide_transient: hide_transient,
+            on_hide_transient: input.on_hide_transient,
         }
     };
     rsx! {

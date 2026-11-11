@@ -3359,6 +3359,11 @@ fn Editor() -> Element {
     });
     let layout_snap_settings = layout_state.snap_settings();
     let layout_command_menu = layout_state.command_menu();
+    let hide_layout_transient = Callback::new(move |()| {
+        let mut menu = layout_command_menu;
+        menu.set(None);
+        true
+    });
     use_effect(move || {
         if layout_command_menu().is_some() {
             layout_panel.set(None);
@@ -7989,6 +7994,7 @@ fn Editor() -> Element {
                     transform,
                     menu_owner_key: format!("{layout_owner:?}"),
                     open_menu: layout_command_menu,
+                    on_hide_transient: hide_layout_transient,
                     on_selection_kind: on_layout_selection_kind_handler,
                     on_snap_intent: layout_snap_intent,
                     show_relationships: true,
@@ -9611,14 +9617,22 @@ fn Editor() -> Element {
     };
     let toggle_objects = use_callback(move |()| {
         if workspace() == "Layout" {
-            workbench_shell::toggle_tool_panel(layout_panel, workbench_shell::ToolPanel::Objects);
+            workbench_shell::toggle_tool_panel(
+                layout_panel,
+                workbench_shell::ToolPanel::Objects,
+                hide_layout_transient,
+            );
         } else {
             toggle_panel(objects_open, inspect_open, objects_panel_settings);
         }
     });
     let toggle_inspector = use_callback(move |()| {
         if workspace() == "Layout" {
-            workbench_shell::toggle_tool_panel(layout_panel, workbench_shell::ToolPanel::Inspector);
+            workbench_shell::toggle_tool_panel(
+                layout_panel,
+                workbench_shell::ToolPanel::Inspector,
+                hide_layout_transient,
+            );
         } else {
             toggle_panel(inspect_open, objects_open, inspector_panel_settings);
         }

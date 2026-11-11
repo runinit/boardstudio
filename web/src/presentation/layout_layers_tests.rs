@@ -1576,6 +1576,12 @@ async fn show_hide_commands_route_to_each_workspace_current_host() {
         );
     };
     let legacy_before = compact_signals();
+    click(&root, "Select");
+    wait_until("Layout Select section opens", || {
+        by_role_name(&root, "button", "Select")
+            .is_some_and(|button| button.get_attribute("aria-expanded").as_deref() == Some("true"))
+    })
+    .await;
     let invoke_objects = by_role_name(&root, "button", "Invoke Show/hide Objects").unwrap();
     invoke_objects.focus().unwrap();
     invoke_view_command(&root, "Invoke Show/hide Objects");
@@ -1584,6 +1590,15 @@ async fn show_hide_commands_route_to_each_workspace_current_host() {
             .is_some_and(|button| button.get_attribute("aria-expanded").as_deref() == Some("true"))
     })
     .await;
+    assert_eq!(
+        by_role_name(&root, "button", "Select")
+            .unwrap()
+            .get_attribute("aria-expanded")
+            .as_deref(),
+        Some("false"),
+        "command reveal hides the Layout transient section"
+    );
+    assert_eq!(count(&root, "#workbench-inspector:not([hidden])"), 0);
     let panel = root
         .query_selector("#workbench-objects:not([hidden])")
         .unwrap()
@@ -1819,6 +1834,53 @@ async fn show_hide_commands_route_to_each_workspace_current_host() {
     assert_eq!(
         runtime.model().accepted.as_ref().unwrap().document.revision,
         revision
+    );
+    root.remove();
+}
+
+fn refusing_command_host() -> Element {
+    let panel = use_signal(|| None::<super::workbench_shell::ToolPanel>);
+    let transient_open = use_signal(|| true);
+    let request_hide = Callback::new(move |()| false);
+    rsx! {
+        super::workbench_shell::PanelHost { panel,
+            objects: rsx! { "Objects content" },
+            inspector: rsx! { "Inspector content" },
+            if transient_open() { div { role: "menu", aria_label: "Transient task", "Task" } }
+            button {
+                aria_label: "Invoke refusing command",
+                onclick: move |_| {
+                    super::workbench_shell::toggle_tool_panel(panel, super::workbench_shell::ToolPanel::Objects, request_hide);
+                },
+                "Invoke refusing command"
+            }
+        }
+    }
+}
+
+#[wasm_bindgen_test]
+async fn command_reveal_respects_transient_refusal() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = document.create_element("div").unwrap();
+    document.body().unwrap().append_child(&root).unwrap();
+    dioxus_web::launch::launch_virtual_dom(
+        VirtualDom::new(refusing_command_host),
+        dioxus_web::Config::new().rootnode(root.clone().into()),
+    );
+    wait_until("refusing owner mounts", || {
+        by_role_name(&root, "button", "Invoke refusing command").is_some()
+    })
+    .await;
+    click(&root, "Invoke refusing command");
+    settle_frames().await;
+    assert!(by_role_name(&root, "menu", "Transient task").is_some());
+    assert_eq!(
+        count(
+            &root,
+            "#workbench-objects:not([hidden]), #workbench-inspector:not([hidden])"
+        ),
+        0,
+        "refusal leaves both panels closed"
     );
     root.remove();
 }
