@@ -106,18 +106,21 @@ pub(super) fn ExportWorkspace(
                     mode: SelectionMode::Replace,
                 });
             }
+            // Route first, then reveal in PCB's current (legacy) Inspector
+            // authority; Layout's host is never touched from Export.
+            workspace.set("PCB");
             pin_inspector_on_desktop(inspector_settings);
             inspect_open.set(true);
-            workspace.set("PCB");
         }
     };
     let review_case = {
         let mut inspect_open = inspect_open;
         let inspector_settings = inspector_settings;
         move |_| {
+            // Route first, then reveal in Case's current (legacy) authority.
+            workspace.set("Case");
             pin_inspector_on_desktop(inspector_settings);
             inspect_open.set(true);
-            workspace.set("Case");
         }
     };
     let archive = runtime.clone();
@@ -665,6 +668,90 @@ mod tests {
         );
         click("Invoke palette export");
         assert_eq!(calls.get(), 2);
+        root.remove();
+    }
+
+    fn review_fixture() -> Element {
+        let version = use_signal(|| 0u64);
+        use_context_provider(|| version);
+        let scope = boardstudio_application::Scope {
+            session_epoch: SessionEpoch(1),
+            document_id: "doc".into(),
+            board_id: "board".into(),
+            instance_id: None,
+        };
+        let selected = use_signal(|| {
+            Some(boardstudio_web_ui_model::tree::ScopedTreeContext {
+                scope: scope.clone(),
+                context: boardstudio_web_ui_model::tree::TreeContext::Board {
+                    board_id: "board".into(),
+                },
+            })
+        });
+        let anchor = use_signal(|| Some(scope));
+        let generation = use_signal(|| 0u64);
+        use_context_provider(|| SelectionAdapter::new(selected, anchor, generation));
+        let workspace = use_signal(|| "Export");
+        let return_workspace = use_signal(|| "Layout");
+        let mut inspect_open = use_signal(|| false);
+        let settings = use_signal(PanelSettings::default_pinned);
+        let mut workspace_mut = workspace;
+        rsx! {
+            ExportWorkspace { zmk_firmware: None, workspace, return_workspace, inspect_open, inspector_settings: settings }
+            button { aria_label: "Return to Export", onclick: move |_| { workspace_mut.set("Export"); inspect_open.set(false); }, "Return to Export" }
+            output { role: "status", aria_label: "Review route", "{workspace()}|{inspect_open()}|{selected().is_none()}|{anchor().is_none()}" }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn export_review_routes_first_then_reveals_target_inspector() {
+        use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(review_fixture);
+        dom.provide_root_context(crate::runtime::project_name_test_support::new_runtime());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        let route = |root: &web_sys::Element| {
+            by_role_name(root, "status", "Review route").and_then(|e| e.text_content())
+        };
+        wait_until("Export review actions mount", || {
+            by_role_name(&root, "button", "Review wiring").is_some()
+        })
+        .await;
+        assert!(
+            root.query_selector("#workbench-objects, #workbench-inspector")
+                .unwrap()
+                .is_none(),
+            "Export page has no canvas panels"
+        );
+        assert_eq!(route(&root).as_deref(), Some("Export|false|false|false"));
+        by_role_name(&root, "button", "Review wiring")
+            .unwrap()
+            .click();
+        wait_until(
+            "Review wiring routes to PCB and reveals its Inspector",
+            || route(&root).as_deref() == Some("PCB|true|true|true"),
+        )
+        .await;
+        by_role_name(&root, "button", "Return to Export")
+            .unwrap()
+            .click();
+        wait_until("returning to Export closes the reveal", || {
+            route(&root).as_deref() == Some("Export|false|true|true")
+        })
+        .await;
+        by_role_name(&root, "button", "Review case")
+            .unwrap()
+            .click();
+        wait_until(
+            "Review case routes to Case and reveals its Inspector",
+            || route(&root).as_deref() == Some("Case|true|true|true"),
+        )
+        .await;
         root.remove();
     }
 

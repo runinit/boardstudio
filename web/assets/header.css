@@ -9,6 +9,9 @@
 .header-workspaces { display: flex; flex: 1; min-width: 0; gap: 2px; }
 .header-workspaces [data-slot=button] { padding-inline: 10px; }
 .header-workspaces [aria-current=page] { color: var(--selected-foreground); background: var(--selected); }
+/* Ticket 006 quieter hierarchy: non-current workspaces recede to muted text;
+   only the current workspace keeps the selected fill. */
+.header-workspaces [data-slot=button]:not([aria-current=page]) { color: var(--muted-foreground); font-weight: 500; }
 .header-history { display: flex; }
 .header-save[data-slot] { padding-inline: 8px; background: transparent; color: var(--muted-foreground); }
 .header-save-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--muted-foreground); }
@@ -19,6 +22,10 @@
 .header-update { display: flex; flex: none; align-items: center; gap: 8px; padding: 4px 4px 4px 10px; border-radius: var(--radius); background: var(--selected); color: var(--selected-foreground); font-size: 13px; white-space: nowrap; }
 .header-update-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--selected-foreground); }
 .header-update [data-slot=button] { padding-inline: 8px; }
+/* Ticket 006: shell save/recovery alert below the header; it may wrap/grow
+   without touching the 42px tool row, and stays reachable at narrow widths. */
+.shell-save-alert { display: flex; flex: 0 0 auto; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 8px 0; padding: 8px 12px; border-radius: calc(var(--radius) + 4px); background: var(--card); color: var(--destructive); box-shadow: var(--theme-shadow-sm); font-size: 13px; }
+.shell-save-alert-text { min-width: 0; overflow-wrap: anywhere; }
 .header-settings-menu[data-slot] { right: 0; left: auto; }
 .header-save-content[data-slot] { left: auto; right: 0; translate: none; }
 .header-mobile-menu[data-slot] { box-sizing: border-box; right: 0; left: auto; width: min(360px, calc(100vw - 32px)); max-height: calc(100dvh - 88px); overflow-y: auto; translate: none; }

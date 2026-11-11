@@ -48,6 +48,52 @@ alter save/export readiness, route ownership or native file-picker behaviour.
 - Update — update available with pending local work → use existing notice actions → existing
   offline/client-protection behaviour unchanged · mounted · planned
 
+## Progress 2026-11-11 (builder; no closure claim)
+
+All five proof rows are GREEN at their mounted/packaged tiers on this tree; the
+ticket is not closed (no full quick gate, mutations or review were run, per
+builder instructions). Production changes: quieter header hierarchy
+(non-current workspace buttons recede to muted text in `header.css`; all named
+actions, routes, `aria-current`, thresholds 1250px/520px and the focusable
+save status are retained), Export/project-browser separation (Editor no
+longer composes Objects/Inspector content for Export, whose fall-through
+previously supplied Layout Objects; header panel controls are suppressed
+while the project browser is open, and the hidden Editor keeps its lifetime),
+route-first Export reveals (Review wiring/Review case set the target
+workspace before revealing its current legacy Inspector authority, with the
+existing selection/anchor clearing unchanged; the InspectorActions shortcut
+keeps its workspace/generation/disclosure/focus checks), and save honesty
+(the Layout toolbar's save-failure/recovery block moved to a new
+`SaveRecoveryNotice` in shell status space below the global header, fed by
+the Runtime's durability/lifecycle/conflict state with the existing
+RetrySave/download/recover handlers; failed writes show "Save failed", never
+Saved). Row receipts: Global reach — new mounted header traversal
+(`006-final-mounted.log`, 8/0 across header/export/shortcut owners) plus
+packaged agent-browser checks at 1440/320 (header 56px, tool row 42px, no
+overflow, compact Workbench menu contains all workspaces/Search/history/
+panel/Settings/Export, save label hidden at 320); Separate pages — mounted
+Export assertion of no panel hosts plus packaged Export (no dock/panel/tool
+row, header present) and return to Layout (editor retained, no panel or
+ghost focus); Explicit reveals — new mounted
+`export_review_routes_first_then_reveals_target_inspector` and the existing
+shortcut test in `006-final-mounted.log`; Save honesty — RED
+`006-save-red.log` then GREEN (`006-save-green1.log`, final rerun in
+`006-final-mounted.log`), conflict state offers Download without a blind
+Retry; Update — the existing header update-notice tests pass unchanged and
+the App's `begin_update(Header)` wiring is untouched. Packaged:
+`006-build.log`, `scripts/test-workbench-viewport.py` PASS at 320
+(`006-viewport-320.log`) and 1440 (`006-viewport-1440b.log`; first 1440
+attempt timed out on the new-project guide and passed on retry,
+`006-viewport-1440.log`). Affected mounted owners rerun:
+`006-affected-green.log` (layout_workspace + workbench_shell, 9/0).
+`cargo fmt --all --check` and `python3 scripts/check.py lint` pass
+(`006-fmt-final.log`, `006-lint-final.log`, under the build lock). Limits:
+1250px exactly was not separately driven in the packaged browser (compact
+behaviour proven at 320 and via the existing 1250px match-media/CSS);
+project-browser packaged traversal relied on the mounted header proof and
+the pre-existing header suppression of workspace navigation. No closure
+claim.
+
 ## Checks and mutations
 
 [Verification](../verification.md): `check.py quick`, `check.py lint`,

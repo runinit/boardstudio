@@ -2,7 +2,6 @@
 use super::objects;
 use super::workspace_composition::SharedObjectsInput;
 use boardstudio_web_ui_model::split_focus::SplitHalf;
-use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::collapsible::{
     Collapsible, CollapsibleContent, CollapsibleTrigger,
@@ -43,16 +42,10 @@ pub(super) struct ObjectsInput {
 }
 
 pub(super) struct ToolbarInput {
-    pub(super) save_failure: Option<String>,
-    pub(super) recovery_required: bool,
     pub(super) footprints_pressed: bool,
     pub(super) on_toggle_footprints: EventHandler<()>,
     pub(super) assembly_3d: bool,
     pub(super) on_view_mode: EventHandler<bool>,
-    pub(super) on_retry_save: EventHandler<()>,
-    pub(super) save_conflict: bool,
-    pub(super) on_download_pending: EventHandler<()>,
-    pub(super) on_recover_saved: EventHandler<()>,
     pub(super) selection_kind: objects::LayoutSelectionKind,
     pub(super) snap_settings: objects::LayoutSnapSettings,
     pub(super) command_label: String,
@@ -645,35 +638,6 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
                         }
                     }
                     {utilities}
-                }
-            }
-            if input.save_failure.is_some() || input.recovery_required {
-                div { class: "flex-none px-3 py-2",
-                    if let Some(reason) = input.save_failure.as_ref() {
-                        Alert { class: "m-0 max-w-[min(44vw,440px)] text-xs text-destructive",
-                            variant: AlertVariant::Destructive,
-                            AlertDescription { "Save failed: {reason}" }
-                        }
-                        if !input.save_conflict {
-                            Button {
-                                variant: ButtonVariant::Secondary,
-                                onclick: move |_| input.on_retry_save.call(()),
-                                "Retry save"
-                            }
-                        }
-                        Button {
-                            variant: ButtonVariant::Secondary,
-                            onclick: move |_| input.on_download_pending.call(()),
-                            "Download my pending edits"
-                        }
-                    }
-                    if input.recovery_required {
-                        Button {
-                            variant: ButtonVariant::Secondary,
-                            onclick: move |_| input.on_recover_saved.call(()),
-                            "Reload saved version"
-                        }
-                    }
                 }
             }
         }

@@ -707,13 +707,21 @@ fn WorkbenchApp() -> Element {
                 on_redo,
                 on_export,
                 panel_controls: rsx! {
-                    if runtime.model().accepted.is_some() && workspace() != "Export" { panels::CompactPanelControls {} }
+                    if runtime.model().accepted.is_some() && workspace() != "Export" && !project_browser() { panels::CompactPanelControls {} }
                 },
                 update_available: runtime.update_waiting() && runtime.update_notice_dismissed(),
                 on_update: {
                     let runtime = runtime.clone();
                     EventHandler::new(move |_| runtime.begin_update(boardstudio_web_runtime::update_safety::UpdateOpener::Header))
                 },
+            }
+            header::SaveRecoveryNotice {
+                save_failure: match &runtime.model().durability { Durability::Failed { reason, .. } => Some(reason.clone()), _ => None },
+                recovery_required: runtime.model().lifecycle == boardstudio_application::Lifecycle::RecoveryRequired,
+                save_conflict: runtime.has_save_conflict(),
+                on_retry_save: { let retry = runtime.clone(); EventHandler::new(move |_| retry.submit(Event::RetrySave { operation_id: retry.operation() })) },
+                on_download_pending: { let pending = runtime.clone(); EventHandler::new(move |_| pending.download_pending_edits()) },
+                on_recover_saved: { let recover = runtime.clone(); EventHandler::new(move |_| recover.recover_saved()) },
             }
             command_palette::CommandPalette { state: palette }
             if runtime.model().accepted.is_some() {
@@ -7517,8 +7525,6 @@ fn Editor() -> Element {
     };
     let undo = runtime.clone();
     let redo = runtime.clone();
-    let retry = runtime.clone();
-    let recover = runtime.clone();
     workspace_routing.select_tree.replace(Box::new(select_tree));
     workspace_routing.navigate.replace(Box::new(navigate));
     let nudge_tree = EventHandler::new(nudge_tree);
@@ -7557,22 +7563,6 @@ fn Editor() -> Element {
         let mut footprints = layer_visibility.footprints;
         footprints.set(!footprints());
     });
-    let retry_save = {
-        let retry = retry.clone();
-        EventHandler::new(move |_| {
-            retry.submit(Event::RetrySave {
-                operation_id: retry.operation(),
-            });
-        })
-    };
-    let download_pending = {
-        let pending = runtime.clone();
-        EventHandler::new(move |_| pending.download_pending_edits())
-    };
-    let recover_saved = {
-        let recover = recover.clone();
-        EventHandler::new(move |_| recover.recover_saved())
-    };
     let canvas_end_pointer = EventHandler::new(end_pointer.clone());
     let canvas_cancel_pointer = EventHandler::new(cancel_pointer.clone());
     let canvas_keyboard = EventHandler::new(keyboard.clone());
@@ -8057,20 +8047,10 @@ fn Editor() -> Element {
             };
             workspace_composition::WorkspaceToolbarInput::Layout(Box::new(
                 layout_workspace::ToolbarInput {
-                    save_failure: match &model.durability {
-                        Durability::Failed { reason, .. } => Some(reason.clone()),
-                        _ => None,
-                    },
-                    recovery_required: model.lifecycle
-                        == boardstudio_application::Lifecycle::RecoveryRequired,
                     footprints_pressed,
                     on_toggle_footprints: toggle_footprints,
                     assembly_3d: layout_assembly_3d(),
                     on_view_mode: on_layout_view_mode,
-                    on_retry_save: retry_save,
-                    save_conflict: runtime.has_save_conflict(),
-                    on_download_pending: download_pending,
-                    on_recover_saved: recover_saved,
                     selection_kind: layout_selection_kind(),
                     snap_settings: layout_snap_settings.read().clone(),
                     command_label: "Layout commands".to_owned(),
@@ -9752,7 +9732,7 @@ fn Editor() -> Element {
                     panel: layout_panel,
                     legacy_objects_settings: objects_panel_settings,
                     legacy_inspector_settings: inspector_panel_settings,
-                    objects: guide.is_none().then(|| workspace_composition::objects(objects_input)),
+                    objects: (guide.is_none() && active_workspace != "Export").then(|| workspace_composition::objects(objects_input)),
                     objects_header: if active_workspace == "Layout" {
                         Some(layout_workspace::add_object_header_action(layout_state.add_object_menu_open()))
                     } else { None },
@@ -9764,7 +9744,7 @@ fn Editor() -> Element {
                         boardstudio_web_ui_shared::layer_dock::LayerDockOutlet {}
                     }
                     },
-                    inspector: if has_inspector && guide.is_none() { Some(rsx! {
+                    inspector: if has_inspector && guide.is_none() && active_workspace != "Export" { Some(rsx! {
                         if active_workspace != "Layout" && (layout_findings.open)() {
                             layout_findings::LayoutFindingsInspector {
                                 open: true,

@@ -179,6 +179,39 @@ pub(super) fn Header(
     }
 }
 
+/// Shell status/alert space for a failed or recovery-required local write.
+/// Lives below the global header, outside every workspace toolbar, so it can
+/// grow or wrap without changing the 42px tool row or hiding a blocking
+/// failure. A failed write is never presented as Saved here or in the header.
+#[component]
+pub(super) fn SaveRecoveryNotice(
+    save_failure: Option<String>,
+    recovery_required: bool,
+    save_conflict: bool,
+    on_retry_save: EventHandler<()>,
+    on_download_pending: EventHandler<()>,
+    on_recover_saved: EventHandler<()>,
+) -> Element {
+    if save_failure.is_none() && !recovery_required {
+        return rsx! {};
+    }
+    rsx! {
+        div { class: "shell-save-alert", role: "alert",
+            if let Some(reason) = save_failure {
+                span { class: "shell-save-alert-text", "Save failed: {reason}" }
+                if !save_conflict {
+                    Button { variant: ButtonVariant::Secondary, onclick: move |_| on_retry_save.call(()), "Retry save" }
+                }
+                Button { variant: ButtonVariant::Secondary, onclick: move |_| on_download_pending.call(()), "Download my pending edits" }
+            }
+            if recovery_required {
+                span { class: "shell-save-alert-text", "Reload the saved version to recover this project." }
+                Button { variant: ButtonVariant::Secondary, onclick: move |_| on_recover_saved.call(()), "Reload saved version" }
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -271,6 +304,207 @@ mod tests {
         assert!(update.matches(":focus").unwrap());
         update.click();
         wait_until("Update Now fires", || fired.get() == 1).await;
+        root.remove();
+    }
+
+    #[derive(Clone)]
+    struct SaveProbe {
+        conflict: bool,
+        fired: Rc<Cell<u32>>,
+    }
+
+    fn save_fixture() -> Element {
+        let probe = use_context::<SaveProbe>();
+        let fired = probe.fired.clone();
+        rsx! {
+            SaveRecoveryNotice {
+                save_failure: Some("browser storage is full".to_owned()),
+                recovery_required: true,
+                save_conflict: probe.conflict,
+                on_retry_save: EventHandler::new({ let fired = fired.clone(); move |_| fired.set(fired.get() + 1) }),
+                on_download_pending: EventHandler::new({ let fired = fired.clone(); move |_| fired.set(fired.get() + 10) }),
+                on_recover_saved: EventHandler::new(move |_| fired.set(fired.get() + 100)),
+            }
+        }
+    }
+
+    fn save_root(conflict: bool) -> (web_sys::Element, Rc<Cell<u32>>) {
+        let fired = Rc::new(Cell::new(0));
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(save_fixture);
+        dom.provide_root_context(SaveProbe {
+            conflict,
+            fired: fired.clone(),
+        });
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        (root, fired)
+    }
+
+    #[wasm_bindgen_test]
+    async fn save_recovery_notice_stays_outside_toolbar_and_never_claims_saved() {
+        let (root, fired) = save_root(false);
+        wait_until("the save recovery notice mounts", || {
+            by_role_name(&root, "button", "Retry save").is_some()
+        })
+        .await;
+        let text = root.text_content().unwrap();
+        assert!(
+            text.contains("Save failed: browser storage is full"),
+            "failed truth: {text}"
+        );
+        assert!(
+            !text.contains("Saved"),
+            "a failed write never shows Saved: {text}"
+        );
+        let retry = by_role_name(&root, "button", "Retry save").unwrap();
+        assert!(
+            retry.closest("[data-workspace-toolbar]").unwrap().is_none(),
+            "outside the toolbar region"
+        );
+        assert!(
+            retry.closest(".workbench-tool-row").unwrap().is_none(),
+            "outside the 42px tool row"
+        );
+        assert_eq!(retry.tab_index(), 0);
+        retry.click();
+        by_role_name(&root, "button", "Download my pending edits")
+            .unwrap()
+            .click();
+        by_role_name(&root, "button", "Reload saved version")
+            .unwrap()
+            .click();
+        wait_until("recovery actions fire", || fired.get() == 111).await;
+        root.remove();
+        let (root, _fired) = save_root(true);
+        wait_until("the conflict notice mounts", || {
+            by_role_name(&root, "button", "Download my pending edits").is_some()
+        })
+        .await;
+        assert!(
+            by_role_name(&root, "button", "Retry save").is_none(),
+            "a conflict offers download, not a blind retry"
+        );
+        root.remove();
+    }
+
+    #[derive(Clone)]
+    struct GlobalProbe {
+        fired: Rc<Cell<u32>>,
+    }
+
+    fn global_fixture() -> Element {
+        let probe = use_context::<GlobalProbe>();
+        let preference_warning = use_signal(|| false);
+        use_context_provider(|| PreferenceStorageWarning(preference_warning));
+        let appearance = use_signal(|| "light");
+        use_context_provider(|| AppearanceState(appearance));
+        let theme = use_signal(|| "original");
+        use_context_provider(|| ThemeState(theme));
+        let workspace = use_signal(|| "Layout");
+        let settings_open = use_signal(|| false);
+        let palette_open = use_signal(|| false);
+        let fired = probe.fired.clone();
+        let bump = move |amount: u32| {
+            let fired = fired.clone();
+            move |_| fired.set(fired.get() + amount)
+        };
+        rsx! {
+            Header {
+                project_menu: rsx! { Button { variant: ButtonVariant::Ghost, aria_label: "Project", "Project" } },
+                workspace, show_workspaces: true, has_project: true, save_state: "saved",
+                settings_open, palette_open,
+                on_search: EventHandler::new(bump(1)), on_undo: EventHandler::new(bump(10)),
+                on_redo: EventHandler::new(bump(100)), on_export: EventHandler::new(bump(1000)),
+                panel_controls: rsx! { Button { variant: ButtonVariant::Ghost, aria_label: "Show/hide Objects", "Objects" } },
+                update_available: false, on_update: EventHandler::new(move |_| {}),
+            }
+            output { role: "status", aria_label: "Current workspace", "{workspace()}" }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn header_global_actions_keep_names_routes_and_current_workspace() {
+        let fired = Rc::new(Cell::new(0));
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(global_fixture);
+        dom.provide_root_context(GlobalProbe {
+            fired: fired.clone(),
+        });
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_until("the global header mounts", || {
+            by_role_name(&root, "button", "Search commands").is_some()
+        })
+        .await;
+        assert!(by_role_name(&root, "img", "BoardStudio").is_some());
+        assert!(by_role_name(&root, "button", "Project").is_some());
+        for name in ["Layout", "PCB", "Keymap", "Keycaps", "Case", "Parts"] {
+            let link = by_role_name(&root, "button", &format!("Open {name} workspace"))
+                .unwrap_or_else(|| panic!("workspace {name} reachable"));
+            assert_eq!(link.tab_index(), 0, "{name} is a keyboard tab stop");
+        }
+        let layout = by_role_name(&root, "button", "Open Layout workspace").unwrap();
+        assert_eq!(
+            layout.get_attribute("aria-current").as_deref(),
+            Some("page")
+        );
+        by_role_name(&root, "button", "Open PCB workspace")
+            .unwrap()
+            .click();
+        wait_until("PCB becomes current", || {
+            by_role_name(&root, "status", "Current workspace")
+                .is_some_and(|e| e.text_content().as_deref() == Some("PCB"))
+        })
+        .await;
+        assert_eq!(
+            by_role_name(&root, "button", "Open PCB workspace")
+                .unwrap()
+                .get_attribute("aria-current")
+                .as_deref(),
+            Some("page")
+        );
+        assert!(
+            by_role_name(&root, "button", "Open Layout workspace")
+                .unwrap()
+                .get_attribute("aria-current")
+                .is_none()
+        );
+        let save = by_role_name(&root, "button", "Saved locally").unwrap();
+        assert_eq!(save.tab_index(), 0, "save status stays focusable");
+        save.click();
+        wait_until("save details open", || {
+            save.get_attribute("aria-expanded").as_deref() == Some("true")
+        })
+        .await;
+        assert!(
+            root.text_content()
+                .unwrap()
+                .contains("Changes are saved in this browser.")
+        );
+        assert!(
+            by_role_name(&root, "button", "Settings").is_some(),
+            "Settings Theme/Appearance reachable"
+        );
+        assert!(
+            by_role_name(&root, "button", "Show/hide Objects").is_some(),
+            "panel command slot retained in header"
+        );
+        by_role_name(&root, "button", "Search commands")
+            .unwrap()
+            .click();
+        by_role_name(&root, "button", "Undo").unwrap().click();
+        by_role_name(&root, "button", "Redo").unwrap().click();
+        by_role_name(&root, "button", "Export").unwrap().click();
+        wait_until("header actions fire once each", || fired.get() == 1111).await;
         root.remove();
     }
 
