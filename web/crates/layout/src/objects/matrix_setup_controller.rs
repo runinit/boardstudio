@@ -188,10 +188,12 @@ pub fn use_matrix_setup(
                         anchor_scope: &mut anchor_scope,
                     },
                 );
+                // Ticket 005 Part B: a workspace round trip parks the task;
+                // it does not retire the owner. Only a scope/generation
+                // change (an accepted route into a new owner) closes it.
                 if pending_owner.read().is_none()
                     && open.read().as_ref().is_some_and(|owner| {
-                        workspace != "Layout"
-                            || owner.scope_generation != scope_generation
+                        owner.scope_generation != scope_generation
                             || runtime.scope().as_ref() != Some(&owner.scope)
                     })
                 {

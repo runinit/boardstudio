@@ -66,8 +66,6 @@ pub(super) struct ToolbarInput {
 }
 
 pub(super) struct InspectorInput {
-    pub(super) geometry_scripts_open: bool,
-    pub(super) on_close_geometry_scripts: EventHandler<()>,
     pub(super) context_title: Option<String>,
     pub(super) context_detail: Option<String>,
     pub(super) show_position_inspector: bool,
@@ -947,15 +945,6 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
                 on_close: page.on_close,
                 on_navigate: page.on_navigate,
             }
-        };
-    }
-    if input.geometry_scripts_open {
-        return rsx! {
-            PendingSplayOriginPickEscape {
-                pending: input.splay_origin_pick_pending,
-                on_cancel: input.on_cancel_splay_origin_pick,
-            }
-            super::geometry_scripts::GeometryScriptsEditor { on_back: input.on_close_geometry_scripts }
         };
     }
     let board_context_header = input.board_inspector_mount.projection.is_some();

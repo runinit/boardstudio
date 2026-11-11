@@ -824,10 +824,19 @@ async fn new_matrix_preview_case(
         count(root_id, &format!("{ghost} rect")) == 30 * halves
     })
     .await;
+    // Ticket 005 Part B supersedes the old retire-on-leave behaviour: a
+    // workspace round trip parks the retained task (hidden, ghost gone)
+    // and returning restores it; only Cancel/Create/route retirement
+    // closes it. Stage exit still writes no accepted state.
     let mut workspace = probe.workspace.borrow().expect("mounted workspace");
     workspace.set("PCB");
-    wait_until("leaving Layout retires the form and ghost", || {
-        query(root_id, "[aria-label='New matrix']").is_none() && query(root_id, ghost).is_none()
+    wait_until("leaving Layout parks the form and ghost", || {
+        query(root_id, "[aria-label='New matrix']").is_some_and(|form| {
+            form.closest("[style*='display: none'], [style*='display:none']")
+                .ok()
+                .flatten()
+                .is_some()
+        }) && query(root_id, ghost).is_none()
     })
     .await;
     assert_eq!(
@@ -837,16 +846,21 @@ async fn new_matrix_preview_case(
     );
     workspace.set("Layout");
     wait_until(
-        "Layout returns without resurrecting the setup ghost",
+        "Layout returns with the parked setup and ghost restored",
         || {
             query(
                 root_id,
                 "#m1-workspace-panel svg[aria-label^='Keyboard layout;']",
             )
             .is_some()
-                && query(root_id, ghost).is_none()
+                && count(root_id, &format!("{ghost} rect")) == 30 * halves
         },
     )
+    .await;
+    click("Cancel");
+    wait_until("Cancel retires the restored setup", || {
+        query(root_id, "[aria-label='New matrix']").is_none() && query(root_id, ghost).is_none()
+    })
     .await;
     open_setup().await;
     wait_until("Create begins with a visible draft ghost", || {

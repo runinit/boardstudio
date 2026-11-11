@@ -23,7 +23,7 @@ use boardstudio_web_host::host::{UpdateSignals, UpdateWatch};
 use boardstudio_web_host::offline::{AdoptError, UpdateSnapshot};
 use boardstudio_web_runtime::update_safety::{UpdateBlocker, UpdateDialog, UpdateOpener};
 use boardstudio_web_ui_shared::test_role::by_role_name;
-use boardstudio_web_ui_shared::test_wait::wait_until;
+use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_step};
 use dioxus::prelude::*;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -1435,6 +1435,595 @@ async fn mounted_layout_constraint_valid_draft_defers_update_now_at_the_header()
         field_value(&root, "Offset Y (mm)"),
         "-4",
         "the draft text survives the deferral"
+    );
+    root.remove();
+}
+
+// ---------------------------------------------------------------------------
+// Ticket 005 Part B: retained MatrixSetup task + legacy GeometryScriptsEditor.
+// These extend the fixtures above with the real `use_matrix_setup` controller
+// and the real script editor, kept mounted in a hidden/inert wrapper exactly
+// as the Editor's retained task scope keeps them (parked for a utility panel
+// or another workspace). Update Now goes through the same FakeUpdateSignals
+// gate as the Inspector owners above.
+// ---------------------------------------------------------------------------
+
+const MATRIX_AREA: &str = "New matrix";
+const MATRIX_REMEDY: &str = "Create the matrix or cancel the setup";
+const SCRIPT_AREA: &str = "Geometry scripts";
+const SCRIPT_REMEDY: &str = "Apply the script edit, or cancel the edit in the form";
+
+fn click_button(root: &web_sys::Element, label: &str) {
+    by_role_name(root, "button", label)
+        .unwrap_or_else(|| panic!("the {label} button mounts"))
+        .click();
+}
+
+fn update_chrome() -> Element {
+    let runtime = use_context::<Rc<Runtime>>();
+    let header_runtime = runtime.clone();
+    rsx! {
+        button {
+            onclick: move |_| runtime.begin_update(UpdateOpener::Toast),
+            "Update Now (toast)"
+        }
+        button {
+            onclick: move |_| header_runtime.begin_update(UpdateOpener::Header),
+            "Update Now (header)"
+        }
+    }
+}
+
+fn matrix_task_fixture() -> Element {
+    let runtime = use_context::<Rc<Runtime>>();
+    let version = use_signal(|| 0u64);
+    let hook_runtime = runtime.clone();
+    use_hook(move || {
+        let runtime = hook_runtime;
+        let subscriber = runtime.clone();
+        subscriber.subscribe(Rc::new(move || {
+            let mut version = version;
+            version += 1;
+        }));
+    });
+    let _ = version();
+    objects::use_matrix_setup_preview_provider(false);
+    let selected = use_signal(|| None::<objects::ScopedTreeContext>);
+    let anchor = use_signal(|| None::<Scope>);
+    let mut workspace = use_signal(|| "Layout");
+    let mut generation = use_signal(|| 1u64);
+    let mut parked = use_signal(|| false);
+    let mount = objects::use_matrix_setup(
+        runtime.clone(),
+        version,
+        selected,
+        anchor,
+        workspace,
+        generation,
+    );
+    let open_mount = mount.clone();
+    let parked_now = parked() || workspace() != "Layout";
+    rsx! {
+        div {
+            hidden: parked_now,
+            inert: parked_now.then_some(""),
+            if let Some(projection) = mount.projection {
+                objects::MatrixSetup {
+                    projection,
+                    on_create: mount.on_create,
+                    on_cancel: mount.on_cancel,
+                }
+            }
+        }
+        button { onclick: move |_| open_mount.on_open.call(()), "Open matrix" }
+        button { onclick: move |_| parked.set(true), "Park task" }
+        button { onclick: move |_| parked.set(false), "Unpark task" }
+        button { onclick: move |_| workspace.set("Parts"), "Visit Parts" }
+        button { onclick: move |_| workspace.set("Layout"), "Return to Layout" }
+        button {
+            onclick: move |_| {
+                generation += 1;
+                workspace.set("Parts");
+            },
+            "Route away"
+        }
+        {update_chrome()}
+    }
+}
+
+fn board_document(id: &str) -> ProjectDoc {
+    let mut document = ProjectDoc::empty(id, "Part B");
+    document.boards.push(Board {
+        id: "board".into(),
+        name: "Board".into(),
+        outline_ids: vec![],
+        part_ids: vec![],
+        net_ids: vec![],
+        thickness: 1.6,
+        traces: vec![],
+        vias: vec![],
+    });
+    document
+}
+
+async fn mounted_matrix_task() -> (Rc<Runtime>, web_sys::Element, Rc<FakeUpdateSignals>) {
+    let runtime = support::new_runtime();
+    support::open_document(
+        &runtime,
+        ProjectDoc::empty("creation-draft", "Creation draft"),
+    )
+    .await;
+    let signals = Rc::new(FakeUpdateSignals::new(waiting_update()));
+    runtime.observe_update_waiting(signals.clone());
+    let root = mount_owner(matrix_task_fixture, &runtime);
+    support::replace_document(
+        &runtime,
+        "matrix-board",
+        "board",
+        board_document("creation-draft"),
+    )
+    .await;
+    wait_until("the matrix task fixture mounts", || {
+        by_role_name(&root, "button", "Open matrix").is_some()
+    })
+    .await;
+    (runtime, root, signals)
+}
+
+fn matrix_slider(root: &web_sys::Element, label: &str) -> web_sys::Element {
+    root.query_selector(&format!("[role='slider'][aria-label='{label}']"))
+        .unwrap()
+        .unwrap_or_else(|| panic!("the {label} slider mounts"))
+}
+
+async fn matrix_key(root: &web_sys::Element, label: &str, key: &str, expected: &str) {
+    let target = matrix_slider(root, label);
+    let init = web_sys::KeyboardEventInit::new();
+    init.set_key(key);
+    init.set_bubbles(true);
+    target
+        .dispatch_event(
+            &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init).unwrap(),
+        )
+        .unwrap();
+    wait_until(
+        "the matrix slider changes through its production writer",
+        || {
+            matrix_slider(root, label)
+                .get_attribute("aria-valuenow")
+                .as_deref()
+                == Some(expected)
+        },
+    )
+    .await;
+}
+
+async fn open_matrix_with_draft(root: &web_sys::Element) {
+    click_button(root, "Open matrix");
+    wait_until("the real MatrixSetup form opens", || {
+        root.query_selector("[aria-label='New matrix']")
+            .unwrap()
+            .is_some()
+    })
+    .await;
+    matrix_key(root, "Rows", "ArrowRight", "6").await;
+    click_button(root, "Hotswap");
+    wait_until("the Hotswap preset is chosen", || {
+        by_role_name(root, "button", "Hotswap")
+            .unwrap()
+            .get_attribute("aria-pressed")
+            .as_deref()
+            == Some("true")
+    })
+    .await;
+}
+
+fn assert_update_deferred_with(
+    runtime: &Rc<Runtime>,
+    signals: &Rc<FakeUpdateSignals>,
+    area: &str,
+    remedy: &str,
+) {
+    let blockers = deferred_draft_blockers(runtime);
+    assert!(
+        blockers.iter().any(|blocker| matches!(blocker,
+            UpdateBlocker::UnresolvedDraft { area: a, remedy: r } if a == area && r == remedy)),
+        "Update Now names {area} with its remedy: {blockers:?}"
+    );
+    assert_eq!(
+        signals.adoptions.get(),
+        0,
+        "the unresolved draft never adopts"
+    );
+    runtime.cancel_update_dialog();
+}
+
+async fn assert_update_not_blocked_by(runtime: &Rc<Runtime>, area: &str) {
+    support::run_pending(runtime).await;
+    runtime.begin_update(UpdateOpener::Toast);
+    support::run_pending(runtime).await;
+    if let Some(UpdateDialog::Deferred { blockers }) = runtime.update_dialog() {
+        assert!(
+            !blockers.iter().any(|blocker| matches!(blocker,
+                UpdateBlocker::UnresolvedDraft { area: a, .. } if a == area)),
+            "{area} no longer blocks: {blockers:?}"
+        );
+    }
+    runtime.cancel_update_dialog();
+}
+
+#[wasm_bindgen_test]
+async fn matrix_hidden_draft_survives_inspector_park_workspace_switch_and_update() {
+    let (runtime, root, signals) = mounted_matrix_task().await;
+    open_matrix_with_draft(&root).await;
+    // Hide the surface for Inspector, then switch workspace: the retained,
+    // keep-mounted owner must keep its exact fields and its guard.
+    click_button(&root, "Park task");
+    click_button(&root, "Visit Parts");
+    support::run_pending(&runtime).await;
+    wait_until("the matrix task is hidden while away", || {
+        root.query_selector("[hidden] [aria-label='New matrix']")
+            .unwrap()
+            .is_some()
+    })
+    .await;
+    click_button(&root, "Update Now (toast)");
+    wait_until("the deferral warning mounts", || {
+        runtime.update_dialog().is_some()
+    })
+    .await;
+    assert_update_deferred_with(&runtime, &signals, MATRIX_AREA, MATRIX_REMEDY);
+    click_button(&root, "Return to Layout");
+    click_button(&root, "Unpark task");
+    wait_until("the restored MatrixSetup shows its draft", || {
+        root.query_selector("[aria-label='New matrix']:not([hidden])")
+            .unwrap()
+            .is_some()
+    })
+    .await;
+    assert_eq!(
+        matrix_slider(&root, "Rows")
+            .get_attribute("aria-valuenow")
+            .as_deref(),
+        Some("6"),
+        "the exact Rows draft returns"
+    );
+    assert_eq!(
+        by_role_name(&root, "button", "Hotswap")
+            .unwrap()
+            .get_attribute("aria-pressed")
+            .as_deref(),
+        Some("true"),
+        "the exact preset draft returns"
+    );
+    // Explicit Cancel clears only this blocker through the existing rules.
+    click_button(&root, "Cancel");
+    wait_until("Cancel retires the matrix task", || {
+        root.query_selector("[aria-label='New matrix']")
+            .unwrap()
+            .is_none()
+    })
+    .await;
+    assert_update_not_blocked_by(&runtime, MATRIX_AREA).await;
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn matrix_registration_scope_retires_with_the_session() {
+    let (runtime, root, signals) = mounted_matrix_task().await;
+    open_matrix_with_draft(&root).await;
+    click_button(&root, "Update Now (toast)");
+    wait_until("the deferral warning mounts", || {
+        runtime.update_dialog().is_some()
+    })
+    .await;
+    assert_update_deferred_with(&runtime, &signals, MATRIX_AREA, MATRIX_REMEDY);
+    // Project/session replacement: the old registration cannot block it.
+    // A current unresolved owner in the new session still blocks, and the
+    // poll names it exactly once: a surviving old-scope registration would
+    // appear as a second identical blocker.
+    support::open_document(&runtime, board_document("second-session")).await;
+    support::run_pending(&runtime).await;
+    open_matrix_with_draft(&root).await;
+    click_button(&root, "Update Now (header)");
+    wait_until("the deferral warning mounts", || {
+        runtime.update_dialog().is_some()
+    })
+    .await;
+    let blockers = deferred_draft_blockers(&runtime);
+    assert_eq!(
+        blockers,
+        vec![UpdateBlocker::UnresolvedDraft {
+            area: MATRIX_AREA.into(),
+            remedy: MATRIX_REMEDY.into(),
+        }],
+        "only the current session's matrix owner blocks"
+    );
+    assert_eq!(signals.adoptions.get(), 0, "the current draft never adopts");
+    runtime.cancel_update_dialog();
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn matrix_pending_create_admits_once_while_hidden_and_shown() {
+    // The in-flight exemption itself is already proven at the controller tier
+    // by `matrix_real_create_pending_exempts_only_submitted_draft`; this row
+    // proves hide/show cannot refresh that admission in the retained page
+    // scope: the first Create keeps its captured target and lands once.
+    let (runtime, root, _signals) = mounted_matrix_task().await;
+    open_matrix_with_draft(&root).await;
+    click_button(&root, "Create matrix");
+    // Hide/show while the first Create is preparing/pending: no resubmission.
+    click_button(&root, "Park task");
+    click_button(&root, "Unpark task");
+    wait_until(
+        "the held Create cannot be resubmitted from the shown task",
+        || {
+            by_role_name(&root, "button", "Create matrix")
+                .is_some_and(|create| create.has_attribute("disabled"))
+        },
+    )
+    .await;
+    if let Some(create) = by_role_name(&root, "button", "Create matrix") {
+        create.click();
+    }
+    wait_until_step(
+        "the first Create lands its captured matrix once",
+        async || {
+            support::drive_pending(&runtime);
+            runtime.model().accepted.is_some_and(|accepted| {
+                accepted.document.matrices.len() == 1
+                    && accepted.document.matrices[0].rows == 6
+                    && accepted.document.matrices[0].columns == 6
+            })
+        },
+    )
+    .await;
+    support::run_pending(&runtime).await;
+    assert_eq!(
+        runtime.model().accepted.unwrap().document.matrices.len(),
+        1,
+        "hide/show produced no second submission"
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn matrix_domain_cancel_and_accepted_route_close_the_task() {
+    let (runtime, root, _signals) = mounted_matrix_task().await;
+    open_matrix_with_draft(&root).await;
+    // Its own Cancel: task visibility and the update gate agree afterwards.
+    click_button(&root, "Cancel");
+    wait_until("its own Cancel retires the matrix task", || {
+        root.query_selector("[aria-label='New matrix']")
+            .unwrap()
+            .is_none()
+    })
+    .await;
+    // An accepted route that invalidates the owner closes it too: returning
+    // to Layout reopens nothing and strands no focus in the old panel.
+    open_matrix_with_draft(&root).await;
+    click_button(&root, "Route away");
+    support::run_pending(&runtime).await;
+    click_button(&root, "Return to Layout");
+    wait_until("the routed-away matrix task stays closed", || {
+        root.query_selector("[aria-label='New matrix']")
+            .unwrap()
+            .is_none()
+    })
+    .await;
+    assert_update_not_blocked_by(&runtime, MATRIX_AREA).await;
+    root.remove();
+}
+
+fn script_task_fixture() -> Element {
+    let runtime = use_context::<Rc<Runtime>>();
+    let version = use_signal(|| 0u64);
+    use_context_provider(|| version);
+    use_hook(move || {
+        let subscriber = runtime.clone();
+        subscriber.subscribe(Rc::new(move || {
+            let mut version = version;
+            version += 1;
+        }));
+    });
+    let _ = version();
+    let mut parked = use_signal(|| false);
+    let mut workspace = use_signal(|| "Layout");
+    let hidden_now = parked() || workspace() != "Layout";
+    rsx! {
+        section {
+            aria_label: "Geometry scripts task",
+            hidden: hidden_now,
+            inert: hidden_now.then_some(""),
+            boardstudio_web_ui_shared::geometry_scripts::GeometryScriptsEditor {
+                on_back: EventHandler::new(move |_| parked.set(true)),
+            }
+        }
+        button { onclick: move |_| parked.set(true), "Park task" }
+        button { onclick: move |_| parked.set(false), "Unpark task" }
+        button { onclick: move |_| workspace.set("Parts"), "Visit Parts" }
+        button { onclick: move |_| workspace.set("Layout"), "Return to Layout" }
+        {update_chrome()}
+    }
+}
+
+async fn mounted_script_task() -> (Rc<Runtime>, web_sys::Element, Rc<FakeUpdateSignals>) {
+    let runtime = support::new_runtime();
+    let mut document = board_document("script-session");
+    document.scripts.push(boardstudio_core::model::Script {
+        id: "script-1".into(),
+        name: "Script 1".into(),
+        source: "// original".into(),
+        enabled: false,
+    });
+    support::open_document(&runtime, document).await;
+    let signals = Rc::new(FakeUpdateSignals::new(waiting_update()));
+    runtime.observe_update_waiting(signals.clone());
+    let root = mount_owner(script_task_fixture, &runtime);
+    wait_until("the script task mounts", || {
+        by_role_name(&root, "button", "Active script").is_some()
+    })
+    .await;
+    (runtime, root, signals)
+}
+
+async fn select_first_script(root: &web_sys::Element) {
+    click_button(root, "Active script");
+    wait_until("the script choices open", || {
+        by_role_name(root, "option", "Script 1").is_some()
+    })
+    .await;
+    let option = by_role_name(root, "option", "Script 1").unwrap();
+    for phase in ["pointerdown", "pointerup"] {
+        let event = web_sys::PointerEvent::new(phase).unwrap();
+        event.init_event_with_bubbles_and_cancelable(phase, true, true);
+        option.dispatch_event(&event).unwrap();
+    }
+    wait_until("the saved script body loads", || {
+        by_role_name(root, "textbox", "Rhai source").is_some_and(|field| {
+            field
+                .dyn_into::<web_sys::HtmlTextAreaElement>()
+                .unwrap()
+                .value()
+                == "// original"
+        })
+    })
+    .await;
+}
+
+fn script_source(root: &web_sys::Element) -> String {
+    by_role_name(root, "textbox", "Rhai source")
+        .expect("the Rhai source field mounts")
+        .dyn_into::<web_sys::HtmlTextAreaElement>()
+        .unwrap()
+        .value()
+}
+
+fn enable_script_on_apply(root: &web_sys::Element) {
+    if let Some(checkbox) = by_role_name(root, "checkbox", "Enable on Apply")
+        && checkbox.get_attribute("aria-checked").as_deref() != Some("true")
+    {
+        checkbox.click();
+    }
+}
+
+fn type_script_source(root: &web_sys::Element, value: &str) {
+    let field = by_role_name(root, "textbox", "Rhai source")
+        .expect("the Rhai source field mounts")
+        .dyn_into::<web_sys::HtmlTextAreaElement>()
+        .unwrap();
+    field.set_value(value);
+    let init = web_sys::EventInit::new();
+    init.set_bubbles(true);
+    field
+        .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &init).unwrap())
+        .unwrap();
+}
+
+#[wasm_bindgen_test]
+async fn legacy_script_draft_parks_across_inspector_and_workspace() {
+    let (runtime, root, signals) = mounted_script_task().await;
+    select_first_script(&root).await;
+    type_script_source(&root, "// edited but not applied");
+    support::run_pending(&runtime).await;
+    // Park for Inspector and visit another workspace: hiding executes and
+    // applies nothing, and the live update-safety remedy stays registered.
+    click_button(&root, "Park task");
+    click_button(&root, "Visit Parts");
+    support::run_pending(&runtime).await;
+    wait_until("the script task is hidden while away", || {
+        root.query_selector("[aria-label='Geometry scripts task'][hidden]")
+            .unwrap()
+            .is_some()
+    })
+    .await;
+    assert_eq!(
+        runtime.model().accepted.unwrap().document.scripts[0].source,
+        "// original",
+        "hiding applies nothing"
+    );
+    click_button(&root, "Update Now (toast)");
+    wait_until("the deferral warning mounts", || {
+        runtime.update_dialog().is_some()
+    })
+    .await;
+    assert_update_deferred_with(&runtime, &signals, SCRIPT_AREA, SCRIPT_REMEDY);
+    click_button(&root, "Return to Layout");
+    click_button(&root, "Unpark task");
+    wait_until("the parked script editor returns", || {
+        script_source(&root) == "// edited but not applied"
+    })
+    .await;
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn legacy_script_apply_is_atomic_and_undoable() {
+    let (runtime, root, _signals) = mounted_script_task().await;
+    select_first_script(&root).await;
+    // Rejection never applies a partial result. Enable first so Apply
+    // actually executes the body in Core.
+    enable_script_on_apply(&root);
+    type_script_source(&root, "this is not rhai (((");
+    support::run_pending(&runtime).await;
+    click_button(&root, "Apply script");
+    wait_until_step("the rejected script keeps its diagnostics", async || {
+        support::drive_pending(&runtime);
+        root.query_selector("[data-error-source='script']")
+            .unwrap()
+            .is_some()
+            || root
+                .query_selector("[data-error-source='runtime']")
+                .unwrap()
+                .is_some()
+    })
+    .await;
+    let accepted = runtime.model().accepted.unwrap();
+    assert_eq!(accepted.document.scripts[0].source, "// original");
+    assert!(
+        accepted
+            .document
+            .outline
+            .iter()
+            .all(|feature| !feature.id().starts_with("script/")),
+        "rejection emits no partial geometry"
+    );
+    // The smallest existing valid result applies atomically.
+    type_script_source(
+        &root,
+        "rect(\"main\", \"board\", 0.0, 0.0, 20.0, 10.0, 0.0, \"add\");",
+    );
+    enable_script_on_apply(&root);
+    support::run_pending(&runtime).await;
+    click_button(&root, "Apply script");
+    wait_until_step("the applied script emits its geometry", async || {
+        support::drive_pending(&runtime);
+        runtime.model().accepted.is_some_and(|accepted| {
+            accepted
+                .document
+                .outline
+                .iter()
+                .any(|feature| feature.id().starts_with("script/"))
+        })
+    })
+    .await;
+    let accepted = runtime.model().accepted.unwrap();
+    assert!(accepted.document.scripts[0].enabled);
+    assert!(accepted.document.scripts[0].source.contains("rect("));
+    runtime.submit(Event::Undo {
+        operation_id: runtime.operation(),
+    });
+    support::run_pending(&runtime).await;
+    let accepted = runtime.model().accepted.unwrap();
+    assert_eq!(accepted.document.scripts[0].source, "// original");
+    assert!(
+        accepted
+            .document
+            .outline
+            .iter()
+            .all(|feature| !feature.id().starts_with("script/")),
+        "one Undo restores the prior document"
     );
     root.remove();
 }

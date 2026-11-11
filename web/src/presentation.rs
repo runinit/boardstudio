@@ -3296,6 +3296,13 @@ fn Editor() -> Element {
     );
     let guide_preferences = setup_state.guide_preferences();
     let geometry_scripts_open = setup_state.geometry_scripts_open();
+    // Mount the retained script editor on first reveal, then keep it mounted.
+    let mut geometry_scripts_mounted = use_signal(|| false);
+    use_effect(move || {
+        if geometry_scripts_open() {
+            geometry_scripts_mounted.set(true);
+        }
+    });
     let guide_name_edit = use_setup_project_name(runtime.clone());
     let guide_name_draft = guide_name_edit.draft;
     let guide_name_failure = guide_name_edit.failure;
@@ -7578,17 +7585,17 @@ fn Editor() -> Element {
         let mut objects_open = objects_open;
         let mut inspect_open = inspect_open;
         let mut panel = layout_panel;
-        let inspector_settings = inspector_panel_settings;
         EventHandler::new(move |_| {
             workspace.set("Layout");
             objects_open.set(false);
-            inspect_open.set(true);
-            // The retained editor is Inspect content in the new shell;
-            // reveal it through Layout's sole host (its larger task
-            // surface remains ticket 005 Part B work).
-            panel.set(Some(workbench_shell::ToolPanel::Inspector));
+            inspect_open.set(false);
+            // Ticket 005 Part B: the legacy editor is a Layout-owned
+            // larger task surface (ADR-0029 access preservation), not
+            // Inspector content. Reveal it by closing the compact panel;
+            // the keep-mounted surface below shows it. Hiding it later
+            // parks the retained editor; only its own Back closes it.
+            panel.set(None);
             setup_state.set_geometry_scripts_open(true);
-            pin_inspector_on_desktop(inspector_settings);
         })
     };
     let toggle_footprints = EventHandler::new(move |_| {
@@ -8568,10 +8575,6 @@ fn Editor() -> Element {
         }
         _ => workspace_composition::WorkspaceInspectorInput::Layout(Box::new(
             layout_workspace::InspectorInput {
-                geometry_scripts_open: geometry_scripts_open(),
-                on_close_geometry_scripts: EventHandler::new(move |()| {
-                    setup_state.set_geometry_scripts_open(false)
-                }),
                 context_title: context_summary
                     .as_ref()
                     .map(|summary| summary.title.clone())
@@ -9898,11 +9901,36 @@ fn Editor() -> Element {
                         }
                     },
                     h2 { id: "workspace-route-heading", class: "sr-only", tabindex: "-1", "{active_workspace} workspace" }
-                    if active_workspace == "Layout" {
+                    // Ticket 005 Part B: the Add task surface stays mounted
+                    // (hidden/inert) while parked for a compact panel or
+                    // another workspace, so MatrixSetup's signals and its
+                    // DraftOwnerGuard live together until the domain owner
+                    // itself closes. No backdrop, row or canvas resize.
+                    div {
+                        style: if active_workspace == "Layout" && layout_panel().is_none() { "display:contents" } else { "display:none" },
+                        inert: (active_workspace != "Layout" || layout_panel().is_some()).then_some(""),
                         objects::AddMatrixSurface {
                             matrix_setup: matrix_setup.clone(),
                             mirrored_pair: mirrored_pair.clone(),
                             guide_covering_single: guide.is_some(),
+                        }
+                    }
+                    // Ticket 005 Part B: bounded larger task surface for the
+                    // legacy GeometryScriptsEditor (009 host rules: no
+                    // backdrop, no permanent row, no canvas resize). It
+                    // stays mounted hidden/inert while parked for a compact
+                    // panel or another workspace, so its text/error and
+                    // DraftOwnerGuard survive; its own Back closes it.
+                    div {
+                        class: "absolute left-2 top-[100px] bottom-2 z-30 w-[min(460px,calc(100%-16px))] overflow-auto rounded-md border border-border-strong bg-card shadow-md",
+                        hidden: !(geometry_scripts_open() && active_workspace == "Layout" && layout_panel().is_none()),
+                        inert: (!(geometry_scripts_open() && active_workspace == "Layout" && layout_panel().is_none())).then_some(""),
+                        if geometry_scripts_mounted() {
+                            geometry_scripts::GeometryScriptsEditor {
+                                on_back: EventHandler::new(move |()| {
+                                    setup_state.set_geometry_scripts_open(false)
+                                }),
+                            }
                         }
                     }
                     {workspace_composition::toolbar(toolbar_input)}

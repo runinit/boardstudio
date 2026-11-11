@@ -131,6 +131,62 @@ gate were run (coordinator owns). Logs: `.evidence/toolbar-m1/005a-*`;
 checkpoint `.evidence/toolbar-m1/005a-checkpoint.md`. `cargo fmt --all --check`
 and `python3 scripts/check.py lint` pass on the stable tree.
 
+## Progress 2026-11-11 (Part B builder; no closure claim)
+
+Part B rows are GREEN at their mounted tiers. Production changes (all native
+edits; Gortex read the ticket, indexed-file reads/edits fell back to native):
+`use_matrix_setup` no longer retires its owner on a workspace round trip
+(only scope/generation change — an accepted route into a new owner — closes
+it); the Editor keeps `AddMatrixSurface` mounted in a hidden/inert wrapper
+while parked for a compact panel or another workspace, so MatrixSetup's
+rows/columns/preset signals and its `DraftOwnerGuard` live together; the
+legacy `GeometryScriptsEditor` moved out of the Layout Inspector into a
+keep-mounted bounded task surface in the Editor (absolute, bounded width,
+no backdrop/permanent row/canvas resize; mounted on first reveal, then
+retained), and `open_geometry_scripts` closes the compact panel instead of
+revealing Inspect — ADR-0029 access preservation only, execution/errors/
+atomic Apply unchanged. Ordinary utility hiding parks; only the domain
+Cancel/Back or owner retirement closes.
+
+New page proofs in `layout_draft_safety_tests.rs` (reusing the existing
+FakeUpdateSignals/`mount_owner` fixtures; 38/38, `.evidence/toolbar-m1/005b-final.log`):
+`matrix_hidden_draft_survives_inspector_park_workspace_switch_and_update`
+(Rows 6 + Hotswap preset survive park + workspace switch, Update Now names
+Layout/New matrix/"Create the matrix or cancel the setup", explicit Cancel
+clears only this blocker), `matrix_registration_scope_retires_with_the_session`
+(after session replacement the poll names exactly one blocker — the current
+owner; an old-scope registration would appear twice),
+`matrix_pending_create_admits_once_while_hidden_and_shown` (hide/show while
+preparing/pending cannot resubmit; the first Create lands its captured
+6x6 matrix once; the in-flight exemption itself reuses the crate proof
+`matrix_real_create_pending_exempts_only_submitted_draft`),
+`matrix_domain_cancel_and_accepted_route_close_the_task` (own Cancel and
+generation-invalidating route close it; returning reopens nothing),
+`legacy_script_draft_parks_across_inspector_and_workspace` (edited-but-
+unapplied body parks across Inspector/workspace with the Geometry scripts
+remedy live; hiding applies nothing), and
+`legacy_script_apply_is_atomic_and_undoable` (enabled invalid body rejected
+with diagnostics and no partial geometry; smallest valid `rect(...)` result
+applies atomically; one Undo restores). RED sequence and restructures are in
+`.evidence/toolbar-m1/005b-red*.log` and `005b-checkpoint.md` (notably: the
+Core-gate row deadlocked in the page harness and was rebuilt on the real
+preparation/pending path; a vacuous-park assertion was caught and replaced
+with a hidden-while-away oracle, which produced the honest controller RED).
+Regressions: layout crate browser suite 272/272 (`005b-layout-crate.log`);
+workbench_shell + layout_layers + layout_field_preview +
+layout_component_inspector 80/80 (`005b-regress2.log`). One existing field
+assertion was migrated, not weakened: "leaving Layout retires the form" is
+superseded by this ticket's park/restore row and now asserts park + ghost
+gone while away, exact restoration on return, and Cancel retirement.
+Limits: pending-exemption timing stays at the layout-crate tier (named
+above); the script surface's packaged visual fit and the full Editor
+Update-Now click path through the real header/toast chrome are not newly
+proven here (the gate is driven at both opener entry points in the same
+fixture family as 003/011). `cargo fmt --all --check` and
+`python3 scripts/check.py lint` pass on the stable tree (`005b-lint2.log`).
+No mutations, reviews or full quick gate were run (coordinator owns); this
+ticket is not closed.
+
 ## Checks and mutations
 
 [Verification](../verification.md): `check.py quick`, `check.py lint`, layout/parts browser
