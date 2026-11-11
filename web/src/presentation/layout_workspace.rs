@@ -66,6 +66,9 @@ pub(super) struct ToolbarInput {
     pub(super) show_relationships: bool,
     pub(super) on_show_relationships: EventHandler<()>,
     pub(super) panel: Signal<Option<super::workbench_shell::ToolPanel>>,
+    pub(super) handles_visible: bool,
+    pub(super) on_toggle_handles: EventHandler<bool>,
+    pub(super) canvas_layers: Element,
 }
 
 pub(super) struct InspectorInput {
@@ -203,6 +206,7 @@ pub(super) fn use_layout_workspace_state(
     use_effect(use_reactive!(|observed_workspace| {
         if observed_workspace != "Layout" {
             state.transform_tool.set(None);
+            state.command_menu.set(None);
         }
     }));
     let observed_assembly_3d = state.assembly_3d()();
@@ -421,8 +425,33 @@ pub(super) fn add_object_header_action(mut menu_open: Signal<bool>) -> Element {
 pub(super) fn toolbar(input: ToolbarInput) -> Element {
     let mut transient_menu = input.open_menu;
     let hide_transient = EventHandler::new(move |()| transient_menu.set(None));
+    let fit_key = format!(
+        "{:?}|{:?}|{:?}|{:?}|{}|{}|{}|{}|{}|{}|{}|{}|{:?}|{}|{}|{:?}",
+        (input.open_menu)(),
+        input.selection_kind,
+        input.transform.active_tool,
+        input.snap_settings,
+        input.assembly_3d,
+        input.footprints_pressed,
+        input.handles_visible,
+        input.has_selection_context,
+        input.transform.properties_available,
+        input.transform.pointer_tools_available,
+        input.transform.column_available,
+        input.transform.row_available,
+        input.transform.matrix_rotate_followed,
+        input.align.enabled,
+        input.align.busy,
+        input.align.selected_reference,
+    );
+    let utilities = rsx! {
+        super::workbench_shell::PanelUtilities {
+            panel: input.panel,
+            on_hide_transient: hide_transient,
+        }
+    };
     rsx! {
-            div { class: "pointer-events-none absolute inset-0 z-[12] [container:layout-toolbar/inline-size] [&>*]:pointer-events-auto", "data-workspace-toolbar": "layout",
+        div { class: "flex-none", "data-workspace-toolbar": "layout",
             onkeydown: move |event: KeyboardEvent| {
                 if event.key().to_string() == " " {
                     event.stop_propagation();
@@ -431,62 +460,148 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
                     }
                 }
             },
-                div { class: "pointer-events-none! absolute inset-x-3 top-3 max-[760px]:inset-x-2 max-[760px]:top-2",
-                    if !input.assembly_3d {
-                        objects::LayoutCommandPill {
-                            command_label: input.command_label,
-                            menu_owner_key: input.menu_owner_key,
-                            open_menu: input.open_menu,
-                            transform: input.transform,
-                            align: input.align,
-                            selection_kind: input.selection_kind,
-                            snap_settings: input.snap_settings,
-                            on_selection_kind: input.on_selection_kind,
-                            on_snap_intent: input.on_snap_intent,
-                            has_selection_context: input.has_selection_context,
-                            show_relationships: input.show_relationships,
-                            on_show_relationships: input.on_show_relationships,
-                            snap_in_dock: true,
-                        }
+            if !input.assembly_3d {
+                super::workbench_shell::ToolRow {
+                    label: "Layout tools".to_owned(),
+                    fit_key: fit_key.clone(),
+                    objects::LayoutCommandPill {
+                        command_label: input.command_label,
+                        menu_owner_key: input.menu_owner_key,
+                        open_menu: input.open_menu,
+                        transform: input.transform,
+                        align: input.align,
+                        selection_kind: input.selection_kind,
+                        snap_settings: input.snap_settings,
+                        on_selection_kind: input.on_selection_kind,
+                        on_snap_intent: input.on_snap_intent,
+                        has_selection_context: input.has_selection_context,
+                        show_relationships: input.show_relationships,
+                        on_show_relationships: input.on_show_relationships,
+                        snap_in_dock: false,
+                        accordion: true,
+                        view: Some(rsx! {
+                            ToggleGroup {
+                                aria_label: "Design view",
+                                horizontal: true,
+                                pressed: Some(
+                                    std::collections::HashSet::from([
+                                        if input.assembly_3d { 1usize } else { 0usize },
+                                    ]),
+                                ),
+                                on_pressed_change: move |next: std::collections::HashSet<usize>| {
+                                    if next.contains(&0) {
+                                        input.on_view_mode.call(false);
+                                    } else if next.contains(&1) {
+                                        input.on_view_mode.call(true);
+                                    }
+                                },
+                                Tooltip {
+                                    TooltipTrigger {
+                                        r#as: move |attributes: Vec<Attribute>| rsx! {
+                                            ToggleItem {
+                                                index: 0usize,
+                                                aria_label: "2D",
+                                                class: "min-w-8",
+                                                attributes,
+                                                svg { class: "fill-none stroke-current", stroke_width: "var(--icon-stroke, 2)", view_box: "0 0 20 20", "aria-hidden": "true",
+                                                    rect { x: "3", y: "3", width: "14", height: "14", rx: "2" }
+                                                    path { d: "M3 8h14M8 3v14" }
+                                                }
+                                                span { class: "sr-only", "2D" }
+                                            }
+                                        },
+                                    }
+                                    TooltipContent { "2D layout" }
+                                }
+                                Tooltip {
+                                    TooltipTrigger {
+                                        r#as: move |attributes: Vec<Attribute>| rsx! {
+                                            ToggleItem {
+                                                index: 1usize,
+                                                aria_label: "3D assembly",
+                                                class: "min-w-8",
+                                                attributes,
+                                                svg { class: "fill-none stroke-current", stroke_width: "var(--icon-stroke, 2)", view_box: "0 0 20 20", "aria-hidden": "true",
+                                                    path { d: "m10 2 7 4v8l-7 4-7-4V6ZM3 6l7 4 7-4M10 10v8" }
+                                                }
+                                                span { class: "sr-only", "3D assembly" }
+                                            }
+                                        },
+                                    }
+                                    TooltipContent { "3D assembly" }
+                                }
+                            }
+                            if !input.assembly_3d {
+                                ToggleGroup {
+                                    aria_label: "Footprints visibility",
+                                    pressed: Some(
+                                        if input.footprints_pressed {
+                                            std::collections::HashSet::from([0usize])
+                                        } else {
+                                            std::collections::HashSet::new()
+                                        },
+                                    ),
+                                    on_pressed_change: move |_| input.on_toggle_footprints.call(()),
+                                    Tooltip {
+                                        TooltipTrigger {
+                                            r#as: move |attributes: Vec<Attribute>| rsx! {
+                                                ToggleItem {
+                                                    index: 0usize,
+                                                    aria_label: "Footprints",
+                                                    class: "min-w-8",
+                                                    attributes,
+                                                    svg { class: "fill-none stroke-current", stroke_width: "var(--icon-stroke, 2)", view_box: "0 0 20 20", "aria-hidden": "true",
+                                                        rect { x: "5", y: "4", width: "10", height: "12", rx: "1" }
+                                                        path { d: "M2 7h3M2 13h3M15 7h3M15 13h3" }
+                                                    }
+                                                    span { class: "sr-only", "Footprints" }
+                                                }
+                                            },
+                                        }
+                                        TooltipContent { "Footprints" }
+                                    }
+                                }
+                            }
+                            {input.canvas_layers}
+                            ToggleGroup {
+                                aria_label: "Canvas handles visibility",
+                                pressed: Some(
+                                    if input.handles_visible {
+                                        std::collections::HashSet::from([0usize])
+                                    } else {
+                                        std::collections::HashSet::new()
+                                    },
+                                ),
+                                on_pressed_change: move |next: std::collections::HashSet<usize>| {
+                                    input.on_toggle_handles.call(next.contains(&0));
+                                },
+                                Tooltip {
+                                    TooltipTrigger {
+                                        r#as: move |attributes: Vec<Attribute>| rsx! {
+                                            ToggleItem {
+                                                index: 0usize,
+                                                aria_label: "Canvas handles",
+                                                class: "min-w-8",
+                                                attributes,
+                                                span { "Handles" }
+                                            }
+                                        },
+                                    }
+                                    TooltipContent { "Canvas handles" }
+                                }
+                            }
+                        }),
+                        utilities: Some(utilities),
                     }
                 }
-                if let Some(reason) = input.save_failure.as_ref() {
-                    Alert { class: "m-0 max-w-[min(44vw,440px)] text-xs text-destructive",
-    variant: AlertVariant::Destructive,AlertDescription {  "Save failed: {reason}"  } }
-                    if !input.save_conflict {
-                        Button {
-                            variant: ButtonVariant::Secondary,
-                            onclick: move |_| input.on_retry_save.call(()),
-                            "Retry save"
-                        }
-                    }
-                    Button {
-                        variant: ButtonVariant::Secondary,
-                        onclick: move |_| input.on_download_pending.call(()),
-                        "Download my pending edits"
-                    }
-                }
-                if input.recovery_required {
-                    Button {
-                        variant: ButtonVariant::Secondary,
-                        onclick: move |_| input.on_recover_saved.call(()),
-                        "Reload saved version"
-                    }
-                }
-                div { class: "absolute right-3 top-3 z-[13] max-[760px]:right-2 max-[760px]:top-2",
-                    boardstudio_web_ui_shared::ui::toolbar::Toolbar { aria_label: "Layout panels", class: "gap-1 rounded-[8px] bg-toolbar p-[3px]",
-                        super::workbench_shell::PanelUtilities { panel: input.panel, on_hide_transient: hide_transient, first_index: 0usize }
-                    }
-                }
-                div { class: "absolute bottom-2 left-3 z-[11] flex gap-0.5 rounded-[8px] bg-toolbar p-[3px]",
+            } else {
+                super::workbench_shell::ToolRow {
+                    label: "Layout tools".to_owned(),
+                    fit_key: fit_key.clone(),
                     ToggleGroup {
                         aria_label: "Design view",
                         horizontal: true,
-                        pressed: Some(
-                            std::collections::HashSet::from([
-                                if input.assembly_3d { 1usize } else { 0usize },
-                            ]),
-                        ),
+                        pressed: Some(std::collections::HashSet::from([1usize])),
                         on_pressed_change: move |next: std::collections::HashSet<usize>| {
                             if next.contains(&0) {
                                 input.on_view_mode.call(false);
@@ -500,16 +615,10 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
                                     ToggleItem {
                                         index: 0usize,
                                         aria_label: "2D",
-                                        class: "min-h-11 min-w-11",
+                                        class: "min-w-8",
                                         attributes,
                                         svg { class: "fill-none stroke-current", stroke_width: "var(--icon-stroke, 2)", view_box: "0 0 20 20", "aria-hidden": "true",
-                                            rect {
-                                                x: "3",
-                                                y: "3",
-                                                width: "14",
-                                                height: "14",
-                                                rx: "2",
-                                            }
+                                            rect { x: "3", y: "3", width: "14", height: "14", rx: "2" }
                                             path { d: "M3 8h14M8 3v14" }
                                         }
                                         span { class: "sr-only", "2D" }
@@ -524,7 +633,7 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
                                     ToggleItem {
                                         index: 1usize,
                                         aria_label: "3D assembly",
-                                        class: "min-h-11 min-w-11",
+                                        class: "min-w-8",
                                         attributes,
                                         svg { class: "fill-none stroke-current", stroke_width: "var(--icon-stroke, 2)", view_box: "0 0 20 20", "aria-hidden": "true",
                                             path { d: "m10 2 7 4v8l-7 4-7-4V6ZM3 6l7 4 7-4M10 10v8" }
@@ -536,46 +645,40 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
                             TooltipContent { "3D assembly" }
                         }
                     }
-                    if !input.assembly_3d {
-                        ToggleGroup {
-                            aria_label: "Footprints visibility",
-                            pressed: Some(
-                                if input.footprints_pressed {
-                                    std::collections::HashSet::from([0usize])
-                                } else {
-                                    std::collections::HashSet::new()
-                                },
-                            ),
-                            on_pressed_change: move |_| input.on_toggle_footprints.call(()),
-                            Tooltip {
-                                TooltipTrigger {
-                                    r#as: move |attributes: Vec<Attribute>| rsx! {
-                                        ToggleItem {
-                                            index: 0usize,
-                                            aria_label: "Footprints",
-                                            class: "min-h-11 min-w-11",
-                                            attributes,
-                                            svg { class: "fill-none stroke-current", stroke_width: "var(--icon-stroke, 2)", view_box: "0 0 20 20", "aria-hidden": "true",
-                                                rect {
-                                                    x: "5",
-                                                    y: "4",
-                                                    width: "10",
-                                                    height: "12",
-                                                    rx: "1",
-                                                }
-                                                path { d: "M2 7h3M2 13h3M15 7h3M15 13h3" }
-                                            }
-                                            span { class: "sr-only", "Footprints" }
-                                        }
-                                    },
-                                }
-                                TooltipContent { "Footprints" }
+                    {utilities}
+                }
+            }
+            if input.save_failure.is_some() || input.recovery_required {
+                div { class: "flex-none px-3 py-2",
+                    if let Some(reason) = input.save_failure.as_ref() {
+                        Alert { class: "m-0 max-w-[min(44vw,440px)] text-xs text-destructive",
+                            variant: AlertVariant::Destructive,
+                            AlertDescription { "Save failed: {reason}" }
+                        }
+                        if !input.save_conflict {
+                            Button {
+                                variant: ButtonVariant::Secondary,
+                                onclick: move |_| input.on_retry_save.call(()),
+                                "Retry save"
                             }
+                        }
+                        Button {
+                            variant: ButtonVariant::Secondary,
+                            onclick: move |_| input.on_download_pending.call(()),
+                            "Download my pending edits"
+                        }
+                    }
+                    if input.recovery_required {
+                        Button {
+                            variant: ButtonVariant::Secondary,
+                            onclick: move |_| input.on_recover_saved.call(()),
+                            "Reload saved version"
                         }
                     }
                 }
             }
         }
+    }
 }
 
 #[cfg(all(test, target_arch = "wasm32"))]

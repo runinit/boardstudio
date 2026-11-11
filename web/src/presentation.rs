@@ -7953,6 +7953,19 @@ fn Editor() -> Element {
             };
             let footprints_pressed = (layer_visibility.footprints)()
                 && !(layer_visibility.hidden)().contains("Footprints");
+            let mut view_layer_groups = canvas_layers::layout_groups();
+            for group in &mut view_layer_groups {
+                group.layers.retain(|layer| layer.id != "Footprints");
+            }
+            let layout_canvas_layers = rsx! {
+                CanvasLayers {
+                    initially_open: false,
+                    trigger_label: "Canvas visibility".to_owned(),
+                    trigger_id: String::from("m1-layers-trigger"),
+                    list_id: String::from("m1-layers-list"),
+                    groups: view_layer_groups,
+                }
+            };
             workspace_composition::WorkspaceToolbarInput::Layout(Box::new(
                 layout_workspace::ToolbarInput {
                     save_failure: match &model.durability {
@@ -7986,6 +7999,11 @@ fn Editor() -> Element {
                     on_show_relationships: EventHandler::new(move |()| {
                         inspect_open.set(true);
                     }),
+                    handles_visible: layout_state.transform_handles()(),
+                    on_toggle_handles: EventHandler::new(move |visible| {
+                        layout_state.transform_handles().set(visible)
+                    }),
+                    canvas_layers: layout_canvas_layers,
                 },
             ))
         }
@@ -9643,28 +9661,10 @@ fn Editor() -> Element {
                     } else { None },
                     objects_footer: rsx! {
                     div { class: "relative mt-auto min-w-0 flex-none border-t border-border max-[760px]:[&_button]:min-h-control-touch [&>[data-slot=collapsible]]:overflow-visible [&_[id=m1-layers-list]]:absolute [&_[id=m1-layers-list]]:bottom-full [&_[id=m1-layers-list]]:left-0 [&_[id=m1-layers-list]]:z-30 [&_[id=m1-layers-list]]:w-full [&_[id=m1-layers-list]]:max-h-[min(65vh,520px)] [&_[id=m1-layers-list]]:overflow-auto [&_[id=m1-layers-list]]:rounded-t-xl [&_[id=m1-layers-list]]:border [&_[id=m1-layers-list]]:border-border-strong [&_[id=m1-layers-list]]:bg-card [&_[id=m1-layers-list]]:p-3",
-                        if active_workspace == "Layout" && !layout_assembly_3d() {
-                            CanvasLayers {
-                                initially_open: false,
-                                trigger_label: "Canvas visibility".to_owned(),
-                                trigger_id: String::from("m1-layers-trigger"),
-                                list_id: String::from("m1-layers-list"),
-                                groups: canvas_layers::layout_groups(),
-                            }
-                        }
                         if active_workspace == "PCB" {
                             pcb_layers::PcbLayerControls { initially_open: false, snapshot: snapshot.clone(), scope: render_scope.clone() }
                         }
                         boardstudio_web_ui_shared::layer_dock::LayerDockOutlet {}
-                    }
-                    if active_workspace == "Layout" && !layout_assembly_3d() {
-                        objects::LayoutSnapDock {
-                            settings: layout_snap_settings.read().clone(),
-                            open_menu: layout_command_menu,
-                            on_snap_intent: layout_snap_intent,
-                            handles_visible: layout_state.transform_handles()(),
-                            on_toggle_handles: EventHandler::new(move |visible| layout_state.transform_handles().set(visible)),
-                        }
                     }
                     },
                     inspector: if has_inspector && guide.is_none() { Some(rsx! {
@@ -9792,7 +9792,7 @@ fn Editor() -> Element {
                             },
                         }
                     } else if active_workspace == "Layout" {
-                    svg { class: "mt-[76px] block h-[calc(100%-120px)] min-h-0 w-full touch-none bg-canvas max-[760px]:mt-0 max-[760px]:h-full", view_box: "{view_box}", preserve_aspect_ratio: "xMidYMid meet", tabindex: "0", role: "group", "aria-label": "{canvas_aria_label}", onmounted: mount,
+                    svg { class: "block min-h-0 w-full flex-1 touch-none bg-canvas", view_box: "{view_box}", preserve_aspect_ratio: "xMidYMid meet", tabindex: "0", role: "group", "aria-label": "{canvas_aria_label}", onmounted: mount,
                     onpointerdown: start_pan, onpointermove: move_pointer, onpointerup: end_pointer, onpointercancel: cancel_pointer.clone(), onlostpointercapture: cancel_pointer, onkeydown: keyboard, onkeyup: key_up, onwheel: wheel,
                     defs {
                         pattern { id: "m1-layout-grid-small", width: "{canvas_grid.spacing_mm}", height: "{canvas_grid.spacing_mm}", pattern_units: "userSpaceOnUse",

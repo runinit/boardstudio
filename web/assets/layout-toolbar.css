@@ -31,9 +31,21 @@
 .layout-popup-close[data-slot] { width: var(--control-height); }
 .layout-snap-fields { display: grid; gap: 8px; }
 .layout-alignment-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
-.layout-toolbar-accordion { display: flex; flex: 1; align-items: center; gap: 3px; width: 100%; min-width: 0; }
+.layout-toolbar-accordion { display: flex; flex: 1; align-items: center; gap: 3px; width: 100%; min-width: 0; pointer-events: auto; }
 .layout-alignment-inline { display: contents; }
 .layout-snap-inline-select [data-slot='select-trigger'] { height: 32px; min-height: 32px; min-width: 76px; }
+/* 002 actual consumer: View ToggleGroups fit the 32px lane. */
+[data-workbench-section='view'] [data-slot='toggle-group'],
+[data-workspace-toolbar='layout'] .workbench-tool-row > [data-slot='toggle-group'] { padding: 0; gap: 2px; }
+[data-workbench-section='view'] [data-slot='toggle-group-item'],
+[data-workspace-toolbar='layout'] .workbench-tool-row > [data-slot='toggle-group'] [data-slot='toggle-group-item'] { height: 32px; min-height: 32px; min-width: 32px; }
+/* View CanvasLayers: trigger in the row, list below the strip, clamped and scrollable. */
+[data-workbench-section='view'] [data-slot='collapsible'] { position: relative; right: auto; bottom: auto; z-index: auto; display: flex; flex-direction: column; width: auto; min-width: 0; max-height: none; margin: 0; padding: 0; overflow: visible; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+[data-workbench-section='view'] #m1-layers-trigger { height: 32px; min-height: 32px; padding: 5px 8px; font-size: 12px; white-space: nowrap; }
+[data-workbench-section='view'] #m1-layers-list { position: absolute; top: calc(100% + 4px); left: 0; z-index: 30; width: 240px; max-width: min(320px, calc(100vw - 16px)); max-height: min(65vh, 520px); overflow: auto; border: 1px solid var(--border-strong); border-radius: 12px; background: var(--card); padding: 12px; }
+.workbench-tool-row:has([data-workbench-section='view'][data-open='true'] #m1-layers-list:not([hidden])) { overflow: visible; }
+.workbench-tool-row:has([data-workbench-section='view'][data-open='true'] #m1-layers-list:not([hidden])) .workbench-tool-reveal-inner,
+.workbench-tool-row:has([data-workbench-section='view'][data-open='true'] #m1-layers-list:not([hidden])) .workbench-tool-track { overflow: visible; }
 @media (pointer: coarse) {
   .layout-toolbar-strips [data-slot]:is(button) { min-width: var(--control-touch); height: var(--control-touch); min-height: var(--control-touch); }
 }

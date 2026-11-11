@@ -87,6 +87,7 @@ fn host() -> Element {
         style { {include_str!("../../assets/workbench-base.css")} }
         style { {include_str!("../../assets/tailwind.css")} }
         style { {include_str!("../../assets/shell.css")} }
+        style { {include_str!("../../assets/layout-toolbar.css")} }
         div { style: "display:flex;flex-direction:column;width:1000px;height:720px",
             super::notifications::NotificationProvider { Editor {} }
         }
@@ -135,33 +136,31 @@ async fn switch_visibility_keeps_keycaps_independent() {
         ),
         1
     );
-    click(&root, "Objects");
-    wait_until("the Objects panel reveals the layer controls", || {
-        root.query_selector("#workbench-objects:not([hidden])")
+    click(&root, "View");
+    wait_until("the View section reveals the layer controls", || {
+        root.query_selector("[data-workbench-section='view'][data-open='true']")
             .unwrap()
             .is_some()
+            && by_role_name(&root, "button", "Canvas visibility").is_some()
     })
     .await;
     let layer_trigger = by_role_name(&root, "button", "Canvas visibility").unwrap();
     assert_eq!(
         layer_trigger.get_attribute("aria-expanded").as_deref(),
         Some("false"),
-        "Layout layers start collapsed at the persistent bottom edge"
+        "Layout layers start collapsed in View"
     );
     assert!(
         layer_trigger
-            .closest("#workbench-objects")
+            .closest("[data-workbench-section='view']")
             .unwrap()
             .is_some(),
-        "Layout visibility controls stay with the Objects panel content"
+        "Layout visibility controls stay with the View section"
     );
     assert_eq!(
-        count(
-            &root,
-            "[aria-label='Layout workspace'] [aria-label='Canvas visibility']"
-        ),
-        0,
-        "the viewer must not duplicate the docked visibility controls"
+        count(&root, "button[aria-label='Canvas visibility']"),
+        1,
+        "the View visibility controls are not duplicated"
     );
     click(&root, "Canvas visibility");
     wait_until("the layers menu offers Hide Switches", || {
@@ -551,5 +550,296 @@ async fn layout_panels_overlay_the_same_canvas_without_a_legacy_dock() {
     })
     .await;
     assert_canvas_unchanged(&root);
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn actual_layout_tool_row_has_seven_entry_points_and_stable_canvas() {
+    let runtime = support::new_runtime();
+    support::open_document(&runtime, document()).await;
+    let revision = runtime.model().accepted.as_ref().unwrap().document.revision;
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = document.create_element("div").unwrap();
+    document.body().unwrap().append_child(&root).unwrap();
+    let dom = VirtualDom::new(host);
+    dom.provide_root_context(runtime.clone());
+    dioxus_web::launch::launch_virtual_dom(
+        dom,
+        dioxus_web::Config::new().rootnode(root.clone().into()),
+    );
+    wait_until("the Layout canvas and its panel utilities mount", || {
+        root.query_selector("#m1-workspace-panel svg[role='group']").unwrap().is_some()
+            && by_role_name(&root, "button", "Objects").is_some()
+            && by_role_name(&root, "button", "Inspect").is_some()
+    })
+    .await;
+    web_sys::window().unwrap().scroll_to_with_x_and_y(0.0, 0.0);
+    assert_eq!(count(&root, ".workbench-tool-row"), 1, "one bounded tool row");
+    let row = root.query_selector(".workbench-tool-row").unwrap().unwrap();
+    let height = row.get_bounding_client_rect().height();
+    assert!(
+        (height - 42.0).abs() < 0.5,
+        "row stays 42px high: {height}"
+    );
+    let window = web_sys::window().unwrap();
+    assert_eq!(count(&root, "#workbench-objects:not([hidden])"), 0);
+    assert_eq!(count(&root, "#workbench-inspector:not([hidden])"), 0);
+    for name in ["Select", "Transform", "Align", "Snap", "View", "Objects", "Inspect"] {
+        let button = by_role_name(&root, "button", name)
+            .unwrap_or_else(|| panic!("{name} entry is rendered"));
+        let rect = button.get_bounding_client_rect();
+        assert!(
+            rect.width() > 0.0 && rect.height() > 0.0,
+            "{name} has bounds"
+        );
+        assert_eq!(
+            count(&root, &format!("button[aria-label=\"{name}\"]")),
+            1,
+            "{name} has no duplicate entry"
+        );
+        assert!(button.is_connected(), "{name} is mounted");
+        assert!(
+            button.closest("[hidden]").unwrap().is_none(),
+            "{name} has no hidden ancestor"
+        );
+        assert!(
+            button.closest("[inert]").unwrap().is_none(),
+            "{name} has no inert ancestor"
+        );
+        assert!(!button.has_attribute("disabled"), "{name} is enabled");
+        let pointer_events = window
+            .get_computed_style(&button)
+            .unwrap()
+            .unwrap()
+            .get_property_value("pointer-events")
+            .unwrap();
+        assert_ne!(pointer_events, "none", "{name} accepts pointer hits");
+    }
+    let canvas = root
+        .query_selector("#m1-workspace-panel svg[role='group']")
+        .unwrap()
+        .unwrap();
+    let rect = canvas.get_bounding_client_rect();
+    let before = (rect.x(), rect.y(), rect.width(), rect.height());
+    assert!(before.2 > 0.0 && before.3 > 0.0, "production CSS gives the canvas bounds");
+    let view_box = canvas.get_attribute("viewBox");
+    let assert_canvas_unchanged = |root: &web_sys::Element| {
+        let current = root
+            .query_selector("#m1-workspace-panel svg[role='group']")
+            .unwrap()
+            .unwrap();
+        let rect = current.get_bounding_client_rect();
+        assert!(canvas.is_same_node(Some(current.as_ref())), "panel/section visibility must not remount the canvas");
+        assert_eq!((rect.x(), rect.y(), rect.width(), rect.height()), before);
+        assert_eq!(current.get_attribute("viewBox"), view_box);
+        assert_eq!(runtime.model().accepted.as_ref().unwrap().document.revision, revision);
+    };
+    for (name, key) in [
+        ("Select", "select"),
+        ("Transform", "transform"),
+        ("Align", "align"),
+        ("Snap", "snap"),
+        ("View", "view"),
+    ] {
+        click(&root, name);
+        let what = format!("{name} section opens alone");
+        wait_until(&what, || {
+            root.query_selector(&format!("[data-workbench-section='{key}'][data-open='true']"))
+                .unwrap()
+                .is_some()
+                && count(&root, "[data-workbench-section][data-open='true']") == 1
+        })
+        .await;
+        assert_canvas_unchanged(&root);
+    }
+    click(&root, "Objects");
+    wait_until("Objects opens", || {
+        root.query_selector("#workbench-objects:not([hidden])")
+            .unwrap()
+            .is_some()
+    })
+    .await;
+    assert_canvas_unchanged(&root);
+    click(&root, "Inspect");
+    wait_until("Inspect replaces Objects", || {
+        root.query_selector("#workbench-inspector:not([hidden])").unwrap().is_some()
+            && root.query_selector("#workbench-objects[hidden][inert]").unwrap().is_some()
+    })
+    .await;
+    assert_canvas_unchanged(&root);
+    click(&root, "Inspect");
+    wait_until("both Layout panels close", || {
+        root.query_selector("#workbench-inspector[hidden][inert]").unwrap().is_some()
+    })
+    .await;
+    assert_canvas_unchanged(&root);
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn view_mode_and_visibility_toggles_keep_pressed_state_and_revision() {
+    let runtime = support::new_runtime();
+    support::open_document(&runtime, document()).await;
+    let revision = runtime.model().accepted.as_ref().unwrap().document.revision;
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = document.create_element("div").unwrap();
+    document.body().unwrap().append_child(&root).unwrap();
+    let dom = VirtualDom::new(host);
+    dom.provide_root_context(runtime.clone());
+    dioxus_web::launch::launch_virtual_dom(
+        dom,
+        dioxus_web::Config::new().rootnode(root.clone().into()),
+    );
+    wait_until("the Layout canvas and its panel utilities mount", || {
+        root.query_selector("#m1-workspace-panel svg[role='group']")
+            .unwrap()
+            .is_some()
+            && by_role_name(&root, "button", "Objects").is_some()
+            && by_role_name(&root, "button", "Inspect").is_some()
+    })
+    .await;
+    click(&root, "View");
+    wait_until("the View section reveals the view controls", || {
+        root.query_selector("[data-workbench-section='view'][data-open='true']")
+            .unwrap()
+            .is_some()
+            && by_role_name(&root, "group", "Design view").is_some()
+            && by_role_name(&root, "button", "2D").is_some()
+            && by_role_name(&root, "button", "3D assembly").is_some()
+            && by_role_name(&root, "button", "Footprints").is_some()
+            && by_role_name(&root, "button", "Canvas handles").is_some()
+            && by_role_name(&root, "button", "Canvas visibility").is_some()
+    })
+    .await;
+    let pressed_of = |name: &str| -> (String, Option<String>) {
+        let button = by_role_name(&root, "button", name)
+            .unwrap_or_else(|| panic!("{name} is rendered"));
+        assert!(
+            !button.has_attribute("disabled"),
+            "{name} stays enabled for the view-only toggle"
+        );
+        (
+            button.get_attribute("aria-pressed").unwrap_or_default(),
+            button.get_attribute("data-state"),
+        )
+    };
+    let (pressed, state) = pressed_of("2D");
+    assert_eq!(pressed, "true", "2D starts pressed");
+    assert_eq!(state.as_deref(), Some("on"), "2D pressed uses data-state on");
+    assert_eq!(pressed_of("3D assembly").0, "false", "3D starts unpressed");
+    assert_eq!(
+        pressed_of("Footprints").0,
+        "false",
+        "Footprints starts unpressed"
+    );
+    let (pressed, state) = pressed_of("Canvas handles");
+    assert_eq!(pressed, "true", "handles start pressed");
+    assert_eq!(
+        state.as_deref(),
+        Some("on"),
+        "handles pressed uses data-state on"
+    );
+    assert_eq!(
+        runtime.model().accepted.as_ref().unwrap().document.revision,
+        revision
+    );
+    click(&root, "3D assembly");
+    wait_until("3D assembly mode presses 3D and hides View-only controls", || {
+        by_role_name(&root, "button", "3D assembly").is_some_and(|button| {
+            button.get_attribute("aria-pressed").as_deref() == Some("true")
+        }) && by_role_name(&root, "button", "2D").is_some_and(|button| {
+            button.get_attribute("aria-pressed").as_deref() == Some("false")
+        }) && by_role_name(&root, "button", "Footprints").is_none()
+            && by_role_name(&root, "button", "Canvas handles").is_none()
+            && by_role_name(&root, "button", "Canvas visibility").is_none()
+    })
+    .await;
+    assert_eq!(
+        count(&root, ".workbench-tool-row"),
+        1,
+        "3D keeps one bounded row"
+    );
+    assert_eq!(pressed_of("3D assembly").0, "true");
+    assert_eq!(pressed_of("2D").0, "false");
+    assert_eq!(
+        runtime.model().accepted.as_ref().unwrap().document.revision,
+        revision
+    );
+    click(&root, "2D");
+    wait_until("2D mode restores View controls", || {
+        by_role_name(&root, "button", "2D").is_some_and(|button| {
+            button.get_attribute("aria-pressed").as_deref() == Some("true")
+        }) && by_role_name(&root, "button", "Footprints").is_some()
+            && by_role_name(&root, "button", "Canvas handles").is_some()
+            && by_role_name(&root, "button", "Canvas visibility").is_some()
+    })
+    .await;
+    let (pressed, state) = pressed_of("2D");
+    assert_eq!(pressed, "true");
+    assert_eq!(state.as_deref(), Some("on"));
+    assert_eq!(pressed_of("3D assembly").0, "false");
+    assert_eq!(
+        runtime.model().accepted.as_ref().unwrap().document.revision,
+        revision
+    );
+    if root
+        .query_selector("[data-workbench-section='view'][data-open='true']")
+        .unwrap()
+        .is_none()
+    {
+        click(&root, "View");
+    }
+    wait_until("View section is open for visibility toggles", || {
+        root.query_selector("[data-workbench-section='view'][data-open='true']")
+            .unwrap()
+            .is_some()
+    })
+    .await;
+    click(&root, "Footprints");
+    wait_until("Footprints presses without moving 2D or handles", || {
+        by_role_name(&root, "button", "Footprints").is_some_and(|button| {
+            button.get_attribute("aria-pressed").as_deref() == Some("true")
+        })
+    })
+    .await;
+    let (pressed, state) = pressed_of("Footprints");
+    assert_eq!(pressed, "true");
+    assert_eq!(state.as_deref(), Some("on"));
+    assert_eq!(
+        pressed_of("2D").0,
+        "true",
+        "Footprints toggle keeps 2D pressed"
+    );
+    assert_eq!(
+        pressed_of("Canvas handles").0,
+        "true",
+        "Footprints toggle keeps handles pressed"
+    );
+    assert_eq!(
+        runtime.model().accepted.as_ref().unwrap().document.revision,
+        revision
+    );
+    click(&root, "Canvas handles");
+    wait_until("handles unpress without moving 2D or Footprints", || {
+        by_role_name(&root, "button", "Canvas handles").is_some_and(|button| {
+            button.get_attribute("aria-pressed").as_deref() == Some("false")
+        })
+    })
+    .await;
+    assert_eq!(pressed_of("Canvas handles").0, "false");
+    assert_eq!(
+        pressed_of("2D").0,
+        "true",
+        "handles toggle keeps 2D pressed"
+    );
+    assert_eq!(
+        pressed_of("Footprints").0,
+        "true",
+        "handles toggle keeps Footprints pressed"
+    );
+    assert_eq!(
+        runtime.model().accepted.as_ref().unwrap().document.revision,
+        revision
+    );
     root.remove();
 }
