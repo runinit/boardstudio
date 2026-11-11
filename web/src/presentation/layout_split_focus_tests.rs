@@ -207,16 +207,21 @@ async fn dimmed_half_click_focuses_and_tree_pcb_roundtrip_keeps_focus() {
     .await;
     assert_eq!(count(&root, "[data-matrix-id][data-dimmed='true']"), 1);
 
-    // Tree selection never moves focus.
+    // Ticket 004: an Objects (tree) pick of a half aligns view-only focus
+    // with the actual selected half.
     click(&root, "[id='m1-object-tree-half:source-layout']");
-    wait_until("the tree selection applies", || {
+    wait_until("the tree selection applies and focus follows it", || {
         runtime.model().selected_part_ids == vec!["matrix/left/r0c0".to_owned()]
+            && dim_label(&root).contains("Right half · linked mirror · click to edit here")
     })
     .await;
-    assert!(
-        dim_label(&root).contains("Left half · linked mirror · click to edit here"),
-        "tree selection must not move focus"
-    );
+
+    // Restore right-half focus by canvas pick for the round-trip steps.
+    canvas_pointer_down(&root, "[data-matrix-id='right'][data-row][data-column]");
+    wait_until("canvas pick restores right-half focus", || {
+        dim_label(&root).contains("Left half · linked mirror · click to edit here")
+    })
+    .await;
 
     // PCB never dims.
     click(&root, "#split-focus-go-pcb");
@@ -269,5 +274,95 @@ async fn dimmed_half_click_focuses_and_tree_pcb_roundtrip_keeps_focus() {
             && dim_label(&root).contains("Left half · linked mirror · click to edit here")
     })
     .await;
+    root.remove();
+}
+
+fn click_button_by_text(root: &web_sys::Element, text: &str) {
+    let buttons = root.query_selector_all("button").unwrap();
+    let target = (0..buttons.length())
+        .filter_map(|index| buttons.item(index))
+        .find(|element| element.text_content().unwrap_or_default().trim() == text)
+        .unwrap_or_else(|| panic!("button {text} is rendered"));
+    target.dyn_into::<HtmlElement>().unwrap().click();
+}
+
+fn dimmed_matrix_id(root: &web_sys::Element) -> Option<String> {
+    root.query_selector("[data-matrix-id][data-dimmed='true']")
+        .unwrap()
+        .and_then(|element| element.get_attribute("data-matrix-id"))
+}
+
+/// Ticket 004: renamed/repositioned linked halves. The source layout sits on
+/// the visual right and the mirror on the visual left; saved mirror links,
+/// not positions or names, decide which half an Objects/canvas pick focuses.
+#[wasm_bindgen_test]
+async fn objects_and_canvas_picks_focus_the_linked_half_by_identity() {
+    let mut fixture = split_document();
+    fixture.layouts[0].name = "Alpha".into();
+    fixture.layouts[1].name = "Beta".into();
+    // Reposition: source matrix moves to x=+30, mirror matrix to x=-30.
+    for matrix in &mut fixture.matrices {
+        matrix.origin.x = if matrix.id == "left" { 30.0 } else { -30.0 };
+    }
+    for part in &mut fixture.parts {
+        part.pose.at.x = if part.id.contains("left") {
+            30.0
+        } else {
+            -30.0
+        };
+    }
+    let runtime = support::new_runtime();
+    support::open_document(&runtime, fixture).await;
+    let before = runtime.model().accepted.as_ref().unwrap().document.clone();
+    let dom_document = web_sys::window().unwrap().document().unwrap();
+    let root = dom_document.create_element("div").unwrap();
+    dom_document.body().unwrap().append_child(&root).unwrap();
+    let dom = VirtualDom::new(host);
+    dom.provide_root_context(runtime.clone());
+    dioxus_web::launch::launch_virtual_dom(
+        dom,
+        dioxus_web::Config::new().rootnode(root.clone().into()),
+    );
+    // Focus starts on the source (Alpha) half by link identity, so the
+    // mirrored Beta half dims even though it sits on the visual left.
+    wait_until("the mirrored half dims by identity, not position", || {
+        dimmed_matrix_id(&root).as_deref() == Some("right")
+            && dim_label(&root).contains("Right half · linked mirror · click to edit here")
+    })
+    .await;
+    // Pick Beta through Objects: focus aligns with Beta, Objects closes.
+    click_button_by_text(&root, "Objects");
+    wait_until("Objects opens", || {
+        root.query_selector("#workbench-objects:not([hidden])")
+            .unwrap()
+            .is_some()
+    })
+    .await;
+    click(&root, "[id='m1-object-tree-half:paired-layout']");
+    wait_until("the Objects pick focuses Beta and closes Objects", || {
+        dimmed_matrix_id(&root).as_deref() == Some("left")
+            && runtime.model().selected_part_ids == vec!["matrix/right/r0c0".to_owned()]
+            && root
+                .query_selector("#workbench-objects[hidden][inert]")
+                .unwrap()
+                .is_some()
+            && root
+                .query_selector("#workbench-inspector[hidden][inert]")
+                .unwrap()
+                .is_some()
+    })
+    .await;
+    // Pick Alpha on the canvas: focus follows back, still view-only.
+    canvas_pointer_down(&root, "[data-matrix-id='left'][data-row][data-column]");
+    wait_until("the canvas pick focuses Alpha again", || {
+        dimmed_matrix_id(&root).as_deref() == Some("right")
+            && runtime.model().selected_part_ids == vec!["matrix/left/r0c0".to_owned()]
+    })
+    .await;
+    assert_eq!(
+        runtime.model().accepted.as_ref().unwrap().document.as_ref(),
+        before.as_ref(),
+        "half focus changes no document, link, correspondence or revision (no Undo entry)"
+    );
     root.remove();
 }

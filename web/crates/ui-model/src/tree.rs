@@ -470,25 +470,18 @@ pub fn build_tree(
                     .is_some_and(|link| link.source_id == layout.id)
             })
         });
-    let split_x = layouts
-        .iter()
-        .find_map(|layout| layout.mirror_link.as_ref().map(|link| link.axis_x));
+    // Half grouping follows the saved mirror link (source vs mirrored
+    // layout), never a layout's screen position or name (ticket 004).
     let halves: Vec<(&str, Vec<&Layout>)> = if has_split {
-        let axis = split_x.unwrap_or_default();
-        vec![
+        let mut groups: Vec<(&str, Vec<&Layout>)> = vec![
             (
                 "Left half",
                 layouts
                     .iter()
                     .copied()
                     .filter(|layout| {
-                        layout
-                            .matrix_ids
-                            .iter()
-                            .map(|id| matrix_origin_x(&matrices, id))
-                            .sum::<f64>()
-                            / (layout.matrix_ids.len().max(1) as f64)
-                            < axis
+                        crate::split_focus::layout_half(document, &layout.id)
+                            == Some(crate::split_focus::SplitHalf::Left)
                     })
                     .collect(),
             ),
@@ -498,17 +491,23 @@ pub fn build_tree(
                     .iter()
                     .copied()
                     .filter(|layout| {
-                        layout
-                            .matrix_ids
-                            .iter()
-                            .map(|id| matrix_origin_x(&matrices, id))
-                            .sum::<f64>()
-                            / (layout.matrix_ids.len().max(1) as f64)
-                            >= axis
+                        crate::split_focus::layout_half(document, &layout.id)
+                            == Some(crate::split_focus::SplitHalf::Right)
                     })
                     .collect(),
             ),
-        ]
+        ];
+        let unlinked: Vec<_> = layouts
+            .iter()
+            .copied()
+            .filter(|layout| crate::split_focus::layout_half(document, &layout.id).is_none())
+            .collect();
+        if !unlinked.is_empty() {
+            groups.push(("", unlinked));
+        }
+        // Drop named groups that hold no layouts.
+        groups.retain(|(_, group)| !group.is_empty());
+        groups
     } else {
         vec![("", layouts.clone())]
     };
@@ -551,7 +550,7 @@ pub fn build_tree(
                 );
             }
             for part in &standalone {
-                append_component(&mut tree, part, &definitions, 2);
+                append_component(&mut tree, document, part, &definitions, 2);
             }
         }
     }
@@ -595,6 +594,7 @@ pub fn build_tree(
         if has_split {
             append_components_group(
                 &mut tree,
+                document,
                 &components,
                 &definitions,
                 board_id,
@@ -662,7 +662,7 @@ pub fn build_tree(
                         .into_iter()
                         .flatten()
                     {
-                        append_component(&mut tree, part, &definitions, child_level);
+                        append_component(&mut tree, document, part, &definitions, child_level);
                     }
                 }
             }
@@ -671,8 +671,10 @@ pub fn build_tree(
     tree
 }
 
+#[allow(clippy::too_many_arguments)]
 fn append_components_group(
     tree: &mut Vec<TreeItem>,
+    document: &ProjectDoc,
     parts: &[&Part],
     definitions: &HashMap<&str, &str>,
     board_id: &str,
@@ -705,13 +707,14 @@ fn append_components_group(
     });
     if is_open {
         for part in parts {
-            append_component(tree, part, definitions, level + 1);
+            append_component(tree, document, part, definitions, level + 1);
         }
     }
 }
 
 fn append_component(
     tree: &mut Vec<TreeItem>,
+    document: &ProjectDoc,
     part: &Part,
     definitions: &HashMap<&str, &str>,
     level: usize,
@@ -724,8 +727,8 @@ fn append_component(
         id: format!("component:{}", part.id),
         label: part.reference.clone(),
         detail: Some(format!(
-            "{name} · {:.1}, {:.1}",
-            part.pose.at.x, part.pose.at.y
+            "{name} · {}",
+            part_association_label(document, part)
         )),
         level,
         kind: TreeKind::Component,
@@ -742,11 +745,35 @@ fn append_component(
     });
 }
 
-fn matrix_origin_x(matrices: &[&Matrix], id: &str) -> f64 {
-    matrices
+/// The truthful anchor association for a component row (ticket 004): the
+/// same anchor record the canvas "Placed from" readout derives from. An
+/// anchored part names its anchor matrix and cell; a detached part names
+/// its owning layout; a part with neither is local to its own origin. No
+/// screen side, pose or clearance is ever fabricated.
+pub fn part_association_label(document: &ProjectDoc, part: &Part) -> String {
+    if let Some(anchor) = part.anchor.as_ref() {
+        let name = document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == anchor.matrix_id)
+            .and_then(|matrix| matrix.name.as_deref())
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+            .unwrap_or(anchor.matrix_id.as_str());
+        return format!(
+            "Placed from {name} · R{}/C{}",
+            anchor.row + 1,
+            anchor.column + 1
+        );
+    }
+    if let Some(layout) = document
+        .layouts
         .iter()
-        .find(|matrix| matrix.id == id)
-        .map_or(0.0, |matrix| matrix.origin.x)
+        .find(|layout| layout.part_ids.iter().any(|id| id == &part.id))
+    {
+        return format!("Detached · {} origin", layout.name);
+    }
+    "Local · own origin".into()
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -959,14 +986,11 @@ fn append_matrix(
                             matrix.id, assembly.id
                         ),
                         label: definition.into(),
-                        detail: Some(
-                            if assembly.id == "diode" {
-                                "Automatic companion"
-                            } else {
-                                "Cell component"
-                            }
-                            .into(),
-                        ),
+                        detail: Some(if assembly.id == "diode" {
+                            format!("Automatic companion · R{}/C{}", row + 1, column + 1)
+                        } else {
+                            format!("Cell component · R{}/C{}", row + 1, column + 1)
+                        }),
                         level: child_level + 2,
                         kind: TreeKind::Component,
                         context: Some(TreeContext::Component {

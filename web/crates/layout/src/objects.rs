@@ -205,7 +205,7 @@ pub fn Objects(
     let case_workspace = workspace() == "Case";
     let pcb_workspace = workspace() == "PCB";
     let scope_generation = use_context::<super::SelectionAdapter>().generation;
-    let generation = scope_generation();
+    let _generation = scope_generation();
     let version = use_context::<Signal<u64>>();
     let _ = version();
     let existing_half = use_existing_half(runtime.clone(), version, workspace, scope_generation);
@@ -285,6 +285,7 @@ pub fn Objects(
             .as_deref()
             == Some("part")
     });
+    let mut object_query = use_signal(String::new);
     let source = AcceptedSource(snapshot.clone());
     let grouping_choice =
         use_memo(move || Some(if by_part() { "part" } else { "layout" }.to_owned()));
@@ -362,6 +363,31 @@ pub fn Objects(
             }),
         ))
     });
+    // Ticket 004: search filters rendered rows by their accessible label and
+    // detail; the current selection stays visible so filtering never loses it.
+    let query = object_query.read().trim().to_lowercase();
+    let visible_items: Vec<tree::TreeItem> = if query.is_empty() {
+        items.iter().cloned().collect()
+    } else {
+        items
+            .iter()
+            .filter(|item| {
+                let text = format!(
+                    "{} {}",
+                    item.label,
+                    item.detail.as_deref().unwrap_or_default()
+                )
+                .to_lowercase();
+                text.contains(&query)
+                    || item.context.as_ref().is_some_and(|context| {
+                        current_context
+                            .as_ref()
+                            .is_some_and(|current| current.context == *context)
+                    })
+            })
+            .cloned()
+            .collect()
+    };
     let selected_layout_target = selected_matrix_id.and_then(|matrix_id| {
         document
             .layouts
@@ -442,6 +468,16 @@ pub fn Objects(
         variant: AlertVariant::Destructive,AlertDescription {  "{error}"  } }
                     }
                     if !add_menu_open() && !existing_half_active {
+                        div { class: "shrink-0 px-2.5 pt-2.5",
+                            input {
+                                r#type: "search",
+                                aria_label: "Find an object",
+                                placeholder: "Find an object",
+                                class: "min-h-9 w-full rounded-[3px] border border-border bg-transparent px-2 text-sm text-foreground",
+                                value: "{object_query}",
+                                oninput: move |event: FormEvent| object_query.set(event.value()),
+                            }
+                        }
                         {
                             let control_label = "Group".to_owned();
                             let control_aria_label = "Group objects by".to_owned();
@@ -535,7 +571,7 @@ pub fn Objects(
                                 role: "tree",
                                 "aria-label": "CAD structure",
                                 class: "grid min-h-0 flex-1 content-start gap-0 overflow-auto overscroll-contain px-0 py-1",
-                                for item in items.iter().cloned() {
+                                for item in visible_items.iter().cloned() {
                                     {
                                         let selected = item
                                             .context
@@ -564,17 +600,11 @@ pub fn Objects(
                                         let nudge_on_key = on_nudge;
                                         let click_scope = active_scope.clone();
                                         let key_scope = active_scope.clone();
-                                        let outline_action = active_scope
-                                            .as_ref()
-                                            .zip(item.context.as_ref())
-                                            .and_then(|(scope, context)| super::outline_lifecycle::OutlineAction::for_tree(
-                                                snapshot,
-                                                scope,
-                                                generation,
-                                                context,
-                                            ));
-                                        let click_outline_action = outline_action.clone();
-                                        let key_outline_action = outline_action;
+                                        // Ticket 004: Objects rows are selection only.
+                                        // Outline version lifecycle activation lives in
+                                        // Inspect (003); a row pick never activates a
+                                        // different version, so no outline action is
+                                        // attached here.
                                         rsx! {
                                             div {
                                                 key: "{item.id}",
@@ -614,7 +644,7 @@ pub fn Objects(
                                                 Button { variant: ButtonVariant::Secondary,
     id: "{tree_item_id}",
     class: if selected { "flex min-h-8 min-w-0 flex-1 items-center justify-start gap-[9px] rounded-[3px] border-primary bg-selected px-[5px] text-left text-selected-foreground [&_span]:text-selected-foreground" } else { "flex min-h-8 min-w-0 flex-1 items-center justify-start gap-[9px] rounded-[3px] border-transparent bg-transparent px-[5px] text-left hover:bg-accent" },
-    onclick: move |_| {
+    onclick: move |event: MouseEvent| {
                                                     if let Some(context) = select_item.context.clone() {
                                                         if let Some(scope) = click_scope.clone() {
                                                             if let TreeContext::Board { board_id } = &context
@@ -623,7 +653,15 @@ pub fn Objects(
                                                                 navigate_on_click.call((scope, board_id.clone(), None));
                                                                 return;
                                                             }
-                                                            select_on_click.call(TreeSelectRequest { scope, context, mode: SelectionMode::Replace, outline_action: click_outline_action.clone() });
+                                                            let modifiers = event.data().modifiers();
+                                                            let mode = if modifiers.shift() {
+                                                                SelectionMode::Range
+                                                            } else if modifiers.ctrl() || modifiers.meta() {
+                                                                SelectionMode::Toggle
+                                                            } else {
+                                                                SelectionMode::Replace
+                                                            };
+                                                            select_on_click.call(TreeSelectRequest { scope, context, mode, outline_action: None });
                                                         }
                                                         if select_item.kind == TreeKind::Board && select_item.expanded != Some(true) {
                                                             toggle_tree(expanded, &select_item.id);
@@ -644,7 +682,15 @@ pub fn Objects(
                                                                     navigate_on_key.call((scope, board_id.clone(), None));
                                                                     return;
                                                                 }
-                                                                select_on_key.call(TreeSelectRequest { scope, context, mode: SelectionMode::Replace, outline_action: key_outline_action.clone() });
+                                                                let modifiers = event.data().modifiers();
+                                                                let mode = if modifiers.shift() {
+                                                                    SelectionMode::Range
+                                                                } else if modifiers.ctrl() || modifiers.meta() {
+                                                                    SelectionMode::Toggle
+                                                                } else {
+                                                                    SelectionMode::Replace
+                                                                };
+                                                                select_on_key.call(TreeSelectRequest { scope, context, mode, outline_action: None });
                                                             }
                                                             if keyboard_item.kind == TreeKind::Board && keyboard_item.expanded != Some(true) {
                                                                 toggle_tree(expanded, &keyboard_item.id);
@@ -1116,6 +1162,15 @@ fn grouped_part_tree(model: &ReadModel, expanded: &BTreeSet<String>) -> Vec<tree
         .into_iter()
         .filter(|row| row.kind == TreeKind::Component)
     {
+        // By-part rows carry the same truthful anchor association as the
+        // By-layout component rows (ticket 004), not a PCB side label.
+        if let Some(part) = row
+            .primary_id
+            .as_ref()
+            .and_then(|id| snapshot.document.parts.iter().find(|part| &part.id == id))
+        {
+            row.detail = Some(tree::part_association_label(&snapshot.document, part));
+        }
         let definition = row
             .primary_id
             .as_ref()

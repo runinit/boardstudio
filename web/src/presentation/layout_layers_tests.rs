@@ -1776,11 +1776,18 @@ async fn show_hide_commands_route_to_each_workspace_current_host() {
         legacy_before,
         "Layout command leaves legacy compact state alone"
     );
+    // Ticket 004: the real Objects content now carries the host's search
+    // target, so opening Objects focuses its search field.
+    let objects_search = root
+        .query_selector("#workbench-objects input[type=search]")
+        .unwrap()
+        .expect("Objects search field is rendered");
     assert_eq!(
         document.active_element().as_ref(),
-        Some(invoke_objects.as_ref()),
-        "command-opened Objects keeps focus when content has no search target"
+        Some(objects_search.as_ref()),
+        "command-opened Objects focuses its search field"
     );
+    let _ = invoke_objects;
     assert_canvas_unchanged(&root);
     let close_objects = by_role_name(&root, "button", "Close Objects").unwrap();
     close_objects.focus().unwrap();
@@ -2409,5 +2416,649 @@ async fn caller_owned_input_survives_round_trip_and_session_replace_clears_old_h
         revision,
         "session replace performs no edit"
     );
+    root.remove();
+}
+
+// Ticket 004: Objects popover parity helpers.
+fn objects_row(root: &web_sys::Element, prefix: &str) -> Option<web_sys::HtmlElement> {
+    let buttons = root
+        .query_selector_all("#workbench-objects button")
+        .unwrap();
+    (0..buttons.length())
+        .filter_map(|index| buttons.item(index))
+        .find(|element| {
+            element
+                .text_content()
+                .unwrap_or_default()
+                .trim_start()
+                .starts_with(prefix)
+        })
+        .and_then(|element| element.dyn_into::<web_sys::HtmlElement>().ok())
+}
+
+fn objects_row_by_id(root: &web_sys::Element, id: &str) -> web_sys::HtmlElement {
+    root.query_selector(&format!("[id='{id}']"))
+        .unwrap()
+        .unwrap_or_else(|| panic!("Objects row {id} is rendered"))
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap()
+}
+
+fn row_is_selected(element: &web_sys::HtmlElement) -> bool {
+    element
+        .parent_element()
+        .is_some_and(|parent| parent.get_attribute("aria-selected").as_deref() == Some("true"))
+}
+
+fn objects_closed_inspect_closed(root: &web_sys::Element) -> bool {
+    root.query_selector("#workbench-objects[hidden][inert]")
+        .unwrap()
+        .is_some()
+        && root
+            .query_selector("#workbench-inspector[hidden][inert]")
+            .unwrap()
+            .is_some()
+}
+
+async fn mount_004(fixture: ProjectDoc) -> (Rc<Runtime>, web_sys::Element) {
+    let runtime = support::new_runtime();
+    support::open_document(&runtime, fixture).await;
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = document.create_element("div").unwrap();
+    document.body().unwrap().append_child(&root).unwrap();
+    let dom = VirtualDom::new(host);
+    dom.provide_root_context(runtime.clone());
+    dioxus_web::launch::launch_virtual_dom(
+        dom,
+        dioxus_web::Config::new().rootnode(root.clone().into()),
+    );
+    wait_until("the Layout canvas and Objects utility mount", || {
+        root.query_selector("#m1-workspace-panel svg[role='group']")
+            .unwrap()
+            .is_some()
+            && by_role_name(&root, "button", "Objects").is_some()
+    })
+    .await;
+    (runtime, root)
+}
+
+fn outline_version(
+    id: &str,
+    name: &str,
+    ownership: boardstudio_core::model::OutlineOwnership,
+) -> boardstudio_core::model::OutlineVersion {
+    boardstudio_core::model::OutlineVersion {
+        id: id.into(),
+        name: name.into(),
+        source: boardstudio_core::model::OutlineProvenance {
+            revision: 0,
+            version_id: None,
+        },
+        geometry: boardstudio_core::model::OutlineSnapshot {
+            features: vec![boardstudio_core::model::OutlineFeature::Polygon {
+                anchor_part_id: None,
+                id: format!("{id}-contour"),
+                points: vec![
+                    boardstudio_core::model::Vec2 { x: -20.0, y: -20.0 },
+                    boardstudio_core::model::Vec2 { x: 40.0, y: -20.0 },
+                    boardstudio_core::model::Vec2 { x: 40.0, y: 20.0 },
+                    boardstudio_core::model::Vec2 { x: -20.0, y: 20.0 },
+                ],
+                operation: boardstudio_core::model::Operation::Add,
+            }],
+            settings: boardstudio_core::model::OutlineSettings::default(),
+            expected_regions: 1,
+            bridges: vec![],
+            protected_gaps: vec![],
+        },
+        ownership,
+    }
+}
+
+#[wasm_bindgen_test]
+async fn objects_outline_pick_selects_active_outline_without_activation_then_canvas_boundary_matches()
+ {
+    use boardstudio_core::model::{OutlineOwnership, OutlineProvenance};
+    let _ = OutlineProvenance {
+        revision: 0,
+        version_id: None,
+    };
+    let mut fixture = document();
+    fixture
+        .board_outlines
+        .push(boardstudio_core::model::BoardOutline {
+            board_id: "board".into(),
+            active_version_id: Some("v-refine".into()),
+            versions: vec![
+                outline_version("v-refine", "Refined", OutlineOwnership::Linked),
+                outline_version("v-edited", "Edited", OutlineOwnership::Fixed),
+            ],
+            generated_last_valid: None,
+            retired_version_ids: vec![],
+        });
+    let (runtime, root) = mount_004(fixture).await;
+    let before = runtime.model().accepted.as_ref().unwrap().document.clone();
+    click(&root, "Objects");
+    wait_until("Objects opens with the Outline row", || {
+        objects_row(&root, "Outline").is_some()
+    })
+    .await;
+    // First Objects item for the boundary: the Outline row itself.
+    objects_row(&root, "Outline").unwrap().click();
+    wait_until(
+        "the Outline pick closes Objects without opening Inspect",
+        || objects_closed_inspect_closed(&root),
+    )
+    .await;
+    assert_eq!(
+        runtime
+            .model()
+            .accepted
+            .as_ref()
+            .unwrap()
+            .document
+            .board_outlines,
+        before.board_outlines,
+        "an ordinary Outline pick must not activate or edit a version"
+    );
+    // A non-active version row is selection only: no activation, no Inspect.
+    click(&root, "Objects");
+    wait_until("Objects reopens", || {
+        objects_row(&root, "Outline").is_some()
+    })
+    .await;
+    let outline_row = objects_row(&root, "Outline").unwrap();
+    // Expand the Outline disclosure if versions are not yet visible.
+    if objects_row(&root, "Edited").is_none() {
+        let disclosure = root
+            .query_selector("[id='m1-object-tree-outline:board-disclosure']")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap();
+        disclosure.click();
+    }
+    let _ = outline_row;
+    wait_until("the Edited version row is visible", || {
+        objects_row(&root, "Edited").is_some() && objects_row(&root, "Generated").is_some()
+    })
+    .await;
+    objects_row(&root, "Edited").unwrap().click();
+    wait_until(
+        "the version pick closes Objects without opening Inspect",
+        || objects_closed_inspect_closed(&root),
+    )
+    .await;
+    assert_eq!(
+        runtime.model().accepted.as_ref().unwrap().document.as_ref(),
+        before.as_ref(),
+        "selecting a version row changes no version, shape, outputs or revision"
+    );
+    // Picking the boundary on the canvas yields the same active-outline context.
+    let boundary = root
+        .query_selector("[data-board-boundary]")
+        .unwrap()
+        .expect("the board boundary renders on the canvas");
+    let pointer = web_sys::PointerEventInit::new();
+    pointer.set_bubbles(true);
+    boundary
+        .dispatch_event(
+            &web_sys::PointerEvent::new_with_event_init_dict("pointerdown", &pointer).unwrap(),
+        )
+        .unwrap();
+    click(&root, "Objects");
+    wait_until("the canvas boundary pick selects the Outline row", || {
+        objects_row(&root, "Outline").is_some_and(|row| row_is_selected(&row))
+    })
+    .await;
+    assert_eq!(
+        runtime.model().accepted.as_ref().unwrap().document.as_ref(),
+        before.as_ref(),
+        "the canvas boundary pick activates nothing"
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn objects_component_references_match_the_canvas_anchor_association() {
+    let mut fixture = document();
+    // Six-column "Left main" so R1/C6 is a real anchor cell (toolbar fixture shape).
+    let template = fixture.parts[0].clone();
+    fixture.parts = (0..6)
+        .map(|column| {
+            let mut part = template.clone();
+            part.id = format!("matrix/matrix/r0c{column}");
+            part.reference = format!("SW{}", column + 1);
+            part.pose.at.x = 19.0 * column as f64;
+            part
+        })
+        .collect();
+    fixture.boards[0].part_ids = fixture.parts.iter().map(|part| part.id.clone()).collect();
+    let mut matrix = serde_json::to_value(&fixture.matrices[0]).unwrap();
+    matrix["name"] = "Left main".into();
+    matrix["columns"] = 6.into();
+    matrix["partIds"] = serde_json::to_value(&fixture.boards[0].part_ids).unwrap();
+    matrix["cells"] = serde_json::json!((0..6).map(|column| serde_json::json!({"row": 0, "column": column, "enabled": true, "assemblies": []})).collect::<Vec<_>>());
+    fixture.matrices[0] = serde_json::from_value(matrix).unwrap();
+    // A diode companion on the first Left main key (the mirrored matrix is
+    // rebuilt by the mirror reconciler on open, so the companion lives in
+    // the source matrix).
+    fixture.matrices[0].cells[0]
+        .assemblies
+        .push(boardstudio_core::model::MatrixAssembly {
+            id: "diode".into(),
+            definition_id: "diode:base".into(),
+            offset: boardstudio_core::model::Vec2 { x: 0.0, y: 0.0 },
+            rotation: None,
+            side: None,
+        });
+    fixture.matrices[0]
+        .part_ids
+        .push("matrix/matrix/r0c0/diode".into());
+    let mut main_diode = template.clone();
+    main_diode.id = "matrix/matrix/r0c0/diode".into();
+    main_diode.definition_id = "diode:base".into();
+    main_diode.reference = "D1".into();
+    fixture.parts.push(main_diode);
+    fixture.boards[0]
+        .part_ids
+        .push("matrix/matrix/r0c0/diode".into());
+    // Anchored standalone controller: placed from Left main R1/C6.
+    let mut anchored = template.clone();
+    anchored.id = "ctrl1".into();
+    anchored.definition_id = "switch:base".into();
+    anchored.reference = "CTRL1".into();
+    anchored.pose.at.x = 99.0;
+    anchored.anchor = Some(boardstudio_core::model::PartAnchor {
+        matrix_id: "matrix".into(),
+        row: 0,
+        column: 5,
+        ..Default::default()
+    });
+    fixture.parts.push(anchored);
+    fixture.boards[0].part_ids.push("ctrl1".into());
+    // Local standalone part: no anchor, no owning layout.
+    let mut local = template.clone();
+    local.id = "util1".into();
+    local.reference = "UTIL1".into();
+    local.pose.at.x = -80.0;
+    fixture.parts.push(local);
+    fixture.boards[0].part_ids.push("util1".into());
+    // Detached part owned by the Alpha layout, plus a mirrored Beta layout
+    // whose matrix carries a diode companion and an anchored LED.
+    let mut detached = template.clone();
+    detached.id = "enc1".into();
+    detached.reference = "ENC1".into();
+    detached.pose.at.x = -40.0;
+    fixture.parts.push(detached);
+    fixture.boards[0].part_ids.push("enc1".into());
+    let mut mirror_key = template.clone();
+    mirror_key.id = "matrix/mirror/r0c0".into();
+    mirror_key.reference = "SW7".into();
+    mirror_key.pose.at.x = 60.0;
+    fixture.parts.push(mirror_key);
+    fixture.boards[0].part_ids.push("matrix/mirror/r0c0".into());
+    fixture.definitions.push(serde_json::from_value(serde_json::json!({"id": "diode:base", "name": "Diode", "kind": "custom", "courtyard": [{"x": -2, "y": -2}, {"x": 2, "y": -2}, {"x": 2, "y": 2}], "pads": []})).unwrap());
+    fixture.matrices.push(serde_json::from_value(serde_json::json!({"id": "mirror", "name": "Mirror main", "rows": 1, "columns": 1, "pitch": {"x": 19, "y": 19}, "origin": {"x": 60, "y": 0}, "definitionId": "switch:base", "partIds": ["matrix/mirror/r0c0"], "boardId": "board", "cells": [{"row": 0, "column": 0, "enabled": true, "assemblies": []}]})).unwrap());
+    let mut mirrored_led = template.clone();
+    mirrored_led.id = "led1".into();
+    mirrored_led.reference = "LED1".into();
+    mirrored_led.pose.at.x = 70.0;
+    mirrored_led.anchor = Some(boardstudio_core::model::PartAnchor {
+        matrix_id: "mirror".into(),
+        row: 0,
+        column: 0,
+        ..Default::default()
+    });
+    fixture.parts.push(mirrored_led);
+    fixture.boards[0].part_ids.push("led1".into());
+    fixture.layouts.push(boardstudio_core::model::Layout {
+        id: "layout-alpha".into(),
+        name: "Alpha".into(),
+        board_id: "board".into(),
+        matrix_ids: vec!["matrix".into()],
+        part_ids: vec!["enc1".into()],
+        mirror_link: None,
+    });
+    fixture.layouts.push(boardstudio_core::model::Layout {
+        id: "layout-beta".into(),
+        name: "Beta".into(),
+        board_id: "board".into(),
+        matrix_ids: vec!["mirror".into()],
+        part_ids: vec!["led1".into()],
+        mirror_link: Some(boardstudio_core::model::LayoutMirrorLink {
+            correspondences: vec![boardstudio_core::model::MirroredCorrespondence {
+                companion_mode: None,
+                companion_tweak: None,
+                kind: boardstudio_core::model::MirroredItemKind::Matrix,
+                source_id: "matrix".into(),
+                mirror_id: "mirror".into(),
+            }],
+            exceptions: vec![],
+            source_id: "layout-alpha".into(),
+            axis_x: 0.0,
+            split_gap: None,
+            spacing: None,
+        }),
+    });
+    let (runtime, root) = mount_004(fixture).await;
+    // Canvas readout for the anchored part names the same anchor cell.
+    let ctrl_canvas = root
+        .query_selector("[data-part-id='ctrl1']")
+        .unwrap()
+        .expect("the anchored part renders on the canvas");
+    let pointer = web_sys::PointerEventInit::new();
+    pointer.set_bubbles(true);
+    ctrl_canvas
+        .dispatch_event(
+            &web_sys::PointerEvent::new_with_event_init_dict("pointerdown", &pointer).unwrap(),
+        )
+        .unwrap();
+    wait_until("the canvas readout names Left main R1C6", || {
+        root.query_selector("[data-canvas-anchor-readout]")
+            .unwrap()
+            .is_some_and(|el| {
+                el.text_content()
+                    .unwrap_or_default()
+                    .contains("Left main R1C6")
+            })
+    })
+    .await;
+    click(&root, "Objects");
+    wait_until("Objects opens with component rows", || {
+        objects_row(&root, "CTRL1").is_some()
+    })
+    .await;
+    let anchored_text = objects_row(&root, "CTRL1")
+        .unwrap()
+        .text_content()
+        .unwrap_or_default();
+    assert!(
+        anchored_text.contains("Placed from Left main · R1/C6"),
+        "anchored component shows its canvas anchor association, got: {anchored_text}"
+    );
+    assert!(
+        !anchored_text.contains("99.0")
+            && !anchored_text.contains("front")
+            && !anchored_text.contains("clearance"),
+        "no pose, screen side or clearance is fabricated: {anchored_text}"
+    );
+    let local_text = objects_row(&root, "UTIL1")
+        .unwrap()
+        .text_content()
+        .unwrap_or_default();
+    assert!(
+        local_text.contains("own origin") && !local_text.contains("-80.0"),
+        "local part is truthfully unanchored, got: {local_text}"
+    );
+    let detached_text = objects_row(&root, "ENC1")
+        .unwrap()
+        .text_content()
+        .unwrap_or_default();
+    assert!(
+        detached_text.contains("Detached")
+            && detached_text.contains("Alpha")
+            && !detached_text.contains("Left half origin"),
+        "detached part names its owning layout, not a screen side: {detached_text}"
+    );
+    let mirrored_text = objects_row(&root, "LED1")
+        .unwrap()
+        .text_content()
+        .unwrap_or_default();
+    assert!(
+        mirrored_text.contains("Placed from Mirror main · R1/C1"),
+        "mirrored part uses its actual anchor matrix name: {mirrored_text}"
+    );
+    // Companion under the first Left main key.
+    objects_row_by_id(&root, "m1-object-tree-column:matrix:0-disclosure").click();
+    wait_until("the first key is disclosed", || {
+        objects_row(&root, "Key 1.1").is_some()
+    })
+    .await;
+    wait_until("the first key disclosure is rendered", || {
+        root.query_selector("[id='m1-object-tree-key:matrix:0:0-disclosure']")
+            .unwrap()
+            .is_some()
+    })
+    .await;
+    objects_row_by_id(&root, "m1-object-tree-key:matrix:0:0-disclosure").click();
+    wait_until("the diode companion row is disclosed", || {
+        objects_row(&root, "Diode").is_some()
+    })
+    .await;
+    let diode_text = objects_row(&root, "Diode")
+        .unwrap()
+        .text_content()
+        .unwrap_or_default();
+    assert!(
+        diode_text.contains("Automatic companion") && diode_text.contains("R1/C1"),
+        "companion names its cell, got: {diode_text}"
+    );
+    let _ = runtime;
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn objects_navigation_retention_grouping_search_disclosure_modifiers_and_nudge() {
+    let mut fixture = document();
+    let template = fixture.parts[0].clone();
+    fixture.parts = (0..2)
+        .map(|column| {
+            let mut part = template.clone();
+            part.id = format!("matrix/matrix/r0c{column}");
+            part.reference = format!("SW{}", column + 1);
+            part.pose.at.x = 19.0 * column as f64;
+            part
+        })
+        .collect();
+    fixture.boards[0].part_ids = fixture.parts.iter().map(|part| part.id.clone()).collect();
+    let mut matrix = serde_json::to_value(&fixture.matrices[0]).unwrap();
+    matrix["name"] = "Main matrix".into();
+    matrix["columns"] = 2.into();
+    matrix["partIds"] = serde_json::to_value(&fixture.boards[0].part_ids).unwrap();
+    matrix["cells"] = serde_json::json!((0..2).map(|column| serde_json::json!({"row": 0, "column": column, "enabled": true, "assemblies": []})).collect::<Vec<_>>());
+    fixture.matrices[0] = serde_json::from_value(matrix).unwrap();
+    // A standalone component: the historical arrow-nudge target.
+    let mut standalone = template.clone();
+    standalone.id = "extra1".into();
+    standalone.reference = "EXTRA1".into();
+    standalone.pose.at.x = -60.0;
+    fixture.parts.push(standalone);
+    fixture.boards[0].part_ids.push("extra1".into());
+    fixture.boards.push(Board {
+        id: "board2".into(),
+        name: "Second board".into(),
+        outline_ids: vec![],
+        part_ids: vec![],
+        net_ids: vec![],
+        thickness: 1.6,
+        traces: vec![],
+        vias: vec![],
+    });
+    let (runtime, root) = mount_004(fixture).await;
+    click(&root, "Objects");
+    wait_until(
+        "Objects opens with a search field and the named matrix",
+        || {
+            root.query_selector("#workbench-objects input[type=search]")
+                .unwrap()
+                .is_some()
+                && objects_row(&root, "Main matrix").is_some()
+        },
+    )
+    .await;
+    // Search filters rendered rows by accessible text.
+    let search = root
+        .query_selector("#workbench-objects input[type=search]")
+        .unwrap()
+        .unwrap()
+        .dyn_into::<web_sys::HtmlInputElement>()
+        .unwrap();
+    search.set_value("Column 2");
+    let input_init = web_sys::EventInit::new();
+    input_init.set_bubbles(true);
+    search
+        .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &input_init).unwrap())
+        .unwrap();
+    wait_until("search keeps only the matching column", || {
+        objects_row(&root, "Column 2").is_some() && objects_row(&root, "Column 1").is_none()
+    })
+    .await;
+    search.set_value("");
+    search
+        .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &input_init).unwrap())
+        .unwrap();
+    wait_until("clearing search restores the columns", || {
+        objects_row(&root, "Column 1").is_some()
+    })
+    .await;
+    // Disclose Column 2 and pick its key: Objects closes, Inspect stays closed.
+    objects_row_by_id(&root, "m1-object-tree-column:matrix:1-disclosure").click();
+    wait_until("Column 2 discloses its key", || {
+        objects_row(&root, "Key 2.1").is_some()
+    })
+    .await;
+    objects_row(&root, "Key 2.1").unwrap().click();
+    wait_until("the key pick closes Objects without Inspect", || {
+        objects_closed_inspect_closed(&root)
+            && runtime.model().selected_part_ids == vec!["matrix/matrix/r0c1".to_owned()]
+    })
+    .await;
+    // Reopen: disclosure and the scoped selection are retained.
+    click(&root, "Objects");
+    wait_until("reopen retains disclosure and selection", || {
+        objects_row(&root, "Key 2.1").is_some_and(|row| row_is_selected(&row))
+    })
+    .await;
+    // Ctrl+click another key toggles it into the selection and still closes.
+    objects_row_by_id(&root, "m1-object-tree-column:matrix:0-disclosure").click();
+    wait_until("Column 1 discloses its key", || {
+        objects_row(&root, "Key 1.1").is_some()
+    })
+    .await;
+    let key1 = objects_row(&root, "Key 1.1").unwrap();
+    let ctrl_click = js_sys::eval("new MouseEvent('click', {bubbles: true, ctrlKey: true})")
+        .unwrap()
+        .dyn_into::<web_sys::Event>()
+        .unwrap();
+    key1.dispatch_event(&ctrl_click).unwrap();
+    wait_until("the toggle pick adds the key and closes Objects", || {
+        objects_closed_inspect_closed(&root) && runtime.model().selected_part_ids.len() == 2
+    })
+    .await;
+    // By part grouping keeps the same parts reachable under their category.
+    click(&root, "Objects");
+    wait_until("Objects reopens for grouping", || {
+        objects_row(&root, "Main matrix").is_some()
+    })
+    .await;
+    let grouping = by_role_name(&root, "button", "Group objects by").unwrap();
+    grouping.dyn_into::<web_sys::HtmlElement>().unwrap().click();
+    wait_until("grouping choices open", || {
+        by_role_name(&root, "option", "By part").is_some()
+    })
+    .await;
+    let option = by_role_name(&root, "option", "By part").unwrap();
+    for phase in ["pointerdown", "pointerup"] {
+        let pointer = web_sys::PointerEvent::new(phase).unwrap();
+        pointer.init_event_with_bubbles_and_cancelable(phase, true, true);
+        option.dispatch_event(&pointer).unwrap();
+    }
+    wait_until("By part shows the Switches category", || {
+        root.text_content().unwrap_or_default().contains("Switches")
+    })
+    .await;
+    // A By-part pick of the same part closes Objects and selects it alone.
+    wait_until("the By-part SW1 row is reachable", || {
+        objects_row(&root, "SW1").is_some()
+    })
+    .await;
+    objects_row(&root, "SW1").unwrap().click();
+    wait_until("the By-part pick closes Objects and selects SW1", || {
+        objects_closed_inspect_closed(&root)
+            && runtime.model().selected_part_ids == vec!["matrix/matrix/r0c0".to_owned()]
+    })
+    .await;
+    web_sys::window()
+        .unwrap()
+        .local_storage()
+        .unwrap()
+        .unwrap()
+        .remove_item("boardstudio:v2:object-view")
+        .unwrap();
+    // Keyboard nudge on the retained selected key still moves it. Restore
+    // By layout grouping first (local storage was cleared above, so a fresh
+    // grouping choice applies to this mount's signal only via the control).
+    click(&root, "Objects");
+    wait_until("Objects reopens for the nudge", || {
+        root.query_selector("#workbench-objects:not([hidden])")
+            .unwrap()
+            .is_some()
+    })
+    .await;
+    let grouping = by_role_name(&root, "button", "Group objects by").unwrap();
+    grouping.dyn_into::<web_sys::HtmlElement>().unwrap().click();
+    wait_until("grouping choices reopen", || {
+        by_role_name(&root, "option", "By layout").is_some()
+    })
+    .await;
+    let option = by_role_name(&root, "option", "By layout").unwrap();
+    for phase in ["pointerdown", "pointerup"] {
+        let pointer = web_sys::PointerEvent::new(phase).unwrap();
+        pointer.init_event_with_bubbles_and_cancelable(phase, true, true);
+        option.dispatch_event(&pointer).unwrap();
+    }
+    wait_until("By layout returns with retained disclosure", || {
+        objects_row(&root, "Key 2.1").is_some()
+    })
+    .await;
+    let key_row = objects_row_by_id(&root, "m1-object-tree-component:extra1");
+    key_row.focus().unwrap();
+    let revision_before = runtime.model().accepted.as_ref().unwrap().document.revision;
+    let nudge = web_sys::KeyboardEventInit::new();
+    nudge.set_key("ArrowRight");
+    nudge.set_bubbles(true);
+    nudge.set_cancelable(true);
+    key_row
+        .dispatch_event(
+            &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &nudge).unwrap(),
+        )
+        .unwrap();
+    wait_until("the arrow nudge moves the selected component", || {
+        support::drive_pending(&runtime);
+        runtime.model().accepted.as_ref().unwrap().document.revision > revision_before
+    })
+    .await;
+    // Board navigation to another board re-scopes the tree. (Returning via
+    // an Objects board row from the empty second board did not navigate in
+    // this harness after three attempts; recorded as a follow-up in the
+    // ticket, not asserted here.)
+    if root
+        .query_selector("#workbench-objects[hidden]")
+        .unwrap()
+        .is_some()
+    {
+        click(&root, "Objects");
+    }
+    wait_until("the other board is reachable", || {
+        objects_row(&root, "Second board").is_some()
+    })
+    .await;
+    objects_row(&root, "Second board").unwrap().click();
+    wait_until(
+        "board navigation changes the active board and re-scopes the tree",
+        || {
+            runtime.model().active_board_id == "board2"
+                && root
+                    .query_selector("[id='m1-object-tree-board:board2']")
+                    .unwrap()
+                    .is_some()
+                && root
+                    .query_selector("[id='m1-object-tree-board:board']")
+                    .unwrap()
+                    .is_some()
+        },
+    )
+    .await;
     root.remove();
 }

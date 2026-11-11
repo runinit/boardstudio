@@ -3347,8 +3347,8 @@ fn Editor() -> Element {
         panels::use_workspace_panel_defaults(active_workspace, objects_open, inspect_open);
     let render_generation = (adapter.generation)();
     let layout_selection_kind = layout_state.selection_kind();
-    // Ticket 14: view-only split editing focus. Like Handles, this signal
-    // never writes the document; only canvas clicks move it.
+    // Ticket 14/004: view-only split editing focus. Like Handles, this signal
+    // never writes the document; canvas and Objects picks of a half move it.
     let split_focus = layout_state.split_focus();
     // Ticket 18: ghost of the previous spacing. The tracker records the last
     // accepted snapshot it processed; a committed spacing change raises the
@@ -4136,6 +4136,7 @@ fn Editor() -> Element {
         let mut objects_open = objects_open;
         let mut inspect_open = inspect_open;
         let mut layout_panel = layout_panel;
+        let mut split_focus = split_focus;
         move |request: objects::TreeSelectRequest| {
             if request
                 .outline_action
@@ -4180,6 +4181,7 @@ fn Editor() -> Element {
             let explicit_lifecycle = activation.is_some()
                 || matches!(&request.context, objects::TreeContext::Bridge { .. });
             let scope = request.scope.clone();
+            let focus_context = request.context.clone();
             layout_state.set_selection_kind_from_context(&request.context);
             update_tree_cell_anchor(
                 &tree_cell_anchor,
@@ -4190,6 +4192,19 @@ fn Editor() -> Element {
             selection::submit_context(&runtime, &adapter, request.into());
             if (adapter.generation)() != generation || runtime.scope().as_ref() != Some(&scope) {
                 return;
+            }
+            // Ticket 004: an Objects pick aligns the view-only split focus
+            // with the half actually selected (saved-link identity via
+            // `context_half`); it writes no document or Undo state.
+            if workspace() == "Layout"
+                && let Some(snapshot) = runtime.model().accepted.as_ref()
+                && let Some(half) = boardstudio_web_ui_model::split_focus::context_half(
+                    &snapshot.document,
+                    &focus_context,
+                )
+                && half != split_focus()
+            {
+                split_focus.set(half);
             }
             if let Some(action) = activation {
                 workspace.set("Layout");
@@ -9886,7 +9901,31 @@ fn Editor() -> Element {
                     g { transform: "scale(1,-1)",
                         if !(layer_visibility.hidden)().contains("Board") {
                             for contour in scene.board_contours.iter().filter(|b| b.board_id == model.active_board_id).flat_map(|b| &b.contours) {
-                                polygon { points: polygon_points(&contour.points), class: if contour.hole { "fill-canvas stroke-destructive stroke-[0.3] [stroke-dasharray:0.8_0.55]" } else { "fill-geometry-fill stroke-geometry-board stroke-[0.3]" } }
+                                {
+                                    // Ticket 004: picking the board boundary on the
+                                    // canvas selects the active Outline context only
+                                    // (no version activation, no Inspect reveal).
+                                    // Stroke-only hit area keeps interior clicks on
+                                    // the existing pan/selection path.
+                                    let boundary_runtime = runtime.clone();
+                                    let boundary_select = workspace_routing.select_tree;
+                                    let boundary_board = model.active_board_id.clone();
+                                    rsx! {
+                                        polygon { points: polygon_points(&contour.points), class: if contour.hole { "fill-canvas stroke-destructive stroke-[0.3] [stroke-dasharray:0.8_0.55] [pointer-events:stroke]" } else { "fill-geometry-fill stroke-geometry-board stroke-[0.3] [pointer-events:stroke]" }, "data-board-boundary": "",
+                                            onpointerdown: move |event: PointerEvent| {
+                                                event.stop_propagation();
+                                                if let Some(scope) = boundary_runtime.scope() {
+                                                    boundary_select.call(objects::TreeSelectRequest {
+                                                        scope,
+                                                        context: objects::TreeContext::Outline { board_id: boundary_board.clone() },
+                                                        mode: SelectionMode::Replace,
+                                                        outline_action: None,
+                                                    });
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                         if let Some(projection) = outline_inspector.clone().filter(|projection| (projection.editing_points)()) {

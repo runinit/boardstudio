@@ -1,8 +1,12 @@
 //! Ticket 14: view-only editing focus for split boards (Layout only).
 //!
 //! The half without focus draws dimmed (variant B: grey dashed outline with an
-//! inline click-to-edit label). Focus starts on the source (Left) half, moves
-//! only on canvas clicks of the dimmed half, and never writes the document.
+//! inline click-to-edit label). Focus starts on the source half and aligns
+//! with the half actually selected through the canvas or Objects (ticket
+//! 004). Which half a layout belongs to is decided by the saved mirror link
+//! (the layout carrying the link is the mirrored half; the layout it names as
+//! `source_id` is the source half), never by screen position or by names.
+//! Focus never writes the document.
 
 use crate::tree::TreeContext;
 use boardstudio_core::model::ProjectDoc;
@@ -61,45 +65,42 @@ pub fn has_split(document: &ProjectDoc) -> bool {
         })
 }
 
-fn matrix_origin_x(document: &ProjectDoc, id: &str) -> Option<f64> {
-    document
-        .matrices
+/// Which half a layout belongs to, from the saved mirror link alone: a
+/// layout carrying a link is the mirrored half, and the layout named as a
+/// link's `source_id` is the source half. Renamed or repositioned halves keep
+/// their identity; position and display names are never consulted.
+pub fn layout_half(document: &ProjectDoc, layout_id: &str) -> Option<SplitHalf> {
+    let layout = document
+        .layouts
         .iter()
-        .find(|matrix| matrix.id == id)
-        .map(|matrix| matrix.origin.x)
-}
-
-fn layout_half(document: &ProjectDoc, axis: f64, matrix_ids: &[String]) -> Option<SplitHalf> {
-    if matrix_ids.is_empty() {
-        return None;
+        .find(|layout| layout.id == layout_id)?;
+    if layout.mirror_link.is_some() {
+        return Some(SplitHalf::Right);
     }
-    let mean = matrix_ids
+    document
+        .layouts
         .iter()
-        .filter_map(|id| matrix_origin_x(document, id))
-        .sum::<f64>()
-        / (matrix_ids.len().max(1) as f64);
-    Some(if mean < axis {
-        SplitHalf::Left
-    } else {
-        SplitHalf::Right
-    })
+        .any(|other| {
+            other
+                .mirror_link
+                .as_ref()
+                .is_some_and(|link| link.source_id == layout.id)
+        })
+        .then_some(SplitHalf::Left)
 }
 
-/// Which half a matrix belongs to, by its owning layout's mean origin against
-/// the split axis. Mirrors the tree's Left/Right half grouping.
+/// Which half a matrix belongs to, by its owning layout's link identity.
 pub fn matrix_half(document: &ProjectDoc, matrix_id: &str) -> Option<SplitHalf> {
-    let axis = split_axis_x(document)?;
     let owner = document
         .layouts
         .iter()
         .find(|layout| layout.matrix_ids.iter().any(|id| id == matrix_id))?;
-    layout_half(document, axis, &owner.matrix_ids)
+    layout_half(document, &owner.id)
 }
 
 /// Which half a part belongs to: its matrix half for matrix members, else its
-/// owning layout's half.
+/// owning layout's link identity. A part with no linked owner has no half.
 pub fn part_half(document: &ProjectDoc, part_id: &str) -> Option<SplitHalf> {
-    let axis = split_axis_x(document)?;
     if let Some(matrix) = document
         .matrices
         .iter()
@@ -111,18 +112,7 @@ pub fn part_half(document: &ProjectDoc, part_id: &str) -> Option<SplitHalf> {
         .layouts
         .iter()
         .find(|layout| layout.part_ids.iter().any(|id| id == part_id))?;
-    layout_half(document, axis, &owner.matrix_ids).or_else(|| {
-        let x = document
-            .parts
-            .iter()
-            .find(|part| part.id == part_id)
-            .map(|part| part.pose.at.x)?;
-        Some(if x < axis {
-            SplitHalf::Left
-        } else {
-            SplitHalf::Right
-        })
-    })
+    layout_half(document, &owner.id)
 }
 
 /// Which half a tree selection context belongs to, if any.
@@ -140,6 +130,11 @@ pub fn context_half(document: &ProjectDoc, context: &TreeContext) -> Option<Spli
             matrix_id: Some(matrix_id),
             ..
         } => matrix_half(document, matrix_id),
+        TreeContext::LayoutGroup { layout_ids, .. } => {
+            let mut halves = layout_ids.iter().map(|id| layout_half(document, id));
+            let first = halves.next()?;
+            halves.all(|half| half == first).then_some(first).flatten()
+        }
         _ => None,
     }
 }
