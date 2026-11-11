@@ -1035,6 +1035,164 @@ async fn layout_panels_overlay_the_same_canvas_without_a_legacy_dock() {
 }
 
 #[wasm_bindgen_test]
+async fn explicit_findings_reveal_inspect_but_ordinary_objects_pick_does_not() {
+    let runtime = support::new_runtime();
+    support::open_document(&runtime, document()).await;
+    let revision = runtime.model().accepted.as_ref().unwrap().document.revision;
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = document.create_element("div").unwrap();
+    document.body().unwrap().append_child(&root).unwrap();
+    let dom = VirtualDom::new(host);
+    dom.provide_root_context(runtime.clone());
+    dioxus_web::launch::launch_virtual_dom(
+        dom,
+        dioxus_web::Config::new().rootnode(root.clone().into()),
+    );
+    wait_until("the Layout canvas and its panel utilities mount", || {
+        root.query_selector("#m1-workspace-panel svg[role='group']")
+            .unwrap()
+            .is_some()
+            && by_role_name(&root, "button", "Objects").is_some()
+    })
+    .await;
+    let canvas = root
+        .query_selector("#m1-workspace-panel svg[role='group']")
+        .unwrap()
+        .unwrap();
+    let view_box = canvas.get_attribute("viewBox");
+    let assert_opening_changed_no_camera = |root: &web_sys::Element| {
+        let current = root
+            .query_selector("#m1-workspace-panel svg[role='group']")
+            .unwrap()
+            .unwrap();
+        assert!(canvas.is_same_node(Some(current.as_ref())));
+        assert_eq!(current.get_attribute("viewBox"), view_box);
+        assert_eq!(
+            runtime.model().accepted.as_ref().unwrap().document.revision,
+            revision
+        );
+    };
+    // Ordinary Objects pick: Objects closes and Inspect stays closed.
+    click(&root, "Objects");
+    wait_until("Objects opens", || {
+        root.query_selector("#workbench-objects:not([hidden])")
+            .unwrap()
+            .is_some()
+    })
+    .await;
+    let find_row = |prefix: &str| -> Option<web_sys::HtmlElement> {
+        let buttons = root
+            .query_selector_all("#workbench-objects button")
+            .unwrap();
+        (0..buttons.length())
+            .filter_map(|index| buttons.item(index))
+            .find(|element| {
+                element
+                    .text_content()
+                    .unwrap_or_default()
+                    .trim_start()
+                    .starts_with(prefix)
+            })
+            .and_then(|element| element.dyn_into::<web_sys::HtmlElement>().ok())
+    };
+    if find_row("Matrix").is_none() {
+        find_row("Board").expect("Board tree row").click();
+    }
+    wait_until("the Matrix tree row is reachable", || {
+        find_row("Matrix").is_some()
+    })
+    .await;
+    find_row("Matrix").expect("Matrix tree row").click();
+    wait_until(
+        "the ordinary pick closes Objects without opening Inspect",
+        || {
+            root.query_selector("#workbench-objects[hidden][inert]")
+                .unwrap()
+                .is_some()
+                && root
+                    .query_selector("#workbench-inspector[hidden][inert]")
+                    .unwrap()
+                    .is_some()
+        },
+    )
+    .await;
+    assert_opening_changed_no_camera(&root);
+    // Explicit Findings request: Inspect opens with findings and its return path.
+    root.query_selector("#m1-layout-findings-trigger")
+        .unwrap()
+        .unwrap()
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap()
+        .click();
+    wait_until("Findings opens inside Inspect", || {
+        root.query_selector("#workbench-inspector:not([hidden])")
+            .unwrap()
+            .is_some()
+            && by_role_name(&root, "button", "Back to selection").is_some()
+    })
+    .await;
+    assert_opening_changed_no_camera(&root);
+    // First Escape is the findings owner's: findings close, Inspect stays open.
+    // The next Escape dismisses the panel and returns focus to its utility.
+    let escape = |selector: &str| {
+        let init = web_sys::KeyboardEventInit::new();
+        init.set_key("Escape");
+        init.set_bubbles(true);
+        init.set_cancelable(true);
+        root.query_selector(selector)
+            .unwrap()
+            .unwrap()
+            .dispatch_event(
+                &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
+                    .unwrap(),
+            )
+            .unwrap();
+    };
+    escape("#workbench-inspector [aria-label='Layout findings']");
+    wait_until("the first Escape closes only the findings content", || {
+        by_role_name(&root, "button", "Back to selection").is_none()
+            && root
+                .query_selector("#workbench-inspector:not([hidden])")
+                .unwrap()
+                .is_some()
+    })
+    .await;
+    // The next Escape reaches the panel host's window handler (its own
+    // listener target) and dismisses the panel. (In this harness an in-panel
+    // synthetic Escape is consumed by field/owner Dioxus handlers before it
+    // reaches the window listener; the first, owner-priority Escape above is
+    // dispatched in-panel.)
+    {
+        let init = web_sys::KeyboardEventInit::new();
+        init.set_key("Escape");
+        init.set_cancelable(true);
+        web_sys::window()
+            .unwrap()
+            .dispatch_event(
+                &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
+                    .unwrap(),
+            )
+            .unwrap();
+    }
+    wait_until("the second Escape closes Inspect", || {
+        root.query_selector("#workbench-inspector[hidden][inert]")
+            .unwrap()
+            .is_some()
+    })
+    .await;
+    wait_until(
+        "panel dismissal returns focus to the Inspect utility",
+        || {
+            by_role_name(&root, "button", "Inspect")
+                .is_some_and(|inspect| inspect.matches(":focus").unwrap())
+        },
+    )
+    .await;
+    assert_opening_changed_no_camera(&root);
+    root.remove();
+}
+
+#[wasm_bindgen_test]
 async fn actual_layout_tool_row_has_seven_entry_points_and_stable_canvas() {
     let runtime = support::new_runtime();
     support::open_document(&runtime, document()).await;

@@ -75,3 +75,85 @@ must still defer in the page draft-safety suite. Cover the existing registered i
 companion-placement and LayoutComponentInspector paths with equivalent owner inputs; no new
 commit mode or registry. Reuse
 existing edit/undo/native evidence where sufficient; new host timing needs mounted evidence.
+
+## Progress 2026-11-11
+
+All proof rows remain open. An initial outline hook regression was added for an
+unsubmitted version-name draft and error across context and workspace switches; it does
+not yet cover the full A/B or host close/reopen story. No production fix was made.
+The authorized `run-wasm-tests.py --files` command rejected this Layout crate test before
+running it; see `.evidence/toolbar-m1/003-owner-red.log`. This is not RED evidence.
+The next experiment is to run the Layout crate's browser harness, if authorized, then
+complete the A/B and host scenarios before implementing restoration. Hidden Inspector,
+stale owner, blur, undo, reveal inventory, Escape and camera proof remain open. No
+mutations, review or integrated gate were run. `cargo fmt --all --check` passed
+(`.evidence/toolbar-m1/003-fmt-final.log`); `check.py lint` passed
+(`.evidence/toolbar-m1/003-lint.log`). The initial format check failed on the new
+test formatting (`.evidence/toolbar-m1/003-fmt.log`), which was then corrected.
+
+### Continuation
+
+The Layout browser harness executed the partial outline regression and observed RED at
+the restored-text assertion: the accepted name replaced the unsubmitted draft
+(`.evidence/toolbar-m1/003-owner-existing.log`). This does not yet prove A/B, host
+close/reopen, stale-owner or settlement. No production fix was made. Existing page
+draft-safety and component-inspector suites passed 81 tests
+(`.evidence/toolbar-m1/003-safety-existing.log`); these do not establish new host timing.
+All proof rows remain open.
+
+### Builder continuation 2026-11-11 (all rows attempted; no closure claim)
+
+Row status: Owner restoration GREEN (hook tier) — `use_outline_lifecycle` now retains
+unsubmitted version-name text/error in a domain-owned store keyed by actual
+(Scope, board_id, active_version_id) above the reset effect; switching saves under the
+previous key and restores or falls back to the accepted name, entries whose version or
+session no longer exists in the accepted document are pruned, and a retained entry that
+is only a Landed/Retired settled submission is dropped (newer drafts kept). No new
+commit mode or registry, nothing committed by visibility (accepted Arc identity
+asserted). Tests: context/workspace (existing), per-board A→B→A with host
+close/reopen via `inspector_visible`, and removed-version/replaced-session no-replay
+with an unrelated live draft retained. Logs: `003-owner-green1.log`,
+`003-stale-green2.log` (first attempt `003-stale-green1.log` corrected the test, not
+the oracle: `Event::Open` is a new session epoch), full `outline::hook` suite 18/18
+(`003-outline-hook-all.log`). Hidden Inspector safety, Stale owner, Real blur
+settlement and Edit/undo GREEN by rerun on the changed tree of the existing mounted
+suites (no duplicates added): `layout_draft_safety_tests` +
+`layout_component_inspector_tests` + `workbench_shell` = 87 passed
+(`003-safety-final.log`), covering hidden-registration Update Now deferral, blur
+settles exactly once / untouched and Escape-cancelled blur settles nothing, stale and
+A-B-A selection rejection, edit/undo, and host inert/retained-node timing. Explicit
+reveals + Escape priority + camera GREEN in the real Editor
+(`layout_layers_tests` 13/13, `003-reveal-final.log`, post-fmt rerun
+`003-reveal-postfmt.log`): an ordinary Matrix Objects pick closes Objects with
+Inspect closed and canvas node/viewBox/revision unchanged; explicit Findings opens
+Inspect with Back to selection, camera unchanged; first Escape closes only the
+findings content, the next closes Inspect and returns focus to the Inspect utility.
+Limit: in this harness an in-panel synthetic Escape for panel dismissal is consumed
+by Dioxus field/owner handlers before the window listener, so dismissal was
+dispatched at the host listener's window target (its in-panel behaviour is covered by
+the `workbench_shell` fixture tests in the 87). Anchor/origin-pick and relationship
+return Escape owners keep priority through their existing `preventDefault` document
+handlers ahead of the host's window handler (unchanged); no script editor (005) and no
+duplicate Position editor were added. `cargo fmt --all --check` and
+`python3 scripts/check.py lint` pass (`003-fmt-continuation.log`,
+`003-lint-continuation.log`). No full quick gate, mutations or review were run (per
+builder instructions); this ticket is not closed.
+
+Layout reveal inventory (every Layout caller/event/destination; other adapters own
+their sites):
+
+| Caller / event | Destination after this change | Ticket |
+|---|---|---|
+| `presentation.rs` `select_tree`, ordinary Board/Matrix/Row/Column/Key/Component/Outline canvas or Objects pick | Selection only; open Objects closes, closed Inspect stays closed, open Inspect updates in place; no camera change | 003 (proven) |
+| `select_tree`, outline version row with explicit lifecycle activation, or Bridge request | Inspect via `layout_panel`, existing activation/fit kept | 003 |
+| `on_layout_selection_kind` (selection-kind projection) | Selection scope only, never forces Inspect | 002/003 |
+| Mirrored pair created (flow completion) | Inspect via `layout_panel` (+ legacy flag for unmigrated consumers) | 005 flow, 003 reveal |
+| `on_toggle_layout_findings` (explicit Findings) | Inspect via `layout_panel` with findings content and Back to selection | 003 (proven) |
+| Layout `on_show_properties` (explicit Inspect) | Inspect via `layout_panel`, retained editors, no duplicate Position | 002/003 |
+| Layout `on_show_relationships` | Inspect via `layout_panel`, relations content | 003 |
+| `open_geometry_scripts` | Existing Layout-owned larger task; no Inspect-content decision here | 005 |
+| Keycaps finding navigation and `RouteAction::PinInspector` | Legacy Inspector authority (unmigrated workspace) | 012 |
+| PCB `on_show_properties` and PCB selection-kind projection | Legacy Inspector authority (unmigrated workspace) | 010 |
+| `export_workspace.rs` review_wiring / review_case | Target workspace's current authority (unchanged) | 006 |
+| `workspace_navigation.rs` InspectorActions shortcut | Legacy Inspector authority (unchanged) | 006 |
+| Command palette / utility toggles Show/hide Objects and Inspect | Single host `toggle_tool_panel` (unchanged) | 009/006 |

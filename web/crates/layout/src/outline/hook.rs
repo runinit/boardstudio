@@ -31,6 +31,16 @@ pub(super) enum OutlinePendingKey {
     },
 }
 
+/// Identity of the outline version a retained version-name draft belongs to.
+/// Keyed by the actual scope (session epoch + document + board), board and
+/// active version, never by visibility or display name.
+#[derive(Clone, Debug, PartialEq)]
+struct VersionNameKey {
+    scope: Scope,
+    board_id: String,
+    version_id: Option<String>,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 struct OutlineOwner {
     scope: Scope,
@@ -414,6 +424,12 @@ pub fn use_outline_lifecycle(
     let one_shot_pending = use_signal(|| false);
     let version_name_draft = use_signal(String::new);
     let version_name_failure = use_signal(|| None::<String>);
+    // Domain-owned restoration above the reset effect below: unsubmitted
+    // version-name text/error retained per VersionNameKey across context,
+    // workspace and host-visibility switches. Not a commit mode or registry;
+    // entries are pruned when their version/session no longer exists.
+    let version_name_retained = use_signal(Vec::<(VersionNameKey, (String, Option<String>))>::new);
+    let version_name_owner = use_signal(|| None::<VersionNameKey>);
     let pending_owner = use_signal(|| None::<OutlineOwner>);
     let inspector_mounted = use_signal(|| false);
     pending.bind_field(
@@ -429,6 +445,11 @@ pub fn use_outline_lifecycle(
     let selected_feature_id = use_signal(|| None::<String>);
     let selected_connection_id = use_signal(|| None::<String>);
     let draft_owner = selected_context.read().clone();
+    let draft_board_id = draft_owner.as_ref().and_then(|owner| match &owner.context {
+        crate::objects::TreeContext::Outline { board_id }
+        | crate::objects::TreeContext::OutlineVersion { board_id, .. } => Some(board_id.clone()),
+        _ => None,
+    });
     let draft_workspace = workspace();
     let draft_active_version = runtime
         .model()
@@ -498,6 +519,13 @@ pub fn use_outline_lifecycle(
             )
         })
         .unwrap_or_default();
+    let draft_version_key = draft_scope.clone().and_then(|scope| {
+        draft_board_id.as_ref().map(|board_id| VersionNameKey {
+            scope,
+            board_id: board_id.clone(),
+            version_id: draft_active_version.clone(),
+        })
+    });
     use_effect(use_reactive(
         (
             &draft_owner,
@@ -511,11 +539,69 @@ pub fn use_outline_lifecycle(
             let mut selected_connection_id = selected_connection_id;
             let mut version_name_draft = version_name_draft;
             let mut version_name_failure = version_name_failure;
+            let mut version_name_retained = version_name_retained;
+            let mut version_name_owner = version_name_owner;
+            let runtime = runtime.clone();
+            let draft_version_key = draft_version_key.clone();
             move |_| {
                 selected_feature_id.set(None);
                 selected_connection_id.set(None);
-                version_name_draft.set(draft_version_name.clone());
-                version_name_failure.set(None);
+                let new_key = draft_version_key.clone();
+                let previous_key = version_name_owner.peek().clone();
+                if previous_key == new_key {
+                    // Same scope/board/version (e.g. a workspace or visibility
+                    // round trip): the live draft is already this owner's.
+                    return;
+                }
+                let current = (
+                    version_name_draft.peek().clone(),
+                    version_name_failure.peek().clone(),
+                );
+                let mut retained = version_name_retained.peek().clone();
+                if let Some(previous) = previous_key {
+                    match retained.iter_mut().find(|(key, _)| *key == previous) {
+                        Some(entry) => entry.1 = current,
+                        None => retained.push((previous, current)),
+                    }
+                }
+                // Prune drafts whose version or session no longer exists: a
+                // removed/recreated version or a replaced session must never
+                // admit a retained draft, while unrelated live owners remain.
+                if let (Some(scope), Some(snapshot)) =
+                    (runtime.scope(), runtime.model().accepted.as_ref())
+                {
+                    retained.retain(|(key, _)| {
+                        key.scope.session_epoch == scope.session_epoch
+                            && key.scope.document_id == scope.document_id
+                            && key.version_id.as_ref().is_none_or(|version_id| {
+                                snapshot.document.board_outlines.iter().any(|outline| {
+                                    outline.board_id == key.board_id
+                                        && outline
+                                            .versions
+                                            .iter()
+                                            .any(|version| &version.id == version_id)
+                                })
+                            })
+                    });
+                }
+                let restored = new_key.as_ref().and_then(|key| {
+                    retained
+                        .iter()
+                        .find(|(retained_key, _)| retained_key == key)
+                        .map(|(_, draft)| draft.clone())
+                });
+                version_name_retained.set(retained);
+                version_name_owner.set(new_key);
+                match restored {
+                    Some((draft, failure)) => {
+                        version_name_draft.set(draft);
+                        version_name_failure.set(failure);
+                    }
+                    None => {
+                        version_name_draft.set(draft_version_name.clone());
+                        version_name_failure.set(None);
+                    }
+                }
             }
         },
     ));
@@ -566,6 +652,7 @@ pub fn use_outline_lifecycle(
             let pending = pending.clone();
             let mut feedback = feedback;
             let mut version_name_failure = version_name_failure;
+            let mut version_name_retained = version_name_retained;
             move |(
                 _,
                 current_workspace,
@@ -600,6 +687,7 @@ pub fn use_outline_lifecycle(
                     })
                     .map(|version| version.name.clone())
                     .unwrap_or_default();
+                let submitted_name = pending.submitted_draft(&OutlinePendingKey::VersionName);
                 let results = pending.settle(owner_is_live, |key| match key {
                     OutlinePendingKey::VersionName => accepted_name.clone(),
                     _ => String::new(),
@@ -620,8 +708,32 @@ pub fn use_outline_lifecycle(
                                 }));
                             }
                         }
-                        PendingEditResult::Landed { .. } | PendingEditResult::Retired { .. } => {
+                        PendingEditResult::Landed { key, .. }
+                        | PendingEditResult::Retired { key } => {
                             // Accepted state is the success confirmation; retirement is silent.
+                            // A retained draft that is only the settled submission is
+                            // spent; a newer unsubmitted draft for that owner remains.
+                            if key == OutlinePendingKey::VersionName
+                                && let Some(submitted) = submitted_name.as_ref()
+                                && let Some(owner) = submitted_owner.as_ref()
+                            {
+                                let board_id = match &owner.context {
+                                    crate::objects::TreeContext::Outline { board_id }
+                                    | crate::objects::TreeContext::OutlineVersion {
+                                        board_id,
+                                        ..
+                                    } => board_id.clone(),
+                                    _ => continue,
+                                };
+                                let mut retained = version_name_retained.peek().clone();
+                                retained.retain(|(retained_key, draft)| {
+                                    !(retained_key.scope == owner.scope
+                                        && retained_key.board_id == board_id
+                                        && retained_key.version_id == owner.active_version_id
+                                        && &draft.0 == submitted)
+                                });
+                                version_name_retained.set(retained);
+                            }
                         }
                     }
                 }

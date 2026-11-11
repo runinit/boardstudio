@@ -342,6 +342,196 @@ async fn outline_one_shot_controls_disable_until_the_pending_edit_settles() {
 }
 
 #[wasm_bindgen_test]
+async fn version_name_draft_survives_context_and_workspace_switches() {
+    let (probe, mut dom) = mounted().await;
+    let before = probe.runtime.model().accepted.unwrap().document;
+    let mut projection = probe.projection();
+    projection
+        .version_name_draft
+        .set("Unsubmitted draft".into());
+    projection
+        .version_name_failure
+        .set(Some("Invalid name".into()));
+    *probe.context.borrow_mut() = TreeContext::Component {
+        part_id: Some("part".into()),
+        matrix_id: None,
+        row: None,
+        column: None,
+        assembly_id: None,
+    };
+    flush(&probe, &mut dom);
+    *probe.context.borrow_mut() = TreeContext::Outline {
+        board_id: "board".into(),
+    };
+    flush(&probe, &mut dom);
+    assert_eq!(
+        probe.projection().version_name_draft.read().as_str(),
+        "Unsubmitted draft"
+    );
+    assert_eq!(
+        probe.projection().version_name_failure.read().as_deref(),
+        Some("Invalid name")
+    );
+    probe.workspace.set("Case");
+    flush(&probe, &mut dom);
+    probe.workspace.set("Layout");
+    flush(&probe, &mut dom);
+    assert_eq!(
+        probe.projection().version_name_draft.read().as_str(),
+        "Unsubmitted draft"
+    );
+    assert_eq!(
+        probe.projection().version_name_failure.read().as_deref(),
+        Some("Invalid name")
+    );
+    assert!(std::sync::Arc::ptr_eq(
+        &before,
+        &probe.runtime.model().accepted.unwrap().document
+    ));
+}
+
+fn install_board_b(document: &mut ProjectDoc) {
+    document.boards.push(Board {
+        id: "board-b".into(),
+        name: "Board B".into(),
+        outline_ids: vec![],
+        part_ids: vec![],
+        net_ids: vec![],
+        thickness: 1.6,
+        traces: vec![],
+        vias: vec![],
+    });
+    document.board_outlines.push(BoardOutline {
+        board_id: "board-b".into(),
+        active_version_id: Some("fixed-b".into()),
+        generated_last_valid: None,
+        retired_version_ids: vec![],
+        versions: vec![OutlineVersion {
+            id: "fixed-b".into(),
+            name: "Board B outline 1".into(),
+            source: OutlineProvenance {
+                revision: 0,
+                version_id: None,
+            },
+            geometry: OutlineSnapshot {
+                features: vec![],
+                settings: OutlineSettings::default(),
+                expected_regions: 1,
+                bridges: vec![],
+                protected_gaps: vec![],
+            },
+            ownership: boardstudio_core::model::OutlineOwnership::Fixed,
+        }],
+    });
+}
+
+#[wasm_bindgen_test]
+async fn version_name_draft_restores_per_board_and_survives_host_close_reopen() {
+    let (probe, mut dom) = mounted().await;
+    let mut two_boards = document();
+    install_board_b(&mut two_boards);
+    replace_document(&probe, two_boards).await;
+    flush(&probe, &mut dom);
+    let before = probe.runtime.model().accepted.unwrap().document;
+    let projection = probe.projection();
+    let mut draft = projection.version_name_draft;
+    let mut failure = projection.version_name_failure;
+    draft.set("Board A draft".into());
+    failure.set(Some("Invalid A name".into()));
+    probe.inspector_visible.set(false);
+    flush(&probe, &mut dom);
+    probe.inspector_visible.set(true);
+    flush(&probe, &mut dom);
+    assert_eq!(draft.read().as_str(), "Board A draft");
+    *probe.context.borrow_mut() = TreeContext::Outline {
+        board_id: "board-b".into(),
+    };
+    flush(&probe, &mut dom);
+    assert_eq!(
+        draft.read().as_str(),
+        "Board B outline 1",
+        "B shows its own accepted name, never A's draft"
+    );
+    assert!(failure.read().is_none());
+    draft.set("Board B draft".into());
+    *probe.context.borrow_mut() = TreeContext::Outline {
+        board_id: "board".into(),
+    };
+    flush(&probe, &mut dom);
+    assert_eq!(draft.read().as_str(), "Board A draft");
+    assert_eq!(failure.read().as_deref(), Some("Invalid A name"));
+    *probe.context.borrow_mut() = TreeContext::Outline {
+        board_id: "board-b".into(),
+    };
+    flush(&probe, &mut dom);
+    assert_eq!(draft.read().as_str(), "Board B draft");
+    assert!(
+        std::sync::Arc::ptr_eq(&before, &probe.runtime.model().accepted.unwrap().document),
+        "switching owners commits nothing"
+    );
+}
+
+#[wasm_bindgen_test]
+async fn removed_version_draft_is_not_replayed_and_unrelated_draft_survives() {
+    let (probe, mut dom) = mounted().await;
+    let mut two_boards = document();
+    install_board_b(&mut two_boards);
+    replace_document(&probe, two_boards.clone()).await;
+    flush(&probe, &mut dom);
+    let projection = probe.projection();
+    let mut draft = projection.version_name_draft;
+    *probe.context.borrow_mut() = TreeContext::Outline {
+        board_id: "board-b".into(),
+    };
+    flush(&probe, &mut dom);
+    draft.set("Board B draft".into());
+    *probe.context.borrow_mut() = TreeContext::Outline {
+        board_id: "board".into(),
+    };
+    flush(&probe, &mut dom);
+    draft.set("Board A draft".into());
+    // Remove A's only version by opening a replacement document (a new
+    // session epoch): A's retained draft must not replay into it.
+    let mut removed = two_boards.clone();
+    removed.board_outlines[0].active_version_id = None;
+    removed.board_outlines[0].versions.clear();
+    replace_document(&probe, removed).await;
+    flush(&probe, &mut dom);
+    assert_ne!(
+        draft.read().as_str(),
+        "Board A draft",
+        "a removed version / replaced session never replays its draft"
+    );
+    // An unrelated valid draft created in the live session is retained.
+    *probe.context.borrow_mut() = TreeContext::Outline {
+        board_id: "board-b".into(),
+    };
+    flush(&probe, &mut dom);
+    draft.set("Board B draft".into());
+    *probe.context.borrow_mut() = TreeContext::Outline {
+        board_id: "board".into(),
+    };
+    flush(&probe, &mut dom);
+    *probe.context.borrow_mut() = TreeContext::Outline {
+        board_id: "board-b".into(),
+    };
+    flush(&probe, &mut dom);
+    assert_eq!(draft.read().as_str(), "Board B draft");
+    // Recreate A's version in the same session: the pruned draft must not replay.
+    replace_document(&probe, two_boards).await;
+    flush(&probe, &mut dom);
+    *probe.context.borrow_mut() = TreeContext::Outline {
+        board_id: "board".into(),
+    };
+    flush(&probe, &mut dom);
+    assert_eq!(
+        draft.read().as_str(),
+        "Edited outline 1",
+        "a recreated version starts from its accepted name"
+    );
+}
+
+#[wasm_bindgen_test]
 async fn newer_version_name_draft_survives_an_older_rename_settlement() {
     let (probe, mut dom) = mounted().await;
     let (entered, release) =

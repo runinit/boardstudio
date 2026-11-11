@@ -3517,6 +3517,7 @@ fn Editor() -> Element {
         let mut pair_created_selection = pair_created_selection;
         let mut objects_open = objects_open;
         let mut inspect_open = inspect_open;
+        let mut layout_panel = layout_panel;
         move |created: objects::MirroredPairCreated| {
             let current_scope = runtime.scope();
             if workspace() != "Layout"
@@ -3591,6 +3592,8 @@ fn Editor() -> Element {
             pin_inspector_on_desktop(inspector_panel_settings);
             objects_open.set(false);
             inspect_open.set(true);
+            // Explicit flow-completion reveal through Layout's sole host.
+            layout_panel.set(Some(workbench_shell::ToolPanel::Inspector));
         }
     });
     let mut mirrored_pair = objects::use_mirrored_pair(
@@ -4132,6 +4135,7 @@ fn Editor() -> Element {
         let inspector_settings = inspector_panel_settings;
         let mut objects_open = objects_open;
         let mut inspect_open = inspect_open;
+        let mut layout_panel = layout_panel;
         move |request: objects::TreeSelectRequest| {
             if request
                 .outline_action
@@ -4171,6 +4175,10 @@ fn Editor() -> Element {
                 _ => None,
             };
             let activation = request.outline_action.clone();
+            // An outline version row carries an explicit lifecycle activation;
+            // a plain Outline/Bridge/Matrix/Component pick is ordinary selection.
+            let explicit_lifecycle = activation.is_some()
+                || matches!(&request.context, objects::TreeContext::Bridge { .. });
             let scope = request.scope.clone();
             layout_state.set_selection_kind_from_context(&request.context);
             update_tree_cell_anchor(
@@ -4192,11 +4200,27 @@ fn Editor() -> Element {
                 fit_selected_bridge(&runtime, bridge_id.as_deref());
                 pin_inspector_on_desktop(inspector_settings);
             }
-            if close_objects {
-                objects_open.set(false);
-            }
-            if open_inspect {
-                inspect_open.set(true);
+            if workspace() == "Layout" {
+                // Ordinary canvas/Objects picks never open Inspect in the new
+                // host: an open Objects closes, an already-open Inspect merely
+                // updates context, and a closed Inspect stays closed. Only an
+                // explicit lifecycle/bridge request reveals Inspect. Opening
+                // changes no camera/bounds here.
+                if close_objects
+                    && *layout_panel.peek() == Some(workbench_shell::ToolPanel::Objects)
+                {
+                    layout_panel.set(None);
+                }
+                if explicit_lifecycle {
+                    layout_panel.set(Some(workbench_shell::ToolPanel::Inspector));
+                }
+            } else {
+                if close_objects {
+                    objects_open.set(false);
+                }
+                if open_inspect {
+                    inspect_open.set(true);
+                }
             }
         }
     };
@@ -4205,8 +4229,6 @@ fn Editor() -> Element {
         let adapter = adapter.clone();
         let owner = layout_owner.clone();
         let tree_cell_anchor = tree_cell_anchor.clone();
-        let mut objects_open = objects_open;
-        let mut inspect_open = inspect_open;
         let mut selection_kind = layout_selection_kind;
         move |kind: objects::LayoutSelectionKind| {
             if !layout_owner_is_current(&runtime, workspace, &adapter, &owner) {
@@ -4259,11 +4281,8 @@ fn Editor() -> Element {
                 }
                 .into(),
             );
-            if layout_owner_is_current(&runtime, workspace, &adapter, &owner) {
-                pin_inspector_on_desktop(inspector_panel_settings);
-                objects_open.set(false);
-                inspect_open.set(true);
-            }
+            // Selection-kind projection only rescopes the selection: it never
+            // forces Inspect open (an already-open Inspect updates in place).
         }
     };
     let on_layout_snap_intent = {
@@ -5719,15 +5738,22 @@ fn Editor() -> Element {
         let mut findings_open = layout_findings.open;
         let mut inspect_open = inspect_open;
         let mut objects_open = objects_open;
+        let mut layout_panel = layout_panel;
         let inspector_settings = inspector_panel_settings;
         move |()| {
             if !findings_owner_is_current(&runtime, workspace, &adapter, &owner) {
                 return;
             }
-            findings_open.set(!findings_open());
+            let opening = !findings_open();
+            findings_open.set(opening);
             inspect_open.set(true);
             objects_open.set(false);
             pin_inspector_on_desktop(inspector_settings);
+            if opening && workspace() == "Layout" {
+                // Explicit Findings request reveals Inspect with the findings
+                // content (Back to selection lives in that content).
+                layout_panel.set(Some(workbench_shell::ToolPanel::Inspector));
+            }
         }
     });
     let on_close_layout_findings = use_callback({
@@ -7913,6 +7939,7 @@ fn Editor() -> Element {
                 let owner = layout_owner.clone();
                 let mut objects_open = objects_open;
                 let mut inspect_open = inspect_open;
+                let mut layout_panel = layout_panel;
                 move |_| {
                     if !layout_owner_is_current(&runtime, workspace, &adapter, &owner) {
                         return;
@@ -7920,6 +7947,10 @@ fn Editor() -> Element {
                     pin_inspector_on_desktop(inspector_panel_settings);
                     objects_open.set(false);
                     inspect_open.set(true);
+                    // Explicit Inspect request through Layout's sole host; the
+                    // retained component editor is the content, no duplicate
+                    // Position editor is created.
+                    layout_panel.set(Some(workbench_shell::ToolPanel::Inspector));
                 }
             });
             let pointer_tools_available =
@@ -8042,6 +8073,9 @@ fn Editor() -> Element {
                     panel: layout_panel,
                     on_show_relationships: EventHandler::new(move |()| {
                         inspect_open.set(true);
+                        // Explicit Relationships request reveals Inspect (the
+                        // relations panel is its content) via the sole host.
+                        layout_panel.set(Some(workbench_shell::ToolPanel::Inspector));
                     }),
                     handles_visible: layout_state.transform_handles()(),
                     on_toggle_handles: EventHandler::new(move |visible| {
