@@ -1,0 +1,14 @@
+[
+  {
+    "name": "retain-panel-after-accepted-route",
+    "description": "Key the host-panel clearing effect only by scope, not by workspace, so an accepted workspace route retains the old Layout panel (and its focus/callback authority) and it reopens on return to Layout",
+    "edits": [
+      {
+        "file": "web/src/presentation.rs",
+        "old": "    let panel_route = (active_workspace, current_scope.clone());",
+        "new": "    let panel_route = (current_scope.clone(),);",
+        "count": 1
+      }
+    ]
+  }
+]

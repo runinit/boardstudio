@@ -1,0 +1,14 @@
+[
+  {
+    "name": "enable-first-column-spread",
+    "description": "Offer an editable Spread field for column 0 instead of the 'Spread starts at column 1' explanation, enabling the unavailable first-column Spread action",
+    "edits": [
+      {
+        "file": "web/crates/layout/src/objects/matrix_transform_inspector.rs",
+        "old": "                    if *column == 0 {\n                        p { class: \"text-xs text-muted-foreground\", role: \"note\",\n                            \"Spread starts at column 1. Column 0 steps by pitch.\"\n                        }",
+        "new": "                    if *column == u32::MAX {\n                        p { class: \"text-xs text-muted-foreground\", role: \"note\",\n                            \"Spread starts at column 1. Column 0 steps by pitch.\"\n                        }",
+        "count": 1
+      }
+    ]
+  }
+]

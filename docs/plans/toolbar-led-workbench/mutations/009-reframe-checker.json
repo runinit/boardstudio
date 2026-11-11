@@ -1,0 +1,14 @@
+[
+  {
+    "name": "inspector-popout-takes-canvas-layout-width",
+    "description": "Make only the Inspector pop-out participate in normal layout flow instead of overlaying the canvas, so switching to Inspect takes layout width from the canvas",
+    "edits": [
+      {
+        "file": "web/assets/shell.css",
+        "old": "#workbench-inspector { width: min(400px, calc(100vw - 16px)); }",
+        "new": "#workbench-inspector { position: relative; width: min(400px, calc(100vw - 16px)); }",
+        "count": 1
+      }
+    ]
+  }
+]

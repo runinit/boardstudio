@@ -1,0 +1,14 @@
+[
+  {
+    "name": "stale-preallocation-measurement-keeps-all-labels",
+    "description": "In fit_open_labels, reuse the stale pre-allocation measurement for every action instead of re-measuring the track after each label is allocated, so labels still allocate (adaptive) but lower-priority labels that should fold are kept",
+    "edits": [
+      {
+        "file": "web/src/presentation/workbench_shell.rs",
+        "old": "            let _ = action.set_attribute(\"data-show-label\", \"\");\n            if !track_fits(&track) {\n                action.remove_attr(\"data-show-label\");\n            }",
+        "new": "            let _ = action.set_attribute(\"data-show-label\", \"\");\n            if false {\n                action.remove_attr(\"data-show-label\");\n            }",
+        "count": 1
+      }
+    ]
+  }
+]
