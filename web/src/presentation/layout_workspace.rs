@@ -424,7 +424,10 @@ pub(super) fn add_object_header_action(mut menu_open: Signal<bool>) -> Element {
 
 pub(super) fn toolbar(input: ToolbarInput) -> Element {
     let mut transient_menu = input.open_menu;
-    let hide_transient = EventHandler::new(move |()| transient_menu.set(None));
+    let hide_transient = Callback::new(move |()| {
+        transient_menu.set(None);
+        true
+    });
     let fit_key = format!(
         "{:?}|{:?}|{:?}|{:?}|{}|{}|{}|{}|{}|{}|{}|{}|{:?}|{}|{}|{:?}",
         (input.open_menu)(),

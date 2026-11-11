@@ -9611,18 +9611,20 @@ fn Editor() -> Element {
     };
     let toggle_objects = use_callback(move |()| {
         if workspace() == "Layout" {
-            let next = (*layout_panel.peek() != Some(workbench_shell::ToolPanel::Objects))
-                .then_some(workbench_shell::ToolPanel::Objects);
-            layout_panel.set(next);
+            workbench_shell::toggle_tool_panel(
+                layout_panel,
+                workbench_shell::ToolPanel::Objects,
+            );
         } else {
             toggle_panel(objects_open, inspect_open, objects_panel_settings);
         }
     });
     let toggle_inspector = use_callback(move |()| {
         if workspace() == "Layout" {
-            let next = (*layout_panel.peek() != Some(workbench_shell::ToolPanel::Inspector))
-                .then_some(workbench_shell::ToolPanel::Inspector);
-            layout_panel.set(next);
+            workbench_shell::toggle_tool_panel(
+                layout_panel,
+                workbench_shell::ToolPanel::Inspector,
+            );
         } else {
             toggle_panel(inspect_open, objects_open, inspector_panel_settings);
         }

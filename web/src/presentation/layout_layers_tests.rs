@@ -95,6 +95,8 @@ fn host() -> Element {
 }
 
 use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
+use boardstudio_web_ui_shared::ui::command::use_command_registry;
+use std::{cell::RefCell, rc::Rc};
 
 fn count(root: &web_sys::Element, selector: &str) -> u32 {
     root.query_selector_all(selector).unwrap().length()
@@ -840,6 +842,803 @@ async fn view_mode_and_visibility_toggles_keep_pressed_state_and_revision() {
     assert_eq!(
         runtime.model().accepted.as_ref().unwrap().document.revision,
         revision
+    );
+    root.remove();
+}
+
+struct LegacyPanelStorageGuard {
+    left: Option<String>,
+    right: Option<String>,
+}
+
+impl LegacyPanelStorageGuard {
+    fn seed_pinned_extremes() -> Self {
+        let storage = web_sys::window()
+            .unwrap()
+            .local_storage()
+            .unwrap()
+            .unwrap();
+        let left = storage.get_item("boardstudio:v2:panel:left").unwrap();
+        let right = storage.get_item("boardstudio:v2:panel:right").unwrap();
+        storage
+            .set_item("boardstudio:v2:panel:left", r#"{"mode":"pinned","width":420}"#)
+            .unwrap();
+        storage
+            .set_item(
+                "boardstudio:v2:panel:right",
+                r#"{"mode":"pinned","width":480}"#,
+            )
+            .unwrap();
+        Self { left, right }
+    }
+
+    fn restore(key: &str, previous: &Option<String>) {
+        let storage = web_sys::window()
+            .unwrap()
+            .local_storage()
+            .unwrap()
+            .unwrap();
+        match previous {
+            Some(value) => storage.set_item(key, value).unwrap(),
+            None => storage.remove_item(key).unwrap(),
+        }
+    }
+}
+
+impl Drop for LegacyPanelStorageGuard {
+    fn drop(&mut self) {
+        Self::restore("boardstudio:v2:panel:left", &self.left);
+        Self::restore("boardstudio:v2:panel:right", &self.right);
+    }
+}
+
+#[derive(Clone, Copy)]
+struct CommandsHandles {
+    workspace: Signal<&'static str>,
+    compact: CompactPanelState,
+}
+
+fn commands_host() -> Element {
+    let capture = use_context::<Rc<RefCell<Option<CommandsHandles>>>>();
+    let registry = use_command_registry();
+    let workspace = use_signal(|| "Layout");
+    use_context_provider(|| WorkspaceState(workspace));
+    use_context_provider(|| ExportReturnWorkspace(workspace));
+    let version = use_signal(|| 0u64);
+    use_context_provider(|| version);
+    let runtime = use_context::<Rc<Runtime>>();
+    use_hook(move || {
+        runtime.subscribe(Rc::new(move || {
+            let mut version = version;
+            version += 1;
+        }))
+    });
+    let created = use_signal(|| None::<SetupGuideRequest>);
+    use_context_provider(|| created);
+    let objects_open = use_signal(|| true);
+    let inspector_open = use_signal(|| true);
+    let compact = CompactPanelState {
+        objects_open,
+        inspector_open,
+    };
+    use_context_provider(|| compact);
+    let warning = use_signal(|| false);
+    use_context_provider(|| PreferenceStorageWarning(warning));
+    let theme = use_signal(|| "light");
+    use_context_provider(|| AppearanceState(theme));
+    let resolved = use_memo(|| "light");
+    use_context_provider(|| ResolvedAppearance(resolved));
+    let selected = use_signal(|| None);
+    let anchor = use_signal(|| None);
+    let generation = use_signal(|| 0u64);
+    use_context_provider(|| SelectionAdapter::new(selected, anchor, generation));
+    let hidden = use_signal(BTreeSet::new);
+    let modules_hidden = use_signal(BTreeSet::new);
+    let footprints = use_signal(|| false);
+    use_context_provider(|| LayerVisibility {
+        hidden,
+        modules_hidden,
+        footprints,
+    });
+    boardstudio_web_ui_model::state::use_test_case_generation_state();
+    *capture.borrow_mut() = Some(CommandsHandles { workspace, compact });
+    let view_commands = registry.commands();
+    let objects_command = view_commands
+        .iter()
+        .find(|command| command.group == "View" && command.label == "Show/hide Objects")
+        .cloned();
+    let inspector_command = view_commands
+        .iter()
+        .find(|command| command.group == "View" && command.label == "Show/hide Inspector")
+        .cloned();
+    let status = format!(
+        "{}{}",
+        objects_command.is_some() as u8,
+        inspector_command.is_some() as u8
+    );
+    rsx! {
+        style { {include_str!("../../assets/workbench-base.css")} }
+        style { {include_str!("../../assets/tailwind.css")} }
+        style { {include_str!("../../assets/shell.css")} }
+        style { {include_str!("../../assets/layout-toolbar.css")} }
+        div { style: "display:flex;flex-direction:column;width:1000px;height:720px",
+            super::notifications::NotificationProvider { Editor {} }
+            input { id: "caller-retained-input", aria_label: "Caller-owned retained input" }
+            output { id: "view-commands-status", aria_label: "Registered View commands", "{status}" }
+            button {
+                id: "invoke-show-hide-objects",
+                aria_label: "Invoke Show/hide Objects",
+                disabled: objects_command.is_none(),
+                onclick: move |_| {
+                    if let Some(command) = objects_command.clone() {
+                        assert!(command.reason.is_none(), "Show/hide Objects stays enabled");
+                        command.on_select.call(());
+                    }
+                },
+                "Invoke Show/hide Objects"
+            }
+            button {
+                id: "invoke-show-hide-inspector",
+                aria_label: "Invoke Show/hide Inspector",
+                disabled: inspector_command.is_none(),
+                onclick: move |_| {
+                    if let Some(command) = inspector_command.clone() {
+                        assert!(command.reason.is_none(), "Show/hide Inspector stays enabled");
+                        command.on_select.call(());
+                    }
+                },
+                "Invoke Show/hide Inspector"
+            }
+        }
+    }
+}
+
+fn invoke_view_command(root: &web_sys::Element, label: &str) {
+    click(root, label);
+}
+
+#[wasm_bindgen_test]
+async fn show_hide_commands_route_to_each_workspace_current_host() {
+    let _storage = LegacyPanelStorageGuard::seed_pinned_extremes();
+    let runtime = support::new_runtime();
+    support::open_document(&runtime, document()).await;
+    let revision = runtime.model().accepted.as_ref().unwrap().document.revision;
+    let window = web_sys::window().unwrap();
+    let document = window.document().unwrap();
+    let root = document.create_element("div").unwrap();
+    document.body().unwrap().append_child(&root).unwrap();
+    let capture = Rc::new(RefCell::new(None::<CommandsHandles>));
+    let dom = VirtualDom::new(commands_host);
+    dom.provide_root_context(runtime.clone());
+    dom.provide_root_context(capture.clone());
+    dioxus_web::launch::launch_virtual_dom(
+        dom,
+        dioxus_web::Config::new().rootnode(root.clone().into()),
+    );
+    wait_until("the Layout canvas and its panel utilities mount", || {
+        root.query_selector("#m1-workspace-panel svg[role='group']")
+            .unwrap()
+            .is_some()
+            && by_role_name(&root, "button", "Objects").is_some()
+            && by_role_name(&root, "button", "Inspect").is_some()
+    })
+    .await;
+    wait_until("the View commands register", || {
+        root.query_selector("#view-commands-status")
+            .unwrap()
+            .is_some_and(|status| status.text_content().as_deref() == Some("11"))
+    })
+    .await;
+    let mut handles = capture
+        .borrow()
+        .as_ref()
+        .copied()
+        .expect("commands host captured");
+    let canvas = root
+        .query_selector("#m1-workspace-panel svg[role='group']")
+        .unwrap()
+        .unwrap();
+    let rect = canvas.get_bounding_client_rect();
+    let before = (rect.x(), rect.y(), rect.width(), rect.height());
+    let view_box = canvas.get_attribute("viewBox");
+    assert_eq!(count(&root, "#m1-objects-panel, #m1-inspector-panel"), 0);
+    let compact_signals = || {
+        let borrowed = capture.borrow();
+        let handles = borrowed.as_ref().unwrap();
+        (
+            *handles.compact.objects_open.peek(),
+            *handles.compact.inspector_open.peek(),
+        )
+    };
+    let assert_canvas_unchanged = |root: &web_sys::Element| {
+        let current = root
+            .query_selector("#m1-workspace-panel svg[role='group']")
+            .unwrap()
+            .unwrap();
+        let rect = current.get_bounding_client_rect();
+        assert!(
+            canvas.is_same_node(Some(current.as_ref())),
+            "commands must not remount the canvas"
+        );
+        assert_eq!((rect.x(), rect.y(), rect.width(), rect.height()), before);
+        assert_eq!(current.get_attribute("viewBox"), view_box);
+        assert_eq!(
+            runtime.model().accepted.as_ref().unwrap().document.revision,
+            revision
+        );
+    };
+    let legacy_before = compact_signals();
+    let invoke_objects = by_role_name(&root, "button", "Invoke Show/hide Objects").unwrap();
+    invoke_objects.focus().unwrap();
+    invoke_view_command(&root, "Invoke Show/hide Objects");
+    wait_until("Show/hide Objects opens the Layout panel", || {
+        by_role_name(&root, "button", "Objects").is_some_and(|button| {
+            button.get_attribute("aria-expanded").as_deref() == Some("true")
+        })
+    })
+    .await;
+    let panel = root
+        .query_selector("#workbench-objects:not([hidden])")
+        .unwrap()
+        .expect("Objects panel visible");
+    let width = panel.get_bounding_client_rect().width();
+    assert!(
+        (width - 320.0).abs() < 2.0,
+        "Layout Objects ignores the seeded 420px legacy width: {width}"
+    );
+    assert_eq!(
+        count(&root, "#m1-objects-panel, #m1-inspector-panel"),
+        0,
+        "Layout renders no legacy dock"
+    );
+    assert_eq!(
+        compact_signals(),
+        legacy_before,
+        "Layout command leaves legacy compact state alone"
+    );
+    assert_eq!(
+        document.active_element().as_ref(),
+        Some(invoke_objects.as_ref()),
+        "command-opened Objects keeps focus when content has no search target"
+    );
+    assert_canvas_unchanged(&root);
+    let close_objects = by_role_name(&root, "button", "Close Objects").unwrap();
+    close_objects.focus().unwrap();
+    assert_eq!(
+        document.active_element().as_ref(),
+        Some(close_objects.as_ref()),
+        "precondition: focus moves inside the open panel"
+    );
+    invoke_view_command(&root, "Invoke Show/hide Objects");
+    wait_until("Show/hide Objects closes the Layout panel", || {
+        by_role_name(&root, "button", "Objects").is_some_and(|button| {
+            button.get_attribute("aria-expanded").as_deref() == Some("false")
+        })
+    })
+    .await;
+    let objects = by_role_name(&root, "button", "Objects").unwrap();
+    assert_eq!(
+        document.active_element().as_ref(),
+        Some(objects.as_ref()),
+        "command close returns focus to its utility"
+    );
+    assert!(
+        root.query_selector("#workbench-objects[hidden][inert]")
+            .unwrap()
+            .is_some()
+    );
+    assert_canvas_unchanged(&root);
+    invoke_view_command(&root, "Invoke Show/hide Inspector");
+    wait_until("Show/hide Inspector opens the Layout panel", || {
+        by_role_name(&root, "button", "Inspect").is_some_and(|button| {
+            button.get_attribute("aria-expanded").as_deref() == Some("true")
+        })
+    })
+    .await;
+    let panel = root
+        .query_selector("#workbench-inspector:not([hidden])")
+        .unwrap()
+        .expect("Inspector panel visible");
+    let width = panel.get_bounding_client_rect().width();
+    assert!(
+        (width - 400.0).abs() < 2.0,
+        "Layout Inspector ignores the seeded 480px legacy width: {width}"
+    );
+    assert_eq!(
+        count(&root, "#m1-objects-panel, #m1-inspector-panel"),
+        0,
+        "Layout renders no legacy dock"
+    );
+    assert_eq!(
+        compact_signals(),
+        legacy_before,
+        "Layout command leaves legacy compact state alone"
+    );
+    let heading = root
+        .query_selector("#workbench-inspector h2")
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        document.active_element().as_ref(),
+        Some(heading.as_ref()),
+        "command-opened Inspector focuses its heading"
+    );
+    assert_canvas_unchanged(&root);
+    invoke_view_command(&root, "Invoke Show/hide Inspector");
+    wait_until("Show/hide Inspector closes the Layout panel", || {
+        by_role_name(&root, "button", "Inspect").is_some_and(|button| {
+            button.get_attribute("aria-expanded").as_deref() == Some("false")
+        })
+    })
+    .await;
+    let inspect = by_role_name(&root, "button", "Inspect").unwrap();
+    assert_eq!(
+        document.active_element().as_ref(),
+        Some(inspect.as_ref()),
+        "command close returns focus to its utility"
+    );
+    let desktop = !super::is_compact_viewport();
+    for workspace in ["Case", "PCB"] {
+        handles.workspace.set(workspace);
+        let label = format!("{workspace} mounts its legacy host without a workbench panel");
+        wait_until(&label, || {
+                root.query_selector("#m1-objects-panel").unwrap().is_some()
+                    && root.query_selector("#workbench-objects").unwrap().is_none()
+                    && root.query_selector("#workbench-inspector").unwrap().is_none()
+        })
+        .await;
+        let label = format!("{workspace} View commands register");
+        wait_until(&label, || {
+            root.query_selector("#view-commands-status")
+                .unwrap()
+                .is_some_and(|status| status.text_content().as_deref() == Some("11"))
+        })
+        .await;
+        assert_eq!(
+            count(
+                &root,
+                "#workbench-objects:not([hidden]), #workbench-inspector:not([hidden])"
+            ),
+            0,
+            "{workspace} shows no ghost Layout panel"
+        );
+        if desktop {
+            let mode_of = |selector: &str| {
+                root.query_selector(selector)
+                    .unwrap()
+                    .unwrap()
+                    .get_attribute("data-mode")
+            };
+            assert_eq!(
+                mode_of("#m1-objects-panel").as_deref(),
+                Some("pinned"),
+                "{workspace} starts from the seeded legacy mode"
+            );
+            let dock = root.query_selector("#m1-objects-panel").unwrap().unwrap();
+            let dock_width = dock.get_bounding_client_rect().width();
+            assert!(
+                (dock_width - 420.0).abs() < 3.0,
+                "{workspace} legacy dock honors the seeded 420px width: {dock_width}"
+            );
+            invoke_view_command(&root, "Invoke Show/hide Objects");
+            let label = format!("{workspace} Objects collapses its legacy dock");
+            wait_until(&label, || {
+                mode_of("#m1-objects-panel").as_deref() == Some("collapsed")
+            })
+            .await;
+            assert_eq!(
+                count(
+                    &root,
+                    "#workbench-objects:not([hidden]), #workbench-inspector:not([hidden])"
+                ),
+                0,
+                "{workspace} command opens no ghost Layout panel"
+            );
+            invoke_view_command(&root, "Invoke Show/hide Objects");
+            let label = format!("{workspace} Objects restores its legacy dock");
+            wait_until(&label, || {
+                mode_of("#m1-objects-panel").as_deref() == Some("pinned")
+            })
+            .await;
+            invoke_view_command(&root, "Invoke Show/hide Inspector");
+            let label = format!("{workspace} Inspector collapses its legacy dock");
+            wait_until(
+                &label,
+                || mode_of("#m1-inspector-panel").as_deref() == Some("collapsed"),
+            )
+            .await;
+            assert_eq!(
+                count(
+                    &root,
+                    "#workbench-objects:not([hidden]), #workbench-inspector:not([hidden])"
+                ),
+                0,
+                "{workspace} command opens no ghost Layout panel"
+            );
+            invoke_view_command(&root, "Invoke Show/hide Inspector");
+            let label = format!("{workspace} Inspector restores its legacy dock");
+            wait_until(
+                &label,
+                || mode_of("#m1-inspector-panel").as_deref() == Some("pinned"),
+            )
+            .await;
+        } else {
+            let (objects_open, _) = compact_signals();
+            invoke_view_command(&root, "Invoke Show/hide Objects");
+            let label = format!("{workspace} Objects answers on its compact state");
+            wait_until(&label, || compact_signals() == (!objects_open, false))
+            .await;
+            assert_eq!(
+                count(
+                    &root,
+                    "#workbench-objects:not([hidden]), #workbench-inspector:not([hidden])"
+                ),
+                0,
+                "{workspace} command opens no ghost Layout panel"
+            );
+            let (_, inspector_open) = compact_signals();
+            invoke_view_command(&root, "Invoke Show/hide Inspector");
+            let label = format!("{workspace} Inspector answers on its compact state");
+            wait_until(
+                &label,
+                || compact_signals() == (false, !inspector_open),
+            )
+            .await;
+            assert_eq!(
+                count(
+                    &root,
+                    "#workbench-objects:not([hidden]), #workbench-inspector:not([hidden])"
+                ),
+                0,
+                "{workspace} command opens no ghost Layout panel"
+            );
+        }
+    }
+    handles.workspace.set("Layout");
+    wait_until("Layout utilities mount again", || {
+        by_role_name(&root, "button", "Objects").is_some()
+            && by_role_name(&root, "button", "Inspect").is_some()
+    })
+    .await;
+    assert_eq!(
+        by_role_name(&root, "button", "Objects")
+            .unwrap()
+            .get_attribute("aria-expanded")
+            .as_deref(),
+        Some("false"),
+        "returning to Layout reopens no panel"
+    );
+    assert_eq!(
+        by_role_name(&root, "button", "Inspect")
+            .unwrap()
+            .get_attribute("aria-expanded")
+            .as_deref(),
+        Some("false"),
+        "returning to Layout reopens no panel"
+    );
+    assert_eq!(
+        runtime.model().accepted.as_ref().unwrap().document.revision,
+        revision
+    );
+    root.remove();
+}
+
+async fn settle_frames() {
+    for _ in 0..2 {
+        let promise = js_sys::Promise::new(&mut |resolve, _| {
+            web_sys::window()
+                .unwrap()
+                .request_animation_frame(&resolve)
+                .unwrap();
+        });
+        let _ = wasm_bindgen_futures::JsFuture::from(promise).await;
+    }
+}
+
+fn mount_commands_host(
+    runtime: &std::rc::Rc<Runtime>,
+    root: &web_sys::Element,
+) -> Rc<RefCell<Option<CommandsHandles>>> {
+    let capture = Rc::new(RefCell::new(None::<CommandsHandles>));
+    let dom = VirtualDom::new(commands_host);
+    dom.provide_root_context(runtime.clone());
+    dom.provide_root_context(capture.clone());
+    dioxus_web::launch::launch_virtual_dom(
+        dom,
+        dioxus_web::Config::new().rootnode(root.clone().into()),
+    );
+    capture
+}
+
+async fn wait_for_commands_host(root: &web_sys::Element) {
+    wait_until("the Layout canvas and its panel utilities mount", || {
+        root.query_selector("#m1-workspace-panel svg[role='group']")
+            .unwrap()
+            .is_some()
+            && by_role_name(&root, "button", "Objects").is_some()
+            && by_role_name(&root, "button", "Inspect").is_some()
+    })
+    .await;
+    wait_until("the View commands register", || {
+        root.query_selector("#view-commands-status")
+            .unwrap()
+            .is_some_and(|status| status.text_content().as_deref() == Some("11"))
+    })
+    .await;
+}
+
+#[wasm_bindgen_test]
+async fn accepted_route_clears_host_focus_and_callbacks_while_unchanged_route_keeps_surface() {
+    let runtime = support::new_runtime();
+    support::open_document(&runtime, document()).await;
+    let revision = runtime.model().accepted.as_ref().unwrap().document.revision;
+    let token = runtime.model().accepted.as_ref().unwrap().token;
+    let window = web_sys::window().unwrap();
+    let document = window.document().unwrap();
+    let root = document.create_element("div").unwrap();
+    document.body().unwrap().append_child(&root).unwrap();
+    let capture = mount_commands_host(&runtime, &root);
+    wait_for_commands_host(&root).await;
+    let mut handles = capture
+        .borrow()
+        .as_ref()
+        .copied()
+        .expect("commands host captured");
+    click(&root, "Objects");
+    wait_until("Objects opens", || {
+        by_role_name(&root, "button", "Objects")
+            .is_some_and(|button| button.get_attribute("aria-expanded").as_deref() == Some("true"))
+    })
+    .await;
+    handles.workspace.set("Layout");
+    settle_frames().await;
+    assert!(
+        by_role_name(&root, "button", "Objects")
+            .is_some_and(|button| button.get_attribute("aria-expanded").as_deref() == Some("true")),
+        "an unchanged route leaves the open surface alone"
+    );
+    assert_eq!(
+        runtime.model().accepted.as_ref().unwrap().token,
+        token,
+        "no route means no new session"
+    );
+    let heading = root
+        .query_selector("#workbench-objects h2")
+        .unwrap()
+        .unwrap()
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap();
+    heading.focus().unwrap();
+    assert_eq!(
+        document.active_element().as_ref(),
+        Some(heading.as_ref()),
+        "precondition: the open host holds focus"
+    );
+    handles.workspace.set("Case");
+    wait_until("Case mounts its legacy host without a workbench panel", || {
+        root.query_selector("#m1-objects-panel").unwrap().is_some()
+            && root.query_selector("#workbench-objects").unwrap().is_none()
+            && root.query_selector("#workbench-inspector").unwrap().is_none()
+    })
+    .await;
+    assert!(!heading.is_connected(), "accepted route detaches the old panel");
+    assert_ne!(
+        document.active_element().as_ref(),
+        Some(heading.as_ref()),
+        "accepted route clears host focus"
+    );
+    assert!(
+        document
+            .active_element()
+            .as_ref()
+            .is_none_or(|active| active.is_connected()),
+        "focus never strands in detached host content"
+    );
+    assert_eq!(*handles.workspace.peek(), "Case");
+    assert_eq!(
+        runtime.model().accepted.as_ref().unwrap().token,
+        token,
+        "the route change carries no edit and no shell-made cancellation"
+    );
+    assert_eq!(
+        runtime.model().accepted.as_ref().unwrap().document.revision,
+        revision
+    );
+    let mode_of = |selector: &str| {
+        root.query_selector(selector)
+            .unwrap()
+            .unwrap()
+            .get_attribute("data-mode")
+    };
+    let escape = web_sys::KeyboardEventInit::new();
+    escape.set_key("Escape");
+    escape.set_bubbles(true);
+    escape.set_cancelable(true);
+    document
+        .body()
+        .unwrap()
+        .dispatch_event(&web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &escape).unwrap())
+        .unwrap();
+    settle_frames().await;
+    assert_eq!(
+        count(
+            &root,
+            "#workbench-objects:not([hidden]), #workbench-inspector:not([hidden])"
+        ),
+        0,
+        "old host Escape callbacks stay dead after the route"
+    );
+    if !super::is_compact_viewport() {
+        assert_eq!(
+            mode_of("#m1-objects-panel").as_deref(),
+            Some("pinned"),
+            "old host callbacks cannot disturb the new legacy dock"
+        );
+    }
+    handles.workspace.set("Layout");
+    wait_until("Layout utilities mount again", || {
+        by_role_name(&root, "button", "Objects").is_some()
+            && by_role_name(&root, "button", "Inspect").is_some()
+    })
+    .await;
+    assert_eq!(
+        by_role_name(&root, "button", "Objects")
+            .unwrap()
+            .get_attribute("aria-expanded")
+            .as_deref(),
+        Some("false"),
+        "returning after the accepted route reopens no panel"
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn caller_owned_input_survives_round_trip_and_session_replace_clears_old_host() {
+    let runtime = support::new_runtime();
+    support::open_document(&runtime, document()).await;
+    let revision = runtime.model().accepted.as_ref().unwrap().document.revision;
+    let mut replacement = document();
+    replacement.id = "layout-layers-replaced".into();
+    let window = web_sys::window().unwrap();
+    let document = window.document().unwrap();
+    let root = document.create_element("div").unwrap();
+    document.body().unwrap().append_child(&root).unwrap();
+    let capture = mount_commands_host(&runtime, &root);
+    wait_for_commands_host(&root).await;
+    let mut handles = capture
+        .borrow()
+        .as_ref()
+        .copied()
+        .expect("commands host captured");
+    let field = root
+        .query_selector("#caller-retained-input")
+        .unwrap()
+        .unwrap()
+        .dyn_into::<web_sys::HtmlInputElement>()
+        .unwrap();
+    field.set_value("kept across the round trip");
+    field.focus().unwrap();
+    click(&root, "Objects");
+    wait_until("Objects opens", || {
+        by_role_name(&root, "button", "Objects")
+            .is_some_and(|button| button.get_attribute("aria-expanded").as_deref() == Some("true"))
+    })
+    .await;
+    handles.workspace.set("Case");
+    wait_until("Case mounts its legacy host without a workbench panel", || {
+        root.query_selector("#m1-objects-panel").unwrap().is_some()
+            && root.query_selector("#workbench-objects").unwrap().is_none()
+    })
+    .await;
+    assert_eq!(
+        field.value(),
+        "kept across the round trip",
+        "caller-owned input survives the workspace round trip"
+    );
+    assert!(field.is_connected());
+    handles.workspace.set("Layout");
+    wait_for_commands_host(&root).await;
+    assert_eq!(
+        field.value(),
+        "kept across the round trip",
+        "caller-owned input survives the return"
+    );
+    assert_eq!(
+        by_role_name(&root, "button", "Objects")
+            .unwrap()
+            .get_attribute("aria-expanded")
+            .as_deref(),
+        Some("false"),
+        "returning reopens no panel"
+    );
+    assert_eq!(
+        by_role_name(&root, "button", "Inspect")
+            .unwrap()
+            .get_attribute("aria-expanded")
+            .as_deref(),
+        Some("false"),
+        "returning reopens no panel"
+    );
+    click(&root, "Objects");
+    wait_until("Objects opens before the session replace", || {
+        by_role_name(&root, "button", "Objects")
+            .is_some_and(|button| button.get_attribute("aria-expanded").as_deref() == Some("true"))
+    })
+    .await;
+    let heading = root
+        .query_selector("#workbench-objects h2")
+        .unwrap()
+        .unwrap()
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap();
+    heading.focus().unwrap();
+    support::open_document(&runtime, replacement).await;
+    wait_until("the replacement session lands", || {
+        runtime.model().accepted.as_ref().is_some_and(|snapshot| {
+            snapshot.document.id == "layout-layers-replaced"
+        })
+    })
+    .await;
+    wait_until("the replacement session closes the old panel", || {
+        root.query_selector("#workbench-objects[hidden][inert]")
+            .unwrap()
+            .is_some()
+    })
+    .await;
+    assert_ne!(
+        document.active_element().as_ref(),
+        Some(heading.as_ref()),
+        "the replaced session keeps no old focus authority"
+    );
+    assert!(
+        document
+            .active_element()
+            .as_ref()
+            .is_none_or(|active| active.is_connected()),
+        "focus never strands in replaced host content"
+    );
+    assert_eq!(
+        field.value(),
+        "kept across the round trip",
+        "caller-owned input survives the session replace"
+    );
+    field.focus().unwrap();
+    let field_element: web_sys::Element = field.clone().into();
+    assert_eq!(
+        document.active_element().as_ref(),
+        Some(&field_element),
+        "caller-owned input stays usable after the replace"
+    );
+    let search = root
+        .query_selector("#workbench-objects input[type=search], #workbench-objects h2")
+        .unwrap()
+        .unwrap();
+    let escape = web_sys::KeyboardEventInit::new();
+    escape.set_key("Escape");
+    escape.set_bubbles(true);
+    escape.set_cancelable(true);
+    search
+        .dispatch_event(&web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &escape).unwrap())
+        .unwrap();
+    settle_frames().await;
+    assert_eq!(
+        by_role_name(&root, "button", "Objects")
+            .unwrap()
+            .get_attribute("aria-expanded")
+            .as_deref(),
+        Some("false"),
+        "old host callbacks cannot reopen after the replace"
+    );
+    click(&root, "Objects");
+    wait_until("the new session still opens its panel", || {
+        by_role_name(&root, "button", "Objects")
+            .is_some_and(|button| button.get_attribute("aria-expanded").as_deref() == Some("true"))
+    })
+    .await;
+    assert_eq!(
+        runtime.model().accepted.as_ref().unwrap().document.revision,
+        revision,
+        "session replace performs no edit"
     );
     root.remove();
 }

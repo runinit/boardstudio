@@ -64,6 +64,17 @@ fn close(mut panel: Signal<Option<ToolPanel>>, restore_focus: bool) {
     }
 }
 
+/// Retained Show/hide commands toggle through the same dismissal as the utilities:
+/// closing restores focus to the utility instead of stranding it in hidden content.
+pub(super) fn toggle_tool_panel(panel: Signal<Option<ToolPanel>>, kind: ToolPanel) {
+    if *panel.peek() == Some(kind) {
+        close(panel, true);
+    } else {
+        let mut panel = panel;
+        panel.set(Some(kind));
+    }
+}
+
 struct PanelEvents {
     window: web_sys::Window,
     key: Closure<dyn FnMut(web_sys::KeyboardEvent)>,
@@ -583,10 +594,12 @@ pub(super) fn ToolSection(
 }
 
 /// Utilities join the workspace's own tool row; they do not own domain task state.
+/// Opening a panel first asks the transient owner to hide; its refusal leaves both
+/// the owner and the panels unchanged.
 #[component]
 pub(super) fn PanelUtilities(
     panel: Signal<Option<ToolPanel>>,
-    on_hide_transient: EventHandler<()>,
+    on_hide_transient: Callback<(), bool>,
     #[props(default = 100)] first_index: usize,
 ) -> Element {
     rsx! {
@@ -600,7 +613,9 @@ pub(super) fn PanelUtilities(
                     if *panel.peek() == Some(kind) {
                         close(panel, true);
                     } else {
-                        on_hide_transient.call(());
+                        if !on_hide_transient.call(()) {
+                            return;
+                        }
                         let mut panel = panel;
                         panel.set(Some(kind));
                     }
@@ -628,7 +643,7 @@ mod tests {
                 objects: rsx! { input { aria_label: "Find an object", r#type: "search" } },
                 inspector: rsx! { input { aria_label: "Retained value", value: "unresolved A" } },
                 Toolbar { aria_label: "Layout tools",
-                    PanelUtilities { panel, on_hide_transient: move |_| {}, first_index: 0usize }
+                    PanelUtilities { panel, on_hide_transient: move |_| true, first_index: 0usize }
                 }
                 button { "Canvas target" }
             }
@@ -683,7 +698,7 @@ mod tests {
                             span { class: "workbench-action-label", "Hidden beta action" }
                         }
                     }
-                    PanelUtilities { panel, on_hide_transient: move |_| {} }
+                    PanelUtilities { panel, on_hide_transient: move |_| true }
                 }
             }
         }
@@ -809,7 +824,7 @@ mod tests {
                         }
                     },
                     Toolbar { aria_label: "Layout tools",
-                        PanelUtilities { panel, on_hide_transient: move |_| {}, first_index: 0usize }
+                        PanelUtilities { panel, on_hide_transient: move |_| true, first_index: 0usize }
                     }
                     button { "Canvas target" }
                 }
@@ -879,6 +894,310 @@ mod tests {
         let heading = root.query_selector("#workbench-inspector h2").unwrap().unwrap();
         wait_until("Inspect focuses heading", || document.active_element().as_ref() == Some(heading.as_ref())).await;
         assert_clamped("workbench-inspector", "Close Inspector", 400.0);
+        root.remove();
+    }
+
+    fn transient_fixture() -> Element {
+        let panel = use_signal(|| None::<ToolPanel>);
+        let mut transient_open = use_signal(|| true);
+        let mut allow_hide = use_signal(|| true);
+        let mut picker_open = use_signal(|| false);
+        let mut ping = use_signal(|| 0u32);
+        let request_hide = use_callback(move |()| {
+            if *allow_hide.peek() {
+                transient_open.set(false);
+                true
+            } else {
+                false
+            }
+        });
+        rsx! {
+            PanelHost { panel,
+                objects: rsx! {
+                    input { aria_label: "Find an object", r#type: "search" }
+                    button {
+                        aria_label: "Open nested picker",
+                        onclick: move |_| picker_open.set(true),
+                        "Open nested picker"
+                    }
+                    if picker_open() {
+                        div {
+                            role: "listbox", aria_label: "Nested picker", tabindex: "0",
+                            onkeydown: move |event: KeyboardEvent| {
+                                if event.key().to_string() == "Escape" {
+                                    if let Some(raw) = event.data().try_as_web_event() {
+                                        raw.prevent_default();
+                                    }
+                                    picker_open.set(false);
+                                }
+                            },
+                            div { role: "option", aria_label: "Nested choice", "Nested choice" }
+                        }
+                    }
+                },
+                inspector: rsx! { input { aria_label: "Retained value", value: "unresolved A" } },
+                Toolbar { aria_label: "Layout tools",
+                    PanelUtilities { panel, on_hide_transient: request_hide, first_index: 0usize }
+                }
+                button { "Canvas target" }
+                if transient_open() {
+                    div { role: "menu", aria_label: "Transient task",
+                        button {
+                            aria_label: "Close transient task",
+                            onclick: move |_| transient_open.set(false),
+                            "Close transient task"
+                        }
+                    }
+                }
+                button {
+                    aria_label: "Refuse transient hide",
+                    aria_pressed: !allow_hide(),
+                    onclick: move |_| allow_hide.set(false),
+                    "Refuse transient hide"
+                }
+                button {
+                    aria_label: "Allow transient hide",
+                    onclick: move |_| allow_hide.set(true),
+                    "Allow transient hide"
+                }
+                button {
+                    aria_label: "Ping transient fixture",
+                    onclick: move |_| ping.set(ping() + 1),
+                    "Ping transient fixture"
+                }
+                output { aria_label: "Ping count", "{ping()}" }
+            }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn transient_refusal_blocks_utility_open_and_own_close_reopens_nothing() {
+        let root = mount_component(transient_fixture);
+        wait_until("workbench utilities mount", || by_role_name(&root, "button", "Objects").is_some()).await;
+        let document = web_sys::window().unwrap().document().unwrap();
+        let ping_count = || {
+            root.query_selector("output[aria-label='Ping count']")
+                .unwrap()
+                .unwrap()
+                .text_content()
+                .unwrap_or_default()
+        };
+        assert!(by_role_name(&root, "menu", "Transient task").is_some(), "transient owner starts visible");
+        assert!(root.query_selector("#workbench-objects[hidden][inert]").unwrap().is_some());
+        assert!(root.query_selector("#workbench-inspector[hidden][inert]").unwrap().is_some());
+        by_role_name(&root, "button", "Refuse transient hide").unwrap().click();
+        wait_until("refusal arms", || {
+            by_role_name(&root, "button", "Refuse transient hide")
+                .is_some_and(|button| button.get_attribute("aria-pressed").as_deref() == Some("true"))
+        })
+        .await;
+        by_role_name(&root, "button", "Inspect").unwrap().click();
+        let before = ping_count();
+        by_role_name(&root, "button", "Ping transient fixture").unwrap().click();
+        wait_until("fixture settles a render pass", || ping_count() != before).await;
+        assert!(by_role_name(&root, "menu", "Transient task").is_some(), "refused hide keeps the owner visible");
+        assert!(root.query_selector("#workbench-inspector[hidden][inert]").unwrap().is_some(), "refused hide opens no panel");
+        assert_eq!(
+            by_role_name(&root, "button", "Inspect").unwrap().get_attribute("aria-expanded").as_deref(),
+            Some("false")
+        );
+        by_role_name(&root, "button", "Allow transient hide").unwrap().click();
+        by_role_name(&root, "button", "Objects").unwrap().click();
+        wait_until("Objects opens after the owner hides", || {
+            by_role_name(&root, "button", "Objects")
+                .is_some_and(|button| button.get_attribute("aria-expanded").as_deref() == Some("true"))
+        })
+        .await;
+        assert!(by_role_name(&root, "menu", "Transient task").is_none(), "allowed hide parks the owner");
+        by_role_name(&root, "button", "Inspect").unwrap().click();
+        wait_until("Inspect replaces Objects", || {
+            by_role_name(&root, "button", "Inspect")
+                .is_some_and(|button| button.get_attribute("aria-expanded").as_deref() == Some("true"))
+        })
+        .await;
+        by_role_name(&root, "button", "Close Inspector").unwrap().click();
+        wait_until("Inspector closes", || {
+            by_role_name(&root, "button", "Inspect")
+                .is_some_and(|button| button.get_attribute("aria-expanded").as_deref() == Some("false"))
+        })
+        .await;
+        assert!(root.query_selector("#workbench-objects[hidden][inert]").unwrap().is_some(), "own close reopens no previous panel");
+        let inspect = by_role_name(&root, "button", "Inspect").unwrap();
+        assert_eq!(
+            document.active_element().as_ref(),
+            Some(inspect.as_ref()),
+            "own close returns focus to its utility"
+        );
+        by_role_name(&root, "button", "Objects").unwrap().click();
+        wait_until("Objects reopens", || {
+            by_role_name(&root, "button", "Objects")
+                .is_some_and(|button| button.get_attribute("aria-expanded").as_deref() == Some("true"))
+        })
+        .await;
+        by_role_name(&root, "button", "Open nested picker").unwrap().click();
+        wait_until("nested picker opens", || by_role_name(&root, "listbox", "Nested picker").is_some()).await;
+        let picker = by_role_name(&root, "listbox", "Nested picker").unwrap();
+        picker.focus().unwrap();
+        let escape = web_sys::KeyboardEventInit::new();
+        escape.set_key("Escape");
+        escape.set_bubbles(true);
+        escape.set_cancelable(true);
+        picker.dispatch_event(&web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &escape).unwrap()).unwrap();
+        wait_until("picker consumes its Escape", || by_role_name(&root, "listbox", "Nested picker").is_none()).await;
+        assert!(
+            by_role_name(&root, "button", "Objects")
+                .is_some_and(|button| button.get_attribute("aria-expanded").as_deref() == Some("true")),
+            "the handled Escape preserves the parent panel"
+        );
+        let search = root.query_selector("#workbench-objects input[type=search]").unwrap().unwrap();
+        search.dispatch_event(&web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &escape).unwrap()).unwrap();
+        wait_until("panel closes on its own Escape", || {
+            by_role_name(&root, "button", "Objects")
+                .is_some_and(|button| button.get_attribute("aria-expanded").as_deref() == Some("false"))
+        })
+        .await;
+        root.remove();
+    }
+
+    fn case_canvas_fixture() -> Element {
+        super::super::use_empty_test_instance_selection();
+        let runtime = use_context::<Rc<super::super::Runtime>>();
+        let model = runtime.model();
+        let scope = runtime.scope();
+        let panel = use_signal(|| None::<ToolPanel>);
+        let version = use_signal(|| 0u64);
+        use_context_provider(|| version);
+        let state = super::super::case_workspace::use_case_workspace_state();
+        let case_selection = state.selection();
+        let selected_context = use_signal(|| None::<super::super::objects::ScopedTreeContext>);
+        let expanded = state.tree_expanded();
+        let instance_selection = use_context::<super::super::InstanceSelection>();
+        let generation = use_signal(|| 1u64);
+        let physical_setup = super::super::pcb_physical_setup::use_controller(
+            runtime.clone(),
+            version,
+            generation,
+            Rc::new(|| false),
+            instance_selection,
+            Rc::new(|_, _| true),
+            Rc::new(|_, _| {
+                Box::pin(async { panic!("canvas invariance test submits no physical edits") })
+            }),
+        );
+        let objects = super::super::case_workspace::objects(super::super::case_workspace::ObjectsInput {
+            model: &model,
+            scope: scope.clone(),
+            instance_scope_pending: false,
+            scene: None,
+            selected_context,
+            selected_body_id: None,
+            selected_layer_id: String::new(),
+            case_selection,
+            expanded,
+            on_action: EventHandler::new(|_| {}),
+            on_select: EventHandler::new(|_| {}),
+            on_display: EventHandler::new(|_| {}),
+        });
+        let inspector = super::super::case_workspace::inspector(super::super::case_workspace::InspectorInput {
+            physical_setup,
+            mechanical_settings: super::super::MechanicalSettingsMount {
+                props: None,
+                generation_ready: false,
+            },
+            instance_scope_pending: false,
+            scope,
+            scene: None,
+            case_selection,
+            selected_layer_id: String::new(),
+            selected_context: None,
+            selected_part_summary: None,
+            on_show_configured_board: EventHandler::new(|_| {}),
+            on_display: EventHandler::new(|_| {}),
+        });
+        rsx! {
+            style { {include_str!("../../assets/workbench-base.css")} }
+            style { {include_str!("../../assets/tailwind.css")} }
+            style { {include_str!("../../assets/shell.css")} }
+            PanelHost { panel,
+                objects: objects,
+                inspector: inspector,
+                Toolbar { aria_label: "Case tools",
+                    PanelUtilities { panel, on_hide_transient: move |_| true, first_index: 0usize }
+                }
+                div {
+                    id: "case-canvas-standin",
+                    role: "img",
+                    aria_label: "Case canvas stand-in",
+                    "data-camera": "azimuth-0:elevation-0",
+                    style: "width:640px;height:480px",
+                }
+            }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn case_content_shapes_keep_canvas_rect_and_camera_across_open_switch_close() {
+        use crate::runtime::{in_process_support, project_name_test_support as support};
+        let runtime = support::new_runtime();
+        support::open_document(&runtime, in_process_support::board_document()).await;
+        let revision = runtime.model().accepted.as_ref().unwrap().document.revision;
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(case_canvas_fixture);
+        dom.provide_root_context(runtime.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_until("the Case canvas and its panel utilities mount", || {
+            root.query_selector("#case-canvas-standin").unwrap().is_some()
+                && by_role_name(&root, "button", "Objects").is_some()
+                && by_role_name(&root, "button", "Inspect").is_some()
+        })
+        .await;
+        let canvas = root.query_selector("#case-canvas-standin").unwrap().unwrap();
+        let rect = canvas.get_bounding_client_rect();
+        let before = (rect.x(), rect.y(), rect.width(), rect.height());
+        assert!(before.2 > 0.0 && before.3 > 0.0, "the stand-in canvas has bounds");
+        let camera = canvas.get_attribute("data-camera");
+        let assert_canvas_unchanged = |root: &web_sys::Element| {
+            let current = root.query_selector("#case-canvas-standin").unwrap().unwrap();
+            let rect = current.get_bounding_client_rect();
+            assert!(canvas.is_same_node(Some(current.as_ref())), "panel visibility must not remount the canvas");
+            assert_eq!((rect.x(), rect.y(), rect.width(), rect.height()), before);
+            assert_eq!(current.get_attribute("data-camera"), camera);
+            assert_eq!(runtime.model().accepted.as_ref().unwrap().document.revision, revision);
+        };
+        by_role_name(&root, "button", "Objects").unwrap().click();
+        wait_until("actual Case Objects content opens", || {
+            root.query_selector("#workbench-objects:not([hidden]) [aria-label='Current selection']")
+                .unwrap()
+                .is_some()
+                && root.query_selector("#workbench-objects:not([hidden]) button[aria-expanded]")
+                    .unwrap()
+                    .is_some()
+        })
+        .await;
+        assert_canvas_unchanged(&root);
+        by_role_name(&root, "button", "Inspect").unwrap().click();
+        wait_until("Inspect replaces Objects", || {
+            root.query_selector("#workbench-inspector:not([hidden]) [aria-label='Case Inspector']")
+                .unwrap()
+                .is_some()
+                && root.query_selector("#workbench-inspector:not([hidden]) [aria-label='Physical assembly']")
+                    .unwrap()
+                    .is_some()
+                && root.query_selector("#workbench-objects[hidden][inert]").unwrap().is_some()
+        })
+        .await;
+        assert_canvas_unchanged(&root);
+        by_role_name(&root, "button", "Inspect").unwrap().click();
+        wait_until("both Case panels close", || {
+            root.query_selector("#workbench-inspector[hidden][inert]").unwrap().is_some()
+        })
+        .await;
+        assert_canvas_unchanged(&root);
         root.remove();
     }
 }
