@@ -1,0 +1,14 @@
+[
+  {
+    "name": "simultaneous-panels",
+    "description": "Permit Objects and Inspect to be visible together",
+    "edits": [
+      {
+        "file": "web/src/presentation/workbench_shell.rs",
+        "old": "class: \"workbench-popout\", hidden: panel() != Some(kind),\n                    inert: (panel() != Some(kind)).then_some(\"\"),",
+        "new": "class: \"workbench-popout\", hidden: panel().is_none(),\n                    inert: panel().is_none().then_some(\"\"),",
+        "count": 1
+      }
+    ]
+  }
+]

@@ -1,0 +1,14 @@
+[
+  {
+    "name": "measure-closed-state",
+    "description": "Measure previous closed section state when opening",
+    "edits": [
+      {
+        "file": "web/src/presentation/workbench_shell.rs",
+        "old": "    let measured_groups = query_all(&probe, \"[data-workbench-section]\");\n    let actual_groups = query_all(live, \"[data-workbench-section]\");",
+        "new": "    let measured_groups = query_all(&probe, \"[data-workbench-section]\");\n    for group in &measured_groups { let _ = group.set_attribute(\"data-open\", \"false\"); }\n    let actual_groups = query_all(live, \"[data-workbench-section]\");",
+        "count": 1
+      }
+    ]
+  }
+]

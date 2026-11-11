@@ -1,0 +1,26 @@
+[
+  {
+    "name": "fade-moving-track",
+    "description": "Fade the moving action track during entrance",
+    "edits": [
+      {
+        "file": "web/assets/shell.css",
+        "old": "@keyframes workbench-tool-enter { from { transform: translateX(var(--workbench-tool-distance, 100%)); } to { transform: translateX(0); } }",
+        "new": "@keyframes workbench-tool-enter { from { opacity: 0; transform: translateX(var(--workbench-tool-distance, 100%)); } to { opacity: 1; transform: translateX(0); } }",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "name": "ignore-reduced-motion",
+    "description": "Do not suppress animation for reduced motion",
+    "edits": [
+      {
+        "file": "web/assets/shell.css",
+        "old": "@media (prefers-reduced-motion: reduce) {\n  .workbench-tool-row *, .workbench-tool-row *::before, .workbench-tool-row *::after { animation: none !important; transition: none !important; }\n}",
+        "new": "@media (prefers-reduced-motion: reduce) and (max-width: 1px) {\n  .workbench-tool-row *, .workbench-tool-row *::before, .workbench-tool-row *::after { animation: none !important; transition: none !important; }\n}",
+        "count": 1
+      }
+    ]
+  }
+]
