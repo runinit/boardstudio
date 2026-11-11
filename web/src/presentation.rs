@@ -111,8 +111,8 @@ mod pcb_workspace;
 pub(crate) use boardstudio_web_case::shared_viewer;
 pub(crate) use boardstudio_web_layout::setup_guide;
 mod notifications;
-mod workbench_shortcuts;
 mod workbench_shell;
+mod workbench_shortcuts;
 mod workspace_composition;
 mod workspace_navigation;
 mod zmk_firmware_export;
@@ -9611,20 +9611,14 @@ fn Editor() -> Element {
     };
     let toggle_objects = use_callback(move |()| {
         if workspace() == "Layout" {
-            workbench_shell::toggle_tool_panel(
-                layout_panel,
-                workbench_shell::ToolPanel::Objects,
-            );
+            workbench_shell::toggle_tool_panel(layout_panel, workbench_shell::ToolPanel::Objects);
         } else {
             toggle_panel(objects_open, inspect_open, objects_panel_settings);
         }
     });
     let toggle_inspector = use_callback(move |()| {
         if workspace() == "Layout" {
-            workbench_shell::toggle_tool_panel(
-                layout_panel,
-                workbench_shell::ToolPanel::Inspector,
-            );
+            workbench_shell::toggle_tool_panel(layout_panel, workbench_shell::ToolPanel::Inspector);
         } else {
             toggle_panel(inspect_open, objects_open, inspector_panel_settings);
         }

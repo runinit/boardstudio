@@ -535,6 +535,12 @@ async fn hovering_an_inherited_column_highlights_only_its_keys() {
 async fn keyboard_focus_highlights_and_blur_clears() {
     let root_id = "relation-highlight-focus";
     let probe = mount_column_relations(root_id).await;
+    let inspect = control(root_id, "button", "Inspect").unwrap();
+    inspect.click();
+    wait_until("the Inspector is open", || {
+        inspect.get_attribute("aria-expanded").as_deref() == Some("true")
+    })
+    .await;
     let reference = probe.inherited_by_reference();
     let document = web_sys::window().unwrap().document().unwrap();
     let description_id = reference.get_attribute("aria-describedby").unwrap();

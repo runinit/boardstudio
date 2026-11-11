@@ -83,8 +83,13 @@ struct PanelEvents {
 
 impl Drop for PanelEvents {
     fn drop(&mut self) {
-        let _ = self.window.remove_event_listener_with_callback("keydown", self.key.as_ref().unchecked_ref());
-        let _ = self.window.remove_event_listener_with_callback("pointerdown", self.pointer.as_ref().unchecked_ref());
+        let _ = self
+            .window
+            .remove_event_listener_with_callback("keydown", self.key.as_ref().unchecked_ref());
+        let _ = self.window.remove_event_listener_with_callback(
+            "pointerdown",
+            self.pointer.as_ref().unchecked_ref(),
+        );
     }
 }
 
@@ -152,41 +157,72 @@ pub(super) fn PanelHost(
     use_effect({
         let listeners = listeners.clone();
         move || {
-            let Some(root) = root() else { return; };
-            let Some(window) = web_sys::window() else { return; };
+            let Some(root) = root() else {
+                return;
+            };
+            let Some(window) = web_sys::window() else {
+                return;
+            };
             let key_root = root.clone();
             // Window bubble runs after nested controls, canvas picks and document-owned
             // relationship returns; a handled Escape must not dismiss two surfaces.
             let key = Closure::new(move |event: web_sys::KeyboardEvent| {
-                if key_root.is_connected() && event.key() == "Escape"
-                    && !event.default_prevented() && panel.peek().is_some()
+                if key_root.is_connected()
+                    && event.key() == "Escape"
+                    && !event.default_prevented()
+                    && panel.peek().is_some()
                 {
                     event.prevent_default();
                     close(panel, true);
                 }
             });
             let pointer = Closure::new(move |event: web_sys::PointerEvent| {
-                let Some(kind) = *panel.peek() else { return; };
-                if !root.is_connected() { return; }
-                let Some(target) = event.target().and_then(|target| target.dyn_into::<web_sys::Element>().ok()) else { return; };
-                let selector = format!("#{}, .workbench-utility, [role=menu], [role=listbox], [data-slot=popover-content]", kind.id());
+                let Some(kind) = *panel.peek() else {
+                    return;
+                };
+                if !root.is_connected() {
+                    return;
+                }
+                let Some(target) = event
+                    .target()
+                    .and_then(|target| target.dyn_into::<web_sys::Element>().ok())
+                else {
+                    return;
+                };
+                let selector = format!(
+                    "#{}, .workbench-utility, [role=menu], [role=listbox], [data-slot=popover-content]",
+                    kind.id()
+                );
                 if target.closest(&selector).ok().flatten().is_none() {
                     close(panel, false);
                 }
             });
-            let _ = window.add_event_listener_with_callback("keydown", key.as_ref().unchecked_ref());
-            let _ = window.add_event_listener_with_callback("pointerdown", pointer.as_ref().unchecked_ref());
-            *listeners.borrow_mut() = Some(PanelEvents { window, key, pointer });
+            let _ =
+                window.add_event_listener_with_callback("keydown", key.as_ref().unchecked_ref());
+            let _ = window
+                .add_event_listener_with_callback("pointerdown", pointer.as_ref().unchecked_ref());
+            *listeners.borrow_mut() = Some(PanelEvents {
+                window,
+                key,
+                pointer,
+            });
         }
     });
-    use_drop(move || { listeners.borrow_mut().take(); });
+    use_drop(move || {
+        listeners.borrow_mut().take();
+    });
     use_effect(move || {
-        let (Some(kind), Some(root)) = (panel(), root()) else { return; };
+        let (Some(kind), Some(root)) = (panel(), root()) else {
+            return;
+        };
         let selector = match kind {
             ToolPanel::Objects => "#workbench-objects input[type=search]",
             ToolPanel::Inspector => "#workbench-inspector h2",
         };
-        if let Some(target) = root.query_selector(selector).ok().flatten()
+        if let Some(target) = root
+            .query_selector(selector)
+            .ok()
+            .flatten()
             .and_then(|element| element.dyn_into::<HtmlElement>().ok())
         {
             let _ = target.focus();
@@ -266,18 +302,15 @@ fn track_fits(track: &web_sys::Element) -> bool {
 
 fn set_tool_distance(group: &web_sys::Element, track: &web_sys::Element) {
     if let Some(group) = group.dyn_ref::<HtmlElement>() {
-        let _ = group
-            .style()
-            .set_property("--workbench-tool-distance", &format!("{}px", track.scroll_width()));
+        let _ = group.style().set_property(
+            "--workbench-tool-distance",
+            &format!("{}px", track.scroll_width()),
+        );
     }
 }
 
 fn fit_open_labels(root: &web_sys::Element, group: &web_sys::Element) {
-    let Some(track) = group
-        .query_selector(".workbench-tool-track")
-        .ok()
-        .flatten()
-    else {
+    let Some(track) = group.query_selector(".workbench-tool-track").ok().flatten() else {
         return;
     };
     let _ = root.set_attribute("data-fit-headers", "none");
@@ -365,10 +398,7 @@ fn fit_tool_row(live: &web_sys::Element) {
             .ok()
             .flatten()
             .is_some()
-        && let Some(group) = active
-            .closest("[data-workbench-section]")
-            .ok()
-            .flatten()
+        && let Some(group) = active.closest("[data-workbench-section]").ok().flatten()
         && let Some(trigger) = group
             .query_selector("[data-workbench-section-trigger]")
             .ok()
@@ -389,7 +419,10 @@ fn fit_tool_row(live: &web_sys::Element) {
         descendant.remove_attr("id");
         descendant.remove_attr("data-dioxus-id");
     }
-    let probe_class = format!("{} workbench-tool-row-measuring", probe.get_attribute("class").unwrap_or_default());
+    let probe_class = format!(
+        "{} workbench-tool-row-measuring",
+        probe.get_attribute("class").unwrap_or_default()
+    );
     let _ = probe.set_attribute("class", &probe_class);
     let _ = probe.set_attribute("inert", "");
     let _ = probe.set_attribute("aria-hidden", "true");
@@ -399,11 +432,14 @@ fn fit_tool_row(live: &web_sys::Element) {
             live.get_bounding_client_rect().width()
         ));
     }
-    let parent = live.parent_element().map(|element| element.into()).or_else(|| {
-        live.owner_document()
-            .and_then(|document| document.body())
-            .map(Into::into)
-    });
+    let parent = live
+        .parent_element()
+        .map(|element| element.into())
+        .or_else(|| {
+            live.owner_document()
+                .and_then(|document| document.body())
+                .map(Into::into)
+        });
     let Some(parent) = parent else { return };
     let parent: web_sys::Node = parent;
     if parent.append_child(probe.as_ref()).is_err() {
@@ -498,8 +534,7 @@ pub(super) fn ToolRow(label: String, fit_key: String, children: Element) -> Elem
                         fit_tool_row(&resize_root);
                     }
                 });
-            let Ok(resize) =
-                web_sys::ResizeObserver::new(resize_callback.as_ref().unchecked_ref())
+            let Ok(resize) = web_sys::ResizeObserver::new(resize_callback.as_ref().unchecked_ref())
             else {
                 return;
             };
@@ -524,7 +559,10 @@ pub(super) fn ToolRow(label: String, fit_key: String, children: Element) -> Elem
             options.set_attribute_filter(&attribute_filter);
             options.set_child_list(true);
             options.set_subtree(true);
-            if mutation.observe_with_options(&root_element, &options).is_err() {
+            if mutation
+                .observe_with_options(&root_element, &options)
+                .is_err()
+            {
                 return;
             }
             if let Some(promise) = fonts_ready(root_element.owner_document()) {
@@ -707,53 +745,130 @@ mod tests {
     #[wasm_bindgen_test]
     async fn utilities_exclude_each_other_and_same_utility_closes_without_unmounting() {
         let root = mount();
-        wait_until("workbench utilities mount", || by_role_name(&root, "button", "Objects").is_some()).await;
+        wait_until("workbench utilities mount", || {
+            by_role_name(&root, "button", "Objects").is_some()
+        })
+        .await;
         let objects = by_role_name(&root, "button", "Objects").unwrap();
         objects.click();
-        wait_until("Objects opens", || objects.get_attribute("aria-expanded").as_deref() == Some("true")).await;
-        let retained = root.query_selector("input[aria-label='Retained value']").unwrap().unwrap();
+        wait_until("Objects opens", || {
+            objects.get_attribute("aria-expanded").as_deref() == Some("true")
+        })
+        .await;
+        let retained = root
+            .query_selector("input[aria-label='Retained value']")
+            .unwrap()
+            .unwrap();
         let inspect = by_role_name(&root, "button", "Inspect").unwrap();
         inspect.click();
-        wait_until("Inspect opens", || inspect.get_attribute("aria-expanded").as_deref() == Some("true")).await;
-        assert_eq!(objects.get_attribute("aria-expanded").as_deref(), Some("false"));
-        assert!(root.query_selector("#workbench-objects[inert][hidden]").unwrap().is_some(), "closed Objects is hidden and inert");
+        wait_until("Inspect opens", || {
+            inspect.get_attribute("aria-expanded").as_deref() == Some("true")
+        })
+        .await;
+        assert_eq!(
+            objects.get_attribute("aria-expanded").as_deref(),
+            Some("false")
+        );
+        assert!(
+            root.query_selector("#workbench-objects[inert][hidden]")
+                .unwrap()
+                .is_some(),
+            "closed Objects is hidden and inert"
+        );
         inspect.click();
-        wait_until("Inspect closes", || inspect.get_attribute("aria-expanded").as_deref() == Some("false")).await;
-        assert!(root.query_selector("#workbench-inspector[inert][hidden]").unwrap().is_some(), "closed Inspector is hidden and inert");
-        assert!(retained.is_same_node(root.query_selector("input[aria-label='Retained value']").unwrap().as_ref().map(|element| element.as_ref())), "visibility never replaces the editor node");
+        wait_until("Inspect closes", || {
+            inspect.get_attribute("aria-expanded").as_deref() == Some("false")
+        })
+        .await;
+        assert!(
+            root.query_selector("#workbench-inspector[inert][hidden]")
+                .unwrap()
+                .is_some(),
+            "closed Inspector is hidden and inert"
+        );
+        assert!(
+            retained.is_same_node(
+                root.query_selector("input[aria-label='Retained value']")
+                    .unwrap()
+                    .as_ref()
+                    .map(|element| element.as_ref())
+            ),
+            "visibility never replaces the editor node"
+        );
         root.remove();
     }
 
     #[wasm_bindgen_test]
     async fn dismissal_returns_focus_except_outside_pointer_keeps_its_target() {
         let root = mount();
-        wait_until("workbench utilities mount", || by_role_name(&root, "button", "Objects").is_some()).await;
+        wait_until("workbench utilities mount", || {
+            by_role_name(&root, "button", "Objects").is_some()
+        })
+        .await;
         let objects = by_role_name(&root, "button", "Objects").unwrap();
-        let search = root.query_selector("input[type=search]").unwrap().unwrap().dyn_into::<HtmlElement>().unwrap();
+        let search = root
+            .query_selector("input[type=search]")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<HtmlElement>()
+            .unwrap();
         let canvas = by_role_name(&root, "button", "Canvas target").unwrap();
         for dismissal in ["Close", "Escape", "outside pointer"] {
             objects.click();
-            wait_until("Objects focuses search", || search.owner_document().unwrap().active_element().as_ref() == Some(search.as_ref())).await;
+            wait_until("Objects focuses search", || {
+                search.owner_document().unwrap().active_element().as_ref() == Some(search.as_ref())
+            })
+            .await;
             match dismissal {
-                "Close" => by_role_name(&root, "button", "Close Objects").unwrap().click(),
+                "Close" => by_role_name(&root, "button", "Close Objects")
+                    .unwrap()
+                    .click(),
                 "Escape" => {
                     let init = web_sys::KeyboardEventInit::new();
                     init.set_key("Escape");
                     init.set_bubbles(true);
                     init.set_cancelable(true);
-                    search.dispatch_event(&web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init).unwrap()).unwrap();
+                    search
+                        .dispatch_event(
+                            &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict(
+                                "keydown", &init,
+                            )
+                            .unwrap(),
+                        )
+                        .unwrap();
                 }
                 _ => {
                     canvas.focus().unwrap();
                     let init = web_sys::PointerEventInit::new();
                     init.set_bubbles(true);
-                    canvas.dispatch_event(&web_sys::PointerEvent::new_with_event_init_dict("pointerdown", &init).unwrap()).unwrap();
+                    canvas
+                        .dispatch_event(
+                            &web_sys::PointerEvent::new_with_event_init_dict("pointerdown", &init)
+                                .unwrap(),
+                        )
+                        .unwrap();
                 }
             }
-            wait_until("Objects dismissed", || objects.get_attribute("aria-expanded").as_deref() == Some("false")).await;
-            let expected = if dismissal == "outside pointer" { &canvas } else { &objects };
-            assert_eq!(root.owner_document().unwrap().active_element().as_ref(), Some(expected.as_ref()), "{dismissal} focus target");
-            assert!(root.query_selector("#workbench-objects[hidden][inert]").unwrap().is_some(), "{dismissal} hides and inerts the content");
+            wait_until("Objects dismissed", || {
+                objects.get_attribute("aria-expanded").as_deref() == Some("false")
+            })
+            .await;
+            let expected = if dismissal == "outside pointer" {
+                &canvas
+            } else {
+                &objects
+            };
+            assert_eq!(
+                root.owner_document().unwrap().active_element().as_ref(),
+                Some(expected.as_ref()),
+                "{dismissal} focus target"
+            );
+            assert!(
+                root.query_selector("#workbench-objects[hidden][inert]")
+                    .unwrap()
+                    .is_some(),
+                "{dismissal} hides and inerts the content"
+            );
         }
         root.remove();
     }
@@ -764,37 +879,125 @@ mod tests {
         wait_until("the fitted tool row allocates its labels", || {
             root.query_selector("[data-workbench-section='alpha']")
                 .unwrap()
-                .is_some_and(|group| group.get_attribute("data-action-labels").as_deref() == Some("adaptive"))
+                .is_some_and(|group| {
+                    group.get_attribute("data-action-labels").as_deref() == Some("adaptive")
+                })
         })
         .await;
         let row = root.query_selector(".workbench-tool-row").unwrap().unwrap();
+        // Inspect the synchronous probe while it is attached, before fitting removes it.
+        let parent = row.parent_element().unwrap();
+        let capture = js_sys::Function::new_with_args(
+            "parent",
+            "const state = {}; const append = parent.appendChild; parent.appendChild = function(node) { const result = append.call(this, node); if (node.classList.contains('workbench-tool-row-measuring')) { state.inert = node.inert; state.hidden = node.getAttribute('aria-hidden'); const button = node.querySelector('button'); button.focus(); state.focused = node.contains(document.activeElement); state.buttonTabIndex = button.tabIndex; } return result; }; state.restore = () => { parent.appendChild = append; }; return state;",
+        )
+        .call1(&wasm_bindgen::JsValue::NULL, parent.as_ref())
+        .unwrap();
+        fit_tool_row(&row);
+        js_sys::Reflect::get(&capture, &"restore".into())
+            .unwrap()
+            .unchecked_into::<js_sys::Function>()
+            .call0(&wasm_bindgen::JsValue::NULL)
+            .unwrap();
+        assert_eq!(
+            js_sys::Reflect::get(&capture, &"inert".into())
+                .unwrap()
+                .as_bool(),
+            Some(true),
+            "the attached probe is inert and excluded from sequential focus"
+        );
+        assert_eq!(
+            js_sys::Reflect::get(&capture, &"hidden".into())
+                .unwrap()
+                .as_string()
+                .as_deref(),
+            Some("true")
+        );
+        assert_eq!(
+            js_sys::Reflect::get(&capture, &"focused".into())
+                .unwrap()
+                .as_bool(),
+            Some(false),
+            "probe controls cannot receive focus"
+        );
+        assert!(
+            root.query_selector(".workbench-tool-row-measuring")
+                .unwrap()
+                .is_none(),
+            "the probe leaves the tab order after measurement"
+        );
         let rect = row.get_bounding_client_rect();
-        assert!((rect.height() - 42.0).abs() < 0.5, "row stays 42px high: {}", rect.height());
-        assert!(row.scroll_width() <= row.client_width() + 1, "the row itself does not overflow");
-        let track = root.query_selector("[data-workbench-section='alpha'] .workbench-tool-track").unwrap().unwrap();
+        assert!(
+            (rect.height() - 42.0).abs() < 0.5,
+            "row stays 42px high: {}",
+            rect.height()
+        );
+        assert!(
+            row.scroll_width() <= row.client_width() + 1,
+            "the row itself does not overflow"
+        );
+        let track = root
+            .query_selector("[data-workbench-section='alpha'] .workbench-tool-track")
+            .unwrap()
+            .unwrap();
         let window = web_sys::window().unwrap();
         let label_display = |selector: &str| {
             let label = root.query_selector(selector).unwrap().unwrap();
-            window.get_computed_style(&label).unwrap().unwrap().get_property_value("display").unwrap()
+            window
+                .get_computed_style(&label)
+                .unwrap()
+                .unwrap()
+                .get_property_value("display")
+                .unwrap()
         };
-        assert_ne!(label_display("[aria-label='First very long action name'] .workbench-action-label"), "none", "the pressed action keeps its name");
-        assert_eq!(label_display("[aria-label='Third very long action name'] .workbench-action-label"), "none", "a lower-priority action folds before captions consume the lane");
-        root.query_selector("#tool-row-fixture").unwrap().unwrap().dyn_into::<HtmlElement>().unwrap().style().set_property("width", "320px").unwrap();
+        assert_ne!(
+            label_display("[aria-label='First very long action name'] .workbench-action-label"),
+            "none",
+            "the pressed action keeps its name"
+        );
+        assert_eq!(
+            label_display("[aria-label='Third very long action name'] .workbench-action-label"),
+            "none",
+            "a lower-priority action folds before captions consume the lane"
+        );
+        root.query_selector("#tool-row-fixture")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<HtmlElement>()
+            .unwrap()
+            .style()
+            .set_property("width", "320px")
+            .unwrap();
         wait_until("the narrow action lane retains native overflow", || {
-            track.scroll_width() > track.client_width() && row.scroll_width() <= row.client_width() + 1
+            track.scroll_width() > track.client_width()
+                && row.scroll_width() <= row.client_width() + 1
         })
         .await;
-        assert!(root.query_selector(".workbench-tool-row-measuring").unwrap().is_none(), "the measurement probe is removed");
+        assert!(
+            root.query_selector(".workbench-tool-row-measuring")
+                .unwrap()
+                .is_none(),
+            "the measurement probe is removed"
+        );
         let alpha = by_role_name(&root, "button", "Alpha").unwrap();
         alpha.focus().unwrap();
         let init = web_sys::KeyboardEventInit::new();
         init.set_key("End");
         init.set_bubbles(true);
         init.set_cancelable(true);
-        alpha.dispatch_event(&web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init).unwrap()).unwrap();
-        wait_until("End reaches Inspect without entering the closed section", || {
-            by_role_name(&root, "button", "Inspect").is_some_and(|inspect| inspect.matches(":focus").unwrap())
-        })
+        alpha
+            .dispatch_event(
+                &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
+                    .unwrap(),
+            )
+            .unwrap();
+        wait_until(
+            "End reaches Inspect without entering the closed section",
+            || {
+                by_role_name(&root, "button", "Inspect")
+                    .is_some_and(|inspect| inspect.matches(":focus").unwrap())
+            },
+        )
         .await;
         root.remove();
     }
@@ -835,7 +1038,10 @@ mod tests {
     #[wasm_bindgen_test]
     async fn panel_clamps_to_layout_viewport_and_synthetic_content_scroll_keeps_close_reachable() {
         let root = mount_component(clamp_fixture);
-        wait_until("workbench utilities mount", || by_role_name(&root, "button", "Objects").is_some()).await;
+        wait_until("workbench utilities mount", || {
+            by_role_name(&root, "button", "Objects").is_some()
+        })
+        .await;
         let window = web_sys::window().unwrap();
         let document = window.document().unwrap();
         let viewport = || {
@@ -845,54 +1051,149 @@ mod tests {
         };
         let assert_clamped = |panel_id: &str, close_name: &str, expected_width: f64| {
             let (vw, vh) = viewport();
-            let panel = root.query_selector(&format!("#{panel_id}")).unwrap().unwrap();
+            let panel = root
+                .query_selector(&format!("#{panel_id}"))
+                .unwrap()
+                .unwrap();
             let rect = panel.get_bounding_client_rect();
-            assert!(rect.left() >= -0.5, "{panel_id} left within viewport: {}", rect.left());
-            assert!(rect.right() <= vw + 0.5, "{panel_id} right within viewport: {} <= {vw}", rect.right());
-            assert!(rect.top() >= -0.5, "{panel_id} top within viewport: {}", rect.top());
-            assert!(rect.bottom() <= vh + 0.5, "{panel_id} bottom within viewport: {} <= {vh}", rect.bottom());
-            assert!((rect.width() - expected_width).abs() < 2.0, "{panel_id} width {expected_width}px: {}", rect.width());
-            assert!(rect.width() <= vw - 16.0 + 1.0, "{panel_id} width respects 16px safe inset");
+            assert!(
+                rect.left() >= -0.5,
+                "{panel_id} left within viewport: {}",
+                rect.left()
+            );
+            assert!(
+                rect.right() <= vw + 0.5,
+                "{panel_id} right within viewport: {} <= {vw}",
+                rect.right()
+            );
+            assert!(
+                rect.top() >= -0.5,
+                "{panel_id} top within viewport: {}",
+                rect.top()
+            );
+            assert!(
+                rect.bottom() <= vh + 0.5,
+                "{panel_id} bottom within viewport: {} <= {vh}",
+                rect.bottom()
+            );
+            assert!(
+                (rect.width() - expected_width).abs() < 2.0,
+                "{panel_id} width {expected_width}px: {}",
+                rect.width()
+            );
+            assert!(
+                rect.width() <= vw - 16.0 + 1.0,
+                "{panel_id} width respects 16px safe inset"
+            );
             let close = by_role_name(&root, "button", close_name).unwrap();
             let close_rect = close.get_bounding_client_rect();
-            assert!(close_rect.left() >= -0.5 && close_rect.right() <= vw + 0.5, "{close_name} horizontally within viewport");
-            assert!(close_rect.top() >= -0.5 && close_rect.bottom() <= vh + 0.5, "{close_name} vertically within viewport");
-            let content = panel.query_selector(".workbench-popout-content").unwrap().unwrap();
-            assert!(content.scroll_height() > content.client_height(), "{panel_id} tall content overflows its scroll container");
-            let overflow_y = window.get_computed_style(&content).unwrap().unwrap().get_property_value("overflow-y").unwrap();
-            assert!(overflow_y == "auto" || overflow_y == "scroll", "{panel_id} content scrolls vertically, got {overflow_y}");
+            assert!(
+                close_rect.left() >= -0.5 && close_rect.right() <= vw + 0.5,
+                "{close_name} horizontally within viewport"
+            );
+            assert!(
+                close_rect.top() >= -0.5 && close_rect.bottom() <= vh + 0.5,
+                "{close_name} vertically within viewport"
+            );
+            let content = panel
+                .query_selector(".workbench-popout-content")
+                .unwrap()
+                .unwrap();
+            assert!(
+                content.scroll_height() > content.client_height(),
+                "{panel_id} tall content overflows its scroll container"
+            );
+            let overflow_y = window
+                .get_computed_style(&content)
+                .unwrap()
+                .unwrap()
+                .get_property_value("overflow-y")
+                .unwrap();
+            assert!(
+                overflow_y == "auto" || overflow_y == "scroll",
+                "{panel_id} content scrolls vertically, got {overflow_y}"
+            );
             let doc_el = document.document_element().unwrap();
-            assert!(doc_el.scroll_width() <= vw as i32 + 1, "no page horizontal overflow");
-            assert!(doc_el.scroll_height() <= vh as i32 + 1, "no page vertical overflow");
-            assert!(document.query_selector("[data-backdrop]").unwrap().is_none(), "no backdrop");
-            assert!(panel.get_attribute("role").as_deref() != Some("dialog") || panel.get_attribute("aria-modal").as_deref() != Some("true"), "no modal ARIA");
-            let row_kind = if panel_id == "workbench-objects" { "Objects" } else { "Inspector" };
-            let last = panel.query_selector(&format!("[aria-label='{row_kind} row 59']")).unwrap().unwrap();
+            assert!(
+                doc_el.scroll_width() <= vw as i32 + 1,
+                "no page horizontal overflow"
+            );
+            assert!(
+                doc_el.scroll_height() <= vh as i32 + 1,
+                "no page vertical overflow"
+            );
+            assert!(
+                document
+                    .query_selector("[data-backdrop]")
+                    .unwrap()
+                    .is_none(),
+                "no backdrop"
+            );
+            assert!(
+                panel.get_attribute("role").as_deref() != Some("dialog")
+                    || panel.get_attribute("aria-modal").as_deref() != Some("true"),
+                "no modal ARIA"
+            );
+            let row_kind = if panel_id == "workbench-objects" {
+                "Objects"
+            } else {
+                "Inspector"
+            };
+            let last = panel
+                .query_selector(&format!("[aria-label='{row_kind} row 59']"))
+                .unwrap()
+                .unwrap();
             content.set_scroll_top(content.scroll_height());
             let last_rect = last.get_bounding_client_rect();
             let panel_rect = panel.get_bounding_client_rect();
-            assert!(last_rect.top() < panel_rect.bottom() && last_rect.bottom() > panel_rect.top(), "{panel_id} last row reachable after scroll");
+            assert!(
+                last_rect.top() < panel_rect.bottom() && last_rect.bottom() > panel_rect.top(),
+                "{panel_id} last row reachable after scroll"
+            );
             content.set_scroll_top(0);
         };
         let objects = by_role_name(&root, "button", "Objects").unwrap();
         objects.click();
-        wait_until("Objects opens", || objects.get_attribute("aria-expanded").as_deref() == Some("true")).await;
+        wait_until("Objects opens", || {
+            objects.get_attribute("aria-expanded").as_deref() == Some("true")
+        })
+        .await;
         let search = root.query_selector("input[type=search]").unwrap().unwrap();
-        wait_until("Objects focuses search", || document.active_element().as_ref() == Some(search.as_ref())).await;
+        wait_until("Objects focuses search", || {
+            document.active_element().as_ref() == Some(search.as_ref())
+        })
+        .await;
         assert_clamped("workbench-objects", "Close Objects", 320.0);
-        root.query_selector("#clamp-fixture").unwrap().unwrap().dyn_into::<HtmlElement>().unwrap().style().set_property("width", "320px").unwrap();
+        root.query_selector("#clamp-fixture")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<HtmlElement>()
+            .unwrap()
+            .style()
+            .set_property("width", "320px")
+            .unwrap();
         wait_until("panel stays clamped after lane resize", || {
             let panel = root.query_selector("#workbench-objects").unwrap().unwrap();
             let r = panel.get_bounding_client_rect();
             let (vw, vh) = viewport();
             r.left() >= -0.5 && r.right() <= vw + 0.5 && r.top() >= -0.5 && r.bottom() <= vh + 0.5
-        }).await;
+        })
+        .await;
         assert_clamped("workbench-objects", "Close Objects", 320.0);
         let inspect = by_role_name(&root, "button", "Inspect").unwrap();
         inspect.click();
-        wait_until("Inspect opens", || inspect.get_attribute("aria-expanded").as_deref() == Some("true")).await;
-        let heading = root.query_selector("#workbench-inspector h2").unwrap().unwrap();
-        wait_until("Inspect focuses heading", || document.active_element().as_ref() == Some(heading.as_ref())).await;
+        wait_until("Inspect opens", || {
+            inspect.get_attribute("aria-expanded").as_deref() == Some("true")
+        })
+        .await;
+        let heading = root
+            .query_selector("#workbench-inspector h2")
+            .unwrap()
+            .unwrap();
+        wait_until("Inspect focuses heading", || {
+            document.active_element().as_ref() == Some(heading.as_ref())
+        })
+        .await;
         assert_clamped("workbench-inspector", "Close Inspector", 400.0);
         root.remove();
     }
@@ -973,7 +1274,10 @@ mod tests {
     #[wasm_bindgen_test]
     async fn transient_refusal_blocks_utility_open_and_own_close_reopens_nothing() {
         let root = mount_component(transient_fixture);
-        wait_until("workbench utilities mount", || by_role_name(&root, "button", "Objects").is_some()).await;
+        wait_until("workbench utilities mount", || {
+            by_role_name(&root, "button", "Objects").is_some()
+        })
+        .await;
         let document = web_sys::window().unwrap().document().unwrap();
         let ping_count = || {
             root.query_selector("output[aria-label='Ping count']")
@@ -982,46 +1286,88 @@ mod tests {
                 .text_content()
                 .unwrap_or_default()
         };
-        assert!(by_role_name(&root, "menu", "Transient task").is_some(), "transient owner starts visible");
-        assert!(root.query_selector("#workbench-objects[hidden][inert]").unwrap().is_some());
-        assert!(root.query_selector("#workbench-inspector[hidden][inert]").unwrap().is_some());
-        by_role_name(&root, "button", "Refuse transient hide").unwrap().click();
+        assert!(
+            by_role_name(&root, "menu", "Transient task").is_some(),
+            "transient owner starts visible"
+        );
+        assert!(
+            root.query_selector("#workbench-objects[hidden][inert]")
+                .unwrap()
+                .is_some()
+        );
+        assert!(
+            root.query_selector("#workbench-inspector[hidden][inert]")
+                .unwrap()
+                .is_some()
+        );
+        by_role_name(&root, "button", "Refuse transient hide")
+            .unwrap()
+            .click();
         wait_until("refusal arms", || {
-            by_role_name(&root, "button", "Refuse transient hide")
-                .is_some_and(|button| button.get_attribute("aria-pressed").as_deref() == Some("true"))
+            by_role_name(&root, "button", "Refuse transient hide").is_some_and(|button| {
+                button.get_attribute("aria-pressed").as_deref() == Some("true")
+            })
         })
         .await;
         by_role_name(&root, "button", "Inspect").unwrap().click();
         let before = ping_count();
-        by_role_name(&root, "button", "Ping transient fixture").unwrap().click();
+        by_role_name(&root, "button", "Ping transient fixture")
+            .unwrap()
+            .click();
         wait_until("fixture settles a render pass", || ping_count() != before).await;
-        assert!(by_role_name(&root, "menu", "Transient task").is_some(), "refused hide keeps the owner visible");
-        assert!(root.query_selector("#workbench-inspector[hidden][inert]").unwrap().is_some(), "refused hide opens no panel");
+        assert!(
+            by_role_name(&root, "menu", "Transient task").is_some(),
+            "refused hide keeps the owner visible"
+        );
+        assert!(
+            root.query_selector("#workbench-inspector[hidden][inert]")
+                .unwrap()
+                .is_some(),
+            "refused hide opens no panel"
+        );
         assert_eq!(
-            by_role_name(&root, "button", "Inspect").unwrap().get_attribute("aria-expanded").as_deref(),
+            by_role_name(&root, "button", "Inspect")
+                .unwrap()
+                .get_attribute("aria-expanded")
+                .as_deref(),
             Some("false")
         );
-        by_role_name(&root, "button", "Allow transient hide").unwrap().click();
+        by_role_name(&root, "button", "Allow transient hide")
+            .unwrap()
+            .click();
         by_role_name(&root, "button", "Objects").unwrap().click();
         wait_until("Objects opens after the owner hides", || {
-            by_role_name(&root, "button", "Objects")
-                .is_some_and(|button| button.get_attribute("aria-expanded").as_deref() == Some("true"))
+            by_role_name(&root, "button", "Objects").is_some_and(|button| {
+                button.get_attribute("aria-expanded").as_deref() == Some("true")
+            })
         })
         .await;
-        assert!(by_role_name(&root, "menu", "Transient task").is_none(), "allowed hide parks the owner");
+        assert!(
+            by_role_name(&root, "menu", "Transient task").is_none(),
+            "allowed hide parks the owner"
+        );
         by_role_name(&root, "button", "Inspect").unwrap().click();
         wait_until("Inspect replaces Objects", || {
-            by_role_name(&root, "button", "Inspect")
-                .is_some_and(|button| button.get_attribute("aria-expanded").as_deref() == Some("true"))
+            by_role_name(&root, "button", "Inspect").is_some_and(|button| {
+                button.get_attribute("aria-expanded").as_deref() == Some("true")
+            })
         })
         .await;
-        by_role_name(&root, "button", "Close Inspector").unwrap().click();
+        by_role_name(&root, "button", "Close Inspector")
+            .unwrap()
+            .click();
         wait_until("Inspector closes", || {
-            by_role_name(&root, "button", "Inspect")
-                .is_some_and(|button| button.get_attribute("aria-expanded").as_deref() == Some("false"))
+            by_role_name(&root, "button", "Inspect").is_some_and(|button| {
+                button.get_attribute("aria-expanded").as_deref() == Some("false")
+            })
         })
         .await;
-        assert!(root.query_selector("#workbench-objects[hidden][inert]").unwrap().is_some(), "own close reopens no previous panel");
+        assert!(
+            root.query_selector("#workbench-objects[hidden][inert]")
+                .unwrap()
+                .is_some(),
+            "own close reopens no previous panel"
+        );
         let inspect = by_role_name(&root, "button", "Inspect").unwrap();
         assert_eq!(
             document.active_element().as_ref(),
@@ -1030,30 +1376,55 @@ mod tests {
         );
         by_role_name(&root, "button", "Objects").unwrap().click();
         wait_until("Objects reopens", || {
-            by_role_name(&root, "button", "Objects")
-                .is_some_and(|button| button.get_attribute("aria-expanded").as_deref() == Some("true"))
+            by_role_name(&root, "button", "Objects").is_some_and(|button| {
+                button.get_attribute("aria-expanded").as_deref() == Some("true")
+            })
         })
         .await;
-        by_role_name(&root, "button", "Open nested picker").unwrap().click();
-        wait_until("nested picker opens", || by_role_name(&root, "listbox", "Nested picker").is_some()).await;
+        by_role_name(&root, "button", "Open nested picker")
+            .unwrap()
+            .click();
+        wait_until("nested picker opens", || {
+            by_role_name(&root, "listbox", "Nested picker").is_some()
+        })
+        .await;
         let picker = by_role_name(&root, "listbox", "Nested picker").unwrap();
         picker.focus().unwrap();
         let escape = web_sys::KeyboardEventInit::new();
         escape.set_key("Escape");
         escape.set_bubbles(true);
         escape.set_cancelable(true);
-        picker.dispatch_event(&web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &escape).unwrap()).unwrap();
-        wait_until("picker consumes its Escape", || by_role_name(&root, "listbox", "Nested picker").is_none()).await;
+        picker
+            .dispatch_event(
+                &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &escape)
+                    .unwrap(),
+            )
+            .unwrap();
+        wait_until("picker consumes its Escape", || {
+            by_role_name(&root, "listbox", "Nested picker").is_none()
+        })
+        .await;
         assert!(
             by_role_name(&root, "button", "Objects")
-                .is_some_and(|button| button.get_attribute("aria-expanded").as_deref() == Some("true")),
+                .is_some_and(
+                    |button| button.get_attribute("aria-expanded").as_deref() == Some("true")
+                ),
             "the handled Escape preserves the parent panel"
         );
-        let search = root.query_selector("#workbench-objects input[type=search]").unwrap().unwrap();
-        search.dispatch_event(&web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &escape).unwrap()).unwrap();
+        let search = root
+            .query_selector("#workbench-objects input[type=search]")
+            .unwrap()
+            .unwrap();
+        search
+            .dispatch_event(
+                &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &escape)
+                    .unwrap(),
+            )
+            .unwrap();
         wait_until("panel closes on its own Escape", || {
-            by_role_name(&root, "button", "Objects")
-                .is_some_and(|button| button.get_attribute("aria-expanded").as_deref() == Some("false"))
+            by_role_name(&root, "button", "Objects").is_some_and(|button| {
+                button.get_attribute("aria-expanded").as_deref() == Some("false")
+            })
         })
         .await;
         root.remove();
@@ -1084,36 +1455,38 @@ mod tests {
                 Box::pin(async { panic!("canvas invariance test submits no physical edits") })
             }),
         );
-        let objects = super::super::case_workspace::objects(super::super::case_workspace::ObjectsInput {
-            model: &model,
-            scope: scope.clone(),
-            instance_scope_pending: false,
-            scene: None,
-            selected_context,
-            selected_body_id: None,
-            selected_layer_id: String::new(),
-            case_selection,
-            expanded,
-            on_action: EventHandler::new(|_| {}),
-            on_select: EventHandler::new(|_| {}),
-            on_display: EventHandler::new(|_| {}),
-        });
-        let inspector = super::super::case_workspace::inspector(super::super::case_workspace::InspectorInput {
-            physical_setup,
-            mechanical_settings: super::super::MechanicalSettingsMount {
-                props: None,
-                generation_ready: false,
-            },
-            instance_scope_pending: false,
-            scope,
-            scene: None,
-            case_selection,
-            selected_layer_id: String::new(),
-            selected_context: None,
-            selected_part_summary: None,
-            on_show_configured_board: EventHandler::new(|_| {}),
-            on_display: EventHandler::new(|_| {}),
-        });
+        let objects =
+            super::super::case_workspace::objects(super::super::case_workspace::ObjectsInput {
+                model: &model,
+                scope: scope.clone(),
+                instance_scope_pending: false,
+                scene: None,
+                selected_context,
+                selected_body_id: None,
+                selected_layer_id: String::new(),
+                case_selection,
+                expanded,
+                on_action: EventHandler::new(|_| {}),
+                on_select: EventHandler::new(|_| {}),
+                on_display: EventHandler::new(|_| {}),
+            });
+        let inspector =
+            super::super::case_workspace::inspector(super::super::case_workspace::InspectorInput {
+                physical_setup,
+                mechanical_settings: super::super::MechanicalSettingsMount {
+                    props: None,
+                    generation_ready: false,
+                },
+                instance_scope_pending: false,
+                scope,
+                scene: None,
+                case_selection,
+                selected_layer_id: String::new(),
+                selected_context: None,
+                selected_part_summary: None,
+                on_show_configured_board: EventHandler::new(|_| {}),
+                on_display: EventHandler::new(|_| {}),
+            });
         rsx! {
             style { {include_str!("../../assets/workbench-base.css")} }
             style { {include_str!("../../assets/tailwind.css")} }
@@ -1151,30 +1524,48 @@ mod tests {
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         wait_until("the Case canvas and its panel utilities mount", || {
-            root.query_selector("#case-canvas-standin").unwrap().is_some()
+            root.query_selector("#case-canvas-standin")
+                .unwrap()
+                .is_some()
                 && by_role_name(&root, "button", "Objects").is_some()
                 && by_role_name(&root, "button", "Inspect").is_some()
         })
         .await;
-        let canvas = root.query_selector("#case-canvas-standin").unwrap().unwrap();
+        let canvas = root
+            .query_selector("#case-canvas-standin")
+            .unwrap()
+            .unwrap();
         let rect = canvas.get_bounding_client_rect();
         let before = (rect.x(), rect.y(), rect.width(), rect.height());
-        assert!(before.2 > 0.0 && before.3 > 0.0, "the stand-in canvas has bounds");
+        assert!(
+            before.2 > 0.0 && before.3 > 0.0,
+            "the stand-in canvas has bounds"
+        );
         let camera = canvas.get_attribute("data-camera");
         let assert_canvas_unchanged = |root: &web_sys::Element| {
-            let current = root.query_selector("#case-canvas-standin").unwrap().unwrap();
+            let current = root
+                .query_selector("#case-canvas-standin")
+                .unwrap()
+                .unwrap();
             let rect = current.get_bounding_client_rect();
-            assert!(canvas.is_same_node(Some(current.as_ref())), "panel visibility must not remount the canvas");
+            assert!(
+                canvas.is_same_node(Some(current.as_ref())),
+                "panel visibility must not remount the canvas"
+            );
             assert_eq!((rect.x(), rect.y(), rect.width(), rect.height()), before);
             assert_eq!(current.get_attribute("data-camera"), camera);
-            assert_eq!(runtime.model().accepted.as_ref().unwrap().document.revision, revision);
+            assert_eq!(
+                runtime.model().accepted.as_ref().unwrap().document.revision,
+                revision
+            );
         };
         by_role_name(&root, "button", "Objects").unwrap().click();
         wait_until("actual Case Objects content opens", || {
             root.query_selector("#workbench-objects:not([hidden]) [aria-label='Current selection']")
                 .unwrap()
                 .is_some()
-                && root.query_selector("#workbench-objects:not([hidden]) button[aria-expanded]")
+                && root
+                    .query_selector("#workbench-objects:not([hidden]) button[aria-expanded]")
                     .unwrap()
                     .is_some()
         })
@@ -1185,16 +1576,24 @@ mod tests {
             root.query_selector("#workbench-inspector:not([hidden]) [aria-label='Case Inspector']")
                 .unwrap()
                 .is_some()
-                && root.query_selector("#workbench-inspector:not([hidden]) [aria-label='Physical assembly']")
+                && root
+                    .query_selector(
+                        "#workbench-inspector:not([hidden]) [aria-label='Physical assembly']",
+                    )
                     .unwrap()
                     .is_some()
-                && root.query_selector("#workbench-objects[hidden][inert]").unwrap().is_some()
+                && root
+                    .query_selector("#workbench-objects[hidden][inert]")
+                    .unwrap()
+                    .is_some()
         })
         .await;
         assert_canvas_unchanged(&root);
         by_role_name(&root, "button", "Inspect").unwrap().click();
         wait_until("both Case panels close", || {
-            root.query_selector("#workbench-inspector[hidden][inert]").unwrap().is_some()
+            root.query_selector("#workbench-inspector[hidden][inert]")
+                .unwrap()
+                .is_some()
         })
         .await;
         assert_canvas_unchanged(&root);

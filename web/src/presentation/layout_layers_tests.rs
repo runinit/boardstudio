@@ -96,8 +96,8 @@ fn host() -> Element {
     }
 }
 
-use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
 use boardstudio_web_ui_shared::ui::command::use_command_registry;
+use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
 use std::{cell::RefCell, rc::Rc};
 
 fn count(root: &web_sys::Element, selector: &str) -> u32 {
@@ -115,20 +115,26 @@ fn click(root: &web_sys::Element, name: &str) {
 fn toolbar_document() -> ProjectDoc {
     let mut document = document();
     let template = document.parts[0].clone();
-    document.parts = (0..14).map(|column| {
-        let mut part = template.clone();
-        part.id = format!("matrix/matrix/r0c{column}");
-        part.reference = format!("SW{}", column + 1);
-        part.pose.at.x = 19.0 * column as f64;
-        part
-    }).collect();
+    document.parts = (0..14)
+        .map(|column| {
+            let mut part = template.clone();
+            part.id = format!("matrix/matrix/r0c{column}");
+            part.reference = format!("SW{}", column + 1);
+            part.pose.at.x = 19.0 * column as f64;
+            part
+        })
+        .collect();
     document.boards[0].part_ids = document.parts.iter().map(|part| part.id.clone()).collect();
     let mut matrix = serde_json::to_value(&document.matrices[0]).unwrap();
     matrix["columns"] = 14.into();
     matrix["partIds"] = serde_json::to_value(&document.boards[0].part_ids).unwrap();
-    matrix["cells"] = serde_json::json!((0..14).map(|column| serde_json::json!({
-        "row": 0, "column": column, "enabled": true, "assemblies": []
-    })).collect::<Vec<_>>());
+    matrix["cells"] = serde_json::json!(
+        (0..14)
+            .map(|column| serde_json::json!({
+                "row": 0, "column": column, "enabled": true, "assemblies": []
+            }))
+            .collect::<Vec<_>>()
+    );
     document.matrices[0] = serde_json::from_value(matrix).unwrap();
     document
 }
@@ -142,8 +148,10 @@ async fn mount_toolbar_fixture(
     support::open_document(&runtime, fixture).await;
     support::navigate(&runtime, "board").await;
     runtime.submit(Event::SelectParts {
-        operation_id: runtime.operation(), part_ids: selected_parts,
-        range_part_ids: Vec::new(), mode: boardstudio_application::SelectionMode::Replace,
+        operation_id: runtime.operation(),
+        part_ids: selected_parts,
+        range_part_ids: Vec::new(),
+        mode: boardstudio_application::SelectionMode::Replace,
     });
     support::run_pending(&runtime).await;
     let document = web_sys::window().unwrap().document().unwrap();
@@ -153,11 +161,18 @@ async fn mount_toolbar_fixture(
     dom.provide_root_context(runtime.clone());
     if let Some(context) = context {
         dom.provide_root_context(objects::ScopedTreeContext {
-            scope: runtime.scope().expect("accepted fixture has a scope"), context,
+            scope: runtime.scope().expect("accepted fixture has a scope"),
+            context,
         });
     }
-    dioxus_web::launch::launch_virtual_dom(dom, dioxus_web::Config::new().rootnode(root.clone().into()));
-    wait_until("the actual accordion mounts", || by_role_name(&root, "button", "Transform").is_some()).await;
+    dioxus_web::launch::launch_virtual_dom(
+        dom,
+        dioxus_web::Config::new().rootnode(root.clone().into()),
+    );
+    wait_until("the actual accordion mounts", || {
+        by_role_name(&root, "button", "Transform").is_some()
+    })
+    .await;
     (runtime, root)
 }
 
@@ -166,7 +181,10 @@ async fn accordion_availability_preserves_accepted_state() {
     for label in ["first column", "Follow rotation off", "locked", "empty"] {
         let mut fixture = toolbar_document();
         let context = match label {
-            "first column" => Some(objects::TreeContext::Column { matrix_id: "matrix".into(), column: 0 }),
+            "first column" => Some(objects::TreeContext::Column {
+                matrix_id: "matrix".into(),
+                column: 0,
+            }),
             "Follow rotation off" => {
                 let mut source = fixture.matrices[0].clone();
                 source.id = "source".into();
@@ -180,80 +198,177 @@ async fn accordion_availability_preserves_accepted_state() {
                 fixture.parts.push(source_key);
                 fixture.matrices.push(source);
                 fixture.layouts.push(boardstudio_core::model::Layout {
-                    id: "layout".into(), name: "Layout".into(), board_id: "board".into(),
-                    matrix_ids: vec!["source".into(), "matrix".into()], part_ids: vec![], mirror_link: None,
+                    id: "layout".into(),
+                    name: "Layout".into(),
+                    board_id: "board".into(),
+                    matrix_ids: vec!["source".into(), "matrix".into()],
+                    part_ids: vec![],
+                    mirror_link: None,
                 });
                 fixture.matrices[0].anchor = Some(boardstudio_core::model::MatrixAnchor {
-                    matrix_id: "source".into(), row: 0, column: 0,
-                    follow: boardstudio_core::model::Follow { x: true, y: true, rotation: false },
+                    matrix_id: "source".into(),
+                    row: 0,
+                    column: 0,
+                    follow: boardstudio_core::model::Follow {
+                        x: true,
+                        y: true,
+                        rotation: false,
+                    },
                     aggregate: None,
                 });
-                Some(objects::TreeContext::Matrix { matrix_id: "matrix".into() })
+                Some(objects::TreeContext::Matrix {
+                    matrix_id: "matrix".into(),
+                })
             }
             "locked" => {
                 fixture.parts[0].locked = Some(true);
-                Some(objects::TreeContext::Key { matrix_id: "matrix".into(), row: 0, column: 0 })
+                Some(objects::TreeContext::Key {
+                    matrix_id: "matrix".into(),
+                    row: 0,
+                    column: 0,
+                })
             }
             _ => None,
         };
-        let selected = if context.is_some() { vec![fixture.parts[0].id.clone()] } else { vec![] };
+        let selected = if context.is_some() {
+            vec![fixture.parts[0].id.clone()]
+        } else {
+            vec![]
+        };
         let (runtime, root) = mount_toolbar_fixture(fixture, context, selected).await;
         let accepted = runtime.model().accepted.as_ref().unwrap().document.clone();
         if label == "first column" || label == "Follow rotation off" {
             click(&root, "Select");
-            let scope = if label == "first column" { "Select Column" } else { "Select Matrix" };
-            wait_until("selection scope choice mounts", || by_role_name(&root, "button", scope).is_some()).await;
+            let scope = if label == "first column" {
+                "Select Column"
+            } else {
+                "Select Matrix"
+            };
+            wait_until("selection scope choice mounts", || {
+                by_role_name(&root, "button", scope).is_some()
+            })
+            .await;
             click(&root, scope);
             settle_frames().await;
         }
         click(&root, "Transform");
-        wait_until(label, || count(&root, "[data-workbench-section='transform'][data-open='true']") == 1).await;
-        let section = root.query_selector("[data-workbench-section='transform']").unwrap().unwrap();
+        wait_until(label, || {
+            count(
+                &root,
+                "[data-workbench-section='transform'][data-open='true']",
+            ) == 1
+        })
+        .await;
+        let section = root
+            .query_selector("[data-workbench-section='transform']")
+            .unwrap()
+            .unwrap();
         if label == "Follow rotation off" {
             let reason = "Rotate matrix (unavailable: Follow rotation is off)";
             let rotate = by_role_name(&section, "button", reason).expect("unchanged Rotate reason");
             assert!(rotate.has_attribute("disabled"));
             rotate.click();
             settle_frames().await;
-            assert_ne!(rotate.get_attribute("aria-pressed").as_deref(), Some("true"));
+            assert_ne!(
+                rotate.get_attribute("aria-pressed").as_deref(),
+                Some("true")
+            );
             assert_eq!(rotate.get_attribute("aria-label").as_deref(), Some(reason));
             click(&section, "Activate Move for the selected matrix");
-            wait_until("legal Move still activates", || by_role_name(&section, "button", "Activate Move for the selected matrix").is_some_and(|button| button.get_attribute("aria-pressed").as_deref() == Some("true"))).await;
+            wait_until("legal Move still activates", || {
+                by_role_name(&section, "button", "Activate Move for the selected matrix")
+                    .is_some_and(|button| {
+                        button.get_attribute("aria-pressed").as_deref() == Some("true")
+                    })
+            })
+            .await;
         } else if label == "first column" {
             click(&section, "Activate Spread for the selected column");
             settle_frames().await;
-            assert_eq!(runtime.model().accepted.as_ref().unwrap().document, accepted);
+            assert_eq!(
+                runtime.model().accepted.as_ref().unwrap().document,
+                accepted
+            );
             click(&section, "Open Position and rotation properties for Column");
-            wait_until("column zero retains its Spread explanation", || root.text_content().unwrap_or_default().contains("Spread starts at column 1. Column 0 steps by pitch.")).await;
-            assert_eq!(count(&root, "button[aria-label='Open Position and rotation properties for Column']"), 1);
+            wait_until("column zero retains its Spread explanation", || {
+                root.text_content()
+                    .unwrap_or_default()
+                    .contains("Spread starts at column 1. Column 0 steps by pitch.")
+            })
+            .await;
+            assert_eq!(
+                count(
+                    &root,
+                    "button[aria-label='Open Position and rotation properties for Column']"
+                ),
+                1
+            );
             click(&section, "Activate Stagger for the selected column");
-            wait_until("legal Stagger still activates", || by_role_name(&section, "button", "Activate Stagger for the selected column").is_some_and(|button| button.get_attribute("aria-pressed").as_deref() == Some("true"))).await;
+            wait_until("legal Stagger still activates", || {
+                by_role_name(
+                    &section,
+                    "button",
+                    "Activate Stagger for the selected column",
+                )
+                .is_some_and(|button| {
+                    button.get_attribute("aria-pressed").as_deref() == Some("true")
+                })
+            })
+            .await;
         } else {
             let buttons = section.query_selector_all("button[disabled]").unwrap();
             for index in 0..buttons.length() {
-                buttons.item(index).unwrap().dyn_into::<web_sys::HtmlElement>().unwrap().click();
+                buttons
+                    .item(index)
+                    .unwrap()
+                    .dyn_into::<web_sys::HtmlElement>()
+                    .unwrap()
+                    .click();
             }
             settle_frames().await;
-            assert_eq!(count(&section, "button[aria-pressed='true']"), 0, "{label}: unavailable tools cannot activate");
+            assert_eq!(
+                count(&section, "button[aria-pressed='true']"),
+                0,
+                "{label}: unavailable tools cannot activate"
+            );
             if label == "empty" {
                 let reason = "Select a key on the canvas to edit it.";
-                let guidance = by_role_name(&section, "button", reason).expect("unchanged empty-selection guidance");
+                let guidance = by_role_name(&section, "button", reason)
+                    .expect("unchanged empty-selection guidance");
                 guidance.click();
                 settle_frames().await;
-                assert_eq!(guidance.get_attribute("aria-label").as_deref(), Some(reason));
+                assert_eq!(
+                    guidance.get_attribute("aria-label").as_deref(),
+                    Some(reason)
+                );
             }
             click(&root, "Align");
-            wait_until("blocked Align action is rendered", || by_role_name(&root, "button", "Left").is_some()).await;
+            wait_until("blocked Align action is rendered", || {
+                by_role_name(&root, "button", "Left").is_some()
+            })
+            .await;
             let left = by_role_name(&root, "button", "Left").unwrap();
-            assert!(left.has_attribute("disabled"), "{label}: Align remains unavailable");
+            assert!(
+                left.has_attribute("disabled"),
+                "{label}: Align remains unavailable"
+            );
             left.click();
             if label == "locked" {
                 click(&root, "Alignment reference");
-                wait_until("locked selection retains its reason", || root.text_content().unwrap_or_default().contains("Unlock or remove the driving constraint before aligning.")).await;
+                wait_until("locked selection retains its reason", || {
+                    root.text_content()
+                        .unwrap_or_default()
+                        .contains("Unlock or remove the driving constraint before aligning.")
+                })
+                .await;
             }
             settle_frames().await;
         }
-        assert_eq!(runtime.model().accepted.as_ref().unwrap().document, accepted, "{label}: activation leaves accepted state unchanged");
+        assert_eq!(
+            runtime.model().accepted.as_ref().unwrap().document,
+            accepted,
+            "{label}: activation leaves accepted state unchanged"
+        );
         root.remove();
     }
 }
@@ -262,59 +377,143 @@ async fn accordion_availability_preserves_accepted_state() {
 async fn accordion_action_parity_with_more_than_twelve_references() {
     let fixture = toolbar_document();
     let selected = vec![fixture.parts[1].id.clone()];
-    let (runtime, root) = mount_toolbar_fixture(fixture, Some(objects::TreeContext::Key {
-        matrix_id: "matrix".into(), row: 0, column: 1,
-    }), selected).await;
+    let (runtime, root) = mount_toolbar_fixture(
+        fixture,
+        Some(objects::TreeContext::Key {
+            matrix_id: "matrix".into(),
+            row: 0,
+            column: 1,
+        }),
+        selected,
+    )
+    .await;
     let accepted = runtime.model().accepted.as_ref().unwrap().document.clone();
     click(&root, "Align");
-    wait_until("Align exposes its named actions", || by_role_name(&root, "button", "Left").is_some()).await;
-    assert!(!by_role_name(&root, "button", "Left").unwrap().has_attribute("disabled"));
+    wait_until("Align exposes its named actions", || {
+        by_role_name(&root, "button", "Left").is_some()
+    })
+    .await;
+    assert!(
+        !by_role_name(&root, "button", "Left")
+            .unwrap()
+            .has_attribute("disabled")
+    );
     click(&root, "Alignment reference");
-    wait_until("large reference set uses the existing combobox", || by_role_name(&root, "combobox", "Alignment reference").is_some()).await;
+    wait_until("large reference set uses the existing combobox", || {
+        by_role_name(&root, "combobox", "Alignment reference").is_some()
+    })
+    .await;
     let input = by_role_name(&root, "combobox", "Alignment reference").unwrap();
     input.focus().unwrap();
     let event = web_sys::KeyboardEventInit::new();
     event.set_key("ArrowDown");
     event.set_bubbles(true);
-    input.dispatch_event(&web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &event).unwrap()).unwrap();
-    let html_input = input.clone().dyn_into::<web_sys::HtmlInputElement>().unwrap();
+    input
+        .dispatch_event(
+            &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &event).unwrap(),
+        )
+        .unwrap();
+    let html_input = input
+        .clone()
+        .dyn_into::<web_sys::HtmlInputElement>()
+        .unwrap();
     html_input.set_value("SW14");
     let input_event = web_sys::EventInit::new();
     input_event.set_bubbles(true);
-    input.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &input_event).unwrap()).unwrap();
-    wait_until("reference choices filter to SW14", || by_role_name(&root, "option", "SW14").is_some()).await;
-    input.dispatch_event(&web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &event).unwrap()).unwrap();
-    wait_until("SW14 is the active reference", || by_role_name(&root, "option", "SW14").is_some_and(|option| input.get_attribute("aria-activedescendant").as_deref() == Some(option.id().as_str()))).await;
+    input
+        .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &input_event).unwrap())
+        .unwrap();
+    wait_until("reference choices filter to SW14", || {
+        by_role_name(&root, "option", "SW14").is_some()
+    })
+    .await;
+    input
+        .dispatch_event(
+            &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &event).unwrap(),
+        )
+        .unwrap();
+    wait_until("SW14 is the active reference", || {
+        by_role_name(&root, "option", "SW14").is_some_and(|option| {
+            input.get_attribute("aria-activedescendant").as_deref() == Some(option.id().as_str())
+        })
+    })
+    .await;
     event.set_key("Enter");
-    input.dispatch_event(&web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &event).unwrap()).unwrap();
-    wait_until("SW14 is selected", || html_input.value() == "SW14" && input.get_attribute("aria-expanded").as_deref() == Some("false")).await;
-    assert_eq!(runtime.model().accepted.as_ref().unwrap().document, accepted, "reference selection is view state");
+    input
+        .dispatch_event(
+            &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &event).unwrap(),
+        )
+        .unwrap();
+    wait_until("SW14 is selected", || {
+        html_input.value() == "SW14"
+            && input.get_attribute("aria-expanded").as_deref() == Some("false")
+    })
+    .await;
+    assert_eq!(
+        runtime.model().accepted.as_ref().unwrap().document,
+        accepted,
+        "reference selection is view state"
+    );
     click(&root, "Close Alignment reference");
     settle_frames().await;
     click(&root, "Left");
     settle_frames().await;
     support::run_pending(&runtime).await;
-    wait_until("Left alignment is accepted", || runtime.model().accepted.as_ref().unwrap().document.revision > accepted.revision).await;
+    wait_until("Left alignment is accepted", || {
+        runtime.model().accepted.as_ref().unwrap().document.revision > accepted.revision
+    })
+    .await;
     let aligned = runtime.model().accepted.as_ref().unwrap().document.clone();
-    let moving = aligned.parts.iter().find(|part| part.reference == "SW2").unwrap();
-    let reference = aligned.parts.iter().find(|part| part.reference == "SW14").unwrap();
-    assert_eq!(moving.pose.at.x, reference.pose.at.x, "identical envelopes align their left edges");
+    let moving = aligned
+        .parts
+        .iter()
+        .find(|part| part.reference == "SW2")
+        .unwrap();
+    let reference = aligned
+        .parts
+        .iter()
+        .find(|part| part.reference == "SW14")
+        .unwrap();
+    assert_eq!(
+        moving.pose.at.x, reference.pose.at.x,
+        "identical envelopes align their left edges"
+    );
     assert_eq!(moving.pose.at.y, accepted.parts[1].pose.at.y);
-    assert_eq!(aligned.parts.iter().find(|part| part.reference == "SW14").unwrap(), &accepted.parts[13]);
+    assert_eq!(
+        aligned
+            .parts
+            .iter()
+            .find(|part| part.reference == "SW14")
+            .unwrap(),
+        &accepted.parts[13]
+    );
     click(&root, "Snap");
-    wait_until("Snap section opens", || count(&root, "[data-workbench-section='snap'][data-open='true']") == 1).await;
+    wait_until("Snap section opens", || {
+        count(&root, "[data-workbench-section='snap'][data-open='true']") == 1
+    })
+    .await;
     assert_eq!(count(&root, "button[aria-label='Snap increment']"), 1);
     assert_eq!(count(&root, "button[aria-label='Snap settings']"), 1);
     click(&root, "Snap settings");
-    wait_until("Snap details open", || by_role_name(&root, "dialog", "Snap settings").is_some()).await;
+    wait_until("Snap details open", || {
+        by_role_name(&root, "dialog", "Snap settings").is_some()
+    })
+    .await;
     assert_eq!(count(&root, "#m1-layout-snap-menu"), 1);
     click(&root, "Close Snap");
     settle_frames().await;
     click(&root, "View");
-    wait_until("View opens", || by_role_name(&root, "button", "Footprints").is_some()).await;
+    wait_until("View opens", || {
+        by_role_name(&root, "button", "Footprints").is_some()
+    })
+    .await;
     assert_eq!(count(&root, "button[aria-label='Footprints']"), 1);
     click(&root, "Footprints");
-    wait_until("View retains the Footprints toggle action", || by_role_name(&root, "button", "Footprints").is_some_and(|button| button.get_attribute("aria-pressed").as_deref() == Some("true"))).await;
+    wait_until("View retains the Footprints toggle action", || {
+        by_role_name(&root, "button", "Footprints")
+            .is_some_and(|button| button.get_attribute("aria-pressed").as_deref() == Some("true"))
+    })
+    .await;
     assert_eq!(runtime.model().accepted.as_ref().unwrap().document, aligned);
     root.remove();
 }
@@ -333,27 +532,40 @@ async fn view_section_closes_after_3d_round_trip() {
         dom,
         dioxus_web::Config::new().rootnode(root.clone().into()),
     );
-    wait_until("View mounts", || by_role_name(&root, "button", "View").is_some()).await;
+    wait_until("View mounts", || {
+        by_role_name(&root, "button", "View").is_some()
+    })
+    .await;
     click(&root, "View");
     wait_until("View opens", || {
         count(&root, "[data-workbench-section='view'][data-open='true']") == 1
-    }).await;
+    })
+    .await;
     click(&root, "3D assembly");
     wait_until("3D is selected", || {
         by_role_name(&root, "button", "3D assembly")
             .is_some_and(|button| button.get_attribute("aria-pressed").as_deref() == Some("true"))
-    }).await;
+    })
+    .await;
     assert_eq!(count(&root, "[data-workbench-section='view']"), 0);
     click(&root, "2D");
     wait_until("2D section returns", || {
         count(&root, "[data-workbench-section='view']") == 1
-    }).await;
-    assert_eq!(count(&root, "[data-workbench-section='view'][data-open='true']"), 0);
+    })
+    .await;
+    assert_eq!(
+        count(&root, "[data-workbench-section='view'][data-open='true']"),
+        0
+    );
     click(&root, "View");
     wait_until("View can reopen", || {
         count(&root, "[data-workbench-section='view'][data-open='true']") == 1
-    }).await;
-    assert_eq!(runtime.model().accepted.as_ref().unwrap().document.revision, revision);
+    })
+    .await;
+    assert_eq!(
+        runtime.model().accepted.as_ref().unwrap().document.revision,
+        revision
+    );
     root.remove();
 }
 
@@ -755,7 +967,9 @@ async fn layout_panels_overlay_the_same_canvas_without_a_legacy_dock() {
         dioxus_web::Config::new().rootnode(root.clone().into()),
     );
     wait_until("the Layout canvas and its panel utilities mount", || {
-        root.query_selector("#m1-workspace-panel svg[role='group']").unwrap().is_some()
+        root.query_selector("#m1-workspace-panel svg[role='group']")
+            .unwrap()
+            .is_some()
             && by_role_name(&root, "button", "Objects").is_some()
             && by_role_name(&root, "button", "Inspect").is_some()
     })
@@ -766,7 +980,10 @@ async fn layout_panels_overlay_the_same_canvas_without_a_legacy_dock() {
         .unwrap();
     let rect = canvas.get_bounding_client_rect();
     let before = (rect.x(), rect.y(), rect.width(), rect.height());
-    assert!(before.2 > 0.0 && before.3 > 0.0, "production CSS gives the canvas bounds");
+    assert!(
+        before.2 > 0.0 && before.3 > 0.0,
+        "production CSS gives the canvas bounds"
+    );
     let view_box = canvas.get_attribute("viewBox");
     assert_eq!(count(&root, "#m1-objects-panel, #m1-inspector-panel"), 0);
     let assert_canvas_unchanged = |root: &web_sys::Element| {
@@ -775,10 +992,16 @@ async fn layout_panels_overlay_the_same_canvas_without_a_legacy_dock() {
             .unwrap()
             .unwrap();
         let rect = current.get_bounding_client_rect();
-        assert!(canvas.is_same_node(Some(current.as_ref())), "panel visibility must not remount the canvas");
+        assert!(
+            canvas.is_same_node(Some(current.as_ref())),
+            "panel visibility must not remount the canvas"
+        );
         assert_eq!((rect.x(), rect.y(), rect.width(), rect.height()), before);
         assert_eq!(current.get_attribute("viewBox"), view_box);
-        assert_eq!(runtime.model().accepted.as_ref().unwrap().document.revision, revision);
+        assert_eq!(
+            runtime.model().accepted.as_ref().unwrap().document.revision,
+            revision
+        );
     };
     click(&root, "Objects");
     wait_until("actual Layout Objects content opens", || {
@@ -790,14 +1013,21 @@ async fn layout_panels_overlay_the_same_canvas_without_a_legacy_dock() {
     assert_canvas_unchanged(&root);
     click(&root, "Inspect");
     wait_until("Inspect replaces Objects", || {
-        root.query_selector("#workbench-inspector:not([hidden])").unwrap().is_some()
-            && root.query_selector("#workbench-objects[hidden][inert]").unwrap().is_some()
+        root.query_selector("#workbench-inspector:not([hidden])")
+            .unwrap()
+            .is_some()
+            && root
+                .query_selector("#workbench-objects[hidden][inert]")
+                .unwrap()
+                .is_some()
     })
     .await;
     assert_canvas_unchanged(&root);
     click(&root, "Inspect");
     wait_until("both Layout panels close", || {
-        root.query_selector("#workbench-inspector[hidden][inert]").unwrap().is_some()
+        root.query_selector("#workbench-inspector[hidden][inert]")
+            .unwrap()
+            .is_some()
     })
     .await;
     assert_canvas_unchanged(&root);
@@ -819,23 +1049,34 @@ async fn actual_layout_tool_row_has_seven_entry_points_and_stable_canvas() {
         dioxus_web::Config::new().rootnode(root.clone().into()),
     );
     wait_until("the Layout canvas and its panel utilities mount", || {
-        root.query_selector("#m1-workspace-panel svg[role='group']").unwrap().is_some()
+        root.query_selector("#m1-workspace-panel svg[role='group']")
+            .unwrap()
+            .is_some()
             && by_role_name(&root, "button", "Objects").is_some()
             && by_role_name(&root, "button", "Inspect").is_some()
     })
     .await;
     web_sys::window().unwrap().scroll_to_with_x_and_y(0.0, 0.0);
-    assert_eq!(count(&root, ".workbench-tool-row"), 1, "one bounded tool row");
+    assert_eq!(
+        count(&root, ".workbench-tool-row"),
+        1,
+        "one bounded tool row"
+    );
     let row = root.query_selector(".workbench-tool-row").unwrap().unwrap();
     let height = row.get_bounding_client_rect().height();
-    assert!(
-        (height - 42.0).abs() < 0.5,
-        "row stays 42px high: {height}"
-    );
+    assert!((height - 42.0).abs() < 0.5, "row stays 42px high: {height}");
     let window = web_sys::window().unwrap();
     assert_eq!(count(&root, "#workbench-objects:not([hidden])"), 0);
     assert_eq!(count(&root, "#workbench-inspector:not([hidden])"), 0);
-    for name in ["Select", "Transform", "Align", "Snap", "View", "Objects", "Inspect"] {
+    for name in [
+        "Select",
+        "Transform",
+        "Align",
+        "Snap",
+        "View",
+        "Objects",
+        "Inspect",
+    ] {
         let button = by_role_name(&root, "button", name)
             .unwrap_or_else(|| panic!("{name} entry is rendered"));
         let rect = button.get_bounding_client_rect();
@@ -872,7 +1113,10 @@ async fn actual_layout_tool_row_has_seven_entry_points_and_stable_canvas() {
         .unwrap();
     let rect = canvas.get_bounding_client_rect();
     let before = (rect.x(), rect.y(), rect.width(), rect.height());
-    assert!(before.2 > 0.0 && before.3 > 0.0, "production CSS gives the canvas bounds");
+    assert!(
+        before.2 > 0.0 && before.3 > 0.0,
+        "production CSS gives the canvas bounds"
+    );
     let view_box = canvas.get_attribute("viewBox");
     let assert_canvas_unchanged = |root: &web_sys::Element| {
         let current = root
@@ -880,10 +1124,16 @@ async fn actual_layout_tool_row_has_seven_entry_points_and_stable_canvas() {
             .unwrap()
             .unwrap();
         let rect = current.get_bounding_client_rect();
-        assert!(canvas.is_same_node(Some(current.as_ref())), "panel/section visibility must not remount the canvas");
+        assert!(
+            canvas.is_same_node(Some(current.as_ref())),
+            "panel/section visibility must not remount the canvas"
+        );
         assert_eq!((rect.x(), rect.y(), rect.width(), rect.height()), before);
         assert_eq!(current.get_attribute("viewBox"), view_box);
-        assert_eq!(runtime.model().accepted.as_ref().unwrap().document.revision, revision);
+        assert_eq!(
+            runtime.model().accepted.as_ref().unwrap().document.revision,
+            revision
+        );
     };
     for (name, key) in [
         ("Select", "select"),
@@ -895,9 +1145,11 @@ async fn actual_layout_tool_row_has_seven_entry_points_and_stable_canvas() {
         click(&root, name);
         let what = format!("{name} section opens alone");
         wait_until(&what, || {
-            root.query_selector(&format!("[data-workbench-section='{key}'][data-open='true']"))
-                .unwrap()
-                .is_some()
+            root.query_selector(&format!(
+                "[data-workbench-section='{key}'][data-open='true']"
+            ))
+            .unwrap()
+            .is_some()
                 && count(&root, "[data-workbench-section][data-open='true']") == 1
         })
         .await;
@@ -913,14 +1165,21 @@ async fn actual_layout_tool_row_has_seven_entry_points_and_stable_canvas() {
     assert_canvas_unchanged(&root);
     click(&root, "Inspect");
     wait_until("Inspect replaces Objects", || {
-        root.query_selector("#workbench-inspector:not([hidden])").unwrap().is_some()
-            && root.query_selector("#workbench-objects[hidden][inert]").unwrap().is_some()
+        root.query_selector("#workbench-inspector:not([hidden])")
+            .unwrap()
+            .is_some()
+            && root
+                .query_selector("#workbench-objects[hidden][inert]")
+                .unwrap()
+                .is_some()
     })
     .await;
     assert_canvas_unchanged(&root);
     click(&root, "Inspect");
     wait_until("both Layout panels close", || {
-        root.query_selector("#workbench-inspector[hidden][inert]").unwrap().is_some()
+        root.query_selector("#workbench-inspector[hidden][inert]")
+            .unwrap()
+            .is_some()
     })
     .await;
     assert_canvas_unchanged(&root);
@@ -963,8 +1222,8 @@ async fn view_mode_and_visibility_toggles_keep_pressed_state_and_revision() {
     })
     .await;
     let pressed_of = |name: &str| -> (String, Option<String>) {
-        let button = by_role_name(&root, "button", name)
-            .unwrap_or_else(|| panic!("{name} is rendered"));
+        let button =
+            by_role_name(&root, "button", name).unwrap_or_else(|| panic!("{name} is rendered"));
         assert!(
             !button.has_attribute("disabled"),
             "{name} stays enabled for the view-only toggle"
@@ -976,7 +1235,11 @@ async fn view_mode_and_visibility_toggles_keep_pressed_state_and_revision() {
     };
     let (pressed, state) = pressed_of("2D");
     assert_eq!(pressed, "true", "2D starts pressed");
-    assert_eq!(state.as_deref(), Some("on"), "2D pressed uses data-state on");
+    assert_eq!(
+        state.as_deref(),
+        Some("on"),
+        "2D pressed uses data-state on"
+    );
     assert_eq!(pressed_of("3D assembly").0, "false", "3D starts unpressed");
     assert_eq!(
         pressed_of("Footprints").0,
@@ -995,15 +1258,18 @@ async fn view_mode_and_visibility_toggles_keep_pressed_state_and_revision() {
         revision
     );
     click(&root, "3D assembly");
-    wait_until("3D assembly mode presses 3D and hides View-only controls", || {
-        by_role_name(&root, "button", "3D assembly").is_some_and(|button| {
-            button.get_attribute("aria-pressed").as_deref() == Some("true")
-        }) && by_role_name(&root, "button", "2D").is_some_and(|button| {
-            button.get_attribute("aria-pressed").as_deref() == Some("false")
-        }) && by_role_name(&root, "button", "Footprints").is_none()
-            && by_role_name(&root, "button", "Canvas handles").is_none()
-            && by_role_name(&root, "button", "Canvas visibility").is_none()
-    })
+    wait_until(
+        "3D assembly mode presses 3D and hides View-only controls",
+        || {
+            by_role_name(&root, "button", "3D assembly").is_some_and(|button| {
+                button.get_attribute("aria-pressed").as_deref() == Some("true")
+            }) && by_role_name(&root, "button", "2D").is_some_and(|button| {
+                button.get_attribute("aria-pressed").as_deref() == Some("false")
+            }) && by_role_name(&root, "button", "Footprints").is_none()
+                && by_role_name(&root, "button", "Canvas handles").is_none()
+                && by_role_name(&root, "button", "Canvas visibility").is_none()
+        },
+    )
     .await;
     assert_eq!(
         count(&root, ".workbench-tool-row"),
@@ -1018,9 +1284,9 @@ async fn view_mode_and_visibility_toggles_keep_pressed_state_and_revision() {
     );
     click(&root, "2D");
     wait_until("2D mode restores View controls", || {
-        by_role_name(&root, "button", "2D").is_some_and(|button| {
-            button.get_attribute("aria-pressed").as_deref() == Some("true")
-        }) && by_role_name(&root, "button", "Footprints").is_some()
+        by_role_name(&root, "button", "2D")
+            .is_some_and(|button| button.get_attribute("aria-pressed").as_deref() == Some("true"))
+            && by_role_name(&root, "button", "Footprints").is_some()
             && by_role_name(&root, "button", "Canvas handles").is_some()
             && by_role_name(&root, "button", "Canvas visibility").is_some()
     })
@@ -1048,9 +1314,8 @@ async fn view_mode_and_visibility_toggles_keep_pressed_state_and_revision() {
     .await;
     click(&root, "Footprints");
     wait_until("Footprints presses without moving 2D or handles", || {
-        by_role_name(&root, "button", "Footprints").is_some_and(|button| {
-            button.get_attribute("aria-pressed").as_deref() == Some("true")
-        })
+        by_role_name(&root, "button", "Footprints")
+            .is_some_and(|button| button.get_attribute("aria-pressed").as_deref() == Some("true"))
     })
     .await;
     let (pressed, state) = pressed_of("Footprints");
@@ -1072,9 +1337,8 @@ async fn view_mode_and_visibility_toggles_keep_pressed_state_and_revision() {
     );
     click(&root, "Canvas handles");
     wait_until("handles unpress without moving 2D or Footprints", || {
-        by_role_name(&root, "button", "Canvas handles").is_some_and(|button| {
-            button.get_attribute("aria-pressed").as_deref() == Some("false")
-        })
+        by_role_name(&root, "button", "Canvas handles")
+            .is_some_and(|button| button.get_attribute("aria-pressed").as_deref() == Some("false"))
     })
     .await;
     assert_eq!(pressed_of("Canvas handles").0, "false");
@@ -1102,15 +1366,14 @@ struct LegacyPanelStorageGuard {
 
 impl LegacyPanelStorageGuard {
     fn seed_pinned_extremes() -> Self {
-        let storage = web_sys::window()
-            .unwrap()
-            .local_storage()
-            .unwrap()
-            .unwrap();
+        let storage = web_sys::window().unwrap().local_storage().unwrap().unwrap();
         let left = storage.get_item("boardstudio:v2:panel:left").unwrap();
         let right = storage.get_item("boardstudio:v2:panel:right").unwrap();
         storage
-            .set_item("boardstudio:v2:panel:left", r#"{"mode":"pinned","width":420}"#)
+            .set_item(
+                "boardstudio:v2:panel:left",
+                r#"{"mode":"pinned","width":420}"#,
+            )
             .unwrap();
         storage
             .set_item(
@@ -1122,11 +1385,7 @@ impl LegacyPanelStorageGuard {
     }
 
     fn restore(key: &str, previous: &Option<String>) {
-        let storage = web_sys::window()
-            .unwrap()
-            .local_storage()
-            .unwrap()
-            .unwrap();
+        let storage = web_sys::window().unwrap().local_storage().unwrap().unwrap();
         match previous {
             Some(value) => storage.set_item(key, value).unwrap(),
             None => storage.remove_item(key).unwrap(),
@@ -1321,9 +1580,8 @@ async fn show_hide_commands_route_to_each_workspace_current_host() {
     invoke_objects.focus().unwrap();
     invoke_view_command(&root, "Invoke Show/hide Objects");
     wait_until("Show/hide Objects opens the Layout panel", || {
-        by_role_name(&root, "button", "Objects").is_some_and(|button| {
-            button.get_attribute("aria-expanded").as_deref() == Some("true")
-        })
+        by_role_name(&root, "button", "Objects")
+            .is_some_and(|button| button.get_attribute("aria-expanded").as_deref() == Some("true"))
     })
     .await;
     let panel = root
@@ -1360,9 +1618,8 @@ async fn show_hide_commands_route_to_each_workspace_current_host() {
     );
     invoke_view_command(&root, "Invoke Show/hide Objects");
     wait_until("Show/hide Objects closes the Layout panel", || {
-        by_role_name(&root, "button", "Objects").is_some_and(|button| {
-            button.get_attribute("aria-expanded").as_deref() == Some("false")
-        })
+        by_role_name(&root, "button", "Objects")
+            .is_some_and(|button| button.get_attribute("aria-expanded").as_deref() == Some("false"))
     })
     .await;
     let objects = by_role_name(&root, "button", "Objects").unwrap();
@@ -1379,9 +1636,8 @@ async fn show_hide_commands_route_to_each_workspace_current_host() {
     assert_canvas_unchanged(&root);
     invoke_view_command(&root, "Invoke Show/hide Inspector");
     wait_until("Show/hide Inspector opens the Layout panel", || {
-        by_role_name(&root, "button", "Inspect").is_some_and(|button| {
-            button.get_attribute("aria-expanded").as_deref() == Some("true")
-        })
+        by_role_name(&root, "button", "Inspect")
+            .is_some_and(|button| button.get_attribute("aria-expanded").as_deref() == Some("true"))
     })
     .await;
     let panel = root
@@ -1415,9 +1671,8 @@ async fn show_hide_commands_route_to_each_workspace_current_host() {
     assert_canvas_unchanged(&root);
     invoke_view_command(&root, "Invoke Show/hide Inspector");
     wait_until("Show/hide Inspector closes the Layout panel", || {
-        by_role_name(&root, "button", "Inspect").is_some_and(|button| {
-            button.get_attribute("aria-expanded").as_deref() == Some("false")
-        })
+        by_role_name(&root, "button", "Inspect")
+            .is_some_and(|button| button.get_attribute("aria-expanded").as_deref() == Some("false"))
     })
     .await;
     let inspect = by_role_name(&root, "button", "Inspect").unwrap();
@@ -1431,9 +1686,12 @@ async fn show_hide_commands_route_to_each_workspace_current_host() {
         handles.workspace.set(workspace);
         let label = format!("{workspace} mounts its legacy host without a workbench panel");
         wait_until(&label, || {
-                root.query_selector("#m1-objects-panel").unwrap().is_some()
-                    && root.query_selector("#workbench-objects").unwrap().is_none()
-                    && root.query_selector("#workbench-inspector").unwrap().is_none()
+            root.query_selector("#m1-objects-panel").unwrap().is_some()
+                && root.query_selector("#workbench-objects").unwrap().is_none()
+                && root
+                    .query_selector("#workbench-inspector")
+                    .unwrap()
+                    .is_none()
         })
         .await;
         let label = format!("{workspace} View commands register");
@@ -1491,10 +1749,9 @@ async fn show_hide_commands_route_to_each_workspace_current_host() {
             .await;
             invoke_view_command(&root, "Invoke Show/hide Inspector");
             let label = format!("{workspace} Inspector collapses its legacy dock");
-            wait_until(
-                &label,
-                || mode_of("#m1-inspector-panel").as_deref() == Some("collapsed"),
-            )
+            wait_until(&label, || {
+                mode_of("#m1-inspector-panel").as_deref() == Some("collapsed")
+            })
             .await;
             assert_eq!(
                 count(
@@ -1506,17 +1763,15 @@ async fn show_hide_commands_route_to_each_workspace_current_host() {
             );
             invoke_view_command(&root, "Invoke Show/hide Inspector");
             let label = format!("{workspace} Inspector restores its legacy dock");
-            wait_until(
-                &label,
-                || mode_of("#m1-inspector-panel").as_deref() == Some("pinned"),
-            )
+            wait_until(&label, || {
+                mode_of("#m1-inspector-panel").as_deref() == Some("pinned")
+            })
             .await;
         } else {
             let (objects_open, _) = compact_signals();
             invoke_view_command(&root, "Invoke Show/hide Objects");
             let label = format!("{workspace} Objects answers on its compact state");
-            wait_until(&label, || compact_signals() == (!objects_open, false))
-            .await;
+            wait_until(&label, || compact_signals() == (!objects_open, false)).await;
             assert_eq!(
                 count(
                     &root,
@@ -1528,11 +1783,7 @@ async fn show_hide_commands_route_to_each_workspace_current_host() {
             let (_, inspector_open) = compact_signals();
             invoke_view_command(&root, "Invoke Show/hide Inspector");
             let label = format!("{workspace} Inspector answers on its compact state");
-            wait_until(
-                &label,
-                || compact_signals() == (false, !inspector_open),
-            )
-            .await;
+            wait_until(&label, || compact_signals() == (false, !inspector_open)).await;
             assert_eq!(
                 count(
                     &root,
@@ -1604,8 +1855,8 @@ async fn wait_for_commands_host(root: &web_sys::Element) {
         root.query_selector("#m1-workspace-panel svg[role='group']")
             .unwrap()
             .is_some()
-            && by_role_name(&root, "button", "Objects").is_some()
-            && by_role_name(&root, "button", "Inspect").is_some()
+            && by_role_name(root, "button", "Objects").is_some()
+            && by_role_name(root, "button", "Inspect").is_some()
     })
     .await;
     wait_until("the View commands register", || {
@@ -1664,13 +1915,22 @@ async fn accepted_route_clears_host_focus_and_callbacks_while_unchanged_route_ke
         "precondition: the open host holds focus"
     );
     handles.workspace.set("Case");
-    wait_until("Case mounts its legacy host without a workbench panel", || {
-        root.query_selector("#m1-objects-panel").unwrap().is_some()
-            && root.query_selector("#workbench-objects").unwrap().is_none()
-            && root.query_selector("#workbench-inspector").unwrap().is_none()
-    })
+    wait_until(
+        "Case mounts its legacy host without a workbench panel",
+        || {
+            root.query_selector("#m1-objects-panel").unwrap().is_some()
+                && root.query_selector("#workbench-objects").unwrap().is_none()
+                && root
+                    .query_selector("#workbench-inspector")
+                    .unwrap()
+                    .is_none()
+        },
+    )
     .await;
-    assert!(!heading.is_connected(), "accepted route detaches the old panel");
+    assert!(
+        !heading.is_connected(),
+        "accepted route detaches the old panel"
+    );
     assert_ne!(
         document.active_element().as_ref(),
         Some(heading.as_ref()),
@@ -1706,7 +1966,9 @@ async fn accepted_route_clears_host_focus_and_callbacks_while_unchanged_route_ke
     document
         .body()
         .unwrap()
-        .dispatch_event(&web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &escape).unwrap())
+        .dispatch_event(
+            &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &escape).unwrap(),
+        )
         .unwrap();
     settle_frames().await;
     assert_eq!(
@@ -1774,10 +2036,13 @@ async fn caller_owned_input_survives_round_trip_and_session_replace_clears_old_h
     })
     .await;
     handles.workspace.set("Case");
-    wait_until("Case mounts its legacy host without a workbench panel", || {
-        root.query_selector("#m1-objects-panel").unwrap().is_some()
-            && root.query_selector("#workbench-objects").unwrap().is_none()
-    })
+    wait_until(
+        "Case mounts its legacy host without a workbench panel",
+        || {
+            root.query_selector("#m1-objects-panel").unwrap().is_some()
+                && root.query_selector("#workbench-objects").unwrap().is_none()
+        },
+    )
     .await;
     assert_eq!(
         field.value(),
@@ -1823,9 +2088,11 @@ async fn caller_owned_input_survives_round_trip_and_session_replace_clears_old_h
     heading.focus().unwrap();
     support::open_document(&runtime, replacement).await;
     wait_until("the replacement session lands", || {
-        runtime.model().accepted.as_ref().is_some_and(|snapshot| {
-            snapshot.document.id == "layout-layers-replaced"
-        })
+        runtime
+            .model()
+            .accepted
+            .as_ref()
+            .is_some_and(|snapshot| snapshot.document.id == "layout-layers-replaced")
     })
     .await;
     wait_until("the replacement session closes the old panel", || {
@@ -1867,7 +2134,9 @@ async fn caller_owned_input_survives_round_trip_and_session_replace_clears_old_h
     escape.set_bubbles(true);
     escape.set_cancelable(true);
     search
-        .dispatch_event(&web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &escape).unwrap())
+        .dispatch_event(
+            &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &escape).unwrap(),
+        )
         .unwrap();
     settle_frames().await;
     assert_eq!(

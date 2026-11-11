@@ -615,7 +615,11 @@ mod tests {
         dioxus_web::launch::launch_virtual_dom(
             VirtualDom::new_with_props(
                 pill_duplicate_probe_host,
-                PillDuplicateProbeProps { open, tools, accordion },
+                PillDuplicateProbeProps {
+                    open,
+                    tools,
+                    accordion,
+                },
             ),
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
@@ -633,9 +637,18 @@ mod tests {
             .unwrap()
             .click();
         gloo_timers::future::TimeoutFuture::new(40).await;
-        assert_eq!(root.query_selector_all("[data-workbench-section]").unwrap().length(), 5);
+        assert_eq!(
+            root.query_selector_all("[data-workbench-section]")
+                .unwrap()
+                .length(),
+            5
+        );
         for label in ["Select", "Transform", "Align", "Snap", "View"] {
-            assert!(boardstudio_web_ui_shared::test_role::by_role_name(&root, "button", label).is_some(), "{label} section trigger");
+            assert!(
+                boardstudio_web_ui_shared::test_role::by_role_name(&root, "button", label)
+                    .is_some(),
+                "{label} section trigger"
+            );
         }
         assert_eq!(
             root.query_selector("[data-workbench-section='transform']")
@@ -646,7 +659,11 @@ mod tests {
             Some("true")
         );
         for label in ["Position", "Stagger", "Spread", "Offset", "Splay", "Origin"] {
-            assert_eq!(tool_button_count(&root, label), 1, "{label} occurs once inline");
+            assert_eq!(
+                tool_button_count(&root, label),
+                1,
+                "{label} occurs once inline"
+            );
         }
         let select = boardstudio_web_ui_shared::test_role::by_role_name(&root, "button", "Select")
             .unwrap()
@@ -667,14 +684,25 @@ mod tests {
             .dyn_into::<web_sys::HtmlElement>()
             .unwrap();
         click(&snap).await;
-        assert!(boardstudio_web_ui_shared::test_role::by_role_name(&root, "button", "Snap increment").is_some());
+        assert!(
+            boardstudio_web_ui_shared::test_role::by_role_name(&root, "button", "Snap increment")
+                .is_some()
+        );
         let view = boardstudio_web_ui_shared::test_role::by_role_name(&root, "button", "View")
             .unwrap()
             .dyn_into::<web_sys::HtmlElement>()
             .unwrap();
         click(&view).await;
-        assert!(root.text_content().unwrap_or_default().contains("View probe"));
-        assert!(root.text_content().unwrap_or_default().contains("Utilities probe"));
+        assert!(
+            root.text_content()
+                .unwrap_or_default()
+                .contains("View probe")
+        );
+        assert!(
+            root.text_content()
+                .unwrap_or_default()
+                .contains("Utilities probe")
+        );
         root.remove();
     }
 
@@ -1649,18 +1677,21 @@ pub fn LayoutCommandPill(
     });
 
     if accordion {
-        let transform_caption = transform.active_tool.map(|tool| match tool {
-            super::layout_transform_toolbar::LayoutTransformTool::Stagger => "Stagger",
-            super::layout_transform_toolbar::LayoutTransformTool::Spread => "Spread",
-            super::layout_transform_toolbar::LayoutTransformTool::Offset => "Offset",
-            super::layout_transform_toolbar::LayoutTransformTool::Shift => "Shift",
-            super::layout_transform_toolbar::LayoutTransformTool::Bend => "Bend",
-            super::layout_transform_toolbar::LayoutTransformTool::Splay => "Splay",
-            super::layout_transform_toolbar::LayoutTransformTool::Origin => "Origin",
-            super::layout_transform_toolbar::LayoutTransformTool::Move => "Move",
-            super::layout_transform_toolbar::LayoutTransformTool::Rotate => "Rotate",
-            super::layout_transform_toolbar::LayoutTransformTool::Anchor => "Anchor",
-        }.to_owned());
+        let transform_caption = transform.active_tool.map(|tool| {
+            match tool {
+                super::layout_transform_toolbar::LayoutTransformTool::Stagger => "Stagger",
+                super::layout_transform_toolbar::LayoutTransformTool::Spread => "Spread",
+                super::layout_transform_toolbar::LayoutTransformTool::Offset => "Offset",
+                super::layout_transform_toolbar::LayoutTransformTool::Shift => "Shift",
+                super::layout_transform_toolbar::LayoutTransformTool::Bend => "Bend",
+                super::layout_transform_toolbar::LayoutTransformTool::Splay => "Splay",
+                super::layout_transform_toolbar::LayoutTransformTool::Origin => "Origin",
+                super::layout_transform_toolbar::LayoutTransformTool::Move => "Move",
+                super::layout_transform_toolbar::LayoutTransformTool::Rotate => "Rotate",
+                super::layout_transform_toolbar::LayoutTransformTool::Anchor => "Anchor",
+            }
+            .to_owned()
+        });
         return rsx! {
             div { id: "m1-layout-command-pill", class: "layout-toolbar-strips layout-toolbar-accordion", role: "group", aria_label: "{command_label}", onkeydown: stop_layout_space_pan,
                 LayoutAccordionSection { menu: LayoutCommandMenu::Select, index: 0usize, label: "Select".to_owned(), caption: Some(selection_kind.label().to_owned()), open_menu,

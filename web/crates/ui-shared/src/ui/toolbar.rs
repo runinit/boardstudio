@@ -55,10 +55,7 @@ fn is_rendered(item: &web_sys::HtmlElement) -> bool {
 }
 
 fn buttons(root: &web_sys::Element) -> Vec<web_sys::HtmlElement> {
-    all_buttons(root)
-        .into_iter()
-        .filter(|item| is_rendered(item))
-        .collect()
+    all_buttons(root).into_iter().filter(is_rendered).collect()
 }
 
 fn sync_tab_stop(root: &web_sys::Element) {
@@ -105,7 +102,15 @@ pub fn Toolbar(props: ToolbarProps) -> Element {
         let options = web_sys::MutationObserverInit::new();
         options.set_attributes(true);
         let attribute_filter = js_sys::Array::new();
-        for attribute in ["tabindex", "disabled", "hidden", "inert", "aria-hidden", "class", "style"] {
+        for attribute in [
+            "tabindex",
+            "disabled",
+            "hidden",
+            "inert",
+            "aria-hidden",
+            "class",
+            "style",
+        ] {
             attribute_filter.push(&attribute.into());
         }
         options.set_attribute_filter(&attribute_filter);

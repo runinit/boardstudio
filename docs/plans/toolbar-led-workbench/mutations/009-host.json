@@ -1,0 +1,6 @@
+[
+  {"name":"remove-inert","description":"Remove inert from hidden panels","edits":[{"file":"web/src/presentation/workbench_shell.rs","old":"                    inert: (panel() != Some(kind)).then_some(\"\"),\n","new":"","count":1}]},
+  {"name":"remove-return-focus","description":"Do not restore focus after dismissal","edits":[{"file":"web/src/presentation/workbench_shell.rs","old":"        focus_utility(previous);","new":"        let _ = previous;","count":1}]},
+  {"name":"ignore-refusal","description":"Ignore transient owner's refusal","edits":[{"file":"web/src/presentation/workbench_shell.rs","old":"                        if !on_hide_transient.call(()) {\n                            return;\n                        }","new":"                        let _ = on_hide_transient.call(());","count":1}]},
+  {"name":"interactive-probe","description":"Remove measurement probe inertness","edits":[{"file":"web/src/presentation/workbench_shell.rs","old":"    let _ = probe.set_attribute(\"inert\", \"\");","new":"    let _ = probe.remove_attribute(\"inert\");","count":1}]}
+]

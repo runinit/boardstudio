@@ -87,3 +87,14 @@ must fail at reachability/error assertions, not compilation. Hidden-registration
 pending-repeat and owner-close wiring mutants use the real page task suite named there.
 Reuse MatrixSetup's existing `matrix_real_create_pending_exempts_only_submitted_draft` where
 sufficient; no duplicate runtime pruning fixture. Do not remove setup/script guards.
+
+## Known red inherited from M1 coordination (2026-11-11)
+
+`presentation::layout_field_preview_tests` (6 tests; first failure
+`new_matrix_sliders_preview_on_canvas_without_changing_accepted_state` / `new_matrix_canvas_preview_avoids_the_resized_setup_guide`)
+fails 0/6 on the redesigned Layout shell: the New matrix canvas ghost never appears. Cause
+unconfirmed by two diagnoses (`.evidence/toolbar-m1/field-diagnosis.log`, `field-objects-probe.log`);
+opening Objects first did not help. Presumed owner: this ticket (Add chooser / `MatrixSetupMount`
+route and preview publisher). `check.py quick` therefore stays red on this file until 005 restores
+the real route; do not skip or weaken those tests. Trace first: setup-guide "Add Thumb cluster" and
+the Add chooser into `MatrixSetupMount` and its preview publisher.

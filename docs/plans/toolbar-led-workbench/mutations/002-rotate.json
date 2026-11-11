@@ -1,0 +1,1 @@
+[{"name":"follow-off-rotate","description":"Enable rotation when follow is off","edits":[{"file":"web/crates/layout/src/objects/layout_transform_toolbar.rs","old":"    let rotate_followed = mount.matrix_rotate_followed.unwrap_or(true);","new":"    let rotate_followed = true;","count":1}]}]

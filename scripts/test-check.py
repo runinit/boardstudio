@@ -289,6 +289,7 @@ class CheckTests(unittest.TestCase):
             "scripts/test-case-rest.py": "Case workspace journey against a checked server, with visual captures",
             "scripts/test-theme.py": "ticket 002 agent-browser Theme contract journey",
             "scripts/test-dock-primitives.py": "ticket 009 shared agent-browser dock test driver",
+            "scripts/test-workbench-viewport.py": "viewport journey requiring a packaged build and served page",
             "scripts/test-header.py": "ticket 010 agent-browser header journey",
             "scripts/test-dock-layout.py": "ticket 011 agent-browser dock layout journey",
             "scripts/test-command-palette.py": "ticket 012 agent-browser command palette journey",
