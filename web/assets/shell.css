@@ -80,7 +80,7 @@
   border-bottom: 1px solid var(--border);
 }
 .workbench-popout-heading h2 { margin: 0 auto 0 0; font-size: 14px; line-height: 1.25; }
-.workbench-popout-content { display: flex; flex: 1; flex-direction: column; min-height: 0; overflow: hidden; }
+.workbench-popout-content { display: flex; flex: 1; flex-direction: column; min-height: 0; overflow: auto; overscroll-behavior: contain; }
 .workbench-panel-scroll { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; }
 .workbench-utility[aria-expanded='true'] { background: var(--accent); color: var(--accent-foreground); }
 @media (max-width: 760px) {

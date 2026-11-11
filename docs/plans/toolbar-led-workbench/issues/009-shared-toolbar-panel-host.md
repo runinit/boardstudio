@@ -120,3 +120,29 @@ inert content and stable retained editor DOM through that interface.
 Next: clamping/fitting and target-aware command routes; then the real Layout consumer in 002.
 Actual task hide consumers must be inspected before adding any optional refusal variant.
 Remaining proof rows, quick/lint, boundary mutations and combined review are not executed.
+
+- Clamping RED: `.evidence/toolbar-m1/009-clamp-red.log` — 4 executed, 2 failed. Named failure
+  `panel_clamps_to_layout_viewport_and_synthetic_content_scroll_keeps_close_reachable` (renamed from `panel_clamps_to_visual_viewport_and_keeps_close_reachable`) at `workbench_shell.rs:848:13`:
+  `workbench-objects content scrolls vertically, got hidden`. Tall labelled synthetic content
+  (60x40px rows) overflowed `.workbench-popout-content` (`overflow:hidden`) and was not
+  user-scrollable. Second failure `dismissal_returns_focus...` was shared-WASM panic-hook
+  cascade per runner (`re-run after fixing first failure`); no production change yet, only
+  additive test.
+- Clamping GREEN: `.evidence/toolbar-m1/009-clamp-green.log` — 4 executed, 0 failures, after
+  CSS-only fix `web/assets/shell.css`: `.workbench-popout-content { overflow:auto;
+  overscroll-behavior:contain }` (was `hidden`). New `clamp_fixture` reuses actual private
+  `PanelHost` + existing `Find an object`/`Retained value` labels + production
+  `workbench-base.css`/`tailwind.css`/`shell.css`/font; opens Objects, narrows synthetic fixture lane (`#clamp-fixture`) to 320px without changing the browser viewport,
+  opens Inspect. Asserts panel+Close within `innerWidth/innerHeight` layout viewport bounds (not `visualViewport`), widths
+  320/400px within 16px safe inset, tall content `scrollHeight>clientHeight` + `overflow-y
+  auto/scroll` + last row reachable via `scrollTop`, no page `scrollWidth/scrollHeight`
+  overflow, no `[data-backdrop]`, no modal ARIA, focus preserved (Objects->search,
+  Inspect->h2). Host still single `Option<ToolPanel>`, focus restoration, outside-pointer,
+  nested Escape precedence preserved; no API widening, no second registry, no veto.
+- Correction: the test does not change the browser viewport and measures `innerWidth`/`innerHeight` layout viewport bounds, not `visualViewport`. Browser viewport 320px, short viewport, and `visualViewport` offsets remain unproven. Only synthetic fixture direct children (60x40px labelled rows) were tested. This does not close the anchoring/clamping portion of the Roving/clamping proof row, nor the ticket.
+  Remaining explicitly planned: full roving (arrows/Home/End, focused-action visibility),
+  transient-interface/navigation-admission, generic fitting, canvas invariance, route
+  lifetime, commands, quick/lint, boundary mutations, combined review. No full gate
+  (coordinator owns).
+
+- Scroll-correct GREEN: `.evidence/toolbar-m1/009-scroll-correct-green.log` — 4 executed, 0 failures, after rename-only to `panel_clamps_to_layout_viewport_and_synthetic_content_scroll_keeps_close_reachable`. No production code/CSS change; assertions and tests preserved. Confirms synthetic content scrolling + layout viewport bounds only; browser viewport 320px, short viewport, and `visualViewport` offsets remain unproven, no anchoring/clamping proof row closure, only synthetic fixture direct children tested.

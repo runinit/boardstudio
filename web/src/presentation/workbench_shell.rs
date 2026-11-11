@@ -783,4 +783,102 @@ mod tests {
         .await;
         root.remove();
     }
+
+    fn clamp_fixture() -> Element {
+        let panel = use_signal(|| None::<ToolPanel>);
+        rsx! {
+            style { {include_str!("../../assets/workbench-base.css")} }
+            style { {include_str!("../../assets/tailwind.css")} }
+            style { {include_str!("../../assets/shell.css")} }
+            div { id: "clamp-fixture",
+                PanelHost { panel,
+                    objects: rsx! {
+                        input { aria_label: "Find an object", r#type: "search" }
+                        div {
+                            for i in 0..60 {
+                                div { aria_label: format!("Objects row {i}"), style: "height: 40px", "Objects row {i}" }
+                            }
+                        }
+                    },
+                    inspector: rsx! {
+                        input { aria_label: "Retained value", value: "unresolved A" }
+                        div {
+                            for i in 0..60 {
+                                div { aria_label: format!("Inspector row {i}"), style: "height: 40px", "Inspector row {i}" }
+                            }
+                        }
+                    },
+                    Toolbar { aria_label: "Layout tools",
+                        PanelUtilities { panel, on_hide_transient: move |_| {}, first_index: 0usize }
+                    }
+                    button { "Canvas target" }
+                }
+            }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn panel_clamps_to_layout_viewport_and_synthetic_content_scroll_keeps_close_reachable() {
+        let root = mount_component(clamp_fixture);
+        wait_until("workbench utilities mount", || by_role_name(&root, "button", "Objects").is_some()).await;
+        let window = web_sys::window().unwrap();
+        let document = window.document().unwrap();
+        let viewport = || {
+            let w = window.inner_width().unwrap().as_f64().unwrap();
+            let h = window.inner_height().unwrap().as_f64().unwrap();
+            (w, h)
+        };
+        let assert_clamped = |panel_id: &str, close_name: &str, expected_width: f64| {
+            let (vw, vh) = viewport();
+            let panel = root.query_selector(&format!("#{panel_id}")).unwrap().unwrap();
+            let rect = panel.get_bounding_client_rect();
+            assert!(rect.left() >= -0.5, "{panel_id} left within viewport: {}", rect.left());
+            assert!(rect.right() <= vw + 0.5, "{panel_id} right within viewport: {} <= {vw}", rect.right());
+            assert!(rect.top() >= -0.5, "{panel_id} top within viewport: {}", rect.top());
+            assert!(rect.bottom() <= vh + 0.5, "{panel_id} bottom within viewport: {} <= {vh}", rect.bottom());
+            assert!((rect.width() - expected_width).abs() < 2.0, "{panel_id} width {expected_width}px: {}", rect.width());
+            assert!(rect.width() <= vw - 16.0 + 1.0, "{panel_id} width respects 16px safe inset");
+            let close = by_role_name(&root, "button", close_name).unwrap();
+            let close_rect = close.get_bounding_client_rect();
+            assert!(close_rect.left() >= -0.5 && close_rect.right() <= vw + 0.5, "{close_name} horizontally within viewport");
+            assert!(close_rect.top() >= -0.5 && close_rect.bottom() <= vh + 0.5, "{close_name} vertically within viewport");
+            let content = panel.query_selector(".workbench-popout-content").unwrap().unwrap();
+            assert!(content.scroll_height() > content.client_height(), "{panel_id} tall content overflows its scroll container");
+            let overflow_y = window.get_computed_style(&content).unwrap().unwrap().get_property_value("overflow-y").unwrap();
+            assert!(overflow_y == "auto" || overflow_y == "scroll", "{panel_id} content scrolls vertically, got {overflow_y}");
+            let doc_el = document.document_element().unwrap();
+            assert!(doc_el.scroll_width() <= vw as i32 + 1, "no page horizontal overflow");
+            assert!(doc_el.scroll_height() <= vh as i32 + 1, "no page vertical overflow");
+            assert!(document.query_selector("[data-backdrop]").unwrap().is_none(), "no backdrop");
+            assert!(panel.get_attribute("role").as_deref() != Some("dialog") || panel.get_attribute("aria-modal").as_deref() != Some("true"), "no modal ARIA");
+            let row_kind = if panel_id == "workbench-objects" { "Objects" } else { "Inspector" };
+            let last = panel.query_selector(&format!("[aria-label='{row_kind} row 59']")).unwrap().unwrap();
+            content.set_scroll_top(content.scroll_height());
+            let last_rect = last.get_bounding_client_rect();
+            let panel_rect = panel.get_bounding_client_rect();
+            assert!(last_rect.top() < panel_rect.bottom() && last_rect.bottom() > panel_rect.top(), "{panel_id} last row reachable after scroll");
+            content.set_scroll_top(0);
+        };
+        let objects = by_role_name(&root, "button", "Objects").unwrap();
+        objects.click();
+        wait_until("Objects opens", || objects.get_attribute("aria-expanded").as_deref() == Some("true")).await;
+        let search = root.query_selector("input[type=search]").unwrap().unwrap();
+        wait_until("Objects focuses search", || document.active_element().as_ref() == Some(search.as_ref())).await;
+        assert_clamped("workbench-objects", "Close Objects", 320.0);
+        root.query_selector("#clamp-fixture").unwrap().unwrap().dyn_into::<HtmlElement>().unwrap().style().set_property("width", "320px").unwrap();
+        wait_until("panel stays clamped after lane resize", || {
+            let panel = root.query_selector("#workbench-objects").unwrap().unwrap();
+            let r = panel.get_bounding_client_rect();
+            let (vw, vh) = viewport();
+            r.left() >= -0.5 && r.right() <= vw + 0.5 && r.top() >= -0.5 && r.bottom() <= vh + 0.5
+        }).await;
+        assert_clamped("workbench-objects", "Close Objects", 320.0);
+        let inspect = by_role_name(&root, "button", "Inspect").unwrap();
+        inspect.click();
+        wait_until("Inspect opens", || inspect.get_attribute("aria-expanded").as_deref() == Some("true")).await;
+        let heading = root.query_selector("#workbench-inspector h2").unwrap().unwrap();
+        wait_until("Inspect focuses heading", || document.active_element().as_ref() == Some(heading.as_ref())).await;
+        assert_clamped("workbench-inspector", "Close Inspector", 400.0);
+        root.remove();
+    }
 }
