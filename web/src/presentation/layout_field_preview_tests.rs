@@ -168,6 +168,20 @@ fn count(root_id: &str, selector: &str) -> u32 {
         .length()
 }
 
+/// Detach a test's mounted tree at the end of the test; leaked Editor trees
+/// stack in the shared page and shift later tests' measured rects (see the
+/// same helper in layout_relation_highlight_tests.rs).
+fn remove_root(root_id: &str) {
+    if let Some(root) = web_sys::window()
+        .unwrap()
+        .document()
+        .unwrap()
+        .get_element_by_id(root_id)
+    {
+        root.remove();
+    }
+}
+
 fn dispatch(element: &web_sys::Element, kind: &str) {
     let event = web_sys::PointerEvent::new(kind).unwrap();
     element.dispatch_event(event.as_ref()).unwrap();
@@ -1314,6 +1328,7 @@ async fn browse_all_parts_keeps_the_chooser_query_and_creates_nothing() {
     })
     .await;
     assert_eq!(probe.runtime.model().accepted, before.accepted);
+    remove_root(root_id);
 }
 
 #[wasm_bindgen_test]
@@ -1399,6 +1414,7 @@ async fn hovering_a_column_field_previews_its_keys_on_both_halves() {
     assert!(previewed_keys(root_id).is_empty());
     assert_eq!(hint_text(root_id), None);
     assert_eq!(probe.revision(), before, "clearing writes no revision");
+    remove_root(root_id);
 }
 
 #[wasm_bindgen_test]
@@ -1437,6 +1453,7 @@ async fn keyboard_focus_previews_and_blur_clears() {
     })
     .await;
     assert!(previewed_keys(root_id).is_empty());
+    remove_root(root_id);
 }
 
 #[wasm_bindgen_test]
@@ -1458,4 +1475,5 @@ async fn changing_the_selection_clears_the_field_preview() {
     })
     .await;
     assert!(previewed_keys(root_id).is_empty());
+    remove_root(root_id);
 }

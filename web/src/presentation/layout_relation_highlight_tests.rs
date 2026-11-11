@@ -190,6 +190,22 @@ fn count(root_id: &str, selector: &str) -> u32 {
         .length()
 }
 
+/// Detach a test's mounted tree at the end of the test. A leaked Editor tree
+/// stays live in the shared page: its panel host's window dismissal listeners
+/// stay armed while a panel is open, and the stacked trees push later tests'
+/// roots down the page so their focus/click actions scroll the window and
+/// shift measured rects. Later tests must start from an empty body.
+fn remove_root(root_id: &str) {
+    if let Some(root) = web_sys::window()
+        .unwrap()
+        .document()
+        .unwrap()
+        .get_element_by_id(root_id)
+    {
+        root.remove();
+    }
+}
+
 /// Ticket 15 restored by 004: the Relations tab is gone. The breadcrumb sits
 /// above the fields and the facts live beside them in a Relationships section.
 #[wasm_bindgen_test]
@@ -230,6 +246,7 @@ async fn the_relations_tab_is_gone_and_facts_live_beside_the_fields() {
             && query(root_id, "[aria-label='Matrix transform properties'] input").is_some(),
         "breadcrumb and editable fields render at once with the facts"
     );
+    remove_root(root_id);
 }
 
 /// Ticket 15: clicking a breadcrumb chip selects its object the normal way:
@@ -276,6 +293,7 @@ async fn breadcrumb_carries_chip_selects_its_column_without_writing() {
         before,
         "chip navigation writes nothing, so no Undo entry"
     );
+    remove_root(root_id);
 }
 
 /// Ticket 15: hovering a breadcrumb chip marks its parts with the violet
@@ -319,6 +337,7 @@ async fn hovering_a_breadcrumb_chip_highlights_only_its_keys() {
         before,
         "highlighting never writes a document revision, so no Undo entry"
     );
+    remove_root(root_id);
 }
 
 /// The `(row, column)` of every highlighted canvas key.
@@ -529,6 +548,7 @@ async fn hovering_an_inherited_column_highlights_only_its_keys() {
         before,
         "highlighting never writes a document revision, so no Undo entry"
     );
+    remove_root(root_id);
 }
 
 #[wasm_bindgen_test]
@@ -584,6 +604,7 @@ async fn keyboard_focus_highlights_and_blur_clears() {
         count(root_id, "[data-matrix-id][data-relation-highlight='true']"),
         0
     );
+    remove_root(root_id);
 }
 
 #[wasm_bindgen_test]
@@ -613,6 +634,7 @@ async fn changing_the_selection_clears_the_highlight() {
         0,
         "a selection change clears the Relations highlight"
     );
+    remove_root(root_id);
 }
 
 #[wasm_bindgen_test]
@@ -652,6 +674,7 @@ async fn a_key_removed_while_highlighted_leaves_nothing_highlighted() {
         "the removed keys are not highlighted"
     );
     assert_eq!(count(root_id, "[role='alert']"), 0, "no error is raised");
+    remove_root(root_id);
 }
 
 /// Row 0 shifts (10, 0) then bends 90; row 1 shifts (10, 0) into the turned
@@ -717,6 +740,7 @@ async fn bent_key_explains_its_cumulative_shift_and_opens_its_row() {
         before,
         "parameter navigation writes nothing, so no Undo entry"
     );
+    remove_root(root_id);
 }
 
 fn replace_command(base_revision: u64, document: ProjectDoc) -> EditCommand {
@@ -848,6 +872,7 @@ async fn anchored_follows_navigates_to_its_key_without_writing() {
         before,
         "reference navigation writes nothing, so no Undo entry"
     );
+    remove_root(root_id);
 }
 
 /// A Follows row outlives its anchor key's deletion, but activating it must do
@@ -909,6 +934,7 @@ async fn a_removed_anchor_key_leaves_its_follows_reference_inert() {
         "a refused reference writes nothing"
     );
     assert_eq!(count(root_id, "[role='alert']"), 0, "no error is raised");
+    remove_root(root_id);
 }
 
 /// Hiding every highlighted part explains the missing canvas highlight in
@@ -963,6 +989,7 @@ async fn hidden_reference_names_its_layer_and_still_navigates() {
         before,
         "parameter navigation writes nothing, so no Undo entry"
     );
+    remove_root(root_id);
 }
 
 /// Hovering a receiver reference lights up its named keys on the canvas.
@@ -995,6 +1022,7 @@ async fn hovering_follows_highlights_the_anchor_key() {
         before,
         "highlighting never writes a document revision, so no Undo entry"
     );
+    remove_root(root_id);
 }
 
 /// Selecting parts in two matrices must not merge their chains: the Relations
@@ -1040,6 +1068,7 @@ async fn selecting_parts_in_two_matrices_explains_the_single_context_chain() {
         query(root_id, "li[data-relation-label='Pitch cell']").is_some(),
         "the single key chain still renders"
     );
+    remove_root(root_id);
 }
 
 /// Ticket 32 slice, RED: hovering an aggregate part entry highlights exactly
@@ -1174,6 +1203,7 @@ async fn hovering_an_aggregate_part_highlights_only_its_key() {
         before,
         "navigation writes nothing: no new revision, no Undo entry"
     );
+    remove_root(root_id);
 }
 
 /// 004 replaces the tab-unmount oracle: navigating a reference unmounts the
@@ -1219,6 +1249,7 @@ async fn navigating_a_reference_releases_its_highlight() {
         revision,
         "navigation writes nothing, so no Undo entry"
     );
+    remove_root(root_id);
 }
 
 /// Two mirrored half layouts for a real populated split. The focus label
@@ -1359,4 +1390,5 @@ async fn split_navigation_keeps_a_present_focus_label_on_the_same_half() {
         before,
         "navigation writes nothing, so no Undo entry"
     );
+    remove_root(root_id);
 }

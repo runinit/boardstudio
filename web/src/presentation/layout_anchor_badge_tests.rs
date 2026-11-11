@@ -168,6 +168,20 @@ fn count(root_id: &str, selector: &str) -> u32 {
     query_all(root_id, selector).len() as u32
 }
 
+/// Detach a test's mounted tree at the end of the test; leaked Editor trees
+/// stack in the shared page and shift later tests' measured rects (see the
+/// same helper in layout_relation_highlight_tests.rs).
+fn remove_root(root_id: &str) {
+    if let Some(root) = web_sys::window()
+        .unwrap()
+        .document()
+        .unwrap()
+        .get_element_by_id(root_id)
+    {
+        root.remove();
+    }
+}
+
 /// The `data-column` of every badge-target canvas key.
 fn highlighted_columns(root_id: &str) -> Vec<String> {
     query_all(root_id, "[data-matrix-id][data-anchor-target='true']")
@@ -340,6 +354,7 @@ async fn column_selection_badges_the_previous_column_it_carries() {
         before,
         "drawing the badge never writes a document revision"
     );
+    remove_root(root_id);
 }
 
 /// Ticket 17: an anchored matrix badges its anchor key ("follows X, Y,
@@ -368,6 +383,7 @@ async fn anchored_matrix_badges_its_anchor_key() {
         query(root_id, "[data-anchor-chrome='tie']").is_some(),
         "a dashed tie runs to the selection"
     );
+    remove_root(root_id);
 }
 
 /// Ticket 17: a carried key badges the key below it, and that key keeps the
@@ -398,6 +414,7 @@ async fn key_selection_badges_the_key_below_it() {
         query(root_id, "[data-anchor-chrome='tie']").is_some(),
         "a dashed tie runs to the selection"
     );
+    remove_root(root_id);
 }
 
 /// A split pair through edits: main on the left, paired on the right, joined
@@ -503,6 +520,7 @@ async fn badge_draws_on_the_dimmed_half() {
         target.get_attribute("data-dimmed").as_deref() == Some("false"),
         "the badge target does not fade with the dimmed half"
     );
+    remove_root(root_id);
 }
 
 /// Ticket 17: the badge clears when the selection clears.
@@ -530,4 +548,5 @@ async fn clearing_the_selection_clears_the_badge() {
         0,
         "the badge target clears with the badge"
     );
+    remove_root(root_id);
 }
