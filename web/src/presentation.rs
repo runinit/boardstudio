@@ -112,6 +112,7 @@ pub(crate) use boardstudio_web_case::shared_viewer;
 pub(crate) use boardstudio_web_layout::setup_guide;
 mod notifications;
 mod workbench_shortcuts;
+mod workbench_shell;
 mod workspace_composition;
 mod workspace_navigation;
 mod zmk_firmware_export;
@@ -123,10 +124,7 @@ use canvas_layers::CanvasLayers;
 use library::Library;
 pub(crate) use mechanical_settings::{MechanicalSettings, MechanicalSettingsProps};
 pub(crate) use mechanical_settings_mount::MechanicalSettingsMount;
-use panels::{
-    DockLayout, InspectorPanel, ObjectsPanel, PanelMode, PanelSettings, PanelSide,
-    use_panel_settings,
-};
+use panels::{PanelMode, PanelSettings, PanelSide, use_panel_settings};
 use parts::{PartsQuery, PartsSelection};
 use selection::{ReentrancyReset, SelectionAdapter};
 use setup_guide::{PendingNewKeyboard, SetupGuideRequest, SetupGuideStage};
@@ -3273,6 +3271,7 @@ fn Editor() -> Element {
     let compact_panel_state = use_context::<CompactPanelState>();
     let objects_open = compact_panel_state.objects_open;
     let mut inspect_open = compact_panel_state.inspector_open;
+    let mut layout_panel = use_signal(|| None::<workbench_shell::ToolPanel>);
     let preference_warning = use_context::<PreferenceStorageWarning>().0;
     let objects_panel_settings = use_panel_settings(PanelSide::Objects, preference_warning);
     let inspector_panel_settings = use_panel_settings(PanelSide::Inspector, preference_warning);
@@ -3360,6 +3359,11 @@ fn Editor() -> Element {
     });
     let layout_snap_settings = layout_state.snap_settings();
     let layout_command_menu = layout_state.command_menu();
+    use_effect(move || {
+        if layout_command_menu().is_some() {
+            layout_panel.set(None);
+        }
+    });
     let mut layout_transform_tool = layout_state.transform_tool();
     let layout_assembly_3d = layout_state.assembly_3d();
     let tree_cell_anchor = use_hook(|| Rc::new(RefCell::new(None::<OwnedTreeCellAnchor>)));
@@ -3593,6 +3597,10 @@ fn Editor() -> Element {
         })
     }));
     let current_scope = runtime.scope();
+    let panel_route = (active_workspace, current_scope.clone());
+    use_effect(use_reactive((&panel_route,), move |_| {
+        layout_panel.set(None);
+    }));
     let accepted_token = model.accepted.as_ref().map(|snapshot| snapshot.token);
     let layout_owner = LayoutOwnerIdentity {
         scope: current_scope.clone(),
@@ -7974,6 +7982,7 @@ fn Editor() -> Element {
                     has_selection_context: toolbar_selection_context.is_some()
                         && (matrix_transform_inspector.projection.is_some()
                             || component_inspector.is_some()),
+                    panel: layout_panel,
                     on_show_relationships: EventHandler::new(move |()| {
                         inspect_open.set(true);
                     }),
@@ -9555,23 +9564,13 @@ fn Editor() -> Element {
             on_select: toggle_footprints,
         });
         let mut add_open = layout_state.add_object_menu_open();
-        let mut objects_open = objects_open;
-        let mut inspect_open = inspect_open;
-        let mut objects_settings = objects_panel_settings;
         palette_commands.push(boardstudio_web_ui_shared::ui::command::Command {
             group: "Current Workspace",
             label: "Add object".into(),
             reason: None,
             hint: None,
             on_select: EventHandler::new(move |()| {
-                if is_compact_viewport() {
-                    inspect_open.set(false);
-                    objects_open.set(true);
-                } else {
-                    let mut current = objects_settings();
-                    current.mode = PanelMode::Pinned;
-                    objects_settings.set(current);
-                }
+                layout_panel.set(Some(workbench_shell::ToolPanel::Objects));
                 add_open.set(true);
             }),
         });
@@ -9592,10 +9591,24 @@ fn Editor() -> Element {
             settings.set(current);
         }
     };
-    let toggle_objects =
-        use_callback(move |()| toggle_panel(objects_open, inspect_open, objects_panel_settings));
-    let toggle_inspector =
-        use_callback(move |()| toggle_panel(inspect_open, objects_open, inspector_panel_settings));
+    let toggle_objects = use_callback(move |()| {
+        if workspace() == "Layout" {
+            let next = (*layout_panel.peek() != Some(workbench_shell::ToolPanel::Objects))
+                .then_some(workbench_shell::ToolPanel::Objects);
+            layout_panel.set(next);
+        } else {
+            toggle_panel(objects_open, inspect_open, objects_panel_settings);
+        }
+    });
+    let toggle_inspector = use_callback(move |()| {
+        if workspace() == "Layout" {
+            let next = (*layout_panel.peek() != Some(workbench_shell::ToolPanel::Inspector))
+                .then_some(workbench_shell::ToolPanel::Inspector);
+            layout_panel.set(next);
+        } else {
+            toggle_panel(inspect_open, objects_open, inspector_panel_settings);
+        }
+    });
     if guide.is_none() && active_workspace != "Export" {
         for (label, on_select, available) in [
             ("Show/hide Objects", toggle_objects, true),
@@ -9619,15 +9632,16 @@ fn Editor() -> Element {
         section { class: "flex min-h-0 flex-1 flex-col", "aria-label": "Keyboard editor",
             "data-matrix-preview-stacked": (matrix_setup.projection.is_some() && zoom_surface_size().0 < 760.0).then_some(""),
             div { class: if active_workspace == "Export" { "dock-desk relative flex min-h-0 flex-1 flex-row gap-2 overflow-hidden bg-background p-2 [&_[id=workspace-panel-sheet]]:hidden!" } else { "dock-desk relative flex min-h-0 flex-1 flex-row gap-2 overflow-hidden bg-background p-2" },
-                DockLayout {
-                    objects: if guide.is_none() { Some(rsx! {
-                ObjectsPanel { compact_open: objects_open, settings: objects_panel_settings,
-                    header_action: if active_workspace == "Layout" {
+                workbench_shell::PanelComposition {
+                    workspace: active_workspace,
+                    panel: layout_panel,
+                    legacy_objects_settings: objects_panel_settings,
+                    legacy_inspector_settings: inspector_panel_settings,
+                    objects: guide.is_none().then(|| workspace_composition::objects(objects_input)),
+                    objects_header: if active_workspace == "Layout" {
                         Some(layout_workspace::add_object_header_action(layout_state.add_object_menu_open()))
                     } else { None },
-                    div { class: "min-h-0 min-w-0 flex-[1_1_auto] overflow-x-hidden overflow-y-auto",
-                    {workspace_composition::objects(objects_input)}
-                    }
+                    objects_footer: rsx! {
                     div { class: "relative mt-auto min-w-0 flex-none border-t border-border max-[760px]:[&_button]:min-h-control-touch [&>[data-slot=collapsible]]:overflow-visible [&_[id=m1-layers-list]]:absolute [&_[id=m1-layers-list]]:bottom-full [&_[id=m1-layers-list]]:left-0 [&_[id=m1-layers-list]]:z-30 [&_[id=m1-layers-list]]:w-full [&_[id=m1-layers-list]]:max-h-[min(65vh,520px)] [&_[id=m1-layers-list]]:overflow-auto [&_[id=m1-layers-list]]:rounded-t-xl [&_[id=m1-layers-list]]:border [&_[id=m1-layers-list]]:border-border-strong [&_[id=m1-layers-list]]:bg-card [&_[id=m1-layers-list]]:p-3",
                         if active_workspace == "Layout" && !layout_assembly_3d() {
                             CanvasLayers {
@@ -9652,10 +9666,8 @@ fn Editor() -> Element {
                             on_toggle_handles: EventHandler::new(move |visible| layout_state.transform_handles().set(visible)),
                         }
                     }
-                }
-                    }) } else { None },
+                    },
                     inspector: if has_inspector && guide.is_none() { Some(rsx! {
-                    InspectorPanel { compact_open: inspect_open, settings: inspector_panel_settings,
                         if active_workspace != "Layout" && (layout_findings.open)() {
                             layout_findings::LayoutFindingsInspector {
                                 open: true,
@@ -9674,8 +9686,6 @@ fn Editor() -> Element {
                         } else {
                             {workspace_composition::inspector(inspector_input)}
                         }
-
-                    }
                     }) } else { None },
                 if guide.is_some() {
                     section { class: "absolute inset-y-2 left-2 z-24 flex w-[min(380px,calc(100vw-32px))] max-w-[calc(100%-16px)] flex-col overflow-hidden rounded-xl border-0 bg-card shadow-sm [&>[role=alert]]:mx-4 [&>[role=alert]]:mt-3 [&>[role=alert]]:text-destructive max-[760px]:z-40 max-[760px]:w-[min(380px,calc(100vw-16px))]", aria_label: "Keyboard setup", "data-setup-guide-overlay": "",

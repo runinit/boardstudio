@@ -6236,6 +6236,10 @@ pub fn LayoutContextActionToolbar(
     open_menu: Signal<Option<LayoutCommandMenu>>,
     selection_kind: LayoutSelectionKind,
     #[props(default)] menu_items: bool,
+    #[props(default)] bare: bool,
+    #[props(default)] first_index: usize,
+    #[props(default)] include_origin: bool,
+    #[props(default = true)] close_on_action: bool,
 ) -> Element {
     let property_action = mount.pointer_tools_visible
         && mount.properties_available
@@ -6391,6 +6395,22 @@ pub fn LayoutContextActionToolbar(
             false,
         ));
     }
+    if include_origin
+        && mount.pointer_tools_visible
+        && mount.pointer_tools_available
+        && mount.column_available
+        && !visible_tools
+            .iter()
+            .any(|(tool, _, _, _, _)| *tool == LayoutTransformTool::Origin)
+    {
+        visible_tools.push((
+            LayoutTransformTool::Origin,
+            "Origin",
+            "Activate Origin for the selected column",
+            true,
+            false,
+        ));
+    }
     if !property_action && visible_tools.is_empty() {
         return rsx! {};
     }
@@ -6406,6 +6426,43 @@ pub fn LayoutContextActionToolbar(
         "Open Row offsets properties for Row".to_owned()
     } else {
         format!("Open Position and rotation properties for {selection_label}")
+    };
+    let inline_tools = visible_tools.clone();
+    let inline_actions = rsx! {
+        if property_action {
+            ToolbarButton {
+                index: first_index,
+                class: "layout-action-control workbench-action",
+                "data-workbench-action": "",
+                aria_label: property_accessible_label.clone(),
+                on_click: move |_| {
+                    on_show_properties.call(());
+                    if selection_kind == LayoutSelectionKind::Row {
+                        on_selection_kind.call(LayoutSelectionKind::Row);
+                    }
+                    if close_on_action {
+                        close_layout_command_menu(position_menu, LayoutCommandMenu::Transform);
+                    }
+                },
+                svg { view_box: "0 0 20 20", "aria-hidden": "true",
+                    path { d: "M10 2v16M2 10h16M7 5l3-3 3 3M7 15l3 3 3-3M5 7l-3 3 3 3M15 7l3 3-3 3" }
+                }
+                span { class: "workbench-action-label", "{property_label}" }
+            }
+        }
+        for (index, (tool, label, accessible_label, _, disabled)) in inline_tools.into_iter().enumerate() {
+            LayoutContextToolButton {
+                index: first_index + index + usize::from(property_action),
+                mount: mount.clone(),
+                open_menu,
+                tool,
+                label: label.to_owned(),
+                accessible_label: accessible_label.to_owned(),
+                pressed: mount.active_tool == Some(tool),
+                disabled,
+                close_on_action,
+            }
+        }
     };
 
     rsx! {
@@ -6433,41 +6490,10 @@ pub fn LayoutContextActionToolbar(
                     "{label}"
                 }
             }
+        } else if bare {
+            {inline_actions}
         } else {
-        Toolbar {
-            class: "layout-action-strip",
-            aria_label: "Actions for {selection_label}",
-            if property_action {
-                ToolbarButton {
-                    index: 0usize,
-                    class: "layout-action-control",
-                    aria_label: property_accessible_label.clone(),
-                    on_click: move |_| {
-                        on_show_properties.call(());
-                        if selection_kind == LayoutSelectionKind::Row {
-                            on_selection_kind.call(LayoutSelectionKind::Row);
-                        }
-                        close_layout_command_menu(position_menu, LayoutCommandMenu::Transform);
-                    },
-                    svg { view_box: "0 0 20 20", "aria-hidden": "true",
-                        path { d: "M10 2v16M2 10h16M7 5l3-3 3 3M7 15l3 3 3-3M5 7l-3 3 3 3M15 7l3 3-3 3" }
-                    }
-                    span { "{property_label}" }
-                }
-            }
-            for (index, (tool, label, accessible_label, _, disabled)) in visible_tools.into_iter().enumerate() {
-                LayoutContextToolButton {
-                    index: index + usize::from(property_action),
-                    mount: mount.clone(),
-                    open_menu,
-                    tool,
-                    label: label.to_owned(),
-                    accessible_label: accessible_label.to_owned(),
-                    pressed: mount.active_tool == Some(tool),
-                    disabled,
-                }
-            }
-        }
+            Toolbar { class: "layout-action-strip", aria_label: "Actions for {selection_label}", {inline_actions} }
         }
     }
 }
@@ -6482,6 +6508,7 @@ fn LayoutContextToolButton(
     accessible_label: String,
     pressed: bool,
     #[props(default)] disabled: bool,
+    #[props(default = true)] close_on_action: bool,
 ) -> Element {
     let on_transform_tool = mount.on_transform_tool;
     let glyph = match tool {
@@ -6510,16 +6537,19 @@ fn LayoutContextToolButton(
             index,
             attributes,
             "data-slot": "toolbar-button",
-            class: "layout-action-control",
+            "data-workbench-action": "",
+            class: "layout-action-control workbench-action",
             aria_label: accessible_label.clone(),
             aria_pressed: pressed,
             disabled,
             on_click: move |_| {
                 on_transform_tool.call(tool);
-                close_layout_command_menu(open_menu, LayoutCommandMenu::Transform);
+                if close_on_action {
+                    close_layout_command_menu(open_menu, LayoutCommandMenu::Transform);
+                }
             },
             svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: glyph } }
-            span { {match label.as_str() {
+            span { class: "workbench-action-label", {match label.as_str() {
                 "Stagger column" => "Stagger",
                 "Offset column" | "Offset row" => "Offset",
                 "Spread column" => "Spread",

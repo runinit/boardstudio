@@ -12,6 +12,7 @@ use boardstudio_web_ui_shared::ui::{
     label::Label,
     select::{Select, SelectOption},
     toast::{ToastOptions, use_toast},
+    toolbar::ToolbarButton,
 };
 use dioxus::prelude::*;
 
@@ -53,52 +54,68 @@ pub struct LayoutAlignMount {
     pub on_align: EventHandler<AlignAction>,
 }
 
+fn align_icon_path(command: AlignCommand) -> &'static str {
+    match command {
+        AlignCommand::Left => "M3 2v16M6 5h11v3H6zM6 12h7v3H6z",
+        AlignCommand::CenterX => "M10 1v18M3 5h14v3H3zM5 12h10v3H5z",
+        AlignCommand::Right => "M17 2v16M3 5h11v3H3zM7 12h7v3H7z",
+        AlignCommand::Top => "M2 3h16M5 6h3v11H5zM12 6h3v7h-3z",
+        AlignCommand::CenterY => "M1 10h18M5 3h3v14H5zM12 5h3v10h-3z",
+        AlignCommand::Bottom => "M2 17h16M5 3h3v11H5zM12 7h3v7h-3z",
+    }
+}
+
 #[component]
-pub fn LayoutAlignToolbar(
-    mount: LayoutAlignMount,
-    open_menu: Signal<Option<LayoutCommandMenu>>,
-    show_relationships: bool,
-    has_selection_context: bool,
-    on_show_relationships: EventHandler<()>,
-) -> Element {
-    let on_align = mount.on_align;
+fn LayoutAlignReferenceControl(mount: LayoutAlignMount) -> Element {
     let selected_reference = use_memo(use_reactive((&mount.selected_reference,), |(value,)| value));
-    let toast = use_toast();
-    use_effect(use_reactive((&mount.feedback,), move |(feedback,)| {
-        if let Some(feedback) = feedback {
-            if feedback.succeeded {
-                toast.success(feedback.message, ToastOptions::new());
-            } else {
-                toast.error(feedback.message, ToastOptions::new());
+    rsx! {
+        Label { "Reference part" }
+        if mount.references.len() > 12 {
+            Combobox::<String> {
+                aria_label: "Alignment reference", list_aria_label: "Alignment reference",
+                value: Some(selected_reference.into()),
+                on_value_change: move |value: Option<String>| if let Some(value) = value { mount.on_reference.call(value); },
+                for (index, part) in mount.references.iter().enumerate() {
+                    ComboboxOption::<String> { index, value: part.id.clone(), text_value: part.label.clone(), "{part.label}" }
+                }
+            }
+        } else {
+            Select::<String> {
+                aria_label: "Alignment reference", value: Some(selected_reference.into()), disabled: mount.references.is_empty(),
+                on_value_change: move |value: Option<String>| if let Some(value) = value { mount.on_reference.call(value); },
+                for (index, part) in mount.references.iter().enumerate() {
+                    SelectOption::<String> { index, value: part.id.clone(), text_value: part.label.clone(), "{part.label}" }
+                }
             }
         }
-    }));
+    }
+}
+
+#[component]
+fn LayoutAlignActions(
+    mount: LayoutAlignMount,
+    open_menu: Signal<Option<LayoutCommandMenu>>,
+    #[props(default)] inline_actions: bool,
+    #[props(default)] first_index: usize,
+) -> Element {
+    let on_align = mount.on_align;
     rsx! {
-        super::layout_toolbar::LayoutCommandPopup {
-            open_menu, menu: LayoutCommandMenu::Align, label: "Align",
-            trigger: rsx! { span { "Align" } },
-            Label { "Reference part" }
-            if mount.references.len() > 12 {
-                Combobox::<String> {
-                    aria_label: "Alignment reference", list_aria_label: "Alignment reference",
-                    value: Some(selected_reference.into()),
-                    on_value_change: move |value: Option<String>| if let Some(value) = value { mount.on_reference.call(value); },
-                    for (index, part) in mount.references.iter().enumerate() {
-                        ComboboxOption::<String> { index, value: part.id.clone(), text_value: part.label.clone(), "{part.label}" }
+        div { class: if inline_actions { "layout-alignment-inline" } else { "layout-alignment-actions" }, role: "group", aria_label: "Align selection",
+            for (offset, command) in AlignCommand::ALL.into_iter().enumerate() {
+                if inline_actions {
+                    ToolbarButton {
+                        key: "{command.label()}", index: first_index + offset,
+                        class: "layout-action-control workbench-action", "data-workbench-action": "",
+                        aria_label: command.label(),
+                        disabled: !mount.enabled || mount.busy || mount.selected_reference.is_none(),
+                        on_click: {
+                            let action = mount.action.as_ref().map(|action| AlignAction { command, ..action.clone() });
+                            move |_| if let Some(action) = action.clone() { on_align.call(action); }
+                        },
+                        svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: align_icon_path(command) } }
+                        span { class: "workbench-action-label", "{command.label()}" }
                     }
-                }
-            } else {
-                Select::<String> {
-                    aria_label: "Alignment reference", value: Some(selected_reference.into()), disabled: mount.references.is_empty(),
-                    on_value_change: move |value: Option<String>| if let Some(value) = value { mount.on_reference.call(value); },
-                    for (index, part) in mount.references.iter().enumerate() {
-                        SelectOption::<String> { index, value: part.id.clone(), text_value: part.label.clone(), "{part.label}" }
-                    }
-                }
-            }
-            if let Some(reason) = mount.disabled_reason.as_ref() { Callout { "{reason}" } }
-            div { class: "layout-alignment-actions", role: "group", aria_label: "Align selection",
-                for command in AlignCommand::ALL {
+                } else {
                     Button {
                         key: "{command.label()}", size: ButtonSize::Sm, variant: ButtonVariant::Secondary,
                         disabled: !mount.enabled || mount.busy || mount.selected_reference.is_none(),
@@ -113,11 +130,63 @@ pub fn LayoutAlignToolbar(
                     }
                 }
             }
-            if show_relationships {
-                Button {
-                    size: ButtonSize::Sm, variant: ButtonVariant::Secondary, disabled: !has_selection_context,
-                    onclick: move |_| { on_show_relationships.call(()); close_layout_command_menu(open_menu, LayoutCommandMenu::Align); },
-                    "Relationships"
+        }
+    }
+}
+
+#[component]
+pub fn LayoutAlignToolbar(
+    mount: LayoutAlignMount,
+    open_menu: Signal<Option<LayoutCommandMenu>>,
+    show_relationships: bool,
+    has_selection_context: bool,
+    on_show_relationships: EventHandler<()>,
+    #[props(default)] inline_actions: bool,
+    #[props(default)] first_index: usize,
+) -> Element {
+    let detail_menu = use_signal(|| None::<LayoutCommandMenu>);
+    let toast = use_toast();
+    use_effect(use_reactive((&mount.feedback,), move |(feedback,)| {
+        if let Some(feedback) = feedback {
+            if feedback.succeeded {
+                toast.success(feedback.message, ToastOptions::new());
+            } else {
+                toast.error(feedback.message, ToastOptions::new());
+            }
+        }
+    }));
+    let disabled_reason = mount.disabled_reason.clone();
+    if inline_actions {
+        rsx! {
+            LayoutAlignActions { mount: mount.clone(), open_menu, inline_actions: true, first_index }
+            super::layout_toolbar::LayoutCommandPopup {
+                open_menu: detail_menu, menu: LayoutCommandMenu::Align, label: "Alignment reference",
+                trigger: rsx! { span { "Reference" } },
+                LayoutAlignReferenceControl { mount: mount.clone() }
+                if let Some(reason) = disabled_reason.as_ref() { Callout { "{reason}" } }
+                if show_relationships {
+                    Button {
+                        size: ButtonSize::Sm, variant: ButtonVariant::Secondary, disabled: !has_selection_context,
+                        onclick: move |_| { on_show_relationships.call(()); close_layout_command_menu(detail_menu, LayoutCommandMenu::Align); },
+                        "Relationships"
+                    }
+                }
+            }
+        }
+    } else {
+        rsx! {
+            super::layout_toolbar::LayoutCommandPopup {
+                open_menu, menu: LayoutCommandMenu::Align, label: "Align",
+                trigger: rsx! { span { "Align" } },
+                LayoutAlignReferenceControl { mount: mount.clone() }
+                if let Some(reason) = disabled_reason.as_ref() { Callout { "{reason}" } }
+                LayoutAlignActions { mount: mount.clone(), open_menu }
+                if show_relationships {
+                    Button {
+                        size: ButtonSize::Sm, variant: ButtonVariant::Secondary, disabled: !has_selection_context,
+                        onclick: move |_| { on_show_relationships.call(()); close_layout_command_menu(open_menu, LayoutCommandMenu::Align); },
+                        "Relationships"
+                    }
                 }
             }
         }

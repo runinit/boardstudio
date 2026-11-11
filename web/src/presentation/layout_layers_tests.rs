@@ -83,7 +83,14 @@ fn host() -> Element {
         footprints,
     });
     boardstudio_web_ui_model::state::use_test_case_generation_state();
-    rsx! { super::notifications::NotificationProvider { Editor {} } }
+    rsx! {
+        style { {include_str!("../../assets/workbench-base.css")} }
+        style { {include_str!("../../assets/tailwind.css")} }
+        style { {include_str!("../../assets/shell.css")} }
+        div { style: "display:flex;flex-direction:column;width:1000px;height:720px",
+            super::notifications::NotificationProvider { Editor {} }
+        }
+    }
 }
 
 use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
@@ -128,6 +135,13 @@ async fn switch_visibility_keeps_keycaps_independent() {
         ),
         1
     );
+    click(&root, "Objects");
+    wait_until("the Objects panel reveals the layer controls", || {
+        root.query_selector("#workbench-objects:not([hidden])")
+            .unwrap()
+            .is_some()
+    })
+    .await;
     let layer_trigger = by_role_name(&root, "button", "Canvas visibility").unwrap();
     assert_eq!(
         layer_trigger.get_attribute("aria-expanded").as_deref(),
@@ -136,10 +150,10 @@ async fn switch_visibility_keeps_keycaps_independent() {
     );
     assert!(
         layer_trigger
-            .closest("#m1-objects-panel")
+            .closest("#workbench-objects")
             .unwrap()
             .is_some(),
-        "Layout visibility controls stay in the Objects dock"
+        "Layout visibility controls stay with the Objects panel content"
     );
     assert_eq!(
         count(
@@ -473,5 +487,69 @@ async fn paired_rejoin_preview_findings_reach_editor_footer_panel_and_clear_befo
         runtime.model().accepted.as_ref().unwrap().document,
         accepted_document
     );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn layout_panels_overlay_the_same_canvas_without_a_legacy_dock() {
+    let runtime = support::new_runtime();
+    support::open_document(&runtime, document()).await;
+    let revision = runtime.model().accepted.as_ref().unwrap().document.revision;
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = document.create_element("div").unwrap();
+    document.body().unwrap().append_child(&root).unwrap();
+    let dom = VirtualDom::new(host);
+    dom.provide_root_context(runtime.clone());
+    dioxus_web::launch::launch_virtual_dom(
+        dom,
+        dioxus_web::Config::new().rootnode(root.clone().into()),
+    );
+    wait_until("the Layout canvas and its panel utilities mount", || {
+        root.query_selector("#m1-workspace-panel svg[role='group']").unwrap().is_some()
+            && by_role_name(&root, "button", "Objects").is_some()
+            && by_role_name(&root, "button", "Inspect").is_some()
+    })
+    .await;
+    let canvas = root
+        .query_selector("#m1-workspace-panel svg[role='group']")
+        .unwrap()
+        .unwrap();
+    let rect = canvas.get_bounding_client_rect();
+    let before = (rect.x(), rect.y(), rect.width(), rect.height());
+    assert!(before.2 > 0.0 && before.3 > 0.0, "production CSS gives the canvas bounds");
+    let view_box = canvas.get_attribute("viewBox");
+    assert_eq!(count(&root, "#m1-objects-panel, #m1-inspector-panel"), 0);
+    let assert_canvas_unchanged = |root: &web_sys::Element| {
+        let current = root
+            .query_selector("#m1-workspace-panel svg[role='group']")
+            .unwrap()
+            .unwrap();
+        let rect = current.get_bounding_client_rect();
+        assert!(canvas.is_same_node(Some(current.as_ref())), "panel visibility must not remount the canvas");
+        assert_eq!((rect.x(), rect.y(), rect.width(), rect.height()), before);
+        assert_eq!(current.get_attribute("viewBox"), view_box);
+        assert_eq!(runtime.model().accepted.as_ref().unwrap().document.revision, revision);
+    };
+    click(&root, "Objects");
+    wait_until("actual Layout Objects content opens", || {
+        root.query_selector("#workbench-objects:not([hidden]) #m1-add-object-trigger")
+            .unwrap()
+            .is_some()
+    })
+    .await;
+    assert_canvas_unchanged(&root);
+    click(&root, "Inspect");
+    wait_until("Inspect replaces Objects", || {
+        root.query_selector("#workbench-inspector:not([hidden])").unwrap().is_some()
+            && root.query_selector("#workbench-objects[hidden][inert]").unwrap().is_some()
+    })
+    .await;
+    assert_canvas_unchanged(&root);
+    click(&root, "Inspect");
+    wait_until("both Layout panels close", || {
+        root.query_selector("#workbench-inspector[hidden][inert]").unwrap().is_some()
+    })
+    .await;
+    assert_canvas_unchanged(&root);
     root.remove();
 }

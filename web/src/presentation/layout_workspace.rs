@@ -65,6 +65,7 @@ pub(super) struct ToolbarInput {
     pub(super) has_selection_context: bool,
     pub(super) show_relationships: bool,
     pub(super) on_show_relationships: EventHandler<()>,
+    pub(super) panel: Signal<Option<super::workbench_shell::ToolPanel>>,
 }
 
 pub(super) struct InspectorInput {
@@ -418,6 +419,8 @@ pub(super) fn add_object_header_action(mut menu_open: Signal<bool>) -> Element {
 }
 
 pub(super) fn toolbar(input: ToolbarInput) -> Element {
+    let mut transient_menu = input.open_menu;
+    let hide_transient = EventHandler::new(move |()| transient_menu.set(None));
     rsx! {
             div { class: "pointer-events-none absolute inset-0 z-[12] [container:layout-toolbar/inline-size] [&>*]:pointer-events-auto", "data-workspace-toolbar": "layout",
             onkeydown: move |event: KeyboardEvent| {
@@ -468,6 +471,11 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
                         variant: ButtonVariant::Secondary,
                         onclick: move |_| input.on_recover_saved.call(()),
                         "Reload saved version"
+                    }
+                }
+                div { class: "absolute right-3 top-3 z-[13] max-[760px]:right-2 max-[760px]:top-2",
+                    boardstudio_web_ui_shared::ui::toolbar::Toolbar { aria_label: "Layout panels", class: "gap-1 rounded-[8px] bg-toolbar p-[3px]",
+                        super::workbench_shell::PanelUtilities { panel: input.panel, on_hide_transient: hide_transient, first_index: 0usize }
                     }
                 }
                 div { class: "absolute bottom-2 left-3 z-[11] flex gap-0.5 rounded-[8px] bg-toolbar p-[3px]",

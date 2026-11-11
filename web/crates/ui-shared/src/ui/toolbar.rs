@@ -32,7 +32,8 @@ impl Drop for ToolbarObserver {
 }
 
 // The pinned primitive's collection is private; repair focus within this owned toolbar DOM only.
-fn buttons(root: &web_sys::Element) -> Vec<web_sys::HtmlElement> {
+// Closed accordion reveals retain their controls inert, so only rendered items are stops.
+fn all_buttons(root: &web_sys::Element) -> Vec<web_sys::HtmlElement> {
     let nodes = root
         .query_selector_all("[data-slot=toolbar-button], [data-slot=toggle-group-item]")
         .expect("toolbar item selector");
@@ -42,7 +43,30 @@ fn buttons(root: &web_sys::Element) -> Vec<web_sys::HtmlElement> {
         .collect()
 }
 
+fn is_rendered(item: &web_sys::HtmlElement) -> bool {
+    let rect = item.get_bounding_client_rect();
+    rect.width() > 0.0
+        && rect.height() > 0.0
+        && item
+            .closest("[hidden], [inert], [aria-hidden=true]")
+            .ok()
+            .flatten()
+            .is_none()
+}
+
+fn buttons(root: &web_sys::Element) -> Vec<web_sys::HtmlElement> {
+    all_buttons(root)
+        .into_iter()
+        .filter(|item| is_rendered(item))
+        .collect()
+}
+
 fn sync_tab_stop(root: &web_sys::Element) {
+    for item in all_buttons(root) {
+        if !is_rendered(&item) && item.tab_index() != -1 {
+            item.set_tab_index(-1);
+        }
+    }
     let items = buttons(root);
     let enabled: Vec<_> = items
         .iter()
@@ -80,7 +104,11 @@ pub fn Toolbar(props: ToolbarProps) -> Element {
             .expect("toolbar mutation observer");
         let options = web_sys::MutationObserverInit::new();
         options.set_attributes(true);
-        options.set_attribute_filter(&js_sys::Array::of2(&"tabindex".into(), &"disabled".into()));
+        let attribute_filter = js_sys::Array::new();
+        for attribute in ["tabindex", "disabled", "hidden", "inert", "aria-hidden", "class", "style"] {
+            attribute_filter.push(&attribute.into());
+        }
+        options.set_attribute_filter(&attribute_filter);
         options.set_child_list(true);
         options.set_subtree(true);
         native

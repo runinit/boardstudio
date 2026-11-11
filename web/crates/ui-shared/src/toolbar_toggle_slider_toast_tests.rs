@@ -30,6 +30,9 @@ fn fixture() -> Element {
             ToolbarSeparator {}
             ToolbarButton { index: 2usize, on_click: move |_| actions += 1, "Redo" }
             ToolbarButton { index: 3usize, "Last action" }
+            span { inert: "",
+                ToolbarButton { index: 4usize, "Hidden action" }
+            }
         }
         button { "After toolbar" }
         Toolbar { aria_label: "Vertical tools", horizontal: false,

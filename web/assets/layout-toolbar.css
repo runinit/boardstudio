@@ -31,6 +31,9 @@
 .layout-popup-close[data-slot] { width: var(--control-height); }
 .layout-snap-fields { display: grid; gap: 8px; }
 .layout-alignment-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+.layout-toolbar-accordion { display: flex; flex: 1; align-items: center; gap: 3px; width: 100%; min-width: 0; }
+.layout-alignment-inline { display: contents; }
+.layout-snap-inline-select [data-slot='select-trigger'] { height: 32px; min-height: 32px; min-width: 76px; }
 @media (pointer: coarse) {
   .layout-toolbar-strips [data-slot]:is(button) { min-width: var(--control-touch); height: var(--control-touch); min-height: var(--control-touch); }
 }
