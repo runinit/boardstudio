@@ -7,6 +7,16 @@
 .layout-context-strip, .layout-action-slot { display: flex; align-items: center; justify-content: center; min-width: 0; max-width: 100%; }
 .layout-menu-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 2px; max-width: 100%; box-sizing: border-box; padding: 4px; border-radius: var(--radius); background: var(--toolbar); color: var(--foreground); }
 .layout-selection-guidance { margin: 0; padding: 6px 10px; border-radius: var(--radius); background: var(--toolbar); color: var(--muted-foreground); font-size: 13px; text-align: center; }
+/* 002 lane-label-fix: Transform guidance inline truncated + full text in existing Tooltip (focus/hover). Accordion-only, PCB legacy wrapping preserved. */
+/* 002 roving-guidance: guidance is now ToolbarButton index 11 (roving) + Tooltip (data-slot filtered to preserve toolbar-button). Button + inner span truncate. */
+.layout-toolbar-accordion [data-workbench-section='transform'] .layout-selection-guidance { display: flex; align-items: center; box-sizing: border-box; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; height: 32px; min-height: 32px; max-height: 32px; padding: 0 8px; margin: 0; flex: 1 1 auto; min-width: 32px; font-size: 12px; text-align: left; cursor: help; border: 0; }
+.layout-toolbar-accordion [data-workbench-section='transform'] .layout-selection-guidance:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.layout-toolbar-accordion [data-workbench-section='transform'] .layout-selection-guidance-text { min-width: 0; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.layout-toolbar-accordion [data-workbench-section='transform'] [data-slot='tooltip'] { display: flex; flex: 1 1 auto; min-width: 32px; max-width: 100%; min-height: 32px; }
+[data-workbench-section='transform'] [data-slot='tooltip-content'] { top: 100%; bottom: auto; margin-top: 8px; margin-bottom: 0; left: 0; transform: none; max-width: min(240px, calc(100vw - 16px)); white-space: normal; }
+.workbench-tool-row:has([data-workbench-section='transform'][data-open='true'] [data-slot='tooltip'][data-state='open']) { overflow: visible; }
+.workbench-tool-row:has([data-workbench-section='transform'][data-open='true'] [data-slot='tooltip'][data-state='open']) .workbench-tool-reveal-inner,
+.workbench-tool-row:has([data-workbench-section='transform'][data-open='true'] [data-slot='tooltip'][data-state='open']) .workbench-tool-track { overflow: visible; }
 .layout-menu-actions { position: relative; }
 .layout-menu-actions > [data-slot=popover] { position: static; }
 .layout-scope-toolbar[data-slot], .layout-action-strip[data-slot] { display: flex; flex-wrap: nowrap; gap: 2px; padding: 0; background: transparent; box-shadow: none; }
@@ -38,10 +48,26 @@
 [data-workbench-section='view'] [data-slot='toggle-group'],
 [data-workspace-toolbar='layout'] .workbench-tool-row > [data-slot='toggle-group'] { padding: 0; gap: 2px; }
 [data-workbench-section='view'] [data-slot='toggle-group-item'],
-[data-workspace-toolbar='layout'] .workbench-tool-row > [data-slot='toggle-group'] [data-slot='toggle-group-item'] { height: 32px; min-height: 32px; min-width: 32px; }
+[data-workspace-toolbar='layout'] .workbench-tool-row > [data-slot='toggle-group'] [data-slot='toggle-group-item'] { height: 32px; min-height: 32px; min-width: 32px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+/* 002 lane-label-fix: Select scope triggers icon-only 32px when compact, auto width when fitter allocates labels. Accordion-only, PCB legacy preserved. */
+[data-workbench-section='select'] [data-slot='toggle-group-item'],
+[data-workbench-section='select'] .layout-scope-trigger[data-slot] { height: 32px; min-height: 32px; min-width: 32px; width: 32px; padding: 5px; flex: none; }
+[data-workbench-section='select'][data-action-labels='full'] [data-slot='toggle-group-item'],
+[data-workbench-section='select'][data-action-labels='full'] .layout-scope-trigger[data-slot],
+[data-workbench-section='select'][data-action-labels='adaptive'] [data-show-label][data-slot='toggle-group-item'],
+[data-workbench-section='select'][data-action-labels='adaptive'] [data-show-label].layout-scope-trigger[data-slot] { width: auto; padding: 5px 8px; }
 /* View CanvasLayers: trigger in the row, list below the strip, clamped and scrollable. */
-[data-workbench-section='view'] [data-slot='collapsible'] { position: relative; right: auto; bottom: auto; z-index: auto; display: flex; flex-direction: column; width: auto; min-width: 0; max-height: none; margin: 0; padding: 0; overflow: visible; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
-[data-workbench-section='view'] #m1-layers-trigger { height: 32px; min-height: 32px; padding: 5px 8px; font-size: 12px; white-space: nowrap; }
+[data-workbench-section='view'] [data-slot='collapsible'] { position: relative; right: auto; bottom: auto; z-index: auto; display: flex; flex-direction: column; width: auto; min-width: 32px; max-width: 100%; max-height: none; margin: 0; padding: 0; overflow: visible; border: 0; border-radius: 0; background: transparent; box-shadow: none; flex: none; }
+[data-workbench-section='view'] #m1-layers-trigger { height: 32px; min-height: 32px; min-width: 32px; max-width: 100%; padding: 5px 8px; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: none; }
+/* 002 roving-guidance: View Handles chain (ToggleGroup+Tooltip+Button, tooltip-trigger not toggle-group-item) must cap to lane width to fit 34px whole via scroll, full when space. Accordion-only via data-workbench-section. */
+[data-workbench-section='view'] [aria-label='Canvas handles visibility'] { max-width: 100%; min-width: 32px; flex: none; overflow: hidden; }
+[data-workbench-section='view'] [aria-label='Canvas handles visibility'] [data-slot='tooltip'] { max-width: 100%; min-width: 32px; overflow: hidden; }
+[data-workbench-section='view'] button[aria-label='Canvas handles'] { height: 32px; min-height: 32px; min-width: 32px; max-width: 100%; flex: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* handles-tooltip: fixed+anchor below escapes scroll without losing track scroll; chain visible when open, row/track untouched. */
+[data-workbench-section='view'] button[aria-label='Canvas handles'] { anchor-name: --handles-btn; }
+[data-workbench-section='view'] [aria-label='Canvas handles visibility'] [data-slot='tooltip-content'] { position: fixed; position-anchor: --handles-btn; top: anchor(bottom); bottom: auto; left: anchor(left); margin-top: 8px; margin-bottom: 0; transform: none; max-width: min(240px, calc(100vw - 16px)); white-space: nowrap; }
+[data-workbench-section='view'] [aria-label='Canvas handles visibility']:has([data-slot='tooltip'][data-state='open']) { overflow: visible; }
+[data-workbench-section='view'] [aria-label='Canvas handles visibility'] [data-slot='tooltip'][data-state='open'] { overflow: visible; }
 [data-workbench-section='view'] #m1-layers-list { position: absolute; top: calc(100% + 4px); left: 0; z-index: 30; width: 240px; max-width: min(320px, calc(100vw - 16px)); max-height: min(65vh, 520px); overflow: auto; border: 1px solid var(--border-strong); border-radius: 12px; background: var(--card); padding: 12px; }
 .workbench-tool-row:has([data-workbench-section='view'][data-open='true'] #m1-layers-list:not([hidden])) { overflow: visible; }
 .workbench-tool-row:has([data-workbench-section='view'][data-open='true'] #m1-layers-list:not([hidden])) .workbench-tool-reveal-inner,

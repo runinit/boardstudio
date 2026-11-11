@@ -1674,7 +1674,32 @@ pub fn LayoutCommandPill(
                             mount: transform.clone(), open_menu, selection_kind, bare: true, first_index: 11usize, include_origin: true, close_on_action: false,
                         }
                     } else if pointer_tools_visible {
-                        p { class: "layout-selection-guidance", role: "status", "Select a {selection_kind.label().to_lowercase()} on the canvas to edit it." }
+                        {
+                            let guidance_text = format!("Select a {} on the canvas to edit it.", selection_kind.label().to_lowercase());
+                            let guidance_trigger = guidance_text.clone();
+                            let guidance_content = guidance_text;
+                            rsx! {
+                                Tooltip {
+                                    TooltipTrigger { r#as: move |mut attrs: Vec<Attribute>| {
+                                        // Preserve roving: Toolbar sync looks for data-slot toolbar-button,
+                                        // while tooltip's data-slot would overwrite it (later wins). Filter it,
+                                        // keeping tabindex/handlers/aria for tooltip function.
+                                        attrs.retain(|a| a.name != "data-slot");
+                                        let label = guidance_trigger.clone();
+                                        rsx! {
+                                            ToolbarButton {
+                                                index: 11usize,
+                                                class: "layout-selection-guidance",
+                                                aria_label: label,
+                                                attributes: attrs,
+                                                span { role: "status", class: "layout-selection-guidance-text", "{guidance_trigger}" }
+                                            }
+                                        }
+                                    } }
+                                    TooltipContent { "{guidance_content}" }
+                                }
+                            }
+                        }
                     } else {
                         super::layout_transform_toolbar::LayoutTransformToolbar { open_menu, mount: menu_transform.clone(), selection_kind: None }
                     }
