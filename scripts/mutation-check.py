@@ -26,7 +26,12 @@ leave a mutant behind.
 
 Usage: mutation-check.py SPEC.json [--root DIR] [--command "cargo test ..."]
            [--evidence-dir DIR] [--only NAME ...] [--timeout SECONDS]
-           [--skip-baseline] [--validate]
+           [--skip-baseline] [--validate] [--locked]
+
+`--locked` takes the shared build lock (`~/.cache/tmp/boardstudio-build.lock`, exported as
+BOARDSTUDIO_BUILD_LOCK_FD) around every command run, baseline and mutants alike. Use it instead of
+wrapping the whole script: a lock fd held by an outer shell is closed before the command starts.
+Select one proof row's test with the runner's own filter in `--command` so each run stays short.
 """
 
 from __future__ import annotations
@@ -45,6 +50,10 @@ import time
 
 REPO = Path(__file__).resolve().parents[1]
 DEFAULT_COMMAND = "cargo test -p boardstudio_core --locked --lib"
+# Holds the shared build lock for exactly one command run; the fd is opened inside the child so it
+# survives the exec that follows (a fd inherited from an outer shell would not).
+LOCK_WRAPPER = ('mkdir -p "$HOME/.cache/tmp"; exec 9>"$HOME/.cache/tmp/boardstudio-build.lock"; '
+                'flock 9; export BOARDSTUDIO_BUILD_LOCK_FD=9; exec "$@"')
 KILLED = "killed"
 SURVIVED = "survived"
 COMPILE_FAILURE = "compile-failure (does not count)"
@@ -327,6 +336,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--timeout", type=float, default=1800.0, metavar="SECONDS",
                         help="per run; a mutant that hangs the tests counts as killed (default 1800)")
     parser.add_argument("--skip-baseline", action="store_true", help="do not run the unmutated tests first")
+    parser.add_argument("--locked", action="store_true",
+                        help="run every command under the shared build lock (baseline and mutants)")
     parser.add_argument("--validate", action="store_true",
                         help="only check the spec against the files (counts of `old`); run nothing")
     args = parser.parse_args(argv)
@@ -349,7 +360,10 @@ def main(argv: list[str] | None = None) -> int:
         raise KeyboardInterrupt  # SIGTERM unwinds through the `finally` blocks like Ctrl-C does
 
     signal.signal(signal.SIGTERM, terminate)
-    results, status = check(root, spec, shlex.split(args.command), evidence, only=args.only,
+    command = shlex.split(args.command)
+    if args.locked:
+        command = ["bash", "-c", LOCK_WRAPPER, "mutation-lock", *command]
+    results, status = check(root, spec, command, evidence, only=args.only,
                             timeout=args.timeout, skip_baseline=args.skip_baseline)
     if results:
         print(summary(results))

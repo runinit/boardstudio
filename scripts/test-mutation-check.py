@@ -258,6 +258,24 @@ class MutationCheckTests(unittest.TestCase):
         self.assertTrue((self.root / ".evidence" / "mutations" / "results.json").is_file())
         self.assert_original()
 
+    def test_locked_runs_hold_the_build_lock_fd_inside_the_command(self):
+        spec_path = Path(self.directory.name) / "spec.json"
+        spec_path.write_text(json.dumps([
+            {"name": "m1", "description": "", "edits": [edit("omega", "OMEGA")]}]))
+        probe = ("import os, sys; fd = int(os.environ['BOARDSTUDIO_BUILD_LOCK_FD']); "
+                 "os.fstat(fd); print('LOCK-FD-OK', fd)")
+        home = Path(self.directory.name) / "home"
+        with mock.patch.dict(mutation_check.os.environ, {"HOME": str(home)}), \
+                contextlib.redirect_stdout(io.StringIO()):
+            status = mutation_check.main([str(spec_path), "--root", str(self.root), "--locked",
+                                          "--evidence-dir", str(self.evidence),
+                                          "--command", f"{sys.executable} -c \"{probe}\""])
+        self.assertEqual(status, 0)
+        self.assertTrue((home / ".cache" / "tmp" / "boardstudio-build.lock").exists())
+        logs = "".join(path.read_text() for path in self.evidence.glob("*.log"))
+        self.assertIn("LOCK-FD-OK 9", logs)
+        self.assert_original()
+
     def test_validate_checks_the_spec_without_running(self):
         spec_path = Path(self.directory.name) / "spec.json"
         spec_path.write_text(json.dumps([{"name": "m1", "description": "", "edits": [edit("GOOD", "BAD", count=5)]}]))

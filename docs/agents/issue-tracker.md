@@ -50,7 +50,10 @@ the boundary is the user's decision.
   mutation that must turn it red. Run those, plus any the acceptance list names. The boundary
   gives each mutation its test command, its tier and the assertion that must fail; a kill
   anywhere else is a survivor. Use the mounted tier unless only the packaged build shows the
-  failure.
+  failure. The builder records each row as `RED` (the failing run is logged) or `proof gap` in
+  the ticket's progress entry; the Checker runs mutations for `proof gap` rows only and does not
+  mutate a `RED` row again. One spec per row; run it with `mutation-check.py --locked` and the
+  row's test filter so a run stays short.
 - **Order.** RED → fix → affected checks → boundary mutations → one fresh reviewer covering
   Spec and Standards → the ticket's integrated gate. Each step runs once on a stable candidate.
   When browser-gated or `wasm32`-only Rust changes, affected checks include

@@ -10,10 +10,11 @@
 - Inventory: to find every use of a field or type you change, remove it and read the `cargo check` errors.
 - Scripted edits: replace one exact, unique string and assert the match count. Read the diff before running tests. Checkpoint with a WIP commit on your branch before a large scripted edit.
 - CAD migration review: follow the [map decisions](docs/plans/cad-backend-replacement/map.md#closure-and-workflow-decisions-2026-10-18-user). Run one combined spec+standards review at ticket closure or when a change touches public API, geometry, allowances or a cross-crate contract; private storage and test-only slices get RED/GREEN evidence and a diff read instead. An explicit `code-review` request and 012's final two-axis review still apply.
-- Verification: every mutation runs through `scripts/mutation-check.py`, which restores the source; `check.py test` guards native test counts by test name.
+- Verification: every mutation runs through `scripts/mutation-check.py --locked`, which restores the source and takes the build lock around each run; `check.py test` guards native test counts by test name.
 - Baselines: compare against another commit in a `git worktree add` checkout. `git stash` is shared by every worktree and session, so leave it alone.
 - Tests: before adding, changing or reviewing test code, read [test economy](CODING_STANDARDS.md#test-economy).
 - Stop rule: a review finding, surviving mutation or new test idea adds work only when it shows a required check or acceptance criterion unmet; otherwise list it as a follow-up and continue. After two attempts that leave the result unchanged, stop and report. Full rule: [slice boundary](docs/agents/issue-tracker.md#slice-boundary).
+- Gortex stale writes: delegates read through Gortex and write through its edit tools. When a Gortex write is rejected as stale, `view_building` or read-only, retry once after 30 seconds, then use native Edit/Write for that file and report it. Do not stop for a stale Gortex view; this is the project's "proceed without Gortex" exception for writes.
 - Evidence: `.evidence/` holds logs only, except committed handoff records; redirect long check and mutation output there and report only results and relevant failures. Never create Cargo `target` directories or copy crate source trees inside `.evidence/`. Never generate `PREIMAGES.json`, `POSTIMAGES.json`, `before/` or `after/` file copies, or custom SHA-256 manifest files—Git already tracks source state.
 
 ## Environment & Build Guardrails

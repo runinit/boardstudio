@@ -18,6 +18,8 @@ A delegated task names one **role**. The role fixes what the delegate does and w
 The coordinator keeps the boundary, the checklist and the disposition of findings; it delegates the roles and reads their results. Its own writes are the checkpoint file and the commits; every other edit, check and read-through goes to a role.
 
 - **Independence.** The Reviewer's model family differs from the Builder's, except while the temporary cost routes above put both on Terra; then the Reviewer is a fresh session at higher effort.
+- **Review handoff.** Give the Reviewer the fixed endpoints, the per-file list from `git diff --stat base..head` and the ticket's acceptance criteria as a checklist. It reads one file's diff at a time, appends each file's findings to the report file as it goes, and states which files it read in full, in part or not at all. A single `git diff` for the whole range truncates and yields a `PARTIAL` review.
+- **Mutation handoff.** The Checker runs only the rows the builder recorded as `proof gap` (see the [slice boundary](issue-tracker.md#slice-boundary)), one spec per row, with `scripts/mutation-check.py --locked` and that row's test filter in `--command`.
 - **One Checker.** One Checker at a time owns a `target` directory and the full gate; Builders run focused checks only.
 - **Parallel work.** Scouts run in parallel freely. Builders run in parallel only on disjoint files, each in its own worktree.
 - **Escalation.** Move a role to its fallback or a higher effort for a stated reason. A long command alone is not one; route by the complexity of the problem.
@@ -25,3 +27,11 @@ The coordinator keeps the boundary, the checklist and the disposition of finding
 ## Handoffs
 
 Coordinate delegated work with pointers. Name the role and the ticket. Keep the checkpoint a delegate must read in a file under `.evidence/<slice>/` and give its path; one agent's notes are closed to the others. Specify the exact owned files, expected regression, passing behavior, and concrete done condition or blocker in the implementation handoff. A handoff is complete with a verified change and checks, a reproducible failure and a concrete materially different next experiment, or the exact blocker. After two inconclusive [attempts](issue-tracker.md#slice-boundary), restate the user goal and blocker, then escalate the evidence and a materially different next experiment. Respect the user's provider choices when escalating.
+
+Every implementation or test handoff includes these lines verbatim, because delegates otherwise stop on them:
+
+- Gortex for reads; on a stale, `view_building` or read-only write rejection retry once after 30 seconds, then use native Edit/Write and report which edits (see [AGENTS.md](../../AGENTS.md#editing)). Do not stop for a stale Gortex view.
+- Do not end the turn until every named row is GREEN or has two recorded attempts; keep a checkpoint file under `.evidence/<slice>/`.
+- No commits, no `git stash`.
+
+The coordinator commits only between delegations, never while a delegate is working: a commit changes `HEAD`, and Gortex's checkout mutation view then reports stale until it rebuilds.

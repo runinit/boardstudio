@@ -86,8 +86,10 @@ do not manufacture RED. Mutations run through `scripts/mutation-check.py`, not a
 Create exact unique-text mutation specs against the implemented source (not speculative
 source copies); keep specs with the implementation ticket, logs only in `.evidence/`.
 
+Only rows the builder recorded as `proof gap` get a mutation; a `RED` row already showed its test can fail.
 Command form, replacing SPEC with that ticket's actual spec path:
-`python3 scripts/mutation-check.py SPEC --command "<row runner below>" --evidence-dir .evidence/mutations`.
+`python3 scripts/mutation-check.py SPEC --locked --command "<row runner below>" --evidence-dir .evidence/mutations`
+(`--locked` takes the build lock per run; do not wrap the script in an outer lock).
 The runner's exit zero means restoration succeeded, not that every mutation was killed.
 Read each result: killed at the named assertion counts; compile failure, timeout or a
 failure elsewhere does not. Restore unchanged bytes. An unmutated run must be green.
