@@ -7,6 +7,8 @@ use boardstudio_web_ui_shared::ui::dropdown_menu::{
 use boardstudio_web_ui_shared::ui::icons::ChevronDown;
 
 /// Shell wiring only. Library remains the sole owner of drafts and tool presentation.
+use boardstudio_web_ui_model::state::AddObjectRequest;
+
 pub fn use_project_tools() {
     let request = ProjectToolRequest(use_signal(|| None));
     use_context_provider(|| request);
@@ -87,6 +89,16 @@ pub fn ProjectHeaderMenu(
             browser.set(true);
         }
     });
+    // Ticket 005: Add object… only bumps the shared request; the Editor
+    // reveals Layout's contextual Add menu, exactly as the palette does.
+    let add_object = try_use_context::<AddObjectRequest>();
+    let add_object_signal = add_object.map(|request| request.0);
+    let request_add_object = use_callback(move |()| {
+        if let Some(mut signal) = add_object_signal {
+            let next = *signal.peek() + 1;
+            signal.set(next);
+        }
+    });
     let mut commands = vec![
         Command {
             group: "Project",
@@ -162,11 +174,12 @@ pub fn ProjectHeaderMenu(
                     DropdownMenuItem::<()> { value: (), index: 4usize, on_select: move |_| browser.set(false), "Return to editor" }
                 }
                 DropdownMenuItem::<()> { value: (), index: 5usize, disabled: !has_current, on_select: move |_| setup.call(()), "Setup guide" }
+                DropdownMenuItem::<()> { value: (), index: 6usize, disabled: !has_current || add_object.is_none(), on_select: move |_| request_add_object.call(()), "Add object…" }
                 DropdownMenuSeparator {}
-                DropdownMenuItem::<()> { value: (), index: 6usize, disabled: !has_current, on_select: move |_| on_undo.call(()), "Undo" }
-                DropdownMenuItem::<()> { value: (), index: 7usize, disabled: !has_current, on_select: move |_| on_redo.call(()), "Redo" }
-                DropdownMenuItem::<()> { value: (), index: 8usize, on_select: move |_| on_export.call(()), "Export" }
-                DropdownMenuItem::<()> { value: (), index: 9usize, on_select: move |_| on_settings.call(()), "Workspace settings" }
+                DropdownMenuItem::<()> { value: (), index: 7usize, disabled: !has_current, on_select: move |_| on_undo.call(()), "Undo" }
+                DropdownMenuItem::<()> { value: (), index: 8usize, disabled: !has_current, on_select: move |_| on_redo.call(()), "Redo" }
+                DropdownMenuItem::<()> { value: (), index: 9usize, on_select: move |_| on_export.call(()), "Export" }
+                DropdownMenuItem::<()> { value: (), index: 10usize, on_select: move |_| on_settings.call(()), "Workspace settings" }
             }
         }
         input { id: "header-open-project", r#type: "file", hidden: true, accept: ".boardstudio",

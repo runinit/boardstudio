@@ -6491,7 +6491,9 @@ pub fn LayoutContextActionToolbar(
                 }
             }
         } else if bare {
-            {inline_actions}
+            // Keep the strip's accessible group name in the accordion lane;
+            // `contents` leaves the lane's layout untouched.
+            div { class: "contents", role: "group", aria_label: "Actions for {selection_label}", {inline_actions} }
         } else {
             Toolbar { class: "layout-action-strip", aria_label: "Actions for {selection_label}", {inline_actions} }
         }

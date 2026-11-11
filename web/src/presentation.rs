@@ -66,14 +66,14 @@ pub(crate) use boardstudio_web_ui_model::selection::{
 };
 #[cfg(test)]
 pub(crate) use boardstudio_web_ui_model::state::use_empty_test_instance_selection;
-pub(crate) use boardstudio_web_ui_model::state::{
-    AppearanceState, PreferenceStorageWarning, ThemeState,
-};
 #[allow(unused_imports)]
 pub(crate) use boardstudio_web_ui_model::state::{
-    CaseGenerationState, CompactPanelState, Drag, FieldPreview, FieldPreviewSource,
-    FieldPreviewState, InstanceSelection, LayerVisibility, LayoutOwnerIdentity, RelationHighlight,
-    ResolvedAppearance, WorkspaceState,
+    AddObjectRequest, CaseGenerationState, CompactPanelState, Drag, FieldPreview,
+    FieldPreviewSource, FieldPreviewState, InstanceSelection, LayerVisibility, LayoutOwnerIdentity,
+    RelationHighlight, ResolvedAppearance, WorkspaceState,
+};
+pub(crate) use boardstudio_web_ui_model::state::{
+    AppearanceState, PreferenceStorageWarning, ThemeState,
 };
 pub(crate) use boardstudio_web_ui_model::svg_coordinates::{
     PointerLocation, coordinates, coordinates_at, coordinates_with_scale, pointer_location,
@@ -288,6 +288,7 @@ fn WorkbenchApp() -> Element {
     };
     let version = use_signal(|| 0u64);
     let project_created = use_signal(|| None::<SetupGuideRequest>);
+    let add_object_request = use_signal(|| 0u64);
     let pending_new_keyboard = use_signal(|| None::<PendingNewKeyboard>);
     let new_keyboard_error = use_signal(String::new);
     let active = use_hook(|| Rc::new(Cell::new(true)));
@@ -461,6 +462,7 @@ fn WorkbenchApp() -> Element {
     use_context_provider(|| runtime.clone());
     use_context_provider(|| version);
     use_context_provider(|| project_created);
+    use_context_provider(|| AddObjectRequest(add_object_request));
     use_context_provider(|| pending_new_keyboard);
     use_context_provider(|| new_keyboard_error);
     use_context_provider(|| adapter.clone());
@@ -3310,6 +3312,31 @@ fn Editor() -> Element {
     let workspace = use_context::<WorkspaceState>().0;
     let layout_state =
         layout_workspace::use_layout_workspace_state(adapter.selected_context, workspace);
+    // Ticket 005: the Project menu's Add object… request routes to Layout
+    // first, then reveals the same Objects/Add menu the command palette
+    // opens. A request already seen by this Editor never reopens it.
+    let add_object_counter = try_use_context::<AddObjectRequest>();
+    let add_object_seen = use_hook(|| {
+        Rc::new(std::cell::Cell::new(
+            add_object_counter.map_or(0, |request| *request.0.peek()),
+        ))
+    });
+    let add_object_value = add_object_counter.map_or(0, |request| (request.0)());
+    use_effect(use_reactive((&add_object_value,), {
+        let seen = add_object_seen.clone();
+        let mut layout_panel = layout_panel;
+        let mut add_menu = layout_state.add_object_menu_open();
+        move |(value,)| {
+            if value == 0 || seen.get() == value {
+                return;
+            }
+            seen.set(value);
+            let mut workspace = workspace;
+            workspace.set("Layout");
+            layout_panel.set(Some(workbench_shell::ToolPanel::Objects));
+            add_menu.set(true);
+        }
+    }));
     let canvas_navigation = use_canvas_navigation_state(workspace);
     let return_workspace = use_context::<ExportReturnWorkspace>().0;
     let active_workspace = workspace();
@@ -7550,11 +7577,16 @@ fn Editor() -> Element {
         let mut workspace = workspace;
         let mut objects_open = objects_open;
         let mut inspect_open = inspect_open;
+        let mut panel = layout_panel;
         let inspector_settings = inspector_panel_settings;
         EventHandler::new(move |_| {
             workspace.set("Layout");
             objects_open.set(false);
             inspect_open.set(true);
+            // The retained editor is Inspect content in the new shell;
+            // reveal it through Layout's sole host (its larger task
+            // surface remains ticket 005 Part B work).
+            panel.set(Some(workbench_shell::ToolPanel::Inspector));
             setup_state.set_geometry_scripts_open(true);
             pin_inspector_on_desktop(inspector_settings);
         })
@@ -7707,6 +7739,28 @@ fn Editor() -> Element {
             on_open.call(());
         }
     });
+    // Ticket 005: choosing a creation surface from Layout's Add menu closes
+    // the compact Objects popout so the bounded task surface (MatrixSetup /
+    // mirrored-pair form in the workspace, or canvas placement) is visible;
+    // the domain owners and their previews are unchanged.
+    let layout_add_matrix_setup = {
+        let mut mount = matrix_setup.clone();
+        let open = mount.on_open;
+        let mut panel = layout_panel;
+        mount.on_open = EventHandler::new(move |()| {
+            panel.set(None);
+            open.call(());
+        });
+        mount
+    };
+    let layout_add_place_component = {
+        let place = part_placement.on_place_component;
+        let mut panel = layout_panel;
+        EventHandler::new(move |action| {
+            panel.set(None);
+            place.call(action);
+        })
+    };
     let objects_input = match active_workspace {
         "PCB" => {
             let pcb_add_owner = LayoutOwnerIdentity {
@@ -7814,10 +7868,10 @@ fn Editor() -> Element {
         _ => workspace_composition::WorkspaceObjectsInput::Layout(Box::new(
             layout_workspace::ObjectsInput {
                 shared: shared_objects,
-                matrix_setup: matrix_setup.clone(),
+                matrix_setup: layout_add_matrix_setup,
                 matrix_inspector: matrix_inspector.clone(),
                 pair_created: pair_created_selection,
-                on_place_component: part_placement.on_place_component,
+                on_place_component: layout_add_place_component,
                 layout_target,
                 parts_query,
                 on_browse_parts,
@@ -8916,10 +8970,18 @@ fn Editor() -> Element {
                 let mut measure = move || {
                     let surface = measured_surface.get_bounding_client_rect();
                     let obstacle = measured_obstacle.get_bounding_client_rect();
+                    // Only controls that actually overlay the canvas reserve
+                    // space above them. In the toolbar-led shell the Design
+                    // view toggles live in the tool row above the canvas, so
+                    // they no longer cut into the canvas's clear height.
                     let clear_height = measured_controls
                         .as_ref()
                         .map(|controls| controls.get_bounding_client_rect())
-                        .filter(|controls| controls.height() > 0.0)
+                        .filter(|controls| {
+                            controls.height() > 0.0
+                                && controls.bottom() > surface.top()
+                                && controls.top() < surface.bottom()
+                        })
                         .map(|controls| {
                             (controls.top() - surface.top() - 8.0).clamp(0.0, surface.height())
                         })

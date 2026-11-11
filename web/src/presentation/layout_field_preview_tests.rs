@@ -534,14 +534,14 @@ async fn new_matrix_canvas_preview_avoids_the_resized_setup_guide() {
                 return false;
             };
             let preview = preview.get_bounding_client_rect();
-            let controls = probe
-                .element("[aria-label='Design view']")
-                .get_bounding_client_rect();
+            // The toolbar-led shell keeps Design view in the tool row above
+            // the canvas (002), so no stationary control overlays the canvas
+            // bottom; full containment in the canvas is the visibility oracle.
             let canvas = probe
                 .element("#m1-workspace-panel svg[role='group']")
                 .get_bounding_client_rect();
             canvas.width() >= 200.0
-                && preview.bottom() <= controls.top()
+                && preview.bottom() <= canvas.bottom()
                 && preview.right() <= canvas.right()
                 && preview.left() >= canvas.left()
                 && preview.top() >= canvas.top()
@@ -556,16 +556,12 @@ async fn new_matrix_canvas_preview_avoids_the_resized_setup_guide() {
         .click();
     root.set_attribute("style", "width:1440px;height:844px")
         .unwrap();
-    for label in ["Show objects", "Show inspector"] {
-        if let Some(button) =
-            boardstudio_web_ui_shared::test_role::by_role_name(&root, "button", label)
-        {
-            button.dyn_into::<web_sys::HtmlElement>().unwrap().click();
-        }
-    }
-    wait_until("restore the fixture's dock owners before cleanup", || {
-        query(root_id, "#m1-objects-panel[data-mode='pinned']").is_some()
-            && query(root_id, "#m1-inspector-panel[data-mode='pinned']").is_some()
+    // The toolbar-led shell has no pinned docks to restore: both workbench
+    // panels stay mounted (hidden/inert when closed) and opening them never
+    // resizes the canvas, so cleanup only needs the setup form retired.
+    wait_until("restore the fixture's panel owners before cleanup", || {
+        query(root_id, "#workbench-objects").is_some()
+            && query(root_id, "#workbench-inspector").is_some()
             && query(root_id, "[aria-label='New matrix']").is_none()
     })
     .await;
@@ -799,14 +795,11 @@ async fn new_matrix_preview_case(
             let form = probe
                 .element("[aria-label='New matrix']")
                 .get_bounding_client_rect();
-            let controls = probe
-                .element("[aria-label='Design view']")
-                .get_bounding_client_rect();
             count(root_id, &format!("{ghost} rect")) == 108 * halves
                 && preview.left() >= form.right().max(canvas.left())
                 && preview.right() <= canvas.right()
                 && preview.top() >= canvas.top()
-                && preview.bottom() <= controls.top()
+                && preview.bottom() <= canvas.bottom()
         },
     )
     .await;
@@ -1014,6 +1007,24 @@ async fn canvas_selection_replaces_each_scope_guidance_with_usable_inline_action
             .dyn_into::<web_sys::HtmlElement>()
             .unwrap()
     };
+    // Scope buttons live in the Select section lane, which is inert while
+    // the section is closed; a real user opens the section first.
+    if query(
+        root_id,
+        "[data-workbench-section='select'][data-open='true']",
+    )
+    .is_none()
+    {
+        button("Select").click();
+        wait_until("the Select section opens its scope buttons", || {
+            query(
+                root_id,
+                "[data-workbench-section='select'][data-open='true']",
+            )
+            .is_some()
+        })
+        .await;
+    }
     for (scope, action, selected_ids) in [
         (
             "Matrix",
@@ -1146,17 +1157,12 @@ async fn canvas_selection_replaces_each_scope_guidance_with_usable_inline_action
         }
         let properties = button(action);
         assert!(actions.contains(Some(properties.as_ref())));
-        button("Collapse inspector").click();
+        if query(root_id, "#workbench-inspector:not([hidden])").is_some() {
+            button("Inspect").click();
+        }
         wait_until(
-            "the real Inspector is collapsed before using the action",
-            || {
-                boardstudio_web_ui_shared::test_role::by_role_name(
-                    &root,
-                    "button",
-                    "Show inspector",
-                )
-                .is_some()
-            },
+            "the real Inspector is closed before using the action",
+            || query(root_id, "#workbench-inspector[hidden]").is_some(),
         )
         .await;
         properties.click();
@@ -1165,7 +1171,7 @@ async fn canvas_selection_replaces_each_scope_guidance_with_usable_inline_action
             || {
                 query(
                     root_id,
-                    "#m1-inspector-panel[data-mode='pinned'] input:not([disabled])",
+                    "#workbench-inspector:not([hidden]) input:not([disabled])",
                 )
                 .is_some()
             },
@@ -1215,6 +1221,85 @@ async fn canvas_selection_replaces_each_scope_guidance_with_usable_inline_action
             storage.remove_item(&key).unwrap();
         }
     }
+}
+
+#[wasm_bindgen_test]
+async fn browse_all_parts_keeps_the_chooser_query_and_creates_nothing() {
+    let root_id = "field-preview-browse";
+    let probe = mount_bare(root_id).await;
+    wait_until("the accepted board renders before browsing", || {
+        count(root_id, "[data-matrix-id][data-row][data-column]") == ROWS * COLUMNS * 2
+    })
+    .await;
+    let before = probe.runtime.model();
+    let root = web_sys::window()
+        .unwrap()
+        .document()
+        .unwrap()
+        .get_element_by_id(root_id)
+        .unwrap();
+    let click = |name: &str| {
+        boardstudio_web_ui_shared::test_role::by_role_name(&root, "button", name)
+            .unwrap_or_else(|| panic!("missing {name}"))
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap()
+            .click();
+    };
+    click("Objects");
+    wait_until("Objects opens", || {
+        query(root_id, "#workbench-objects:not([hidden])").is_some()
+    })
+    .await;
+    click("Add object");
+    wait_until("the Add menu opens its parts chooser", || {
+        query(root_id, "input[aria-label='Search parts']").is_some()
+    })
+    .await;
+    let search = probe
+        .element("input[aria-label='Search parts']")
+        .dyn_into::<web_sys::HtmlInputElement>()
+        .unwrap();
+    search.set_value("switch");
+    let input_event = web_sys::EventInit::new();
+    input_event.set_bubbles(true);
+    search
+        .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &input_event).unwrap())
+        .unwrap();
+    wait_until("the chooser query is entered", || {
+        search.value() == "switch"
+    })
+    .await;
+    click("Browse all parts");
+    let mut workspace = probe.workspace.borrow().expect("mounted workspace");
+    wait_until("Browse all parts selects the Parts workspace", || {
+        workspace() == "Parts"
+    })
+    .await;
+    wait_until("the Parts browser keeps the chooser query", || {
+        query(root_id, "input[aria-label='Search parts']")
+            .and_then(|input| input.dyn_into::<web_sys::HtmlInputElement>().ok())
+            .is_some_and(|input| input.value() == "switch")
+    })
+    .await;
+    assert_eq!(
+        probe.runtime.model().accepted,
+        before.accepted,
+        "browsing creates no placement or edit"
+    );
+    workspace.set("Layout");
+    wait_until("Layout returns", || {
+        query(root_id, "#m1-workspace-panel svg[role='group']").is_some()
+    })
+    .await;
+    click("Objects");
+    click("Add object");
+    wait_until("the returned chooser still holds the query", || {
+        query(root_id, "input[aria-label='Search parts']")
+            .and_then(|input| input.dyn_into::<web_sys::HtmlInputElement>().ok())
+            .is_some_and(|input| input.value() == "switch")
+    })
+    .await;
+    assert_eq!(probe.runtime.model().accepted, before.accepted);
 }
 
 #[wasm_bindgen_test]
@@ -1306,6 +1391,21 @@ async fn hovering_a_column_field_previews_its_keys_on_both_halves() {
 async fn keyboard_focus_previews_and_blur_clears() {
     let root_id = "field-preview-focus";
     let probe = mount(root_id).await;
+    // The Inspector is a closed, inert popout in the toolbar-led shell; a
+    // real keyboard user opens Inspect before tabbing to the field.
+    let root = web_sys::window()
+        .unwrap()
+        .document()
+        .unwrap()
+        .get_element_by_id(root_id)
+        .unwrap();
+    boardstudio_web_ui_shared::test_role::by_role_name(&root, "button", "Inspect")
+        .unwrap()
+        .click();
+    wait_until("Inspect opens for keyboard focus", || {
+        query(root_id, "#workbench-inspector:not([hidden])").is_some()
+    })
+    .await;
     let field = spread_field(&probe);
     field.focus().unwrap();
     wait_until("keyboard focus previews the same keys as hover", || {

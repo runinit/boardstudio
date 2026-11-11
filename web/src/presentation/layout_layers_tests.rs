@@ -1034,6 +1034,178 @@ async fn layout_panels_overlay_the_same_canvas_without_a_legacy_dock() {
     root.remove();
 }
 
+#[derive(Clone)]
+struct AddProbe(Rc<RefCell<Option<Signal<u64>>>>);
+
+fn add_host() -> Element {
+    let probe = use_context::<AddProbe>();
+    let requests = use_signal(|| 0u64);
+    *probe.0.borrow_mut() = Some(requests);
+    use_context_provider(|| AddObjectRequest(requests));
+    host()
+}
+
+#[wasm_bindgen_test]
+async fn add_object_request_reveals_the_add_menu_and_matrix_surface() {
+    let runtime = support::new_runtime();
+    support::open_document(&runtime, document()).await;
+    let revision = runtime.model().accepted.as_ref().unwrap().document.revision;
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = document.create_element("div").unwrap();
+    document.body().unwrap().append_child(&root).unwrap();
+    let probe = AddProbe(Rc::new(RefCell::new(None)));
+    let dom = VirtualDom::new(add_host);
+    dom.provide_root_context(runtime.clone());
+    dom.provide_root_context(probe.clone());
+    dioxus_web::launch::launch_virtual_dom(
+        dom,
+        dioxus_web::Config::new().rootnode(root.clone().into()),
+    );
+    wait_until("the Layout canvas mounts", || {
+        root.query_selector("#m1-workspace-panel svg[role='group']")
+            .unwrap()
+            .is_some()
+    })
+    .await;
+    // The Project menu's request (and the palette's identical reveal) opens
+    // Objects with the contextual Add menu, not a creation form inside it.
+    let mut requests = probe.0.borrow().expect("mounted request signal");
+    requests.set(1);
+    wait_until("the request opens Objects with the Add menu", || {
+        root.query_selector("#workbench-objects:not([hidden])")
+            .unwrap()
+            .is_some()
+            && root.query_selector("[aria-label='Add']").unwrap().is_some()
+    })
+    .await;
+    click(
+        &root,
+        "Matrix…Single or mirrored-pair rows, columns & key assemblies",
+    );
+    let ghost = "#m1-workspace-panel svg[role='group'] g[aria-label='New matrix preview'] rect";
+    wait_until(
+        "Matrix… reveals its workspace surface and canvas preview",
+        || {
+            root.query_selector("[aria-label='New matrix']")
+                .unwrap()
+                .is_some()
+                && root
+                    .query_selector("#workbench-objects[hidden]")
+                    .unwrap()
+                    .is_some()
+                && count(&root, ghost) == 30
+        },
+    )
+    .await;
+    assert_eq!(
+        runtime.model().accepted.as_ref().unwrap().document.revision,
+        revision,
+        "previewing writes no accepted state"
+    );
+    click(&root, "Cancel");
+    wait_until("Cancel retires the surface and its preview", || {
+        root.query_selector("[aria-label='New matrix']")
+            .unwrap()
+            .is_none()
+            && count(&root, ghost) == 0
+    })
+    .await;
+    assert_eq!(
+        runtime.model().accepted.as_ref().unwrap().document.revision,
+        revision
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn add_row_and_column_through_the_add_menu_change_the_owner_once() {
+    let runtime = support::new_runtime();
+    support::open_document(&runtime, document()).await;
+    let document_dom = web_sys::window().unwrap().document().unwrap();
+    let root = document_dom.create_element("div").unwrap();
+    document_dom.body().unwrap().append_child(&root).unwrap();
+    let probe = AddProbe(Rc::new(RefCell::new(None)));
+    let dom = VirtualDom::new(add_host);
+    dom.provide_root_context(runtime.clone());
+    dom.provide_root_context(probe.clone());
+    dioxus_web::launch::launch_virtual_dom(
+        dom,
+        dioxus_web::Config::new().rootnode(root.clone().into()),
+    );
+    wait_until("the Layout canvas mounts", || {
+        root.query_selector("#m1-workspace-panel svg[role='group']")
+            .unwrap()
+            .is_some()
+    })
+    .await;
+    // Select the only matrix on the canvas (modified hit, as in the field
+    // preview suite) so the Add menu carries its matrix actions.
+    click(&root, "Select");
+    wait_until("the Select section opens", || {
+        root.query_selector("[data-workbench-section='select'][data-open='true']")
+            .unwrap()
+            .is_some()
+    })
+    .await;
+    click(&root, "Select Matrix");
+    let pointer = web_sys::PointerEventInit::new();
+    pointer.set_bubbles(true);
+    pointer.set_ctrl_key(true);
+    root.query_selector("[data-matrix-id='matrix'][data-row='0'][data-column='0']")
+        .unwrap()
+        .unwrap()
+        .dispatch_event(
+            &web_sys::PointerEvent::new_with_event_init_dict("pointerdown", &pointer).unwrap(),
+        )
+        .unwrap();
+    wait_until("the canvas selects the matrix", || {
+        runtime.model().selected_part_ids.len() == 1
+    })
+    .await;
+    let mut requests = probe.0.borrow().expect("mounted request signal");
+    let dimensions = || {
+        let accepted = runtime.model().accepted.clone().unwrap();
+        let matrix = &accepted.document.matrices[0];
+        (matrix.rows, matrix.columns, accepted.document.revision)
+    };
+    let (rows0, columns0, revision0) = dimensions();
+    requests.set(1);
+    wait_until("the Add menu carries the matrix actions", || {
+        by_role_name(&root, "button", "Add row").is_some()
+            && by_role_name(&root, "button", "Add column").is_some()
+    })
+    .await;
+    click(&root, "Add row");
+    wait_until("Add row changes the matrix owner once", || {
+        support::drive_pending(&runtime);
+        dimensions() == (rows0 + 1, columns0, revision0 + 1)
+    })
+    .await;
+    requests.set(2);
+    wait_until("the Add menu reopens for Add column", || {
+        by_role_name(&root, "button", "Add column").is_some()
+    })
+    .await;
+    click(&root, "Add column");
+    wait_until("Add column changes the matrix owner once", || {
+        support::drive_pending(&runtime);
+        dimensions() == (rows0 + 1, columns0 + 1, revision0 + 2)
+    })
+    .await;
+    for expected in [(rows0 + 1, columns0), (rows0, columns0)] {
+        runtime.submit(Event::Undo {
+            operation_id: runtime.operation(),
+        });
+        wait_until("Undo restores the prior matrix dimensions", || {
+            support::drive_pending(&runtime);
+            let (rows, columns, _) = dimensions();
+            (rows, columns) == expected
+        })
+        .await;
+    }
+    root.remove();
+}
+
 #[wasm_bindgen_test]
 async fn explicit_findings_reveal_inspect_but_ordinary_objects_pick_does_not() {
     let runtime = support::new_runtime();

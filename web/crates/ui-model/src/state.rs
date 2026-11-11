@@ -237,6 +237,12 @@ pub struct ThemeState(pub Signal<&'static str>);
 #[derive(Clone, Copy)]
 pub struct PreferenceStorageWarning(pub Signal<bool>);
 
+/// A Project-menu request to reveal Layout's contextual Add object menu.
+/// The header menu only bumps the counter; the Editor owns the panel and
+/// menu state the request reveals, so every entry reaches the same menu.
+#[derive(Clone, Copy)]
+pub struct AddObjectRequest(pub Signal<u64>);
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SetupGuideRequest {
     pub project_id: String,

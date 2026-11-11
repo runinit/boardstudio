@@ -78,6 +78,59 @@ unlabelled field. Do not add a pending-close veto absent from the original contr
   and explicitly apply smallest existing result → current diagnostics/safety preserved,
   atomic accepted result/Undo unchanged; rejection never applies a partial result · mounted · planned
 
+## Progress 2026-11-11 (Part A builder; no closure claim)
+
+Part A rows (Add/setup/placement routing, bounded task surface, Reach and the
+inherited field-preview red) are GREEN at their mounted tiers; Part B rows
+(hidden draft safety, legacy script surface, registration scope, pending
+admission, domain close) remain planned for a separate run and were not
+attempted beyond what Part A needed. Known-red resolution: tracing the setup
+guide's Add Thumb cluster and the Add chooser into `MatrixSetupMount` and its
+preview publisher showed the route did reach the migrated shell; the canvas
+ghost never painted because the page's `setup_preview_frame_px` measurement
+in `web/src/presentation.rs` treated the first `[aria-label='Design view']`
+(the 42px toolbar's View toggle, now above the canvas) as the retired
+bottom-of-canvas overlay, clamping the clear height to zero, so
+`MatrixSetupCanvasPreview` received a zero-height frame and returned nothing.
+The measurement now only reserves space for controls whose rect actually
+overlaps the canvas. A second redesign gap closed in passing: in the bare
+accordion lane the inline contextual actions had lost their `Actions for …`
+accessible group, restored with a `display:contents` group.
+
+Routing: Project menu → Add object… (new `AddObjectRequest` counter in
+ui-model, provided by the App) routes to Layout first, then opens the same
+Objects/Add menu the existing command-palette entry opens; choosing Matrix…
+or a component placement from that menu now closes the compact Objects popout
+so the bounded workspace surface and real canvas preview are visible (no
+backdrop, no permanent row, no canvas resize); Mirror existing half keeps its
+surface inside the Add flow, and the geometry-scripts entry again reveals
+its retained editor through Layout's sole Inspect host (its larger Part B
+surface is untouched). New proofs: library
+`project_menu_add_object_bumps_the_shared_request`; page
+`add_object_request_reveals_the_add_menu_and_matrix_surface` (menu → Matrix… →
+popout closed, 30-cell ghost, no revision, Cancel retires),
+`add_row_and_column_through_the_add_menu_change_the_owner_once` (one owner
+ change each, Undo restores; pending-repeat rests on the same
+`PendingEditSignals` one-shot that disables the menu buttons while pending),
+and field-file `browse_all_parts_keeps_the_chooser_query_and_creates_nothing`.
+Setup parity/context/placement/failure reuse the layout-crate browser suite
+(272 passed: setup guide, MatrixSetup create/preview, mirrored pair,
+ExistingHalfSetup, add-matrix surface, part/matrix placement rejections
+without mutation) and the parts-crate suite (106 passed: chooser,
+Browse-all-parts query preservation, placement actions), plus the field
+suite's split/unibody Create-and-land and preview-pose assertions. Existing
+field-file assertions that referenced retired shell mechanics were migrated,
+not weakened: Design-view bottom bound → full canvas containment (002 moved
+Design view to the tool row), dock restore/wait selectors → the retained
+workbench panels, focus flow now opens the Select section/Inspect popout a
+real keyboard user opens first. Field suite is 7/7 (25/25 with
+layout_layers). Limits: the Browse/return PCB leg steps through the
+ workspace signal in the page fixture (the old Parts/PCB shells themselves
+are covered by their crate/page suites); no mutations, reviews or full quick
+gate were run (coordinator owns). Logs: `.evidence/toolbar-m1/005a-*`;
+checkpoint `.evidence/toolbar-m1/005a-checkpoint.md`. `cargo fmt --all --check`
+and `python3 scripts/check.py lint` pass on the stable tree.
+
 ## Checks and mutations
 
 [Verification](../verification.md): `check.py quick`, `check.py lint`, layout/parts browser

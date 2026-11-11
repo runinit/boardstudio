@@ -1395,11 +1395,13 @@ mod mounted_tests {
         let created = use_signal(|| None::<SetupGuideRequest>);
         let pending = use_signal(|| None::<PendingNewKeyboard>);
         let error = use_signal(String::new);
+        let add_object = use_signal(|| 0u64);
         use_context_provider(|| version);
         use_context_provider(|| browser);
         use_context_provider(|| created);
         use_context_provider(|| pending);
         use_context_provider(|| error);
+        use_context_provider(|| boardstudio_web_ui_model::state::AddObjectRequest(add_object));
         let noop = use_callback(|()| {});
         let count = registry.commands().len();
         let captured = use_hook(|| {
@@ -1423,8 +1425,52 @@ mod mounted_tests {
             output { role: "status", aria_label: "Registered tools", "{count}" }
             output { role: "status", aria_label: "Header version", "{version}" }
             output { role: "status", aria_label: "Tool pending", "{request.0().is_some()}" }
+            output { role: "status", aria_label: "Add object requests", "{add_object()}" }
             if mounted() { Library { project_menu: false } }
         }
+    }
+
+    #[wasm_bindgen_test]
+    async fn project_menu_add_object_bumps_the_shared_request() {
+        use crate::runtime::project_name_test_support as support;
+        use boardstudio_web_ui_shared::test_role::by_role_name;
+        let runtime = support::new_runtime();
+        let (session, core) = accepted(ProjectDoc::empty("add-object-menu", "Add object"));
+        support::install(&runtime, session, core);
+        let seed = Rc::new(Seed {
+            state: Rc::new(RefCell::new(None)),
+            show_library: Rc::new(RefCell::new(None)),
+        });
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(project_tools_host);
+        dom.provide_root_context(runtime.clone());
+        dom.provide_root_context(seed.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_until("the Project menu mounts", || {
+            by_role_name(&root, "button", "Project").is_some()
+        })
+        .await;
+        by_role_name(&root, "button", "Project").unwrap().click();
+        wait_until("the Project menu offers Add object", || {
+            by_role_name(&root, "menuitem", "Add object…").is_some()
+                || by_role_name(&root, "button", "Add object…").is_some()
+        })
+        .await;
+        let item = by_role_name(&root, "menuitem", "Add object…")
+            .or_else(|| by_role_name(&root, "button", "Add object…"))
+            .unwrap();
+        item.click();
+        wait_until("choosing Add object bumps the shared request once", || {
+            by_role_name(&root, "status", "Add object requests")
+                .is_some_and(|e| e.text_content().as_deref() == Some("1"))
+        })
+        .await;
+        root.remove();
     }
 
     #[wasm_bindgen_test]
