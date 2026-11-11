@@ -118,8 +118,9 @@
 .workbench-tool-heading { display: flex; align-items: center; gap: 5px; white-space: nowrap; }
 .workbench-tool-caption { color: var(--foreground); font-weight: 600; }
 .workbench-tool-chevron { width: 11px; height: 11px; }
-.workbench-tool-reveal { display: grid; grid-template-columns: 0fr; min-width: 0; transition: grid-template-columns 170ms cubic-bezier(.22,.61,.36,1); }
-.workbench-tool-group[data-open='true'] .workbench-tool-reveal { grid-template-columns: 1fr; flex: 1; transition-duration: 280ms; }
+/* Allocate the final clip immediately; only the solid action track moves. */
+.workbench-tool-reveal { display: grid; grid-template-columns: 0fr; min-width: 0; }
+.workbench-tool-group[data-open='true'] .workbench-tool-reveal { grid-template-columns: 1fr; flex: 1; }
 .workbench-tool-reveal-inner { min-width: 0; overflow: hidden; }
 .workbench-tool-track { display: flex; align-items: center; gap: 2px; min-width: 0; padding: 1px 3px 1px 0; overflow-x: auto; scrollbar-width: thin; }
 .workbench-tool-row .workbench-action[data-slot='toolbar-button'] { height: 32px; min-height: 32px; min-width: 32px; flex: none; padding: 5px 6px; font-size: 12px; }

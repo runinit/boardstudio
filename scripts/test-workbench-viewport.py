@@ -550,6 +550,90 @@ def keyboard_guidance_traversal():
     return {"initial":initial,"tabstops_before":tabstops_before,"after_arrow":after_arrow,"back":back,"end_focus":end_focus,"home_focus":home_focus,"tabstops_after":tabstops_after}
 
 
+def motion_probe():
+    # Install the observer before trusted clicks so short/reduced transitions cannot escape.
+    evaluate("""(() => {
+      const row=document.querySelector('.workbench-tool-row');
+      window.__motionFrames=[]; window.__motionStart=performance.now();
+      window.__motionStop=false;
+      function sample(){
+        const groups=[...row.querySelectorAll('[data-workbench-section]')].map(g=>{
+          const clip=g.querySelector('.workbench-tool-reveal-inner').getBoundingClientRect();
+          const track=g.querySelector('.workbench-tool-track');
+          const units=[...track.querySelectorAll('button')].map(b=>{
+            const i=b.querySelector('svg'), l=b.querySelector('.workbench-action-label');
+            if(!i||!l||!l.getBoundingClientRect().width) return null;
+            const ir=i.getBoundingClientRect(),lr=l.getBoundingClientRect();
+            let opacity=1; for(let p=l;p&&p!==row;p=p.parentElement) opacity*=Number(getComputedStyle(p).opacity);
+            return {label:b.getAttribute('aria-label'),dx:lr.x-ir.x,dy:lr.y-ir.y,opacity};
+          }).filter(Boolean);
+          return {key:g.dataset.workbenchSection,open:g.dataset.open,clip:clip.toJSON(),
+            transform:getComputedStyle(track).transform,units};
+        });
+        window.__motionFrames.push({t:performance.now()-window.__motionStart,groups,
+          running:document.getAnimations().filter(a=>a.playState==='running'&&row.contains(a.effect?.target)).length});
+        if(!window.__motionStop) requestAnimationFrame(sample);
+      } requestAnimationFrame(sample);
+    })()""")
+    browser("find", "role", "button", "click", "--name", "Select", "--exact")
+    browser("wait", 70)
+    browser("find", "role", "button", "click", "--name", "Snap", "--exact")
+    browser("wait", 50)
+    browser("find", "role", "button", "click", "--name", "Select", "--exact")
+    browser("wait", 400)
+    frames = evaluate("(() => {window.__motionStop=true; return window.__motionFrames;})()")
+    print(f"MOTION-FRAMES: {json.dumps(frames)}", flush=True)
+    assert len(frames) >= 6, "motion observer did not sample frames"
+    units = [u for f in frames for g in f['groups'] if g['key'] in ('select', 'snap') for u in g['units']]
+    assert units, "no rendered icon+label units sampled"
+    for label in {u['label'] for u in units}:
+        same = [u for u in units if u['label'] == label]
+        assert max(u['dx'] for u in same)-min(u['dx'] for u in same) < 0.5, label
+        assert max(u['dy'] for u in same)-min(u['dy'] for u in same) < 0.5, label
+    assert all(abs(u['opacity']-1) < 0.001 for u in units), "opacity motion"
+    # Clip must remain stationary throughout each observed open segment.
+    for key in SECTION_KEYS.values():
+        segment=[]
+        for f in frames:
+            g=next(g for g in f['groups'] if g['key']==key)
+            if g['open']=='true':
+                segment.append(g['clip'])
+                for axis in ('x','y','width','height'):
+                    assert max(r[axis] for r in segment)-min(r[axis] for r in segment)<0.5, f"moving clip {key} {axis}"
+            else:
+                segment=[]
+    moving = [f for f in frames if any(g['key']=='select' and g['open']=='true' and g['transform'] not in ('none','matrix(1, 0, 0, 1, 0, 0)') for g in f['groups'])]
+    assert moving, 'no intermediate solid translation sampled'
+    snap_frames = [f for f in frames if any(g['key']=='snap' and g['open']=='true' for g in f['groups'])]
+    assert snap_frames and any(f['running'] for f in snap_frames), 'rapid switch did not observe motion'
+    switched_back = next(f for f in frames if f['t'] > snap_frames[-1]['t'] and any(g['key']=='select' and g['open']=='true' for g in f['groups']))
+    assert switched_back['t'] - snap_frames[0]['t'] < 280, 'switch was not rapid (<280ms)'
+    assert frames[-1]['running']==0, "stale workbench animation"
+    opened=[g for g in frames[-1]['groups'] if g['open']=='true']
+    assert [g['key'] for g in opened]==['select']
+    assert all(g['transform'] in ('none','matrix(1, 0, 0, 1, 0, 0)') for g in opened)
+    browser("find", "role", "button", "click", "--name", "Select", "--exact")
+    wait_for_settled()
+    browser("set", "media", "light", "reduced-motion")
+    assert evaluate("matchMedia('(prefers-reduced-motion: reduce)').matches")
+    evaluate("""(() => {
+      window.__reduced=[];
+      const row=document.querySelector('.workbench-tool-row');
+      window.__reducedObserver=new MutationObserver(()=>{
+        window.__reduced.push({open:row.querySelector('[data-open=true]')?.dataset.workbenchSection,
+          running:document.getAnimations().filter(a=>a.playState==='running'&&(row.contains(a.effect?.target)||a.effect?.target?.closest('.workbench-popout'))).length,
+          transform:getComputedStyle(row.querySelector('[data-open=true] .workbench-tool-track')).transform});
+      }); window.__reducedObserver.observe(row,{subtree:true,attributes:true});
+    })()""")
+    browser("find", "role", "button", "click", "--name", "Select", "--exact")
+    reduced=evaluate("(() => {window.__reducedObserver.disconnect();return window.__reduced;})()")
+    print(f"REDUCED-MOTION: {json.dumps(reduced)}", flush=True)
+    assert reduced and all(r['open']=='select' and r['running']==0 and r['transform']=='none' for r in reduced), reduced
+    browser("find", "role", "button", "click", "--name", "Select", "--exact")
+    browser("set", "media", "light")
+    wait_for_settled()
+
+
 def production_viewport_tests(url, width=320, height=480):
     browser("set", "viewport", width, height)
     browser("open", url)
@@ -579,6 +663,8 @@ def production_viewport_tests(url, width=320, height=480):
     assert abs(row["h"] - 42.0) < 0.5, f"row must be 42px high, got {row['h']}"
 
     failures = []
+    if width == 728:
+        motion_probe()
     for name in ENTRIES:
         rep = entry_report(name)
         print(f"ENTRY {name}: {json.dumps(rep)}", flush=True)
@@ -663,6 +749,34 @@ def production_viewport_tests(url, width=320, height=480):
         # itself is proven separately via explicit focus/hover.
         evaluate("(()=>{ document.querySelectorAll('[data-slot=tooltip-trigger], .layout-selection-guidance').forEach(t=>{ try{ if(document.activeElement===t) t.blur(); t.dispatchEvent(new MouseEvent('mouseleave',{bubbles:true})); }catch(_){} }); })()")
         browser("wait", "--fn", "document.querySelectorAll('[data-slot=tooltip][data-state=open]').length===0")
+        if sec == "Snap" and width == 320:
+            # Trace demonstrated Geometry snap is a roving action; Snap increment
+            # is a secondary Select trigger and is not reached by toolbar arrows.
+            browser("press", "Shift+Tab")
+            browser("press", "Tab")
+            initial = evaluate("({label:document.activeElement.getAttribute('aria-label'),tag:document.activeElement.tagName})")
+            print(f"KEYBOARD-ENTRY: {json.dumps(initial)}", flush=True)
+            assert initial['label'] == 'Snap', initial
+            # Reach an initially clipped action with real toolbar keys.
+            before = evaluate("(() => { const g=document.querySelector('[data-workbench-section=\"snap\"]'); const t=g.querySelector('.workbench-tool-track'); const r=t.getBoundingClientRect(); const a=[...t.querySelectorAll('button:not(:disabled)')].find(e=>e.getAttribute('aria-label')==='Geometry snap' && e.getBoundingClientRect().right>r.right+1); return {label:a?.getAttribute('aria-label'), scroll:t.scrollLeft, bank:[...document.querySelectorAll('[data-workbench-section] > button, .workbench-utility')].map(e=>e.getBoundingClientRect().x)}; })()")
+            assert before.get('label'), f"no initially offscreen enabled Snap action: {before}"
+            reached = None
+            for _ in range(20):
+                browser("press", "ArrowRight")
+                reached = evaluate("(() => {const a=document.activeElement, t=document.querySelector('[data-workbench-section=\"snap\"] .workbench-tool-track'), r=t.getBoundingClientRect(), b=a.getBoundingClientRect(), hit=document.elementFromPoint(b.x+b.width/2,b.y+b.height/2); return {label:a.getAttribute('aria-label'), scroll:t.scrollLeft, visible:b.left>=r.left-0.01 && b.right<=r.right+0.01 && b.top>=r.top-0.01 && b.bottom<=r.bottom+0.01, hit:hit===a || a.contains(hit), bank:[...document.querySelectorAll('[data-workbench-section] > button, .workbench-utility')].map(e=>e.getBoundingClientRect().x)};})()")
+                print(f"KEYBOARD-TRACE {_}: {json.dumps(reached)}", flush=True)
+                if reached['label'] == before['label']:
+                    break
+            print(f"KEYBOARD-SCROLL: {json.dumps({'before': before, 'after': reached})}", flush=True)
+            assert reached['label'] == before['label'] and reached['scroll'] > before['scroll'] and reached['visible'] and reached['hit'] and reached['bank'] == before['bank'], f"keyboard scroll failed: {before}, {reached}"
+            port = action_lane_report(key)['rev']
+            browser('mouse', 'move', round(port['x'] + port['w']/2), round(port['y'] + port['h']/2))
+            browser('mouse', 'wheel', 0, -100)
+            browser('wait', 120)
+            wheel = evaluate("(() => {const t=document.querySelector('[data-workbench-section=snap] .workbench-tool-track'); return {scroll:t.scrollLeft,bank:[...document.querySelectorAll('[data-workbench-section] > button, .workbench-utility')].map(e=>e.getBoundingClientRect().x)};})()")
+            print(f"NATIVE-WHEEL: {json.dumps({'before': reached, 'after': wheel})}", flush=True)
+            if wheel['scroll'] >= reached['scroll'] or wheel['bank'] != before['bank']:
+                print('NATIVE-WHEEL-UNPROVED: agent-browser wheel did not move the narrow lane; touch gestures unproved', flush=True)
         lane = action_lane_report(key)
         print(f"LANE open-{sec}: {json.dumps(lane)}", flush=True)
         if lane.get("missing"):

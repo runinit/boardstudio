@@ -109,6 +109,44 @@ fn click(root: &web_sys::Element, name: &str) {
 }
 
 #[wasm_bindgen_test]
+async fn view_section_closes_after_3d_round_trip() {
+    let runtime = support::new_runtime();
+    support::open_document(&runtime, document()).await;
+    let revision = runtime.model().accepted.as_ref().unwrap().document.revision;
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = document.create_element("div").unwrap();
+    document.body().unwrap().append_child(&root).unwrap();
+    let dom = VirtualDom::new(host);
+    dom.provide_root_context(runtime.clone());
+    dioxus_web::launch::launch_virtual_dom(
+        dom,
+        dioxus_web::Config::new().rootnode(root.clone().into()),
+    );
+    wait_until("View mounts", || by_role_name(&root, "button", "View").is_some()).await;
+    click(&root, "View");
+    wait_until("View opens", || {
+        count(&root, "[data-workbench-section='view'][data-open='true']") == 1
+    }).await;
+    click(&root, "3D assembly");
+    wait_until("3D is selected", || {
+        by_role_name(&root, "button", "3D assembly")
+            .is_some_and(|button| button.get_attribute("aria-pressed").as_deref() == Some("true"))
+    }).await;
+    assert_eq!(count(&root, "[data-workbench-section='view']"), 0);
+    click(&root, "2D");
+    wait_until("2D section returns", || {
+        count(&root, "[data-workbench-section='view']") == 1
+    }).await;
+    assert_eq!(count(&root, "[data-workbench-section='view'][data-open='true']"), 0);
+    click(&root, "View");
+    wait_until("View can reopen", || {
+        count(&root, "[data-workbench-section='view'][data-open='true']") == 1
+    }).await;
+    assert_eq!(runtime.model().accepted.as_ref().unwrap().document.revision, revision);
+    root.remove();
+}
+
+#[wasm_bindgen_test]
 async fn switch_visibility_keeps_keycaps_independent() {
     let runtime = support::new_runtime();
     support::open_document(&runtime, document()).await;
