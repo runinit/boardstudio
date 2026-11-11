@@ -1976,6 +1976,13 @@ async fn accepted_route_clears_host_focus_and_callbacks_while_unchanged_route_ke
         Some(heading.as_ref()),
         "precondition: the open host holds focus"
     );
+    handles.workspace.set("Layout");
+    settle_frames().await;
+    assert_eq!(
+        document.active_element().as_ref(),
+        Some(heading.as_ref()),
+        "unchanged route keeps focus"
+    );
     handles.workspace.set("Case");
     wait_until(
         "Case mounts its legacy host without a workbench panel",
@@ -2004,6 +2011,24 @@ async fn accepted_route_clears_host_focus_and_callbacks_while_unchanged_route_ke
             .as_ref()
             .is_none_or(|active| active.is_connected()),
         "focus never strands in detached host content"
+    );
+    assert_ne!(
+        document.active_element().as_ref(),
+        document.body().as_ref().map(|body| body.as_ref()),
+        "accepted route must not leave focus on body"
+    );
+    let route_heading = root
+        .query_selector("#workspace-route-heading")
+        .unwrap()
+        .expect("new workspace route heading exists");
+    assert_eq!(
+        route_heading.text_content().as_deref(),
+        Some("Case workspace")
+    );
+    assert_eq!(
+        document.active_element().as_ref(),
+        Some(&route_heading),
+        "accepted route moves focus to the new workspace heading, not body"
     );
     assert_eq!(*handles.workspace.peek(), "Case");
     assert_eq!(
@@ -2097,6 +2122,7 @@ async fn caller_owned_input_survives_round_trip_and_session_replace_clears_old_h
             .is_some_and(|button| button.get_attribute("aria-expanded").as_deref() == Some("true"))
     })
     .await;
+    field.focus().unwrap();
     handles.workspace.set("Case");
     wait_until(
         "Case mounts its legacy host without a workbench panel",
@@ -2106,6 +2132,11 @@ async fn caller_owned_input_survives_round_trip_and_session_replace_clears_old_h
         },
     )
     .await;
+    assert_eq!(
+        document.active_element().as_ref(),
+        Some(field.as_ref()),
+        "outside focus remains on the caller-owned input"
+    );
     assert_eq!(
         field.value(),
         "kept across the round trip",

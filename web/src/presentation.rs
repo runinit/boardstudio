@@ -3305,6 +3305,44 @@ fn Editor() -> Element {
     let canvas_navigation = use_canvas_navigation_state(workspace);
     let return_workspace = use_context::<ExportReturnWorkspace>().0;
     let active_workspace = workspace();
+    let route_focus =
+        use_hook(|| Rc::new(RefCell::new((active_workspace, None::<web_sys::Element>))));
+    {
+        let mut previous = route_focus.borrow_mut();
+        if previous.0 != active_workspace {
+            previous.1 = web_sys::window()
+                .and_then(|window| window.document())
+                .and_then(|document| document.active_element())
+                .filter(|active| {
+                    active
+                        .closest("#workbench-objects, #workbench-inspector, .workbench-utility")
+                        .ok()
+                        .flatten()
+                        .is_some()
+                });
+            previous.0 = active_workspace;
+        }
+    }
+    use_effect(use_reactive((&active_workspace,), {
+        let route_focus = route_focus.clone();
+        move |_| {
+            let Some(old_focus) = route_focus.borrow_mut().1.take() else {
+                return;
+            };
+            let Some(document) = web_sys::window().and_then(|window| window.document()) else {
+                return;
+            };
+            let active = document.active_element();
+            let body = document.body().map(web_sys::Element::from);
+            if (active == body || active.as_ref() == Some(&old_focus))
+                && let Some(heading) = document
+                    .get_element_by_id("workspace-route-heading")
+                    .and_then(|element| element.dyn_into::<web_sys::HtmlElement>().ok())
+            {
+                let _ = heading.focus();
+            }
+        }
+    }));
     let requested_workspace_panel =
         panels::use_workspace_panel_defaults(active_workspace, objects_open, inspect_open);
     let render_generation = (adapter.generation)();
@@ -9768,6 +9806,7 @@ fn Editor() -> Element {
                         }
                         }
                     },
+                    h2 { id: "workspace-route-heading", class: "sr-only", tabindex: "-1", "{active_workspace} workspace" }
                     if active_workspace == "Layout" {
                         objects::AddMatrixSurface {
                             matrix_setup: matrix_setup.clone(),
