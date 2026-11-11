@@ -27,6 +27,20 @@ typography:
 
 # Design System: BoardStudio
 
+## Accepted next shell (not yet shipped)
+
+[ADR-0041](docs/adr/0041-toolbar-led-workbench.md) supersedes the dock, narrow Sheet,
+Layout two-strip/wrapping and header-composition guidance below for the next shared shell.
+The [planning handoff](docs/plans/toolbar-led-workbench/map.md) covers all six workspaces:
+one 42px toolbar, compact Objects and an unpinned Inspect pop-out; a quieter header applies
+globally. [M1 Layout implementation](docs/plans/toolbar-led-workbench/delivery.md) is authorized
+following its planning gate; later phases and rollout remain approval-gated. Until migrated,
+the dock/strip descriptions below
+record the shipped baseline, not competing instructions for the new design. Ticket 008
+will replace those baseline descriptions after production parity and acceptance. Theme,
+domain, geometry and edit-ownership guidance remains in force; the frozen design snapshots
+are unchanged and are not accessibility or fabrication certification.
+
 ## Overview
 
 **Creative North Star: "The Keyboard Lab"**

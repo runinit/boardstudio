@@ -458,16 +458,22 @@ Theme has both a light and a dark form.
 _Avoid_: theme (for light/dark), color mode
 
 **Workspace**:
-One of the main working views of a project: Layout, PCB, Keymap, Keycaps, Case or Parts. It is chosen
-from the header and shows its own canvas with the Objects and Inspector docks. Export is a separate
-page, not a workspace.
+One of the main working views of a project: Layout, PCB, Keymap, Keycaps, Case or Parts, chosen
+from the header with its own canvas and domain tools. Export is a separate page, not a workspace.
 _Avoid_: stage, mode, Design (the former name of Layout)
 
+**Objects**:
+The workbench navigator for finding and selecting the current workspace's objects.
+
+**Inspector**:
+The workbench's contextual precise-value and detail view for the current selection or
+explicitly requested findings. Inspect is its toolbar label in the toolbar-led workbench.
+_Avoid_: Position (when the complete contextual editor is meant)
+
 **Dock**:
-One of the two side panels beside the canvas: Objects on the left and Inspector on the right. A dock is
-either shown beside the canvas or collapsed, and on narrow screens both appear as one sheet over the
-lower part of the screen so the canvas stays visible.
-_Avoid_: sidebar, drawer, pane
+A side-panel presentation of Objects or Inspector in the currently shipped shell, distinct
+from the temporary panels in the accepted toolbar-led direction.
+_Avoid_: dock (for a toolbar-led popover or pop-out)
 
 **Command palette**:
 A searchable list, opened with Ctrl/Cmd+K, of the workbench's existing actions and of the project's objects by name. Choosing an

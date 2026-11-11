@@ -4,6 +4,11 @@ status: accepted
 
 # Rebuild the workbench shell on rust-ui patterns
 
+Partially superseded by [ADR-0041](0041-toolbar-led-workbench.md): dock pin/resize/persistence,
+narrow Sheet/tabs, Layout two-strip/wrapping and header composition. The rationale below
+is historical; shared control, Theme and domain ownership commitments remain applicable.
+ADR-0041 records the next direction, not a claim that its production migration has shipped.
+
 The workbench's overall structure is rebuilt to follow rust-ui's own site, not only its controls
 ([ADR-0034](0034-adopt-rust-ui-components-with-two-themes.md)). The user chose this on 2026-10-21 so the
 Header, Docks and menus share one visual and interaction language instead of a re-skinned old shell.
