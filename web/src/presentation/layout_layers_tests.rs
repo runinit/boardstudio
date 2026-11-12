@@ -1117,6 +1117,86 @@ async fn add_object_request_reveals_the_add_menu_and_matrix_surface() {
     root.remove();
 }
 
+fn placement_error_host() -> Element {
+    let version = use_signal(|| 0u64);
+    use_context_provider(|| version);
+    let workspace = use_signal(|| "Layout");
+    use_context_provider(|| WorkspaceState(workspace));
+    let selected = use_signal(|| None::<objects::ScopedTreeContext>);
+    let anchor = use_signal(|| None);
+    let generation = use_signal(|| 0u64);
+    use_context_provider(|| SelectionAdapter::new(selected, anchor, generation));
+    let parts_generation = use_signal(|| 0u64);
+    use_context_provider(|| parts::PartsSelectionGeneration(parts_generation));
+    let layout_target = use_signal(|| None::<String>);
+    let parts_query = use_signal(String::new);
+    rsx! {
+        objects::Objects {
+            selected_context: selected,
+            on_select: EventHandler::default(),
+            on_navigate: EventHandler::default(),
+            on_nudge: EventHandler::default(),
+            on_open_geometry_scripts: EventHandler::default(),
+            on_place_component: Some(EventHandler::default()),
+            layout_target: Some(layout_target),
+            parts_query: Some(parts_query),
+            on_browse_parts: Some(EventHandler::default()),
+            placement_error: Some(
+                "The selected component changed before placement.".to_owned(),
+            ),
+        }
+    }
+}
+
+#[wasm_bindgen_test]
+async fn rejected_placement_message_stays_visible_in_objects_and_retry_remains_possible() {
+    // The rejection itself (no accepted mutation) is proven at the placement
+    // tiers; this row proves its message stays visible at its new Objects
+    // home after the rejection settles, with a retry still reachable.
+    let runtime = support::new_runtime();
+    support::open_document(&runtime, document()).await;
+    let revision = runtime.model().accepted.as_ref().unwrap().document.revision;
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = document.create_element("div").unwrap();
+    document.body().unwrap().append_child(&root).unwrap();
+    let dom = VirtualDom::new(placement_error_host);
+    dom.provide_root_context(runtime.clone());
+    dioxus_web::launch::launch_virtual_dom(
+        dom,
+        dioxus_web::Config::new().rootnode(root.clone().into()),
+    );
+    wait_until("Objects mounts its tree", || {
+        root.query_selector("[role='treeitem']").unwrap().is_some()
+    })
+    .await;
+    let alert_text = root
+        .query_selector("[role='alert']")
+        .unwrap()
+        .map(|alert| alert.text_content().unwrap_or_default());
+    assert!(
+        alert_text
+            .as_deref()
+            .is_some_and(|text| text.contains("The selected component changed before placement.")),
+        "rejected placement message stays visible in Objects, got: {alert_text:?}"
+    );
+    assert_eq!(
+        runtime.model().accepted.as_ref().unwrap().document.revision,
+        revision,
+        "the rejected placement changed no accepted document"
+    );
+    click(&root, "Add object");
+    wait_until(
+        "the Add entry reopens so the placement can be retried",
+        || root.query_selector("[aria-label='Add']").unwrap().is_some(),
+    )
+    .await;
+    assert_eq!(
+        runtime.model().accepted.as_ref().unwrap().document.revision,
+        revision
+    );
+    root.remove();
+}
+
 #[wasm_bindgen_test]
 async fn add_row_and_column_through_the_add_menu_change_the_owner_once() {
     let runtime = support::new_runtime();

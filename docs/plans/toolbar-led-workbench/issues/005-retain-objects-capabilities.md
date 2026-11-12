@@ -187,6 +187,47 @@ fixture family as 003/011). `cargo fmt --all --check` and
 No mutations, reviews or full quick gate were run (coordinator owns); this
 ticket is not closed.
 
+## Progress 2026-11-12 (proof-gap closure; no closure claim)
+
+The two surviving M1 boundary mutants are now killed at named assertions
+(evidence: `.evidence/toolbar-m1/005-gaps-checkpoint.md`,
+`.evidence/mutations/005-error-gaps/`, `005-pending-gaps-try1/`,
+`005-pending-gaps-try2f/`; all `restored_exact=true`).
+
+- Failure row: new page test
+  `rejected_placement_message_stays_visible_in_objects_and_retry_remains_possible`
+  (`layout_layers_tests.rs`) mounts `Objects` with
+  `placement_error=Some("The selected component changed before placement.")`
+  (the rejection/no-mutation half remains proven at the placement tiers) and
+  asserts the destructive Alert text directly after the tree mounts, the
+  accepted revision unchanged, and the Add entry reopening for a retry.
+  Mutant `drop-failed-placement-message` dies at that Alert assertion
+  (`got: None`), not a wait.
+- Pending task admission row: new layout-crate test
+  `matrix_create_on_create_twice_while_pending_admits_only_the_first_submission`
+  (`matrix_setup.rs` draft-safety tests) invokes the controller `on_create`
+  twice for the same owner while the first Create is held pending at a Core
+  gate, bypassing the rendered disabled button. It asserts both calls were
+  delivered, the refusal is silent, admission still carries only the first
+  (6x6) submission, and exactly one 6x6 matrix lands at revision +1. Both
+  `clear-pending-create-admission` (try1) and its operative try2 variant die
+  at the silent-refusal assertion: with admission cleared, the second call
+  falls through to `setup_source`, which returns `None` while the first edit
+  is pending (durability is not `Saved`) and surfaces "The selected board is
+  no longer ready for matrix creation." Recorded honestly: that readiness
+  check is a second, deeper layer that also prevents a second submission in
+  this fixture; the admission guard is what keeps the refusal silent and is
+  the layer this test now pins. Earlier attempts that only asserted the
+  landed document or a non-ticking admission probe survived (the
+  duplicate-id resolver retires a second landing, and cached preparation
+  transitions land between rendered frames); the final probe re-reads
+  admission on its own ticker.
+
+`cargo fmt --all --check`, `python3 scripts/check.py lint`, the
+`layout_layers_tests` page suite (19/19) and the layout browser suite
+(273 passed) are green on the final tree. No production code changed; this
+ticket is not closed.
+
 ## Checks and mutations
 
 [Verification](../verification.md): `check.py quick`, `check.py lint`, layout/parts browser

@@ -359,6 +359,233 @@ mod draft_safety_tests {
         }
     }
 
+    #[component]
+    fn AdmissionProbe(
+        owner: MatrixSetupOwner,
+        version: Signal<u64>,
+        status: Option<String>,
+    ) -> Element {
+        // Admission reads are non-reactive (`peek`/RefCell), so the runtime
+        // version signal is what re-renders this probe on each submission;
+        // the status prop changes on every preparation transition and keeps
+        // the (otherwise memo-skipped) probe following the controller.
+        let _ = version();
+        let _ = &status;
+        // Admission changes can land between rendered frames (a cached
+        // preparation starts and submits within one), so the probe also
+        // re-reads admission on its own ticker instead of trusting renders.
+        let mut tick = use_signal(|| 0u64);
+        let ticker_stop = use_hook(|| Rc::new(Cell::new(false)));
+        use_drop({
+            let ticker_stop = ticker_stop.clone();
+            move || ticker_stop.set(true)
+        });
+        use_hook(move || {
+            let ticker_stop = ticker_stop.clone();
+            wasm_bindgen_futures::spawn_local(async move {
+                loop {
+                    gloo_timers::future::TimeoutFuture::new(10).await;
+                    if ticker_stop.get() {
+                        break;
+                    }
+                    tick += 1;
+                }
+            })
+        });
+        let _ = tick();
+        let admission =
+            try_use_context::<super::super::matrix_setup_controller::MatrixSetupAdmission>();
+        let carries = |rows: u32, columns: u32| {
+            let request = MatrixSetupCreateRequest {
+                owner: owner.clone(),
+                rows,
+                columns,
+                preset: MatrixSetupPreset::MxHotswap,
+            };
+            admission
+                .as_ref()
+                .is_some_and(|admission| admission.carries(&request))
+        };
+        let pending = admission
+            .as_ref()
+            .is_some_and(|admission| admission.is_pending());
+        rsx! {
+            output { id: "matrix-admission-probe",
+                {format!("pending={pending} carries_first={} carries_second={}", carries(6, 6), carries(4, 4))}
+            }
+        }
+    }
+
+    fn runtime_direct_create_form() -> Element {
+        crate::objects::use_matrix_setup_preview_provider(false);
+        let runtime = use_context::<Rc<crate::runtime::Runtime>>();
+        let version = use_signal(|| 0u64);
+        use_hook({
+            let runtime = runtime.clone();
+            move || {
+                runtime.subscribe(Rc::new(move || {
+                    let mut version = version;
+                    version += 1;
+                }))
+            }
+        });
+        use_drop({
+            let runtime = runtime.clone();
+            move || runtime.unsubscribe()
+        });
+        let _ = version();
+        let selected = use_signal(|| None);
+        let anchor = use_signal(|| None);
+        let workspace = use_signal(|| "Layout");
+        let generation = use_signal(|| 1u64);
+        let mount = super::super::matrix_setup_controller::use_matrix_setup(
+            runtime, version, selected, anchor, workspace, generation,
+        );
+        let first_mount = mount.clone();
+        let second_mount = mount.clone();
+        let mut direct_clicks = use_signal(|| 0u32);
+        rsx! {
+            button { aria_label: "Open matrix", onclick: move |_| mount.on_open.call(()), "Open matrix" }
+            if let Some(projection) = mount.projection.clone() {
+                AdmissionProbe { owner: projection.owner.clone(), version, status: projection.status.clone() }
+                output { id: "direct-clicks", "{direct_clicks()}" }
+                button {
+                    onclick: move |_| {
+                        direct_clicks += 1;
+                        if let Some(current) = first_mount.projection.as_ref() {
+                            first_mount.on_create.call(MatrixSetupCreateRequest {
+                                owner: current.owner.clone(), rows: 6, columns: 6,
+                                preset: MatrixSetupPreset::MxHotswap,
+                            });
+                        }
+                    },
+                    "Submit first create directly"
+                }
+                button {
+                    onclick: move |_| {
+                        direct_clicks += 1;
+                        if let Some(current) = second_mount.projection.as_ref() {
+                            second_mount.on_create.call(MatrixSetupCreateRequest {
+                                owner: current.owner.clone(), rows: 4, columns: 4,
+                                preset: MatrixSetupPreset::MxHotswap,
+                            });
+                        }
+                    },
+                    "Submit second create directly"
+                }
+                MatrixSetup { projection, on_create: mount.on_create, on_cancel: mount.on_cancel }
+            }
+            Chrome {}
+        }
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn matrix_create_on_create_twice_while_pending_admits_only_the_first_submission() {
+        use boardstudio_core::model::{Board, ProjectDoc};
+        use boardstudio_web_runtime::runtime::project_name_test_support as support;
+        let f = Fixture::mount(runtime_direct_create_form, "Open matrix").await;
+        let mut document = ProjectDoc::empty("creation-draft", "Creation draft");
+        document.boards.push(Board {
+            id: "board".into(),
+            name: "Board".into(),
+            thickness: 1.6,
+            outline_ids: vec![],
+            part_ids: vec![],
+            net_ids: vec![],
+            traces: vec![],
+            vias: vec![],
+        });
+        support::replace_document(&f.runtime, "matrix-board", "board", document).await;
+        f.click("Open matrix");
+        wait_until("real Matrix Setup opens for direct create", || {
+            f.root.query_selector("form").unwrap().is_some()
+        })
+        .await;
+        let revision_before = f.runtime.model().accepted.unwrap().document.revision;
+        let (mut entered, release) = support::gate_next_core_reply(&f.runtime);
+        f.click("Submit first create directly");
+        wait_until("first direct Create submits a real edit", || {
+            support::drive_pending(&f.runtime);
+            entered
+                .try_recv()
+                .expect("the first direct Create reaches Core")
+                .is_some()
+        })
+        .await;
+        // Bypass the rendered (disabled) Create button: invoke the controller
+        // handler a second time for the same owner while the first is pending.
+        f.click("Submit second create directly");
+        // The guarded handler refuses synchronously, so this settle loop only
+        // gives a would-be second preparation its chance to submit; it stops
+        // early if a second submission ever replaces the first in admission.
+        let probe_text = |f: &Fixture| {
+            f.root
+                .query_selector("#matrix-admission-probe")
+                .unwrap()
+                .expect("admission probe stays mounted while Create is pending")
+                .text_content()
+                .unwrap()
+        };
+        for _ in 0..300 {
+            support::drive_pending(&f.runtime);
+            gloo_timers::future::TimeoutFuture::new(10).await;
+            if probe_text(&f).contains("carries_second=true") {
+                break;
+            }
+        }
+        assert_eq!(
+            f.root
+                .query_selector("#direct-clicks")
+                .unwrap()
+                .unwrap()
+                .text_content()
+                .unwrap(),
+            "2",
+            "both direct on_create calls were delivered to the controller"
+        );
+        let alert_text = f
+            .root
+            .query_selector("[role='alert']")
+            .unwrap()
+            .map(|alert| alert.text_content().unwrap_or_default());
+        assert!(
+            alert_text.is_none(),
+            "second on_create while pending must be refused silently by admission, got error: {alert_text:?}"
+        );
+        let probe = probe_text(&f);
+        assert_eq!(
+            probe,
+            "pending=true carries_first=true carries_second=false",
+            "second on_create while the first Create is pending must not replace the first submission; root text: {}",
+            f.root.text_content().unwrap_or_default()
+        );
+        release.send(()).unwrap();
+        support::run_pending(&f.runtime).await;
+        wait_until("the first Create lands", || {
+            support::drive_pending(&f.runtime);
+            f.runtime
+                .model()
+                .accepted
+                .is_some_and(|accepted| accepted.document.matrices.len() == 1)
+        })
+        .await;
+        let accepted = f.runtime.model().accepted.unwrap();
+        assert_eq!(
+            (
+                accepted.document.matrices[0].rows,
+                accepted.document.matrices[0].columns
+            ),
+            (6, 6),
+            "the landed matrix is the first submission's captured target"
+        );
+        assert_eq!(
+            accepted.document.revision,
+            revision_before + 1,
+            "exactly one Create submission landed"
+        );
+        f.root.remove();
+    }
+
     #[wasm_bindgen_test::wasm_bindgen_test]
     async fn matrix_real_create_pending_exempts_only_submitted_draft() {
         use boardstudio_core::model::{Board, ProjectDoc};
