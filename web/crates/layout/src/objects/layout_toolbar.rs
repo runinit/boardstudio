@@ -2052,18 +2052,21 @@ fn LayoutSnapCustomInput(
     let mut invalid = use_signal(|| false);
     let mut sync_text = text;
     let mut sync_invalid = invalid;
-    use_effect(use_reactive((&settings.snap_fraction,), move |(fraction,)| {
-        if !focused() {
-            // Compare before setting: an unconditional set would re-render and re-fire this effect.
-            let canonical = format_snap_increment(fraction);
-            if sync_text() != canonical {
-                sync_text.set(canonical);
+    use_effect(use_reactive(
+        (&settings.snap_fraction,),
+        move |(fraction,)| {
+            if !focused() {
+                // Compare before setting: an unconditional set would re-render and re-fire this effect.
+                let canonical = format_snap_increment(fraction);
+                if sync_text() != canonical {
+                    sync_text.set(canonical);
+                }
+                if sync_invalid() {
+                    sync_invalid.set(false);
+                }
             }
-            if sync_invalid() {
-                sync_invalid.set(false);
-            }
-        }
-    }));
+        },
+    ));
     rsx! {
         input {
             r#type: "text",
