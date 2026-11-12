@@ -1917,7 +1917,7 @@ fn LayoutSelectionIcon(kind: LayoutSelectionKind) -> Element {
         ),
     };
     rsx! {
-        svg { class: "block size-[22px]! shrink-0 fill-none stroke-current stroke-[1.5] [stroke-linecap:round] [stroke-linejoin:round]", view_box: "0 0 20 20", "aria-hidden": "true",
+        svg { class: "block size-[18px]! shrink-0 fill-none stroke-current stroke-[1.5] [stroke-linecap:round] [stroke-linejoin:round]", view_box: "0 0 20 20", "aria-hidden": "true",
             rect { x, y, width, height, rx: radius }
             path { d: path }
         }
@@ -2270,7 +2270,7 @@ fn LayoutSnapInline(
         }
         Label { html_for: "layout-snap-gap-inline", class: "layout-snap-gap-label", "Gap (mm)" }
         InputGroup { class: "layout-snap-gap-group",
-            InputGroupInput { id: "layout-snap-gap-inline", r#type: InputType::Number, min: "0", step: "any", aria_label: "Snap gap",
+            InputGroupInput { id: "layout-snap-gap-inline", r#type: InputType::Number, min: "0", step: "any", aria_label: "Snap gap", placeholder: "1",
                 value: settings.gap_override.clone(),
                 oninput: move |event: FormEvent| on_snap_intent.call(LayoutSnapIntent::GapOverride(event.value())),
             }

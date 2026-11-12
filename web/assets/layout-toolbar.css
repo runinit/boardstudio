@@ -81,6 +81,14 @@
 .workbench-tool-row:has([data-workbench-section='view'][data-open='true'] #m1-layers-list:not([hidden])) { overflow: visible; }
 .workbench-tool-row:has([data-workbench-section='view'][data-open='true'] #m1-layers-list:not([hidden])) [data-workbench-section='view'][data-open='true'] .workbench-tool-reveal-inner,
 .workbench-tool-row:has([data-workbench-section='view'][data-open='true'] #m1-layers-list:not([hidden])) [data-workbench-section='view'][data-open='true'] .workbench-tool-track { overflow: visible; }
+/* 002 transform-style: Select/View toggle lanes adopt the Transform action style: flat 32px buttons directly on the track, no nested pill, same selected fill. */
+.layout-toolbar-accordion [data-slot='toggle-group'] { height: 32px; align-items: center; gap: 2px; padding: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.layout-toolbar-accordion [data-slot='toggle-group'] button { height: 32px; min-height: 32px; min-width: 32px; padding: 5px 6px; flex: none; gap: 4px; border-radius: 5px; background: transparent; color: var(--foreground); font-size: 12px; box-shadow: none; }
+.layout-toolbar-accordion [data-slot='toggle-group'] button[data-state='on'] { background: var(--selected); color: var(--selected-foreground); }
+.layout-toolbar-accordion [data-slot='toggle-group'] button svg { width: 18px !important; height: 18px !important; }
+[data-workbench-section='view'] #m1-layers-trigger { gap: 4px; border-radius: 5px; }
+.layout-snap-gap-label { margin-left: 6px; }
+.layout-snap-gap-group input { font-size: 12px; }
 @media (pointer: coarse) {
   .layout-toolbar-strips [data-slot]:is(button) { min-width: var(--control-touch); height: var(--control-touch); min-height: var(--control-touch); }
 }
