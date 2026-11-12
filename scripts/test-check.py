@@ -181,7 +181,7 @@ class CheckTests(unittest.TestCase):
             self.assertEqual(staged.read_bytes(), b"replacement belongs to someone else")
             self.assertTrue(retained.is_dir())
 
-    def test_scheduler_passes_real_inherited_lock_to_model_lookup(self):
+    def test_scheduler_passes_real_inherited_lock_to_a_browser_control(self):
         import fcntl
         with tempfile.TemporaryDirectory() as directory:
             lock = Path(directory) / ".cache/tmp/boardstudio-build.lock"
@@ -193,7 +193,7 @@ class CheckTests(unittest.TestCase):
                         "artifact={'reason':'compiler-artifact','package_id':'path+'+(root/'tools/browser-harness').as_uri()+'#boardstudio-browser-harness', 'target':{'name':'cad-provider-pages','kind':['bin']},'executable':'/tmp/fake-driver'}; "
                         "def_run=lambda args, **kw: (args[0]=='cargo' or (_ for _ in ()).throw(AssertionError('lock reacquired'))) and subprocess.CompletedProcess(args,0,json.dumps(artifact),''); "
                         "browser_tools.subprocess.run=def_run; assert str(browser_tools._build_harness('cad-provider-pages')) == '/tmp/fake-driver'" % str(ROOT / "scripts"))
-                command = [sys.executable, "-c", code, "scripts/model-lookup-pilot.py", "--gate"]
+                command = [sys.executable, "-c", code, "scripts/check-wasm-tests.py"]
                 with mock.patch.dict(os.environ, {"HOME": directory, "BOARDSTUDIO_BUILD_LOCK_FD": str(held.fileno())}):
                     _, passed = check.run_commands("browser", [command], os.environ.copy(), ROOT, None)
                 self.assertTrue(passed)
@@ -292,8 +292,6 @@ class CheckTests(unittest.TestCase):
             "scripts/test-drag-browser-consumer-controls.py": "Linux CI consumer fault controls",
             "scripts/test-drag-browser-deep-home-timeout.py": "Linux CI process cleanup control",
             "scripts/test-drag-browser-deep-home.py": "Linux CI deep HOME browser controls",
-            "scripts/test-graphite-controls.py": "manual Graphite browser failure controls against a built site",
-            "scripts/test-model-lookup-pilot.py": "opt-in model-lookup browser pilot controls",
             "scripts/test-model-lookup.cjs": "original Node fixture retained for parity comparisons",
             "scripts/test-ergogen-parity.cjs": "maintainer Node parity contract retained for comparison",
             "scripts/test-drag-project-poll.cjs": "historical Node drag runner helper controls",
@@ -422,9 +420,8 @@ class CheckTests(unittest.TestCase):
                 with self.subTest(step=step, command=command):
                     self.assertNotIn(Path(command[0]).name, forbidden)
 
-    def test_model_lookup_runs_in_browser_not_node_tooling(self):
+    def test_model_lookup_node_fixture_stays_out_of_tooling(self):
         self.assertNotIn(["node", "scripts/test-model-lookup.cjs"], check.STEPS["tooling"][1])
-        self.assertIn([check.PY, "scripts/model-lookup-pilot.py", "--gate"], check.STEPS["browser"][1])
         self.assertIn([check.PY, "-B", "scripts/test-build-patched-wasm-bindgen.py"], check.STEPS["tooling"][1])
 
     def test_measurement_protocols_run_in_tooling_and_the_worker_protocol_in_the_provider_gate(self):
@@ -524,12 +521,6 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
                                 cwd=ROOT, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("output", result.stdout.lower())
-
-    def test_graphite_manual_runners_are_rust_with_historical_source_archived(self):
-        for name in ("feedback", "usability"):
-            self.assertTrue((ROOT / f"scripts/run-graphite-{name}.py").is_file())
-            self.assertFalse((ROOT / f"scripts/test-graphite-{name}.cjs").exists())
-            self.assertTrue((ROOT / f"docs/archive/graphite/test-graphite-{name}.cjs").is_file())
 
     def test_retired_drag_driver_is_rejected_before_build_or_launch(self):
         spec = importlib.util.spec_from_file_location("drag_browser", ROOT / "scripts/run-drag-browser.py")

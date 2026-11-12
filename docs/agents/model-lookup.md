@@ -81,7 +81,7 @@ to inherit the provider default, or explicitly choose a supported value from `ch
 - Direct-call harnesses are unsupported: a tool result that has already entered model context
   cannot be filtered by this helper.
 - An ACP terminal pipeline is not demonstrated here and is not required.
-- Verified so far: the fixture tests in `scripts/test-model-lookup.cjs` (registered for the
-  tooling step), and the paste-probe-emit block above running in a confined code-mode runtime.
+- Verified so far: the fixture tests in `scripts/test-model-lookup.cjs` (run with
+  `node scripts/test-model-lookup.cjs`; no gate runs them), and the paste-probe-emit block above running in a confined code-mode runtime.
   A live capabilities lookup verifies catalog transport and pre-exposure selection; it does
   not prove that delegating to the selected provider/model succeeds.

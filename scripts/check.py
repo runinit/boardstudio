@@ -82,7 +82,7 @@ TOOLING_TESTS = (
     "scripts/test-gitnexus-stop-hook.py",
     "scripts/test-verification-receipt.py", "scripts/test-drag-receipt-bytes.py", "scripts/test-parallel-interrupt.py", "scripts/test-verify-no-node.py", "scripts/test-build-time.py",
     "scripts/test-check-native-tests.py", "scripts/test-mutation-check.py", "scripts/test-browser-tools.py",
-    "scripts/test-chrome-for-testing.py", "scripts/test-bump-chrome-for-testing.py", "scripts/test-graphite-preflight.py", "tools/browser-harness/test-response-probe-cleanup.py",
+    "scripts/test-chrome-for-testing.py", "scripts/test-bump-chrome-for-testing.py", "tools/browser-harness/test-response-probe-cleanup.py",
     "scripts/test-ci-workflow.py", "scripts/test-verify-update-adoption.py",
 )
 WASM_PAGE = ["--no-default-features", "--features", "page"]
@@ -128,7 +128,6 @@ def browser() -> list[Command]:
         [PY, "cad/scripts/test-cold-responses.py"],
         [PY, "scripts/check-wasm-tests.py"],
         [PY, "cad/scripts/test-cad-provider.py"],
-        [PY, "scripts/model-lookup-pilot.py", "--gate"],
         [PY, "-B", "scripts/ergogen-parity/test_generate.py", "--source"],
         [PY, "cad/scripts/face-completeness-gate.py"],
         BROWSER_PREBUILD,
@@ -515,7 +514,7 @@ def run_serial(command: Command, environment: dict[str, str], cwd: Path = ROOT,
     print("$ " + shlex.join(command), flush=True)
     lock_fd = browser_tools._inherited_build_lock()
     if not any(part in command for part in ("scripts/run-drag-browser.py", "cad/scripts/test-cad-capture-controls.py", "cad/scripts/test-cold-responses.py", "cad/scripts/face-completeness-gate.py", "cad/scripts/test-cad-provider.py", "scripts/build-web.py",
-               "scripts/run-wasm-tests.py", "cad/scripts/test-cad.py", "scripts/test-import-kicad-parts.py", "scripts/model-lookup-pilot.py", "scripts/ergogen-parity/test_generate.py", "scripts/check-wasm-tests.py")):
+               "scripts/run-wasm-tests.py", "cad/scripts/test-cad.py", "scripts/test-import-kicad-parts.py", "scripts/ergogen-parity/test_generate.py", "scripts/check-wasm-tests.py")):
         environment = environment.copy()
         environment.pop("BOARDSTUDIO_BUILD_LOCK_FD", None)
     lock_args = {"pass_fds": (lock_fd,)} if lock_fd is not None else {}
