@@ -119,7 +119,9 @@
 .workbench-tool-trigger[data-slot='toolbar-button'][aria-expanded='true'] { color: var(--primary); }
 .workbench-tool-heading { display: flex; align-items: center; gap: 5px; white-space: nowrap; }
 .workbench-tool-caption { color: var(--foreground); font-weight: 600; }
-.workbench-tool-chevron { width: 11px; height: 11px; }
+.workbench-tool-chevron { width: 11px; height: 11px; transition: transform 170ms cubic-bezier(.22,.61,.36,1); }
+/* Accordion affordance: closed sections point right; the open section's chevron turns back left. */
+.workbench-tool-group[data-open='true'] .workbench-tool-trigger .workbench-tool-chevron { transform: rotate(180deg); }
 /* Allocate the final clip immediately; only the solid action track moves. */
 .workbench-tool-reveal { display: grid; grid-template-columns: 0fr; min-width: 0; }
 .workbench-tool-group[data-open='true'] .workbench-tool-reveal { grid-template-columns: 1fr; flex: 1; }

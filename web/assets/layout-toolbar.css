@@ -12,7 +12,9 @@
 .layout-toolbar-accordion [data-workbench-section='transform'] .layout-selection-guidance { display: flex; align-items: center; box-sizing: border-box; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; height: 32px; min-height: 32px; max-height: 32px; padding: 0 8px; margin: 0; flex: 1 1 auto; min-width: 32px; font-size: 12px; text-align: left; cursor: help; border: 0; }
 .layout-toolbar-accordion [data-workbench-section='transform'] .layout-selection-guidance:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .layout-toolbar-accordion [data-workbench-section='transform'] .layout-selection-guidance-text { min-width: 0; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.layout-toolbar-accordion [data-workbench-section='transform'] [data-slot='tooltip'] { display: flex; flex: 1 1 auto; min-width: 32px; max-width: 100%; min-height: 32px; }
+.layout-toolbar-accordion [data-workbench-section='transform'] [data-slot='tooltip']:has(.layout-selection-guidance) { display: flex; flex: 1 1 auto; min-width: 32px; max-width: 100%; min-height: 32px; }
+/* 002 tool-tooltips: per-action tooltips size to their button; only the guidance tooltip fills the lane. */
+.layout-toolbar-accordion [data-workbench-section='transform'] .workbench-tool-track > [data-slot='tooltip'] { flex: none; }
 [data-workbench-section='transform'] [data-slot='tooltip-content'] { top: 100%; bottom: auto; margin-top: 8px; margin-bottom: 0; left: 0; transform: none; max-width: min(240px, calc(100vw - 16px)); white-space: normal; }
 .workbench-tool-row:has([data-workbench-section='transform'][data-open='true'] [data-slot='tooltip'][data-state='open']) { overflow: visible; }
 .workbench-tool-row:has([data-workbench-section='transform'][data-open='true'] [data-slot='tooltip'][data-state='open']) [data-workbench-section='transform'][data-open='true'] .workbench-tool-reveal-inner,
@@ -49,6 +51,8 @@
 [data-workspace-toolbar='layout'] .workbench-tool-row > [data-slot='toggle-group'] { padding: 0; gap: 2px; }
 [data-workbench-section='view'] [data-slot='toggle-group-item'],
 [data-workspace-toolbar='layout'] .workbench-tool-row > [data-slot='toggle-group'] [data-slot='toggle-group-item'] { height: 32px; min-height: 32px; min-width: 32px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+/* 002 select-pressed: the pressed scope uses the same selected fill as Transform actions. */
+[data-workbench-section='select'] [data-slot='toggle-group-item'][data-state='on'] { background: var(--selected); color: var(--selected-foreground); }
 /* 002 lane-label-fix: Select scope triggers icon-only 32px when compact, auto width when fitter allocates labels. Accordion-only, PCB legacy preserved. */
 [data-workbench-section='select'] [data-slot='toggle-group-item'],
 [data-workbench-section='select'] .layout-scope-trigger[data-slot] { height: 32px; min-height: 32px; min-width: 32px; width: 32px; padding: 5px; flex: none; }

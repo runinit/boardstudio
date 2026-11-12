@@ -30,6 +30,7 @@ macro_rules! icon {
 
 icon!(Check, "M20 6 9 17l-5-5");
 icon!(ChevronDown, "m6 9 6 6 6-6");
+icon!(ChevronRight, "m9 18 6-6-6-6");
 icon!(ChevronsUpDown, "m7 15 5 5 5-5", "m7 9 5-5 5 5");
 icon!(
     Loader,
