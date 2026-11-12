@@ -32,7 +32,7 @@ Not required (cut by the rescope): a new sampling framework, a broad source-doma
 
 ## Existing work
 
-V1 was rejected by whole-model regressions. V2 restores topology classes and passes native/WASM checks, but domain review and invalid-option consistency work remain. Continue the current isolated assignment; do not restart it. Evidence: astra-surface-refinement/angular-edge-candidate (`../../../../.evidence/monstertruck-qualification/astra-surface-refinement/angular-edge-candidate/`). The [qualification record](../../../research/cad/monstertruck-qualification-2026-10-16.md) identifies shared source and broader acceptance limits.
+V1 was rejected by whole-model regressions. V2 restores topology classes and passes native/WASM checks, but domain review and invalid-option consistency work remain. Continue the current isolated assignment; do not restart it. Evidence: astra-surface-refinement/angular-edge-candidate (`../../../../.evidence/monstertruck-qualification/astra-surface-refinement/angular-edge-candidate/`). The qualification record identifies shared source and broader acceptance limits.
 
 ## CURRENT — 2026-10-18
 

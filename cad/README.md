@@ -14,7 +14,9 @@ in `web/crates/host/src/cad_worker.rs` calls them through the generated `assets/
 with `parry3d-f64`.
 
 The kernel is `boardstudio-cad` (`cad/monstertruck`), a pure-Rust crate over the
-vendored Monstertruck 0.4.1 crates in `cad/monstertruck-qualification/vendor`.
+patched Monstertruck 0.4.1 crates in
+[monstertruck-boardstudio](https://github.com/runinit/monstertruck-boardstudio), pinned by commit in
+`cad/monstertruck/Cargo.toml`. That repository runs the tests that guard the local patches.
 It builds layered 2.5D cases and source-backed PCBs, writes exact STEP, meshes
 profiles into non-indexed `Float32Array` buffers and imports vendor STEP with
 surface and retained wireframe lines. STEP imports are limited to 32 MiB and

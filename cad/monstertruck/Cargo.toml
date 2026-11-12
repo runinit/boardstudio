@@ -32,12 +32,12 @@ wasm-bindgen-test = "=0.3.79"
 
 [patch.crates-io]
 cgmath = { path = "../../renderer/vendor/cgmath-next-0.18.1" }
-Inflector = { path = "../monstertruck-qualification/vendor/inflector" }
-monstertruck-core = { path = "../monstertruck-qualification/vendor/monstertruck-core" }
-monstertruck-derive = { path = "../monstertruck-qualification/vendor/monstertruck-derive" }
-monstertruck-geometry = { path = "../monstertruck-qualification/vendor/monstertruck-geometry" }
-monstertruck-io = { path = "../monstertruck-qualification/vendor/monstertruck-io" }
-monstertruck-mesh = { path = "../monstertruck-qualification/vendor/monstertruck-mesh" }
-monstertruck-meshing = { path = "../monstertruck-qualification/vendor/monstertruck-meshing" }
-monstertruck-modeling = { path = "../monstertruck-qualification/vendor/monstertruck-modeling" }
-monstertruck-traits = { path = "../monstertruck-qualification/vendor/monstertruck-traits" }
+Inflector = { git = "https://github.com/runinit/monstertruck-boardstudio", rev = "7b989e019b64ccc93be82fe4a329d944c6df38c4" }
+monstertruck-core = { git = "https://github.com/runinit/monstertruck-boardstudio", rev = "7b989e019b64ccc93be82fe4a329d944c6df38c4" }
+monstertruck-derive = { git = "https://github.com/runinit/monstertruck-boardstudio", rev = "7b989e019b64ccc93be82fe4a329d944c6df38c4" }
+monstertruck-geometry = { git = "https://github.com/runinit/monstertruck-boardstudio", rev = "7b989e019b64ccc93be82fe4a329d944c6df38c4" }
+monstertruck-io = { git = "https://github.com/runinit/monstertruck-boardstudio", rev = "7b989e019b64ccc93be82fe4a329d944c6df38c4" }
+monstertruck-mesh = { git = "https://github.com/runinit/monstertruck-boardstudio", rev = "7b989e019b64ccc93be82fe4a329d944c6df38c4" }
+monstertruck-meshing = { git = "https://github.com/runinit/monstertruck-boardstudio", rev = "7b989e019b64ccc93be82fe4a329d944c6df38c4" }
+monstertruck-modeling = { git = "https://github.com/runinit/monstertruck-boardstudio", rev = "7b989e019b64ccc93be82fe4a329d944c6df38c4" }
+monstertruck-traits = { git = "https://github.com/runinit/monstertruck-boardstudio", rev = "7b989e019b64ccc93be82fe4a329d944c6df38c4" }

@@ -19,7 +19,7 @@ A valid contained cutter removes the requested material for blind, one-flush and
 
 ## Existing work
 
-The curved-face component has bounded review approval for the existing contained-through route. Blind/partial-depth behavior is the new work; the component alone does not resolve generic dispatch. Continue the current isolated assignment; do not restart it. Evidence: astra-boolean-topology/curved-planar-cells-v1 (`../../../../.evidence/monstertruck-qualification/astra-boolean-topology/curved-planar-cells-v1/`). The [qualification record](../../../research/cad/monstertruck-qualification-2026-10-16.md) identifies shared source and broader acceptance limits.
+The curved-face component has bounded review approval for the existing contained-through route. Blind/partial-depth behavior is the new work; the component alone does not resolve generic dispatch. Continue the current isolated assignment; do not restart it. Evidence: astra-boolean-topology/curved-planar-cells-v1 (`../../../../.evidence/monstertruck-qualification/astra-boolean-topology/curved-planar-cells-v1/`). The qualification record identifies shared source and broader acceptance limits.
 
 ## Comments
 

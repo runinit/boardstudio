@@ -1164,8 +1164,7 @@ def build_preflight(*, cad: bool = False, cad_wasm: bool = False) -> bool:
         report_target(cargo_target())
     except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError) as error:
         print(f"check: build target unknown: {error}", file=sys.stderr)
-    cad_targets = (["cad/monstertruck/target", "cad/monstertruck-qualification/target"]
-                   if cad else ["cad/monstertruck/target"] if cad_wasm else [])
+    cad_targets = ["cad/monstertruck/target"] if cad or cad_wasm else []
     if cad_targets:
         for target in cad_targets:
             try:

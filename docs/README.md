@@ -79,7 +79,7 @@ hashes, review outcomes and limitations describe the original executions.
 
 | Topic | Evidence |
 | --- | --- |
-| CAD selection | [Kernel comparison](research/cad/cad-kernel-options.md), [Cadrum integration](research/cad/cadrum-assessment.md), [opencascade-rs](research/cad/opencascade-rs-assessment.md), [pure Rust alternatives](research/cad/pure-rust-cad-assessment.md), [Monstertruck STEP support and migration scope](research/cad/monstertruck-step-support-2026-10-16.md), [full Monstertruck replacement assessment](research/cad/monstertruck-feature-assessment-2026-10-16.md), [executable qualification results](research/cad/monstertruck-qualification-2026-10-16.md) |
+| CAD selection | [Kernel comparison](research/cad/cad-kernel-options.md), [Cadrum integration](research/cad/cadrum-assessment.md), [opencascade-rs](research/cad/opencascade-rs-assessment.md), [pure Rust alternatives](research/cad/pure-rust-cad-assessment.md), [Monstertruck STEP support and migration scope](research/cad/monstertruck-step-support-2026-10-16.md), [full Monstertruck replacement assessment](research/cad/monstertruck-feature-assessment-2026-10-16.md), executable qualification results |
 | Generation performance | [Measurements](research/performance/generation-performance.md), [experiment plan](research/performance/generation-optimization-experiments.md), [gasket comparisons](research/performance/gasket-comparison-results.md), [continued OCCT screening](research/performance/occt-optimization-round2.md) |
 | Mechanical hardware | [Gasket preset research](hardware/gasket-hardware-presets-research.md), including supplier evidence and retained images |
 

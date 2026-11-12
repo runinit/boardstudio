@@ -53,11 +53,6 @@ class CadBuildTests(unittest.TestCase):
         (self.root / "monstertruck/src/tests.rs").write_text("// library test only")
         (self.root / "monstertruck/Cargo.toml").write_text('[package]\nname = "boardstudio-cad"\nversion = "0.1.0"\n')
         (self.root / "monstertruck/Cargo.lock").write_text("version = 4\n")
-        for crate in build.VENDOR_CRATES:
-            vendor_dir = self.root / "monstertruck-qualification/vendor" / crate / "src"
-            vendor_dir.mkdir(parents=True)
-            (vendor_dir / "lib.rs").write_text(f"// {crate}")
-            (vendor_dir.parent / "Cargo.toml").write_text(f'[package]\nname = "{crate}"\nversion = "0.4.1"\n')
         (self.project / "Cargo.toml").write_text('[workspace]\nresolver = "3"\nmembers = ["contracts/rust"]\n')
         contracts = self.project / "contracts/rust"
         (contracts / "src").mkdir(parents=True)
@@ -82,7 +77,7 @@ class CadBuildTests(unittest.TestCase):
         source.write_text("// updated fork")
         self.assertNotEqual(build.wasm_inputs_digest(), previous)
 
-    def test_workspace_library_vendor_and_build_script_changes_invalidate_wasm_cache(self):
+    def test_workspace_library_and_build_script_changes_invalidate_wasm_cache(self):
         self.wasm_sources()
         script = self.project / "cad_build.py"
         script.write_text("# build script")
@@ -93,7 +88,6 @@ class CadBuildTests(unittest.TestCase):
                 self.root / "wasm/src/lib.rs",
                 self.root / "monstertruck/src/lib.rs",
                 self.root / "monstertruck/Cargo.lock",
-                self.root / "monstertruck-qualification/vendor/monstertruck-core/src/lib.rs",
                 self.project / "contracts/rust/src/lib.rs",
             ):
                 with self.subTest(path=path):
@@ -131,115 +125,17 @@ class CadBuildTests(unittest.TestCase):
         self.assertIn("skipping the WASM build", printed.getvalue())
 
     def test_native_tests_run_library_and_provider_and_propagate_failures(self):
-        with patch.object(build, "run", return_value=self.PASSED) as run, \
-                contextlib.redirect_stdout(io.StringIO()), \
-                patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "1"}):
+        with patch.object(build, "run") as run:
             build.test_cad()
-        commands = [call.args[0] for call in run.call_args_list]
-        merged, owners = commands[0], commands[1:]
-        self.assertEqual(merged[:4], ["cargo", "test", "--manifest-path", "monstertruck/Cargo.toml"])
-        self.assertEqual(merged[4:8], ["-p", "boardstudio-cad", "-p", "boardstudio-cad-wasm"])
-        self.assertEqual(run.call_args_list[0].kwargs["env"]["CARGO_TARGET_DIR"],
-                         str(self.root / "monstertruck/target"))
-        self.assertTrue(all("--locked" in command and "--release" in command for command in commands))
-        owner_commands = [command[4:] for command in owners]
-        for selection in (
-            ["-p", "monstertruck-io", "--test", "input", "repair_movement"],
-            ["-p", "monstertruck-io", "--lib", "repair_movement_sink"],
-            ["-p", "monstertruck-io", "--test", "input", "source_pcurve_active_view"],
-            ["-p", "monstertruck-io", "--test", "input", "preview_tolerance"],
-            ["-p", "monstertruck-meshing", "--lib", "repair_"],
-            ["-p", "monstertruck-meshing", "--test", "closed_trim_projection"],
-            ["-p", "monstertruck-meshing", "--lib", "seam_branch_tests"],
-        ):
-            self.assertTrue(any(command[:len(selection)] == selection for command in owner_commands), selection)
-        self.assertTrue(all(command[3] == "monstertruck-qualification/Cargo.toml"
-                            for command in owners))
-        with patch.object(build, "run", side_effect=[None, subprocess.CalledProcessError(1, "cargo")]), \
-                patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "1"}):
+        [call] = run.call_args_list
+        command = call.args[0]
+        self.assertEqual(command[:4], ["cargo", "test", "--manifest-path", "monstertruck/Cargo.toml"])
+        self.assertEqual(command[4:8], ["-p", "boardstudio-cad", "-p", "boardstudio-cad-wasm"])
+        self.assertEqual(call.kwargs["env"]["CARGO_TARGET_DIR"], str(self.root / "monstertruck/target"))
+        self.assertTrue("--locked" in command and "--release" in command)
+        with patch.object(build, "run", side_effect=subprocess.CalledProcessError(1, "cargo")):
             with self.assertRaises(subprocess.CalledProcessError):
                 build.test_cad()
-
-    def test_each_owner_failure_propagates_without_running_later_commands(self):
-        for index in range(len(build.OWNER_TESTS)):
-            with self.subTest(index=index), patch.object(build, "run", side_effect=[
-                *([self.PASSED] * (index + 1)), subprocess.CalledProcessError(7, "cargo")
-            ]) as run, contextlib.redirect_stdout(io.StringIO()), patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "1"}):
-                with self.assertRaises(subprocess.CalledProcessError):
-                    build.test_cad()
-                self.assertEqual(run.call_count, index + 2)
-                targets = {call.kwargs["env"]["CARGO_TARGET_DIR"] for call in run.call_args_list[1:]}
-                self.assertEqual(targets, {str(self.root / "monstertruck-qualification/target")})
-
-    def test_each_required_owner_selection_rejects_zero_or_all_ignored_tests(self):
-        passed = self.PASSED.stdout
-        empty = (
-            "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 100 filtered out;\n",
-            "test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 99 filtered out;\n",
-            "running 1 test\n",
-        )
-        for index, (package, *selection) in enumerate(build.OWNER_TESTS):
-            for output in empty:
-                results = [subprocess.CompletedProcess([], 0, stdout=output if step == index + 1 else passed)
-                           for step in range(len(build.OWNER_TESTS) + 1)]
-                with self.subTest(package=package, selection=selection, output=output), \
-                        patch.object(build.subprocess, "run", side_effect=results) as run, \
-                        contextlib.redirect_stdout(io.StringIO()), patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "1"}):
-                    with self.assertRaisesRegex(RuntimeError, "no executed tests"):
-                        build.test_cad()
-                    self.assertEqual(run.call_count, index + 2)
-
-    def test_required_owner_runs_retain_success_and_failure_output(self):
-        with patch.object(build.subprocess, "run", return_value=self.PASSED) as run, \
-                contextlib.redirect_stdout(io.StringIO()) as printed, \
-                patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "1"}):
-            build.test_cad()
-        self.assertEqual(printed.getvalue(), self.PASSED.stdout * len(build.OWNER_TESTS))
-        for call in run.call_args_list[1:]:
-            self.assertEqual(call.kwargs["stdout"], subprocess.PIPE)
-            self.assertEqual(call.kwargs["stderr"], subprocess.STDOUT)
-            self.assertTrue(call.kwargs["text"])
-            self.assertTrue(call.kwargs["check"])
-        failure = subprocess.CalledProcessError(7, "cargo", output="first real Cargo failure\n")
-        with patch.object(build.subprocess, "run", side_effect=[self.PASSED, failure]) as run, \
-                contextlib.redirect_stdout(io.StringIO()) as printed, \
-                patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "1"}):
-            with self.assertRaises(subprocess.CalledProcessError) as raised:
-                build.test_cad()
-        self.assertIs(raised.exception, failure)
-        self.assertEqual(run.call_count, 2)
-        self.assertEqual(printed.getvalue(), failure.stdout)
-
-    def test_parallel_runs_one_lane_per_target_and_prints_in_order(self):
-        def tagged(command, **kwargs):
-            target = Path(kwargs["env"]["CARGO_TARGET_DIR"]).parent.name
-            return subprocess.CompletedProcess([], 0, stdout=f"<{target}>\n" + self.PASSED.stdout)
-        with patch.object(build, "run", side_effect=tagged) as run, \
-                contextlib.redirect_stdout(io.StringIO()) as printed, \
-                patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "4"}):
-            build.test_cad()
-        targets = [Path(call.kwargs["env"]["CARGO_TARGET_DIR"]).parent.name
-                   for call in run.call_args_list]
-        self.assertEqual(sorted(set(targets)),
-                         ["monstertruck", "monstertruck-qualification"])
-        # Output stays in command order whatever the thread interleaving.
-        self.assertEqual(printed.getvalue(),
-                         "<monstertruck>\n" + self.PASSED.stdout
-                         + ("<monstertruck-qualification>\n" + self.PASSED.stdout) * len(build.OWNER_TESTS))
-
-    def test_parallel_surfaces_first_failure_with_its_output(self):
-        failure = subprocess.CalledProcessError(7, "cargo", output="first lane failed\n")
-        def maybe_fail(command, **kwargs):
-            if "monstertruck/Cargo.toml" in command:
-                raise failure
-            return self.PASSED
-        with patch.object(build, "run", side_effect=maybe_fail), \
-                contextlib.redirect_stdout(io.StringIO()) as printed, \
-                patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "4"}):
-            with self.assertRaises(subprocess.CalledProcessError) as raised:
-                build.test_cad()
-        self.assertIs(raised.exception, failure)
-        self.assertEqual(printed.getvalue(), "first lane failed\n")
 
     def test_provider_tests_are_registered_or_accounted_for(self):
         scripts = {path.name for path in (REPO_ROOT / "cad/wasm/tests").glob("*.cjs")}
@@ -263,9 +159,6 @@ class CadWorkspaceTests(unittest.TestCase):
         self.assertNotIn("workspace", wasm)
         self.assertNotIn("patch", wasm)
         self.assertEqual(wasm["package"]["workspace"], "../monstertruck")
-        qualification = tomllib.loads(
-            (build.CAD_ROOT / "monstertruck-qualification/Cargo.toml").read_text())
-        self.assertIn("workspace", qualification)
 
     def test_nested_checkout_resolves_cad_crates_without_the_parent_workspace(self):
         exclude = tomllib.loads((REPO_ROOT / "Cargo.toml").read_text())["workspace"]["exclude"]
@@ -282,12 +175,6 @@ class CadWorkspaceTests(unittest.TestCase):
                 '[package]\nname = "boardstudio-contracts"\nversion = "0.1.0"\nedition = "2021"\n')
             (nested / "Cargo.toml").write_text('[workspace]\nresolver = "3"\nmembers = ["contracts/rust"]\n'
                                                f"exclude = {json.dumps(exclude)}\n")
-            for vendor_crate in build.VENDOR_CRATES:
-                src_vendor = build.CAD_ROOT / "monstertruck-qualification/vendor" / vendor_crate
-                dst_vendor = nested / "cad/monstertruck-qualification/vendor" / vendor_crate
-                (dst_vendor / "src").mkdir(parents=True)
-                (dst_vendor / "src/lib.rs").write_text("")
-                shutil.copy(src_vendor / "Cargo.toml", dst_vendor / "Cargo.toml")
             for crate in CAD_CRATES:
                 (nested / "cad" / crate / "src").mkdir(parents=True)
                 (nested / "cad" / crate / "src/lib.rs").write_text("")

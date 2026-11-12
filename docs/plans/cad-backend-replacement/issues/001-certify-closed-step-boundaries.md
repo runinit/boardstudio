@@ -31,7 +31,7 @@ Not required (cut by the rescope): a universal closed-boundary or trim certifica
 
 ## Existing work
 
-V1 was rejected by an independent polynomial seam counterexample. V3 adds a source certificate and remains under qualification; full-shell edge incidence is not clean. Continue the current isolated assignment; do not restart it. Evidence: astra-closed-chart-high-v3 (`../../../../.evidence/monstertruck-qualification/astra-closed-chart-high-v3/`). The [qualification record](../../../research/cad/monstertruck-qualification-2026-10-16.md) identifies shared source and broader acceptance limits.
+V1 was rejected by an independent polynomial seam counterexample. V3 adds a source certificate and remains under qualification; full-shell edge incidence is not clean. Continue the current isolated assignment; do not restart it. Evidence: astra-closed-chart-high-v3 (`../../../../.evidence/monstertruck-qualification/astra-closed-chart-high-v3/`). The qualification record identifies shared source and broader acceptance limits.
 
 ## CURRENT — 2026-10-18
 

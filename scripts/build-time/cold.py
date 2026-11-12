@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parent.parent.parent
 EVIDENCE = ROOT / ".evidence" / "build-time"
 WIPE = [
     "target", "web/target", "cad/monstertruck/target",
-    "cad/monstertruck-qualification/target", "tools/browser-harness/target",
+    "tools/browser-harness/target",
     "cad/wasm/pkg", "renderer/pkg", "cad/.cache",
     "web/assets/cad", "web/assets/cad-worker", "web/assets/core-worker",
     "web/assets/ergogen-models", "web/assets/renderer",

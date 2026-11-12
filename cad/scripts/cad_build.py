@@ -1,10 +1,8 @@
 """Pure-Rust Monstertruck CAD WASM build and native test orchestration."""
 
-from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import os
 from pathlib import Path
-import re
 import subprocess
 import sys
 
@@ -13,17 +11,6 @@ import browser_tools
 
 CAD_ROOT = Path(__file__).resolve().parents[1]
 OUT_NAME = "boardstudio_cad_wasm"
-VENDOR_CRATES = (
-    "inflector",
-    "monstertruck-core",
-    "monstertruck-derive",
-    "monstertruck-geometry",
-    "monstertruck-io",
-    "monstertruck-mesh",
-    "monstertruck-meshing",
-    "monstertruck-modeling",
-    "monstertruck-traits",
-)
 WASM_TEST_ONLY_SOURCES = frozenset({
     "src/model/source_validation_tests.rs",
     "src/model/generated/tests.rs",
@@ -36,15 +23,6 @@ LIBRARY_TEST_ONLY_SOURCES = frozenset({
     "src/layered/tests.rs",
     "src/layered/pcb_tests.rs",
 })
-OWNER_TESTS = (
-    ("monstertruck-io", "--test", "input", "repair_movement"),
-    ("monstertruck-io", "--lib", "repair_movement_sink"),
-    ("monstertruck-io", "--test", "input", "source_pcurve_active_view"),
-    ("monstertruck-io", "--test", "input", "preview_tolerance"),
-    ("monstertruck-meshing", "--lib", "repair_"),
-    ("monstertruck-meshing", "--test", "closed_trim_projection"),
-    ("monstertruck-meshing", "--lib", "seam_branch_tests"),
-)
 
 
 def run(command, **kwargs):
@@ -71,7 +49,6 @@ def _iter_source_files(base: Path, names: tuple[str, ...]):
 def wasm_inputs_digest(*, no_opt=False):
     """Hash everything the pure-Rust WASM provider build reads."""
     contracts = CAD_ROOT.parent / "contracts/rust"
-    vendor_root = CAD_ROOT / "monstertruck-qualification/vendor"
     profile = "release-no-opt" if no_opt else "release"
     digest = hashlib.sha256(f"{OUT_NAME}\n{profile}\n".encode())
     digest.update(Path(__file__).read_bytes())
@@ -82,8 +59,6 @@ def wasm_inputs_digest(*, no_opt=False):
         (contracts, ("Cargo.toml", "src")),
         (CAD_ROOT.parent / "renderer/vendor/cgmath-next-0.18.1", ("Cargo.toml", "src")),
     ]
-    for crate in VENDOR_CRATES:
-        roots.append((vendor_root / crate, ("Cargo.toml", "src")))
     for base, names in roots:
         for file in _iter_source_files(base, names):
             rel_to_base = file.relative_to(base).as_posix()
@@ -135,81 +110,15 @@ def build_wasm(*, no_opt=False):
     stamp.write_text(inputs + "\n")
 
 
-# Every target dir the native tests build into; the CI cache test parses these literals.
-NATIVE_TEST_TARGETS = ("monstertruck/target", "monstertruck-qualification/target")
+# The target dir the native tests build into; the CI cache test parses this literal.
+NATIVE_TEST_TARGETS = ("monstertruck/target",)
 
 
 def native_test_commands():
-    prefix = ["cargo", "test", "--manifest-path"]
-    suffix = ["--release", "--locked"]
-    library_target, owner_target = NATIVE_TEST_TARGETS
-    return [
-        ([*prefix, "monstertruck/Cargo.toml", "-p", "boardstudio-cad", "-p", "boardstudio-cad-wasm",
-          *suffix], library_target),
-        *(([*prefix, "monstertruck-qualification/Cargo.toml", "-p", package, *selection, *suffix],
-           owner_target) for package, *selection in OWNER_TESTS),
-    ]
-
-
-def _check_owner_output(command, stdout):
-    if "monstertruck-qualification" in command[3] and not re.search(
-            r"^test result: ok\. [1-9][0-9]* passed;", stdout, re.M):
-        raise RuntimeError(f"CAD owner selection has no executed tests: {' '.join(command[4:-2])}")
-
-
-def _run_lane(lane):
-    """Run one target dir's commands in order, capturing each output."""
-    outputs = []
-    for command, target in lane:
-        env = dict(os.environ, CARGO_TARGET_DIR=str(CAD_ROOT / target))
-        result = run(command, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-        _check_owner_output(command, result.stdout)
-        outputs.append(result.stdout)
-    return outputs
-
-
-def _test_cad_serial(commands):
-    for command, target in commands[:1]:
-        run(command, env=dict(os.environ, CARGO_TARGET_DIR=str(CAD_ROOT / target)))
-    # Filter legacy suites; external fixtures are read only by the tests that use them.
-    for command, target in commands[1:]:
-        try:
-            result = run(command, env=dict(os.environ, CARGO_TARGET_DIR=str(CAD_ROOT / target)),
-                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-        except subprocess.CalledProcessError as error:
-            print(error.stdout or "", end="", flush=True)
-            raise
-        print(result.stdout, end="", flush=True)
-        _check_owner_output(command, result.stdout)
-
-
-def _test_cad_parallel(commands):
-    lanes = []
-    for command, target in commands:
-        if lanes and lanes[-1][0][1] == target:
-            lanes[-1].append((command, target))
-        else:
-            lanes.append([(command, target)])
-    with ThreadPoolExecutor(max_workers=len(lanes), thread_name_prefix="cad-lane") as pool:
-        futures = [pool.submit(_run_lane, lane) for lane in lanes]
-        results = [future.result() if future.exception() is None else future.exception()
-                   for future in futures]
-    # Print whole in the existing order; only the first failure surfaces.
-    for item in results:
-        if isinstance(item, BaseException):
-            print(getattr(item, "stdout", None) or "", end="", flush=True)
-            raise item
-        for stdout in item:
-            print(stdout, end="", flush=True)
+    return [(["cargo", "test", "--manifest-path", "monstertruck/Cargo.toml", "-p", "boardstudio-cad",
+              "-p", "boardstudio-cad-wasm", "--release", "--locked"], NATIVE_TEST_TARGETS[0])]
 
 
 def test_cad():
-    commands = native_test_commands()
-    try:
-        jobs = int(os.environ.get("BOARDSTUDIO_CHECK_JOBS", "4"))
-    except ValueError:
-        jobs = 4
-    if jobs <= 1:
-        _test_cad_serial(commands)
-    else:
-        _test_cad_parallel(commands)
+    for command, target in native_test_commands():
+        run(command, env=dict(os.environ, CARGO_TARGET_DIR=str(CAD_ROOT / target)))

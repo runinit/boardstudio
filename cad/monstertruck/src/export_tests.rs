@@ -438,15 +438,15 @@ fn ring(value: &serde_json::Value) -> Vec<Vec2> {
 #[test]
 fn current_profiles_export_all_concavity_holes_and_separate_regions() {
     let concave: serde_json::Value = serde_json::from_str(include_str!(
-        "../../monstertruck-qualification/fixtures/profile-topology/rotated-concave.json"
+        "../tests/fixtures/profile-topology/rotated-concave.json"
     ))
     .unwrap();
     let holes: serde_json::Value = serde_json::from_str(include_str!(
-        "../../monstertruck-qualification/fixtures/profile-topology/multi-hole-region.json"
+        "../tests/fixtures/profile-topology/multi-hole-region.json"
     ))
     .unwrap();
     let split: serde_json::Value = serde_json::from_str(include_str!(
-        "../../monstertruck-qualification/fixtures/profile-topology/split-regions.json"
+        "../tests/fixtures/profile-topology/split-regions.json"
     ))
     .unwrap();
     let cases = [

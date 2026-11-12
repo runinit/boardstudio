@@ -15,7 +15,7 @@ from pathlib import Path
 
 TARGETS = [
     "target", "cad/monstertruck/target",
-    "cad/monstertruck-qualification/target", "tools/browser-harness/target",
+    "tools/browser-harness/target",
 ]
 
 
