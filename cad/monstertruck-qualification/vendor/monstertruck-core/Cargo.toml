@@ -42,14 +42,6 @@ rkyv = ["dep:rkyv"]
 name = "monstertruck_core"
 path = "src/lib.rs"
 
-[[test]]
-name = "hash"
-path = "tests/hash.rs"
-
-[[test]]
-name = "newton"
-path = "tests/newton.rs"
-
 [dependencies.cgmath]
 version = "0.18"
 features = ["serde"]

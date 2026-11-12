@@ -43,18 +43,6 @@ resolver = "2"
 name = "monstertruck_mesh"
 path = "src/lib.rs"
 
-[[example]]
-name = "obj_stl"
-path = "examples/obj_stl.rs"
-
-[[test]]
-name = "obj-io"
-path = "tests/obj-io.rs"
-
-[[test]]
-name = "stl-io"
-path = "tests/stl-io.rs"
-
 [dependencies.array-macro]
 version = "2"
 

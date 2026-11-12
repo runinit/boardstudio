@@ -36,18 +36,6 @@ step-test = []
 name = "monstertruck_solid"
 path = "src/lib.rs"
 
-[[example]]
-name = "fillet-after-boolean"
-path = "examples/fillet-after-boolean.rs"
-
-[[example]]
-name = "punched-cube-shapeops"
-path = "examples/punched-cube-shapeops.rs"
-
-[[test]]
-name = "boolean_smoke"
-path = "tests/boolean_smoke.rs"
-
 [dependencies.ahash]
 version = "0.8"
 

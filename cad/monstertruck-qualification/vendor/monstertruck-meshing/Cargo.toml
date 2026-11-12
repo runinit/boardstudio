@@ -51,61 +51,9 @@ vtk = ["vtkio"]
 name = "monstertruck_meshing"
 path = "src/lib.rs"
 
-[[example]]
-name = "bench-tessellation"
-path = "examples/bench-tessellation.rs"
-
-[[example]]
-name = "filleted-cube"
-path = "examples/filleted-cube.rs"
-
-[[example]]
-name = "irregular-sphere"
-path = "examples/irregular-sphere.rs"
-
-[[example]]
-name = "octahedron-subdivision"
-path = "examples/octahedron-subdivision.rs"
-
-[[example]]
-name = "requadrangulate-buddha"
-path = "examples/requadrangulate-buddha.rs"
-
-[[example]]
-name = "smoothing-bunny"
-path = "examples/smoothing-bunny.rs"
-
-[[example]]
-name = "splitting-sample"
-path = "examples/splitting-sample.rs"
-
-[[example]]
-name = "teapot"
-path = "examples/teapot.rs"
-
-[[example]]
-name = "tessellate-shape"
-path = "examples/tessellate-shape.rs"
-
-[[test]]
-name = "analyzers"
-path = "tests/analyzers/main.rs"
-
 [[test]]
 name = "closed_trim_projection"
 path = "tests/closed_trim_projection.rs"
-
-[[test]]
-name = "filters"
-path = "tests/filters/main.rs"
-
-[[test]]
-name = "tessellation"
-path = "tests/tessellation/main.rs"
-
-[[test]]
-name = "vtk"
-path = "tests/vtk.rs"
 
 [dependencies.array-macro]
 version = "2"

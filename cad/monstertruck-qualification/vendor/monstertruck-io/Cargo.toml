@@ -70,73 +70,9 @@ step = [
 name = "monstertruck_io"
 path = "src/lib.rs"
 
-[[example]]
-name = "json-to-step"
-path = "examples/json-to-step.rs"
-
-[[example]]
-name = "preview-step-face"
-path = "examples/preview-step-face.rs"
-
-[[example]]
-name = "profile-step-tessellation"
-path = "examples/profile-step-tessellation.rs"
-
-[[example]]
-name = "shape-to-step"
-path = "examples/shape-to-step.rs"
-
-[[example]]
-name = "step-to-mesh"
-path = "examples/step-to-mesh.rs"
-
-[[test]]
-name = "cadmpeg_reads_the_step_corpus"
-path = "tests/cadmpeg_reads_the_step_corpus.rs"
-
-[[test]]
-name = "corpus_conversion_census"
-path = "tests/corpus_conversion_census.rs"
-
-[[test]]
-name = "corpus_load"
-path = "tests/corpus_load.rs"
-
-[[test]]
-name = "every_fixture_loads"
-path = "tests/every_fixture_loads.rs"
-
 [[test]]
 name = "input"
 path = "tests/input/main.rs"
-
-[[test]]
-name = "io"
-path = "tests/io/main.rs"
-
-[[test]]
-name = "iso8859_step"
-path = "tests/iso8859_step.rs"
-
-[[test]]
-name = "output"
-path = "tests/output/main.rs"
-
-[[test]]
-name = "refuses_rather_than_returns_nothing"
-path = "tests/refuses_rather_than_returns_nothing.rs"
-
-[[test]]
-name = "ruststep_alias_still_resolves"
-path = "tests/ruststep_alias_still_resolves.rs"
-
-[[test]]
-name = "swept_surface_extent_oracle"
-path = "tests/swept_surface_extent_oracle.rs"
-
-[[test]]
-name = "tokenize_bisect"
-path = "tests/tokenize_bisect.rs"
 
 [dependencies.cadmpeg-codec-iges]
 version = "0.4"

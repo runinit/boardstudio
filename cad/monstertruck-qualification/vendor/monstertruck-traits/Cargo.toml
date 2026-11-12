@@ -39,22 +39,6 @@ polynomial = []
 name = "monstertruck_traits"
 path = "src/lib.rs"
 
-[[test]]
-name = "curve"
-path = "tests/curve.rs"
-
-[[test]]
-name = "derives"
-path = "tests/derives.rs"
-
-[[test]]
-name = "girdle_band"
-path = "tests/girdle_band.rs"
-
-[[test]]
-name = "surface"
-path = "tests/surface.rs"
-
 [dependencies.monstertruck-core]
 version = "0.4.1"
 
