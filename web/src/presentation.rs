@@ -9922,7 +9922,7 @@ fn Editor() -> Element {
                     // panel or another workspace, so its text/error and
                     // DraftOwnerGuard survive; its own Back closes it.
                     div {
-                        class: "absolute left-2 top-[100px] bottom-2 z-30 w-[min(460px,calc(100%-16px))] overflow-auto rounded-md border border-border-strong bg-card shadow-md",
+                        class: "absolute left-2 top-[100px] bottom-2 z-30 w-[min(460px,calc(100%-16px))] overflow-auto overscroll-contain rounded-md border border-border-strong bg-card shadow-md",
                         hidden: !(geometry_scripts_open() && active_workspace == "Layout" && layout_panel().is_none()),
                         inert: (!(geometry_scripts_open() && active_workspace == "Layout" && layout_panel().is_none())).then_some(""),
                         if geometry_scripts_mounted() {

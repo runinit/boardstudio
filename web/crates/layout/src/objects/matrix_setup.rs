@@ -255,7 +255,7 @@ pub fn MatrixSetup(props: MatrixSetupProps) -> Element {
 
     rsx! {
         section {
-            class: "absolute left-2 top-[100px] bottom-2 z-6 flex w-[min(340px,calc(100%-16px))] flex-col gap-2.5 overflow-auto rounded-md border border-border-strong bg-card p-3 text-foreground shadow-md [&_form]:grid [&_form]:gap-2 [&_footer]:flex [&_footer]:justify-end [&_footer]:gap-2",
+            class: "absolute left-2 top-[100px] bottom-2 z-6 flex w-[min(340px,calc(100%-16px))] flex-col gap-2.5 overflow-auto overscroll-contain rounded-md border border-border-strong bg-card p-3 text-foreground shadow-md [&_form]:grid [&_form]:gap-2 [&_footer]:flex [&_footer]:justify-end [&_footer]:gap-2",
             aria_label: "New matrix",
             onkeydown: move |event: KeyboardEvent| {
                 if event.key().to_string() == " " {

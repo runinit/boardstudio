@@ -634,6 +634,143 @@ def motion_probe():
     wait_for_settled()
 
 
+def matrix_setup_report():
+    return evaluate(
+        "(() => {"
+        "const p=document.querySelector('[aria-label=\"New matrix\"]');"
+        "if(!p) return {open:false};"
+        "const r=p.getBoundingClientRect();"
+        "const cs=getComputedStyle(p);"
+        "const btns={};"
+        "for(const label of ['Create matrix','Cancel']){"
+        " const b=[...p.querySelectorAll('button')].find(e=>e.textContent.trim()===label);"
+        " if(!b){btns[label]=null;continue;}"
+        " const b2=b.getBoundingClientRect();"
+        " const cx=b2.x+b2.width/2, cy=b2.y+b2.height/2;"
+        " const el=document.elementFromPoint(cx,cy);"
+        " btns[label]={x:b2.x,y:b2.y,w:b2.width,h:b2.height,bottom:b2.bottom,right:b2.right,hit:el===b||(el&&b.contains(el))};"
+        "}"
+        "const vis=(e)=>{if(!e) return false; const b=e.getBoundingClientRect(); return b.width>0&&b.height>0&&!e.closest('[hidden]');};"
+        "const add=document.querySelector('[aria-label=\"Add\"]');"
+        "const toggle=document.querySelector('[aria-label=\"Add matrix mode\"]');"
+        "const t=toggle?toggle.getBoundingClientRect():null;"
+        "const row=document.querySelector('.workbench-tool-row');"
+        "const rr=row?row.getBoundingClientRect():null;"
+        "const canvas=[...document.querySelectorAll('#m1-workspace-panel svg')].find(s=>s.getAttribute('tabindex')==='0');"
+        "const cr=canvas?canvas.getBoundingClientRect():null;"
+        "const objs=document.querySelector('#workbench-objects');"
+        "return {open:true,"
+        " rect:{x:r.x,y:r.y,w:r.width,h:r.height,bottom:r.bottom,right:r.right},"
+        " overflowY:cs.overflowY, overscroll:cs.overscrollBehavior,"
+        " scrollH:p.scrollHeight, clientH:p.clientHeight, scrollTop:p.scrollTop,"
+        " btns, addVisible:vis(add), objectsHidden: objs?objs.hidden:null,"
+        " toggle: t?{x:t.x,y:t.y,w:t.width,h:t.height,bottom:t.bottom}:null,"
+        " row: rr?{x:rr.x,y:rr.y,w:rr.width,h:rr.height,bottom:rr.bottom}:null,"
+        " canvas: cr?{x:cr.x,y:cr.y,w:cr.width,h:cr.height,bottom:cr.bottom,right:cr.right}:null,"
+        " backdrop: !!document.querySelector('[data-backdrop]')};"
+        "})()"
+    )
+
+
+def matrix_setup_tests(width, height, failures):
+    # 005/M1 defect section (320/390 only): Project -> Add object... -> Matrix...
+    # opens the bounded New matrix task surface. The panel must stay inside the
+    # visual viewport, scroll internally (overflow-y auto, overscroll contain),
+    # and Create/Cancel must be reachable by scrolling and by Tab; the stale
+    # Add chooser must be gone and the canvas must not resize or reframe.
+    canvas_before = evaluate(
+        "(() => {const c=[...document.querySelectorAll('#m1-workspace-panel svg')].find(s=>s.getAttribute('tabindex')==='0');"
+        "if(!c) return null; const r=c.getBoundingClientRect();"
+        "return {x:r.x,y:r.y,w:r.width,h:r.height};})()"
+    )
+    browser("find", "role", "button", "click", "--name", "Project", "--exact")
+    browser("find", "role", "menuitem", "click", "--name", "Add object\u2026", "--exact")
+    browser("wait", "--fn", "!!document.querySelector('[aria-label=\"Add\"]')")
+    browser("find", "role", "button", "click", "--name", "Matrix\u2026")
+    browser("wait", "--fn", "!!document.querySelector('[aria-label=\"New matrix\"]')")
+    wait_for_settled()
+    rep = matrix_setup_report()
+    print(f"MATRIX-SETUP {width}x{height}: {json.dumps(rep)}", flush=True)
+    if not rep.get("open"):
+        failures.append(("matrix-setup", "New matrix surface did not open"))
+        return
+    r = rep["rect"]
+    if not (r["x"] >= -0.5 and r["y"] >= -0.5 and r["right"] <= width + 0.5 and r["bottom"] <= height + 0.5):
+        failures.append(("matrix-setup", f"panel rect {r} outside {width}x{height} viewport"))
+    if not (r["w"] <= width - 16 + 1):
+        failures.append(("matrix-setup", f"panel width {r['w']} exceeds viewport minus 16px safe inset"))
+    if rep.get("overflowY") not in ("auto", "scroll"):
+        failures.append(("matrix-setup", f"overflow-y {rep.get('overflowY')}, require auto/scroll"))
+    if "contain" not in str(rep.get("overscroll")):
+        failures.append(("matrix-setup", f"overscroll-behavior {rep.get('overscroll')}, require contain"))
+    if rep.get("addVisible"):
+        failures.append(("matrix-setup", "stale Add popover still visible after setup opened"))
+    if rep.get("objectsHidden") is False:
+        failures.append(("matrix-setup", "Objects popout still open after setup opened"))
+    if rep.get("backdrop"):
+        failures.append(("matrix-setup", "backdrop present with setup open"))
+    toggle, row = rep.get("toggle"), rep.get("row")
+    if toggle and row and toggle["y"] < row["bottom"] - 0.5 and toggle["bottom"] > row["y"] + 0.5:
+        failures.append(("matrix-setup", f"Add matrix mode toggle {toggle} overlaps tool row {row}"))
+    if canvas_before and rep.get("canvas"):
+        c = rep["canvas"]
+        if any(abs(c[k] - canvas_before[k]) > 0.5 for k in ("x", "y", "w", "h")):
+            failures.append(("matrix-setup", f"canvas rect changed {canvas_before} -> {c}"))
+        if not (c["bottom"] > r["bottom"] or c["right"] > r["right"]):
+            failures.append(("matrix-setup", f"canvas/preview area fully covered by panel {r}, canvas {c}"))
+    # Scrolling to the end must make Create and Cancel fully visible + hit-testable.
+    evaluate("(()=>{const p=document.querySelector('[aria-label=\"New matrix\"]'); p.scrollTop=p.scrollHeight;})()")
+    browser("wait", 200)
+    end = matrix_setup_report()
+    print(f"MATRIX-SETUP-SCROLLED {width}x{height}: {json.dumps(end)}", flush=True)
+    er = end["rect"]
+    for label in ("Create matrix", "Cancel"):
+        b = end.get("btns", {}).get(label)
+        if not b:
+            failures.append(("matrix-setup", f"{label} button missing after scroll"))
+            continue
+        if not (b["x"] >= er["x"] - 0.5 and b["y"] >= er["y"] - 0.5 and b["right"] <= er["right"] + 0.5 and b["bottom"] <= er["bottom"] + 0.5):
+            failures.append(("matrix-setup", f"{label} not fully inside panel after scroll: {b} vs panel {er}"))
+        if not (b["x"] >= 0 and b["y"] >= 0 and b["right"] <= width + 0.5 and b["bottom"] <= height + 0.5):
+            failures.append(("matrix-setup", f"{label} outside viewport after scroll: {b}"))
+        if not b["hit"]:
+            failures.append(("matrix-setup", f"{label} not hit-testable after scroll: {b}"))
+    # Tab from the surface's initial focus must reach Create and scroll it into view.
+    evaluate("(()=>{const p=document.querySelector('[aria-label=\"New matrix\"]'); p.scrollTop=0;})()")
+    initial = evaluate(
+        "(()=>{const a=document.activeElement; const p=document.querySelector('[aria-label=\"New matrix\"]');"
+        "return {inside: !!(a&&p&&p.contains(a)), label: a?a.getAttribute('aria-label'):null};})()"
+    )
+    print(f"MATRIX-SETUP-FOCUS {width}x{height}: {json.dumps(initial)}", flush=True)
+    if not initial.get("inside"):
+        failures.append(("matrix-setup", f"initial focus not inside New matrix surface: {initial}"))
+    reached = None
+    for _ in range(30):
+        browser("press", "Tab")
+        state = evaluate(
+            "(()=>{const a=document.activeElement; if(!a) return null;"
+            "const p=document.querySelector('[aria-label=\"New matrix\"]');"
+            "const b=a.getBoundingClientRect(); const pr=p?p.getBoundingClientRect():null;"
+            "return {text:(a.textContent||'').trim(), aria:a.getAttribute('aria-label'),"
+            " y:b.y, bottom:b.bottom, panelTop:pr?pr.y:null, panelBottom:pr?pr.bottom:null, scrollTop:p?p.scrollTop:null};})()"
+        )
+        if state and state.get("text") == "Create matrix":
+            reached = state
+            break
+    print(f"MATRIX-SETUP-TAB {width}x{height}: {json.dumps(reached)}", flush=True)
+    if not reached:
+        failures.append(("matrix-setup", "Tab never reached Create matrix"))
+    elif not (reached["y"] >= reached["panelTop"] - 0.5 and reached["bottom"] <= reached["panelBottom"] + 0.5):
+        failures.append(("matrix-setup", f"focused Create not scrolled into panel view: {reached}"))
+    over = overflow_state()
+    print(f"MATRIX-SETUP-OVERFLOW {width}x{height}: {json.dumps(over)}", flush=True)
+    if not (over["sw"] <= over["cw"] and over["sh"] <= over["ch"]):
+        failures.append(("matrix-setup", f"page overflow with setup open {over}"))
+    # Close through the surface's own Cancel so later oracles start clean.
+    browser("find", "role", "button", "click", "--name", "Cancel", "--exact")
+    browser("wait", "--fn", "!document.querySelector('[aria-label=\"New matrix\"]')")
+
+
 def production_viewport_tests(url, width=320, height=480):
     browser("set", "viewport", width, height)
     browser("open", url)
@@ -900,6 +1037,9 @@ def production_viewport_tests(url, width=320, height=480):
         print(f"OVERFLOW {utility}: {json.dumps(over)}", flush=True)
         if not (over["sw"] <= over["cw"] and over["sh"] <= over["ch"]):
             failures.append((utility, f"page overflow with panel open {over}"))
+
+    if width <= 390:
+        matrix_setup_tests(width, height, failures)
 
     errors = browser("errors").get("errors", [])
     print(f"BROWSER ERRORS: {json.dumps(errors)}", flush=True)

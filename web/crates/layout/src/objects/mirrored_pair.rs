@@ -283,7 +283,7 @@ pub fn MirroredPairForm(props: MirroredPairFormProps) -> Element {
     let gap_id = format!("layout-input-{}-gap", dioxus::core::current_scope_id().0);
     rsx! {
         section {
-            class: "pointer-events-auto relative box-border flex max-h-full w-[min(380px,100%)] flex-col gap-0 overflow-y-auto rounded-md border border-border-strong bg-card p-6 text-foreground shadow-md max-[760px]:w-[min(380px,calc(100%-8px))] max-[760px]:p-[18px]",
+            class: "pointer-events-auto relative box-border flex max-h-full w-[min(380px,100%)] flex-col gap-0 overflow-y-auto overscroll-contain rounded-md border border-border-strong bg-card p-6 text-foreground shadow-md max-[760px]:w-[min(380px,calc(100%-8px))] max-[760px]:p-[18px]",
             aria_label: "New mirrored pair",
             onkeydown: move |event: KeyboardEvent| {
                 if event.key().to_string() == " " {

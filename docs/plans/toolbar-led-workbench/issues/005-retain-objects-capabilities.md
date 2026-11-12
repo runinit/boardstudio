@@ -238,6 +238,45 @@ pending-repeat and owner-close wiring mutants use the real page task suite named
 Reuse MatrixSetup's existing `matrix_real_create_pending_exempts_only_submitted_draft` where
 sufficient; no duplicate runtime pruning fixture. Do not remove setup/script guards.
 
+## Progress 2026-11-12 (M1 usability defect: Matrix setup mobile clipping; no closure claim)
+
+The M1 acceptance walkthrough (390x844) found the 'New matrix' setup cut off
+at its panel bottom with Create/Cancel not reachable by ordinary scrolling,
+and the Single/Mirrored-pair mode toggle floating over the tool row. A new
+real-browser oracle section in `scripts/test-workbench-viewport.py`
+(`matrix_setup_tests`, run at 320x480 and 390x844 alongside every existing
+oracle) opens the surface through Project → Add object… → Matrix… and
+asserts: panel rect inside the viewport with width ≤ viewport−16px,
+`overflow-y: auto`, `overscroll-behavior: contain`, stale Add chooser and
+Objects popout gone, no backdrop, mode toggle not overlapping the tool row,
+canvas rect unchanged and not fully covered, scrolling to the end makes
+Create matrix and Cancel fully visible and hit-testable, Tab from the
+surface's initial focus reaches Create matrix and scrolls it into view, and
+no page overflow. RED on the pre-fix build
+(`.evidence/toolbar-m1/matrix-mobile-red-320.log`): overscroll-behavior was
+`auto` and the mode toggle (y 80–128) overlapped the tool row (y 72–114);
+the scroll/Tab reachability assertions already passed programmatically and
+are retained as guards (agent-browser wheel cannot drive nested scrollers
+in this harness — a plain test div also does not wheel-scroll — so native
+wheel/touch scrolling remains unproved, as recorded for 002/009).
+
+Production fix (minimal, no redesign): the stacked New matrix rule in
+`web/assets/shell.css` now declares `overflow-y: auto` and
+`overscroll-behavior: contain`; `MatrixSetup`, the mirrored-pair form and
+the legacy GeometryScriptsEditor task surface (same bounded pattern) gained
+`overscroll-contain`; the Add-matrix mode toggle moved from `top-2` to
+`top-[52px]` so it sits between the tool row and the setup panel instead of
+floating over the row. The intentional stacked 50% cap (canvas preview
+stays visible below the form on narrow screens) is unchanged; the canvas
+ghost remains visible below the panel at 320/390 (after-screenshots
+`.evidence/toolbar-m1/matrix-mobile-390-after*.png`). GREEN:
+`test-workbench-viewport.py` passes at 320x480, 390x844, 728x1024 and
+1440x900 with all pre-existing oracles (`matrix-mobile-green-*.log`); page
+suites `layout_layers_tests`, `workbench_shell`,
+`layout_field_preview_tests` pass 32/0 (`matrix-mobile-page-suites.log`);
+`cargo fmt --all --check` and `python3 scripts/check.py lint` pass. This
+ticket is not closed.
+
 ## Known red inherited from M1 coordination (2026-11-11)
 
 `presentation::layout_field_preview_tests` (6 tests; first failure
