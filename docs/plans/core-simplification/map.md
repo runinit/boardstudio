@@ -1,7 +1,7 @@
 # Map: Core simplification
 
 Label: wayfinder:map
-Status: **planning; four decisions (D1–D4) are open. No implementation is authorized yet.**
+Status: **decisions D1–D4 made by the user on 2026-11-12. Tickets come next; implementation follows the branch deletions and the toolbar work.**
 Base: `cleanup/remove-dead-weight`.
 
 ## Destination
@@ -18,9 +18,8 @@ The product intent, confirmed by the user on 2026-11-12:
 - Edits do not flow from the mirrored half back to the source.
 
 [ADR-0010](../../adr/0010-mirrored-half-is-a-core-maintained-reflection.md) and
-[ADR-0008](../../adr/0008-linked-halves-stay-linked.md) describe the current design. This plan
-needs an ADR that supersedes ADR-0010's inverse-mapping and exception-overlay clauses once the
-decisions below are made.
+[ADR-0008](../../adr/0008-linked-halves-stay-linked.md) describe the current design. Slice 1 writes the
+ADR that supersedes ADR-0010's inverse-mapping and exception-overlay clauses.
 
 ## What exists today
 
@@ -115,17 +114,21 @@ Same-board layout pairs and two-board halves reflect the same kinds of item. Sub
 use the correspondence type and the reflection of steps 1–2, and the overlap refusals go away
 because a layout can no longer be claimed by two models.
 
-## Decisions needed
+## Decisions
+
+All four were answered by the user on 2026-11-12; each answer follows its question.
 
 **D1. What happens when someone edits a linked item on the mirrored half?**
 Recommended: refuse the edit and say why, with one offered action, "Make local", which sets the
 item to `Local` and then applies the edit. The alternative is to make the item local silently on
 first edit; that is one step shorter for the user and easier to do by accident.
+**Decided: refuse, and offer "Make local".**
 
 **D2. Are both mirror models needed as products?**
 Two-board halves are a split keyboard. Same-board layout pairs are a mirrored layout on one PCB.
 Recommended: keep both as products and give them one implementation. If same-board pairs are not
 needed, `Layout.mirror_link` and about 1.5–2k lines in `matrix/layout.rs` can be removed outright.
+**Decided: keep both products on one implementation.**
 
 **D3. Which second storage forms go?** None of these is old-project support; each is a live
 alternative inside the current format. Removing one is a product change, and the shipped demo
@@ -140,6 +143,8 @@ projects and the catalogue must be checked for each shape before it is deleted.
 | Per-axis matrix arrays in a test fixture | `matrix.rs` `grouped_from_legacy` | Remove after rewriting `matrix-projections.json` |
 | KiCad's older arc form, MX stabilizer footprints, `&kp` bindings | `artifact/`, `mechanical.rs`, `keymap.rs` | Keep; these are external formats |
 
+**Decided: the recommendations in the table stand.**
+
 **D4. Which mirror features stay?** Each is beyond "source drives mirror, with local and omitted
 items", and each can be dropped independently.
 
@@ -149,13 +154,14 @@ items", and each can be dropped independently.
 
 Recommended: keep the first, since it positions real parts, and drop the other two unless you
 rely on them.
+**Decided: keep companion placement; drop saved copper restore and endpoint retargeting.**
 
 ## Slices
 
 Each slice leaves `core/tests/mirrored_half*` and `core/tests/split_*` passing, apart from tests
 of behaviour the slice removes on purpose, which it lists.
 
-1. **Remove inverse mapping** (after D1). Delete `inverse.rs` and `inverse/`, add the D1 rule in
+1. **Remove inverse mapping.** Delete `inverse.rs` and `inverse/`, add the D1 rule in
    the transaction path, and update the UI surfaces that edit mirror-side items
    (`existing_half.rs`, `parts.rs`, the part and outline inspectors).
 2. **Typed correspondence state and format 8.** Change the model, rewrite fixtures, delete the
@@ -163,14 +169,14 @@ of behaviour the slice removes on purpose, which it lists.
 3. **One transaction.** Move staging into `CoreEngine`; delete per-module staging and the
    per-case atomicity assertions; add the property test.
 4. **Fold `lifecycle` into state transitions** on the typed correspondence, with the D4 outcome.
-5. **One mirror model** (after D2).
-6. **Remove second storage forms** (after D3), one per commit, each with its fixture rewrite.
+5. **One mirror model.**
+6. **Remove second storage forms**, one per commit, each with its fixture rewrite.
 7. **Split what is left by concern**: `mechanical/edit.rs` (5.9k lines, 88 functions) and
    `matrix/layout.rs` (4.9k lines, 97 functions).
 
 Slices 1 and 2 are independent and give the largest reduction. Slice 3 should follow slice 1,
 because inverse is the main reason `prepare.rs` orchestrates so many stages. Tickets with proof
-maps are written per slice once D1–D4 are answered.
+maps are written per slice before it is built.
 
 ## Open fog
 
