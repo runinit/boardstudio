@@ -15,8 +15,8 @@
 .layout-toolbar-accordion [data-workbench-section='transform'] [data-slot='tooltip'] { display: flex; flex: 1 1 auto; min-width: 32px; max-width: 100%; min-height: 32px; }
 [data-workbench-section='transform'] [data-slot='tooltip-content'] { top: 100%; bottom: auto; margin-top: 8px; margin-bottom: 0; left: 0; transform: none; max-width: min(240px, calc(100vw - 16px)); white-space: normal; }
 .workbench-tool-row:has([data-workbench-section='transform'][data-open='true'] [data-slot='tooltip'][data-state='open']) { overflow: visible; }
-.workbench-tool-row:has([data-workbench-section='transform'][data-open='true'] [data-slot='tooltip'][data-state='open']) .workbench-tool-reveal-inner,
-.workbench-tool-row:has([data-workbench-section='transform'][data-open='true'] [data-slot='tooltip'][data-state='open']) .workbench-tool-track { overflow: visible; }
+.workbench-tool-row:has([data-workbench-section='transform'][data-open='true'] [data-slot='tooltip'][data-state='open']) [data-workbench-section='transform'][data-open='true'] .workbench-tool-reveal-inner,
+.workbench-tool-row:has([data-workbench-section='transform'][data-open='true'] [data-slot='tooltip'][data-state='open']) [data-workbench-section='transform'][data-open='true'] .workbench-tool-track { overflow: visible; }
 .layout-menu-actions { position: relative; }
 .layout-menu-actions > [data-slot=popover] { position: static; }
 .layout-scope-toolbar[data-slot], .layout-action-strip[data-slot] { display: flex; flex-wrap: nowrap; gap: 2px; padding: 0; background: transparent; box-shadow: none; }
@@ -70,8 +70,8 @@
 [data-workbench-section='view'] [aria-label='Canvas handles visibility'] [data-slot='tooltip'][data-state='open'] { overflow: visible; }
 [data-workbench-section='view'] #m1-layers-list { position: absolute; top: calc(100% + 4px); left: 0; z-index: 30; width: 240px; max-width: min(320px, calc(100vw - 16px)); max-height: min(65vh, 520px); overflow: auto; border: 1px solid var(--border-strong); border-radius: 12px; background: var(--card); padding: 12px; }
 .workbench-tool-row:has([data-workbench-section='view'][data-open='true'] #m1-layers-list:not([hidden])) { overflow: visible; }
-.workbench-tool-row:has([data-workbench-section='view'][data-open='true'] #m1-layers-list:not([hidden])) .workbench-tool-reveal-inner,
-.workbench-tool-row:has([data-workbench-section='view'][data-open='true'] #m1-layers-list:not([hidden])) .workbench-tool-track { overflow: visible; }
+.workbench-tool-row:has([data-workbench-section='view'][data-open='true'] #m1-layers-list:not([hidden])) [data-workbench-section='view'][data-open='true'] .workbench-tool-reveal-inner,
+.workbench-tool-row:has([data-workbench-section='view'][data-open='true'] #m1-layers-list:not([hidden])) [data-workbench-section='view'][data-open='true'] .workbench-tool-track { overflow: visible; }
 @media (pointer: coarse) {
   .layout-toolbar-strips [data-slot]:is(button) { min-width: var(--control-touch); height: var(--control-touch); min-height: var(--control-touch); }
 }

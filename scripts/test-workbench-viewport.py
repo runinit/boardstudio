@@ -614,6 +614,13 @@ def motion_probe():
     assert all(g['transform'] in ('none','matrix(1, 0, 0, 1, 0, 0)') for g in opened)
     browser("find", "role", "button", "click", "--name", "Select", "--exact")
     wait_for_settled()
+    # Opening a section's tooltip may unclip that section only; closed sections' inert actions stay clipped.
+    browser("find", "role", "button", "click", "--name", "Transform", "--exact")
+    browser("wait", 400)
+    unclipped = evaluate("[...document.querySelectorAll('.workbench-tool-group[data-open=false] .workbench-tool-reveal-inner')].filter(e=>getComputedStyle(e).overflow!=='hidden').map(e=>e.closest('[data-workbench-section]').dataset.workbenchSection)")
+    assert unclipped == [], f"closed sections paint through: {unclipped}"
+    browser("find", "role", "button", "click", "--name", "Transform", "--exact")
+    wait_for_settled()
     browser("set", "media", "light", "reduced-motion")
     assert evaluate("matchMedia('(prefers-reduced-motion: reduce)').matches")
     evaluate("""(() => {
