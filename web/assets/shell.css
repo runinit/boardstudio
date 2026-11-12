@@ -84,7 +84,6 @@
 .workbench-popout-heading h2 { margin: 0 auto 0 0; font-size: 14px; line-height: 1.25; }
 .workbench-popout-content { display: flex; flex: 1; flex-direction: column; min-height: 0; overflow: auto; overscroll-behavior: contain; }
 .workbench-panel-scroll { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; }
-.workbench-utility[aria-expanded='true'] { background: var(--accent); color: var(--accent-foreground); }
 @media (max-width: 760px) {
   .workbench-popout { top: 50px; }
 }
@@ -105,7 +104,8 @@
   box-shadow: none;
 }
 .workbench-tool-group { display: flex; align-items: center; flex: 0 0 auto; min-width: 0; border-radius: 5px; }
-.workbench-tool-group[data-open='true'] { flex: 1 1 auto; background: var(--secondary); }
+/* The open lane is outlined, not tinted, so the pressed fill inside it stays visible. */
+.workbench-tool-group[data-open='true'] { flex: 1 1 auto; box-shadow: inset 0 0 0 1px var(--border); }
 .workbench-tool-trigger[data-slot='toolbar-button'] {
   height: 32px;
   min-height: 32px;
@@ -127,10 +127,22 @@
 .workbench-tool-group[data-open='true'] .workbench-tool-reveal { grid-template-columns: 1fr; flex: 1; }
 .workbench-tool-reveal-inner { min-width: 0; overflow: hidden; }
 .workbench-tool-track { display: flex; align-items: center; gap: 2px; min-width: 0; padding: 1px 3px 1px 0; overflow-x: auto; scrollbar-width: thin; }
-.workbench-tool-row .workbench-action[data-slot='toolbar-button'] { height: 32px; min-height: 32px; min-width: 32px; flex: none; padding: 5px 6px; font-size: 12px; }
 .workbench-tool-row #workbench-objects-trigger { margin-left: auto; }
-.workbench-tool-track [data-slot='popover-trigger'] { display: inline-flex; height: 32px; min-height: 32px; align-items: center; padding: 5px 8px; border: 0; border-radius: 5px; background: transparent; color: var(--muted-foreground); font-size: 12px; white-space: nowrap; cursor: pointer; }
-.workbench-tool-row .workbench-utility { height: 32px; min-height: 32px; min-width: 32px; flex: none; }
+/* Lane controls: one size, shape and pressed state for every section and for the utilities. */
+.workbench-tool-row .workbench-tool-track [data-slot='toggle-group'] { display: flex; align-items: center; gap: 2px; height: 32px; padding: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.workbench-tool-row :is(.workbench-tool-track :is(button, [data-slot='popover-trigger']):not(:is([data-slot='collapsible-content'], [data-slot='input-group'], [data-slot='popover-content']) *), .workbench-utility) {
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px; box-sizing: border-box; height: 32px; min-height: 32px; min-width: 32px; flex: none; padding: 5px 7px; border: 0; border-radius: 5px; background: transparent; color: var(--foreground); font-size: 12px; font-weight: 500; white-space: nowrap; box-shadow: none; cursor: pointer;
+  &.workbench-utility { color: var(--muted-foreground); }
+  &:hover:not(:disabled) { background: var(--accent); color: var(--accent-foreground); }
+  &:is([aria-pressed='true'], [aria-checked='true'], [data-state='on'], .workbench-utility[aria-expanded='true']) { background: var(--selected); color: var(--selected-foreground); }
+  &:disabled { opacity: .5; cursor: default; }
+  & svg { flex: none; width: 18px; height: 18px; }
+}
+.workbench-tool-row .workbench-tool-track input { height: 32px; min-height: 32px; font-size: 12px; }
+/* Tooltips are fixed to their own trigger, so the clipped lane never has to open up for them. */
+.workbench-tool-track [data-slot='tooltip'] { anchor-scope: --workbench-tip; }
+.workbench-tool-track [data-slot='tooltip'] > button { anchor-name: --workbench-tip; }
+.workbench-tool-track [data-slot='tooltip-content'] { position: fixed; position-anchor: --workbench-tip; inset: auto; top: calc(anchor(bottom) + 8px); left: anchor(left); margin: 0; transform: none; translate: none; width: max-content; max-width: min(240px, calc(100vw - 16px)); white-space: normal; position-try-fallbacks: flip-inline; }
 .workbench-tool-row .workbench-utility-label { display: none; }
 .workbench-tool-row[data-utility-labels='full'] .workbench-utility-label { display: inline; }
 .workbench-tool-group[data-action-labels='adaptive'] .workbench-action-label { display: none; }
