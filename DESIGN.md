@@ -54,7 +54,7 @@ canvas controls.
 Original and shadcn are two Themes, each with light and dark Appearances.
 Both use the same shell and control metrics. The shipped Rust/Dioxus components
 and [Tailwind source](web/tailwind.css) are the implementation reference;
-the [theme contract](docs/plans/rust-ui-migration/theme-contract.md) explains
+the [theme contract](docs/design/theme-contract.md) explains
 the design choices. Document defaults and shared finding outlines live in
 [the base stylesheet](web/assets/workbench-base.css). Older Graphite
 explorations are archived in [the reference packet](docs/design/graphite/approved-suite/).
@@ -76,7 +76,7 @@ separately from portable downloads and fabrication readiness.
 The frontmatter gives a small set of actual CSS role values for both Themes
 and Appearances, not an exhaustive palette. The authoritative values are in
 [Tailwind source](web/tailwind.css); the
-[theme contract](docs/plans/rust-ui-migration/theme-contract.md) records their
+[theme contract](docs/design/theme-contract.md) records their
 meaning and rationale. A Theme changes colors, fonts, radius, shadows and icon
 stroke, not the shared shell metrics.
 
@@ -504,7 +504,7 @@ navigation affordances in their owning workspace.
 
 Copied controls use Dioxus primitives for interactive behavior, with their
 keyboard and ARIA requirements recorded in the
-[accessibility floor](docs/plans/rust-ui-migration/accessibility-floor.md).
+[accessibility floor](docs/design/accessibility-floor.md).
 Collapsible sections that own drafts must keep those children mounted while
 closed. Pending actions control whether a confirmation can be dismissed.
 Browser file pickers remain native.

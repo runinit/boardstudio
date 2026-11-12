@@ -41,7 +41,7 @@ On 2026-10-22 the user decided:
 
 ## Amendment: reset means refusal, not data deletion (2026-10-23)
 
-The user accepted [the format/reset recovery policy](../plans/ergogen-layout-parity/issues/13-format-reset-and-recovery.md#answer):
+The user accepted the format/reset recovery policy:
 the planned numeric document version is **7**, with the separate `boardstudio/v2`
 identifier unchanged. Refuse older/unversioned data on every entry path rather than
 migrating or stamping it. Keep incompatible saved projects/assets unchanged until
@@ -53,7 +53,7 @@ requirement; the decision itself neither resets storage nor bumps the running fo
 
 ## Amendment: first-build parity scope (2026-10-23)
 
-During [build slicing](../plans/ergogen-layout-parity/issues/10-slice-the-build.md), the
+During build slicing, the
 user explicitly deferred aggregate anchors. This build covers the accepted layout
 parameters and single-key matrix anchors, with the documented BoardStudio differences
 and exclusions; it does **not** claim complete Ergogen points coverage. Average and

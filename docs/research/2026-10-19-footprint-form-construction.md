@@ -215,7 +215,7 @@ These are proposed acceptance scenarios, **not tests executed during research**.
   later edits. The research/spec draft changes none of them.
 - **Publication follow-up:** on 2026-10-19 the user approved the single-generator
   scope and export/live-golden test seams. Published as
-  [ticket 184](../plans/typed-core-edits/issues/184-use-direct-forms-for-plated-mounting-hole.md),
+  ticket 184,
   `ready-for-agent`. Earlier proposal language records the research stage, not an
   outstanding approval blocker.
 

@@ -13,11 +13,11 @@
 | 06 | Locked dependency really writes directly to stderr on failed Drop finalization | **Keep**, fix bounded failure teardown and receipt command |
 | 08 | Mostly defended invariants/style; worker receiver has an actual missing-prepared-input path | **Narrow** to receiver boundary plus small behavior-preserving bindings |
 
-The original map mixed product correctness, test-harness noise and maintainability into one destination. Do not let the supplied skill's shorthand “never unwrap” turn all guarded operations into invented user errors. The inspected `rust-best-practices/references/chapter_04.md`, §§4.1–4.2, explicitly permits impossible-failure invariants; its chapters 1, 2, 3 and 5 support local bindings, measured changes and behavioral tests—not blanket abstraction, new error hierarchies or arbitrary assertion-count rules. These are references in the supplied skill, not versioned repository standards (the local `.agents/skills/` copy is Git-ignored). The repo's [ownership boundaries](../architecture.md#L27), [coding standards](../../CODING_STANDARDS.md) and [explicit exclusions](../plans/rust-best-practices/map.md#L14) take precedence.
+The original map mixed product correctness, test-harness noise and maintainability into one destination. Do not let the supplied skill's shorthand “never unwrap” turn all guarded operations into invented user errors. The inspected `rust-best-practices/references/chapter_04.md`, §§4.1–4.2, explicitly permits impossible-failure invariants; its chapters 1, 2, 3 and 5 support local bindings, measured changes and behavioral tests—not blanket abstraction, new error hierarchies or arbitrary assertion-count rules. These are references in the supplied skill, not versioned repository standards (the local `.agents/skills/` copy is Git-ignored). The repo's [ownership boundaries](../architecture.md#L27), [coding standards](../../CODING_STANDARDS.md) and explicit exclusions take precedence.
 
 ## 01 — duplicate identities and revision overflow
 
-**Evidence.** [Ticket 01 acceptance](../plans/rust-best-practices/issues/01-reject-duplicate-identities-and-revision-overflow.md#L11) is substantially necessary:
+**Evidence.** Ticket 01 acceptance is substantially necessary:
 
 - Public `CoreEngine::handle(Open)` only checks format/version before preparing and publishing ([`core/src/lib.rs:238–253`](../../core/src/lib.rs#L238)). `prepare_open` stages a clone, runs scripts/layout/constraints, then validates layout and halves ([`prepare.rs:26–101`](../../core/src/mirrored_half/reconcile/prepare.rs#L26)). Neither layout validation (which immediately succeeds without layouts, [`layout.rs:7–10`](../../core/src/matrix/layout.rs#L7)) nor halves validation (which immediately succeeds without hardware, [`halves.rs:242–245`](../../core/src/mechanical/halves.rs#L242)) establishes generic top-level uniqueness.
 - Constraint resolution collects all parts into a `BTreeMap` keyed by ID, then writes the resulting pose back to *every* matching part ([`constraints.rs:232–236,308–315`](../../core/src/constraints.rs#L232)). Two free parts with the same ID but different poses therefore collapse to the later pose even without a constraint. Subsequent ID-addressed operations are ambiguous. This is source-level reproduction evidence, not an executed Open test.
@@ -29,7 +29,7 @@ The original map mixed product correctness, test-harness noise and maintainabili
 
 ## 02 — monotonic mechanical identities
 
-**Evidence against the present wording.** [Ticket 02](../plans/rust-best-practices/issues/02-preserve-monotonic-mechanical-identities.md#L7) combines three different mechanisms:
+**Evidence against the present wording.** Ticket 02 combines three different mechanisms:
 
 | Kind | Current allocation/removal behavior | Actual gap |
 | --- | --- | --- |
@@ -58,7 +58,7 @@ Ticket 01 is useful shared atomicity work, not a logical prerequisite to reprodu
 
 ## 03 — constraint recursion
 
-**Evidence.** [Ticket 03](../plans/rust-best-practices/issues/03-bound-constraint-solver-recursion-depth.md#L7) identifies a real unbounded call path. `pose` uses an active-path set to reject cycles, but recurses through `drive` to source authority and both framed owners, and directly through assembly parents ([`constraints.rs:505–623`](../../core/src/constraints.rs#L505)). Memoization stops repeated work only *after* each pose resolves. The public Open preparation and edit route both invoke this solver ([`prepare.rs:48–51`](../../core/src/mirrored_half/reconcile/prepare.rs#L48), [`lib.rs:598–609`](../../core/src/lib.rs#L598)). No input depth bound is established by those callers.
+**Evidence.** Ticket 03 identifies a real unbounded call path. `pose` uses an active-path set to reject cycles, but recurses through `drive` to source authority and both framed owners, and directly through assembly parents ([`constraints.rs:505–623`](../../core/src/constraints.rs#L505)). Memoization stops repeated work only *after* each pose resolves. The public Open preparation and edit route both invoke this solver ([`prepare.rs:48–51`](../../core/src/mirrored_half/reconcile/prepare.rs#L48), [`lib.rs:598–609`](../../core/src/lib.rs#L598)). No input depth bound is established by those callers.
 
 **Smallest path.** A conservative named active-depth budget checked at entry to `pose`, before recursion, covers all dependency edges without replacing the solver. A bound on the existing `visiting` set can avoid a separate counter; preserve cycle-before-depth behavior where a repeated active ID is encountered. Choose a conservative limit and validate native plus packaged WASM rather than claiming a portable safe frame count from intuition. Keep completed-node memoization and all existing evaluation/precedence semantics. An iterative heap stack is a larger alternative, not a requirement; it would make “12,000 must Err” inconsistent unless a separate resource limit remains.
 
@@ -66,7 +66,7 @@ Ticket 01 is useful shared atomicity work, not a logical prerequisite to reprodu
 
 ## 05 — non-finite rings and malformed GPIO
 
-**Already solved / defended.** [Ticket 05 acceptance](../plans/rust-best-practices/issues/05-reject-non-finite-support-coords-and-bad-gpio-pins.md#L11) does not describe the current public behavior:
+**Already solved / defended.** Ticket 05 acceptance does not describe the current public behavior:
 
 - `validate_poly` rejects every non-finite coordinate first; rational conversion itself uses `ok_or`, not `unwrap` ([`support_owner.rs:49–56,132–156`](../../contracts/rust/src/support_owner.rs#L49)). Both support-area validation and profile normalization use it ([same file:287–290,341–348](../../contracts/rust/src/support_owner.rs#L287)). An infinity regression already exists ([same file:433](../../contracts/rust/src/support_owner.rs#L433)).
 - The separate boolean self-intersection API returns `false` for a non-finite coordinate before its private exact-orientation helper is reachable ([`contracts/rust/src/lib.rs:182–186,242`](../../contracts/rust/src/lib.rs#L182)). That API is not a validation `Result`; do not change its signature/meaning just to remove a defended conversion assertion.
@@ -82,7 +82,7 @@ Ticket 01 is useful shared atomicity work, not a logical prerequisite to reprodu
 - Drop retries `finalize` if not closed and writes its error with `write!(io::stderr(), ...)`, not `eprintln!` (1606–1615). This is direct process stderr, so libtest's normal per-test output capture is not a sufficient defense.
 - `finalize` writes the last file and central directory/footer (1428–1434); `abort_file` only removes one entry (940 onward), not the entire archive or Drop behavior. Context7's generated summary says “may fail silently”; the locked implementation above is stronger evidence and contradicts that shorthand.
 
-Core's `pack` uses `?` for start/write/finish and a `BoundedWriter` whose later writes keep failing above the limit ([`archive.rs:243–297`](../../core/src/archive.rs#L243)). Thus [ticket 06](../plans/rust-best-practices/issues/06-silence-zipwriter-drop-stderr-on-limit-errors.md#L7) has a genuine teardown path. Existing size-limit tests already exercise small limits ([`archive.rs:592` onward](../../core/src/archive.rs#L592)); no fresh stderr run or INCOMPLETE receipt was produced in this research.
+Core's `pack` uses `?` for start/write/finish and a `BoundedWriter` whose later writes keep failing above the limit ([`archive.rs:243–297`](../../core/src/archive.rs#L243)). Thus ticket 06 has a genuine teardown path. Existing size-limit tests already exercise small limits ([`archive.rs:592` onward](../../core/src/archive.rs#L592)); no fresh stderr run or INCOMPLETE receipt was produced in this research.
 
 **Smallest safe direction.** Make size exhaustion sticky in the bounded sink: return the original size error once, then discard subsequent teardown writes without growing the backing Vec, while maintaining coherent logical Write/Seek positions. Ensure *all* packing error exits can drop safely, including a limit reached during consumed `finish`. Preserve failure at the API: no path may return the partial archive as success. This is a candidate requiring focused regression evidence, not a proven patch. Do not disable the limit and finish into an unbounded Vec, leak the writer with `mem::forget`, change process-global stderr, or upgrade zip solely to hide this message.
 
@@ -90,7 +90,7 @@ Core's `pack` uses `?` for start/write/finish and a `BoundedWriter` whose later 
 
 ## 08 — bounded cleanup, not a blanket panic purge
 
-The [ticket's five acceptance bullets](../plans/rust-best-practices/issues/08-replace-fragile-unwraps-and-unreachables.md#L11) cover materially different cases:
+The ticket's five acceptance bullets cover materially different cases:
 
 | Site | Guard / reachability | Smallest action |
 | --- | --- | --- |

@@ -7,7 +7,7 @@ status: accepted
 [ADR-0008](0008-linked-halves-stay-linked.md) decided that the second half of a pair is
 the first, reflected, in every respect. On 2026-10-09 the user accepted the following
 design for how Core stores and maintains it
-([decision ticket](../plans/typed-core-edits/issues/16-native-mirrored-halves.md)).
+(decision ticket).
 
 - **Hybrid representation.** One Core operation, `CreateMirroredHalf`, copies and
   reflects the source half and stores the result in full, so every consumer that reads
@@ -67,9 +67,9 @@ design for how Core stores and maintains it
 - **Topology, transport and relabelling** of the primary half are set by the web adapter
   (physical setup), not by `CreateMirroredHalf`.
 - **Modules and embedded circuits** on the source board are mirrored by `new-board`:
-  modules by pose and id ([ticket 27](../plans/typed-core-edits/issues/27-mirror-modules.md)),
+  modules by pose and id (ticket 27),
   embedded circuits under their own `embedded/<mirror id>/` namespace with their component
-  definitions copied ([ticket 28](../plans/typed-core-edits/issues/28-mirror-embedded-circuits.md)).
+  definitions copied (ticket 28).
   Neither is refused. A mirror id or namespace that is already taken refuses the record by
   name, as does a module reference the mirror cannot follow. `reuse-board` copies neither (an
   embedded circuit has no instance pin).
@@ -114,7 +114,7 @@ only for pads on the heading axis (`y == 0`). Footprints with pads off that axis
 encoder) are therefore not an exact mirror even on the grid. Proposed for the user: a Core finding for any
 independent part whose pad layout is not symmetric about its heading axis, computed from the footprint, in place of
 the off-grid-only trigger. Details and the shipped footprints:
-[ticket 27, Verification](../plans/typed-core-edits/issues/27-mirror-modules.md#verification). Mounted modules are
+ticket 27, Verification. Mounted modules are
 reflected (ticket 27) and embedded circuits are reflected too (ticket 28), so no hosted item is refused
 for lack of a reflection rule any more.
 
@@ -149,7 +149,7 @@ for lack of a reflection rule any more.
 
 The user approved selective Make Local, Omit, Rejoin and Unlink for independent parts as well as switch companions. Screens, encoders, controllers and connectors can be exceptions while the rest of the pair remains linked. Companion placement modes remain specific to switch companions. Omit is durable and reconciliation must not resurrect an omitted item. Rejoin uses the current source; Unlink retains visible geometry.
 
-The user also chose support for slanted mirror axes and relationships between linked and Local parts through a separately scoped model extension ([ticket139](../plans/typed-core-edits/issues/139-generalized-mirrored-constraint-model.md)). A relationship across different ownership frames cannot generally be expressed as one fixed canonical Offset: moving a Local endpoint or changing the pair map changes the inverse-projected source geometry. Permanent refusal of these cases would not satisfy the accepted scope.
+The user also chose support for slanted mirror axes and relationships between linked and Local parts through a separately scoped model extension (ticket139). A relationship across different ownership frames cannot generally be expressed as one fixed canonical Offset: moving a Local endpoint or changing the pair map changes the inverse-projected source geometry. Permanent refusal of these cases would not satisfy the accepted scope.
 
 - **One constraint, live endpoint views.** Add a framed constraint form whose endpoints name either a literal Part or a linked mirror binding (pair, source part and visible mirror part). Resolve the current map and effective ownership, rather than storing a frozen transform. The authored source drives the authored target. Editing through either half uses the same durable constraint ID; it does not create a reciprocal relation or duplicate record. Existing visible source/target getters keep their meaning; authoritative driving lookup is separate.
 - **General reflection line.** A framed relation supports the existing world-plane Offset semantics or reflection across a finite anchor and a tangent angle in document-plane degrees. Keep existing horizontal/vertical Mirror and Offset wire shapes and behavior. Endpoint projection follows the existing independent-part, key, companion-mode and stabilizer rules; companion owner poses are live dependencies.
@@ -168,7 +168,7 @@ Making an item Local or Omitted used to cut its correspondence and keep its iden
 - **Inherited state stores nothing.** Children of an Omitted matrix or circuit, and a mirror net whose source net has no non-controller pin outside an Omitted item (a *private net*), are absent by rule. The validator and reconciliation compute the rule the same way.
 - **Omit cleans the mirror half and only the mirror half.** Inside one atomic transaction it removes the item's footprint (the generated companion copper that is part of the footprint goes with it), its private nets, and the board copper it owned: traces and vias on those nets, and trace ends and vias lying exactly on an omitted pad. That copper is saved in the overlay as `removedCopper`, with the pad positions it was routed to. The item's MCU pins are freed. Every item still mirrored is locked to the source's pins, so a mirror-authored entry can only use a freed or unused pin. A linked module plugged into an Omitted connector keeps everything but its connection, as deleting the connector clears it. The source half never changes.
 - **Rejoin restores from the current source.** The footprint, nets and pins are re-derived. Saved copper returns only if every saved pad stands where it did, compared exactly (to 1e-6 mm); otherwise no copper is restored and the transaction reports a notice, and the saved copper is dropped with the overlay. A saved trace or via id that is already in use refuses the transaction. Rejoin reclaims its source pins and releases a mirror-authored assignment that took one.
-- **Not decided here.** Mirror-only replacement parts that receive pins automatically when placed, and that are re-pinned after a Rejoin releases them, are specified separately in [ticket 109b](../plans/typed-core-edits/issues/109b-mirror-only-replacement-parts-auto-pins.md).
+- **Not decided here.** Mirror-only replacement parts that receive pins automatically when placed, and that are re-pinned after a Rejoin releases them, are specified separately in ticket 109b.
 
 ## Amendment: physical setup creation is atomic in Core (2026-10-14)
 
@@ -197,7 +197,7 @@ not submit a whole-document replacement or split these changes across edits.
 
 ## Amendment: layout parity, anchors and matrix exceptions (2026-10-23)
 
-The user accepted [the matrix/anchor exception rules](../plans/ergogen-layout-parity/issues/11-mirrored-halves-rules.md#answer)
+The user accepted the matrix/anchor exception rules
 in four decision rounds. Same-board Layout links gain the same per-matrix/key Local,
 Omitted and Rejoin meanings as native mirrored halves. Local keys retain their world
 poses through shared carried-layout edits. Local matrices retain independent dimensions

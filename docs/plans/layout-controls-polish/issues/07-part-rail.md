@@ -13,7 +13,7 @@ Review: web-only behaviour on existing Core ops; RED/GREEN evidence and a diff r
 An independent part (the MCU or TRRS jack, on either half including the dimmed one) is selectable
 on the canvas and gets its own rail. **Move** and **Rotate** edit the part's local Offset and
 Rotation. **Spread** and **Stagger** edit the values carried from its anchor key, as in
-split-board-editing [13](../../split-board-editing/issues/13-part-anchoring-column-vocabulary.md).
+split-board-editing 13.
 On an anchored part all four commit through `EditOperation::SetPartAnchorValues`. A detached
 part shows only Move and Rotate, which commit through the shipped part-drag path, and members/companions keep their matrix's tools. Dragging a part shows the same
 value popup and toast as a key. The selected part's outline turns accent, and unselected part

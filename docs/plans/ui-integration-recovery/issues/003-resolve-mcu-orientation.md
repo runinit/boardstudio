@@ -4,7 +4,7 @@ Status: wontfix
 Type: build
 Blocked by: [002: Diagnose MCU rotation](002-diagnose-mcu-rotation.md)
 Parent: [001: Recovery specification](001-ui-integration-recovery-spec.md)
-Related: [Plan map](../map.md), [Controller contract](../../split-board-editing/issues/12-half-frame-parts-and-mirrored-controller.md), [Half-frame decision](../../../adr/0039-half-frame-parts-mirrored-controller.md)
+Related: [Plan map](../map.md), Controller contract, [Half-frame decision](../../../adr/0039-half-frame-parts-mirrored-controller.md)
 
 ## What to build
 

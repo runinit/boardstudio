@@ -1,8 +1,8 @@
 # Issue tracker: committed Markdown tickets
 
 Tickets are Markdown files in a plan's `issues/` directory, one per ticket, each named in that
-plan's `map.md`. The active plan is [typed-core-edits](../plans/typed-core-edits/map.md), whose
-tickets live in `docs/plans/typed-core-edits/issues/`.
+plan's `map.md`. Each plan is a directory under `docs/plans/`;
+finished plans are removed from the tree and stay in Git history.
 
 ## Conventions
 

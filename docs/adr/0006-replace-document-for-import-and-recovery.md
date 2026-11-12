@@ -7,7 +7,7 @@ status: accepted
 After [ADR-0005](0005-resolve-queued-edits-at-execution.md) every product edit
 resolves against the accepted document when it runs, so whole-document replacements
 no longer overwrite queued work. About two dozen resolvers still answer with
-`ReplaceDocument` ([inventory](../plans/edit-settlement/replace-document-resolvers.md)).
+`ReplaceDocument` (inventory).
 Each one copies a domain rule into the web layer, reports every part and top-level
 outline feature as changed, reapplies scripts and recomputes outline geometry
 without its cache, even for a single scalar such as a board name. And because a
@@ -15,7 +15,7 @@ resolver may return any command, nothing stops one from returning a document it
 captured outside its snapshot argument.
 
 On 2026-10-07 the user chose
-([ticket 19](../plans/edit-settlement/issues/19-decide-first-typed-core-edits.md)) to
+(ticket 19) to
 make whole-document replacement the exception: product edits move to typed Core
 intents that state what they change, and `ReplaceDocument` is reserved for import and
 recovery. This is a direction, not an enforced rule; it has no enforcement date. New
@@ -42,7 +42,7 @@ script code requires a separate removal/saved-project compatibility decision, no
 a new typed script-edit feature. Keep its existing safety and atomicity checks
 while it remains; this correction does not authorize dropping saved script data.
 
-The work is the [typed Core edits](../plans/typed-core-edits/map.md) effort. Its
+The work is the typed Core edits effort. Its
 first slice is one small board-scoped operation, `SetWiringMode`, chosen to settle
 the pattern (operation shape, precise changed IDs, whether it is outline-affecting,
 Session/Core contract tests) before larger concepts copy it.

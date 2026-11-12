@@ -1,6 +1,6 @@
 # Graphite Batch 1 — implementation and evidence
 
-Mode: Operate. Scope: shared tokens/controls, single-header shell, docked panels, contextual toolbar and Layout presentation. The user approved the shaped brief and authorized implementation on 2026-10-12. [Migration brief](../../plans/ui-design/graphite-migration.md).
+Mode: Operate. Scope: shared tokens/controls, single-header shell, docked panels, contextual toolbar and Layout presentation. The user approved the shaped brief and authorized implementation on 2026-10-12. Migration brief.
 
 ## Direction contract
 

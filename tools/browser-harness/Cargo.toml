@@ -1,8 +1,7 @@
 # Minimal Rust browser harness for the real-page checks.
 #
 # Excluded from the main workspace (own manifest + lockfile) so browser tooling
-# never changes what the app builds against. See
-# docs/plans/cad-deepening/issues/016-rust-browser-harness.md.
+# never changes what the app builds against.
 [package]
 name = "boardstudio-browser-harness"
 version = "0.1.0"

@@ -117,12 +117,12 @@ Retrieve an old source with `git show <commit>:<path>`.
 | H1 | `323967ff3a67b9b62db4f201b477396d62b55ccd:docs/adr/0003-rust-application-ownership.md`; originally added in `38bbe42ff7ebda72170403b66bdf98b930928baa` | The removed ADR records user approval on 2026-10-01 and explicitly discusses ownership, worker identity, preview/export separation, persistence failure and alternatives. It also contains trial-only proposals and obsolete CAD/version assumptions. |
 | H2 | `3cdeb2ac2b2b3e11891d10122b03e6dc835e03dd` | “Retire React and migration machinery after Dioxus cutover”; deletes the old ADR and replaces migration delivery gates with ordinary development/release checks. Its parent is H1. |
 | H3 | `f2494e5714deb726b2e92a392a86bce27de1695a` | Adds the headless durable Session, its README and controlled native tests. This is implementation provenance, not separate user approval. |
-| H4 | `28b9d81d2`, `3d432f520e88bb7e8be47a1c734aeb01afe28dd6`, `11ac3786b4026980f0d0b803459cde457dcf6e5a`; [export-lease outcome](../plans/module-deepening/issues/10-export-leases.md#outcome) | Centralized export leases; subsequent correction preserves delivery after Session settlement. |
-| H5 | `35991dce0`; [native Runtime decision](../plans/module-deepening/issues/02-decide-native-test-runtime.md#answer) | Explicit user choice of a real Session/Core native Runtime and shared gate vocabulary, rather than a second resolver/session implementation. |
+| H4 | `28b9d81d2`, `3d432f520e88bb7e8be47a1c734aeb01afe28dd6`, `11ac3786b4026980f0d0b803459cde457dcf6e5a`; export-lease outcome | Centralized export leases; subsequent correction preserves delivery after Session settlement. |
+| H5 | `35991dce0`; native Runtime decision | Explicit user choice of a real Session/Core native Runtime and shared gate vocabulary, rather than a second resolver/session implementation. |
 | H6 | `5cb0a47f0276ca3b16314b728730cd6e8cbc3c9c`; its README addition “Local project safety” | Documents conflicts preserving pending edits, deferred asset cleanup, unreadable-record recovery, a 100-edit Undo limit and 128 MiB project imports. Does not enumerate rejected storage designs. |
 | H7 | `8d481b7a8743ed7c8b62f47253e6d00b3096bca6` | Delays offline-worker activation until old clients close. |
 | H8 | `91eb771f3526d7428b02d4ffcdba8beb44579f0a`; [CAD scope decisions](../plans/cad-backend-replacement/map.md#scope-decisions-2026-10-17-user) and [closure rescope](../plans/cad-backend-replacement/map.md#closure-rescope-2026-10-18-user) | Recorded user-approved exact/mesh split, adoption of layered construction, named refusals and bounded closure evidence rather than universal geometry certification. |
-| H9 | `68224a7725074e4684de31b7516f2099cf32b325`; [fixture onboarding answer](../plans/typed-core-edits/issues/167-guide-complete-collision-test-fixtures.md#answer--2026-10-18) | Runtime owns complete collision execution; controlled-worker tests and actual-provider qualification are deliberately different evidence. |
+| H9 | `68224a7725074e4684de31b7516f2099cf32b325`; fixture onboarding answer | Runtime owns complete collision execution; controlled-worker tests and actual-provider qualification are deliberately different evidence. |
 | H10 | `2dc09ebaeba1905fb3be004629fad5d07f7941b9`; split sequence through `bb2e1ebb2` | Shared presentation vocabulary and workspace crates were extracted; commit text explains avoiding feature dependence on shell-specific types. Not a recovered decision to freeze every dependency edge forever. |
 | H11 | `5a472a9426e6e38993361da402cd4ec730feb369`; [onboarding guide](../hardware/component-onboarding.md#onboarding-workflow) | Documents mounted source ownership, independent embedded copies and evidence-specific hardware readiness. The architectural choice's rejected alternatives are not recovered here. |
 
@@ -200,7 +200,7 @@ drafts/focus/display, not another writable document authority.
 - **Why recovered:** H1 §2 explicitly rejects coupling business lifetimes to a
   single Dioxus store and putting browser/application coordination inside Core.
   It distinguishes renderer GPU/live-camera state from Session navigation and UI
-  drafts. [Module-deepening spec](../plans/module-deepening/spec.md#constraints)
+  drafts. Module-deepening spec
   preserves Dioxus-free Runtime and locates Signal helpers above it.
 - **Coverage/consequences:** 0005/0006 and 0007 establish specific Core edits and
   projections, not the whole ownership rule. A panel unmount is not authorization
@@ -231,7 +231,7 @@ not merely a UI future. Matching document ID/revision alone is insufficient.
 - **Why recovered:** H1 §§3–4 explains why revision-only checks miss reopening the
   same ID/revision and why dropping a UI future cannot undo externally dispatched
   work. It documents worker termination versus cooperative cancellation trade-offs.
-  [Scope-lineage outcome](../plans/module-deepening/map.md#progress) records the
+  Scope-lineage outcome records the
   later captured-Scope implementation. These sources do not establish that every
   old cache-delta protocol still exists unchanged.
 - **Coverage/consequences:** 0005 preserves strict gesture/export routes and silent
@@ -259,7 +259,7 @@ An export's own accepted commit can advance its lease, but not relax its origin.
   `advancing_a_lease_requires_a_new_consistent_revision` in
   [export_lease.rs](../../web/crates/runtime/src/export_lease.rs).
 - **Why recovered:** H1 §§4/6 separates preview generations and committed export
-  contexts. H4 and [ticket 10](../plans/module-deepening/issues/10-export-leases.md#outcome)
+  contexts. H4 and ticket 10
   explain duplication removal and a real correction: Session drops active operation
   ownership before delivery, so reusing the active-work predicate there suppressed
   valid delivery. This is stronger evidence than assuming a generic “all async work
@@ -382,7 +382,7 @@ unsupported or insufficient accuracy stays Unknown.
   accuracy; qualified separating slabs do not establish general solid containment
   (014 and qualification tests). The complete-check controlled worker tests validate
   identity/lifecycle, not the actual CAD provider's mathematics
-  ([167](../plans/typed-core-edits/issues/167-guide-complete-collision-test-fixtures.md#acceptance-criteria)).
+  (167).
 - **Coverage/disposition:** missing and high-risk to undo. Write one evidence-bound
   collision ADR with G6 references; keep finite proof recipes/resource counters in
   technical contracts rather than separate ADRs. **Question:** which currently
@@ -595,12 +595,12 @@ records removal and number reassignment; new records must not reuse 0003.
   Keep the detailed graph in architecture; put only durable ownership constraints
   in G2. **Ordinary architecture detail, no standalone ADR recommended.**
 - **PendingEdits/Signal helper lifecycle:** already an implementation of 0005,
-  [module-deepening spec](../plans/module-deepening/spec.md) and G3. Latest observation
+  module-deepening spec and G3. Latest observation
   per key is not a reason for an ADR per helper. [Architecture](../architecture.md)
   records draft preservation, rebinding and unmount responsibilities.
 - **Collision Runtime ownership versus Case display:** merge with G7/G2 rather
   than documenting the fixture, retry helper and every cancellation batch as new
-  decisions (H9; [167](../plans/typed-core-edits/issues/167-guide-complete-collision-test-fixtures.md)).
+  decisions (H9; 167).
 - **Independent manufacturing reference checks:** part of G5/G7, not an ADR for each
   volume fixture or external tool invocation. The bounded [008](../plans/cad-backend-replacement/issues/008-step-export-independent-accuracy.md)
   evidence explicitly does not establish a general STEP validator.
@@ -616,7 +616,7 @@ records removal and number reassignment; new records must not reuse 0003.
   names unfinished work. Ticket role labels alone cannot resolve completion.
 - **Build-speed knobs, CSS tokens, exact crate file sizes, retained helper names,
   test launch counts:** operational/current implementation details unless a specific
-  lasting trade-off is independently recovered. The [check-speed map](../plans/check-speed/map.md)
+  lasting trade-off is independently recovered. The check-speed map
   is evidence for its optimization effort, not authorization to weaken G10's coverage.
 - **Not exhaustively traced:** firmware export policy, user script execution/security,
   all logical-versus-physical topology rules, catalogue qualification completeness,

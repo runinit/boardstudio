@@ -4,7 +4,7 @@ Status: resolved
 Type: build
 Blocked by: none
 Parent: [001: Recovery specification](001-ui-integration-recovery-spec.md)
-Related: [Plan map](../map.md), [Placement contract](../../split-board-editing/issues/15-placement-breadcrumb-retire-relations.md), [Audit A2/A4](../../../research/2026-11-06-dev-ui-integration-audit.md#a2a4--relations-contract-and-its-test-changed-together)
+Related: [Plan map](../map.md), Placement contract, [Audit A2/A4](../../../research/2026-11-06-dev-ui-integration-audit.md#a2a4--relations-contract-and-its-test-changed-together)
 
 ## What to build
 
@@ -344,7 +344,7 @@ fresh Spec+Standards review → integrated gate (Checker/Reviewer/coordinator).
   `review-lint-green.log`, `review-fix-focused.log`, `integrated-gate.log`,
   `acceptance-handoff.log`); receipt
   `/home/chris/.cache/tmp/004-integrated-gate-receipt.json`;
-  [015](../../split-board-editing/issues/15-placement-breadcrumb-retire-relations.md).
+  015.
 - Next action: coordinator commits this authorized 004 acceptance record;
   user said 'next ticket please'.
 

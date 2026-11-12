@@ -48,7 +48,7 @@ as render, so a value Core accepts also renders.
   saved data may hold either. The part then fails at render until the user replaces the value.
   Refusing Open would leave a project that cannot be opened to repair it. The inventory found
   none in the shipped data (see
-  [ticket 04](../plans/generator-parameters/issues/04-validate-generator-parameters-in-core.md)),
+  ticket 04),
   but that does not show older saves are free of it, so it warns rather than refuses.
 - **Edits refuse everything they write.** A new bad value should not enter the document; the
   refusal names the generator and the parameter.

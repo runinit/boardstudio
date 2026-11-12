@@ -98,7 +98,7 @@ verified outcome. Keep the original audit and parent specification unchanged.
   switches; it never mentions the controller exception, and its verification note names the MCU
   among footprints that mirror inexactly. The exception exists in the code comments
   (`pair.rs:60-66`), commit `40df01155` and
-  [ticket 12](../../split-board-editing/issues/12-half-frame-parts-and-mirrored-controller.md)
+  ticket 12
   ("controllers keep the world heading"), whose wording is imprecise as above. To reconcile
   under A8 the user must decide what the contract is for a controller at `r` not in `{0, 180}`
   (world heading or reflected heading) and confirm the decision source (grilling record

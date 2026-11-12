@@ -1,8 +1,8 @@
 # Layout part editing: ownership and queued coordinates
 
 Investigated 2026-10-05 at `3cdeb2ac2`. Status: resolved 2026-10-06 by the
-[edit settlement](../plans/edit-settlement/map.md) tracer bullet
-([ticket 06](../plans/edit-settlement/issues/06-layout-inspector-tracer-bullet.md)):
+[edit settlement](../design/edit-settlement-contract.md) tracer bullet
+(ticket 06):
 the Layout Inspector submits every edit as an owner-captured resolver through
 `Event::ResolveEdit`, resolved against the accepted document at execution, per
 [ADR-0005](../adr/0005-resolve-queued-edits-at-execution.md). The mounted

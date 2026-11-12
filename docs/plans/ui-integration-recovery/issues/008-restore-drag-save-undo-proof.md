@@ -4,7 +4,7 @@ Status: resolved
 Type: build
 Blocked by: none
 Parent: [001: Recovery specification](001-ui-integration-recovery-spec.md)
-Related: [Plan map](../map.md), [Audit A5](../../../research/2026-11-06-dev-ui-integration-audit.md#a5--what-the-existing-green-results-actually-cover), [Migration gate record](../../rust-ui-build/issues/026-merge-gate.md)
+Related: [Plan map](../map.md), [Audit A5](../../../research/2026-11-06-dev-ui-integration-audit.md#a5--what-the-existing-green-results-actually-cover), Migration gate record
 
 ## What to build
 

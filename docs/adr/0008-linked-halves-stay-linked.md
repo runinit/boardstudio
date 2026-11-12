@@ -29,9 +29,9 @@ On 2026-10-09 the user decided:
   bay and TRRS jack at each half's reflected position, and link their closure mounts and
   openings, unless a feature is a recorded exception.
 
-This extends [the typed Core mechanical contract](../plans/typed-core-edits/spec.md)
+This extends the typed Core mechanical contract
 and replaces the 2026-10-09 recommendation to keep initialization proposals local
-([paired half closure proposals](../plans/generator-parameters/issues/06-paired-half-closure-proposals.md)).
+(paired half closure proposals).
 
 ## Amendment: the whole second half is a reflection (2026-10-09)
 
@@ -61,6 +61,6 @@ Rules that follow:
   half; the other is derived.
 
 The Core operation and the document representation are planned in
-[native mirrored halves](../plans/typed-core-edits/issues/16-native-mirrored-halves.md)
+native mirrored halves
 and need their own decision on how reflection is stored (derived each time, or stored
 with a link back) before building.

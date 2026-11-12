@@ -47,7 +47,7 @@ commit sent through it with a whole-document payload would silently restore valu
 that landed after the payload was built.
 
 On 2026-10-07 the user chose to make that unrepresentable
-([ticket 18](../plans/edit-settlement/issues/18-decide-restrict-event-edit.md)).
+(ticket 18).
 The direct edit event becomes preview-only at the type level: it carries no phase,
 and Session builds the preview command itself. Commits, in product code and tests
 alike, go through `ResolveEdit`. There is no test-only escape hatch; test helpers
@@ -71,7 +71,7 @@ Panels disagreed about an edit ticket that settles retired while its panel is st
 open (the session changed, the project closed, or Session superseded or cancelled the
 edit): some showed "did not complete in the active session", others nothing. On
 2026-10-07 the user chose silence everywhere
-([module deepening 01](../plans/module-deepening/issues/01-decide-pending-edit-settlement.md#answer)):
+(module deepening 01):
 a retired edit shows no message and its field shows the accepted value again, the
 same as an edit whose owner has gone. A landed edit shows no "Saved" status either;
 the accepted value is the confirmation. Failures keep their inline message.

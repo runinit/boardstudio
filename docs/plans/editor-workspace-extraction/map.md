@@ -94,6 +94,6 @@ determine which can be claimed, not a different readiness label.
 
 ## Related work
 
-- [Cleanup audit follow-ups](../cleanup/map.md) remain independent of this spec.
+- Cleanup audit follow-ups remain independent of this spec.
 - [Architecture](../../architecture.md) and [domain vocabulary](../../../GLOSSARY.md)
   remain authoritative.

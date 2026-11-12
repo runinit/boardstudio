@@ -44,7 +44,7 @@ Product commits submit accepted-state intents through `Event::ResolveEdit` and
 transaction identity, targets and operation; Session supplies the preview phase.
 Gesture commits and export-owned operations keep their strict captured-revision
 routes (see the
-[edit-settlement contract and resolver inventory](plans/edit-settlement/map.md)).
+[edit-settlement contract and resolver inventory](design/edit-settlement-contract.md)).
 
 `runtime::PendingEdits` owns the latest observation per bounded logical key,
 captured lineage and once-only terminal results. `ui-shared::PendingEditSignals`

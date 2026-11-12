@@ -1,6 +1,6 @@
 # Event edit restriction options
 
-Investigation for [ticket 18](../plans/edit-settlement/issues/18-decide-restrict-event-edit.md), updated against the working tree after ticket 15 merged and while ticket 17 is in progress. This is evidence for a human decision; it does not resolve ticket 18 or make a product decision.
+Investigation for ticket 18, updated against the working tree after ticket 15 merged and while ticket 17 is in progress. This is evidence for a human decision; it does not resolve ticket 18 or make a product decision.
 
 ## Current boundary
 

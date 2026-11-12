@@ -1,6 +1,6 @@
 # Graphite Batch 2 — direct Layout geometry
 
-Mode: Operate. The user approved Batch 1 in chat on 2026-10-12 and authorized moving on to Batch 2 of the [migration plan](../../plans/ui-design/graphite-migration.md). The [approved Layout comp](layout-approved.png), semantic `--wb-*` palette, single header and docked Objects/Inspector remain the visual authority. No alternative design was generated.
+Mode: Operate. The user approved Batch 1 in chat on 2026-10-12 and authorized moving on to Batch 2 of the migration plan. The [approved Layout comp](layout-approved.png), semantic `--wb-*` palette, single header and docked Objects/Inspector remain the visual authority. No alternative design was generated.
 
 ## Implementation
 

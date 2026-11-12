@@ -374,7 +374,7 @@ document selection authority. Case's full selection behavior was not exhaustivel
 **Recovered rationale:** H1 §§2/5 explicitly distinguishes renderer live 3D camera
 from Session state and rejects making the private renderer payload a universal domain
 scene or building a universal scene graph. H2 retires migration machinery, not evidence
-that this distinction was reversed. H7/its [cleanup ticket](../plans/cleanup/issues/03-deduplicate-renderer-host-page-snapshot.md)
+that this distinction was reversed. H7/its cleanup ticket
 preserve the checked host contract, but supply no recovered product choice between
 automatic restoration and explicit reopen.
 
@@ -465,7 +465,7 @@ scripting scope or firmware template direction.
   protects live assets. Full-snapshot versus delta history or the numeric cap is not
   newly ADR-worthy merely because implemented. C1 isolates the substantive external
   handoff exception. Monotonic mechanical IDs are already explained in 0004 and the
-  [identity-reservation ticket](../plans/rust-best-practices/issues/02-preserve-monotonic-mechanical-identities.md).
+  identity-reservation ticket.
 - **Imported routed board authority:** [assembly reference](../features/assembly-preview.md)
   explicitly makes a routed `.kicad_pcb` read-only assembly source, not replacement
   electrical/export data. `LayoutSourceCapture::capture` selects imported preview

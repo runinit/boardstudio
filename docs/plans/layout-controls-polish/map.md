@@ -11,10 +11,10 @@ style, fixed screen-size labels, and accent, violet and amber used only for thei
 ## Notes
 
 - Polishes the controls from ergogen-layout-parity
-  [09](../ergogen-layout-parity/issues/09-inspector-and-toolbar-prototype.md) and split-board-editing
-  [13](../split-board-editing/issues/13-part-anchoring-column-vocabulary.md) /
-  [17](../split-board-editing/issues/17-canvas-anchor-badge.md) /
-  [18](../split-board-editing/issues/18-spacing-change-ghost.md). Mostly presentation; the
+  09 and split-board-editing
+  13 /
+  17 /
+  18. Mostly presentation; the
   behaviour changes are the part rail (07), the new Bend/Shift handles (05), canvas Anchor pick
   (08) and re-anchor moves (04).
 - Primary source: local branch `prototype/layout-controls-iconography` (e91865f43), which holds
@@ -53,7 +53,7 @@ review), 05, 07, 08 (web only, existing Core ops).
   [01](issues/01-layout-controls-iconography-prototype.md#answer).
 - **Parts' carried tools (2026-10-26):** YES — a selected part's toolbar also offers Spread and
   Stagger carried from its anchor key, matching
-  [split-board-editing 13](../split-board-editing/issues/13-part-anchoring-column-vocabulary.md).
+  split-board-editing 13.
 - **Re-anchor moves (2026-10-26):** NO hold-still on re-anchor — re-anchoring a part, matrix,
   or anything else MOVES it: it is placed from the new anchor using its current settings
   (Spread/Stagger/Splay/Offset/Rotation as applicable). This supersedes ticket 13's

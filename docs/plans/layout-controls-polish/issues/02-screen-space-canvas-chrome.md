@@ -18,7 +18,7 @@ document state do not change.
   by the `Scene` in `web/src/presentation/layout_canvas.rs`. Part names sit at the top of the
   part, clear of the tie dot.
 - **Anchor badge.** The badge from split-board-editing
-  [17](../../split-board-editing/issues/17-canvas-anchor-badge.md) becomes a 7 px violet
+  17 becomes a 7 px violet
   (`accent-secondary`) ring at the anchor point, keeping the tie. Its label moves out of the
   canvas into a "Placed from <anchor>" readout at the canvas's bottom left, in 11 px mono violet.
   The badge projection (`web/crates/layout/src/anchor_badge.rs`) stays the source of truth.

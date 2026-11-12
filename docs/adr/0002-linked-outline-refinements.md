@@ -28,5 +28,5 @@ rather than granting the source control over their shape. Save/reopen preserves
 explicit linked/unlinked ownership; existing fixed copies do not gain links.
 
 The recalculation, source-removal and persistence rules were confirmed on
-2026-10-09 in [typed Core edits 03](../plans/typed-core-edits/issues/03-decide-outline-version-intents.md#answer).
+2026-10-09 in typed Core edits 03.
 This ADR records the product decisions, not completed implementation.

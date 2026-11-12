@@ -52,8 +52,7 @@
 //! Signals on every render is harmless; binding other Signals for a key detaches the edits
 //! submitted for the old ones in the same way.
 //!
-//! Invariants (decision [01](../../../../docs/plans/module-deepening/issues/01-decide-pending-edit-settlement.md),
-//! [ADR-0005 amendment](../../../../docs/adr/0005-resolve-queued-edits-at-execution.md)):
+//! Invariants ([ADR-0005 amendment](../../../../docs/adr/0005-resolve-queued-edits-at-execution.md)):
 //! the latest ticket per key drives it; a settlement may only write a draft that still
 //! is the value its edit was submitted with, so an older outcome never overwrites a newer
 //! draft; failures surface inline at the field by default while the results keep them

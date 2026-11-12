@@ -4,7 +4,7 @@ Status: ready-for-agent
 Type: build
 Blocked by: none (decision in [map.md](../map.md#decisions-so-far), 2026-10-26)
 Map: [map.md](../map.md)
-Supersedes: the pose-preserving Pick in [split-board-editing 13](../../split-board-editing/issues/13-part-anchoring-column-vocabulary.md) and [ADR-0040](../../../adr/0040-part-anchoring-column-vocabulary.md)
+Supersedes: the pose-preserving Pick in split-board-editing 13 and [ADR-0040](../../../adr/0040-part-anchoring-column-vocabulary.md)
 Review: **combined Spec + Standards review** (AGENTS.md). This changes the semantics of a public Core edit op (`SetPartAnchor`) and an ADR.
 
 ## What to build

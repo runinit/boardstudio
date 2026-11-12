@@ -68,7 +68,7 @@ Verification during implementation: obtain baseline and post-change focused Core
 - Candidate 1 owns private board parse/projection coordination only. Footprint helper/build-policy candidates own generator/build modules; do not edit those or move generator declaration validation. Shared touchpoints are the glossary and generator-export regression coverage, not a dependency requiring either sibling to finish first. This ownership partition is proposed, not evidence of sibling findings.
 - Preserve existing user edits in preview tests and all unrelated modules. The parsed-root reuse should retain raw text spans; parser representation/lifetimes must be checked during implementation rather than guessing a new public ownership contract.
 - **Unknown:** measured benefit, exact diff size, and complete malformed-input envelope coverage. Static inspection supports avoiding reparse; it does not certify an implementation or performance gain.
-- **Publication follow-up:** on 2026-10-19 the user approved the narrowed scope and single artifact-request seam. Published as [ticket 182](../plans/typed-core-edits/issues/182-reuse-parsed-kicad-board-source.md), `ready-for-agent`, following [tracker conventions](../agents/issue-tracker.md#L7-L26). Earlier proposal language records the research stage, not an outstanding approval blocker.
+- **Publication follow-up:** on 2026-10-19 the user approved the narrowed scope and single artifact-request seam. Published as ticket 182, `ready-for-agent`, following [tracker conventions](../agents/issue-tracker.md#L7-L26). Earlier proposal language records the research stage, not an outstanding approval blocker.
 
 ## Checks actually performed
 

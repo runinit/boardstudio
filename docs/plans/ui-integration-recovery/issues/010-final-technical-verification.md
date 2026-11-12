@@ -4,7 +4,7 @@ Status: resolved
 Type: task
 Blocked by: [009](009-verify-reload-persistence.md), [022](022-restore-collision-provider-browser-proof.md)
 Parent: [001: Recovery specification](001-ui-integration-recovery-spec.md)
-Related: [Plan map](../map.md), [Migration gate record](../../rust-ui-build/issues/026-merge-gate.md)
+Related: [Plan map](../map.md), Migration gate record
 
 ## What to build
 
@@ -259,11 +259,11 @@ in 008/009 is superseded by this fresh combined pass, not erased.
 The accessibility floor runs inside that gate. The shared-control browser
 results and final mounted-browser results (223 executed, 0 failed) establish the
 role-and-name, keyboard and focus behaviors required by
-[accessibility floor §3](../../rust-ui-migration/accessibility-floor.md#3-the-floor),
+[accessibility floor §3](../../../design/accessibility-floor.md#3-the-floor),
 including popup roles/names, navigation, Escape/focus return, focus containment
 and reachable controls. This is bounded floor evidence, not broad accessibility
 certification. **UNRUN / not claimed** under
-[floor §1](../../rust-ui-migration/accessibility-floor.md#1-method-and-limits):
+[floor §1](../../../design/accessibility-floor.md#1-method-and-limits):
 screen-reader validation, other browsers, touch, broader in-app combinations and
 an axe rerun. The historical lab's other unmeasured sequences are not promoted
 to new measurements here.

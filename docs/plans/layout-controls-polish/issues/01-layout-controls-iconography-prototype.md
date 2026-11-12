@@ -73,7 +73,7 @@ The prototype's spec sheet is the reference for exact values.
 **Carried forward (see the map's open fog):**
 
 - **Parts' Spread and Stagger:** the prototype gives parts only Move, Rotate and Anchor, while
-  [split-board-editing 13](../../split-board-editing/issues/13-part-anchoring-column-vocabulary.md)
+  split-board-editing 13
   also carries Spread and Stagger from the anchor key. The Matrix / Row / Column / Key toolbar is
   also unchanged while a part is selected.
 - **Matrix re-anchor:** re-anchoring the thumb matrix still moves it, while parts hold still.

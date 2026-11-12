@@ -12,7 +12,7 @@ The Inspector's **Stagger** set the relative column stagger. The toolbar's
 drop, commit and keyboard routes each did their own screen-to-matrix conversion
 in the web layer. One word named two parameters, and the web layer copied part of
 Core's placement maths to do it
-([matrix layout consistency](../plans/matrix-layout-consistency/spec.md)).
+(matrix layout consistency).
 
 On 2026-10-08 the user decided that every matrix placement adjustment names the
 parameter it changes, and that Core owns the rules:
@@ -58,7 +58,7 @@ parameter it changes, and that Core owns the rules:
 
 ## Amendment: carried chains and anchors in Relations (2026-10-23)
 
-[The accepted layout-parity Relations decision](../plans/ergogen-layout-parity/issues/12-relations-and-highlight.md#answer)
+The accepted layout-parity Relations decision
 extends scene facts to carried contributions, cumulative values and matrix anchors.
 Core owns the geometry facts; the presentation owns their grouping, wording and editor
 navigation. Reference highlighting is not an edit preview. This preserves the existing

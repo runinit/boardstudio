@@ -88,7 +88,7 @@ Follow the [existing tracker conventions](../../agents/issue-tracker.md) and [AG
 
 ## Closure rescope (2026-10-18, user)
 
-The remaining claimed tickets asked for universal certification of code that is already integrated and tested. They now close on existing evidence, named limitations and one combined review per track, following the approach used for 007's import validation ([step-validation-simplification](../step-validation-simplification/map.md)).
+The remaining claimed tickets asked for universal certification of code that is already integrated and tested. They now close on existing evidence, named limitations and one combined review per track, following the approach used for 007's import validation (step-validation-simplification).
 
 - **Track A, generated construction and export:** [013](issues/013-layered-case-construction.md) → [006](issues/006-complete-case-features.md) → [008](issues/008-step-export-independent-accuracy.md). 013 closes on its recommendation, without waiting for 006 to implement every limitation. 006 closes on one adoption decision; cone-wall crossing, the fully enclosed round seat and the sealed polygon opening are named refusals, not missing features. 008 closes on bounded fixture checks, the reused FreeCAD receipt and one cone export check.
 - **Track B, importer and mesher quality:** [001](issues/001-certify-closed-step-boundaries.md) and [002](issues/002-preserve-shared-angular-meshing.md) close together on one shared baseline comparison. Recovered-face volume changes are diagnostics; mesh volume on open shells is not an acceptance measure.

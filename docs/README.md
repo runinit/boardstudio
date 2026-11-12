@@ -36,11 +36,7 @@ installed Rust skills against this codebase, with measured costs and a ranked,
 unimplemented change list.
 
 The [architecture review of 2026-10-07](investigations/architecture-review-2026-10-07.html)
-proposes six module deepenings; the [module deepening](plans/module-deepening/map.md)
-effort plans all of them.
-
-The [CAD deepening](plans/cad-deepening/map.md) effort plans the follow-ups from the
-2026-10-20 review of case generation and the Monstertruck CAD kernel.
+proposes six module deepenings; that plan is finished and lives in Git history.
 
 The [application workflow verification spec](plans/application-workflow-verification/map.md)
 defines six bounded recovery, offline, renderer, keyboard, assembly and package-notice
@@ -60,7 +56,7 @@ plan and completion criteria. It is an assessment, not a completed migration.
 - Edits: [queued edits resolve at execution](adr/0005-resolve-queued-edits-at-execution.md)
   (commits are intents; the direct event carries previews only) and
   [whole-document replacement is for import and recovery](adr/0006-replace-document-for-import-and-recovery.md),
-  the direction of the [typed Core edits](plans/typed-core-edits/map.md) effort.
+  the direction the finished typed Core edits effort took.
 - [Project context](design/project-context.md) records sessions, business and
   ethical stance, success criteria and untested assumptions for UX work.
 - [Mirrored layout pairs](design/mirrored-layout-pair.md) describes the interaction

@@ -4,7 +4,7 @@ Status: resolved
 Type: acceptance
 Blocked by: [010: Final technical verification](010-final-technical-verification.md)
 Parent: [001: Recovery specification](001-ui-integration-recovery-spec.md)
-Related: [Plan map](../map.md), [Existing human-review contract](../../rust-ui-build/issues/026-merge-gate.md#human-workspace-review-instructions-still-required)
+Related: [Plan map](../map.md), Existing human-review contract
 
 ## What to build
 

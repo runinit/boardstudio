@@ -12,7 +12,7 @@ Async publication is guarded by the identity relevant to that operation, not a u
 
 The original ADR rejected coupling application lifetimes to a mounted Dioxus store and putting browser/application coordination inside Core. Later module-deepening choices kept this ownership boundary while making captured-Scope retirement and per-workspace presentation state explicit; they did not freeze exact crate edges or require further Host extraction.
 
-Evidence: [current responsibility map](../architecture.md), [Core](../../core/src/lib.rs), [Session](../../application/src/session.rs), [Runtime](../../web/crates/runtime/src/runtime.rs), [edit-ticket implementation and regressions](../../web/crates/runtime/src/edit_ticket.rs), and the [module-deepening outcomes](../plans/module-deepening/map.md).
+Evidence: [current responsibility map](../architecture.md), [Core](../../core/src/lib.rs), [Session](../../application/src/session.rs), [Runtime](../../web/crates/runtime/src/runtime.rs), [edit-ticket implementation and regressions](../../web/crates/runtime/src/edit_ticket.rs), and the module-deepening outcomes.
 
 ## Amendment: preview recovery respects automatic preview (2026-10-20)
 

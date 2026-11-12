@@ -227,8 +227,8 @@ board. Access to hardware or permission to power/flash it is not assumed by this
 ### Existing work and decision boundaries
 
 Reuse the [Editor production-composition work](../../editor-workspace-extraction/map.md),
-[shared browser harness specification](../../cad-deepening/issues/016-rust-browser-harness.md),
-[deploy-gating ticket](../../cleanup/issues/06-gate-pages-deploy-on-checks.md) and
+shared browser harness specification,
+deploy-gating ticket and
 [forgiving-preview successor work](../../cad-backend-replacement/spec.md). Refresh
 their status and coordinate shared source before scheduling; publication is not delivery.
 Do not edit or close those parent records as a side effect of this specification.

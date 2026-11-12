@@ -76,8 +76,8 @@ owns behavior-preserving camera/surface extraction, not a persistence redesign.
 [Workflow 001](../plans/application-workflow-verification/map.md) is a ready-for-agent
 **spec**, with approved S-A real application/mounted, S-B source-bound page and S-C
 actual-package seams; its children are unpublished. Reuse existing Editor work,
-[CAD browser harness 016](../plans/cad-deepening/issues/016-rust-browser-harness.md),
-[deploy gate 06](../plans/cleanup/issues/06-gate-pages-deploy-on-checks.md) and
+CAD browser harness 016,
+deploy gate 06 and
 [forgiving-preview successors](../plans/cad-backend-replacement/spec.md), not duplicate
 tickets. Publication is not delivery. Stale historical links are not this domain loop.
 

@@ -62,8 +62,8 @@ Read [AGENTS](../../AGENTS.md), [domain instructions](../agents/domain.md), [GLO
 [ADR index](../adr/README.md), and current 0003/0004/0009/0010/0013/0019/0020/0023–0028/0030/0031.
 Read the installed domain-modeling skill and its ADR format: a separate ADR is justified by a
 durable, surprising, actually chosen trade-off, not by discovering another module. Relevant
-orientation includes the [generator plan](../plans/generator-parameters/map.md),
-[matrix map](../plans/matrix-layout-consistency/map.md), [matrix spec](../plans/matrix-layout-consistency/spec.md),
+orientation includes the generator plan,
+matrix map, matrix spec,
 [Rust-port investigation](../investigations/footprint-generators-rust.md) and
 [component onboarding](../hardware/component-onboarding.md).
 

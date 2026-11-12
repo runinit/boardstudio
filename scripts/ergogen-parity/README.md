@@ -1,7 +1,7 @@
 # Opt-in Ergogen point-layout oracle
 
 This tooling generates `core/tests/fixtures/ergogen-layout-parity.json` for the
-[layout-parity spec](../../docs/plans/ergogen-layout-parity/spec.md). It does not
+layout-parity spec. It does not
 activate version 7, compare Rust yet, or replace the still-active legacy oracle.
 
 ## Generate or verify

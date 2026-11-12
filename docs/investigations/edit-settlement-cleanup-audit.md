@@ -1,7 +1,7 @@
 # Edit-settlement cleanup audit
 
 Source refreshed on 2026-10-07 after ticket 15 merged (`d13f0dd1`), during
-[ticket 17](../plans/edit-settlement/issues/17-cleanup.md). The ticket Outcome records
+ticket 17. The ticket Outcome records
 final checks and reviews; this report classifies retained source responsibilities.
 
 ## One settlement path
@@ -71,7 +71,7 @@ ports introduced by ticket 01. Neutral board/opened-session fixtures now live in
 
 ## Decision evidence
 
-The [replacement resolver inventory](../plans/edit-settlement/replace-document-resolvers.md)
+The replacement resolver inventory
 is refreshed after ticket 15, with one row per resolver rather than per helper or
 textual `ReplaceDocument` hit. Generator Apply and upload are separate resolvers;
 model transforms/removal/upload share one. Assembly matrix, module-profile and

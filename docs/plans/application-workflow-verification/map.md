@@ -36,10 +36,10 @@ workflow work. Operational prerequisites and implementation verification remain.
 - [Editor workspace extraction](../editor-workspace-extraction/map.md) already owns
   production composition and workspace/camera lifetime work. Reuse its outcomes and
   actual App seam; do not duplicate extraction or invent a fake application.
-- [CAD browser harness specification](../cad-deepening/issues/016-rust-browser-harness.md)
+- CAD browser harness specification
   owns the shared real-browser tooling migration. Coordinate with its current status;
   do not make a second harness or call its published specification delivered code.
-- [Cleanup deploy gating](../cleanup/issues/06-gate-pages-deploy-on-checks.md) already
+- Cleanup deploy gating already
   owns same-commit deployment checks. A real release-transition experiment is separate
   evidence, not another deploy-gating implementation task.
 - [Forgiving vendor preview work](../cad-backend-replacement/spec.md) already owns

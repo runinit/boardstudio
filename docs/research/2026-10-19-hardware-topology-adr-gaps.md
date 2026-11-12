@@ -221,7 +221,7 @@ assemblies materialize their effective paired configuration before losing the pa
   `5221aa8ab427be3f8ac54bd396558ffc9d075b5d` explains why new halves and reviewed
   mechanical linkage had to land together rather than silently discarding the pair.
   Commit `fd2f217e1c75f3588701537c3fc55f1ab1613446` subsequently lands typed atomic
-  creation; [ticket 21](../plans/typed-core-edits/issues/21-mirrored-half-web-adapter.md)
+  creation; ticket 21
   and ADR-0010 record that supersession. No primary rationale for always replacing
   the instance list or resetting transport on topology change was recovered.
 - **ADR test:** costly **yes** (retired physical identity, attachments and Undo);

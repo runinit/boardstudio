@@ -4,7 +4,7 @@ Status: resolved
 Type: planning
 Owner: fix/ui-integration-recovery
 Blocked by: none for ticket planning; implementation awaits the to-tickets step
-Related: [Plan map](../map.md), [Integration audit](../../../research/2026-11-06-dev-ui-integration-audit.md), [UI migration spec](../../rust-ui-migration/spec.md)
+Related: [Plan map](../map.md), [Integration audit](../../../research/2026-11-06-dev-ui-integration-audit.md), UI migration spec
 
 ## Problem Statement
 
@@ -265,18 +265,18 @@ this planning ticket provides no waiver.
 
 ### Approved contracts and record reconciliation
 
-- [Placement ticket 15](../../split-board-editing/issues/15-placement-breadcrumb-retire-relations.md)
+- Placement ticket 15
   specifies the breadcrumb, beside-field Relationships, selection/focus behavior
-  and violet highlighting. [The split-board plan](../../split-board-editing/map.md)
+  and violet highlighting. The split-board plan
   retains the approved prototype and related interaction decisions.
-- [The UI migration spec](../../rust-ui-migration/spec.md),
+- The UI migration spec,
   [ADR-0034](../../../adr/0034-adopt-rust-ui-components-with-two-themes.md),
   [ADR-0035](../../../adr/0035-rebuild-the-workbench-shell-on-rust-ui-patterns.md),
   [DESIGN](../../../../DESIGN.md) and the [glossary](../../../../GLOSSARY.md)
   govern the retained shared controls, shell and terminology.
 - [ADR-0010](../../../adr/0010-mirrored-half-is-a-core-maintained-reflection.md)
   still describes the generic independent-part heading rule broadly. The later
-  [controller/half-frame ticket 12](../../split-board-editing/issues/12-half-frame-parts-and-mirrored-controller.md)
+  controller/half-frame ticket 12
   and integrated controller exception differ from that blanket wording.
   Reconcile this documentation under A8 with the diagnosed A1 path; do not
   silently apply the generic rule to controllers or revert the integrated fix.
@@ -284,7 +284,7 @@ this planning ticket provides no waiver.
   and [ADR-0040](../../../adr/0040-part-anchoring-column-vocabulary.md)'s pose and
   anchor ownership.
 - [ADR-0021](../../../adr/0021-test-real-workflows-natively-and-browser-behavior-mounted.md)
-  governs the native/mounted test boundary. [Migration gate 026](../../rust-ui-build/issues/026-merge-gate.md)
+  governs the native/mounted test boundary. Migration gate 026
   retains historical focused results and the still-open full/human/review gates.
   This specification neither rewrites its historical results nor grants merge
   or push authorization.

@@ -4,7 +4,7 @@ status: accepted
 
 > The ordered migrations below record earlier formats. For planned layout-parity
 > version 7, that migration policy is superseded by [ADR-0036](0036-matrices-follow-ergogen-point-layout.md)
-> and [ticket 13](../plans/ergogen-layout-parity/issues/13-format-reset-and-recovery.md#answer):
+> and ticket 13:
 > refuse older input without migration; preserve stored data until explicit deletion.
 
 # Version persisted documents and remove Ergogen identifiers
@@ -33,7 +33,7 @@ members, and removes empty or whitespace-only number and list text. Non-empty li
 the rewritten document is written back once. Names no generator declares and values that cannot
 be converted are kept for Core's validation to report.
 
-Format version 5 (mirrored halves, [ticket 17](../plans/typed-core-edits/issues/17-mirrored-half-schema-and-format-5.md),
+Format version 5 (mirrored halves, ticket 17,
 [ADR-0010](0010-mirrored-half-is-a-core-maintained-reflection.md)) adds optional `constructionSource`
 and `halves` to mechanical mirror pairs. The version 4 to 5 step changes only `formatVersion`, so
 no data is rewritten and a pair without the new fields stays unpaired. An older build refuses a
@@ -70,6 +70,6 @@ fresh New project and guarded confirmed per-project deletion. There is no global
 wipe, automatic conversion or legacy archive exporter. Failed input validation preserves
 current work/history; successful replacement starts a fresh editor session and follows
 the existing persist-before-publication and recovery rules. Detailed requirements and
-acceptance are in [ticket 13](../plans/ergogen-layout-parity/issues/13-format-reset-and-recovery.md#answer).
+acceptance are in ticket 13.
 This amendment records the planned contract, not a claim that the version-6 code has
 already switched to it.
