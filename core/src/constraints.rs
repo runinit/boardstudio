@@ -582,8 +582,7 @@ fn pose(
     }
     visiting.insert(id.to_string());
     // An explicit framed relation outranks the implicit companion placement, as a stored one
-    // does: the accepted design's "Compiler, solver and canonical edit flow" step 3
-    // keeps
+    // does: the accepted design's "Compiler, solver and canonical edit flow" step 3 keeps
     // "explicit constraints ... current precedence over following-assembly placement", and
     // `companion_mode` in matrix/layout.rs documents the stored rule.
     let framed = matches!(constraints.get(id), Some(Driver::Framed(_)));

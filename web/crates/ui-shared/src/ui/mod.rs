@@ -17,7 +17,6 @@ pub mod kbd;
 pub mod label;
 pub mod separator;
 pub mod sidenav;
-pub mod skeleton;
 pub mod spinner;
 pub mod stepper;
 pub mod table;
