@@ -45,7 +45,12 @@
 .layout-alignment-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
 .layout-toolbar-accordion { display: flex; flex: 1; flex-direction: row; align-items: center; gap: 4px; width: 100%; min-width: 0; pointer-events: auto; }
 .layout-alignment-inline { display: contents; }
-.layout-snap-inline-select [data-slot='select-trigger'] { height: 32px; min-height: 32px; min-width: 76px; }
+/* 002 snap-buttons: per-size buttons plus an inline custom size replace the increment dropdown and settings popup. */
+.layout-snap-custom { height: 32px; min-height: 32px; width: 76px; flex: none; box-sizing: border-box; padding: 5px 8px; border: 1px solid var(--input); border-radius: 5px; background: var(--field); color: var(--foreground); font-size: 12px; }
+.layout-snap-custom[aria-invalid='true'] { border-color: var(--destructive); outline: 2px solid var(--destructive); outline-offset: -2px; }
+.layout-snap-gap-label { flex: none; white-space: nowrap; color: var(--muted-foreground); font-size: 12px; }
+.layout-snap-gap-group { width: 64px; flex: none; min-width: 0; }
+.layout-snap-gap-group input { height: 32px; min-height: 32px; }
 /* 002 actual consumer: View ToggleGroups fit the 32px lane. */
 [data-workbench-section='view'] [data-slot='toggle-group'],
 [data-workspace-toolbar='layout'] .workbench-tool-row > [data-slot='toggle-group'] { padding: 0; gap: 2px; }

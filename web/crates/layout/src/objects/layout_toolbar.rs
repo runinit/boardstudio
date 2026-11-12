@@ -8,7 +8,7 @@ use boardstudio_web_ui_shared::ui::{
     checkbox::Checkbox,
     collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
     dropdown_menu::{DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger},
-    icons::ChevronDown,
+    icons::{ChevronDown, ChevronRight},
     input::InputType,
     input_group::{InputGroup, InputGroupInput},
     label::Label,
@@ -684,8 +684,25 @@ mod tests {
             .dyn_into::<web_sys::HtmlElement>()
             .unwrap();
         click(&snap).await;
+        for label in ["Off", "⅛u", "¼u", "½u", "1u", "1 mm", "0.5 mm", "0.1 mm"] {
+            assert!(
+                boardstudio_web_ui_shared::test_role::by_role_name(
+                    &root,
+                    "button",
+                    format!("Snap increment {label}").as_str()
+                )
+                .is_some(),
+                "{label} size button"
+            );
+        }
         assert!(
-            boardstudio_web_ui_shared::test_role::by_role_name(&root, "button", "Snap increment")
+            root.query_selector("input[aria-label='Custom snap increment']")
+                .unwrap()
+                .is_some()
+        );
+        assert!(
+            root.query_selector("#layout-snap-gap-inline")
+                .unwrap()
                 .is_some()
         );
         let view = boardstudio_web_ui_shared::test_role::by_role_name(&root, "button", "View")
@@ -1147,6 +1164,39 @@ mod tests {
     }
 
     #[wasm_bindgen_test]
+    fn snap_custom_input_accepts_pitch_and_millimetre_amounts() {
+        assert_eq!(parse_snap_increment("0.5u"), Some(0.5));
+        assert_eq!(parse_snap_increment("1u"), Some(1.0));
+        assert_eq!(parse_snap_increment("0u"), Some(0.0));
+        assert_eq!(parse_snap_increment("0.5"), Some(0.5));
+        assert_eq!(parse_snap_increment("  ¼u "), Some(0.25));
+        assert_eq!(parse_snap_increment("1/2u"), Some(0.5));
+        assert_eq!(parse_snap_increment("2*0.25u"), Some(0.5));
+        assert_eq!(parse_snap_increment("(1+2)/2u"), Some(1.5));
+        assert_eq!(parse_snap_increment("0.5mm"), Some(-0.5));
+        assert_eq!(parse_snap_increment("1 mm"), Some(-1.0));
+        assert_eq!(parse_snap_increment(""), None);
+        assert_eq!(parse_snap_increment("a lot"), None);
+        assert_eq!(parse_snap_increment("-0.5u"), None);
+        assert_eq!(parse_snap_increment("0mm"), None);
+        assert_eq!(parse_snap_increment("1/0u"), None);
+        assert_eq!(parse_snap_increment("0.5.2u"), None);
+    }
+
+    #[wasm_bindgen_test]
+    fn snap_custom_input_round_trips_through_its_canonical_text() {
+        assert_eq!(format_snap_increment(0.0), "0");
+        assert_eq!(format_snap_increment(0.5), "0.5");
+        assert_eq!(format_snap_increment(-0.5), "0.5mm");
+        for fraction in [0.0, 0.125, 0.25, 0.5, 1.0, -1.0, -0.5, -0.1] {
+            assert_eq!(
+                parse_snap_increment(&format_snap_increment(fraction)),
+                Some(fraction)
+            );
+        }
+    }
+
+    #[wasm_bindgen_test]
     fn invalid_pitch_axes_fall_back_independently_and_nonfinite_fraction_is_safe() {
         let settings = LayoutSnapSettings {
             snap_fraction: f64::NAN,
@@ -1501,7 +1551,7 @@ fn LayoutAccordionSection(
                     span { class: "workbench-tool-name", "{label}" }
                     if let Some(caption) = caption { span { class: "workbench-tool-caption", "{caption}" } }
                 }
-                ChevronDown { class: "workbench-tool-chevron" }
+                ChevronRight { class: "workbench-tool-chevron" }
             }
             div { class: "workbench-tool-reveal", id: format!("workbench-section-{}", menu.key()),
                 inert: (!expanded).then_some(""), "aria-hidden": (!expanded).then_some("true"),
@@ -1743,7 +1793,7 @@ pub fn LayoutCommandPill(
                     icon: rsx! { svg { view_box: "0 0 20 20", path { d: "M5 3v8a5 5 0 0 0 10 0V3h-4v7a1 1 0 0 1-2 0V3ZM5 6h4M11 6h4" } } },
                     LayoutSnapInline { settings: snap_settings, on_snap_intent, first_index: 31usize }
                 }
-                LayoutAccordionSection { menu: LayoutCommandMenu::View, index: 40usize, label: "View".to_owned(), caption: None, open_menu,
+                LayoutAccordionSection { menu: LayoutCommandMenu::View, index: 50usize, label: "View".to_owned(), caption: None, open_menu,
                     icon: rsx! { svg { view_box: "0 0 20 20", path { d: "M1 10s3-6 9-6 9 6 9 6-3 6-9 6-9-6-9-6M13 10a3 3 0 1 1-6 0 3 3 0 0 1 6 0" } } },
                     if let Some(view) = view { {view} }
                 }
@@ -1993,29 +2043,238 @@ fn LayoutSnapIncrementSelect(
 }
 
 #[component]
+fn LayoutSnapCustomInput(
+    settings: LayoutSnapSettings,
+    on_snap_intent: EventHandler<LayoutSnapIntent>,
+) -> Element {
+    let mut text = use_signal(|| format_snap_increment(settings.snap_fraction));
+    let mut focused = use_signal(|| false);
+    let mut invalid = use_signal(|| false);
+    let mut sync_text = text;
+    let mut sync_invalid = invalid;
+    use_effect(use_reactive((&settings.snap_fraction,), move |(fraction,)| {
+        if !focused() {
+            // Compare before setting: an unconditional set would re-render and re-fire this effect.
+            let canonical = format_snap_increment(fraction);
+            if sync_text() != canonical {
+                sync_text.set(canonical);
+            }
+            if sync_invalid() {
+                sync_invalid.set(false);
+            }
+        }
+    }));
+    rsx! {
+        input {
+            r#type: "text",
+            class: "layout-snap-custom",
+            aria_label: "Custom snap increment",
+            title: "Type a size such as 0.5u or 0.5mm, Enter to apply",
+            spellcheck: false,
+            autocomplete: "off",
+            value: text(),
+            aria_invalid: invalid(),
+            onfocus: move |_| focused.set(true),
+            onblur: move |_| focused.set(false),
+            oninput: move |event: FormEvent| text.set(event.value()),
+            onkeydown: move |event: KeyboardEvent| {
+                // Typing must not drive canvas shortcuts or toolbar keys.
+                event.stop_propagation();
+                if let Some(raw) = event.data().try_as_web_event() {
+                    raw.stop_propagation();
+                }
+                match event.key() {
+                    Key::Enter => {
+                        match parse_snap_increment(&text()) {
+                            Some(value) => {
+                                invalid.set(false);
+                                text.set(format_snap_increment(value));
+                                on_snap_intent.call(LayoutSnapIntent::Fraction(value));
+                            }
+                            None => invalid.set(true),
+                        }
+                    }
+                    Key::Escape => {
+                        text.set(format_snap_increment(settings.snap_fraction));
+                        invalid.set(false);
+                    }
+                    _ => {}
+                }
+            },
+        }
+    }
+}
+
+/// Parse an inline snap increment such as `0.5u`, `1/2u` or `0.5mm` into the
+/// stored [`LayoutSnapSettings::snap_fraction`] encoding: non-negative matrix-pitch
+/// fractions stay positive, millimetre steps are stored negated.
+fn parse_snap_increment(raw: &str) -> Option<f64> {
+    let text = raw.trim().to_lowercase();
+    if text.is_empty() {
+        return None;
+    }
+    let (amount, millimetres) = if let Some(amount) = text.strip_suffix("mm") {
+        (amount, true)
+    } else if let Some(amount) = text.strip_suffix('u') {
+        (amount, false)
+    } else {
+        (text.as_str(), false)
+    };
+    let value = eval_snap_amount(amount.trim())?;
+    if !value.is_finite() {
+        return None;
+    }
+    if millimetres {
+        (value > 0.0).then_some(-value)
+    } else {
+        (value >= 0.0).then_some(value)
+    }
+}
+
+/// Canonical text for the custom input: plain pitch fractions, millimetres with suffix.
+fn format_snap_increment(fraction: f64) -> String {
+    if fraction == 0.0 {
+        "0".to_owned()
+    } else if fraction > 0.0 {
+        fraction.to_string()
+    } else {
+        format!("{}mm", -fraction)
+    }
+}
+
+/// Basic arithmetic for inline sizes: numbers, `+ - * /` and parentheses.
+fn eval_snap_amount(expression: &str) -> Option<f64> {
+    let normalized = expression
+        .replace('⅛', "(1/8)")
+        .replace('¼', "(1/4)")
+        .replace('½', "(1/2)")
+        .replace('¾', "(3/4)");
+    let mut parser = SnapAmountParser {
+        bytes: normalized.as_bytes(),
+        pos: 0,
+    };
+    let value = parser.parse_sum()?;
+    parser.skip_ws();
+    (parser.pos == parser.bytes.len()).then_some(value)
+}
+
+struct SnapAmountParser<'a> {
+    bytes: &'a [u8],
+    pos: usize,
+}
+
+impl SnapAmountParser<'_> {
+    fn skip_ws(&mut self) {
+        while self.pos < self.bytes.len() && self.bytes[self.pos].is_ascii_whitespace() {
+            self.pos += 1;
+        }
+    }
+
+    fn parse_sum(&mut self) -> Option<f64> {
+        let mut value = self.parse_product()?;
+        loop {
+            self.skip_ws();
+            let add = match self.bytes.get(self.pos) {
+                Some(b'+') => true,
+                Some(b'-') => false,
+                _ => break,
+            };
+            self.pos += 1;
+            let rhs = self.parse_product()?;
+            value = if add { value + rhs } else { value - rhs };
+        }
+        Some(value)
+    }
+
+    fn parse_product(&mut self) -> Option<f64> {
+        let mut value = self.parse_factor()?;
+        loop {
+            self.skip_ws();
+            let multiply = match self.bytes.get(self.pos) {
+                Some(b'*') => true,
+                Some(b'/') => false,
+                _ => break,
+            };
+            self.pos += 1;
+            let rhs = self.parse_factor()?;
+            value = if multiply { value * rhs } else { value / rhs };
+        }
+        Some(value)
+    }
+
+    fn parse_factor(&mut self) -> Option<f64> {
+        self.skip_ws();
+        match self.bytes.get(self.pos) {
+            Some(b'(') => {
+                self.pos += 1;
+                let value = self.parse_sum()?;
+                self.skip_ws();
+                if self.bytes.get(self.pos) == Some(&b')') {
+                    self.pos += 1;
+                    Some(value)
+                } else {
+                    None
+                }
+            }
+            Some(b'-') => {
+                self.pos += 1;
+                Some(-self.parse_factor()?)
+            }
+            Some(b'+') => {
+                self.pos += 1;
+                self.parse_factor()
+            }
+            Some(next) if next.is_ascii_digit() || *next == b'.' => {
+                let start = self.pos;
+                while self.pos < self.bytes.len()
+                    && (self.bytes[self.pos].is_ascii_digit() || self.bytes[self.pos] == b'.')
+                {
+                    self.pos += 1;
+                }
+                std::str::from_utf8(&self.bytes[start..self.pos])
+                    .ok()?
+                    .parse::<f64>()
+                    .ok()
+            }
+            _ => None,
+        }
+    }
+}
+
+#[component]
 fn LayoutSnapInline(
     settings: LayoutSnapSettings,
     on_snap_intent: EventHandler<LayoutSnapIntent>,
     first_index: usize,
 ) -> Element {
-    let detail_menu = use_signal(|| None::<LayoutCommandMenu>);
     rsx! {
-        span { class: "layout-snap-inline-select",
-            LayoutSnapIncrementSelect { settings: settings.clone(), on_snap_intent }
+        for (offset, (value, _, label)) in SNAP_STEPS.into_iter().enumerate() {
+            ToolbarButton { index: first_index + offset, class: "layout-action-control workbench-action", "data-workbench-action": "",
+                aria_label: format!("Snap increment {label}"), aria_pressed: settings.snap_fraction == value,
+                on_click: move |_| on_snap_intent.call(LayoutSnapIntent::Fraction(value)),
+                span { class: "workbench-action-label", "{label}" }
+            }
         }
-        ToolbarButton { index: first_index, class: "layout-action-control workbench-action", "data-workbench-action": "",
+        LayoutSnapCustomInput { settings: settings.clone(), on_snap_intent }
+        ToolbarButton { index: first_index + SNAP_STEPS.len(), class: "layout-action-control workbench-action", "data-workbench-action": "",
             aria_label: "Geometry snap", aria_pressed: settings.geometry_snap,
             on_click: move |_| on_snap_intent.call(LayoutSnapIntent::GeometrySnap(!settings.geometry_snap)),
             svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M5 3v8a5 5 0 0 0 10 0V3h-4v7a1 1 0 0 1-2 0V3ZM5 6h4M11 6h4" } }
             span { class: "workbench-action-label", "Geometry snap" }
         }
-        ToolbarButton { index: first_index + 1, class: "layout-action-control workbench-action", "data-workbench-action": "",
+        ToolbarButton { index: first_index + SNAP_STEPS.len() + 1, class: "layout-action-control workbench-action", "data-workbench-action": "",
             aria_label: "Envelope gap", aria_pressed: settings.gap_snap, disabled: !settings.geometry_snap,
             on_click: move |_| on_snap_intent.call(LayoutSnapIntent::GapSnap(!settings.gap_snap)),
             svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M3 4v12M17 4v12M6 10h8M8 8l-2 2 2 2M12 8l2 2-2 2" } }
             span { class: "workbench-action-label", "Envelope gap" }
         }
-        LayoutSnapMenu { open_menu: detail_menu, settings, on_snap_intent, show_layout_state: false, detail: true }
+        Label { html_for: "layout-snap-gap-inline", class: "layout-snap-gap-label", "Gap (mm)" }
+        InputGroup { class: "layout-snap-gap-group",
+            InputGroupInput { id: "layout-snap-gap-inline", r#type: InputType::Number, min: "0", step: "any", aria_label: "Snap gap",
+                value: settings.gap_override.clone(),
+                oninput: move |event: FormEvent| on_snap_intent.call(LayoutSnapIntent::GapOverride(event.value())),
+            }
+        }
     }
 }
 

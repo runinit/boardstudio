@@ -894,8 +894,8 @@ def production_viewport_tests(url, width=320, height=480):
         evaluate("(()=>{ document.querySelectorAll('[data-slot=tooltip-trigger], .layout-selection-guidance').forEach(t=>{ try{ if(document.activeElement===t) t.blur(); t.dispatchEvent(new MouseEvent('mouseleave',{bubbles:true})); }catch(_){} }); })()")
         browser("wait", "--fn", "document.querySelectorAll('[data-slot=tooltip][data-state=open]').length===0")
         if sec == "Snap" and width == 320:
-            # Trace demonstrated Geometry snap is a roving action; Snap increment
-            # is a secondary Select trigger and is not reached by toolbar arrows.
+            # Trace demonstrated Geometry snap is a roving action; the custom
+            # snap input is a plain tab stop and is not reached by toolbar arrows.
             browser("press", "Shift+Tab")
             browser("press", "Tab")
             initial = evaluate("({label:document.activeElement.getAttribute('aria-label'),tag:document.activeElement.tagName})")
