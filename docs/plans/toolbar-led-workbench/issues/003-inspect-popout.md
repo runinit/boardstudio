@@ -1,6 +1,6 @@
 # 003: Layout Inspect with reset-safe editor ownership
 
-Status: ready-for-agent
+Status: ready
 Type: build
 Blocked by: [002](002-toolbar-accordion-label-fitting.md)
 Parent: [map.md](../map.md)

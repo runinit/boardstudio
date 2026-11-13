@@ -195557,7 +195557,7 @@
           {
             "output": "electrical",
             "code": "nonstandard-interface",
-            "message": "Select and qualify the source-specific signal mapping, analog or half-duplex capabilities and isolated bus resources before electrical handoff."
+            "message": "Select and qualify the source-specific signal mapping, analog or half-duplex capabilities and isolated bus resources before electrical transfer."
           }
         ],
         "interfaces": [
@@ -317088,7 +317088,7 @@
           {
             "output": "electrical",
             "code": "nonstandard-interface",
-            "message": "Select and qualify the source-specific signal mapping, analog or half-duplex capabilities and isolated bus resources before electrical handoff."
+            "message": "Select and qualify the source-specific signal mapping, analog or half-duplex capabilities and isolated bus resources before electrical transfer."
           }
         ],
         "interfaces": [
@@ -412864,7 +412864,7 @@
           {
             "output": "electrical",
             "code": "nonstandard-interface",
-            "message": "Select and qualify the source-specific signal mapping, analog or half-duplex capabilities and isolated bus resources before electrical handoff."
+            "message": "Select and qualify the source-specific signal mapping, analog or half-duplex capabilities and isolated bus resources before electrical transfer."
           }
         ],
         "interfaces": [
@@ -594713,7 +594713,7 @@
           {
             "output": "electrical",
             "code": "nonstandard-interface",
-            "message": "Select and qualify the source-specific signal mapping, analog or half-duplex capabilities and isolated bus resources before electrical handoff."
+            "message": "Select and qualify the source-specific signal mapping, analog or half-duplex capabilities and isolated bus resources before electrical transfer."
           }
         ],
         "interfaces": [
@@ -699733,7 +699733,7 @@
           {
             "output": "electrical",
             "code": "nonstandard-interface",
-            "message": "Select and qualify the source-specific signal mapping, analog or half-duplex capabilities and isolated bus resources before electrical handoff."
+            "message": "Select and qualify the source-specific signal mapping, analog or half-duplex capabilities and isolated bus resources before electrical transfer."
           }
         ],
         "interfaces": [
@@ -722845,7 +722845,7 @@
           {
             "output": "electrical",
             "code": "nonstandard-interface",
-            "message": "Select and qualify the source-specific signal mapping, analog or half-duplex capabilities and isolated bus resources before electrical handoff."
+            "message": "Select and qualify the source-specific signal mapping, analog or half-duplex capabilities and isolated bus resources before electrical transfer."
           }
         ],
         "interfaces": [
@@ -737897,7 +737897,7 @@
           {
             "output": "electrical",
             "code": "nonstandard-interface",
-            "message": "Select and qualify the source-specific signal mapping, analog or half-duplex capabilities and isolated bus resources before electrical handoff."
+            "message": "Select and qualify the source-specific signal mapping, analog or half-duplex capabilities and isolated bus resources before electrical transfer."
           }
         ],
         "interfaces": [
@@ -1282668,7 +1282668,7 @@
           {
             "output": "electrical",
             "code": "nonstandard-interface",
-            "message": "Select and qualify the source-specific signal mapping, analog or half-duplex capabilities and isolated bus resources before electrical handoff."
+            "message": "Select and qualify the source-specific signal mapping, analog or half-duplex capabilities and isolated bus resources before electrical transfer."
           }
         ],
         "interfaces": [
@@ -1352076,7 +1352076,7 @@
           {
             "output": "electrical",
             "code": "nonstandard-interface",
-            "message": "Select and qualify the source-specific signal mapping, analog or half-duplex capabilities and isolated bus resources before electrical handoff."
+            "message": "Select and qualify the source-specific signal mapping, analog or half-duplex capabilities and isolated bus resources before electrical transfer."
           }
         ],
         "interfaces": [

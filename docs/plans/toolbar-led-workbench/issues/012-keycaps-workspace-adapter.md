@@ -1,6 +1,6 @@
 # 012: Keycaps adapter with defaults, overrides and fit ownership
 
-Status: ready-for-human
+Status: awaiting-decision
 Type: build
 Blocked by: [004](004-objects-popover.md), [009](009-shared-toolbar-panel-host.md)
 Parent: [map.md](../map.md)

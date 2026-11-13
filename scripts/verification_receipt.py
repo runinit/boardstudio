@@ -20,7 +20,7 @@ The receipt is invocation-scoped: a command that ran is fresh evidence; a planne
 did not run is `not_run`; malformed or interrupted output is incomplete, never zero failures.
 
 `check.py --receipt PATH` also writes a reviewer summary derived from the receipt to `PATH.md`.
-That summary is the evidence to provide at review handoff.
+That summary is the evidence to provide at review transfer.
 """
 
 from __future__ import annotations

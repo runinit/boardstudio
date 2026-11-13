@@ -1,6 +1,6 @@
 # 008: Parity-gated dock retirement, proof preservation and shipped docs
 
-Status: ready-for-human
+Status: awaiting-decision
 Type: build
 Blocked by: [007](007-responsive-accessibility-acceptance.md)
 Parent: [map.md](../map.md)

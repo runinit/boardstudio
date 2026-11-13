@@ -41,7 +41,7 @@ particular export. No automatic change-history reconstruction is required.
 
 ## Amendment: nested PCB packages can travel independently (2026-10-20)
 
-The user confirmed that the inner KiCad ZIP in a PCB handoff is an independently
+The user confirmed that the inner KiCad ZIP in a PCB transfer is an independently
 forwardable package. Include its own root `license.md` covering its contents;
 notices must not depend on the outer assembly/wiring package travelling with it.
 The outer package also retains its root notice with clear coverage for what it

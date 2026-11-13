@@ -1,8 +1,8 @@
 # 004: Choose the draft-safety interface and lifetime contract
 
 Status: resolved
-Type: grilling
-Label: wayfinder:grilling
+Type: questioning
+Label: planning:questioning
 Mode: HITL
 Assignee: Chris D
 Blocked by: [Inventory project draft owners](001-inventory-project-draft-owners.md), [Establish a real-editor draft-loss probe](002-establish-real-editor-draft-loss-probe.md), [Locate a deterministic packaged persistence hold](003-locate-packaged-persistence-hold.md), [Close the named census gaps](007-close-named-census-gaps.md)
@@ -32,7 +32,7 @@ project drafts without changing their existing Apply/Save behavior?
 
 ## Resolution and boundaries
 
-Use `grilling`, `domain-modeling` and `codebase-design`; require the human's live
+Use `questioning`, `domain modelling` and `module design`; require the human's live
 answers, not an agent-authored stand-in. Record the selected contract, alternatives
 and tradeoffs in `## Answer`, linking evidence and the implementation change surface.
 An optional disposable sketch may clarify the discussion, but this is not product
@@ -41,7 +41,7 @@ Claim first; unresolved facts remain explicit rather than silently assumed.
 
 ## Answer
 
-Resolved 2026-11-07 by live grilling (three rounds, user accepted all
+Resolved 2026-11-07 by live questioning (three rounds, user accepted all
 recommendations), then amended per the adversarial check
 [004 contract check](../inventory/004-contract-check.md) (core not falsified;
 5 blocks-recording + 6 should-amend findings, all one-sentence amendments,

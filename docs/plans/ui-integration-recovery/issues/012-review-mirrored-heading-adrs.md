@@ -12,7 +12,7 @@ Review whether the ADRs that govern mirrored-part headings still describe what
 Core does, and list what must change. The user suspects the ADRs were not updated
 correctly when decisions changed; this ticket tests that suspicion instead of
 assuming it. It was added on 2026-11-06 after 002 and 003 closed (002 on a stale
-cached build, 003 `wontfix`), and it carries the A8 controller-heading
+cached build, 003 `declined`), and it carries the A8 controller-heading
 documentation item that 003 would have owned.
 
 Known starting facts, each to be re-verified rather than trusted:

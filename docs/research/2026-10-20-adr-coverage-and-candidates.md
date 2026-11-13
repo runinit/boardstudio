@@ -37,7 +37,7 @@ not reasons to reverse the user's decisions. CAD successor tickets 015–018 alr
 the published forgiving-preview work; their publication is not implementation acceptance.
 
 **Five further areas were assessed:** one historically grounded new-ADR candidate
-(PCB handoff protection), two candidates needing a concrete ownership decision
+(PCB transfer protection), two candidates needing a concrete ownership decision
 (key identity/layout evolution and catalogue refresh), and two research leads
 (renderer recovery and portable provenance). **None is ready to be accepted without
 confirmation or further bounded research.** Renderer authority itself is better an
@@ -53,7 +53,7 @@ and [documentation index](../README.md). Read both earlier inventories as orient
 [hardware topology](2026-10-19-hardware-topology-adr-gaps.md); their subsequent-decision
 notices take precedence over their original recommendations.
 
-The installed domain-modeling skill and `ADR-FORMAT.md` require all three:
+The installed domain modelling guide and `ADR-FORMAT.md` require all three:
 **meaningful reversal cost, surprising behavior without context, and a genuine
 alternative/trade-off**. A source file proves behavior, not that its author chose a
 product policy. A current accepted record can establish today's choice without
@@ -90,7 +90,7 @@ for navigation; preserve record identities and amendment histories.
 | [0023](../adr/0023-distinguish-mounted-daughterboards-from-embedded-circuits.md) | Source-owned mounted circuitry versus independent embedded host copies and explicit joins. Catalogue refresh is different from circuit-copy identity. |
 | [0024](../adr/0024-share-reversible-pcb-routing-not-half-firmware-configuration.md), [0025](../adr/0025-delete-a-removed-halfs-exclusive-pcb-design.md), [0026](../adr/0026-decouple-firmware-role-from-physical-side.md), [0027](../adr/0027-save-incomplete-split-designs-with-output-specific-readiness.md), [0028](../adr/0028-convert-reversibility-explicitly-without-merging-designs.md) | Shared routing/assembly-specific mapping; exclusive-design/accessory deletion; independent side/role; incomplete-design saving; explicit reversibility conversion. These settle distinct user scenarios. Do not replace with a vague “boards versus halves” ADR. |
 | [0029](../adr/0029-constrain-geometry-scripts-and-apply-results-atomically.md) — **deprecated** | User-authored geometry scripting is outside product scope. Retained code safety does not reauthorize the feature. Preserve the correction and number. |
-| [0030](../adr/0030-export-firmware-as-an-editable-repository-template.md) | Editable repository-template handoff, external compilation and disclosed unsupported optional peripherals. Not binary generation, automatic repository provisioning, or proof of delivered optional-peripheral support. |
+| [0030](../adr/0030-export-firmware-as-an-editable-repository-template.md) | Editable repository-template transfer, external compilation and disclosed unsupported optional peripherals. Not binary generation, automatic repository provisioning, or proof of delivered optional-peripheral support. |
 
 The index already records the historical reuse of number 0003. Original application
 ownership is preserved in Git, with living rules reconstructed in 0013/0014/0022;
@@ -229,7 +229,7 @@ planning is separate work; do not claim acceptance from this inventory.
 
 ## Ranked further decision candidates
 
-### C1 — A PCB handoff creates durable external-world knowledge outside Undo
+### C1 — A PCB transfer creates durable external-world knowledge outside Undo
 
 **Candidate sentence:** successful PCB package preparation and accepted protection
 establish a signal-assignment baseline that ordinary Undo cannot erase; explicit
@@ -237,27 +237,27 @@ review is required to start a remapped PCB revision.
 
 **Scope delta:** 0013/0016 cover saving and export ownership, 0019 covers Undo asset
 retention, and 0024 binds firmware to real assembly. None records why a manufacturing
-handoff's protection survives restoring an earlier document. This is not firmware
+transfer's protection survives restoring an earlier document. This is not firmware
 repository-template delivery under 0030.
 
 **Current behavior and tests:** [electrical source](../../core/src/electrical.rs),
-`preserve_handoff`, explicitly says a downloaded handoff is outside history;
+`preserve_transfer`, explicitly says a downloaded transfer is outside history;
 [Core](../../core/src/lib.rs), `history`, reapplies the prior protected baseline
-before publishing Undo/Redo. `handoff_assignments` protects fabricated signal
+before publishing Undo/Redo. `transfer_assignments` protects fabricated signal
 terminals rather than conflating population GPIO aliases. The public Runtime PCB
-path calls [package_then_protect](../../web/crates/runtime/src/pcb_handoff.rs), which
+path calls [package_then_protect](../../web/crates/runtime/src/pcb_transfer.rs), which
 packages first, validates ownership, commits protection, then checks delivery.
 `failed_package_retry_and_stale_owner_use_session_protection_order` exercises failure,
 retry and reopened-owner rejection. [Electrical tests](../../core/tests/electrical_wiring.rs),
-`handoff_cannot_be_silently_overridden_by_new_locks`, checks protected-pin diagnostics.
+`transfer_cannot_be_silently_overridden_by_new_locks`, checks protected-pin diagnostics.
 These inspected tests do not establish browser download completion or fabrication.
 
 **Recovered rationale:** [DESIGN](../../DESIGN.md#wiring-and-physical-assemblies) explicitly
-requires protection even for draft handoffs and survival across Undo; H5 contains
+requires protection even for draft transfers and survival across Undo; H5 contains
 that rule and its implementation provenance. The source comment supplies the
 external-world explanation. Ordinary snapshot restoration is a genuine contrasting
 behavior, not a recovered separately discussed rejected design. The exact product
-definition of “successful handoff” remains worth confirming: package/protection can
+definition of “successful transfer” remains worth confirming: package/protection can
 succeed before actual user download completes.
 
 **ADR criteria:** reversal cost **high** (previously routed/fabricated connections);
@@ -266,7 +266,7 @@ surprising **yes** (Undo does not restore this field literally); trade-off **sup
 selection among protocols is not independently recovered.
 
 **Confidence/action:** high behavior/documented contract; medium original choice
-provenance. **New ADR after confirmation**, narrowly about external handoff protection,
+provenance. **New ADR after confirmation**, narrowly about external transfer protection,
 not a universal exception to Undo. Do not silently combine it with all export limits.
 
 ### C2 — Key identity versus firmware position when the layout evolves
@@ -403,8 +403,8 @@ and fabrication-qualified. [Bundled models](../../web/crates/runtime/src/bundled
 `BundledModel` and `bundled_model`, map stable identities to staged files and digests;
 `catalogue_digest_matches_the_exact_staged_vendor_source_file` checks staged bytes and
 `lookup_does_not_turn_unknown_identifiers_into_static_paths` rejects invented paths.
-`footprint_export_model_ids` enumerates model dependencies, and [PCB handoff](../../web/crates/runtime/src/pcb_handoff.rs),
-`build_handoff`, packages board/models and assembly reports. These inspected paths
+`footprint_export_model_ids` enumerates model dependencies, and [PCB transfer](../../web/crates/runtime/src/pcb_transfer.rs),
+`build_transfer`, packages board/models and assembly reports. These inspected paths
 are not an end-to-end audit of attribution contents. H8 establishes earlier portable
 lookup/build-provenance work, not a comprehensive legal-distribution policy.
 
@@ -429,7 +429,7 @@ Only three conversations are justified now; these are not a five-ADR writing que
    but the browser download fails or is cancelled. Should remapping still require
    review? Current ordering can retain protection before delivery completes. Is that
    the intended success boundary?” Also preserve 0025's exclusive-design deletion:
-   a future deletion implementation must decide how a removed board's handoff baseline
+   a future deletion implementation must decide how a removed board's transfer baseline
    is retired/restored without dangling configuration; this is not permission to
    retain the removed PCB contrary to 0025.
 2. **Layout/keymap evolution (C2):** “Delete a bound matrix key, save, then recreate a
@@ -464,12 +464,12 @@ scripting scope or firmware template direction.
   clears it. 0013 already limits history survival on reopen/executor failure and 0019
   protects live assets. Full-snapshot versus delta history or the numeric cap is not
   newly ADR-worthy merely because implemented. C1 isolates the substantive external
-  handoff exception. Monotonic mechanical IDs are already explained in 0004 and the
+  transfer exception. Monotonic mechanical IDs are already explained in 0004 and the
   identity-reservation ticket.
 - **Imported routed board authority:** [assembly reference](../features/assembly-preview.md)
   explicitly makes a routed `.kicad_pcb` read-only assembly source, not replacement
   electrical/export data. `LayoutSourceCapture::capture` selects imported preview
-  bytes, while `build_handoff` prepares the accepted Board's generated export.
+  bytes, while `build_transfer` prepares the accepted Board's generated export.
   `imported_capture_selects_matching_accepted_asset_and_existing_preview_operation`
   tests preview source choice. This is a valuable boundary to explain in architecture
   or alongside C1, but a separate ADR's original trade-off was not recovered. No
@@ -481,7 +481,7 @@ scripting scope or firmware template direction.
   script compatibility/removal paths, every key deletion/resize/reuse combination,
   whole catalogue refresh and licence propagation, physical hardware qualification,
   real GPU context restoration, every saved-project recovery UI, or complete PCB
-  deletion with surviving handoff records. No full security/geometry/legal audit claim.
+  deletion with surviving transfer records. No full security/geometry/legal audit claim.
 - No ADR for CSS tokens, exact crate graphs, routine resource limits, compiler flags,
   individual fixtures or per-component exceptions. No builds, tests, browser automation,
   firmware compilation, mutation runs, child agents or commits.
@@ -498,7 +498,7 @@ not an independent transcript of user approval.
 | H2 | `3cdeb2ac2b2b3e11891d10122b03e6dc835e03dd` | Retirement commit message explicitly removes React/migration machinery, not every living ownership principle. |
 | H3 | `8206af04a1fb38758141cc615d0815debd0fe203` | CAD checkpoint provenance referenced by accepted 0015; current user scope is read from 0015 and the CAD map, not inferred solely from this WIP commit title. |
 | H4 | `770cde44e931a4050edfd107844af81df1ee6f6e` | Inspected exact 0004 diff adding the reservation-counter paragraph after existing migration work. |
-| H5 | `e7f1628b8cadf947460d8d075f26bf0da742693f:DESIGN.md` | Read historical Wiring and physical assemblies: keymap migration disclaimer, protected draft handoffs, Undo survival and explicit remap. Commit message names exported mapping protection. |
+| H5 | `e7f1628b8cadf947460d8d075f26bf0da742693f:DESIGN.md` | Read historical Wiring and physical assemblies: keymap migration disclaimer, protected draft transfers, Undo survival and explicit remap. Commit message names exported mapping protection. |
 | H6 | `12f721efb520cd0f0f5ae6af07f862ac6a3c6eb2` | Curation commit message explicitly preserves legacy/custom parts and companion choices, not a complete future refresh/versioning contract. |
 | H7 | `eab77de9aeac5722d46b018657ca0e050e804035` | Renderer host consolidation provenance, read with current cleanup ticket's checked contract/Answer; no new claim of executing its historical receipts. |
 | H8 | `9582132875d3e8fa9958a19bd3da53b4c61241ff` | Portable model lookup/catalogue build-provenance implementation marker only; detailed rejected licensing/distribution alternatives remain unknown. |

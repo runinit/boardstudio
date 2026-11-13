@@ -1,12 +1,12 @@
 # 004 contract check — adversarial review of the draft-safety interface contract
 
-Authoritative adversarial review for Wayfinder ticket 004
+Authoritative adversarial review for Planning ticket 004
 (`docs/plans/update-draft-safety/issues/004-choose-draft-safety-interface.md`).
 No product code changed; the 004 ticket and `map.md` were not edited.
 Source via native Gortex MCP (exact worktree overlay views) plus bounded
 line-span reads. Symbol IDs omit the `ts-boardstudio2/` prefix.
 
-## Contract under test (user-approved in grilling, not yet recorded)
+## Contract under test (user-approved in questioning, not yet recorded)
 
 1. Small scoped registry of live draft owners, polled synchronously by
    `update_safety_inputs` at both Update Now checkpoints. `PendingEditSignals`
@@ -306,7 +306,7 @@ listed last so the record shows both sides.
   Signal<bool>` flags (`begin_place_assembly_on_board`, line 777 signature).
   During click→`begin` the draft leg (draft ≠ baseline) still blocks, so
   there is no hole — but only because the draft is untouched. The mark's real
-  job is the handoff: click sets a per-key `preparing` flag; `begin`
+  job is the transfer: click sets a per-key `preparing` flag; `begin`
   transfers it into submitted-memory + `is_pending`; async failure clears
   `preparing` (draft leg continues to hold — "failure never clears" falls
   out naturally, no special case needed). **Amendment:** record the

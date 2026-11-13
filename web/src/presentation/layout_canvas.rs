@@ -343,7 +343,7 @@ pub(super) fn Scene(props: SceneProps) -> Element {
         view_width_world: props.view_width_world,
         surface_width_px: props.surface_width_px,
         anchor_badge: props.anchor_badge.clone(),
-        // Ticket 02: key hover (prototype variant D) is view-only chrome: the
+        // Ticket 02: key hover (mockup variant D) is view-only chrome: the
         // pointer's part id lives here so entering or leaving a part
         // re-renders only this scene. Amber previews win ties, so the scene
         // only marks a part hovered while no preview claims it.
@@ -474,7 +474,7 @@ pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
         .filter(|_| split_focus::has_split(input.document));
     // Inline click-to-edit label anchor: the centroid of the dimmed half's
     // enabled cells, drawn a fixed screen gap above its topmost key edge
-    // (ticket 02: 10 px, prototype variant D).
+    // (ticket 02: 10 px, mockup variant D).
     let dim_label_anchor = dimmed_half.and_then(|dimmed| {
         let mut count = 0_u32;
         let (mut sum_x, mut top_y) = (0.0, f64::NEG_INFINITY);
@@ -505,7 +505,7 @@ pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
     // previous spacing behind a spacing change (ticket 18). Computed up
     // front: rsx flow takes no bare `let` bindings.
     let mut ghosts: Vec<(String, u32, u32, Pose2, Vec2)> = Vec::new();
-    // Ticket 18: spacing ghosts read grey dashed (prototype variant B), like
+    // Ticket 18: spacing ghosts read grey dashed (mockup variant B), like
     // the dimmed half; drag previews keep the existing ghost styling.
     let ghost_class = if input.spacing_ghost_note.is_some() {
         "pointer-events-none fill-none stroke-border-strong stroke-[0.3] [stroke-dasharray:0.8_0.8]"
@@ -562,7 +562,7 @@ pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
         .unwrap_or_default();
     // Ticket 18: the axis note sits above the displayed keys, so the refit
     // view (which pads the content by 12 mm on every side) always shows it.
-    // Ticket 02 draws the note at a fixed 11 px (prototype variant D) a
+    // Ticket 02 draws the note at a fixed 11 px (mockup variant D) a
     // fixed screen gap above the topmost key edge.
     let spacing_note_anchor: Option<(f64, f64, String)> =
         input.spacing_ghost_note.and_then(|(axis_x, delta_mm)| {
@@ -591,7 +591,7 @@ pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
             })
         });
     // Ticket 02: canvas technical labels draw at a fixed 11 px mono at every
-    // zoom (prototype variant D), set inline so the size beats the
+    // zoom (mockup variant D), set inline so the size beats the
     // world-unit stylesheet fallback.
     let label_font = px(11.0);
     rsx! {
@@ -635,7 +635,7 @@ pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
                             let dimmed = dimmed_half.is_some_and(|dimmed| {
                                 split_focus::matrix_half(input.document, &matrix.id) == Some(dimmed)
                             });
-                            // Ticket 02: key hover (prototype variant D). The
+                            // Ticket 02: key hover (mockup variant D). The
                             // scene only marks the key while no amber preview
                             // claims its part, so amber keeps winning ties.
                             let hovered = cell.member_id.as_ref().is_some_and(|id| {
@@ -687,7 +687,7 @@ pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
         }
         if let Some((axis_x, note_y, note)) = spacing_note_anchor {
             // Short delta note on the axis above the keys, fixed at 11 px
-            // (ticket 02, prototype variant D). The canvas parent flips y, so
+            // (ticket 02, mockup variant D). The canvas parent flips y, so
             // the text counter-flips to read upright like the split-focus
             // label.
             text {
@@ -702,7 +702,7 @@ pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
         }
         if let Some((dimmed, label_x, label_top)) = dim_label_anchor {
             // Inline click-to-edit label, fixed at 11 px (ticket 02,
-            // prototype variant D). The canvas parent flips y, so the text
+            // mockup variant D). The canvas parent flips y, so the text
             // counter-flips to read upright like part labels.
             text {
                 key: "{dimmed.label()}-focus-label",
@@ -749,7 +749,7 @@ pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
                 // Ticket 17: badge targets keep the violet dashed reference on
                 // the part outline too, matching the key rect above.
                 let anchor_target = badge_highlight.contains(&part.id);
-                // Ticket 02: key hover (prototype variant D), set while no
+                // Ticket 02: key hover (mockup variant D), set while no
                 // amber preview claims the part so amber keeps winning ties.
                 let hovered = hovered_id.as_deref() == Some(part.id.as_str());
                 // Ticket 02: part names sit at the top of the part, clear of
@@ -798,13 +798,13 @@ pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
                 }
             }
         }
-        // Ticket 02 anchor badge (prototype variant D): a 7 px violet ring
+        // Ticket 02 anchor badge (mockup variant D): a 7 px violet ring
         // at the anchor point; the badge label moved out of the canvas into
         // the "Placed from" readout. A dashed tie still runs to the selection
         // base. Read-only chrome: it never takes pointer events, so canvas
         // clicks (including dimmed-half focus) pass through. It paints after
         // the parts so the ring stays visible when the anchor sits under a
-        // key, matching the prototype's ring-on-top treatment.
+        // key, matching the mockup's ring-on-top treatment.
         if let Some(badge) = badge.as_ref() {
             {
                 let anchor_x = badge.anchor.x;
@@ -864,7 +864,7 @@ fn PartContents(
     footprints_on: bool,
     show_keycap: Option<Vec2>,
     #[props(default)] anchor_target: bool,
-    /// Ticket 02: the pointer rests on this part (prototype variant D). The
+    /// Ticket 02: the pointer rests on this part (mockup variant D). The
     /// caller only sets it while no amber preview marks the part.
     #[props(default)]
     hovered: bool,
@@ -882,7 +882,7 @@ fn PartContents(
     let courtyard = definition
         .map(|definition| polygon_points(&definition.courtyard))
         .unwrap_or_default();
-    // Ticket 02: key hover (prototype variant D) also tints the keycap face;
+    // Ticket 02: key hover (mockup variant D) also tints the keycap face;
     // the dimmed half hovers solid muted. Amber previews win ties: the
     // caller only sets `hovered` while no preview marks this part.
     let overlay_class = if selected {
@@ -936,7 +936,7 @@ fn PartContents(
         }
         if layer_visible && show_keycap.is_none() {
             // Ticket 02: part names sit at the top of the part, clear of the
-            // tie dot, at a fixed 11 px (prototype variant D).
+            // tie dot, at a fixed 11 px (mockup variant D).
             text { transform: "scale(1,-1)", text_anchor: "middle", class: "pointer-events-none fill-geometry-label font-mono", style: "font-size:{label_font}px", "data-part-label": "", x: "0", y: "{part_label_y}", "{part.reference}" }
         }
     }
@@ -2086,7 +2086,7 @@ mod spacing_ghost_render_tests {
     }
 }
 
-/// Ticket 02: fixed-size canvas chrome (prototype variant D). Technical
+/// Ticket 02: fixed-size canvas chrome (mockup variant D). Technical
 /// labels draw at 11 px mono and the anchor ring at 7 px violet at every
 /// zoom; the canvas badge label moved into the "Placed from" readout.
 #[cfg(test)]

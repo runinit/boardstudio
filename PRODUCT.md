@@ -1,7 +1,5 @@
 # BoardStudio
 
-<!-- impeccable:product-schema 1 -->
-
 ## Platform
 
 web
@@ -34,11 +32,11 @@ are parts of one workflow.
   files. The app shell and browser storage support offline work after initial
   loading; optional model assets and the CAD kernel load on demand.
 - The workbench connects Layout, PCB, Keymap, Keycaps, Case, Parts, and Export, including keymap
-  and firmware handoffs. Parts provides
+  and firmware transfers. Parts provides
   compiled footprint previews and attached model previews.
 - Designers continue routing and final electrical checks in KiCad, and review
   mechanical fit using the exported geometry and downstream tools. Firmware
-  handoffs are completed with a full target build and hardware verification.
+  transfers are completed with a full target build and hardware verification.
 
 ## Capabilities and Constraints
 
@@ -53,7 +51,7 @@ are parts of one workflow.
   separate from the PCB design, and PCB thickness stays authoritative.
 - Keymaps bind each current key and encoder push button. Layout edits define a
   new hardware/keymap revision; automatic keymap migration is not promised.
-- ZMK firmware handoffs (targeting v0.3.0) contain editable source, pin
+- ZMK firmware transfers (targeting v0.3.0) contain editable source, pin
   assignments, and build configuration. Source generation and device-tree syntax
   checks are not a substitute for a complete firmware build or hardware
   verification.

@@ -13,7 +13,7 @@ pub(crate) enum ExportKind {
     KeycapsStl,
     Firmware,
     Footprints,
-    PcbHandoff { draft: bool },
+    PcbTransfer { draft: bool },
     Mechanical { filename: String },
     BoardOutline { dxf: bool },
 }
@@ -195,7 +195,7 @@ mod tests {
             ExportKind::KeycapsStl,
             ExportKind::Firmware,
             ExportKind::Footprints,
-            ExportKind::PcbHandoff { draft: false },
+            ExportKind::PcbTransfer { draft: false },
             ExportKind::Mechanical {
                 filename: "board-mechanical.zip".into(),
             },
@@ -261,7 +261,7 @@ mod tests {
 
     #[test]
     fn advancing_a_lease_requires_a_new_consistent_revision() {
-        let mut lease = captured(ExportKind::PcbHandoff { draft: true });
+        let mut lease = captured(ExportKind::PcbTransfer { draft: true });
         let mut next = lease.snapshot.clone();
         let mut document = (*next.document).clone();
         document.revision += 1;

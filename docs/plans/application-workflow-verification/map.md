@@ -10,7 +10,7 @@ inventing new recovery, release, renderer or licensing policies.
 
 ## Specification
 
-- [001: Verify six application workflows through shared public seams](issues/001-verify-six-application-workflows.md) — `ready-for-agent`, parent specification.
+- [001: Verify six application workflows through shared public seams](issues/001-verify-six-application-workflows.md) — `ready`, parent specification.
 
 No implementation/investigation child tickets are published yet. The parent is the
 approved-seam specification, not a claim that the six workflows pass or a separate

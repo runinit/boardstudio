@@ -9,7 +9,7 @@
 //! through the existing resolvers so Core's message surfaces.
 //!
 //! Contract gap (flagged, not silently expanded): Core anchors target keys
-//! only (`MatrixAnchor`/`PartAnchor` name a matrix key). The prototype's
+//! only (`MatrixAnchor`/`PartAnchor` name a matrix key). The mockup's
 //! major targets (parts, the half origin) are returned with
 //! `supported: false` and never commit through `SetMatrixAnchor` /
 //! `SetPartAnchor`; the half origin only marks the current placement of a
@@ -33,7 +33,7 @@ pub struct AnchorKeyCandidate {
     pub current: bool,
 }
 
-/// A prototype major target (a part or the half origin): display-only.
+/// A mockup major target (a part or the half origin): display-only.
 /// `supported` is always false under the current Core contract.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AnchorMajorTarget {
@@ -60,7 +60,7 @@ pub struct AnchorPickCandidates {
     pub majors: Vec<AnchorMajorTarget>,
 }
 
-/// Ticket 08 ring geometry, in screen px (prototype variant D).
+/// Ticket 08 ring geometry, in screen px (mockup variant D).
 /// Candidate keys draw a violet ring 4.5 px across (6 px on hover) with a
 /// 24 px hit area; the current anchor fills a white dot.
 pub const CANDIDATE_RING_PX: f64 = 4.5;
@@ -242,7 +242,7 @@ pub fn anchor_pick_candidates(
         }
     }
 
-    // Prototype majors: the layout's other independent parts plus the half
+    // Mockup majors: the layout's other independent parts plus the half
     // origin. Display-only under the current Core contract (`supported`
     // stays false); the half origin marks the current placement while
     // detached.

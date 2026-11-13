@@ -967,7 +967,7 @@ impl SceneBasis {
     }
 }
 
-/// Ticket 05: the Bend drag rate and snap, matching the prototype's bend
+/// Ticket 05: the Bend drag rate and snap, matching the mockup's bend
 /// handle (half a degree per millimetre of horizontal travel, snapped to
 /// half degrees unless Alt is held).
 pub const BEND_DRAG_DEGREES_PER_MM: f64 = 0.5;
@@ -1110,7 +1110,7 @@ pub fn gesture_value(
             PlacementValue::Spread(snapped(start + along, snap.map(|step| step.x)))
         }
         // A Bend drag turns horizontal world travel into degrees at the
-        // prototype bend handle's rate: half a degree per millimetre, snapped
+        // mockup bend handle's rate: half a degree per millimetre, snapped
         // to half degrees (Alt keeps the raw angle). The grid step never
         // reaches a bend: it measures millimetres, not the running frame.
         // Padding steps along the pre-row frame no handle exposes, so it
@@ -3312,7 +3312,7 @@ mod tests {
     }
 
     /// Ticket 05, RED: a Bend drag turns horizontal world travel into
-    /// degrees at the prototype's half-degree rate and snap. Row and key
+    /// degrees at the mockup's half-degree rate and snap. Row and key
     /// bends share the mapping; vertical-only travel holds still.
     #[test]
     fn bend_drag_turns_horizontal_travel_into_snapped_degrees() {
@@ -3329,7 +3329,7 @@ mod tests {
             y: 4.7625,
         });
         // Ten millimetres right turns the running frame five degrees down
-        // from zero, like the prototype's bend handle.
+        // from zero, like the mockup's bend handle.
         let value = gesture_value(
             &basis,
             PlacementParameter::RowBend { row: 0 },

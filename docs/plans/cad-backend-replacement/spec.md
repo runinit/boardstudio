@@ -1,6 +1,6 @@
 # Forgiving vendor previews and honest collision feedback
 
-Status: ready-for-agent
+Status: ready
 Type: spec
 Decision: [ADR-0017](../../adr/0017-forgiving-vendor-previews-with-preserved-source.md), [ADR-0018](../../adr/0018-distinguish-collision-observations-from-clearance-guarantees.md)
 Related: [CAD map](map.md), [007](issues/007-strict-step-import.md), [014](issues/014-vendor-mesh-collision-validation.md)

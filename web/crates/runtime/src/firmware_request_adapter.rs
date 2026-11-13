@@ -26,7 +26,7 @@ pub fn firmware_request(
         .unwrap_or_default();
     if transport != HardwareTransport::None && peripheral_plan.is_none() {
         return Err(
-            "A split firmware handoff requires a distinct peripheral electrical plan".into(),
+            "A split firmware transfer requires a distinct peripheral electrical plan".into(),
         );
     }
     build_request(document, plan, peripheral_plan, transport)

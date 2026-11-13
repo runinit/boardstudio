@@ -194,7 +194,7 @@ flowchart TB
             <div class="rounded-lg border border-slate-200 p-4 dia space-y-2">
               <p class="label text-red-600 mb-2">Before · four kinds × (capture + map + check + delivery)</p>
               <div class="grid grid-cols-4 gap-2 text-[10px] text-center">
-                <div class="label text-slate-500 col-span-1">Firmware</div><div class="label text-slate-500">Footprint</div><div class="label text-slate-500">PCB handoff</div><div class="label text-slate-500">Mechanical</div>
+                <div class="label text-slate-500 col-span-1">Firmware</div><div class="label text-slate-500">Footprint</div><div class="label text-slate-500">PCB transfer</div><div class="label text-slate-500">Mechanical</div>
                 <div class="border border-red-300 stripe rounded p-1">Capture<br>7 fields + 1</div><div class="border border-red-300 stripe rounded p-1">Capture<br>7 fields + 1</div><div class="border border-red-300 stripe rounded p-1">Capture<br>7 fields + 1</div><div class="border border-red-300 stripe rounded p-1">Capture<br>7 fields + 1</div>
                 <div class="border border-slate-300 rounded p-1">map in Runtime</div><div class="border border-slate-300 rounded p-1">map in Runtime</div><div class="border border-slate-300 rounded p-1">map in Runtime</div><div class="border border-slate-300 rounded p-1">map in Runtime</div>
                 <div class="border border-red-300 stripe rounded p-1">*_is_current<br>9 clauses</div><div class="border border-red-300 stripe rounded p-1">*_is_current<br>9 clauses</div><div class="border border-red-300 stripe rounded p-1">*_is_current<br>+ require_*</div><div class="border border-red-300 stripe rounded p-1">*_is_current<br>9 clauses</div>
@@ -424,7 +424,7 @@ flowchart LR
             <li><code>EditTicket</code>: small interface; tests use the real Session</li>
             <li>Session <code>ResolveEdit</code>: one owner for base revision, transaction id and Unchanged</li>
             <li><code>CoreExecutor</code> and <code>DocumentPersistence</code>: two adapters each</li>
-            <li>Port-based controllers: mechanical settings shell, model delivery, PCB handoff</li>
+            <li>Port-based controllers: mechanical settings shell, model delivery, PCB transfer</li>
             <li><code>matrix_transform_operation</code> and <code>keycap_resize</code>: pure planners with native tests</li>
           </ul>
         </div>

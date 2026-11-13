@@ -110,7 +110,7 @@ def import_entry(entry: dict, repair: str | None, assets: list[dict], ids: set[s
     if entry.get("notice") and not repair:
         definition["gates"].append({"output": "electrical", "code": "source-caveat", "message": entry["notice"]})
     if electrical.get("protocol") == "nonstandard":
-        definition["gates"].append({"output": "electrical", "code": "nonstandard-interface", "message": "Select and qualify the source-specific signal mapping, analog or half-duplex capabilities and isolated bus resources before electrical handoff."})
+        definition["gates"].append({"output": "electrical", "code": "nonstandard-interface", "message": "Select and qualify the source-specific signal mapping, analog or half-duplex capabilities and isolated bus resources before electrical transfer."})
     if entry["row"] == "haptic-drv2605l":
         definition["gates"].append({"output": "mechanical", "code": "actuator", "message": "Choose and qualify the separate actuator body, mounting, current and calibration."})
     return {"row": entry["row"], "definition": definition}

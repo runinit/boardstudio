@@ -200,16 +200,16 @@ fn rail_active_tool(svg_key: usize) -> Option<LayoutTransformTool> {
     RAIL_MOUNTS.with(|mounts| mounts.borrow().get(&svg_key).and_then(|mount| mount.active))
 }
 
-/// Prototype variant D token glyphs, in screen px. The rail draws them in a
+/// Mockup variant D token glyphs, in screen px. The rail draws them in a
 /// y-down px group, so these match the spec sheet verbatim.
 const GLYPH_SPREAD: &str = "M-5 0h10M-3 -2l-2 2 2 2M3 -2l2 2-2 2";
 const GLYPH_STAGGER: &str = "M-5 0h10M-3 -2l-2 2 2 2M3 -2l2 2-2 2";
 const GLYPH_FOUR: &str = "M0 -3.2v6.4M-3.2 0h6.4M-1.4 -1.8 0 -3.2l1.4 1.4M-1.4 1.8 0 3.2l1.4 -1.4M-1.8 -1.4-3.2 0l1.4 1.4M1.8 -1.4 3.2 0l-1.4 1.4";
 const GLYPH_SPLAY: &str = "M-5 4A9 9 0 0 1 4 -5M1.5 -6.5 4 -5l-1.3 2.4M-5 4h2";
-/// Prototype variant D bend token: a curved arrow, shared by row and key.
+/// Mockup variant D bend token: a curved arrow, shared by row and key.
 const GLYPH_BEND: &str = "M-4 5C-4 0-1-4 4-4M1.5-6 4-4 1.5-2";
 
-/// Ticket 06: the commit toast lingers for 1.8 s, matching the prototype.
+/// Ticket 06: the commit toast lingers for 1.8 s, matching the mockup.
 const TOAST_TIMEOUT_MS: u32 = 1800;
 
 /// Arm one commit-toast expiry timer. The overlay remounts on every scope and
@@ -415,7 +415,7 @@ fn feedback_panel_contents(width_px: f64, rows: Vec<(String, f64, &'static str, 
     }
 }
 const GLYPH_ROTATE: &str = "M4.5 -2A5 5 0 1 1 -2 -4.6M4.6 -5v3h-3";
-/// Prototype variant D anchor token: the anchor shank with its ring.
+/// Mockup variant D anchor token: the anchor shank with its ring.
 const GLYPH_ANCHOR: &str = "M0-2.5V5M-3-.5h6M-4.5 2.2a4.5 4.5 0 0 0 9 0M0-5.6a1.5 1.5 0 1 0 .01 0";
 
 /// The token glyph for one rail tool: the axis arrow along `glyph_degrees`
@@ -1311,7 +1311,7 @@ pub fn LayoutTransformToolOverlay(
         });
         guide_for_start.set(None);
         // Ticket 06: the popup follows the pointer from pointer-down, 18 px
-        // off it like the prototype, until the drop re-docks or clears it.
+        // off it like the mockup, until the drop re-docks or clears it.
         let mut popup_at_for_start = popup_at_for_start;
         popup_at_for_start.set(Some((
             start_point.x + 18.0 * world_per_screen,
@@ -4693,7 +4693,7 @@ pub fn LayoutAnchorPickOverlay(
                     }
                 }
             }
-            // Prototype majors are display-only under the current Core
+            // Mockup majors are display-only under the current Core
             // contract (keys only): dimmed rings with labels, no pointer
             // events, so they never commit. A detached owner's half origin
             // keeps the white current dot.

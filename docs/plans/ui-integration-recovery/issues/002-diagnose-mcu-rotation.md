@@ -16,7 +16,7 @@ not assume a missing cherry-pick or implement a speculative repair.
 
 ## Acceptance criteria
 
-- [ ] Follow `diagnosing-bugs`: establish a red-capable command for the user's
+- [ ] Follow `bug diagnosis`: establish a red-capable command for the user's
   exact symptom before developing a cause. Record an actual failing invocation
   and its output, with enough fixture/setup information to repeat it.
 - [ ] Identify the affected project and loaded artifact, and record the relevant
@@ -52,7 +52,7 @@ verified outcome. Keep the original audit and parent specification unchanged.
   have not been performed by this planning step.
 
 - 2026-11-06 (research agent): **Not diagnosed; blocked on the affected project.** The cause is
-  neither asserted nor ruled in, and 003 stays blocked. Ticket status is `needs-info`.
+  neither asserted nor ruled in, and 003 stays blocked. Ticket status is `awaiting-info`.
 
   **What the evidence is.** The only input supplied is a 520x365 screenshot (Layout canvas,
   dark theme, project and build not identified in it). It shows two MCU outlines labelled `U1`
@@ -72,7 +72,7 @@ verified outcome. Keep the original audit and parent specification unchanged.
   Whether the user loaded that build is unconfirmed.
 
   **Red-capable loop attempts.** No command goes red on the user's symptom, so per
-  `diagnosing-bugs` no hypothesis was developed or tested. Attempted: a synthetic control in the
+  `bug diagnosis` no hypothesis was developed or tested. Attempted: a synthetic control in the
   candidate build served on spare port 4291 and driven headlessly with a fresh profile (steps,
   probe and output in the local, gitignored log `.evidence/ui-integration-recovery/002-synthetic-control.log`;
   steps: Create new keyboard, Split keyboard, place nice!nano, Create matrix 5x6, move U1 to Left half;
@@ -101,7 +101,7 @@ verified outcome. Keep the original audit and parent specification unchanged.
   ticket 12
   ("controllers keep the world heading"), whose wording is imprecise as above. To reconcile
   under A8 the user must decide what the contract is for a controller at `r` not in `{0, 180}`
-  (world heading or reflected heading) and confirm the decision source (grilling record
+  (world heading or reflected heading) and confirm the decision source (questioning record
   `605e1cc3c`); the ADR and ticket wording follow from that.
 
   **Needed from the user to continue** (any one of the first two unblocks diagnosis):
@@ -138,6 +138,6 @@ inferred; no cached artifact or project was captured), and the A8 controller-hea
 documentation reconciliation, which keeps the findings in the comment above. Acceptance
 bullets 1-6 are not met as written (no red-capable reproduction exists); this ticket closes
 because its premise, a defect in the integrated build, is withdrawn by the reporter. 003 was then closed
-`wontfix` by the user as not applicable (2026-11-06); no Core or renderer change is indicated.
+`declined` by the user as not applicable (2026-11-06); no Core or renderer change is indicated.
 The A8 controller-heading reconciliation and a current-build original-scenario check were not
 carried out.

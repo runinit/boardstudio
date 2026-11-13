@@ -10,8 +10,8 @@ finished plans are removed from the tree and stay in Git history.
   of an existing ticket (`109b`). The title line is `# NNN: Title`.
 - Header lines at the top (the first twelve lines): `Status:`, `Type:` (`build`, `research`,
   ...), `Blocked by:`, and `Parent:`, `Related:` or `Decision:` when they apply.
-- `Status:` is one of the five triage roles in [triage-labels.md](triage-labels.md)
-  (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`) or a workflow
+- `Status:` is one of the five status roles in [status-labels.md](status-labels.md)
+  (`unstatusd`, `awaiting-info`, `ready`, `awaiting-decision`, `declined`) or a workflow
   state: `claimed` while someone works it, `resolved` once it is done.
 - Comments and conversation append at the bottom of the ticket under `## Comments`.
 - Name every new ticket in the plan's `map.md` (`scripts/check-doc-links.py` in `python3 scripts/check.py repo` verifies every Markdown link).
@@ -60,7 +60,7 @@ the boundary is the user's decision.
   `python3 scripts/check.py lint`: native Clippy compiles only those modules' non-WASM stubs.
 - **Findings.** A review finding or surviving mutation **blocks** when it shows a boundary row
   or a mandatory criterion unmet; fix it in the slice. List every other finding as a follow-up
-  in the completion record, open a `needs-triage` ticket when it is a real defect, and continue.
+  in the completion record, open a `unstatusd` ticket when it is a real defect, and continue.
   Setting aside a finding against a mandatory criterion needs the user.
 - **Re-review.** After the review, a change to production code, or one that weakens, replaces or
   retires an oracle, gets one review of that delta. Added assertions and new cases get RED or
@@ -71,7 +71,7 @@ the boundary is the user's decision.
   report the evidence, the blocker and one materially different next experiment.
 - **Stops.** Fixes inside the boundary proceed and are reported. Stop and ask the user when the
   boundary must change, scope grows or the next step is a new phase. A met boundary closes the
-  slice; ticket acceptance stays with the ticket's own gates and, for `ready-for-human`, the
+  slice; ticket acceptance stays with the ticket's own gates and, for `awaiting-decision`, the
   human.
 
 ### Review reports
@@ -93,22 +93,22 @@ retained cleanup; follow-ups; pointers; next action. The ticket's `## Answer` an
 detail; do not restate historical receipts. Native source counts and test-graph coverage show reach, not
 behaviour: behaviour needs a proof row's oracle.
 
-## When a skill says "publish to the issue tracker"
+## Publishing a ticket
 
-Create the next numbered ticket as the Conventions describe: `Status: ready-for-agent` when an
-agent can start, `ready-for-human` when it waits on a decision.
+Create the next numbered ticket as the Conventions describe: `Status: ready` when an
+agent can start, `awaiting-decision` when it waits on a decision.
 
-## When a skill says "fetch the relevant ticket"
+## Fetching a ticket
 
 Read `issues/<NNN>-*.md`; its `Blocked by`, `Parent` and `Related` lines link the neighbours.
 
-## Wayfinding operations
+## Planning-map operations
 
-Used by `/wayfinder`. The **map** is a file with one **child** ticket per question.
+The **map** is a file with one **child** ticket per question.
 
 - **Map**: `docs/plans/<effort>/map.md`, with its notes, decisions so far and open fog.
 - **Child ticket**: `docs/plans/<effort>/issues/NNN-slug.md`, with the question in the body, a
-  `Type:` line (`research`, `prototype`, `grilling`, `task`) and a `Status:` line.
+  `Type:` line (`research`, `mockup`, `questioning`, `task`) and a `Status:` line.
 - **Blocking**: a `Blocked by:` line. A ticket is unblocked when every ticket it lists is
   `resolved`.
 - **Frontier**: the tickets that are open, unblocked and unclaimed; the lowest number goes first.

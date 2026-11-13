@@ -601,7 +601,7 @@ fn missing_controller_is_reported_without_inventing_one() {
         plan.diagnostics
             .iter()
             .any(|d| d.code == "missing-controller"),
-        "missing controller must block a complete handoff"
+        "missing controller must block a complete transfer"
     );
 }
 
@@ -724,12 +724,12 @@ fn apply_request_reuses_persisted_selected_board_locks() {
 }
 
 #[test]
-fn handoff_cannot_be_silently_overridden_by_new_locks() {
+fn transfer_cannot_be_silently_overridden_by_new_locks() {
     let mut doc = wired_document();
     doc.hardware = Some(HardwareConfiguration {
         boards: vec![ElectricalBoardConfiguration {
             board_id: "board-a".into(),
-            protected_handoff: Some(ElectricalHandoffBaseline {
+            protected_transfer: Some(ElectricalTransferBaseline {
                 fingerprint: "sent".into(),
                 revision: 0,
                 assignments: BTreeMap::from([("row/0".into(), "P0.06".into())]),

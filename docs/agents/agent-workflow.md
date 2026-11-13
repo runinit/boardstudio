@@ -1,4 +1,4 @@
-# Agent workflow: roles, rules and handoff (Codex and Claude Code)
+# Agent workflow: roles, rules and transfer (Codex and Claude Code)
 
 Retired at the user’s request on 2026-10-11. No model assignments, orchestration roles, lane leases, mandatory tool/review gates, or command-window rules apply from this document. Technical tickets and implementation evidence remain available separately.
 

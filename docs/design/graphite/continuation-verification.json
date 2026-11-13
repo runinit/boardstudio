@@ -12,13 +12,13 @@
     "remaining_browser_phase": "passed",
     "responsive_journeys": "1359/1024/390; passed",
     "entry_flows": "new/matrix/download without embedded models/demo/import/saved Open; passed",
-    "mobile_handoff": "focus and 44px action within viewport; passed",
+    "mobile_transfer": "focus and 44px action within viewport; passed",
     "proxy_regression": "red: staged model HTTP 404; green: all 3 dev-web tests pass",
     "proxy_tooling": "quick repo/tooling checks passed",
     "bundled_model_delivery": "88/88 HTTP 200; response bytes match staged vendor files",
     "visual_final_review": "visual acceptance reopened: material typography, control hierarchy, Keymap canvas, browser and Export composition gaps; see visual-fidelity-gaps.md",
-    "impeccable_closure": "advance refused: missing tool-issued plan/asset acceptance receipt; completion incomplete",
-    "embedded_archive": "fresh context: embedded download passed, ZIP and embedded SHA-256 integrity passed, import and editor handoff passed",
+    "design-check_closure": "advance refused: missing tool-issued plan/asset acceptance receipt; completion incomplete",
+    "embedded_archive": "fresh context: embedded download passed, ZIP and embedded SHA-256 integrity passed, import and editor transfer passed",
     "fidelity_batch_1": {
       "scope": "shared styling and Layout",
       "layout_browser": 174,
@@ -60,12 +60,12 @@
         ]
       },
       "tailwind": "Pinned v4.1.5 regenerated the served asset; no Dioxus or watcher restart",
-      "impeccable_detector": "New setup literals moved to shared page/body type roles; remaining reports are existing type/radius literals elsewhere in the shared stylesheet"
+      "design-check_detector": "New setup literals moved to shared page/body type roles; remaining reports are existing type/radius literals elsewhere in the shared stylesheet"
     }
   },
   "bounds": [
     "Material visual fidelity gaps remain; application tests do not establish mockup fidelity",
-    "Impeccable CLI receipt remains pending despite chat approval; later workflow phases blocked; automatic pixel comparison reports drift",
+    "design-check CLI receipt remains pending despite chat approval; later workflow phases blocked; automatic pixel comparison reports drift",
     "Batch 2 visual comparison uses the real single-board Graphite verification project; mock split-board art and selected controller/assembly states remain fixture differences."
   ],
   "preview": "http://127.0.0.1:8182/",

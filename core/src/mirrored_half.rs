@@ -10,7 +10,7 @@
 //! What a new board does not receive, and why:
 //!
 //! - keymap bindings, the half's role and name, board references, copper and the
-//!   protected wiring handoff: never reflected by nature (ADR-0010);
+//!   protected wiring transfer: never reflected by nature (ADR-0010);
 //! - `case-closure/*` clearance holes: generated from the pair's linked closure mounts;
 //! - mounted modules: reflected by pose and id (ticket 27); a handed module is a finding, not a refusal;
 //! - embedded circuits: reflected with their own namespace, `embedded/<mirror id>/...` (ticket 28);
@@ -1848,7 +1848,7 @@ fn new_board(
     // The electrical configuration of the source board. The mirror keeps the source's matrix
     // numbering, so it keeps the same pins: functions are renamed only where they name a part
     // or net (`peripheral/<part>/...`). Keymap bindings are never reflected, and the protected
-    // handoff baseline belongs to the source's reviewed wiring.
+    // transfer baseline belongs to the source's reviewed wiring.
     if let Some(entry) = electrical {
         let controller_part_id = entry
             .controller_part_id
@@ -1878,7 +1878,7 @@ fn new_board(
             assignments: remap(&entry.assignments),
             key_bindings: BTreeMap::new(),
             jumper_states: entry.jumper_states.clone(),
-            protected_handoff: None,
+            protected_transfer: None,
         };
         let hardware = doc
             .hardware

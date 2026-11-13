@@ -16,7 +16,7 @@ Nothing in the repo was modified. No dependency was removed or built; every item
 
 ## 2. Intentional duplication / dependencies
 
-- `cad/monstertruck-qualification/src/unit_normalization.rs` <-> `cad/monstertruck/src/step/units.rs` (about 3,500 lines, only about 179 differing lines) and `step_gate.rs` <-> `step/mod.rs`, `step_meshing.rs` <-> `step/tessellation.rs`: documented as "Gate-binary containment copies ... independent oracles" (`docs/plans/cad-deepening/handoff.md:26`). Keep. Maybe pin with a comment/test that drift is deliberate.
+- `cad/monstertruck-qualification/src/unit_normalization.rs` <-> `cad/monstertruck/src/step/units.rs` (about 3,500 lines, only about 179 differing lines) and `step_gate.rs` <-> `step/mod.rs`, `step_meshing.rs` <-> `step/tessellation.rs`: documented as "Gate-binary containment copies ... independent oracles" (`docs/plans/cad-deepening/transfer.md:26`). Keep. Maybe pin with a comment/test that drift is deliberate.
 - `footprints/src/generators/ceoloide/mcu_nice_nano.rs` <-> `mcu_supermini_nrf52840.rs` (526 lines), `infused_kim/conn_molex_pico_ezmate_1x02` <-> `1x05`: per-part footprint generators. Likely intentional (pin-compatible variants); a parametrised helper is possible but trades review clarity.
 - 244 of 558 exact clones are test-to-test (mostly `web/tests/*`). Treat as fixture duplication, low priority.
 
@@ -69,7 +69,7 @@ Spec `.evidence/audit/pcb-mutations.json`, command `cargo test -p boardstudio-we
 ## For the deeper review (remove / refactor / redesign)
 
 - A4 (verified): `definition()` in `core/tests/electrical_wiring.rs:6` and `runtime.rs:7689` is identical apart from field order; `wired_document` differs only in name and a trailing `doc.hardware` block. The `PartDefinition` builder pattern appears in about 9 files (`core/tests/{contracts,core,electrical_wiring,matrix_performance}.rs`, `core/src/artifact/kicad.rs`, `parts_custom_definition.rs`, pcb x2, runtime). A real fix needs shared test API in core, so it is a design decision, not a mechanical dedupe.
-- Architecture review of A3/A4 (Opus subagent, codebase-design vocabulary; read-only, nothing compiled):
+- Architecture review of A3/A4 (Opus subagent, module design vocabulary; read-only, nothing compiled):
   - Corrections to the audit: the kicad fixtures are in `kicad/output/tests.rs:46,122`, not `kicad.rs`; `core/tests/contracts.rs` has no copy. Only two pairs are the same concept: pcb `test_fixtures`/`mode_owner_tests`, and `electrical_wiring`/`runtime`. The rest stay local. `PartDefinition` has no `Default`, so a new field breaks every literal loudly and copies cannot silently drift on it.
   - Refactor: move `test_fixtures` to `pcb_wiring/test_fixtures.rs`, declared `#[cfg(test)]` in both module trees; delete the `mode_owner_tests.rs` copy.
   - Optional refactor: shared `definition`/`wired_document` in `core/tests/support/wiring.rs`, included by `#[path]` (as `web/crates/host/src/lib.rs:21` does). Needs a browser test run.

@@ -354,7 +354,7 @@ function menuMarkup(kind){
  if(kind==='project')return '<h3>Split 42</h3><button class="menu-row" data-demo-action="Open project">Open project</button><button class="menu-row" data-demo-action="Rename project">Rename project</button><button class="menu-row" data-demo-action="Save project file">Save project file</button><p>Project actions stay here—not in the canvas toolbar.</p>';
  if(kind==='workspaces')return '<h3>Workspaces</h3>'+['Layout','PCB','Keymap','Keycaps','Case','Parts'].map(n=>`<button class="menu-row" data-workspace="${n}">${n}${n==='Layout'?'<small>Current</small>':''}</button>`).join('')+'<button class="menu-row" data-history="undo" '+(!study.past.length?'disabled':'')+'>Undo preview edit</button><button class="menu-row" data-history="redo" '+(!study.future.length?'disabled':'')+'>Redo preview edit</button>';
  if(kind==='search')return '<h3>Search commands</h3><input type="search" id="command-search" placeholder="Outline, component, matrix…" aria-label="Find an object"><div id="command-results"></div>';
- return '<h3>Export</h3><p>Export remains a project-wide action. This presentation prototype does not save or generate files.</p>';
+ return '<h3>Export</h3><p>Export remains a project-wide action. This presentation mockup does not save or generate files.</p>';
 }
 function renderSearch(){const q=($('#command-search')?.value||'').toLowerCase();$('#command-results').innerHTML=Object.entries(names).filter(([id,n])=>id!=='key'&&n.toLowerCase().includes(q)).map(([id,n])=>`<button class="menu-row" data-select="${id}">${escapeHTML(n)}</button>`).join('')||'<p>No matching objects.</p>';}
 function openMenu(kind){
@@ -391,7 +391,7 @@ document.addEventListener('click',e=>{
  if(b.hasAttribute('data-switch-half')){study.half=study.half==='left'?'right':'left';refresh();return;}
  if(b.dataset.history){editHistory(b.dataset.history);return;}
  if(b.dataset.workspace){closeMenu();feedback(b.dataset.workspace==='Layout'?'Layout is the active workspace.':b.dataset.workspace+' is outside this Layout design study; navigation is not implemented.');return;}
- if(b.dataset.demoAction){closeMenu();feedback(b.dataset.demoAction+' is outside this presentation prototype. No project data changed.');return;}
+ if(b.dataset.demoAction){closeMenu();feedback(b.dataset.demoAction+' is outside this presentation mockup. No project data changed.');return;}
  if(b.dataset.treeColumn!==undefined){const c=Number(b.dataset.treeColumn);closeMenu();closeObjects();study.selection='key';s.scope='Column';s.selected=true;s.column=c;s.row=1;s.scenario='column';s.tool=null;s.open='transform';refresh();return;}
 },true);
 document.addEventListener('input',e=>{

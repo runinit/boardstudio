@@ -27,7 +27,7 @@ The broad Layout browser suite encountered the unchanged alignment popover's foc
 - No production/provider rebuild was needed. Save/recovery and accepted-document ownership remain on the existing routes; no preview is promoted to a save by presentation code.
 - Superseded runners and verification browsers were stopped by their recorded process groups. The stale incremental Tailwind watcher (PID 1257150) was stopped and the pinned compiler regenerated CSS explicitly. The single Dioxus preview remains at [port 8182](http://127.0.0.1:8182/). Saved review notes and their recovery endpoint were preserved; no review decision or receipt was manufactured.
 - Browser console also reports an existing malformed Layers chevron in `ui-shared/src/canvas_layers.rs` and existing missing-script/resource responses. These were not introduced or silently repaired by this batch. No uncaught page error occurred in the interaction check.
-- The native Impeccable assembled-page capture cannot execute the worker-backed application. Actual app screenshots and interaction checks remain the evidence; automated phase gates are still open, as recorded in [Batch 1](batch-1.md).
+- The native design-check assembled-page capture cannot execute the worker-backed application. Actual app screenshots and interaction checks remain the evidence; automated phase gates are still open, as recorded in [Batch 1](batch-1.md).
 
 ## Broad-suite resolution — continuation
 

@@ -18,7 +18,7 @@ been adopted or validated against Board Studio.
 
 | Candidate | Relevant capabilities | Main qualification |
 | --- | --- | --- |
-| Monstertruck 0.4.1 | B-rep/NURBS, extrusion, booleans, STEP read/write, meshes, assemblies, WASM bindings | Promising prototype; contact cases and component STEP corpus need testing |
+| Monstertruck 0.4.1 | B-rep/NURBS, extrusion, booleans, STEP read/write, meshes, assemblies, WASM bindings | Promising mockup; contact cases and component STEP corpus need testing |
 | Truck | B-rep/NURBS, modeling, STEP read/write, meshing, WASM wrapper | Explicitly documents unsupported tangent-face booleans |
 | brepkit 3.4.18 | Rust/WASM solid modeling, STEP, tessellation, measurement | Difficult booleans can degrade to meshes; current AGPL/commercial licensing |
 | csgrs 0.23.0 | Rust curve/mesh CSG, extrusion, booleans, STL/GLB, WASM wrappers | Mesh solids; no STEP route in the inspected format list |
@@ -76,7 +76,7 @@ The consequential limit is in the
 [boolean implementation](https://github.com/andymai/brepkit/blob/f7ca96016abdba93523c30b1b2feca41534fb024/crates/operations/src/boolean/mod.rs):
 when the main algorithm fails or produces invalid results, it can use a mesh
 fallback that loses analytic surfaces and does not guarantee a watertight
-result. A public `mesh_fallback_count()` exposes fallback use. A prototype
+result. A public `mesh_fallback_count()` exposes fallback use. A mockup
 should monitor it for serial operations and reject degraded manufacturing
 exports; successful function return alone is insufficient.
 

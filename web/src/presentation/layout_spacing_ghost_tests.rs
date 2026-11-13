@@ -351,7 +351,7 @@ async fn spacing_change_ghosts_refits_and_retires() {
     let expected_narrow_note = spacing_note(narrowed_by);
     assert!(
         expected_narrow_note.starts_with("−"),
-        "narrowing notes use the prototype minus"
+        "narrowing notes use the mockup minus"
     );
     wait_until("the narrowing ghost reads on the axis", || {
         count(&root, "[data-ghost='spacing']") == 2 && ghost_note(&root) == expected_narrow_note

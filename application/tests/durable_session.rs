@@ -160,8 +160,8 @@ fn protected_fixture() -> ProjectDoc {
                     ("column/0".into(), "P2".into()),
                 ]),
                 key_bindings: BTreeMap::from([("key".into(), "KC_A".into())]),
-                protected_handoff: Some(ElectricalHandoffBaseline {
-                    fingerprint: "handoff-1".into(),
+                protected_transfer: Some(ElectricalTransferBaseline {
+                    fingerprint: "transfer-1".into(),
                     revision: 0,
                     assignments: BTreeMap::from([
                         ("row/0".into(), "P1".into()),
@@ -245,7 +245,7 @@ fn settle_core_and_save(
 }
 
 #[test]
-fn protected_handoff_review_uses_core_operation_after_normal_edits_preserve_it() {
+fn protected_transfer_review_uses_core_operation_after_normal_edits_preserve_it() {
     let mut session = Session::new();
     let mut engine = CoreEngine::new();
     let effects = session.submit(Event::Open {
@@ -255,9 +255,9 @@ fn protected_handoff_review_uses_core_operation_after_normal_edits_preserve_it()
     let (opened, _) = settle_core_and_save(&mut session, &mut engine, effects);
     assert_eq!(opened.revision, 0);
 
-    // Ordinary document replacement is still an edit, so Core restores the protected handoff.
+    // Ordinary document replacement is still an edit, so Core restores the protected transfer.
     let mut attempted_clear = opened.clone();
-    attempted_clear.hardware.as_mut().unwrap().boards[0].protected_handoff = None;
+    attempted_clear.hardware.as_mut().unwrap().boards[0].protected_transfer = None;
     let effects = session.submit(resolved_edit(
         OperationId(2),
         EditCommand {
@@ -274,18 +274,18 @@ fn protected_handoff_review_uses_core_operation_after_normal_edits_preserve_it()
     assert_eq!(after_edit.revision, 1);
     assert_eq!(
         after_edit.hardware.as_ref().unwrap().boards[0]
-            .protected_handoff
+            .protected_transfer
             .as_ref()
             .unwrap()
             .fingerprint,
-        "handoff-1"
+        "transfer-1"
     );
 
     let effects = session.submit(Event::ReviewElectricalRemap {
         operation_id: OperationId(3),
         base_revision: 1,
         board_id: "board-a".into(),
-        expected_fingerprint: "handoff-1".into(),
+        expected_fingerprint: "transfer-1".into(),
     });
     let (request_id, executor_epoch, request) = core_effect(&effects);
     assert!(matches!(request, CoreRequest::ReviewElectricalRemap { .. }));
@@ -298,7 +298,7 @@ fn protected_handoff_review_uses_core_operation_after_normal_edits_preserve_it()
     let (save_attempt_id, reviewed) = save_effect(&effects);
     let configuration = &reviewed.hardware.as_ref().unwrap().boards[0];
     assert_eq!(reviewed.revision, 2);
-    assert!(configuration.protected_handoff.is_none());
+    assert!(configuration.protected_transfer.is_none());
     assert_eq!(configuration.locks["row/0"], "P1");
     assert_eq!(configuration.assignments["row/0"], "P1");
     assert_eq!(configuration.assignments["column/0"], "P2");
@@ -333,7 +333,7 @@ fn protected_handoff_review_uses_core_operation_after_normal_edits_preserve_it()
 }
 
 #[test]
-fn protected_handoff_review_rejects_a_stale_fingerprint_without_saving() {
+fn protected_transfer_review_rejects_a_stale_fingerprint_without_saving() {
     let mut session = Session::new();
     let mut engine = CoreEngine::new();
     let opened = session.submit(Event::Open {
@@ -346,7 +346,7 @@ fn protected_handoff_review_rejects_a_stale_fingerprint_without_saving() {
         operation_id: OperationId(11),
         base_revision: 1,
         board_id: "board-a".into(),
-        expected_fingerprint: "handoff-1".into(),
+        expected_fingerprint: "transfer-1".into(),
     });
     assert!(
         !stale_revision
@@ -367,7 +367,7 @@ fn protected_handoff_review_rejects_a_stale_fingerprint_without_saving() {
         operation_id: OperationId(12),
         base_revision: 0,
         board_id: "board-a".into(),
-        expected_fingerprint: "outdated-handoff".into(),
+        expected_fingerprint: "outdated-transfer".into(),
     });
     let (request_id, executor_epoch, request) = core_effect(&effects);
     let reply = engine.handle(request);
@@ -387,17 +387,17 @@ fn protected_handoff_review_rejects_a_stale_fingerprint_without_saving() {
             operation_id: OperationId(12),
             outcome: TerminalOutcome::Rejected(message),
 
-        ..} if message.contains("handoff changed")
+        ..} if message.contains("transfer changed")
     )));
     let accepted = session.read_model().accepted.as_ref().unwrap();
     assert_eq!(accepted.document.revision, 0);
     assert_eq!(
         accepted.document.hardware.as_ref().unwrap().boards[0]
-            .protected_handoff
+            .protected_transfer
             .as_ref()
             .unwrap()
             .fingerprint,
-        "handoff-1"
+        "transfer-1"
     );
 }
 

@@ -60,7 +60,7 @@ hardware-revision schema, historical-generator framework or unknown-licence expo
 Read [AGENTS](../../AGENTS.md), [domain instructions](../agents/domain.md), [GLOSSARY](../../GLOSSARY.md),
 [PRODUCT](../../PRODUCT.md), [DESIGN](../../DESIGN.md), [architecture](../architecture.md),
 [ADR index](../adr/README.md), and current 0003/0004/0009/0010/0013/0019/0020/0023–0028/0030/0031.
-Read the installed domain-modeling skill and its ADR format: a separate ADR is justified by a
+Read the installed domain modelling guide and its ADR format: a separate ADR is justified by a
 durable, surprising, actually chosen trade-off, not by discovering another module. Relevant
 orientation includes the generator plan,
 matrix map, matrix spec,
@@ -78,7 +78,7 @@ Evidence labels used below:
 
 Policy constraints remain intact. [0030](../adr/0030-export-firmware-as-an-editable-repository-template.md)
 means editable firmware source with external compilation, including disclosed unsupported optional
-peripherals when the base keyboard is valid. [0031](../adr/0031-preserve-pcb-handoff-protection-across-undo.md)
+peripherals when the base keyboard is valid. [0031](../adr/0031-preserve-pcb-transfer-protection-across-undo.md)
 starts protection after successful packaging, current ownership and a saved protection commit,
 before delivery; Undo or download failure/cancellation does not erase it. [0024–0028](../adr/0024-share-reversible-pcb-routing-not-half-firmware-configuration.md)
 do not permit shared copper to stand in for actual per-half assembly mapping. Their acknowledged
@@ -105,7 +105,7 @@ vendor previews and honest collision uncertainty remain governed by
 | Explicit normalization | Re-renders current generator geometry; retains saved pad ID/net **at the same index**, regenerates terminal membership, and preserves valid explicitly authored courtyard/keycap envelopes. This is not geometric freezing. | [`Registry::normalize`](../../footprints/src/definition.rs#L82-L169); [`normalize_definition`](../../core/src/generators.rs#L62-L76). |
 | Definition + placed-part parameters | Part map overwrites definition map. Missing/null after merge selects the current declared default. Thus a **part-level null masks an explicit definition value**, rather than falling back to that definition value. Current compiled body is called. | [`Registry::render`](../../footprints/src/registry.rs#L163-L249); inspected `part_null_overrides_definition_true_with_the_declaration_default` in [diode tests](../../footprints/tests/diode_sod123_qualification.rs#L345-L360). |
 | Export terminal mapping | Captured saved terminal→pad associations are used to derive generator net parameters, with conflict checks. The job then renders current Rust code; stable saved IDs do not prove unchanged terminal semantics. | [`terminal_parameters`](../../core/src/artifact/kicad/planning.rs#L157-L243); [`render_jobs`](../../core/src/artifact/kicad/generation.rs#L23-L59). |
-| Model selection → bytes | Generator output determines model ID and datum; explicit filenames/transforms can override it, including empty filename omission. A document-owned asset wins over a bundled provider entry. An unembedded bundled ID resolves through the current build's catalogue/digest. | [`model_bindings`](../../footprints/src/models.rs#L101-L150); [`BundledModel`](../../web/crates/runtime/src/bundled_models.rs#L1-L15); [`load_model_files`](../../web/crates/runtime/src/pcb_handoff.rs#L220-L275); [portable round-trip test](../../web/crates/runtime/src/portable_archive.rs#L464-L503). |
+| Model selection → bytes | Generator output determines model ID and datum; explicit filenames/transforms can override it, including empty filename omission. A document-owned asset wins over a bundled provider entry. An unembedded bundled ID resolves through the current build's catalogue/digest. | [`model_bindings`](../../footprints/src/models.rs#L101-L150); [`BundledModel`](../../web/crates/runtime/src/bundled_models.rs#L1-L15); [`load_model_files`](../../web/crates/runtime/src/pcb_transfer.rs#L220-L275); [portable round-trip test](../../web/crates/runtime/src/portable_archive.rs#L464-L503). |
 | Manufacturing generation | Captured project data and revision guards protect a job's ownership, but `render_jobs` invokes today's registry. There is one supported version string, `bundled-1`, not a selection of historical bodies. | [`GENERATOR_VERSION`](../../footprints/src/registry.rs#L13-L14), `render` above; [`generation::export`](../../core/src/artifact/kicad/generation.rs#L69-L74). |
 
 **Important limit:** this establishes that changed defaults/body/model-provider contents *can*
@@ -232,7 +232,7 @@ back-side input; migration followed by rendering should restore B, while explici
 Current [migration tests](../../core/src/migrate.rs#L433-L492) are the nearest public-data oracle.
 **Neither two-build comparison was executed.** No prebuilt executable's source provenance was
 established, and builds/worktrees/source copies were prohibited here. A current protected PCB
-baseline must not be treated as a geometry fingerprint: [0031](../adr/0031-preserve-pcb-handoff-protection-across-undo.md)
+baseline must not be treated as a geometry fingerprint: [0031](../adr/0031-preserve-pcb-transfer-protection-across-undo.md)
 protects assignments; a separate changed-geometry review rule is not accepted by that ADR.
 
 Feasible **unselected** policies:
@@ -444,7 +444,7 @@ an assertion about all saved archives.
 | Project-owned definitions/customization | Name, generator parameters, source text, mechanical/hardware profiles and models can travel in the document. Optional `hardwareProfile.source` can carry richer source evidence when supplied. | Plain `PartDefinition` has no universal upstream/author/change-log/licence record. Renaming or changing parameters does not itself record who changed what relative to which upstream. Existing source/profile URLs are not erased merely because universal metadata is absent. | [model](../../core/src/model.rs#L124-L209); [`HardwareSource`/`HardwareProfile`](../../core/src/hardware.rs#L4-L52); [matrix snapshot](../../web/crates/catalogue/src/matrix_setup_operation.rs#L338-L355); [import writer](../../scripts/import-kicad-parts.py#L75-L94). |
 | Model staging/build metadata | Stable bundled ID, source-relative path, emitted path, media type, source digest in Rust metadata. Original model bytes copied/symlinked. | Stager scans model extensions only; runtime model rows lack licence, copyright and source revision. Vendor manifests/notices are not embedded by this row construction. | [`catalogue`/`stage_models`](../../scripts/stage-ergogen-models.py#L26-L105); [runtime build generator](../../web/crates/runtime/build.rs#L13-L90); [`BundledModel`](../../web/crates/runtime/src/bundled_models.rs#L1-L9). |
 | Project portable archive | `project.json`, optional `archive.json`, content-addressed `assets/<hash>`. Local `Asset` supports optional licence/source and existing records are cloned unchanged. Newly embedded bundled assets get filename/type/hash and generic source. | Newly embedded bundled metadata uses `license:None`; no per-generator notice inventory is added. Preserving original bytes is not a structured source/revision record. | [`prepare_archive`](../../web/crates/runtime/src/portable_archive.rs#L10-L96); [`Asset`](../../core/src/model.rs#L639-L649); [`archive::dispatch`](../../core/src/archive.rs#L44-L117). |
-| PCB handoff | Inner `<board-name>-kicad.zip`: first Core board file plus `models/<hash>.<ext>`. Outer handoff: inner ZIP, `wiring-report.json`, `ASSEMBLY.md`, applicable `jumpers/assembly-N/part-N.svg`. Models hash-checked and copied as bytes. | No automatic project.json, original display-name/source/licence inventory or licence-text files. Wiring/jumper reports can retain some generator source IDs, not a full provenance ledger. | Complete [`build_handoff`](../../web/crates/runtime/src/pcb_handoff.rs#L65-L218), [`load_model_files`](../../web/crates/runtime/src/pcb_handoff.rs#L220-L275), [`assembly_instructions`](../../web/crates/runtime/src/pcb_handoff.rs#L340-L397). |
+| PCB transfer | Inner `<board-name>-kicad.zip`: first Core board file plus `models/<hash>.<ext>`. Outer transfer: inner ZIP, `wiring-report.json`, `ASSEMBLY.md`, applicable `jumpers/assembly-N/part-N.svg`. Models hash-checked and copied as bytes. | No automatic project.json, original display-name/source/licence inventory or licence-text files. Wiring/jumper reports can retain some generator source IDs, not a full provenance ledger. | Complete [`build_transfer`](../../web/crates/runtime/src/pcb_transfer.rs#L65-L218), [`load_model_files`](../../web/crates/runtime/src/pcb_transfer.rs#L220-L275), [`assembly_instructions`](../../web/crates/runtime/src/pcb_transfer.rs#L340-L397). |
 
 The PCB contents row is **structural source inspection**, not inspection of a produced PCB ZIP.
 Hash filenames identify byte contents, but a recipient cannot reverse a hash into a repository,
@@ -479,7 +479,7 @@ That latter test invokes KiCad when run; it was only read here.
 - **PCB model payloads:** hashed paths lose the original display filename mapping unless available
   elsewhere in contained data/header. They do not remove notices already inside original model bytes.
   The loader does not separately copy adjacent vendor LICENSE files
-  ([`load_model_files`](../../web/crates/runtime/src/pcb_handoff.rs#L220-L275)).
+  ([`load_model_files`](../../web/crates/runtime/src/pcb_transfer.rs#L220-L275)).
 - **App notices:** inspected [web/assets/licenses/README.txt](../../web/assets/licenses/README.txt)
   describes CAD dependencies/fonts; [footprints NOTICE](../../footprints/NOTICE.md) and vendor licences
   live elsewhere. Build copies `web/assets` and provider/model assets, not the whole source notice tree
@@ -520,7 +520,7 @@ generic source copy/manifests framework; the needed record and delivery location
 | Output-only inventory generated from current bundled catalogue | Smaller saved schema change, but cannot faithfully recover old/custom/imported lineage once current catalogue entries have changed or provenance was already discarded. |
 | Full bundled notice catalogue in every output | Easier coarse copying, larger/noisier outputs; can obscure which terms/versions apply and still does not record authored custom changes. |
 
-**Pending smallest experiment:** with later authorization, use existing Runtime PCB handoff ports
+**Pending smallest experiment:** with later authorization, use existing Runtime PCB transfer ports
 and existing archive pack/unpack APIs to package a small board using the U1 MX+diode definitions,
 one source-backed marbastlib definition, and the KiCad socket model. Inventory both ZIP levels;
 compare original bytes/headers and all metadata fields against C1/C2. Expected current result:
@@ -532,7 +532,7 @@ to make this report's expectation true.
 
 The best existing seams are [`prepare_archive`](../../web/crates/runtime/src/portable_archive.rs#L10-L96)
 and its inspected `pack_round_trip_keeps_local_bytes_and_optionally_adds_opaque_model_bytes`,
-[`build_handoff`](../../web/crates/runtime/src/pcb_handoff.rs#L65-L218),
+[`build_transfer`](../../web/crates/runtime/src/pcb_transfer.rs#L65-L218),
 [`catalogue_digest_matches_the_exact_staged_vendor_source_file`](../../web/crates/runtime/src/bundled_models.rs#L266-L280),
 and the two source-preservation integration tests cited above. The archive round-trip uses opaque,
 even empty, payloads in one case; it is not attribution acceptance. No new browser/ZIP generation
@@ -541,7 +541,7 @@ or test was performed here.
 **Documentation disposition:** an [0020](../adr/0020-validate-portable-project-packages-in-core.md)
 amendment plus onboarding/output reference is enough if the owner merely extends portable-record
 requirements. A separate ADR becomes useful if they choose a durable distribution/variant ownership
-boundary across both project and PCB handoff outputs. Keep integrity, provenance, original-byte
+boundary across both project and PCB transfer outputs. Keep integrity, provenance, original-byte
 preservation, authored changes and legal obligations distinct; do not create one ADR per licence/vendor.
 
 ## Findings classification: debt is not an unmade policy
@@ -553,16 +553,16 @@ preservation, authored changes and legal obligations distinct; do not create one
 | Exact-key remapping and synthetic `/push` identities | Concrete bounded verification gap; qualify by actual input scan mode and operation before labeling a user-visible bug. |
 | Rich imported-row provenance omitted by runtime decoding; bundled embedding gets generic metadata | Concrete propagation gaps relative to reproducible/offline source discovery. Onboarding already asks for evidence, but no complete per-output provenance policy or legal verdict is accepted here. |
 | Per-half mapping, exclusive removed-design/accessory deletion, role/side decoupling, incomplete save/output readiness and explicit reversibility conversion | Accepted 0024–0028 delivery debt where absent; not grounds to retain unwanted PCB designs, merge independent routing or invent arbitrary firmware overrides. |
-| Optional unsupported peripheral blocks whole otherwise-valid firmware handoff | Known [0030 amendment](../adr/0030-export-firmware-as-an-editable-repository-template.md#amendment-unfinished-optional-peripheral-support-2026-10-20) delivery debt, not a new universal support gate. |
-| Handoff protection after package/current ownership/saved commit and across Undo | Settled [0031](../adr/0031-preserve-pcb-handoff-protection-across-undo.md), not a decision reopened by compatibility/provenance research. |
+| Optional unsupported peripheral blocks whole otherwise-valid firmware transfer | Known [0030 amendment](../adr/0030-export-firmware-as-an-editable-repository-template.md#amendment-unfinished-optional-peripheral-support-2026-10-20) delivery debt, not a new universal support gate. |
+| Transfer protection after package/current ownership/saved commit and across Undo | Settled [0031](../adr/0031-preserve-pcb-transfer-protection-across-undo.md), not a decision reopened by compatibility/provenance research. |
 
-## Ranked questions for the next domain / to-spec conversation
+## Ranked questions for the next domain / spec drafting conversation
 
 Facts are answered above; these ask for **expected user outcomes**, not code archaeology.
 
 1. **Generator correction on an existing design:** when an app update changes resolved footprint
    geometry but preserves saved parameter types and pad identities, should the next manufacturing
-   handoff use the correction immediately, require reviewed adoption, or preserve the previous
+   transfer use the correction immediately, require reviewed adoption, or preserve the previous
    result until explicitly upgraded? Does the answer differ for known-dangerous geometry, changed
    defaults and changed model datum/bytes? The diode opt-in and side migration are real contrasting
    precedents, not a reason to select a historical-executable framework.
@@ -572,7 +572,7 @@ Facts are answered above; these ask for **expected user outcomes**, not code arc
    replacement, qualified push/rotation identities and true Undo. Current routes differ.
 3. **Recipient with only the output, offline:** must they be able to discover exact upstream
    identity/revision, supplied notices and authored modifications for every included used asset,
-   or only a declared subset? Decide the project/PCB handoff boundary and unknown-metadata
+   or only a declared subset? Decide the project/PCB transfer boundary and unknown-metadata
    disclosure, not whether all exports should be prohibited. Get qualified interpretation of
    the sampled licence/exception and README mismatch before claiming legal sufficiency.
 
@@ -581,13 +581,13 @@ Facts are answered above; these ask for **expected user outcomes**, not code arc
 - If compatibility adoption is chosen: “As a designer reopening a saved project after an update,
   I can distinguish retained data from updated resolved manufacturing geometry and deliberately
   accept changes where required.” Cover omitted/explicit/null values, current/unsupported/missing
-  generators, imported source, pad/net mapping, models, Undo/reopen and existing handoff protection.
+  generators, imported source, pad/net mapping, models, Undo/reopen and existing transfer protection.
 - If input lifecycle is chosen: “As a designer changing a layout, I can predict whether a surviving,
   temporarily absent or replacement input keeps its bindings.” Cover B3's compact matrix through
   public Core, serialization/fresh Open, typed/legacy/sensor/push data, one mirrored route and
   firmware ordering; do not add automatic semantic migration or a hardware-revision schema by implication.
 - If portable provenance is chosen: “As a collaborator receiving only a portable project or PCB
-  handoff, I can identify included source materials and deliberate custom changes without this
+  transfer, I can identify included source materials and deliberate custom changes without this
   checkout.” Cover mixed licences, headers present/absent, source-backed customization, local
   Asset metadata, embedded versus unembedded models and both nested ZIP levels; do not promise
   legal clearance or universal fabrication qualification.

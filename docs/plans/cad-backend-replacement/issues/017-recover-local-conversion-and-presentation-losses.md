@@ -1,6 +1,6 @@
 # 017: Preserve previews across local conversion and presentation losses
 
-Status: ready-for-agent
+Status: ready
 Type: build
 Blocked by: [016: Show surviving mesh geometry with errors](016-show-partial-meshes-with-errors.md)
 Parent: [007: Vendor STEP import](007-strict-step-import.md)

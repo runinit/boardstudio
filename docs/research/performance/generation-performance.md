@@ -729,5 +729,5 @@ All seven main TODOs and three follow-up items are complete, with no blocked or
 skipped tasks. Phase 2's frozen regression and incremental-improvement acceptance
 is satisfied; the separate 200 ms gasket refinement target remains unmet.
 TODO.md and CHANGELOG.md record completion. PLAN.md remains read-only under the
-invoked TODO skill and can now have its Phase 2 status aligned in a separate
+invoked TODO guide and can now have its Phase 2 status aligned in a separate
 planning update.

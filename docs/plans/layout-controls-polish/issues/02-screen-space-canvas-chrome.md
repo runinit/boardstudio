@@ -2,9 +2,9 @@
 
 Status: resolved
 Type: build
-Blocked by: none (decision in [01](01-layout-controls-iconography-prototype.md))
+Blocked by: none (decision in [01](01-layout-controls-iconography-mockup.md))
 Map: [map.md](../map.md)
-Prototype: branch `prototype/layout-controls-iconography` (e91865f43), `?variant=D`; its spec sheet holds the exact values.
+Mockup: branch `mockup/layout-controls-iconography` (e91865f43), `?variant=D`; its spec sheet holds the exact values.
 Review: presentation only; RED/GREEN evidence and a diff read, no combined review.
 
 ## What to build
@@ -46,7 +46,7 @@ those labels scale with zoom.
 - [ ] Existing mounted suites stay green unchanged: `layout_anchor_badge_tests`,
   `layout_split_focus_tests`, `layout_spacing_ghost_tests` and `layout_field_preview_tests`.
   Update a selector only where this ticket renames a class, and say so.
-- [x] Live-app visual pass at three zooms against the prototype's `?variant=D` render, light and
+- [x] Live-app visual pass at three zooms against the mockup's `?variant=D` render, light and
   dark themes. Recorded in the Answer.
 - [x] DESIGN.md's Layout canvas paragraph records the fixed-size label rule and the violet/amber
   role split.
@@ -55,8 +55,8 @@ those labels scale with zoom.
 
 ## Answer
 
-Implemented on branch `docs/ergogen-layout-comparison` (prototype ref
-`prototype/layout-controls-iconography` `e91865f43`, variant D).
+Implemented on branch `docs/ergogen-layout-comparison` (mockup ref
+`mockup/layout-controls-iconography` `e91865f43`, variant D).
 
 What changed (ticket-02 files only):
 
@@ -105,7 +105,7 @@ Evidence:
 - Visual pass (headless Chromium, live packaged site): ring rect 7x7 CSS
   px at three zooms and in dark theme; "Placed from Column 1 base" readout
   at 11 px; dim label keeps the same on-screen height across zooms;
-  prototype `?variant=D` matches (readout bottom-left violet mono, dim
+  mockup `?variant=D` matches (readout bottom-left violet mono, dim
   label above the dimmed half, anchor ring + tie, hover roles per the
   variant-D spec table). Idle 60.5 fps during zoom; selection-to-paint
   60.4 ms. One real defect found and fixed in this pass: the ring painted
@@ -119,7 +119,7 @@ Evidence:
   spec; two disclosed deviations: (1) the part-placement preview label
   follows the same top/11 px rule for consistency; (2) hover never overrides
   selection (`:not(.is-selected)`), keeping ticket 14's solid-selection
-  contract over the prototype's hover-wins order.
+  contract over the mockup's hover-wins order.
 
 Map pointer: not added (`docs/plans/layout-controls-polish/map.md` is not
 a ticket-02 file) — left for the orchestrator.

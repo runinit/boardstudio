@@ -2,7 +2,7 @@
 
 Status: resolved
 Type: task
-Label: wayfinder:task
+Label: planning:task
 Mode: AFK
 Assignee: Chris D
 Blocked by: none
@@ -35,7 +35,7 @@ or a claim that every owner already has protection.
 
 Resolve when the census and named remaining unknowns are sufficient to compare
 interfaces. If materially blocked, record the exact evidence gap and leave this ticket
-unresolved; a blocker handoff is not completed evidence. This is local fact collection:
+unresolved; a blocker transfer is not completed evidence. This is local fact collection:
 no product changes, no global registry design and no acceptance pass.
 Claim before collection. Keep the answer in this ticket, link the asset, and return
 new concrete questions to the map rather than silently widening the task.

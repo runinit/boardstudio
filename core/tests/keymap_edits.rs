@@ -64,9 +64,9 @@ fn bindings_create_defaults_preserve_geometry_and_support_history() {
 }
 
 #[test]
-fn field_edits_preserve_other_keys_boards_and_handoff_protection() {
+fn field_edits_preserve_other_keys_boards_and_transfer_protection() {
     let mut doc = fixture();
-    doc.hardware = Some(serde_json::from_value(json!({"boards":[{"boardId":"board","keyBindings":{"existing":"&kp B"},"locks":{"row":"P1"},"protectedHandoff":{"fingerprint":"pins","revision":5,"assignments":{"row":"P1"}}},{"boardId":"other","keyBindings":{"other-key":"&kp Z"}}]})).unwrap());
+    doc.hardware = Some(serde_json::from_value(json!({"boards":[{"boardId":"board","keyBindings":{"existing":"&kp B"},"locks":{"row":"P1"},"protectedTransfer":{"fingerprint":"pins","revision":5,"assignments":{"row":"P1"}}},{"boardId":"other","keyBindings":{"other-key":"&kp Z"}}]})).unwrap());
     let before = doc.hardware.clone().unwrap();
     let mut engine = open(doc);
     let next = document(edit(
@@ -76,8 +76,8 @@ fn field_edits_preserve_other_keys_boards_and_handoff_protection() {
     ));
     let hardware = next.hardware.unwrap();
     assert_eq!(
-        hardware.boards[0].protected_handoff,
-        before.boards[0].protected_handoff
+        hardware.boards[0].protected_transfer,
+        before.boards[0].protected_transfer
     );
     assert_eq!(hardware.boards[0].locks, before.boards[0].locks);
     assert_eq!(hardware.boards[0].key_bindings["existing"], "&kp B");

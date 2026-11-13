@@ -54,7 +54,7 @@ from the watched development loop. Development uses an online server; use the
 production preview to test offline behavior.
 
 The normal Dioxus service worker supports offline use and application updates.
-React, its deployment handoff and rollback tooling are retired. This integration lane reads
+React, its deployment transfer and rollback tooling are retired. This integration lane reads
 document format 7 only; older projects are retained but cannot be converted by this build.
 Current projects save locally and round-trip through `.boardstudio` exports. Existing user
 files are never erased by build or cleanup commands. Do not promote this lane to user-data
@@ -154,7 +154,7 @@ is not reported as passing. The native section reuses the name guard's matched/m
 retention semantics and identifies the guard list's recording revision and local changes.
 Before/after group deltas stay `unknown` unless a base run is supplied with `--base-receipt PATH`,
 which is then labelled reused with its original run and source identity. Provide the summary (or
-the receipt) at review handoff.
+the receipt) at review transfer.
 
 ## Source layout
 

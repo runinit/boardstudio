@@ -25,7 +25,7 @@ this guide does not establish that every current entry already complies.
    and shared Rust contracts. Persist edits through the normal validation and Undo
    path. Carry geometry changes through CAD, cache identity, preview and affected
    exports. Use [the architecture owners](../architecture.md) and the project
-   Rust/CAD integration skill rather than adding a parallel geometry authority.
+   Rust/CAD integration guide rather than adding a parallel geometry authority.
 4. **Provide PCB artwork.** Render authentic footprint pads, drills, silkscreen,
    fabrication graphics and reference text with the source layer, width and local
    geometry preserved. Compose placement, rotation and face transforms once;

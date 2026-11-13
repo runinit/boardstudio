@@ -1,6 +1,6 @@
 # 010: PCB adapter with placement and Routing & nets parity
 
-Status: ready-for-human
+Status: awaiting-decision
 Type: build
 Blocked by: [002](002-toolbar-accordion-label-fitting.md), [005](005-retain-objects-capabilities.md)
 Parent: [map.md](../map.md)
@@ -41,7 +41,7 @@ Off-screen blockers must identify PCB and their existing editor/remedy.
 - Hidden registered owner — real unresolved wiring/module explicit-submit draft before hide →
   switch workspace and request Update Now → existing PCB/editor remedy defers reload; return
   restores it and existing submit/Cancel resolves only its own blocker · mounted · planned
-- Wiring guards — existing pending/handoff-protected/conflicting-net fixture → invoke wiring
+- Wiring guards — existing pending/transfer-protected/conflicting-net fixture → invoke wiring
   change, replacement/remap through relocated content → existing explicit review/disabled
   reason and accepted result/Undo preserved; stale board response rejected · mounted · planned
 - Placement return — new chooser entry → Browse all parts, return to PCB and place → same

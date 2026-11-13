@@ -21,7 +21,7 @@ mechanism only. Proposed destinations await 001; no feature removals are implied
 | Save failure Retry/Download pending, recovery Reload currently carried in Layout toolbar input | Move to existing shell save/status alert area outside the 42px strip; never hide a blocking failure or manufacture Saved | 006 |
 | Ctrl/Cmd+K and canvas-first Ctrl/Cmd+Z/Y (`workbench_shortcuts.rs`) | Retain; new toolbar/panel handlers do not steal editing/gesture keys | 009, 007 |
 | Setup guide Project/Layout/Wiring/Case stages, dedicated viewer-side process surface | Retain dedicated process surface and existing control/preview owners; close compact panels on guide entry, do not create a second setup wizard | 005 |
-| Theme/Appearance and semantic geometry/shell roles (`web/tailwind.css`, base/header/shell/toolbar styles) | Retain both Themes × light/dark; measure new rendered pairs, do not copy prototype token claims | 007 |
+| Theme/Appearance and semantic geometry/shell roles (`web/tailwind.css`, base/header/shell/toolbar styles) | Retain both Themes × light/dark; measure new rendered pairs, do not copy mockup token claims | 007 |
 
 ## Layout tools and canvas
 

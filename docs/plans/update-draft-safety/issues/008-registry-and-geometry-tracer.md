@@ -144,7 +144,7 @@ versus `None` assertion after the edit stopped pending, before helper drain.
    non-interception, not trusted pointer or native key activation. Trusted
    pointer + Tab/Enter/Space at toast/header remain open in 010.
 8. **Ticket metadata:** Type/Parent/Blocked by now precede Progress within
-   the first 12 lines. Status remains ready-for-agent, awaiting the
+   the first 12 lines. Status remains ready, awaiting the
    coordinator's independent failure-path rerun and fresh combined recheck.
 
 ## What to build

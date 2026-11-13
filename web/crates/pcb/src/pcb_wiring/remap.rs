@@ -1,4 +1,4 @@
-//! Deliberate release of a board's protected electrical handoff before remapping.
+//! Deliberate release of a board's protected electrical transfer before remapping.
 use super::{
     PcbWiringSource,
     mode::{current_snapshot, mode_identity},
@@ -33,7 +33,7 @@ pub struct ProtectedRemapFeedbackView {
 #[derive(Clone, PartialEq)]
 pub struct ProtectedRemapActions {
     pub identity: Option<ProtectedRemapIdentity>,
-    pub handoff_revision: Option<u64>,
+    pub transfer_revision: Option<u64>,
     pub editable: bool,
     pub feedback: Option<ProtectedRemapFeedbackView>,
     pub on_review: EventHandler<ProtectedRemapIdentity>,
@@ -184,13 +184,13 @@ pub fn use_protected_remap_review(
     });
 
     let base_identity = source.as_ref().map(mode_identity);
-    let handoff = source.as_ref().and_then(protected_handoff);
+    let transfer = source.as_ref().and_then(protected_transfer);
     let identity = base_identity
         .clone()
-        .zip(handoff.as_ref())
-        .map(|(wiring, handoff)| ProtectedRemapIdentity {
+        .zip(transfer.as_ref())
+        .map(|(wiring, transfer)| ProtectedRemapIdentity {
             wiring,
-            expected_fingerprint: handoff.fingerprint.clone(),
+            expected_fingerprint: transfer.fingerprint.clone(),
         });
     let editable = identity.as_ref().is_some_and(|identity| {
         workspace() == "PCB"
@@ -216,16 +216,16 @@ pub fn use_protected_remap_review(
     });
     ProtectedRemapActions {
         identity,
-        handoff_revision: handoff.map(|handoff| handoff.revision),
+        transfer_revision: transfer.map(|transfer| transfer.revision),
         editable,
         feedback,
         on_review,
     }
 }
 
-fn protected_handoff(
+fn protected_transfer(
     source: &PcbWiringSource,
-) -> Option<boardstudio_core::model::ElectricalHandoffBaseline> {
+) -> Option<boardstudio_core::model::ElectricalTransferBaseline> {
     source
         .document
         .hardware
@@ -233,6 +233,6 @@ fn protected_handoff(
         .boards
         .iter()
         .find(|configuration| configuration.board_id == source.identity.scope.board_id)?
-        .protected_handoff
+        .protected_transfer
         .clone()
 }

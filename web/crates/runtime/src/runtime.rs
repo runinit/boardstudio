@@ -2578,8 +2578,8 @@ impl Runtime {
                 let is_keycaps_export = kind == Some(ExportKind::KeycapsStl);
                 let is_firmware_export = kind == Some(ExportKind::Firmware);
                 let is_footprint_export = kind == Some(ExportKind::Footprints);
-                let is_pcb_handoff_export =
-                    matches!(kind.as_ref(), Some(ExportKind::PcbHandoff { .. }));
+                let is_pcb_transfer_export =
+                    matches!(kind.as_ref(), Some(ExportKind::PcbTransfer { .. }));
                 let is_mechanical_export =
                     matches!(kind.as_ref(), Some(ExportKind::Mechanical { .. }));
                 let is_board_outline_export =
@@ -2591,10 +2591,10 @@ impl Runtime {
                     self.keycaps_stl_bytes(operation_id, &snapshot, &scope)
                         .await
                         .map(|bytes| (bytes, snapshot.token))
-                } else if is_pcb_handoff_export {
+                } else if is_pcb_transfer_export {
                     let draft =
-                        matches!(kind.as_ref(), Some(ExportKind::PcbHandoff { draft: true }));
-                    self.pcb_handoff_bytes(operation_id, &snapshot, &scope, draft)
+                        matches!(kind.as_ref(), Some(ExportKind::PcbTransfer { draft: true }));
+                    self.pcb_transfer_bytes(operation_id, &snapshot, &scope, draft)
                         .await
                 } else if is_mechanical_export {
                     self.mechanical_package_bytes(operation_id, &snapshot, &scope)
@@ -2665,14 +2665,14 @@ impl Runtime {
                                 authored_case_filename(&snapshot.document, &scope),
                                 Some("model/step".to_owned()),
                             )
-                        } else if is_pcb_handoff_export {
+                        } else if is_pcb_transfer_export {
                             let draft = matches!(
                                 kind.as_ref(),
-                                Some(ExportKind::PcbHandoff { draft: true })
+                                Some(ExportKind::PcbTransfer { draft: true })
                             );
                             (
                                 format!(
-                                    "{}-{}pcb-handoff.zip",
+                                    "{}-{}pcb-transfer.zip",
                                     snapshot.document.name,
                                     if draft { "draft-" } else { "" }
                                 ),
@@ -5599,7 +5599,7 @@ impl Runtime {
         let operation_id = self.operation();
         self.begin_export_lease(
             operation_id,
-            ExportKind::PcbHandoff { draft },
+            ExportKind::PcbTransfer { draft },
             &snapshot,
             &scope,
         );
@@ -5609,7 +5609,7 @@ impl Runtime {
         });
     }
 
-    async fn pcb_handoff_bytes(
+    async fn pcb_transfer_bytes(
         self: &Rc<Self>,
         operation_id: OperationId,
         initial_snapshot: &AcceptedSnapshot,
@@ -5622,7 +5622,7 @@ impl Runtime {
             .get(operation_id)
             .cloned()
             .ok_or_else(|| "KiCad export owner was cancelled or superseded.".to_owned())?;
-        if !matches!(capture.kind(), ExportKind::PcbHandoff { draft: captured_draft } if *captured_draft == draft)
+        if !matches!(capture.kind(), ExportKind::PcbTransfer { draft: captured_draft } if *captured_draft == draft)
             || capture.scope() != scope
             || capture.token() != initial_snapshot.token
             || capture.snapshot().document.revision != initial_snapshot.document.revision
@@ -5630,10 +5630,10 @@ impl Runtime {
             return Err("KiCad export no longer matches its captured board.".into());
         }
         let core = self.core.borrow().clone();
-        self.require_pcb_handoff_current(operation_id, &capture, &core)?;
+        self.require_pcb_transfer_current(operation_id, &capture, &core)?;
         let mut snapshot = initial_snapshot.clone();
         let mut plan = self
-            .resolve_pcb_handoff_plan(operation_id, &snapshot, scope, None, &core, &capture)
+            .resolve_pcb_transfer_plan(operation_id, &snapshot, scope, None, &core, &capture)
             .await?;
         let errors = plan
             .diagnostics
@@ -5646,7 +5646,7 @@ impl Runtime {
         }
         if !pcb_wiring_is_applied(&snapshot.document, &plan) {
             capture = self
-                .commit_pcb_handoff(
+                .commit_pcb_transfer(
                     operation_id,
                     &capture,
                     boardstudio_application::ExportCommitRequest::ApplyElectrical {
@@ -5660,7 +5660,7 @@ impl Runtime {
                 .accepted
                 .ok_or_else(|| "Accepted board snapshot disappeared after wiring.".to_owned())?;
             plan = self
-                .resolve_pcb_handoff_plan(operation_id, &snapshot, scope, None, &core, &capture)
+                .resolve_pcb_transfer_plan(operation_id, &snapshot, scope, None, &core, &capture)
                 .await?;
             let errors = plan
                 .diagnostics
@@ -5672,7 +5672,7 @@ impl Runtime {
                 return Err(errors.join("\n"));
             }
         }
-        self.require_pcb_handoff_current(operation_id, &capture, &core)?;
+        self.require_pcb_transfer_current(operation_id, &capture, &core)?;
         let mut populations = Vec::new();
         for instance in snapshot
             .document
@@ -5683,7 +5683,7 @@ impl Runtime {
             .filter(|instance| instance.board_id == scope.board_id)
         {
             let population = self
-                .resolve_pcb_handoff_plan(
+                .resolve_pcb_transfer_plan(
                     operation_id,
                     &snapshot,
                     scope,
@@ -5705,8 +5705,8 @@ impl Runtime {
             }
             populations.push((instance.name.clone(), population));
         }
-        self.require_pcb_handoff_current(operation_id, &capture, &core)?;
-        let (archive, protected_capture) = crate::pcb_handoff::package_then_protect(
+        self.require_pcb_transfer_current(operation_id, &capture, &core)?;
+        let (archive, protected_capture) = crate::pcb_transfer::package_then_protect(
             {
                 let runtime = self.clone();
                 let package_capture = capture.clone();
@@ -5725,8 +5725,8 @@ impl Runtime {
                                 .into())
                         }
                     };
-                    crate::pcb_handoff::build_handoff(
-                        crate::pcb_handoff::HandoffSource {
+                    crate::pcb_transfer::build_transfer(
+                        crate::pcb_transfer::TransferSource {
                             operation_id,
                             snapshot: &snapshot,
                             scope,
@@ -5734,7 +5734,7 @@ impl Runtime {
                             populations,
                             draft,
                         },
-                        crate::pcb_handoff::HandoffPorts {
+                        crate::pcb_transfer::TransferPorts {
                             core: package_core.as_ref(),
                             store: &runtime.store,
                             executor_epoch: package_capture.executor_epoch().0,
@@ -5752,10 +5752,10 @@ impl Runtime {
                 }
             },
             || {
-                self.commit_pcb_handoff(
+                self.commit_pcb_transfer(
                     operation_id,
                     &capture,
-                    boardstudio_application::ExportCommitRequest::ProtectElectricalHandoff {
+                    boardstudio_application::ExportCommitRequest::ProtectElectricalTransfer {
                         plan,
                     },
                 )
@@ -5764,7 +5764,7 @@ impl Runtime {
                 if self.export_lease_is_current(operation_id, protected_capture, &core) {
                     Ok(())
                 } else {
-                    Err("KiCad handoff was superseded before delivery.".into())
+                    Err("KiCad transfer was superseded before delivery.".into())
                 }
             },
         )
@@ -6300,7 +6300,7 @@ impl Runtime {
         }
     }
 
-    async fn resolve_pcb_handoff_plan(
+    async fn resolve_pcb_transfer_plan(
         &self,
         operation_id: OperationId,
         snapshot: &AcceptedSnapshot,
@@ -6333,7 +6333,7 @@ impl Runtime {
                 configuration.and_then(|configuration| configuration.controller_part_id.clone())
             });
         let request_id = format!(
-            "pcb-handoff-{}-wiring-{}",
+            "pcb-transfer-{}-wiring-{}",
             operation_id.0,
             instance_id.unwrap_or("board")
         );
@@ -6380,7 +6380,7 @@ impl Runtime {
         Ok(plan)
     }
 
-    async fn commit_pcb_handoff(
+    async fn commit_pcb_transfer(
         self: &Rc<Self>,
         export_operation_id: OperationId,
         capture: &ExportLease,
@@ -6432,7 +6432,7 @@ impl Runtime {
         Err("Export wiring save did not complete.".into())
     }
 
-    fn require_pcb_handoff_current(
+    fn require_pcb_transfer_current(
         &self,
         operation_id: OperationId,
         capture: &ExportLease,

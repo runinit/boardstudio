@@ -1,6 +1,6 @@
 # Map: Edit settlement
 
-Label: wayfinder:map
+Label: planning:map
 Spec: spec.md · Source: [architecture review](../investigations/architecture-review-2026-10-06.html)
 (candidates 1, 3 and 2, in that order)
 
@@ -15,8 +15,8 @@ which remaining whole-document replacements become typed Core edits.
 
 - Domain: keyboard design workbench; use [GLOSSARY.md](../../GLOSSARY.md) terms
   (accepted document, draft value, pending edit, landed edit).
-- Skills for each session: `tdd` for build tickets, `codebase-design` for seam
-  questions, `grilling` + `domain-modeling` for decision tickets, `code-review` before
+- Guides for each session: `test-first development` for build tickets, `module design` for seam
+  questions, `questioning` + `domain modelling` for decision tickets, `review` before
   resolving a build ticket.
 - Tracker conventions: [docs/agents/issue-tracker.md](../agents/issue-tracker.md).
 - Build tickets are execution slices for implementation agents; decision tickets

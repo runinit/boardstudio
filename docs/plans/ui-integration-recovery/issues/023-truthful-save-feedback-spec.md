@@ -117,9 +117,9 @@ of the implementation's classification logic.
 
 The reproduction and source trace are recorded in [021](021-repeated-save-toasts.md).
 It used the existing packaged artifact retained by 009; no new build was made
-during triage, and it was not the user's original browser project. The broader
+during status, and it was not the user's original browser project. The broader
 pattern across all navigation actions is a regression requirement, not a claim
-that every such action was reproduced during triage.
+that every such action was reproduced during status.
 
 The accepted [save decision](../../../adr/0013-save-before-publication-and-explicit-recovery.md)
 and [native/mounted boundary](../../../adr/0021-test-real-workflows-natively-and-browser-behavior-mounted.md)
@@ -138,8 +138,8 @@ execution evidence.
 - Reused receipts, not new executions in this docs pass: 021's Runtime/mounted
   RED/GREEN, R1 and cadence RED/GREEN, packaged GREEN (20 zooms, zero save Toasts,
   stable header and durable rename), and 17-check drag smoke. Packaged RED is
-  **REUSED triage reproduction on retained 009 package**, **NOT freshly
-  re-established RED** (`021-triage.log`). The initial packaged harness failure
+  **REUSED status reproduction on retained 009 package**, **NOT freshly
+  re-established RED** (`021-status.log`). The initial packaged harness failure
   and initial full-gate browser failure remain in 021's record. The full-gate
   rerun `021-coordinator-full-gate2.log` passed all steps (581.0s; browser 223
   executed, 0 failed); the original gate failure's cause remains unproven.

@@ -3,12 +3,12 @@
 ## Destination
 
 Concentrate the ordinary Layout 2D part-move pointer transaction at the Layout
-canvas handoff without taking ownership of selection, pan navigation, or Session
+canvas transfer without taking ownership of selection, pan navigation, or Session
 commit semantics away from their existing authorities.
 
 ## Ticket
 
-- [001: Own the Layout part-move pointer transaction](issues/001-layout-part-move-pointer-transaction.md) — `ready-for-agent`, the single implementation ticket. Its real-page drag-to-durable-save-and-Undo test is the primary acceptance seam.
+- [001: Own the Layout part-move pointer transaction](issues/001-layout-part-move-pointer-transaction.md) — `ready`, the single implementation ticket. Its real-page drag-to-durable-save-and-Undo test is the primary acceptance seam.
 
 ## Dependencies and coordination
 

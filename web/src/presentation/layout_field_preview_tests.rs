@@ -993,7 +993,7 @@ async fn new_matrix_preview_case(
 // real Editor's action owner (especially Part's separate Component Inspector).
 #[wasm_bindgen_test]
 async fn canvas_selection_replaces_each_scope_guidance_with_usable_inline_actions() {
-    let root_id = "scope-guidance-canvas-handoff";
+    let root_id = "scope-guidance-canvas-transfer";
     let storage = web_sys::window().unwrap().local_storage().unwrap().unwrap();
     let panel_preferences = ["objects", "inspector"].map(|side| {
         let key = format!("boardstudio:v2:panel:{side}");

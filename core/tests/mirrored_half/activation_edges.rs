@@ -267,7 +267,7 @@ fn public_exception_lifecycle_and_unlink_materialize_nonempty_closure_once() {
         expected_closures
     );
 
-    // Core has no Save request: this is its public persisted-document handoff through serde/Open.
+    // Core has no Save request: this is its public persisted-document transfer through serde/Open.
     let saved: Value =
         serde_json::from_str(&serde_json::to_string(&redone["document"]).unwrap()).unwrap();
     let (_reopened_engine, reopened_document) = open(&saved);

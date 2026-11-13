@@ -2,7 +2,7 @@
 
 Status: resolved
 Type: task
-Label: wayfinder:task
+Label: planning:task
 Mode: AFK
 Assignee: Chris D
 Blocked by: none
@@ -35,7 +35,7 @@ it does not implement a fix or run the full acceptance matrix.
 
 Return a reproducible observation, identities/commands and linked logs, or an exact
 blocker with the next materially different experiment. Leave the ticket unresolved
-when blocked; a blocker handoff is not completed evidence. Use `agent-browser`; keep the
+when blocked; a blocker transfer is not completed evidence. Use `agent-browser`; keep the
 live preview, projects, workers and caches untouched. Builds stay serialized per target.
 Narrow test-only instrumentation is allowed only if needed for this question; document
 it and do not change production behavior or widen a public interface without approval.

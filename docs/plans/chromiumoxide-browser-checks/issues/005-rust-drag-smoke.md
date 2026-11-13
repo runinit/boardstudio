@@ -44,11 +44,11 @@ available to consumers not yet migrated.
 
 ## Verification and scope
 
-Use TDD at the existing public launcher/output seams: demonstrate the expected regression
+Use test-first at the existing public launcher/output seams: demonstrate the expected regression
 before the fix, then run affected tests and typechecking during development. At closure run
 the full supported check and combined Spec + Standards review; record terminal verdicts,
 source/build identity and any blocked gates honestly. No weakened assertions, masked page
-errors, baseline deletions or retry-until-green. Preserve the archived prototypes and unrelated
+errors, baseline deletions or retry-until-green. Preserve the archived mockups and unrelated
 work. Builds follow repository concurrency/lock rules; evidence uses supported receipts and
 logs, not custom hash manifests. All checks must be runnable by humans and CI without agent tools.
 

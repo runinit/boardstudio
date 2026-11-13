@@ -49,7 +49,7 @@ history, Boolean selection/planning, non-destructive, and cleanup experiments.
 The [comparison report](gasket-comparison-results.md) records five browser
 sessions across four unchanged bottom fixtures, native and independent STEP
 validation, stage timings, failed attempts, and reproducible isolated builds.
-Unused mesh output had no useful speed effect. The height-band Cadrum prototype
+Unused mesh output had no useful speed effect. The height-band Cadrum mockup
 was about 40% slower. Manifold preview was about 4.5× faster for this bottom;
 Monstertruck failed or timed out before completing its first circular hole.
 
@@ -260,7 +260,7 @@ Otherwise defer this sub-experiment.
 
 ### E7 — Construct the same stepped bottom from profiles
 
-Prototype one current gasket-bottom fixture using its existing profiles and
+Mockup one current gasket-bottom fixture using its existing profiles and
 feature depths. Represent constant-section height bands, create the exposed
 faces, and construct/sew the equivalent Cadrum/OCCT solid, or compare equivalent
 profile extrusions if face assembly proves unsuitable. Do not replace the design

@@ -27,7 +27,7 @@ This investigation deepened **five seams**, rather than repeating the previous f
    override precedence does not freeze generator behavior or omitted defaults. There is already
    a documented pad-order migration invariant, but not a complete release compatibility
    promise for changed geometry/defaults ([D1](#d1-project-compatibility-when-generators-change)).
-3. **Routed-board import → visual source → physical PCB operand → electrical handoff.** The
+3. **Routed-board import → visual source → physical PCB operand → electrical transfer.** The
    read-only routed source can supply the unpopulated PCB in mechanical STEP/collision while
    electrical export still regenerates the accepted Board. A single “preview-only” label is
    insufficient to explain the source matrix ([D5](#d5-manufacturing-source-authority-is-output-specific)).
@@ -52,7 +52,7 @@ for acceptance from this research alone.** These are dispositions, not a five-AD
 Read [AGENTS](../../AGENTS.md), [domain instructions](../agents/domain.md),
 [GLOSSARY](../../GLOSSARY.md), the [ADR index](../adr/README.md), **all records 0001–0031**,
 [PRODUCT](../../PRODUCT.md), [DESIGN](../../DESIGN.md), [architecture](../architecture.md)
-and the [documentation index](../README.md). The installed domain-modeling skill and
+and the [documentation index](../README.md). The installed domain modelling guide and
 `ADR-FORMAT.md` require meaningful reversal cost, surprising behavior and a real trade-off;
 source presence alone satisfies none of the historical-intent requirements.
 
@@ -96,15 +96,15 @@ additional source inspection. Existing test results are historical reports, neve
 | Project creation, Open, switching, duplicate, delete | Prior G1/G2 follows Session publication; Editor research follows mount/hiding; current D1 samples variant creation/restore only. | [0013](../adr/0013-save-before-publication-and-explicit-recovery.md), [0014](../adr/0014-document-authority-and-captured-lifetimes.md); Runtime lifecycle follow-up | **Partly traced.** Whole Library → Runtime → store deletion/restore/recovery UI and interrupted project transitions remain untraced as one workflow; risk is stranded work or wrong active project, not a missing new authority ADR. |
 | Multi-tab saving, unreadable records, asset reclamation | [G8](2026-10-19-adr-gap-inventory.md#g8-multi-tab-saves-and-conservative-asset-reclamation) cites atomic content-token writes and named storage lifetime tests. No repeat audit here. | [0019](../adr/0019-reject-stale-saves-and-reclaim-assets-conservatively.md), 0013 | **Well traced for selected contract.** Real mixed-release tabs, storage eviction/quota and every recovery UI path remain partly/untraced; conservative cleanup is already policy. |
 | Portable project/import boundary | [G9](2026-10-19-adr-gap-inventory.md#g9-portable-project-archives-are-a-core-trust-boundary) follows archive bounds/hash rejection; D4 follows optional bundled embedding and local-owner precedence. | [0004](../adr/0004-document-format-version-and-id-rename.md), [0020](../adr/0020-validate-portable-project-packages-in-core.md) | **Well traced for selected integrity contract; partly traced for portability.** Byte integrity does not establish semantic generator reproducibility or portable attribution. |
-| Edit ordering, drafts, Undo and identity | Prior G1–G4, settlement/module maps and Editor research; D2 adds structural deletion/remapping and queued reuse guard. | [0005](../adr/0005-resolve-queued-edits-at-execution.md), [0006](../adr/0006-replace-document-for-import-and-recovery.md), 0013/0014, [0031](../adr/0031-preserve-pcb-handoff-protection-across-undo.md) | **Well traced for selected settlement contract; partly traced for identity lifecycle.** Not every deletion/resize path uses the same cleanup. Broad Undo audit is still listed in [backlog](../backlog.md). |
+| Edit ordering, drafts, Undo and identity | Prior G1–G4, settlement/module maps and Editor research; D2 adds structural deletion/remapping and queued reuse guard. | [0005](../adr/0005-resolve-queued-edits-at-execution.md), [0006](../adr/0006-replace-document-for-import-and-recovery.md), 0013/0014, [0031](../adr/0031-preserve-pcb-transfer-protection-across-undo.md) | **Well traced for selected settlement contract; partly traced for identity lifecycle.** Not every deletion/resize path uses the same cleanup. Broad Undo audit is still listed in [backlog](../backlog.md). |
 | Matrices, constraints, outline ownership | Matrix/typed-Core maps and [general inventory's existing coverage](2026-10-19-adr-gap-inventory.md#existing-adr-coverage-map); D2 inspects compaction/removal dependencies. | 0001/0002/0007/0008/0010/0011/0012 | **Well traced for selected contracts.** Not a fresh complete solver/outline audit; generic ID reuse and all output/lifecycle combinations remain partly traced. Do not reopen linked/fixed semantics. |
 | Catalogue/custom definitions, assembly presets and upgrades | Earlier C3 only merge/legacy behavior; D1 follows snapshots, explicit preset application, generator dispatch/defaults and export. | 0003/0004/0009; [Parts catalog](../../DESIGN.md#parts-catalog), [assembly reference](../features/assembly-preview.md) | **Partly traced.** Data snapshots are not executable snapshots. Whole custom/import/module refresh lineage across releases remains untraced; changed pads/defaults can affect saved designs. |
 | Key identity, position, keymap ordering | Earlier C2 inspected binding representation/edit tests; D2 follows removal routes, serialization/Open and firmware request/source ordering. | [PRODUCT](../../PRODUCT.md#capabilities-and-constraints), 0010/0024/0026; [ZMK reference](../design/zmk-keymap-reference.md#binding-and-layer-contract) | **Partly traced, materially deeper now.** Shrink/regrow, individual delete/recreate, push-suffix cleanup and shared-board instance meanings need a public workflow cross-product, not another map-by-ID observation. |
-| Electrical planning and protected PCB handoff | [Topology enforcement trace](2026-10-19-hardware-topology-adr-gaps.md#enforcement-and-preservation-what-is-actually-checked), prior C1; D5 reads full package builder, not all planner branches. | 0024–0028, 0031 | **Well traced for selected planning/protection contract; partly traced for new topology policy.** Accepted deletion/conversion/per-half rules are not proven delivered. |
+| Electrical planning and protected PCB transfer | [Topology enforcement trace](2026-10-19-hardware-topology-adr-gaps.md#enforcement-and-preservation-what-is-actually-checked), prior C1; D5 reads full package builder, not all planner branches. | 0024–0028, 0031 | **Well traced for selected planning/protection contract; partly traced for new topology policy.** Accepted deletion/conversion/per-half rules are not proven delivered. |
 | Mounted and embedded hardware | Prior G12/topology; KiCad projection research traces module import, gating and source ownership. | [0023](../adr/0023-distinguish-mounted-daughterboards-from-embedded-circuits.md), 0010; [onboarding](../hardware/component-onboarding.md) | **Well traced for selected ownership contract; partly traced for qualification.** Whole catalogue/harness/driver and physical bench evidence is not established. |
-| Firmware layers/macros/behaviors/peripherals | Earlier report samples keymap edits and firmware package; [dated ZMK investigation](../design/zmk-keymap-reference.md#validation-boundaries) explicitly researched upstream behavior; D2 follows key lowering. | [0030](../adr/0030-export-firmware-as-an-editable-repository-template.md), 0024/0026/0027; [feature limits](../features/keycaps-and-keymap.md#historical-implementation-verification) | **Partly traced**, not untouched. Complete target build/device behavior, every macro/layer/sensor combination and new optional-peripheral handoff policy remain untraced here. No live-device feature is inferred. |
+| Firmware layers/macros/behaviors/peripherals | Earlier report samples keymap edits and firmware package; [dated ZMK investigation](../design/zmk-keymap-reference.md#validation-boundaries) explicitly researched upstream behavior; D2 follows key lowering. | [0030](../adr/0030-export-firmware-as-an-editable-repository-template.md), 0024/0026/0027; [feature limits](../features/keycaps-and-keymap.md#historical-implementation-verification) | **Partly traced**, not untouched. Complete target build/device behavior, every macro/layer/sensor combination and new optional-peripheral transfer policy remain untraced here. No live-device feature is inferred. |
 | KiCad output, footprint source and board copper | Projection research already inspects parsers; D5 follows accepted Board → prepare/render/finalize → ZIP, plus imported-footprint source patching and native test bodies. | 0003/0009/0015/0016/0023/0031; [assembly reference](../features/assembly-preview.md) | **Partly traced.** Selected source preservation is evidenced; all KiCad dialects, every generated footprint and whole-board electrical correctness are not. |
-| Gerber/drill and mechanical plate handoff | [Mechanical reference](../features/mechanical-assemblies.md#export-and-validation) records separate FR4 plate/KiCad path; current D5 reads mechanical package orchestration. | 0015/0016; same reference | **Partly traced.** Actual plot/drill correctness for all process/profile combinations and downstream routing/DRC remain outside this investigation. Direct Gerber generation is not an inferred feature. |
+| Gerber/drill and mechanical plate transfer | [Mechanical reference](../features/mechanical-assemblies.md#export-and-validation) records separate FR4 plate/KiCad path; current D5 reads mechanical package orchestration. | 0015/0016; same reference | **Partly traced.** Actual plot/drill correctness for all process/profile combinations and downstream routing/DRC remain outside this investigation. Direct Gerber generation is not an inferred feature. |
 | Exact cases/PCBs, vendor previews, collision | Extensive CAD research/map; general G5–G7; D5 follows the imported physical PCB source seam. | 0015/0017/0018; [current successor graph](../plans/cad-backend-replacement/spec.md#successor-task-graph) | **Well traced for selected construction/ownership contracts; partly traced for provider completeness.** No universal repair certificate, whole-source clearance or physical-fit assurance. Published 015–018 are not delivery evidence. |
 | Keycap geometry/printing and fit | CAD map 009, feature reference and Editor fit-navigation research; no new provider audit here. | 0015; [keycap reference](../features/keycaps-and-keymap.md) | **Partly traced.** Nominal profiles, unsupported sockets/printing tolerances and actual fit require separate evidence. Corrected mesh-only wording is not still an open ADR gap. |
 | Renderer, picking, camera, context loss | Prior [C4](2026-10-20-adr-coverage-and-candidates.md#c4--renderer-authority-is-recoverable-automatic-context-restoration-is-not) follows GPU ownership, Host fail-stop and current-pick guards; input audit covers WRL; Editor research covers shared camera coordination. | 0014/0021; cleanup 03 | **Partly traced.** Real driver/context restoration, all Case/Parts pick paths and remount/camera experience are not traced end to end. Automatic recovery remains a research lead, not an accepted decision. |
@@ -175,7 +175,7 @@ or pad order. Must an old project's next export preserve its prior geometry unti
 upgrade, or use the corrected geometry with an explicit compatibility notice/revision review?
 This is a real choice; “what does the current code do?” is already answered above. Evidence
 still needed: two source-bound releases exporting the same saved generated definition,
-including omitted defaults, model datum, terminal mapping and protected handoff consequences.
+including omitted defaults, model datum, terminal mapping and protected transfer consequences.
 
 ### D2: Input identity across layout evolution
 
@@ -198,7 +198,7 @@ keymap migration; that disclaimer does not describe every current cleanup path.
 - [`matrix::deletion::remove_axis` → `remap_parts`](../../core/src/matrix/deletion.rs#L119-L262)
   simultaneously renames survivors and remaps typed bindings, sensors, keycaps, net pins,
   constraints, board/layout membership and electrical key bindings/assignments. It intentionally
-  leaves protected handoff baselines immutable. The comment explicitly prevents a removed slot
+  leaves protected transfer baselines immutable. The comment explicitly prevents a removed slot
   donating metadata to its next survivor; this is not “bindings follow the coordinate” universally.
 - `remove_cells` records a durable `MatrixCell.deleted` flag and uses dependency cleanup;
   `SetMatrixCellsEnabled` instead invokes `set_matrix`. [Core dispatch](../../core/src/lib.rs#L1805-L1885)
@@ -306,7 +306,7 @@ same-origin tabs before claiming either guarantee. Do not weaken 0013/0019 safet
 ### D4: Portable provenance and distribution boundaries
 
 **Candidate sentence:** “Source/variant/licence evidence has an explicit propagation boundary
-when library assets enter a project and leave it in a portable or downstream handoff.”
+when library assets enter a project and leave it in a portable or downstream transfer.”
 
 **Delta:** **conditional new ADR only for a genuine distribution/ownership choice**. First
 an onboarding/output documentation and metadata-requirement investigation; amendment of
@@ -330,7 +330,7 @@ and licensing are different contracts; no blanket licence or legal conclusion is
   [Asset](../../core/src/model.rs#L638-L649) can store optional licence/source. The inspected
   `pack_round_trip_keeps_local_bytes_and_optionally_adds_opaque_model_bytes` confirms this
   bounded propagation and preserves a document-owned model over the current bundled copy.
-- [PCB `load_model_files`/`build_handoff`](../../web/crates/runtime/src/pcb_handoff.rs#L65-L275)
+- [PCB `load_model_files`/`build_transfer`](../../web/crates/runtime/src/pcb_transfer.rs#L65-L275)
   verifies model hashes and writes `models/<hash>.<extension>`, board ZIP, wiring report,
   assembly instructions and jumper SVGs. This complete builder does not add a separate
   attribution/licence inventory. Some retained source/model files may themselves contain
@@ -352,7 +352,7 @@ surprise **yes** (self-contained bytes are not self-contained provenance), chose
 policy needed. App notices and embedded/project metadata are documented existing locations;
 no earlier choice making either sufficient for every output was found.
 
-**Targeted scenario/question:** a collaborator receives only the PCB handoff ZIP containing
+**Targeted scenario/question:** a collaborator receives only the PCB transfer ZIP containing
 two vendors' models and a user-modified footprint. Which upstream identity, notices and
 authored-change attribution must remain discoverable without this checkout? First inventory
 actual vendor manifests/notices and output-contained headers for a representative mixed
@@ -362,7 +362,7 @@ to answer facts that the manifests can establish.
 ### D5: Manufacturing source authority is output-specific
 
 **Candidate sentence:** “A retained routed-board reference is read-only electrical data but
-can supply a physical unpopulated PCB operand; generated electrical handoff, case construction
+can supply a physical unpopulated PCB operand; generated electrical transfer, case construction
 and visual projection retain distinct source owners.”
 
 **Delta:** **ordinary architecture/feature-reference source matrix first**, with an optional
@@ -383,7 +383,7 @@ the source's copper. [`mechanical_package_bytes`](../../web/crates/runtime/src/r
 uses that preparation and labels source-backed versus nominal unpopulated PCB with source
 ID/hash/thickness in `assembly.json`; component solids are not claimed included.
 
-Conversely, [`build_handoff`](../../web/crates/runtime/src/pcb_handoff.rs#L83-L160) calls
+Conversely, [`build_transfer`](../../web/crates/runtime/src/pcb_transfer.rs#L83-L160) calls
 `ArtifactRequest::ExportPcb` with the accepted document/Board contours. [Planning](../../core/src/artifact/kicad/planning.rs)
 selects generated/imported/authored **footprint** handling; [finalization](../../core/src/artifact/kicad/output.rs#L537-L877)
 writes accepted Board traces/vias and generated objects. An imported source-backed footprint
@@ -413,8 +413,8 @@ into an intentionally chosen policy just because it is coherent.
 
 **Targeted scenario/question:** the routed reference has the same thickness but a larger
 outline than the editable Board. The assembled STEP/collision PCB operand and a fresh
-electrical handoff use different source authorities today; does the user need an explicit mismatch
-review before the affected case handoff, or is clearly labelled independent-source review
+electrical transfer use different source authorities today; does the user need an explicit mismatch
+review before the affected case transfer, or is clearly labelled independent-source review
 the intended boundary? No universal geometric-congruence gate or automatic electrical
 reconciliation is selected here. Inspect the actual UI disclosure and representative
 combined package before proposing a behavior change. Downstream DRC/plot/fit evidence is
@@ -425,7 +425,7 @@ leaves Gerbers/drills to KiCad and does not promise direct fabrication serializa
 
 - **0031 is settled**, including package creation → current owner → saved protection before
   download, protection surviving Undo and later delivery failure. Do not repeat prior C1's
-  success-boundary interview ([0031](../adr/0031-preserve-pcb-handoff-protection-across-undo.md)).
+  success-boundary interview ([0031](../adr/0031-preserve-pcb-transfer-protection-across-undo.md)).
 - **0024–0028 are intended policy**, not invitations to match older code: shared routing with
   real per-half assembly mapping; exclusive removed-design/accessory deletion; either side
   central; incomplete designs saveable; explicit conversion with prior distinct-half deletion
@@ -435,14 +435,14 @@ leaves Gerbers/drills to KiCad and does not promise direct fabrication serializa
 - **0017/0018 admit useful partial/repaired previews and approximate observations**, with
   honest errors/uncertainty and preserved originals. No universal completeness/certification
   gate is reintroduced. At inspection, the [CAD map](../plans/cad-backend-replacement/map.md#slices--current-status)
-  and ticket headers had 015–018 `ready-for-agent`, dependencies 015→016→{017,018}, while
+  and ticket headers had 015–018 `ready`, dependencies 015→016→{017,018}, while
   parent 007 remained `claimed`. No duplicate successor ticket or claim was created.
 - **0029 remains deprecated/out of product scope.** Retained script compatibility/removal
   needs separate bounded work; no scripting feature, plugin or placement-ownership decision
   is inferred ([scope correction](../adr/0029-constrain-geometry-scripts-and-apply-results-atomically.md#scope-correction-2026-10-20)).
 - **0030 is source-template delivery with external compilation**, including disclosed manual
   work for unsupported optional peripherals when the base keyboard is valid. Do not classify
-  every unsupported peripheral as a reason to block the whole handoff or invent pins/drivers
+  every unsupported peripheral as a reason to block the whole transfer or invent pins/drivers
   ([amendment](../adr/0030-export-firmware-as-an-editable-repository-template.md#amendment-unfinished-optional-peripheral-support-2026-10-20)).
 - **E1–E4 wording was reconciled.** Current keycap reference says mesh/STL, 0004 distinguishes
   format6 chronology, DESIGN separates accepted manufacturing capture from disposable preview

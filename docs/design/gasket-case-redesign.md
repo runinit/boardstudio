@@ -581,7 +581,7 @@ Plate tabs with a floating PCB are the default. An optional **PCB-tab target**
 uses the same internal support/capture construction at the PCB layer, but changes
 the actual electrical board boundary. It must be a board-owned, explicit revision
 change shared by the PCB preview, KiCad/outline exports, clearance checks, and
-electrical handoff protection. Never add tabs only to a case preview's PCB mesh.
+electrical transfer protection. Never add tabs only to a case preview's PCB mesh.
 Preserve the original layout envelope separately to avoid recursive expansion.
 Do not expose this target as working until the board/export path is implemented;
 the first generator replacement should deliver the plate target completely.

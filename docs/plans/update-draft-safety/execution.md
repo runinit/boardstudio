@@ -1,6 +1,6 @@
 # Draft-safe update adoption — implementation execution
 
-Source: [spec](spec.md) and [implementation handoff](issues/006-agree-verification-and-implementation-handoff.md#answer).
+Source: [spec](spec.md) and [implementation transfer](issues/006-agree-verification-and-implementation-transfer.md#answer).
 
 ## Authorization and boundaries
 
@@ -106,11 +106,11 @@ The canonical protocol (proof map, review reports, completion record) is in
   015/019 closure. No invocation-owned smoke outputs remain. Build-phase owners still attest
   diagnostic-source cleanup separately; this smoke created no source input requiring cleanup.
   Optional review suggestions are deferred without changing acceptance criteria. The Spec reviewer
-  did not load the review skills or inspect logs; coordinator skill reads and executed evidence
+  did not load the review guides or inspect logs; coordinator guide reads and executed evidence
   are recorded separately, not attributed to that reviewer. Runtime workspace-creation I/O failure
   can reset the serve log after validation; no general zero-write runtime-error guarantee is claimed.
   Coordinator acceptance: A/B/C preparation complete; source checks and smoke are reused unchanged.
-- **012:** next, not started. The user approved a new-thread handoff for the remaining 012–015
+- **012:** next, not started. The user approved a new-thread transfer for the remaining 012–015
   implementation. 013 still requires its explicit human origin-baseline decision; no policy is waived.
 
 This sequencing checkpoint does not change ticket scope or waive formal dependencies.
@@ -127,7 +127,7 @@ explicit composite acceptance debt. No partial owner coverage is final acceptanc
 - One source/focused-build owner at a time; builds serialized per target.
   Read-only reviews may overlap disjoint work. No duplicate blocked implementations.
 - This record is coordinator-owned. Delegates edit only their explicitly assigned
-  sources and ticket progress; virtual notes supplement the self-contained handoff.
+  sources and ticket progress; virtual notes supplement the self-contained transfer.
 - At each completion: coordinator reads the full diff and evidence, independently
   reruns rejecting guardrails, and starts fresh read-only Spec and Standards
   reviews pinned to the completed change. Required findings are fixed; no premature

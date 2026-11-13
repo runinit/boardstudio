@@ -1441,12 +1441,12 @@ pub struct ElectricalBoardConfiguration {
     pub assignments: BTreeMap<String, String>,
     pub key_bindings: BTreeMap<String, String>,
     pub jumper_states: BTreeMap<String, crate::electrical_profiles::JumperState>,
-    pub protected_handoff: Option<ElectricalHandoffBaseline>,
+    pub protected_transfer: Option<ElectricalTransferBaseline>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ElectricalHandoffBaseline {
+pub struct ElectricalTransferBaseline {
     pub fingerprint: String,
     pub revision: u64,
     pub assignments: BTreeMap<String, String>,
@@ -2542,8 +2542,8 @@ pub enum CoreRequest {
         #[serde(rename = "expectedFingerprint")]
         expected_fingerprint: String,
     },
-    #[serde(rename = "protect-electrical-handoff")]
-    ProtectElectricalHandoff {
+    #[serde(rename = "protect-electrical-transfer")]
+    ProtectElectricalTransfer {
         id: String,
         #[serde(rename = "baseRevision")]
         base_revision: u64,
@@ -2624,7 +2624,7 @@ pub enum CoreReply {
         revision: u64,
         document: ProjectDoc,
     },
-    ElectricalHandoffProtected {
+    ElectricalTransferProtected {
         id: String,
         revision: u64,
         document: ProjectDoc,

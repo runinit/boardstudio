@@ -639,7 +639,7 @@ pub(crate) fn prepare_transaction_with_ledger(
     if let Some(keymap) = &draft.keymap {
         crate::keymap::validate(keymap)?;
     }
-    crate::electrical::preserve_handoff(accepted, &mut draft);
+    crate::electrical::preserve_transfer(accepted, &mut draft);
     crate::matrix::layout::validate(&draft)?;
 
     let positions = operation_positions(&canonical.operation);

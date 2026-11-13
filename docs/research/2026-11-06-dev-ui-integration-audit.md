@@ -193,7 +193,7 @@ restoration only after comparison with its accepted design.
 3. Reconcile docs and acceptance state (A8); verify the final merged candidate
    through the missing integration and populated-workspace review (A5).
 
-Use `510861b11` as the integrated behavioral reference, the approved prototype
-`prototype/split-board-editing` at `ef1c8a008` for interaction intent, and the
+Use `510861b11` as the integrated behavioral reference, the approved mockup
+`mockup/split-board-editing` at `ef1c8a008` for interaction intent, and the
 original feature histories for provenance. Do not wholesale merge those older
 branches: they contain squashed equivalents, old harnesses and obsolete styles.

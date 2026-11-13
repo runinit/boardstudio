@@ -11,7 +11,7 @@ symmetrically about the axis; matrix origins keep their half-frame values and th
 partner still reflects exactly. This is the saved-document contract that tickets
 10–13 build on; it decides storage and evaluation only, not spacing policy.
 
-On 2026-10-25 the user approved the split editing prototype
+On 2026-10-25 the user approved the split editing mockup
 (ticket 07, variant B) whose document model stores parts and keys in half-local coordinates
 while a separate display offset positions each half. This ADR records the Core
 half of that model for matrices; independent parts stay board-absolute until
@@ -56,7 +56,7 @@ ticket 12 moves them into the half frame.
 - **Symmetric rewrite of board coordinates on every gap change.** Keep storing
   board-space origins and translate both on a gap edit. This keeps evaluation
   untouched but every gap change rewrites stored coordinates, against the
-  prototype's rule that spacing never rewrites within-half coordinates.
+  mockup's rule that spacing never rewrites within-half coordinates.
 - **Gap-derived evaluation with board storage and no conversion.** Shift
   evaluated worlds by the difference between the stored and implied gaps.
   Matrix edits then change the implied gap under a fixed stored gap, so an

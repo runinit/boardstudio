@@ -63,7 +63,7 @@ The inspector exposes blockers per output. Public PCB/footprint export checks
 footprint and electrical blockers during preparation **and completion**. Nominal
 preview returns projected geometry through a separate path; its preparation
 cannot be reused to bypass fabrication qualification. Case generation retains
-mechanical blockers. ZMK handoff carries a compact selected-part qualification
+mechanical blockers. ZMK transfer carries a compact selected-part qualification
 snapshot and blocks unresolved firmware facts.
 
 Remaining source facts and digital configuration:

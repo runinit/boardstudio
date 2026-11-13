@@ -28,8 +28,8 @@ fn is_completion_event(method: &str) -> bool {
     matches!(method, "Network.loadingFinished" | "Network.loadingFailed")
 }
 
-fn response_url_matches(request_url: &str, response_url: Option<&str>, handoff: bool) -> bool {
-    response_url.is_some_and(|url| handoff || url == request_url)
+fn response_url_matches(request_url: &str, response_url: Option<&str>, transfer: bool) -> bool {
+    response_url.is_some_and(|url| transfer || url == request_url)
 }
 
 pub async fn start(page: &Page) -> Result<tokio::task::JoinHandle<Result<Vec<Resource>>>> {
@@ -101,11 +101,11 @@ pub async fn start(page: &Page) -> Result<tokio::task::JoinHandle<Result<Vec<Res
                     ),
                 );
             } else if event.method == "Network.responseReceived" {
-                let handoff = !requests.contains_key(&key)
+                let transfer = !requests.contains_key(&key)
                     && parents.get(&event.session).is_some_and(|(parent, target)| {
                         target == id && requests.contains_key(&(parent.clone(), id.to_owned()))
                     });
-                if handoff {
+                if transfer {
                     let (parent, _) = &parents[&event.session];
                     requests.insert(
                         key.clone(),
@@ -118,7 +118,7 @@ pub async fn start(page: &Page) -> Result<tokio::task::JoinHandle<Result<Vec<Res
                         event.session, id, params["response"]["url"]
                     ))
                 })?;
-                if !response_url_matches(&request.1, params["response"]["url"].as_str(), handoff) {
+                if !response_url_matches(&request.1, params["response"]["url"].as_str(), transfer) {
                     return Err(Error(
                         "response URL does not match request provenance".into(),
                     ));
@@ -172,7 +172,7 @@ mod tests {
     }
 
     #[test]
-    fn only_handoff_accepts_a_different_response_url() {
+    fn only_transfer_accepts_a_different_response_url() {
         assert!(response_url_matches("entry", Some("final"), true));
         assert!(!response_url_matches("entry", Some("final"), false));
         assert!(!response_url_matches("entry", None, true));

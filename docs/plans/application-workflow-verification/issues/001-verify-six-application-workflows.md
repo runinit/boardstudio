@@ -1,6 +1,6 @@
 # 001: Verify six application workflows through shared public seams
 
-Status: ready-for-agent
+Status: ready
 Type: spec
 Blocked by: None for agent characterization; operational prerequisites are listed below
 Parent: [Application workflow verification](../map.md)
@@ -10,12 +10,12 @@ Related: [Workflow evidence](../../../research/2026-10-20-application-workflow-e
 
 BoardStudio has substantial unit, native, mounted and provider coverage, but that
 does not establish that a designer's complete project, recovery, update, rendering
-or handoff journey works. Some strong guarantees exist only at lower seams; older
+or transfer journey works. Some strong guarantees exist only at lower seams; older
 browser evidence is not tied to current source. Hardware and package information
 can also look complete while still needing downstream verification.
 
 The designer needs their work preserved, usable failure explanations, pointer-free
-access to a representative handoff, consistent assembly artifacts and portable
+access to a representative transfer, consistent assembly artifacts and portable
 licence information. The maintainer needs evidence that names the actual source,
 package, environment and limits instead of interpreting a test count as whole-app
 assurance.
@@ -36,7 +36,7 @@ The six workflow outcomes are:
 | Project changes and deletion during held/failed saving | Accepted/saved state, project records, pending-copy bytes, active editor identity and shared/Undo assets remain consistent through explicit recovery and reopen. | Agent workflow/mounted tests with real storage for transaction-specific cases; no simulated OS crash counted as process-crash evidence. |
 | Old editor across a new release | Observe A with B waiting, locally available first-use CAD online/offline, a second A tab and subsequent B adoption without losing saved work or accepting stale results. | Two source-bound built artifacts and authorized switching of a disposable origin; real cache/network observations. |
 | Renderer failure and recovery | Explain failure, retain forms/2D, reject stale picks and recover from the current accepted design: one automatic attempt when enabled, explicit Retry when paused or after failed recovery. Restore an available scoped viewpoint after recovery or same-session workspace return, otherwise fit an overview. | Controlled mounted failures plus genuine context loss where supported. Retention is session-only; no project/browser-reopen persistence is required under ADR-0014. |
-| Keyboard-only source handoff | Create/name a project, add a small matrix and supported controller, configure wiring, bind one key and obtain the firmware repository template using trusted keyboard input. | Identified current packaged page, desktop and 390-pixel-wide navigation, visible focus and honest disabled/error states. |
+| Keyboard-only source transfer | Create/name a project, add a small matrix and supported controller, configure wiring, bind one key and obtain the firmware repository template using trusted keyboard input. | Identified current packaged page, desktop and 390-pixel-wide navigation, visible focus and honest disabled/error states. |
 | Supported assembly to downstream artifacts | One accepted MX/diode/nice!nano assembly has consistent pads, jumpers, effective GPIOs, key ordering and nominal PCB/model data across actual outputs. | Agent artifact comparison; compilation, routing/DRC, bench continuity and fit remain separately identified external/human checks. |
 | Portable and downstream package notices | An offline recipient finds known applicable notices/source references in root `license.md`; information survives bounded project import/re-export. | Actual mixed-source package inventory and existing archive corruption/resource controls; not legal assurance. |
 
@@ -65,19 +65,19 @@ The six workflow outcomes are:
 21. As a designer, I want successful recovery in the same project/view to restore my last usable viewpoint when available, otherwise fit an overview, so that renderer recovery preserves context without restoring stale geometry.
 22. As a designer, I want to create and name a project without a pointer, so that the workflow is accessible from the keyboard.
 23. As a designer, I want matrix creation, cancellation and placement reachable through keyboard controls, so that canvas interaction is not a pointer-only dependency.
-24. As a designer, I want a supported controller and wiring configuration reachable without programmatic shortcuts, so that a successful handoff demonstrates a real user journey.
-25. As a designer, I want to assign a representative key and navigate to Export using the keyboard, so that the generated handoff contains my intended input.
+24. As a designer, I want a supported controller and wiring configuration reachable without programmatic shortcuts, so that a successful transfer demonstrates a real user journey.
+25. As a designer, I want to assign a representative key and navigate to Export using the keyboard, so that the generated transfer contains my intended input.
 26. As a designer, I want invalid values and missing-controller reasons associated with usable controls, so that I can understand and correct readiness problems.
 27. As a designer, I want a failed action retry not to duplicate edits, so that keyboard recovery has the same ownership guarantees as pointer interaction.
 28. As a designer, I want focus visible and in a usable current destination when content disappears, so that creating or cancelling a form does not strand navigation.
-29. As a designer, I want the representative navigation and handoff usable at desktop and narrow widths, so that a compact layout does not hide required actions.
-30. As a designer, I want the firmware handoff to be an editable repository template, so that external compilation is not confused with a ready-to-flash download.
+29. As a designer, I want the representative navigation and transfer usable at desktop and narrow widths, so that a compact layout does not hide required actions.
+30. As a designer, I want the firmware transfer to be an editable repository template, so that external compilation is not confused with a ready-to-flash download.
 31. As a hardware designer, I want named controller, switch and diode variants preserved across the representative artifacts, so that the verification refers to one actual assembly.
 32. As an assembler, I want jumper bridge/open instructions to agree with emitted pad nets and the selected face, so that silk labels are not substituted for connectivity evidence.
-33. As a PCB designer, I want routing obligations disclosed when local traces are omitted, so that an unrouted handoff is not described as fabrication-ready.
+33. As a PCB designer, I want routing obligations disclosed when local traces are omitted, so that an unrouted transfer is not described as fabrication-ready.
 34. As a firmware author, I want effective MCU GPIOs and key order to agree with the electrical plan, so that the source template describes the assembled connections.
 35. As a mechanical designer, I want nominal PCB thickness, drills, model datum and placement cross-checked, so that exact representation is not mistaken for measured fit.
-36. As a designer, I want handed-off assignments protected after Undo or cancelled delivery, so that verification respects the accepted external-handoff boundary.
+36. As a designer, I want handed-off assignments protected after Undo or cancelled delivery, so that verification respects the accepted external-transfer boundary.
 37. As a reviewer, I want target builds, physical continuity and fit checks separated from synthetic tests, so that a passing artifact comparison is not called hardware validation.
 38. As an offline collaborator, I want a root `license.md` with the known notices for packaged contents, so that I do not need this checkout to discover those terms.
 39. As a contributor, I want retained vendor bytes and their embedded notices unchanged, so that packaging does not destroy source evidence.
@@ -85,7 +85,7 @@ The six workflow outcomes are:
 41. As a designer, I want unknown authorship, revisions or terms identified honestly, so that generated notices do not invent permission or attribution.
 42. As a designer, I want valid notice information preserved through project import and re-export, so that a round-trip does not silently strip the sidecar.
 43. As a designer, I want unsafe paths, duplicates, oversize entries and bad asset hashes rejected after notice support is added, so that a new metadata file does not weaken package integrity.
-44. As a recipient, I want the inner KiCad ZIP to carry its own root `license.md` and the outer handoff to retain its own clearly scoped notice, so that either distributed package remains understandable independently.
+44. As a recipient, I want the inner KiCad ZIP to carry its own root `license.md` and the outer transfer to retain its own clearly scoped notice, so that either distributed package remains understandable independently.
 45. As a maintainer, I want every outcome classified as executed, source-inspected, policy or pending, so that no lower-seam test is overclaimed as end-to-end acceptance.
 46. As a designer, I want one automatic preview-recovery attempt when automatic preview is enabled, so that a transient renderer failure can recover without reloading my project.
 47. As a designer, I want paused automatic preview to wait for Retry preview, so that failure recovery respects my existing preview preference.
@@ -105,10 +105,10 @@ The six workflow outcomes are:
 - Renderer failure must not become document or manufacturing authority. Preserve forms/2D, captured-source checks, cleanup and stale-event rejection. Apply ADR-0014's accepted recovery policy using the existing affected-view automatic-preview setting: one automatic recovery attempt when enabled, explicit Retry when disabled, and explicit Retry after recovery fails. Rebuild from the current accepted source without project reload or edit replay; rerenders must not create an automatic retry loop. Recovery and ordinary same-session workspace return restore an available usable viewpoint for the matching project/board/physical-instance/view, otherwise fit the current design. Do not borrow another scope's camera, restore stale geometry or override deliberate Fit/navigation. Retention is session-only; project reopening/browser restart need not restore it. Do not introduce a saved camera schema or global preference for cross-session retention.
 - Keyboard workflow evidence uses trusted keyboard input and the visible production controls. Do not seed completed wiring through a hidden document replacement or programmatically focus/click controls and call it keyboard traversal. Use disposable synthetic projects and isolated storage.
 - Use one small supported MX solder/diode/nice!nano assembly as the base consistency case, with a bounded face/jumper variation where applicable. Compare actual emitted plans, packages and nominal geometry; do not require every split-policy feature or peripheral class to finish this representative case.
-- Firmware delivery remains an editable repository template built externally. Unsupported optional peripherals may be disclosed where the base configuration is valid; the simple baseline need not depend on delivering that entire separate support policy. PCB handoff protection remains saved before delivery and survives Undo and later cancelled/failed download.
+- Firmware delivery remains an editable repository template built externally. Unsupported optional peripherals may be disclosed where the base configuration is valid; the simple baseline need not depend on delivering that entire separate support policy. PCB transfer protection remains saved before delivery and survives Undo and later cancelled/failed download.
 - Every exported package covered by the accepted notice policy includes root `license.md`. Preserve known actual terms and source references. If distribution terms are unavailable, proceed with an explicit licence-unknown notice for the affected content; do not require acknowledgement or block solely for unknown terms. This is not permission to waive known restrictions, invent terms or weaken unrelated integrity/readiness checks.
 - Support the notice sidecar deliberately through bounded project archive admission and retained information for re-export. Preserve existing path, duplicate, resource and asset-hash checks. Reuse known catalogue/asset/source metadata and retained file notices; do not build a universal history-reconstruction system for old unknown assets.
-- Check notice coverage for the package actually distributed. User-authored modification notes are optional: include supplied commentary, disclose unavailable history honestly and do not block export solely for a missing note; known applicable vendor notices remain required. The inner KiCad ZIP is independently forwardable and must carry its own root `license.md` covering its contents; the outer handoff also retains a root notice with clear coverage. Verify both inventories and do not rely on the outer notice alone or invent a common licence for nested contents.
+- Check notice coverage for the package actually distributed. User-authored modification notes are optional: include supplied commentary, disclose unavailable history honestly and do not block export solely for a missing note; known applicable vendor notices remain required. The inner KiCad ZIP is independently forwardable and must carry its own root `license.md` covering its contents; the outer transfer also retains a root notice with clear coverage. Verify both inventories and do not rely on the outer notice alone or invent a common licence for nested contents.
 - Existing source-preservation, forgiving vendor-preview, current-generator, replacement-input, hardware-topology and output-readiness policies remain authoritative. This spec neither weakens them nor claims all their implementation debt is in this scope.
 - A necessary fix must be tied to an accepted requirement and a demonstrated failing scenario. New recovery/product policies, broad refactors and cross-boundary mechanisms need separate explicit scope; this is not permission to fix every concern found by research.
 - No persisted-schema or public-interface redesign is assumed. If the accepted notice requirement needs additional retained metadata or an admission-contract change, carry it end to end in the owning slice and review it under the existing boundary rules.
@@ -159,7 +159,7 @@ behavior; local server headers do not prove hosted CDN behavior.
 
 ### S-C: accepted source to actual package round-trip
 
-Drive existing Runtime export/handoff and Core artifact/archive interfaces with one
+Drive existing Runtime export/transfer and Core artifact/archive interfaces with one
 accepted supported assembly plus representative mixed-source materials. Inventory
 the actual project package, outer/inner PCB package and firmware template. Compare
 part/pad/net identities, bridge/open recipes, effective GPIOs, key order/binding,
@@ -203,7 +203,7 @@ case is not evidence that redistribution is legally permitted.
 The [workflow research](../../../research/2026-10-20-application-workflow-evidence.md)
 inspected connected paths in all six areas. It executed two small tooling tests and
 one partial keyboard journey on an older, source-unbound package. That journey did
-not configure a controller, download a handoff, invoke 3D or exercise two releases.
+not configure a controller, download a transfer, invoke 3D or exercise two releases.
 It is not a current-source focus regression or evidence that these six outcomes pass.
 
 ### Operational and human prerequisites
@@ -214,8 +214,8 @@ It is not a current-source focus regression or evidence that these six outcomes 
 | Two-release transition | Source-bound built A/B artifacts, manifests/receipts and operator-authorized switching of one disposable origin | Publish the bounded recipe and precise missing inputs; do not count a source-only service-worker check as release acceptance. |
 | Genuine GPU loss | Browser/device/context exposing a safe actual loss mechanism | Record capability and missing evidence; preserve scripted lifecycle tests without claiming actual device recovery. |
 | Full firmware compilation | The exported target's exact external toolchain or authorized build runner | Keep source/template consistency results separate; fake build-tool tests do not produce a compiled image. |
-| Downstream routing/manufacturing | KiCad reviewer, completed routing and applicable ERC/DRC/process checks | Report the routing handoff and unmet obligations, not fabrication readiness. |
-| Physical continuity/fit | Qualified operator, exact hardware variant, safe unpowered continuity setup and representative manufactured/prototype parts | Retain a finite bench/fit checklist as pending; do not claim electrical operation or dimensional acceptance. |
+| Downstream routing/manufacturing | KiCad reviewer, completed routing and applicable ERC/DRC/process checks | Report the routing transfer and unmet obligations, not fabrication readiness. |
+| Physical continuity/fit | Qualified operator, exact hardware variant, safe unpowered continuity setup and representative manufactured/mockup parts | Retain a finite bench/fit checklist as pending; do not claim electrical operation or dimensional acceptance. |
 | Licence interpretation assurance | Applicable primary terms and qualified interpretation where a legal conclusion is requested | Propagate known information without inventing terms or making a legal-compliance claim. |
 
 The representative bench checklist compares emitted jumper instructions and pad
@@ -245,7 +245,7 @@ and source-bound verification remain. Do not reopen the queue merely for missing
 operational resources. A genuinely new ambiguity found during characterization
 needs a narrow decision gate rather than an invented regression oracle.
 
-The spec is published with `ready-for-agent` status after verification-seam approval.
+The spec is published with `ready` status after verification-seam approval.
 No child ticket breakdown, implementation, test run, operational experiment or human
 verification is authorized as completed by publication. The six earlier proposed
 investigation tickets remain unpublished; any later breakdown needs approval.

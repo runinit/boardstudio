@@ -17,7 +17,7 @@ PASS: 53 focused mounted/browser tests:
   PCB scene/layers: 4
 PASS: WASM page cargo check, --no-default-features --features page --locked.
 PASS: independent frontend preview build and HTTP 200 on port 8182.
-PASS: scoped Impeccable layout detector returned [].
+PASS: scoped design-check layout detector returned [].
 PASS: git diff --check and JavaScript syntax check.
 
 The new live regression failed before changes for the expected usability defects.

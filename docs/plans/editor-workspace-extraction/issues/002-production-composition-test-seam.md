@@ -1,6 +1,6 @@
 # 002: Establish the real App composition test seam
 
-Status: ready-for-agent
+Status: ready
 Type: build
 Blocked by: None (can start immediately)
 Parent: [001: Editor workspace ownership specification](001-editor-workspace-ownership.md)
@@ -19,9 +19,9 @@ unchanged. This is the prefactoring and characterization gate for every extracti
   changing hook scope, startup policy, the one Runtime subscriber or provider ancestry.
 - Reuse production scope transitions, selection reconciliation, header navigation,
   Export-return tracking and Library/Editor mount logic. Do not copy them into a fake
-  host, add a second subscriber or install prototype controls in normal startup.
+  host, add a second subscriber or install mockup controls in normal startup.
 - Use real in-process Session/Core and memory persistence. A scope-correct fixture
-  must drive effects without the prototype's cross-scope Signal warnings. Characterize
+  must drive effects without the mockup's cross-scope Signal warnings. Characterize
   any pre-existing diagnostics separately; do not suppress warnings to claim success.
 - Establish baseline results against the current checkout. The experimental branch
   proves a possible shape, not permission to cherry-pick it wholesale.
@@ -36,8 +36,8 @@ unchanged. This is the prefactoring and characterization gate for every extracti
 - [ ] Showing Library hides rather than remounts Editor while permitted work settles. Actual App removal and an actual Editor-only removal exercise Dioxus teardown, not merely root-DOM removal or a Close request.
 - [ ] Releasing held work after removal does not revive DOM, navigation or focus or access dropped Signals. Session-owned work follows existing drain/save rules rather than being canceled with its observer.
 - [ ] A replacement project reusing document/board/part IDs establishes a new session identity; retained stale UI callbacks cannot act on it. Record where existing controlled-adapter tests reject late replies rather than pretending a serialized Open is post-replacement reply coverage.
-- [ ] The fixture's mounted edit, workspace switch, board reconciliation, Export return, gated completion and real teardown run without the prototype's cross-scope warnings or dropped-Signal errors. If safe driving cannot be demonstrated, stop extraction and record the blocking failure.
-- [ ] No test diagnostics, alternate persistence, prototype feature, fixture UI or HTML is shipped through normal startup.
+- [ ] The fixture's mounted edit, workspace switch, board reconciliation, Export return, gated completion and real teardown run without the mockup's cross-scope warnings or dropped-Signal errors. If safe driving cannot be demonstrated, stop extraction and record the blocking failure.
+- [ ] No test diagnostics, alternate persistence, mockup feature, fixture UI or HTML is shipped through normal startup.
 
 ## Verification
 

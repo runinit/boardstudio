@@ -3,7 +3,7 @@
 Parent: [map.md](map.md). Ticket proof rows are the acceptance boundary, in repository format:
 `requirement — precondition (critical timing) → exact action → independent oracle · tier · status`.
 All implementation rows are **planned**, not RED, GREEN or reused. A test file/graph edge is
-candidate reach, not a passing receipt. Frozen prototype results are not production proof.
+candidate reach, not a passing receipt. Frozen mockup results are not production proof.
 
 ## Reuse first and keep stories distinct
 
@@ -145,6 +145,6 @@ Per ticket: RED/proof-gap evidence → fix → affected checks → named boundar
 one fresh combined Spec+Standards reviewer → integrated ticket gate. Report unread files,
 mandatory unmet criteria and follow-ups separately. No approval is waived by a reviewer.
 007's packaged visual/keyboard checks use agent-browser and both Themes/Appearances; fresh
-text, icon, focus and SVG-chrome contrast measurements replace incomplete prototype scans.
-Mandatory accessibility failures block; unrelated findings need a separately triaged record,
+text, icon, focus and SVG-chrome contrast measurements replace incomplete mockup scans.
+Mandatory accessibility failures block; unrelated findings need a separately statusd record,
 not a blanket exception. Browser checks still do not certify fabrication or CAD validity.

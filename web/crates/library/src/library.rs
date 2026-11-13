@@ -732,7 +732,7 @@ pub fn Library(
         );
     }
     // Resolve selection against the current list so accepted renames and revisions
-    // update the handoff instead of leaving a captured document snapshot visible.
+    // update the transfer instead of leaving a captured document snapshot visible.
     let selected_document = selected_project().and_then(|selected| {
         cards
             .iter()
@@ -2139,7 +2139,7 @@ mod mounted_tests {
     }
 
     #[wasm_bindgen_test]
-    async fn browser_selection_previews_without_opening_and_focuses_the_handoff() {
+    async fn browser_selection_previews_without_opening_and_focuses_the_transfer() {
         let (session, core) = accepted(ProjectDoc::empty(
             "browser-selection-current",
             "Current keyboard",

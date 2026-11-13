@@ -209,7 +209,7 @@ a new product choice rather than inventing one.
 
 ## Comments
 
-- 2026-11-06: Documentation-only to-spec synthesis. The user explicitly requested
+- 2026-11-06: Documentation-only spec drafting synthesis. The user explicitly requested
   publication and breakdown; source citations are included as requested.
   Ready for agent work is not feature completion or product acceptance.
 

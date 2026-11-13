@@ -19,7 +19,7 @@ evidence or taking over the existing importer owner's work.
 
 - [x] The CAD map's current-policy notice, spec and successor task graph consistently override certification/completeness as preview-admission gates; dated migration evidence stays historical.
 - [x] Reconcile the analysis boundary's completeness language: incomplete geometry may be displayed and queried approximately, but cannot establish whole-source qualification or clearance. Correct stale qualification-v2 pending/inactive descriptions against current delivered behavior, without fabricating new acceptance evidence.
-- [x] The earlier STEP-validation-simplification map clearly points to the successor policy where its aggregate-completeness admission rule conflicts. Do not reopen its resolved/wontfix work.
+- [x] The earlier STEP-validation-simplification map clearly points to the successor policy where its aggregate-completeness admission rule conflicts. Do not reopen its resolved/declined work.
 - [x] Name the obsolete 007 owner-route/region-proof/package exits externally as non-prerequisites for preview admission. Preserve parent 007's body, claimed status, acceptance boxes, current work and evidence; do not edit or close it. Preserve resolved 010/014 bodies and outcomes as well.
 - [x] Preserve input/resource safety, original bytes, units/placements, known-budget guards, supported complete-model collision conclusions and exact generated manufacturing scope. Do not reinterpret unknown accuracy as clear.
 - [ ] Coordinate the successor source ownership with the claimed importer owner before overlapping implementation. No new requirement to complete its superseded packages is introduced.

@@ -1,6 +1,6 @@
 # 001: ZMK export admission
 
-Status: ready-for-agent
+Status: ready
 Type: build
 Related: [Candidate 02 research](../../../research/2026-10-20-export-readiness-dispatch-deepening.md)
 
@@ -14,13 +14,13 @@ Make the ZMK row's displayed availability and click admission interpret the same
 
 ## User Stories
 
-1. As a designer, I see ZMK “Available” only when the current accepted board's known firmware prerequisites admit an export attempt, so the row does not overpromise a handoff.
+1. As a designer, I see ZMK “Available” only when the current accepted board's known firmware prerequisites admit an export attempt, so the row does not overpromise a transfer.
 2. As a designer missing a reviewed controller profile, assignments, supported split roles, transport or required peripheral setup, I see the specific blocker and cannot start that export from the disabled row.
-3. As a designer with a complete current plan, I click the mounted ZMK row and receive the firmware handoff, or a precise refusal if an asynchronous prerequisite changes or generation fails.
+3. As a designer with a complete current plan, I click the mounted ZMK row and receive the firmware transfer, or a precise refusal if an asynchronous prerequisite changes or generation fails.
 4. As a designer who switches board, physical instance, editor session or accepted revision after the row renders, an obsolete click cannot dispatch against the new owner or produce a wrong-source package; the fresh row represents the new owner.
 5. As a designer whose firmware plan or executor changes during preparation, I do not receive stale output or misleading success.
 6. As a designer with an incomplete split, I can still save and reopen the project; ZMK explains the missing prerequisite while unrelated valid exports remain available.
-7. As a designer, I can retry after correcting a blocker or a failed handoff, and the current row reflects the repaired accepted design.
+7. As a designer, I can retry after correcting a blocker or a failed transfer, and the current row reflects the repaired accepted design.
 8. As a designer starting overlapping firmware exports, I receive both packages if both captures remain current, while only the newest relevant operation updates status.
 9. As a designer awaiting a finished export, I still receive its artifact after active work settles if its capture remains current; a browser download failure is reported separately.
 
@@ -34,7 +34,7 @@ Make the ZMK row's displayed availability and click admission interpret the same
 
 ## Testing Decisions
 
-- **Primary acceptance seam: mounted Export flow.** Mount the real Export page with Runtime/Session and controlled browser adapters. With a genuinely reviewed controller profile, assignments and applicable split hardware, click the rendered Available ZMK control and inspect the actual firmware handoff. A fixture-provided ready boolean or direct Runtime call is not a substitute.
+- **Primary acceptance seam: mounted Export flow.** Mount the real Export page with Runtime/Session and controlled browser adapters. With a genuinely reviewed controller profile, assignments and applicable split hardware, click the rendered Available ZMK control and inspect the actual firmware transfer. A fixture-provided ready boolean or direct Runtime call is not a substitute.
 - For missing profile, assignments, split roles, transport and applicable peripherals, check the mounted row's disabled state and specific visible blocker; confirm incomplete projects remain saveable and unrelated outputs still work. Where the provider cannot generate in the test environment, assert its exact reported limitation rather than a pretend download.
 - Retain a rendered click target across board/instance change, same-ID/revision reopen and executor replacement; assert no wrong-source dispatch, artifact or false success. A freshly rendered row must reflect the new owner; do not require messaging on a detached old row.
 - Test plan/source changes between display and click, failure then retry, and genuine firmware-request rejection. A row that was Available may fail later, but must explain the failure rather than silently succeed or dispatch a different source.
@@ -50,4 +50,4 @@ Make the ZMK row's displayed availability and click admission interpret the same
 ## Further Notes
 
 - [Candidate 02 research](../../../research/2026-10-20-export-readiness-dispatch-deepening.md) distinguishes demonstrated predicate gaps from candidate mismatches that require mounted and real-Session tests. Its ZMK test-plan fixture lacks a reviewed profile: evidence of a weak predicate, not proof of a production download failure. Ticket 001 establishes the seam before the other output families use it.
-- [Glossary: accepted document and editor session](../../../../GLOSSARY.md#editing), [incomplete split design and handoffs](../../../../GLOSSARY.md#mechanical-relationships). Preserve [ADR-0005](../../../adr/0005-resolve-queued-edits-at-execution.md)'s strict export captures, [ADR-0014](../../../adr/0014-document-authority-and-captured-lifetimes.md)'s authority boundary, [ADR-0016](../../../adr/0016-export-ownership-is-separate-from-preview-currency.md)'s delivery lifetime, [ADR-0021](../../../adr/0021-test-real-workflows-natively-and-browser-behavior-mounted.md)'s mounted/native test split and [ADR-0027](../../../adr/0027-save-incomplete-split-designs-with-output-specific-readiness.md)'s output-specific incompleteness policy.
+- [Glossary: accepted document and editor session](../../../../GLOSSARY.md#editing), [incomplete split design and transfers](../../../../GLOSSARY.md#mechanical-relationships). Preserve [ADR-0005](../../../adr/0005-resolve-queued-edits-at-execution.md)'s strict export captures, [ADR-0014](../../../adr/0014-document-authority-and-captured-lifetimes.md)'s authority boundary, [ADR-0016](../../../adr/0016-export-ownership-is-separate-from-preview-currency.md)'s delivery lifetime, [ADR-0021](../../../adr/0021-test-real-workflows-natively-and-browser-behavior-mounted.md)'s mounted/native test split and [ADR-0027](../../../adr/0027-save-incomplete-split-designs-with-output-specific-readiness.md)'s output-specific incompleteness policy.

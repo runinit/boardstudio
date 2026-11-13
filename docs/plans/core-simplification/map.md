@@ -1,6 +1,6 @@
 # Map: Core simplification
 
-Label: wayfinder:map
+Label: planning:map
 Status: **decisions D1–D4 made by the user on 2026-11-12. Tickets come next; implementation follows the branch deletions and the toolbar work.**
 Base: `cleanup/remove-dead-weight`.
 

@@ -294,7 +294,7 @@ pub enum Event {
         board_id: String,
         transaction_id: String,
     },
-    /// Explicitly review a protected PCB handoff before starting a remap revision.
+    /// Explicitly review a protected PCB transfer before starting a remap revision.
     ReviewElectricalRemap {
         operation_id: OperationId,
         base_revision: u64,
@@ -404,7 +404,7 @@ pub enum ExportCommitRequest {
         plan: boardstudio_core::electrical::ElectricalPlan,
         draft: bool,
     },
-    ProtectElectricalHandoff {
+    ProtectElectricalTransfer {
         plan: boardstudio_core::electrical::ElectricalPlan,
     },
 }
@@ -1465,7 +1465,7 @@ impl Session {
             }
             IntentKind::ExportCommit { commit, .. } => Some(match commit {
                 ExportCommitRequest::ApplyElectrical { plan, .. }
-                | ExportCommitRequest::ProtectElectricalHandoff { plan } => plan.revision,
+                | ExportCommitRequest::ProtectElectricalTransfer { plan } => plan.revision,
             }),
             _ => None,
         };
@@ -1665,7 +1665,7 @@ impl Session {
                     }
                     Some(match commit {
                         ExportCommitRequest::ApplyElectrical { plan, .. }
-                        | ExportCommitRequest::ProtectElectricalHandoff { plan } => plan.revision,
+                        | ExportCommitRequest::ProtectElectricalTransfer { plan } => plan.revision,
                     })
                 }
                 _ => None,
@@ -1754,8 +1754,8 @@ impl Session {
                                 draft,
                             }
                         }
-                        ExportCommitRequest::ProtectElectricalHandoff { plan } => {
-                            CoreRequest::ProtectElectricalHandoff {
+                        ExportCommitRequest::ProtectElectricalTransfer { plan } => {
+                            CoreRequest::ProtectElectricalTransfer {
                                 id: request_wire_id.clone(),
                                 base_revision: plan.revision,
                                 board_id: owner.scope.board_id,
@@ -2633,7 +2633,7 @@ fn reply_id(reply: &CoreReply) -> String {
         | CoreReply::FirmwareGenerated { id, .. }
         | CoreReply::ElectricalResolved { id, .. }
         | CoreReply::ElectricalApplied { id, .. }
-        | CoreReply::ElectricalHandoffProtected { id, .. }
+        | CoreReply::ElectricalTransferProtected { id, .. }
         | CoreReply::MechanicalProfile { id, .. }
         | CoreReply::MechanicalResolved { id, .. }
         | CoreReply::Preview { id, .. }

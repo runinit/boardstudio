@@ -61,7 +61,7 @@ The strongest writing candidates are:
 **Important uncertainty:** vendor repair accounting is still incomplete. Neither the
 34-asset compatibility checkpoint nor successful collision delivery certifies every
 repair route. The working-tree CAD map changes 007 from committed `claimed` to
-`ready-for-agent`, while ticket 007 still says `claimed`; that discrepancy is an
+`ready`, while ticket 007 still says `claimed`; that discrepancy is an
 uncommitted tracker edit, not a new architecture decision. Its dated current-work
 section is more specific about ongoing implementation.
 Do not turn its final strict terminal policy into an already-enforced guarantee
@@ -93,7 +93,7 @@ Do not turn its final strict terminal policy into an already-enforced guarantee
   what happens; only explicit decision records, contemporaneous explanations or
   commit messages recover why. A plausible engineering benefit is labeled inference.
 - Historical plans can contain superseded criteria. In particular, CAD 013's
-  prototype-only wording and 014's early “all bounds unknown” checkpoints are not
+  mockup-only wording and 014's early “all bounds unknown” checkpoints are not
   current production status: their later Answers/current sections and the source
   supersede those checkpoints. Conversely, a plan's approved declaration does not
   prove that declaration landed ([013 Answer](../plans/cad-backend-replacement/issues/013-layered-case-construction.md#answer),

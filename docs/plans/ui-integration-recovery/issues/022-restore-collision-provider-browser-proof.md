@@ -216,7 +216,7 @@ receipt's diff digest to the newly changed documentation.
 
 ## Independent review checkpoint (2026-11-07)
 
-The user explicitly approved `/code-review` using Sol with `xhigh` thinking on
+The user explicitly approved `the review` using Sol with `xhigh` thinking on
 Pi. Two separate fresh-context reviewers used `pi`,
 `openai-codex/gpt-6.1-sol`, `thinking: xhigh`, one per axis. The fixed point was
 `366d52100d9dbf6686a9cd9dfdf02f0262a13eed`; the reviewed command was
@@ -272,7 +272,7 @@ lookup and selected-value timeout; both restored exactly. Run log:
 `40fa2ddab94cdc6c6723dcb8fd4e097d3f5a3e76`; neither delegate edited tracked
 files, and the coordinator changed only this review record and the 022 map row.
 
-**Review complete, not ticket closure.** 022 remains `ready-for-human` pending
+**Review complete, not ticket closure.** 022 remains `awaiting-decision` pending
 the closure decision and still blocks 010. No separate QA, full default gate,
 019/021 work, human acceptance, commit, push or merge was performed in this phase.
 

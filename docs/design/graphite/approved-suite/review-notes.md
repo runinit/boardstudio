@@ -2,7 +2,7 @@
 
 ## Direction carried across the suite
 
-One application header, neutral charcoal surfaces, periwinkle selection, docked navigation and inspectors, and opaque contextual toolbars with labels. Project browser and setup use a simpler header. Objects, case assembly, parts catalogue and keymap layers each have a distinct navigation job. Export uses a handoff list rather than a canvas or a spreadsheet.
+One application header, neutral charcoal surfaces, periwinkle selection, docked navigation and inspectors, and opaque contextual toolbars with labels. Project browser and setup use a simpler header. Objects, case assembly, parts catalogue and keymap layers each have a distinct navigation job. Export uses a transfer list rather than a canvas or a spreadsheet.
 
 ## Onboarding sequence
 

@@ -1,6 +1,6 @@
 # Fresh combined Spec + Standards review and additional planning (Fable, 2026-11-10)
 
-Reviewer handoff for the toolbar-led-workbench plan. **Recommendations only.** This file
+Reviewer transfer for the toolbar-led-workbench plan. **Recommendations only.** This file
 approves nothing, resolves no ticket, authorizes no phase and amends no plan file.
 
 - Fixed point: working candidate in `.worktrees/toolbar-workbench-plan` vs
@@ -11,17 +11,17 @@ approves nothing, resolves no ticket, authorizes no phase and amends no plan fil
 
 ## Standards
 
-Sources: `AGENTS.md`, `CODING_STANDARDS.md`, `docs/agents/{issue-tracker,triage-labels,domain}.md`.
+Sources: `AGENTS.md`, `CODING_STANDARDS.md`, `docs/agents/{issue-tracker,status-labels,domain}.md`.
 `CONTRIBUTING.md` does not exist.
 
 Documented-standard breaches:
 
-1. **Blocks — tickets 003, 005, 012, 013 `Status:`.** `triage-labels.md`: `ready-for-agent` =
+1. **Blocks — tickets 003, 005, 012, 013 `Status:`.** `status-labels.md`: `ready` =
    "Fully specified, ready for an agent to start"; `issue-tracker.md`: the boundary is "fixed
    before implementation". 003 says its preconditions are not final ("Before finalizing these
    preconditions, 001 must resolve"), 005 implements "only the approved" table that is not
    approved, 012 is "Subject to 001 approval", 013 needs a contract sketch approved. Use
-   `ready-for-human` until the named choice is recorded.
+   `awaiting-decision` until the named choice is recorded.
 2. **Blocks — 009 proof rows "Pending close", "Hidden draft safety", "Registration scope".**
    `issue-tracker.md`: a boundary row must be meetable in its slice; `CODING_STANDARDS.md`
    ("Synthetic data, production behavior"): new test-only seams need approval. These rows
@@ -138,7 +138,7 @@ dispose; human approval of the pending choices; the six blocks above.
 | N7 | Split 013 into 013a (tree, Inspect) and 013b (Preview controls, gated on the contract). State the contract invariants: one automatic-generation observer and one command registration, however many views mount. | 013, map.md | Entering Case starts exactly one generation with both consumers mounted; mutation: a second observer |
 | N8 | Each adapter lists its draft owners and chosen mechanism (keep-mounted or hoisted), and whether unregistered drafts are in scope. Blocker text must name the workspace, since the editor may be off screen (`workspace` is diagnostic-only today). | 003, 010–014 | Update Now row per adapter that retains an explicit-submit draft |
 | N9 | Replace "at most" with a per-dismissal-path table (Escape, toggle, outside pointer, Objects↔Inspect, layer pick, workspace switch): exactly one commit to the captured layer, or draft retained as that layer's. | refactoring.md, 011 | New 011 row plus mutation: rename fires against the newly selected layer |
-| N10 | Relabel 003, 005, 012, 013 `ready-for-human` until their named choice lands. | issues | none |
+| N10 | Relabel 003, 005, 012, 013 `awaiting-decision` until their named choice lands. | issues | none |
 
 ### Seam alternatives
 
@@ -187,7 +187,7 @@ Read in full — candidate (24): `DESIGN.md`, `GLOSSARY.md`, `docs/adr/0035-…`
 `refactoring.md`, issues 001–014.
 
 Read — authority and standards: both frozen READMEs, `CODING_STANDARDS.md`, `PRODUCT.md`,
-`docs/agents/{issue-tracker,triage-labels,domain}.md`, ADR 0002, 0008, 0010.
+`docs/agents/{issue-tracker,status-labels,domain}.md`, ADR 0002, 0008, 0010.
 
 Read — source: `draft_owners.rs`, `workspace_composition.rs`, `cad_presentation.rs` (full);
 `KeymapPanel`, `KeymapLayerControls`, `DockLayout`, `LayerEditsContext` (symbols); text

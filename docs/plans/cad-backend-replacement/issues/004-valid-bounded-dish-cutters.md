@@ -1,6 +1,6 @@
 # 004: Construct valid bounded keycap dish cutters
 
-Status: wontfix
+Status: declined
 Type: research
 Blocked by: None
 Related: 009: Mesh keycaps
@@ -21,7 +21,7 @@ Historical evidence remains in initial work (`../../../../.evidence/monstertruck
 
 ## Comments
 
-2026-10-17 scope reconciliation: `wontfix` records the retired exact-cutter delivery, not a failed completed gate. Root stood down export-only/general-intersection continuation and retained the same IO owner for007 import necessities. No frozen source or integrated fix was removed.
+2026-10-17 scope reconciliation: `declined` records the retired exact-cutter delivery, not a failed completed gate. Root stood down export-only/general-intersection continuation and retained the same IO owner for007 import necessities. No frozen source or integrated fix was removed.
 
 2026-10-17: User decision: keycaps are display and optional 3D-print geometry only; exact keycap STEP is no longer required. Exact bounded dish cutters are therefore off the critical path. Freeze current evidence and stop new work unless the chief of staff reassigns it to the mesh keycap path (dishes become vertex displacement of the top surface rather than a Boolean).
 

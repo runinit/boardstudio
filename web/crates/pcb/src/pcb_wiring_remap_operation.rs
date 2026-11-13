@@ -1,4 +1,4 @@
-//! Accepted-document proposal for deliberately reviewing a protected PCB handoff.
+//! Accepted-document proposal for deliberately reviewing a protected PCB transfer.
 use boardstudio_core::model::ProjectDoc;
 
 pub fn propose_review_remap(
@@ -17,21 +17,21 @@ pub fn propose_review_remap(
         .iter_mut()
         .find(|configuration| configuration.board_id == board_id)?;
     if configuration
-        .protected_handoff
+        .protected_transfer
         .as_ref()
-        .map(|handoff| handoff.fingerprint.as_str())
+        .map(|transfer| transfer.fingerprint.as_str())
         != Some(expected_fingerprint)
     {
         return None;
     }
-    configuration.protected_handoff = None;
+    configuration.protected_transfer = None;
     Some(proposal)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use boardstudio_core::model::{Board, ElectricalBoardConfiguration, ElectricalHandoffBaseline};
+    use boardstudio_core::model::{Board, ElectricalBoardConfiguration, ElectricalTransferBaseline};
 
     fn protected_document() -> ProjectDoc {
         let mut document = ProjectDoc::empty("project", "Test");
@@ -63,7 +63,7 @@ mod tests {
             ..Default::default()
         };
         left.locks.insert("matrix/r0".into(), "P0".into());
-        left.protected_handoff = Some(ElectricalHandoffBaseline {
+        left.protected_transfer = Some(ElectricalTransferBaseline {
             fingerprint: "approved-fingerprint".into(),
             revision: 7,
             assignments: [("matrix/r0".into(), "P0".into())].into(),
@@ -96,7 +96,7 @@ mod tests {
             .iter()
             .find(|config| config.board_id == "left")
             .unwrap();
-        assert!(left.protected_handoff.is_none());
+        assert!(left.protected_transfer.is_none());
         assert_eq!(
             left.locks,
             document.hardware.as_ref().unwrap().boards[0].locks
@@ -112,12 +112,12 @@ mod tests {
     }
 
     #[test]
-    fn review_rejects_changed_or_missing_handoff_without_proposing_an_edit() {
+    fn review_rejects_changed_or_missing_transfer_without_proposing_an_edit() {
         let document = protected_document();
         assert!(propose_review_remap(&document, "left", "stale-fingerprint").is_none());
         assert!(propose_review_remap(&document, "right", "approved-fingerprint").is_none());
         let mut unprotected = document;
-        unprotected.hardware.as_mut().unwrap().boards[0].protected_handoff = None;
+        unprotected.hardware.as_mut().unwrap().boards[0].protected_transfer = None;
         assert!(propose_review_remap(&unprotected, "left", "approved-fingerprint").is_none());
     }
 }

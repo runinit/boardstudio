@@ -2,7 +2,7 @@
 
 Status: resolved
 Type: task
-Label: wayfinder:task
+Label: planning:task
 Mode: AFK
 Assignee: Chris D
 Blocked by: none

@@ -216,7 +216,7 @@ These are proposed acceptance scenarios, **not tests executed during research**.
 - **Publication follow-up:** on 2026-10-19 the user approved the single-generator
   scope and export/live-golden test seams. Published as
   ticket 184,
-  `ready-for-agent`. Earlier proposal language records the research stage, not an
+  `ready`. Earlier proposal language records the research stage, not an
   outstanding approval blocker.
 
 ## Checks actually performed

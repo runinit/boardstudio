@@ -50,7 +50,7 @@ parent specification and original audit unchanged.
 User decisions (2026-11-10): standalone component/part inspection shows
 Relationships beside the fields with no invented matrix breadcrumb (earlier
 decision, unchanged); finding return focuses the first editable field. User
-explicitly confirmed per `.evidence/004-recovery/acceptance-handoff.log`:
+explicitly confirmed per `.evidence/004-recovery/acceptance-transfer.log`:
 (1) returning from a finding prefers the first native text/number field even
 when a dropdown/checkbox button appears earlier; (2) unsaved choices persist
 across view changes until committed or the selected owner changes. These are
@@ -167,8 +167,8 @@ a survivor):
   must fail at “the unsaved choice survives an unrelated acceptance” · mounted ·
   same component command.
 
-Checker follow-up disposition (Builder triage, 2026-11-10; detail in
-`.evidence/004-recovery/builder-followup-handoff.log`; no production/test
+Checker follow-up disposition (Builder status, 2026-11-10; detail in
+`.evidence/004-recovery/builder-followup-transfer.log`; no production/test
 change, 65/65 focused GREEN in `green-followup-65.log`):
 
 - M5 SURVIVED as a nonrepresentative mutation, not an unmet check.
@@ -187,7 +187,7 @@ change, 65/65 focused GREEN in `green-followup-65.log`):
   `mounted_component_facts_live_beside_the_fields_without_tabs`. Ordering
   artifact, not a survivor. Required: Checker reruns M6 alone with a
   single-test filter on the named test via `mutation-check.py` (exact command
-  in the follow-up handoff).
+  in the follow-up transfer).
 - M7 SURVIVED as an unreachable mutation, not an unmet check. The resync
   effect reacts only to `(identity, initial_constraint, nonce)`, all unchanged
   by the fixture's unrelated revision, so the forced branch never runs; the
@@ -200,14 +200,14 @@ change, 65/65 focused GREEN in `green-followup-65.log`):
   pass. R6 keeps its RED + M3/M4 kills as specified. A navigation-focused
   proof (cross-half reference-navigation step plus M3b deriving the canvas
   focused half from the selected context) needs a boundary change — user
-  decision, specified in the follow-up handoff, not implemented.
+  decision, specified in the follow-up transfer, not implemented.
 
 Order: RED → fix → affected checks (done by Builder) → boundary mutations → one
 fresh Spec+Standards review → integrated gate (Checker/Reviewer/coordinator).
 
 ## Builder completion (004 slice, 2026-11-10)
 
-- HEAD at handoff: `db99b9326` plus the uncommitted 004 worktree changes below
+- HEAD at transfer: `db99b9326` plus the uncommitted 004 worktree changes below
   (no commit, no stash, no push per brief).
 - Changed: `web/src/presentation/layout_workspace.rs` (tabs retired; breadcrumb
   + fields + Relationships render together; `LayoutInspectorTab`, tab state,
@@ -246,7 +246,7 @@ fresh Spec+Standards review → integrated gate (Checker/Reviewer/coordinator).
 - Next action: Checker reruns M6 alone with a single-test filter on the named
   test; then the independent Spec+Standards review; coordinator dispositions
   findings and any proposed boundary amendments (M3b/M5b/M7b in the follow-up
-  handoff).
+  transfer).
 
 ## Acceptance record (004 human acceptance, 2026-11-10)
 
@@ -257,7 +257,7 @@ fresh Spec+Standards review → integrated gate (Checker/Reviewer/coordinator).
   Relationships beside fields with no invented breadcrumb; finding return
   prefers the first native text/number field even before a dropdown/checkbox
   button; unsaved choices persist across view changes until committed or the
-  selected owner changes (`.evidence/004-recovery/acceptance-handoff.log`).
+  selected owner changes (`.evidence/004-recovery/acceptance-transfer.log`).
   The 004 preview was served at :4173; the earlier 011 build remains on disk.
 - HEAD: accepted code `4f42cbae03f23ad9123b40770e10a5affde06c5f`; this record is
   ticket-only, no production/test change. No commit/push by this agent;
@@ -294,7 +294,7 @@ fresh Spec+Standards review → integrated gate (Checker/Reviewer/coordinator).
   than navigation-preserves-focus. Reviewer treated M3b/M5b/M7b as optional
   follow-ups; they are not relabelled as kills and no optional work was
   demanded. See Slice boundary and
-  `.evidence/004-recovery/builder-followup-handoff.log`.
+  `.evidence/004-recovery/builder-followup-transfer.log`.
 - Criterion disposition (each checked only as supported by existing proof +
   independent review + human approval):
   - C1 placement + Relationships beside fields, no Relations tab (matrix +
@@ -336,13 +336,13 @@ fresh Spec+Standards review → integrated gate (Checker/Reviewer/coordinator).
   retained.
 - Follow-ups (optional, not blocking): M3b cross-half navigation proof +
   canvas-focused-half derivation; M5b/M7b as specified in
-  `.evidence/004-recovery/builder-followup-handoff.log`; review non-blocking
-  findings as classified by the independent reviewer. Open `needs-triage`
+  `.evidence/004-recovery/builder-followup-transfer.log`; review non-blocking
+  findings as classified by the independent reviewer. Open `unstatusd`
   tickets only if a real defect is confirmed.
 - Pointers: this ticket; `.evidence/004-recovery/` (RED/GREEN, mutations,
-  `builder-followup-handoff.log`, `review-lint-red.log`,
+  `builder-followup-transfer.log`, `review-lint-red.log`,
   `review-lint-green.log`, `review-fix-focused.log`, `integrated-gate.log`,
-  `acceptance-handoff.log`); receipt
+  `acceptance-transfer.log`); receipt
   `/home/chris/.cache/tmp/004-integrated-gate-receipt.json`;
   015.
 - Next action: coordinator commits this authorized 004 acceptance record;
@@ -364,11 +364,11 @@ fresh Spec+Standards review → integrated gate (Checker/Reviewer/coordinator).
   notes recorded above; RED and GREEN logs in `.evidence/004-recovery/`.
   Not resolved: mutations, independent Spec+Standards review and integrated
   gate remain.
-- 2026-11-10: Builder follow-up triage (Spark Contributor): M5/M7 survived as
+- 2026-11-10: Builder follow-up status (Spark Contributor): M5/M7 survived as
   nonrepresentative/unreachable mutations, M6 killed at a same-literal earlier
   assertion (wasm abort-ordering artifact), M3 kills at setup. No production
   or test change; 65/65 focused GREEN. Dispositions in the boundary above and
-  `.evidence/004-recovery/builder-followup-handoff.log`. Not resolved: M6
+  `.evidence/004-recovery/builder-followup-transfer.log`. Not resolved: M6
   focused rerun, independent Spec+Standards review and integrated gate remain.
 - 2026-11-10: Review and verification update: the independent combined review
   was partial because the base diff view was unavailable. It found an unused
@@ -391,7 +391,7 @@ fresh Spec+Standards review → integrated gate (Checker/Reviewer/coordinator).
   no diff. The earlier review's blocking wasm lint finding is fixed; other
   findings were classified as follow-ups. Human acceptance remains open,
   including confirmation of native-field-first focus and draft retention.
-- 2026-11-10: Acceptance handoff (`.evidence/004-recovery/acceptance-handoff.log`):
+- 2026-11-10: Acceptance transfer (`.evidence/004-recovery/acceptance-transfer.log`):
   user explicitly confirmed (1) finding return prefers the first native
   text/number field even before a dropdown/checkbox button, (2) unsaved
   choices persist across view changes until committed or the selected owner
@@ -408,7 +408,7 @@ fresh Spec+Standards review → integrated gate (Checker/Reviewer/coordinator).
   record edits; M5/M7 survived as nonrepresentative/unreachable, M3 kills at
   setup only, M6 killed at its named assertion (see boundary). Existing 011
   preview at :4173 when alive is not 004. No promotion, commit or push. Status
-  set to `ready-for-human`: outstanding human work is acceptance of 004 per
+  set to `awaiting-decision`: outstanding human work is acceptance of 004 per
   its unchecked criteria (placement + Relationships, finding-return focus,
   draft retention); acceptance boxes remain unchecked. M3b/M5b/M7b are optional
   follow-ups, not prerequisites for acceptance under the slice boundary.

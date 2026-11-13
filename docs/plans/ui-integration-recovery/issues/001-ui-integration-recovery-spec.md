@@ -3,7 +3,7 @@
 Status: resolved
 Type: planning
 Owner: fix/ui-integration-recovery
-Blocked by: none for ticket planning; implementation awaits the to-tickets step
+Blocked by: none for ticket planning; implementation awaits the ticket splitting step
 Related: [Plan map](../map.md), [Integration audit](../../../research/2026-11-06-dev-ui-integration-audit.md), UI migration spec
 
 ## Problem Statement
@@ -102,7 +102,7 @@ also remains part of this recovery; its priority is not an acceptance waiver.
   Preserve selected state, keyboard reach and focus across those transitions.
   Duplication concerns the competing toolbar/popover surfaces, not approved
   canvas handles or Command palette access.
-- **Diagnose before prescribing an MCU change (A1).** Use `diagnosing-bugs` to
+- **Diagnose before prescribing an MCU change (A1).** Use `bug diagnosis` to
   establish and run a reproducible, red-capable command for the user's symptom,
   then minimize it before testing causes. Capture the loaded candidate identity,
   project, part definition kind, mirror linkage, stored pose, evaluated pose and
@@ -135,7 +135,7 @@ also remains part of this recovery; its priority is not an acceptance waiver.
 - **Bound the work.** A4 and A8 accompany the relevant repair rather than being
   deferred to a final cleanup. Keep MCU diagnosis, known placement/scope recovery,
   shared motion, chevron binding and final acceptance distinguishable. Actual
-  implementation slices and blocking edges are decided in `to-tickets`.
+  implementation slices and blocking edges are decided in `ticket splitting`.
 
 ## Testing Decisions
 
@@ -221,7 +221,7 @@ this planning ticket provides no waiver.
 
 ## Out of Scope
 
-- Product repairs or implementation-ticket creation during this `to-spec` step.
+- Product repairs or implementation-ticket creation during this `spec drafting` step.
 - Wholesale merging or replaying original branches; original histories contain
   squashed equivalents, obsolete harnesses and retired styles.
 - Reverting the shared control migration, restoring auto-hide, redesigning the
@@ -234,7 +234,7 @@ this planning ticket provides no waiver.
 - Changing unrelated files, the original `ci-wall-time-plan` checkout, or the
   detached `dev-live-review` checkout; creating another worktree or switching this
   branch; pushing, merging to `dev`, or replacing the user's live preview.
-- Committing local agent skills, lock metadata or T3 setup configuration. Their
+- Committing local agent guides, lock metadata or T3 setup configuration. Their
   local availability was repaired separately and is not product acceptance.
 
 ## Further Notes
@@ -242,8 +242,8 @@ this planning ticket provides no waiver.
 ### Provenance and current evidence
 
 - Source candidate: `1fda4f48a964568b98dde9c82556350c4bc50911`. Integrated behavior:
-  `510861b11`. Problematic reconciliation: `c79de4708`. Approved prototype:
-  `prototype/split-board-editing` at `ef1c8a008`, variant B.
+  `510861b11`. Problematic reconciliation: `c79de4708`. Approved mockup:
+  `mockup/split-board-editing` at `ef1c8a008`, variant B.
 - The [original audit](../../../research/2026-11-06-dev-ui-integration-audit.md)
   is retained unchanged. It is targeted history/source inspection, not a fresh
   build, browser run or exhaustive review of the migration's changed files.
@@ -268,7 +268,7 @@ this planning ticket provides no waiver.
 - Placement ticket 15
   specifies the breadcrumb, beside-field Relationships, selection/focus behavior
   and violet highlighting. The split-board plan
-  retains the approved prototype and related interaction decisions.
+  retains the approved mockup and related interaction decisions.
 - The UI migration spec,
   [ADR-0034](../../../adr/0034-adopt-rust-ui-components-with-two-themes.md),
   [ADR-0035](../../../adr/0035-rebuild-the-workbench-shell-on-rust-ui-patterns.md),
@@ -289,15 +289,15 @@ this planning ticket provides no waiver.
   This specification neither rewrites its historical results nor grants merge
   or push authorization.
 
-### Planning handoff
+### Planning transfer
 
 The worktree is already bound to `fix/ui-integration-recovery`; its `Owner:`
 above records the requested ownership. The user's 2026-11-06 reinvocation of
-`to-spec` against the reviewed summary carries the corrected test seams into
-this specification. `ready-for-agent` means ready for the next planning step,
+`spec drafting` against the reviewed summary carries the corrected test seams into
+this specification. `ready` means ready for the next planning step,
 not ready to bypass it and implement the whole recovery.
 
-Next: run `to-tickets`, present the bounded behavior slices and actual blocking
+Next: run `ticket splitting`, present the bounded behavior slices and actual blocking
 edges for confirmation, then publish those implementation tickets. Attach A4
 and A8 to the relevant slices, retain A1's diagnostic uncertainty, keep A6/A7
 separate, and reserve a final acceptance step covering the reconciled candidate.
@@ -322,11 +322,11 @@ cancellations and the 011 waiver changed the boundary as recorded below.
 | A8 | Reconciled with each delivered slice (004, 005, 012, 014); not for A6/A7 | those tickets |
 
 Carried, not closed: 011 follow-ups F1–F4 (F3: 004's decisions were answered
-2026-11-10; 006's are moot after cancellation; `/retro` is pending) and 004's
-optional M3b/M5b/M7b. `/retro` runs as a separate step after this record is
+2026-11-10; 006's are moot after cancellation; the retrospective is pending) and 004's
+optional M3b/M5b/M7b. the retrospective runs as a separate step after this record is
 committed. No push or merge is authorized.
 
 Completion record: HEAD `a1d001702` plus uncommitted closure edits (001, map,
 006); coordinator commits. Newly executed: doc-link and whitespace checks
 only; reused: the cited child tickets' checks and logs.
-Next action: `/retro`.
+Next action: the retrospective.

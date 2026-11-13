@@ -30,7 +30,7 @@ umbrella or claim its final acceptance.
 Follows the [proof map protocol](../../../agents/issue-tracker.md#proof-map); the rows restate the
 criteria above and add none. They cite 008–014 evidence and do not repeat any owner matrix. Status (coordinator, final review recorded): P1 GREEN, P2 GREEN, P3 `reused`, P4 GREEN, P5 GREEN, P6 GREEN (combined Spec PASS / Standards resolved — see completion record).
 
-- P1 All 14 — the settled census of 14 Class A owners ([006 handoff](006-agree-verification-and-implementation-handoff.md#answer))
+- P1 All 14 — the settled census of 14 Class A owners ([006 transfer](006-agree-verification-and-implementation-transfer.md#answer))
   against the adapters registered at the closing `HEAD` → one audit row per owner naming its passing
   mounted deferral evidence from 008–014. Oracle: the census, not the registry's own list; an owner
   without passing evidence is a blocker. Native source counts and test-graph reach are not behavioural
@@ -221,7 +221,7 @@ historical 8 manual mutants, not by an exhaustive per-owner mutation matrix —
 deliberately avoided as a redundant matrix under test economy. Final review
 judged the 6+1 sampling sufficient for the criterion as written (see P4 row).
 
-### Slice validation, remaining gates, handoff
+### Slice validation, remaining gates, transfer
 
 - Validation executed (slice-time, all serialized via `flock ~/.cache/tmp/boardstudio-build.lock`,
   supported flags/default config, no overlapping cargo): native runtime baseline

@@ -115,7 +115,7 @@ keycap generation still hold `cadrum::Solid` directly, so the seam does not
 cover all production operations. It gives a starting point for a staged
 experiment, but a full cutover also needs to address those direct dependencies.
 
-The strongest Rust-native prototype candidate is currently Monstertruck, the
+The strongest Rust-native mockup candidate is currently Monstertruck, the
 Truck fork. Its upstream project documents B-rep modeling, solid operations,
 healing, fillets/chamfers, STEP I/O, meshing, and a WASM binding crate under
 Apache-2.0. Its README also records a boolean rewrite being reverted after

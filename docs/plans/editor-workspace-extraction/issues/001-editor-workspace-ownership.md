@@ -1,6 +1,6 @@
 # 001: Separate Editor workspace ownership without changing lifetimes
 
-Status: ready-for-agent
+Status: ready
 Type: build
 Blocked by: None (can start with composition characterization)
 Related: [Ownership research](../../../research/editor-workspace-extraction.md), [plan map](../map.md)
@@ -104,9 +104,9 @@ composition tests only for behavior they cannot establish.
 - Workspace interfaces consume existing authorities and only the peer capabilities
   they actually need. Keep controller details private; return rendered slots or
   existing typed surface inputs constructed by the module, plus genuinely shared
-  projections. The prototype demonstrated this shape for Keymap: consume the one
+  projections. The mockup demonstrated this shape for Keymap: consume the one
   PCB resolution signal, retain controller hooks privately, and expose view/contours
-  needed by common camera handling. Do not mandate that exact prototype type shape
+  needed by common camera handling. Do not mandate that exact mockup type shape
   for unrelated workspaces or introduce a universal workspace trait or registry.
 - Preserve one shared canvas interaction arbiter, one instance preference authority
   and the existing shared selection-kind, snap and 3D-mode identities. Source-module
@@ -139,11 +139,11 @@ composition tests only for behavior they cannot establish.
   context providers, header navigation, Export-return tracking and Library/Editor
   mount logic. Do not copy that logic into a test-only host. Preserve the single
   Runtime notifier; no workspace may install a competing subscriber.
-- The prototype's ordinary composition function demonstrates a viable seam without
+- The mockup's ordinary composition function demonstrates a viable seam without
   adding a Dioxus scope. Production implementation must preserve hook ownership and
   teardown while keeping test controls, diagnostics and fixtures out of normal startup.
 - Establish a scope-correct effect-driving fixture before extracting workspaces. The
-  prototype's parent-side driver produced cross-scope Signal warnings; reproducing
+  mockup's parent-side driver produced cross-scope Signal warnings; reproducing
   that warning-prone driver is not an accepted test contract. Characterize warnings
   against unchanged production composition, fix fixture ownership rather than silence
   diagnostics, and stop ownership migration if safe driving/unmount cannot be shown.
@@ -172,7 +172,7 @@ composition tests only for behavior they cannot establish.
   for demonstrated dependencies, but each must land working composition and checks.
 - Refresh callers, tests, fixtures, exports and dependency assumptions before each
   slice. Remove obsolete forwarding/input plumbing after its consumers migrate.
-  Do not copy unrelated work from the changing checkout or merge the prototype wholesale.
+  Do not copy unrelated work from the changing checkout or merge the mockup wholesale.
 
 ## Testing Decisions
 
@@ -235,7 +235,7 @@ composition tests only for behavior they cannot establish.
   is required; removing only the root DOM node proves no lifecycle guarantee.
 - The composition fixture must exercise mounted edit, workspace transition, board
   reconciliation, Export return, gated completion and genuine unmount without the
-  prototype's cross-scope Signal warnings or dropped-Signal errors. Record any
+  mockup's cross-scope Signal warnings or dropped-Signal errors. Record any
   independently reproduced pre-existing diagnostic separately, not as a silent waiver.
 - Memory persistence and installed identity-matched CAD fixtures do not qualify real
   workers/GPU behavior. Retain packaged-page provider and drag-smoke acceptance for
@@ -250,7 +250,7 @@ composition tests only for behavior they cannot establish.
 - [ ] Required composition behaviors above have automated evidence at the highest practical existing seam, with any intentionally lower-seam coverage explained.
 - [ ] Existing relevant native and workspace-mounted tests, the page-bin browser suite and page-only WASM compilation pass; tests are not moved into the worker library.
 - [ ] Run the repository's documented quick checks per slice and full pre-PR checks for the integrated result, including the checked packaged build and browser/provider/drag smoke. Use supported scheduling and record verification receipts; do not overlap builds against one physical target.
-- [ ] Review both specification conformance and repository standards, including dependency direction, ownership, teardown, accessibility and absence of obsolete forwarding plumbing. No prototype controls, features, fixtures or HTML are shipped.
+- [ ] Review both specification conformance and repository standards, including dependency direction, ownership, teardown, accessibility and absence of obsolete forwarding plumbing. No mockup controls, features, fixtures or HTML are shipped.
 
 ## Out of Scope
 
@@ -270,8 +270,8 @@ composition tests only for behavior they cannot establish.
 ## Further Notes
 
 The user accepted the real-composition test direction, then requested source research
-and an isolated prototype before this specification. Research established the
-lifetime constraints; the prototype established bounded feasibility, not full
+and an isolated mockup before this specification. Research established the
+lifetime constraints; the mockup established bounded feasibility, not full
 equivalence. Remaining lifecycle and routing gaps are explicit implementation gates
 above, rather than claims that those cases already pass.
 
@@ -284,13 +284,13 @@ Primary evidence:
   [document authority and captured lifetimes](../../../adr/0014-document-authority-and-captured-lifetimes.md),
   [export ownership](../../../adr/0016-export-ownership-is-separate-from-preview-currency.md),
   and [real workflow/mounted-browser testing](../../../adr/0021-test-real-workflows-natively-and-browser-behavior-mounted.md).
-- Throwaway branch `t3/editor-keymap-lifecycle-prototype`, source commit
+- Throwaway branch `t3/editor-keymap-lifecycle-mockup`, source commit
   `c9e60307feeec9bdb0d2dc6d21a30a4af7440f59` and verdict commit
   `10cb410a1104fbe28970eac6e7a97b755a08ecb6`, based on
   `9099b3ef7a72b0919b1572f116490ed57514d43a`. The committed verdict records the
   exact private interface, observed interactions, commands and unproven cases.
 
-The prototype demonstrated pending rename across workspace leave/return, Export
+The mockup demonstrated pending rename across workspace leave/return, Export
 return actions, production board reconciliation, serialized replacement with reused
 IDs, Library hiding, real App removal, and binding/macro saves. Normal and experimental
 page WASM checks passed. It did not demonstrate reply delivery after accepted
@@ -298,7 +298,7 @@ replacement, every routing/focus path, warning-free external effect driving, or
 packaged worker/GPU behavior. The separate HTML walkthrough models an invented policy
 and is explanatory only.
 
-Research inspected a changing working tree; the prototype used a clean older base.
+Research inspected a changing working tree; the mockup used a clean older base.
 Before implementation, establish a fresh baseline and reconcile concurrent changes
 without discarding them. This specification authorizes the bounded production seam,
-ownership refactor and regression coverage, not wholesale adoption of the prototype.
+ownership refactor and regression coverage, not wholesale adoption of the mockup.

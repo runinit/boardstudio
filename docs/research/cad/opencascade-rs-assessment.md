@@ -10,13 +10,13 @@ dated 2026-08-24. The inspected `opencascade` package declares version 0.3.0.
 Local baseline is Board Studio HEAD `e43145f` with existing uncommitted changes.
 
 **Assessment:** a credible candidate for a larger Rust CAD layer, subject to a
-browser feasibility prototype. It exposes much of the modeling functionality we
+browser feasibility mockup. It exposes much of the modeling functionality we
 need. Its documented WASM example does not demonstrate running the CAD kernel
 in a browser. Source inspection alone cannot establish that it will replace the
 current browser worker successfully.
 
 Follow-up: the [Cadrum assessment](cadrum-assessment.md) identifies a stronger
-first candidate for our browser prototype, with a working related demo,
+first candidate for our browser mockup, with a working related demo,
 `wasm32-unknown-unknown` build recipe and stream-based STEP APIs. The analysis
 below remains useful as an alternative; the proposed Emscripten experiment is
 no longer the preferred first route.
@@ -108,7 +108,7 @@ unless newer-OCCT binding compatibility is established separately. Neither
 smaller binaries nor equivalent geometry should be assumed from the language
 change.
 
-The prototype should meet these gates before implementation migration:
+The mockup should meet these gates before implementation migration:
 
 1. Build the pinned wrapper and kernel; load them in a browser worker without
    a server-side CAD service or native helper.

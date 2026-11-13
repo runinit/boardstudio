@@ -81,7 +81,7 @@ project that independently disables just one of those operations.
 | --- | --- | --- | --- |
 | Keep Cadrum/OCCT; skip `wasm-opt` in checked builds | Removes an unnecessary optimizer pass from routine builds; keeps the same Rust release compilation | Same production API and geometry; checked artifact is less optimized | Do this first and time it |
 | Mesh-only kernel such as Manifold | Could remove C++/OCCT from a preview or mesh-only provider | Manifold's source defines its booleans over triangle meshes and guarantees manifold output for manifold inputs; it does not preserve exact curved B-rep faces or provide the current OCCT STEP workflow ([upstream algorithm](https://github.com/elalish/manifold/wiki/Manifold-Library)) | Viable only if STEP/exact-solid behavior can be dropped or retained in a separate slow path; running both kernels in one artifact will not reduce builds |
-| Rust B-rep kernel such as Monstertruck | Could remove the C++ compiler and OCCT archive from the CAD provider; compile time may instead move to a multi-crate Rust geometry stack | Upstream provides STEP, booleans, meshing, and WASM crates, but no BoardStudio parity or compile-time comparison follows from those features ([upstream](https://github.com/virtualritz/monstertruck), [parity notes](https://github.com/virtualritz/monstertruck/blob/master/TRUCK-PARITY.md)) | Prototype candidate, not a safe replacement today |
+| Rust B-rep kernel such as Monstertruck | Could remove the C++ compiler and OCCT archive from the CAD provider; compile time may instead move to a multi-crate Rust geometry stack | Upstream provides STEP, booleans, meshing, and WASM crates, but no BoardStudio parity or compile-time comparison follows from those features ([upstream](https://github.com/virtualritz/monstertruck), [parity notes](https://github.com/virtualritz/monstertruck/blob/master/TRUCK-PARITY.md)) | Mockup candidate, not a safe replacement today |
 | Move exact CAD to a native/server worker | Removes OCCT from browser WASM compilation and download | Adds a service or native installation and breaks offline CAD unless a local native host is supplied | Architectural choice, not a build flag |
 
 The prior BoardStudio comparison gives a concrete warning for the Rust-kernel
@@ -101,7 +101,7 @@ time, so it cannot establish that a Rust rewrite would build faster.
 3. Compare a clean and an incremental build with stage timings before changing
    Rust optimization levels. If the container fallback is rebuilding the
    toolchain, restore use of the pinned published image.
-4. Only prototype a replacement if the product can accept mesh-only CAD or if
+4. Only mockup a replacement if the product can accept mesh-only CAD or if
    removing OCCT is itself worth a full STEP/geometry compatibility project.
 
 The larger kernel experiment should separately check generated cases and

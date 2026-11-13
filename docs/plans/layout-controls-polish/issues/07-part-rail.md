@@ -1,10 +1,10 @@
 # 07: Part rail: Move, Rotate, Spread and Stagger on the canvas
 
-Status: ready-for-agent
+Status: ready
 Type: build
 Blocked by: [03](03-handle-rail.md), [06](06-value-popup-and-commit-toast.md)
 Map: [map.md](../map.md)
-Prototype: branch `prototype/layout-controls-iconography` (e91865f43), `?variant=D`.
+Mockup: branch `mockup/layout-controls-iconography` (e91865f43), `?variant=D`.
 Decision: [map.md](../map.md#decisions-so-far) "Parts' carried tools (2026-10-26)"
 Review: web-only behaviour on existing Core ops; RED/GREEN evidence and a diff read.
 
@@ -42,7 +42,7 @@ drags the part's Stagger token +2 mm and asserts one revision whose part anchor 
 
 ## Carried point
 
-- The prototype leaves the upper Matrix / Row / Column / Key / Part strip unchanged while a part
+- The mockup leaves the upper Matrix / Row / Column / Key / Part strip unchanged while a part
   is selected. By default this ticket doesn't change that strip; confirm in the live pass.
 
 ## Answer

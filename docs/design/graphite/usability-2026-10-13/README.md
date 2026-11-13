@@ -18,7 +18,7 @@ The new isolated-profile browser regression is `scripts/test-graphite-usability.
 
 The completed checks cover typed edits through the Inspector owner; each drag's commit, Escape cancellation and single-step undo with all handles mounted; visibility independence; all six workbenches at 1586, 1024 and 390 pixels; toolbar centers within two pixels of viewer centers; and Layout toolbar alignment with collapsed/resized docks.
 
-Additional checks: native Layout/shared tests; mounted transform, numeric Inspector, dock lifecycle and panel-scroll browser tests; Layout scene/layer integration; PCB scene layers; Case assembly layers; WASM page typecheck and preview build; scoped Impeccable layout detector and `git diff --check`. Exact outcomes are recorded in the accompanying verification text.
+Additional checks: native Layout/shared tests; mounted transform, numeric Inspector, dock lifecycle and panel-scroll browser tests; Layout scene/layer integration; PCB scene layers; Case assembly layers; WASM page typecheck and preview build; scoped design-check layout detector and `git diff --check`. Exact outcomes are recorded in the accompanying verification text.
 
 The first inspection discovered stale generated Tailwind CSS despite a live watcher. CSS was regenerated and the stalled watcher replaced with a scoped polling compiler for this worktree. The preview remains at http://127.0.0.1:8182/; its existing proxy/Dioxus processes were retained. Scratch tooling and logs live under `.scratch/graphite-usability/`.
 

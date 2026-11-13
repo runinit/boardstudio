@@ -10,12 +10,12 @@ Owner: `plan/toolbar-led-workbench` in `.worktrees/toolbar-workbench-plan`
 
 Planning documents only in this thread. Record confirmed choices, six capability inventories,
 owned implementation slices/dependencies, proof maps and an honest first-delivery contract.
-No production code, prototype edits, geometry/export change or implicit later-phase approval.
-The next thread coordinates and implements only the authorized M1 after this handoff gate.
+No production code, mockup edits, geometry/export change or implicit later-phase approval.
+The next thread coordinates and implements only the authorized M1 after this transfer gate.
 
 ## Current
 
-The user instructed **“Execute the recommendations and then handoff to new thread for
+The user instructed **“Execute the recommendations and then transfer to new thread for
 coordination and implementation.”** This adopts the bounded correction pass and complete
 Layout vertical slice in [delivery.md](../delivery.md), replacing the former separate
 foundation/Layout phases. It is not authorization to implement M2/M3, merge mixed shells
@@ -26,7 +26,7 @@ and never changes saved-link source/history. All six workspaces remain in the fi
 The earlier recommended M1 routing/narrow/lifetime/commit-preservation defaults are now the
 implementation target; Keycaps-default relocation, Case View/Preview interface/targets and
 unclassified future editor update safety stay at M2's human gates. Later tickets010–015 are
-ready-for-human, not silently ready to build after M1.
+awaiting-decision, not silently ready to build after M1.
 
 Fable read24/24 prior candidate documents with native Gortex and returned CHANGES REQUIRED.
 Its report is [review-fable.md](../review-fable.md). The old Codex tool-access failure is
@@ -40,14 +40,14 @@ verdict is unchanged. The author added the exact independent 003 row and verific
 read the change and reran doc checks as the reviewer directed; no further review round or
 waiver. N8's mandatory M1 planning gap is disposed, not its future runtime proof.
 
-007/008 now also remain ready-for-human at the M3 phase gate. M1's named 007 acceptance rows
+007/008 now also remain awaiting-decision at the M3 phase gate. M1's named 007 acceptance rows
 and receipt home are explicit in delivery.md; DESIGN/ADR index distinguish M1 authorization
 from later phases. Nonblocking implementation follow-ups are carried in the map and report.
 
 The host remains private, geometry/selection/Undo/export owners stay put, and all4 frozen
 references remain untouched. ADR0041 records the accepted direction, not shipped UI.
-M1 is a real-app delivery, not another prototype or an empty host. No production work has
-run in this planning thread. This planning gate is resolved for M1 handoff only: its sole
+M1 is a real-app delivery, not another mockup or an empty host. No production work has
+run in this planning thread. This planning gate is resolved for M1 transfer only: its sole
 missing case is added and the documentation gates pass at767 Markdown files. Deferred M2/M3
 decisions remain gated. No product proof is GREEN merely because this ticket is resolved.
 
@@ -56,7 +56,7 @@ decisions remain gated. No product proof is GREEN merely because this ticket is 
 - [x] Confirmed constraints and historical shipped-vs-next-shell distinction recorded.
 - [x] Every six-workspace inventory capability has a destination and owner; no silent removal.
 - [x] Real Layout first-delivery scope and sole shared-routing/build coordinator specified.
-- [x] Current user request recorded as M1 execution/handoff authorization, with later stops.
+- [x] Current user request recorded as M1 execution/transfer authorization, with later stops.
 - [x] Corrected planning doc/index/link checks recorded (767 Markdown including delta report).
 - [x] One combined delta recheck dispositions recorded; mandatory M1 findings resolved,
       remaining future-phase decisions explicitly gated, no unread M1 governing source.
@@ -79,7 +79,7 @@ decisions remain gated. No product proof is GREEN merely because this ticket is 
   edits; untracked omission from detect is acknowledged · native · GREEN (native document
   mutation receipts, explicit candidate inventory and delta review coverage; no runtime proof)
 
-## Verification and handoff
+## Verification and transfer
 
 Run `python3 scripts/check.py repo` and `python3 scripts/check-doc-links.py` after the final
 planning/report edits; logs only in `.evidence/`. Prior refinement receipts (763Markdown,

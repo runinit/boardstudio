@@ -126,7 +126,7 @@ so.
 - 2026-11-06: Added at the user's request ("we should add this feature") after
   002 closed on a stale cached build.
 - 2026-11-06: The user chose an "Update Available" notification with a refresh
-  button. Status moved from `ready-for-human` to `ready-for-agent`; the pending-edits
+  button. Status moved from `awaiting-decision` to `ready`; the pending-edits
   behavior and build identity are working assumptions, listed under Decisions.
 
 - 2026-11-06: Documentation planning made this a coordination umbrella with

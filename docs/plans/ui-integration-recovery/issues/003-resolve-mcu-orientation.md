@@ -1,6 +1,6 @@
 # 003: Resolve the diagnosed MCU orientation symptom
 
-Status: wontfix
+Status: declined
 Type: build
 Blocked by: [002: Diagnose MCU rotation](002-diagnose-mcu-rotation.md)
 Parent: [001: Recovery specification](001-ui-integration-recovery-spec.md)
@@ -48,7 +48,7 @@ and 011. Keep the parent specification and original audit unchanged.
 
 - 2026-11-06: Published adjacent to diagnosis as requested. The correction is
   deliberately not selected before 002 supplies the evidence.
-- 2026-11-06: Closed `wontfix` by the user: not applicable. 002 closed with the
+- 2026-11-06: Closed `declined` by the user: not applicable. 002 closed with the
   observed MCU orientation attributed to a stale cached build, so no correction
   is owed. Not carried out: the A8 reconciliation of controller-heading
   guidance (ADR-0010 omits the controller exception; "keep the world heading"

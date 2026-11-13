@@ -49,7 +49,7 @@ Exact owned paths (verified natively before edits):
 - `scripts/verify-update-adoption-payloads/update-check.js` (new, quick no-build check)
 - `scripts/verify-update-adoption-payloads/layout-constraint.js` (real standalone-part constraint observation; packaged leg added in focused follow-up below)
 - Existing payloads reused unchanged: `state.js`, `update.js`, `loaded-binary.js`, `cachecontent.js`, `marker.js`, `focus-info.js`, `tab-prep.js`
-- `docs/plans/update-draft-safety/issues/010-packaged-a-to-b-proof.md` (this ticket; progress/handoff record)
+- `docs/plans/update-draft-safety/issues/010-packaged-a-to-b-proof.md` (this ticket; progress/transfer record)
 - Minimal focused driver tests if needed (none planned; driver is exercised via packaged runs, not unit tests)
 
 Not owned: production Rust, registry/owner adapters, other tickets, root rules, spec/map, coordinator-owned `execution.md`, unrelated build tooling. Diagnostic adapter (`window.__boardstudioPersistGate`) is reused, not modified. Historical RED artifacts (`web/target/site-002-ab/a|b`) are read-only.
@@ -222,7 +222,7 @@ existing recovery controls and inherited five legs remain intact. Their GREEN
 is not literal Retry acceptance (blocker above).
 
 CLI lifecycle reference: installed agent-browser **0.39.1**, loaded via
-`agent-browser skills get core --full` and `--help`; custom `--profile` persists
+`agent-browser guides get core --full` and `--help`; custom `--profile` persists
 IndexedDB/service workers/cache, and `close` is not disk deletion. Current Layout
 uses its own absolute `mkdtemp` profile, confirms close, waits until no process
 has that exact `--user-data-dir`, observes `Default/IndexedDB`, then removes
@@ -253,7 +253,7 @@ above is the verification seam), guards no configured rules, contract WARN
 (behavioral, high/lower-bound blast; no parse-error finding). Pre-edit contract
 attachment was explicitly uncertified/rebuilding; no stronger contract freshness
 claim is made. Existing signatures remain unchanged. Full diff self-read at
-handoff; no production Rust or other payload changed, and coordinator-owned
+transfer; no production Rust or other payload changed, and coordinator-owned
 untracked research remains untouched/uncommitted.
 
 That focused follow-up stopped at `99eafb644` with Retry blocked. The later

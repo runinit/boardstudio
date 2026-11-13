@@ -1,6 +1,6 @@
 # 004: Give PCB ownership of wiring and plan delivery
 
-Status: ready-for-agent
+Status: ready
 Type: build
 Blocked by: [003: Keymap workspace ownership pilot](003-keymap-workspace-ownership.md)
 Parent: [001: Editor workspace ownership specification](001-editor-workspace-ownership.md)

@@ -67,10 +67,10 @@ coding instead of widening this ticket.
   left-central output as required above. Hardware and transport support still
   need evidence; no new capability model is implied by this decision.
 - 2026-11-06: Created from 016's initial audit finding at the user's request
-  ("split firmware export needs to be updated"). Routed with `ask-matt`: the
-  policy is already decided by an accepted ADR, so no grilling step; it looks
+  ("split firmware export needs to be updated"). Routed with `routing guidance`: the
+  policy is already decided by an accepted ADR, so no questioning step; it looks
   like one session of work if transport support is already known, otherwise run
-  `/to-spec` then `/to-tickets` first.
+  `/spec drafting` then `/ticket splitting` first.
 - 2026-11-06: Implementation evidence (agent). Historically left open; the
   limitations recorded below are superseded by the 2026-11-08 completion record.
   - Design: Core `FirmwareRequest` gains `central_half` (`SplitHalf`); `generate` reorders to physical

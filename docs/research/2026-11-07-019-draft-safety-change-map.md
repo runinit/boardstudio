@@ -275,7 +275,7 @@ The title/display-text Toast matching concern also remains separate. This source
 investigation does not resolve them, change ADR policy, or promote old evidence to
 fresh proof.
 
-## Investigation validation and handoff
+## Investigation validation and transfer
 
 One fresh-context research delegate collected initial editor evidence; the coordinator
 independently checked the primary constraint counterexample, added Geometry scripts,

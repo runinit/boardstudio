@@ -1,4 +1,4 @@
-//! Deterministic ZMK handoff generation.
+//! Deterministic ZMK transfer generation.
 //!
 //! The generator accepts resolved electrical assignments only. It never invents
 //! GPIO names from labels: every scan pin must resolve through an electrical
@@ -870,7 +870,7 @@ fn instructions(
         ""
     };
     format!(
-        "# BoardStudio ZMK handoff\n\n- Target: ZMK v0.3.0\n- Controller: `{}`\n- Matrix: {} rows x {} columns\n- Diodes: `{}`\n- Split transport: `{}`\n{}\nUnassigned positions use `&none`; edit bindings in BoardStudio or the generated keymap before building. The included workflow uses ZMK v0.3.0. For a local build, install the ZMK v0.3.0 toolchain and run `sh build-local.sh` from the package root. Builds use isolated directories for each shield. Verify the PCB jumper recipe and local routing obligations before assembly.\n",
+        "# BoardStudio ZMK transfer\n\n- Target: ZMK v0.3.0\n- Controller: `{}`\n- Matrix: {} rows x {} columns\n- Diodes: `{}`\n- Split transport: `{}`\n{}\nUnassigned positions use `&none`; edit bindings in BoardStudio or the generated keymap before building. The included workflow uses ZMK v0.3.0. For a local build, install the ZMK v0.3.0 toolchain and run `sh build-local.sh` from the package root. Builds use isolated directories for each shield. Verify the PCB jumper recipe and local routing obligations before assembly.\n",
         request.controller_profile,
         request.rows.len(),
         request.columns.len(),

@@ -478,14 +478,14 @@ impl CoreEngine {
                     return self.error(id, "PCB wiring configuration is missing");
                 };
                 if config
-                    .protected_handoff
+                    .protected_transfer
                     .as_ref()
                     .map(|baseline| baseline.fingerprint.as_str())
                     != Some(expected_fingerprint.as_str())
                 {
-                    return self.error(id, "The PCB handoff changed; review it again");
+                    return self.error(id, "The PCB transfer changed; review it again");
                 }
-                config.protected_handoff = None;
+                config.protected_transfer = None;
                 self.document.revision = revision;
                 self.scene(
                     id,
@@ -500,7 +500,7 @@ impl CoreEngine {
                     },
                 )
             }
-            CoreRequest::ProtectElectricalHandoff {
+            CoreRequest::ProtectElectricalTransfer {
                 id,
                 base_revision,
                 board_id,
@@ -513,7 +513,7 @@ impl CoreEngine {
                     return self.error(id, "Wiring plan is stale");
                 }
                 if plan.board_id.as_deref() != Some(&board_id) {
-                    return self.error(id, "The handoff belongs to a different PCB");
+                    return self.error(id, "The transfer belongs to a different PCB");
                 }
                 let reviewed = electrical::resolve(electrical::ElectricalPlanRequest {
                     document: self.document.clone(),
@@ -525,7 +525,7 @@ impl CoreEngine {
                     controller_part_id: plan.controller_part_id.clone(),
                 });
                 if plan.instance_id.is_some() || reviewed.fingerprint != plan.fingerprint {
-                    return self.error(id, "The handoff no longer matches the PCB wiring");
+                    return self.error(id, "The transfer no longer matches the PCB wiring");
                 }
                 let hw = self.document.hardware.get_or_insert_with(Default::default);
                 let index = hw.boards.iter().position(|b| b.board_id == board_id);
@@ -538,12 +538,12 @@ impl CoreEngine {
                 });
                 let board = &mut hw.boards[index];
                 let mut assignments = board
-                    .protected_handoff
+                    .protected_transfer
                     .as_ref()
                     .map(|baseline| baseline.assignments.clone())
                     .unwrap_or_default();
-                assignments.extend(electrical::handoff_assignments(&plan));
-                board.protected_handoff = Some(ElectricalHandoffBaseline {
+                assignments.extend(electrical::transfer_assignments(&plan));
+                board.protected_transfer = Some(ElectricalTransferBaseline {
                     fingerprint: plan.fingerprint.clone(),
                     revision: self.document.revision,
                     assignments,
@@ -551,7 +551,7 @@ impl CoreEngine {
                 self.scene(
                     id,
                     SceneInput {
-                        transaction: "protect-handoff",
+                        transaction: "protect-transfer",
                         changed: vec![],
                         document: &self.document,
                         contours: &self.contours,
@@ -675,7 +675,7 @@ impl CoreEngine {
                 return self.error(id, &message);
             }
             let mut raw_changed = raw_changed;
-            electrical::preserve_handoff(&self.document, &mut raw_next);
+            electrical::preserve_transfer(&self.document, &mut raw_next);
             if let Err(message) = layout::resolve(&mut raw_next) {
                 return self.error(id, &message);
             }
@@ -982,7 +982,7 @@ impl CoreEngine {
             return self.error(id, "History is empty");
         };
         let changed = changed_ids(&self.document, &next);
-        electrical::preserve_handoff(&self.document, &mut next);
+        electrical::preserve_transfer(&self.document, &mut next);
         let (from, to) = match direction {
             History::Undo => (&mut self.undo, &mut self.redo),
             History::Redo => (&mut self.redo, &mut self.undo),

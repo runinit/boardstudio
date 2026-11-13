@@ -32,7 +32,7 @@ retention system; it does not require changing an explicitly saved parameter val
 This does not waive [ADR-0004](0004-document-format-version-and-id-rename.md)'s schema
 migrations, [ADR-0009](0009-generator-parameters-checked-in-core.md)'s parameter admission,
 or required identity/terminal migration when pad count/order or meaning changes.
-Nor may an update silently override [ADR-0031](0031-preserve-pcb-handoff-protection-across-undo.md)'s
+Nor may an update silently override [ADR-0031](0031-preserve-pcb-transfer-protection-across-undo.md)'s
 protected signal assignments. No new review/adoption gate is required solely to keep
 old geometry, but accepted integrity and safety contracts still apply.
 

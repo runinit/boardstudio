@@ -34,7 +34,7 @@ impl SplitHalf {
         }
     }
 
-    /// Inline canvas label for the dimmed half (prototype variant B).
+    /// Inline canvas label for the dimmed half (mockup variant B).
     pub fn dim_label(self) -> String {
         format!("{} · linked mirror · click to edit here", self.label())
     }

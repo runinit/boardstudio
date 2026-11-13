@@ -203,5 +203,5 @@ product workflow and independent emitted-file QA. The first K1 print transport
 completed, but its seal was rejected because a concurrent harness commit changed
 driver identity; that rejected capture is preserved and is not an accepted sample.
 Final focused tests and source-frozen replay results are recorded in the lane's
-handoff. No Cargo/wasm-pack/Dioxus/container build, install, full benchmark, parent
+transfer. No Cargo/wasm-pack/Dioxus/container build, install, full benchmark, parent
 edit, review or migration completion is claimed. Ticket011 status stays unchanged.

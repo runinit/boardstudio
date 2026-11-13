@@ -21,7 +21,7 @@ pub enum FeedbackDelta {
 }
 
 impl FeedbackDelta {
-    /// Signed display text with the prototype's plus and U+2212 minus:
+    /// Signed display text with the mockup's plus and U+2212 minus:
     /// "+1.00 mm", "−1.50 mm", "+8.00, +4.00 mm", "+1.00°"; a note renders
     /// verbatim.
     pub fn text(&self) -> String {
@@ -45,7 +45,7 @@ impl FeedbackDelta {
 }
 
 /// "+1.00" / "−1.50": an explicit plus for zero and upward, U+2212 for
-/// downward, matching the prototype delta format and `spacing_note`.
+/// downward, matching the mockup delta format and `spacing_note`.
 fn signed_two(value: f64) -> String {
     if value < 0.0 {
         format!("−{:.2}", value.abs())
@@ -293,7 +293,7 @@ mod tests {
     }
 
     #[test]
-    fn delta_text_signs_every_component_like_the_prototype() {
+    fn delta_text_signs_every_component_like_the_mockup() {
         assert_eq!(FeedbackDelta::Mm(1.0).text(), "+1.00 mm");
         assert_eq!(FeedbackDelta::Mm(-1.5).text(), "−1.50 mm");
         assert_eq!(FeedbackDelta::Mm2(8.0, -4.0).text(), "+8.00, −4.00 mm");

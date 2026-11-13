@@ -1,6 +1,6 @@
 # 010: Give Layout ownership of creation and placement workflows
 
-Status: ready-for-agent
+Status: ready
 Type: build
 Blocked by: [005: Parts routes](005-parts-browsing-attachment-and-routes.md), [009: Layout selection and Inspector ownership](009-layout-selection-and-inspector-ownership.md)
 Parent: [001: Editor workspace ownership specification](001-editor-workspace-ownership.md)

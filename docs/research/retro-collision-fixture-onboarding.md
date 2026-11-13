@@ -75,7 +75,7 @@ directs agents to `GLOSSARY.md` and relevant ADRs. The collision term is already
 the glossary ([GLOSSARY.md](../../GLOSSARY.md#L44)); no new domain term or ADR is
 indicated. The recommended landing point is the collision browser-test module's
 header note, reachable through one inbound link from the existing architecture
-reference. A task handoff may reuse that route, but handoff text alone is not a
+reference. A task transfer may reuse that route, but transfer text alone is not a
 durable entrypoint. Start the verification walkthrough from the architecture,
 rather than handing the author the new note directly. Use file links and symbol
 names; line anchors are not validated by the [Markdown link checker](../../scripts/check-doc-links.py),

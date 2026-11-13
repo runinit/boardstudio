@@ -41,7 +41,7 @@ retire them. A completed save or preview alone is not proof that all drafts are 
 
 Class B blur-committing owners remain an **explicit, revocable risk acceptance**,
 not registered coverage or a proof of safety for every blur ordering. The
-[accepted handoff](../plans/update-draft-safety/issues/006-agree-verification-and-implementation-handoff.md#risk-acceptance-exclusions-remaining-blockers)
+[accepted transfer](../plans/update-draft-safety/issues/006-agree-verification-and-implementation-transfer.md#risk-acceptance-exclusions-remaining-blockers)
 revokes it on **any observed Class B draft loss, any new Class B owner, or a
 blur-ordering counterexample** (Enter→blur, portal focus-out,
 unmount-without-blur), reopening Class B adapters through a fresh ticket.

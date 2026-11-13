@@ -267,7 +267,7 @@ fn standalone_part(definition: &PartDefinition) -> Part {
     }
 }
 
-// Enforce the same recorded blockers for stateless exports and UI handoffs.
+// Enforce the same recorded blockers for stateless exports and UI transfers.
 fn require_footprint_qualification(definition: &PartDefinition) -> Result<(), ArtifactError> {
     if let Some(gate) = definition
         .hardware_profile

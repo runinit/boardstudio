@@ -3,9 +3,9 @@
 Status: user-approved visual/interaction reference; **not production UI or an implementation specification**.
 
 Open [toolbar.html](toolbar.html) directly in a browser. It is a self-contained,
-disposable presentation prototype with no network dependencies or project mutations.
+disposable presentation mockup with no network dependencies or project mutations.
 The appearance toggle offers light and dark; the state selector exercises selection
-and availability scenarios. The prototype drawing is illustrative, not Core geometry.
+and availability scenarios. The mockup drawing is illustrative, not Core geometry.
 
 ## Preserve this option
 
@@ -13,7 +13,7 @@ and availability scenarios. The prototype drawing is illustrative, not Core geom
 design study after the final whole-section motion refinement. Keep it as a frozen
 reference. Create subsequent workbench studies in a separate sibling directory;
 do not overwrite this file while exploring Objects, Inspector, or the topbar.
-Approval applies to the toolbar direction below, not to the prototype's simplified
+Approval applies to the toolbar direction below, not to the mockup's simplified
 application shell, sample geometry, or any future implementation.
 
 ## Agreed direction
@@ -64,7 +64,7 @@ switching, and reduced motion. A browser frame trace confirmed constant text opa
 and a constant icon-to-label offset throughout the final unified slide. The strip
 remained 42px high. The archived file was compared byte-for-byte with that candidate.
 
-These are prototype checks, not production performance, accessibility, CAD, export,
+These are mockup checks, not production performance, accessibility, CAD, export,
 or fabrication evidence. The mechanical design scan retained a compact 11px text
 warning; accessibility compliance has not been established. The surrounding shell
 is intentionally simplified. No application code was changed to adopt this option.

@@ -251,7 +251,7 @@ results, distinct from earlier successful Chrome runs. No fixture was published.
 This candidate is blocked before the real browser workflow, not proven
 fundamentally impossible. The existing generator prepares verified runtime files
 under writable temporary storage, so a write-only scratch policy also needs a
-separate preparation and immutable handoff design. The next experiment should
+separate preparation and immutable transfer design. The next experiment should
 identify the recursion failure, prepare and seal runtime inputs outside the
 restricted browser process, provide Chrome's necessary profile storage without
 allowing it to become an interpreter input, and use a bounded validated output
@@ -274,13 +274,13 @@ then recurses through Python 3.14 `tempfile._rmtree` and `shutil.rmtree` until
 `RecursionError` masks the original error. The policy denies reads of that
 extracted directory, including enumeration used to compare it to the Git tree.
 This trace does not establish a defect in the pinned source or prove a repaired
-handoff is secure. The instrumented probe and trace are local experimental
+transfer is secure. The instrumented probe and trace are local experimental
 artifacts; the runner's existing driver is not source-bound.
 
 The next experiment must prepare and authenticate the runtime outside the
 restricted process, expose it read-only, and exercise the actual source-bound
 driver with a bounded output channel while denying scratch reads and the other
-adversarial surfaces. No such handoff or new security acceptance is claimed by
+adversarial surfaces. No such transfer or new security acceptance is claimed by
 this traceback. C1/C3/C4, privacy/destruction, and the full battery remain open;
 the Node gate remains required.
 
@@ -293,7 +293,7 @@ policy. From `scripts/ergogen-parity`, `python3 -B -m unittest
 test_host_probe.HostBoundaryTests.test_prepared_runtime_is_used_without_repreparing`
 first failed with an unexpected-keyword `TypeError`; after the change,
 `python3 -B -m unittest test_host_probe.HostBoundaryTests` passed 4 tests.
-This mock-only check does not establish the runtime handoff or containment.
+This mock-only check does not establish the runtime transfer or containment.
 
 The shared browser probe uses readable temporary files for driver stdout and
 stderr (`tools/browser-harness/test-cad-target-responses.py:46`). The proposed
@@ -318,7 +318,7 @@ must account for interpreter invocation and inherited descriptors as well as
 scratch paths; the bounded output channel must not become an input channel to
 an interpreter. No new integrated implementation or acceptance is claimed.
 
-## Authenticated handoff and bounded staging follow-up
+## Authenticated transfer and bounded staging follow-up
 
 On the same dirty checkout, the outer wrapper now holds the verified source and
 locked dependency tree alive and mounts it read-only for the generator. It builds
@@ -330,7 +330,7 @@ and containment proof. Structure validation does not authenticate the output.
 From the repository root, the real command
 `python3 -B scripts/ergogen-parity/sandbox_generate.py --check --cache /home/chris/.cache/tmp/opencode/ergogen-oracle-19-OeOxaW6C/upstream-checkout --temp-parent /home/chris/.cache/tmp/opencode`
 exited 0 and reproduced the 212,288-byte committed fixture using the pinned Chrome
-and source-built driver; `.evidence/ergogen-handoff-outer.log` records the reset
+and source-built driver; `.evidence/ergogen-transfer-outer.log` records the reset
 and clean shutdown. It ran before the final publication guard, which affects only
 non-check mode. From `scripts/ergogen-parity`, `python3 -B test_generate.py
 --hermetic` passed 16 tests and `python3 -B -m unittest test_sandbox_output
@@ -341,7 +341,7 @@ This is not an integrated containment solution: the sandbox still permits scratc
 reads, remounts, and inherited-channel transfers, and the driver capture uses
 readable temporary files. No scratch-to-interpreter or scratch-to-output battery,
 private-scratch lifecycle, C1/C3/C4 or independent review is claimed. The
-read-only handoff is authenticated by its outer caller, not by the hidden generator
+read-only transfer is authenticated by its outer caller, not by the hidden generator
 argument alone. REJECT and the existing Node gate remain in force.
 
 ## Prepared-runtime Landlock integration probe
@@ -389,7 +389,7 @@ all `/tmp` also makes attacker-written scripts readable by an interpreter. A
 candidate redesign is to have an outer supervisor create and remove a distinct
 profile after confirming Chrome termination, and confine Chrome separately from
 the driver with access to that profile while denying it interpreter execution
-and uncontrolled input/output channels. The output handoff must also avoid or
+and uncontrolled input/output channels. The output transfer must also avoid or
 explicitly authorize Landlock's cross-directory rename, without making writable
 output readable to the untrusted process. This is a design to investigate, not
 a proven boundary: Chrome itself can consume code and data, and process-specific

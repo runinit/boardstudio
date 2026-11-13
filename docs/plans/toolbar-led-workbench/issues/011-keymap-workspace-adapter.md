@@ -1,6 +1,6 @@
 # 011: Keymap adapter with layer and input-editor identity intact
 
-Status: ready-for-human
+Status: awaiting-decision
 Type: build
 Blocked by: [009](009-shared-toolbar-panel-host.md)
 Parent: [map.md](../map.md)
@@ -30,7 +30,7 @@ Layer name is known blur-submit: hoist/retain its text + dirty/error + captured 
 as one per-layer owner, not the current component-local dirty flag plus shared name signal.
 Retain binding/macro/encoder controller state above conditional sections, using their actual
 input/generation keys; use keep-mounted scopes where possible and hoist only keyed resets.
-Complete the classification and approve M2 before changing this ticket to ready-for-agent.
+Complete the classification and approve M2 before changing this ticket to ready.
 
 ## Acceptance criteria
 

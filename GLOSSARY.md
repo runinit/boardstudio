@@ -184,13 +184,13 @@ _Avoid_: right half (when the communication role is meant)
 A split keyboard design whose halves or required hardware assignments are not yet
 complete. It is an unfinished design, not by itself a corrupt project.
 
-**Firmware handoff**:
+**Firmware transfer**:
 An editable repository template containing keyboard firmware sources, configuration
 and build information. It is not a compiled image ready to flash.
 
-**PCB handoff**:
+**PCB transfer**:
 A package of PCB design data and wiring/assembly information for downstream work.
-It is distinct from a firmware handoff and does not establish that a PCB was manufactured.
+It is distinct from a firmware transfer and does not establish that a PCB was manufactured.
 
 **Export availability**:
 An output's current eligibility to begin from the accepted design and its known prerequisites.

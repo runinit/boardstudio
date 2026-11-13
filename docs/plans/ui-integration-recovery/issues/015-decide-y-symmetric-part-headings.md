@@ -34,7 +34,7 @@ Compare representative headings at 0, 90, 180 and 270 degrees with the chosen ph
   recorded as a possible later refinement, not part of this decision, and is not
   specified.
 
-  **Not settled, so this stays `needs-info`:** "basically any component" may or may not
+  **Not settled, so this stays `awaiting-info`:** "basically any component" may or may not
   include parts that face an edge, such as a TRRS jack or a side reset button. ADR-0010
   (2026-10-10, the user's description) turns those through 180 degrees so they still
   face outward; under `-r` a jack at 0 would keep facing the same way and so face

@@ -105,7 +105,7 @@ def main() -> int:
     if probe.returncode != 0:
         print(f"FAIL: skew probe found required skew on {version}; "
               f"the pin file was updated but the bump is BLOCKED (not auto-reverted). "
-              f"Re-run the probe with CHROME_BIN={chrome_path} after triage.",
+              f"Re-run the probe with CHROME_BIN={chrome_path} after status.",
               file=sys.stderr)
         return 1
     print(f"PASS: CfT bump to {version} installed and skew-probe clean.", flush=True)

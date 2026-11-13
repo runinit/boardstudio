@@ -251,7 +251,7 @@ pub fn validate_params(
     if invert_jumpers_position && profile.rejects_invert_jumpers_position {
         return Err("invert_jumpers_position is unsupported for this controller footprint");
     }
-    // Missing supplied traces is a routing obligation for the handoff, not an
+    // Missing supplied traces is a routing obligation for the transfer, not an
     // invalid footprint configuration. The jumper recipe reports it.
     Ok(())
 }

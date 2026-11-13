@@ -3568,7 +3568,7 @@ fn reconcile(
         let mut controller_part_to_sync = None;
         if let (Some(source), Some(target)) = (source, target) {
             let local_bindings = target.key_bindings.clone();
-            let local_protected_handoff = target.protected_handoff.clone();
+            let local_protected_transfer = target.protected_transfer.clone();
             let mirror_assignments = target.assignments.clone();
             let mirror_locks = target.locks.clone();
             let mentions_omitted =
@@ -3654,7 +3654,7 @@ fn reconcile(
             projected.assignments = assignments;
             projected.locks = locks;
             projected.key_bindings = local_bindings;
-            projected.protected_handoff = local_protected_handoff;
+            projected.protected_transfer = local_protected_transfer;
             controller_part_to_sync = projected.controller_part_id.clone();
             *target = projected;
         }

@@ -536,7 +536,7 @@ fn adoption_ring_island_product_removes_only_the_authored_blind_union() {
             .as_array()
             .unwrap()
             .iter()
-            .find(|case| case["prototypeId"] == "opening-ring-island")
+            .find(|case| case["mockupId"] == "opening-ring-island")
             .unwrap()["preparedBody"]
             .clone(),
     )
@@ -902,7 +902,7 @@ fn enclosed_void_is_refused_instead_of_emitting_a_second_body() {
     }]);
     let error = build_layered_case(&input)
         .err()
-        .expect("sealed void ownership is outside this prototype");
+        .expect("sealed void ownership is outside this mockup");
     assert!(error.contains("disconnected"), "{error}");
 }
 

@@ -60,7 +60,7 @@ Fonts: Original keeps Source Sans 3 and Source Code Pro.
 | Token | Today's | Why it stays |
 | --- | --- | --- |
 | `canvas` | `canvas` | the inset drawing surface inside the canvas card (same value as `background` in Original) |
-| `selected`, `selected-foreground` | `selection-surface`, `selection-ink` | the selected object, row or key. Original: #E9EDFF / #253EAC light, #303B56 / #D5DDFF dark; shadcn: `accent` / `accent-foreground`. rust-ui's `selection` is saturated orange in the shadcn palette and rendered the selected row loud orange in the prototype |
+| `selected`, `selected-foreground` | `selection-surface`, `selection-ink` | the selected object, row or key. Original: #E9EDFF / #253EAC light, #303B56 / #D5DDFF dark; shadcn: `accent` / `accent-foreground`. rust-ui's `selection` is saturated orange in the shadcn palette and rendered the selected row loud orange in the mockup |
 | `field` | `field` | fill of inputs and select triggers. Original: #f7f8fa light, #20242D dark; shadcn: transparent (5% white in dark), as rust-ui ships |
 | `border-strong` | `rule-strong` | stronger rule used by tables and focused groups |
 | `toolbar`, `toolbar-border` | `toolbar`, `toolbar-rule` | the tinted canvas toolbars |
@@ -96,10 +96,10 @@ Size tokens are `--control-height`, `--control-compact`, `--control-touch` (Tail
 Originally open:
 
 Whether to apply the preference before first paint (the app currently sets the attribute after load, so a flash is possible);
-the exact `info` and chart-free extras; migrating the 80 `--wb-*` references; the look of both Themes is checked in the prototype
+the exact `info` and chart-free extras; migrating the 80 `--wb-*` references; the look of both Themes is checked in the mockup
 013.
 
-## 8. Cards style (decided from prototype 013)
+## 8. Cards style (decided from mockup 013)
 
 Decided with the user, 2026-10-21, after 013: surfaces are **cards on a desk**, separated by fill and
 elevation, not outlines ("the white outline around everything" was the one thing the user disliked).
@@ -111,8 +111,8 @@ elevation, not outlines ("the white outline around everything" was the one thing
   and tool groups, filled input fields, tinted Alerts, soft inner cards for Inspector sections.
 - **The built-in borders of the copied rust-ui components are removed in the copies** (Card, Alert, Input Group, Select trigger, Toggle Group,
   Outline Button), including their `dark:`-prefixed classes, which a plain override does not replace. Focus rings stay.
-- The header is a **56px borderless card** (the prototype used 48px; ADR-0035's height is kept).
-- Prototype: `.scratch/theme-proto`, branch `prototype/theme-look`.
+- The header is a **56px borderless card** (the mockup used 48px; ADR-0035's height is kept).
+- Mockup: `.scratch/theme-proto`, branch `mockup/theme-look`.
 
 ## 9. Coexistence with the legacy CSS (revised by build ticket 001)
 

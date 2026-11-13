@@ -272,7 +272,7 @@
           "keyBindings": {},
           "locks": {},
           "mode": "matrix",
-          "protectedHandoff": null
+          "protectedTransfer": null
         },
         {
           "assignments": {},
@@ -282,7 +282,7 @@
           "keyBindings": {},
           "locks": {},
           "mode": "matrix",
-          "protectedHandoff": null
+          "protectedTransfer": null
         }
       ],
       "instances": [

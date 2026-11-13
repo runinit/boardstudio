@@ -1,4 +1,4 @@
-# Disposable agent state; keep committed specifications and handoff records searchable.
+# Disposable agent state; keep committed specifications and transfer records searchable.
 # These are Gortex indexing/watch exclusions, independent of Git's ignore rules.
 exclude:
   - "/.scratch/"

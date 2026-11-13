@@ -10397,7 +10397,7 @@ fn Editor() -> Element {
                             "{state.hint}"
                         }
                     }
-                    // Ticket 02: the "Placed from" readout (prototype variant
+                    // Ticket 02: the "Placed from" readout (mockup variant
                     // D) names what the selection is placed from at the
                     // canvas's bottom left. It shares the canvas ring's badge
                     // projection and clears with the selection.

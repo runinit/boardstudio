@@ -1,6 +1,6 @@
 # 005: Preserve Parts browsing, attachment and placement routes
 
-Status: ready-for-agent
+Status: ready
 Type: build
 Blocked by: [004: PCB wiring and plan delivery](004-pcb-wiring-and-plan-ownership.md)
 Parent: [001: Editor workspace ownership specification](001-editor-workspace-ownership.md)

@@ -38,7 +38,7 @@ destinations before retiring old paths; remap show/hide commands and stop readin
 dock preferences without clearing unrelated browser preferences. Workspace-specific tools
 and existing geometry, linked-half, export and fabrication contracts do not change.
 
-The [planning handoff](../plans/toolbar-led-workbench/map.md) proposes exact overflow,
+The [planning transfer](../plans/toolbar-led-workbench/map.md) proposes exact overflow,
 responsive and draft-lifetime details for approval. This ADR records direction, not shipped
 UI or production implementation authorization; the frozen HTML references remain unchanged.
 Legacy scripting access on the base is retained pending separately approved retirement,

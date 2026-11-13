@@ -1,14 +1,13 @@
 # Domain docs
 
-How the engineering skills consume this repo's domain documentation.
+How this repo's domain documentation is consumed.
 
 ## Before exploring, read these
 
 - `GLOSSARY.md` at the repo root.
 - `docs/adr/README.md`, then the ADRs for the area you are about to change.
 
-If a file is missing, proceed silently; `/domain-modeling` creates them as terms and decisions
-resolve.
+If a file is missing, proceed silently; create it as terms and decisions resolve.
 
 ## Layout
 

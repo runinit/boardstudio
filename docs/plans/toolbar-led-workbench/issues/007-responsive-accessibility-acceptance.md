@@ -1,6 +1,6 @@
 # 007: Six-workspace responsive, keyboard and visual acceptance
 
-Status: ready-for-human
+Status: awaiting-decision
 Type: build
 Blocked by: [003](003-inspect-popout.md), [004](004-objects-popover.md), [005](005-retain-objects-capabilities.md), [006](006-topbar-simplification.md), [010](010-pcb-workspace-adapter.md), [011](011-keymap-workspace-adapter.md), [012](012-keycaps-workspace-adapter.md), [013](013-case-workspace-adapter.md), [014](014-parts-workspace-adapter.md), [015](015-case-preview-owner-contract.md)
 Parent: [map.md](../map.md)
@@ -29,7 +29,7 @@ candidate. Reuse M1's unchanged proofs with receipts rather than repeat the whol
       dismissal/Escape priority, outside pointer focus, no hidden focus or unintended edit.
 - [ ] Both Themes × light/dark, fresh text/icon/focus/SVG-chrome measurements: normal text ≥4.5:1,
       qualifying large text ≥3:1, relevant nontext UI/state/focus pairs ≥3:1. Record disabled/
-      decorative exceptions explicitly; prototype's incomplete SVG scan is not evidence.
+      decorative exceptions explicitly; mockup's incomplete SVG scan is not evidence.
 - [ ] Fresh packaged screenshots compared to frozen references, differences explained for real
       content/workspaces; no frozen reference edited and no claim of CAD/fabrication certification.
 

@@ -142,7 +142,7 @@ impl<'a> Cx<'a> {
     /// mean of aggregate parts. `None` when unanchored or unresolvable (a
     /// removed anchor key leaves no badge, like the inert Follows row).
     /// Shared by the matrix badge and the first-column badge, so the origin
-    /// suffix names the same anchor the frame follows (prototype variant B).
+    /// suffix names the same anchor the frame follows (mockup variant B).
     fn anchor_description(&self) -> Option<(Vec2, Vec<String>, String)> {
         let anchor = self.matrix.anchor.as_ref()?;
         if let Some(aggregate) = anchor.aggregate.as_ref() {
@@ -198,7 +198,7 @@ impl<'a> Cx<'a> {
 }
 
 /// Whether the dashed tie reads: unset when the badge sits on the selection
-/// itself or the points coincide (prototype variant B uses 0.5 mm).
+/// itself or the points coincide (mockup variant B uses 0.5 mm).
 fn is_tied(anchor: Vec2, selection: Vec2) -> bool {
     (anchor.x - selection.x).hypot(anchor.y - selection.y) > 0.5
 }
@@ -382,7 +382,7 @@ fn column_badge(
     }
     if column == 0 {
         // The first column hangs off the matrix origin, like the frame. An
-        // anchored frame names what it follows (prototype variant B).
+        // anchored frame names what it follows (mockup variant B).
         let origin = cx.frame_origin()?;
         let selection = cx.pose(0, 0).unwrap_or(origin);
         let (highlight, suffix) = cx

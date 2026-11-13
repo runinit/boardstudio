@@ -1,6 +1,6 @@
 # Inventory 001 — Setup, dialogs/settings, presentation wrappers, and shared seams
 
-Orchestrator scope for Wayfinder 001 (complements `001-layout-metadata.md`,
+Orchestrator scope for Planning 001 (complements `001-layout-metadata.md`,
 `001-pcb-parts.md`, `001-keymap-keycaps-case.md`). Evidence: native Gortex MCP
 `search`/`read` (symbol IDs + spans cited); `rg` used only to discover
 candidate `use_signal`/`oninput` sites where Gortex text search returned no

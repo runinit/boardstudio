@@ -433,7 +433,7 @@
   },
   "cases": [
     {
-      "prototypeId": "cone-wall",
+      "mockupId": "cone-wall",
       "request": {
         "kind": "resolve-mechanical",
         "id": "reachability-cone-wall",
@@ -1169,7 +1169,7 @@
       }
     },
     {
-      "prototypeId": "sealed-round-seat",
+      "mockupId": "sealed-round-seat",
       "request": {
         "kind": "resolve-mechanical",
         "id": "reachability-sealed-round-seat",
@@ -1453,7 +1453,7 @@
       }
     },
     {
-      "prototypeId": "sealed-opening",
+      "mockupId": "sealed-opening",
       "request": {
         "kind": "resolve-mechanical",
         "id": "reachability-sealed-opening",
@@ -2075,7 +2075,7 @@
       }
     },
     {
-      "prototypeId": "opening-ring-island",
+      "mockupId": "opening-ring-island",
       "request": {
         "kind": "resolve-mechanical",
         "id": "reachability-opening-ring-island",

@@ -8,7 +8,7 @@
 //! lay out identically at every zoom. The overlay only draws what this
 //! returns. Origin stays a point on the canvas and never enters the rail.
 
-/// Token edge, in screen px (prototype variant D: 18 x 18, radius 4).
+/// Token edge, in screen px (mockup variant D: 18 x 18, radius 4).
 pub const TOKEN_PX: f64 = 18.0;
 /// Gap between adjacent tokens, in screen px.
 pub const TOKEN_GAP_PX: f64 = 2.0;

@@ -1,6 +1,6 @@
 # 015: Case Preview presentation with one generation/command owner
 
-Status: ready-for-human
+Status: awaiting-decision
 Type: build
 Blocked by: [013](013-case-workspace-adapter.md), [009](009-shared-toolbar-panel-host.md)
 Parent: [map.md](../map.md)

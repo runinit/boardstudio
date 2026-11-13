@@ -1,6 +1,6 @@
 # 013: Case tree, Inspector and View with physical-instance ownership
 
-Status: ready-for-human
+Status: awaiting-decision
 Type: build
 Blocked by: [009](009-shared-toolbar-panel-host.md)
 Parent: [map.md](../map.md)
@@ -32,7 +32,7 @@ the Case crate; do not presume those forms are explicit-submit. Prefer hoisting 
 raw draft/error identity above selection/visibility switches, without keeping the complete
 CasePanel generation lifecycle active in unrelated workspaces. The concrete mechanism and
 update-safety treatment for retained unresolved work must be recorded/approved before this
-ticket becomes ready-for-agent. Use the existing registry if required; off-screen blockers
+ticket becomes ready. Use the existing registry if required; off-screen blockers
 identify Case/editor/remedy. No second draft registry or silent reload loss.
 
 ## Acceptance criteria

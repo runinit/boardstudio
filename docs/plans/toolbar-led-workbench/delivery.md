@@ -1,7 +1,7 @@
 # Delivery contract: the real Layout redesign first
 
 Parent: [map.md](map.md). This is the coordinator's execution contract, not a new design.
-The user instructed: **“Execute the recommendations and then handoff to new thread for
+The user instructed: **“Execute the recommendations and then transfer to new thread for
 coordination and implementation.”** This authorizes the bounded planning corrections and
 coordination/implementation of M1 below, followed by a stop for hands-on review. It does not
 authorize later workspace phases, production rollout, merging to main, or new domain policy.
@@ -21,7 +21,7 @@ The four frozen design references remain unchanged.
 
 M1 must include the 42px measured sliding Layout accordion, Objects and Inspect utilities,
 compact Outline-first Objects, unpinned Inspector, and every retained Add/setup/placement/
-legacy entry. It is not complete at an empty host, prototype, screenshots, or mocked controls.
+legacy entry. It is not complete at an empty host, mockup, screenshots, or mocked controls.
 Global topbar work in 006 must retain project/Export navigation and save honesty while the
 other workspaces keep their current shell. Each workspace has exactly one panel authority.
 
@@ -104,4 +104,4 @@ No concurrent Cargo/wasm-pack owners or overridden build flags; logs only in `.e
 The full M3 gate still runs after retirement; do not claim M1 ran all future adapter acceptance.
 
 Deliver a runnable real-app candidate, evidence and remaining limitations; stop for the user's
-hands-on review before M2. Do not start a preview/server solely to display this handoff.
+hands-on review before M2. Do not start a preview/server solely to display this transfer.

@@ -676,25 +676,25 @@ fn protected_mirror_replacement_baseline_survives_open_and_requires_review_befor
     assert_eq!(resolved["kind"], "electrical-resolved", "{resolved}");
     let protected = raw_request(
         &mut engine,
-        json!({"id":"protect-right","kind":"protect-electrical-handoff",
+        json!({"id":"protect-right","kind":"protect-electrical-transfer",
             "baseRevision":placed["revision"],"boardId":"right","plan":resolved["plan"]}),
     );
     assert_eq!(protected["kind"], "scene", "{protected}");
     let protected_document = protected["document"].clone();
-    let protected_baseline = board_config(&protected_document, "right")["protectedHandoff"].clone();
+    let protected_baseline = board_config(&protected_document, "right")["protectedTransfer"].clone();
     assert_eq!(protected_baseline["assignments"]["i2c/SDA"], sda_pin);
     assert_eq!(source_projection(&protected_document), source_before);
     assert_eq!(
-        board_config(&protected_document, "left")["protectedHandoff"],
-        board_config(&document, "left")["protectedHandoff"],
+        board_config(&protected_document, "left")["protectedTransfer"],
+        board_config(&document, "left")["protectedTransfer"],
         "protecting the mirror does not change the source baseline"
     );
 
     let (mut engine, opened) = open(&protected_document);
     assert_eq!(
-        board_config(&opened, "right")["protectedHandoff"],
+        board_config(&opened, "right")["protectedTransfer"],
         protected_baseline,
-        "Open must retain the mirror's separate physical handoff baseline"
+        "Open must retain the mirror's separate physical transfer baseline"
     );
     assert_eq!(source_projection(&opened), source_before);
 
@@ -710,7 +710,7 @@ fn protected_mirror_replacement_baseline_survives_open_and_requires_review_befor
     assert_eq!(edited["kind"], "scene", "{edited}");
     let accepted = edited["document"].clone();
     assert_eq!(
-        board_config(&accepted, "right")["protectedHandoff"],
+        board_config(&accepted, "right")["protectedTransfer"],
         protected_baseline,
         "ordinary source reconciliation retains the mirror baseline"
     );
@@ -733,7 +733,7 @@ fn protected_mirror_replacement_baseline_survives_open_and_requires_review_befor
         "protected Rejoin refusal is atomic"
     );
     assert_eq!(
-        board_config(&snapshot(&mut engine), "right")["protectedHandoff"],
+        board_config(&snapshot(&mut engine), "right")["protectedTransfer"],
         protected_baseline
     );
 
@@ -746,7 +746,7 @@ fn protected_mirror_replacement_baseline_survives_open_and_requires_review_befor
     assert_eq!(reviewed["kind"], "scene", "{reviewed}");
     let reviewed_document = reviewed["document"].clone();
     assert_eq!(
-        board_config(&reviewed_document, "right")["protectedHandoff"],
+        board_config(&reviewed_document, "right")["protectedTransfer"],
         Value::Null
     );
     let rejoined = edit(
@@ -759,7 +759,7 @@ fn protected_mirror_replacement_baseline_survives_open_and_requires_review_befor
     assert_eq!(rejoined["kind"], "scene", "{rejoined}");
     let rejoined_document = rejoined["document"].clone();
     let rejoined_board = board_config(&rejoined_document, "right");
-    assert_eq!(rejoined_board["protectedHandoff"], Value::Null);
+    assert_eq!(rejoined_board["protectedTransfer"], Value::Null);
     for function in ["i2c/SDA", "i2c/SCL"] {
         assert!(rejoined_board["assignments"][function].as_str().is_some());
         assert_ne!(

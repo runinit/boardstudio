@@ -1,6 +1,6 @@
 # 004: Layout Objects with active-outline and half-focus parity
 
-Status: ready-for-agent
+Status: ready
 Type: build
 Blocked by: [002](002-toolbar-accordion-label-fitting.md)
 Parent: [map.md](../map.md)

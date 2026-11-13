@@ -4,7 +4,7 @@ Base `64763a392dd32964db9d3a6316aa62be334d3e59`; branch `lane/024a-shell-migrate
 
 Run 4 replaces shell, canvas, inspector, export, workspaces, Case viewer, bodies, assembly layers and mechanical settings styling with existing utilities and Theme tokens. The Layout findings region and rows were already selected semantically at the starting revision; the remaining layer/canvas tests now use observable geometry/state data for noninteractive SVG and semantic names for controls. No new per-utility assertions, mutation checks or computed-style tests were added. Existing Case fixture assertions are retained and now load the generated utility stylesheet. IDs and data used for behavior were not renamed. No CSS, ticket, or sibling-owned Layout file was directly edited.
 
-Source commits `459186ce`, `4db0a8e5`, `26f543d1`, `44ba060b`; parent `lane/024-delete-the-old-layer` advanced to `c8fa341ad` and was merged locally as `6ab47787f`, importing C's files without direct edits. After that merge, the docked canvas-layer container was given visible overflow to preserve the existing upward popup placement when C's migrated Collapsible removed the legacy ancestor selector. A final commit contains that integration adjustment, fixture stylesheet fixes and this handoff. No push.
+Source commits `459186ce`, `4db0a8e5`, `26f543d1`, `44ba060b`; parent `lane/024-delete-the-old-layer` advanced to `c8fa341ad` and was merged locally as `6ab47787f`, importing C's files without direct edits. After that merge, the docked canvas-layer container was given visible overflow to preserve the existing upward popup placement when C's migrated Collapsible removed the legacy ancestor selector. A final commit contains that integration adjustment, fixture stylesheet fixes and this transfer. No push.
 
 ## Verification
 
@@ -21,7 +21,7 @@ Logs are under `.evidence/024/run4-*.log`; the target path was covered by the wo
 
 **Integrator gates/risks:** the full gate, independent combined spec/standards review, strict old-CSS gate and Theme/viewport screenshot matrix remain the coordinator's responsibility. Cross-lane C reports one outside-A-scope `m1-project-menu` fixture class and its functional close/focus query; coordinate that dependency before strict deletion. Its merged `ui-shared/src/layer_dock.rs` includes an assertion on `empty:hidden`, outside A's ownership and contrary to this run's no-new-utility-assertion rule; coordinator should resolve/review it. Parent Library and dock migrations interact with the shell; the screenshot matrix must verify their desktop/compact layout, scrolling and popup placement. The new dock overflow restoration is covered by page interactions but not by a visual clipping assertion. Existing test fixture CSS embeds the generated stylesheet, so generate it before standalone Case browser tests.
 
-**Process deviation:** an initial read-only inventory output was written to `/tmp/024a-inventory.txt`, outside the requested worktree-only boundary. No main checkout file was modified; initial main status had untracked files only. Existing prior-run evidence logs were preserved rather than deleting tracked handoff records.
+**Process deviation:** an initial read-only inventory output was written to `/tmp/024a-inventory.txt`, outside the requested worktree-only boundary. No main checkout file was modified; initial main status had untracked files only. Existing prior-run evidence logs were preserved rather than deleting tracked transfer records.
 
 ## Per-file inventory vs base
 

@@ -1,4 +1,4 @@
-//! Private 013 prototype. Every operation before topology assembly is planar.
+//! Private 013 mockup. Every operation before topology assembly is planar.
 use crate::ExactModel;
 use boardstudio_contracts::{CaseFeature, CaseKind, MountKind, PreparedCaseIR, Vec2};
 mod contours;

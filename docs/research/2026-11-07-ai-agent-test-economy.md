@@ -41,7 +41,7 @@ seen in source, and nothing shows whether it worked. Unlabelled text in §5–§
 
 | # | Setup / report | Type | How it controls tests | What it shows |
 |---|---|---|---|---|
-| S1 | OpenAI Codex root `AGENTS.md`, last version `4875084` | mechanism | Run tests for the changed crate first. Run the full suite only for common/core/protocol changes, and ask the user first. Rules: "Do not add tests for values that are statically defined", "Do not add negative tests for logic that was removed", "Avoid test-only functions in the main implementation", "Avoid proliferating test-only helpers". Agent logic changes need an integration test listing the behaviours covered. Use whole-object `assert_eq!`. Review `insta` snapshots explicitly. | A large **Rust** agent codebase whose rules agents follow. Commit `18131270` (2026-09-30) removed the root file and all `.codex/skills`, with no public reason given. |
+| S1 | OpenAI Codex root `AGENTS.md`, last version `4875084` | mechanism | Run tests for the changed crate first. Run the full suite only for common/core/protocol changes, and ask the user first. Rules: "Do not add tests for values that are statically defined", "Do not add negative tests for logic that was removed", "Avoid test-only functions in the main implementation", "Avoid proliferating test-only helpers". Agent logic changes need an integration test listing the behaviours covered. Use whole-object `assert_eq!`. Review `insta` snapshots explicitly. | A large **Rust** agent codebase whose rules agents follow. Commit `18131270` (2026-09-30) removed the root file and all `.codex/guides`, with no public reason given. |
 | S2 | Codex CI `.github/workflows/README.md` and `codex-rs/.config/nextest.toml` at `57a808a` | mechanism | PR checks stay "intentionally small". The full Cargo nextest/clippy matrix runs post-merge. One nextest timeout-override list is marked "Do not add new tests here". `retries = 1` "so one transient failure does not fail full-CI outright". | Cost tiers enforced by config. The retries hide flakes from the full-CI pass/fail result. |
 | S3 | OpenAI, *Harness engineering* (Lopopolo, 2026-02-11) | reported | Custom linters and structural tests whose error messages "inject remediation instructions into agent context". A recurring cleanup ("garbage collection") opens small refactor PRs. Minimal blocking merge gates; "test flakes are often addressed with follow-up runs". | About 1M LOC and about 1,500 PRs with 3 engineers (3.5 PRs/engineer/day). Before automating cleanup they spent "every Friday (20% of the week) cleaning up 'AI slop'". The author warns it "should not be assumed to generalize". |
 | S4 | Anthropic, *Building a C compiler with a team of parallel Claudes* (Carlini, 2026-02-05) | reported + measured cost | The harness prints "a few lines" and logs details to a file with `ERROR` greppable on one line. A default `--fast` runs a deterministic per-agent 1%/10% sample. Added CI after "Claude started to frequently break existing functionality". Uses GCC as an oracle. | About 2,000 sessions, about $20k. The author says the verifier must be "nearly perfect, otherwise Claude will solve the wrong problem". |
@@ -52,7 +52,7 @@ seen in source, and nothing shows whether it worked. Unlabelled text in §5–§
 | S9 | Meta, *TestGen-LLM* (arXiv 2402.09171) | **measured** | Filters for builds, passes, and reliable passing (fails if not all of 5 runs pass). A coverage filter rejects tests that "simply repeat the test behaviour of one of the existing tests". Engineers review the rest. | 75% built, 57% passed reliably, 25% raised coverage. 73% of recommendations accepted. A coverage-raising test with no assertion was rejected in review. |
 | S10 | Meta, *ACH: mutation-guided LLM test generation* (arXiv 2501.12862) | **measured** | Generates a few concern-specific *undetected* mutants, then tests that kill them. An LLM detects equivalent mutants. | 9,095 mutants, 571 tests, 73% accepted, 36% judged privacy-relevant. |
 | S11 | Goose `AGENTS.md` at `4facf56` (Rust) | mechanism | Build/test "only if the user has asked". Use the `cargo test -p <crate>` scope. Prefer the `tests/` folder. Record/replay MCP integration fixtures (`just record-mcp-tests`). | A minimal rule set. No test-economy rules beyond scope. |
-| S12 | OpenHands `AGENTS.md` and `e2e-testing` skill at `fb9b8e2` | mechanism | "Avoid duplicate cases and duplicate assertions." "Mock an underlying service rather than the hook that consumes it." "Do not mirror literal source, fixture… definitions" and "do not export internals solely to make them testable". "Test every path with distinct control or data flow without testing an irrelevant Cartesian product." Verify skills are read-only for implementers. A path→test resolver exists for local use only; post-merge CI "intentionally run[s] the full suite". "Do not retry a lost click: inspect that attachment". | The closest current analogue to our rules. Young rules, no outcome data. The repo now appears to be the agent-canvas frontend. |
+| S12 | OpenHands `AGENTS.md` and `e2e-testing` guide at `fb9b8e2` | mechanism | "Avoid duplicate cases and duplicate assertions." "Mock an underlying service rather than the hook that consumes it." "Do not mirror literal source, fixture… definitions" and "do not export internals solely to make them testable". "Test every path with distinct control or data flow without testing an irrelevant Cartesian product." Verify guides are read-only for implementers. A path→test resolver exists for local use only; post-merge CI "intentionally run[s] the full suite". "Do not retry a lost click: inspect that attachment". | The closest current analogue to our rules. Young rules, no outcome data. The repo now appears to be the agent-canvas frontend. |
 
 ## 3. Findings by question
 
@@ -116,7 +116,7 @@ known-good oracle, not just more tests [S4].
 - *Minimal gates and flake re-runs* [S3]. This assumes a throughput we don't have, and it conflicts with
   RED/GREEN and mutation proof.
 - *Five-run flake admission* [S9]. Cheap for Kotlin unit tests. Each wasm browser mount is expensive,
-  so this is affordable only for a new timing-sensitive browser test, as triage.
+  so this is affordable only for a new timing-sensitive browser test, as status.
 - *Path-mapped test selection as a gate* [S12]. OpenHands itself refuses this.
 - *Coverage filters*. Coverage tooling for the wasm/browser tier is weak, and Meta's evidence is for JVM
   unit tests.
@@ -215,7 +215,7 @@ This is not a sweep. Act only on a trigger:
 
 0. The coordinator reviews this report. It stays uncommitted.
 1. If approved separately: one small edit to `CODING_STANDARDS.md` covering P1–P3 (and P5), checked
-   against the writing-for-agents guidance.
+   against the agent writing guidance.
 2. Separate question: should the browser-tier test names get a name guard like the native one? That is
    a script change and out of scope here.
 3. After 010 lands: apply §7 only when a trigger fires. No backlog audit.
@@ -258,4 +258,4 @@ This is not a sweep. Act only on a trigger:
 - S9 Alshahwan et al., Automated Unit Test Improvement using LLMs at Meta: https://arxiv.org/abs/2402.09171
 - S10 Foster et al., Mutation-Guided LLM-based Test Generation at Meta: https://arxiv.org/abs/2501.12862
 - S11 Goose `AGENTS.md` @ `4facf56`: https://github.com/aaif-goose/goose/blob/4facf56cbab049142809d9afa4648ebe6823ba80/AGENTS.md
-- S12 OpenHands `AGENTS.md` and `e2e-testing` skill @ `fb9b8e2`: https://github.com/OpenHands/OpenHands/blob/fb9b8e249ebd717388b4938950fd8fc9b7a30441/AGENTS.md ; https://github.com/OpenHands/OpenHands/blob/fb9b8e249ebd717388b4938950fd8fc9b7a30441/.agents/skills/e2e-testing/references/guide.md ; https://github.com/OpenHands/OpenHands/blob/fb9b8e249ebd717388b4938950fd8fc9b7a30441/.agents/skills/e2e-testing/SKILL.md
+- S12 OpenHands `AGENTS.md` and `e2e-testing` guide @ `fb9b8e2`: https://github.com/OpenHands/OpenHands/blob/fb9b8e249ebd717388b4938950fd8fc9b7a30441/AGENTS.md ; https://github.com/OpenHands/OpenHands/blob/fb9b8e249ebd717388b4938950fd8fc9b7a30441/.agents/guides/e2e-testing/references/guide.md ; https://github.com/OpenHands/OpenHands/blob/fb9b8e249ebd717388b4938950fd8fc9b7a30441/.agents/guides/e2e-testing/GUIDE.md

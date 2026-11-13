@@ -1,6 +1,6 @@
 # 001: Own the Layout part-move pointer transaction
 
-Status: ready-for-agent
+Status: ready
 Type: build
 Related: [Architecture candidate 01 research](../../../research/2026-10-20-layout-pointer-transaction-deepening.md), [plan map](../map.md)
 
@@ -8,7 +8,7 @@ Related: [Architecture candidate 01 research](../../../research/2026-10-20-layou
 
 The ordinary Layout 2D part drag is one transaction spread across part hit,
 selection-move handle, canvas move/up/cancel, Escape, scope cleanup and Session
-handoffs. Editor must coordinate pending versus active movement, pointer capture,
+transfers. Editor must coordinate pending versus active movement, pointer capture,
 selection generation, current owner, pan and competing tools in separate closures.
 That makes stale releases and lost capture difficult to reason about. Concentrate
 this bounded transaction without moving the whole canvas or changing accepted
@@ -17,7 +17,7 @@ document, selection, navigation or gesture-commit authority.
 ## Solution
 
 Give Layout presentation a cohesive owner for the ordinary part-move pointer
-transaction at its 2D canvas handoff. It manages pending/active/retired state,
+transaction at its 2D canvas transfer. It manages pending/active/retired state,
 eligibility, capture lifetime and Session begin/sample/end/cancel ordering, using
 page-provided current selection and shared navigation. Editor composes the canvas
 and supplies the App-owned selection and lifetime inputs rather than rebuilding

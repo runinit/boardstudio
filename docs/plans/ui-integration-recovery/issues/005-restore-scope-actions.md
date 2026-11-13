@@ -64,7 +64,7 @@ mounting seams; no new test-only production API is approved.
 | Requirement — precondition → action → independent oracle | Tier | Status |
 | --- | --- | --- |
 | Scope choice/reselection — applicable selection or empty scope → choose/rechoose Matrix, Row, Column, Key or Part → intended active scope retained, no action/hint popup, intended inline actions occur once or useful inline guidance appears | Mounted toolbar; equivalent inputs table-driven | producer RED/GREEN: `.evidence/011-round2-D0/red-scope.log`, `green-layout-checks.log`; fresh combined Standards PASS / Spec PASS, independent sensitivity pending |
-| Guidance handoff — real Layout with no applicable selection and inline guidance → select the relevant object on the canvas → guidance replaced by its usable inline actions, no duplicate popup/editor owner | Production Layout mounted | initial persistent Matrix-clear RED corrected privately in the page; unchanged all-five-scope story now GREEN, including clear→guidance and Inspector reopening, after correcting the existing host's Close teardown; 23 affected browser checks GREEN in `.evidence/011-round2-D0-cleanup/green-affected.log`; fresh combined Standards PASS / Spec PASS; both independent page-guard mutants killed with restored GREEN, remaining toolbar sensitivity pending |
+| Guidance transfer — real Layout with no applicable selection and inline guidance → select the relevant object on the canvas → guidance replaced by its usable inline actions, no duplicate popup/editor owner | Production Layout mounted | initial persistent Matrix-clear RED corrected privately in the page; unchanged all-five-scope story now GREEN, including clear→guidance and Inspector reopening, after correcting the existing host's Close teardown; 23 affected browser checks GREEN in `.evidence/011-round2-D0-cleanup/green-affected.log`; fresh combined Standards PASS / Spec PASS; both independent page-guard mutants killed with restored GREEN, remaining toolbar sensitivity pending |
 | Keyboard/focus — scope strip and actual Align/Transform menus → navigate scopes, activate/reselect, enter an action menu and Escape → focus follows the existing toolbar pattern, no scope popup, real menu returns focus to its trigger | Mounted toolbar plus existing production focus scenario | producer GREEN: `.evidence/011-round2-D0/green-layout-checks.log`, `green-existing-page-focus-selection.log`, `packaged-proof.log`; fresh combined Standards PASS / Spec PASS, independent sensitivity pending |
 | Compact grouping — wide and constrained canvas widths, before/after selection → render/resize/select → Align/Transform beside the scope strip or immediately beneath it, normal control gap rather than an empty action-row gap, no horizontal clipping | Mounted measured layout; packaged Theme/Appearance checks | producer RED/GREEN: `.evidence/011-round2-D0/red-grouping-measured.log`, `green-layout-checks.log`, `packaged-proof.log`; 12 combinations; fresh combined Standards PASS / Spec PASS, independent sensitivity pending |
 
@@ -78,7 +78,7 @@ mounting seams; no new test-only production API is approved.
   D10 dual scope menus). Original cancellation preserved above as history.
   Scoping to follow after 011 defect slices; do not treat the 2026-11-06
   cancellation rationale as current.
-- 2026-11-09: Required `/grill-with-docs` decision completed during the second
+- 2026-11-09: Required `/documented interview` decision completed during the second
   011 correction batch. User answered **“yes, yes”** to (1) inline actions or
   empty-selection guidance for all five scopes, with no scope popup even on
   reselection, and (2) adjacent Align/Transform controls wrapping immediately
@@ -88,7 +88,7 @@ mounting seams; no new test-only production API is approved.
 - 2026-11-09: D0 returned only `layout_toolbar.rs` / `layout-toolbar.css`:
   13 toolbar checks, 268 general Layout plus 2 setup-guide checks, 168 native
   checks, rustfmt and WASM Clippy reported GREEN. Packaged five-scope canvas
-  handoffs and 12 Theme/Appearance/width combinations passed. After D1's completed
+  transfers and 12 Theme/Appearance/width combinations passed. After D1's completed
   PASS/PASS review, a fresh regression owner receives only the existing page-test
   file for persistent mounted guidance coverage. The earlier page run hit D1's
   in-flight gutter RED, not a passing integrated result.
@@ -148,7 +148,7 @@ sensitivity, DESIGN, integrated/optimized and human gates are not waived.
 
 Status set to `resolved`; all 7 acceptance boxes checked.
 
-- Inline-only 5 scopes, guidance handoff, uniqueness, keyboard/focus, compact
+- Inline-only 5 scopes, guidance transfer, uniqueness, keyboard/focus, compact
   grouping, strengthened A4 assertions, A8 design+records — each proven by cited
   receipts in this ticket (approved proof map, retired guard mapping,
   D0/D0-cleanup RED/GREEN logs, coordinator page-guard kills, A8 design update).
@@ -158,5 +158,5 @@ Status set to `resolved`; all 7 acceptance boxes checked.
   WITHOUT itemized per-cell verdicts on the 24-cell set (matrix on disk at
   `.evidence/011-round2-full-gate/matrix/`, all `human_result` pending) —
   recorded honestly; no cell reviews fabricated.
-- Parent 001 stays OPEN (004/006 grills + `/retro` follow-ups outstanding);
+- Parent 001 stays OPEN (004/006 questioning sessions + the retrospective follow-ups outstanding);
   not touched by this close-out.

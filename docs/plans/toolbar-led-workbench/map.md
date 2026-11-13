@@ -1,7 +1,7 @@
 # Map: Toolbar-led workbench
 
-Label: wayfinder:map
-Status: **M1 planning gate complete; coordination/implementation handoff authorized, then hands-on stop. Later phases are not authorized.**
+Label: planning:map
+Status: **M1 planning gate complete; coordination/implementation transfer authorized, then hands-on stop. Later phases are not authorized.**
 Base: local `main` @ `cafaf4302635909b59666164ed190fa2137aabc5` (contains `ec0a6165`, `ec26e46d`).
 Owner: `plan/toolbar-led-workbench` in `.worktrees/toolbar-workbench-plan`.
 
@@ -12,7 +12,7 @@ Adopt the frozen [tool-panels](../../design/workbench-redesign/tool-panels/READM
 JavaScript or sample geometry. Both READMEs and both HTML files remain unchanged.
 [ADR-0041](../../adr/0041-toolbar-led-workbench.md) records the confirmed direction; the
 [architecture](architecture.md), [inventory](inventory.md) and [verification](verification.md)
-make the implementation handoff. [Refactoring seams](refactoring.md) records graph-grounded
+make the implementation transfer. [Refactoring seams](refactoring.md) records graph-grounded
 preparation steps and the follow-up safety/commit-trigger findings. [PRODUCT.md](../../../PRODUCT.md),
 [DESIGN.md](../../../DESIGN.md), [GLOSSARY.md](../../../GLOSSARY.md) and existing domain ADRs
 still govern document edits, geometry, links and output claims.
@@ -57,14 +57,14 @@ backdrop, duplicate Position editor, panel-induced canvas resize or camera refra
 
 ## Tickets and dependency order
 
-001 gates the corrected M1 handoff/recheck. A ready-for-agent label never overrides a
+001 gates the corrected M1 transfer/recheck. A ready label never overrides a
 phase gate. Numbers retain the Layout slices; 009 adds shared chrome, 010–014 domain
 adapters, and 015 separates Case Preview's human-approved owner/interface work. Later
-adapters stay ready-for-human until M2 approval and their named decisions/classification.
+adapters stay awaiting-decision until M2 approval and their named decisions/classification.
 
 | Ticket | Owned slice | Direct dependencies |
 |---|---|---|
-| [001](issues/001-reconcile-design-adr-scope.md) | Direction, corrected M1 handoff/review and execution authorization record | none |
+| [001](issues/001-reconcile-design-adr-scope.md) | Direction, corrected M1 transfer/review and execution authorization record | none |
 | [009](issues/009-shared-toolbar-panel-host.md) | Shared row, panel/focus/lifetime host, command remapping | 001 |
 | [002](issues/002-toolbar-accordion-label-fitting.md) | Layout tools, measured accordion and motion | 009 |
 | [003](issues/003-inspect-popout.md) | Layout Inspector, draft reset audit and explicit reveals | 002 |
@@ -119,7 +119,7 @@ not production proof or automatic acceptance of every suggested alternative.
 | N7 / Case generation | Separate015 with one observer/command owner and concrete human-approved interface; not on M1 critical path |
 | N8 / draft safety | 003 now separately proves hidden registered Inspector safety with a guard-drop mutant;005 retains real setup/script signals+guards; PCB/Parts keep known registrations; unclassified future forms remain gated |
 | N9 / commit triggers | Exact real-blur versus no-blur captured-owner outcomes, new dirty-layer proof/mutants in011 |
-| N10 / status honesty | M1 choices recorded; later007/008 and010–015 remain ready-for-human pending their phase/decisions |
+| N10 / status honesty | M1 choices recorded; later007/008 and010–015 remain awaiting-decision pending their phase/decisions |
 
 Glossary now distinguishes Inspect's label without prescribing creation routing or claiming
 old docks are already gone. 002 requires the actual built stylesheet. Optional module/Owner
@@ -139,7 +139,7 @@ Unresolved draft outcome vocabulary while preserving actual code-variable names.
 review report retains the exact source/authority limits. Named M1 acceptance/receipt ownership
 is now in delivery.md; future007/008 statuses and tracked approval wording are corrected.
 
-## Planning validation and handoff gate
+## Planning validation and transfer gate
 
 The refactoring refinement passed `python3 scripts/check.py repo` (including ADR index:
 41 records) and `python3 scripts/check-doc-links.py` across 763 Markdown files. Logs:
@@ -155,7 +155,7 @@ native Gortex and read24/24 candidate documents, reporting CHANGES REQUIRED on b
 Its frozen HTML/selected authority-source gaps and findings are named in review-fable.md.
 The completed delta recheck covered27/27 candidate documents and the frozen/required M1
 authority sources; its sole mandatory case has the addition/disposition above. 001 is resolved
-for M1 handoff only. Current repo/link checks pass767 Markdown files including the report
+for M1 transfer only. Current repo/link checks pass767 Markdown files including the report
 (41 ADRs,64 Core registration files); receipts are `.evidence/toolbar-plan-m1-repo.log` and
 `.evidence/toolbar-plan-m1-links.log`. A low-risk document graph contract is not runtime
 proof or review approval. No unrelated MCP configuration was changed.
@@ -171,7 +171,7 @@ proof or review approval. No unrelated MCP configuration was changed.
 - A generic Layout tree cannot represent Case's physical-assembly actions or Parts' catalog
   identity. Share chrome, not a new universal object model.
 - Narrow 42px controls, long names, zoom, theme contrast and SVG chrome need fresh evidence.
-  Frozen prototype checks are not production accessibility/CAD/export/fabrication proof.
+  Frozen mockup checks are not production accessibility/CAD/export/fabrication proof.
 - Legacy geometry scripting is out of product scope (deprecated ADR-0029), but exists on this
   base. Preserve existing access/safety in this migration; a separate approved removal owns
   retirement. Do not introduce or advertise new scripting capability.

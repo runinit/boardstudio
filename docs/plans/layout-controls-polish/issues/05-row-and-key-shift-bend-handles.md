@@ -4,7 +4,7 @@ Status: resolved
 Type: build
 Blocked by: [03](03-handle-rail.md)
 Map: [map.md](../map.md)
-Prototype: branch `prototype/layout-controls-iconography` (e91865f43), `?variant=D`.
+Mockup: branch `mockup/layout-controls-iconography` (e91865f43), `?variant=D`.
 Review: web-only behaviour on existing Core ops; RED/GREEN evidence and a diff read.
 
 ## What to build
@@ -45,8 +45,8 @@ Then a mounted test drags Row Bend by a known amount and asserts one revision wi
 
 ## Answer
 
-Implemented on branch `docs/ergogen-layout-comparison` (prototype ref
-`prototype/layout-controls-iconography` `e91865f43`, variant D).
+Implemented on branch `docs/ergogen-layout-comparison` (mockup ref
+`mockup/layout-controls-iconography` `e91865f43`, variant D).
 
 What changed (ticket-05 files only):
 
@@ -56,7 +56,7 @@ What changed (ticket-05 files only):
   the active tool per context (Row+Shift/Bend, Key+Shift/Bend added).
 - `web/crates/layout/src/matrix_transform_operation.rs`: `gesture_value` gains
   the Bend arm — horizontal world travel turns the running frame at the
-  prototype's rate (0.5°/mm, snapped to 0.5°, Alt keeps the raw angle; the grid
+  mockup's rate (0.5°/mm, snapped to 0.5°, Alt keeps the raw angle; the grid
   step never reaches a bend). New `BEND_DRAG_DEGREES_PER_MM` /
   `BEND_DRAG_SNAP_DEGREES` consts. The stale "Bend has no drag gesture" comments
   now name Padding only.
@@ -68,7 +68,7 @@ What changed (ticket-05 files only):
   the Inspector fields (row carry downward, key carry upward); new
   `TransformNudge::Bend` mirroring the Splay angle nudge (arrows ±1°, Shift
   ±5°; Shift nudges step like offsets); Shift always shows the four-way glyph,
-  Bend the prototype curved arrow; row/key aria-labels
+  Bend the mockup curved arrow; row/key aria-labels
   ("Drag to shift/bend row/key"); Shift/Bend tokens hide on contexts without a
   row or key instead of editing the wrong field; key selections centre their
   rail on the key's cell. Menu popover lists the tools automatically via `ALL`;
@@ -112,7 +112,7 @@ Row `[Offset, Shift, Bend]`, Key `[Shift, Bend]`, per-field edits through
 existing placement changes, one Undo each, amber hover sets equal to
 `field_preview`, hidden-handles parity, mirror sync, drag math/Ctrl/nudges/Undo
 preserved, desktop rail only, no 07/08 work. Standards — exact ticket-05 file
-list (plus the one-line native baseline insertion), verbatim prototype
+list (plus the one-line native baseline insertion), verbatim mockup
 rate/snap/glyphs, no dead code, `cargo fmt` + Clippy `-D warnings` green on
 both targets.
 

@@ -135,7 +135,7 @@ pub(super) fn ExportWorkspace(
                     "Back to {back}"
                 }
                 h1 { "Export package" }
-                p { "Choose a handoff for {board_name}. Downloads use the current committed design; routing and mechanical fit still need downstream review." }
+                p { "Choose a transfer for {board_name}. Downloads use the current committed design; routing and mechanical fit still need downstream review." }
             }
             div { class: "col-start-2 row-start-1 row-span-6 flex min-w-0 flex-col content-start gap-4 max-[1100px]:row-span-8 max-[760px]:gap-3",
                 section { class: "grid gap-3 rounded-xl bg-card p-5 [&_h2]:m-0 [&_h2]:text-xl [&_p]:m-0 [&_p]:text-muted-foreground max-[760px]:p-4", "aria-label": "Portable project",

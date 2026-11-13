@@ -8,11 +8,11 @@ responsibility, not by imposing a line-count target.
 
 ## Specification
 
-- [001: Separate Editor workspace ownership without changing lifetimes](issues/001-editor-workspace-ownership.md) — `ready-for-agent`.
+- [001: Separate Editor workspace ownership without changing lifetimes](issues/001-editor-workspace-ownership.md) — `ready`.
 
 001 is the parent specification, not a separate implementation slice. Leave its body
 and status unchanged while working the children below. The user approved this
-12-ticket breakdown on 2026-10-20. All children are `ready-for-agent`; blocking edges
+12-ticket breakdown on 2026-10-20. All children are `ready`; blocking edges
 determine which can be claimed, not a different readiness label.
 
 ## Implementation tickets
@@ -82,8 +82,8 @@ determine which can be claimed, not a different readiness label.
 
 - [Ownership research](../../research/editor-workspace-extraction.md) identifies the
   existing modules, three distinct lifetimes, cross-workspace flows and coverage gaps.
-- The throwaway prototype is retained on branch
-  `t3/editor-keymap-lifecycle-prototype`, source commit
+- The throwaway mockup is retained on branch
+  `t3/editor-keymap-lifecycle-mockup`, source commit
   `c9e60307feeec9bdb0d2dc6d21a30a4af7440f59`, verdict commit
   `10cb410a1104fbe28970eac6e7a97b755a08ecb6`. Do not merge the experiment wholesale.
 - Real mounted interactions demonstrated bounded App Runtime injection and Keymap

@@ -41,7 +41,7 @@ pub mod export_footprints;
 #[cfg(target_arch = "wasm32")]
 pub mod firmware_request_adapter;
 #[cfg(target_arch = "wasm32")]
-pub mod pcb_handoff;
+pub mod pcb_transfer;
 #[cfg(target_arch = "wasm32")]
 pub mod renderer_host_page;
 #[cfg(target_arch = "wasm32")]

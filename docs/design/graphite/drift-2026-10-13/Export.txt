@@ -9,7 +9,7 @@ Export
 Back to Parts
 Export package
 
-Choose a handoff for Left PCB. Downloads use the current committed design; routing and mechanical fit still need downstream review.
+Choose a transfer for Left PCB. Downloads use the current committed design; routing and mechanical fit still need downstream review.
 
 Design files
 KiCad board

@@ -1096,7 +1096,7 @@ fn layouts_keycaps_and_electrical_configuration_follow_the_mapped_ids() {
         json!({"row/0":"P3", "column/0":"P4", "peripheral/left/TRRS/split-rx":"P14"});
     board["keyBindings"] = json!({"matrix/left-synthetic-keys/r0c0": "&kp Q"});
     board["jumperStates"] = json!({});
-    board["protectedHandoff"] =
+    board["protectedTransfer"] =
         json!({"fingerprint": "f", "revision": 1, "assignments": {"row/0": "P10"}});
     let (mut engine, seed) = open(&doc);
     let reply = create(
@@ -1175,7 +1175,7 @@ fn layouts_keycaps_and_electrical_configuration_follow_the_mapped_ids() {
         json!({"row/0":"P3", "column/0":"P4", "peripheral/right/TRRS/split-rx":"P14"})
     );
     assert_eq!(right["keyBindings"], json!({}));
-    assert_eq!(right["protectedHandoff"], Value::Null);
+    assert_eq!(right["protectedTransfer"], Value::Null);
     assert_eq!(
         left["keyBindings"],
         json!({"matrix/left-synthetic-keys/r0c0": "&kp Q"})

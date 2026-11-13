@@ -1,4 +1,4 @@
-# Wayfinder 001 — PCB + Parts draft-owner census
+# Planning 001 — PCB + Parts draft-owner census
 
 Source-grounded census of live **project-editing** draft owners in `web/crates/pcb/**`
 and `web/crates/parts/**`, read against the dirty worktree overlay (exact Gortex
@@ -212,7 +212,7 @@ are resolved in their rows; the only remaining unknown is **U3** (browser-depend
   expected: overlay tracks the dirty worktree; reads were disk-verified).
 - Pre-existing dirty edits were not touched; the sole file write of this task is this
   inventory.
-- Checkpoint: notes `wayfinder-001-pcb-parts-census` (subagent-local).
+- Checkpoint: notes `planning-001-pcb-parts-census` (subagent-local).
 - 007 gap-closure (U1/U2/U4): source traces only via native Gortex
   `search`/`read` (exact worktree views, dirty generation 76); no builds, no tests,
   no browser. Sole file write remains this inventory.

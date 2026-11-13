@@ -917,7 +917,7 @@ pub(crate) fn evaluated_part<'a>(doc: &ProjectDoc, part: &'a Part) -> Cow<'a, Pa
 
 /// Ticket 10: outline margin (mm) used for the adaptive minimum when the
 /// pair's board carries no PartEnvelope outline feature. Matches the
-/// prototype's clearance feel; recorded in ADR-0036.
+/// mockup's clearance feel; recorded in ADR-0036.
 pub(crate) const DEFAULT_SPACING_MARGIN_MM: f64 = 3.0;
 /// Ticket 11: default Split gap (mm) proposed at mirrored-pair creation. The
 /// stored gap is `max(requested, default, minimum)`: an explicit wider
@@ -1314,7 +1314,7 @@ fn envelope_clear(
     Ok(Some(right.min - left.max))
 }
 
-/// The prototype ticket-10 deficit at one candidate gap: the largest of the
+/// The mockup ticket-10 deficit at one candidate gap: the largest of the
 /// envelope-clearance shortfall against `4 * margin` and each present half's
 /// margin overhang past the split axis. Zero or less means the outlines clear
 /// by `2 * margin` with each outline on its own side.

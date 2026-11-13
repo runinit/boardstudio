@@ -889,13 +889,13 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
             if let Some(message) = &pin_failure {
                 Alert { variant: AlertVariant::Destructive, "{message}" }
             }
-            if protected_remap_actions.handoff_revision.is_some()
+            if protected_remap_actions.transfer_revision.is_some()
                 || protected_remap_actions.feedback.is_some()
             {
-                section { class: "grid gap-1.5 my-2.5 p-2.5 border border-border rounded [&>strong]:text-xs [&>strong]:text-muted-foreground [&_p]:!m-0", aria_label: "Protected handoff",
-                    strong { "Protected handoff" }
-                    if let Some(revision) = protected_remap_actions.handoff_revision {
-                        p { "Pins protected by PCB handoff at revision {revision}" }
+                section { class: "grid gap-1.5 my-2.5 p-2.5 border border-border rounded [&>strong]:text-xs [&>strong]:text-muted-foreground [&_p]:!m-0", aria_label: "Protected transfer",
+                    strong { "Protected transfer" }
+                    if let Some(revision) = protected_remap_actions.transfer_revision {
+                        p { "Pins protected by PCB transfer at revision {revision}" }
                         PcbSection { label: "Review PCB remap",
                             p { "Changing a protected assignment creates a new hardware revision. The old PCB and firmware must be regenerated before export." }
                             Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
@@ -951,7 +951,7 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
             }
             if let Some(plan) = matching_plan.filter(|plan| !plan.diagnostics.is_empty()) {
                 Alert { variant: AlertVariant::Destructive, class: "[&_p]:!m-0 [&_p]:!text-xs",
-                    strong { "Review before handoff" }
+                    strong { "Review before transfer" }
                     for (index, diagnostic) in plan.diagnostics.iter().enumerate() {
                         p { key: "{index}", "{diagnostic.severity}: {diagnostic.message}" }
                     }

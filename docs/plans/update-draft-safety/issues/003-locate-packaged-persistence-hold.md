@@ -2,7 +2,7 @@
 
 Status: resolved
 Type: task
-Label: wayfinder:task
+Label: planning:task
 Mode: AFK
 Assignee: Chris D
 Blocked by: none
@@ -35,7 +35,7 @@ protocol; shipping a new persistence or adoption mechanism is not the task.
 
 Return a concrete supported probe/adapter and exact reuse protocol, or an exact blocker
 and smallest materially different next experiment. Leave the ticket unresolved when
-blocked; a blocker handoff is not completed evidence. Use disposable fixtures and scopes,
+blocked; a blocker transfer is not completed evidence. Use disposable fixtures and scopes,
 coordinate browser ownership, and serialize builds per target. Test-only work must not
 ship hooks or widen production/member visibility without approval. Do not run a full
 acceptance gate, implement the safety fix or claim packaged held-save safety from the
@@ -173,7 +173,7 @@ they prove the gate/ack semantics, not packaged behavior.
 This locates the hold and names the instrumentation limit; it is **not** a
 packaged held-save safety claim — that proof waits on building this adapter
 under the verification plan in [Agree the verification plan and
-implementation handoff](006-agree-verification-and-implementation-handoff.md).
+implementation transfer](006-agree-verification-and-implementation-transfer.md).
 No new ticket graduates: the adapter and protocol are already specifiable
 inside that ticket, and [Choose the draft-safety interface and lifetime
 contract](004-choose-draft-safety-interface.md) is now unblocked. No

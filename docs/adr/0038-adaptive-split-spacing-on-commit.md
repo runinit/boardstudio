@@ -20,7 +20,7 @@ changes the document, each stored-gap pair's current spacing becomes
   `pitch - edge gap` rects) plus that half's independent pair-layout parts
   (courtyard, else keycap, else the bare pose; matrix members, their companions
   and Utility parts excluded). With `margin` the widest PartEnvelope margin on
-  the pair's board (default 3.0 mm when the board carries none — the prototype's
+  the pair's board (default 3.0 mm when the board carries none — the mockup's
   clearance feel), `need = 4 * margin` and
   `deficit = max(need - clear, 2 * (maxLeft + margin - axis),
   2 * (axis + margin - minRight))`; the minimum is the smallest gap whose
@@ -40,7 +40,7 @@ changes the document, each stored-gap pair's current spacing becomes
   the pass is skipped when the edit changed nothing.
 - **The 2 × margin rule** (outline air gap ≥ twice the outline margin) is
   recorded here per the ticket's acceptance: comfortable clearance, matching
-  the approved prototype. The Inspector's split section (Stored gap, Current
+  the approved mockup. The Inspector's split section (Stored gap, Current
   spacing, Minimum now, Outline air gap, Required air gap) and the status
   line naming spacing changes build on these values on the web side.
 

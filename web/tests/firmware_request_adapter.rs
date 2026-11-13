@@ -357,7 +357,7 @@ fn legacy_encoder_uses_resolved_c_terminal_and_shared_sensor_overlay_order() {
     document.hardware.as_mut().unwrap().transport = HardwareTransport::Wireless;
     let legacy = |id: &str| {
         let mut value = encoder_plan(id, "P0.02", "P0.03", None);
-        // Exact mapping from React firmwareHandoff.test.ts split legacy fixture:
+        // Exact mapping from React firmwareTransfer.test.ts split legacy fixture:
         // terminal C is encoder-b; it is not the optional B terminal or encoder/C fallback.
         value.peripherals[0].gpio_terminals = vec![
             ("A".into(), "encoder-a".into()),

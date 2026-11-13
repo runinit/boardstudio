@@ -98,7 +98,7 @@ retained; 008 stays open under the user's preserve-WIP instruction.
 
 2026-10-17 root integration: The reviewed circular/annular oracle successor through v8 is now in shared production-crate tests. Actual locked44 native tests pass (42 library+2 integration), retaining all33 prior root tests and all40 private-v8 tests; WASM library/tests, formatting and scoped test Clippy pass with the existing005 lint exception. Only seven owned test/fixture postimages and two direct development edges changed; runtime/API, dependency versions and local overrides are preserved. See integration (`../../../../.evidence/production-step-export-008/root-integration-v8/REPORT.md`). Full008 remains open; the same owner continues the actual013 countersink certificate through an additive successor.
 
-2026-10-17 scope reconciliation: Keep the integrated v5 writer/checker and current v7/v8 case-cylinder/annulus accuracy handoffs. Stop expanding exact keycap/general-intersection coverage. Historical broader references below do not add a new delivery requirement.
+2026-10-17 scope reconciliation: Keep the integrated v5 writer/checker and current v7/v8 case-cylinder/annulus accuracy transfers. Stop expanding exact keycap/general-intersection coverage. Historical broader references below do not add a new delivery requirement.
 
 2026-10-17: User decision: exact STEP export scope is cases and PCBs only. Keycaps export as mesh (STL/3MF) and need no exact writer coverage.
 
@@ -131,7 +131,7 @@ prints nothing. The one-time FreeCAD/OCCT receipt (`.evidence/b5/FREECAD-CURRENT
 | Former exact obligation | 009 replacement |
 | --- | --- |
 | Exact keycap STEP export (single/multiple, dished) | Removed. 009 exports mesh display plus a printable STL ZIP; no UI, runtime or worker path claims exact keycap STEP. |
-| G20 flat-cavity exact Boolean/volume/bounds (failing `NotClosedShell`, archived in `.evidence/production-keycaps-009/HANDOFF.md`) | `zero_dish_keeps_a_flat_center_surface`, plus the flat G20 closed/oriented/open-underbody check that retains the fixture's independent bounds and volume as a secondary check. The failing exact test stays archived and is not relabelled. |
+| G20 flat-cavity exact Boolean/volume/bounds (failing `NotClosedShell`, archived in `.evidence/production-keycaps-009/TRANSFER.md`) | `zero_dish_keeps_a_flat_center_surface`, plus the flat G20 closed/oriented/open-underbody check that retains the fixture's independent bounds and volume as a secondary check. The failing exact test stays archived and is not relabelled. |
 | Spherical/cylindrical dish exact subtraction (004 constructor) | `spherical_dish_center_and_off_axis_height_follow_sagitta`, `cylindrical_dish_curves_across_depth_but_not_along_its_axis` |
 | Stems/sockets/legend exact intersection | `mount_meshes_keep_stem_and_socket_geometry_separate`, `mx_stem_is_closed_and_preserves_independent_blind_socket_material`, `rectangular_mount_stems_are_closed_with_independent_blind_socket_material`, `bundled_o_legend_is_separate_and_keeps_its_counter`, `legend_top_tracks_the_spherical_dish_and_tilt` |
 | Printable single body | `printable_keycaps_are_single_closed_bodies_with_independent_socket_volumes`, `dcs_row_three_legend_print_keeps_roof_cavity_and_relief`, `ordinary_legend_text_prints_as_one_closed_body`, `long_stroke_relief_follows_the_dish` |

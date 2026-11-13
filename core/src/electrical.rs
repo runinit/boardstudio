@@ -1,4 +1,4 @@
-//! One reviewed circuit plan feeds the inspector, PCB handoff and firmware.
+//! One reviewed circuit plan feeds the inspector, PCB transfer and firmware.
 use crate::hash::sha256_hex;
 use crate::model::*;
 use serde::{Deserialize, Serialize};
@@ -297,7 +297,7 @@ fn allocate_pins<'a>(
     functions: &[String],
     capabilities: &[&'a crate::electrical_profiles::PinCapability],
     locks: &BTreeMap<String, String>,
-    baseline: Option<&ElectricalHandoffBaseline>,
+    baseline: Option<&ElectricalTransferBaseline>,
     previous: &BTreeMap<String, String>,
     diagnostics: &mut Vec<ElectricalDiagnostic>,
 ) -> (
@@ -995,7 +995,7 @@ pub fn resolve(mut request: ElectricalPlanRequest) -> ElectricalPlan {
         .unwrap_or_default();
     locks.extend(request.locks.clone());
     locks.extend(crate::modules::connection_locks(doc, &board.id));
-    let baseline = config.and_then(|config| config.protected_handoff.as_ref());
+    let baseline = config.and_then(|config| config.protected_transfer.as_ref());
     plan.peripherals = crate::electrical_peripherals::describe(doc, &board.id);
     for finding in crate::modules::connection_findings(doc, &board.id) {
         plan.diagnostics.push(ElectricalDiagnostic {
@@ -1068,7 +1068,7 @@ pub fn resolve(mut request: ElectricalPlanRequest) -> ElectricalPlan {
             &mut plan.diagnostics,
             "peripheral-profile-required",
             format!(
-                "{} needs a reviewed electrical profile before automatic handoff",
+                "{} needs a reviewed electrical profile before automatic transfer",
                 part.reference
             ),
             Some(&part.id),
@@ -1306,7 +1306,7 @@ pub(crate) fn materialize_reviewed(
             });
             hardware.boards.len() - 1
         });
-    hardware.boards[index].assignments = handoff_assignments(plan);
+    hardware.boards[index].assignments = transfer_assignments(plan);
     if plan.mode == ElectricalMode::Direct {
         hardware.boards[index].assignments.extend(
             plan.assignments
@@ -1367,7 +1367,7 @@ pub(crate) fn sync_terminal_parameters_for_parts(
     }
 }
 
-pub(crate) fn handoff_assignments(plan: &ElectricalPlan) -> BTreeMap<String, String> {
+pub(crate) fn transfer_assignments(plan: &ElectricalPlan) -> BTreeMap<String, String> {
     // Protect fabricated signal assignments. A reversible population can map
     // those signals to different module GPIOs without changing the PCB copper.
     let mut pins = plan
@@ -1409,13 +1409,13 @@ pub(crate) fn handoff_assignments(plan: &ElectricalPlan) -> BTreeMap<String, Str
     pins
 }
 
-// A downloaded handoff is outside edit history. Undo cannot erase knowledge of it.
-pub(crate) fn preserve_handoff(previous: &ProjectDoc, next: &mut ProjectDoc) {
+// A downloaded transfer is outside edit history. Undo cannot erase knowledge of it.
+pub(crate) fn preserve_transfer(previous: &ProjectDoc, next: &mut ProjectDoc) {
     let Some(old) = &previous.hardware else {
         return;
     };
     for config in &old.boards {
-        let Some(baseline) = &config.protected_handoff else {
+        let Some(baseline) = &config.protected_transfer else {
             continue;
         };
         let hardware = next.hardware.get_or_insert_with(Default::default);
@@ -1424,11 +1424,11 @@ pub(crate) fn preserve_handoff(previous: &ProjectDoc, next: &mut ProjectDoc) {
             .iter_mut()
             .find(|entry| entry.board_id == config.board_id)
         {
-            current.protected_handoff = Some(baseline.clone());
+            current.protected_transfer = Some(baseline.clone());
         } else {
             hardware.boards.push(ElectricalBoardConfiguration {
                 board_id: config.board_id.clone(),
-                protected_handoff: Some(baseline.clone()),
+                protected_transfer: Some(baseline.clone()),
                 ..Default::default()
             });
         }

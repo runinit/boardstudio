@@ -104,8 +104,8 @@ function ownKeysEqual(actual, expected) {
 
 /** Whether `value` is a plain object, the only object shape compared by its own keys. */
 function isPlainObject(value) {
-  const prototype = Object.getPrototypeOf(value);
-  return prototype === Object.prototype || prototype === null;
+  const mockup = Object.getPrototypeOf(value);
+  return mockup === Object.prototype || mockup === null;
 }
 
 /** Checks the thrown value against the expectation Node's `assert` accepted. */

@@ -22,7 +22,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
 - Keep workspace navigation in the shared Objects dock; the browser feedback removes the duplicate header tabs and compact selector. Real document geometry is authoritative over generated keyboard shapes and counts.
 - Grid increment and geometry snapping are separate existing preferences. Both are visible in the dock; specialist snap options retain the existing controlled popover.
 - Retain current panel resize, collapsed/autohide choices and persisted widths; Graphite sizes are defaults. Keep existing Light/System preferences and all non-Layout workflows operable.
-- User requested solo execution. Finish review and documentation use the skill's inline fallback workflow rather than spawning agents.
+- User requested solo execution. Finish review and documentation use the guide's inline fallback workflow rather than spawning agents.
 
 ## Implemented
 
@@ -52,7 +52,7 @@ Measured opaque dark text contrasts: primary/panel 13.89:1; muted/panel 8.16:1; 
 
 ## Screenshot comparison
 
-Inspect the [approved comp](layout-approved.png), [implemented desktop](implemented-desktop.png), [compact canvas](implemented-mobile.png), [compact Inspector](implemented-mobile-inspector.png) and [compact Objects](implemented-mobile-objects.png). The source captures and structured observations are in `.scratch/graphite-batch1/`; canonical copies are under `.impeccable/review/`.
+Inspect the [approved comp](layout-approved.png), [implemented desktop](implemented-desktop.png), [compact canvas](implemented-mobile.png), [compact Inspector](implemented-mobile-inspector.png) and [compact Objects](implemented-mobile-objects.png). The source captures and structured observations are in `.scratch/graphite-batch1/`; canonical copies are under `.design-review/review/`.
 
 The comparison keeps the selected charcoal/periwinkle system, dock topology, dominant canvas and opaque labeled toolstrip. Adaptations are explicit: navigation is restored, a 56px header replaces the generated 64px header, real document geometry/IDs replace the generated split keyboard, grid and geometry snapping stay separate, and existing inspector fields remain available. New handles/dimension labels belong to Batch 2.
 
@@ -60,14 +60,14 @@ The automatic pixel comparison reports drift; it is not a passing pixel-fidelity
 
 ## Finish review at Batch 1 scope
 
-Solo execution uses the skill's inline review/documentation fallback; no agents were spawned.
+Solo execution uses the guide's inline review/documentation fallback; no agents were spawned.
 
-Disposition: **fix — workflow closure pending**. Implementation checks and manual visual comparison are complete at Batch 1 scope; the automated Impeccable review checkpoint remains unclosed.
+Disposition: **fix — workflow closure pending**. Implementation checks and manual visual comparison are complete at Batch 1 scope; the automated design-check review checkpoint remains unclosed.
 
 - Persistence: approved comp and exact prompt/provenance, direction contract, implemented captures, DESIGN.md and the extension sidecar are recorded.
 - Fidelity: header, docks, backed toolbar, active state, field styling and snapping match the selected direction. Document geometry, restored navigation, preserved advanced fields and compact view arrangements are adaptations supported by the approved brief. Batch 2 handles are explicitly excluded.
 - Ceiling: desktop, 1024px and 390px states were inspected together, material findings corrected, and final states confirmed. Additional captures verified identified functional regressions; no further visual alternatives or polish loop was opened.
-- Material fixes: resolved toolbar bounds, active-button contrast, field hierarchy, compact panel scrolling, footer access, save-status overlap and guide-state snapping. No further Batch 1 implementation fix is identified by the recorded checks. Complete the required human review receipt and subsequent phase gates before reporting the Impeccable workflow as shipped.
+- Material fixes: resolved toolbar bounds, active-button contrast, field hierarchy, compact panel scrolling, footer access, save-status overlap and guide-state snapping. No further Batch 1 implementation fix is identified by the recorded checks. Complete the required human review receipt and subsequent phase gates before reporting the design-check workflow as shipped.
 - Keep: controlled edit/draft settlement, accepted-state history and save/recovery, workspace-specific owners and semantic geometry roles.
 
 ## First submitted review — implemented revisions
@@ -192,12 +192,12 @@ recorded above; they were not broadly rerun for this bounded shell change.
 
 - New direct geometry interactions and editable canvas dimensions remain Batch 2. The other workspaces use the shared foundation but retain their existing content pending their planned migration batches.
 - Generated reference counts, footprint geometry and pin assignments are not implementation requirements. The selected-context companion/key count wording remains existing product behavior, not an asserted new semantic rule.
-- The Impeccable CLI preserves both submitted changes-requested receipts. Round 4 also incorporates the header-navigation browser feedback. Five plan items await review (header, Objects, tree, toolbar, inspector controls); seven unchanged approvals carry forward. The [component review checkpoint](http://127.0.0.1:42679/) uses the same session (`4e679bbd8c1af8579db49314895e90ba444a6767f9ae55ad2801750f7fad285f`), with a 24-hour idle timeout and local draft backups. This packet reviews the plan with original comp crops; the actual implementation is shown in the captures above and the frontend preview. No receipt was fabricated, and subsequent automated phase gates remain open. Static page-capture gates are not a substitute for this worker-backed Dioxus application.
+- The design-check CLI preserves both submitted changes-requested receipts. Round 4 also incorporates the header-navigation browser feedback. Five plan items await review (header, Objects, tree, toolbar, inspector controls); seven unchanged approvals carry forward. The [component review checkpoint](http://127.0.0.1:42679/) uses the same session (`4e679bbd8c1af8579db49314895e90ba444a6767f9ae55ad2801750f7fad285f`), with a 24-hour idle timeout and local draft backups. This packet reviews the plan with original comp crops; the actual implementation is shown in the captures above and the frontend preview. No receipt was fabricated, and subsequent automated phase gates remain open. Static page-capture gates are not a substitute for this worker-backed Dioxus application.
 - No production/offline or full-provider rebuild was performed; provider inputs were unchanged. No repository-wide migration-complete claim follows from this batch.
 
 Development preview remains at port 8182; port 8184 serves the mockup gallery. The existing frontend process group and private target remain running, with fresh asset health recorded in `.scratch/ui-dev/runtime.json`. Generated Tailwind output was refreshed using the installed pinned compiler before inspection.
 
-## Chat approval and Batch 2 handoff
+## Chat approval and Batch 2 transfer
 
 On 2026-10-12 the user approved the current implementation in chat and asked to
 move on. Batch 2 direct Layout geometry work is authorized. The native review

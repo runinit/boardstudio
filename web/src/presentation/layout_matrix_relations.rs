@@ -492,7 +492,7 @@ pub(super) fn RelationMatrixKey(
     /// selection itself; the amber field preview still wins every tie.
     #[props(default)]
     anchor_target: bool,
-    /// Ticket 02: the pointer rests on this key (prototype variant D). The
+    /// Ticket 02: the pointer rests on this key (mockup variant D). The
     /// caller only sets it while no amber preview marks the key, so the
     /// preview keeps winning every tie.
     #[props(default)]
@@ -518,7 +518,7 @@ pub(super) fn RelationMatrixKey(
     // at-rest field preview wins ties so the hovered field reads through
     // selection, dimming and violet references alike. Ticket 17: the badge
     // target is selection chrome, so it wins over dimming like the selection.
-    // Ticket 02: key hover (prototype variant D) tints the key but never
+    // Ticket 02: key hover (mockup variant D) tints the key but never
     // overrides the amber preview; the caller only sets `hovered` then.
     let previewed = field_previews(part_id.as_ref());
     let base = if previewed {
@@ -564,7 +564,7 @@ pub(super) fn RelationPartOutline(
     /// Ticket 17: the canvas anchor badge target, like the key rect above.
     #[props(default)]
     anchor_target: bool,
-    /// Ticket 02: the pointer rests on this part (prototype variant D). The
+    /// Ticket 02: the pointer rests on this part (mockup variant D). The
     /// caller only sets it while no amber preview marks the part, so the
     /// preview keeps winning every tie.
     #[props(default)]

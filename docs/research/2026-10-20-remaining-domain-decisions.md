@@ -35,7 +35,7 @@ and verification; this does not establish that any pending behavior is delivered
 makes user-authored modification notes optional, retaining supplied notes and known
 applicable notices without inventing missing history. Its later nested-package
 amendment makes the inner KiCad ZIP independently forwardable with its own root
-`license.md`, in addition to the outer handoff's clearly scoped notice. Those
+`license.md`, in addition to the outer transfer's clearly scoped notice. Those
 questions below are settled. Unknown terms also no longer leave admission unchosen:
 the user chose export with an explicit licence-unknown notice, without mandatory
 acknowledgement or blocking solely for unavailable terms. Known terms and other
@@ -43,7 +43,7 @@ integrity checks remain. These are policy decisions, not implementation evidence
 
 Read [root instructions](../../AGENTS.md), [domain instructions](../agents/domain.md),
 [glossary](../../GLOSSARY.md), [ADR index](../adr/README.md) and relevant current
-records through 0033, the installed domain-modeling skill and both format guides,
+records through 0033, the installed domain modelling guide and both format guides,
 the [workflow map](../plans/application-workflow-verification/map.md) and its
 [48-story parent specification](../plans/application-workflow-verification/issues/001-verify-six-application-workflows.md).
 Reconciled the four prior reports:
@@ -56,10 +56,10 @@ Their older candidate lists are not today's decision queue.
 | Boundary | Current disposition; do not ask again |
 | --- | --- |
 | Renderer recovery mode | **Settled policy / implementation and evidence work:** [0014 amendment](../adr/0014-document-authority-and-captured-lifetimes.md#amendment-preview-recovery-respects-automatic-preview-2026-10-20): explicit error, forms/2D usable, current accepted design/current owner, no project reload/edit replay. Existing affected-view automatic preview ON permits one automatic recovery attempt; OFF waits for Retry; failed recovery requires explicit Retry, without a rerender-driven loop. Camera alone remains open. |
-| Generator changes | **Settled:** [0003 amendment](../adr/0003-rust-footprint-generators-in-core.md#amendment-existing-projects-use-current-generators-2026-10-20) rejects frozen old geometry/per-project opt-in upgrades. Current compiled generators/defaults apply; schema, parameter, identity/terminal and protected-handoff integrity still apply. |
+| Generator changes | **Settled:** [0003 amendment](../adr/0003-rust-footprint-generators-in-core.md#amendment-existing-projects-use-current-generators-2026-10-20) rejects frozen old geometry/per-project opt-in upgrades. Current compiled generators/defaults apply; schema, parameter, identity/terminal and protected-transfer integrity still apply. |
 | Deleted/shrunk inputs returning | **Settled / implementation debt:** [0032](../adr/0032-recreated-inputs-start-unassigned.md) requires unassigned replacements, including save/reopen and reused IDs. Compacted survivors and actual Undo are distinct. Temporary disable is expressly unresolved. |
 | Package notices | **Settled / implementation debt:** [0033](../adr/0033-include-license-information-in-exported-packages.md) requires root `license.md`, known applicable notices/source references, honest unknowns, bounded project import and information retention for re-export. Neither blanket relicensing nor a blanket unknown-term export ban is selected. |
-| Firmware and handoff | **Settled:** [0030](../adr/0030-export-firmware-as-an-editable-repository-template.md) means editable repository template, external compilation, disclosed unsupported optional peripherals if the base keyboard remains valid. [0031](../adr/0031-preserve-pcb-handoff-protection-across-undo.md) protection follows successful packaging/current ownership/**saved** protection before delivery, survives Undo and later download failure/cancellation. |
+| Firmware and transfer | **Settled:** [0030](../adr/0030-export-firmware-as-an-editable-repository-template.md) means editable repository template, external compilation, disclosed unsupported optional peripherals if the base keyboard remains valid. [0031](../adr/0031-preserve-pcb-transfer-protection-across-undo.md) protection follows successful packaging/current ownership/**saved** protection before delivery, survives Undo and later download failure/cancellation. |
 | Hardware topology | **Settled / delivery debt:** [0024–0028](../adr/README.md) cover shared routing with actual assembly/jumpers, exclusive removed-half design/accessory deletion with Undo, either side central, incomplete designs saveable, explicit reversible conversion without merging routing. |
 | Vendor geometry/collision | **Settled / existing work:** [0017](../adr/0017-forgiving-vendor-previews-with-preserved-source.md)/[0018](../adr/0018-distinguish-collision-observations-from-clearance-guarantees.md) admit useful repaired/partial previews and approximate observations with explicit limitations; unsupported accuracy and whole-model clearance remain uncertain. |
 | Scripting | **Excluded:** [0029](../adr/0029-constrain-geometry-scripts-and-apply-results-atomically.md#scope-correction-2026-10-20) deprecates the feature premise. Retained code safety is not intended workflow; removal/compatibility is later scoped work. |
@@ -73,7 +73,7 @@ reversal cost, surprising behavior and a genuine trade-off.
 
 Existing [Editor 011](../plans/editor-workspace-extraction/issues/011-shared-camera-and-surface-coordination.md)
 owns behavior-preserving camera/surface extraction, not a persistence redesign.
-[Workflow 001](../plans/application-workflow-verification/map.md) is a ready-for-agent
+[Workflow 001](../plans/application-workflow-verification/map.md) is a ready
 **spec**, with approved S-A real application/mounted, S-B source-bound page and S-C
 actual-package seams; its children are unpublished. Reuse existing Editor work,
 CAD browser harness 016,
@@ -205,9 +205,9 @@ template dependency pins are not licence grants.
 existing asset metadata but creates bundled asset records with no licence.
 [Core admission](../../core/src/archive.rs#L44-L121) and
 [entry allowlist](../../core/src/archive.rs#L216-L240) still lack notice support and
-retention. [build_handoff](../../web/crates/runtime/src/pcb_handoff.rs#L65-L218)
+retention. [build_transfer](../../web/crates/runtime/src/pcb_transfer.rs#L65-L218)
 puts board/models into an inner ZIP and that ZIP plus assembly/wiring files into
-the outer package; [model loading](../../web/crates/runtime/src/pcb_handoff.rs#L220-L275)
+the outer package; [model loading](../../web/crates/runtime/src/pcb_transfer.rs#L220-L275)
 copies hash-checked bytes. This structure proves neither that users forward the
 inner archive alone nor that an outer notice suffices for that workflow.
 
@@ -228,7 +228,7 @@ The prior reports' dated U1/header observations remain bounded historical eviden
    or is identifying unavailable customization history honestly sufficient? This
    is the remaining capture promise, not permission to invent authorship.
 2. Only if needed for the delivery story: is forwarding the inner KiCad ZIP alone
-   an intended supported handoff, or is the outer package the required delivery?
+   an intended supported transfer, or is the outer package the required delivery?
    For any independently distributed package, root-notice inclusion is already
    settled; subset coverage/outer-summary layout is ordinary presentation work.
 3. One locally supplied model has no supplied distribution terms. Should the

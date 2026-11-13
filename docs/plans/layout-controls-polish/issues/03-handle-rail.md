@@ -2,9 +2,9 @@
 
 Status: resolved
 Type: build
-Blocked by: none (decision in [01](01-layout-controls-iconography-prototype.md))
+Blocked by: none (decision in [01](01-layout-controls-iconography-mockup.md))
 Map: [map.md](../map.md)
-Prototype: branch `prototype/layout-controls-iconography` (e91865f43), `?variant=D`; its spec sheet holds the exact values.
+Mockup: branch `mockup/layout-controls-iconography` (e91865f43), `?variant=D`; its spec sheet holds the exact values.
 Review: presentation only; RED/GREEN evidence and a diff read, no combined review.
 
 ## What to build
@@ -61,14 +61,14 @@ also checks that the layout is the same at two zooms in screen space.
 
 ## Carried point
 
-- The prototype is desktop only. DESIGN.md asks for 44 px touch targets in the compact
+- The mockup is desktop only. DESIGN.md asks for 44 px touch targets in the compact
   layout. Whether tokens grow their hit area at ≤980 px is undecided; ask before building a
   compact variant, and by default leave compact sizing to a follow-up.
 
 ## Answer
 
-Implemented on branch `docs/ergogen-layout-comparison` (prototype ref
-`prototype/layout-controls-iconography` `e91865f43`, variant D).
+Implemented on branch `docs/ergogen-layout-comparison` (mockup ref
+`mockup/layout-controls-iconography` `e91865f43`, variant D).
 
 What changed (ticket-03 files only):
 
@@ -88,7 +88,7 @@ What changed (ticket-03 files only):
   shared svg handle, canonical peer order Spread/Stagger/Offset/Splay/
   Move/Rotate, Origin excluded) and draws its token from the shared layout:
   rail backdrop (first peer only, panel fill, rule-strong 1 px, drop shadow,
-  pointer-events none), 18 px token with 20x24 hit area and prototype glyph
+  pointer-events none), 18 px token with 20x24 hit area and mockup glyph
   paths, 12 px Origin point (ring + 12 px cross + 24 px hit) at the splay
   origin for Splay/Origin. Hover/focus fills selection-surface with
   selection-ink glyph, previews the movers in amber through the existing
@@ -121,7 +121,7 @@ submit (pointerdown-to-first-move shows only the active token).
 
 Carried open point: compact-screen 44 px touch targets (≤980 px) remain
 UNDECIDED and unimplemented — desktop behaviour only, hit areas stay
-20x24 per the prototype.
+20x24 per the mockup.
 
 Evidence:
 
@@ -161,7 +161,7 @@ rest/hover/active/dim/leave, kept behaviours (hidden handles, Ctrl
 quick offset, nudge, aria lookups, no labels/re-anchor/Shift-Bend/
 popup/part-rail/pick), compact point carried open. Standards — exact
 ticket-03 file list, no cross-file edits (registry + inline styles
-instead of `presentation.rs`/`m1.css`), verbatim prototype numbers,
+instead of `presentation.rs`/`m1.css`), verbatim mockup numbers,
 no dead code (`stagger_arrow_degrees` removed with its last use),
 `cargo fmt` + Clippy `-D warnings` green on both targets.
 

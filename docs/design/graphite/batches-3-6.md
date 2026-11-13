@@ -15,7 +15,7 @@ preserved outside the ignored mock directory.
 | Keymap | Layers and searchable keys in the left dock; Assign/Macros/Encoders focus shortcuts | Existing layer operations and key/macro/encoder editors; no layer-wide transparency toggle |
 | Keycaps | Global board appearance in the left dock; matrix and selected-key disclosures; Profile/Legend/Color shortcuts | One settings owner, existing profile/legend/override editors and fit findings |
 | Parts | Selected catalogue groups open; search reveals matching groups; specialist generator sections remain collapsible | Existing import, generation, preview/apply, assembly and placement owners |
-| Export | Handoff list with actual availability, current accepted revision/local-save summary and explicit portable download | Existing stale/invalid output guards and export providers |
+| Export | Transfer list with actual availability, current accepted revision/local-save summary and explicit portable download | Existing stale/invalid output guards and export providers |
 | Project browser | Saved-project selection, actual document geometry preview, explicit Open, deletion confirmation and current-project copy/rename routes | Existing local storage, demo-copy/import/new-project runtime operations; editor remains mounted while browsing |
 | Setup | Dedicated five-stage process surface beside the real viewer; schematic hardware preview before layout geometry | Existing project creation, matrix creation, optional/resumable guide and stage readiness |
 
@@ -38,7 +38,7 @@ focusing its field. The original Enter/blur assertion remains intact; all 81 Cas
 browser tests pass.
 
 Mobile browser selection originally left Open keyboard below the demo list
-(measured Y=4021px in an 844px viewport). The selected-project handoff now moves
+(measured Y=4021px in an 844px viewport). The selected-project transfer now moves
 above the list at narrow widths and receives guarded focus. A mounted regression
 proves selection previews the chosen document without opening it, then focuses
 Open keyboard. The same regression verifies the selected preview follows an
@@ -55,7 +55,7 @@ browser tests pass.
   Layout 174 plus isolated setup 1, and page presentation 72 tests passed.
   Earlier browser groups passed: storage 10, Runtime 33, UI model 5, shared
   controls 38 plus isolated panels 1, Keycaps 30, Keymap 40 and catalogue 12.
-- Library was rerun after the mobile handoff change: 17 passed. Page presentation
+- Library was rerun after the mobile transfer change: 17 passed. Page presentation
   was rerun against the final Library code: 72 passed.
 - Real entry flow passes: named project and matrix creation, portable download
   without embedded models, demo copy, import of the downloaded archive, and
@@ -89,7 +89,7 @@ width; setup suppresses the old drawer scrim.
 
 Narrow captures: [Export](continuation-Export-mobile.png),
 [setup](continuation-Setup-mobile.png), and
-[selected-project handoff](continuation-Browser-mobile-selected.png).
+[selected-project transfer](continuation-Browser-mobile-selected.png).
 
 ## Fidelity follow-up — setup and assignment review
 
@@ -136,16 +136,16 @@ controller plan, so no selected-wiring screenshot is claimed.
   ZIP integrity and SHA-256 checks of both embedded assets passed. The older
   verification profile cancelled its download; the fresh-context check avoids
   relying on that profile. Logs are `export-embedded.log` (download success) and
-  `import-embedded.log` (import and editor handoff) under the scratch evidence root.
+  `import-embedded.log` (import and editor transfer) under the scratch evidence root.
 - Existing WASM warnings and the malformed Layers chevron are not new failures.
   Native Clippy passes. No visibility was widened to silence warnings.
-- Impeccable workflow closure remains unclaimed. `build-phase advance` was
+- design-check workflow closure remains unclaimed. `build-phase advance` was
   executed: it refused at `plates` because "The plan and asset review is not
   accepted for this build." `build-phase completion` reports incomplete.
   The underlying plate-content check passes ("no plates owed"); `comps` and
   `spec` are closed. `hero`, `sections`, `motion`, `responsive` and `review`
   remain pending behind that receipt, rather than proven unsupported.
-  Chat approval and saved notes remain valid project evidence. The skill's
+  Chat approval and saved notes remain valid project evidence. The guide's
   component-review rule says "Never submit the page or write a receipt on the
   user's behalf"; no CLI receipt was manufactured and no repeat approval was
   requested. The separate automatic pixel comparison reports drift. Manual

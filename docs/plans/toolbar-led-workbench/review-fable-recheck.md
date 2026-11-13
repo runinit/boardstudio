@@ -13,7 +13,7 @@ review round. It judges **M1 (Layout first delivery) only**; M2/M3 are not appro
 
 ## Standards
 
-Sources: worktree `AGENTS.md`, `CODING_STANDARDS.md`, `docs/agents/{issue-tracker,triage-labels,domain}.md`.
+Sources: worktree `AGENTS.md`, `CODING_STANDARDS.md`, `docs/agents/{issue-tracker,status-labels,domain}.md`.
 
 Previous findings: S1 (status labels), S2 (009 rows unmeetable in 009), S3 (001 doc row
 `planned`) are fixed. S4 (Inspect/Dock wording) is fixed in `GLOSSARY.md`; plan prose still
@@ -21,11 +21,11 @@ uses the label "Inspect" as the surface noun, which the glossary now tolerates.
 
 Documented-standard findings, none blocking M1:
 
-1. **Follow-up, new — 007 and 008 `Status: ready-for-agent`.** `triage-labels.md`:
+1. **Follow-up, new — 007 and 008 `Status: ready`.** `status-labels.md`:
    "Fully specified, ready for an agent to start". Both are M3, unauthorized, and 007 is
-   blocked by `ready-for-human` 010–015. `map.md` covers it in prose ("A ready-for-agent
+   blocked by `awaiting-decision` 010–015. `map.md` covers it in prose ("A ready
    label never overrides a phase gate"), but the label is the same dishonesty N10 fixed
-   elsewhere. Suggest `ready-for-human`.
+   elsewhere. Suggest `awaiting-decision`.
 2. **Follow-up, new — M1 acceptance rows have no M1 home.** `issue-tracker.md`: the proof
    map and mutations "form the slice's boundary, fixed before implementation".
    `delivery.md` assigns keyboard, narrow, contrast and packaged fidelity to "M1 portion
@@ -162,7 +162,7 @@ Read in full, candidate (27): `DESIGN.md`, `GLOSSARY.md`, `docs/adr/0035-…`,
 Read in full, authority: both frozen READMEs, `option-a/toolbar.html`,
 `tool-panels/template.html` (read from the saved Gortex result in four slices), worktree
 `AGENTS.md`, `docs/architecture.md`, `README.md`, `CODING_STANDARDS.md`, `PRODUCT.md`,
-`docs/agents/{issue-tracker,triage-labels,domain}.md`, ADR 0002, 0008, 0010, 0029.
+`docs/agents/{issue-tracker,status-labels,domain}.md`, ADR 0002, 0008, 0010, 0029.
 
 Source, text search only: `pin_inspector_on_desktop(`, `DraftOwnerRegistration {`,
 `matrix_real_create_pending_exempts_only_submitted_draft`. No source bodies were read;

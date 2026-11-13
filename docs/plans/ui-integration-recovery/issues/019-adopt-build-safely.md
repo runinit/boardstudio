@@ -223,7 +223,7 @@ record; failure receipts and attribution caveats remain evidence history.
   Open risk: the two Open-PCB tests' pre-change status is unconfirmed (no
   clean-HEAD baseline). Next slice: packaged A/B adoption driver.
 
-- 2026-11-07: Implementation checkpoint, coordinator handoff (status unchanged:
+- 2026-11-07: Implementation checkpoint, coordinator transfer (status unchanged:
   no closure claimed, no commit/push; independent spec+standards review still pending).
   Slices A-D GREEN with RED/GREEN evidence in-session: (A) `Session::has_pending_work`
   + `application/tests/session_pending_work.rs`; (B) pure gate
@@ -248,7 +248,7 @@ record; failure receipts and attribution caveats remain evidence history.
   `web/crates/ui-shared/src/toolbar_toggle_slider_toast_tests.rs`,
   `web/src/{service_worker.rs,presentation.rs,presentation/header.rs,presentation/notifications.rs}`,
   `web/assets/header.css`. Untouched unrelated work preserved: 026-merge-gate.md,
-  022 ticket, plan map, `drag_smoke.rs`, untracked `ui-triage.md`.
+  022 ticket, plan map, `drag_smoke.rs`, untracked `ui-status.md`.
   Remaining slices: E completion (7 mounted tests + 018 regressions green),
   packaged A/B adoption driver (pre-019 RED / post GREEN, second-editor deferral +
   offline continuity, subpath isolation, failed-install control), ADR-0022 dated
@@ -260,7 +260,7 @@ record; failure receipts and attribution caveats remain evidence history.
   `update_safety.rs` docs (component-local draft signals, no global registry).
   Next: coordinator delegates disjoint coding/testing tasks to fresh-context agents.
 
-- 2026-11-06: Published through to-tickets at the user's explicit request.
+- 2026-11-06: Published through ticket splitting at the user's explicit request.
   The two slices are intentionally notification first, then the complete guarded
   action; safety is not deferred to a later hardening ticket. No implementation,
   RED/GREEN execution or acceptance completion has occurred in this planning task.

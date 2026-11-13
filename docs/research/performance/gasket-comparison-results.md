@@ -66,7 +66,7 @@ Cadrum's WASM clock stub returns zero, so the isolated instrumentation uses
 `performance.now()`. The clock resolves about 0.1 ms in this browser. All speed
 samples keep stage timers disabled. Ownership copies remain enabled.
 
-The profile prototype adds extrusions and unions of touching height bands. It
+The profile mockup adds extrusions and unions of touching height bands. It
 still spends 82.1 ms in Boolean `Perform`, then adds 4.8 ms cell selection,
 6.5 ms cleanup, 6.7 ms copying, and 21.8 ms meshing. Its slower result rejects
 this particular implementation, not parametric design generally.

@@ -1,11 +1,11 @@
 # Spec: Draft-safe update adoption
 
-Status: ready-for-agent
+Status: ready
 Source: [Draft-safe update adoption map](map.md), resolved by
-[Agree the verification plan and implementation handoff](issues/006-agree-verification-and-implementation-handoff.md)
+[Agree the verification plan and implementation transfer](issues/006-agree-verification-and-implementation-transfer.md)
 (user-confirmed implementation-ready, 2026-11-07).
 Map: [map.md](map.md). Parent: [Adopt the waiting build through protected Refresh](../ui-integration-recovery/issues/019-adopt-build-safely.md).
-Tickets: split into implementation tickets 008–015, listed in Further Notes; the wayfinder tickets below own the decisions.
+Tickets: split into implementation tickets 008–015, listed in Further Notes; the planning tickets below own the decisions.
 
 ## Problem Statement
 
@@ -84,7 +84,7 @@ auto-committed and nothing is discarded on the designer's behalf.
 ## Implementation Decisions
 
 - **Decision authority.** Every decision below is already settled by the
-  wayfinder map; this spec synthesizes, it does not re-decide. Detail lives in
+  planning map; this spec synthesizes, it does not re-decide. Detail lives in
   the owning tickets, indexed here: the owner census in
   [Inventory project draft owners](issues/001-inventory-project-draft-owners.md)
   and [Close the named census gaps](issues/007-close-named-census-gaps.md)
@@ -99,7 +99,7 @@ auto-committed and nothing is discarded on the designer's behalf.
   decision in
   [Decide whether refactoring earns its cost](issues/005-decide-whether-refactoring-earns-its-cost.md);
   and the verification plan in
-  [Agree the verification plan and implementation handoff](issues/006-agree-verification-and-implementation-handoff.md).
+  [Agree the verification plan and implementation transfer](issues/006-agree-verification-and-implementation-transfer.md).
   Where this spec and an owning ticket disagree, the owning ticket wins.
 - **Runtime-owned registry.** A registry of live draft owners lives in the
   Runtime and is polled synchronously by the Runtime's update-safety inputs at
@@ -247,10 +247,10 @@ auto-committed and nothing is discarded on the designer's behalf.
 
 ## Further Notes
 
-- This spec is a synthesis of a completed wayfinder map: the route is clear
+- This spec is a synthesis of a completed planning map: the route is clear
   and no product decision is left open. The next step is splitting it into
   tracer-bullet implementation tickets with blocking edges (for example with
-  the `to-tickets` skill) in a subsequent session; do not implement directly
+  the `ticket splitting` guide) in a subsequent session; do not implement directly
   from this spec in the same breath.
 - The natural tracer bullet is the confirmed Geometry scripts packaged loss:
   registry plus one owner adapter plus both checkpoints proves the whole
@@ -264,6 +264,6 @@ auto-committed and nothing is discarded on the designer's behalf.
   [013 PCB owners](issues/013-pcb-placement-attach-assembly-net-owners.md) and
   [014 Creation-form owners](issues/014-creation-form-owners.md) follow 008;
   [015 Coverage, mutation and closure](issues/015-coverage-mutation-and-closure.md) closes the spec.
-- Ready-for-agent means the specification is buildable without further
+- Ready means the specification is buildable without further
   decisions; it is not feature completion, acceptance, or closure of the
   parent adoption ticket.

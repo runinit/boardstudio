@@ -355,7 +355,7 @@ flowchart LR
   </div>
   <ul class="font-mono text-sm text-slate-700 leading-6">
     <li>core/src/lib.rs:233-254 (open), 515-572 (commit), 597-602 (preview_edit), 1429-1430 (ReplaceDocument), 995-1017 (affects_outline)</li>
-    <li>core/src/lib.rs ~375-445 (ReviewElectricalRemap, ProtectElectricalHandoff transaction paths)</li>
+    <li>core/src/lib.rs ~375-445 (ReviewElectricalRemap, ProtectElectricalTransfer transaction paths)</li>
   </ul>
   <div class="grid md:grid-cols-2 gap-4">
     <div class="rounded-lg border border-red-200 bg-red-50/40 p-4 diagram">
@@ -365,7 +365,7 @@ flowchart LR
         <tbody class="font-mono">
           <tr class="border-t"><td class="text-left">keymap validate</td><td>●</td><td>●</td><td class="text-red-600">—</td><td class="text-red-600">—</td></tr>
           <tr class="border-t"><td class="text-left">scripts / resolve</td><td>●</td><td>—</td><td>—</td><td>●</td></tr>
-          <tr class="border-t"><td class="text-left">preserve_handoff</td><td>—</td><td>●</td><td class="text-red-600">—</td><td>●</td></tr>
+          <tr class="border-t"><td class="text-left">preserve_transfer</td><td>—</td><td>●</td><td class="text-red-600">—</td><td>●</td></tr>
           <tr class="border-t"><td class="text-left">layout::validate</td><td>—</td><td>●</td><td>?</td><td>●</td></tr>
           <tr class="border-t"><td class="text-left">constraints ⇄ sync ×2</td><td>●</td><td>●</td><td>●</td><td>●</td></tr>
           <tr class="border-t"><td class="text-left">detach_removed</td><td>—</td><td>●</td><td>?</td><td>●</td></tr>
@@ -384,7 +384,7 @@ flowchart LR
     </div>
   </div>
   <div class="grid md:grid-cols-3 gap-4 text-sm">
-    <p><span class="schem text-slate-500 block">Problem</span>Every new operation has to know about six steps and a hand-kept classification, and the copies have drifted. <code>ProtectElectricalHandoff</code> mutates the document without bumping the revision.</p>
+    <p><span class="schem text-slate-500 block">Problem</span>Every new operation has to know about six steps and a hand-kept classification, and the copies have drifted. <code>ProtectElectricalTransfer</code> mutates the document without bumping the revision.</p>
     <p><span class="schem text-slate-500 block">Solution</span>One normalisation module derives what changed by diffing outline inputs, and every mutating request commits through it.</p>
     <ul class="list-disc pl-4 space-y-0.5"><span class="schem text-slate-500 block -ml-4">Wins</span>
       <li>Table test: preview ≡ commit</li>
@@ -411,7 +411,7 @@ flowchart LR
       <div class="grid grid-cols-2 gap-2 text-[11px] font-mono">
         <div class="border border-slate-400 bg-white rounded p-2"><p class="schem">FirmwareExportCapture</p>scope token revision<br/>session_epoch document_id<br/>executor_epoch<p class="text-emerald-700 mt-1">has executor trait + native tests</p></div>
         <div class="border border-red-300 bg-white rounded p-2"><p class="schem">FootprintExportCapture</p>scope token revision<br/>session_epoch document_id<br/>executor_epoch<p class="text-red-600 mt-1">Rc::as_ptr identity · no native tests</p></div>
-        <div class="border border-red-300 bg-white rounded p-2"><p class="schem">PcbHandoffCapture</p>scope token revision<br/>session_epoch document_id<br/>executor_epoch<p class="text-red-600 mt-1">Rc::as_ptr identity · no native tests</p></div>
+        <div class="border border-red-300 bg-white rounded p-2"><p class="schem">PcbTransferCapture</p>scope token revision<br/>session_epoch document_id<br/>executor_epoch<p class="text-red-600 mt-1">Rc::as_ptr identity · no native tests</p></div>
         <div class="border border-red-300 bg-white rounded p-2"><p class="schem">MechanicalExportCapture</p>scope token revision<br/>session_epoch document_id<br/>executor_epoch<p class="text-red-600 mt-1">Rc::as_ptr identity · no native tests</p></div>
       </div>
       <p class="text-xs text-slate-600 mt-2">+ 3 near-identical <code>*_capture_is_current</code> bodies, 4 maps cleaned in <code>Effect::Settled</code>, 4 generation counters for previews</p>
@@ -726,7 +726,7 @@ flowchart LR
     <div class="border rounded p-3"><p class="schem text-slate-500">KiCad phase functions</p><span class="font-mono">core/src/artifact/kicad.rs:5-7</span> — six public phase functions left over from JS rendering. Production uses only <code>preview</code>/<code>export</code>, and tests call <code>finish_export</code> with empty results, a state production can't reach.</div>
     <div class="border rounded p-3"><p class="schem text-slate-500">Renderer host snapshot</p><span class="font-mono">web/src/renderer_host_page_base.rs</span> — a 925-line copy of renderer_host.rs kept in sync by a text-equality test. Replace it with one module plus a page wrapper type.</div>
     <div class="border rounded p-3"><p class="schem text-slate-500">Provider naming &amp; types copy</p><span class="font-mono">footprints/src/lib.rs:1-6, types.rs</span> — "provider framework" with no provider seam, stale step comments, and Core-mirrored types that were meant to be re-exported "at cutover".</div>
-    <div class="border rounded p-3"><p class="schem text-slate-500">Session pass-throughs</p><span class="font-mono">application/src/session.rs:2314, 2328</span> — <code>handle_core</code> is a pass-through, and <code>CoreReply::ElectricalApplied</code>/<code>ElectricalHandoffProtected</code> are never constructed.</div>
+    <div class="border rounded p-3"><p class="schem text-slate-500">Session pass-throughs</p><span class="font-mono">application/src/session.rs:2314, 2328</span> — <code>handle_core</code> is a pass-through, and <code>CoreReply::ElectricalApplied</code>/<code>ElectricalTransferProtected</code> are never constructed.</div>
     <div class="border rounded p-3"><p class="schem text-slate-500">Provider inventory ×3</p><span class="font-mono">scripts/build-web.py:52-91, dev-web.py, cadrum_build.py</span> — duplicated copy/stage lists, WASM names spelled in Python and Rust, and COOP/COEP headers defined twice. Use one <code>providers.py</code> table and an emitted asset manifest.</div>
     <div class="border rounded p-3"><p class="schem text-slate-500">Unverified integrity file</p><span class="font-mono">ergogen/library-integrity.json</span> — referenced by no script or test. Wire it into the repo check or retire it.</div>
   </div>

@@ -1602,7 +1602,7 @@ mod settlement_tests {
     //
     // No new production expected: the rotary admission already judges live
     // ModuleRotaryDraft Strings vs accepted under PartialEq, so invalid "0"
-    // differs from "20" and defers fail-closed. TDD pre-prod run proves it.
+    // differs from "20" and defers fail-closed. test-first pre-prod run proves it.
     // Smallest mounted regression: realistic invalid unsubmitted rotary draft
     // (pulses "0", which Save rotary profile refuses) at toast, NO submit.
     // Oracle: deferral state, save-rotary area/remedy, exact "0" preserved,
@@ -1689,7 +1689,7 @@ mod settlement_tests {
     //
     // No new production expected: both Update Now entry points poll the same
     // draft registry (opener is focus-only), so header defers identically to
-    // toast on the existing profile Save adapter. TDD pre-prod run proves it.
+    // toast on the existing profile Save adapter. test-first pre-prod run proves it.
     // Mirrors the ninth-slice toast test with only the entry point changed
     // (UpdateOpener::Header vs Toast); same real valid unapplied volume draft.
     // Oracle: Deferred 1 blocker Save with same area/remedy, draft preserved,

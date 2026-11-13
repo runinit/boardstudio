@@ -18,7 +18,7 @@ import subprocess
 import sys
 from urllib.parse import unquote
 
-EXCLUDED = {"node_modules", "dist", "pkg", "target", ".git", ".impeccable", ".generated", "library"}
+EXCLUDED = {"node_modules", "dist", "pkg", "target", ".git", ".generated", "library"}
 ROOT_DOCUMENTS = ("README.md", "PRODUCT.md", "DESIGN.md")
 FENCE = re.compile(r"```[\s\S]*?```")
 LINK = re.compile(r'\[[^\]]*\]\((?:<([^>]+)>|([^\s)]+))(?:\s+"[^"]*")?\)')

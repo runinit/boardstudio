@@ -525,7 +525,7 @@ fn unknown_plated_mirror_part_refuses_without_a_fallback_profile() {
     assert_eq!(reply["kind"], "error", "{reply}");
     assert_eq!(
         reply["message"],
-        "X1 needs a reviewed electrical profile before automatic handoff"
+        "X1 needs a reviewed electrical profile before automatic transfer"
     );
     assert_eq!(snapshot(&mut engine), accepted, "Refusal is atomic");
 }

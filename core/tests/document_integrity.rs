@@ -767,13 +767,13 @@ fn max_revision_undo_and_redo_are_refused_with_their_history_intact() {
 }
 
 #[test]
-fn remap_review_at_max_refuses_before_clearing_a_matching_protected_handoff() {
+fn remap_review_at_max_refuses_before_clearing_a_matching_protected_transfer() {
     let mut document = baseline();
     document["revision"] = json!(u64::MAX - 1);
     document["hardware"] = json!({
         "boards":[{
             "boardId":"board",
-            "protectedHandoff":{"fingerprint":"reviewed-fingerprint","revision":0,"assignments":{}}
+            "protectedTransfer":{"fingerprint":"reviewed-fingerprint","revision":0,"assignments":{}}
         }]
     });
     let mut engine = CoreEngine::new();
@@ -792,7 +792,7 @@ fn remap_review_at_max_refuses_before_clearing_a_matching_protected_handoff() {
     assert_eq!(committed["scene"]["revision"], u64::MAX);
     let accepted = snapshot(&mut engine);
     assert_eq!(
-        accepted["hardware"]["boards"][0]["protectedHandoff"]["fingerprint"],
+        accepted["hardware"]["boards"][0]["protectedTransfer"]["fingerprint"],
         "reviewed-fingerprint"
     );
 

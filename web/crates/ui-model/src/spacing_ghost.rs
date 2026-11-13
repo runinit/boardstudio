@@ -144,7 +144,7 @@ pub enum GhostAdvance {
 }
 
 /// Core history steps mint a fresh revision but restore an old document; they
-/// retire the ghost instead of raising a new one, matching the prototype.
+/// retire the ghost instead of raising a new one, matching the mockup.
 fn is_history_step(transaction: &str) -> bool {
     transaction == "undo" || transaction == "redo"
 }
@@ -217,7 +217,7 @@ pub fn advance_spacing_ghost(
 }
 
 /// Short axis note for a spacing delta: "+5.0 mm", or "−5.0 mm" with U+2212
-/// minus as the ticket writes it. One decimal, matching the prototype.
+/// minus as the ticket writes it. One decimal, matching the mockup.
 pub fn spacing_note(delta_mm: f64) -> String {
     let rounded = (delta_mm * 10.0).round() / 10.0;
     if rounded < 0.0 {
@@ -293,7 +293,7 @@ mod tests {
     }
 
     #[test]
-    fn narrowing_reports_a_negative_delta_with_prototype_minus() {
+    fn narrowing_reports_a_negative_delta_with_mockup_minus() {
         let change = spacing_change(
             &document("board", vec![link(2.5, Some(40.0), Some(50.0))]),
             &document("board", vec![link(2.5, Some(40.0), Some(44.0))]),

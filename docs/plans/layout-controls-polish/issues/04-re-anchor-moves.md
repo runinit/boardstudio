@@ -1,6 +1,6 @@
 # 04: Re-anchoring moves the item
 
-Status: ready-for-agent
+Status: ready
 Type: build
 Blocked by: none (decision in [map.md](../map.md#decisions-so-far), 2026-10-26)
 Map: [map.md](../map.md)

@@ -285,7 +285,7 @@ fn adoption_reachability_case(id: &str) -> (Value, Value, PreparedCaseIR) {
         .as_array()
         .unwrap()
         .iter()
-        .find(|case| case["prototypeId"] == id)
+        .find(|case| case["mockupId"] == id)
         .unwrap()
         .clone();
     let mut original =
@@ -436,9 +436,9 @@ fn adoption_reachability_deeper_insert_seats_still_start_at_the_part_surface() {
 
 fn check_authored_opening_reachability(id: &str, original: &str, removed_volume: f64) {
     let (fixture, case, prepared) = adoption_reachability_case(id);
-    let prototype: PreparedCaseIR = serde_json::from_str(original).unwrap();
+    let mockup: PreparedCaseIR = serde_json::from_str(original).unwrap();
     let openings = prepared.body.openings.as_ref().unwrap();
-    let source = prototype.body.openings.as_ref().unwrap();
+    let source = mockup.body.openings.as_ref().unwrap();
     for (actual, expected) in openings.iter().zip(source) {
         assert_eq!(actual.points, expected.points);
         assert_eq!(actual.height, expected.height);

@@ -275,7 +275,7 @@ fn remap_parts(doc: &mut ProjectDoc, changes: &PartChanges) -> Vec<String> {
             remap_map(&mut board.locks, &functions);
             remap_map(&mut board.assignments, &functions);
             remap_map(&mut board.key_bindings, changes);
-            // Fabricated handoff baselines stay immutable; Core reports changes against them.
+            // Fabricated transfer baselines stay immutable; Core reports changes against them.
         }
     }
     for module in &mut doc.modules {

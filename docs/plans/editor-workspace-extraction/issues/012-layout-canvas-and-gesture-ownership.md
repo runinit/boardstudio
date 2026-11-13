@@ -1,6 +1,6 @@
 # 012: Complete Layout canvas and gesture ownership
 
-Status: ready-for-agent
+Status: ready
 Type: build
 Blocked by: [010: Layout creation and placement](010-layout-creation-and-placement-ownership.md), [011: Shared camera and surface coordination](011-shared-camera-and-surface-coordination.md)
 Parent: [001: Editor workspace ownership specification](001-editor-workspace-ownership.md)

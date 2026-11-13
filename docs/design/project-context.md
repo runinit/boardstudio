@@ -55,7 +55,7 @@ order. They tolerate dense expert controls but not ambiguity about readiness.
 1. Opening and saving your own project files. A lapsed or absent subscription
    never locks a project.
 2. The core exports needed to fabricate (KiCad, outlines, case geometry,
-   firmware handoff).
+   firmware transfer).
 3. Offline, local-first work with no required account or cloud sync.
 4. No usage telemetry by default. Any analytics are opt-in.
 

@@ -1,7 +1,7 @@
 # Map: Draft-safe update adoption
 
-Label: wayfinder:map
-Spec: [spec.md](spec.md) (draft-safe update adoption, ready-for-agent)
+Label: planning:map
+Spec: [spec.md](spec.md) (draft-safe update adoption, ready)
 Related: [Adopt the waiting build through protected Refresh](../ui-integration-recovery/issues/019-adopt-build-safely.md)
 
 ## Destination
@@ -33,19 +33,19 @@ proof. Reaching this destination does not implement the fix or close the adoptio
   current dirty source wins over retained logs or a clean checkout.
 - **Domain:** use [Draft value, Pending edit and Edit preview](../../../GLOSSARY.md#L411-L439)
   distinctly. A completed preview or a Saved locally label is not all-draft safety.
-- **Skills:** `grilling` + `domain-modeling` for human decisions; `gortex-explore`
-  for source evidence; `codebase-design` for the interface/refactor choices;
-  `agent-browser` for browser probes; `tdd` and `rust-best-practices` if a diagnostic
-  fixture needs Rust; `gortex-refactor` only if a later approved refactor proceeds.
+- **Guides:** `questioning` + `domain modelling` for human decisions; `source search`
+  for source evidence; `module design` for the interface/refactor choices;
+  `agent-browser` for browser probes; `test-first development` and `rust handbook` if a diagnostic
+  fixture needs Rust; `the refactoring tool` only if a later approved refactor proceeds.
 - **Source/ownership:** continue in the dirty `fix/ui-integration-recovery` worktree;
   preserve unrelated edits and the existing recovery map, tickets, ADR and research.
   Native Gortex is mandatory; no tracking, daemon changes or shell source fallback.
   Run probes only on disposable fixtures/scopes, never the user's live preview or
   project. Serialize builds per target and coordinate browser ownership before probes.
-- **Tracker adaptation:** [committed Markdown tracker](../../agents/issue-tracker.md#wayfinding-operations),
-  with only `wayfinder:*` labels. This planning effort uses `Status: open`, `claimed`
-  or `resolved` as workflow states, not triage roles. `Type:` and `Mode:` identify
-  task/grilling and AFK/HITL; `Assignee: none` is unclaimed. Set both `Status: claimed`
+- **Tracker adaptation:** [committed Markdown tracker](../../agents/issue-tracker.md#planning-map-operations),
+  with only `planning:*` labels. This planning effort uses `Status: open`, `claimed`
+  or `resolved` as workflow states, not status roles. `Type:` and `Mode:` identify
+  task/questioning and AFK/HITL; `Assignee: none` is unclaimed. Set both `Status: claimed`
   and the driving developer's `Assignee:` before work. On resolution append `## Answer`
   and supporting asset links to the child, set resolved, then add its gist here.
 - **Frontier query:** use native Gortex file search for
@@ -65,7 +65,7 @@ proof. Reaching this destination does not implement the fix or close the adoptio
 - [Choose the draft-safety interface and lifetime contract](issues/004-choose-draft-safety-interface.md): a Runtime-owned registry of live draft owners, polled synchronously by both Update Now checkpoints, with per-admission-key unresolved state (live-projected baseline or mount-default snapshot, owner-canonical equality), RAII registration retiring on genuine unmount/scope change, per-key label+remedy copy, all 14 Class A owners required, and Class B deferral recorded as an explicit revocable risk acceptance; contract survived a fresh-context adversarial check with five one-sentence amendments.
 - [Decide whether refactoring earns its cost](issues/005-decide-whether-refactoring-earns-its-cost.md): no refactor — `GeometryScriptsEditor`'s JSON-encoded draft stays (typed conversion shows a modest code-quality gain but zero reduced testing effort, failing the both-benefits bar); the missing owner report is implementation-phase product behavior, safety proof unchanged, and the opportunity is parked in the master refactoring-opportunities document pending fresh both-benefits evidence.
 - [Locate a deterministic packaged persistence hold](issues/003-locate-packaged-persistence-hold.md): the existing `gate_next_persist` hold is pre-transaction at the `DocumentPersistence` port (real BrowserStore target, demonstrated entered/`Saving`/release/`Saved` in fresh browser tests) but is compiled out of packaged builds and in-process-only, so packaged verification needs the named diagnostic-only gated-persistence adapter and reuse protocol the ticket specifies; no packaged held-save safety is claimed yet.
-- [Agree the verification plan and implementation handoff](issues/006-agree-verification-and-implementation-handoff.md): user-confirmed implementation-ready handoff — the Answer indexes all owning decisions and fixes the mandatory RED/GREEN inventory, native/mounted vs packaged split, checks/mutation/full-gate/evidence obligations, ownership and RED → mounted GREEN → packaged GREEN stopping points, with the Class B revocation trigger recorded and no hidden decision left; implementation still needs a subsequent instruction.
+- [Agree the verification plan and implementation transfer](issues/006-agree-verification-and-implementation-transfer.md): user-confirmed implementation-ready transfer — the Answer indexes all owning decisions and fixes the mandatory RED/GREEN inventory, native/mounted vs packaged split, checks/mutation/full-gate/evidence obligations, ownership and RED → mounted GREEN → packaged GREEN stopping points, with the Class B revocation trigger recorded and no hidden decision left; implementation still needs a subsequent instruction.
 
 - **2026-11-07 later Pair amendment:** [004 Answer](issues/004-choose-draft-safety-interface.md#later-user-amendment-sticky-pair-action-parameter-2026-11-07) records explicit user approval to preserve sticky Pair after Apply and advance only that binding's Pair safety baseline from its own successfully submitted parameter. Failure/refusal and later changes still block; all accepted fields remain live-projected per poll. No generalized action-parameter exception.
 

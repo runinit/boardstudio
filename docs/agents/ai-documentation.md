@@ -1,6 +1,6 @@
 # AI-generated documentation and retrieval
 
-Use this guidance when producing agent notes, research, handoffs or generated documentation,
+Use this guidance when producing agent notes, research, transfers or generated documentation,
 or changing Gortex exclusions. It supplements the current instructions; it does not replace the
 [committed issue tracker](issue-tracker.md#building-and-verifying-a-ticket).
 
@@ -9,7 +9,7 @@ or changing Gortex exclusions. It supplements the current instructions; it does 
 - Keep disposable exploration and draft prose in `.scratch/`, and session memory in the agent's
   memory store. These are working material, not project authority.
 - Keep verification logs in `.evidence/`, following the root instructions. Retain committed
-  handoff records and ticket evidence links; a retrieval exclusion is not permission to remove
+  transfer records and ticket evidence links; a retrieval exclusion is not permission to remove
   files or stop recording required proof.
 - Keep ticket proof maps, review verdicts and completion records in their existing ticket
   workflow. Keep approved specifications, ADRs, `GLOSSARY.md`, human-reviewed research, code and
@@ -35,7 +35,7 @@ Git ignore status. Exclusion also does not guarantee immediate removal of old in
 
 Before adding a pattern, inventory its tracked matches and protect required documents. Prefer a
 rooted disposable directory or a log-specific pattern over a topic-wide exclusion. In particular,
-keep `docs/plans/`, `docs/adr/`, `docs/research/`, the glossary and committed `.evidence/` handoff
+keep `docs/plans/`, `docs/adr/`, `docs/research/`, the glossary and committed `.evidence/` transfer
 records searchable. Stop for a user decision if a proposed rule would block a necessary tracked
 document or change the authorized ticket workflow.
 

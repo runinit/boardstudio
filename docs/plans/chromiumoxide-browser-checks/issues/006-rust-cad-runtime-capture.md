@@ -31,11 +31,11 @@ this consumer requires it; keep the old capture available until comparison passe
 
 ## Verification and scope
 
-Use TDD at the existing public launcher/output seams: demonstrate the expected regression
+Use test-first at the existing public launcher/output seams: demonstrate the expected regression
 before the fix, then run affected tests and typechecking during development. At closure run
 the full supported check and combined Spec + Standards review; record terminal verdicts,
 source/build identity and any blocked gates honestly. No weakened assertions, masked page
-errors, baseline deletions or retry-until-green. Preserve the archived prototypes and unrelated
+errors, baseline deletions or retry-until-green. Preserve the archived mockups and unrelated
 work. Builds follow repository concurrency/lock rules; evidence uses supported receipts and
 logs, not custom hash manifests. All checks must be runnable by humans and CI without agent tools.
 
@@ -171,7 +171,7 @@ true, cache and service-worker controls, other workloads, U1, full event/schema 
 failure parity, supported full check and closure review remain unverified. The
 Node runner remains the default and all acceptance boxes remain open.
 
-## 2026-10-26: shared worker callback and build-lock handoff
+## 2026-10-26: shared worker callback and build-lock transfer
 
 The Node capture and Rust diagnostic now use the same in-page worker preparation
 function, `cad/scripts/measure-cad-worker.cjs`, without extracting JavaScript by
@@ -1100,7 +1100,7 @@ the request object. This does not prove the missing redirect provenance; no
 collector exception for mismatched URLs was added. A sound way to recover the
 entry redirect chain remains open.
 
-## 2026-10-27: worker-entry handoff response
+## 2026-10-27: worker-entry transfer response
 
 For an initial worker response with no request in the worker session, the collector
 accepts the parent request only when its request ID equals the attached worker's
@@ -1115,7 +1115,7 @@ above. After this change, the real fixture passed against Playwright on the same
 fixture server: original worker entry 200, unrelated redirect 302 and destination
 201, missing fetch 404, and favicon redirect excluded without excluding the shared
 destination. Page exception and missing worker controls failed closed. A focused
-Rust unit check passed for differing response URLs outside the handoff and missing
+Rust unit check passed for differing response URLs outside the transfer and missing
 response URLs. These results do not close the remaining ticket gates.
 
 ## 2026-10-27: retained-site cold comparison

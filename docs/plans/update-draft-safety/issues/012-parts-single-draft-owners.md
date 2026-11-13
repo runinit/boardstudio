@@ -138,7 +138,7 @@ Second P1 case GREEN as proof gap: same generator Apply valid draft at header, n
   `UnresolvedDraft` area "Generator settings" remedy "Apply the generator settings,
   or restore its saved values", zero adoptions, draft preserved "20". No existing
   oracle weakened.
-- GREEN-gap command (serialized, TDD pre-prod run): `flock
+- GREEN-gap command (serialized, test-first pre-prod run): `flock
   ~/.cache/tmp/boardstudio-build.lock wasm-pack test --headless --chrome --mode
   no-install web/crates/parts --lib --
   mounted_generator_valid_apply_draft_defers_update_now_at_the_header_012 --nocapture`.
@@ -195,7 +195,7 @@ draft at toast, no production change.
   `aria-invalid != "true"` on the width field at gate time — deferral does not depend
   on any invalid-field marker (generator fields carry none, census A1). No existing
   oracle weakened.
-- GREEN-gap commands (serialized, TDD pre-prod runs, no production edit):
+- GREEN-gap commands (serialized, test-first pre-prod runs, no production edit):
   `flock ~/.cache/tmp/boardstudio-build.lock wasm-pack test --headless --chrome --mode
   no-install web/crates/parts --lib --
   mounted_generator_invalid_apply_draft_defers_update_now_at_the_toast_012 --nocapture`.
@@ -248,7 +248,7 @@ landing preserves a newer Upload draft; the remaining deferral names Upload only
   generator model, or restore its saved values" (per-key copy per 004 B2/B5;
   follows Apply own-controls pattern, names Upload admission), zero adoptions,
   width "20" + filename "" preserved. No existing oracle weakened.
-- RED command (serialized, TDD pre-prod): `flock ~/.cache/tmp/boardstudio-build.lock
+- RED command (serialized, test-first pre-prod): `flock ~/.cache/tmp/boardstudio-build.lock
   wasm-pack test --headless --chrome --mode no-install web/crates/parts --lib --
   mounted_generator_apply_landing_preserves_upload_draft_012 --nocapture`.
   Log: `.evidence/update-draft-safety/012-p2-apply-upload-red.log`. Result: 0
@@ -315,7 +315,7 @@ needed beyond step 1).
   only) now delegate to one private
   `generator_partitioned_draft_differs(..., key: GeneratorKey)` reusing the
   existing `GeneratorKey::{Apply,Upload}` (avoids bool flag per
-  rust-best-practices ch01.8; keeps `generator_is_upload_key` +
+  rust handbook ch01.8; keeps `generator_is_upload_key` +
   `generator_values_equal`). Per-key doc comments preserved on the thin wrappers;
   both call sites' behavior IDENTICAL (same filter, same
   `apply_input`/`effective_value`/`generator_values_equal` comparison,
@@ -346,7 +346,7 @@ needed beyond step 1).
   filename equals landed `boardstudio-asset:...`. Upload landed asserted before
   the gate poll (accepted filename + `test.stl` asset). No existing oracle
   weakened.
-- TDD pre-prod run (serialized, no step-2 production edit): same flock wasm-pack
+- test-first pre-prod run (serialized, no step-2 production edit): same flock wasm-pack
   line with `mounted_generator_upload_landing_preserves_apply_draft_012
   --nocapture`.
   Log: `.evidence/update-draft-safety/012-p2-upload-apply-pre.log`. Result: 1
@@ -402,7 +402,7 @@ it), 004 authority unchanged.
   zero adoptions. Distinct story: terminal records never exempt. Gate assertion allows
   additive `RecoveryRequired` (Session::core_failed latches it after failed core; P3
   claim is Apply still defers among them), never weakens Apply remedy.
-- Test (a) RED (serialized, TDD pre-prod, no production edit):
+- Test (a) RED (serialized, test-first pre-prod, no production edit):
   `flock ~/.cache/tmp/boardstudio-build.lock wasm-pack test --headless --chrome
   --mode no-install web/crates/parts --lib --
   mounted_generator_failed_apply_keeps_deferring_update_now_at_the_toast_012 --nocapture`.
@@ -435,7 +435,7 @@ it), 004 authority unchanged.
   revert to "18.0" via production `dispatch_width` (preview arrival proof), Update Now
   proceeds. Oracle: no Deferred from this owner (`update_dialog().is_none()`), adoptions
   ==1, field "18.0". Distinct story: revert clears. No existing oracle weakened.
-- Test (b) GREEN gap (serialized, TDD pre-prod, no production edit): same flock line with
+- Test (b) GREEN gap (serialized, test-first pre-prod, no production edit): same flock line with
   `mounted_generator_revert_to_baseline_clears_apply_draft_012 --nocapture`.
   Logs: `.evidence/update-draft-safety/012-p3-revert-clears-pre.log` (1 passed, 0 failed,
   78 filtered, REAL_EXIT:0) + `-post.log` (same, post-revert). RED-or-gap reason:
@@ -568,7 +568,7 @@ change, no oracle changes at all, no other owners.
   ("Generator settings" / "Apply the generator settings, or restore its saved
   values"), 0 adoptions, "20" preserved, stays mounted. Distinct story: hidden
   keeps blocking.
-- Test (a) GREEN gap (serialized, TDD pre-prod, no production edit): flock
+- Test (a) GREEN gap (serialized, test-first pre-prod, no production edit): flock
   wasm-pack ...
   `mounted_generator_hidden_apply_draft_still_defers_update_now_at_the_toast_012
   --nocapture`. Log
@@ -583,7 +583,7 @@ change, no oracle changes at all, no other owners.
   drain, Update Now toast proceeds. Oracle: adoptions==1, update_dialog None
   (no UnresolvedDraft from retired entry). Distinct story: retire wiring. No
   existing oracle weakened.
-- Test (b) GREEN gap (serialized, TDD pre-prod, no production edit): same flock
+- Test (b) GREEN gap (serialized, test-first pre-prod, no production edit): same flock
   line with `mounted_generator_owner_change_retires_apply_draft_012 --nocapture`.
   Log `.evidence/update-draft-safety/012-p4-owner-change-retires-pre.log`. 1
   passed, 0 failed, 80 filtered, REAL_EXIT:0. RED-or-gap: draft_owner effect
@@ -633,7 +633,7 @@ no oracle changes at all, no other owners.
   deferral wiring. Reuses mounted_host, type_value, by_role_name, wait_until;
   adds minimal FakeUpdateSignals012 + waiting_update_012 (same shape as generator,
   local to this file per slice ownership). No existing oracle weakened.
-- RED (serialized, TDD pre-prod, no production edit): `flock
+- RED (serialized, test-first pre-prod, no production edit): `flock
   ~/.cache/tmp/boardstudio-build.lock wasm-pack test --headless --chrome --mode
   no-install web/crates/parts --lib --
   mounted_module_profile_valid_save_draft_defers_update_now_at_the_toast_012
@@ -767,7 +767,7 @@ behavior change, no oracle changes at all, no other owners.
   Reuses mounted_host, type_value, by_role_name, wait_until, FakeUpdateSignals012
   + waiting_update_012 (ninth-slice locals, no new helpers). No existing oracle
   weakened.
-- RED (serialized, TDD pre-prod, no production edit): `flock
+- RED (serialized, test-first pre-prod, no production edit): `flock
   ~/.cache/tmp/boardstudio-build.lock wasm-pack test --headless --chrome --mode
   no-install web/crates/parts --lib --
   mounted_module_profile_valid_rotary_draft_defers_update_now_at_the_toast_012
@@ -846,7 +846,7 @@ behavior change, no oracle changes at all, no other owners.
 Eleventh slice: module profile owner P1 deferral — (a) realistic invalid
 unsubmitted rotary draft at toast + (b) valid profile Save draft at header —
 both GREEN as proof gaps, then STOP. No production behavior change, no oracle
-changes at all, no other owners. TDD order per test (write, run, LOG before
+changes at all, no other owners. test-first order per test (write, run, LOG before
 any production edit); both passed on existing product, never fabricated RED.
 
 - Test (a) `mounted_module_profile_invalid_rotary_draft_defers_update_now_at_the_toast_012`
@@ -878,7 +878,7 @@ any production edit); both passed on existing product, never fabricated RED.
   fail-closed. Reuses mounted_host, type_value, by_role_name, wait_until,
   FakeUpdateSignals012 + waiting_update_012 (ninth-slice locals, no new
   helpers). No existing oracle weakened.
-- Test (a) GREEN gap (serialized, TDD pre-prod, no production edit): `flock
+- Test (a) GREEN gap (serialized, test-first pre-prod, no production edit): `flock
   ~/.cache/tmp/boardstudio-build.lock wasm-pack test --headless --chrome --mode
   no-install web/crates/parts --lib --
   mounted_module_profile_invalid_rotary_draft_defers_update_now_at_the_toast_012
@@ -897,7 +897,7 @@ any production edit); both passed on existing product, never fabricated RED.
   profile / remedy Save the module profile, or restore its saved values), 0
   adoptions, measured-012 + 1 volumes preserved. Distinct story:
   header-checkpoint wiring for this owner. No existing oracle weakened.
-- Test (b) GREEN gap (serialized, TDD pre-prod, no production edit): same flock
+- Test (b) GREEN gap (serialized, test-first pre-prod, no production edit): same flock
   line with `mounted_module_profile_valid_save_draft_defers_update_now_at_the_header_012
   --nocapture`. Log `.evidence/update-draft-safety/012-module-profile-header-p1-pre.log`.
   Result: 1 passed, 0 failed, 84 filtered, REAL_EXIT:0. RED-or-gap: both entry
@@ -942,7 +942,7 @@ Twelfth slice: module profile owner P3 per-key lifecycle wiring for both keys
 failure keeps deferring, (c) profile revert clears, (d) older rotary settlement
 never clears newer profile — then STOP. No production behavior change at all
 (3 GREEN gaps on existing product, 1 RED blocker with no fix per
-sixth-slice precedent), no oracle changes at all, no other owners. TDD order
+sixth-slice precedent), no oracle changes at all, no other owners. test-first order
 per scenario (write, run, LOG before any production edit); GREENs verified by
 running, never assumed; RED observed, never fabricated.
 
@@ -954,7 +954,7 @@ running, never assumed; RED observed, never fabricated.
   re-baselines. Admission shape recorded (two registry save+save-rotary, two
   Save buttons → one submit_profile → exactly one begin_value). No existing
   oracle weakened.
-- Test (a) GREEN gap (serialized, TDD pre-prod, no production edit): `flock
+- Test (a) GREEN gap (serialized, test-first pre-prod, no production edit): `flock
   ~/.cache/tmp/boardstudio-build.lock wasm-pack test --headless --chrome --mode
   no-install web/crates/parts --lib --
   mounted_module_profile_save_landing_rebaselines_update_now_at_the_toast_012
@@ -975,7 +975,7 @@ running, never assumed; RED observed, never fabricated.
   save-rotary remedy (RecoveryRequired additive allowed, as generator P3).
   Distinct story: terminal never exempts. Admission shape + key choice recorded.
   No existing oracle weakened.
-- Test (b) RED BLOCKER (serialized, TDD pre-prod, no production edit): same
+- Test (b) RED BLOCKER (serialized, test-first pre-prod, no production edit): same
   flock line with `mounted_module_profile_failed_rotary_keeps_deferring_update_now_at_the_toast_012
   --nocapture`. Logs `.evidence/update-draft-safety/012-module-profile-p3b-pre.log`
   + `-red2.log` (post-fmt). Result: 0 passed, 1 failed at `terminal failure
@@ -995,7 +995,7 @@ running, never assumed; RED observed, never fabricated.
   (wait 0 volumes + evidence gone proves processing), Update Now proceeds.
   Oracle: adoptions==1, dialog None. Distinct story: revert clears. Admission
   shape recorded. No existing oracle weakened.
-- Test (c) GREEN gap (serialized, TDD pre-prod, no production edit): same flock
+- Test (c) GREEN gap (serialized, test-first pre-prod, no production edit): same flock
   line with `mounted_module_profile_revert_to_baseline_clears_save_draft_012
   --nocapture`. Log `.evidence/update-draft-safety/012-module-profile-p3c-pre.log`.
   Result: 1 passed, 0 failed, 87 filtered, REAL_EXIT:0. Fmt GREEN 0 (log
@@ -1011,7 +1011,7 @@ running, never assumed; RED observed, never fabricated.
   clears newer input (per-key independence); covers rotary landing (with (a)
   profile landing, both landings proven). Admission shape + adaptation recorded.
   No existing oracle weakened.
-- Test (d) GREEN gap (serialized, TDD pre-prod, no production edit): same flock
+- Test (d) GREEN gap (serialized, test-first pre-prod, no production edit): same flock
   line with `mounted_module_profile_rotary_landing_preserves_profile_draft_012
   --nocapture`. Log `.evidence/update-draft-safety/012-module-profile-p3d-pre.log`.
   Result: 1 passed, 0 failed, 88 filtered, REAL_EXIT:0. Fmt RED 1 (panic) →
@@ -1172,7 +1172,7 @@ behavior change, no oracle changes at all, no other owners.
   Oracle: Deferred 1 blocker Save ("Module profile" / "Save the module profile,
   or restore its saved values"), 0 adoptions, "measured-012-p4a" + "1 volumes"
   preserved, stays-mounted assert. Distinct story: hidden keeps blocking.
-- Test (a) GREEN gap (serialized, TDD pre-prod, no production edit): `flock
+- Test (a) GREEN gap (serialized, test-first pre-prod, no production edit): `flock
   ~/.cache/tmp/boardstudio-build.lock wasm-pack test --headless --chrome --mode
   no-install web/crates/parts --lib --
   mounted_module_profile_hidden_save_draft_still_defers_update_now_at_the_toast_012
@@ -1193,7 +1193,7 @@ behavior change, no oracle changes at all, no other owners.
   (2446) justified: existing mounted_host hardcodes generation 1, selected
   module:module and definition[0], cannot drive owner change; mirrors generator
   P4 selection-signal shape, no product UI invented.
-- Test (b) GREEN gap (serialized, TDD pre-prod, no production edit): same flock
+- Test (b) GREEN gap (serialized, test-first pre-prod, no production edit): same flock
   line with `mounted_module_profile_owner_change_retires_save_draft_012
   --nocapture`. Log
   `.evidence/update-draft-safety/012-module-profile-p4b-pre.log`. 1 passed, 0
@@ -1260,7 +1260,7 @@ changes at all, no other owners.
   minimal FakeUpdateSignals012 + waiting_update_012 (same shape as
   generator/module, local to this file per slice ownership). No existing oracle
   weakened.
-- RED (serialized, TDD pre-prod, no production edit): `flock
+- RED (serialized, test-first pre-prod, no production edit): `flock
   ~/.cache/tmp/boardstudio-build.lock wasm-pack test --headless --chrome --mode
   no-install web/crates/parts --lib --
   mounted_fit_profile_valid_save_draft_defers_update_now_at_the_toast_012
@@ -1360,7 +1360,7 @@ direct an alternative).
   profile, or restore its saved values), 0 adoptions, Contour 1 + Vertex 1
   preserved. Distinct story: header-checkpoint wiring for this owner. No
   existing oracle weakened.
-- (a) GREEN proof gap (serialized, TDD pre-prod, no production edit):
+- (a) GREEN proof gap (serialized, test-first pre-prod, no production edit):
   `flock ~/.cache/tmp/boardstudio-build.lock wasm-pack test --headless
   --chrome --mode no-install web/crates/parts --lib --
   mounted_fit_profile_valid_save_draft_defers_update_now_at_the_header_012
@@ -1497,7 +1497,7 @@ user may reopen it at any time before closure. Fit P3/P4 proceed.
 Seventeenth slice: mechanical fit profile owner P3 per-key lifecycle wiring
 for the single Save key at toast — (a) landing re-baselines, (b) failure
 keeps deferring, (c) revert clears, (d) older-never-clears-newer — then STOP.
-TDD order per scenario (write, run, LOG before production edit); GREENs
+test-first order per scenario (write, run, LOG before production edit); GREENs
 verified by running, never assumed; REDs observed, never fabricated. No
 production behavior change at all (2 GREEN gaps on existing product, 2
 BLOCKERs with no fix per sixth/twelfth-slice precedent), no oracle changes
@@ -1511,7 +1511,7 @@ at all, no other owners.
   story: landing re-baselines. Adaptation recorded: Save closes editor
   (on_save + on_close) retiring registration, so reopen proves re-baseline
   (draft==accepted) not just retirement. No existing oracle weakened.
-- Test (a) GREEN gap (serialized, TDD pre-prod, no production edit): `flock
+- Test (a) GREEN gap (serialized, test-first pre-prod, no production edit): `flock
   ~/.cache/tmp/boardstudio-build.lock wasm-pack test --headless --chrome
   --mode no-install web/crates/parts --lib --
   mounted_fit_profile_save_landing_rebaselines_update_now_at_the_toast_012
@@ -1532,7 +1532,7 @@ at all, no other owners.
   still defers with Save remedy (RecoveryRequired additive allowed, as
   generator/module P3). Distinct story: terminal never exempts. No existing
   oracle weakened.
-- Test (b) RED BLOCKER (serialized, TDD pre-prod, no production edit): same
+- Test (b) RED BLOCKER (serialized, test-first pre-prod, no production edit): same
   flock line with `mounted_fit_profile_failed_save_keeps_deferring_update_now_at_the_toast_012
   --nocapture`. Logs `.evidence/update-draft-safety/012-fit-profile-p3b-pre.log`
   + `-red2.log` (post-fmt). Result: 0 passed, 1 failed at `terminal failure
@@ -1551,7 +1551,7 @@ at all, no other owners.
   via production Remove contour 1 (wait `No plate cutouts defined` + no
   Contour 1 proves processing), Update Now proceeds. Oracle: adoptions==1,
   dialog None. Distinct story: revert clears. No existing oracle weakened.
-- Test (c) GREEN gap (serialized, TDD pre-prod, no production edit): same
+- Test (c) GREEN gap (serialized, test-first pre-prod, no production edit): same
   flock line with `mounted_fit_profile_revert_to_baseline_clears_save_draft_012
   --nocapture`. Log `.evidence/update-draft-safety/012-fit-profile-p3c-pre.log`.
   Result: 1 passed, 0 failed, 95 filtered, REAL_EXIT:0. Fmt GREEN 0 (log
@@ -1681,7 +1681,7 @@ recorded proof-gap evidence. No scope expansion. Ticket resolved; umbrella
   ABC preparation + 008/009/010/011 acceptance.
 - Unmet gates: full project check gate + optimized validation + mutation
   controls + packaged legs (all 015 scope, explicitly deferred per plan,
-  not waived). No Class B change. No live delegates/builds at handoff.
+  not waived). No Class B change. No live delegates/builds at transfer.
 - Retained cleanup: none owed (mounted tests only; no browser/packaged
   runs in 012).
 - Pointers: proof map + 18 slice progress sections + 3 rulings above;
@@ -1712,7 +1712,7 @@ Eighteenth vertical slice, two ordered steps, owner wiring only. This completes 
   pattern; production mechanism is workspace switch keeping signals alive) →
   stays-mounted assert (Save fit profile present) → Update Now toast → STILL DEFERS
   with Save remedy, draft preserved (Contour 1 + Vertex 1). Distinct story: retention
-  wiring. TDD pre-prod (no production edit): 1 passed, 0 failed, 95 filtered,
+  wiring. test-first pre-prod (no production edit): 1 passed, 0 failed, 95 filtered,
   REAL_EXIT:0, log `012-fit-profile-p4a-pre.log`. Fmt GREEN 0 (log `012-fit-profile-p4a-fmt.log`).
   RED-or-gap: GREEN proof gap — registration reads live draft signal each poll;
   display:none keeps component mounted → still unresolved. No fix needed.
@@ -1725,7 +1725,7 @@ Eighteenth vertical slice, two ordered steps, owner wiring only. This completes 
   selection + generation) → switch proof (new baseline "No plate cutouts defined",
   no Contour 1) → Update Now PROCEEDS (adoptions==1, dialog None, no UnresolvedDraft
   from fit). Distinct story: retire wiring (effect rotation + use_drop on remount).
-  TDD pre-prod RED (expected owner-wiring reason, no production edit): 0 passed,
+  test-first pre-prod RED (expected owner-wiring reason, no production edit): 0 passed,
   1 failed at `wait_until: owner change resets to the new baseline` (5s timeout),
   REAL_EXIT:1, log `012-fit-profile-p4b-pre.log`. Fmt RED 1 → 3 native fixes →
   GREEN 0 (logs `012-fit-profile-p4b-fmt.log` + `-fmt2.log`).

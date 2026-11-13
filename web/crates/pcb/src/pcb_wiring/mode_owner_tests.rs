@@ -405,7 +405,7 @@ fn submitted_remap(probe: &Probe) -> (OperationId, u64, String, String) {
 
 fn protected_document() -> ProjectDoc {
     let mut document = document();
-    let handoff_revision = document.revision.saturating_sub(1);
+    let transfer_revision = document.revision.saturating_sub(1);
     let boards = &mut document
         .hardware
         .get_or_insert_with(Default::default)
@@ -422,9 +422,9 @@ fn protected_document() -> ProjectDoc {
         });
         boards.last_mut().unwrap()
     };
-    configuration.protected_handoff = Some(ElectricalHandoffBaseline {
+    configuration.protected_transfer = Some(ElectricalTransferBaseline {
         fingerprint: "protected-fixture-fingerprint".into(),
-        revision: handoff_revision,
+        revision: transfer_revision,
         assignments: [("matrix/m/r0c0".into(), "P1".into())].into(),
     });
     document
@@ -759,7 +759,7 @@ fn mounted_protected_remap_review_submits_one_exact_edit_and_settles_saved_revis
     let actions = probe.latest_remap.borrow().as_ref().unwrap().clone();
     let accepted_before_review = probe.runtime.model().accepted.unwrap().document;
     assert_eq!(
-        actions.handoff_revision,
+        actions.transfer_revision,
         Some(document.revision.saturating_sub(1))
     );
     assert!(actions.editable);
@@ -785,7 +785,7 @@ fn mounted_protected_remap_review_submits_one_exact_edit_and_settles_saved_revis
         .iter()
         .find(|configuration| configuration.board_id == "left")
         .unwrap();
-    assert!(left.protected_handoff.is_none());
+    assert!(left.protected_transfer.is_none());
     assert_eq!(
         left.locks,
         document.hardware.as_ref().unwrap().boards[0].locks
@@ -799,7 +799,7 @@ fn mounted_protected_remap_review_submits_one_exact_edit_and_settles_saved_revis
 
     let settled = probe.latest_remap.borrow();
     let actions = settled.as_ref().unwrap();
-    assert_eq!(actions.handoff_revision, None);
+    assert_eq!(actions.transfer_revision, None);
     assert!(matches!(
         actions.feedback.as_ref().unwrap().state,
         ProtectedRemapFeedback::Saved
@@ -822,7 +822,7 @@ fn mounted_protected_remap_review_rejects_a_retained_fingerprint_after_refresh()
         .iter_mut()
         .find(|configuration| configuration.board_id == "left")
         .unwrap()
-        .protected_handoff
+        .protected_transfer
         .as_mut()
         .unwrap()
         .fingerprint = "new-fingerprint".into();
@@ -837,7 +837,7 @@ fn mounted_protected_remap_review_rejects_a_retained_fingerprint_after_refresh()
 }
 
 #[test]
-fn mounted_protected_remap_failures_preserve_the_accepted_handoff() {
+fn mounted_protected_remap_failures_preserve_the_accepted_transfer() {
     for fail_save in [false, true] {
         let document = protected_document();
         let (probe, mut dom) = mounted_with_document(document.clone());
@@ -875,7 +875,7 @@ fn mounted_protected_remap_failures_preserve_the_accepted_handoff() {
                 .as_ref()
                 .unwrap()
                 .boards[0]
-                .protected_handoff
+                .protected_transfer
                 .as_ref()
                 .unwrap()
                 .fingerprint,

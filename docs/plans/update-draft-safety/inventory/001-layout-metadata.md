@@ -1,6 +1,6 @@
 # Inventory 001 — Layout workspace + Geometry scripts + board/project metadata names
 
-Scope owned by this ticket ONLY (Wayfinder 001). Starting point
+Scope owned by this ticket ONLY (Planning 001). Starting point
 `docs/research/2026-11-07-019-draft-safety-change-map.md` (reused, rechecked
 against the dirty worktree; counts not copied). All source evidence below was
 re-verified in the dirty worktree via native Gortex MCP `search`/`read`

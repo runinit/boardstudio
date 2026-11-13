@@ -1,12 +1,12 @@
 # Line-and-arc Boolean candidate for layered cases
 
-Evaluated 2026-10-17 for ticket 013. This is a candidate evaluation for the private prototype only; it does not recommend a production cutover.
+Evaluated 2026-10-17 for ticket 013. This is a candidate evaluation for the private mockup only; it does not recommend a production cutover.
 
 ## Candidate and API
 
 Pin `cavalier_contours = "=0.9.0"`. The crates.io release is dated 2026-08-20, declares Rust 1.88+, is dual licensed `MIT OR Apache-2.0`, and its package metadata points to source commit `22887a824d22cd8ab50968a551f34cdb4508127f`. The probe lockfile records registry checksum `85e06038a969c5e4d93565f12b044814d3b1a48d50c4ef868d588e79956fea51`. [Published crate metadata](https://docs.rs/crate/cavalier_contours/0.9.0), [tagged release](https://github.com/jbuckmccready/cavalier_contours/releases/tag/0.9.0)
 
-Use the library's own `Polyline<f64>` as the line-and-arc contour. `PlineSource::boolean` and `boolean_opt` take another `PlineSource` plus `BooleanOp` and return `BooleanResult<Polyline<f64>>`. Keep the complete result: `pos_plines` are positive remaining-space contours and `neg_plines` are negative subtracted-space contours. The pair API has no hole-parent or multi-ring set type; `Shape` supports multi-polyline offsets, not multi-ring Boolean operations. Keep role/ownership explicit in the prototype and reject unsupported compositions rather than folding only the positive contours. [Polyline API](https://docs.rs/cavalier_contours/0.9.0/cavalier_contours/polyline/trait.PlineSource.html), [BooleanResult fields](https://docs.rs/cavalier_contours/0.9.0/cavalier_contours/polyline/struct.BooleanResult.html), [candidate limitations](https://docs.rs/crate/cavalier_contours/0.9.0)
+Use the library's own `Polyline<f64>` as the line-and-arc contour. `PlineSource::boolean` and `boolean_opt` take another `PlineSource` plus `BooleanOp` and return `BooleanResult<Polyline<f64>>`. Keep the complete result: `pos_plines` are positive remaining-space contours and `neg_plines` are negative subtracted-space contours. The pair API has no hole-parent or multi-ring set type; `Shape` supports multi-polyline offsets, not multi-ring Boolean operations. Keep role/ownership explicit in the mockup and reject unsupported compositions rather than folding only the positive contours. [Polyline API](https://docs.rs/cavalier_contours/0.9.0/cavalier_contours/polyline/trait.PlineSource.html), [BooleanResult fields](https://docs.rs/cavalier_contours/0.9.0/cavalier_contours/polyline/struct.BooleanResult.html), [candidate limitations](https://docs.rs/crate/cavalier_contours/0.9.0)
 
 Bulges are exact circular arcs, not polygon approximations, but each segment is limited to bulge `[-1, 1]` (at most a semicircle); larger sweeps need multiple segments. Boolean operations are documented for two closed, non-self-intersecting polylines. The Boolean default `pos_equal_eps` is an absolute `1e-5` position epsilon; optional `collapsed_area_eps` can discard result loops by absolute area and defaults to `None`. [Candidate documentation](https://docs.rs/crate/cavalier_contours/0.9.0), [Boolean options](https://docs.rs/cavalier_contours/0.9.0/cavalier_contours/polyline/struct.PlineBooleanOptions.html)
 
@@ -24,7 +24,7 @@ Probe sources, lockfile, logs, and SHA-256 manifest are in `.evidence/layered-ca
 
 ## Recommendation
 
-Proceed only with the bounded private prototype, pinning 0.9.0 and preserving every native result contour. Require caller validation and reject self-touching outputs, ambiguous hole ownership, and unsupported multi-ring composition. Exact line-and-arc operations and WASM compilation work for the cases probed, but tangency creates a self-touching path; the library only offers pairwise Boolean calls; role is separate from winding; and epsilon is absolute. This evidence is not enough to recommend adoption by ticket 006 for production cases.
+Proceed only with the bounded private mockup, pinning 0.9.0 and preserving every native result contour. Require caller validation and reject self-touching outputs, ambiguous hole ownership, and unsupported multi-ring composition. Exact line-and-arc operations and WASM compilation work for the cases probed, but tangency creates a self-touching path; the library only offers pairwise Boolean calls; role is separate from winding; and epsilon is absolute. This evidence is not enough to recommend adoption by ticket 006 for production cases.
 
 ## Sources
 

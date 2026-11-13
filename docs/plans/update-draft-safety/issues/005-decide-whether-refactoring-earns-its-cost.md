@@ -1,8 +1,8 @@
 # 005: Decide whether refactoring earns its cost
 
 Status: resolved
-Type: grilling
-Label: wayfinder:grilling
+Type: questioning
+Label: planning:questioning
 Mode: HITL
 Assignee: Chris D
 Blocked by: [Choose the draft-safety interface and lifetime contract](004-choose-draft-safety-interface.md)
@@ -32,20 +32,20 @@ An explicit decision to do no refactor is a complete valid answer.
 
 ## Resolution and boundaries
 
-Use `grilling`, `domain-modeling` and `codebase-design`. The user selects none or a
+Use `questioning`, `domain modelling` and `module design`. The user selects none or a
 precise justified scope, with evidence for **both** benefits, unchanged safety proof,
 ordering and rollback considerations. Record the decision here, not by editing product
-code. Any later execution uses `gortex-refactor`, signature verification if applicable,
+code. Any later execution uses `the refactoring tool`, signature verification if applicable,
 and post-change detect/tests/guards/contract plus the required behavioral gates.
 Claim first. Refactoring is not a prerequisite unless this decision makes it one.
 
 ## Answer
 
-Resolved 2026-11-07 by live grilling (two rounds; user accepted all
+Resolved 2026-11-07 by live questioning (two rounds; user accepted all
 recommendations and chose revisit option (a)). **Decision: NO refactor is
 included in this effort.** `GeometryScriptsEditor`'s JSON-encoded
 name/source/enabled draft stays unchanged; refactoring is not a prerequisite
-for [Agree the verification plan and implementation handoff](006-agree-verification-and-implementation-handoff.md)
+for [Agree the verification plan and implementation transfer](006-agree-verification-and-implementation-transfer.md)
 or for implementation.
 
 ### Why it does not earn inclusion (charter bar: BOTH benefits, with evidence)
@@ -90,10 +90,10 @@ or for implementation.
 - **Safety proof unchanged:** the packaged A→B assertion from
   [Establish a real-editor draft-loss probe](002-establish-real-editor-draft-loss-probe.md),
   the 4 Geometry tests passing unmodified, and the packaged proof to be
-  fixed by [Agree the verification plan and implementation handoff](006-agree-verification-and-implementation-handoff.md)
+  fixed by [Agree the verification plan and implementation transfer](006-agree-verification-and-implementation-transfer.md)
   all remain mandatory. No test is removed or weakened by this decision.
 - **Revisit trigger (option (a)):** final for this effort and excluded from
-  the verification/handoff scope. Reopening requires a fresh ticket carrying
+  the verification/transfer scope. Reopening requires a fresh ticket carrying
   new evidence of BOTH benefits (e.g. adapter tests against the encoded form
   demonstrating concrete duplicated setup, or an actual encoding/equality
   defect) — not a re-argument of today's evidence, and never opportunistic

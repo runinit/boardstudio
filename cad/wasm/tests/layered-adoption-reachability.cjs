@@ -43,7 +43,7 @@ for (const item of fixture.cases) {
     assert.throws(() => cad.build_case(item.preparedBody), error => {
       assert(String(error).includes(expected.reason));
       assert(String(error).includes(expected.featureId));
-      console.log(JSON.stringify({id: item.prototypeId, state: expected.state, error: String(error)}));
+      console.log(JSON.stringify({id: item.mockupId, state: expected.state, error: String(error)}));
       return true;
     }, 'update the recorded disposition if construction becomes supported');
     continue;
@@ -58,7 +58,7 @@ for (const item of fixture.cases) {
     ['MANIFOLD_SOLID_BREP', expected.solidCount], ['CLOSED_SHELL', expected.shellCount],
     ['CYLINDRICAL_SURFACE', expected.cylindricalFaces], ['RATIONAL_B_SPLINE_SURFACE', expected.conicalFaces],
   ]) assert.equal((step.match(new RegExp(`${entity}\\(`, 'g')) || []).length, count);
-  if (item.prototypeId === 'opening-ring-island') {
+  if (item.mockupId === 'opening-ring-island') {
     console.error('Product ring: baseline f64 analysis');
     const before = geometry(fixture.baselinePreparedBottom);
     console.error('Product ring: opened-body f64 analysis');
@@ -67,10 +67,10 @@ for (const item of fixture.cases) {
     assert(Math.abs(removedVolumeMm3-expected.removedVolumeMm3) < 0.002);
     after.bounds.flat().forEach((value, i) => assert(Math.abs(value-expected.boundsMm.flat()[i]) < 1e-8));
     assert.deepEqual(after.bounds, before.bounds);
-    console.log(JSON.stringify({id: item.prototypeId, state: 'implemented product ring island',
+    console.log(JSON.stringify({id: item.mockupId, state: 'implemented product ring island',
       removedVolumeMm3, ...after}));
   } else {
-    console.log(JSON.stringify({id: item.prototypeId, state: 'supported hardware probe; prototype not reproduced',
+    console.log(JSON.stringify({id: item.mockupId, state: 'supported hardware probe; mockup not reproduced',
       solidCount: expected.solidCount, shellCount: expected.shellCount}));
   }
 }

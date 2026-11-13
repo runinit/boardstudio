@@ -1,6 +1,6 @@
 # 006: Restore shared disclosure motion
 
-Status: wontfix
+Status: declined
 Type: build
 Blocked by: none
 Parent: [001: Recovery specification](001-ui-integration-recovery-spec.md)

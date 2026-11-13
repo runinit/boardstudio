@@ -1,6 +1,6 @@
 # 016: Show surviving mesh geometry with an incomplete-model error
 
-Status: ready-for-agent
+Status: ready
 Type: build
 Blocked by: [015: Reconcile current CAD policy](015-reconcile-forgiving-preview-policy.md)
 Parent: [007: Vendor STEP import](007-strict-step-import.md)

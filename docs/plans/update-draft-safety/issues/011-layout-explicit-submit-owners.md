@@ -25,7 +25,7 @@ update currently clobbers an open constraint draft.
 - [x] Hidden or keep-mounted instances of these owners keep blocking; unmount or scope change retires them.
 - [x] Each adapter change carries its own RED/GREEN evidence through the mounted seam; focused checks pass and evidence logs follow the plan's conventions.
 
-## Approved correction handoff (2026-11-07) — claimed, awaiting fresh reviews
+## Approved correction transfer (2026-11-07) — claimed, awaiting fresh reviews
 
 This section supersedes the historical remediation/progress claims below.
 The five review findings now have source fixes and focused mounted evidence;
@@ -318,7 +318,7 @@ Coordinator acceptance (2026-11-07): original `043787ba5`, isolated Pair RED
 PASS with no Required changes. Coordinator read both full source diffs and
 independently reran **106 executed / 0 failed**, including rejecting/binding
 paths (`011-coordinator-corrected-browser.log`). The five required corrections
-and distinct RED/GREEN cases are recorded in the approved handoff above;
+and distinct RED/GREEN cases are recorded in the approved transfer above;
 all six criteria are met. Historical claimed/pending statements are superseded.
 [010](010-packaged-a-to-b-proof.md#answer) additionally proves the real imported
 Layout constraint with trusted input and exact A/B durable export, with cleanup

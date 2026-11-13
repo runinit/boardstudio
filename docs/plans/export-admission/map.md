@@ -4,9 +4,9 @@ Candidate 02 from [export readiness/dispatch research](../../research/2026-10-20
 
 ## Tickets
 
-1. [001: ZMK export admission](issues/001-zmk-export-admission.md) — `ready-for-agent`; establish the admission seam with the demonstrated firmware-prerequisite gap.
-2. [002: PCB and design-file export admission](issues/002-pcb-design-file-admission.md) — `ready-for-agent`, blocked by 001; ordinary/Draft KiCad, SVG/DXF and footprints.
-3. [003: Geometry-package export admission](issues/003-geometry-package-admission.md) — `ready-for-agent`, blocked by 001; keycap STLs, authored Case STEP and generated mechanical packages. Independent of 002 once 001 establishes the seam.
+1. [001: ZMK export admission](issues/001-zmk-export-admission.md) — `ready`; establish the admission seam with the demonstrated firmware-prerequisite gap.
+2. [002: PCB and design-file export admission](issues/002-pcb-design-file-admission.md) — `ready`, blocked by 001; ordinary/Draft KiCad, SVG/DXF and footprints.
+3. [003: Geometry-package export admission](issues/003-geometry-package-admission.md) — `ready`, blocked by 001; keycap STLs, authored Case STEP and generated mechanical packages. Independent of 002 once 001 establishes the seam.
 
 ## Dependencies
 

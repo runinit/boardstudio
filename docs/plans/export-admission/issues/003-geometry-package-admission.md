@@ -1,6 +1,6 @@
 # 003: Geometry-package export admission
 
-Status: ready-for-agent
+Status: ready
 Type: build
 Blocked by: [001: ZMK export admission](001-zmk-export-admission.md)
 Related: [Candidate 02 research](../../../research/2026-10-20-export-readiness-dispatch-deepening.md)

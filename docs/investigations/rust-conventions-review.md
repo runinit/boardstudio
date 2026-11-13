@@ -1,7 +1,7 @@
-# Rust conventions review: what the Rust skills would change
+# Rust conventions review: what the Rust guides would change
 
 Investigated 2026-10-06 at `be4643089`. Status: assessment only; no code was changed.
-The `rust-skills` (265 rules) and `rust-best-practices` (Apollo handbook) skills are
+The `Rust guides` (265 rules) and `rust handbook` (Apollo handbook) guides are
 installed locally under the gitignored `.agents/` and `.claude/`, so other
 checkouts and cloud agents never see them. This note records which of their advice
 fits this repository, measures each candidate, and ranks the changes by benefit.

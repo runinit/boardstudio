@@ -1,6 +1,6 @@
 # 005: Retain Add, setup, placement and legacy overflow workflows
 
-Status: ready-for-agent
+Status: ready
 Type: build
 Blocked by: [003](003-inspect-popout.md), [004](004-objects-popover.md), [006](006-topbar-simplification.md)
 Parent: [map.md](../map.md)

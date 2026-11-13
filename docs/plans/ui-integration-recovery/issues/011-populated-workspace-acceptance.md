@@ -42,7 +42,7 @@ implementation-complete record.
 ## Verification and completion
 
 Human review is the acceptance seam. Agents may prepare the checked candidate,
-fixtures, checklist and captures, but this ticket is `ready-for-human` because
+fixtures, checklist and captures, but this ticket is `awaiting-decision` because
 the final result requires the user's decision. Preliminary inspection may occur
 earlier; final acceptance depends on 010's verified candidate.
 
@@ -50,7 +50,7 @@ earlier; final acceptance depends on 010's verified candidate.
 
 - 2026-11-06: Published as the final accepted gate. One checklist per Workspace
   keeps review manageable without creating a ticket for every visual combination.
-- **Coordinator handoff 2026-11-08:** candidate `18d4d7f53` plus documentation-only
+- **Coordinator transfer 2026-11-08:** candidate `18d4d7f53` plus documentation-only
   changes thereafter; [010 is resolved](010-final-technical-verification.md#completion-record-coordinator-2026-11-08).
   Its record supplies the full candidate/build/browser identity and fresh full-gate
   and strict-CSS receipts. The restorations in cancelled 004–007 are **ABSENT by
@@ -61,8 +61,8 @@ earlier; final acceptance depends on 010's verified candidate.
   collision/provider behaviors across the unchanged acceptance matrix above.
   The MCU premise is withdrawn; Class B and worker/cache residual risks remain;
   firmware is not hardware-validated; autosave success is header-only. This is a
-  handoff for human acceptance, not an automated pass or permission to replace
-  the live preview. Status remains `ready-for-human`.
+  transfer for human acceptance, not an automated pass or permission to replace
+  the live preview. Status remains `awaiting-decision`.
 - 2026-11-08: Human review IN PROGRESS on candidate served from
   `web/target/site-011-candidate` (source `ad76a9bb7`,
   http://127.0.0.1:4173/boardstudio/). First defect reports from the user
@@ -157,7 +157,7 @@ earlier; final acceptance depends on 010's verified candidate.
   `toolbar-after-shadcn-dark.png` are in the screenshot directory above.
   Newly executed targeted checks: `check.py browser --only ui-shared parts`
   passed 93 ui-shared and 106 Parts tests; changed-file rustfmt, diff whitespace
-  and Impeccable detector passed. Cargo/Dioxus builds and check.py runs used
+  and design-check detector passed. Cargo/Dioxus builds and check.py runs used
   the shared FD9 lock.
   Consumer audit: direct SVG icons keep the 16px default; explicit sizes remain
   caller-owned; carousel arrows stay 20px. Nested Library previews have their
@@ -172,7 +172,7 @@ earlier; final acceptance depends on 010's verified candidate.
   mounted/rendered evidence above supplies behavioral proof. No signature changes.
   Remaining gates: coordinator full gate/build identity and affected user
   re-review under AC7. The complete acceptance matrix is NOT claimed;
-  **011 remains ready-for-human, not resolved, and no approval is inferred**.
+  **011 remains awaiting-decision, not resolved, and no approval is inferred**.
 - 2026-11-09, **Independent combined B+C Spec + Standards review** — endpoints:
   `ea890dadeb925ece27c8b7a6884e75715d7536a4` → current uncommitted worktree,
   excluding unrelated external changes. Exact Gortex worktree
@@ -205,7 +205,7 @@ earlier; final acceptance depends on 010's verified candidate.
   - **Acceptance for committing B+C: BLOCKED** pending the required theme-stroke
     correction and its targeted verification; this is not a demand to close 011.
     The coordinator owns the full gate/build identity and affected re-review;
-    011 human acceptance remains blocked and `ready-for-human`, with no approval
+    011 human acceptance remains blocked and `awaiting-decision`, with no approval
     inferred.
   - Evidence reviewed: `verification.log`, mounted GREEN and independent size
     RED, packaged toolbar/MCU RED and GREEN, eye GREEN, source and browser
@@ -281,8 +281,8 @@ earlier; final acceptance depends on 010's verified candidate.
   `BOARDSTUDIO_BUILD_LOCK_FD=9`: `python3 scripts/check.py browser --only ui-shared layout`
   (94 ui-shared + 268 Layout passed) and `python3 scripts/build-web.py --fast --skip-providers --output web/target/site-011-sliceE-after`
   (`build-after-scoped.log`, providers reused). Changed-file rustfmt, diff
-  whitespace and Impeccable detector passed (`rustfmt-scoped.log`,
-  `impeccable-detect-scoped.log`). No full gate or mutation run is claimed here.
+  whitespace and design-check detector passed (`rustfmt-scoped.log`,
+  `design-check-detect-scoped.log`). No full gate or mutation run is claimed here.
   Before captures reused unchanged from the source-equivalent B+C package
   `web/target/site-011-sliceBC-after`; final after captures use this slice's fresh
   package, Split 42, 1440×900, isolated port 4183. Screenshots:
@@ -304,7 +304,7 @@ earlier; final acceptance depends on 010's verified candidate.
   Current HEAD remains `eca34d64` plus the owned uncommitted diff. Remaining:
   coordinator independent checks/review and full gate/candidate refresh, then
   affected human re-review under AC7. These captures are NOT full-matrix
-  acceptance. **011 remains ready-for-human, with no approval inferred.**
+  acceptance. **011 remains awaiting-decision, with no approval inferred.**
 - 2026-11-09, **Slice E combined Spec + Standards review** — fixed endpoints
   `eca34d64de0f8a9064a845b6bd019f46b43c4f45` → working tree in checkout
   `01a1b3cf-a8df-75da-ab9e-d3fe3b2d3378`; HEAD and checkout root verified.
@@ -341,7 +341,7 @@ earlier; final acceptance depends on 010's verified candidate.
     above and exact/fresh Gortex reads were used instead. No test, mutation,
     build or browser was run by this reviewer. The fast build reused providers;
     the full gate, refreshed candidate, complete matrix and affected human
-    re-review remain coordinator-owned. **011 remains ready-for-human; human
+    re-review remain coordinator-owned. **011 remains awaiting-decision; human
     acceptance is blocked and no approval is inferred.**
 - 2026-11-09, **Coordinator E commit receipt** — pre-commit HEAD `eca34d64`.
   Combined review above is Standards PASS / Spec PASS, commit READY. Coordinator
@@ -379,7 +379,7 @@ earlier; final acceptance depends on 010's verified candidate.
     retained-owner scenarios are reused, not duplicated at each Theme combination.
   Scope is CSS fill overrides only plus the focused test/proof: no 005/D10 menu
   deduplication, motion, chevron, tree, dimension or ghost work. Preserve group
-  metrics, wrapping and contextual actions. **011 remains ready-for-human.**
+  metrics, wrapping and contextual actions. **011 remains awaiting-decision.**
   Packaged **GREEN**: matching `after-{original,shadcn}-{light,dark}-green.log`
   files in the same log directory and `after-*.png` in the same screenshot
   directory. `packaged-comparison.log` confirms group/strip and all five control
@@ -398,8 +398,8 @@ earlier; final acceptance depends on 010's verified candidate.
   `python3 scripts/check.py browser --only layout` (RED then GREEN), and
   `python3 scripts/build-web.py --fast --skip-providers --output web/target/site-011-sliceD-after`
   (`build-after.log`, unchanged providers reused). Changed-file rustfmt,
-  diff whitespace and Impeccable detector passed (`rustfmt.log`,
-  `impeccable-detect.log`). Independent isolated browser sessions used port 4183;
+  diff whitespace and design-check detector passed (`rustfmt.log`,
+  `design-check-detect.log`). Independent isolated browser sessions used port 4183;
   browser error logs are empty and own browsers/servers are stopped. Existing
   candidate port 4173/PID 871065 was not changed.
   Gortex exact source reads found the owner; initial pre-impact/mutation routing
@@ -444,7 +444,7 @@ earlier; final acceptance depends on 010's verified candidate.
     mutation or browser run by this reviewer. Evidence does not establish the
     full viewport matrix, accessibility or human approval. Coordinator's
     independent checks, full gate, candidate refresh and affected human re-review
-    remain outstanding; **011 remains ready-for-human and human acceptance is
+    remain outstanding; **011 remains awaiting-decision and human acceptance is
     blocked**, with no approval inferred.
 - 2026-11-09, **Coordinator D commit receipt** — pre-commit HEAD `1cbc191a`.
   Standards PASS / Spec PASS above; every owned changed hunk independently read
@@ -531,7 +531,7 @@ earlier; final acceptance depends on 010's verified candidate.
   was made to silence it. Final tree formatting is package-source-equivalent only.
   Coordinator still owns independent rejection/mutation checks, combined review,
   full gate, candidate refresh and commits. Human matrix/re-review and final
-  acceptance remain outstanding. **011 remains ready-for-human; no approval inferred.**
+  acceptance remain outstanding. **011 remains awaiting-decision; no approval inferred.**
 - 2026-11-09, **Slice F/D8 fresh combined Spec + Standards review** — endpoints
   `197864988116e20687269f395f7e3a8b049c7df8` → uncommitted worktree;
   root and HEAD verified. Exact worktree Gortex source reads cover all owned
@@ -570,7 +570,7 @@ earlier; final acceptance depends on 010's verified candidate.
     server were run in this review. Full gate and refreshed checked candidate,
     complete Theme/Appearance/viewport matrix, affected human re-review and
     explicit user decision remain outstanding: **final 011 acceptance BLOCKED**;
-    status stays `ready-for-human`, with no approval inferred.
+    status stays `awaiting-decision`, with no approval inferred.
 - 2026-11-09, **Coordinator F commit receipt** — pre-commit HEAD `19786498`;
   Spec PASS / Standards PASS above. Independently read all five owned files'
   changed hunks via exact Gortex; none unread. Inspected populated-after and
@@ -649,14 +649,14 @@ earlier; final acceptance depends on 010's verified candidate.
   initial change routing recovered after six 60-second retry cycles, with no
   native source fallback. No mapped coverage/configured graph guards; actual
   mounted tests above supply behavioral proof. Contract warns about shared
-  caller reach, not a broken signature. Impeccable reports only pre-existing
-  shadow-color advisories (`impeccable.log`); no new CSS file or tokens needed.
+  caller reach, not a broken signature. design-check reports only pre-existing
+  shadow-color advisories (`design-check.log`); no new CSS file or tokens needed.
   HEAD remains `b8ae4a88` plus this uncommitted two-file slice. Coordinator owns
   independent mutation/rejection reruns, combined Spec/Standards review, full
   gate and candidate refresh. Historical black-bar cause was not reproduced
   on the current baseline; no claim about its original cause or the complete
   Theme/Appearance/viewport matrix is made. Affected human re-review and explicit
-  acceptance remain outstanding: **011 stays ready-for-human, not resolved**.
+  acceptance remain outstanding: **011 stays awaiting-decision, not resolved**.
 - 2026-11-09, **D9 fresh combined Spec + Standards review** (user-authorized
   single reviewer): fixed endpoints `b8ae4a88b3670fed31f30ec467341e2232aeebfb`
   to its uncommitted worktree on `fix/ui-integration-recovery`; root and HEAD
@@ -774,7 +774,7 @@ earlier; final acceptance depends on 010's verified candidate.
   All source reads/edits used the exact Gortex checkout; no native source fallback.
   Coordinator full gate, independent rejections/mutations, fresh combined review,
   candidate refresh and human acceptance remain outstanding; **011 remains
-  ready-for-human**, not accepted.
+  awaiting-decision**, not accepted.
 - 2026-11-09, **Slice G (D2) fresh combined Spec + Standards review**
   (one reviewer per explicit user instruction): fixed `11a3513dfebf0b23c8ee5a1e4deb25b29fd684a2`
   to the uncommitted worktree on `fix/ui-integration-recovery`; root and HEAD
@@ -827,7 +827,7 @@ earlier; final acceptance depends on 010's verified candidate.
     editable-filter and form-width mutation/fail-path reruns and scope checks.
     **011 acceptance: BLOCKED** pending full gate, refreshed candidate, required
     Theme/Appearance/viewport matrix, affected human re-review and explicit
-    approval. 011 remains `ready-for-human`, parent 001 open; no acceptance or
+    approval. 011 remains `awaiting-decision`, parent 001 open; no acceptance or
     permission to merge is inferred.
 - 2026-11-09, **Coordinator G follow-up and commit receipt**, pre-commit HEAD
   `11a3513d`. All seven owned files' source/test/doc changed hunks read through
@@ -841,7 +841,7 @@ earlier; final acceptance depends on 010's verified candidate.
   is temporarily hidden, keeping its owners mounted and preference unchanged.
   Other setup stages and desktop dock ownership remain unchanged.
   - Proof row — real Editor/guide → narrow canvas, resize, two subsequent
-    guide-only geometry changes and floating-form handoff → visible footprint
+    guide-only geometry changes and floating-form transfer → visible footprint
     outside measured chrome with complete ReadModel equality · mounted ·
     **RED→GREEN**: `coordinator-narrow-red.log`, `coordinator-final-green.log`
     under `.evidence/011-sliceG/`. The fixture collapses/restores real desktop
@@ -861,7 +861,7 @@ earlier; final acceptance depends on 010's verified candidate.
     package in `coordinator-final-green.log`; **270 Layout tests GREEN** in
     `coordinator-restored-green.log`. Native 168-pass/1-ignored and producer
     targeted Clippy evidence above reused; full gate still next. Rustfmt,
-    whitespace and Impeccable detector passed. No new input-admission guard;
+    whitespace and design-check detector passed. No new input-admission guard;
     pending paint rejection and form-only cleanup independently rerun.
   - Packaged trusted-input proof at 390×844, Original Light and shadcn Dark,
     plus 1440×900 resized docks: `coordinator-packaged-narrow.log`. A correctly
@@ -877,7 +877,7 @@ earlier; final acceptance depends on 010's verified candidate.
   intact. **G scoped commit READY**. **011 acceptance BLOCKED** on the full gate,
   refreshed candidate, complete required matrix, affected human re-review and
   explicit approval. Parent 001 open; D9 historical black-bar cause still unproven.
-- 2026-11-09, **Refreshed human-review handoff**: all implementation slices are
+- 2026-11-09, **Refreshed human-review transfer**: all implementation slices are
   committed through `2694b18913821b08c5b79da8414ef13f29c26863`.
   [010's refreshed record](010-final-technical-verification.md#candidate-refresh-coordinator-2026-11-09)
   supplies the new full-default PASS (657.7s), bound 17-check drag/reload receipt,
@@ -887,9 +887,9 @@ earlier; final acceptance depends on 010's verified candidate.
   `web/target/site-011-candidate-pre-2694b189`. No user browser/storage was touched.
   A cold promoted-page check verified the new script and narrow matrix CSS.
   **Scoped implementation complete; human acceptance BLOCKED pending actual
-  affected re-review, triage of observations below and explicit approval.**
+  affected re-review, status of observations below and explicit approval.**
   The checklist below is prepared evidence, not a user decision. All acceptance
-  checkboxes and `ready-for-human` remain unchanged; parent 001 stays open.
+  checkboxes and `awaiting-decision` remain unchanged; parent 001 stays open.
 
 ## Candidate review matrix — 2694b189
 
@@ -1041,7 +1041,7 @@ scroll capture: `shadcn-dark-390x844-export-scrolled.png`.
   closed Sheet must open on Cancel; its unconditional Sheet-open wait was
   inapplicable. Prior phone-start G checks separately prove preservation of an
   already-open Sheet. No false success is inferred from that wait.
-- **Agent observation R1 — human triage pending:** the footer still reads
+- **Agent observation R1 — human status pending:** the footer still reads
   `mechanical findings block case generation` after the corrected fixture's
   Case workspace says `Exact case geometry ready`, has visible geometry and
   enabled Export geometry. The stale wording also persists in other Workspace
@@ -1053,7 +1053,7 @@ scroll capture: `shadcn-dark-390x844-export-scrolled.png`.
   The full gate reran the bounded accessibility floor. Safari, screen readers,
   physical touch and broad accessibility certification remain unrun.
 - Existing user D10 belongs to reopened 005; 004/005/006 still need their
-  separately approved grills and work. D9's historical black-bar cause remains
+  separately approved questioning sessions and work. D9's historical black-bar cause remains
   unproven. **Every human result above remains pending; 011 and 001 stay open.**
 
 ## Human re-review — second reported batch, 2026-11-09
@@ -1108,7 +1108,7 @@ agent captures to human acceptance.
   `Close Row actions` control and `Open Inspector` beside the scope selector.
   This is the already-reopened [005](005-restore-scope-actions.md) duplication
   issue, not a delivered restoration. Route its toolbar overlap through 005's
-  required grill-with-docs before implementation; do not silently fold the
+  required documented interview before implementation; do not silently fold the
   deferred behavior into an unrelated styling correction.
 
 ### Next-correction proof map (planned, not executed)
@@ -1125,12 +1125,12 @@ RED/GREEN or timing results.
 | D14 solid canvas | Layout before and after creation → inspect top/center/bottom away from controls and annotation overlays → one intended canvas paint with no full-width contrasting bands | Packaged/rendered / planned |
 | D15 split ghost | Select Split keyboard, New matrix still uncommitted → change Rows/Columns → both left/right transient footprints update, while complete accepted model/history/selection/camera remain unchanged; single-keyboard case stays single | Existing real-Editor scenario + packaged / planned |
 | D16 toolbar grouping | Populated Layout at agreed widths → inspect scope, Align and Transform, then open their menus → compact deliberate inter-group gap, no separated lane/overlap or lost keyboard/focus behavior | Rendered + packaged / planned |
-| D10 / 005 | Selected Row, with scope selector → open the current actions surface → reproduce duplication and use 005's approved grill/spec to define the single intended action path | Existing 005 protocol / planned |
+| D10 / 005 | Selected Row, with scope selector → open the current actions surface → reproduce duplication and use 005's approved questioning/spec to define the single intended action path | Existing 005 protocol / planned |
 
 The human review remains in progress; batch closure and correction disposition
 have not been stated in this message. No new correction, rebuilt candidate or
 acceptance is claimed by this report. R1's stale mechanical footer and earlier
-unresolved observations remain open. **011 stays ready-for-human; 001 stays open.**
+unresolved observations remain open. **011 stays awaiting-decision; 001 stays open.**
 
 ### Agent investigation — second batch D10–D16 (2026-11-09, investigation only)
 
@@ -1164,7 +1164,7 @@ scale, `_k` is consistent with a panel about 670 px wide (reproduced at
 | D14 | Yes | **Proven:** `bg-card` panel lanes around an inset `bg-canvas` svg | Paint the Layout panel with the canvas colour, keeping lane geometry |
 | D15 | Yes | **Proven:** the ghost paints one grid and receives no topology | Reuse `project_mirrored_pair` for Split, using topology from the accepted snapshot |
 | D16 | Yes | **Proven:** the context-strip grid collapses and an empty `.layout-action-slot` row stays reserved | Order or collapse the rows so Align/Transform sit directly under the scope strip |
-| D10/005 | Yes | **Proven:** every scope click opens the `{Scope} actions` dialog, which duplicates the inline action toolbar | **Grill 005 first**; boundaries below |
+| D10/005 | Yes | **Proven:** every scope click opens the `{Scope} actions` dialog, which duplicates the inline action toolbar | **Questioning 005 first**; boundaries below |
 
 #### D11 — Split keyboard delay (N)
 
@@ -1429,7 +1429,7 @@ scale, `_k` is consistent with a panel about 670 px wide (reproduced at
     removal.
   - If 005 moves the empty-selection hint inline, it would occupy the reserved
     slot that causes D16's empty row. Agree the sequencing first.
-- **Questions for 005's required grill-with-docs (do not implement before it):**
+- **Questions for 005's required documented interview (do not implement before it):**
   1. With inline tools present, should a scope press ever open a popup?
   2. With no selection, should the hint stay a popup, or render inline in the
      action slot?
@@ -1451,7 +1451,7 @@ scale, `_k` is consistent with a panel about 670 px wide (reproduced at
   coordinator or user decisions.
 
 No correction, rebuilt candidate or acceptance is claimed. **011 stays
-ready-for-human; 001 stays open.**
+awaiting-decision; 001 stays open.**
 
 **Coordinator receipt:** all 321 appended investigation lines were read through
 exact Gortex, plus the raw IndexedDB-hold, slider-drag and empty-slot measurement
@@ -1464,7 +1464,7 @@ Execution caveats: the delegate also read the ticket through the shell at startu
 and during append verification, contrary to the required Gortex-only source
 route. The coordinator's complete report read used Gortex. The delegate left a
 filesystem checkpoint at `~/.cache/tmp/011r2/notes-checkpoint.md`, not the required
-virtual notes handoff; the coordinator's virtual checkpoint is authoritative.
+virtual notes transfer; the coordinator's virtual checkpoint is authoritative.
 These deviations are recorded, not described as compliant tool use.
 
 ## Second-batch correction execution plan — 2026-11-09
@@ -1489,7 +1489,7 @@ this ticket or each other's files.
 | B — D15 split ghost | `web/crates/layout/src/objects/matrix_setup_preview.rs`, `web/crates/layout/src/objects/matrix_setup.rs`, `web/crates/layout/src/objects/matrix_setup_fields.rs`, `web/src/presentation.rs`, `web/src/presentation/layout_field_preview_tests.rs` | Implementation returned and page ownership released: approved provider input `accepted_split: bool`, pure mirrored geometry and both-half canvas/thumbnail; producer RED 30/60 cells, then 5 field-preview + 1 spacing + 7 Layout mounted + 168 native checks GREEN (1 ignored); fresh combined source Standards PASS / Spec PASS; coordinator's first five mutations killed three and exposed two proof gaps; only the existing Editor story was extended (+72) and now kills the fit/topology survivors; 23 affected browser checks, formatting and WASM Clippy GREEN; test-delta review Standards PASS / Spec PASS (task 3ffba…, read-only receipt reuse, recorded in coordinator notes); B closed (kills + diff read also satisfy the re-review rule) |
 | C1 — D11 pending feedback | Initial PCB physical-setup scope returned unchanged; further implementation waits for the narrow preview accessor approval and page wiring after lane B releases it | Hold RED recorded (601 ms IDB → 659 ms DOM / ~826 ms RAF opportunity, not presentation proof); user approved R4 new phase. Planner boundary + Builder shipped narrow busy-gated pending_topology() (accepted-only preserved): P1a/P1b 627.8→14.8 ms, P2–P4 GREEN, 5/5 mutants killed, T1 recorded; fresh Spec PASS after display-proof close. Reload→Reversible stays follow-up F2. Detail in the C1 section below |
 | C2 — D11 cold catalogue work | `web/crates/layout/src/objects/matrix_transform_controller.rs`, including its existing regression seam; other files require allocation | Implementation and fresh review returned: Standards PASS / Spec PASS for the actual Key-projection demand guard; same-path debug RED/GREEN and later-Key positive demand, 168 native / 50 targeted browser checks reported GREEN; remove direction RED-covered; invert mutant killed after same-story strengthening (R2 closed); optimized timings have shared-checkout comparability limits; C1 done (see below), reload→Reversible is follow-up F2 |
-| D0 — D16 and D10/005 | Toolbar/CSS returned/frozen; private `presentation.rs` correction returned/released; coordinator corrected only existing page-test host teardown, preserving all scope assertions and B/D1; 005 tracking remains coordinator-owned | Original popup-focus/grouping/Part-action RED then 13 toolbar / 268 Layout plus 2 guide / 168 native and packaged handoffs GREEN; persistent Matrix-clear RED corrected without a new owner; all five unchanged scope cycles now pass, including managed teardown after independently evidenced host correction; 23 affected browser checks / formatting / WASM Clippy / whitespace GREEN; fresh combined Standards PASS / Spec PASS, all 71 hunks read and no findings; both page-guard mutants killed with restored GREEN; trigger-focus mutant killed after same-story strengthening (R2 closed); extra toolbar guards are follow-up F1; integrated/HITL gates pending |
+| D0 — D16 and D10/005 | Toolbar/CSS returned/frozen; private `presentation.rs` correction returned/released; coordinator corrected only existing page-test host teardown, preserving all scope assertions and B/D1; 005 tracking remains coordinator-owned | Original popup-focus/grouping/Part-action RED then 13 toolbar / 268 Layout plus 2 guide / 168 native and packaged transfers GREEN; persistent Matrix-clear RED corrected without a new owner; all five unchanged scope cycles now pass, including managed teardown after independently evidenced host correction; 23 affected browser checks / formatting / WASM Clippy / whitespace GREEN; fresh combined Standards PASS / Spec PASS, all 71 hunks read and no findings; both page-guard mutants killed with restored GREEN; trigger-focus mutant killed after same-story strengthening (R2 closed); extra toolbar guards are follow-up F1; integrated/HITL gates pending |
 | D1 — D12/D14 | `web/src/presentation.rs`, `web/src/presentation/layout_field_preview_tests.rs`, `web/crates/layout/src/setup_guide.rs`, `web/assets/shell.css`; B's fresh review completed, exclusive page writing now released to this lane | Implementation returned and page ownership released to the coordinator: only the two page files changed, guide/stylesheet files unchanged; actual gutter and paint RED, then 6 page / 268 Layout / 168 native checks plus formatting/Clippy/fast-package GREEN; fresh combined Standards PASS / Spec PASS, no unread hunks and owned postimages unchanged; review hold released, only the existing page-test file passes to D0's regression owner; coordinator sensitivity and integrated/HITL gates remain |
 | E — remaining R1 footer | Implementation returned and ownership released: only `web/crates/runtime/src/runtime.rs`, private bounded report provenance/retirement plus existing in-file lifecycle seam; no presentation/CSS/public API changes | Faithful Runtime rebind RED then 62 Runtime browser / 138 native checks reported GREEN; original same-owner battery −86 → 0 → −86 / Update preview loop GREEN with populated exact geometry, enabled Export and no stale footer; fresh combined Standards PASS / Spec PASS, no unread hunks or required findings; coordinator sensitivity closed (provenance-removal + indiscriminate-clear both killed); integrated/HITL gates pending |
 
@@ -1502,7 +1502,7 @@ All builds/tests share inherited FD9 lock; no overlapping Cargo or
 wasm-pack, no per-agent full gate. Temporary mutation experiments are
 coordinator-owned so one lane cannot measure another lane's in-flight edits.
 
-**005 grill completed:** user answered **“yes, yes”** to one inline action/hint
+**005 questioning completed:** user answered **“yes, yes”** to one inline action/hint
 surface for all five scopes (no scope popup on choice or reselection), and
 Align/Transform beside the scope strip when space permits or directly beneath
 it otherwise, without the empty reserved row. [005's current criteria and proof
@@ -1512,12 +1512,12 @@ selection transitions and focus. Lane D0 can proceed independently of lane B;
 lane D1 received exclusive page-file ownership after B's completed review. Historical cancellation
 and investigation records remain intact; no result or acceptance is inferred.
 
-Lane A handoff limits are explicit: its mounted RED preceded correction of the
+Lane A transfer limits are explicit: its mounted RED preceded correction of the
 synthetic selector to the real guide utility, so final-fixture sensitivity against
 unfixed styling remains a coordinator gate. Lane C1 made no tracked changes and
 claims no GREEN; its debug catalogue attribution is not optimized before/after
-proof or an explanation of the separate reload→Reversible trace. Handoff logs:
-`.evidence/011-round2-A/` and `.evidence/011-round2-C/handoff.log`.
+proof or an explanation of the separate reload→Reversible trace. Transfer logs:
+`.evidence/011-round2-A/` and `.evidence/011-round2-C/transfer.log`.
 A's reviewer specifically identified a possible clipping-proof gap: the final
 fixture probes only the thumb centre, so restoring track clipping might survive.
 The coordinator must measure it, then add upper/lower thumb hit probes in the
@@ -1581,7 +1581,7 @@ C2's returned correction is 20 added / 12 removed lines in the single allocated
 controller, mostly moving the existing projection before the effect and adding
 a reactive actual-Key demand guard. Its public same-path profiling and positive
 later-Key experiment are the performance proof, not a fake private-helper unit
-test. Logs: `.evidence/011-round2-C2/handoff.log`. Fresh independent combined
+test. Logs: `.evidence/011-round2-C2/transfer.log`. Fresh independent combined
 review: Standards **PASS**, Spec **PASS**, no required source findings or unread
 changed hunks; baseline/postimage ranges were 715 → 715–729, 718 → 732,
 after 719 → 734–736, and 748–757 → 765. Owned content returned `not_modified`
@@ -1598,7 +1598,7 @@ GREEN; D0's later Layout-only success below does not retroactively change that r
 D0 returned its toolbar/CSS implementation without page edits. Logs:
 `.evidence/011-round2-D0/`; packaged measurements put Align/Transform 8 px beside
 the scope strip at 1322/1440 px and 8 px below at 1024 px, unchanged by selection,
-across both Themes/Appearances. Five real canvas handoffs replaced inline guidance
+across both Themes/Appearances. Five real canvas transfers replaced inline guidance
 with actions, including Part Position, without scope popups. Existing production
 focus/selection checks passed separately. Its final Layout run passed 268 general
 plus 2 setup-guide tests, but the page field-preview run encountered D1's in-flight
@@ -1612,12 +1612,12 @@ component or stylesheet edit was needed. Its existing resized-guide story gained
 51 computed geometry/paint assertion lines, without a new fixture or API. Actual
 REDs were the flush 0 px/radius-0 guide and unequal Layout panel/SVG paint;
 corrected page-plus-spacing checks passed 6/6. Logs:
-`.evidence/011-round2-D1/handoff.log`. Twelve guide and twelve populated Layout
+`.evidence/011-round2-D1/transfer.log`. Twelve guide and twelve populated Layout
 captures covered both Themes/Appearances at 1440/1024/390 px: 8 px guide gutters,
 14 px Theme radius, no horizontal overflow, and identical top/centre/bottom canvas
 paint. The existing phone 60% form budget, hidden-but-mounted compact Sheet,
 B's accepted split preview and Export/setup overflow precedence were retained.
-Its fast package reused providers and is not an optimized/full-gate handoff.
+Its fast package reused providers and is not an optimized/full-gate transfer.
 Fresh independent review returned Standards **PASS**, Spec **PASS**, no required
 source findings and no unread changed hunks. It read all baseline/current page
 hunks and independently viewed the eight contact sheets plus full desktop/phone
@@ -1685,7 +1685,7 @@ confirmed full-file pins:
 
 New review work: mechanical inventory, endpoint checks, exact source review and
 physical pins only; no tests/builds/mutations or tracked edits. Actual RED/GREEN,
-23 affected browser checks, 22 production-selection checks, packaged handoffs and
+23 affected browser checks, 22 production-selection checks, packaged transfers and
 format/Clippy receipts above were reused. The reviewer did not view captures or
 rerun browser automation; empty-log exit statuses rely on the coordinator's
 recorded results. Synthetic DOM input over real production behavior does not
@@ -1751,7 +1751,7 @@ success/rebind retirement, indiscriminately clear unrelated identical-text statu
 Integrated/optimized/HITL gates and the legacy aggregate PARTIAL cap remain.
 
 A separate process advanced HEAD to `ec0a61652c688a02b25671c4b2b80fa7b51eeddc`
-with only the two `docs/design/workbench-redesign/option-a/` prototype documents.
+with only the two `docs/design/workbench-redesign/option-a/` mockup documents.
 Those unrelated committed changes are preserved and excluded from recovery
 source review; a mechanical committed diff confirmed no recovery source changed.
 A later foreign commit advanced HEAD to
@@ -1767,7 +1767,7 @@ through a new Pi Sol medium delegate, then coordinator full-hunk read and
 independent rejection/sensitivity checks. The coordinator reruns the full gate,
 strict CSS, optimized build and affected Theme/Appearance/viewport checks before
 promoting a replacement candidate. Keep the current 4173 candidate intact until
-then. **011 remains ready-for-human; parent 001 open; no push authorized.**
+then. **011 remains awaiting-decision; parent 001 open; no push authorized.**
 
 ### Coordinator D0/B sensitivity — 2026-11-09
 
@@ -1837,5 +1837,5 @@ Status set to `resolved`; acceptance boxes checked per evidence + user waiver.
 - Follow-ups F1–F4 explicitly CARRIED (not closed):
   - F1: C2 remove-guard already RED-covered; extra D0 toolbar sensitivity as recorded.
   - F2: D1 real-390/card; reload→Reversible.
-  - F3: 004/006 grills + `/retro` follow-ups.
+  - F3: 004/006 questioning sessions + the retrospective follow-ups.
   - F4: 445-path cap + D9 cause as recorded.

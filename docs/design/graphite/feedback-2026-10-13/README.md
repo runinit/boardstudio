@@ -32,7 +32,7 @@ The default Case construction values are a read-only preview until explicitly co
 - Interaction checks include Ctrl-offset commit/cancel/undo, handle alignment, key-size selection/rotation/undo, split-board tree navigation, layer toggles and upward popup placement, canvas Delete/undo, and the relocated assembly action.
 - Layout mounted WASM suite: **90 passed**. PCB: **49 passed**. Case: **81 passed**. Parts: **68 passed**.
 - Native Layout/shared checks: **85 passed, one existing ignored test**.
-- WASM frontend typechecks passed. Scoped Impeccable layout detector: **zero findings**. This is a scoped result, not a claim that the entire legacy stylesheet is clean.
+- WASM frontend typechecks passed. Scoped design-check layout detector: **zero findings**. This is a scoped result, not a claim that the entire legacy stylesheet is clean.
 - PCB's old hidden-DOM assertion was updated to the shared popover's unmount lifecycle while retaining scene visibility and focus-restoration assertions. The Case override test now locates its disclosure by accessible name rather than positional CSS.
 
 Regression entry point: `scripts/test-graphite-feedback.cjs`; the previous usability script forwards to it. Scratch logs live in `.scratch/graphite-feedback/`.

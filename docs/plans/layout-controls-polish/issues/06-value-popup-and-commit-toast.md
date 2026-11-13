@@ -4,7 +4,7 @@ Status: resolved
 Type: build
 Blocked by: [03](03-handle-rail.md)
 Map: [map.md](../map.md)
-Prototype: branch `prototype/layout-controls-iconography` (e91865f43), `?variant=D` (`renderHud`, `toast`).
+Mockup: branch `mockup/layout-controls-iconography` (e91865f43), `?variant=D` (`renderHud`, `toast`).
 Review: view-only presentation; RED/GREEN evidence and a diff read.
 
 ## What to build
@@ -46,8 +46,8 @@ text "Spread 19.00 mm (+1.00 mm) · 1 Undo step". A zero-delta commit gives no t
 
 ## Answer
 
-Implemented on branch `docs/ergogen-layout-comparison` (prototype ref
-`prototype/layout-controls-iconography` `e91865f43`, variant D).
+Implemented on branch `docs/ergogen-layout-comparison` (mockup ref
+`mockup/layout-controls-iconography` `e91865f43`, variant D).
 
 What changed (ticket-06 files only):
 
@@ -56,14 +56,14 @@ What changed (ticket-06 files only):
   takes tool-chosen (docked popup, no delta), live-drag (following popup with
   delta), commit (toast unless the delta is zero), Esc/dismiss (clears the
   popup, keeps a committed toast) and timeout expiry (clears the toast).
-  `FeedbackDelta::{Mm, Mm2, Deg}` formats with the prototype's explicit plus
+  `FeedbackDelta::{Mm, Mm2, Deg}` formats with the mockup's explicit plus
   and U+2212 minus ("+1.00 mm", "−1.50 mm", "+8.00, −4.00 mm", "+1.00°") and
   treats float dust as zero. The commit toast keeps value and delta as parts
   so the canvas renders the value bold; `CommitToast::text()` pins the exact
   line "Spread 19.00 mm (+1.00 mm) · 1 Undo step".
 - `web/crates/layout/src/objects/layout_transform_toolbar.rs`: the overlay
   owns its `FeedbackState` plus the popup position (`None` docks 8 px above
-  the rail, otherwise 18 px off the pointer like the prototype) and a toast
+  the rail, otherwise 18 px off the pointer like the mockup) and a toast
   generation the 1.8 s timer checks. Hover/focus dock the popup with the
   token's current value; moves update it with the live preview value and
   delta; a committed placement drag raises the toast with no document

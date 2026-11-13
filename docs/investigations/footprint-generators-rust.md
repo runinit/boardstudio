@@ -233,7 +233,7 @@ and corrected output.
   placement, connectivity, model paths and legacy arcs.
 - The former page/worker/finish chain now uses `PreviewPcb` and `ExportPcb`.
   Targeted headless browser checks cover the catalogue, previews, generator edits,
-  handoff orchestration and scope/epoch protection. Four catalogue checks had
+  transfer orchestration and scope/epoch protection. Four catalogue checks had
   incorrectly used plain `#[test]` inside WASM-only presentation; they now execute
   as browser tests, and the test-reachability check passes.
 - Six IndexedDB browser checks pass, including version 1 migration, immediate
@@ -258,7 +258,7 @@ and corrected output.
 - Release packaging excludes obsolete generator assets left by an earlier build;
   a regression test confirms this for both root and subpath sites. This avoids
   returning the deleted worker to the offline inventory through cached outputs.
-- A production UI/offline smoke test remains unverified: the browser skill's
+- A production UI/offline smoke test remains unverified: the browser guide's
   runtime reports no available browser. Native offline-policy tests and release
   packaging tests pass, but do not establish a deployed offline browser reload.
   No broad claim of a Node-free repository is made: CAD and other retained

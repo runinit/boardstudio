@@ -15,7 +15,7 @@ identified checked candidate for populated-workspace human review in 011.
 
 ## Acceptance criteria
 
-- [x] All listed blockers are resolved with their required evidence. 003 is `wontfix` (not applicable)
+- [x] All listed blockers are resolved with their required evidence. 003 is `declined` (not applicable)
   and 008 is covered through 009. Do not infer completion from source
   presence, diagnosis alone or a ticket title/status without its acceptance.
 - [x] Run the full repository default check, including the full browser gate,
@@ -65,7 +65,7 @@ replacement is authorized by this gate. Product acceptance still requires 011.
 Current checked implementation (R5/R6 candidate): `83d81100702e33bf734c71d6505f38306b39ee41`
 (`fix/ui-integration-recovery`), "011: UI integration recovery corrections
 (A/B/C1/C2/D0/D1/E) + records", 17 recovery files.
-**Technical handoff READY; product acceptance BLOCKED on 011's human decision.**
+**Technical transfer READY; product acceptance BLOCKED on 011's human decision.**
 The historical record below is retained, not silently promoted to this source.
 
 Excluded from candidate claims: dirty foreign `AGENTS.md` / `CODING_STANDARDS.md`
@@ -123,7 +123,7 @@ records remain applicable.
 
 Only this documentation refresh follows the checked implementation. Product
 source and packaged bytes are unchanged. 010 stays resolved under its stated
-coverage disposition. **011 stays ready-for-human (Blocked by 010) and 001
+coverage disposition. **011 stays awaiting-decision (Blocked by 010) and 001
 open; no 011/005 acceptance checkbox is closed here (that is R7/R8 with the
 user); no acceptance, push or merge is inferred.**
 
@@ -131,7 +131,7 @@ user); no acceptance, push or merge is inferred.**
 
 Current checked implementation: `2694b18913821b08c5b79da8414ef13f29c26863`
 (`fix/ui-integration-recovery`), including 011 slices A, B+C, E, D, F, D9 and G.
-**Technical handoff READY; product acceptance BLOCKED on 011's human decision.**
+**Technical transfer READY; product acceptance BLOCKED on 011's human decision.**
 The historical record below is retained, not silently promoted to this source.
 
 Newly executed, serialized through the inherited FD9 build lock:
@@ -181,14 +181,14 @@ full owned-hunk reads, RED/GREEN and independent mutation/rejection evidence are
 in [011](011-populated-workspace-acceptance.md). They cover the added delta;
 unchanged draft-safety/019/020/021 and earlier bounded repair records remain
 applicable. D9's historical black-bar cause is still unproven. Reopened
-004/005/006 remain deferred to their separately approved grill/implementation
+004/005/006 remain deferred to their separately approved questioning/implementation
 sequence; 007 remains cancelled. The new capture matrix also records a stale
-mechanical-blocker footer for human triage, not an accepted or repaired defect.
+mechanical-blocker footer for human status, not an accepted or repaired defect.
 
 Only this documentation refresh follows the checked implementation. Product
 source and packaged bytes are unchanged; documentation links and whitespace are
 rechecked rather than rerunning the full product gate without cause. 010 stays
-resolved under its stated coverage disposition. **011 stays ready-for-human and
+resolved under its stated coverage disposition. **011 stays awaiting-decision and
 001 open; no acceptance, push or merge is inferred.**
 
 ## Completion record (coordinator, 2026-11-08)
@@ -284,7 +284,7 @@ Fresh strict old-CSS receipt:
 | [008](008-restore-drag-save-undo-proof.md#answer), [009](009-verify-reload-persistence.md#answer), [022](022-restore-collision-provider-browser-proof.md#answer) Answers and receipts | Retained | Bounded repair/proof history; unchanged relevant source since their gates or superseded by this full combined gate. 009 and 022 are resolved; 008 is covered through 009. |
 | [Draft-safety reviewed closure](../../update-draft-safety/issues/015-coverage-mutation-and-closure.md#answer), [019](019-adopt-build-safely.md#answer), [020](020-split-firmware-either-half-central.md#answer), [021](021-repeated-save-toasts.md#answer) | Retained | Reviewed closures and delta rechecks remain applicable to unchanged relevant source; this gate supersedes older full-gate limitations, not their scope/risk caveats. |
 
-003 remains `wontfix` / not applicable following 002's withdrawn MCU premise.
+003 remains `declined` / not applicable following 002's withdrawn MCU premise.
 The user-cancelled 004–007 are not blockers and are not restored behaviors.
 
 ### Independent review and explicit coverage disposition
@@ -297,7 +297,7 @@ Spec checkpoint: `review/spec-010`. Verdict **PARTIAL**:
 | A2/A3/A6/A7 | Cancelled-accepted (user cancellations 004–007). Restoration is **ABSENT**: the Relations tab remains, scope-popup duplication remains, disclosure motion is unproven, and 17 chevron selectors remain. |
 | A4 | Recovered for the surviving repairs, with their behavioral proof; not evidence for cancelled repairs. |
 | A5 | Recovered technically by the fresh complete gate and bound drag/reload receipt. |
-| A8 | Reconciled by this record and the map/011 handoff, with historical evidence preserved. |
+| A8 | Reconciled by this record and the map/011 transfer, with historical evidence preserved. |
 
 Cancellations alone yield **PASS-with-accepted-cancellations**; they do not cause
 the PARTIAL verdict. **PARTIAL is coverage-capped and is not upgraded here.**
@@ -335,7 +335,7 @@ All items below are **RECORDED AS ACCEPTED OPTIONAL DEBT**, not fixed in 010:
 - O4: stale migration-era comments in `runtime.rs` / host `offline.rs` — documentation debt, not a claimed repair.
 - Spec optional: `collapsible.rs:11` comment — retained comment debt; no motion-restoration claim.
 
-### 011 coordinator handoff
+### 011 coordinator transfer
 
 Candidate: `18d4d7f535dca096a811c9e71bbf823f475485fc`, with only the 010 claim
 and these documentation edits after the gate; use the source/build/browser/site

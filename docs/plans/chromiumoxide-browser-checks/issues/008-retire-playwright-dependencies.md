@@ -1,6 +1,6 @@
 # 008: Retire Playwright browser dependencies
 
-Status: ready-for-human
+Status: awaiting-decision
 Type: build
 Blocked by: [Rust drag smoke end to end](005-rust-drag-smoke.md), [Rust CAD runtime capture](006-rust-cad-runtime-capture.md), [Rust Graphite acceptance checks](007-rust-graphite-acceptance.md)
 Parent: [Chromiumoxide browser checks](https://github.com/runinit/boardstudio/blob/511ae990a7205d9228e5d09eb7d46f8340155f8b/docs/plans/chromiumoxide-browser-checks/map.md)
@@ -15,7 +15,7 @@ parity gate has passed. Keep this a dependency retirement, not a new test migrat
 ## Acceptance
 
 - [x] Inventory all remaining browser consumers and runtime imports before deletion; no live
-  workflow loses its runner, dependency or manual entry point. Preserve archived prototypes
+  workflow loses its runner, dependency or manual entry point. Preserve archived mockups
   as evidence rather than deleting their historical dependency references.
 - [x] Remove obsolete Playwright runners, personal-path workarounds, browser npm install and
   NODE_PATH prerequisites from migrated workflows. Update CI caches, portable discovery,
@@ -32,11 +32,11 @@ parity gate has passed. Keep this a dependency retirement, not a new test migrat
 
 ## Verification and scope
 
-Use TDD at the existing public launcher/output seams: demonstrate the expected regression
+Use test-first at the existing public launcher/output seams: demonstrate the expected regression
 before the fix, then run affected tests and typechecking during development. At closure run
 the full supported check and combined Spec + Standards review; record terminal verdicts,
 source/build identity and any blocked gates honestly. No weakened assertions, masked page
-errors, baseline deletions or retry-until-green. Preserve the archived prototypes and unrelated
+errors, baseline deletions or retry-until-green. Preserve the archived mockups and unrelated
 work. Builds follow repository concurrency/lock rules; evidence uses supported receipts and
 logs, not custom hash manifests. All checks must be runnable by humans and CI without agent tools.
 
@@ -67,7 +67,7 @@ before deletion; this is preparation, not a parity or acceptance verdict.
   generally. `scripts/test-check.py` inventories the manual and delegated scripts.
   Ergogen fixture generation uses a separate `NODE_PATH`; it is not a Playwright
   prerequisite and must remain intact. Mounted WASM tests and ChromeDriver are
-  outside this ticket. Historical research, archived prototypes and dated design
+  outside this ticket. Historical research, archived mockups and dated design
   evidence retain their references.
 
 No runner or dependency was removed. CAD worker response parity and Graphite

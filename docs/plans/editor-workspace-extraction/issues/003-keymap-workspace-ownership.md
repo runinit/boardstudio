@@ -1,6 +1,6 @@
 # 003: Give Keymap complete workspace ownership
 
-Status: ready-for-agent
+Status: ready
 Type: build
 Blocked by: [002: Production composition test seam](002-production-composition-test-seam.md)
 Parent: [001: Editor workspace ownership specification](001-editor-workspace-ownership.md)

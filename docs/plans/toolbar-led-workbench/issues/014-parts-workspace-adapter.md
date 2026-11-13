@@ -1,6 +1,6 @@
 # 014: Parts adapter with catalog, authoring and placement continuity
 
-Status: ready-for-human
+Status: awaiting-decision
 Type: build
 Blocked by: [009](009-shared-toolbar-panel-host.md), [005](005-retain-objects-capabilities.md)
 Parent: [map.md](../map.md)

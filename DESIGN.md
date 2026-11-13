@@ -31,7 +31,7 @@ typography:
 
 [ADR-0041](docs/adr/0041-toolbar-led-workbench.md) supersedes the dock, narrow Sheet,
 Layout two-strip/wrapping and header-composition guidance below for the next shared shell.
-The [planning handoff](docs/plans/toolbar-led-workbench/map.md) covers all six workspaces:
+The [planning transfer](docs/plans/toolbar-led-workbench/map.md) covers all six workspaces:
 one 42px toolbar, compact Objects and an unpinned Inspect pop-out; a quieter header applies
 globally. [M1 Layout implementation](docs/plans/toolbar-led-workbench/delivery.md) is authorized
 following its planning gate; later phases and rollout remain approval-gated. Until migrated,
@@ -419,7 +419,7 @@ The rail of an anchored matrix ends in an Anchor token, as does the rail of an
 independent part after its drag tools; pressing it arms canvas Anchor pick mode
 instead of a drag. Every committable key draws a violet 4.5 px ring (6 px on
 hover, 24 px hit area) with its label, the current anchor fills a white dot,
-and loop-forming targets draw no ring; prototype major targets (parts, the half
+and loop-forming targets draw no ring; mockup major targets (parts, the half
 origin) render dimmed and never commit, because Core anchors name keys only.
 Hovering a ring previews the Core-evaluated post-commit pose in amber, and the
 anchor popup pins to the canvas's top-right corner. Clicking commits one
@@ -546,9 +546,9 @@ each current key and encoder push button. Layout edits define a new hardware/key
 revision; deleted-key tombstones and automatic keymap migration are not promised.
 PCB downloads include a wiring report and per-part jumper instructions for each
 physical population sharing the board. Draft
-handoffs retain unresolved findings. Successful PCB handoffs protect valid signal
+transfers retain unresolved findings. Successful PCB transfers protect valid signal
 assignments, including drafts; protection survives Undo. Starting a new PCB revision
-requires the explicit remap review in Wiring. Failed exports record no handoff.
+requires the explicit remap review in Wiring. Failed exports record no transfer.
 
 Reversible recipes preserve fabricated local nets across open solder gaps and use
 part IDs rather than editable references for their names. Instructions identify the
@@ -572,6 +572,6 @@ signature and project/instance identity still match.
 The Case preview uses that instance's reflected parts and outline together. Layout
 2D and 3D continue to show the canonical PCB design.
 
-ZMK handoffs target v0.3.0 and contain editable source, pin assignments, and build
+ZMK transfers target v0.3.0 and contain editable source, pin assignments, and build
 configuration. Source generation and device-tree syntax checks do not substitute
 for a complete target firmware build or hardware verification.

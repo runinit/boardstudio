@@ -1,6 +1,6 @@
 # 006: Quieter global topbar without action or save-state loss
 
-Status: ready-for-agent
+Status: ready
 Type: build
 Blocked by: [009](009-shared-toolbar-panel-host.md)
 Parent: [map.md](../map.md)

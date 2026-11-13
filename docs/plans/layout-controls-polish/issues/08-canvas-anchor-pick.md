@@ -1,10 +1,10 @@
 # 08: Canvas Anchor pick mode
 
-Status: ready-for-agent
+Status: ready
 Type: build
 Blocked by: [02](02-screen-space-canvas-chrome.md), [04](04-re-anchor-moves.md), [06](06-value-popup-and-commit-toast.md), [07](07-part-rail.md)
 Map: [map.md](../map.md)
-Prototype: branch `prototype/layout-controls-iconography` (e91865f43), `?variant=D` (anchor pick, `data-anchor`).
+Mockup: branch `mockup/layout-controls-iconography` (e91865f43), `?variant=D` (anchor pick, `data-anchor`).
 Review: web-only behaviour on existing Core ops; RED/GREEN evidence and a diff read.
 
 ## What to build
@@ -47,4 +47,4 @@ origin as candidates, marks its current anchor key, and excludes the thumb matri
 ## Carried point
 
 - The toast wording follows whatever [04](04-re-anchor-moves.md)'s carried Undo/status point
-  settles. Until then, use the prototype's default.
+  settles. Until then, use the mockup's default.

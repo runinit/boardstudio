@@ -32,7 +32,7 @@ inspected revision, reproduction steps, verification limits and remaining work s
 the evidence can be checked before implementation.
 
 [Rust conventions review](investigations/rust-conventions-review.md) weighs the
-installed Rust skills against this codebase, with measured costs and a ranked,
+installed Rust guides against this codebase, with measured costs and a ranked,
 unimplemented change list.
 
 The [architecture review of 2026-10-07](investigations/architecture-review-2026-10-07.html)
