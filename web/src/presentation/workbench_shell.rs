@@ -395,22 +395,6 @@ fn fit_tool_row(live: &web_sys::Element) {
     if !live.is_connected() {
         return;
     }
-    if let Some(document) = live.owner_document()
-        && let Some(active) = document.active_element()
-        && active
-            .closest("[data-workbench-section][data-open=false] .workbench-tool-reveal")
-            .ok()
-            .flatten()
-            .is_some()
-        && let Some(group) = active.closest("[data-workbench-section]").ok().flatten()
-        && let Some(trigger) = group
-            .query_selector("[data-workbench-section-trigger]")
-            .ok()
-            .flatten()
-            .and_then(|element| element.dyn_into::<HtmlElement>().ok())
-    {
-        let _ = trigger.focus();
-    }
     let Ok(probe_node) = live.clone_node_with_deep(true) else {
         return;
     };

@@ -144,7 +144,17 @@ pub fn LayoutAlignToolbar(
     #[props(default)] inline_actions: bool,
     #[props(default)] first_index: usize,
 ) -> Element {
-    let detail_menu = use_signal(|| None::<LayoutCommandMenu>);
+    let mut detail_menu = use_signal(|| None::<LayoutCommandMenu>);
+    // The Reference detail closes with its section. Setting the signal directly restores
+    // no focus to the trigger inside the now-inert lane.
+    use_effect(move || {
+        if inline_actions
+            && open_menu() != Some(LayoutCommandMenu::Align)
+            && detail_menu.peek().is_some()
+        {
+            detail_menu.set(None);
+        }
+    });
     let toast = use_toast();
     use_effect(use_reactive((&mount.feedback,), move |(feedback,)| {
         if let Some(feedback) = feedback {

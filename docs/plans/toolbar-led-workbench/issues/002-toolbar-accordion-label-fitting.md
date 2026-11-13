@@ -612,6 +612,41 @@ Slice 1 exit decisions (user, 2026-11-13):
 - Utility labels keep priority over captions. Captions therefore do not show at 728,
   and the caption threshold is calibrated near 800 in Slice 3 instead of 850.
 
+### 2026-11-13 — Slice 2: close focus owned by the Layout section
+
+`LayoutAccordionSection` now returns focus to its own section trigger when a close
+strands it. The lane claims focus on focus-in and drops the claim on a focus-out
+that happens while the lane is not yet inert (a voluntary departure). On open→closed
+with a claim, a deferred check focuses the trigger only if the section is still
+closed and focus sits in the hidden lane or on the body. `LayoutAlignToolbar` clears
+its Reference detail when the Align section closes, by setting the signal directly so
+no focus returns to the hidden Reference trigger. The fitter's own rescue is removed
+from `fit_tool_row`; density still uses the old fitter. `ToolbarObserver` is untouched.
+
+Deviation from the focus model: no close-generation token. The deferred check
+re-reads section state and the active element when it fires, and the task is dropped
+with the component; the reopen mutation below shows that guard is live.
+
+Row F evidence (`.evidence/toolbar-rework/step3-slice2-*`), runner
+`python3 scripts/check.py browser --only layout`:
+
+- `closing_the_align_section_dismisses_its_reference_detail`: observed RED before the
+  change ("the detail closes with its section"), GREEN after. No mutation owed.
+- `closing_a_section_returns_only_stranded_lane_focus_to_its_trigger`: its pre-change
+  run was masked by the Align panic poisoning shared WASM state, so it counts as a
+  proof gap closed by mutation. Four mutants, each killed on its own assertion:
+  omit the rescue; rescue over a destination chosen after the close; rescue after a
+  reopen; rescue focus the lane never held.
+- GREEN: Layout browser 277 + 2 passed; shell `workbench_shell.rs` 6 passed with the
+  fitter rescue removed; `check.py quick` and `check.py lint` passed.
+- Packaged page at 1440 and 390, built without the fitter rescue: closing Select with
+  focus in the lane lands on the Select trigger; switching to Snap lands on the Snap
+  trigger.
+
+Not covered here: the unmount/3D-route case and trusted-keyboard traversal (rows B
+and K), and the "remove `inert` from a closed reveal" mutant, which the existing
+`accordion_sections_keep_existing_tools_inline` selector assertion guards unmutated.
+
 ### Earlier implementation receipts
 
 - 2026-11-11 Availability/action-parity builder: both mounted tests GREEN in `.evidence/toolbar-m1/002-availability-parity-attempt4.log` (11 executed, 0 failed). First-column scope is chosen through Select before Transform, matching the existing scope controls and column-specific action labels. Attempt 2 reached a Follow-rotation fixture with no accepted scope; attempt 3 added an anchor source key, board membership and shared layout following `matrix_edit_test_support`, and availability passed. Attempt 3 parity failed because clicking SW14 did not populate the combobox input; the existing `combobox_floor_filter_active_descendant_selection_and_escape` test establishes filtering, ArrowDown and Enter as a selection path. Attempt 4 uses that path and retains the SW14 selection and resulting alignment assertions. The later host failures in attempts 1–3 followed the shared-WASM panic-hook cascade. Receipts: `.evidence/toolbar-m1/002-availability-parity-attempt{1,2,3,4}.log`. Gortex writes for the two initial test corrections returned `view_building` twice each, so those used the user-authorized native fallback; the parity correction and this ticket entry used Gortex. No production change, full gate, mutation, review or closure claim.

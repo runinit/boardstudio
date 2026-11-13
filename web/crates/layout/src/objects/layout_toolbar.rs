@@ -21,7 +21,10 @@ use boardstudio_web_ui_shared::ui::{
 use dioxus::prelude::*;
 use dioxus_primitives::{dioxus_attributes::attributes, merge_attributes};
 use dioxus_web::WebEventExt;
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+};
 use wasm_bindgen::{JsCast, closure::Closure};
 use web_sys::{Document, HtmlElement, Node, PointerEvent as WebPointerEvent};
 
@@ -734,6 +737,110 @@ mod tests {
     async fn click(element: &web_sys::HtmlElement) {
         element.click();
         gloo_timers::future::TimeoutFuture::new(40).await;
+    }
+
+    /// Calls `target[action]()` in the microtask after `reveal` turns inert: once the
+    /// close has rendered and before any deferred focus check can run.
+    fn when_inert(reveal: &web_sys::Element, target: &web_sys::HtmlElement, action: &str) {
+        js_sys::Function::new_with_args(
+            "reveal, target, action",
+            "new MutationObserver((_, observer) => { if (reveal.inert) { observer.disconnect(); target[action](); } }).observe(reveal, { attributes: true });",
+        )
+        .call3(&wasm_bindgen::JsValue::NULL, reveal, target, &action.into())
+        .unwrap();
+    }
+
+    #[wasm_bindgen_test]
+    async fn closing_a_section_returns_only_stranded_lane_focus_to_its_trigger() {
+        let root = mount_accordion_pill(None).await;
+        let document = root.owner_document().unwrap();
+        let html = |selector: &str| {
+            root.query_selector(selector)
+                .unwrap()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlElement>()
+                .unwrap()
+        };
+        let focused = || document.active_element().map(|active| active.id());
+        let trigger = html("#m1-layout-select-trigger");
+        let reveal = html("#workbench-section-select");
+        let close = html("#pill-probe-open");
+
+        click(&trigger).await;
+        scope_trigger(&root, "Matrix").focus().unwrap();
+        click(&close).await;
+        assert!(reveal.has_attribute("inert"));
+        assert_eq!(
+            focused().as_deref(),
+            Some("m1-layout-select-trigger"),
+            "focus stranded in the closed lane returns to the section trigger"
+        );
+
+        click(&trigger).await;
+        scope_trigger(&root, "Matrix").focus().unwrap();
+        when_inert(&reveal, &close, "focus");
+        click(&close).await;
+        assert_eq!(
+            focused().as_deref(),
+            Some("pill-probe-open"),
+            "a destination chosen after the close keeps focus"
+        );
+
+        click(&trigger).await;
+        scope_trigger(&root, "Matrix").focus().unwrap();
+        when_inert(&reveal, &trigger, "click");
+        click(&close).await;
+        assert!(!reveal.has_attribute("inert"), "the section reopened");
+        assert_ne!(
+            focused().as_deref(),
+            Some("m1-layout-select-trigger"),
+            "reopening cancels the pending rescue"
+        );
+
+        scope_trigger(&root, "Matrix").blur().unwrap();
+        click(&close).await;
+        assert!(reveal.has_attribute("inert"));
+        assert_eq!(
+            document.active_element(),
+            document.body().map(Into::into),
+            "a close never takes focus the lane did not hold"
+        );
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn closing_the_align_section_dismisses_its_reference_detail() {
+        let root = mount_accordion_pill(None).await;
+        let document = root.owner_document().unwrap();
+        let html = |selector: &str| {
+            root.query_selector(selector)
+                .unwrap()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlElement>()
+                .unwrap()
+        };
+        let detail_open = || {
+            document
+                .query_selector("#m1-layout-align-menu[data-state='open']")
+                .unwrap()
+                .is_some()
+        };
+        click(&html("#m1-layout-align-section-trigger")).await;
+        click(&html("#m1-layout-align-trigger")).await;
+        assert!(detail_open(), "Reference detail opens");
+        click(&html("#m1-layout-select-trigger")).await;
+        assert!(!detail_open(), "the detail closes with its section");
+        assert_ne!(
+            document
+                .active_element()
+                .map(|active| active.id())
+                .as_deref(),
+            Some("m1-layout-align-trigger"),
+            "focus is not restored into the closed lane"
+        );
+        click(&html("#m1-layout-align-section-trigger")).await;
+        assert!(!detail_open(), "returning to Align does not reopen it");
+        root.remove();
     }
 
     #[wasm_bindgen_test]
@@ -1534,6 +1641,46 @@ fn LayoutAccordionSection(
     children: Element,
 ) -> Element {
     let expanded = open_menu() == Some(menu);
+    let mut reveal = use_signal(|| None::<web_sys::Element>);
+    // (lane holds focus, section was open at the last render)
+    let focus = use_hook(|| Rc::new((Cell::new(false), Cell::new(expanded))));
+    use_effect(use_reactive((&expanded,), {
+        let focus = focus.clone();
+        move |(expanded,)| {
+            let closed = focus.1.replace(expanded) && !expanded;
+            if !(closed && focus.0.replace(false)) {
+                return;
+            }
+            // Decide after the closing event's own focus change: a reopened section or
+            // any destination outside the hidden lane keeps focus.
+            spawn(async move {
+                gloo_timers::future::TimeoutFuture::new(0).await;
+                let Some(reveal) = reveal.peek().clone() else {
+                    return;
+                };
+                let active = reveal
+                    .owner_document()
+                    .and_then(|document| document.active_element());
+                let stranded = active.as_ref().is_none_or(|active| {
+                    active.tag_name() == "BODY" || reveal.contains(Some(active))
+                });
+                if *open_menu.peek() != Some(menu)
+                    && stranded
+                    && let Some(trigger) = reveal
+                        .parent_element()
+                        .and_then(|group| {
+                            group
+                                .query_selector("[data-workbench-section-trigger]")
+                                .ok()
+                                .flatten()
+                        })
+                        .and_then(|trigger| trigger.dyn_into::<HtmlElement>().ok())
+                {
+                    let _ = trigger.focus();
+                }
+            });
+        }
+    }));
     let trigger_id = match menu {
         LayoutCommandMenu::Align => "m1-layout-align-section-trigger",
         LayoutCommandMenu::Snap => "m1-layout-snap-section-trigger",
@@ -1555,6 +1702,14 @@ fn LayoutAccordionSection(
             }
             div { class: "workbench-tool-reveal", id: format!("workbench-section-{}", menu.key()),
                 inert: (!expanded).then_some(""), "aria-hidden": (!expanded).then_some("true"),
+                onmounted: move |event: MountedEvent| reveal.set(event.data().try_as_web_event()),
+                onfocusin: { let focus = focus.clone(); move |_| focus.0.set(true) },
+                // Focus leaving a lane that is not yet inert left by choice; inert displacement keeps the claim.
+                onfocusout: move |_| {
+                    if reveal.peek().as_ref().is_some_and(|reveal| !reveal.has_attribute("inert")) {
+                        focus.0.set(false);
+                    }
+                },
                 div { class: "workbench-tool-reveal-inner",
                     div { class: "workbench-tool-track", {children} }
                 }
