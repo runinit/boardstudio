@@ -34,6 +34,12 @@ Save/recovery alerts move to shell status in 006, not inside the bounded strip.
 
 ## Proof map
 
+For the proposed fitter replacement, the [2026-11-12 Step 3 entry](#2026-11-12--revised-step-3-design-replace-the-toolbar-fitter)
+refines bounded fitting/motion into rows D/L/F/K/M/R/O/B and maps retired assertions
+and mutations. Those rows remain planned; approving this design and completing its
+gates precede retirement. Availability and action parity below remain required.
+Historical measured-fitting receipts do not establish replacement acceptance.
+
 - Bounded fitting — 320/390/728/desktop, real built Theme/toolbar stylesheet and font loaded,
   actual Layout action/section controls mounted → open each section/resize →
   height 42px, seven entry points hit-testable, one full action available, action labels
@@ -55,6 +61,482 @@ page wiring changes. Motion/measurement/reduced-motion/guard proof-gap mutations
 there. Run one combined Spec+Standards review and affected gate before closure.
 
 ## Implementation progress
+
+### 2026-11-12 — Revised Step 3 design: replace the toolbar fitter
+
+**Design only; implementation not started.** Inspected `c418bb966` on
+`cleanup/remove-dead-weight`, including CSS steps 1–2 at `656ab6011`. No new
+runtime, RED/GREEN, mutation or browser evidence is claimed here. This entry
+revises the earlier Step 3 proposal, not the historical receipts below.
+
+#### Decision summary
+
+Prefer a named inline-size query container on `.workbench-tool-row`, with CSS
+density rules for its descendants. Remove clone/probe allocation, fitting
+observers/font callbacks, `fit_key` and measured animation distance only after
+the replacement passes the gates below. Keep retained lanes, native scrolling,
+existing tools/guards, the shared Toolbar tab-stop observer, and domain state.
+Production close-focus rescue belongs to Layout, not the synthetic shell section.
+
+This is a deliberate change from greedy per-content fitting to predictable width
+bands; it does **not** promise identical label counts at every old width. Numeric
+density breakpoints are candidates, not measured safe limits. The proposed
+entry-only motion also needs explicit approval: the parent architecture still
+describes measured fitting and 280ms/170ms entry/exit. Before implementation, the
+coordinator must record approval of this replacement contract and reconcile those
+clauses and 009's probe obligations; this ticket alone does not silently waive them.
+All surviving behavioral gates remain mandatory.
+
+#### Behavior / density model
+
+Adopted constraints carried from the existing contract: one 42px row, seven Layout
+2D entry points, each hit region at least 32×32px with at least 4px separation, no
+row/page horizontal overflow or wrapping, stationary triggers during lane scroll,
+and at least one complete usable action in an enabled open section. Other touch
+surfaces retain their existing 44px floor. All actions remain keyboard/pointer
+reachable; no scope popups or duplicate editors. Guidance is not an enabled action.
+
+Let **W** be the row's **content-box inline size in CSS pixels**, not viewport
+width, border-box width, or lane width. Intervals below are inclusive at the lower
+bound and exclusive at the upper bound. Adopt the following *density ordering*;
+all five numeric boundaries **360 / 500 / 700 / 850 / 1200 remain provisional**
+until the measurement gate accepts or revises them.
+
+| State | W candidate | Headings and their chevrons | Captions | Utility labels |
+|---|---:|---|---|---|
+| Any section open | <850 | none | none | none |
+| Any section open | 850≤W<1200 | open section only | none | full |
+| Any section open | ≥1200 | all five | none | full |
+| All sections closed | <360 | none | none | none |
+| All sections closed | 360≤W<500 | none | none | full |
+| All sections closed | 500≤W<700 | Select + Transform only | none | full |
+| All sections closed | 700≤W<850 | all five | none | full |
+| All sections closed | ≥850 | all five | captions that exist | full |
+
+Closed captions have their **own candidate 850 threshold**, independent of the
+500/700 heading bands. They never appear without their heading, nor when any
+section is open. Chevron display follows the same predicate as its heading,
+including closed partial-heading mode. There is no standalone chevron-only mode.
+The Transform caption may be absent or name an active tool; do not budget it as
+permanently empty. Caption removal precedes heading removal in closed density.
+
+For marked inline icon+label actions: W≥850 shows every label; W<850 shows labels
+only for `aria-pressed="true"` **or** `aria-checked="true"`, and always for
+text-only actions. This is a visibility policy, not a promise that the whole
+action fits the lane. Do not treat `data-state="on"` as a substitute for the
+actual pressed/checked semantics; retain its existing visual styling where used.
+Buttons without a meaningful action SVG must never turn blank. Per-size Snap
+buttons, including unpressed `0.5 mm` / `0.1 mm`, remain text-bearing; Custom,
+Reference, Handles, input values/units and other unmarked content are not swept
+into a generic span-hiding rule. Existing `sr-only` labels stay screen-reader-only.
+
+The 3D ToolRow branch has **no accordion sections**: apply the closed utility
+policy, preserve its 2D/3D controls and Objects/Inspect, and do not invent five
+missing triggers. Verify this branch separately from the seven-entry 2D oracle.
+
+**Select invariant:** each shown label has intrinsic/auto button width sufficient
+for its exact text, icon, gap and padding, without icon/text overlap or text
+overflow *within the button*. Each compact action has a contained icon and a
+target at least 32×32px. Both scope-trigger and toggle-group-item forms obey this.
+Never leave a labelled Select button at fixed 32px. A pressed labelled button can
+be wider than the lane; retain auto width and scroll access, never squeeze its
+text into the icon. Report it as partially exposed, not fully visible. Such a
+button cannot supply the “one complete usable action” proof; scroll to a fitting
+enabled peer and prove actual activation. If a required control cannot be used,
+or no complete action fits even with compact entry points, reject the candidate
+layout rather than weaken that assertion. An oversized action needs readable
+name access and a hit-testable activation region; complete text/button
+containment in the lane is a separate, stricter measurement.
+
+#### Component ownership and focus model
+
+- `workbench_shell::ToolRow` owns row structure/density context, not Layout
+  selection, section or popup state. Its fitting machinery may go; its shared
+  `ui-shared/src/ui/toolbar.rs::ToolbarObserver` **must stay**. That observer repairs
+  tab stops for retained inert content and is unrelated to width allocation.
+- `layout_toolbar.rs::LayoutAccordionSection` owns production trigger/reveal,
+  `inert`, `aria-hidden` and close-focus rescue. Use the actual section trigger
+  reference: Align/Snap use `*-section-trigger`, distinct from detail triggers.
+  Do not call the legacy Select restore helper that can select a scope action
+  inside a now-inert lane.
+- Implement the small rescue privately in Layout with mounted DOM references,
+  previous-expanded state and a close-generation token. No new public shell
+  component, cross-crate focus API or global section registry. The shell fixture's
+  `ToolSection` may keep equivalent local behavior for its fixture, but its passing
+  test is not evidence that production focus is wired.
+- Do **not** rely on a post-render effect inspecting only `activeElement`: setting
+  inert can already displace it to body. While expanded, capture focus ownership
+  through focus-in/out events, retaining the last focused descendant for the
+  impending close. A document focus-in to a valid outside element clears that
+  claim; ordinary blur/window loss clears it rather than leaving stale ownership.
+  If focus-out has no related target, resolve after the event/DOM turn: retain
+  only when closure/inertness displaced the previously owned focus, not a
+  voluntary departure while still open. Snapshot ownership before setting the
+  section signal in local close paths; event tracking covers external signal
+  changes too. Never read/mutate DOM during component render.
+- The reconciliation effect explicitly depends on the mounted node and expansion.
+  Read `open_menu()` inside the effect (and react to `menu` if captured as a prop),
+  or use `use_reactive((&expanded,), ...)` for a computed bool; plain captured
+  `expanded` is not reactive. Run only on true→false, not initial mount.
+  Schedule the final check after the current pointer event/default focus and DOM
+  update, with a generation check; do not focus synchronously on outside
+  pointerdown. Rescue only if the old lane owned focus and it remains in that
+  hidden lane or has fallen to body/no active element. Preserve any connected,
+  visible, non-inert outside destination, including a newly opened section,
+  Objects/Inspect or canvas. Reopening, a newer focus event, unmount or route
+  change cancels the pending rescue. Disconnect listeners/cancel pending work on
+  drop; route owners, not removed sections, choose a new-workspace destination.
+- Keep nested popup dismissal in its existing owner. Align's local `detail_menu`
+  must be cleared when its parent section closes (subscribe to parent
+  `open_menu`), without restoring focus to the hidden Reference trigger or
+  reopening on section return. Verify portalled choices, if present, as belonging
+  to that popup; do not classify them as unrelated outside focus.
+
+Required focused cases: close with a real lane action focused; focus already
+displaced by inert; switch to another section; outside pointer selects a valid
+focus destination; close then reopen before the deferred check; unmount/3D route.
+Keep one roving stop, closed descendants excluded, and real arrows/Home/End plus
+offscreen focus scrolling. Synthetic `.focus()` alone does not prove scrolling.
+
+#### CSS / container / selector strategy
+
+Use `container-name: workbench-tools; container-type: inline-size` on the row,
+with a definite parent-assigned width and `min-width:0` along the flex chain.
+Use `@container workbench-tools (...)`, not the nearest anonymous container;
+avoid accidental capture by nested Select/Popover containers. Named containment
+does not by itself guarantee overlay safety.
+
+A query container cannot query-style its **own** padding/gap. Keep row padding
+and gap fixed outside the queries, and query-style only descendants. The current
+row has horizontal padding 2px, gap 3px, and the Layout child has gap 4px; record
+both rather than subtract a fictional single gap. The real seven-entry bank is
+inside `.layout-toolbar-accordion`. If acceptance needs different spacing, set
+a fixed row/child rule or explicitly propose an outer container; do not write a
+self-query that silently resolves against some ancestor. Preserve at least the
+required 4px separation in the actual entry geometry, not just a CSS token.
+
+Closed groups stay intrinsic-sized/non-shrinking only if the density budget fits.
+An open group and reveal shrink with `min-width:0`; its trigger does not shrink.
+Maintain a stationary reveal-inner clip and the native overflow-x action track.
+Do not “solve” entry overflow with row clipping, `overflow:visible`, or shrinking
+trigger hit regions. Check closed reveal descendants cannot paint, hit or take
+focus despite retained nonzero intrinsic widths.
+
+Replace, rather than layer over, the old `data-fit-headers`,
+`data-closed-hide`, `data-action-labels`, `data-show-label` and
+`data-utility-labels` selectors. Scope action rules to
+`[data-workbench-action] > .workbench-action-label` (verified markup), exclude
+popup descendants, and identify meaningful SVGs in the action itself; a nested
+popup SVG is not an icon for its trigger. Use the same predicates for Select's
+auto-width and label display. `@container` contributes **no specificity**:
+explicitly replace the old fixed-width Select override with scoped equal-or-higher
+specificity rules in the correct cascade order. Read computed width, padding,
+display and bounds for pressed, checked, unchecked and text-only cases. Do not
+use `!important` to hide an unresolved cascade conflict or change legacy PCB
+non-accordion styling. Keep state/class styling separate from density.
+
+#### Motion model
+
+Propose **entry-only solid translation**, 280ms with the existing easing; close
+immediately collapses to 0fr and becomes inert. Remove the ineffective closed
+170ms track animation, not pretend it supplies visible exit motion. This is an
+intentional contract revision requiring the approval noted above.
+
+`translateX(100%)` refers to the track's transform reference box, **not**
+`track.scrollWidth`. Set/verify `transform-box:border-box`; translate by one
+allocated track-box width from the right to its rest position. Final clip and
+density must already be allocated in the first animated frame. The scrollable
+track's own overflow clip moves with it, so prove that earlier scrolled content
+does not leak into the stationary outer clip at nonzero `scrollLeft`. Retain the
+scroll offset on close/reopen unless native focus scroll adjusts it; do not reset
+scroll to make a motion test pass. No promise that all overflow content travels
+its full scroll extent.
+
+Icon/text units keep their relative offset; enabled units keep effective opacity
+1, disabled units keep their pre-existing constant disabled opacity (no fade,
+stagger or label delay). Clip bounds stay fixed during an open segment with no
+resize; a resize may allocate a new final clip immediately, not animate its size.
+Rapid A→B→A cancels prior entry, immediately clips/inerts B on close, and ends
+with only A open and zero stale animations. Test actual intermediate translation,
+not only endpoints. Settled `transform` must be `none`, not a retained identity
+transform; avoid `will-change:transform` that keeps a containing block alive.
+
+A non-none transform changes fixed-descendant positioning. When a lane overlay
+opens during entry, finish/cancel that lane's animation immediately and remove
+the transform before displaying the overlay; do not delay access until 280ms.
+Prefer a CSS rule keyed to the existing open overlay state on the containing
+section; prove portal/state reach before selecting its exact selector. If that
+cannot reliably remove the transform in the same rendering turn, stop this
+motion slice for a different non-transform/overlay-host design, rather than
+silently portal/reparent controls. Reduced motion disables all workbench row and
+panel animations/transitions (including chevrons) from the first state change;
+observe zero running animations, not “none left after waiting”.
+
+#### Overlay model
+
+Keep the step 1–2 anchor direction, subject to measured containment on the actual
+supported browser/version set. Test named container on/off and track transform
+on/off separately: neither “CQ always clips fixed popups” nor “fixed always
+escapes” is an acceptable assumption. Current references:
+[container queries](https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_containment/Container_queries),
+[transform](https://developer.mozilla.org/en-US/docs/Web/CSS/transform) and
+[translateX](https://developer.mozilla.org/en-US/docs/Web/CSS/transform-function/translateX).
+Context7's MDN containment summaries differ in detail; browser evidence must
+resolve the effect of inline-size containment here. Dioxus
+[effect dependencies](https://github.com/DioxusLabs/dioxus/blob/v0.7.10/packages/hooks/docs/side_effects.md)
+likewise require explicit non-signal dependencies, not a guessed pre-inert effect.
+
+| Surface / owner | Required observations |
+|---|---|
+| Tooltips, including Transform guidance and Handles | Hover and real keyboard focus expose exact full text; stable trigger/scroll offset, popup bounds and hit target outside lane clip; no clipped or ghost tooltip after section close |
+| Layers / View | `#m1-layers-trigger` and fixed `#m1-layers-list`: visible choices, viewport-safe placement, scrolling, no page overflow; dismiss/hide on parent close, no stale interactive list |
+| Alignment Reference / `LayoutCommandPopup` | Its independent `detail_menu`, dialog and Close stay usable; parent section closes detail; Escape restores to Reference only while its lane is open |
+| Nested reference Select (≤12) / Combobox (>12) | Open from Reference, choose a literal reference (filter + ArrowDown + Enter for Combobox), confirm accepted reference/result; first Escape closes the picker only, next closes detail, with correct focus and no ghost options |
+
+For **each surface**, record initial opening, opening during entry, opening after
+nonzero lane scroll, scrolling while open, resize across a density boundary,
+section close/switch and reopen. Measure visual-viewport containment, ancestor
+clippers, trigger anchoring and `elementFromPoint` hit testing; test pointer and
+keyboard selection, not just an existing DOM node or `display:block`.
+
+Layers currently has `left:anchor(left)` and no explicit horizontal flip/clamp
+in its local rule; the reported right-edge defect is a **baseline candidate**,
+not a newly measured Step 3 regression. Reproduce at `c418bb966` with a separate
+baseline checkout if needed, then compare identical steps on the candidate.
+Record pre-existing defects separately from CQ/transform regressions. An existing
+defect that violates a mandatory popup/access criterion still blocks acceptance
+or needs a user-approved separate disposition; it cannot be grandfathered into
+GREEN. No unrelated popup/primitive rewrite is authorized by this design.
+
+#### Implementation slices in order
+
+Each slice is independently reversible; stop and report at its exit and obtain
+explicit permission for the next phase. Do not delete the old path before the
+replacement proves its responsibilities. Two unchanged-result attempts trigger
+the issue-tracker stop rule, not an expanding test/refactor programme.
+
+1. **Baseline and oracle first.** Entry: approved revised contract, current diff
+   inventory, source-matched package. Extend existing observations, not a new
+   testing framework. Record old density, real caption strings, focus timing and
+   overlay defects; replace the attribute-gated expectation without removing its
+   checks. Exit: observed RED for unmet new requirements, or baseline GREEN
+   marked proof gap with the exact mutation below; no invented failures.
+2. **Separate focus ownership.** Entry: failing/proof-gap production close-focus
+   case. Add private Layout rescue and parent/detail close handling; remove only
+   fitter focus rescue once production tests carry it. Exit: close/displacement,
+   outside-destination and rapid reopen cases pass; shared roving observer intact.
+   Density still uses the old fitter, so this slice can be reverted alone.
+3. **Density pilot and Select sizing.** Entry: content-box baseline and independent
+   oracle. Replace fitting-owned attributes with named CQ descendants and Select
+   width rules as one coherent change; disable the old writer in the candidate
+   rather than run two authorities. Keep the old implementation recoverable in
+   Git until the pilot passes. Exit: accepted boundary ledger, all five sections
+   including enabled Transform, closed states and 3D, constrained-parent/zoom/
+   coarse-pointer geometry, and overlay container on/off results. Failure selects
+   the fallback below or stops; it does not justify larger breakpoints by guess.
+4. **Motion and overlay integration.** Entry: density settled, entry-only approval.
+   Remove measured distance/exit animation, implement entry and overlay-open
+   cancellation. Exit: sampled solid motion, stationary clip, nonzero scroll,
+   rapid switching, fixed overlays and reduced-motion zero-animation gates pass.
+5. **Retire fitter and integrate.** Entry: preceding evidence accepted. Delete
+   clone/probe helpers, `ToolRowObservers`, font readiness callback, measuring
+   CSS and `fit_key` producer/consumers (including 3D); retain helpers/imports
+   used elsewhere. Inspect compiler inventory of removed field/type uses.
+   Migrate the existing fitting test and named mutants, read the full diff, run
+   affected gates and one fresh combined Spec+Standards review, then coordinator's
+   integrated gate. Exit: no new mandatory proof gaps, explicit remaining
+   follow-ups and approval for closure; no automatic next-phase implementation.
+
+#### Test and proof-map migration
+
+Expected presentation comes from this ticket's **accepted** W/state table and
+literal action inventory, not from production density attributes or computed
+display. In `select_label_report`, remove the
+`data-action-labels=="full"` branch only in the same change that independently
+computes expected label presence for **each** action from W and semantic state.
+Use independently specified fixture identity for icon vs text-only actions;
+a missing SVG must fail the icon oracle, not change the expectation to text-only.
+
+Retain exact count five and literal Matrix/Row/Column/Key/Part names/accessible
+labels. Check the **actual** DOM text independently of aria-label; expected shown
+labels need positive text-range bounds, visible computed visibility/opacity,
+icon/text containment in the button and no overlap. Expected hidden labels must
+not paint or consume layout. Also check button target dimensions, all clipping
+ancestors, row and visual viewport, effective disabled/inert state and center/
+edge hit tests after scrolling into reach. Record separately: requested display,
+intrinsic button contents fitting, and whole-control effective visibility.
+`display != none`, `innerText`, or a density flag alone proves none of these.
+
+The existing shell test
+`tool_row_fits_final_labels_before_roving_past_closed_actions` remains the cheap
+generic density/clip/roving story (rename only with an assertion-retention map).
+Add SVGs to its icon+label actions so adaptive behavior is honest, **and keep a
+distinct unpressed text-only action** that cannot go blank. It proves neither
+Layout's five real sections/seven entry points nor production close-focus,
+domain guards, Snap results or nested popups. Those stay in production Layout
+mounted fixtures and `scripts/test-workbench-viewport.py` on the real packaged
+page; preserve the per-size Snap parity correction in `c418bb966`.
+
+| Retired assertion / mechanism | Surviving replacement (not an assertion deletion) |
+|---|---|
+| Wait for `data-action-labels=adaptive`; greedy allocation/pressed flag checks | Independent density expectations at both boundary sides; pressed **and checked**, unpressed SVG and text-only labels; actual text/bounds and Select width |
+| Probe attach, aria-hidden/inert, cannot focus, removed after fit | Delete probe-only internals after no clone path remains; retain live closed-lane inert/aria-hidden, no paint/hit, no hidden Tab/arrow stops and focus rescue |
+| Pre-toggle measurement / final-fit-before-motion mutation | First moving frame has final density and clip; boundary resize/content/font changes cannot strand entry points; no clone/measurement requirement |
+| Measured `--workbench-tool-distance` / scrollWidth equality | Entry is one allocated track box, sampled solid motion and nonzero-scroll clipping; no claimed equal travel distance |
+| Fit-key, MutationObserver, ResizeObserver and fonts-ready refit | Same W responds to semantic state/content and font swap; constrained parent resize responds without viewport resize; stale callbacks cannot act after unmount |
+| Row 42px/no overflow, narrow native lane overflow, End→Inspect | Retain all; add complete-hit geometry and real offscreen keyboard scroll, not merely `scrollWidth > clientWidth` |
+| Full-label mode viewport checks | Every expected label checked regardless of removed attribute; wrong text, hidden expected label and fixed-width labelled action each fail |
+
+Step 3 proof rows below refine the original bounded-fitting/motion rows. All are
+**planned**; earlier receipts are historical candidate evidence, not CQ GREEN.
+
+| ID / requirement — precondition → action → independent oracle | Tier / status |
+|---|---|
+| D density — real CSS/fonts, worst captions, both sides of every band → close/open each section and resize parent at fixed viewport → exact heading/caption/chevron/utility policy, 42px, seven separated hit-testable entries, no row/page overflow, ≥1 whole enabled action in a valid fixture | mounted + packaged / planned |
+| L label sizing — Select pressed and checked forms plus unpressed SVG/text-only actions → change state/width → literal text/presence, icon/label bounds, ≥32px target, no overlap; narrow oversized actions not counted as whole | mounted; real Snap/Select packaged / planned |
+| F close focus — action focused before inert, outside destination or rapid reopen → close/switch/unmount → correct connected focus target, no stealing/no stale rescue, closed retained controls absent from Tab/arrows | production Layout mounted / planned |
+| K scroll reach — initially clipped enabled action → trusted keyboard traversal then native horizontal touch/trackpad scroll → focus/action enters visible lane and activates; trigger positions and page scroll stable | packaged / planned |
+| M motion — labelled enabled/disabled units, scrollLeft=0 then nonzero → open/rapid switch/resize → constant relative offset/opacity, intermediate translation, stationary clip per stable segment, no leaked closed content/stale animation | packaged / planned |
+| R reduce — preference set before opening, observer installed before click → section and panel toggles → final state immediately, zero running row/panel animations/transitions | mounted + packaged / planned |
+| O overlays — each named surface and nested picker, including during entry → scroll/resize/close/reopen/Escape → anchor/viewport/clip/hit and accepted reference, no invisible focus or stale open popup | production mounted + packaged / planned |
+| B branch/content — 3D without sections, font swap, selection/caption change → resize/switch 2D↔3D → applicable controls reachable, one bounded row, no stale callbacks or new state-persistence behavior | page mounted + packaged / planned |
+
+Original **Availability** and **Action parity** rows remain required, including
+first-column/Follow-off/locked/empty guards, >12 reference choice and Snap/View
+results. Existing no-selection guidance does not substitute for enabled Transform
+or Align; exercise both valid and unavailable states without enabling a guard to
+obtain a “usable action”.
+
+Mutation migration is limited to these observable failure stories. Record real
+RED before fixes; if baseline passes, mark GREEN + proof gap and kill the named
+mutant through `scripts/mutation-check.py SPEC --locked --command "RUNNER"`.
+Use one exact-source spec per mutation; restoration success is not a kill.
+Do not remutate a row with sufficient RED evidence. The parent verification
+document's 009 generic-fitting and 002 pre-toggle/probe mutations are retired
+**only with** this replacement evidence and coordinator reconciliation.
+
+| Row / precise proof-gap mutant | RUNNER / named failing oracle |
+|---|---|
+| D: show all closed headings/captions below their accepted band | `python3 scripts/run-wasm-tests.py --files web/src/presentation/workbench_shell.rs` for policy; packaged viewport for actual seven-entry geometry / expected density or entry containment |
+| L: hide expected Matrix label; separately change its text or force its labelled width to 32px | `python3 scripts/test-workbench-viewport.py --page-url URL --width 900 --height 900` (fresh package, accepted full-label W) / SELECT-LABELS exact presence/text/containment, not an unrelated error |
+| L: hide unpressed text-only Snap action | same viewport runner at `--width 320 --height 480` / exact Snap text and nonblank usable control |
+| F: omit close rescue; separately force rescue over a valid outside destination | `python3 scripts/check.py browser --only layout` / displaced focus restored; outside focus unchanged |
+| F/K: remove inert from a retained closed reveal | same Layout runner / closed action cannot take focus or enter real navigation; retain hidden-paint check in viewport runner |
+| M: fade label; separately animate reveal clip instead of track | packaged viewport runner at a width with labelled units / constant opacity/unit offset; stationary clip |
+| R: ignore reduced-motion rule | shell page runner + packaged viewport / zero animations observed from first update |
+| O: remove parent-section detail dismissal | Layout runner / detail and nested choices closed, no stale focus/reopen |
+| B/D: freeze width bucket (fallback only) or disable the candidate density query | shell page runner / parent-only resize crosses expected band |
+| Existing guards: enable first-column Spread or Follow-off Rotate | `python3 scripts/check.py browser --only layout` / exact unavailable action/state assertion from original guard proof |
+
+Use current runner arguments, not invented filters. The viewport runner currently
+has page-url/width/height, not a row-width switch: extend its existing scenario
+to constrain the row's parent at constant viewport and log achieved W. Set the
+full-label mutant's width to an accepted full-label case if calibration changes
+850; never choose a case where that mutant cannot fail. For packaged mutations
+the command must rebuild fresh assets under the mutation runner's lock before
+running the viewport probe; testing stale packaged assets is not a kill.
+
+Required implementation gates remain `python3 scripts/check.py quick`,
+`python3 scripts/check.py lint`, `python3 scripts/check.py browser --only layout`,
+and `python3 scripts/run-wasm-tests.py --files web/src/presentation/workbench_shell.rs`;
+include `web/src/presentation/layout_layers_tests.rs` when page/3D wiring changes.
+Run the real viewport probe against fresh packaged assets for CSS, motion and
+overlay claims. The coordinator alone runs the integrated `python3 scripts/check.py`
+gate specified in verification.md, with shared-target build locking. Neither
+focused tests nor this documentation task waive it. One fresh reviewer covers
+Spec + Standards; replaced/retired oracles require delta review. Required
+mutations are run only within the issue-tracker boundary.
+
+#### Measurement / acceptance gates and fallback
+
+The existing `.evidence/toolbar-rework/fit-matrix.jsonl` contains 35 rows at
+reported row widths 304/374/544/712/884/1084/1424: closed, Select, Align, Snap,
+View. **Transform-open is missing**, and its caption is null throughout. Those
+fields do not establish content-box widths, boundary safety, hit testing or
+effective caption visibility: a caption's own display can look visible under a
+hidden heading. In particular 544 and 712 do not validate thresholds 500/700.
+Do not promote this historical fitter matrix into new CSS acceptance.
+
+Calibration procedure, before deleting the fitter:
+
+1. Use actual production Layout markup and built styles with font readiness
+   recorded, both Theme font stacks and supported browser versions. Log viewport,
+   visualViewport, zoom/device scale, pointer mode, row border/client/content
+   widths, padding/borders, row and inner-bank gaps, trigger/utility/lane rects,
+   scroll extents and full captions. Compute W from untransformed content geometry
+   (clientWidth minus inline padding for diagnostic comparison; preserve fractional
+   precision from rect/computed box dimensions). No viewport-minus-16 assumption.
+2. Parameterize closed plus **Select/Transform/Align/Snap/View** open. Closed
+   worst cases include Matrix and Column, longest measured Transform tool name
+   (include Stagger, not a guessed “longest” by character count), and Snap Custom,
+   0.5 mm, 0.1 mm. Exercise their simultaneous wide combination, with real selected
+   tool/reference state and the longest supported caption values. Include active
+   scope/action changes at constant W and font fallback→loaded without a fit key.
+3. At each candidate T, set parent width until measured W is T−1, T, T+1 CSS px;
+   include fractional T−0.5/T+0.5 where zoom permits. Sweep the intervals and narrow
+   supported endpoints, resizing in both directions. Measure required intrinsic
+   trigger/utility sum + actual gaps + lane padding + a complete enabled action.
+   For open wide-label bands also record horizontal action overflow; scrolling is
+   allowed, clipping entry points is not. If a row does not fit, remove captions
+   first or raise its density threshold, then repeat both sides and all affected
+   states. Document chosen safety headroom for fonts/rounding, not an assumed one.
+4. Repeat actual 320×480, 390×844, 728×1024 and desktop 1440×900, plus constrained
+   parent at constant desktop viewport, coarse pointer, browser 200% zoom and
+   short visual viewport. Browser zoom is not CSS transform scaling. Log achieved
+   CSS row width; if 200% produces a width below the supported physical budget,
+   report the conflict rather than claim the 320px check covers it.
+5. Accept each numeric threshold only with a ledger of input/state, actual W,
+   expected density, entry/label/action geometry and receipts on both sides.
+   Every required surface must pass O; every enabled section must offer a complete
+   usable action. Seven entry points must be effectively visible, not simply
+   non-shrinking beyond an overflow-hidden row. Reuse parameterized cases rather
+   than multiply every timing story by the entire width/theme matrix.
+
+**Go:** named CQ passes content-box density, selector, focus, overlay and motion
+gates on the supported targets. **No-go:** unsupported query/anchor behavior,
+CQ-induced fixed-overlay clipping/anchoring regression, unstable intrinsic sizing,
+or no bands satisfying entry/action geometry. After two unchanged-result attempts
+stop with receipts and one different experiment; do not restore greedy probing.
+
+If measurements reject CQ specifically, the bounded fallback is a **tiny
+ResizeObserver in ToolRow** reading the row's content-box inline size and writing
+one `data-tool-density` bucket only when that bucket changes. ToolRow is its
+sole writer; CSS derives open/closed/pressed/checked presentation from existing
+semantic state. No per-action probing, cloned DOM, font observer, mutation-driven
+fitting, duplicated attributes or `fit_key`. Initialize conservatively, reconcile
+on mount, disconnect on drop; prove transition/no-op writes and parent-only
+resize. Remove CQ containment in this variant and rerun overlays. Width buckets
+do not cure an impossible 32px/42px geometry budget or a transform bug; those
+require a decision, not another observer. Media queries are permitted only if
+viewport-to-row sizing becomes an explicit tested invariant; it is not one now.
+
+#### Rejected alternatives
+
+- Treating 500/700 as established safe limits, or showing every closed caption
+  whenever headings fit: current evidence lacks worst captions and both sides.
+- A shell-fixture-only focus effect, or unconditionally focusing the old opener:
+  wrong production owner, inert timing loss, and outside-focus theft.
+- Deleting density attributes while trusting computed display as the oracle:
+  silently skips missing/wrong labels and clipped targets.
+- Retaining per-action allocation, a second measurement engine, or two writers
+  during rollout: defeats Step 3 and makes density authority ambiguous.
+- Translating by 100% and calling it equal to scrollWidth; retaining an invisible
+  exit animation; broad overflow-visible fixes; unproved global portal changes.
+- Using only viewport breakpoints, iconifying text-only Snap, squeezing labelled
+  Select to 32px, or testing only the two-section synthetic shell fixture.
+
+#### Unresolved evidence / handoff
+
+Implementation is **BLOCKED pending design approval and empirical calibration**,
+not rejected in principle. Open gates: accepted numerical thresholds/caption
+headroom; supported browser/version containment and anchor results; private focus
+tracking timing; baseline Layers right-edge disposition; nested popup close and
+motion cancellation; genuine native touch/trackpad and offscreen keyboard scroll;
+200% zoom and constrained-parent budget. Entry-only close must be reconciled with
+the parent motion contract before changing its oracle. No separate design document
+is needed: this ticket holds the design, proof migration and gates within ownership.
+
+### Earlier implementation receipts
 
 - 2026-11-11 Availability/action-parity builder: both mounted tests GREEN in `.evidence/toolbar-m1/002-availability-parity-attempt4.log` (11 executed, 0 failed). First-column scope is chosen through Select before Transform, matching the existing scope controls and column-specific action labels. Attempt 2 reached a Follow-rotation fixture with no accepted scope; attempt 3 added an anchor source key, board membership and shared layout following `matrix_edit_test_support`, and availability passed. Attempt 3 parity failed because clicking SW14 did not populate the combobox input; the existing `combobox_floor_filter_active_descendant_selection_and_escape` test establishes filtering, ArrowDown and Enter as a selection path. Attempt 4 uses that path and retains the SW14 selection and resulting alignment assertions. The later host failures in attempts 1–3 followed the shared-WASM panic-hook cascade. Receipts: `.evidence/toolbar-m1/002-availability-parity-attempt{1,2,3,4}.log`. Gortex writes for the two initial test corrections returned `view_building` twice each, so those used the user-authorized native fallback; the parity correction and this ticket entry used Gortex. No production change, full gate, mutation, review or closure claim.
 
