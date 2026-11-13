@@ -492,16 +492,20 @@ async fn accordion_action_parity_with_more_than_twelve_references() {
         count(&root, "[data-workbench-section='snap'][data-open='true']") == 1
     })
     .await;
-    assert_eq!(count(&root, "button[aria-label='Snap increment']"), 1);
-    assert_eq!(count(&root, "button[aria-label='Snap settings']"), 1);
-    click(&root, "Snap settings");
-    wait_until("Snap details open", || {
-        by_role_name(&root, "dialog", "Snap settings").is_some()
+    // Since the per-size Snap redesign the accordion lane carries one button per
+    // increment with the remaining settings inline, not a Snap settings dialog.
+    assert_eq!(
+        count(&root, "button[aria-label='Snap increment \u{bc}u']"),
+        1
+    );
+    assert_eq!(count(&root, "input[aria-label='Custom snap increment']"), 1);
+    assert_eq!(count(&root, "button[aria-label='Geometry snap']"), 1);
+    click(&root, "Snap increment \u{bd}u");
+    wait_until("Snap retains the increment action", || {
+        by_role_name(&root, "button", "Snap increment \u{bd}u")
+            .is_some_and(|button| button.get_attribute("aria-pressed").as_deref() == Some("true"))
     })
     .await;
-    assert_eq!(count(&root, "#m1-layout-snap-menu"), 1);
-    click(&root, "Close Snap");
-    settle_frames().await;
     click(&root, "View");
     wait_until("View opens", || {
         by_role_name(&root, "button", "Footprints").is_some()
