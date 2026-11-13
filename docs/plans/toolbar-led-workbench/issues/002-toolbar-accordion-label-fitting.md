@@ -536,6 +536,82 @@ motion cancellation; genuine native touch/trackpad and offscreen keyboard scroll
 the parent motion contract before changing its oracle. No separate design document
 is needed: this ticket holds the design, proof migration and gates within ownership.
 
+### 2026-11-13 — Step 3 contract approved; Slice 1 baseline and oracle
+
+**User approvals, 2026-11-13:** (1) the revised width-band contract, thresholds still
+provisional; (2) entry-only 280ms motion with immediate close, reconciled in
+[architecture](../architecture.md#motion-and-layering); (3) a control wider than its lane
+is partially exposed, and the Handles check asks for reachable and hit instead of whole;
+(4) the caption threshold is set by calibration, not fixed at 850.
+
+Baseline taken at `e360ddc33` before approval; no production change, no gate waived. Fresh `build-web.py --fast` under the build lock
+(`step3-baseline-build.log`, EXIT 0), HeadlessChrome 155, all logs in
+`.evidence/toolbar-rework/`.
+
+- **Row L, text-only Snap — RED.** New `text_only_action_report` in
+  `scripts/test-workbench-viewport.py` fails `blank-Snap` at 320, 390 and 728: all
+  eight per-size buttons have `display:none` labels, including the pressed `¼u`.
+  1440 passes. Logs `step3-baseline-viewport-{320,390,728,1440}.log`. Observed RED,
+  so no mutation is owed for this assertion.
+- **Existing oracle RED at 320: `handles-View`.** Handles is 55.6px in a 42px lane
+  and cannot be whole (two runs, `…-320.log`, `…-320-rerun.log`). `656ab6011`
+  removed the `max-width:100%` ellipsis cap that made it fit. Resolved by approval 3:
+  the check now accepts an oversized control that is enabled, 32px high, in the row
+  and hit at its centre (`HANDLES-PARTIAL` in `step3-slice1-viewport-320.log`).
+- **728 browser error was the probe's own.** The reduced-motion `MutationObserver`
+  called `getComputedStyle(null)` on a mutation that lands before any section is
+  open. It now records that mutation with no track and asserts zero animations on
+  it too; `step3-slice1-viewport-728.log` has no browser error.
+- **Content-box W** (`step3-baseline-density-*.json`): W = viewport − 20 in the
+  standard layout (300 / 370 / 708 / 1420). Closed at 708 today shows all five
+  headings plus captions `Key` and `¼u`; the candidate table removes captions there
+  (<850). Lane width with a section open is 42px at W=300 and 112px at W=370.
+- **Exit motion is already invisible.** 728 motion frames show every closed reveal
+  clip at width 0 while its track keeps a translate; the 170ms exit never paints.
+- **Layers.** At 728 and 1440 the list opens left-anchored, inside the viewport and
+  hit-testable; no right-edge defect there. At 320/390 the trigger sits outside the
+  scrolled lane and the measurement did not open it: still unmeasured.
+- Two agent-browser daemon EOFs at `set viewport` (390, 1440) cleared after
+  `close --all`; infrastructure, not product.
+
+After approval (`step3-slice1-*` logs, same build):
+
+- **Row L, Select labels — RED.** `select_label_report` now derives expected labels
+  from W and pressed/checked state (`FULL_LABEL_W = 850`, provisional) and no longer
+  reads `data-action-labels`; every earlier check is kept. 320 and 390: pressed `Key`
+  label hidden. 728 (W=708): four unpressed labels shown below the band. 1440 passes.
+- **Row F baseline GREEN, ad hoc.** With focus on a Select lane action, closing the
+  section without moving focus lands on the Select trigger; switching to Snap lands
+  on the Snap trigger; Escape in the lane does nothing. Same at 390 and 1440
+  (`step3-slice1-measure-*.json`). This is a proof gap: the production mounted test
+  and its omit-rescue mutation open Slice 2.
+- **Layers right-edge defect confirmed at 390, pre-existing.** With the trigger
+  scrolled into the lane, the list spans x 204–444 in a 390px viewport and its first
+  choice is not hit-testable. Not caused by container queries or transforms; it
+  violates a mandatory overlay criterion and needs a disposition before row O.
+- **Intrinsic widths** (Source Sans 3 loaded, measured at W=1420 by forcing each
+  form on the real triggers). Trigger: icon 34; heading 95.2 / 116.3 / 89.6 / 89.9 /
+  88.2 (Select, Transform, Align, Snap, View); worst captions `Column` 140.5,
+  `Stagger` 160.6, `Custom` 134.2. Utilities 74.4 + 73.3 labelled, 32 + 32 compact.
+  Estimated minimum closed W (five triggers, four 4px bank gaps, two 3px row gaps,
+  utilities): icons only 256; icons + utility labels 340; two headings 483; all
+  headings 649; all headings + worst captions 783, or 699 with compact utilities.
+  Candidates 360 / 500 / 700 hold with 20 / 17 / 51px to spare. Captions cannot
+  show at 728 (W=708) while utility labels outrank them; 850 could drop to about
+  800. These are sums, not both-sides measurements: Slice 3 verifies T−1/T/T+1.
+
+Not done: both-sides threshold checks, Transform with a selection, overlay matrix
+beyond Layers, zoom/coarse pointer, rows D/K/M/O/B oracles (written with their slices).
+
+Slice 1 exit decisions (user, 2026-11-13):
+
+- Slice 1 is committed as one change; Slice 2 (focus ownership in
+  `LayoutAccordionSection`) may start.
+- The Layers right-edge defect at 390 is fixed as its own small change before
+  Slice 4, not accepted as a known defect. Row O stays blocked until it lands.
+- Utility labels keep priority over captions. Captions therefore do not show at 728,
+  and the caption threshold is calibrated near 800 in Slice 3 instead of 850.
+
 ### Earlier implementation receipts
 
 - 2026-11-11 Availability/action-parity builder: both mounted tests GREEN in `.evidence/toolbar-m1/002-availability-parity-attempt4.log` (11 executed, 0 failed). First-column scope is chosen through Select before Transform, matching the existing scope controls and column-specific action labels. Attempt 2 reached a Follow-rotation fixture with no accepted scope; attempt 3 added an anchor source key, board membership and shared layout following `matrix_edit_test_support`, and availability passed. Attempt 3 parity failed because clicking SW14 did not populate the combobox input; the existing `combobox_floor_filter_active_descendant_selection_and_escape` test establishes filtering, ArrowDown and Enter as a selection path. Attempt 4 uses that path and retains the SW14 selection and resulting alignment assertions. The later host failures in attempts 1–3 followed the shared-WASM panic-hook cascade. Receipts: `.evidence/toolbar-m1/002-availability-parity-attempt{1,2,3,4}.log`. Gortex writes for the two initial test corrections returned `view_building` twice each, so those used the user-authorized native fallback; the parity correction and this ticket entry used Gortex. No production change, full gate, mutation, review or closure claim.

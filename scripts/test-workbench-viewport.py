@@ -23,6 +23,9 @@ SECTIONS = ["Select", "Transform", "Align", "Snap", "View"]
 SECTION_KEYS = {"Select": "select", "Transform": "transform", "Align": "align", "Snap": "snap", "View": "view"}
 MIN_HIT = 32.0
 MIN_GAP = 4.0
+# Ticket 002 Step 3 density table: at row content-box W >= this, every marked action shows its label;
+# below it only pressed/checked actions do. Provisional until calibration accepts or revises it.
+FULL_LABEL_W = 850
 
 
 def viewport_state():
@@ -352,14 +355,17 @@ def canvas_visibility_report():
 
 
 def select_label_report():
-    # Select label containment oracle: when fitter says full, icon+label must fit inside button.
-    # Checks rendered bounds fully contained, non-overlap, correct icon/text. No false GREEN on data flag alone.
-    # When adaptive icon-only (label display none), verifies icon within 32x32 button.
+    # Select label oracle: expected label presence comes from ticket 002's density table (row content-box W
+    # and pressed/checked state), never from a density attribute the product writes.
+    # Expected labels: exact text, rendered bounds contained in the button, no icon overlap.
+    # Unexpected labels must not paint; every button keeps a contained icon and a 32x32 target.
     return evaluate(
         "(()=>{"
         "const g=document.querySelector('[data-workbench-section=\"select\"]');"
         "if(!g) return {missing:true};"
-        "const mode=g.getAttribute('data-action-labels');"
+        f"const FULL={FULL_LABEL_W};"
+        "const row=document.querySelector('.workbench-tool-row'); const rcs=getComputedStyle(row);"
+        "const W=row.clientWidth-parseFloat(rcs.paddingLeft)-parseFloat(rcs.paddingRight);"
         "const btns=[...g.querySelectorAll('button[aria-label^=\"Select \"]')];"
         "const expected=['Matrix','Row','Column','Key','Part'];"
         "const items=btns.map((b,idx)=>{"
@@ -372,7 +378,7 @@ def select_label_report():
         "if(lab){ const r=lab.getBoundingClientRect(); const disp=getComputedStyle(lab).display; const txt=(lab.textContent||'').trim(); const within= disp==='none'?null:(r.x+1e-6>=br.x&&r.y+1e-6>=br.y&&r.x+r.width-1e-6<=br.x+br.width&&r.y+r.height-1e-6<=br.y+br.height); label={x:r.x,y:r.y,w:r.width,h:r.height,display:disp,text:txt.slice(0,40),within}; }"
         "let overlap=null;"
         "if(icon&&label&&label.display!=='none'){ overlap=!(icon.x+icon.w<=label.x+1e-6||label.x+label.w<=icon.x+1e-6||icon.y+icon.h<=label.y+1e-6||label.y+label.h<=icon.y+1e-6); }"
-        "return {aria:(b.getAttribute('aria-label')||'').slice(0,40),x:br.x,y:br.y,w:br.width,h:br.height,showLabel:b.hasAttribute('data-show-label'),icon,label,overlap};"
+        "return {aria:(b.getAttribute('aria-label')||'').slice(0,40),x:br.x,y:br.y,w:br.width,h:br.height,expectLabel:W>=FULL||b.getAttribute('aria-pressed')==='true'||b.getAttribute('aria-checked')==='true',icon,label,overlap};"
         "});"
         "let labelsFit=true, reasons=[];"
         "if(btns.length!==5){ labelsFit=false; reasons.push('expected 5 Select buttons, got '+btns.length); }"
@@ -386,24 +392,40 @@ def select_label_report():
         "if(!it.icon.within){ labelsFit=false; reasons.push(it.aria+' icon overflows button'); }"
         "const expName=it.aria.startsWith('Select ')?it.aria.slice(7):null;"
         "if(expName&&!expected.includes(expName)){ labelsFit=false; reasons.push(it.aria+' unexpected, want one of '+expected.join(',')); }"
-        "if(mode==='full'){"
-        "if(!it.label){ labelsFit=false; reasons.push(it.aria+' missing label element in full mode'); }"
+        "if(it.expectLabel){"
+        "if(!it.label){ labelsFit=false; reasons.push(it.aria+' missing expected label element'); }"
         "else{"
-        "if(it.label.display==='none'){ labelsFit=false; reasons.push(it.aria+' label hidden in full mode'); }"
+        "if(it.label.display==='none'){ labelsFit=false; reasons.push(it.aria+' expected label hidden'); }"
         "if(!(it.label.w>0&&it.label.h>0)){ labelsFit=false; reasons.push(it.aria+' label not visible '+it.label.w+'x'+it.label.h); }"
         "if(it.label.text!==expName){ labelsFit=false; reasons.push(it.aria+' label text '+it.label.text+' != '+expName); }"
         "if(!it.label.within){ labelsFit=false; reasons.push(it.aria+' label overflows '+it.label.w+'px in '+it.w+'px button'); }"
         "if(it.overlap){ labelsFit=false; reasons.push(it.aria+' icon/label overlap'); }"
         "}"
         "}else{"
-        "if(it.label&&it.label.display!=='none'){"
-        "if(!it.label.within){ labelsFit=false; reasons.push(it.aria+' label overflows '+it.label.w+'px in '+it.w+'px button'); }"
-        "if(it.overlap){ labelsFit=false; reasons.push(it.aria+' icon/label overlap'); }"
-        "}"
+        "if(it.label&&it.label.display!=='none'&&it.label.w>0){ labelsFit=false; reasons.push(it.aria+' label '+it.label.text+' shown below the full-label band'); }"
         "}"
         "}"
         "const texts=items.map(i=>i.label?i.label.text:null);"
-        "return {mode,items,labelsFit,reasons,expected,texts};"
+        "return {W,full:FULL,items,labelsFit,reasons,expected,texts};"
+        "})()"
+    )
+
+
+def text_only_action_report(key):
+    # A marked action with no icon of its own shows only its text, so hiding the label leaves a blank button.
+    return evaluate(
+        "(()=>{"
+        f"const key={json.dumps(key)};"
+        "const g=document.querySelector('[data-workbench-section=\"'+key+'\"]');"
+        "if(!g) return {key,missing:true};"
+        "const items=[...g.querySelectorAll('.workbench-tool-track [data-workbench-action]')].filter(b=>!b.querySelector(':scope > svg')).map(b=>{"
+        "const l=b.querySelector(':scope > .workbench-action-label');"
+        "const cs=l?getComputedStyle(l):null; const r=l?l.getBoundingClientRect():null;"
+        "const text=l?(l.textContent||'').trim():'';"
+        "const shown=!!l&&text.length>0&&cs.display!=='none'&&cs.visibility==='visible'&&Number(cs.opacity)>0&&r.width>0&&r.height>0;"
+        "return {aria:b.getAttribute('aria-label'),pressed:b.getAttribute('aria-pressed'),text,display:cs?cs.display:null,w:r?r.width:0,h:r?r.height:0,shown};"
+        "});"
+        "return {key,items,blank:items.filter(i=>!i.shown).map(i=>i.aria)};"
         "})()"
     )
 
@@ -629,13 +651,15 @@ def motion_probe():
       window.__reducedObserver=new MutationObserver(()=>{
         window.__reduced.push({open:row.querySelector('[data-open=true]')?.dataset.workbenchSection,
           running:document.getAnimations().filter(a=>a.playState==='running'&&(row.contains(a.effect?.target)||a.effect?.target?.closest('.workbench-popout'))).length,
-          transform:getComputedStyle(row.querySelector('[data-open=true] .workbench-tool-track')).transform});
+          transform:(t=>t?getComputedStyle(t).transform:null)(row.querySelector('[data-open=true] .workbench-tool-track'))});
       }); window.__reducedObserver.observe(row,{subtree:true,attributes:true});
     })()""")
     browser("find", "role", "button", "click", "--name", "Select", "--exact")
     reduced=evaluate("(() => {window.__reducedObserver.disconnect();return window.__reduced;})()")
     print(f"REDUCED-MOTION: {json.dumps(reduced)}", flush=True)
-    assert reduced and all(r['open']=='select' and r['running']==0 and r['transform']=='none' for r in reduced), reduced
+    # A mutation can land before any section is open; it has no track but must still show zero animations.
+    opened = [r for r in reduced if r.get('open')]
+    assert opened and all(r['running']==0 for r in reduced) and all(r['open']=='select' and r['transform']=='none' for r in opened), reduced
     browser("find", "role", "button", "click", "--name", "Select", "--exact")
     browser("set", "media", "light")
     wait_for_settled()
@@ -1003,11 +1027,15 @@ def production_viewport_tests(url, width=320, height=480):
             else:
                 if not usable.get("usable"):
                     failures.append((f"usable-{sec}", f"no complete usable enabled action (fully within track+row, 32px, topmost, with scroll), full {usable}"))
+            text_only = text_only_action_report(key)
+            print(f"TEXT-ONLY open-{sec}: {json.dumps(text_only)}", flush=True)
+            if text_only.get("blank"):
+                failures.append((f"blank-{sec}", f"text-only actions render blank: {text_only['blank']}"))
             if sec == "Select":
                 sel = select_label_report()
                 print(f"SELECT-LABELS open-{sec}: {json.dumps(sel)}", flush=True)
                 if not sel.get("labelsFit"):
-                    failures.append((f"select-labels-{sec}", f"label/icon containment failed (mode {sel.get('mode')}): {sel.get('reasons')}, full {sel}"))
+                    failures.append((f"select-labels-{sec}", f"label presence/containment failed (W {sel.get('W')}): {sel.get('reasons')}, full {sel}"))
             if sec == "View":
                 icons = view_icon_report()
                 print(f"VIEW-ICONS open-{sec}: {json.dumps(icons)}", flush=True)
@@ -1019,8 +1047,15 @@ def production_viewport_tests(url, width=320, height=480):
                     failures.append((f"canvas-{sec}", f"Canvas visibility not reachable as whole >=32x32 via lane scroll (fully within all clippers+viewport, hit, enabled), full {canvas}"))
                 handles = handles_visibility_report()
                 print(f"HANDLES open-{sec}: {json.dumps(handles)}", flush=True)
-                if not handles.get("usable"):
-                    failures.append((f"handles-{sec}", f"Handles not reachable as whole >=32x32 via lane scroll (fully within all clippers+viewport, hit, enabled), full {handles}"))
+                # A control wider than its lane cannot be whole: it stays full width, scrolls into reach and
+                # must be enabled, 32px high, in the row and hit at its centre (user decision 2026-11-13).
+                seen = handles.get("after") or handles.get("before") or {}
+                oversized = bool(seen) and seen["w"] > seen["track"]["w"] + 0.5
+                partial = oversized and not seen["effDis"] and not seen["effInert"] and seen["h"] + 1e-6 >= MIN_HIT and seen["withinRow"] and seen["inside"] and seen["hit"]
+                if partial:
+                    print(f"HANDLES-PARTIAL open-{sec}: {seen['w']}px control in {seen['track']['w']}px lane, reachable and hit", flush=True)
+                if not (handles.get("usable") or partial):
+                    failures.append((f"handles-{sec}", f"Handles not reachable via lane scroll (whole >=32x32 when it fits the lane, otherwise enabled, in row and hit), full {handles}"))
 
     # Panel opens via real accessibility click; Close still needs true hit test.
     for utility, panel_id, close_label in [

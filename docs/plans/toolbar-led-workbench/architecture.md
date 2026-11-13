@@ -151,6 +151,9 @@ preserve existing field semantics rather than the earlier ambiguous blanket no-r
 - Measure the final post-toggle layout with actual Theme/font/content before movement.
   Probe is noninteractive/aria-hidden. Font readiness, resize and content changes remeasure;
   cancel stale transitions, then use one stable label allocation for the next movement.
+  Approved 2026-11-13: width-band density replaces this measurement once
+  [002 Step 3](issues/002-toolbar-accordion-label-fitting.md#2026-11-12--revised-step-3-design-replace-the-toolbar-fitter)
+  passes its gates; until then this clause stands.
 - Toolbar has an accessible name, one roving tab stop, Left/Right and Home/End across enabled
   visible controls (including action-lane controls); Enter/Space activate. No hidden probe or
   closed content in the focus order. Detailed references/settings use secondary surfaces,
@@ -178,8 +181,9 @@ with evidence; do not enlarge the toolbar or waive a requirement silently.
 
 ## Motion and layering
 
-Measure before movement. Icon+label action units translate as a solid section under a
-stationary clip (reference timing: 280ms entry / 170ms exit); no icon/text relative drift,
+Allocate the final density and clip before movement. Icon+label action units translate in as a
+solid section under a stationary clip (280ms entry; close is immediate, approved 2026-11-13);
+no icon/text relative drift,
 opacity animation, fades, stagger or delayed pop-in. Apply the same no-opacity rule to
 panel transitions. Reduced motion sets final state immediately with zero running
 workbench toolbar/panel animations. This governs the new workbench composition; do not
