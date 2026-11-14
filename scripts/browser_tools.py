@@ -10,23 +10,58 @@ import shutil
 import subprocess
 
 
+CHROME_BINARIES = ("google-chrome-stable", "google-chrome", "chromium", "chromium-browser", "chrome")
+CFT_DIR_ENV = "BOARDSTUDIO_CFT_DIR"
+CFT_PIN_JSON = Path(__file__).with_name("chrome-for-testing.json")
+
+
 class MissingBrowserTool(Exception):
     """A prerequisite of a real-browser check is absent; the message says how to supply it."""
 
 
-def locate_chrome() -> str:
-    """Returns the Chrome executable for the Rust harness, or raises `MissingBrowserTool`.
+def pinned_cft_dir(env=None):
+    """Pinned Chrome-for-Testing install dir, or None when the pin cannot be read.
 
-    `CHROME_BIN` takes precedence, followed by the usual executable names.
-    The Rust driver needs no Node runtime.
+    Explicit BOARDSTUDIO_CFT_DIR wins; otherwise the default cache path derived
+    from the version in scripts/chrome-for-testing.json. Never raises: an
+    unreadable pin simply means no pinned install.
     """
-    chrome = os.environ.get("CHROME_BIN") or next(
-        (shutil.which(name) for name in ("google-chrome", "chromium", "chromium-browser") if shutil.which(name)),
-        None,
-    )
-    if not chrome:
-        raise MissingBrowserTool("browser harness needs Chrome or Chromium; set CHROME_BIN to its executable")
-    return chrome
+    src = os.environ if env is None else env
+    override = src.get(CFT_DIR_ENV) or os.environ.get(CFT_DIR_ENV)
+    if override:
+        return Path(override)
+    try:
+        version = json.loads(CFT_PIN_JSON.read_text())["version"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    if not version:
+        return None
+    return Path(os.path.expanduser("~/.cache/boardstudio/chrome-for-testing")) / version
+
+
+def pinned_cft_binary(kind, env=None):
+    """Path to the pinned CfT `kind` binary ('chrome' or 'chromedriver'), or None."""
+    base = pinned_cft_dir(env)
+    if base is None:
+        return None
+    candidate = base / f"{kind}-linux64" / kind
+    return str(candidate) if candidate.is_file() else None
+
+
+def locate_chrome(env=None) -> str:
+    """Return Chrome: explicit CHROME_BIN > pinned CfT install > PATH discovery.
+
+    No Node runtime is required. Raise `MissingBrowserTool` when none is found.
+    """
+    src = os.environ if env is None else env
+    chrome = src.get("CHROME_BIN") or pinned_cft_binary("chrome", src)
+    if chrome:
+        return chrome
+    for name in CHROME_BINARIES:
+        chrome = shutil.which(name, path=src.get("PATH"))
+        if chrome:
+            return chrome
+    raise MissingBrowserTool("browser harness needs Chrome or Chromium; set CHROME_BIN to its executable")
 
 
 def _inherited_build_lock() -> int | None:

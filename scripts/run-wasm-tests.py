@@ -42,10 +42,7 @@ TEST_OWNERS = Path(__file__).with_name("wasm-test-owners.json")
 RUNNER_ENV = "BOARDSTUDIO_WASM_TEST_COMMAND"
 WASM_PACK = ["wasm-pack", "test", "--headless", "--chrome", "--mode", "no-install", "web",
              "--no-default-features", "--features", "page", "--bin", "boardstudio-web", "--"]
-CHROME_BINARIES = ("google-chrome-stable", "google-chrome", "chromium", "chromium-browser", "chrome")
 CHROME_BIN_ENV = "CHROME_BIN"
-CFT_DIR_ENV = "BOARDSTUDIO_CFT_DIR"
-CFT_PIN_JSON = Path(__file__).with_name("chrome-for-testing.json")
 WEBDRIVER_CONFIG_ENV = "WASM_BINDGEN_TEST_WEBDRIVER_JSON"
 TEST_LINE = re.compile(r"^test (\S+) \.\.\. (ok|FAILED|FAIL)\b", re.M)
 INVOKED_LINE = re.compile(r"^\s*Invoking test: (\S+)", re.M)
@@ -188,59 +185,23 @@ def wasm_bindgen_dir(root=ROOT):
     return sorted(candidates)[-1]
 
 
-def pinned_cft_dir(env=None):
-    """Pinned Chrome-for-Testing install dir, or None when the pin cannot be read.
-
-    Explicit BOARDSTUDIO_CFT_DIR wins; otherwise the default cache path derived
-    from the version in scripts/chrome-for-testing.json. Never raises: an
-    unreadable pin simply means no pinned install.
-    """
-    src = os.environ if env is None else env
-    override = src.get(CFT_DIR_ENV) or os.environ.get(CFT_DIR_ENV)
-    if override:
-        return Path(override)
-    try:
-        version = json.loads(CFT_PIN_JSON.read_text())["version"]
-    except (OSError, ValueError, KeyError, TypeError):
-        return None
-    if not version:
-        return None
-    return Path(os.path.expanduser("~/.cache/boardstudio/chrome-for-testing")) / version
-
-
-def pinned_cft_binary(kind, env=None):
-    """Path to the pinned CfT `kind` binary ('chrome' or 'chromedriver'), or None."""
-    base = pinned_cft_dir(env)
-    if base is None:
-        return None
-    candidate = base / f"{kind}-linux64" / kind
-    return str(candidate) if candidate.is_file() else None
-
-
 def resolve_chromedriver(env=None):
     """Explicit CHROMEDRIVER > pinned CfT install > PATH discovery."""
     src = os.environ if env is None else env
     if src.get("CHROMEDRIVER"):
         return src["CHROMEDRIVER"]
-    pinned = pinned_cft_binary("chromedriver", src)
+    pinned = browser_tools.pinned_cft_binary("chromedriver", src)
     if pinned:
         return pinned
     return shutil.which("chromedriver", path=src.get("PATH"))
 
 
 def resolve_chrome_binary(env=None):
-    """Explicit CHROME_BIN > pinned CfT install > PATH discovery."""
-    src = os.environ if env is None else env
-    if src.get(CHROME_BIN_ENV):
-        return src[CHROME_BIN_ENV]
-    pinned = pinned_cft_binary("chrome", src)
-    if pinned:
-        return pinned
-    for name in CHROME_BINARIES:
-        found = shutil.which(name, path=src.get("PATH"))
-        if found:
-            return found
-    return None
+    """Use shared Chrome discovery, retaining None for the runner's own diagnostics."""
+    try:
+        return browser_tools.locate_chrome(env)
+    except browser_tools.MissingBrowserTool:
+        return None
 
 
 def runner_environment(root=ROOT, *, browser_only=False):

@@ -12,7 +12,7 @@ SPEC.loader.exec_module(browser_tools)
 
 
 def which(*available):
-    return lambda name: f"/usr/bin/{name}" if name in available else None
+    return lambda name, path=None: f"/usr/bin/{name}" if name in available else None
 
 
 class BrowserToolsTests(unittest.TestCase):
@@ -276,6 +276,7 @@ class BrowserToolsTests(unittest.TestCase):
 
     def locate_chrome(self, *available, env=None):
         with mock.patch.object(browser_tools.shutil, "which", side_effect=which(*available)), \
+                mock.patch.object(browser_tools, "pinned_cft_binary", return_value=None), \
                 mock.patch.dict(browser_tools.os.environ, env or {}, clear=True):
             return browser_tools.locate_chrome()
 
@@ -284,6 +285,32 @@ class BrowserToolsTests(unittest.TestCase):
 
     def test_chrome_only_probe_honours_chrome_bin(self):
         self.assertEqual(self.locate_chrome(env={"CHROME_BIN": "/opt/chrome"}), "/opt/chrome")
+
+    def test_chrome_lookup_prefers_override_then_pinned_install_then_path(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            chrome = root / "cft/chrome-linux64/chrome"
+            chrome.parent.mkdir(parents=True)
+            chrome.touch()
+            chrome.chmod(0o755)
+            system = root / "bin/chromium"
+            system.parent.mkdir()
+            system.touch()
+            system.chmod(0o755)
+            env = {"BOARDSTUDIO_CFT_DIR": str(root / "cft"), "PATH": str(system.parent)}
+            with mock.patch.dict(browser_tools.os.environ, env, clear=True):
+                self.assertEqual(browser_tools.locate_chrome(), str(chrome))
+                browser_tools.os.environ["CHROME_BIN"] = "/explicit/chrome"
+                self.assertEqual(browser_tools.locate_chrome(), "/explicit/chrome")
+                # A supplied environment, not the caller's override, owns this lookup.
+                self.assertEqual(browser_tools.locate_chrome(env), str(chrome))
+                chrome.unlink()
+                self.assertEqual(browser_tools.locate_chrome(env), str(system))
+                system.unlink()
+                with self.assertRaisesRegex(browser_tools.MissingBrowserTool, "CHROME_BIN"):
+                    browser_tools.locate_chrome(env)
 
     def test_chrome_only_probe_names_chrome_bin(self):
         with self.assertRaises(browser_tools.MissingBrowserTool) as raised:

@@ -719,6 +719,17 @@ class RunWasmTestsTests(unittest.TestCase):
                 runner.selection_for_listed_files(
                     ["web/src/presentation/objects/matrix_transform_inspector.rs"], {}, self.dir)
 
+    def test_shared_chrome_lookup_preserves_runner_missing_browser_error(self):
+        env = {"CHROMEDRIVER": "/bin/true", "PATH": "/bin"}
+        with patch.dict(os.environ, env, clear=True), \
+             patch.object(runner.browser_tools, "locate_chrome", return_value="/selected/chrome") as locate:
+            self.assertEqual(runner.resolve_chrome_binary(env), "/selected/chrome")
+            locate.assert_called_once_with(env)
+            locate.side_effect = runner.browser_tools.MissingBrowserTool("missing")
+            self.assertIsNone(runner.resolve_chrome_binary(env))
+            with self.assertRaisesRegex(runner.RunnerError, "Chrome/Chromium not found on PATH"):
+                runner.runner_environment()
+
     def test_pinned_cft_install_supplies_chromedriver_and_chrome_binary(self):
         pin_dir = self.dir / "fake-cft"
         chrome = pin_dir / "chrome-linux64" / "chrome"
