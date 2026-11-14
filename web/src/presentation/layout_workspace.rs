@@ -415,25 +415,6 @@ pub(super) fn add_object_header_action(mut menu_open: Signal<bool>) -> Element {
 }
 
 pub(super) fn toolbar(input: ToolbarInput) -> Element {
-    let fit_key = format!(
-        "{:?}|{:?}|{:?}|{:?}|{}|{}|{}|{}|{}|{}|{}|{}|{:?}|{}|{}|{:?}",
-        (input.open_menu)(),
-        input.selection_kind,
-        input.transform.active_tool,
-        input.snap_settings,
-        input.assembly_3d,
-        input.footprints_pressed,
-        input.handles_visible,
-        input.has_selection_context,
-        input.transform.properties_available,
-        input.transform.pointer_tools_available,
-        input.transform.column_available,
-        input.transform.row_available,
-        input.transform.matrix_rotate_followed,
-        input.align.enabled,
-        input.align.busy,
-        input.align.selected_reference,
-    );
     let utilities = rsx! {
         super::workbench_shell::PanelUtilities {
             panel: input.panel,
@@ -453,7 +434,6 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
             if !input.assembly_3d {
                 super::workbench_shell::ToolRow {
                     label: "Layout tools".to_owned(),
-                    fit_key: fit_key.clone(),
                     objects::LayoutCommandPill {
                         command_label: input.command_label,
                         menu_owner_key: input.menu_owner_key,
@@ -587,7 +567,6 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
             } else {
                 super::workbench_shell::ToolRow {
                     label: "Layout tools".to_owned(),
-                    fit_key: fit_key.clone(),
                     ToggleGroup {
                         aria_label: "Design view",
                         horizontal: true,

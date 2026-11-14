@@ -270,16 +270,6 @@ impl Drop for ToolRowObservers {
     }
 }
 
-trait RemoveAttribute {
-    fn remove_attr(&self, name: &str);
-}
-
-impl RemoveAttribute for web_sys::Element {
-    fn remove_attr(&self, name: &str) {
-        let _ = web_sys::Element::remove_attribute(self, name);
-    }
-}
-
 fn query_all(root: &web_sys::Element, selector: &str) -> Vec<web_sys::Element> {
     let Ok(nodes) = root.query_selector_all(selector) else {
         return Vec::new();
@@ -287,21 +277,6 @@ fn query_all(root: &web_sys::Element, selector: &str) -> Vec<web_sys::Element> {
     (0..nodes.length())
         .filter_map(|index| nodes.item(index)?.dyn_into::<web_sys::Element>().ok())
         .collect()
-}
-
-fn copy_attribute(source: &web_sys::Element, target: &web_sys::Element, name: &str) {
-    match source.get_attribute(name) {
-        Some(value) => {
-            let _ = target.set_attribute(name, &value);
-        }
-        None => {
-            target.remove_attr(name);
-        }
-    }
-}
-
-fn track_fits(track: &web_sys::Element) -> bool {
-    track.client_width() > 0 && track.scroll_width() <= track.client_width() + 1
 }
 
 fn set_tool_distance(group: &web_sys::Element, track: &web_sys::Element) {
@@ -313,186 +288,18 @@ fn set_tool_distance(group: &web_sys::Element, track: &web_sys::Element) {
     }
 }
 
-fn fit_open_labels(root: &web_sys::Element, group: &web_sys::Element) {
-    let Some(track) = group.query_selector(".workbench-tool-track").ok().flatten() else {
-        return;
-    };
-    let _ = root.set_attribute("data-fit-headers", "none");
-    root.remove_attr("data-utility-labels");
-    let _ = group.set_attribute("data-action-labels", "full");
-    if !track_fits(&track) {
-        let _ = group.set_attribute("data-action-labels", "adaptive");
-        let mut actions: Vec<_> = query_all(&track, "[data-workbench-action]")
-            .into_iter()
-            .enumerate()
-            .collect();
-        for (_, action) in &actions {
-            action.remove_attr("data-show-label");
-        }
-        actions.sort_by_key(|(index, action)| {
-            let priority = if action.get_attribute("aria-pressed").as_deref() == Some("true")
-                || action.get_attribute("aria-checked").as_deref() == Some("true")
-            {
-                0
-            } else {
-                1
-            };
-            (priority, *index)
-        });
-        for (_, action) in actions {
-            let _ = action.set_attribute("data-show-label", "");
-            if !track_fits(&track) {
-                action.remove_attr("data-show-label");
-            }
-        }
-        let _ = root.set_attribute("data-utility-labels", "full");
-        if !track_fits(&track) {
-            root.remove_attr("data-utility-labels");
-        }
-        return;
-    }
-    let _ = root.set_attribute("data-utility-labels", "full");
-    if !track_fits(&track) {
-        root.remove_attr("data-utility-labels");
-    }
-    let _ = root.set_attribute("data-fit-headers", "active");
-    if !track_fits(&track) {
-        let _ = root.set_attribute("data-fit-headers", "none");
-    }
-    let previous = root.get_attribute("data-fit-headers");
-    let _ = root.set_attribute("data-fit-headers", "all");
-    if !track_fits(&track) {
-        match previous {
-            Some(value) => {
-                let _ = root.set_attribute("data-fit-headers", &value);
-            }
-            None => {
-                root.remove_attr("data-fit-headers");
-            }
-        }
-    }
-}
-
-fn fit_closed_labels(root: &web_sys::Element) {
-    root.remove_attr("data-fit-headers");
-    let _ = root.set_attribute("data-utility-labels", "full");
-    let triggers = query_all(root, "[data-workbench-section-trigger]");
-    for trigger in &triggers {
-        trigger.remove_attr("data-closed-hide");
-    }
-    for trigger in triggers.iter().rev() {
-        if root.scroll_width() <= root.client_width() + 1 {
-            break;
-        }
-        let _ = trigger.set_attribute("data-closed-hide", "");
-    }
-    if root.scroll_width() > root.client_width() + 1 {
-        root.remove_attr("data-utility-labels");
-    }
-}
-
 fn fit_tool_row(live: &web_sys::Element) {
+    // Slice 3 density pilot: container queries own density; keep only measured
+    // animation distance from live tracks (no probe, no fitting attributes).
     if !live.is_connected() {
         return;
     }
-    let Ok(probe_node) = live.clone_node_with_deep(true) else {
-        return;
-    };
-    let Ok(probe) = probe_node.dyn_into::<web_sys::Element>() else {
-        return;
-    };
-    probe.remove_attr("id");
-    probe.remove_attr("data-dioxus-id");
-    for descendant in query_all(&probe, "[id], [data-dioxus-id]") {
-        descendant.remove_attr("id");
-        descendant.remove_attr("data-dioxus-id");
-    }
-    let probe_class = format!(
-        "{} workbench-tool-row-measuring",
-        probe.get_attribute("class").unwrap_or_default()
-    );
-    let _ = probe.set_attribute("class", &probe_class);
-    let _ = probe.set_attribute("inert", "");
-    let _ = probe.set_attribute("aria-hidden", "true");
-    if let Some(probe_html) = probe.dyn_ref::<HtmlElement>() {
-        probe_html.style().set_css_text(&format!(
-            "position:fixed;left:-10000px;top:0;width:{}px;visibility:hidden;pointer-events:none",
-            live.get_bounding_client_rect().width()
-        ));
-    }
-    let parent = live
-        .parent_element()
-        .map(|element| element.into())
-        .or_else(|| {
-            live.owner_document()
-                .and_then(|document| document.body())
-                .map(Into::into)
-        });
-    let Some(parent) = parent else { return };
-    let parent: web_sys::Node = parent;
-    if parent.append_child(probe.as_ref()).is_err() {
-        return;
-    }
-    let measured_groups = query_all(&probe, "[data-workbench-section]");
-    let actual_groups = query_all(live, "[data-workbench-section]");
-    if let Some(open_group) = measured_groups
-        .iter()
-        .find(|group| group.get_attribute("data-open").as_deref() == Some("true"))
-    {
-        fit_open_labels(&probe, open_group);
-        copy_attribute(&probe, live, "data-fit-headers");
-        copy_attribute(&probe, live, "data-utility-labels");
-        for trigger in query_all(live, "[data-workbench-section-trigger]") {
-            trigger.remove_attr("data-closed-hide");
-        }
-        if let Some(actual_group) = actual_groups
-            .iter()
-            .find(|group| group.get_attribute("data-open").as_deref() == Some("true"))
-        {
-            copy_attribute(open_group, actual_group, "data-action-labels");
-            let measured_actions = query_all(open_group, "[data-workbench-action]");
-            let actual_actions = query_all(actual_group, "[data-workbench-action]");
-            for (measured, actual) in measured_actions.iter().zip(actual_actions.iter()) {
-                if measured.has_attribute("data-show-label") {
-                    let _ = actual.set_attribute("data-show-label", "");
-                } else {
-                    actual.remove_attr("data-show-label");
-                }
-            }
-            if let Some(track) = open_group
-                .query_selector(".workbench-tool-track")
-                .ok()
-                .flatten()
-            {
-                set_tool_distance(actual_group, &track);
-            }
-        }
-    } else {
-        fit_closed_labels(&probe);
-        copy_attribute(&probe, live, "data-utility-labels");
-        live.remove_attr("data-fit-headers");
-        let measured_triggers = query_all(&probe, "[data-workbench-section-trigger]");
-        let actual_triggers = query_all(live, "[data-workbench-section-trigger]");
-        for (measured, actual) in measured_triggers.iter().zip(actual_triggers.iter()) {
-            if measured.has_attribute("data-closed-hide") {
-                let _ = actual.set_attribute("data-closed-hide", "");
-            } else {
-                actual.remove_attr("data-closed-hide");
-            }
-        }
-        for (measured, actual) in measured_groups.iter().zip(actual_groups.iter()) {
-            if let Some(track) = measured
-                .query_selector(".workbench-tool-track")
-                .ok()
-                .flatten()
-            {
-                set_tool_distance(actual, &track);
-            }
+    for group in query_all(live, "[data-workbench-section]") {
+        if let Some(track) = group.query_selector(".workbench-tool-track").ok().flatten() {
+            set_tool_distance(&group, &track);
         }
     }
-    probe.remove();
 }
-
 fn fonts_ready(document: Option<web_sys::Document>) -> Option<js_sys::Promise> {
     let document = document?;
     let document_value: &wasm_bindgen::JsValue = document.as_ref();
@@ -501,15 +308,15 @@ fn fonts_ready(document: Option<web_sys::Document>) -> Option<js_sys::Promise> {
     ready.dyn_into::<js_sys::Promise>().ok()
 }
 
-/// One bounded tool row. Fitting is applied to this final DOM by the host;
+/// One bounded tool row. Density is owned by container queries;
 /// section and domain state remain with their caller.
 #[component]
-pub(super) fn ToolRow(label: String, fit_key: String, children: Element) -> Element {
+pub(super) fn ToolRow(label: String, children: Element) -> Element {
     let mut root = use_signal(|| None::<web_sys::Element>);
     let observers = use_hook(|| Rc::new(RefCell::new(None::<ToolRowObservers>)));
-    use_effect(use_reactive((&fit_key,), {
+    use_effect({
         let observers = observers.clone();
-        move |_| {
+        move || {
             let Some(root_element) = root() else { return };
             fit_tool_row(&root_element);
             if observers.borrow().is_some() {
@@ -569,7 +376,7 @@ pub(super) fn ToolRow(label: String, fit_key: String, children: Element) -> Elem
                 _mutation_callback: mutation_callback,
             });
         }
-    }));
+    });
     use_drop(move || {
         observers.borrow_mut().take();
     });
@@ -686,25 +493,33 @@ mod tests {
     fn tool_row_fixture() -> Element {
         let panel = use_signal(|| None::<ToolPanel>);
         let mut section = use_signal(|| Some("alpha"));
+        // (index, label, pressed, checked, has_svg): pressed+checked shown when narrow,
+        // unpressed SVG hidden when narrow, text-only (no SVG) always shown.
         let actions = [
-            (1usize, "First very long action name", true),
-            (2usize, "Second very long action name", false),
-            (3usize, "Third very long action name", false),
-            (4usize, "Fourth very long action name", false),
-            (5usize, "Fifth very long action name", false),
-            (6usize, "Sixth very long action name", false),
+            (1usize, "First very long action name", true, false, true),
+            (2usize, "Second very long action name", false, true, true),
+            (3usize, "Third very long action name", false, false, true),
+            (4usize, "Fourth very long action name", false, false, true),
+            (5usize, "Fifth very long action name", false, false, true),
+            (6usize, "Sixth very long action name", false, false, false),
         ];
         rsx! {
             style { {include_str!("../../assets/workbench-base.css")} }
             style { {include_str!("../../assets/tailwind.css")} }
+            style { {include_str!("../../assets/layout-toolbar.css")} }
             style { {include_str!("../../assets/shell.css")} }
             div { id: "tool-row-fixture", style: "width:520px",
-                ToolRow { label: "Layout tools".to_owned(), fit_key: section().unwrap_or("closed").to_owned(),
+                ToolRow { label: "Layout tools".to_owned(),
                     ToolSection { id: "alpha", index: 0usize, label: "Alpha".to_owned(), caption: Some("Current".to_owned()), expanded: section() == Some("alpha"),
                         on_toggle: move |_| section.set((section() != Some("alpha")).then_some("alpha")),
                         icon: rsx! { span { "A" } },
-                        for (index, label, pressed) in actions {
-                            ToolbarButton { index, class: "workbench-action", "data-workbench-action": "", aria_label: label, aria_pressed: pressed,
+                        for (index, label, pressed, checked, has_svg) in actions {
+                            ToolbarButton { index, class: "workbench-action", "data-workbench-action": "", aria_label: label, aria_pressed: pressed, "aria-checked": if checked { "true" } else { "false" },
+                                if has_svg {
+                                    svg { view_box: "0 0 20 20", "aria-hidden": "true",
+                                        path { d: "M3 3h14v14H3z" }
+                                    }
+                                }
                                 span { class: "workbench-action-label", "{label}" }
                             }
                         }
@@ -855,57 +670,40 @@ mod tests {
 
     #[wasm_bindgen_test]
     async fn tool_row_fits_final_labels_before_roving_past_closed_actions() {
+        // Slice 3: container queries own density (no fitting attributes/probe).
+        // Assertion map from prior fitting version:
+        // - Wait adaptive / probe inert/hidden/focus/removed -> replaced by independent CQ checks below.
+        // - 42px, row no-overflow, narrow lane overflow, End->Inspect roving -> retained.
+        // - Pressed shown, unpressed hidden -> retained + extended (checked, text-only, both sides of 850).
         let root = mount_component(tool_row_fixture);
-        wait_until("the fitted tool row allocates its labels", || {
-            root.query_selector("[data-workbench-section='alpha']")
+        wait_until("tool row mounts", || {
+            root.query_selector(".workbench-tool-row")
                 .unwrap()
-                .is_some_and(|group| {
-                    group.get_attribute("data-action-labels").as_deref() == Some("adaptive")
-                })
+                .is_some()
         })
         .await;
         let row = root.query_selector(".workbench-tool-row").unwrap().unwrap();
-        // Inspect the synchronous probe while it is attached, before fitting removes it.
-        let parent = row.parent_element().unwrap();
-        let capture = js_sys::Function::new_with_args(
-            "parent",
-            "const state = {}; const append = parent.appendChild; parent.appendChild = function(node) { const result = append.call(this, node); if (node.classList.contains('workbench-tool-row-measuring')) { state.inert = node.inert; state.hidden = node.getAttribute('aria-hidden'); const button = node.querySelector('button'); button.focus(); state.focused = node.contains(document.activeElement); state.buttonTabIndex = button.tabIndex; } return result; }; state.restore = () => { parent.appendChild = append; }; return state;",
+        let window = web_sys::window().unwrap();
+        let display_of = |selector: &str| {
+            let el = root.query_selector(selector).unwrap().unwrap();
+            window
+                .get_computed_style(&el)
+                .unwrap()
+                .unwrap()
+                .get_property_value("display")
+                .unwrap()
+        };
+        wait_until(
+            "container density hides unpressed labels at narrow width",
+            || {
+                display_of("[aria-label='First very long action name'] .workbench-action-label")
+                    != "none"
+                    && display_of(
+                        "[aria-label='Third very long action name'] .workbench-action-label",
+                    ) == "none"
+            },
         )
-        .call1(&wasm_bindgen::JsValue::NULL, parent.as_ref())
-        .unwrap();
-        fit_tool_row(&row);
-        js_sys::Reflect::get(&capture, &"restore".into())
-            .unwrap()
-            .unchecked_into::<js_sys::Function>()
-            .call0(&wasm_bindgen::JsValue::NULL)
-            .unwrap();
-        assert_eq!(
-            js_sys::Reflect::get(&capture, &"inert".into())
-                .unwrap()
-                .as_bool(),
-            Some(true),
-            "the attached probe is inert and excluded from sequential focus"
-        );
-        assert_eq!(
-            js_sys::Reflect::get(&capture, &"hidden".into())
-                .unwrap()
-                .as_string()
-                .as_deref(),
-            Some("true")
-        );
-        assert_eq!(
-            js_sys::Reflect::get(&capture, &"focused".into())
-                .unwrap()
-                .as_bool(),
-            Some(false),
-            "probe controls cannot receive focus"
-        );
-        assert!(
-            root.query_selector(".workbench-tool-row-measuring")
-                .unwrap()
-                .is_none(),
-            "the probe leaves the tab order after measurement"
-        );
+        .await;
         let rect = row.get_bounding_client_rect();
         assert!(
             (rect.height() - 42.0).abs() < 0.5,
@@ -916,29 +714,113 @@ mod tests {
             row.scroll_width() <= row.client_width() + 1,
             "the row itself does not overflow"
         );
-        let track = root
-            .query_selector("[data-workbench-section='alpha'] .workbench-tool-track")
-            .unwrap()
-            .unwrap();
-        let window = web_sys::window().unwrap();
-        let label_display = |selector: &str| {
-            let label = root.query_selector(selector).unwrap().unwrap();
-            window
-                .get_computed_style(&label)
-                .unwrap()
-                .unwrap()
-                .get_property_value("display")
-                .unwrap()
-        };
         assert_ne!(
-            label_display("[aria-label='First very long action name'] .workbench-action-label"),
+            display_of("[aria-label='First very long action name'] .workbench-action-label"),
             "none",
             "the pressed action keeps its name"
         );
-        assert_eq!(
-            label_display("[aria-label='Third very long action name'] .workbench-action-label"),
+        assert_ne!(
+            display_of("[aria-label='Second very long action name'] .workbench-action-label"),
             "none",
-            "a lower-priority action folds before captions consume the lane"
+            "the checked action keeps its name"
+        );
+        assert_eq!(
+            display_of("[aria-label='Third very long action name'] .workbench-action-label"),
+            "none",
+            "an unpressed icon+label action folds at narrow width"
+        );
+        let text_only = root
+            .query_selector("[aria-label='Sixth very long action name'] .workbench-action-label")
+            .unwrap()
+            .unwrap();
+        assert_ne!(
+            display_of("[aria-label='Sixth very long action name'] .workbench-action-label"),
+            "none",
+            "the unpressed text-only action never goes blank"
+        );
+        assert!(
+            text_only
+                .text_content()
+                .is_some_and(|t| !t.trim().is_empty()),
+            "text-only label has text"
+        );
+        let text_rect = text_only.get_bounding_client_rect();
+        assert!(
+            text_rect.width() > 0.0 && text_rect.height() > 0.0,
+            "text-only label has bounds"
+        );
+        assert_eq!(
+            display_of("[data-workbench-section='alpha'] .workbench-tool-heading"),
+            "none",
+            "open narrow hides headings"
+        );
+        assert_eq!(
+            display_of(".workbench-utility .workbench-utility-label"),
+            "none",
+            "open narrow hides utility labels"
+        );
+        let beta_reveal = root
+            .query_selector("[data-workbench-section='beta'] .workbench-tool-reveal")
+            .unwrap()
+            .unwrap();
+        assert!(beta_reveal.has_attribute("inert"), "closed lane is inert");
+        assert_eq!(
+            beta_reveal.get_attribute("aria-hidden").as_deref(),
+            Some("true"),
+            "closed lane is aria-hidden"
+        );
+        // Fractional W just below 850 (parent 853.5px, row content-box 849.5px)
+        // stays in the narrow band: half-open ranges leave no endpoint gap.
+        root.query_selector("#tool-row-fixture")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<HtmlElement>()
+            .unwrap()
+            .style()
+            .set_property("width", "853.5px")
+            .unwrap();
+        assert_eq!(
+            display_of("[aria-label='Third very long action name'] .workbench-action-label"),
+            "none",
+            "fractional width below 850 keeps unpressed labels folded"
+        );
+        assert_ne!(
+            display_of("[aria-label='First very long action name'] .workbench-action-label"),
+            "none",
+            "fractional width below 850 keeps the pressed label"
+        );
+        root.query_selector("#tool-row-fixture")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<HtmlElement>()
+            .unwrap()
+            .style()
+            .set_property("width", "900px")
+            .unwrap();
+        wait_until("wide density shows unpressed labels", || {
+            display_of("[aria-label='Third very long action name'] .workbench-action-label")
+                != "none"
+        })
+        .await;
+        assert_ne!(
+            display_of("[aria-label='Third very long action name'] .workbench-action-label"),
+            "none",
+            "wide shows unpressed labels"
+        );
+        assert_ne!(
+            display_of("[data-workbench-section='alpha'] .workbench-tool-heading"),
+            "none",
+            "wide open shows its heading"
+        );
+        assert_eq!(
+            display_of("[data-workbench-section='beta'] .workbench-tool-heading"),
+            "none",
+            "wide open hides closed-section headings"
+        );
+        assert_ne!(
+            display_of(".workbench-utility .workbench-utility-label"),
+            "none",
+            "wide open shows utility labels"
         );
         root.query_selector("#tool-row-fixture")
             .unwrap()
@@ -948,17 +830,15 @@ mod tests {
             .style()
             .set_property("width", "320px")
             .unwrap();
+        let track = root
+            .query_selector("[data-workbench-section='alpha'] .workbench-tool-track")
+            .unwrap()
+            .unwrap();
         wait_until("the narrow action lane retains native overflow", || {
             track.scroll_width() > track.client_width()
                 && row.scroll_width() <= row.client_width() + 1
         })
         .await;
-        assert!(
-            root.query_selector(".workbench-tool-row-measuring")
-                .unwrap()
-                .is_none(),
-            "the measurement probe is removed"
-        );
         let alpha = by_role_name(&root, "button", "Alpha").unwrap();
         alpha.focus().unwrap();
         let init = web_sys::KeyboardEventInit::new();

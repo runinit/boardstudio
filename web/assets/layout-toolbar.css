@@ -46,13 +46,18 @@
 .layout-snap-custom[aria-invalid='true'] { border-color: var(--destructive); outline: 2px solid var(--destructive); outline-offset: -2px; }
 .layout-snap-gap-label { flex: none; white-space: nowrap; color: var(--muted-foreground); font-size: 12px; }
 .layout-snap-gap-group { width: 64px; height: 32px; flex: none; min-width: 0; box-sizing: border-box; border: 1px solid var(--input); border-radius: 5px; background: var(--field); }
-/* 002 lane-label-fix: Select scope triggers icon-only 32px when compact, auto width when fitter allocates labels. Accordion-only, PCB legacy preserved. */
+/* Slice 3 density pilot: Select scope triggers icon-only 32px when compact, auto width when CQ allocates labels. Accordion-only, PCB legacy preserved. */
 [data-workbench-section='select'] [data-slot='toggle-group-item'],
 [data-workbench-section='select'] .layout-scope-trigger[data-slot] { height: 32px; min-height: 32px; min-width: 32px; width: 32px; padding: 5px; flex: none; }
-[data-workbench-section='select'][data-action-labels='full'] [data-slot='toggle-group-item'],
-[data-workbench-section='select'][data-action-labels='full'] .layout-scope-trigger[data-slot],
-[data-workbench-section='select'][data-action-labels='adaptive'] [data-show-label][data-slot='toggle-group-item'],
-[data-workbench-section='select'][data-action-labels='adaptive'] [data-show-label].layout-scope-trigger[data-slot] { width: auto; padding: 5px 8px; }
+/* Pressed/checked labelled actions always auto (all widths); full-label band via container below. */
+[data-workbench-section='select'] [data-slot='toggle-group-item'][aria-pressed='true'],
+[data-workbench-section='select'] [data-slot='toggle-group-item'][aria-checked='true'],
+[data-workbench-section='select'] .layout-scope-trigger[data-slot][aria-pressed='true'],
+[data-workbench-section='select'] .layout-scope-trigger[data-slot][aria-checked='true'] { width: auto; padding: 5px 8px; }
+@container workbench-tools (min-width: 850px) {
+  [data-workbench-section='select'] [data-slot='toggle-group-item'],
+  [data-workbench-section='select'] .layout-scope-trigger[data-slot] { width: auto; padding: 5px 8px; }
+}
 /* View CanvasLayers: trigger in the row, list below the strip, clamped and scrollable. */
 [data-workbench-section='view'] [data-slot='collapsible'] { position: relative; right: auto; bottom: auto; z-index: auto; display: flex; flex-direction: column; width: auto; min-width: 32px; max-width: 100%; max-height: none; margin: 0; padding: 0; overflow: visible; border: 0; border-radius: 0; background: transparent; box-shadow: none; flex: none; }
 [data-workbench-section='view'] #m1-layers-trigger { anchor-name: --layers-trigger; }
@@ -60,4 +65,58 @@
 .layout-snap-gap-label { margin-left: 6px; }
 @media (pointer: coarse) {
   .layout-toolbar-strips [data-slot]:is(button) { min-width: var(--control-touch); height: var(--control-touch); min-height: var(--control-touch); }
+}
+/* Slice 3 density pilot: named container-query density replaces fitting attributes.
+   W = row content-box inline size. Thresholds provisional (caption near 800).
+   Generic row rules live here (owned) until shell.css ownership allows relocation. */
+.workbench-tool-row {
+  container-name: workbench-tools;
+  container-type: inline-size;
+}
+/* Captions hidden by default; shown only when closed and wide (heading shown there). */
+.workbench-tool-row .workbench-tool-caption { display: none; }
+@container workbench-tools (min-width: 800px) {
+  .workbench-tool-row:not(:has(.workbench-tool-group[data-open='true'])) .workbench-tool-caption { display: inline; }
+}
+/* Open + narrow: no headings/chevrons (shell open-hide already hides; explicit policy). */
+@container workbench-tools (width < 850px) {
+  .workbench-tool-row:has(.workbench-tool-group[data-open='true']) .workbench-tool-heading { display: none; }
+  .workbench-tool-row:has(.workbench-tool-group[data-open='true']) .workbench-tool-chevron { display: none; }
+}
+/* Open + medium: open heading only; hide closed-section headings/chevrons, show open. */
+@container workbench-tools (850px <= width < 1200px) {
+  .workbench-tool-row:has(.workbench-tool-group[data-open='true']) .workbench-tool-group:not([data-open='true']) .workbench-tool-heading { display: none; }
+  .workbench-tool-row:has(.workbench-tool-group[data-open='true']) .workbench-tool-group:not([data-open='true']) .workbench-tool-chevron { display: none; }
+  .workbench-tool-row:has(.workbench-tool-group[data-open='true']) .workbench-tool-group[data-open='true'] .workbench-tool-heading { display: flex; }
+  .workbench-tool-row:has(.workbench-tool-group[data-open='true']) .workbench-tool-group[data-open='true'] .workbench-tool-chevron { display: block; }
+}
+/* Open + wide: show all headings/chevrons (override shell open-hide with higher specificity). */
+@container workbench-tools (min-width: 1200px) {
+  .workbench-tool-row:has(.workbench-tool-group[data-open='true']) .workbench-tool-group .workbench-tool-heading { display: flex; }
+  .workbench-tool-row:has(.workbench-tool-group[data-open='true']) .workbench-tool-group .workbench-tool-chevron { display: block; }
+}
+/* Closed + narrow (<500): no headings/chevrons. */
+@container workbench-tools (width < 500px) {
+  .workbench-tool-row:not(:has(.workbench-tool-group[data-open='true'])) .workbench-tool-heading { display: none; }
+  .workbench-tool-row:not(:has(.workbench-tool-group[data-open='true'])) .workbench-tool-chevron { display: none; }
+}
+/* Closed + 500-700: Select+Transform only; hide Align/Snap/View headings/chevrons. */
+@container workbench-tools (500px <= width < 700px) {
+  .workbench-tool-row:not(:has(.workbench-tool-group[data-open='true'])) [data-workbench-section='align'] .workbench-tool-heading,
+  .workbench-tool-row:not(:has(.workbench-tool-group[data-open='true'])) [data-workbench-section='snap'] .workbench-tool-heading,
+  .workbench-tool-row:not(:has(.workbench-tool-group[data-open='true'])) [data-workbench-section='view'] .workbench-tool-heading { display: none; }
+  .workbench-tool-row:not(:has(.workbench-tool-group[data-open='true'])) [data-workbench-section='align'] .workbench-tool-chevron,
+  .workbench-tool-row:not(:has(.workbench-tool-group[data-open='true'])) [data-workbench-section='snap'] .workbench-tool-chevron,
+  .workbench-tool-row:not(:has(.workbench-tool-group[data-open='true'])) [data-workbench-section='view'] .workbench-tool-chevron { display: none; }
+}
+/* Utility labels: closed W>=360, open W>=850 (3D has no open groups, uses closed policy). */
+@container workbench-tools (min-width: 360px) {
+  .workbench-tool-row:not(:has(.workbench-tool-group[data-open='true'])) .workbench-utility .workbench-utility-label { display: inline; }
+}
+@container workbench-tools (min-width: 850px) {
+  .workbench-tool-row:has(.workbench-tool-group[data-open='true']) .workbench-utility .workbench-utility-label { display: inline; }
+}
+/* Action labels: W>=850 all shown (base); W<850 hide unpressed/unchecked icon+label actions, text-only always shown. */
+@container workbench-tools (width < 850px) {
+  .workbench-tool-group [data-workbench-action]:has(> svg):not([aria-pressed='true']):not([aria-checked='true']) > .workbench-action-label { display: none; }
 }
