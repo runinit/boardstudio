@@ -681,7 +681,8 @@ fn protected_mirror_replacement_baseline_survives_open_and_requires_review_befor
     );
     assert_eq!(protected["kind"], "scene", "{protected}");
     let protected_document = protected["document"].clone();
-    let protected_baseline = board_config(&protected_document, "right")["protectedTransfer"].clone();
+    let protected_baseline =
+        board_config(&protected_document, "right")["protectedTransfer"].clone();
     assert_eq!(protected_baseline["assignments"]["i2c/SDA"], sda_pin);
     assert_eq!(source_projection(&protected_document), source_before);
     assert_eq!(

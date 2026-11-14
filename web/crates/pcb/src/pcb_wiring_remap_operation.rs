@@ -31,7 +31,9 @@ pub fn propose_review_remap(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use boardstudio_core::model::{Board, ElectricalBoardConfiguration, ElectricalTransferBaseline};
+    use boardstudio_core::model::{
+        Board, ElectricalBoardConfiguration, ElectricalTransferBaseline,
+    };
 
     fn protected_document() -> ProjectDoc {
         let mut document = ProjectDoc::empty("project", "Test");
