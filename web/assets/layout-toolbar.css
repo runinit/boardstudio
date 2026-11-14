@@ -58,10 +58,10 @@
   [data-workbench-section='select'] [data-slot='toggle-group-item'],
   [data-workbench-section='select'] .layout-scope-trigger[data-slot] { width: auto; padding: 5px 8px; }
 }
-/* View CanvasLayers: trigger in the row, list below the strip, clamped and scrollable. */
+/* View CanvasLayers: trigger in the row, list below the strip, clamped and scrollable. 002 layers-390: clamp left so the 240px list keeps 8px side margins (flip-inline cannot cover the middle zone where both anchorings overflow). */
 [data-workbench-section='view'] [data-slot='collapsible'] { position: relative; right: auto; bottom: auto; z-index: auto; display: flex; flex-direction: column; width: auto; min-width: 32px; max-width: 100%; max-height: none; margin: 0; padding: 0; overflow: visible; border: 0; border-radius: 0; background: transparent; box-shadow: none; flex: none; }
 [data-workbench-section='view'] #m1-layers-trigger { anchor-name: --layers-trigger; }
-[data-workbench-section='view'] #m1-layers-list { position: fixed; position-anchor: --layers-trigger; top: calc(anchor(bottom) + 4px); left: anchor(left); z-index: 30; width: 240px; max-width: min(320px, calc(100vw - 16px)); max-height: min(65vh, 520px); overflow: auto; border: 1px solid var(--border-strong); border-radius: 12px; background: var(--card); padding: 12px; }
+[data-workbench-section='view'] #m1-layers-list { position: fixed; position-anchor: --layers-trigger; top: calc(anchor(bottom) + 4px); left: clamp(8px, anchor(left), calc(100vw - 248px)); /* 248 = 240px list width + 8px margin */ z-index: 30; width: 240px; max-width: min(320px, calc(100vw - 16px)); max-height: min(65vh, 520px); overflow: auto; border: 1px solid var(--border-strong); border-radius: 12px; background: var(--card); padding: 12px; }
 .layout-snap-gap-label { margin-left: 6px; }
 @media (pointer: coarse) {
   .layout-toolbar-strips [data-slot]:is(button) { min-width: var(--control-touch); height: var(--control-touch); min-height: var(--control-touch); }

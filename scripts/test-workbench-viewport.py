@@ -354,6 +354,81 @@ def canvas_visibility_report():
     )
 
 
+def layers_list_report():
+    # Layers list placement oracle (ticket 002 390 right-edge defect): with View
+    # open, the trigger scrolled into the lane and the list open, the fixed list
+    # must sit fully inside the viewport with >=8px side margins, below the
+    # trigger, its first choice hit-testable at centre, and no page overflow.
+    # Caller opens/closes the list; this only measures. Programmatic trigger
+    # click; trigger pointer reach is covered by CANVAS where the trigger fits.
+    return evaluate(
+        "(()=>{" +
+        "const trig=document.querySelector('#m1-layers-trigger');" +
+        "const list=document.querySelector('#m1-layers-list');" +
+        "if(!trig||!list) return {missing:true};" +
+        "const open=trig.getAttribute('aria-expanded')==='true';" +
+        "const b=list.getBoundingClientRect();" +
+        "const tb=trig.getBoundingClientRect();" +
+        "const first=list.querySelector('button');" +
+        "let choice=null;" +
+        "if(first){"+
+        "const fb=first.getBoundingClientRect();" +
+        "const cx=fb.x+fb.width/2, cy=fb.y+fb.height/2;" +
+        "const el=(cx>=0&&cx<=innerWidth&&cy>=0&&cy<=innerHeight)?document.elementFromPoint(cx,cy):null;" +
+        "choice={label:(first.getAttribute('aria-label')||'').slice(0,40)," +
+        "x:fb.x,y:fb.y,w:fb.width,h:fb.height,cx,cy," +
+        "hit:el===first||(el&&first.contains(el))," +
+        "el:el?el.tagName+':'+(el.getAttribute('aria-label')||'').slice(0,40):null};" +
+        "}" +
+        "return {open,vw:innerWidth," +
+        "list:{x:b.x,y:b.y,w:b.width,h:b.height,right:b.x+b.width}," +
+        "trigger:{x:tb.x,y:tb.y,w:tb.width,h:tb.height,bottom:tb.y+tb.height}," +
+        "first:choice," +
+        "overflow:{sw:document.documentElement.scrollWidth,cw:document.documentElement.clientWidth}};" +
+        "})()"
+    )
+
+
+def check_layers_open(tag, failures):
+    # Shared Layers list placement proof (page flow + layers scenario): scroll
+    # the trigger into the lane, open with a programmatic click, measure settled
+    # (tooltips closed so hit testing sees the list), then close/restore scroll.
+    # Programmatic trigger click; trigger pointer reach is covered by CANVAS.
+    layers_scroll = evaluate(
+        "(()=>{const t=document.querySelector('#m1-layers-trigger');" +
+        "const track=document.querySelector('[data-workbench-section=\"view\"] .workbench-tool-track');" +
+        "const orig=track.scrollLeft;" +
+        "t.scrollIntoView({block:'nearest',inline:'nearest',behavior:'auto'});" +
+        "return orig;})()"
+    )
+    evaluate("document.querySelector('#m1-layers-trigger').click()")
+    browser("wait", "--fn", "document.querySelector(\"#m1-layers-trigger\").getAttribute(\"aria-expanded\")===\"true\"")
+    wait_for_settled()
+    evaluate("(()=>{ document.querySelectorAll('[data-slot=tooltip-trigger], .layout-selection-guidance').forEach(t=>{ try{ if(document.activeElement===t) t.blur(); t.dispatchEvent(new MouseEvent('mouseleave',{bubbles:true})); }catch(_){} }); })()")
+    browser("wait", "--fn", "document.querySelectorAll('[data-slot=tooltip][data-state=open]').length===0")
+    layers = layers_list_report()
+    print(f"LAYERS {tag}: {json.dumps(layers)}", flush=True)
+    if layers.get("missing") or not layers.get("open"):
+        failures.append((f"layers-{tag}", f"Layers list did not open, full {layers}"))
+    else:
+        lay, ltrig = layers["list"], layers["trigger"]
+        if lay["x"] + 1e-6 < 8.0:
+            failures.append((f"layers-{tag}", f"list left edge {lay['x']:.1f}px, require >=8px margin, full {layers}"))
+        if lay["right"] - 1e-6 > layers["vw"] - 8.0:
+            failures.append((f"layers-{tag}", f"list right edge {lay['right']:.1f}px in {layers['vw']}px viewport, require >=8px margin, full {layers}"))
+        if lay["y"] + 1e-6 < ltrig["bottom"]:
+            failures.append((f"layers-{tag}", f"list top {lay['y']:.1f}px above trigger bottom {ltrig['bottom']:.1f}px, full {layers}"))
+        first = layers.get("first") or {}
+        if not first.get("hit"):
+            failures.append((f"layers-{tag}", f"first choice {first.get('label')} not hit-testable at centre ({first.get('cx')},{first.get('cy')}), hit {first.get('el')}, full {layers}"))
+        over = layers["overflow"]
+        if over["sw"] > over["cw"]:
+            failures.append((f"layers-{tag}", f"page horizontal overflow with list open {over}"))
+    evaluate("document.querySelector('#m1-layers-trigger').click()")
+    browser("wait", "--fn", "document.querySelector(\"#m1-layers-trigger\").getAttribute(\"aria-expanded\")===\"false\"")
+    evaluate(f"(()=>{{const track=document.querySelector('[data-workbench-section=\"view\"] .workbench-tool-track');track.scrollLeft={layers_scroll};}})()")
+
+
 def select_label_report():
     # Select label oracle: expected label presence comes from ticket 002's density table (row content-box W
     # and pressed/checked state), never from a density attribute the product writes.
@@ -1074,6 +1149,10 @@ def production_viewport_tests(url, width=320, height=480, setup_matrix=False):
                     print(f"HANDLES-PARTIAL open-{sec}: {seen['w']}px control in {seen['track']['w']}px lane, reachable and hit", flush=True)
                 if not (handles.get("usable") or partial):
                     failures.append((f"handles-{sec}", f"Handles not reachable via lane scroll (whole >=32x32 when it fits the lane, otherwise enabled, in row and hit), full {handles}"))
+                # Layers list placement (002 390 right-edge defect); shared proof,
+                # also runnable standalone via --scenario layers (the 320 full flow
+                # aborts earlier at the Slice-4-owed Snap keyboard oracle).
+                check_layers_open(f"open-{sec}", failures)
 
     # Panel opens via real accessibility click; Close still needs true hit test.
     for utility, panel_id, close_label in [
@@ -1328,6 +1407,23 @@ def assembly_3d_checks(url, width=1440, height=900):
     print(f"PASS: 3D branch at real {width}x{height} viewport, 42px row, closed-utility policy, reachable controls", flush=True)
 
 
+def layers_placement_checks(url, width=390, height=844):
+    # Scoped Layers placement proof at one viewport: fresh page, View open, the
+    # shared list-placement oracle, page overflow and browser errors. Exists so
+    # the 320 oracle runs despite the dispositioned full-flow Snap abort.
+    open_fresh_layout(url, width, height)
+    browser("find", "role", "button", "click", "--name", "View", "--exact")
+    browser("wait", "--fn", "document.querySelector(\"[data-workbench-section='view'][data-open='true']\")!==null")
+    wait_for_settled()
+    failures = []
+    check_layers_open("layers", failures)
+    check_page_overflow("layers", failures)
+    check_browser_errors(failures)
+    print(f"FAILURES ({len(failures)}): {json.dumps(failures, indent=2)}", flush=True)
+    assert not failures, failures
+    print(f"PASS: Layers list placement at real {width}x{height} viewport, 8px margins, below trigger, first choice hit", flush=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--page-url", required=True, help="packaged production page URL (no fixture mode)")
@@ -1335,14 +1431,16 @@ def main():
     parser.add_argument("--height", type=int, default=480)
     parser.add_argument("--setup-matrix", action="store_true",
                         help="Slice 3 B2: create a matrix via the setup guide before Hide guide (enabled Transform/Align)")
-    parser.add_argument("--scenario", choices=["page", "constrained", "assembly3d"], default="page",
-                        help="page: full viewport proof (default, unchanged); constrained: parent-constrained ledger at 1440x900; assembly3d: 3D branch checks at --width/--height")
+    parser.add_argument("--scenario", choices=["page", "constrained", "assembly3d", "layers"], default="page",
+                        help="page: full viewport proof (default, unchanged); constrained: parent-constrained ledger at 1440x900; assembly3d: 3D branch checks at --width/--height; layers: scoped Layers placement at --width/--height")
     args = parser.parse_args()
     try:
         if args.scenario == "constrained":
             constrained_parent_ledger(args.page_url)
         elif args.scenario == "assembly3d":
             assembly_3d_checks(args.page_url, args.width, args.height)
+        elif args.scenario == "layers":
+            layers_placement_checks(args.page_url, args.width, args.height)
         else:
             production_viewport_tests(args.page_url, args.width, args.height, setup_matrix=args.setup_matrix)
     finally:
