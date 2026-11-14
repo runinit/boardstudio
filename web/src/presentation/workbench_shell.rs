@@ -256,20 +256,6 @@ pub(super) fn PanelHost(
     }
 }
 
-struct ToolRowObservers {
-    resize: web_sys::ResizeObserver,
-    mutation: web_sys::MutationObserver,
-    _resize_callback: Closure<dyn FnMut(js_sys::Array, web_sys::ResizeObserver)>,
-    _mutation_callback: Closure<dyn FnMut()>,
-}
-
-impl Drop for ToolRowObservers {
-    fn drop(&mut self) {
-        self.resize.disconnect();
-        self.mutation.disconnect();
-    }
-}
-
 struct ToolRowOverlayCancel {
     mutation: web_sys::MutationObserver,
     _mutation_callback: Closure<dyn FnMut()>,
@@ -279,12 +265,6 @@ impl Drop for ToolRowOverlayCancel {
     fn drop(&mut self) {
         self.mutation.disconnect();
     }
-}
-
-fn fit_tool_row(_live: &web_sys::Element) {
-    // Slice 4: entry-only motion translates one allocated track box in CSS, so the
-    // measured scroll-width distance is gone. The observer/effect/font calls stay
-    // until Slice 5 retires them with this stub.
 }
 
 /// Finish the running entry on one track, if any. Uses reflected animation calls
@@ -355,86 +335,11 @@ fn cancel_entries_for_open_overlays(live: &web_sys::Element) {
         }
     }
 }
-fn fonts_ready(document: Option<web_sys::Document>) -> Option<js_sys::Promise> {
-    let document = document?;
-    let document_value: &wasm_bindgen::JsValue = document.as_ref();
-    let fonts = js_sys::Reflect::get(document_value, &"fonts".into()).ok()?;
-    let ready = js_sys::Reflect::get(&fonts, &"ready".into()).ok()?;
-    ready.dyn_into::<js_sys::Promise>().ok()
-}
-
 /// One bounded tool row. Density is owned by container queries;
 /// section and domain state remain with their caller.
 #[component]
 pub(super) fn ToolRow(label: String, children: Element) -> Element {
     let mut root = use_signal(|| None::<web_sys::Element>);
-    let observers = use_hook(|| Rc::new(RefCell::new(None::<ToolRowObservers>)));
-    use_effect({
-        let observers = observers.clone();
-        move || {
-            let Some(root_element) = root() else { return };
-            fit_tool_row(&root_element);
-            if observers.borrow().is_some() {
-                return;
-            }
-            let resize_root = root_element.clone();
-            let resize_callback =
-                Closure::<dyn FnMut(js_sys::Array, web_sys::ResizeObserver)>::new(move |_, _| {
-                    if resize_root.is_connected() {
-                        fit_tool_row(&resize_root);
-                    }
-                });
-            let Ok(resize) = web_sys::ResizeObserver::new(resize_callback.as_ref().unchecked_ref())
-            else {
-                return;
-            };
-            resize.observe(&root_element);
-            let mutation_root = root_element.clone();
-            let mutation_callback = Closure::<dyn FnMut()>::new(move || {
-                if mutation_root.is_connected() {
-                    fit_tool_row(&mutation_root);
-                }
-            });
-            let Ok(mutation) =
-                web_sys::MutationObserver::new(mutation_callback.as_ref().unchecked_ref())
-            else {
-                return;
-            };
-            let options = web_sys::MutationObserverInit::new();
-            options.set_attributes(true);
-            let attribute_filter = js_sys::Array::new();
-            for attribute in ["data-open", "aria-pressed", "aria-checked", "disabled"] {
-                attribute_filter.push(&attribute.into());
-            }
-            options.set_attribute_filter(&attribute_filter);
-            options.set_child_list(true);
-            options.set_subtree(true);
-            if mutation
-                .observe_with_options(&root_element, &options)
-                .is_err()
-            {
-                return;
-            }
-            if let Some(promise) = fonts_ready(root_element.owner_document()) {
-                let font_root = root_element.clone();
-                spawn(async move {
-                    let _ = wasm_bindgen_futures::JsFuture::from(promise).await;
-                    if font_root.is_connected() {
-                        fit_tool_row(&font_root);
-                    }
-                });
-            }
-            *observers.borrow_mut() = Some(ToolRowObservers {
-                resize,
-                mutation,
-                _resize_callback: resize_callback,
-                _mutation_callback: mutation_callback,
-            });
-        }
-    });
-    use_drop(move || {
-        observers.borrow_mut().take();
-    });
     let overlay_cancel = use_hook(|| Rc::new(RefCell::new(None::<ToolRowOverlayCancel>)));
     use_effect({
         let overlay_cancel = overlay_cancel.clone();
