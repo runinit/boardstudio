@@ -29,27 +29,6 @@ impl std::error::Error for Error {}
 /// A fallible harness result.
 pub type Result<T> = std::result::Result<T, Error>;
 
-/// Canonical JSON: objects with recursively sorted keys, like the old
-/// runner's `stable()` helper. Document signatures compare on this form, so
-/// the Rust side and the page's own canonicalization must agree byte for byte.
-pub fn canonical(value: &serde_json::Value) -> serde_json::Value {
-    match value {
-        serde_json::Value::Object(map) => {
-            let mut sorted = serde_json::Map::with_capacity(map.len());
-            let mut keys: Vec<&String> = map.keys().collect();
-            keys.sort();
-            for key in keys {
-                sorted.insert(key.clone(), canonical(&map[key]));
-            }
-            serde_json::Value::Object(sorted)
-        }
-        serde_json::Value::Array(items) => {
-            serde_json::Value::Array(items.iter().map(canonical).collect())
-        }
-        other => other.clone(),
-    }
-}
-
 /// Locate the Chrome executable the harness must launch.
 ///
 /// `CHROME_BIN` wins when set; otherwise the usual executable names are probed
@@ -64,7 +43,7 @@ pub fn discover_chrome(
             return Ok(pinned);
         }
         return Err(format!(
-            "drag browser smoke needs Chrome or Chromium; CHROME_BIN points at '{pinned}', \
+            "browser harness needs Chrome or Chromium; CHROME_BIN points at '{pinned}', \
              which is not an executable file"
         ));
     }
@@ -73,7 +52,7 @@ pub fn discover_chrome(
             return Ok(name.to_owned());
         }
     }
-    Err("drag browser smoke needs Chrome or Chromium; set CHROME_BIN to its executable".to_owned())
+    Err("browser harness needs Chrome or Chromium; set CHROME_BIN to its executable".to_owned())
 }
 
 /// Process-owned writable directories for one browser run.
@@ -116,11 +95,11 @@ impl IsolatedDirs {
     /// exceed the browser's Unix socket limits.
     pub fn create(tmp_root: &std::path::Path) -> std::result::Result<Self, String> {
         let temp = tempfile::Builder::new()
-            .prefix("bs-drag-")
+            .prefix("bs-harness-")
             .tempdir_in(tmp_root)
             .map_err(|error| {
                 format!(
-                    "drag browser smoke needs a writable profile under '{}': {error}",
+                    "browser harness needs a writable profile under '{}': {error}",
                     tmp_root.display()
                 )
             })?;
@@ -135,7 +114,7 @@ impl IsolatedDirs {
         for dir in [&dirs.profile_dir, &dirs.config_dir] {
             if let Err(error) = std::fs::create_dir(dir) {
                 let message = format!(
-                    "drag browser smoke needs a writable profile under '{}': {error}",
+                    "browser harness needs a writable profile under '{}': {error}",
                     tmp_root.display()
                 );
                 return Err(match dirs.cleanup_after_termination() {
@@ -290,7 +269,7 @@ mod tests {
     fn isolated_dirs_do_not_adopt_abandoned_run() {
         let root = std::env::temp_dir().join(format!("bs-collision-test-{}", std::process::id()));
         std::fs::create_dir_all(&root).unwrap();
-        let abandoned = root.join(format!("bs-drag-{}-0", std::process::id()));
+        let abandoned = root.join(format!("bs-harness-{}-0", std::process::id()));
         std::fs::create_dir(&abandoned).unwrap();
         std::fs::write(abandoned.join("marker"), b"keep").unwrap();
         let dirs = IsolatedDirs::create(&root).unwrap();
@@ -385,32 +364,6 @@ mod tests {
         std::fs::write(&sentinel, b"keep").unwrap();
         drop(dirs);
         assert!(sentinel.exists());
-    }
-
-    #[test]
-    fn canonical_matches_page_stable_form() {
-        // The page's `stable()` output, computed independently in Node, is the
-        // contract document signatures follow. The suite compares same-side
-        // values only, so cross-parser float skew can never gate a check.
-        let project: serde_json::Value = serde_json::from_str(
-            r#"{"b": 0.30000000000000004, "a": [1, 2.5, 1e+21],
-                "c": {"z": 1, "y": null}, "u": "↔"}"#,
-        )
-        .unwrap();
-        let signature = serde_json::to_string(&crate::canonical(&project)).unwrap();
-        assert_eq!(
-            signature,
-            r#"{"a":[1,2.5,1e+21],"b":0.30000000000000004,"c":{"y":null,"z":1},"u":"↔"}"#
-        );
-        // Key order never affects a signature.
-        let shuffled: serde_json::Value = serde_json::from_str(
-            r#"{"u": "↔", "c": {"z": 1, "y": null}, "a": [1, 2.5, 1e+21], "b": 0.30000000000000004}"#,
-        )
-        .unwrap();
-        assert_eq!(
-            serde_json::to_string(&crate::canonical(&shuffled)).unwrap(),
-            signature
-        );
     }
 
     #[test]

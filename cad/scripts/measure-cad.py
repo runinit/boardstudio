@@ -142,12 +142,31 @@ def existing_artifacts(root, receipt, profile, build=None, captured=None):
     return f"validation_only=true\ntested_source={tested}\ncheckout_head={git(root, 'rev-parse', 'HEAD')}\ndocs_only_successors={changes!r}\nreceipt={receipt}\n{content}"
 
 
+def source_identity(root):
+    """HEAD and a digest of the uncommitted diff plus untracked files outside targets and evidence."""
+    head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, check=True,
+                          capture_output=True, text=True).stdout.strip()
+    digest = hashlib.sha256()
+    diff = subprocess.run(["git", "diff", "--binary", "HEAD"], cwd=root, check=True,
+                          capture_output=True).stdout
+    digest.update(diff)
+    untracked = subprocess.run(["git", "ls-files", "--others", "--exclude-standard"], cwd=root,
+                               check=True, capture_output=True, text=True).stdout.splitlines()
+    for relative in sorted(untracked):
+        path = root / relative
+        if not path.is_file() or "target/" in relative or relative.startswith(".evidence/"):
+            continue
+        digest.update(relative.encode())
+        with path.open("rb") as source:
+            for block in iter(lambda: source.read(1024 * 1024), b""):
+                digest.update(block)
+    return head, digest.hexdigest()
+
+
 def binding(root, profile):
-    """Reuse the existing receipt digest, official helper/stamp and Git; no source manifest."""
-    receipt = module_at(ROOT / "scripts/run-drag-browser.py", "perf_receipt")
-    driver_head, driver_source = receipt.source_identity()
-    receipt.ROOT = root
-    head, source = receipt.source_identity()
+    """Reuse the source digest, official helper/stamp and Git; no source manifest."""
+    driver_head, driver_source = source_identity(ROOT)
+    head, source = source_identity(root)
     old = (root / "cad/scripts/cadrum_build.py").is_file()
     helper = module_at(root / ("cad/scripts/cadrum_build.py" if old else
                               "cad/scripts/cad_build.py"), "perf_cad_helper")

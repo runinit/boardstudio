@@ -1,7 +1,4 @@
-"""Chrome and build tools the real-page browser smoke needs.
-
-`check.py` probes before it builds the page; `run-drag-browser.py` probes again before it launches.
-"""
+"""Chrome and build tools the real-browser harness checks need."""
 
 from __future__ import annotations
 
@@ -14,26 +11,21 @@ import subprocess
 
 
 class MissingBrowserTool(Exception):
-    """A prerequisite of the real-page smoke is absent; the message says how to supply it."""
-
-
-def validate_drag_driver() -> None:
-    if os.environ.get("BOARDSTUDIO_DRAG_DRIVER", "rust") != "rust":
-        raise MissingBrowserTool("BOARDSTUDIO_DRAG_DRIVER only supports rust; unset it or set it to rust")
+    """A prerequisite of a real-browser check is absent; the message says how to supply it."""
 
 
 def locate_chrome() -> str:
     """Returns the Chrome executable for the Rust harness, or raises `MissingBrowserTool`.
 
-    `CHROME_BIN` takes precedence, followed by the drag-specific CI override
-    and the usual executable names. The Rust driver needs no Node runtime.
+    `CHROME_BIN` takes precedence, followed by the usual executable names.
+    The Rust driver needs no Node runtime.
     """
-    chrome = os.environ.get("CHROME_BIN") or os.environ.get("BOARDSTUDIO_DRAG_CHROME_BIN") or next(
+    chrome = os.environ.get("CHROME_BIN") or next(
         (shutil.which(name) for name in ("google-chrome", "chromium", "chromium-browser") if shutil.which(name)),
         None,
     )
     if not chrome:
-        raise MissingBrowserTool("drag browser smoke needs Chrome or Chromium; set CHROME_BIN to its executable")
+        raise MissingBrowserTool("browser harness needs Chrome or Chromium; set CHROME_BIN to its executable")
     return chrome
 
 
@@ -55,10 +47,6 @@ def _inherited_build_lock() -> int | None:
     except (ValueError, OSError) as error:
         raise SystemExit(f"invalid BOARDSTUDIO_BUILD_LOCK_FD: {error}") from error
     return fd
-
-
-def build_drag_harness() -> Path:
-    return _build_harness("drag-smoke")
 
 
 def _build_harness(binary: str) -> Path:

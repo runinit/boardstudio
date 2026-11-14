@@ -4,7 +4,7 @@
   check.py                run the full check (the steps marked with * below)
   check.py STEP...        run only the named steps
   check.py browser --only CRATE...   run only the named presentation crate browser launch(es)
-                          (partial subset; skips the full page build; drag smoke is separate)
+                          (partial subset; skips the full page build)
   check.py browser --keep-going      continue independent browser launches after a failure
   check.py quick          the routine loop: only the checks that cover your changed files
                           run the full check once after focused checks and fixes
@@ -31,7 +31,6 @@ Steps:
               real-browser CAD smoke checks; crate launches run up to
               BOARDSTUDIO_CHECK_JOBS (default 4) at once, without debug info;
               the independent native test commands also run together
-  drag-smoke  opt-in real-page trusted-pointer diagnostic; not part of `browser` or the full check
   security    dependency audit of every Rust lockfile (separate CI workflow)
   deny        cargo-deny license, ban and source policy from deny.toml (separate CI workflow)
   precommit   typecheck the page
@@ -82,17 +81,14 @@ TOOLING_TESTS = (
     "scripts/test-dev-web.py", "scripts/test-run-wasm-tests.py", "scripts/test-check-wasm-tests.py",
     "scripts/test-stage-ergogen-models.py", "scripts/test-check.py", "scripts/test-check-quick.py", "scripts/test-catalogue-tools.py", "scripts/test-gitnexus-refresh.py",
     "scripts/test-gitnexus-stop-hook.py",
-    "scripts/test-verification-receipt.py", "scripts/test-drag-receipt-bytes.py", "scripts/test-parallel-interrupt.py", "scripts/test-verify-no-node.py", "scripts/test-build-time.py",
+    "scripts/test-verification-receipt.py", "scripts/test-parallel-interrupt.py", "scripts/test-verify-no-node.py", "scripts/test-build-time.py",
     "scripts/test-check-native-tests.py", "scripts/test-mutation-check.py", "scripts/test-browser-tools.py",
     "scripts/test-chrome-for-testing.py", "scripts/test-bump-chrome-for-testing.py", "tools/browser-harness/test-response-probe-cleanup.py",
     "scripts/test-ci-workflow.py", "scripts/test-verify-update-adoption.py",
 )
 WASM_PAGE = ["--no-default-features", "--features", "page"]
 ISOLATED = ("presentation::case_workspace::",)
-DRAG_SMOKE = [PY, "scripts/run-drag-browser.py"]
 HARNESS_MANIFEST = "tools/browser-harness/Cargo.toml"
-HARNESS_PREBUILD: Command = ["cargo", "build", "--locked", "--manifest-path", HARNESS_MANIFEST,
-                             "--package", "boardstudio-browser-harness", "--bin", "drag-smoke"]
 # One cargo invocation compiles every crate launch's test binary in parallel; launches queued on the
 # build lock otherwise. web/crates/test-floor keeps each launch's features equal to this one's.
 BROWSER_PREBUILD: Command = [
@@ -116,11 +112,6 @@ _RECEIPT: verification_receipt.Collector | None = None
 def typecheck() -> list[Command]:
     return [["cargo", "check", "-p", "boardstudio-web", "--locked", "--target", "wasm32-unknown-unknown",
              *WASM_PAGE, "--bin", "boardstudio-web"]]
-
-
-def is_harness_build(command: Command) -> bool:
-    """A prebuild of the drag-smoke binary: joins a crate-launch batch, then the smoke runs."""
-    return command == HARNESS_PREBUILD
 
 
 def browser() -> list[Command]:
@@ -212,7 +203,6 @@ STEPS: dict[str, tuple[bool, list[Command]]] = {
     "test": (True, [*CARGO_TESTS, [PY, "cad/scripts/test-cad.py"], [PY, "scripts/test-import-kicad-parts.py"]]),
     "typecheck": (False, typecheck()),
     "browser": (True, browser()),
-    "drag-smoke": (False, [DRAG_SMOKE]),
     "security": (False, [[PY, "-B", "scripts/security-audit.test.py"], [PY, "scripts/security-audit.py"]]),
     # Fails while any .board-*, .m1-* selector or --wb-* variable remains (the final merge gate).
     "old-css": (False, [[PY, "scripts/check-old-css.py", "--strict"]]),
@@ -510,7 +500,7 @@ def run_serial(command: Command, environment: dict[str, str], cwd: Path = ROOT,
                completed=None, build_capture=None) -> tuple[float, int, str, str]:
     print("$ " + shlex.join(command), flush=True)
     lock_fd = browser_tools._inherited_build_lock()
-    if not any(part in command for part in ("scripts/run-drag-browser.py", "cad/scripts/test-cad-capture-controls.py", "cad/scripts/test-cold-responses.py", "cad/scripts/face-completeness-gate.py", "cad/scripts/test-cad-provider.py", "scripts/build-web.py",
+    if not any(part in command for part in ("cad/scripts/test-cad-capture-controls.py", "cad/scripts/test-cold-responses.py", "cad/scripts/face-completeness-gate.py", "cad/scripts/test-cad-provider.py", "scripts/build-web.py",
                "scripts/run-wasm-tests.py", "cad/scripts/test-cad.py", "scripts/test-import-kicad-parts.py", "scripts/ergogen-parity/test_generate.py", "scripts/check-wasm-tests.py")):
         environment = environment.copy()
         environment.pop("BOARDSTUDIO_BUILD_LOCK_FD", None)
@@ -544,7 +534,7 @@ def run_serial(command: Command, environment: dict[str, str], cwd: Path = ROOT,
         if outputs is not None:
             outputs.append((command, text))
         code = done.returncode
-    elif outputs is not None and (is_wasm_pack_test(command) or "scripts/run-drag-browser.py" in command):
+    elif outputs is not None and is_wasm_pack_test(command):
         done = run(command, cwd=cwd, env=environment, stdout=subprocess.PIPE,
                               stderr=subprocess.STDOUT, text=True, **lock_args)
         text = output_text(done.stdout)
@@ -993,9 +983,9 @@ def run_commands(name: str, commands: list[Command], environment: dict[str, str]
             any_failed = True
     while index < len(commands):
         command = commands[index]
-        if browser_step and check_jobs() > 1 and (is_crate_launch(command) or is_harness_build(command)):
+        if browser_step and check_jobs() > 1 and is_crate_launch(command):
             end = index
-            while end < len(commands) and (is_crate_launch(commands[end]) or is_harness_build(commands[end])):
+            while end < len(commands) and is_crate_launch(commands[end]):
                 end += 1
             batch_outputs: list[tuple[Command, str]] = []
             elapsed, failed = run_parallel(commands[index:end], environment, outputs=batch_outputs,
@@ -1091,30 +1081,6 @@ def run(names: list[str], update_native_baseline: bool = False,
                      select_browser_crate_launches(only_crates)))
         return (run_plan(plan, update_native_baseline, keep_going=True)
                 if keep_going else run_plan(plan, update_native_baseline))
-    # The real-page smoke needs a current packaged page, including for `check.py browser` alone.
-    if _RECEIPT is not None:
-        _RECEIPT.plan_commands([(name, STEPS[name][1]) for name in names])
-    has_drag_smoke = any("scripts/run-drag-browser.py" in command for command in STEPS["browser"][1])
-    smoke_indices = [index for index, step in enumerate(names)
-                     if step == "drag-smoke" or (step == "browser" and has_drag_smoke)]
-    if smoke_indices:
-        # Fail before the page build, which is minutes of work the smoke cannot use without these.
-        # The opt-in Rust driver needs only Chrome; the default Node runner also needs its client.
-        try:
-            browser_tools.validate_drag_driver()
-            browser_tools.locate_chrome()
-        except browser_tools.MissingBrowserTool as error:
-            print(f"check: {error}", file=sys.stderr)
-            return 1
-        smoke_index = smoke_indices[0]
-        built = any(step in ("build", "release") for step in names[:smoke_index])
-        if not built:
-            later_build = next((index for index in range(smoke_index + 1, len(names))
-                                if names[index] in ("build", "release")), None)
-            if later_build is None:
-                names.insert(smoke_index, "build")
-            else:
-                names.insert(smoke_index, names.pop(later_build))
     plan = [(name, STEPS[name][1]) for name in names]
     if "lint" in names:
         lint_index = names.index("lint")
@@ -1279,7 +1245,7 @@ def run_plan(plan: list[tuple[str, list[Command]]], update_native_baseline: bool
     cad_build = any("cad/scripts/test-cad.py" in command for _, commands in plan for command in commands)
     cad_wasm = any("scripts/build-web.py" in command and "--skip-providers" not in command
                    for _, commands in plan for command in commands)
-    if (cad_build or cad_wasm or any(commands and (name in ("build", "release", "browser", "drag-smoke", "test-css")
+    if (cad_build or cad_wasm or any(commands and (name in ("build", "release", "browser", "test-css")
                          or name.startswith("browser (only:")
                          or any(command and command[0] in ("cargo", "wasm-pack") for command in commands))
                          for name, commands in plan)) and not build_preflight(cad=cad_build, cad_wasm=cad_wasm):
@@ -1419,8 +1385,7 @@ def quick_plan(selection: "check_quick.Selection", packages: "dict[str, check_qu
                   if name in selection.packages and package.directory.startswith("web/crates/")}
         if selection.full_rust:
             # Quick deliberately skips checks requiring a packaged site.
-            commands = [command for command in browser() if not any(name in command for name in
-                        ("scripts/run-drag-browser.py", "cad/scripts/test-cold-responses.py"))]
+            commands = [command for command in browser() if "cad/scripts/test-cold-responses.py" not in command]
         else:
             commands = select_browser_crate_launches(crates, browser())
             if selection.page_files:
@@ -1462,7 +1427,7 @@ def _main(argv: list[str] | None = None) -> int:
                         help="with `quick`: the changed files, instead of the git diff against main")
     parser.add_argument("--only", nargs="+", action="extend", metavar="CRATE",
                         help="with `browser`: run only the named presentation crate launch(es) "
-                        "(partial subset; skips the full page build; drag smoke is separate)")
+                        "(partial subset; skips the full page build)")
     parser.add_argument("--keep-going", action="store_true",
                         help="in `browser`: continue independent browser launches after a failure "
                         "and exit nonzero if any launch failed")

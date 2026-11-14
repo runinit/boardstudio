@@ -366,7 +366,7 @@ operations. STEP-only export avoids mesh allocation and uses its own worker.
 
 No existing tool records this complete paired benchmark. Reuse
 [the actual-provider smoke](../../../cad/scripts/test-cad-browser.py),
-[page smoke/receipts](../../../scripts/run-drag-browser.py),
+page smoke/receipts (`scripts/run-drag-browser.py`, since removed),
 [browser prerequisite probe](../../../scripts/browser_tools.py), local preview
 server and worker protocol for a small measurement driver **after** both builds
 and workload admissions exist. Do not create another build framework, duplicate

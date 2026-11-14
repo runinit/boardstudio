@@ -23,7 +23,7 @@ class BrowserToolsTests(unittest.TestCase):
                     mock.patch.object(browser_tools.shutil, "which", side_effect=which("flock")), \
                     mock.patch.object(browser_tools.subprocess, "run") as run:
                 with self.assertRaises(browser_tools.MissingBrowserTool) as error:
-                    browser_tools.build_drag_harness()
+                    browser_tools._build_harness('cad-capture')
                 self.assertIn("cargo", str(error.exception).lower())
                 self.assertIn("install", str(error.exception).lower())
                 run.assert_not_called()
@@ -35,7 +35,7 @@ class BrowserToolsTests(unittest.TestCase):
                     mock.patch.object(browser_tools.shutil, "which", side_effect=which("cargo", "flock")), \
                     mock.patch.object(browser_tools.subprocess, "run", side_effect=FileNotFoundError(2, "missing", executable)):
                 with self.assertRaises(browser_tools.MissingBrowserTool) as error:
-                    browser_tools.build_drag_harness()
+                    browser_tools._build_harness('cad-capture')
                 self.assertIn(executable, str(error.exception).lower())
 
     def test_unrelated_launch_error_is_not_relabelled(self):
@@ -43,7 +43,7 @@ class BrowserToolsTests(unittest.TestCase):
                 mock.patch.object(browser_tools.shutil, "which", side_effect=which("cargo")), \
                 mock.patch.object(browser_tools.subprocess, "run", side_effect=FileNotFoundError(2, "missing", "/other")):
             with self.assertRaises(FileNotFoundError):
-                browser_tools.build_drag_harness()
+                browser_tools._build_harness('cad-capture')
 
     def test_cancelled_launcher_keeps_build_lock_until_child_exits(self):
         import os
@@ -75,8 +75,8 @@ class BrowserToolsTests(unittest.TestCase):
             env.pop("BOARDSTUDIO_BUILD_LOCK_FD", None)
             env.pop("BOARDSTUDIO_WASM_TEST_COMMAND", None)
             env["CHROMEDRIVER"] = "/bin/true"
-            (home / "scripts").mkdir()
-            (home / "scripts/run-drag-browser.py").write_text("import browser_tools; browser_tools.build_drag_harness()\n")
+            (home / "cad/scripts").mkdir(parents=True)
+            (home / "cad/scripts/test-cad-capture-controls.py").write_text("import browser_tools; browser_tools._build_harness('cad-capture')\n")
             ready_fd = os.open(ready, os.O_RDWR | os.O_NONBLOCK)
             release_fd = os.open(release, os.O_RDWR | os.O_NONBLOCK)
             try:
@@ -87,9 +87,9 @@ class BrowserToolsTests(unittest.TestCase):
                                  "fcntl.flock(f, fcntl.LOCK_EX)\n"
                                  "os.environ['BOARDSTUDIO_BUILD_LOCK_FD'] = str(f.fileno())\n")
                         calls = {
-                            "harness": "import browser_tools; browser_tools.build_drag_harness()",
-                            "standalone": "import browser_tools; browser_tools.build_drag_harness()",
-                            "nested": "import check; from pathlib import Path; check.run_serial([sys.executable, 'scripts/run-drag-browser.py'], dict(os.environ), cwd=Path(os.environ['HOME']))",
+                            "harness": "import browser_tools; browser_tools._build_harness('cad-capture')",
+                            "standalone": "import browser_tools; browser_tools._build_harness('cad-capture')",
+                            "nested": "import check; from pathlib import Path; check.run_serial([sys.executable, 'cad/scripts/test-cad-capture-controls.py'], dict(os.environ), cwd=Path(os.environ['HOME']))",
                             "serial": "import check; check.run_serial(['cargo'], dict(os.environ), captured=[])",
                             "parallel": "import check; check.run_parallel([['cargo']], dict(os.environ))",
                             "grandchild": "import check; check.run_serial(['cargo'], dict(os.environ))",
@@ -135,18 +135,18 @@ class BrowserToolsTests(unittest.TestCase):
         package = (Path(__file__).resolve().parents[1] / "tools/browser-harness").as_uri()
         def artifact(package_id, executable):
             return json.dumps({"reason": "compiler-artifact", "package_id": package_id,
-                               "target": {"name": "drag-smoke", "kind": ["bin"]},
+                               "target": {"name": "cad-capture", "kind": ["bin"]},
                                "executable": executable}) + "\n"
         artifacts = (artifact("path+file:///elsewhere#other@1.0.0", "/wrong") +
-                     artifact(f"path+{package}#boardstudio-browser-harness@0.1.0", "/target/triple/debug/drag-smoke.exe"))
+                     artifact(f"path+{package}#boardstudio-browser-harness@0.1.0", "/target/triple/debug/cad-capture.exe"))
         with mock.patch.object(browser_tools.subprocess, "run", return_value=mock.Mock(
                 returncode=0, stdout=artifacts, stderr="")):
-            self.assertEqual(str(browser_tools.build_drag_harness()), "/target/triple/debug/drag-smoke.exe")
+            self.assertEqual(str(browser_tools._build_harness('cad-capture')), "/target/triple/debug/cad-capture.exe")
         with mock.patch.dict(browser_tools.os.environ, {"CARGO_REGISTRY_TOKEN": "secret-value"}), \
                 mock.patch.object(browser_tools.subprocess, "run", return_value=mock.Mock(
                     returncode=101, stdout="", stderr="error: failed to compile; token secret-value")):
             with self.assertRaises(SystemExit) as error:
-                browser_tools.build_drag_harness()
+                browser_tools._build_harness('cad-capture')
             self.assertIn("failed to compile", str(error.exception))
             self.assertNotIn("secret-value", str(error.exception))
 
@@ -197,7 +197,7 @@ class BrowserToolsTests(unittest.TestCase):
                                 returncode=101, stdout=message if rendered else "",
                                 stderr="" if rendered else "error: registry request failed\n" + diagnostic)):
                         with self.assertRaises(SystemExit) as error:
-                            browser_tools.build_drag_harness()
+                            browser_tools._build_harness('cad-capture')
                     output = str(error.exception)
                     self.assertIn("registry request failed", output)
                     for secret in secrets:
@@ -221,24 +221,24 @@ class BrowserToolsTests(unittest.TestCase):
                 "assert subprocess.run(['flock', '-n', os.environ['LOCK'], 'true']).returncode != 0\n" +
                 "print(json.dumps(" + repr({"reason": "compiler-artifact",
                     "package_id": f"path+{(root / 'tools/browser-harness').as_uri()}#boardstudio-browser-harness@0.1.0",
-                    "target": {"name": "drag-smoke", "kind": ["bin"]}, "executable": "/fake/drag-smoke"}) + "))\n")
+                    "target": {"name": "cad-capture", "kind": ["bin"]}, "executable": "/fake/cad-capture"}) + "))\n")
             cargo.chmod(0o755)
             env = dict(os.environ, HOME=temp, LOCK=str(lock), PATH=f"{temp}:{os.environ['PATH']}", PYTHONPATH=str(root / "scripts"))
-            direct = "import browser_tools; print(browser_tools.build_drag_harness())"
+            direct = "import browser_tools; print(browser_tools._build_harness('cad-capture'))"
             standalone = subprocess.run([sys.executable, "-c", direct], cwd=root / "scripts", env=env,
                                         capture_output=True, text=True, timeout=5)
             self.assertEqual(standalone.returncode, 0, standalone.stderr)
             with lock.open("w") as held:
                 fcntl.flock(held, fcntl.LOCK_EX)
                 env["BOARDSTUDIO_BUILD_LOCK_FD"] = str(held.fileno())
-                # Use the scheduler's actual drag command path and descriptor handling.
-                (home / "scripts").mkdir()
-                (home / "scripts/run-drag-browser.py").write_text(direct)
-                nested = "import check, os, sys; from pathlib import Path; sys.exit(check.run_serial([sys.executable, 'scripts/run-drag-browser.py'], dict(os.environ), cwd=Path(os.environ['HOME']))[1])"
+                # Use a scheduler command path that inherits the lock descriptor.
+                (home / "cad/scripts").mkdir(parents=True)
+                (home / "cad/scripts/test-cad-capture-controls.py").write_text(direct)
+                nested = "import check, os, sys; from pathlib import Path; sys.exit(check.run_serial([sys.executable, 'cad/scripts/test-cad-capture-controls.py'], dict(os.environ), cwd=Path(os.environ['HOME']))[1])"
                 result = subprocess.run([sys.executable, "-c", nested], cwd=root / "scripts", env=env,
                                         pass_fds=(held.fileno(),), capture_output=True, text=True, timeout=5)
                 self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertIn("/fake/drag-smoke", result.stdout)
+                self.assertIn("/fake/cad-capture", result.stdout)
                 with (home / "wrong").open("w") as wrong, lock.open("w") as unowned:
                     for fd in (wrong.fileno(), unowned.fileno()):
                         invalid_env = dict(env, BOARDSTUDIO_BUILD_LOCK_FD=str(fd))
@@ -258,7 +258,7 @@ class BrowserToolsTests(unittest.TestCase):
                     fcntl.flock(held, fcntl.LOCK_UN)
                     stdout, stderr = blocked.communicate(timeout=5)
                     self.assertEqual(blocked.returncode, 0, stderr)
-                    self.assertIn("/fake/drag-smoke", stdout)
+                    self.assertIn("/fake/cad-capture", stdout)
                 finally:
                     if blocked.poll() is None:
                         blocked.kill()
@@ -267,7 +267,7 @@ class BrowserToolsTests(unittest.TestCase):
     def test_missing_flock_is_actionable(self):
         import subprocess
         import sys
-        result = subprocess.run([sys.executable, "-c", "import browser_tools; browser_tools.build_drag_harness()"],
+        result = subprocess.run([sys.executable, "-c", "import browser_tools; browser_tools._build_harness('cad-capture')"],
                                 cwd=Path(__file__).parent, env={"PATH": ""}, capture_output=True, text=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("flock", result.stderr)
@@ -284,11 +284,6 @@ class BrowserToolsTests(unittest.TestCase):
 
     def test_chrome_only_probe_honours_chrome_bin(self):
         self.assertEqual(self.locate_chrome(env={"CHROME_BIN": "/opt/chrome"}), "/opt/chrome")
-
-    def test_drag_browser_override_and_chrome_bin_precedence(self):
-        self.assertEqual(self.locate_chrome(env={"BOARDSTUDIO_DRAG_CHROME_BIN": "/drag/chrome"}), "/drag/chrome")
-        self.assertEqual(self.locate_chrome(env={"CHROME_BIN": "/chosen/chrome",
-                                                 "BOARDSTUDIO_DRAG_CHROME_BIN": "/drag/chrome"}), "/chosen/chrome")
 
     def test_chrome_only_probe_names_chrome_bin(self):
         with self.assertRaises(browser_tools.MissingBrowserTool) as raised:

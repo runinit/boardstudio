@@ -46,7 +46,7 @@ pub(super) async fn finish_browser(
             && kill.is_none()
             && matches!(drained, Ok(Ok(())))
             && error.to_string()
-                == "drag browser smoke saw 1 browser handler error(s): WebSocket protocol reset without closing handshake";
+                == "browser harness saw 1 browser handler error(s): WebSocket protocol reset without closing handshake";
         if expected_reset {
             eprintln!(
                 "browser shutdown: expected post-boundary WebSocket reset after clean child exit"

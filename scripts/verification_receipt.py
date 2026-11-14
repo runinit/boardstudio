@@ -8,7 +8,7 @@ scope, exit status and observed results, and keeps scopes separate:
                  native name guard's matched/missing/new semantics against the retention list.
   * `wasm-crate` each direct `wasm-pack test web/crates/<crate>` launch, with full names.
   * `page-suite` the `web/src` page runner JSON (a scoped part of the browser gate, not all of it).
-  * `smoke`      the real-browser drag smoke and CAD provider checks: a separate evidence
+  * `smoke`      the real-browser CAD smoke and provider checks: a separate evidence
                  scope, never added to Rust test counts.
   * `compile-only` `cargo test --no-run` prebuilds, with exit status only and no test counts.
 
@@ -46,7 +46,7 @@ SMOKE = "smoke"
 OTHER = "other"
 COMPILE = "compile-only"
 
-SMOKE_SCRIPTS = {"run-drag-browser.py", "test-cad-provider.py", "test-cad-browser.py", "face-completeness-gate.py"}
+SMOKE_SCRIPTS = {"test-cad-provider.py", "test-cad-browser.py", "face-completeness-gate.py"}
 
 # Terminal lines of a direct `wasm-pack test` launch.
 WASM_STATUS = re.compile(r"^test (\S+) \.\.\. (ok|FAILED|FAIL|ignored)\s*$", re.M)
@@ -565,7 +565,7 @@ def write_receipt(path: Path | str, receipt: dict) -> tuple[Path, Path]:
 
 
 def site_identity(path: Path) -> tuple[dict | None, tuple | None]:
-    """Observe the subpath route used by the build and drag smoke."""
+    """Observe the subpath route the build produces."""
     try:
         path = path / "site-subpath/boardstudio"
         if not (path / "index.html").is_file():
@@ -608,27 +608,6 @@ def build_binding(run_id, attempt_id, before, after, code, output, fresh):
             "output": output if code == 0 else None}
 
 
-
-def drag_binding(run_id, attempt_id, observed, builds):
-    result = {"run_id": run_id, "attempt_id": attempt_id, "receipt_path": None,
-              "build_attempt_id": None, "site_comparison": "unknown", "served_content": "unknown"}
-    if (not run_id or not attempt_id or not isinstance(observed, dict)
-            or observed.get("run_id") != run_id or observed.get("attempt_id") != attempt_id
-            or not isinstance(observed.get("receipt_path"), str) or not observed["receipt_path"]):
-        return result
-    result["receipt_path"] = observed["receipt_path"]
-    site = observed.get("site")
-    build = next((b for b in reversed(builds) if b.get("run_id") == run_id), None)
-    if not build or not build.get("attempt_id") or not isinstance(site, dict):
-        return result
-    output = build.get("output")
-    if (not isinstance(output, dict) or not site.get("path") or site.get("path") != output.get("path")
-            or not re.fullmatch(r"[0-9a-f]{64}", site.get("sha256") or "")
-            or not re.fullmatch(r"[0-9a-f]{64}", output.get("sha256") or "")):
-        return result
-    result["build_attempt_id"] = build["attempt_id"]
-    result["site_comparison"] = "equal" if site["sha256"] == output["sha256"] else "different"
-    return result
 
 def source_identity(root: Path, run=subprocess.run) -> dict:
     """The checked-out revision and whether the tree has local changes."""
@@ -816,22 +795,5 @@ class Collector:
                               page_loader=lambda path: self.page_results.get(path),
                               run_id=self.run_id, source_after=source_after)
         built["build_bindings"] = list(self.build_bindings)
-        built["drag_bindings"] = []
-        for item in self.observations:
-            if "scripts/run-drag-browser.py" not in item.command:
-                continue
-            observed = None
-            if item.status == "ran" and item.exit_code == 0:
-                lines = [line.removeprefix("BOARDSTUDIO_DRAG_BINDING ") for line in item.output.splitlines()
-                         if line.startswith("BOARDSTUDIO_DRAG_BINDING ")]
-                if len(lines) == 1:
-                    try:
-                        observed = json.loads(lines[0])
-                    except (ValueError, TypeError):
-                        pass
-            earlier = self.observations[:self.observations.index(item)]
-            preceding = {entry.attempt_id for entry in earlier}
-            builds = [entry for entry in self.build_bindings if entry.get("attempt_id") in preceding]
-            built["drag_bindings"].append(drag_binding(self.run_id, item.attempt_id, observed, builds))
         write_receipt(self.path, built)
         return built

@@ -72,8 +72,7 @@ python3 scripts/check.py
 ```
 
 `browser --only` is explicitly a partial subset: no full packaged build. For a feature slice it
-is the required mounted-interaction gate; `drag-smoke` is a separate opt-in packaged-page
-diagnostic and does not gate feature work or the integrated check.
+is the required mounted-interaction gate; the mounted Layout tests are the only drag gate.
 `run-wasm-tests.py` requires `--files ...` or `--all`, not the old no-argument placeholders.
 Capture a receipt when handing off implementation evidence; label newly executed vs reused
 and source identity. Apply native test-name guard updates only with the causing rename,

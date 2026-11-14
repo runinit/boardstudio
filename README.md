@@ -111,9 +111,7 @@ The checked `build` skips `wasm-opt` and the optimized page build; the
 opt-in `release` step (`python3 scripts/check.py release`) keeps both and is what ships.
 The required drag proof is the mounted Layout interaction suite in the `browser` step: it drives
 pointer down/move/up through the production Runtime/Core seam and asserts accepted state, final
-values, guards and rendered drag state. Run `python3 scripts/check.py drag-smoke` only as an
-opt-in real-page diagnostic; it first rebuilds the checked page so it cannot pass against stale
-frontend assets, and it is not part of `browser` or the full check.
+values, guards and rendered drag state.
 
 **Old-CSS count.** The `repo` step reports how many `.board-*` and `.m1-*` selectors and `--wb-*` variables
 remain under `web/` (distinct names, build output skipped) and never fails on them. `python3 scripts/check.py old-css`
@@ -135,16 +133,11 @@ at once (`BOARDSTUDIO_CHECK_JOBS`, `1` for serial) and builds test wasm without 
 (`CARGO_PROFILE_DEV_DEBUG=false`, which is most of a launch's cost; run `wasm-pack test` by hand,
 without the variable, for source-level debugging). Use `python3 scripts/check.py browser --only <crate>...`
 to run only the named presentation crate launch(es) without the full packaged build (reported
-as a partial subset, not full acceptance; drag smoke is a separate opt-in step), and add `--keep-going` to continue across independent browser
+as a partial subset, not full acceptance), and add `--keep-going` to continue across independent browser
 launches while still exiting nonzero if any failed. CSS-dependent crate subsets first build the
 Dioxus page to generate the test stylesheet. Each batch has a bounded two-minute timeout,
 overridable with `WASM_BINDGEN_TEST_TIMEOUT`. A native test run alone does not compile WASM-only
 presentation code. Browser setup installs the locked wasm-bindgen runner before executing tests.
-The separate opt-in `drag-smoke` step opens the packaged page and runs a trusted mouse-drag
-diagnostic over Part, Column, Stagger and Ctrl+Offset. It checks live preview, pointer capture,
-saved document state and exact Undo. Its success receipt and failure log are kept under
-`web/target/test-results/drag-browser/`. It does not gate `browser` or the full check; the mounted
-Layout tests above are the required drag gate.
 Browser checks use the Rust harness and a Chrome or Chromium executable available as `CHROME_BIN`.
 
 **Verification receipts.** Add `--receipt PATH` to any check invocation to write a JSON receipt at

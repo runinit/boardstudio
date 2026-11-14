@@ -30,12 +30,6 @@ class CheckTests(unittest.TestCase):
         target = mock.patch.object(check, "cargo_target", return_value=ROOT / "target")
         target.start()
         self.addCleanup(target.stop)
-        driver = mock.patch.dict(os.environ, {"BOARDSTUDIO_DRAG_DRIVER": "rust"})
-        driver.start()
-        self.addCleanup(driver.stop)
-        chrome = mock.patch.object(check.browser_tools, "locate_chrome", return_value="chrome")
-        self.chrome = chrome.start()
-        self.addCleanup(chrome.stop)
 
     def test_preflight_rejects_invalid_lock_for_focused_browser_and_quick(self):
         import check_quick
@@ -205,19 +199,6 @@ class CheckTests(unittest.TestCase):
         self.assertEqual(code, 127)
         self.assertIn("startup failed", output.getvalue())
 
-    def test_scheduler_relays_drag_output_to_collector(self):
-        marker = 'BOARDSTUDIO_DRAG_BINDING {"proof":true}'
-        command = [sys.executable, "-c", "print(%r)" % marker, "scripts/run-drag-browser.py"]
-        receipt = mock.Mock()
-        receipt.run_id = "run"
-        receipt.prepare.return_value = "attempt"
-        output = io.StringIO()
-        with contextlib.redirect_stdout(output):
-            _, passed = check.run_commands("browser", [command], os.environ.copy(), ROOT, None, receipt=receipt)
-        self.assertTrue(passed)
-        self.assertIn(marker, output.getvalue())
-        self.assertIn(marker, receipt.observe.call_args.args[4])
-
     def test_invalid_driver_fails_before_build(self):
         plan = [("build", [["build"]]), ("browser", [["wasm-pack", "test", "--chrome", "web/crates/keymap"]])]
         with mock.patch.dict(os.environ, {"CHROMEDRIVER": "/missing/driver", "CHROME_BIN": "/bin/true"}), \
@@ -289,12 +270,8 @@ class CheckTests(unittest.TestCase):
             "scripts/test-workbench-viewport.py": "viewport journey requiring a packaged build and served page",
             "scripts/test-command-palette.py": "ticket 012 agent-browser command palette journey",
             "cad/scripts/test-startup-readiness.py": "Rust diagnostic requiring a packaged site and Chrome",
-            "scripts/test-drag-browser-consumer-controls.py": "Linux CI consumer fault controls",
-            "scripts/test-drag-browser-deep-home-timeout.py": "Linux CI process cleanup control",
-            "scripts/test-drag-browser-deep-home.py": "Linux CI deep HOME browser controls",
             "scripts/test-model-lookup.cjs": "original Node fixture retained for parity comparisons",
             "scripts/test-ergogen-parity.cjs": "maintainer Node parity contract retained for comparison",
-            "scripts/test-drag-project-poll.cjs": "historical Node drag runner helper controls",
         }
         self.assertEqual(scripts, registered | opt_in.keys())
         self.assertTrue(all(opt_in.values()))
@@ -467,7 +444,6 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
             chrome.chmod(0o755)
             env = dict(os.environ, PATH=directory, BOARDSTUDIO_PREVIEW_URL="http://example.test/", KEEP_ME="kept")
             env.pop("CHROME_BIN", None)
-            env.pop("BOARDSTUDIO_DRAG_CHROME_BIN", None)
             for override in (None, "/chosen/chrome"):
                 with self.subTest(override=override):
                     selected = dict(env)
@@ -521,27 +497,6 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
                                 cwd=ROOT, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("output", result.stdout.lower())
-
-    def test_retired_drag_driver_is_rejected_before_build_or_launch(self):
-        spec = importlib.util.spec_from_file_location("drag_browser", ROOT / "scripts/run-drag-browser.py")
-        drag = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(drag)
-        for value in ("node", "other", ""):
-            with self.subTest(value=value), mock.patch.dict(os.environ, {"BOARDSTUDIO_DRAG_DRIVER": value}), \
-                    mock.patch.object(check, "run_plan", return_value=0) as run_plan, \
-                    mock.patch.object(drag.browser_tools, "build_drag_harness") as build:
-                for steps in (["browser"], list(check.DEFAULT), ["build", "browser"]):
-                    self.assertEqual(check.run(steps), 0)
-                self.assertEqual(run_plan.call_count, 3)
-                run_plan.reset_mock()
-                with contextlib.redirect_stderr(io.StringIO()) as error:
-                    self.assertEqual(check.run(["drag-smoke"]), 1)
-                self.assertIn("BOARDSTUDIO_DRAG_DRIVER", error.getvalue())
-                with self.assertRaises(SystemExit) as raised:
-                    drag.main()
-                self.assertIn("BOARDSTUDIO_DRAG_DRIVER", str(raised.exception))
-                run_plan.assert_not_called()
-                build.assert_not_called()
 
     def test_browser_runs_packaged_provider_regressions(self):
         self.assertIn([check.PY, "cad/scripts/test-cad-provider.py"], check.STEPS["browser"][1])
@@ -734,7 +689,7 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
         for name in check.STEPS:
             self.assertIn(name, output.getvalue())
 
-    def test_browser_step_uses_mounted_launches_without_the_drag_smoke_gate(self):
+    def test_browser_step_uses_mounted_launches_without_a_page_build(self):
         captured = {}
 
         def record(plan, update_native_baseline=False):
@@ -745,63 +700,7 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
             self.assertEqual(check.run(["browser"]), 0)
         self.assertEqual([name for name, _ in captured["plan"]], ["browser"])
         commands = captured["plan"][-1][1]
-        self.assertNotIn(check.DRAG_SMOKE, commands)
-        self.assertNotIn(check.HARNESS_PREBUILD, commands)
         self.assertIn("layout", [check.launch_crate(command) for command in commands])
-        self.assertEqual(check.STEPS["drag-smoke"], (False, [check.DRAG_SMOKE]))
-        self.chrome.assert_not_called()
-
-    def test_drag_smoke_can_run_as_a_fresh_build_preflight(self):
-        captured = {}
-
-        def record(plan, update_native_baseline=False):
-            captured["plan"] = plan
-            return 0
-
-        with mock.patch.object(check, "run_plan", side_effect=record):
-            self.assertEqual(check.run(["drag-smoke"]), 0)
-        self.assertEqual([name for name, _ in captured["plan"]], ["build", "drag-smoke"])
-        self.assertEqual(captured["plan"][-1][1], [check.DRAG_SMOKE])
-
-    def test_missing_drag_browser_tools_fail_before_any_command_or_build_is_launched(self):
-        self.chrome.side_effect = check.browser_tools.MissingBrowserTool("missing browser tool")
-        for names in (["drag-smoke"],):
-            error = io.StringIO()
-            with self.subTest(names=names), mock.patch.object(check, "run_plan") as run_plan, \
-                    mock.patch.object(check.subprocess, "run") as launch, \
-                    contextlib.redirect_stderr(error):
-                self.assertEqual(check.run(names), 1)
-            run_plan.assert_not_called()
-            launch.assert_not_called()
-            self.assertIn("check: missing browser tool", error.getvalue())
-
-    def test_default_drag_driver_uses_rust_and_chrome_only(self):
-        with mock.patch.dict(os.environ):
-            os.environ.pop("BOARDSTUDIO_DRAG_DRIVER", None)
-            with mock.patch.object(check, "run_plan", return_value=0):
-                self.assertEqual(check.run(["drag-smoke"]), 0)
-            self.chrome.assert_called_once_with()
-
-    def test_drag_browser_tools_are_probed_once_before_the_unchanged_command_order(self):
-        calls = []
-        self.chrome.side_effect = lambda: calls.append("probe") or "chrome"
-
-        def record(plan, update_native_baseline=False):
-            calls.append([name for name, _ in plan])
-            return 0
-
-        with mock.patch.object(check, "run_plan", side_effect=record):
-            self.assertEqual(check.run(["drag-smoke"]), 0)
-        self.assertEqual(calls, ["probe", ["build", "drag-smoke"]])
-        self.chrome.assert_called_once_with()
-
-    def test_scoped_browser_only_does_not_acquire_the_drag_smoke_prerequisites(self):
-        self.chrome.side_effect = check.browser_tools.MissingBrowserTool("absent")
-        with mock.patch.object(check.subprocess, "run", return_value=mock.Mock(returncode=0, stdout="")), \
-                mock.patch.object(check, "_parallel_process", return_value=mock.Mock(returncode=0, stdout="")), \
-                contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-            self.assertEqual(check.main(["browser", "--only", "case"]), 0)
-        self.chrome.assert_not_called()
 
     def test_host_browser_gate_includes_cad_worker_tests_alongside_storage(self):
         launches = check.select_browser_crate_launches(["host"])
@@ -1108,7 +1007,7 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
         with mock.patch.dict(check.STEPS, {"browser": (True, custom)}):
             self.assertEqual(check.browser_crates(), ("custom-crate",))
 
-    def test_browser_only_selects_crate_launches_without_build_or_drag_smoke_and_reports_partial_run(self):
+    def test_browser_only_selects_crate_launches_without_build_and_reports_partial_run(self):
         seen = []
 
         def fake(command, **kwargs):
@@ -1123,8 +1022,7 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
         self.assertEqual(seen[0], check.TEST_CSS)
         self.assertEqual(len(seen), 4, "test CSS followed by case and both ui-shared launches")
         self.assertTrue(all(check.is_crate_launch(cmd) for cmd in seen[1:]))
-        self.assertFalse(any("build-web.py" in " ".join(cmd) or "run-drag-browser.py" in " ".join(cmd)
-                             for cmd in seen))
+        self.assertFalse(any("build-web.py" in " ".join(cmd) for cmd in seen))
         text = output.getvalue()
         self.assertIn("== browser (only: case, ui-shared)", text)
         self.assertIn("check: partial steps passed: test-css, browser (only: case, ui-shared)", text)

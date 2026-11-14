@@ -9223,9 +9223,8 @@ mod tool_tests {
 
     /// Ticket 23: the mounted drag harness dispatches script-created pointer
     /// events, which the platform never trusts. This pins that limit: mounted
-    /// tests are the required proof for drag wiring and math, while the
-    /// packaged-page mouse smoke (`check.py drag-smoke`) is an opt-in trusted-
-    /// pointer diagnostic, not a gate.
+    /// tests are the required proof for drag wiring and math; no check
+    /// drives a trusted Layout drag.
     #[wasm_bindgen_test]
     async fn mounted_pointer_dispatch_is_synthetic_never_trusted() {
         let document = web_sys::window().unwrap().document().unwrap();
@@ -9635,9 +9634,7 @@ mod tool_tests {
     }
 
     /// One synthetic pointer drag on the handle: down, move, up. The dispatched
-    /// events are script-created, so `isTrusted` is always false here; the
-    /// packaged-page mouse smoke (`check.py drag-smoke`) is only an opt-in
-    /// trusted-pointer diagnostic.
+    /// events are script-created, so `isTrusted` is always false here.
     /// Returns the handle's `data-quick-offset` after the down and after the
     /// move.
     async fn drag_handle(

@@ -57,7 +57,7 @@ candidate. Reuse M1's unchanged proofs with receipts rather than repeat the whol
 ## Checks and mutations
 
 [Verification](../verification.md): coordinator runs `python3 scripts/check.py browser`
-(fresh packaged assets + drag smoke) and records agent-browser/accessibility measurements.
+(fresh packaged assets) and records agent-browser/accessibility measurements.
 Affected lint/checks precede it. Contrast proof-gap mutation must flag the named bad pair;
 other mechanics reuse owning slices' RED/mutation evidence, not duplicate batteries.
 Unresolved mandatory gaps keep 008 blocked. One coordinator runs the full stable M1 gate

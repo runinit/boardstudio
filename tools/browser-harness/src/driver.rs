@@ -36,9 +36,6 @@ pub const VIEWPORT_WIDTH: u32 = 1513;
 /// Viewport every real-page check uses.
 pub const VIEWPORT_HEIGHT: u32 = 1043;
 
-/// Modifier bit for the Control key in `Input.dispatch*` calls.
-pub const CTRL_MODIFIER: i64 = 2;
-
 /// Launch flags every real-page check uses.
 pub const LAUNCH_ARGS: [&str; 2] = ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"];
 
@@ -190,7 +187,7 @@ pub async fn launch_chrome_with_args(
         .build()
         .map_err(|error| {
             Error(format!(
-                "drag browser smoke cannot build a browser config: {error}"
+                "browser harness cannot build a browser config: {error}"
             ))
         })?;
     // The vendored launch path uses ChromeMessage when child cleanup is unconfirmed.
@@ -207,7 +204,7 @@ pub async fn launch_chrome_with_args(
                 );
             }
             Err(Error(format!(
-                "drag browser smoke cannot start Chrome: {error}"
+                "browser harness cannot start Chrome: {error}"
             )))
         }
     }
@@ -252,7 +249,7 @@ impl HandlerErrors {
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         Err(Error(format!(
-            "drag browser smoke saw {} browser handler error(s): {}",
+            "browser harness saw {} browser handler error(s): {}",
             self.count(),
             first.join("; ")
         )))
@@ -421,7 +418,7 @@ pub async fn spawn_page_error_listener(page: &Page, errors: Arc<PageErrors>) -> 
         .await
         .map_err(|error| {
             Error(format!(
-                "drag browser smoke cannot listen for page errors: {error}"
+                "browser harness cannot listen for page errors: {error}"
             ))
         })?;
     let mut listeners = errors
@@ -471,7 +468,7 @@ pub async fn eval(page: &Page, expression: &str) -> Result<Value> {
         .build()
         .map_err(|error| {
             Error(format!(
-                "drag browser smoke cannot build an evaluation: {error}"
+                "browser harness cannot build an evaluation: {error}"
             ))
         })?;
     let evaluation = page.evaluate_expression(params).await.map_err(|error| {
@@ -1128,142 +1125,6 @@ pub async fn press_key(page: &Page, key: &str, code: &str, windows_key_code: i64
         .map_err(|error| Error(format!("trusted key event failed: {error}")))?;
     }
     tokio::time::sleep(Duration::from_millis(50)).await;
-    Ok(())
-}
-
-/// Hold (`RawKeyDown`) or release (`KeyUp`) the Control modifier.
-pub async fn control(page: &Page, kind: DispatchKeyEventType) -> Result<()> {
-    let modifiers = if matches!(kind, DispatchKeyEventType::RawKeyDown) {
-        CTRL_MODIFIER
-    } else {
-        0
-    };
-    page.execute(
-        DispatchKeyEventParams::builder()
-            .r#type(kind)
-            .key("Control")
-            .code("ControlLeft")
-            .windows_virtual_key_code(17)
-            .modifiers(modifiers)
-            .build()
-            .map_err(|error| Error(format!("cannot build a trusted Control event: {error}")))?,
-    )
-    .await
-    .map_err(|error| Error(format!("trusted Control event failed: {error}")))?;
-    Ok(())
-}
-
-/// A drag gesture held down: the button is pressed and the pointer moved.
-///
-/// The smoke observes the live preview and pointer capture while the hold is
-/// active, then calls [`end_drag`] exactly once. Every failure between begin
-/// and end must still end the hold, or later input lands in a broken state.
-pub struct DragHold {
-    x: f64,
-    y: f64,
-    modifiers: i64,
-    with_control: bool,
-    released: bool,
-}
-
-/// Trusted mouse move/down/move of the first match of `selector`.
-///
-/// Moves in `steps` increments so the page observes real pointer movement.
-/// The gesture stays held: the caller observes mid-drag state, then ends it.
-///
-/// With Control the toolbar swaps its handle label (stagger becomes offset),
-/// so Control goes down first and the lookup waits for the swapped handle,
-/// mirroring the old runner's `keyboard.down` before `waitFor`.
-pub async fn begin_drag(
-    page: &Page,
-    selector: &str,
-    dx: f64,
-    dy: f64,
-    with_control: bool,
-    steps: u32,
-) -> Result<DragHold> {
-    if with_control {
-        control(page, DispatchKeyEventType::RawKeyDown).await?;
-    }
-    let id = if with_control {
-        backend_of_wait(page, selector, Duration::from_secs(10)).await?
-    } else {
-        backend_of(page, selector).await?
-    };
-    let (x, y) = center(page, id).await?;
-    let modifiers = if with_control { CTRL_MODIFIER } else { 0 };
-    let begin = async {
-        dispatch_mouse(page, DispatchMouseEventType::MouseMoved, x, y, 0, modifiers).await?;
-        dispatch_mouse(
-            page,
-            DispatchMouseEventType::MousePressed,
-            x,
-            y,
-            1,
-            modifiers,
-        )
-        .await?;
-        for step in 1..=steps {
-            let fraction = f64::from(step) / f64::from(steps);
-            dispatch_mouse(
-                page,
-                DispatchMouseEventType::MouseMoved,
-                x + dx * fraction,
-                y + dy * fraction,
-                1,
-                modifiers,
-            )
-            .await?;
-        }
-        Ok::<(), Error>(())
-    }
-    .await;
-    if let Err(error) = begin {
-        // Never leak a held button: best-effort release before reporting.
-        dispatch_mouse(
-            page,
-            DispatchMouseEventType::MouseReleased,
-            x + dx,
-            y + dy,
-            0,
-            modifiers,
-        )
-        .await
-        .ok();
-        if with_control {
-            control(page, DispatchKeyEventType::KeyUp).await.ok();
-        }
-        return Err(error);
-    }
-    Ok(DragHold {
-        x: x + dx,
-        y: y + dy,
-        modifiers,
-        with_control,
-        released: false,
-    })
-}
-
-/// Release a held drag: trusted mouse up, then Control up when held.
-///
-/// Releasing twice is a caller bug and fails loudly.
-pub async fn end_drag(page: &Page, hold: &mut DragHold) -> Result<()> {
-    if hold.released {
-        return Err(Error("drag hold released twice".to_owned()));
-    }
-    hold.released = true;
-    dispatch_mouse(
-        page,
-        DispatchMouseEventType::MouseReleased,
-        hold.x,
-        hold.y,
-        0,
-        hold.modifiers,
-    )
-    .await?;
-    if hold.with_control {
-        control(page, DispatchKeyEventType::KeyUp).await?;
-    }
     Ok(())
 }
 

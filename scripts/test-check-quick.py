@@ -152,8 +152,7 @@ class QuickPlanTests(unittest.TestCase):
                     plan = dict(check.quick_plan(selection, PACKAGES))
                     self.assertEqual(plan["test"], check.CARGO_TESTS)
                     self.assertEqual(plan["browser"], [command for command in check.browser()
-                                                     if "run-drag-browser.py" not in " ".join(command)
-                                                     and "test-cold-responses.py" not in " ".join(command)])
+                                                     if "test-cold-responses.py" not in " ".join(command)])
                     runner = [command for command in plan["browser"]
                               if "scripts/run-wasm-tests.py" in command]
                     self.assertEqual(len(runner), 1)
@@ -165,13 +164,11 @@ class QuickPlanTests(unittest.TestCase):
         plan = self.plan(["Cargo.lock"])
         self.assertEqual(plan["test"], check.CARGO_TESTS)
         self.assertEqual(plan["browser"], [command for command in check.browser()
-                                             if not any(name in command for name in
-                                                        ("scripts/run-drag-browser.py", "cad/scripts/test-cold-responses.py"))])
+                                             if "cad/scripts/test-cold-responses.py" not in command])
 
-    def test_quick_full_rust_plan_skips_page_drag_smoke_without_building(self):
+    def test_quick_full_rust_plan_skips_packaged_page_checks_without_building(self):
         plan = self.plan(["Cargo.lock"])
         self.assertNotIn("build", plan)
-        self.assertFalse(any("run-drag-browser.py" in " ".join(command) for command in plan["browser"]))
         self.assertNotIn([check.PY, "cad/scripts/test-cold-responses.py"], plan["browser"])
 
     def test_quick_names_skipped_cad_browser_controls(self):

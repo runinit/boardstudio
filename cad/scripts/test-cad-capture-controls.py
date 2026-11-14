@@ -227,7 +227,7 @@ def main():
                     raise RuntimeError("capture did not reach the shutdown barrier")
                 assert '"name":"reply-retained"' in events_file.read_text(), "barrier preceded retained reply"
                 print("shutdown barrier reached after retained reply", flush=True)
-                runs = list(profiles.glob("bs-drag-*"))
+                runs = list(profiles.glob("bs-harness-*"))
                 assert len(runs) == 1, runs
                 profile = f"--user-data-dir={runs[0] / 'profile'}".encode()
                 tasks = Path(f"/proc/{process.pid}/task")
