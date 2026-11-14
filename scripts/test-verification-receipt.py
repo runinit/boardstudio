@@ -589,10 +589,11 @@ class CheckCliTests(unittest.TestCase):
                                     side_effect=lambda command, registry, **kwargs: check.subprocess.run(command, **kwargs))
         patcher.start()
         self.addCleanup(patcher.stop)
-        locate = mock.patch.object(check.browser_tools, "locate_chrome", return_value="chrome")
+        locate = mock.patch.object(check.browser_tools, "locate_chrome", return_value="/bin/true")
         self.locate = locate.start()
         self.addCleanup(locate.stop)
         for patcher in (
+            mock.patch.dict(os.environ, {"CHROMEDRIVER": "/bin/true"}),
             mock.patch.object(check.verification_receipt, "source_identity",
                               return_value={"revision": "c0d14cd9", "branch": "dev", "dirty": False}),
             mock.patch.object(check.verification_receipt, "baseline_provenance",

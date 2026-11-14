@@ -276,9 +276,8 @@ class BrowserToolsTests(unittest.TestCase):
 
     def locate_chrome(self, *available, env=None):
         with mock.patch.object(browser_tools.shutil, "which", side_effect=which(*available)), \
-                mock.patch.object(browser_tools, "pinned_cft_binary", return_value=None), \
-                mock.patch.dict(browser_tools.os.environ, env or {}, clear=True):
-            return browser_tools.locate_chrome()
+                mock.patch.object(browser_tools, "pinned_cft_binary", return_value=None):
+            return browser_tools.locate_chrome(env if env is not None else {})
 
     def test_chrome_only_probe_needs_no_node(self):
         self.assertEqual(self.locate_chrome("chromium"), "/usr/bin/chromium")
@@ -302,10 +301,10 @@ class BrowserToolsTests(unittest.TestCase):
             env = {"BOARDSTUDIO_CFT_DIR": str(root / "cft"), "PATH": str(system.parent)}
             with mock.patch.dict(browser_tools.os.environ, env, clear=True):
                 self.assertEqual(browser_tools.locate_chrome(), str(chrome))
-                browser_tools.os.environ["CHROME_BIN"] = "/explicit/chrome"
-                self.assertEqual(browser_tools.locate_chrome(), "/explicit/chrome")
-                # A supplied environment, not the caller's override, owns this lookup.
-                self.assertEqual(browser_tools.locate_chrome(env), str(chrome))
+                with mock.patch.dict(browser_tools.os.environ, {"CHROME_BIN": "/explicit/chrome"}):
+                    self.assertEqual(browser_tools.locate_chrome(), "/explicit/chrome")
+                    # A supplied environment, not the caller's override, owns this lookup.
+                    self.assertEqual(browser_tools.locate_chrome(env), str(chrome))
                 chrome.unlink()
                 self.assertEqual(browser_tools.locate_chrome(env), str(system))
                 system.unlink()

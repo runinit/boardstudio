@@ -442,7 +442,9 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
             chrome = Path(directory) / "chromium"
             chrome.write_text("#!/bin/sh\nexit 0\n")
             chrome.chmod(0o755)
-            env = dict(os.environ, PATH=directory, BOARDSTUDIO_PREVIEW_URL="http://example.test/", KEEP_ME="kept")
+            env = dict(os.environ, HOME=directory, PATH=directory,
+                       BOARDSTUDIO_CFT_DIR=str(Path(directory) / "no-pinned-install"),
+                       BOARDSTUDIO_PREVIEW_URL="http://example.test/", KEEP_ME="kept")
             env.pop("CHROME_BIN", None)
             for override in (None, "/chosen/chrome"):
                 with self.subTest(override=override):

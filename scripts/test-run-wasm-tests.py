@@ -740,12 +740,8 @@ class RunWasmTestsTests(unittest.TestCase):
         driver.write_text("#!/bin/sh\necho chromedriver\n")
         chrome.chmod(0o755)
         driver.chmod(0o755)
-        saved = {key: os.environ.get(key) for key in
-                 ("BOARDSTUDIO_CFT_DIR", "CHROMEDRIVER", "CHROME_BIN", runner.WEBDRIVER_CONFIG_ENV)}
-        os.environ["BOARDSTUDIO_CFT_DIR"] = str(pin_dir)
-        for key in ("CHROMEDRIVER", "CHROME_BIN", runner.WEBDRIVER_CONFIG_ENV):
-            os.environ.pop(key, None)
-        try:
+        with patch.dict(os.environ, {"HOME": str(self.dir), "PATH": "/test-bin",
+                                     "BOARDSTUDIO_CFT_DIR": str(pin_dir)}, clear=True):
             def fake_which(name, path=None):
                 if name in (str(driver), str(chrome)):
                     return name
@@ -759,12 +755,6 @@ class RunWasmTestsTests(unittest.TestCase):
                 self.assertEqual(config["goog:chromeOptions"]["binary"], str(chrome))
                 self.assertIn("--window-size=1280,900", config["goog:chromeOptions"]["args"])
                 self.assertEqual(cfg_env["CHROMEDRIVER"], str(driver))
-        finally:
-            for key, value in saved.items():
-                if value is None:
-                    os.environ.pop(key, None)
-                else:
-                    os.environ[key] = value
 
     def test_desktop_webdriver_config_is_wide_and_preserves_explicit_override(self):
         with patch.object(runner, "resolve_chrome_binary", return_value=None):
