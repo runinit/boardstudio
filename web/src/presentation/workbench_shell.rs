@@ -675,6 +675,8 @@ mod tests {
         // - Wait adaptive / probe inert/hidden/focus/removed -> replaced by independent CQ checks below.
         // - 42px, row no-overflow, narrow lane overflow, End->Inspect roving -> retained.
         // - Pressed shown, unpressed hidden -> retained + extended (checked, text-only, both sides of 850).
+        // - Slice 3 B2: open 849/850/1199/1200 sides, then all-closed density table
+        //   (360/500/700/850/1200 T-1/T + 499.5/699.5/1199.5, asserted content-box W).
         let root = mount_component(tool_row_fixture);
         wait_until("tool row mounts", || {
             root.query_selector(".workbench-tool-row")
@@ -822,6 +824,248 @@ mod tests {
             "none",
             "wide open shows utility labels"
         );
+        // Slice 3 B2 exit ledger: parent-resize crossings with asserted content-box W.
+        // W is the row border-box width minus inline padding/borders (fixture width minus 4px).
+        let content_w = || {
+            let row_style = window.get_computed_style(&row).unwrap().unwrap();
+            let px = |name: &str| {
+                row_style
+                    .get_property_value(name)
+                    .unwrap()
+                    .trim_end_matches("px")
+                    .parse::<f64>()
+                    .unwrap()
+            };
+            row.get_bounding_client_rect().width()
+                - px("padding-left")
+                - px("padding-right")
+                - px("border-left-width")
+                - px("border-right-width")
+        };
+        let set_fixture_width = |width: &str| {
+            root.query_selector("#tool-row-fixture")
+                .unwrap()
+                .unwrap()
+                .dyn_into::<HtmlElement>()
+                .unwrap()
+                .style()
+                .set_property("width", width)
+                .unwrap();
+        };
+        let assert_w = |parent: &str, want_w: f64| {
+            let w = content_w();
+            assert!(
+                (w - want_w).abs() < 0.05,
+                "parent {parent} gives content-box W{want_w}: got {w}"
+            );
+        };
+        // Open-state boundary sides: 849/850 (action labels + open heading) and
+        // 1199/1200 (open-only vs all headings), sweeping down then up.
+        set_fixture_width("853px");
+        wait_until("open density settles below 850", || {
+            display_of("[aria-label='Third very long action name'] .workbench-action-label")
+                == "none"
+        })
+        .await;
+        assert_w("853px", 849.0);
+        assert_eq!(
+            display_of("[aria-label='Third very long action name'] .workbench-action-label"),
+            "none",
+            "open at W849 keeps unpressed labels folded"
+        );
+        assert_eq!(
+            display_of("[data-workbench-section='alpha'] .workbench-tool-heading"),
+            "none",
+            "open at W849 hides the open heading"
+        );
+        assert_eq!(
+            display_of(".workbench-utility .workbench-utility-label"),
+            "none",
+            "open at W849 hides utility labels"
+        );
+        set_fixture_width("854px");
+        wait_until("open density settles at 850", || {
+            display_of("[aria-label='Third very long action name'] .workbench-action-label")
+                != "none"
+        })
+        .await;
+        assert_w("854px", 850.0);
+        assert_ne!(
+            display_of("[aria-label='Third very long action name'] .workbench-action-label"),
+            "none",
+            "open at W850 shows unpressed labels"
+        );
+        assert_ne!(
+            display_of("[data-workbench-section='alpha'] .workbench-tool-heading"),
+            "none",
+            "open at W850 shows the open heading"
+        );
+        assert_eq!(
+            display_of("[data-workbench-section='beta'] .workbench-tool-heading"),
+            "none",
+            "open at W850 hides the closed-section heading"
+        );
+        assert_ne!(
+            display_of(".workbench-utility .workbench-utility-label"),
+            "none",
+            "open at W850 shows utility labels"
+        );
+        set_fixture_width("1203px");
+        wait_until("open density settles below 1200", || {
+            display_of("[data-workbench-section='alpha'] .workbench-tool-heading") != "none"
+                && display_of("[data-workbench-section='beta'] .workbench-tool-heading") == "none"
+        })
+        .await;
+        assert_w("1203px", 1199.0);
+        assert_ne!(
+            display_of("[data-workbench-section='alpha'] .workbench-tool-heading"),
+            "none",
+            "open at W1199 shows the open heading"
+        );
+        assert_eq!(
+            display_of("[data-workbench-section='beta'] .workbench-tool-heading"),
+            "none",
+            "open at W1199 hides the closed-section heading"
+        );
+        set_fixture_width("1203.5px");
+        wait_until("open density settles at fractional 1199.5", || {
+            display_of("[data-workbench-section='alpha'] .workbench-tool-heading") != "none"
+                && display_of("[data-workbench-section='beta'] .workbench-tool-heading") == "none"
+        })
+        .await;
+        assert_w("1203.5px", 1199.5);
+        assert_ne!(
+            display_of("[data-workbench-section='alpha'] .workbench-tool-heading"),
+            "none",
+            "open at W1199.5 shows the open heading"
+        );
+        assert_eq!(
+            display_of("[data-workbench-section='beta'] .workbench-tool-heading"),
+            "none",
+            "open at W1199.5 hides the closed-section heading"
+        );
+        set_fixture_width("1204px");
+        wait_until("open density settles at 1200", || {
+            display_of("[data-workbench-section='beta'] .workbench-tool-heading") != "none"
+        })
+        .await;
+        assert_w("1204px", 1200.0);
+        assert_ne!(
+            display_of("[data-workbench-section='alpha'] .workbench-tool-heading"),
+            "none",
+            "open at W1200 shows the open heading"
+        );
+        assert_ne!(
+            display_of("[data-workbench-section='beta'] .workbench-tool-heading"),
+            "none",
+            "open at W1200 shows every heading"
+        );
+        // Close Alpha: the D closed-density mutant must fail the table below.
+        by_role_name(&root, "button", "Alpha").unwrap().click();
+        wait_until("Alpha closes", || {
+            root.query_selector("[data-workbench-section='alpha'][data-open='false']")
+                .unwrap()
+                .is_some()
+                && root
+                    .query_selector("[data-workbench-section='beta'][data-open='false']")
+                    .unwrap()
+                    .is_some()
+        })
+        .await;
+        let alpha_reveal = root
+            .query_selector("[data-workbench-section='alpha'] .workbench-tool-reveal")
+            .unwrap()
+            .unwrap();
+        assert!(alpha_reveal.has_attribute("inert"), "closed lane is inert");
+        assert_eq!(
+            alpha_reveal.get_attribute("aria-hidden").as_deref(),
+            Some("true"),
+            "closed lane is aria-hidden"
+        );
+        assert!(
+            root.query_selector("[data-workbench-section='beta'] .workbench-tool-caption")
+                .unwrap()
+                .is_none(),
+            "beta fixture has no caption"
+        );
+        // (parent width, expected content-box W, headings shown, alpha caption shown,
+        // utility labels shown). The two-section fixture cannot distinguish the 500-700
+        // Select+Transform partial band (alpha/beta are not align/snap/view, so they show
+        // from 500); the real five-section geometry is proven packaged. The caption band
+        // is the calibrated 800, independent of 850.
+        let closed_cases = [
+            ("363px", 359.0, false, false, false),
+            ("364px", 360.0, false, false, true),
+            ("503px", 499.0, false, false, true),
+            ("504px", 500.0, true, false, true),
+            ("703px", 699.0, true, false, true),
+            ("704px", 700.0, true, false, true),
+            ("853px", 849.0, true, true, true),
+            ("854px", 850.0, true, true, true),
+            ("1203px", 1199.0, true, true, true),
+            ("1204px", 1200.0, true, true, true),
+            ("503.5px", 499.5, false, false, true),
+            ("703.5px", 699.5, true, false, true),
+            ("1203.5px", 1199.5, true, true, true),
+        ];
+        for (parent, want_w, headings_shown, caption_shown, utils_shown) in closed_cases {
+            set_fixture_width(parent);
+            let label = format!("closed density settles at W{want_w}");
+            wait_until(&label, || {
+                headings_shown
+                    != (display_of("[data-workbench-section='alpha'] .workbench-tool-heading")
+                        == "none")
+            })
+            .await;
+            assert_w(parent, want_w);
+            for section in ["alpha", "beta"] {
+                let heading =
+                    format!("[data-workbench-section='{section}'] .workbench-tool-heading");
+                let display = display_of(&heading);
+                assert!(
+                    headings_shown != (display == "none"),
+                    "closed W{want_w}: {section} heading display is {display}"
+                );
+                let chevron =
+                    format!("[data-workbench-section='{section}'] .workbench-tool-chevron");
+                let display = display_of(&chevron);
+                assert!(
+                    headings_shown != (display == "none"),
+                    "closed W{want_w}: {section} chevron display is {display}"
+                );
+            }
+            let caption_display =
+                display_of("[data-workbench-section='alpha'] .workbench-tool-caption");
+            assert!(
+                caption_shown != (caption_display == "none"),
+                "closed W{want_w}: alpha caption display is {caption_display}"
+            );
+            if caption_shown {
+                let caption = root
+                    .query_selector("[data-workbench-section='alpha'] .workbench-tool-caption")
+                    .unwrap()
+                    .unwrap();
+                assert!(
+                    caption
+                        .text_content()
+                        .is_some_and(|t| t.trim() == "Current"),
+                    "closed W{want_w}: alpha caption text"
+                );
+            }
+            let utils_display = display_of(".workbench-utility .workbench-utility-label");
+            assert!(
+                utils_shown != (utils_display == "none"),
+                "closed W{want_w}: utility label display is {utils_display}"
+            );
+        }
+        // Reopen Alpha for the retained lane-overflow and roving finale.
+        by_role_name(&root, "button", "Alpha").unwrap().click();
+        wait_until("Alpha reopens", || {
+            root.query_selector("[data-workbench-section='alpha'][data-open='true']")
+                .unwrap()
+                .is_some()
+        })
+        .await;
         root.query_selector("#tool-row-fixture")
             .unwrap()
             .unwrap()

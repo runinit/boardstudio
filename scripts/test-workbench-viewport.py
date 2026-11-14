@@ -802,7 +802,7 @@ def matrix_setup_tests(width, height, failures):
     browser("wait", "--fn", "!document.querySelector('[aria-label=\"New matrix\"]')")
 
 
-def production_viewport_tests(url, width=320, height=480):
+def production_viewport_tests(url, width=320, height=480, setup_matrix=False):
     browser("set", "viewport", width, height)
     browser("open", url)
     browser("wait", "--fn", "!!document.querySelector('[aria-label=Project][aria-haspopup=menu]')")
@@ -811,6 +811,24 @@ def production_viewport_tests(url, width=320, height=480):
     browser("find", "role", "button", "click", "--name", "Project", "--exact")
     browser("find", "role", "menuitem", "click", "--name", "New project", "--exact")
     browser("wait", "--fn", "!!document.querySelector('[aria-label=\"Keyboard setup\"]')")
+    if setup_matrix:
+        # Slice 3 B2 enabled-Transform receipt: create a matrix through the setup
+        # guide so Transform/Align see a real selection. The existing per-section
+        # oracles already branch on guidance-only vs enabled lanes; none change.
+        browser("find", "role", "button", "click", "--name", "Layout & assemblies", "--exact")
+        browser("wait", "--fn", "!!document.querySelector('[aria-label=\"New matrix\"]')")
+        browser("wait", "--fn", "!![...document.querySelectorAll('[aria-label=\"New matrix\"] button')].find(b=>b.textContent.trim()==='Create matrix')")
+        # The fresh button reaches the accessibility tree a beat after the DOM wait
+        # passes; retry the trusted click until it is exposed (setup sync, not an oracle).
+        for attempt in range(6):
+            try:
+                browser("find", "role", "button", "click", "--name", "Create matrix", "--exact")
+                break
+            except AssertionError:
+                if attempt == 5:
+                    raise
+                browser("wait", 500)
+        browser("wait", "--fn", "!document.querySelector('[aria-label=\"New matrix\"]')")
     browser("find", "role", "button", "click", "--name", "Hide guide", "--exact")
     browser("wait", "--fn", "!!document.querySelector('.workbench-tool-row')")
 
@@ -1093,14 +1111,240 @@ def production_viewport_tests(url, width=320, height=480):
     print(f"PASS: real {width}x{height} viewport, 42px row, seven entry true hit tests closed+each-open, 4px/32px/no-overflow, lanes, Objects/Inspect panels", flush=True)
 
 
+def closed_density_report():
+    # Slice 3 B2 packaged ledger: real five-section closed density at content-box W.
+    # W comes from the fractional rect (clientWidth rounds to int); Wclient is diagnostic.
+    return evaluate(
+        "(()=>{"
+        "const row=document.querySelector('.workbench-tool-row');"
+        "const r=row.getBoundingClientRect();"
+        "const rcs=getComputedStyle(row);"
+        "const padL=parseFloat(rcs.paddingLeft), padR=parseFloat(rcs.paddingRight);"
+        "const bL=parseFloat(rcs.borderLeftWidth)||0, bR=parseFloat(rcs.borderRightWidth)||0;"
+        "const W=r.width-padL-padR-bL-bR;"
+        "const Wclient=row.clientWidth-padL-padR;"
+        "const open=[...document.querySelectorAll('[data-workbench-section]')].filter(g=>g.getAttribute('data-open')==='true').map(g=>g.getAttribute('data-workbench-section'));"
+        "const sections={};"
+        "for(const g of document.querySelectorAll('[data-workbench-section]')){"
+        "const k=g.getAttribute('data-workbench-section');"
+        "const h=g.querySelector('.workbench-tool-heading');"
+        "const c=g.querySelector('.workbench-tool-chevron');"
+        "const cap=g.querySelector('.workbench-tool-caption');"
+        "sections[k]={heading:h?getComputedStyle(h).display:null,chevron:c?getComputedStyle(c).display:null,"
+        "caption:cap?{display:getComputedStyle(cap).display,text:(cap.textContent||'').trim().slice(0,40)}:null};"
+        "}"
+        "const utils=[...row.querySelectorAll('.workbench-utility .workbench-utility-label')].map(l=>({display:getComputedStyle(l).display,text:(l.textContent||'').trim().slice(0,20)}));"
+        "return {W,Wclient,rowW:r.width,rowH:r.height,vw:innerWidth,open,sections,utils};"
+        "})()"
+    )
+
+
+def closed_density_expectations(W):
+    # Ticket 002 closed bands: per-section headings (partial Select+Transform 500-700),
+    # captions at the calibrated 800, utility labels at 360. Chevron follows heading.
+    if W < 500:
+        headings = {s: False for s in SECTIONS}
+    elif W < 700:
+        headings = {s: s in ("Select", "Transform") for s in SECTIONS}
+    else:
+        headings = {s: True for s in SECTIONS}
+    return headings, W >= 800, W >= 360
+
+
+def check_closed_density(tag, failures):
+    rep = closed_density_report()
+    print(f"DENSITY-CLOSED {tag}: {json.dumps(rep)}", flush=True)
+    if rep["open"]:
+        failures.append((f"density-{tag}", f"expected all closed, got open {rep['open']}"))
+        return rep
+    headings, captions, utils = closed_density_expectations(rep["W"])
+    for sec, shown in headings.items():
+        got = rep["sections"][SECTION_KEYS[sec]]["heading"]
+        if shown == (got == "none"):
+            failures.append((f"density-{tag}", f"{sec} heading display {got} at W {rep['W']}"))
+        chev = rep["sections"][SECTION_KEYS[sec]]["chevron"]
+        if shown == (chev == "none"):
+            failures.append((f"density-{tag}", f"{sec} chevron display {chev} at W {rep['W']}"))
+        cap = rep["sections"][SECTION_KEYS[sec]]["caption"]
+        if cap is not None:
+            if captions == (cap["display"] == "none"):
+                failures.append((f"density-{tag}", f"{sec} caption {cap} at W {rep['W']}"))
+            elif captions and not cap["text"]:
+                failures.append((f"density-{tag}", f"{sec} shown caption is blank at W {rep['W']}"))
+    for u in rep["utils"]:
+        if utils == (u["display"] == "none"):
+            failures.append((f"density-{tag}", f"utility {u} at W {rep['W']}"))
+    return rep
+
+
+def check_entry_reports(tag, names, failures, width, height):
+    # Shared entry oracle for the new B2 scenarios (the page scenario keeps its own
+    # inline blocks untouched): every named entry rendered >=32px, in viewport, topmost.
+    for name in names:
+        rep = entry_report(name)
+        print(f"ENTRY {tag} {name}: {json.dumps(rep)}", flush=True)
+        if not rep.get("found"):
+            failures.append((f"{tag} {name}", "missing"))
+            continue
+        r = rep["rect"]
+        if not (r["w"] > 0 and r["h"] > 0):
+            failures.append((f"{tag} {name}", f"non-positive rect {r}"))
+        if not (r["w"] + 1e-6 >= MIN_HIT and r["h"] + 1e-6 >= MIN_HIT):
+            failures.append((f"{tag} {name}", f"hit region {r['w']:.3f}x{r['h']:.3f}, require >={MIN_HIT}px"))
+        if not rep["inside"]:
+            failures.append((f"{tag} {name}", f"center {rep['center']} outside {width}x{height}"))
+        if not rep["hit"]:
+            failures.append((f"{tag} {name}", f"elementFromPoint hit {rep['el']}, occluder {rep['occluder']}"))
+
+
+def check_page_overflow(tag, failures):
+    over = overflow_state()
+    print(f"OVERFLOW {tag}: {json.dumps(over)}", flush=True)
+    if not (over["sw"] <= over["cw"] and over["sh"] <= over["ch"]):
+        failures.append((tag, f"page overflow {over}"))
+
+
+def check_browser_errors(failures):
+    errors = browser("errors").get("errors", [])
+    print(f"BROWSER ERRORS: {json.dumps(errors)}", flush=True)
+    if errors:
+        failures.append(("browser", f"errors {errors}"))
+
+
+def open_fresh_layout(url, width, height):
+    # Shared B2 setup: exact viewport, packaged page, new project, guide hidden.
+    browser("set", "viewport", width, height)
+    browser("open", url)
+    browser("wait", "--fn", "!!document.querySelector('[aria-label=Project][aria-haspopup=menu]')")
+    browser("find", "role", "button", "click", "--name", "Project", "--exact")
+    browser("find", "role", "menuitem", "click", "--name", "New project", "--exact")
+    browser("wait", "--fn", "!!document.querySelector('[aria-label=\"Keyboard setup\"]')")
+    browser("find", "role", "button", "click", "--name", "Hide guide", "--exact")
+    browser("wait", "--fn", "!!document.querySelector('.workbench-tool-row')")
+    state = viewport_state()
+    print(f"VIEWPORT {width}x{height}: {json.dumps(state)}", flush=True)
+    assert state["w"] == width and state["h"] == height, (
+        f"browser viewport must be exactly {width}x{height}, got {state['w']}x{state['h']}"
+    )
+    wait_for_settled()
+
+
+def constrain_row_parent(px):
+    # Constrain the row's parent at constant viewport: the container query must follow
+    # the parent, not the viewport. px may be fractional. Returns achieved geometry.
+    return evaluate(
+        "(()=>{"
+        "const row=document.querySelector('.workbench-tool-row');"
+        f"const p=row.parentElement; p.style.width='{px}px'; p.style.maxWidth='{px}px';"
+        "const r=row.getBoundingClientRect();"
+        "const rcs=getComputedStyle(row);"
+        "const W=r.width-parseFloat(rcs.paddingLeft)-parseFloat(rcs.paddingRight)-(parseFloat(rcs.borderLeftWidth)||0)-(parseFloat(rcs.borderRightWidth)||0);"
+        "return {parentW:p.getBoundingClientRect().width,rowW:r.width,rowH:r.height,W,vw:innerWidth};"
+        "})()"
+    )
+
+
+def constrained_parent_ledger(url):
+    # Slice 3 B2: desktop viewport, parent-constrained row. Fractional and 849/850
+    # points the integer viewport grid cannot hit (integer T-1/T come from page runs).
+    width, height = 1440, 900
+    open_fresh_layout(url, width, height)
+    failures = []
+    for target in (499.5, 699.5, 849.0, 850.0, 1199.5):
+        parent = target + 4.0
+        geo = constrain_row_parent(parent)
+        wait_for_settled()
+        rep = closed_density_report()
+        print(f"CONSTRAIN W{target}: parent {parent}px -> {json.dumps(geo)} report {json.dumps(rep)}", flush=True)
+        if geo["vw"] != width:
+            failures.append((f"constrain-{target}", f"viewport moved to {geo['vw']}"))
+        if abs(rep["W"] - target) >= 0.05:
+            failures.append((f"constrain-{target}", f"achieved W {rep['W']}, want {target}"))
+        if abs(rep["rowH"] - 42.0) >= 0.5:
+            failures.append((f"constrain-{target}", f"row height {rep['rowH']}"))
+        check_closed_density(f"W{target}", failures)
+        check_entry_reports(f"closed-W{target}", ENTRIES, failures, width, height)
+        if target in (849.0, 850.0):
+            browser("find", "role", "button", "click", "--name", "Select", "--exact")
+            browser("wait", "--fn", "document.querySelector(\"[data-workbench-section='select'][data-open='true']\")!==null")
+            wait_for_settled()
+            sel = select_label_report()
+            print(f"SELECT-LABELS constrained-W{target}: {json.dumps(sel)}", flush=True)
+            if not sel.get("labelsFit"):
+                failures.append((f"select-labels-W{target}", f"{sel.get('reasons')}, full {sel}"))
+            check_entry_reports(f"open-select-W{target}", ENTRIES, failures, width, height)
+            browser("find", "role", "button", "click", "--name", "Select", "--exact")
+            browser("wait", "--fn", "document.querySelector(\"[data-workbench-section='select'][data-open='false']\")!==null")
+            wait_for_settled()
+    evaluate(
+        "(()=>{const row=document.querySelector('.workbench-tool-row');"
+        "const p=row.parentElement; p.style.width=''; p.style.maxWidth='';})()"
+    )
+    wait_for_settled()
+    check_page_overflow("constrained", failures)
+    check_browser_errors(failures)
+    print(f"FAILURES ({len(failures)}): {json.dumps(failures, indent=2)}", flush=True)
+    assert not failures, failures
+    print("PASS: constrained-parent ledger at 1440x900 viewport (W499.5/699.5/849/850/1199.5)", flush=True)
+
+
+def assembly_3d_checks(url, width=1440, height=900):
+    # Slice 3 B2: the 3D ToolRow branch has no accordion sections; it follows the closed
+    # utility policy while 2D/3D controls and Objects/Inspect stay reachable.
+    open_fresh_layout(url, width, height)
+    browser("find", "role", "button", "click", "--name", "View", "--exact")
+    browser("wait", "--fn", "document.querySelector(\"[data-workbench-section='view'][data-open='true']\")!==null")
+    wait_for_settled()
+    browser("find", "role", "button", "click", "--name", "3D assembly", "--exact")
+    browser("wait", "--fn", "document.querySelectorAll('[data-workbench-section]').length===0")
+    wait_for_settled()
+    failures = []
+    row = evaluate(
+        "(() => {const rows=[...document.querySelectorAll('.workbench-tool-row')];"
+        "const r=rows[0].getBoundingClientRect();"
+        "const rcs=getComputedStyle(rows[0]);"
+        "const W=r.width-parseFloat(rcs.paddingLeft)-parseFloat(rcs.paddingRight);"
+        "return {count:rows.length,x:r.x,y:r.y,w:r.width,h:r.height,W}})()"
+    )
+    print(f"ROW-3D {width}x{height}: {json.dumps(row)}", flush=True)
+    assert row["count"] == 1, f"expected one .workbench-tool-row, got {row['count']}"
+    assert abs(row["h"] - 42.0) < 0.5, f"row must be 42px high, got {row['h']}"
+    check_entry_reports("3d", ["2D", "3D assembly", "Objects", "Inspect"], failures, width, height)
+    utils = evaluate(
+        "([...document.querySelectorAll('.workbench-utility .workbench-utility-label')]"
+        ".map(l=>({display:getComputedStyle(l).display,text:(l.textContent||'').trim().slice(0,20)})))"
+    )
+    print(f"UTILS-3D {width}x{height} W{row['W']}: {json.dumps(utils)}", flush=True)
+    want_shown = row["W"] >= 360
+    if len(utils) != 2:
+        failures.append(("3d-utils", f"expected 2 utility labels, got {utils}"))
+    for u in utils:
+        if want_shown == (u["display"] == "none"):
+            failures.append(("3d-utils", f"utility {u} at W {row['W']}"))
+    check_page_overflow("3d", failures)
+    check_browser_errors(failures)
+    print(f"FAILURES ({len(failures)}): {json.dumps(failures, indent=2)}", flush=True)
+    assert not failures, failures
+    print(f"PASS: 3D branch at real {width}x{height} viewport, 42px row, closed-utility policy, reachable controls", flush=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--page-url", required=True, help="packaged production page URL (no fixture mode)")
     parser.add_argument("--width", type=int, default=320)
     parser.add_argument("--height", type=int, default=480)
+    parser.add_argument("--setup-matrix", action="store_true",
+                        help="Slice 3 B2: create a matrix via the setup guide before Hide guide (enabled Transform/Align)")
+    parser.add_argument("--scenario", choices=["page", "constrained", "assembly3d"], default="page",
+                        help="page: full viewport proof (default, unchanged); constrained: parent-constrained ledger at 1440x900; assembly3d: 3D branch checks at --width/--height")
     args = parser.parse_args()
     try:
-        production_viewport_tests(args.page_url, args.width, args.height)
+        if args.scenario == "constrained":
+            constrained_parent_ledger(args.page_url)
+        elif args.scenario == "assembly3d":
+            assembly_3d_checks(args.page_url, args.width, args.height)
+        else:
+            production_viewport_tests(args.page_url, args.width, args.height, setup_matrix=args.setup_matrix)
     finally:
         browser("close")
 

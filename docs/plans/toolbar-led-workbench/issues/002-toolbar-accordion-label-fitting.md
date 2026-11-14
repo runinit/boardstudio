@@ -760,6 +760,97 @@ Exit incomplete (no closure): thresholds 360/500/700/850/1200 remain provisional
 
 Review disposition (fresh Astra high, `.evidence/toolbar-rework/step3-slice3-review.md`): Standards + Spec CHANGES REQUIRED, 2 blockers. B1 fractional-width endpoint gaps FIXED by coordinator: integer `max-width` endpoints replaced with half-open ranges (`width < 850px`, `850px <= width < 1200px`, `width < 500px`, `500px <= width < 700px`); shell story gains a fractional-W849.5 step — GREEN `step3-slice3-b1-green.log` (6/0), RED at that exact assertion with the old endpoint temporarily restored (`step3-slice3-b1-red.log`, exact restore), Clippy + `browser --only layout` green (`step3-slice3-b1-*.log`). B2 (exit ledger + D/L/B replacement-proof mutations, incl. closed-state shell oracle) remains open: it blocks Slice 3 acceptance, not this pilot commit; the density-evidence completion follows as its own delegated step. CSS relocation, dormant shell selectors and future popup-marker scoping stay non-blocking follow-ups; no observer-loop or text-only/popup regression established.
 
+### 2026-11-14 — Slice 3 B2 density exit evidence (Checker/Builder)
+
+Base `bbd5d0794` clean. Tests/evidence/ticket only: `web/src/presentation/workbench_shell.rs`
+(+244, tests only — closed Alpha, open 849/850/1199/1199.5/1200 sides, 13-width closed table with
+asserted content-box W), `scripts/test-workbench-viewport.py` (+248/−2, scenario hooks only:
+`--setup-matrix`, `--scenario constrained|assembly3d`, closed-density/entry/overflow/error
+helpers; default page path behavior unchanged), this entry,
+`.evidence/toolbar-rework/step3-slice3-b2-*`. No production CSS/Rust changes, no Slice 4,
+no Layers fix, no commits/stash. Packaged site rebuilt fresh (the pre-existing site carried
+stale pre-B1 849px CSS); mutant builds restored exactly after each kill.
+
+This supersedes the pilot entry's "thresholds remain provisional": 360/500/700/850/1200 are
+ACCEPTED with the ledger below (each threshold: evidence log + both-side result with actual
+content-box W). Caption 800 stays accepted on the reused 819/820/821 receipts (not rerun);
+the new shell closed table corroborates caption hidden below 800 / shown with exact
+"Current" text at 849+.
+
+Accepted ledger (every run FAILURES 0; W = content-box inline size):
+| Threshold | Shell parent-resize (W asserted ±0.05) | Packaged real five-section geometry |
+|---|---|---|
+| 360 utilities | 359 hidden / 360 shown | 379→W359 hidden / 380→W360 shown (full page runs) |
+| 500 closed headings | 499 hidden / 500 shown* / 499.5 hidden | 519→W499 hidden / 520→W500 Select+Transform-only / constrained W499.5 hidden |
+| 700 closed headings | 699 shown* / 700 shown / 699.5 shown* | 719→W699 partial / 720→W700 all-five / constrained W699.5 partial |
+| 850 labels + open headings | open 849 folded+hidden / 850 shown (plus B1 849.5); closed 849/850 shown | constrained W849 folded / W850 shown, SELECT-LABELS both sides |
+| 1200 open-wide | open 1199 open-only / 1199.5 open-only / 1200 all; closed shown all three | 1219→W1199 open-only / 1220→W1200 all-five / constrained W1199.5 (closed) |
+| 800 captions | hidden below / shown 849+ | reused 819/820/821; real Key/¼u captions in constrained logs |
+
+\*Two-section fixture cannot show the 500–700 partial band (alpha/beta are not
+align/snap/view); the partial-vs-all contrast is proven packaged.
+
+Packaged receipts: shell `step3-slice3-b2-shell-green.log` (6/0); page
+`step3-slice3-b2-viewport-{379,380,519,520,719,720x844,1219x900,1220x900}.log`
+(W359/360/499/500/699/700/1199/1200); constrained
+`step3-slice3-b2-viewport-constrained.log` (viewport fixed 1440,
+W499.5/699.5/849/850/1199.5 exact); enabled Transform
+`step3-slice3-b2-viewport-matrix-1440.log` (hasGuidance false, usable 77.7×32 hit;
+Align truthfully guard-disabled with this selection); 3D
+`step3-slice3-b2-viewport-3d-{1440,320}.log` (W1420 labels shown / W300 hidden, 42px,
+reachable controls); zoom `step3-slice3-b2-viewport-720x450.log` (W700 — the exact CSS
+geometry of 200% browser zoom on 1440×900; chrome zoom itself is not automatable here:
+Ctrl+Plus keypress unchanged, CSS-zoom probe scales rects, both documented in the B2
+checkpoint). Final `check.py browser --only layout` EXIT 0, 278 passed
+(`step3-slice3-b2-layout.log`); scoped rustfmt clean. Daemon EOFs between runs recovered
+via `close --all` preamble; infra only, not product RED.
+
+Mutations (all through `scripts/mutation-check.py --locked`, all `restored_exact: true`):
+| Mutant | Oracle | Result |
+|---|---|---|
+| D show-all-closed-below-band (closed headings flex + captions inline) | shell closed table | KILLED at "closed density settles at W359" (`step3-slice3-b2-mut-D/results.json`) |
+| L hide-text-only (drop `:has(> svg)`) | packaged TEXT-ONLY narrow | KILLED at blank-Snap, 7 actions, at 380 (`step3-slice3-b2-mut-L1-380/results.json`; 320 blocked, see below) |
+| L labelled-Select-at-32px (full-band auto→32px) | packaged SELECT-LABELS at 900/W880 | KILLED at select-labels-Select overflow; pressed Key kept auto width (`step3-slice3-b2-mut-L2/results.json`) |
+| B/D disable container query (`inline-size`→`normal`) | shell density story | KILLED at the initial narrow density oracle, not the resize step (`step3-slice3-b2-mut-BD/results.json`) |
+| B/D neuter open-medium band | shell parent-resize | KILLED at post-resize "wide open shows its heading" |
+
+Slice 3 exit rows — met vs still open:
+- MET: closed/open density ledger all bands both sides + fractionals; enabled Transform
+  with a selection; 3D closed-utility both sides; constrained-parent response including
+  fractionals; SELECT-LABELS exact text/containment both sides of 850; text-only nonblank
+  narrow; the D/L/B replacement-proof kills above.
+- STILL OPEN: (1) 320 full-flow baseline — the pre-existing keyboard-scroll oracle demands
+  full visibility of pressed-wide Geometry snap (113.5px label in a 42px lane),
+  contradicting the approved partially-exposed policy for pressed labelled buttons; 2
+  consistent REDs (`step3-slice3-b2-viewport-320-blocker.log`, `step3-slice3-b2-mut-L1/_baseline.log`)
+  need coordinator disposition (blocks only L-1-at-320; the text-only oracle is proven
+  killing at 380). (2) Coarse-pointer live receipt — no harness emulation after two
+  attempts (`set device`, external Chrome `--touch-events`); the complete coarse-rule
+  inventory proves no coarse rule reaches the ToolRow (static composition places the
+  ToolRow outside the legacy `.layout-toolbar-strips`); needs disposition or the named CDP-mobile /
+  real-device experiment. (3) B font-swap and selection/caption-change sub-proofs; F/K/M/R/O
+  (Slice 4); Availability/Action parity; overlay container on/off matrix — untouched by B2,
+  unchanged from the pilot.
+
+Coordinator dispositions (2026-11-14): (1) 320 keyboard-scroll oracle — the full-visibility
+ demand is superseded by the approved oversized-control rule (pressed label shown, control
+ partially exposed, enabled/32px/in-row/reachable/hit-at-centre); the oracle rewrite lands
+ with the Slice 4 keyboard-focus-scrolling proof, and no Slice 3 claim rests on the 320
+ full-flow run. L-1's text-only kill at 380 stands as the Slice 3 proof. (2) Coarse pointer —
+ accepted as static-bound for Slice 3 density (density does not vary by pointer and no coarse
+ rule reaches the ToolRow); the live coarse geometry receipt moves to Slice 4 via CDP mobile
+ emulation or a real touch device. Coordinator independently reran the D mutation:
+ `step3-slice3-b2-coordinator-mutD/results.json` — killed at the same closed oracle,
+ restored_exact true. Delta review (`.evidence/toolbar-rework/step3-slice3-b2-review.md`)
+ found one blocker — open W1199.5 was claimed but only closed W1199.5 tested — fixed by
+ coordinator: shell story gains the open W1199.5 step (GREEN
+ `step3-slice3-b2-review-fix-green.log`); the fractional-endpoint regression mutant
+ (medium band back to `max-width: 1199px` in both fixture stylesheet copies —
+ layout-toolbar.css source and the generated tailwind.css bundle) is KILLED at that step
+ (`step3-slice3-b2-review-fix-mut2/results.json`, restored_exact true; the single-copy
+ mutant survived because the unmutated bundle copy still matched,
+ `step3-slice3-b2-review-fix-mut/`). Ledger row 1200 attribution corrected accordingly.
+
 ### Earlier implementation receipts
 
 - 2026-11-11 Availability/action-parity builder: both mounted tests GREEN in `.evidence/toolbar-m1/002-availability-parity-attempt4.log` (11 executed, 0 failed). First-column scope is chosen through Select before Transform, matching the existing scope controls and column-specific action labels. Attempt 2 reached a Follow-rotation fixture with no accepted scope; attempt 3 added an anchor source key, board membership and shared layout following `matrix_edit_test_support`, and availability passed. Attempt 3 parity failed because clicking SW14 did not populate the combobox input; the existing `combobox_floor_filter_active_descendant_selection_and_escape` test establishes filtering, ArrowDown and Enter as a selection path. Attempt 4 uses that path and retains the SW14 selection and resulting alignment assertions. The later host failures in attempts 1–3 followed the shared-WASM panic-hook cascade. Receipts: `.evidence/toolbar-m1/002-availability-parity-attempt{1,2,3,4}.log`. Gortex writes for the two initial test corrections returned `view_building` twice each, so those used the user-authorized native fallback; the parity correction and this ticket entry used Gortex. No production change, full gate, mutation, review or closure claim.
