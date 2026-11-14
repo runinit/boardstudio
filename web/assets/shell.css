@@ -158,10 +158,11 @@
 .workbench-tool-trigger[data-closed-hide] .workbench-tool-heading,
 .workbench-tool-trigger[data-closed-hide] .workbench-tool-chevron { display: none; }
 .workbench-tool-row-measuring, .workbench-tool-row-measuring * { transition: none !important; animation: none !important; }
-.workbench-tool-group[data-open='true'] .workbench-tool-track { animation: workbench-tool-enter 280ms cubic-bezier(.22,.61,.36,1) backwards; }
-.workbench-tool-group[data-open='false'] .workbench-tool-track { animation: workbench-tool-exit 170ms cubic-bezier(.22,.61,.36,1) forwards; }
-@keyframes workbench-tool-enter { from { transform: translateX(var(--workbench-tool-distance, 100%)); } to { transform: translateX(0); } }
-@keyframes workbench-tool-exit { from { transform: translateX(0); } to { transform: translateX(var(--workbench-tool-distance, 100%)); } }
+.workbench-tool-group[data-open='true'] .workbench-tool-track { transform-box: border-box; animation: workbench-tool-enter 280ms cubic-bezier(.22,.61,.36,1) backwards; }
+/* Slice 4: closing is immediate (no exit animation). Overlay-open entry
+   cancellation lives in ToolRow, which finish()es the running entry: a CSS
+   animation:none toggle would restart the entry when the overlay closes. */
+@keyframes workbench-tool-enter { from { transform: translateX(100%); } to { transform: translateX(0); } }
 @media (prefers-reduced-motion: reduce) {
   .workbench-tool-row *, .workbench-tool-row *::before, .workbench-tool-row *::after { animation: none !important; transition: none !important; }
 }

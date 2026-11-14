@@ -4,11 +4,14 @@ use crate::ui::{
     collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
     icons::ChevronDown,
     item::{Item, ItemSize},
+    popover::use_trigger_clamped_placement,
     toggle_group::{ToggleGroup, ToggleItem},
     tooltip::{Tooltip, TooltipContent, TooltipTrigger},
 };
 use dioxus::prelude::*;
 use std::collections::HashSet;
+use std::{cell::RefCell, rc::Rc};
+use wasm_bindgen::{JsCast, closure::Closure};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum LayerTarget {
@@ -123,6 +126,18 @@ pub fn LayerToggleButton(
     }
 }
 
+/// Disconnect handle for the section-close observer inside [`LayerPanel`].
+struct SectionCloseTracker {
+    observer: web_sys::MutationObserver,
+    _callback: Closure<dyn FnMut()>,
+}
+
+impl Drop for SectionCloseTracker {
+    fn drop(&mut self) {
+        self.observer.disconnect();
+    }
+}
+
 /// The shared layers disclosure shell; callers own the layer rows and their visibility state.
 #[component]
 pub fn LayerPanel(
@@ -133,6 +148,9 @@ pub fn LayerPanel(
     children: Element,
 ) -> Element {
     let mut open = use_signal(|| initially_open);
+    // D4: pin the open list under its lane trigger while the lane scrolls.
+    // Gap 4 matches the stylesheet anchor offset (no side margin on the list).
+    use_trigger_clamped_placement(trigger_id.clone(), list_id.clone(), open(), 4.0);
     let keydown_trigger_id = trigger_id.clone();
     let onkeydown = move |event: KeyboardEvent| {
         use wasm_bindgen::JsCast;
@@ -148,8 +166,63 @@ pub fn LayerPanel(
             event.prevent_default();
             trigger.click();
             let _ = trigger.focus();
+            // The focused trigger can sit mostly outside its narrow lane;
+            // reveal it without disturbing the page scroll.
+            let view = web_sys::ScrollIntoViewOptions::new();
+            view.set_block(web_sys::ScrollLogicalPosition::Nearest);
+            view.set_inline(web_sys::ScrollLogicalPosition::Nearest);
+            trigger.scroll_into_view_with_scroll_into_view_options(&view);
         }
     };
+    // D3: close the disclosure when its workbench section closes. The list is
+    // fixed-positioned and would otherwise paint over the closed row. Panels
+    // with no section ancestor (dock usage) have nothing to track.
+    let section_tracker: Rc<RefCell<Option<SectionCloseTracker>>> =
+        use_hook(|| Rc::new(RefCell::new(None)));
+    {
+        let effect_tracker = section_tracker.clone();
+        let drop_tracker = section_tracker.clone();
+        let section_trigger_id = trigger_id.clone();
+        let mut section_open = open;
+        use_effect(move || {
+            if effect_tracker.borrow().is_some() {
+                return;
+            }
+            let section = web_sys::window()
+                .and_then(|window| window.document())
+                .and_then(|document| document.get_element_by_id(&section_trigger_id))
+                .and_then(|trigger| trigger.closest("[data-workbench-section]").ok().flatten());
+            let Some(section) = section else {
+                return;
+            };
+            let observed = section.clone();
+            let callback = Closure::<dyn FnMut()>::new(move || {
+                let closed = observed.get_attribute("data-open").as_deref() != Some("true");
+                if closed && *section_open.peek() {
+                    section_open.set(false);
+                }
+            });
+            let Ok(observer) = web_sys::MutationObserver::new(callback.as_ref().unchecked_ref())
+            else {
+                return;
+            };
+            let options = web_sys::MutationObserverInit::new();
+            options.set_attributes(true);
+            let filter = js_sys::Array::new();
+            filter.push(&"data-open".into());
+            options.set_attribute_filter(&filter);
+            if observer.observe_with_options(&section, &options).is_err() {
+                return;
+            }
+            *effect_tracker.borrow_mut() = Some(SectionCloseTracker {
+                observer,
+                _callback: callback,
+            });
+        });
+        use_drop(move || {
+            drop_tracker.borrow_mut().take();
+        });
+    }
     rsx! {
         Collapsible {
             class: "absolute z-[2] right-3.5 bottom-3.5 flex flex-col w-48 max-h-[min(420px,calc(100%-28px))] overflow-hidden border border-border-strong rounded-xl bg-card/95 text-foreground text-xs shadow-lg data-[open=false]:w-auto data-[open=false]:rounded-full max-[760px]:right-2 max-[760px]:bottom-2 max-[760px]:w-[min(240px,calc(100%-16px))] max-[760px]:max-h-[calc(100%-16px)] max-[760px]:data-[open=false]:w-[100px] [#m1-objects-panel_&]:relative [#m1-objects-panel_&]:left-0 [#m1-objects-panel_&]:right-auto [#m1-objects-panel_&]:bottom-auto [#m1-objects-panel_&]:w-full [#m1-objects-panel_&]:min-w-0 [#m1-objects-panel_&]:border-0 [#m1-objects-panel_&]:border-t [#m1-objects-panel_&]:border-border [#m1-objects-panel_&]:rounded-none [#m1-objects-panel_&]:bg-card [#m1-objects-panel_&]:shadow-none", keep_mounted: true,

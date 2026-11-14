@@ -11,6 +11,7 @@ Usage:
 import argparse
 import importlib
 import json
+import time
 from pathlib import Path
 
 driver = importlib.import_module("test-dock-primitives")
@@ -389,6 +390,107 @@ def layers_list_report():
     )
 
 
+def check_layers_geometry(tag, failures):
+    # Layers list placement asserts shared by every Layers observation: fully
+    # inside the viewport with >=8px side margins, below the trigger, first
+    # choice hit-testable at centre, no page horizontal overflow, and
+    # horizontally anchored to the trigger (clamped to 8px side margins).
+    layers = layers_list_report()
+    print(f"LAYERS {tag}: {json.dumps(layers)}", flush=True)
+    if layers.get("missing") or not layers.get("open"):
+        failures.append((f"layers-{tag}", f"Layers list not open, full {layers}"))
+        return
+    lay, ltrig = layers["list"], layers["trigger"]
+    if lay["x"] + 1e-6 < 8.0:
+        failures.append((f"layers-{tag}", f"list left edge {lay['x']:.1f}px, require >=8px margin, full {layers}"))
+    if lay["right"] - 1e-6 > layers["vw"] - 8.0:
+        failures.append((f"layers-{tag}", f"list right edge {lay['right']:.1f}px in {layers['vw']}px viewport, require >=8px margin, full {layers}"))
+    if lay["y"] + 1e-6 < ltrig["bottom"]:
+        failures.append((f"layers-{tag}", f"list top {lay['y']:.1f}px above trigger bottom {ltrig['bottom']:.1f}px, full {layers}"))
+    max_left = max(layers["vw"] - lay["w"] - 8.0, 8.0)
+    expected = min(max(ltrig["x"], 8.0), max_left)
+    if abs(lay["x"] - expected) > 2.0:
+        failures.append((f"layers-{tag}", f"list x {lay['x']:.1f}px not anchored to trigger x {ltrig['x']:.1f}px (clamped {expected:.1f}px), full {layers}"))
+    first = layers.get("first") or {}
+    if not first.get("hit"):
+        failures.append((f"layers-{tag}", f"first choice {first.get('label')} not hit-testable at centre ({first.get('cx')},{first.get('cy')}), hit {first.get('el')}, full {layers}"))
+    over = layers["overflow"]
+    if over["sw"] > over["cw"]:
+        failures.append((f"layers-{tag}", f"page horizontal overflow with list open {over}"))
+
+
+def reference_detail_report():
+    # Alignment Reference detail geometry: dialog rect, trigger rect, Close hit,
+    # nested state. The trigger rect anchors the clamped-placement assertion.
+    return evaluate(
+        "(()=>{" +
+        "const m=document.querySelector('#m1-layout-align-menu');" +
+        "if(!m) return {present:false};" +
+        "const b=m.getBoundingClientRect();" +
+        "const rt=document.querySelector('#m1-layout-align-trigger');" +
+        "const rtb=rt?rt.getBoundingClientRect():null;" +
+        "const c=[...m.querySelectorAll('button')].find(e=>e.getAttribute('aria-label')==='Close Alignment reference');" +
+        "const cb=c.getBoundingClientRect();" +
+        "const cx=cb.x+cb.width/2, cy=cb.y+cb.height/2;" +
+        "const el=(cx>=0&&cx<=innerWidth&&cy>=0&&cy<=innerHeight)?document.elementFromPoint(cx,cy):null;" +
+        "const n=[...m.querySelectorAll('button,input')].find(e=>e.getAttribute('aria-label')==='Alignment reference');" +
+        "let nested=null;" +
+        "if(n){const nb=n.getBoundingClientRect();" +
+        "const nx=nb.x+nb.width/2, ny=nb.y+nb.height/2;" +
+        "const nel=(nx>=0&&nx<=innerWidth&&ny>=0&&ny<=innerHeight)?document.elementFromPoint(nx,ny):null;" +
+        "nested={form:n.tagName,disabled:n.hasAttribute('disabled'),x:nb.x,y:nb.y,w:nb.width,h:nb.height,hit:nel===n||n.contains(nel)};}" +
+        "return {present:true,state:m.getAttribute('data-state')," +
+        " menu:{x:b.x,y:b.y,w:b.width,h:b.height,right:b.x+b.width,bottom:b.y+b.height}," +
+        " trigger:rtb?{x:rtb.x,y:rtb.y,w:rtb.width,h:rtb.height,bottom:rtb.y+rtb.height}:null," +
+        " close:{x:cb.x,y:cb.y,w:cb.width,h:cb.height,hit:el===c||c.contains(el)}," +
+        " nested,focus:(document.activeElement&&document.activeElement.getAttribute('aria-label')||'').slice(0,60)," +
+        " vw:innerWidth,vh:innerHeight};" +
+        "})()"
+    )
+
+
+def tooltip_report(group_key):
+    # Open tooltip measurement inside one section group: bounds, text, viewport, hit.
+    return evaluate(
+        "(()=>{" +
+        f"const g=document.querySelector('[data-workbench-section=\"{group_key}\"]');" +
+        "const tip=g?g.querySelector('[data-slot=tooltip][data-state=open] [data-slot=tooltip-content]'):null;" +
+        "if(!tip) return {open:false};" +
+        "const b=tip.getBoundingClientRect();" +
+        "const cx=b.x+b.width/2, cy=b.y+b.height/2;" +
+        "const el=(cx>=0&&cx<=innerWidth&&cy>=0&&cy<=innerHeight)?document.elementFromPoint(cx,cy):null;" +
+        "return {open:true,x:b.x,y:b.y,w:b.width,h:b.height," +
+        " text:(tip.textContent||'').trim().slice(0,120)," +
+        " withinViewport:b.x+1e-6>=0&&b.y+1e-6>=0&&b.x+b.width-1e-6<=innerWidth&&b.y+b.height-1e-6<=innerHeight," +
+        " hit:el===tip||(el&&tip.contains(el))};" +
+        "})()"
+    )
+
+
+def active_focus_state():
+    # Focus visibility for O's no-invisible-focus checks: connected, nonzero,
+    # not display/visibility-hidden, not inert (self or ancestor), inside the
+    # viewport and topmost at its centre (catches lane/viewport clipping).
+    # Body keeps the neutral-visible fallback; callers check its aria separately.
+    return evaluate(
+        "(()=>{const a=document.activeElement;if(!a) return {tag:null};"
+        "const b=a.getBoundingClientRect();"
+        "let p=a,hidden=false,inert=false;"
+        "while(p){const cs=getComputedStyle(p);"
+        "if(cs.display==='none'||cs.visibility==='hidden'||cs.visibility==='collapse')hidden=true;"
+        "if(p.hasAttribute&&p.hasAttribute('inert'))inert=true;"
+        "try{if(p.inert===true)inert=true;}catch(_){}p=p.parentElement;}"
+        "const cx=b.x+b.width/2,cy=b.y+b.height/2;"
+        "const inViewport=cx>=0&&cx<=innerWidth&&cy>=0&&cy<=innerHeight;"
+        "const el=inViewport?document.elementFromPoint(cx,cy):null;"
+        "const hit=el===a||(el&&a.contains(el));"
+        "const elDesc=el?el.tagName+':'+((el.getAttribute&&(el.getAttribute('aria-label')||el.getAttribute('role')||el.id||el.className))||'').toString().slice(0,80):null;"
+        "const visible=(b.width>0&&b.height>0&&a.isConnected&&!hidden&&!inert&&inViewport&&hit)||a===document.body;"
+        "return {tag:a.tagName,aria:(a.getAttribute('aria-label')||'').slice(0,60),w:b.width,h:b.height,el:elDesc,"
+        "connected:a.isConnected,hidden:!!hidden,inert:!!inert,inViewport:!!inViewport,hit:!!hit,visible:!!visible};})()"
+    )
+
+
 def check_layers_open(tag, failures):
     # Shared Layers list placement proof (page flow + layers scenario): scroll
     # the trigger into the lane, open with a programmatic click, measure settled
@@ -406,27 +508,93 @@ def check_layers_open(tag, failures):
     wait_for_settled()
     evaluate("(()=>{ document.querySelectorAll('[data-slot=tooltip-trigger], .layout-selection-guidance').forEach(t=>{ try{ if(document.activeElement===t) t.blur(); t.dispatchEvent(new MouseEvent('mouseleave',{bubbles:true})); }catch(_){} }); })()")
     browser("wait", "--fn", "document.querySelectorAll('[data-slot=tooltip][data-state=open]').length===0")
-    layers = layers_list_report()
-    print(f"LAYERS {tag}: {json.dumps(layers)}", flush=True)
-    if layers.get("missing") or not layers.get("open"):
-        failures.append((f"layers-{tag}", f"Layers list did not open, full {layers}"))
-    else:
-        lay, ltrig = layers["list"], layers["trigger"]
-        if lay["x"] + 1e-6 < 8.0:
-            failures.append((f"layers-{tag}", f"list left edge {lay['x']:.1f}px, require >=8px margin, full {layers}"))
-        if lay["right"] - 1e-6 > layers["vw"] - 8.0:
-            failures.append((f"layers-{tag}", f"list right edge {lay['right']:.1f}px in {layers['vw']}px viewport, require >=8px margin, full {layers}"))
-        if lay["y"] + 1e-6 < ltrig["bottom"]:
-            failures.append((f"layers-{tag}", f"list top {lay['y']:.1f}px above trigger bottom {ltrig['bottom']:.1f}px, full {layers}"))
-        first = layers.get("first") or {}
-        if not first.get("hit"):
-            failures.append((f"layers-{tag}", f"first choice {first.get('label')} not hit-testable at centre ({first.get('cx')},{first.get('cy')}), hit {first.get('el')}, full {layers}"))
-        over = layers["overflow"]
-        if over["sw"] > over["cw"]:
-            failures.append((f"layers-{tag}", f"page horizontal overflow with list open {over}"))
+    check_layers_geometry(tag, failures)
     evaluate("document.querySelector('#m1-layers-trigger').click()")
     browser("wait", "--fn", "document.querySelector(\"#m1-layers-trigger\").getAttribute(\"aria-expanded\")===\"false\"")
     evaluate(f"(()=>{{const track=document.querySelector('[data-workbench-section=\"view\"] .workbench-tool-track');track.scrollLeft={layers_scroll};}})()")
+
+
+def check_placement_raf_race(tag, failures):
+    # F1: open Layers, close before the hook's pending RAF fires, let frames
+    # run, assert no page error, no stale positioning, cancel called, reopen
+    # works. The close is driven by a style-mutation observer in the same
+    # microtask checkpoint as the hook's effect (which writes inline left/top
+    # then schedules its RAF synchronously): observer callbacks run before any
+    # RAF, so the close provably precedes the next frame. On the unfixed hook
+    # the pending RAF calls a dropped wasm-bindgen closure and throws (RED);
+    # the fix cancels the pending ID before dropping (GREEN).
+    # Assumes View open, Layers closed, settled.
+    setup = evaluate(
+        "(()=>{"
+        "if(window.__raceCleanup){try{window.__raceCleanup();}catch(_){}}"
+        "const trigger=document.querySelector('#m1-layers-trigger');"
+        "const popup=document.querySelector('#m1-layers-list');"
+        "if(!trigger||!popup) return {setup:false};"
+        "const origRAF=window.requestAnimationFrame.bind(window);"
+        "const origCancel=window.cancelAnimationFrame.bind(window);"
+        "window.__raceScheduled=[];window.__raceFired=[];window.__raceCancelled=[];"
+        "window.__raceErrors=[];window.__raceClosed=false;window.__raceAtClose=null;"
+        "const onError=(e)=>{try{window.__raceErrors.push(String((e&&(e.error||e.message))||e));}catch(_){}};"
+        "const onRejection=(e)=>{try{window.__raceErrors.push(String((e&&e.reason)||e));}catch(_){}};"
+        "window.addEventListener('error',onError);"
+        "window.addEventListener('unhandledrejection',onRejection);"
+        "window.requestAnimationFrame=(cb)=>{let id;const wrapped=(...a)=>{window.__raceFired.push(id);return cb(...a);};"
+        "id=origRAF(wrapped);window.__raceScheduled.push(id);return id;};"
+        "window.cancelAnimationFrame=(id)=>{window.__raceCancelled.push(id);return origCancel(id);};"
+        "window.__raceCleanup=()=>{window.requestAnimationFrame=origRAF;window.cancelAnimationFrame=origCancel;"
+        "window.removeEventListener('error',onError);window.removeEventListener('unhandledrejection',onRejection);};"
+        "const observer=new MutationObserver((muts)=>{"
+        "for(const m of muts){if(m.attributeName==='style'&&popup.style.left){"
+        "observer.disconnect();"
+        "window.__raceAtClose={scheduled:[...window.__raceScheduled],fired:[...window.__raceFired]};"
+        "trigger.click();window.__raceClosed=true;break;}}});"
+        "observer.observe(popup,{attributes:true,attributeFilter:['style']});"
+        "trigger.click();return {setup:true};"
+        "})()"
+    )
+    print(f"RACE {tag} setup: {json.dumps(setup)}", flush=True)
+    if not setup.get('setup'):
+        failures.append((tag, f"race setup failed (missing trigger/list): {setup}"))
+        return
+    try:
+        browser("wait", "--fn", "window.__raceClosed===true")
+    except AssertionError:
+        failures.append((tag, "race close never fired (hook effect did not write style before next frame)"))
+        evaluate("(()=>{if(window.__raceCleanup)window.__raceCleanup();})()")
+        return
+    browser("wait", "--fn", "new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))")
+    browser("wait", 300)
+    result = evaluate(
+        "(()=>{const t=document.querySelector('#m1-layers-trigger');"
+        "const l=document.querySelector('#m1-layers-list');const b=l.getBoundingClientRect();"
+        "const r={closed:window.__raceClosed,atClose:window.__raceAtClose,"
+        "scheduled:[...window.__raceScheduled],fired:[...window.__raceFired],"
+        "cancelled:[...window.__raceCancelled],errors:[...window.__raceErrors],"
+        "expanded:t.getAttribute('aria-expanded'),"
+        "listVisible:b.width>0.5||b.height>0.5,"
+        "inlineLeft:l.style.left,inlineTop:l.style.top};"
+        "if(window.__raceCleanup)window.__raceCleanup();return r;})()"
+    )
+    print(f"RACE {tag}: {json.dumps(result)}", flush=True)
+    at_close = result.get('atClose') or {}
+    if not at_close.get('scheduled'):
+        failures.append((tag, f"no RAF scheduled before the race close (effect did not run): {result}"))
+    if at_close.get('fired'):
+        failures.append((tag, f"race close ran after a frame fired (not before next RAF): {result}"))
+    if not result.get('cancelled'):
+        failures.append((tag, f"pending placement RAF never cancelled before dropping its closure: {result}"))
+    if result.get('errors'):
+        failures.append((tag, f"page error from the pending placement RAF after close: {result}"))
+    if result.get('expanded') != 'false' or result.get('listVisible'):
+        failures.append((tag, f"Layers list not closed after the race: {result}"))
+    if result.get('inlineLeft') or result.get('inlineTop'):
+        failures.append((tag, f"stale inline positioning after the race close: {result}"))
+    errors = browser("errors").get("errors", [])
+    print(f"RACE {tag} browser errors: {json.dumps(errors)}", flush=True)
+    if errors:
+        failures.append((tag, f"browser errors after the race: {errors}"))
+    # Reopen works with placed, hit-testable geometry.
+    check_layers_open(f"{tag}-reopen", failures)
 
 
 def select_label_report():
@@ -708,7 +876,9 @@ def motion_probe():
     assert frames[-1]['running']==0, "stale workbench animation"
     opened=[g for g in frames[-1]['groups'] if g['open']=='true']
     assert [g['key'] for g in opened]==['select']
-    assert all(g['transform'] in ('none','matrix(1, 0, 0, 1, 0, 0)') for g in opened)
+    # Settled transform is exactly `none`: an identity matrix would still create
+    # a fixed-descendant containing block.
+    assert all(g['transform'] == 'none' for g in opened), opened
     browser("find", "role", "button", "click", "--name", "Select", "--exact")
     wait_for_settled()
     # Opening a section's tooltip may unclip that section only; closed sections' inert actions stay clipped.
@@ -721,21 +891,303 @@ def motion_probe():
     browser("set", "media", "light", "reduced-motion")
     assert evaluate("matchMedia('(prefers-reduced-motion: reduce)').matches")
     evaluate("""(() => {
-      window.__reduced=[];
+      window.__reduced=[]; window.__reducedPhase='open';
       const row=document.querySelector('.workbench-tool-row');
       window.__reducedObserver=new MutationObserver(()=>{
-        window.__reduced.push({open:row.querySelector('[data-open=true]')?.dataset.workbenchSection,
+        const g=row.querySelector('[data-workbench-section="select"]');
+        const t=g?g.querySelector('.workbench-tool-track'):null;
+        window.__reduced.push({phase:window.__reducedPhase,open:g?g.dataset.open:null,
           running:document.getAnimations().filter(a=>a.playState==='running'&&(row.contains(a.effect?.target)||a.effect?.target?.closest('.workbench-popout'))).length,
-          transform:(t=>t?getComputedStyle(t).transform:null)(row.querySelector('[data-open=true] .workbench-tool-track'))});
+          transform:t?getComputedStyle(t).transform:null});
       }); window.__reducedObserver.observe(row,{subtree:true,attributes:true});
     })()""")
     browser("find", "role", "button", "click", "--name", "Select", "--exact")
+    browser("wait", "--fn", "document.querySelector(\"[data-workbench-section='select'][data-open='true']\")!==null")
+    wait_for_settled()
+    evaluate("window.__reducedPhase='close'")
+    browser("find", "role", "button", "click", "--name", "Select", "--exact")
+    browser("wait", "--fn", "document.querySelector(\"[data-workbench-section='select'][data-open='false']\")!==null")
+    wait_for_settled()
     reduced=evaluate("(() => {window.__reducedObserver.disconnect();return window.__reduced;})()")
     print(f"REDUCED-MOTION: {json.dumps(reduced)}", flush=True)
-    # A mutation can land before any section is open; it has no track but must still show zero animations.
-    opened = [r for r in reduced if r.get('open')]
-    assert opened and all(r['running']==0 for r in reduced) and all(r['open']=='select' and r['transform']=='none' for r in opened), reduced
+    reduced_open=[r for r in reduced if r.get('phase')=='open']
+    reduced_close=[r for r in reduced if r.get('phase')=='close']
+    assert reduced_open, f"reduced observer missed the opening transition: {reduced}"
+    assert reduced_close, f"reduced observer missed the closing transition: {reduced}"
+    assert all(r['running']==0 for r in reduced), reduced
+    assert all(r.get('transform')=='none' for r in reduced), reduced
+    assert any(r.get('open')=='true' for r in reduced_open), reduced
+    assert any(r.get('open')=='false' for r in reduced_close), reduced
+    browser("set", "media", "light")
+    wait_for_settled()
+    # Slice 4 row M: entry travels exactly one allocated track box (not the
+    # measured scroll width): the first open frame captures ~full displacement
+    # against the untransformed track border box, with genuinely intermediate
+    # moving samples before settling.
+    evaluate("""(() => {
+      const row=document.querySelector('.workbench-tool-row');
+      const g=row.querySelector('[data-workbench-section="snap"]');
+      const track=g.querySelector('.workbench-tool-track');
+      window.__entryFrames=[]; window.__entryStop=false;
+      function sample(){
+        const t=getComputedStyle(track).transform;
+        let tx=0; const m=t.match(/matrix\\(([^)]+)\\)/);
+        if(m) tx=Number(m[1].split(',')[4].trim());
+        window.__entryFrames.push({open:g.dataset.open,tx,
+          trackW:track.getBoundingClientRect().width,
+          running:document.getAnimations().filter(a=>a.playState==='running'&&a.effect?.target===track).length,
+          clip:g.querySelector('.workbench-tool-reveal-inner').getBoundingClientRect().toJSON()});
+        if(!window.__entryStop) requestAnimationFrame(sample);
+      } requestAnimationFrame(sample);
+    })()""")
+    browser("find", "role", "button", "click", "--name", "Snap", "--exact")
+    browser("wait", 400)
+    entry = evaluate("(() => {window.__entryStop=true; return window.__entryFrames;})()")
+    print(f"MOTION-ENTRY-BOX: frames {len(entry)} maxTx {max(f['tx'] for f in entry):.1f}", flush=True)
+    assert len(entry) >= 6, "entry sampler did not run"
+    open_entry = [f for f in entry if f['open'] == 'true']
+    assert open_entry, "no open frames sampled during entry"
+    # Reference is the settled (untransformed) track border box itself, not the clip.
+    track_w = open_entry[-1]['trackW']
+    assert track_w > 0, f"entry reference width not allocated: {open_entry[-1]}"
+    max_tx = max(f['tx'] for f in open_entry)
+    assert abs(max_tx - track_w) <= 8, f"entry starts {max_tx:.1f}px off one {track_w:.1f}px track box"
+    assert open_entry[0]['tx'] >= track_w - 24, f"first open frame already past the one-box start: {open_entry[0]} vs {track_w:.1f}px"
+    assert any(f['running'] >= 1 for f in open_entry), "no running entry sample"
+    assert any(0 < f['tx'] < max_tx - 1 for f in open_entry), "no genuinely intermediate entry sample"
+    for axis in ('x', 'y', 'width', 'height'):
+        spread = max(f['clip'][axis] for f in open_entry) - min(f['clip'][axis] for f in open_entry)
+        assert spread < 0.5, f"entry clip moves on {axis}: {spread}"
+    # Slice 4: closing is immediate - the first frames after the close render
+    # show a collapsed clip and no running track animation. Only track targets
+    # count: the closing chevron keeps its own 170ms affordance transition.
+    evaluate("""(() => {
+      const row=document.querySelector('.workbench-tool-row');
+      const g=row.querySelector('[data-workbench-section="snap"]');
+      window.__closeFrames=[];
+      function sample(){
+        const track=g.querySelector('.workbench-tool-track');
+        window.__closeFrames.push({open:g.dataset.open,
+          w:g.querySelector('.workbench-tool-reveal-inner').getBoundingClientRect().width,
+          transform:getComputedStyle(track).transform,
+          running:document.getAnimations().filter(a=>a.playState==='running'&&a.effect?.target?.classList?.contains('workbench-tool-track')).length});
+        if(window.__closeFrames.length<8) requestAnimationFrame(sample);
+      } requestAnimationFrame(sample);
+    })()""")
+    browser("find", "role", "button", "click", "--name", "Snap", "--exact")
+    browser("wait", 300)
+    closed = [f for f in evaluate("window.__closeFrames") if f['open'] == 'false']
+    print(f"MOTION-CLOSE: {json.dumps(closed[:6])}", flush=True)
+    assert closed, "close never rendered"
+    assert all(f['w'] < 0.5 for f in closed), f"closed clip not immediate: {closed}"
+    assert all(f['running'] == 0 for f in closed), f"exit animation still runs: {closed}"
+    assert all(f['transform'] == 'none' for f in closed), f"closed track transformed: {closed}"
+    wait_for_settled()
+    # Slice 4 row M: with a nonzero lane offset, earlier scrolled content must
+    # not leak into the stationary outer clip while the scrolled track actually
+    # moves; the offset survives close/reopen and stays put through entry.
+    browser("find", "role", "button", "click", "--name", "Snap", "--exact")
+    browser("wait", "--fn", "document.querySelector(\"[data-workbench-section='snap'][data-open='true']\")!==null")
+    browser("wait", 400)
+    scrolled = evaluate("(()=>{const t=document.querySelector('[data-workbench-section=snap] .workbench-tool-track');t.scrollLeft=200;return {scroll:t.scrollLeft};})()")
+    assert scrolled['scroll'] == 200, scrolled
+    browser("find", "role", "button", "click", "--name", "Snap", "--exact")
+    browser("wait", "--fn", "document.querySelector(\"[data-workbench-section='snap'][data-open='false']\")!==null")
+    wait_for_settled()
+    evaluate("""(() => {
+      const row=document.querySelector('.workbench-tool-row');
+      const g=row.querySelector('[data-workbench-section="snap"]');
+      const track=g.querySelector('.workbench-tool-track');
+      const off=[...track.querySelectorAll('button')].find(e=>e.getAttribute('aria-label')==='Snap increment Off');
+      window.__scrollFrames=[]; window.__scrollStop=false;
+      function sample(){
+        const b=off.getBoundingClientRect();
+        const el=document.elementFromPoint(b.x+b.width/2,b.y+b.height/2);
+        const t=getComputedStyle(track).transform;
+        let tx=0; const m=t.match(/matrix\\(([^)]+)\\)/);
+        if(m) tx=Number(m[1].split(',')[4].trim());
+        window.__scrollFrames.push({open:g.dataset.open,tx,scroll:track.scrollLeft,
+          running:document.getAnimations().filter(a=>a.playState==='running'&&a.effect?.target===track).length,
+          clip:g.querySelector('.workbench-tool-reveal-inner').getBoundingClientRect().toJSON(),
+          hitSelf:el===off||off.contains(el)});
+        if(!window.__scrollStop) requestAnimationFrame(sample);
+      } requestAnimationFrame(sample);
+    })()""")
+    browser("find", "role", "button", "click", "--name", "Snap", "--exact")
+    browser("wait", 400)
+    scroll_frames = evaluate("(() => {window.__scrollStop=true; return window.__scrollFrames;})()")
+    retained = evaluate("document.querySelector('[data-workbench-section=snap] .workbench-tool-track').scrollLeft")
+    open_scroll = [f for f in scroll_frames if f['open'] == 'true']
+    print(f"MOTION-SCROLL-ENTRY: frames {len(scroll_frames)} open {len(open_scroll)} retained {retained}", flush=True)
+    assert open_scroll, "no open frames sampled"
+    assert retained == 200, f"lane offset not retained across close/reopen: {retained}"
+    assert all(f['scroll'] == 200 for f in open_scroll), "lane offset moved during the scrolled entry"
+    scroll_max = max(f['tx'] for f in open_scroll)
+    assert any(f['running'] >= 1 and 0 < f['tx'] < scroll_max - 1 for f in open_scroll), "no intermediate moving sample in the scrolled entry"
+    for axis in ('x', 'y', 'width', 'height'):
+        spread = max(f['clip'][axis] for f in open_scroll) - min(f['clip'][axis] for f in open_scroll)
+        assert spread < 0.5, f"scroll-entry clip moves on {axis}: {spread}"
+    assert all(not f['hitSelf'] for f in open_scroll), "scrolled-out content leaked into the clip during entry"
+    browser("find", "role", "button", "click", "--name", "Snap", "--exact")
+    browser("wait", "--fn", "document.querySelector(\"[data-workbench-section='snap'][data-open='false']\")!==null")
+    wait_for_settled()
+    # Slice 4 row M: a labelled disabled unit keeps its pre-entry disabled
+    # opacity while its own lane moves. The Align lane carries disabled
+    # tool buttons (Left, Center X, ...) without a selection.
+    disabled_baseline = evaluate("(()=>{const row=document.querySelector('.workbench-tool-row');"
+        "const track=row.querySelector('[data-workbench-section=\"align\"] .workbench-tool-track');"
+        "return [...track.querySelectorAll('button[disabled]')].map(b=>{"
+        "let o=1; for(let p=b;p&&p!==row;p=p.parentElement) o*=Number(getComputedStyle(p).opacity);"
+        "return {label:b.getAttribute('aria-label'),opacity:o};});})()")
+    assert disabled_baseline, "no labelled disabled unit to pin"
+    print(f"MOTION-DISABLED-BASELINE: {json.dumps(disabled_baseline)}", flush=True)
+    evaluate("""(() => {
+      const row=document.querySelector('.workbench-tool-row');
+      const g=row.querySelector('[data-workbench-section="align"]');
+      const track=g.querySelector('.workbench-tool-track');
+      const labels=[...track.querySelectorAll('button[disabled]')].map(b=>b.getAttribute('aria-label'));
+      window.__disabledFrames=[]; window.__disabledStop=false;
+      function sample(){
+        const t=getComputedStyle(track).transform;
+        let tx=0; const m=t.match(/matrix\\(([^)]+)\\)/);
+        if(m) tx=Number(m[1].split(',')[4].trim());
+        const ops=labels.map(name=>{
+          const b=[...track.querySelectorAll('button')].find(x=>x.getAttribute('aria-label')===name);
+          let o=1; for(let p=b;p&&p!==row;p=p.parentElement) o*=Number(getComputedStyle(p).opacity);
+          return o;});
+        window.__disabledFrames.push({open:g.dataset.open,tx,
+          running:document.getAnimations().filter(a=>a.playState==='running'&&a.effect?.target===track).length,
+          ops});
+        if(!window.__disabledStop) requestAnimationFrame(sample);
+      } requestAnimationFrame(sample);
+    })()""")
+    browser("find", "role", "button", "click", "--name", "Align", "--exact")
+    browser("wait", 400)
+    disabled_frames = evaluate("(() => {window.__disabledStop=true; return window.__disabledFrames;})()")
+    disabled_open = [f for f in disabled_frames if f['open'] == 'true']
+    print(f"MOTION-DISABLED: frames {len(disabled_frames)} open {len(disabled_open)}", flush=True)
+    assert disabled_open, "no open frames sampled during the disabled-unit entry"
+    disabled_max = max(f['tx'] for f in disabled_open)
+    assert any(f['running'] >= 1 and 0 < f['tx'] < disabled_max - 1 for f in disabled_open), "disabled-unit entry never sampled mid-motion"
+    for f in disabled_open:
+        assert len(f['ops']) == len(disabled_baseline), f"disabled set changed mid-entry: {f}"
+        for got, want in zip(f['ops'], disabled_baseline):
+            assert abs(got - want['opacity']) < 0.001, f"disabled {want['label']} opacity moved {want['opacity']} -> {got}"
+    browser("find", "role", "button", "click", "--name", "Align", "--exact")
+    browser("wait", "--fn", "document.querySelector(\"[data-workbench-section='align'][data-open='false']\")!==null")
+    wait_for_settled()
+    # Slice 4 row M: a resize mid-entry reallocates the final clip immediately
+    # and settles cleanly - no leaked content, no stale animation. The sampler
+    # proves the entry was still running when the parent stepped, and that the
+    # first post-resize frame already shows the final clip.
+    evaluate("""(() => {
+      const row=document.querySelector('.workbench-tool-row');
+      const g=row.querySelector('[data-workbench-section="select"]');
+      const track=g.querySelector('.workbench-tool-track');
+      window.__resizeFrames=[]; window.__resizeStop=false;
+      function sample(){
+        const t=getComputedStyle(track).transform;
+        let tx=0; const m=t.match(/matrix\\(([^)]+)\\)/);
+        if(m) tx=Number(m[1].split(',')[4].trim());
+        window.__resizeFrames.push({open:g.dataset.open,tx,
+          running:document.getAnimations().filter(a=>a.playState==='running'&&a.effect?.target===track).length,
+          parentW:row.parentElement.getBoundingClientRect().width,
+          clip:g.querySelector('.workbench-tool-reveal-inner').getBoundingClientRect().toJSON()});
+        if(!window.__resizeStop) requestAnimationFrame(sample);
+      } requestAnimationFrame(sample);
+    })()""")
     browser("find", "role", "button", "click", "--name", "Select", "--exact")
+    browser("wait", "--fn", "document.querySelector(\"[data-workbench-section='select'][data-open='true']\")!==null")
+    for _ in range(12):
+        if evaluate("document.getAnimations().filter(a=>a.playState==='running'&&a.effect?.target===document.querySelector(\"[data-workbench-section='select'] .workbench-tool-track\")).length") >= 1:
+            break
+    parent_before = evaluate("document.querySelector('.workbench-tool-row').parentElement.getBoundingClientRect().width")
+    # Same-task bracketing: capture entry state immediately before and after
+    # the parent-width step so the resize-mid-entry claim cannot pass when the
+    # entry finished between the last RAF sample and the width change.
+    mid = evaluate(
+        "(()=>{const row=document.querySelector('.workbench-tool-row');"
+        "const g=row.querySelector('[data-workbench-section=\"select\"]');"
+        "const track=g.querySelector('.workbench-tool-track');"
+        "const cap=()=>{const t=getComputedStyle(track).transform;let tx=0;const m=t.match(/matrix\\(([^)]+)\\)/);"
+        "if(m)tx=Number(m[1].split(',')[4].trim());"
+        "return {running:document.getAnimations().filter(a=>a.playState==='running'&&a.effect?.target===track).length,tx,transform:t};};"
+        f"const pre=cap();const p=row.parentElement;p.style.width='{parent_before - 40}px';p.style.maxWidth='{parent_before - 40}px';const post=cap();"
+        "const r=row.getBoundingClientRect();const rcs=getComputedStyle(row);"
+        "const W=r.width-parseFloat(rcs.paddingLeft)-parseFloat(rcs.paddingRight)-(parseFloat(rcs.borderLeftWidth)||0)-(parseFloat(rcs.borderRightWidth)||0);"
+        "return {parentW:p.getBoundingClientRect().width,rowW:r.width,rowH:r.height,W,vw:innerWidth,pre,post};})()"
+    )
+    print(f"MOTION-RESIZE-STEP: pre {json.dumps(mid['pre'])} post {json.dumps(mid['post'])}", flush=True)
+    assert mid['pre']['running'] >= 1 and mid['pre']['transform'] != 'none', f"entry not running before the resize step: {mid['pre']}"
+    assert mid['post']['running'] >= 1 and mid['post']['transform'] != 'none', f"entry not running after the resize step: {mid['post']}"
+    browser("wait", 400)
+    wait_for_settled()
+    resize_frames = evaluate("(() => {window.__resizeStop=true; return window.__resizeFrames;})()")
+    resize_open = [f for f in resize_frames if f['open'] == 'true']
+    first_parent = resize_open[0]['parentW']
+    stepped_at = next((i for i, f in enumerate(resize_open) if abs(f['parentW'] - first_parent) > 1.0), None)
+    print(f"MOTION-RESIZE-FRAMES: open {len(resize_open)} stepped_at {stepped_at} parent {first_parent}", flush=True)
+    assert resize_open and stepped_at is not None and stepped_at > 0 and stepped_at < len(resize_open) - 1, "resize never landed mid-entry"
+    assert resize_open[stepped_at - 1]['running'] >= 1 and resize_open[stepped_at]['running'] >= 1, f"entry not running bracketing the resize sample: {resize_open[max(0, stepped_at - 1):stepped_at + 1]}"
+    final_clip_w = resize_open[-1]['clip']['width']
+    assert abs(resize_open[stepped_at]['clip']['width'] - final_clip_w) < 0.5, f"clip did not reallocate immediately: {resize_open[stepped_at]['clip']} vs final {final_clip_w}"
+    for seg in (resize_open[:stepped_at], resize_open[stepped_at:]):
+        for axis in ('x', 'y', 'width', 'height'):
+            spread = max(f['clip'][axis] for f in seg) - min(f['clip'][axis] for f in seg)
+            assert spread < 0.5, f"resize-segment clip moves on {axis}: {spread}"
+    resize_max = max(f['tx'] for f in resize_open)
+    bracket = resize_open[max(0, stepped_at - 1):stepped_at + 2]
+    assert any(f['running'] >= 1 and 0 < f['tx'] < resize_max - 1 for f in bracket), f"no intermediate moving sample bracketing the resize: {bracket}"
+    resized = evaluate("(()=>{const row=document.querySelector('.workbench-tool-row');"
+        "const g=row.querySelector('[data-workbench-section=\"select\"]');"
+        "const track=g.querySelector('.workbench-tool-track');"
+        "return {open:g.dataset.open,transform:getComputedStyle(track).transform,"
+        " clip:g.querySelector('.workbench-tool-reveal-inner').getBoundingClientRect().width,"
+        " rowH:row.getBoundingClientRect().height,"
+        " running:document.getAnimations().filter(a=>a.playState==='running'&&row.contains(a.effect?.target)).length};})()")
+    print(f"MOTION-RESIZE: parent {parent_before} -> {json.dumps(mid)} state {json.dumps(resized)}", flush=True)
+    assert resized['open'] == 'true' and resized['running'] == 0, resized
+    assert resized['transform'] == 'none', resized
+    assert abs(resized['rowH'] - 42.0) < 0.5, resized
+    for name in ENTRIES:
+        rep = entry_report(name)
+        assert rep.get('found') and rep['hit'], f"entry {name} lost across mid-entry resize: {rep}"
+    evaluate("(()=>{const row=document.querySelector('.workbench-tool-row');const p=row.parentElement; p.style.width=''; p.style.maxWidth='';})()")
+    wait_for_settled()
+    parent_after = evaluate("document.querySelector('.workbench-tool-row').parentElement.getBoundingClientRect().width")
+    assert abs(parent_after - parent_before) < 0.5, f"parent not restored: {parent_before} -> {parent_after}"
+    browser("find", "role", "button", "click", "--name", "Select", "--exact")
+    browser("wait", "--fn", "document.querySelector(\"[data-workbench-section='select'][data-open='false']\")!==null")
+    wait_for_settled()
+    # Slice 4 row R: panel toggles also run zero animations under reduced motion.
+    browser("set", "media", "light", "reduced-motion")
+    assert evaluate("matchMedia('(prefers-reduced-motion: reduce)').matches")
+    evaluate("""(() => {
+      window.__reducedPanel=[]; window.__reducedPanelPhase='open';
+      const row=document.querySelector('.workbench-tool-row');
+      window.__reducedPanelObserver=new MutationObserver(()=>{
+        const panel=document.querySelector('#workbench-objects');
+        window.__reducedPanel.push({phase:window.__reducedPanelPhase,
+          hidden:panel?panel.hasAttribute('hidden'):null,
+          running:document.getAnimations().filter(a=>a.playState==='running'&&(row.contains(a.effect?.target)||a.effect?.target?.closest('.workbench-popout'))).length});
+      }); window.__reducedPanelObserver.observe(document.body,{subtree:true,attributes:true});
+    })()""")
+    browser("find", "role", "button", "click", "--name", "Objects", "--exact")
+    browser("wait", "--fn", "!!document.querySelector('#workbench-objects:not([hidden])')")
+    wait_for_settled()
+    evaluate("window.__reducedPanelPhase='close'")
+    browser("find", "role", "button", "click", "--name", "Objects", "--exact")
+    browser("wait", "--fn", "!!document.querySelector('#workbench-objects[hidden]')")
+    wait_for_settled()
+    panel_reduced = evaluate("(() => {window.__reducedPanelObserver.disconnect();return window.__reducedPanel;})()")
+    print(f"REDUCED-PANEL: {json.dumps(panel_reduced)}", flush=True)
+    panel_open=[r for r in panel_reduced if r.get('phase')=='open']
+    panel_close=[r for r in panel_reduced if r.get('phase')=='close']
+    assert panel_open, f"reduced panel observer missed the opening transition: {panel_reduced}"
+    assert panel_close, f"reduced panel observer missed the closing transition: {panel_reduced}"
+    assert all(r['running'] == 0 for r in panel_reduced), panel_reduced
+    assert any(r.get('hidden') is False for r in panel_open), panel_reduced
+    assert any(r.get('hidden') is True for r in panel_close), panel_reduced
     browser("set", "media", "light")
     wait_for_settled()
 
@@ -890,20 +1342,7 @@ def production_viewport_tests(url, width=320, height=480, setup_matrix=False):
         # Slice 3 B2 enabled-Transform receipt: create a matrix through the setup
         # guide so Transform/Align see a real selection. The existing per-section
         # oracles already branch on guidance-only vs enabled lanes; none change.
-        browser("find", "role", "button", "click", "--name", "Layout & assemblies", "--exact")
-        browser("wait", "--fn", "!!document.querySelector('[aria-label=\"New matrix\"]')")
-        browser("wait", "--fn", "!![...document.querySelectorAll('[aria-label=\"New matrix\"] button')].find(b=>b.textContent.trim()==='Create matrix')")
-        # The fresh button reaches the accessibility tree a beat after the DOM wait
-        # passes; retry the trusted click until it is exposed (setup sync, not an oracle).
-        for attempt in range(6):
-            try:
-                browser("find", "role", "button", "click", "--name", "Create matrix", "--exact")
-                break
-            except AssertionError:
-                if attempt == 5:
-                    raise
-                browser("wait", 500)
-        browser("wait", "--fn", "!document.querySelector('[aria-label=\"New matrix\"]')")
+        create_matrix_via_setup_guide()
     browser("find", "role", "button", "click", "--name", "Hide guide", "--exact")
     browser("wait", "--fn", "!!document.querySelector('.workbench-tool-row')")
 
@@ -1011,32 +1450,56 @@ def production_viewport_tests(url, width=320, height=480, setup_matrix=False):
         evaluate("(()=>{ document.querySelectorAll('[data-slot=tooltip-trigger], .layout-selection-guidance').forEach(t=>{ try{ if(document.activeElement===t) t.blur(); t.dispatchEvent(new MouseEvent('mouseleave',{bubbles:true})); }catch(_){} }); })()")
         browser("wait", "--fn", "document.querySelectorAll('[data-slot=tooltip][data-state=open]').length===0")
         if sec == "Snap" and width == 320:
-            # Trace demonstrated Geometry snap is a roving action; the custom
-            # snap input is a plain tab stop and is not reached by toolbar arrows.
+            # Slice 4 row K (coordinator disposition 2026-11-14): the fitting-era
+            # full-visibility demand is superseded by the approved oversized-control
+            # rule. Geometry snap is pressed-by-default, so the <850 policy shows its
+            # label (113px button in a 42px lane): partially exposed, never whole.
+            # Prove real keyboard traversal reaches, scrolls and activates it.
             browser("press", "Shift+Tab")
             browser("press", "Tab")
             initial = evaluate("({label:document.activeElement.getAttribute('aria-label'),tag:document.activeElement.tagName})")
             print(f"KEYBOARD-ENTRY: {json.dumps(initial)}", flush=True)
             assert initial['label'] == 'Snap', initial
             # Reach an initially clipped action with real toolbar keys.
-            before = evaluate("(() => { const g=document.querySelector('[data-workbench-section=\"snap\"]'); const t=g.querySelector('.workbench-tool-track'); const r=t.getBoundingClientRect(); const a=[...t.querySelectorAll('button:not(:disabled)')].find(e=>e.getAttribute('aria-label')==='Geometry snap' && e.getBoundingClientRect().right>r.right+1); return {label:a?.getAttribute('aria-label'), scroll:t.scrollLeft, bank:[...document.querySelectorAll('[data-workbench-section] > button, .workbench-utility')].map(e=>e.getBoundingClientRect().x)}; })()")
+            before = evaluate("(() => { const g=document.querySelector('[data-workbench-section=\"snap\"]'); const t=g.querySelector('.workbench-tool-track'); const r=t.getBoundingClientRect(); const a=[...t.querySelectorAll('button:not(:disabled)')].find(e=>e.getAttribute('aria-label')==='Geometry snap' && e.getBoundingClientRect().right>r.right+1); return {label:a?.getAttribute('aria-label'), scroll:t.scrollLeft, bank:[...document.querySelectorAll('[data-workbench-section] > button, .workbench-utility')].map(e=>e.getBoundingClientRect().x), pageX:scrollX, pageY:scrollY}; })()")
             assert before.get('label'), f"no initially offscreen enabled Snap action: {before}"
             reached = None
             for _ in range(20):
                 browser("press", "ArrowRight")
-                reached = evaluate("(() => {const a=document.activeElement, t=document.querySelector('[data-workbench-section=\"snap\"] .workbench-tool-track'), r=t.getBoundingClientRect(), b=a.getBoundingClientRect(), hit=document.elementFromPoint(b.x+b.width/2,b.y+b.height/2); return {label:a.getAttribute('aria-label'), scroll:t.scrollLeft, visible:b.left>=r.left-0.01 && b.right<=r.right+0.01 && b.top>=r.top-0.01 && b.bottom<=r.bottom+0.01, hit:hit===a || a.contains(hit), bank:[...document.querySelectorAll('[data-workbench-section] > button, .workbench-utility')].map(e=>e.getBoundingClientRect().x)};})()")
+                reached = evaluate("(() => {const a=document.activeElement, t=document.querySelector('[data-workbench-section=\"snap\"] .workbench-tool-track'), r=t.getBoundingClientRect(), b=a.getBoundingClientRect(), row=document.querySelector('.workbench-tool-row').getBoundingClientRect(), lab=a.querySelector(':scope > .workbench-action-label'), lb=lab?lab.getBoundingClientRect():null, hit=document.elementFromPoint(b.x+b.width/2,b.y+b.height/2); return {label:a.getAttribute('aria-label'), scroll:t.scrollLeft, enabled:!a.hasAttribute('disabled'), h:b.height, withinRowV:b.y+1e-6>=row.y&&b.y+b.height-1e-6<=row.y+row.height, labelW:lb?lb.width:null, intersects:b.x<r.x+r.width-1e-6&&b.x+b.width>r.x+1e-6, centerHit:hit===a || a.contains(hit), bank:[...document.querySelectorAll('[data-workbench-section] > button, .workbench-utility')].map(e=>e.getBoundingClientRect().x), pageX:scrollX, pageY:scrollY};})()")
                 print(f"KEYBOARD-TRACE {_}: {json.dumps(reached)}", flush=True)
                 if reached['label'] == before['label']:
                     break
             print(f"KEYBOARD-SCROLL: {json.dumps({'before': before, 'after': reached})}", flush=True)
-            assert reached['label'] == before['label'] and reached['scroll'] > before['scroll'] and reached['visible'] and reached['hit'] and reached['bank'] == before['bank'], f"keyboard scroll failed: {before}, {reached}"
+            assert reached['label'] == before['label'], f"keyboard traversal never reached {before['label']}: {reached}"
+            assert reached['scroll'] > before['scroll'], f"focused action did not scroll into the lane: {before}, {reached}"
+            assert reached['enabled'] and reached['h'] + 1e-6 >= 32.0, f"reached action not enabled 32px-high: {reached}"
+            assert reached['labelW'] is not None and reached['labelW'] > 0, f"pressed label not shown: {reached}"
+            assert reached['withinRowV'] and reached['intersects'] and reached['centerHit'], f"oversized control not in-row/reachable/hit-at-centre: {reached}"
+            assert reached['bank'] == before['bank'], f"trigger bank moved during keyboard scroll: {before['bank']} vs {reached['bank']}"
+            assert (reached['pageX'], reached['pageY']) == (before['pageX'], before['pageY']) == (0, 0), f"page scrolled during keyboard traversal: {before}, {reached}"
+            # Activation: trusted Enter toggles the pressed snap; focus stays on the
+            # action; toggle back so downstream oracles see the settled lane.
+            pressed_before = evaluate("(()=>[...document.querySelectorAll('button')].find(e=>e.getAttribute('aria-label')==='Geometry snap').getAttribute('aria-pressed'))()")
+            browser("press", "Enter")
+            browser("wait", 250)
+            toggled = evaluate("(()=>{const g=[...document.querySelectorAll('button')].find(e=>e.getAttribute('aria-label')==='Geometry snap');return {pressed:g.getAttribute('aria-pressed'),focus:document.activeElement.getAttribute('aria-label')};})()")
+            print(f"KEYBOARD-ACTIVATE: {json.dumps({'before': pressed_before, 'after': toggled})}", flush=True)
+            assert toggled['pressed'] != pressed_before and toggled['focus'] == 'Geometry snap', f"Enter did not activate the reached action: {pressed_before} -> {toggled}"
+            browser("press", "Enter")
+            browser("wait", 250)
+            restored = evaluate("(()=>[...document.querySelectorAll('button')].find(e=>e.getAttribute('aria-label')==='Geometry snap').getAttribute('aria-pressed'))()")
+            assert restored == pressed_before, f"restore toggle failed: {pressed_before} -> {restored}"
             port = action_lane_report(key)['rev']
+            wheel_before = evaluate("(() => {const t=document.querySelector('[data-workbench-section=snap] .workbench-tool-track'); return {scroll:t.scrollLeft,bank:[...document.querySelectorAll('[data-workbench-section] > button, .workbench-utility')].map(e=>e.getBoundingClientRect().x)};})()")
             browser('mouse', 'move', round(port['x'] + port['w']/2), round(port['y'] + port['h']/2))
             browser('mouse', 'wheel', 0, -100)
             browser('wait', 120)
             wheel = evaluate("(() => {const t=document.querySelector('[data-workbench-section=snap] .workbench-tool-track'); return {scroll:t.scrollLeft,bank:[...document.querySelectorAll('[data-workbench-section] > button, .workbench-utility')].map(e=>e.getBoundingClientRect().x)};})()")
-            print(f"NATIVE-WHEEL: {json.dumps({'before': reached, 'after': wheel})}", flush=True)
-            if wheel['scroll'] >= reached['scroll'] or wheel['bank'] != before['bank']:
+            print(f"NATIVE-WHEEL: {json.dumps({'before': wheel_before, 'after': wheel})}", flush=True)
+            if wheel['scroll'] < wheel_before['scroll'] and wheel['bank'] == wheel_before['bank']:
+                print(f"NATIVE-WHEEL-SCROLLED: lane moved natively {wheel_before['scroll']} -> {wheel['scroll']}, triggers stable", flush=True)
+            else:
                 print('NATIVE-WHEEL-UNPROVED: agent-browser wheel did not move the narrow lane; touch gestures unproved', flush=True)
         lane = action_lane_report(key)
         print(f"LANE open-{sec}: {json.dumps(lane)}", flush=True)
@@ -1150,8 +1613,8 @@ def production_viewport_tests(url, width=320, height=480, setup_matrix=False):
                 if not (handles.get("usable") or partial):
                     failures.append((f"handles-{sec}", f"Handles not reachable via lane scroll (whole >=32x32 when it fits the lane, otherwise enabled, in row and hit), full {handles}"))
                 # Layers list placement (002 390 right-edge defect); shared proof,
-                # also runnable standalone via --scenario layers (the 320 full flow
-                # aborts earlier at the Slice-4-owed Snap keyboard oracle).
+                # also runnable standalone via --scenario layers (320 full flow now
+                # passes with the rewritten K oracle; the scenario stays a scoped run).
                 check_layers_open(f"open-{sec}", failures)
 
     # Panel opens via real accessibility click; Close still needs true hit test.
@@ -1290,14 +1753,91 @@ def check_browser_errors(failures):
         failures.append(("browser", f"errors {errors}"))
 
 
-def open_fresh_layout(url, width, height):
+def create_matrix_via_setup_guide():
+    # Shared setup: create a matrix through the setup guide so Transform/Align
+    # see a real selection. The guide must be visible (call before Hide guide).
+    browser("find", "role", "button", "click", "--name", "Layout & assemblies", "--exact")
+    browser("wait", "--fn", "!!document.querySelector('[aria-label=\"New matrix\"]')")
+    browser("wait", "--fn", "!![...document.querySelectorAll('[aria-label=\"New matrix\"] button')].find(b=>b.textContent.trim()==='Create matrix')")
+    # The fresh button reaches the accessibility tree a beat after the DOM wait
+    # passes; retry the trusted click until it is exposed (setup sync, not an oracle).
+    for attempt in range(6):
+        try:
+            browser("find", "role", "button", "click", "--name", "Create matrix", "--exact")
+            break
+        except AssertionError:
+            if attempt == 5:
+                raise
+            browser("wait", 500)
+    browser("wait", "--fn", "!document.querySelector('[aria-label=\"New matrix\"]')")
+
+
+def check_reference_geometry(tag, failures):
+    # Reference dialog placement asserts shared by every Reference observation:
+    # dialog inside the viewport, horizontally anchored to its trigger
+    # (clamped to 8px side margins via the shared hook), Close hit-testable
+    # at centre, nested control (Select button or Combobox input, whichever
+    # the setup admits) hit-testable.
+    ref = reference_detail_report()
+    print(f"REFERENCE {tag}: {json.dumps(ref)}", flush=True)
+    if not ref.get('present') or ref.get('state') != 'open':
+        failures.append((f"reference-{tag}", f"Reference detail not open, full {ref}"))
+        return
+    menu = ref['menu']
+    trig = ref.get('trigger')
+    if not trig:
+        failures.append((f"reference-{tag}", f"Reference trigger missing for anchoring, full {ref}"))
+    else:
+        max_left = max(ref['vw'] - menu['w'] - 8.0, 8.0)
+        expected = min(max(trig['x'], 8.0), max_left)
+        if abs(menu['x'] - expected) > 2.0:
+            failures.append((f"reference-{tag}", f"dialog x {menu['x']:.1f}px not anchored to trigger x {trig['x']:.1f}px (clamped {expected:.1f}px), full {ref}"))
+    if not ref['close'].get('hit') or not (ref.get('nested') or {}).get('hit'):
+        occ = evaluate("(()=>{const m=document.querySelector('#m1-layout-align-menu');"
+            "const chain=(el)=>{const out=[];let p=el;while(p&&p!==document.body){const cs=getComputedStyle(p);"
+            "out.push(p.tagName+'.'+(p.className.baseVal!==undefined?p.className.baseVal:(p.className||'')).toString().split(' ').slice(0,2).join('.')"
+            "+' pos='+cs.position+' z='+cs.zIndex+' tf='+cs.transform.slice(0,18)+' op='+cs.opacity"
+            "+' flt='+cs.filter.slice(0,10)+' iso='+cs.isolation+' wc='+cs.willChange.slice(0,10)+' ct='+cs.contain.slice(0,14)+' ctn='+cs.containerType.slice(0,12)+' mbm='+cs.mixBlendMode);p=p.parentElement;}return out;};"
+            "const c=[...m.querySelectorAll('button')].find(e=>e.getAttribute('aria-label')==='Close Alignment reference');"
+            "const cb=c.getBoundingClientRect();const el=document.elementFromPoint(cb.x+cb.width/2,cb.y+cb.height/2);"
+            "return {dlgPos:getComputedStyle(m).position,el:el?el.tagName:null,dlg:chain(m)};})()")
+        print(f"REFERENCE-OCCLUDER {tag}: {json.dumps(occ)}", flush=True)
+    if not ref['close'].get('hit'):
+        failures.append((f"reference-{tag}", f"Close not hit-testable: {ref}"))
+    menu = ref['menu']
+    if menu['x'] + 1e-6 < 0 or menu['right'] - 1e-6 > ref['vw'] or menu['bottom'] - 1e-6 > ref['vh']:
+        failures.append((f"reference-{tag}", f"dialog outside the viewport: {menu} vw {ref['vw']}"))
+    nested = ref.get('nested') or {}
+    if not nested.get('hit'):
+        failures.append((f"reference-{tag}", f"nested reference control not hit-testable: {nested} full {ref}"))
+
+
+def open_fresh_layout(url, width, height, setup_matrix=False):
     # Shared B2 setup: exact viewport, packaged page, new project, guide hidden.
     browser("set", "viewport", width, height)
     browser("open", url)
     browser("wait", "--fn", "!!document.querySelector('[aria-label=Project][aria-haspopup=menu]')")
     browser("find", "role", "button", "click", "--name", "Project", "--exact")
     browser("find", "role", "menuitem", "click", "--name", "New project", "--exact")
+    # A fresh page in a reused session confirms discarding the previous
+    # untouched project; accept it whenever it appears (absent on first open).
+    # Any agent-browser wait fails while a dialog is open, so poll in Python.
+    for _ in range(60):
+        try:
+            if browser("dialog", "status").get("hasDialog"):
+                try:
+                    browser("dialog", "accept")
+                except AssertionError:
+                    pass
+                break
+            if evaluate("!!document.querySelector('[aria-label=\"Keyboard setup\"]')"):
+                break
+        except AssertionError:
+            pass
+        time.sleep(0.5)
     browser("wait", "--fn", "!!document.querySelector('[aria-label=\"Keyboard setup\"]')")
+    if setup_matrix:
+        create_matrix_via_setup_guide()
     browser("find", "role", "button", "click", "--name", "Hide guide", "--exact")
     browser("wait", "--fn", "!!document.querySelector('.workbench-tool-row')")
     state = viewport_state()
@@ -1409,8 +1949,8 @@ def assembly_3d_checks(url, width=1440, height=900):
 
 def layers_placement_checks(url, width=390, height=844):
     # Scoped Layers placement proof at one viewport: fresh page, View open, the
-    # shared list-placement oracle, page overflow and browser errors. Exists so
-    # the 320 oracle runs despite the dispositioned full-flow Snap abort.
+    # shared list-placement oracle, page overflow and browser errors. Exists as a
+    # scoped run (the 320 full flow now passes with the rewritten K oracle).
     open_fresh_layout(url, width, height)
     browser("find", "role", "button", "click", "--name", "View", "--exact")
     browser("wait", "--fn", "document.querySelector(\"[data-workbench-section='view'][data-open='true']\")!==null")
@@ -1424,6 +1964,846 @@ def layers_placement_checks(url, width=390, height=844):
     print(f"PASS: Layers list placement at real {width}x{height} viewport, 8px margins, below trigger, first choice hit", flush=True)
 
 
+def overlay_surface_checks(url, width=390, height=844):
+    # Slice 4 row O: overlay matrix on existing surfaces - Layers, tooltips,
+    # Alignment Reference - across initial/during-entry/after-scroll opening,
+    # scroll/resize while open, close/switch/reopen and Escape. Reference runs
+    # on a setup page (real matrix + key selection) so its nested picker
+    # admits choice; Layers/tooltips/guidance run on the fresh page above.
+    open_fresh_layout(url, width, height)
+    failures = []
+    followups = []
+    view_track_sel = "[data-workbench-section='view'] .workbench-tool-track"
+
+    def track_motion_state(sel):
+        return evaluate(
+            "(()=>{const t=document.querySelector(\"" + sel + "\");" +
+            "return {transform:getComputedStyle(t).transform," +
+            " running:document.getAnimations().filter(a=>a.playState==='running'&&a.effect?.target===t).length," +
+            " scroll:t.scrollLeft,max:t.scrollWidth-t.clientWidth};})()"
+        )
+
+    def ensure_section_open(name, key):
+        is_open = evaluate(f"document.querySelector(\"[data-workbench-section='{key}']\").getAttribute('data-open')==='true'")
+        if not is_open:
+            browser("find", "role", "button", "click", "--name", name, "--exact")
+            browser("wait", "--fn", f"document.querySelector(\"[data-workbench-section='{key}'][data-open='true']\")!==null")
+        wait_for_settled()
+
+    # Overlay visibility expressions for the first-frame recorder: each evaluates
+    # to {visible, rect, hit, triggerX, triggerBottom, trackTx, vw, vh} for
+    # its site (anchor fields null for tooltips). Installed before the entry
+    # starts. The trackTx lets the oracle compare against the untransformed
+    # (settled) trigger, matching the production hook's anchoring contract.
+    layers_overlay_js = (("(()=>{const l=document.querySelector('#m1-layers-list');"
+        "const trig=document.querySelector('#m1-layers-trigger');"
+        "const exp=trig&&trig.getAttribute('aria-expanded')==='true';"
+        "if(!exp||!l||!trig) return {visible:false,rect:null,hit:null,triggerX:null,trackTx:null,vw:null,vh:null,triggerBottom:null};"
+        "const b=l.getBoundingClientRect();const f=l.querySelector('button');const fb=f.getBoundingClientRect();"
+        "const el=document.elementFromPoint(fb.x+fb.width/2,fb.y+fb.height/2);"
+        "const tb=trig.getBoundingClientRect();"
+        "const track=trig.closest('.workbench-tool-track');"
+        "let tx=0;try{const tt=getComputedStyle(track).transform;const mm=tt.match(/matrix\\(([^)]+)\\)/);if(mm)tx=Number(mm[1].split(',')[4].trim());}catch(_){}"
+        "return {visible:b.width>0.5&&b.height>0.5,"
+        "rect:{x:b.x,y:b.y,w:b.width,h:b.height},hit:el===f||f.contains(el),"
+        "triggerX:tb.x,triggerBottom:tb.y+tb.height,trackTx:tx,vw:innerWidth,vh:innerHeight};})()"))
+
+    def tip_overlay_js_for(trigger_js):
+        # Scope the recorder to the INTENDED tip via the trigger's
+        # aria-describedby association: a hover tip on a neighboring trigger
+        # (entry translation can slide one under a parked pointer) must not
+        # stand in for the focus tip under test.
+        return (("(()=>{const t=(" + trigger_js + ");"
+            "if(!t) return {visible:false,rect:null,hit:null,triggerX:null,trackTx:null,vw:null,vh:null,triggerBottom:null};"
+            "const id=t.getAttribute('aria-describedby');"
+            "const tip=id?document.getElementById(id):null;"
+            "if(!tip||tip.getAttribute('data-state')!=='open') return {visible:false,rect:null,hit:null,triggerX:null,trackTx:null,vw:null,vh:null,triggerBottom:null};"
+            "const b=tip.getBoundingClientRect();"
+            "const el=document.elementFromPoint(b.x+b.width/2,b.y+b.height/2);"
+            "return {visible:b.width>0.5&&b.height>0.5,rect:{x:b.x,y:b.y,w:b.width,h:b.height},"
+            "hit:el===tip||tip.contains(el),triggerX:null,trackTx:null,vw:innerWidth,vh:innerHeight,triggerBottom:null};})()"))
+
+    def install_cancel_recorder(track_sel, overlay_js):
+        # First-frame cancellation recorder, installed before the entry starts:
+        # every RAF frame captures entry state plus overlay visibility/geometry
+        # and the anchor inputs (trigger x, track translation, viewport).
+        evaluate(
+            "(()=>{const t=document.querySelector(\"" + track_sel + "\");" +
+            "const g=t.closest('[data-workbench-section]');" +
+            "window.__cancelFrames=[]; window.__cancelStop=false; window.__cancelError=null;" +
+            "function sample(){try{let ov=null; try{ov=(" + overlay_js + ");}catch(_){ov=null;}" +
+            "window.__cancelFrames.push({t:performance.now(),open:g.dataset.open," +
+            " transform:getComputedStyle(t).transform," +
+            " running:document.getAnimations().filter(a=>a.playState==='running'&&a.effect?.target===t).length," +
+            " scroll:t.scrollLeft,overlay:!!(ov&&ov.visible),rect:ov?ov.rect:null,hit:ov?ov.hit:null," +
+            " triggerX:ov?ov.triggerX:null,trackTx:ov?ov.trackTx:null,vw:ov?ov.vw:null,vh:ov?ov.vh:null,triggerBottom:ov?ov.triggerBottom:null});" +
+            "}catch(e){window.__cancelError=String((e&&e.stack)||e);}finally{"
+            "if(!window.__cancelStop) requestAnimationFrame(sample);}} requestAnimationFrame(sample);})()"
+        )
+
+    def assert_first_frame_cancel(tag, action_t, pre, anchor_kind=None):
+        # `pre` is the entry state sampled in the same JS task immediately
+        # before the opening action (no look-back window): the entry must be
+        # active at that instant. The first post-action visible frame must then
+        # carry exact `none`/zero AND placed, hit-testable geometry (plus
+        # clamped trigger anchoring for the shared-hook dialogs).
+        browser("wait", "--fn", "new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))")
+        frames = evaluate("(() => {window.__cancelStop=true; return window.__cancelFrames;})()")
+        post = [f for f in frames if f['t'] >= action_t]
+        print(f"{tag} diag total {len(frames)} post {len(post)} overlay_true {sum(1 for f in frames if f['overlay'])} last {json.dumps(frames[-1]) if frames else None} action_t {action_t} pre {json.dumps(pre)} err {evaluate('window.__cancelError')}", flush=True)
+        if not (pre.get('running', 0) >= 1 and pre.get('transform') != 'none'):
+            failures.append((tag, f"entry not active at the overlay action (timing): {pre}"))
+            return
+        visible = [f for f in frames if f['t'] >= action_t and f['overlay']]
+        if not visible:
+            failures.append((tag, "overlay never became visible in the recorder window"))
+            return
+        first = visible[0]
+        print(f"{tag} first-visible {json.dumps(first)}", flush=True)
+        # Exact `none`: an identity matrix still creates a fixed-descendant
+        # containing block, the precise regression this contract excludes.
+        if first['transform'] != 'none' or first['running'] != 0:
+            failures.append((tag, f"first overlay-visible frame still carries the entry: {first}"))
+        rect = first.get('rect') or {}
+        if not rect:
+            failures.append((tag, f"first overlay-visible frame has no geometry: {first}"))
+            return
+        if not first.get('hit'):
+            failures.append((tag, f"first overlay-visible frame not hit-testable: {first}"))
+        if anchor_kind in ('layers', 'reference'):
+            trig_x, tx, vw = first.get('triggerX'), first.get('trackTx'), first.get('vw')
+            if trig_x is None or tx is None or vw is None:
+                failures.append((tag, f"first frame missing anchor inputs: {first}"))
+            else:
+                max_left = max(vw - rect['w'] - 8.0, 8.0)
+                expected = min(max(trig_x - tx, 8.0), max_left)
+                if abs(rect['x'] - expected) > 2.0:
+                    failures.append((tag, f"first frame x {rect['x']:.1f}px not anchored to untransformed trigger {trig_x - tx:.1f}px (clamped {expected:.1f}px): {first}"))
+                bottom = first.get('triggerBottom')
+                if bottom is not None and rect['y'] + 1e-6 < bottom:
+                    failures.append((tag, f"first frame top {rect['y']:.1f}px above trigger bottom {bottom:.1f}px: {first}"))
+                if rect['x'] + 1e-6 < 8.0 or rect['x'] + rect['w'] - 1e-6 > vw - 8.0:
+                    failures.append((tag, f"first frame outside 8px side margins: {first}"))
+                vh = first.get('vh')
+                if vh is not None and rect['y'] + rect['h'] - 1e-6 > vh:
+                    failures.append((tag, f"first frame bottom {rect['y'] + rect['h']:.1f}px below viewport {vh:.1f}px: {first}"))
+        else:
+            vw, vh = first.get('vw'), first.get('vh')
+            if vw is not None and vh is not None:
+                if rect['x'] + 1e-6 < 0 or rect['y'] + 1e-6 < 0 or rect['x'] + rect['w'] - 1e-6 > vw or rect['y'] + rect['h'] - 1e-6 > vh:
+                    failures.append((tag, f"first frame outside the viewport: {first}"))
+
+    # ---- Layers: settled initial opening ----
+    ensure_section_open("View", "view")
+    check_layers_open("overlay-initial", failures)
+
+    # ---- F1: placement RAF race (close before the pending frame) ----
+    check_placement_raf_race("layers-race", failures)
+
+    # ---- Layers: opening during entry cancels the entry ----
+    install_cancel_recorder(view_track_sel, layers_overlay_js)
+    browser("find", "role", "button", "click", "--name", "View", "--exact")
+    browser("wait", "--fn", "document.querySelector(\"[data-workbench-section='view'][data-open='false']\")!==null")
+    browser("find", "role", "button", "click", "--name", "View", "--exact")
+    browser("wait", "--fn", "document.querySelector(\"[data-workbench-section='view'][data-open='true']\")!==null")
+    layers_action = evaluate("(()=>{const t=document.querySelector(\"[data-workbench-section='view'] .workbench-tool-track\");const pre={running:document.getAnimations().filter(a=>a.playState==='running'&&a.effect?.target===t).length,transform:getComputedStyle(t).transform};document.querySelector('#m1-layers-trigger').click();return {t:performance.now(),pre};})()")
+    browser("wait", "--fn", "document.querySelector(\"#m1-layers-trigger\").getAttribute(\"aria-expanded\")===\"true\"")
+    assert_first_frame_cancel("LAYERS-DURING-ENTRY", layers_action['t'], layers_action['pre'], 'layers')
+    wait_for_settled()
+    check_layers_geometry("overlay-during-entry", failures)
+    evaluate("document.querySelector('#m1-layers-trigger').click()")
+    browser("wait", "--fn", "document.querySelector(\"#m1-layers-trigger\").getAttribute(\"aria-expanded\")===\"false\"")
+    wait_for_settled()
+
+    # ---- Layers: after nonzero scroll, scroll while open ----
+    lane = track_motion_state(view_track_sel)
+    if lane['max'] < 50:
+        print(f"LAYERS-SCROLL-SKIP: lane max scroll {lane['max']} at {width}x{height}, no overflow to vary", flush=True)
+    else:
+        evaluate(f"(()=>{{document.querySelector(\"{view_track_sel}\").scrollLeft=100;}})()")
+        browser("wait", 150)
+        evaluate("document.querySelector('#m1-layers-trigger').click()")
+        browser("wait", "--fn", "document.querySelector(\"#m1-layers-trigger\").getAttribute(\"aria-expanded\")===\"true\"")
+        wait_for_settled()
+        check_layers_geometry("overlay-after-scroll", failures)
+        for pos in (0, lane['max']):
+            evaluate(f"(()=>{{document.querySelector(\"{view_track_sel}\").scrollLeft={pos};}})()")
+            browser("wait", 150)
+            check_layers_geometry(f"overlay-scroll-{pos}", failures)
+        check_page_overflow("overlay-scroll", failures)
+        evaluate("document.querySelector('#m1-layers-trigger').click()")
+        browser("wait", "--fn", "document.querySelector(\"#m1-layers-trigger\").getAttribute(\"aria-expanded\")===\"false\"")
+        wait_for_settled()
+
+    # ---- Layers: resize across a density boundary while open ----
+    cross_w = 350 if width <= 390 else 1180
+    evaluate("document.querySelector('#m1-layers-trigger').click()")
+    browser("wait", "--fn", "document.querySelector(\"#m1-layers-trigger\").getAttribute(\"aria-expanded\")===\"true\"")
+    wait_for_settled()
+    geo = constrain_row_parent(cross_w + 4.0)
+    wait_for_settled()
+    print(f"LAYERS-RESIZE: {json.dumps(geo)}", flush=True)
+    check_layers_geometry("overlay-resize", failures)
+    evaluate("(()=>{const row=document.querySelector('.workbench-tool-row');const p=row.parentElement; p.style.width=''; p.style.maxWidth='';})()")
+    wait_for_settled()
+    check_layers_geometry("overlay-resize-restored", failures)
+    evaluate("document.querySelector('#m1-layers-trigger').click()")
+    browser("wait", "--fn", "document.querySelector(\"#m1-layers-trigger\").getAttribute(\"aria-expanded\")===\"false\"")
+    wait_for_settled()
+
+    # ---- Layers: switch away and back, then Escape ----
+    evaluate("document.querySelector('#m1-layers-trigger').click()")
+    browser("wait", "--fn", "document.querySelector(\"#m1-layers-trigger\").getAttribute(\"aria-expanded\")===\"true\"")
+    wait_for_settled()
+    browser("find", "role", "button", "click", "--name", "Snap", "--exact")
+    browser("wait", "--fn", "document.querySelector(\"[data-workbench-section='snap'][data-open='true']\")!==null")
+    wait_for_settled()
+    switched = evaluate("(()=>{const t=document.querySelector('#m1-layers-trigger');const l=document.querySelector('#m1-layers-list');" +
+        "const lb=l?l.getBoundingClientRect():null;" +
+        "return {expanded:t.getAttribute('aria-expanded'),listGone:!l||lb.width<0.5&&lb.height<0.5};})()")
+    focus = active_focus_state()
+    print(f"LAYERS-SWITCH: {json.dumps(switched)} focus {json.dumps(focus)}", flush=True)
+    if switched['expanded'] != 'false' or not switched['listGone']:
+        failures.append(("layers-switch", f"stale open list after section switch: {switched}"))
+    if not focus['visible']:
+        failures.append(("layers-switch", f"invisible focus after section switch: {focus}"))
+    # The switch defect above leaves the list open; close it explicitly so the
+    # reopen proof starts from a known closed state.
+    if switched['expanded'] != 'false':
+        evaluate("document.querySelector('#m1-layers-trigger').click()")
+        browser("wait", "--fn", "document.querySelector(\"#m1-layers-trigger\").getAttribute(\"aria-expanded\")===\"false\"")
+        wait_for_settled()
+    ensure_section_open("View", "view")
+    check_layers_open("overlay-reopen", failures)
+    # ---- Layers: Escape from inside the open list closes it (real keys) ----
+    # LayerPanel binds Escape on the disclosure itself, so focus must be inside
+    # the list: Tab in from the View trigger with real keystrokes, then Escape
+    # must collapse the list and return focus visibly to the trigger. (Escape
+    # from the section trigger is not a Layers action; the overlay model names
+    # dismiss/hide on parent close, proven at layers-switch.)
+    evaluate("document.querySelector('#m1-layers-trigger').click()")
+    browser("wait", "--fn", "document.querySelector(\"#m1-layers-trigger\").getAttribute(\"aria-expanded\")===\"true\"")
+    wait_for_settled()
+    if active_focus_state().get('aria') != 'View':
+        browser("press", "Shift+Tab")
+        browser("press", "Tab")
+    if active_focus_state().get('aria') != 'View':
+        failures.append(("layers-escape", f"could not establish View-trigger focus entry: {active_focus_state()}"))
+    else:
+        for _ in range(8):
+            if (active_focus_state().get('aria') or '').startswith(('Hide ', 'Show ')):
+                break
+            browser("press", "Tab")
+        in_list = active_focus_state()
+        print(f"LAYERS-ESCAPE-FOCUS: {json.dumps(in_list)}", flush=True)
+        if not (in_list.get('aria') or '').startswith(('Hide ', 'Show ')):
+            failures.append(("layers-escape", f"real Tab never entered the open list: {in_list}"))
+        else:
+            browser("press", "Escape")
+            browser("wait", 300)
+            wait_for_settled()
+            esc = evaluate("document.querySelector('#m1-layers-trigger').getAttribute('aria-expanded')")
+            focus = active_focus_state()
+            print(f"LAYERS-ESCAPE: expanded {esc} focus {json.dumps(focus)}", flush=True)
+            if esc != 'false':
+                failures.append(("layers-escape", f"Escape from inside the list left it expanded: {esc}"))
+            stale = evaluate("(()=>{const l=document.querySelector('#m1-layers-list');if(!l) return false;const b=l.getBoundingClientRect();return b.width>0.5||b.height>0.5;})()")
+            if stale:
+                failures.append(("layers-escape", "stale visible list after Escape"))
+            if not focus['visible'] or focus.get('aria') != 'Canvas visibility':
+                occ = evaluate("(()=>{const t=[...document.querySelectorAll('button')].find(e=>e.getAttribute('aria-label')==='Canvas visibility');"
+                    "const b=t.getBoundingClientRect();"
+                    "const lane=document.querySelector(\"[data-workbench-section='view'] .workbench-tool-track\").getBoundingClientRect();"
+                    "const el=document.elementFromPoint(b.x+b.width/2,b.y+b.height/2);const eb=el?el.getBoundingClientRect():null;"
+                    "return {trigger:{x:b.x,y:b.y,w:b.width,h:b.height},lane:{x:lane.x,y:lane.y,w:lane.width,h:lane.height},"
+                    "occluder:el?{tag:el.tagName,aria:el.getAttribute('aria-label'),role:el.getAttribute('role'),id:el.id,cls:(el.className||'').toString().slice(0,160),x:eb.x,y:eb.y,w:eb.width,h:eb.height}:null};})()")
+                print(f"LAYERS-ESCAPE-OCCLUDER: {json.dumps(occ)}", flush=True)
+                failures.append(("layers-escape", f"focus not visibly back on the Layers trigger after Escape: {focus}"))
+    wait_for_settled()
+
+    # ---- Tooltips: Handles hover, settled ----
+    ensure_section_open("View", "view")
+    handles = evaluate("(()=>{const t=document.querySelector(\"" + view_track_sel + "\");" +
+        "const h=[...t.querySelectorAll('button')].find(e=>e.getAttribute('aria-label')==='Canvas handles');" +
+        "h.scrollIntoView({block:'nearest',inline:'nearest',behavior:'auto'});" +
+        "const b=h.getBoundingClientRect();" +
+        "return {x:b.x+b.width/2,y:b.y+b.height/2,scroll:t.scrollLeft};})()")
+    browser('mouse', 'move', round(handles['x']), round(handles['y']))
+    browser("wait", "--fn", "document.querySelector(\"[data-workbench-section='view'] [data-slot=tooltip][data-state=open]\")!==null")
+    tip = tooltip_report('view')
+    print(f"TIP-HOVER: {json.dumps(tip)} scroll {handles['scroll']}", flush=True)
+    if not (tip.get('open') and tip.get('text') and tip.get('withinViewport') and tip.get('hit')):
+        failures.append(("tip-hover", f"Handles hover tooltip not exposed and hit: {tip}"))
+    browser('mouse', 'move', width // 2, height // 2)
+    browser("wait", "--fn", "document.querySelector(\"[data-workbench-section='view'] [data-slot=tooltip][data-state=open]\")===null")
+    wait_for_settled()
+    handles_hit = evaluate("(()=>{const t=document.querySelector(\"" + view_track_sel + "\");" +
+        "const h=[...t.querySelectorAll('button')].find(e=>e.getAttribute('aria-label')==='Canvas handles');" +
+        "const b=h.getBoundingClientRect();const el=document.elementFromPoint(b.x+b.width/2,b.y+b.height/2);" +
+        "return el===h||h.contains(el);})()")
+    if not handles_hit:
+        failures.append(("tip-hover", "Handles trigger not hit after tooltip dismissal"))
+
+    # ---- Tooltips: an overlay cycle must not replay the entry (no restart) ----
+    evaluate("(()=>{const t=document.querySelector(\"" + view_track_sel + "\");" +
+        "window.__restartFrames=[]; window.__restartStop=false;" +
+        "function sample(){window.__restartFrames.push({transform:getComputedStyle(t).transform," +
+        " running:document.getAnimations().filter(a=>a.playState==='running'&&a.effect?.target===t).length});" +
+        "if(!window.__restartStop) requestAnimationFrame(sample);} requestAnimationFrame(sample);})()")
+    handles = evaluate("(()=>{const t=document.querySelector(\"" + view_track_sel + "\");" +
+        "const h=[...t.querySelectorAll('button')].find(e=>e.getAttribute('aria-label')==='Canvas handles');" +
+        "const b=h.getBoundingClientRect();return {x:b.x+b.width/2,y:b.y+b.height/2};})()")
+    browser('mouse', 'move', round(handles['x']), round(handles['y']))
+    browser("wait", "--fn", "document.querySelector(\"[data-workbench-section='view'] [data-slot=tooltip][data-state=open]\")!==null")
+    browser('mouse', 'move', width // 2, height // 2)
+    browser("wait", "--fn", "document.querySelector(\"[data-workbench-section='view'] [data-slot=tooltip][data-state=open]\")===null")
+    restart_frames = evaluate("(() => {window.__restartStop=true; return window.__restartFrames;})()")
+    print(f"TIP-NO-RESTART frames {len(restart_frames)}: {json.dumps(restart_frames[:8])}", flush=True)
+    if not restart_frames:
+        failures.append(("tip-no-restart", "restart sampler did not run"))
+    elif not all(f['transform'] == 'none' and f['running'] == 0 for f in restart_frames):
+        failures.append(("tip-no-restart", f"overlay cycle replayed the entry: {restart_frames}"))
+    wait_for_settled()
+
+    # ---- Tooltips: Handles via real keyboard focus (Tab) ----
+    # Tab, not arrows: the View lane is outside the toolbar roving scope
+    # (pre-existing defect photographed below), but Tab reaches Handles with
+    # real keystrokes and the tooltip opens from that focus.
+    kb_entry = active_focus_state()
+    for _ in range(8):
+        if kb_entry.get('aria') == 'View':
+            break
+        browser("press", "Shift+Tab")
+        kb_entry = active_focus_state()
+    if kb_entry.get('aria') != 'View':
+        failures.append(("tip-keyboard", f"roving entry not on View trigger: {kb_entry}"))
+    else:
+        for _ in range(6):
+            browser("press", "Tab")
+            if active_focus_state().get('aria') == 'Canvas handles':
+                break
+        kb_focus = active_focus_state()
+        print(f"TIP-KEYBOARD focus {json.dumps(kb_focus)}", flush=True)
+        if kb_focus.get('aria') != 'Canvas handles':
+            failures.append(("tip-keyboard", f"Tab never reached Handles: {kb_focus}"))
+        else:
+            browser("wait", 300)
+            tip = tooltip_report('view')
+            print(f"TIP-KEYBOARD tip {json.dumps(tip)}", flush=True)
+            if not (tip.get('open') and tip.get('hit') and tip.get('withinViewport')):
+                failures.append(("tip-keyboard", f"tooltip did not open from reached focus: {tip}"))
+            browser("press", "Shift+Tab")
+            browser("wait", 250)
+
+    # ---- View-lane roving defect photograph (pre-existing, needs disposition) ----
+    # Architecture contract: one roving tab stop, arrows across enabled visible
+    # controls including lane controls. Observed: arrows from View skip the lane
+    # (View->Objects->Inspect) and the open row holds several real tab stops.
+    browser("press", "Shift+Tab")
+    browser("press", "Tab")
+    roving_entry = active_focus_state()
+    for _ in range(6):
+        if roving_entry.get('aria') == 'View':
+            break
+        browser("press", "Shift+Tab")
+        roving_entry = active_focus_state()
+    arrow_path = [roving_entry.get('aria')]
+    for _ in range(3):
+        browser("press", "ArrowRight")
+        arrow_path.append(active_focus_state().get('aria'))
+    row_stops = evaluate("(()=>{const r=document.querySelector('.workbench-tool-row');" +
+        "return [...r.querySelectorAll('[tabindex=\"0\"]')].filter(e=>{const b=e.getBoundingClientRect();" +
+        "return b.width>0&&b.height>0&&!e.closest('[hidden]');}).length;})()")
+    print(f"ROVING-DEFECT path {json.dumps(arrow_path)} visibleTabStops {row_stops}", flush=True)
+    if arrow_path[1] != 'Objects' or row_stops <= 1:
+        print("ROVING-DEFECT-UNEXPECTED: arrow path or stop count changed; re-examine", flush=True)
+    # Follow-up, not a scenario blocker (ticket item 6): the broader View-lane
+    # roving defect stays recorded here and in the ticket, uncoupled from O
+    # pass/fail. Required O/K keyboard paths prove Tab access separately.
+    followups.append(("roving-view-lane", f"arrows skip the View lane {arrow_path}, {row_stops} visible tab stops with View open (architecture: one roving stop, arrows across lane controls)"))
+
+    # ---- Tooltips: Handles focus during entry cancels the entry ----
+    # Imperative focus here is timing determinism only; focus-open itself is
+    # proven with real keys above and in the page flow (Transform guidance).
+    install_cancel_recorder(view_track_sel, tip_overlay_js_for("[...document.querySelector(\"" + view_track_sel + "\").querySelectorAll('button')].find(e=>e.getAttribute('aria-label')==='Canvas handles')"))
+    browser("find", "role", "button", "click", "--name", "View", "--exact")
+    browser("wait", "--fn", "document.querySelector(\"[data-workbench-section='view'][data-open='false']\")!==null")
+    browser("find", "role", "button", "click", "--name", "View", "--exact")
+    browser("wait", "--fn", "document.querySelector(\"[data-workbench-section='view'][data-open='true']\")!==null")
+    tip_action = evaluate("(()=>{const t=document.querySelector(\"" + view_track_sel + "\");const h=[...t.querySelectorAll('button')].find(e=>e.getAttribute('aria-label')==='Canvas handles');const pre={running:document.getAnimations().filter(a=>a.playState==='running'&&a.effect?.target===t).length,transform:getComputedStyle(t).transform};h.focus();return {t:performance.now(),pre};})()")
+    browser("wait", "--fn", "document.querySelector(\"[data-workbench-section='view'] [data-slot=tooltip][data-state=open]\")!==null")
+    assert_first_frame_cancel("TIP-DURING-ENTRY", tip_action['t'], tip_action['pre'])
+    tip = tooltip_report('view')
+    if not (tip.get('open') and tip.get('hit') and tip.get('withinViewport')):
+        failures.append(("tip-during-entry", f"tooltip not placed and hit during entry: {tip}"))
+    # Park the pointer (real move) before Tab-away: trusted clicks park it over
+    # the lane and the entry slides neighboring triggers under it, so a
+    # hover-held neighbor tip would otherwise pollute the focus-release proof.
+    browser('mouse', 'move', width // 2, height // 2)
+    browser("wait", 200)
+    # Release the focus-held tip with a real Tab: imperative blur can strand it open.
+    browser("press", "Tab")
+    for _ in range(15):
+        if evaluate("document.querySelectorAll(\"[data-workbench-section='view'] [data-slot=tooltip][data-state=open]\").length") == 0:
+            break
+        browser("wait", 200)
+    ghosts = evaluate("document.querySelectorAll(\"[data-workbench-section='view'] [data-slot=tooltip][data-state=open]\").length")
+    if ghosts:
+        ghost_focus = active_focus_state()
+        ghost_hover = evaluate("(()=>{const h=[...document.querySelectorAll('button')].find(e=>e.getAttribute('aria-label')==='Canvas handles');return h?h.matches(':hover'):null;})()")
+        ghost_tips = evaluate("[...document.querySelectorAll(\"[data-workbench-section='view'] [data-slot=tooltip][data-state=open]\")].map(t=>{const c=t.querySelector('[data-slot=tooltip-content]');return (c?c.textContent:'<no-content>').trim().slice(0,40);})")
+        print(f"TIP-DURING-ENTRY-GHOST focus {json.dumps(ghost_focus)} hover {ghost_hover} tips {json.dumps(ghost_tips)}", flush=True)
+        failures.append(("tip-during-entry", "focus tip stuck open after real Tab away (ghost)"))
+    wait_for_settled()
+
+    # ---- Tooltips: scroll and resize while open, close with tip open ----
+    lane = track_motion_state(view_track_sel)
+    if lane['max'] < 50:
+        print(f"TIP-SCROLL-SKIP: lane max scroll {lane['max']} at {width}x{height}", flush=True)
+    else:
+        evaluate(f"(()=>{{document.querySelector(\"{view_track_sel}\").scrollLeft={min(120, lane['max'])};}})()")
+        browser("wait", 150)
+        handles = evaluate("(()=>{const t=document.querySelector(\"" + view_track_sel + "\");" +
+            "const h=[...t.querySelectorAll('button')].find(e=>e.getAttribute('aria-label')==='Canvas handles');" +
+            "const b=h.getBoundingClientRect();return {x:b.x+b.width/2,y:b.y+b.height/2};})()")
+        browser('mouse', 'move', round(handles['x']), round(handles['y']))
+        browser("wait", "--fn", "document.querySelector(\"[data-workbench-section='view'] [data-slot=tooltip][data-state=open]\")!==null")
+        tip = tooltip_report('view')
+        if not (tip.get('open') and tip.get('hit')):
+            failures.append(("tip-scroll", f"tooltip not hit after lane scroll: {tip}"))
+        evaluate(f"(()=>{{document.querySelector(\"{view_track_sel}\").scrollLeft=0;}})()")
+        browser("wait", 200)
+        tip = tooltip_report('view')
+        print(f"TIP-SCROLL-WHILE-OPEN: {json.dumps(tip)}", flush=True)
+        if tip.get('open'):
+            if not (tip.get('hit') and tip.get('withinViewport')):
+                failures.append(("tip-scroll", f"open tooltip misplaced after lane scroll: {tip}"))
+        else:
+            ghosts = evaluate("document.querySelectorAll(\"[data-workbench-section='view'] [data-slot=tooltip][data-state=open]\").length")
+            if ghosts:
+                failures.append(("tip-scroll", "ghost tooltip after lane scroll"))
+        browser('mouse', 'move', width // 2, height // 2)
+        browser("wait", "--fn", "document.querySelector(\"[data-workbench-section='view'] [data-slot=tooltip][data-state=open]\")===null")
+    handles = evaluate("(()=>{const t=document.querySelector(\"" + view_track_sel + "\");" +
+        "const h=[...t.querySelectorAll('button')].find(e=>e.getAttribute('aria-label')==='Canvas handles');" +
+        "h.scrollIntoView({block:'nearest',inline:'nearest',behavior:'auto'});" +
+        "const b=h.getBoundingClientRect();return {x:b.x+b.width/2,y:b.y+b.height/2};})()")
+    browser('mouse', 'move', round(handles['x']), round(handles['y']))
+    browser("wait", "--fn", "document.querySelector(\"[data-workbench-section='view'] [data-slot=tooltip][data-state=open]\")!==null")
+    geo = constrain_row_parent(cross_w + 4.0)
+    wait_for_settled()
+    tip = tooltip_report('view')
+    print(f"TIP-RESIZE {json.dumps(geo)}: {json.dumps(tip)}", flush=True)
+    if tip.get('open') and not (tip.get('hit') and tip.get('withinViewport')):
+        failures.append(("tip-resize", f"open tooltip misplaced across resize: {tip}"))
+    evaluate("(()=>{const row=document.querySelector('.workbench-tool-row');const p=row.parentElement; p.style.width=''; p.style.maxWidth='';})()")
+    wait_for_settled()
+    # Close with the tip actually open: re-hover Handles, then close via real
+    # keyboard activation. Trusted clicks would park the pointer away from the
+    # trigger (pre-dismissing via mouseleave as part of the click); Enter keeps
+    # the pointer over Handles so only the close itself can clear the tip.
+    handles = evaluate("(()=>{const t=document.querySelector(\"" + view_track_sel + "\");" +
+        "const h=[...t.querySelectorAll('button')].find(e=>e.getAttribute('aria-label')==='Canvas handles');" +
+        "const b=h.getBoundingClientRect();return {x:b.x+b.width/2,y:b.y+b.height/2};})()")
+    browser('mouse', 'move', round(handles['x']), round(handles['y']))
+    browser("wait", "--fn", "document.querySelector(\"[data-workbench-section='view'] [data-slot=tooltip][data-state=open]\")!==null")
+    tip = tooltip_report('view')
+    if not tip.get('open'):
+        failures.append(("tip-close", f"tooltip not open before the close-with-tip-open story: {tip}"))
+    for _ in range(16):
+        if active_focus_state().get('aria') == 'View':
+            break
+        browser("press", "Shift+Tab")
+    if active_focus_state().get('aria') != 'View':
+        failures.append(("tip-close", f"could not focus View trigger for keyboard close: {active_focus_state()}"))
+    else:
+        browser("press", "Enter")
+        browser("wait", "--fn", "document.querySelector(\"[data-workbench-section='view'][data-open='false']\")!==null")
+        wait_for_settled()
+        ghosts = evaluate("document.querySelectorAll(\"[data-workbench-section='view'] [data-slot=tooltip][data-state=open]\").length")
+        if ghosts:
+            failures.append(("tip-close", f"{ghosts} ghost tooltips after keyboard close with tip open"))
+    # Hygiene after measurement: park the pointer so later stories start clean.
+    browser('mouse', 'move', width // 2, height // 2)
+    browser("wait", 200)
+
+    # ---- Tooltips: guidance during entry (truncated widths only) ----
+    if width > 390:
+        print("TIP-GUIDANCE-SKIP: guidance readable inline at wide widths", flush=True)
+    else:
+        transform_track_sel = "[data-workbench-section='transform'] .workbench-tool-track"
+        ensure_section_open("Transform", "transform")
+        install_cancel_recorder(transform_track_sel, tip_overlay_js_for("document.querySelector(\"[data-workbench-section='transform'] .layout-selection-guidance\")"))
+        browser("find", "role", "button", "click", "--name", "Transform", "--exact")
+        browser("wait", "--fn", "document.querySelector(\"[data-workbench-section='transform'][data-open='false']\")!==null")
+        browser("find", "role", "button", "click", "--name", "Transform", "--exact")
+        browser("wait", "--fn", "document.querySelector(\"[data-workbench-section='transform'][data-open='true']\")!==null")
+        guidance_action = evaluate("(()=>{const t=document.querySelector(\"[data-workbench-section='transform'] .workbench-tool-track\");const pre={running:document.getAnimations().filter(a=>a.playState==='running'&&a.effect?.target===t).length,transform:getComputedStyle(t).transform};document.querySelector(\"[data-workbench-section='transform'] .layout-selection-guidance\").focus();return {t:performance.now(),pre};})()")
+        browser("wait", "--fn", "document.querySelector(\"[data-workbench-section='transform'] [data-slot=tooltip][data-state=open]\")!==null")
+        assert_first_frame_cancel("TIP-GUIDANCE-ENTRY", guidance_action['t'], guidance_action['pre'])
+        tip = tooltip_report('transform')
+        if not (tip.get('open') and tip.get('hit') and tip.get('withinViewport')):
+            failures.append(("tip-guidance-entry", f"guidance tooltip not placed and hit during entry: {tip}"))
+        # Close with the focus-held tip still open: no blur pre-dismiss. The
+        # close-focus rescue moves focus out; the tip must follow, not ghost.
+        browser("find", "role", "button", "click", "--name", "Transform", "--exact")
+        browser("wait", "--fn", "document.querySelector(\"[data-workbench-section='transform'][data-open='false']\")!==null")
+        wait_for_settled()
+        ghosts = evaluate("document.querySelectorAll(\"[data-workbench-section='transform'] [data-slot=tooltip][data-state=open]\").length")
+        if ghosts:
+            failures.append(("tip-guidance-entry", f"{ghosts} ghost tooltips after section close"))
+
+    # ---- Alignment Reference (setup page: admitted nested picker) ----
+    # Fresh page with a real matrix + key selection: the nested reference
+    # picker admits choice (30 keys -> Combobox form; the <=12 Select form is
+    # proven mounted). Every Reference story below runs on this page.
+    open_fresh_layout(url, width, height, setup_matrix=True)
+    # Admit the nested picker: open Objects, expand Column 1, select its first
+    # key (trusted clicks; no guard touched), then close the panel again.
+    browser("find", "role", "button", "click", "--name", "Objects", "--exact")
+    browser("wait", "--fn", "!!document.querySelector('#workbench-objects:not([hidden])')")
+    browser("wait", 500)
+    browser("find", "role", "button", "click", "--name", "Expand Column 1", "--exact")
+    browser("wait", 500)
+    browser("find", "role", "treeitem", "click", "--name", "Key 1.1 SW1", "--exact")
+    browser("wait", 800)
+    browser("press", "Escape")
+    browser("wait", "--fn", "!!document.querySelector('#workbench-objects[hidden]')")
+    wait_for_settled()
+    align_track_sel = "[data-workbench-section='align'] .workbench-tool-track"
+    reference_overlay_js = ("(()=>{const m=document.querySelector('#m1-layout-align-menu');"
+        "const trig=document.querySelector('#m1-layout-align-trigger');"
+        "if(!m||!trig||m.getAttribute('data-state')!=='open') return {visible:false,rect:null,hit:null,triggerX:null,trackTx:null,vw:null,vh:null,triggerBottom:null};"
+        "const b=m.getBoundingClientRect();"
+        "const c=[...m.querySelectorAll('button')].find(e=>e.getAttribute('aria-label')==='Close Alignment reference');"
+        "const cb=c.getBoundingClientRect();"
+        "const cx=cb.x+cb.width/2,cy=cb.y+cb.height/2;"
+        "const el=(cx>=0&&cx<=innerWidth&&cy>=0&&cy<=innerHeight)?document.elementFromPoint(cx,cy):null;"
+        "const tb=trig.getBoundingClientRect();"
+        "const track=trig.closest('.workbench-tool-track');"
+        "let tx=0;try{const tt=getComputedStyle(track).transform;const mm=tt.match(/matrix\\(([^)]+)\\)/);if(mm)tx=Number(mm[1].split(',')[4].trim());}catch(_){}"
+        "return {visible:b.width>0.5&&b.height>0.5,"
+        "rect:{x:b.x,y:b.y,w:b.width,h:b.height},hit:el===c||c.contains(el),"
+        "triggerX:tb.x,triggerBottom:tb.y+tb.height,trackTx:tx,vw:innerWidth,vh:innerHeight};})()")
+
+    def close_detail_programmatic(tag):
+        # Close click for state transitions (not the Close-button proof):
+        # records a failure instead of crashing when the detail is already
+        # gone (e.g. an Escape closed it early under test).
+        found = evaluate("(()=>{const m=document.querySelector('#m1-layout-align-menu');if(!m) return 'gone';const c=[...m.querySelectorAll('button')].find(e=>e.getAttribute('aria-label')==='Close Alignment reference');if(!c) return 'no-button';c.click();return 'clicked';})()")
+        if found != 'clicked':
+            failures.append((tag, f"expected open detail for programmatic Close, menu {found}"))
+
+    def nested_picker_placement():
+        return evaluate(
+            "(()=>{const lb=document.querySelector(\"#m1-layout-align-menu [role='listbox']\");" +
+            "if(!lb) return {open:false};" +
+            "const b=lb.getBoundingClientRect();" +
+            "const o=lb.querySelector('[role=option]');" +
+            "const ob=o.getBoundingClientRect();" +
+            "const el=document.elementFromPoint(ob.x+ob.width/2,ob.y+ob.height/2);" +
+            "return {open:true,x:b.x,y:b.y,w:b.width,h:b.height,scrollTop:lb.scrollTop,optY:ob.y," +
+            " withinViewport:b.x+1e-6>=0&&b.y+1e-6>=0&&b.x+b.width-1e-6<=innerWidth&&b.y+b.height-1e-6<=innerHeight," +
+            " firstHit:el===o||o.contains(el),"
+            " el:el?el.tagName+':'+((el.getAttribute&&(el.getAttribute('aria-label')||el.id||el.className))||'').toString().slice(0,60):null," +
+            " options:lb.querySelectorAll('[role=option]').length};})()"
+        )
+
+    # ---- Reference: opening during entry cancels the entry (first frame) ----
+    install_cancel_recorder(align_track_sel, reference_overlay_js)
+    browser("find", "role", "button", "click", "--name", "Align", "--exact")
+    browser("wait", "--fn", "document.querySelector(\"[data-workbench-section='align'][data-open='true']\")!==null")
+    reference_action = evaluate("(()=>{const t=document.querySelector('[data-workbench-section=align] .workbench-tool-track');" +
+        "const r=[...t.querySelectorAll('button')].find(e=>e.getAttribute('aria-label')==='Alignment reference');" +
+        "r.scrollIntoView({block:'nearest',inline:'nearest',behavior:'auto'});const pre={running:document.getAnimations().filter(a=>a.playState==='running'&&a.effect?.target===t).length,transform:getComputedStyle(t).transform};r.click();return {t:performance.now(),pre};})()")
+    browser("wait", "--fn", "document.querySelector(\"#m1-layout-align-menu[data-state='open']\")!==null")
+    assert_first_frame_cancel("REFERENCE-DURING-ENTRY", reference_action['t'], reference_action['pre'], 'reference')
+    wait_for_settled()
+    check_reference_geometry("during-entry", failures)
+    # Nested timing inside the during-entry story: the admitted picker opens
+    # promptly with placed, hit-testable choices once its dialog is up. (The
+    # dialog open above already cancelled the track entry, so no second
+    # first-frame assertion applies to the nested surface itself.)
+    # Keyboard-only: the trusted click point inside the dialog can read as
+    # covered at narrow widths; Tab reaches the input deterministically.
+    for _ in range(4):
+        if active_focus_state().get('tag') == 'INPUT':
+            break
+        browser("press", "Tab")
+    if active_focus_state().get('tag') != 'INPUT':
+        failures.append(("reference-nested-entry", f"Tab never reached the picker input: {active_focus_state()}"))
+    else:
+        browser("press", "ArrowDown")
+        browser("wait", "--fn", "!!document.querySelector(\"#m1-layout-align-menu [role='listbox']\")")
+        browser("wait", 300)
+        nested_entry = nested_picker_placement()
+        print(f"REFERENCE-NESTED-ENTRY: {json.dumps(nested_entry)}", flush=True)
+        if not (nested_entry.get('open') and nested_entry.get('withinViewport') and nested_entry.get('firstHit')):
+            failures.append(("reference-nested-entry", f"nested picker not placed and hit in the during-entry story: {nested_entry}"))
+        browser("press", "Escape")
+        browser("wait", "--fn", "!document.querySelector(\"#m1-layout-align-menu [role='listbox']\")")
+    close_detail_programmatic("reference-nested-entry")
+    browser("wait", "--fn", "(()=>{const m=document.querySelector('#m1-layout-align-menu');return m===null||m.getAttribute('data-state')!=='open';})()")
+    wait_for_settled()
+
+    # ---- Reference: settled opening + placement ----
+    ensure_section_open("Align", "align")
+    evaluate("(()=>{const t=document.querySelector('[data-workbench-section=align] .workbench-tool-track');" +
+        "const r=[...t.querySelectorAll('button')].find(e=>e.getAttribute('aria-label')==='Alignment reference');" +
+        "r.scrollIntoView({block:'nearest',inline:'nearest',behavior:'auto'});})()")
+    browser("wait", 200)
+    browser("find", "role", "button", "click", "--name", "Alignment reference", "--exact")
+    browser("wait", "--fn", "document.querySelector(\"#m1-layout-align-menu[data-state='open']\")!==null")
+    browser("wait", 300)
+    ref = reference_detail_report()
+    print(f"REFERENCE-OPEN: {json.dumps(ref)}", flush=True)
+    if not ref.get('present') or ref.get('state') != 'open':
+        failures.append(("reference-open", f"Reference detail did not open: {ref}"))
+    else:
+        check_reference_geometry("open", failures)
+        nested = ref.get('nested') or {}
+        if nested.get('disabled') or nested.get('form') != 'INPUT':
+            failures.append(("reference-nested", f"nested picker not admitted as an enabled Combobox: {nested}"))
+
+    # ---- Reference: opening after scroll, scroll + resize while open ----
+    # Programmatic Close (trusted clicks misfire inside the fixed dialog;
+    # Close-button activation is proven via keyboard in the mechanics below).
+    close_detail_programmatic("reference-scroll")
+    browser("wait", "--fn", "(()=>{const m=document.querySelector('#m1-layout-align-menu');return m===null||m.getAttribute('data-state')!=='open';})()")
+    wait_for_settled()
+    lane = track_motion_state(align_track_sel)
+    if lane['max'] < 50:
+        print(f"REFERENCE-SCROLL-SKIP: lane max scroll {lane['max']} at {width}x{height}, no overflow to vary", flush=True)
+        browser("find", "role", "button", "click", "--name", "Alignment reference", "--exact")
+        browser("wait", "--fn", "document.querySelector(\"#m1-layout-align-menu[data-state='open']\")!==null")
+        wait_for_settled()
+    else:
+        evaluate(f"(()=>{{document.querySelector(\"{align_track_sel}\").scrollLeft=100;}})()")
+        browser("wait", 150)
+        browser("find", "role", "button", "click", "--name", "Alignment reference", "--exact")
+        browser("wait", "--fn", "document.querySelector(\"#m1-layout-align-menu[data-state='open']\")!==null")
+        wait_for_settled()
+        check_reference_geometry("after-scroll", failures)
+        for pos in (0, lane['max']):
+            evaluate(f"(()=>{{document.querySelector(\"{align_track_sel}\").scrollLeft={pos};}})()")
+            browser("wait", 150)
+            check_reference_geometry(f"scroll-{pos}", failures)
+        check_page_overflow("reference-scroll", failures)
+    geo = constrain_row_parent(cross_w + 4.0)
+    wait_for_settled()
+    print(f"REFERENCE-RESIZE: {json.dumps(geo)}", flush=True)
+    check_reference_geometry("resize", failures)
+    evaluate("(()=>{const row=document.querySelector('.workbench-tool-row');const p=row.parentElement; p.style.width=''; p.style.maxWidth='';})()")
+    wait_for_settled()
+    check_reference_geometry("resize-restored", failures)
+
+    # ---- Reference: nested Combobox choice + Escape ladder (real keys) ----
+    for _ in range(4):
+        if active_focus_state().get('tag') == 'INPUT' and active_focus_state().get('aria') == 'Alignment reference':
+            break
+        browser("press", "Tab")
+    combo_focus = active_focus_state()
+    if combo_focus.get('tag') != 'INPUT' or combo_focus.get('aria') != 'Alignment reference':
+        failures.append(("reference-nested", f"Tab never reached the picker input: {combo_focus}"))
+    else:
+        browser("press", "ArrowDown")
+        browser("wait", "--fn", "!!document.querySelector(\"#m1-layout-align-menu [role='listbox']\")")
+        browser("wait", 300)
+        placed = nested_picker_placement()
+        print(f"REFERENCE-NESTED-PLACEMENT: {json.dumps(placed)}", flush=True)
+        if not (placed.get('withinViewport') and placed.get('firstHit')):
+            failures.append(("reference-nested", f"open picker misplaced: {placed}"))
+        options = evaluate("[...document.querySelectorAll(\"#m1-layout-align-menu [role='option']\")].map(o=>o.textContent.trim())")
+        print(f"REFERENCE-NESTED-OPTIONS: {len(options)} {json.dumps(options[:8])}", flush=True)
+        if not options:
+            failures.append(("reference-nested", "picker opened with no literal options"))
+        else:
+            needle = "SW13" if any("SW13" in o for o in options) else options[0]
+            browser("keyboard", "type", needle)
+            browser("wait", 300)
+            filtered = evaluate("[...document.querySelectorAll(\"#m1-layout-align-menu [role='option']\")].map(o=>o.textContent.trim())")
+            print(f"REFERENCE-NESTED-FILTERED: {json.dumps(filtered)}", flush=True)
+            if not filtered:
+                failures.append(("reference-nested", f"filter {needle!r} matched nothing of {options}"))
+            else:
+                browser("press", "ArrowDown")
+                browser("wait", 200)
+                chosen = evaluate("(()=>{const m=document.querySelector('#m1-layout-align-menu');const inp=m.querySelector('input');const id=inp.getAttribute('aria-activedescendant');const o=id?document.getElementById(id):null;return o?o.textContent.trim():null;})()")
+                print(f"REFERENCE-NESTED-CHOSEN: {json.dumps(chosen)}", flush=True)
+                if not chosen:
+                    failures.append(("reference-nested", "no active descendant after ArrowDown"))
+                else:
+                    browser("press", "Enter")
+                    browser("wait", "--fn", "!document.querySelector(\"#m1-layout-align-menu [role='listbox']\")")
+                    value = evaluate("document.querySelector('#m1-layout-align-menu input').value")
+                    print(f"REFERENCE-NESTED-ACCEPTED: {json.dumps(value)}", flush=True)
+                    if value != chosen:
+                        failures.append(("reference-nested", f"accepted {value!r} != chosen literal {chosen!r}"))
+                    ref_after = reference_detail_report()
+                    if not (ref_after.get('present') and ref_after.get('state') == 'open'):
+                        failures.append(("reference-nested", f"detail did not stay open after choice: {ref_after}"))
+                    else:
+                        check_reference_geometry("after-choice", failures)
+                    # Escape ladder: first Escape closes the picker only.
+                    browser("press", "ArrowDown")
+                    browser("wait", "--fn", "!!document.querySelector(\"#m1-layout-align-menu [role='listbox']\")")
+                    browser("press", "Escape")
+                    for _ in range(15):
+                        if evaluate("document.querySelector(\"#m1-layout-align-menu [role='listbox']\")") is None:
+                            break
+                        browser("wait", 200)
+                    ref_ladder = reference_detail_report()
+                    focus_ladder = active_focus_state()
+                    print(f"REFERENCE-LADDER-1: {json.dumps(ref_ladder)} focus {json.dumps(focus_ladder)}", flush=True)
+                    if not (ref_ladder.get('present') and ref_ladder.get('state') == 'open'):
+                        failures.append(("reference-nested", f"first Escape closed the detail, expected picker-only: {ref_ladder}"))
+                    if focus_ladder.get('tag') != 'INPUT' or focus_ladder.get('aria') != 'Alignment reference':
+                        failures.append(("reference-nested", f"focus not on the picker input after first Escape: {focus_ladder}"))
+                    # Second Escape closes the detail and restores Reference.
+                    browser("press", "Escape")
+                    for _ in range(15):
+                        ref_ladder2 = reference_detail_report()
+                        if ref_ladder2.get('focus') == 'Alignment reference' and not (ref_ladder2.get('present') and ref_ladder2.get('state') == 'open'):
+                            break
+                        browser("wait", 200)
+                    ref_ladder2 = reference_detail_report()
+                    focus_ladder2 = active_focus_state()
+                    print(f"REFERENCE-LADDER-2: {json.dumps(ref_ladder2)} focus {json.dumps(focus_ladder2)}", flush=True)
+                    if ref_ladder2.get('present') and ref_ladder2.get('state') == 'open':
+                        failures.append(("reference-nested", "second Escape left the detail open"))
+                    if focus_ladder2.get('tag') != 'BUTTON' or focus_ladder2.get('aria') != 'Alignment reference':
+                        failures.append(("reference-nested", f"second Escape did not restore to Reference: {focus_ladder2}"))
+    # The ladder ends with the detail closed; reopen for the Close mechanics below.
+    browser("find", "role", "button", "click", "--name", "Alignment reference", "--exact")
+    browser("wait", "--fn", "document.querySelector(\"#m1-layout-align-menu[data-state='open']\")!==null")
+    browser("wait", 300)
+    # Close via keyboard activation from wherever the reopen left focus: Tab
+    # until Close (auto-focus may land on the combobox once a value is
+    # accepted). Enter avoids the harness click-coverage check that misfires
+    # inside the fixed dialog (Close hit-testability is proven by oracle).
+    for _ in range(6):
+        close_focus = active_focus_state()
+        if close_focus.get('tag') == 'BUTTON' and close_focus.get('aria') == 'Close Alignment reference':
+            break
+        browser("press", "Shift+Tab")
+    close_focus = active_focus_state()
+    print(f"REFERENCE-CLOSE-FOCUS: {json.dumps(close_focus)}", flush=True)
+    if close_focus.get('tag') != 'BUTTON' or close_focus.get('aria') != 'Close Alignment reference':
+        failures.append(("reference-close", f"focus not on Close before keyboard activation: {close_focus}"))
+        evaluate("([...document.querySelector('#m1-layout-align-menu').querySelectorAll('button')].find(e=>e.getAttribute('aria-label')==='Close Alignment reference')).click()")
+    else:
+        browser("press", "Enter")
+    for _ in range(15):
+        ref_probe = reference_detail_report()
+        if not (ref_probe.get('present') and ref_probe.get('state') == 'open'):
+            break
+        browser("wait", 200)
+    ref = reference_detail_report()
+    print(f"REFERENCE-CLOSE: {json.dumps(ref)}", flush=True)
+    if ref.get('present') and ref.get('state') == 'open':
+        failures.append(("reference-close", "detail still open after Close"))
+    if ref.get('focus') != 'Alignment reference':
+        failures.append(("reference-close", f"focus not on Reference after Close: {ref.get('focus')}"))
+    browser("find", "role", "button", "click", "--name", "Alignment reference", "--exact")
+    browser("wait", "--fn", "document.querySelector(\"#m1-layout-align-menu[data-state='open']\")!==null")
+    browser("wait", 300)
+    browser("press", "Escape")
+    for _ in range(15):
+        ref = reference_detail_report()
+        if ref.get('focus') == 'Alignment reference' and not (ref.get('present') and ref.get('state') == 'open'):
+            break
+        browser("wait", 200)
+    ref = reference_detail_report()
+    print(f"REFERENCE-ESCAPE: {json.dumps(ref)}", flush=True)
+    if ref.get('present') and ref.get('state') == 'open':
+        failures.append(("reference-escape", "detail still open after Escape"))
+    if ref.get('focus') != 'Alignment reference':
+        failures.append(("reference-escape", f"Escape did not restore to Reference: {ref.get('focus')}"))
+    browser("find", "role", "button", "click", "--name", "Alignment reference", "--exact")
+    browser("wait", "--fn", "document.querySelector(\"#m1-layout-align-menu[data-state='open']\")!==null")
+    browser("wait", 300)
+    browser("find", "role", "button", "click", "--name", "Snap", "--exact")
+    browser("wait", "--fn", "document.querySelector(\"[data-workbench-section='snap'][data-open='true']\")!==null")
+    wait_for_settled()
+    ref = reference_detail_report()
+    focus = active_focus_state()
+    print(f"REFERENCE-PARENT-CLOSE: {json.dumps(ref)} focus {json.dumps(focus)}", flush=True)
+    if ref.get('present') and ref.get('state') == 'open':
+        failures.append(("reference-parent-close", "detail survived its section close"))
+    if not focus['visible'] or focus.get('aria') != 'Snap':
+        failures.append(("reference-parent-close", f"focus not visibly on Snap after parent close: {focus}"))
+    browser("find", "role", "button", "click", "--name", "Align", "--exact")
+    browser("wait", "--fn", "document.querySelector(\"[data-workbench-section='align'][data-open='true']\")!==null")
+    wait_for_settled()
+    ref = reference_detail_report()
+    if ref.get('present') and ref.get('state') == 'open':
+        failures.append(("reference-parent-close", "detail reopened on section return"))
+
+    check_page_overflow("overlays", failures)
+    check_browser_errors(failures)
+    print(f"FOLLOWUPS ({len(followups)}): {json.dumps(followups, indent=2)}", flush=True)
+    print(f"FAILURES ({len(failures)}): {json.dumps(failures, indent=2)}", flush=True)
+    assert not failures, failures
+    print(f"PASS: overlay matrix at real {width}x{height} viewport (Layers, tooltips, Reference mechanics)", flush=True)
+
+
+def content_response_checks(url, width=820, height=900):
+    # Slice 4 row B: at fixed W the row responds to font swap and to
+    # selection/caption change without viewport resize, stale callbacks or
+    # density breakage. Container queries own density; no fit key exists.
+    open_fresh_layout(url, width, height)
+    failures = []
+    check_closed_density("content-initial", failures)
+    before = closed_density_report()
+    print(f"CONTENT-INITIAL W{before['W']}: {json.dumps(before)}", flush=True)
+    if abs(before["W"] - 800.0) >= 1.0:
+        failures.append(("content-initial", f"expected fixed W800 at 820px viewport, got {before['W']}"))
+
+    # ---- Font swap at fixed W: fallback stack, then back to the Theme stack ----
+    for tag, family in (("fallback", "monospace"), ("restored", "")):
+        swapped = evaluate(
+            "(()=>{const row=document.querySelector('.workbench-tool-row');" +
+            f"row.style.fontFamily={json.dumps(family)};" +
+            "return row.getBoundingClientRect().width;})()"
+        )
+        wait_for_settled()
+        rep = closed_density_report()
+        print(f"CONTENT-FONT-{tag}: rowW {swapped} {json.dumps(rep)}", flush=True)
+        if abs(rep["W"] - before["W"]) >= 0.5:
+            failures.append((f"content-font-{tag}", f"W moved {before['W']} -> {rep['W']}"))
+        check_closed_density(f"content-font-{tag}", failures)
+        check_entry_reports(f"content-font-{tag}", ENTRIES, failures, width, height)
+    if evaluate("document.querySelector('.workbench-tool-row').style.fontFamily") != "":
+        failures.append(("content-font", "row font override not restored"))
+
+    # ---- Selection/caption change at fixed W: Key -> Row scope ----
+    browser("find", "role", "button", "click", "--name", "Select", "--exact")
+    browser("wait", "--fn", "document.querySelector(\"[data-workbench-section='select'][data-open='true']\")!==null")
+    wait_for_settled()
+    browser("find", "role", "button", "click", "--name", "Select Row", "--exact")
+    browser("wait", "--fn", "document.querySelector(\"[data-workbench-section='select'] [aria-label='Select Row'][aria-pressed='true']\")!==null")
+    wait_for_settled()
+    browser("find", "role", "button", "click", "--name", "Select", "--exact")
+    browser("wait", "--fn", "document.querySelector(\"[data-workbench-section='select'][data-open='false']\")!==null")
+    wait_for_settled()
+    rep = closed_density_report()
+    print(f"CONTENT-CAPTION: {json.dumps(rep)}", flush=True)
+    if abs(rep["W"] - before["W"]) >= 0.5:
+        failures.append(("content-caption", f"W moved {before['W']} -> {rep['W']}"))
+    caption = evaluate("(()=>{const c=document.querySelector(\"[data-workbench-section='select'] .workbench-tool-caption\");" +
+        "return c ? {text:(c.textContent||'').trim(),display:getComputedStyle(c).display} : null;})()")
+    print(f"CONTENT-CAPTION-TEXT: {json.dumps(caption)}", flush=True)
+    if not caption or caption.get('text') != 'Row' or caption.get('display') == 'none':
+        failures.append(("content-caption", f"Select caption did not become shown 'Row': {caption}"))
+    check_closed_density("content-caption", failures)
+    check_entry_reports("content-caption", ENTRIES, failures, width, height)
+    check_page_overflow("content", failures)
+    check_browser_errors(failures)
+    print(f"FAILURES ({len(failures)}): {json.dumps(failures, indent=2)}", flush=True)
+    assert not failures, failures
+    print(f"PASS: content response at fixed W (font swap + caption change) at real {width}x{height} viewport", flush=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--page-url", required=True, help="packaged production page URL (no fixture mode)")
@@ -1431,8 +2811,8 @@ def main():
     parser.add_argument("--height", type=int, default=480)
     parser.add_argument("--setup-matrix", action="store_true",
                         help="Slice 3 B2: create a matrix via the setup guide before Hide guide (enabled Transform/Align)")
-    parser.add_argument("--scenario", choices=["page", "constrained", "assembly3d", "layers"], default="page",
-                        help="page: full viewport proof (default, unchanged); constrained: parent-constrained ledger at 1440x900; assembly3d: 3D branch checks at --width/--height; layers: scoped Layers placement at --width/--height")
+    parser.add_argument("--scenario", choices=["page", "constrained", "assembly3d", "layers", "overlays", "content"], default="page",
+                        help="page: full viewport proof (default, unchanged); constrained: parent-constrained ledger at 1440x900; assembly3d: 3D branch checks at --width/--height; layers: scoped Layers placement at --width/--height; overlays: Slice 4 overlay matrix at --width/--height; content: Slice 4 font/selection response at fixed W")
     args = parser.parse_args()
     try:
         if args.scenario == "constrained":
@@ -1441,6 +2821,10 @@ def main():
             assembly_3d_checks(args.page_url, args.width, args.height)
         elif args.scenario == "layers":
             layers_placement_checks(args.page_url, args.width, args.height)
+        elif args.scenario == "overlays":
+            overlay_surface_checks(args.page_url, args.width, args.height)
+        elif args.scenario == "content":
+            content_response_checks(args.page_url, args.width, args.height)
         else:
             production_viewport_tests(args.page_url, args.width, args.height, setup_matrix=args.setup_matrix)
     finally:

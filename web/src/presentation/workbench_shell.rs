@@ -270,33 +270,88 @@ impl Drop for ToolRowObservers {
     }
 }
 
-fn query_all(root: &web_sys::Element, selector: &str) -> Vec<web_sys::Element> {
-    let Ok(nodes) = root.query_selector_all(selector) else {
-        return Vec::new();
-    };
-    (0..nodes.length())
-        .filter_map(|index| nodes.item(index)?.dyn_into::<web_sys::Element>().ok())
-        .collect()
+struct ToolRowOverlayCancel {
+    mutation: web_sys::MutationObserver,
+    _mutation_callback: Closure<dyn FnMut()>,
 }
 
-fn set_tool_distance(group: &web_sys::Element, track: &web_sys::Element) {
-    if let Some(group) = group.dyn_ref::<HtmlElement>() {
-        let _ = group.style().set_property(
-            "--workbench-tool-distance",
-            &format!("{}px", track.scroll_width()),
-        );
+impl Drop for ToolRowOverlayCancel {
+    fn drop(&mut self) {
+        self.mutation.disconnect();
     }
 }
 
-fn fit_tool_row(live: &web_sys::Element) {
-    // Slice 3 density pilot: container queries own density; keep only measured
-    // animation distance from live tracks (no probe, no fitting attributes).
+fn fit_tool_row(_live: &web_sys::Element) {
+    // Slice 4: entry-only motion translates one allocated track box in CSS, so the
+    // measured scroll-width distance is gone. The observer/effect/font calls stay
+    // until Slice 5 retires them with this stub.
+}
+
+/// Finish the running entry on one track, if any. Uses reflected animation calls
+/// (the ui-shared test seam pattern) so no new web-sys surface is required.
+fn cancel_track_entry(track: &web_sys::Element) {
+    use wasm_bindgen::JsValue;
+    let Ok(get_animations) =
+        js_sys::Reflect::get(track.as_ref(), &JsValue::from_str("getAnimations"))
+    else {
+        return;
+    };
+    let Ok(list) = get_animations
+        .dyn_into::<js_sys::Function>()
+        .map_err(|_| JsValue::NULL)
+        .and_then(|method| method.call0(track.as_ref()))
+    else {
+        return;
+    };
+    for animation in js_sys::Array::from(&list).iter() {
+        let state = js_sys::Reflect::get(&animation, &JsValue::from_str("playState"))
+            .ok()
+            .and_then(|state| state.as_string());
+        if state.as_deref() != Some("running") {
+            continue;
+        }
+        let name = js_sys::Reflect::get(&animation, &JsValue::from_str("animationName"))
+            .ok()
+            .and_then(|name| name.as_string());
+        if name.as_deref() != Some("workbench-tool-enter") {
+            continue;
+        }
+        if let Ok(finish) = js_sys::Reflect::get(&animation, &JsValue::from_str("finish"))
+            && let Ok(finish) = finish.dyn_into::<js_sys::Function>()
+        {
+            let _ = finish.call0(&animation);
+        }
+    }
+}
+
+/// Slice 4: when a lane overlay opens mid-entry, finish that lane's entry so fixed
+/// descendants position against the viewport from the first overlay frame.
+/// `finish()` settles to the end keyframe without re-arming the animation, so a
+/// later overlay close cannot replay the entry the way a CSS toggle would.
+fn cancel_entries_for_open_overlays(live: &web_sys::Element) {
     if !live.is_connected() {
         return;
     }
-    for group in query_all(live, "[data-workbench-section]") {
+    let Ok(groups) = live.query_selector_all("[data-workbench-section]") else {
+        return;
+    };
+    for index in 0..groups.length() {
+        let Some(group) = groups
+            .item(index)
+            .and_then(|node| node.dyn_into::<web_sys::Element>().ok())
+        else {
+            continue;
+        };
+        let overlay_open = group
+            .query_selector("[data-slot='tooltip'][data-state='open'], #m1-layers-trigger[aria-expanded='true'], #m1-layout-align-menu[data-state='open']")
+            .ok()
+            .flatten()
+            .is_some();
+        if !overlay_open {
+            continue;
+        }
         if let Some(track) = group.query_selector(".workbench-tool-track").ok().flatten() {
-            set_tool_distance(&group, &track);
+            cancel_track_entry(&track);
         }
     }
 }
@@ -379,6 +434,47 @@ pub(super) fn ToolRow(label: String, children: Element) -> Element {
     });
     use_drop(move || {
         observers.borrow_mut().take();
+    });
+    let overlay_cancel = use_hook(|| Rc::new(RefCell::new(None::<ToolRowOverlayCancel>)));
+    use_effect({
+        let overlay_cancel = overlay_cancel.clone();
+        move || {
+            let Some(root_element) = root() else { return };
+            if overlay_cancel.borrow().is_some() {
+                return;
+            }
+            let cancel_root = root_element.clone();
+            let cancel_callback = Closure::<dyn FnMut()>::new(move || {
+                cancel_entries_for_open_overlays(&cancel_root);
+            });
+            let Ok(mutation) =
+                web_sys::MutationObserver::new(cancel_callback.as_ref().unchecked_ref())
+            else {
+                return;
+            };
+            let options = web_sys::MutationObserverInit::new();
+            options.set_attributes(true);
+            let attribute_filter = js_sys::Array::new();
+            for attribute in ["data-state", "aria-expanded"] {
+                attribute_filter.push(&attribute.into());
+            }
+            options.set_attribute_filter(&attribute_filter);
+            options.set_child_list(true);
+            options.set_subtree(true);
+            if mutation
+                .observe_with_options(&root_element, &options)
+                .is_err()
+            {
+                return;
+            }
+            *overlay_cancel.borrow_mut() = Some(ToolRowOverlayCancel {
+                mutation,
+                _mutation_callback: cancel_callback,
+            });
+        }
+    });
+    use_drop(move || {
+        overlay_cancel.borrow_mut().take();
     });
     rsx! {
         Toolbar { aria_label: label, class: "workbench-tool-row",
@@ -1066,6 +1162,44 @@ mod tests {
                 .is_some()
         })
         .await;
+        // Slice 4: entry-only motion without measured distance. The groups carry
+        // no distance variable; the open track runs the entry rule and the closed
+        // track runs no animation at all (close is immediate).
+        for key in ["alpha", "beta"] {
+            let group = root
+                .query_selector(&format!("[data-workbench-section='{key}']"))
+                .unwrap()
+                .unwrap()
+                .dyn_into::<HtmlElement>()
+                .unwrap();
+            assert_eq!(
+                group
+                    .style()
+                    .get_property_value("--workbench-tool-distance")
+                    .unwrap(),
+                "",
+                "{key} group carries no measured entry distance"
+            );
+        }
+        let animation_of = |selector: &str| {
+            let el = root.query_selector(selector).unwrap().unwrap();
+            window
+                .get_computed_style(&el)
+                .unwrap()
+                .unwrap()
+                .get_property_value("animation-name")
+                .unwrap()
+        };
+        assert_eq!(
+            animation_of("[data-workbench-section='alpha'] .workbench-tool-track"),
+            "workbench-tool-enter",
+            "the open track runs the entry rule"
+        );
+        assert_eq!(
+            animation_of("[data-workbench-section='beta'] .workbench-tool-track"),
+            "none",
+            "the closed track runs no exit animation"
+        );
         root.query_selector("#tool-row-fixture")
             .unwrap()
             .unwrap()

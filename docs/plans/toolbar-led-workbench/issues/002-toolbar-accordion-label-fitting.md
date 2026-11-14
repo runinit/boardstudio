@@ -861,6 +861,564 @@ Fix, owned-only `web/assets/layout-toolbar.css` Layers rule: `left: anchor(left)
 
 GREEN post-fix: layers scenario `step3-layers390-green-layers-{320,390,728,1440}.log` EXIT 0 (320 list x72-312 first centre 273 hit true; 390 x142-382 centre 343 hit true; 728 x298-538 and 1440 x607.28-847.28 byte-identical to pre-fix, left-anchored preserved); page flow `step3-layers390-green-page-{390,728,1440}.log` EXIT 0 (0 failures, all existing oracles pass); 320 page flow still aborts at the dispositioned Snap assertion with byte-identical values, unchanged by this slice. `check.py browser --only layout` -> `step3-layers390-check-layout.log` EXIT 0 (278 passed). Mutation `layers390-bare-anchor-left` (revert to bare `left: anchor(left)`, rebuild + layers-390): KILLED at both named assertions (right edge 452, first-choice hit), `restored_exact: true` (`step3-layers390-mut/results.json`). No production Rust, no tailwind source edit (build regenerates the bundle copy), no commits. Row O unblocked; Slice 4 owns the overlay matrix. Coordinator independently reran the mutation (`step3-layers390-coordinator-mut/results.json`: killed, restored_exact) and the restored 390 scenario (`step3-layers390-coordinator-green390.log`: PASS).
 
+### 2026-11-14 — Slice 4 motion + overlay integration (Builder)
+
+Base `405e4fbe8` clean. Implements the approved entry-only 280ms motion, the K scroll-reach
+proof with the owed 320 oracle rewrite, R section+panel proof, the O overlay matrix on
+existing surfaces, the coarse-pointer CDP receipt and the B content sub-proofs. All Gortex
+writes applied (no native fallback). Evidence `.evidence/toolbar-rework/step3-slice4-*`.
+
+Motion mechanism (`web/assets/shell.css`, `web/src/presentation/workbench_shell.rs`):
+measured `--workbench-tool-distance`/scrollWidth writing removed (`set_tool_distance` +
+`query_all` deleted as dead; `fit_tool_row` is a stub kept for the Slice 5 observer
+retirement); entry keyframes translate one allocated track box (`translateX(100%)` with
+`transform-box: border-box`); the 170ms exit animation is gone (close is immediate).
+DEVIATION from the design's preferred CSS overlay-cancel: a `:has()`-keyed
+`animation: none` rule was implemented first and proven to RESTART the entry (translate
+0→112px, running 1) on every overlay close — pinned RED by the new no-restart oracle
+(`step3-slice4-overlays-390.log` first runs). Replaced with a `ToolRowOverlayCancel`
+MutationObserver (own hook/effect, `data-state`/`aria-expanded` + childList): when a lane
+overlay opens it `finish()`es that track's running `workbench-tool-enter` via reflected
+WAAPI calls (ui-shared precedent, no new web-sys surface). Finish settles to the end
+keyframe without re-arming: during-entry cancellation and no-restart both GREEN
+under the sampled oracle (first-frame proof hardened in correction row B).
+Shell test pins (same story): no distance var on either group, open track runs
+`workbench-tool-enter`, closed track animation `none`. `ToolbarObserver`, density CQ,
+focus rescue, measuring CSS untouched (Slice 5).
+
+Rows (proof rows K/M/R/O/B per the Revised Step 3 design):
+- M motion — packaged 728 (observed coverage; timing assertions hardened in correction
+  row B): entry maxTx observed 450.0 against a 450 track box on the sampled run
+  (upper-bound assertion only, not an exact one-box proof), intermediate translation,
+  constant icon/text offset + opacity 1, stationary clip per segment, rapid
+  Select→Snap→Select (<280ms, only Select open, settled `none`), nonzero-scroll entry
+  (offset 200 retained, scrolled-out content never hit, settled clip — motion state
+  during the scrolled entry unproven), resize endpoint settles clean (mid-entry timing
+  unproven), close immediate (first closed frames w0/running0/none). RED on baseline:
+  maxTx 747.0 (scrollWidth) and exit running 5.
+- R reduce — packaged 728 (opening direction only; close direction added in correction
+  row B): section + Objects-panel opening toggles under pre-set reduce show zero
+  running row/panel animations from the first mutation (`REDUCED-MOTION`/
+  `REDUCED-PANEL`). No mounted R test: the wasm harness cannot set the media.
+- K scroll reach + 320 rewrite — the dispositioned full-visibility demand is replaced by
+  the oversized-control rule (pressed label shown; enabled, 32px high, in-row,
+  reachable, hit at centre; scroll into the lane as far as width allows). 320: arrows
+  reach Geometry (scroll 0→436, labelW 77.5, center hit, bank + page stable), Enter
+  toggles pressed true→false→restored with focus retained; wheel honestly UNPROVED.
+  320 full page flow passes end-to-end (incl. Layers/Handles/guidance oracles).
+- O overlays — new `--scenario overlays` (390 + 1440): Layers settled/during-entry/
+  after-scroll/resize/reopen GREEN; during-entry cancellation GREEN on
+  Layers/tooltips/guidance (running 1→0, none) with immediate placement+hit; no-restart
+  GREEN; tooltips hover/keyboard(Tab)/scroll/resize/close GREEN; Reference mechanics
+  GREEN (Close hit, Close/Escape→Reference, parent close→Snap, no reopen). O stays
+  BLOCKED on the sub-proofs below (each reproduced on two widths where applicable;
+  recorded REDs in `step3-slice4-overlays-{390,1440}.log`, reused without
+  re-demonstration). Attribution is qualified per the Slice 4 review, not "all
+  pre-existing": (1) Reference dialog clipped by its lane (390 x-44; nested trigger
+  unhit; 1440 vertically clipped, canvas occludes) — O blocker; (2) nested choice +
+  Escape ladder unproven packaged (picker disabled without references; Combobox choice
+  stays mounted) — O proof blocker; (3) Layers list survives section switch (painted,
+  inert) — O/M blocker with a concrete Slice 4 mechanism (the removed `forwards` exit
+  changed fixed-descendant containment), regression attribution unresolved; (4) Layers
+  scroll-follow escapes the clamp (computed left stays 142px, used x tracks scroll:
+  x242 at scroll 0) — O blocker; (5) tooltips stick open (Layers-choice tip through
+  2×Escape occluding the choice at 390; Handles focus tip stuck through real Tab at
+  1440) — attribution unresolved, O blocker where a real close leaves a ghost;
+  (6) View lane outside roving (arrows View→Objects→Inspect, 4 visible tab stops) —
+  follow-up, uncoupled from scenario pass/fail unless it prevents a required O/K path.
+  Escape leaves Layers expanded in both overlay logs, so no dismissal claim rests on it.
+- Coarse pointer — live receipt via held CDP session (stdlib WS):
+  `matchMedia('(pointer: coarse)')` true, footer coarse rule live (44px touch height),
+  maxTouchPoints 1; row 42px + seven entries hit closed and Select/Snap/View open, no
+overflow, no errors at 390 (`step3-slice4-coarse.log`). Proves live coarse activation
+(media, rule, touch); the bounded-row geometry reconciliation lands in correction row F.
+- B content — new `--scenario content` at fixed W800: monospace fallback swap and
+  Key→Row scope change keep W800/42px/exact closed density/seven entries, caption
+  becomes shown `Row`, no errors (`step3-slice4-content.log`).
+
+Mutations (all `scripts/mutation-check.py --locked`, all `restored_exact: true`):
+| Mutant | Oracle | Result |
+|---|---|---|
+| M fade-label (opacity in enter keyframes) | packaged 728 | KILLED at `opacity motion` |
+| M animate-clip-instead-of-track (2% amplitude: full amplitude breaks clicks first) | packaged 728 | KILLED at `moving clip select x` |
+| R ignore reduced motion (impossible media clause) | packaged 728 | KILLED at zero-animation assert (running 1, tx 450) |
+| O remove parent-section detail dismissal | layout `closing_the_align_section_dismisses_its_reference_detail` | SURVIVED, unresolved named mutation (2 attempts): bounded redundancy hypothesis only — a Tab-out probe was reported to close the detail without a section change, but no retrievable evidence path was recorded, so the claim is dropped pending the row-E mounted experiment (signal/programmatic parent close with nested picker open); dismissal behavior stays GREEN mounted + packaged |
+| F/K remove inert from retained closed reveal | layout `accordion_sections_keep_existing_tools_inline` | KILLED at the line-686 inert selector assert |
+
+Gates: shell wasm 6/0; `check.py browser --only layout` 278+2 EXIT 0; scoped rustfmt
+clean; wasm clippy `-D warnings` clean; packaged page flows 320/390/728/1440 EXIT 0
+(728 via the mutation baseline on the final tree); fresh final build, site verified
+clean of mutant residue. No drag-smoke/full gates, no commits, no stash (transfer).
+
+Owned diff: 4 files including this ticket (script oracles/scenarios, shell.css motion
+rules, workbench_shell.rs mechanism + test pins); no layout_toolbar.rs change (FK/O
+mutants restored exactly); no tailwind hand-edit. O stays BLOCKED in this slice until
+its required surfaces pass or the user changes the boundary — not rolled into Slice 5
+silently. Remains for Slice 5/closure: retire observers/fonts/measuring CSS +
+`fit_tool_row` stub; View-lane roving follow-up; Availability/Action parity; final
+review + integrated gate.
+
+### 2026-11-14 — Slice 4 correction pass, rows A–F (Builder)
+
+Addresses the Slice 4 combined review (S4-1–S4-7, `.evidence/toolbar-rework/step3-slice4-review.md`,
+CHANGES REQUIRED/BLOCKED) on the uncommitted candidate. Transfer:
+`.evidence/toolbar-rework/step3-slice4-correction-transfer.md`; checkpoint
+`.evidence/toolbar-rework/step3-slice4-fix-checkpoint.md`. No Slice 5, no primitive/popup
+rewrite, no drag-smoke/full gates, no commits, no stash, no hand-edits to generated
+tailwind.css (bundle regenerated by builds). Gortex impact before production changes;
+detect/tests/guards/contract after (tests 0/3 graph-linked — packaged oracles live
+outside the graph; guards none; contract behavioral-warn reviewed: additive changes,
+existing callers unaffected).
+
+- A ticket claims: qualified O attribution (6 items, O BLOCKED, no "all pre-existing",
+  no Escape-sanity claim), M/R narrowed to observed coverage, O survivor restated as
+  unresolved named mutation (Tab-out claim dropped: no evidence path), 4 files incl.
+  ticket, 320-abort prose + Key→Row comment fixed.
+- B timing honesty: exact-`none` settled assertions everywhere; R observers kept
+  through close with phase-labeled transitions both directions (section + Objects
+  panel); M one-box band against the untransformed track box + first-update capture +
+  intermediate samples, per-frame scroll/tx/running in the scrolled segment,
+  resize-mid-entry proof (entry running at the step, immediate realloc, per-segment
+  clip), Align disabled-unit opacity segment (6 units @0.5 baseline); first-frame
+  cancel recorder (exact `none` + B1 kills) on Layers/tips/guidance/Reference at
+  390 + 1440. CORRECTION-2 AMENDS the timing claims: the recorder sampled action
+  time after click/focus with a 60ms look-back (not same-task at-action), recorded
+  rect/hit without asserting them, and the resize guard accepted any pre-step
+  running sample (entry could finish before the step). Strengthened in
+  correction-2 with same-task pre capture, first-frame geometry+hit+anchor asserts
+  and resize bracketing. Guards without
+  natural faults (one-box first-update promptness, resize immediate-reallocation,
+  per-segment sampler copies) are documented as structural: existence assertions
+  self-prove on GREEN (they fail on empty/settled data), the shared predicates
+  carry kills, samplers got a diff read.
+- C scenario honesty: roving diagnostic moved to a follow-ups list (uncoupled from
+  pass/fail); Layers-Escape rewritten to the real path LayerPanel implements
+  (real Tab into the list → Escape closes → focus visibly to trigger); tooltip
+  close-with-tip-open without pre-dismiss (keyboard close; trusted clicks move the
+  pointer — proven by probe); active_focus_state gains
+  connected/hidden/inert/viewport/center-hit/occluder predicates.
+- D production (all narrow, owner-contained): D1 Reference dialog fixed +
+  clamped CSS plus the shared clamped-placement hook — the hook bypasses
+  `position-anchor` while open (Chrome keeps scroll-gluing anchored dialogs past
+  inline offsets and stale-maps their hit-testing; both proven by probe: +100px
+  drift, inline-top pin restoring hit). CORRECTION-2 AMENDS the "anchored" claim:
+  the GREEN `step3-slice4-fix-overlays-1440g.log` itself shows Layers detached —
+  during entry list x1192 vs settled trigger x607.3, after parent-only resize
+  trigger x352.2 vs list x607.3 (preserved RED; containment+hit passed, anchoring
+  unasserted). Fixed in correction-2 via untransformed anchoring + row-resize +
+  settle tracking with first/settle/post-resize anchor oracles. D2 nested
+  admission (setup page + key
+  selection → Combobox drive packaged: literal options/filter/choose/accepted/
+  Escape-ladder; Select drive + two-stage ladder mounted) plus the staged-Escape
+  flag+refusal fix (the primitive global Escape listener is immune to
+  stopPropagation — first Escape closed both levels; RED then GREEN); D3 Layers
+  section-close observer; D4 hook pinning (scroll-0 list x142, was x242/right-482);
+  D5 ghost root-caused to harness-pointer hover (blur/mouseleave/close-clears all
+  proven working; no product lifecycle change) plus Escape scrollIntoView and a
+  trigger-associated recorder. Overlays 390 + 1440 EXIT 0 (FAILURES 0).
+- E survivor experiment: mounted Reference-open + nested-open programmatic-close
+  (E1) GREEN with rescue to the section trigger; focus-parked-outside variant (E2)
+  GREEN; named O mutant rerun KILLED at the E2 dismissal assertion with exact
+  restoration. CORRECTION-2 AMENDS the redundancy wording: E1 witnesses
+  rescue→section-trigger (supporting, not proving, rescue→focusin→outside-dismiss
+  as a bounded mechanism); the E2 kill is the separately focus-parked-outside
+  experiment. The conjunction (nested-open AND focus-outside simultaneously) was
+  not tested here; correction-2 attempted it and stopped per the stop rule (Select
+  closes on blur + auto-focuses on open; see fix2 checkpoint row 3). S4-5 named
+  survivor discharged; conjunction remains a proof gap listed as follow-up.
+- F coarse geometry: live media activation unreproducible by this builder (CDP
+  page/browser scope, metrics override, set-device — 4 attempts; stop rule), so
+  no new activation experiment per the transfer. Fallback: static rule+selector
+  proof (coarse strips rule exists; all five triggers match; lane/utility buttons
+  keep 32px via higher-specificity shell rules) plus equivalent-sizing geometry
+  (forced 44px triggers): 44-in-42 CONFIRMED REAL — 1.5px vertical spill both
+  sides and Inspect pushed partly off-viewport at 390 (edge hit lost). Fix: the
+  coarse strips rule scoped away from the accordion pill (`.layout-toolbar-
+  strips:not(.layout-toolbar-accordion)`), verified live (triggers no-match,
+  legacy strips still match; bundle regenerated). Fine-pointer gates cover the
+  fixed geometry. CORRECTION-2 STATUS (S4-7, no CSS change here): awaiting user
+  decision (44px coarse targets vs contracted 32px in the 42px row) + live
+  post-fix coarse receipt owed.
+
+Mutations (all `scripts/mutation-check.py --locked`, all `restored_exact: true`):
+| Mutant | Oracle | Result |
+|---|---|---|
+| B1 neuter cancel_entries_for_open_overlays | overlays 390 | KILLED at all four first-frame assertions (Layers/tip/guidance/Reference still carry matrix/running) |
+| B one-box half (100%→50%) | 728 page flow | KILLED at the one-box band |
+| B disabled opacity when open (v2) | 728 | KILLED at disabled constancy (v1 survived: lost to shell (0,5,0); redesigned v2 (0,5,1)) |
+| B clip transition (v2 grid) | 728 | KILLED at clip-stationary (v1 survived: width-transition vacuous on grid sizing; redesigned) |
+| B 1ms entry | 728 | KILLED at intermediate-motion (endpoints-only sampling) |
+| R ignore reduced motion (rerun) | 728 | KILLED at running-zero (open + close phase samples) |
+| O remove parent-section detail dismissal (rerun) | layout E experiments | KILLED at the focus-parked dismissal assertion; nested path maps the redundancy |
+| D2 drop nested on_value_change (both forms) | layout D2-Select + overlays 390 | KILLED at accepted-reference (both tiers; packaged kill is single-failure clean) |
+| D2 ignore picker-Escape flag | overlays 390 | KILLED at ladder-1 (first Escape must close picker only) |
+| D2-Select ladder pre-fix | layout D2-Select | RED (`step3-slice4-fix-mount-d2c.log`: detail closed by first Escape) → GREEN after the flag+refusal fix |
+
+Gates (this pass, current tree): shell wasm 6/0; `check.py browser --only layout`
+281 passed + 2 setup (278 + 3 new tests), 0 failed; scoped rustfmt clean; wasm
+clippy `-D warnings` clean for boardstudio-web-layout + boardstudio-web-ui-shared
+(native clippy checks stubs by design); packaged page flows 320/390/728/1440 EXIT 0;
+layers 320/390/728/1440 EXIT 0; content EXIT 0; overlays 390/1440 EXIT 0. Fresh
+final build; site verified mutant-free by restoration receipts. New seam:
+`use_trigger_clamped_placement` (ui-shared popover.rs), shared by LayerPanel and the
+Align popup — justified against duplication drift, flagged for review.
+
+Remains for coordinator/closure: View-lane roving follow-up (item 6, recorded not
+waived); native touch/trackpad scroll (still UNPROVED); live-coarse post-fix receipt
+(no harness); Availability/Action parity rows; Slice 5 observer/font/measuring
+retirement; delta re-review of this correction (production + oracle changes) per the
+re-review rule; integrated gate. Touch-target tradeoff note: the row keeps its
+contracted 32px entries (44px cannot fit 42px); changing that needs a user decision.
+
+### 2026-11-15 — Slice 4 correction-2, Terra residuals rows 1–4 (Builder)
+
+Addresses the correction delta re-review (S4-1–S4-7 residuals,
+`.evidence/toolbar-rework/step3-slice4-fix-review.md`, CHANGES REQUIRED/BLOCKED) on
+the uncommitted candidate. Transfer:
+`.evidence/toolbar-rework/step3-slice4-fix2-transfer.md`; checkpoint
+`.evidence/toolbar-rework/step3-slice4-fix2-checkpoint.md`. No Slice 5, no coarse CSS
+or sizing change, no drag-smoke/full gates, no commits, no stash, no hand-edits to
+generated tailwind.css. Gortex impact before production changes (popover CRITICAL
+shared-params, canvas_layers HIGH); detect/tests/guards/contract after (detect MEDIUM
+8 files; tests 0/3 graph-linked — packaged oracles live outside the graph; guards
+none; contract behavioral-warn reviewed: additive hook fields/helpers, signature
+stable, LayerPanel + Align callers unaffected).
+
+- Row 1 anchoring (production + oracles): the hook now pins from the untransformed
+  trigger (track tx/ty subtracted, so the first frame anchors before cancel
+  finishes the entry), observes the row for parent-only reflow, re-pins every frame
+  until the track settles (CORRECTION-3 AMENDS the bound claim: fix2's loop had
+  no coded deadline or frame count — stopped only on settled/disappear/cleanup,
+  so a persistent non-`none`/identity transform could persist; fix3 enforces
+  `SETTLE_MAX_MS` 280ms deadline in `popover.rs`, see fix3 entry), and scopes to
+  lane triggers
+  (dock/floating LayerPanel content is not fixed, hook is a no-op there). Anchor
+  bypass (`position-anchor: none` + inline left/top) retained — no return to the
+  probe-proven scroll-gluing/hit-staleness. Oracles assert clamped horizontal
+  anchoring (list/dialog x == clamped trigger x ±2px) at first frame, after settle
+  and after parent-only resize for Layers and the shared-hook Reference dialog;
+  containment+hit checks retained. 1440 GREEN shows the preserved REDs fixed:
+  during-entry list x607.3 vs trigger x607.3 (was 1192), post-resize list x352.2 vs
+  trigger x352.2 (was 607.3); first-visible x607.27 anchored with hit true.
+- Row 2 timing: the recorder samples entry state in the same JS task immediately
+  before the opening action (no 60ms look-back) and asserts first-visible exact
+  `none`/zero plus geometry, viewport, hit and (Layers/Reference) untransformed
+  anchoring (CORRECTION-3 AMENDS the first-frame claim: fix2 checked side margins
+  + y>=triggerBottom but not y+h<=vh for Layers/Reference, and the RAF recorder's
+  first-paint bound was unproven; fix3 adds vertical containment — killed by the
+  +650 mutant with hit true — and records the MutationObserver-microtask-before-
+  paint ordering proof, see fix3 entry). The resize segment captures pre/post entry
+  state in the same task as
+  the width step and requires bracketing running samples plus an intermediate
+  moving sample around the step, with immediate final clip and stationary
+  per-segment clip retained. 728 GREEN: pre/post running 1 (tx 450→410),
+  stepped_at 1 bracketed.
+- Row 3 conjunction: attempted twice, stopped per the stop rule (see checkpoint).
+  Blur-after-open closes the Select listbox; park-then-click auto-focuses into the
+  picker (DIV). The primitive makes nested-open + focus-body unstable, so no
+  conjunction test joins the tree (CORRECTION-3 AMENDS the removal record: an
+  `#[ignore]` conjunction test remained at `layout_toolbar.rs:1164` — 281+1, and
+  its "JS click does not move focus" comment is contradicted by attempt 2's DIV
+  focus; fix3 ran the materially different real-control reachability experiment
+  for Select+Combobox, found nested-open+focus-outside unreachable in both, and
+  removed the ignored test — 281+0, no coverage lost; E1+E2 stay GREEN). The
+  named O mutant is not rerun: the existing kill at the E2 focus-parked dismissal
+  assertion covers the parent-close signal path the conjunction would exercise
+  (reachability, not dismissal, is the remaining gap; see fix3 entry).
+- Row 4 ticket: anchoring/timing/conjunction claims corrected above with preserved
+  REDs; S4-7 status: awaiting user decision (44px coarse targets vs contracted 32px
+  in the 42px row) + live post-fix coarse receipt owed (CORRECTION-3 notes S4-7
+  supersession: this "awaiting" status is historical; the coarse decision receipt
+  entry below — user decision (a) + live held-CDP receipt — discharges S4-7 live
+  geometry, with native touch/trackpad remaining UNPROVED separately; fix3 does
+  not reopen S4-7).
+
+Mutations (all `scripts/mutation-check.py --locked`, all `restored_exact: true`):
+| Mutant | Oracle | Result |
+|---|---|---|
+| Fix2 anchor +50px offset | overlays 1440 | KILLED at anchor asserts (Layers first-frame/settled/post-resize + Reference first-frame/settled; list 657 vs 607, 402 vs 352, dialog 785 vs 735) |
+| Fix2 hit +1000px drop | overlays 1440 | KILLED at first-frame hit asserts (Layers + Reference y1112/1116, hit false) |
+| Fix2 no-entry (`animation: none`) | overlays 1440 | KILLED at same-task pre timing asserts (running 0/none at all four sites) |
+| Fix2 resize-after-settle (test-side delay) | 728 page | KILLED at bracketing (`entry not running before the resize step`, pre/post 0/none) |
+| B 1ms entry (reused spec, overlays 1440) | overlays 1440 | SURVIVED honestly: the same-task pre still catches the 1ms entry (running 1); 0ms (`none`) is the breaking case above |
+
+Gates (this pass, current tree): shell wasm 6/0; `check.py browser --only layout`
+281 passed + 1 ignored (CORRECTION-3 corrects the parenthetical: the ignored
+conjunction test was present, not removed — fix3 removes it, 281+0; see row 3)
++ 2 setup, 0 failed;
+scoped rustfmt clean; wasm clippy `-D warnings` clean for boardstudio-web-layout +
+boardstudio-web-ui-shared (native clippy hits the pre-existing ui-shared import
+error; wasm is the compiler inventory per Slice 2); packaged overlays 390/1440 EXIT
+0; layers 390/1440 EXIT 0; page flows 390/728/1440 EXIT 0 (728 carries the resize
+bracketing). Fresh final build; site verified mutant-free by restoration receipts.
+No coarse CSS change; no Slice 5.
+
+Remains for coordinator/closure: S4-7 user decision + live post-fix coarse receipt
+(CORRECTION-3 updates: S4-7 discharged by the coarse receipt below); S4-5 conjunction
+proof gap (CORRECTION-3 updates: fix3 reachability evidence below — needs explicit
+user disposition, not a follow-up); View-lane roving, native touch/trackpad, Availability/
+Action parity, Slice 5 retirement, delta re-review per the re-review rule, integrated
+gate. No Slice 5 or integrated closure is authorized by this builder pass.
+
+### 2026-11-14 — Slice 4 coarse decision receipt (Checker)
+
+S4-7 user decision (2026-11-14): coarse option (a) — contracted 32px entries stay
+in the 42px row under coarse pointers; the 44px coarse rule stays scoped away
+from the toolbar pill (44-in-42 spill proven by the correction equivalent-sizing
+geometry). Live post-fix coarse receipt GREEN on the freshly built packaged page
+(no rebuild needed: served bundle sha256-matched to the worktree and carries the
+scoped rule): `step3-slice4-coarse-decision-attempt1.log` — held CDP session
+(stdlib WS: Target.getTargets → attachToTarget → session
+Emulation.setTouchEmulationEnabled + setEmulatedMedia pointer:coarse/hover:none,
+WS held for all measurements; no JS media override); matchMedia('(pointer:
+coarse)') true, fine false, hover:none true, maxTouchPoints 1; live-rule witness
+header Project button 40px/minH 0px → 44px/minH 44px; five section triggers 32px
+high with no match on the scoped-away rule; row 42px with no row/page horizontal
+overflow; seven entries center+edge hit closed and with Select/Snap/View open;
+gaps ≥4px; no console/page errors. Checkpoint
+`step3-slice4-coarse-decision-checkpoint.md` (incl. an honest serve-provenance
+correction: first runs hit an unknown port occupant, preserved separately; the
+receipt run used an owned fingerprinted server). S4-7 live geometry discharged
+under decision (a); native touch/trackpad scroll remains separately UNPROVED.
+
+### 2026-11-16 — Slice 4 correction-3, F1-F3 (Builder)
+
+Addresses the fix2 delta re-review F1-F3 + ticket accuracy
+(`.evidence/toolbar-rework/step3-slice4-fix2-review.md`, CHANGES REQUIRED/BLOCKED)
+on the uncommitted candidate. Transfer:
+`.evidence/toolbar-rework/step3-slice4-fix3-transfer.md`; checkpoint
+`.evidence/toolbar-rework/step3-slice4-fix3-checkpoint.md`. Discharged items
+(S4-1, S4-3, S4-4, S4-6, S4-7, S4-5 named survivor) not reopened. No Slice 5, no
+coarse CSS/sizing, no commits/stash/full gates, no hand-edits to generated
+tailwind.css. Gortex impact before the popover change (CRITICAL shared seam);
+detect/tests/guards/contract after (detect MEDIUM 8 files; tests 0/3 — packaged
+oracles live outside the graph; guards none; contract behavioral-warn reviewed:
+additive hook fields, signature stable, LayerPanel + Align callers unaffected).
+Gortex refactor delete is read-only on this view (probe/ignored removals via
+Gortex file edits; one codemode-assisted exact deletion for the ignored test —
+no native fallback, no stale writes).
+
+- F1 placement RAF lifetime + re-pin bound (production `popover.rs` + packaged
+  race oracle): the hook retains the outstanding RAF ID in a shared
+  `settle_raf` cell and `cancel_animation_frame`s it before dropping the closure
+  on every cleanup/replacement (close, reopen, unmount via the existing
+  `remove_clamped_placement_listeners` paths); the re-pin loop enforces
+  `SETTLE_MAX_MS` 280ms deadline (`js_sys::Date::now()` start, checked every
+  frame) so it cannot persist on a non-`none`/identity transform. Race oracle
+  `check_placement_raf_race` (Layers, overlays scenario): a style-mutation
+  observer auto-closes in the same microtask checkpoint as the hook's effect
+  (inline left write → RAF scheduled synchronously → observer microtask before
+  any RAF), provably closing before the next frame; asserts cancel called, no
+  in-page/page/browser errors, list closed, no stale inline styles, reopen
+  geometry. RED pre-fix at 1440 (`step3-slice4-fix3-red-f1-1440.log` EXIT 1):
+  pending [14] fired after drop → `closure invoked recursively or after being
+  dropped`, cancel []. GREEN post-fix at 1440+390 (`step3-slice4-fix3-green-f1-
+  {1440,390}.log` EXIT 0): cancel [14], RAF 14 never fired, no errors, reopen
+  placed+hit. Corrects the "bounded 280ms fallback" wording to the implemented
+  deadline (see Row 1 amendment above).
+- F2 first-visible vertical containment + first-paint bound (oracle only): the
+  first-visible branch for Layers+Reference now asserts `rect.y + rect.h <= vh`
+  alongside existing y>=triggerBottom, x margins, anchor and hit. Killed by the
+  `Fix3-vertical-overflow` mutant (+650px hook shift):
+  `step3-slice4-fix3-mut-vertical/results.json` killed, `restored_exact: true`;
+  first-frame bottom 922.5 (Layers) + 920.5 (Reference) with hit True both —
+  the hit target stays in viewport, so the vertical predicate kills
+  independently (Layers settled has no bottom check; Reference settled also
+  fails as expected for the persistent mutant, with first-visible listed first).
+  F1 race passes under the mutant (cancel [14], no errors). First-paint bound:
+  CORRECTION-4 AMENDS the "no negative-control mutant" record below: fix4 ran
+  the one-paint deferred-cancellation control (`Fix4-firstpaint-defer1raf` —
+  `finish()` deferred by exactly one rAF in `cancel_track_entry`) and it is
+  KILLED at the first-visible assertions (Layers/Tip/Reference all carry
+  matrix/running + miss hit/anchor at first overlay-visible frame;
+  `step3-slice4-fix4-mut-firstpaint/results.json`, `restored_exact: true`).
+  The proven bound is therefore first-*sampled*-frame sensitivity: a
+  one-paint-late cancellation is rejected by the oracle in the tested open
+  paths. The ordering argument below is retained as supporting (observer
+  microtask before RAF sample), not as a paint-instrumented proof; no claim
+  is made beyond the sampled-frame control. Original fix3 ordering (retained
+  as supporting): Overlay open always mutates an attribute the `ToolRowOverlayCancel` MutationObserver watches
+  (`workbench_shell.rs`: `["data-state", "aria-expanded"]` + childList + subtree;
+  Layers sets `aria-expanded`, Reference/tooltips set `data-state`); its callback
+  synchronously calls `cancel_entries_for_open_overlays`, which WAAPI-`finish()`es
+  the running `workbench-tool-enter` with no RAF deferral. MutationObserver
+  callbacks are microtasks, which run after the opening mutation and before the
+  next RAF sample and before paint — so the first RAF sample seeing overlay
+  visible necessarily sees entry already finished (`none`/0), and no paint can
+  show overlay-visible-with-entry-running. Combined with the B1 never-cancelled
+  kill at all four first-frame assertions, plus the fix4 one-paint deferral
+  kill at all three first-visible sites, the recorder is proven sensitive to a
+  one-frame-late cancellation in the tested open paths. CORRECTION-4 replaces
+  fix3's "one-paint miss is impossible" with this sampled-frame control; no
+  paint-instrumented proof is claimed. No paint-level
+  overclaim beyond this ordering.
+- F3 conjunction reachability (materially different experiment; the two failed
+  synthetic orderings not repeated): mounted fixture, real in-detail Close focus
+  then real outside focus (`.focus()` on `#scope-probe-select-column`, which fires
+  outside `focusin` without touching `open_menu`) plus outside `.click()` pointer
+  variant, for Select (3 refs) and Combobox (13 refs), observing nested open state
+  + `activeElement` at each step (`step3-slice4-fix3-probe-f3.log`, temporary probe
+  since removed). SELECT: picker opens (active DIV); Close focus → picker CLOSED,
+  focus restored to nested trigger; outside focus → detail CLOSED (active outside);
+  reopen + outside click → picker/detail unchanged (`.click()` moves no focus,
+  fires no outside-dismiss). COMBOBOX: picker opens (active INPUT, stays); Close
+  focus → picker CLOSED, focus stays on Close; outside focus → detail CLOSED;
+  reopen + outside click → unchanged. Verdict (CORRECTION-4 AMENDS the
+  categorical "UNREACHABLE" below): nested-open + focus-outside was unreached
+  in the two tested synthetic orderings only — any `.focus()` leaving the
+  picker closed it (even in-detail), any `.focus()` leaving the detail closed
+  it, and synthetic `.click()` moved no focus. Trusted pointerdown, touch and
+  BODY-parking with picker open were untested here; fix4 completes those three
+  paths for both pickers (see fix4 entry) and still reaches no conjunction —
+  the proof gap remains for explicit user disposition, not a discharge. Original
+  fix3 categorical text (superseded): nested-open + focus-outside is UNREACHABLE in both picker paths — any focus leaving the picker closes it (even
+  in-detail), and any focus leaving the detail closes it; synthetic `.click()`
+  cannot move focus outside at all. Per the transfer, STOP as proof gap needing
+  explicit user disposition — no discharge claim, no combined test, no O rerun
+  (existing E2 kill stands for the dismissal path; reachability is the gap). The
+  leftover `#[ignore]` conjunction test removed (its "JS click does not move focus"
+  comment contradicted by attempt 2's DIV auto-focus and by this probe's
+  inside/outside click asymmetry); see Row 3 amendment above. Test-count impact:
+  layout `281 passed + 1 ignored` → `281 passed + 0 ignored` — passed unchanged,
+  ignored removed with no coverage lost (it never ran; E1+E2 stay GREEN).
+
+Mutations (all `scripts/mutation-check.py --locked`, all `restored_exact: true`):
+| Mutant | Oracle | Result |
+|---|---|---|
+| Fix3 vertical +650px overflow | overlays 1440 | KILLED at first-frame bottom (Layers 922.5 + Reference 920.5, hit True both) |
+
+Gates (this pass, current tree): shell wasm 6/0; `check.py browser --only layout`
+281 passed + 0 ignored + 2 setup, 0 failed; scoped rustfmt clean; wasm clippy
+`-D warnings` clean for boardstudio-web-layout + boardstudio-web-ui-shared;
+packaged overlays 390/1440 EXIT 0 (carry F1 race GREEN + F2 vertical); page flows
+390/1440 EXIT 0; layers/content/728 not rerun (unaffected oracles; 728 resize
+bracketing reused from fix2). Fresh builds under lock; site verified mutant-free
+by restoration receipts + post-mutant rebuild. No Slice 5.
+
+Remains for coordinator/closure: S4-5 conjunction proof gap — explicit user
+disposition required (fix3 reachability evidence above; do not waive by review
+wording); View-lane roving, native touch/trackpad, Availability/Action parity,
+Slice 5 retirement, delta re-review per the re-review rule, integrated gate. No
+Slice 5 or integrated closure is authorized by this builder pass.
+
+### 2026-11-16 — Slice 4 correction-4, F2 first-paint + F3 bound (Builder)
+
+Addresses the fix3 delta re-review F2 first-paint + F3 sections
+(`.evidence/toolbar-rework/step3-slice4-fix3-review.md`, CHANGES REQUIRED/BLOCKED)
+on the uncommitted candidate. Two bounded rows only; no Slice 5, no coarse
+CSS/sizing, no commits/stash/full gates, no hand-edits to generated
+tailwind.css. Owned: ticket 002 corrections,
+`.evidence/toolbar-rework/step3-slice4-fix4-*`; `scripts/test-workbench-viewport.py`
+recorder untouched (Row 1 killed without strengthening);
+`web/src/presentation/workbench_shell.rs` untouched (mutant restored exact, no
+test seam); `web/crates/layout/src/objects/layout_toolbar.rs` untouched (Row 2
+reached no conjunction, so no combined test). Gortex `explore/task` for
+localization; native reads for evidence/ticket (markdown, no localization
+contract); native edits for ticket/probe (evidence/scratch + ticket-owned
+markdown). Build/test under shared build lock; owned `serve-web.py` on 4173
+(PID 1391231, killed unknown `http.server` occupant serving the same worktree
+site, since stopped).
+
+- Row 1 F2 first-paint negative control (packaged overlays 1440): the
+  `Fix4-firstpaint-defer1raf` mutant defers the entry `finish()` in
+  `cancel_track_entry` by exactly one `requestAnimationFrame` (per-animation
+  `Closure::<dyn FnMut(f64)>::new` + `window.request_animation_frame` +
+  `forget`; spec
+  `.evidence/toolbar-rework/step3-slice4-fix4-mut-firstpaint-spec.json`).
+  `scripts/mutation-check.py --locked` with rebuild +
+  `test-workbench-viewport.py --scenario overlays` at 1440:
+  `step3-slice4-fix4-mut-firstpaint/results.json` KILLED, `restored_exact:
+  true`, exit 1. First failure is the intended first-visible assertion:
+  `LAYERS-DURING-ENTRY` "first overlay-visible frame still carries the
+  entry" with `transform: matrix(1, 0, 0, 1, 643.15, 0)`, `running: 1`,
+  `hit: false` (list x1755.7, unanchored, outside margins); the same
+  transform/hit failures repeat at `TIP-DURING-ENTRY` (matrix 643.18) and
+  `REFERENCE-DURING-ENTRY` (matrix 643.17, y-28, unanchored) — 10 failures,
+  all first-visible/first-frame (transform/geometry/hit), none settled-only.
+  Baseline `_baseline.log` is GREEN (FAILURES 0). Attempt 1 was a
+  compile-failure (missing `FnMut(f64)` annotation, does not count;
+  preserved at `step3-slice4-fix4-mut-firstpaint-attempt1-compilefail/`);
+  attempt 2 killed first try, so no recorder strengthening was needed and
+  none was made. Proven bound (replaces fix3's "one-paint miss is
+  impossible"): the oracle rejects a one-paint-late cancellation at the
+  first sampled overlay-visible frame in the tested Layers/tip/Reference open
+  paths. No paint-instrumented claim beyond this sampled-frame control; the
+  MutationObserver-microtask ordering is retained as supporting only (see Row
+  1 amendment in the fix3 entry above).
+- Row 2 F3 bound completion (packaged, trusted input): extends the fix3 probe
+  method with Terra's three paths, for Select (1×3 matrix, BUTTON form, 5
+  options) and Combobox (5×6 matrix, INPUT form, 59 options) while
+  nested-open, observing detail open + picker open + `activeElement` at each
+  step (probe `.evidence/toolbar-rework/step3-slice4-fix4-probe-f3.py`, log
+  `.evidence/toolbar-rework/step3-slice4-fix4-probe-f3.log`, EXIT 0): (a)
+  trusted pointerdown on a real non-focusable outside element (agent-browser
+  mouse down/up at canvas body-point 720,800, verified outside detail); (b)
+  touch tap outside (held-CDP `setTouchEmulationEnabled` +
+  `Input.dispatchTouchEvent` touchStart/touchEnd at the same point, WS held
+  per the coarse recipe); (c) parking focus on BODY via
+  `activeElement.blur()` while picker open. Per-path outcomes (all
+  CONJUNCTION false):
+  | Picker | Path | After | detail | picker | active | InDetail |
+  |---|---|---|---|---|---|---|
+  | Select | C blur | blur | true | false | BUTTON Alignment reference (nested trigger) | true |
+  | Select | A pointerdown | down | false | false | svg canvas group | false |
+  | Select | A click | up | false | false | svg canvas group | false |
+  | Select | B touchStart | start | false | true (lingering, 5 opts) | BUTTON Align section trigger | false |
+  | Select | B touchEnd | end | false | false | svg canvas group | false |
+  | Combobox | C blur | blur | true | false | BODY | false |
+  | Combobox | A pointerdown | down | false | true (lingering, 59 opts) | svg canvas group | false |
+  | Combobox | A click | up | false | false | svg canvas group | false |
+  | Combobox | B touchStart | start | false | true (lingering, 59 opts) | BUTTON Align section trigger | false |
+  | Combobox | B touchEnd | end | false | false | svg canvas group | false |
+  Blur closes the picker in both forms (Select refocuses its nested trigger
+  inside; Combobox parks at BODY with detail still open — E2-like, picker
+  closed). Trusted pointerdown and touch tap close detail+picker with focus
+  outside (canvas/section-trigger); the touchStart/pointerdown transient
+  `detail:false + picker:true` is picker linger after detail close, not the
+  `detail:true + picker:true + focus-outside` conjunction. NO path reached
+  nested-open + focus-outside-detail. Per the transfer, no combined test and
+  no O rerun (existing E2 kill stands for the dismissal path); the conjunction
+  remains a proof gap for explicit user disposition — do not waive by review
+  wording. See Row 2 amendment in the fix3 entry above; fix3's categorical
+  UNREACHABLE is superseded by this bounded table.
+
+Mutations (all `scripts/mutation-check.py --locked`, all `restored_exact: true`):
+| Mutant | Oracle | Result |
+|---|---|---|
+| Fix4 one-paint defer 1rAF | overlays 1440 | KILLED at first-visible transform/hit/anchor (Layers matrix 643.15 + Tip 643.18 + Reference 643.17, 10 first-frame failures) |
+
+Gates (this pass, current tree): packaged overlays 1440 EXIT 0
+(`step3-slice4-fix4-overlays-1440.log`, FAILURES 0) + 390 EXIT 0
+(`step3-slice4-fix4-overlays-390.log`, FAILURES 0, incl. F1 race GREEN);
+scoped rustfmt clean (`rustfmt --edition 2024 --check` on
+`workbench_shell.rs` + `layout_toolbar.rs`, EXIT 0); clippy unchanged (no Rust
+files changed — mutant restored exact, no recorder/test/seam edits; fix3 wasm
+clippy receipts reused). Layout browser not rerun (no test added); shell wasm
+not rerun (shell untouched); page/layers/content/728 not rerun (unaffected
+oracles). Fresh post-mutant rebuild under lock
+(`step3-slice4-fix4-build-postmut1.log`, EXIT 0); site verified mutant-free by
+restoration receipt. Serve stopped + browsers closed at exit. No commits/stash.
+Test-count impact: none (no tests added/removed; layout 281+0 unchanged).
+
+Remains for coordinator/closure: S4-5 conjunction proof gap — explicit user
+disposition required on the bounded fix3+fix4 reachability evidence above (do
+not waive by review wording); View-lane roving, native touch/trackpad scroll,
+Availability/Action parity, Slice 5 retirement, delta re-review per the
+re-review rule, integrated gate. No Slice 5 or integrated closure is authorized
+by this builder pass.
+
+User disposition (2026-11-16): the S4-5 combined conjunction test is WAIVED on
+the bounded fix3+fix4 reachability evidence — across Select and Combobox,
+focus-inside, blur, trusted pointerdown and touch paths, the conjunction was
+not reached in the observed snapshots of the tested paths (focus movement out
+closes the picker; pointer/touch close detail+picker, mid-gesture linger only;
+visibility during a held or cancelled gesture remains unproved). This is a
+bounded observation, not a proof that no supported path can reach it. E1
+(nested-open programmatic close), E2 (focus-parked programmatic close) and the
+named O dismissal mutant killed at E2 stand as the dismissal proof. This
+waives the combined test only; it does not discharge View roving, native
+touch/trackpad scroll, parity, Slice 5 or the integrated closure gate.
+
 ### Earlier implementation receipts
 
 - 2026-11-11 Availability/action-parity builder: both mounted tests GREEN in `.evidence/toolbar-m1/002-availability-parity-attempt4.log` (11 executed, 0 failed). First-column scope is chosen through Select before Transform, matching the existing scope controls and column-specific action labels. Attempt 2 reached a Follow-rotation fixture with no accepted scope; attempt 3 added an anchor source key, board membership and shared layout following `matrix_edit_test_support`, and availability passed. Attempt 3 parity failed because clicking SW14 did not populate the combobox input; the existing `combobox_floor_filter_active_descendant_selection_and_escape` test establishes filtering, ArrowDown and Enter as a selection path. Attempt 4 uses that path and retains the SW14 selection and resulting alignment assertions. The later host failures in attempts 1–3 followed the shared-WASM panic-hook cascade. Receipts: `.evidence/toolbar-m1/002-availability-parity-attempt{1,2,3,4}.log`. Gortex writes for the two initial test corrections returned `view_building` twice each, so those used the user-authorized native fallback; the parity correction and this ticket entry used Gortex. No production change, full gate, mutation, review or closure claim.

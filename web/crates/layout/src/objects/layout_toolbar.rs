@@ -12,7 +12,7 @@ use boardstudio_web_ui_shared::ui::{
     input::InputType,
     input_group::{InputGroup, InputGroupInput},
     label::Label,
-    popover::{Popover, PopoverContent, PopoverTrigger},
+    popover::{Popover, PopoverContent, PopoverTrigger, use_trigger_clamped_placement},
     select::{Select, SelectOption},
     toggle_group::{ToggleGroup, ToggleItem},
     toolbar::{Toolbar, ToolbarButton},
@@ -27,7 +27,8 @@ use std::{
 };
 use wasm_bindgen::{JsCast, closure::Closure};
 use web_sys::{
-    Document, FocusEvent as WebFocusEvent, HtmlElement, Node, PointerEvent as WebPointerEvent,
+    Document, FocusEvent as WebFocusEvent, HtmlElement, KeyboardEvent as WebKeyboardEvent, Node,
+    PointerEvent as WebPointerEvent,
 };
 
 const DEFAULT_PITCH_MM: f64 = 19.05;
@@ -505,6 +506,8 @@ mod tests {
         open: Option<LayoutCommandMenu>,
         tools: bool,
         accordion: bool,
+        #[props(default)]
+        references: Vec<(String, String)>,
     }
 
     #[component]
@@ -532,15 +535,25 @@ mod tests {
                 |_: super::super::layout_transform_toolbar::LayoutTransformTool| {},
             ),
         };
+        let mut selected_reference = use_signal(|| None::<String>);
         let align = super::super::layout_align::LayoutAlignMount {
-            references: Vec::new(),
-            selected_reference: None,
+            references: props
+                .references
+                .iter()
+                .map(|(id, label)| super::super::layout_align::AlignReference {
+                    id: id.clone(),
+                    label: label.clone(),
+                })
+                .collect(),
+            selected_reference: selected_reference(),
             action: None,
             enabled: false,
             disabled_reason: None,
             busy: false,
             feedback: None,
-            on_reference: EventHandler::new(|_: String| {}),
+            on_reference: EventHandler::new(move |value: String| {
+                selected_reference.set(Some(value))
+            }),
             on_align: EventHandler::new(|_: super::super::layout_align::AlignAction| {}),
         };
         let pill = rsx! {
@@ -602,17 +615,25 @@ mod tests {
         open: Option<LayoutCommandMenu>,
         tools: bool,
     ) -> web_sys::Element {
-        mount_pill_with_options(open, tools, false).await
+        mount_pill_with_options(open, tools, false, Vec::new()).await
     }
 
     async fn mount_accordion_pill(open: Option<LayoutCommandMenu>) -> web_sys::Element {
-        mount_pill_with_options(open, true, true).await
+        mount_pill_with_options(open, true, true, Vec::new()).await
+    }
+
+    async fn mount_accordion_pill_with_refs(
+        open: Option<LayoutCommandMenu>,
+        references: Vec<(String, String)>,
+    ) -> web_sys::Element {
+        mount_pill_with_options(open, true, true, references).await
     }
 
     async fn mount_pill_with_options(
         open: Option<LayoutCommandMenu>,
         tools: bool,
         accordion: bool,
+        references: Vec<(String, String)>,
     ) -> web_sys::Element {
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
@@ -624,6 +645,7 @@ mod tests {
                     open,
                     tools,
                     accordion,
+                    references,
                 },
             ),
             dioxus_web::Config::new().rootnode(root.clone().into()),
@@ -887,6 +909,239 @@ mod tests {
         );
         click(&html("#m1-layout-align-section-trigger")).await;
         assert!(!detail_open(), "returning to Align does not reopen it");
+        root.remove();
+    }
+
+    async fn key(element: &web_sys::HtmlElement, key: &str) {
+        let event = web_sys::KeyboardEventInit::new();
+        event.set_key(key);
+        event.set_bubbles(true);
+        element
+            .dispatch_event(
+                &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &event)
+                    .unwrap(),
+            )
+            .unwrap();
+        gloo_timers::future::TimeoutFuture::new(40).await;
+    }
+
+    fn probe_references() -> Vec<(String, String)> {
+        vec![
+            ("SW1".to_owned(), "SW1".to_owned()),
+            ("SW2".to_owned(), "SW2".to_owned()),
+            ("SW3".to_owned(), "SW3".to_owned()),
+        ]
+    }
+
+    #[wasm_bindgen_test]
+    async fn nested_reference_select_chooses_a_literal_reference_and_escapes_in_two_stages() {
+        use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
+        let root = mount_accordion_pill_with_refs(None, probe_references()).await;
+        let document = root.owner_document().unwrap();
+        let html = |selector: &str| {
+            root.query_selector(selector)
+                .unwrap()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlElement>()
+                .unwrap()
+        };
+        let detail_open = || {
+            document
+                .query_selector("#m1-layout-align-menu[data-state='open']")
+                .unwrap()
+                .is_some()
+        };
+        let picker_open = || by_role_name(&root, "listbox", "Alignment reference").is_some();
+        click(&html("#m1-layout-align-section-trigger")).await;
+        click(&html("#m1-layout-align-trigger")).await;
+        assert!(detail_open(), "Reference detail opens");
+        let menu = document
+            .query_selector("#m1-layout-align-menu")
+            .unwrap()
+            .unwrap();
+        let nested =
+            by_role_name(&menu, "button", "Alignment reference").expect("nested Select trigger");
+        assert!(
+            !nested.has_attribute("disabled"),
+            "picker admits choice with references"
+        );
+        assert!(
+            nested
+                .text_content()
+                .is_some_and(|text| text.contains("Select an option")),
+            "no reference accepted yet"
+        );
+        nested.focus().unwrap();
+        key(&nested, "ArrowDown").await;
+        wait_until("picker opens with literal options", picker_open).await;
+        wait_until("focus enters an option", || {
+            document
+                .active_element()
+                .is_some_and(|active| active.get_attribute("role").as_deref() == Some("option"))
+        })
+        .await;
+        let options = root.query_selector_all("[role='option']").unwrap();
+        assert_eq!(options.length(), 3, "three literal references offered");
+        let active = || {
+            document
+                .active_element()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlElement>()
+                .unwrap()
+        };
+        key(&active(), "ArrowDown").await;
+        key(&active(), "Enter").await;
+        wait_until("choice is accepted", || {
+            nested
+                .text_content()
+                .is_some_and(|text| text.contains("SW2"))
+        })
+        .await;
+        assert!(!picker_open(), "choice closes the picker");
+        assert!(detail_open(), "detail stays open after choice");
+        key(&nested, "ArrowDown").await;
+        wait_until("picker reopens", picker_open).await;
+        wait_until("focus re-enters an option", || {
+            document
+                .active_element()
+                .is_some_and(|active| active.get_attribute("role").as_deref() == Some("option"))
+        })
+        .await;
+        key(&active(), "Escape").await;
+        wait_until("first Escape closes the picker", || !picker_open()).await;
+        assert!(
+            detail_open(),
+            "Detail stays open after first Escape (focus: {:?})",
+            document.active_element().map(|active| active.tag_name())
+        );
+        wait_until("focus returns to the nested trigger", || {
+            document
+                .active_element()
+                .is_some_and(|focused| focused == web_sys::Element::from(nested.clone()))
+        })
+        .await;
+        key(&nested, "Escape").await;
+        wait_until("second Escape closes the detail", || !detail_open()).await;
+        assert_eq!(
+            document.active_element().unwrap().id(),
+            "m1-layout-align-trigger",
+            "focus restores to Reference"
+        );
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn programmatic_parent_close_dismisses_reference_detail_with_nested_picker_open() {
+        use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
+        let root = mount_accordion_pill_with_refs(None, probe_references()).await;
+        let document = root.owner_document().unwrap();
+        let html = |selector: &str| {
+            root.query_selector(selector)
+                .unwrap()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlElement>()
+                .unwrap()
+        };
+        let detail_open = || {
+            document
+                .query_selector("#m1-layout-align-menu[data-state='open']")
+                .unwrap()
+                .is_some()
+        };
+        let picker_open = || {
+            document
+                .query_selector("#m1-layout-align-menu [role='listbox']")
+                .unwrap()
+                .is_some()
+        };
+        // All programmatic: section, detail and picker open without pointer
+        // events; focus follows only the picker's own auto-focus.
+        click(&html("#m1-layout-align-section-trigger")).await;
+        click(&html("#m1-layout-align-trigger")).await;
+        assert!(detail_open(), "Reference detail opens");
+        let menu = document
+            .query_selector("#m1-layout-align-menu")
+            .unwrap()
+            .unwrap();
+        let nested = by_role_name(&menu, "button", "Alignment reference").expect("nested picker");
+        key(&nested, "ArrowDown").await;
+        wait_until("nested picker opens", picker_open).await;
+        // Programmatic parent-section close: the probe button sets open_menu
+        // to None with no focus move and no pointer event.
+        click(&html("#pill-probe-open")).await;
+        assert!(
+            !detail_open(),
+            "programmatic parent close dismisses the detail with nested open"
+        );
+        wait_until("nested choices close with the detail", || !picker_open()).await;
+        // The production close-focus rescue owns focus now: it must land
+        // visibly on the section trigger, never stranded in the inert lane.
+        // (This destination also witnesses the rescue path for mutant triage.)
+        wait_until("focus rescues to the section trigger", || {
+            document
+                .active_element()
+                .is_some_and(|active| active.id() == "m1-layout-align-section-trigger")
+        })
+        .await;
+        click(&html("#m1-layout-align-section-trigger")).await;
+        assert!(
+            !detail_open(),
+            "returning to Align does not reopen the detail"
+        );
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn programmatic_parent_close_dismisses_reference_detail_with_focus_parked_outside() {
+        let root = mount_accordion_pill_with_refs(None, probe_references()).await;
+        let document = root.owner_document().unwrap();
+        let html = |selector: &str| {
+            root.query_selector(selector)
+                .unwrap()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlElement>()
+                .unwrap()
+        };
+        let detail_open = || {
+            document
+                .query_selector("#m1-layout-align-menu[data-state='open']")
+                .unwrap()
+                .is_some()
+        };
+        // The detail auto-focuses on open by product design; blur back to
+        // body (fires no focusin, so outside-dismiss stays silent) to isolate
+        // the parent-close effect: no lane focusin (no rescue claim), no
+        // pointerdown, no focus change at close.
+        click(&html("#m1-layout-align-section-trigger")).await;
+        click(&html("#m1-layout-align-trigger")).await;
+        assert!(detail_open(), "Reference detail opens");
+        if let Some(active) = document.active_element()
+            && let Ok(active) = active.dyn_into::<web_sys::HtmlElement>()
+        {
+            let _ = active.blur();
+        }
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        assert!(detail_open(), "parking focus does not dismiss the detail");
+        assert_eq!(
+            document.active_element().unwrap().tag_name(),
+            "BODY",
+            "focus parked outside before the programmatic close"
+        );
+        click(&html("#pill-probe-open")).await;
+        assert!(
+            !detail_open(),
+            "programmatic parent close dismisses the detail with focus outside"
+        );
+        assert_eq!(
+            document.active_element().unwrap().tag_name(),
+            "BODY",
+            "no hidden focus after close"
+        );
+        click(&html("#m1-layout-align-section-trigger")).await;
+        assert!(
+            !detail_open(),
+            "returning to Align does not reopen the detail"
+        );
         root.remove();
     }
 
@@ -1690,6 +1945,7 @@ impl LayoutCommandMenu {
 }
 
 type MenuOutsideListener = Rc<RefCell<Option<(Document, Closure<dyn FnMut(WebPointerEvent)>)>>>;
+type PickerEscapeListener = Rc<RefCell<Option<(Document, Closure<dyn FnMut(WebKeyboardEvent)>)>>>;
 
 fn remove_menu_outside_listener(listener: &MenuOutsideListener) {
     if let Some((document, callback)) = listener.borrow_mut().take() {
@@ -2666,6 +2922,21 @@ fn LayoutSnapInline(
     }
 }
 
+/// Whether the reference detail's nested picker is currently open, read
+/// synchronously at keydown: the picker's own signal is primitive-internal,
+/// so the trigger's expanded state is the contract.
+fn nested_picker_open(menu_id: &str) -> bool {
+    web_sys::window()
+        .and_then(|window| window.document())
+        .and_then(|document| {
+            document
+                .query_selector(&format!("#{menu_id} [aria-expanded='true']"))
+                .ok()
+                .flatten()
+        })
+        .is_some()
+}
+
 /// Free-form settings use Popover; action-only menus use DropdownMenu.
 #[component]
 pub(super) fn LayoutCommandPopup(
@@ -2680,17 +2951,82 @@ pub(super) fn LayoutCommandPopup(
     } else {
         format!("Close {label}")
     };
+    // D1: while the Alignment Reference dialog is open, pin it under its lane
+    // trigger clamped to the viewport (other popups keep CSS-only placement).
+    // Gap 0: the side margin class supplies the 8px below the trigger.
+    let align_open = menu == LayoutCommandMenu::Align && open_menu() == Some(menu);
+    use_trigger_clamped_placement(
+        menu.trigger_id().to_owned(),
+        format!("m1-layout-{}-menu", menu.key()),
+        align_open,
+        0.0,
+    );
     use_effect(move || {
         if open_menu() == Some(menu) {
             focus_layout_popup(&format!("m1-layout-{}-menu", menu.key()));
         }
     });
+    // Two-stage Escape for the Reference detail: the nested reference picker
+    // consumes the first Escape while open (its own list handler), but the
+    // popover's document-level Escape listener cannot tell the stages apart
+    // (same-node native listener: the picker's stopPropagation cannot reach
+    // it). Record a synchronous capture-phase flag while the picker is open
+    // and refuse that one popover close; the next Escape finds the picker
+    // closed and dismisses the detail.
+    let picker_escape_flag: Rc<Cell<bool>> = use_hook(|| Rc::new(Cell::new(false)));
+    let picker_escape_listener: PickerEscapeListener = use_hook(|| Rc::new(RefCell::new(None)));
+    {
+        let picker_escape_flag = picker_escape_flag.clone();
+        let effect_escape_listener = picker_escape_listener.clone();
+        let drop_escape_listener = picker_escape_listener.clone();
+        let escape_menu_id = format!("m1-layout-{}-menu", menu.key());
+        let escape_menu_is_align = menu == LayoutCommandMenu::Align;
+        use_effect(move || {
+            if effect_escape_listener.borrow().is_some() {
+                return;
+            }
+            let Some(document) = web_sys::window().and_then(|window| window.document()) else {
+                return;
+            };
+            let flag = picker_escape_flag.clone();
+            let callback_menu_id = escape_menu_id.clone();
+            let callback = Closure::wrap(Box::new(move |event: WebKeyboardEvent| {
+                if !escape_menu_is_align || event.key() != "Escape" {
+                    return;
+                }
+                if nested_picker_open(&callback_menu_id) {
+                    flag.set(true);
+                }
+            }) as Box<dyn FnMut(_)>);
+            let _ = document.add_event_listener_with_callback_and_bool(
+                "keydown",
+                callback.as_ref().unchecked_ref(),
+                true,
+            );
+            *effect_escape_listener.borrow_mut() = Some((document, callback));
+        });
+        use_drop(move || {
+            if let Some((document, callback)) = drop_escape_listener.borrow_mut().take() {
+                let _ = document.remove_event_listener_with_callback_and_bool(
+                    "keydown",
+                    callback.as_ref().unchecked_ref(),
+                    true,
+                );
+            }
+        });
+    }
     rsx! {
         Popover {
             open: open_menu() == Some(menu), is_modal: false,
             on_open_change: move |next| {
                 if next { open_menu.set(Some(menu)); }
-                else if open_menu() == Some(menu) { dismiss_layout_popup(open_menu, menu, &format!("m1-layout-{}-menu", menu.key())); }
+                else if open_menu() == Some(menu) {
+                    // The nested picker consumed this Escape: keep the detail open.
+                    if picker_escape_flag.take() {
+                        return;
+                    }
+                    dismiss_layout_popup(open_menu, menu, &format!("m1-layout-{}-menu", menu.key()));
+                }
             },
             PopoverTrigger { id: menu.trigger_id(), aria_label: label.clone(), aria_haspopup: "dialog",
                 aria_expanded: open_menu() == Some(menu),
