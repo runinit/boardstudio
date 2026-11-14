@@ -1264,59 +1264,7 @@ class ReviewRegressionTests(unittest.TestCase):
                 check.run_parallel([['a'], ['b']], {})
         self.assertTrue(queued.cancelled())
 
-class BuildBindingTests(unittest.TestCase):
-    def test_site_identity_rejects_missing_route_and_detects_replacement(self):
-        with tempfile.TemporaryDirectory() as directory:
-            site = Path(directory)
-            first = site / "site-root/index.html"
-            second = site / "site-subpath/boardstudio/index.html"
-            first.parent.mkdir(parents=True)
-            first.write_text("page")
-            self.assertEqual(receipt.site_identity(site), (None, None))
-            second.parent.mkdir(parents=True)
-            second.write_text("page")
-            identity, state = receipt.site_identity(site)
-            self.assertIsNotNone(identity)
-            self.assertEqual(receipt.site_identity(site)[1], state)
-            second.write_text("changed")
-            changed, changed_state = receipt.site_identity(site)
-            self.assertNotEqual(changed_state, state)
-            self.assertNotEqual(changed, identity)
-            self.assertFalse(receipt.fresh_site(state, changed_state))
-            first.write_text("also changed")
-            self.assertEqual(receipt.site_identity(site)[0], changed)
-
-    def test_partial_site_rewrite_observes_output_without_proving_freshness(self):
-        with tempfile.TemporaryDirectory() as directory:
-            site = Path(directory)
-            for route in ("site-root", "site-subpath/boardstudio"):
-                (site / route).mkdir(parents=True)
-                (site / route / "index.html").write_text("old")
-                (site / route / "asset.js").write_text("stale")
-            before = receipt.site_identity(site)[1]
-            for route in ("site-root", "site-subpath/boardstudio"):
-                (site / route / "index.html").write_text("new")
-            output, after = receipt.site_identity(site)
-            binding = receipt.build_binding("run", "attempt", {}, {}, 0, output, receipt.fresh_site(before, after))
-            self.assertEqual(binding["output"], output)
-            self.assertIsNone(binding["site_routes_changed"])
-
-    def test_stale_assets_and_excluded_inputs_cannot_prove_binding(self):
-        identity = {"revision": "a" * 40, "digest": "b" * 64, "dirty": False}
-        with tempfile.TemporaryDirectory() as directory:
-            site = Path(directory)
-            for route in ("site-root", "site-subpath/boardstudio"):
-                (site / route).mkdir(parents=True)
-                (site / route / "index.html").write_text("stale")
-                (site / route / "asset.js").write_text("stale")
-            before = receipt.site_identity(site)[1]
-            for route in ("site-root", "site-subpath/boardstudio"):
-                (site / route / "index.html").write_text("new")
-            output, after = receipt.site_identity(site)
-            binding = receipt.build_binding("run", "attempt", identity, identity, 0, output, receipt.fresh_site(before, after))
-            self.assertEqual(binding["status"], "unknown")
-            self.assertEqual(binding["source_snapshot_comparison"], "equal")
-
+class SourceAndPageCorrelationTests(unittest.TestCase):
     def test_ignored_input_change_does_not_prove_source_binding(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -1342,85 +1290,6 @@ class BuildBindingTests(unittest.TestCase):
             c.observe("browser", command, 0, 1, attempt_id=attempt)
             self.assertFalse(c.finish(0)["commands"][0]["complete"])
 
-    def test_subpath_observation_ignores_stale_root(self):
-        with tempfile.TemporaryDirectory() as directory:
-            site = Path(directory)
-            subpath = site / "site-subpath/boardstudio"
-            subpath.mkdir(parents=True)
-            (subpath / "index.html").write_text("new")
-            output, _ = receipt.site_identity(site)
-            self.assertIsNotNone(output)
-            binding = receipt.build_binding("run", "build", {}, {}, 0, output, None)
-            self.assertEqual(binding["output"], output)
-            root = site / "site-root"
-            root.mkdir()
-            (root / "index.html").write_text("stale")
-            self.assertEqual(receipt.site_identity(site)[0], output)
-            (subpath / "index.html").write_text("changed")
-            self.assertNotEqual(receipt.site_identity(site)[0], output)
-
-    def test_build_capture_respects_output_and_providers_only(self):
-        identity = {"revision": "a" * 40, "digest": "b" * 64, "dirty": False}
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            default = root / "web/target/site/site-subpath/boardstudio"
-            custom = root / "elsewhere/site-subpath/boardstudio"
-            for route, data in ((default, "stale"), (custom, "fresh")):
-                route.mkdir(parents=True)
-                (route / "index.html").write_text(data)
-            for arguments, expected in ((["--output", "elsewhere"], str(custom)),
-                                        (["--output=elsewhere"], str(custom)),
-                                        (["--providers-only"], None)):
-                with self.subTest(arguments=arguments):
-                    collector = receipt.Collector(path=root / "receipt.json", source=identity)
-                    command = ["python3", "scripts/build-web.py", *arguments]
-                    collector.plan_commands([("build", [command])])
-                    with mock.patch.object(check.subprocess, "run", return_value=mock.Mock(returncode=0)), \
-                         mock.patch.object(receipt, "source_identity", return_value=identity), \
-                         contextlib.redirect_stdout(io.StringIO()):
-                        check.run_commands("build", [command], {}, cwd=root, receipt=collector)
-                    output = collector.finish(0)["build_bindings"][0]["output"]
-                    self.assertEqual(output["path"] if output else None, expected)
-
-    def test_scheduler_records_build_attempt_and_source_snapshots(self):
-        identity = {"revision": "a" * 40, "digest": "b" * 64, "dirty": False}
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            collector = receipt.Collector(path=root / "receipt.json", source=identity)
-            command = ["python3", "scripts/build-web.py", "--fast"]
-            collector.plan_commands([("build", [command])])
-            def run(*args, **kwargs):
-                for route in ("site-subpath/boardstudio",):
-                    index = root / "web/target/site" / route / "index.html"
-                    index.parent.mkdir(parents=True)
-                    index.write_text("built")
-                return mock.Mock(returncode=0)
-            with mock.patch.object(check.subprocess, "run", side_effect=run), \
-                 mock.patch.object(receipt, "source_identity", return_value=identity), \
-                 contextlib.redirect_stdout(io.StringIO()):
-                check.run_commands("build", [command], {}, cwd=root, receipt=collector)
-            result = collector.finish(0)
-            binding = result["build_bindings"][0]
-            self.assertEqual(binding["status"], "unknown")
-            self.assertIsNotNone(binding["output"])
-            self.assertEqual(binding["run_id"], result["run_id"])
-            self.assertEqual(binding["attempt_id"], result["commands"][0]["attempt_id"])
-
-    def test_build_binding_requires_matching_source_fresh_output_and_attempt(self):
-        identity = {"revision": "a" * 40, "digest": "b" * 64, "dirty": False}
-        output = {"sha256": "c" * 64}
-        for before, after, code, fresh, attempt, expected in [
-            (identity, identity, 0, True, "attempt", "unknown"),
-            (identity, {**identity, "digest": "d" * 64}, 0, True, "attempt", "unknown"),
-            (identity, identity, 1, True, "attempt", "unknown"),
-            (identity, identity, 0, False, "attempt", "unknown"),
-            (identity, identity, 0, True, None, "unknown"),
-            (identity, identity, 0, True, "attempt", "unknown"),
-        ]:
-            site = output
-            record = receipt.build_binding("run", attempt, before, after, code, site, fresh)
-            self.assertEqual(record["status"], expected)
-            self.assertEqual((record["run_id"], record["attempt_id"]), ("run", attempt))
 
 if __name__ == "__main__":
     unittest.main()

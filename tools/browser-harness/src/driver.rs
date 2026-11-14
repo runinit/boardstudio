@@ -1065,7 +1065,7 @@ pub async fn click_role(
     click_role_timeout(page, root, role, name, Duration::from_secs(60)).await
 }
 
-/// [`click_role`] with an explicit bound, for fast negative probes.
+/// [`click_role`] with an explicit bound, for fast failure controls.
 pub async fn click_role_timeout(
     page: &Page,
     root: Option<BackendNodeId>,

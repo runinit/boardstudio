@@ -564,51 +564,6 @@ def write_receipt(path: Path | str, receipt: dict) -> tuple[Path, Path]:
     return json_path, summary_path
 
 
-def site_identity(path: Path) -> tuple[dict | None, tuple | None]:
-    """Observe the subpath route the build produces."""
-    try:
-        path = path / "site-subpath/boardstudio"
-        if not (path / "index.html").is_file():
-            return None, None
-        files = sorted(p for p in path.rglob("*") if p.is_file())
-        digest = hashlib.sha256()
-        states = []
-        for file in files:
-            if file.is_symlink():
-                return None, None
-            relative = file.relative_to(path).as_posix().encode()
-            data = file.read_bytes()
-            stat = file.stat()
-            digest.update(len(relative).to_bytes(8, "big"))
-            digest.update(relative)
-            digest.update(len(data).to_bytes(8, "big"))
-            digest.update(data)
-            states.append((relative, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns))
-        return {"path": str(path), "sha256": digest.hexdigest()}, tuple(states)
-    except OSError:
-        return None, None
-
-
-def fresh_site(before, after):
-    # Snapshots cannot prove that retained files were produced by this build.
-    return None
-
-
-def build_binding(run_id, attempt_id, before, after, code, output, fresh):
-    def valid(value):
-        return (isinstance(value, dict) and
-                re.fullmatch(r"[0-9a-fA-F]{40}|[0-9a-fA-F]{64}", value.get("revision") or "") and
-                re.fullmatch(r"[0-9a-fA-F]{64}", value.get("digest") or "") and
-                isinstance(value.get("dirty"), bool))
-    comparison = ("equal" if before == after else "different") if valid(before) and valid(after) else "unknown"
-    return {"status": "unknown", "source_snapshot_scope": "git tracked and non-ignored untracked files; excludes ignored and external inputs",
-            "source_snapshot_comparison": comparison,
-            "site_routes_changed": fresh, "run_id": run_id,
-            "attempt_id": attempt_id, "source_before": before, "source_after": after,
-            "output": output if code == 0 else None}
-
-
-
 def source_identity(root: Path, run=subprocess.run) -> dict:
     """The checked-out revision and whether the tree has local changes."""
     def git(*args: str) -> str:
@@ -689,7 +644,6 @@ class Collector:
         self.page_active: dict[str, set[str]] = {}
         self.page_ambiguous: set[str] = set()
         self.page_results: dict[str, dict | None] = {}
-        self.build_bindings = []
         self.lock = threading.RLock()
 
     def plan_commands(self, plan: list[tuple[str, list[list[str]]]]) -> None:
@@ -794,6 +748,5 @@ class Collector:
                               partial=partial, native=self._native(), base=base, base_path=self.base_path,
                               page_loader=lambda path: self.page_results.get(path),
                               run_id=self.run_id, source_after=source_after)
-        built["build_bindings"] = list(self.build_bindings)
         write_receipt(self.path, built)
         return built

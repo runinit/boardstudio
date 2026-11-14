@@ -497,7 +497,7 @@ def launch_command(command, *, registry=None, **kwargs):
 def run_serial(command: Command, environment: dict[str, str], cwd: Path = ROOT,
                captured: list[tuple[Command, str]] | None = None,
                outputs: list[tuple[Command, str]] | None = None,
-               completed=None, build_capture=None) -> tuple[float, int, str, str]:
+               completed=None) -> tuple[float, int, str, str]:
     print("$ " + shlex.join(command), flush=True)
     lock_fd = browser_tools._inherited_build_lock()
     if not any(part in command for part in ("cad/scripts/test-cad-capture-controls.py", "cad/scripts/test-cold-responses.py", "cad/scripts/face-completeness-gate.py", "cad/scripts/test-cad-provider.py", "scripts/build-web.py",
@@ -509,8 +509,6 @@ def run_serial(command: Command, environment: dict[str, str], cwd: Path = ROOT,
     started_at = datetime.now(timezone.utc).isoformat()
     print(f"check: start {started_at} $ {shlex.join(command)}", flush=True)
     def run(*args, **kwargs):
-        if build_capture is not None:
-            build_capture("before", None)
         try:
             result = launch_command(*args, **kwargs)
         except OSError as error:
@@ -518,8 +516,6 @@ def run_serial(command: Command, environment: dict[str, str], cwd: Path = ROOT,
             if kwargs.get("stdout") != subprocess.PIPE:
                 print(message, end="", file=sys.stderr, flush=True)
             result = subprocess.CompletedProcess(command, 127, stdout=message)
-        if build_capture is not None:
-            build_capture("after", result.returncode)
         if completed is not None:
             completed(result.returncode, time.monotonic() - started, started_at, datetime.now(timezone.utc).isoformat())
         return result
@@ -1007,38 +1003,7 @@ def run_commands(name: str, commands: list[Command], environment: dict[str, str]
         if receipt is not None:
             child_env.update(BOARDSTUDIO_RECEIPT_RUN_ID=receipt.run_id, BOARDSTUDIO_RECEIPT_ATTEMPT_ID=attempt)
         args = (command, child_env, cwd, captured, serial_outputs)
-        build_capture = None
-        if receipt is not None and "scripts/build-web.py" in command:
-            state = {}
-            site = cwd / "web/target/site"
-            routes = "subpath"
-            for position, arg in enumerate(command):
-                if arg.startswith("--routes="):
-                    routes = arg.split("=", 1)[1]
-                elif arg == "--routes" and position + 1 < len(command):
-                    routes = command[position + 1]
-                elif arg.startswith("--output="):
-                    site = cwd / arg.split("=", 1)[1]
-                elif arg == "--output" and position + 1 < len(command):
-                    site = cwd / command[position + 1]
-            site = site.resolve()
-            observes_subpath = ("--providers-only" not in command and
-                                "subpath" in (route.strip() for route in routes.split(",")))
-            def build_capture(phase, code):
-                source = verification_receipt.source_identity(cwd)
-                if phase == "before":
-                    state["source"] = source
-                    _, state["site"] = verification_receipt.site_identity(site)
-                    receipt.build_bindings.append(verification_receipt.build_binding(
-                        receipt.run_id, attempt, source, None, None, None, False))
-                else:
-                    output, site_after = verification_receipt.site_identity(site) if code == 0 and observes_subpath else (None, None)
-                    receipt.build_bindings[-1] = verification_receipt.build_binding(
-                        receipt.run_id, attempt, state.get("source"), source, code, output,
-                        verification_receipt.fresh_site(state.get("site"), site_after))
-        elapsed, code, started_at, ended_at = (run_serial(*args, completed, build_capture)
-                                                if build_capture else
-                                                run_serial(*args, completed) if completed else run_serial(*args))
+        elapsed, code, started_at, ended_at = run_serial(*args, completed) if completed else run_serial(*args)
         total += elapsed
         if receipt is not None:
             try:
