@@ -9180,9 +9180,8 @@ mod tool_tests {
     }
 
     /// Dispatch a script-created pointer event. The returned event is never
-    /// trusted: mounted drag coverage proves wiring and math through this
-    /// seam, while real trusted-pointer proof lives in the packaged-page
-    /// mouse smoke.
+    /// trusted: mounted drag coverage is the required gate for wiring and math
+    /// through this seam; the packaged-page mouse smoke is an opt-in diagnostic.
     fn dispatch_pointer(
         target: &web_sys::Element,
         kind: &str,
@@ -9223,10 +9222,10 @@ mod tool_tests {
     }
 
     /// Ticket 23: the mounted drag harness dispatches script-created pointer
-    /// events, which the platform never trusts. This pins the coverage split:
-    /// mounted tests prove drag wiring and math, and the packaged-page mouse
-    /// smoke (`scripts/test-drag-interactions.cjs`) proves the same gestures
-    /// with real trusted pointer events.
+    /// events, which the platform never trusts. This pins that limit: mounted
+    /// tests are the required proof for drag wiring and math, while the
+    /// packaged-page mouse smoke (`check.py drag-smoke`) is an opt-in trusted-
+    /// pointer diagnostic, not a gate.
     #[wasm_bindgen_test]
     async fn mounted_pointer_dispatch_is_synthetic_never_trusted() {
         let document = web_sys::window().unwrap().document().unwrap();
@@ -9636,9 +9635,9 @@ mod tool_tests {
     }
 
     /// One synthetic pointer drag on the handle: down, move, up. The dispatched
-    /// events are script-created, so `isTrusted` is always false here; real
-    /// trusted-pointer proof for the drags lives in the packaged-page mouse
-    /// smoke (`scripts/test-drag-interactions.cjs`, `check.py drag-smoke`).
+    /// events are script-created, so `isTrusted` is always false here; the
+    /// packaged-page mouse smoke (`check.py drag-smoke`) is only an opt-in
+    /// trusted-pointer diagnostic.
     /// Returns the handle's `data-quick-offset` after the down and after the
     /// move.
     async fn drag_handle(

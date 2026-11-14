@@ -528,12 +528,15 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
         spec.loader.exec_module(drag)
         for value in ("node", "other", ""):
             with self.subTest(value=value), mock.patch.dict(os.environ, {"BOARDSTUDIO_DRAG_DRIVER": value}), \
-                    mock.patch.object(check, "run_plan") as run_plan, \
+                    mock.patch.object(check, "run_plan", return_value=0) as run_plan, \
                     mock.patch.object(drag.browser_tools, "build_drag_harness") as build:
-                for steps in (["drag-smoke"], ["browser"], list(check.DEFAULT), ["build", "browser"]):
-                    with contextlib.redirect_stderr(io.StringIO()) as error:
-                        self.assertEqual(check.run(steps), 1)
-                    self.assertIn("BOARDSTUDIO_DRAG_DRIVER", error.getvalue())
+                for steps in (["browser"], list(check.DEFAULT), ["build", "browser"]):
+                    self.assertEqual(check.run(steps), 0)
+                self.assertEqual(run_plan.call_count, 3)
+                run_plan.reset_mock()
+                with contextlib.redirect_stderr(io.StringIO()) as error:
+                    self.assertEqual(check.run(["drag-smoke"]), 1)
+                self.assertIn("BOARDSTUDIO_DRAG_DRIVER", error.getvalue())
                 with self.assertRaises(SystemExit) as raised:
                     drag.main()
                 self.assertIn("BOARDSTUDIO_DRAG_DRIVER", str(raised.exception))
@@ -731,7 +734,7 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
         for name in check.STEPS:
             self.assertIn(name, output.getvalue())
 
-    def test_browser_step_builds_fresh_page_assets_before_the_drag_smoke(self):
+    def test_browser_step_uses_mounted_launches_without_the_drag_smoke_gate(self):
         captured = {}
 
         def record(plan, update_native_baseline=False):
@@ -740,15 +743,13 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
 
         with mock.patch.object(check, "run_plan", side_effect=record):
             self.assertEqual(check.run(["browser"]), 0)
-        self.assertEqual([name for name, _ in captured["plan"]], ["build", "browser"])
+        self.assertEqual([name for name, _ in captured["plan"]], ["browser"])
         commands = captured["plan"][-1][1]
-        launches = [index for index, command in enumerate(commands) if check.is_crate_launch(command)]
-        smoke = commands.index(check.DRAG_SMOKE)
-        # Fail-fast order changed deliberately: the smoke runs after the whole crate-launch
-        # batch, whose binary it prebuilds beside.
-        self.assertGreater(smoke, launches[-1])
-        prebuild = commands.index(check.HARNESS_PREBUILD)
-        self.assertEqual(prebuild, launches[0] - 1)
+        self.assertNotIn(check.DRAG_SMOKE, commands)
+        self.assertNotIn(check.HARNESS_PREBUILD, commands)
+        self.assertIn("layout", [check.launch_crate(command) for command in commands])
+        self.assertEqual(check.STEPS["drag-smoke"], (False, [check.DRAG_SMOKE]))
+        self.chrome.assert_not_called()
 
     def test_drag_smoke_can_run_as_a_fresh_build_preflight(self):
         captured = {}
@@ -762,9 +763,9 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
         self.assertEqual([name for name, _ in captured["plan"]], ["build", "drag-smoke"])
         self.assertEqual(captured["plan"][-1][1], [check.DRAG_SMOKE])
 
-    def test_missing_browser_tools_fail_before_any_command_or_build_is_launched(self):
+    def test_missing_drag_browser_tools_fail_before_any_command_or_build_is_launched(self):
         self.chrome.side_effect = check.browser_tools.MissingBrowserTool("missing browser tool")
-        for names in (["browser"], ["drag-smoke"], list(check.DEFAULT), ["build", "browser"]):
+        for names in (["drag-smoke"],):
             error = io.StringIO()
             with self.subTest(names=names), mock.patch.object(check, "run_plan") as run_plan, \
                     mock.patch.object(check.subprocess, "run") as launch, \
@@ -781,7 +782,7 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
                 self.assertEqual(check.run(["drag-smoke"]), 0)
             self.chrome.assert_called_once_with()
 
-    def test_browser_tools_are_probed_once_before_the_unchanged_command_order(self):
+    def test_drag_browser_tools_are_probed_once_before_the_unchanged_command_order(self):
         calls = []
         self.chrome.side_effect = lambda: calls.append("probe") or "chrome"
 
@@ -790,8 +791,8 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
             return 0
 
         with mock.patch.object(check, "run_plan", side_effect=record):
-            self.assertEqual(check.run(list(check.DEFAULT)), 0)
-        self.assertEqual(calls, ["probe", list(check.DEFAULT)])
+            self.assertEqual(check.run(["drag-smoke"]), 0)
+        self.assertEqual(calls, ["probe", ["build", "drag-smoke"]])
         self.chrome.assert_called_once_with()
 
     def test_scoped_browser_only_does_not_acquire_the_drag_smoke_prerequisites(self):
@@ -901,7 +902,7 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
         gates = commands[:prebuild_index]
         deadline = [check.PY, "cad/scripts/test-cad-browser.py"]
         self.assertEqual(commands[prebuild_index + 1], deadline)
-        self.assertEqual(commands[prebuild_index + 2], check.HARNESS_PREBUILD)
+        self.assertEqual(check.launch_crate(commands[prebuild_index + 2]), "host")
         started, release, finished = threading.Event(), threading.Event(), threading.Event()
         seen = []
 

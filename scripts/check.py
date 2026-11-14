@@ -4,7 +4,7 @@
   check.py                run the full check (the steps marked with * below)
   check.py STEP...        run only the named steps
   check.py browser --only CRATE...   run only the named presentation crate browser launch(es)
-                          (partial subset; skips full page build and drag smoke)
+                          (partial subset; skips the full page build; drag smoke is separate)
   check.py browser --keep-going      continue independent browser launches after a failure
   check.py quick          the routine loop: only the checks that cover your changed files
                           run the full check once after focused checks and fixes
@@ -27,9 +27,11 @@ Steps:
               (`check.py test --update-native-baseline` records a deliberate change)
   lint*       rustfmt and Clippy with warnings denied (workspace lints live in Cargo.toml)
   typecheck   WASM page compilation (the build step already compiles the page for WASM)
-  browser*    mounted headless-browser tests and the real-browser CAD smoke gate; crate launches
-              run up to BOARDSTUDIO_CHECK_JOBS (default 4) at once, without debug info;
+  browser*    mounted headless-browser tests (including Layout drag interactions) and the
+              real-browser CAD smoke checks; crate launches run up to
+              BOARDSTUDIO_CHECK_JOBS (default 4) at once, without debug info;
               the independent native test commands also run together
+  drag-smoke  opt-in real-page trusted-pointer diagnostic; not part of `browser` or the full check
   security    dependency audit of every Rust lockfile (separate CI workflow)
   deny        cargo-deny license, ban and source policy from deny.toml (separate CI workflow)
   precommit   typecheck the page
@@ -132,10 +134,6 @@ def browser() -> list[Command]:
         [PY, "cad/scripts/face-completeness-gate.py"],
         BROWSER_PREBUILD,
         [PY, "cad/scripts/test-cad-browser.py"],
-        # The harness binary prebuilds beside the crate launches; the smoke itself runs after
-        # the batch, needing only the built site and binary. Fail-fast order changes deliberately:
-        # launch failures now surface before the smoke instead of after it.
-        HARNESS_PREBUILD,
         ["wasm-pack", "test", "--headless", "--chrome", "web/crates/host", "--locked", "--features", "page",
          "--lib"],
         ["wasm-pack", "test", "--headless", "--chrome", "web/crates/runtime", "--locked", "--lib"],
@@ -154,7 +152,6 @@ def browser() -> list[Command]:
         # webdriver.json gives it the desktop viewport it needs.
         ["wasm-pack", "test", "--headless", "--chrome", "web/crates/layout", "--locked", "--lib", "--", "--skip", "setup_guide::"],
         ["wasm-pack", "test", "--headless", "--chrome", "web/crates/layout", "--locked", "--lib", "--", "setup_guide::"],
-        DRAG_SMOKE,
         [*wasm_pack, "--bin", "boardstudio-web", "--", "--list"],
         [PY, "scripts/run-wasm-tests.py", "--all", "--depth", "1", *[f"--isolate={name}" for name in ISOLATED],
          "--result-json", "web/target/test-results/browser.json"],
@@ -1465,7 +1462,7 @@ def _main(argv: list[str] | None = None) -> int:
                         help="with `quick`: the changed files, instead of the git diff against main")
     parser.add_argument("--only", nargs="+", action="extend", metavar="CRATE",
                         help="with `browser`: run only the named presentation crate launch(es) "
-                        "(partial subset; skips full page build and drag smoke)")
+                        "(partial subset; skips the full page build; drag smoke is separate)")
     parser.add_argument("--keep-going", action="store_true",
                         help="in `browser`: continue independent browser launches after a failure "
                         "and exit nonzero if any launch failed")
