@@ -750,12 +750,14 @@ class CheckCliTests(unittest.TestCase):
         self.assertGreater(built["invocation"]["planned_commands"], 0)
         self.assertEqual(built["invocation"]["ran_commands"], 0)
 
-    def test_browser_preflight_failure_still_writes_unrun_plan(self):
+    def test_drag_smoke_preflight_failure_still_writes_unrun_plan(self):
+        # Only the opt-in drag smoke has the Chrome preflight; a launch here means it was skipped.
         path = Path(self.temporary.name) / "preflight.json"
         with mock.patch.object(check.browser_tools, "locate_chrome",
                                side_effect=check.browser_tools.MissingBrowserTool("missing browser")), \
+                mock.patch.object(check.subprocess, "run", side_effect=AssertionError("preflight launched a command")), \
                 contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-            self.assertEqual(check.main(["browser", "--receipt", str(path)]), 1)
+            self.assertEqual(check.main(["drag-smoke", "--receipt", str(path)]), 1)
         self.assertTrue(path.exists(), "preflight failure must retain the unrun verification plan")
         built = json.loads(path.read_text())
         self.assertEqual(built["invocation"]["ran_commands"], 0)
