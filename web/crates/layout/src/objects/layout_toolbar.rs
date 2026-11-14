@@ -26,7 +26,9 @@ use std::{
     rc::Rc,
 };
 use wasm_bindgen::{JsCast, closure::Closure};
-use web_sys::{Document, HtmlElement, Node, PointerEvent as WebPointerEvent};
+use web_sys::{
+    Document, FocusEvent as WebFocusEvent, HtmlElement, Node, PointerEvent as WebPointerEvent,
+};
 
 const DEFAULT_PITCH_MM: f64 = 19.05;
 
@@ -750,6 +752,28 @@ mod tests {
         .unwrap();
     }
 
+    /// Calls `target.focus()` then `target.blur()` in the microtask after `reveal` turns
+    /// inert: a voluntary outside visit that ends on body before any deferred check.
+    fn when_inert_focus_then_blur(reveal: &web_sys::Element, target: &web_sys::HtmlElement) {
+        js_sys::Function::new_with_args(
+            "reveal, target",
+            "new MutationObserver((_, observer) => { if (reveal.inert) { observer.disconnect(); target.focus(); target.blur(); } }).observe(reveal, { attributes: true });",
+        )
+        .call2(&wasm_bindgen::JsValue::NULL, reveal, target)
+        .unwrap();
+    }
+
+    /// Calls `target[action]()` in the microtask after `reveal` turns non-inert
+    /// (reopened) and before any deferred focus check can run.
+    fn when_reopened(reveal: &web_sys::Element, target: &web_sys::HtmlElement, action: &str) {
+        js_sys::Function::new_with_args(
+            "reveal, target, action",
+            "new MutationObserver((_, observer) => { if (!reveal.inert) { observer.disconnect(); target[action](); } }).observe(reveal, { attributes: true });",
+        )
+        .call3(&wasm_bindgen::JsValue::NULL, reveal, target, &action.into())
+        .unwrap();
+    }
+
     #[wasm_bindgen_test]
     async fn closing_a_section_returns_only_stranded_lane_focus_to_its_trigger() {
         let root = mount_accordion_pill(None).await;
@@ -805,6 +829,29 @@ mod tests {
             document.body().map(Into::into),
             "a close never takes focus the lane did not hold"
         );
+
+        click(&trigger).await;
+        scope_trigger(&root, "Matrix").focus().unwrap();
+        when_inert_focus_then_blur(&reveal, &close);
+        click(&close).await;
+        assert!(reveal.has_attribute("inert"));
+        assert_eq!(
+            document.active_element(),
+            document.body().map(Into::into),
+            "a voluntary outside focus before the timer cancels the pending rescue even after blur"
+        );
+
+        click(&trigger).await;
+        scope_trigger(&root, "Matrix").focus().unwrap();
+        when_inert(&reveal, &trigger, "click");
+        when_reopened(&reveal, &close, "click");
+        click(&close).await;
+        assert!(reveal.has_attribute("inert"));
+        assert_eq!(
+            document.active_element(),
+            document.body().map(Into::into),
+            "the first close's rescue does not act on a second close without ownership"
+        );
         root.remove();
     }
 
@@ -840,6 +887,130 @@ mod tests {
         );
         click(&html("#m1-layout-align-section-trigger")).await;
         assert!(!detail_open(), "returning to Align does not reopen it");
+        root.remove();
+    }
+
+    // Existing `pill_duplicate_probe_host` always mounts the pill, so it cannot prove
+    // disposal with a pending rescue. This wrapper reuses that production pill behind
+    // a visibility toggle to unmount it exactly like a route switch while the deferred
+    // focus check is still pending.
+    #[component]
+    fn unmount_probe_host() -> Element {
+        let mut show = use_signal(|| true);
+        rsx! {
+            button {
+                id: "unmount-probe-hide",
+                onclick: move |_| show.set(false),
+                "Hide pill"
+            }
+            if show() {
+                pill_duplicate_probe_host {
+                    open: None,
+                    tools: true,
+                    accordion: true,
+                }
+            }
+        }
+    }
+
+    async fn mount_unmount_probe() -> web_sys::Element {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(unmount_probe_host),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        root
+    }
+
+    #[wasm_bindgen_test]
+    async fn unmounting_a_section_cancels_pending_rescue() {
+        let root = mount_unmount_probe().await;
+        let document = root.owner_document().unwrap();
+        let html = |selector: &str| {
+            root.query_selector(selector)
+                .unwrap()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlElement>()
+                .unwrap()
+        };
+        let trigger = html("#m1-layout-select-trigger");
+        let reveal = html("#workbench-section-select");
+        let close = html("#pill-probe-open");
+        let hide = html("#unmount-probe-hide");
+
+        click(&trigger).await;
+        scope_trigger(&root, "Matrix").focus().unwrap();
+        // Observe the browser timer boundary, not just the inert DOM commit: the
+        // rescue future must have been polled before we request production unmount.
+        let probe = js_sys::Function::new_with_args(
+            "reveal, hide",
+            r#"
+            const original = window.setTimeout;
+            const probe = { queued: false, fired: false, errors: [] };
+            // A detached Dioxus task can fail outside the test future without
+            // failing the runner. Observe browser failures, not task ownership.
+            const onError = (event) => probe.errors.push(String(event.error ?? event.message));
+            const onRejection = (event) => probe.errors.push(String(event.reason));
+            window.addEventListener('error', onError);
+            window.addEventListener('unhandledrejection', onRejection);
+            probe.restore = () => {
+                window.setTimeout = original;
+                window.removeEventListener('error', onError);
+                window.removeEventListener('unhandledrejection', onRejection);
+            };
+            window.setTimeout = function(callback, delay, ...args) {
+                if (delay === 0 && reveal.inert && reveal.isConnected) {
+                    window.setTimeout = original;
+                    probe.queued = true;
+                    const id = original.call(window, (...values) => {
+                        probe.fired = true;
+                        callback(...values);
+                    }, delay, ...args);
+                    queueMicrotask(() => hide.click());
+                    return id;
+                }
+                return original.call(window, callback, delay, ...args);
+            };
+            return probe;
+            "#,
+        )
+        .call2(&wasm_bindgen::JsValue::NULL, &reveal, &hide)
+        .unwrap();
+        click(&close).await;
+        js_sys::Reflect::get(&probe, &"restore".into())
+            .unwrap()
+            .dyn_into::<js_sys::Function>()
+            .unwrap()
+            .call0(&probe)
+            .unwrap();
+        assert_eq!(
+            js_sys::Reflect::get(&probe, &"queued".into()).unwrap(),
+            wasm_bindgen::JsValue::TRUE,
+            "the close rescue reached its timer before unmount"
+        );
+        assert!(
+            root.query_selector("#m1-layout-select-trigger")
+                .unwrap()
+                .is_none(),
+            "the pill unmounts with rescue pending"
+        );
+        assert_eq!(
+            document.active_element(),
+            document.body().map(Into::into),
+            "unmount cancels the pending rescue without stealing focus"
+        );
+        let errors = js_sys::Reflect::get(&probe, &"errors".into()).unwrap();
+        assert_eq!(
+            js_sys::JSON::stringify(&errors)
+                .unwrap()
+                .as_string()
+                .unwrap(),
+            "[]",
+            "unmount with pending rescue produces no asynchronous browser failure"
+        );
         root.remove();
     }
 
@@ -1527,6 +1698,15 @@ fn remove_menu_outside_listener(listener: &MenuOutsideListener) {
     }
 }
 
+type SectionFocusListener = Rc<RefCell<Option<(Document, Closure<dyn FnMut(WebFocusEvent)>)>>>;
+
+fn remove_section_focus_listener(listener: &SectionFocusListener) {
+    if let Some((document, callback)) = listener.borrow_mut().take() {
+        let _ = document
+            .remove_event_listener_with_callback("focusin", callback.as_ref().unchecked_ref());
+    }
+}
+
 pub fn close_layout_command_menu(
     mut open_menu: Signal<Option<LayoutCommandMenu>>,
     menu: LayoutCommandMenu,
@@ -1642,19 +1822,69 @@ fn LayoutAccordionSection(
 ) -> Element {
     let expanded = open_menu() == Some(menu);
     let mut reveal = use_signal(|| None::<web_sys::Element>);
-    // (lane holds focus, section was open at the last render)
-    let focus = use_hook(|| Rc::new((Cell::new(false), Cell::new(expanded))));
+    // (lane holds focus, section was open at the last render, close generation)
+    let focus = use_hook(|| Rc::new((Cell::new(false), Cell::new(expanded), Cell::new(0u64))));
+    // A document focus-in to a valid outside element cancels the pending rescue,
+    // even if that destination later blurs to body before the deferred check.
+    let focus_listener: SectionFocusListener = use_hook(|| Rc::new(RefCell::new(None)));
+    {
+        let focus = focus.clone();
+        let effect_listener = focus_listener.clone();
+        let drop_listener = focus_listener.clone();
+        let reveal_signal = reveal;
+        use_effect(move || {
+            if effect_listener.borrow().is_some() {
+                return;
+            }
+            let Some(document) = web_sys::window().and_then(|window| window.document()) else {
+                return;
+            };
+            let listener_document = document.clone();
+            let focus = focus.clone();
+            let callback = Closure::wrap(Box::new(move |event: WebFocusEvent| {
+                let target = event
+                    .target()
+                    .and_then(|target| target.dyn_into::<web_sys::Element>().ok());
+                let Some(target) = target else {
+                    return;
+                };
+                if target.tag_name() == "BODY" {
+                    return;
+                }
+                let Some(reveal) = reveal_signal.peek().clone() else {
+                    return;
+                };
+                if reveal.contains(Some(&target)) {
+                    return;
+                }
+                focus.2.set(focus.2.get().wrapping_add(1));
+            }) as Box<dyn FnMut(_)>);
+            let _ = document
+                .add_event_listener_with_callback("focusin", callback.as_ref().unchecked_ref());
+            *effect_listener.borrow_mut() = Some((listener_document, callback));
+        });
+        use_drop(move || remove_section_focus_listener(&drop_listener));
+    }
     use_effect(use_reactive((&expanded,), {
         let focus = focus.clone();
         move |(expanded,)| {
-            let closed = focus.1.replace(expanded) && !expanded;
+            let prev = focus.1.replace(expanded);
+            if prev != expanded {
+                focus.2.set(focus.2.get().wrapping_add(1));
+            }
+            let closed = prev && !expanded;
             if !(closed && focus.0.replace(false)) {
                 return;
             }
+            let generation = focus.2.get();
+            let focus = focus.clone();
             // Decide after the closing event's own focus change: a reopened section or
             // any destination outside the hidden lane keeps focus.
             spawn(async move {
                 gloo_timers::future::TimeoutFuture::new(0).await;
+                if focus.2.get() != generation {
+                    return;
+                }
                 let Some(reveal) = reveal.peek().clone() else {
                     return;
                 };
