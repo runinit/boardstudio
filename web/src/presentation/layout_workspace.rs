@@ -414,6 +414,14 @@ pub(super) fn add_object_header_action(mut menu_open: Signal<bool>) -> Element {
     }
 }
 
+/// Tooltip triggers stamp their own `data-slot`, which would replace the ToggleItem's
+/// `toggle-group-item` slot that toolbar roving admits (later attributes win). Drop only
+/// that one; tooltip ids, aria and handlers are kept.
+fn keep_toggle_slot(mut attributes: Vec<Attribute>) -> Vec<Attribute> {
+    attributes.retain(|attribute| attribute.name != "data-slot");
+    attributes
+}
+
 pub(super) fn toolbar(input: ToolbarInput) -> Element {
     let utilities = rsx! {
         super::workbench_shell::PanelUtilities {
@@ -472,7 +480,7 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
                                                 index: 0usize,
                                                 aria_label: "2D",
                                                 class: "min-w-8",
-                                                attributes,
+                                                attributes: keep_toggle_slot(attributes),
                                                 svg { class: "fill-none stroke-current", stroke_width: "var(--icon-stroke, 2)", view_box: "0 0 20 20", "aria-hidden": "true",
                                                     rect { x: "3", y: "3", width: "14", height: "14", rx: "2" }
                                                     path { d: "M3 8h14M8 3v14" }
@@ -490,7 +498,7 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
                                                 index: 1usize,
                                                 aria_label: "3D assembly",
                                                 class: "min-w-8",
-                                                attributes,
+                                                attributes: keep_toggle_slot(attributes),
                                                 svg { class: "fill-none stroke-current", stroke_width: "var(--icon-stroke, 2)", view_box: "0 0 20 20", "aria-hidden": "true",
                                                     path { d: "m10 2 7 4v8l-7 4-7-4V6ZM3 6l7 4 7-4M10 10v8" }
                                                 }
@@ -519,7 +527,7 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
                                                     index: 0usize,
                                                     aria_label: "Footprints",
                                                     class: "min-w-8",
-                                                    attributes,
+                                                    attributes: keep_toggle_slot(attributes),
                                                     svg { class: "fill-none stroke-current", stroke_width: "var(--icon-stroke, 2)", view_box: "0 0 20 20", "aria-hidden": "true",
                                                         rect { x: "5", y: "4", width: "10", height: "12", rx: "1" }
                                                         path { d: "M2 7h3M2 13h3M15 7h3M15 13h3" }
@@ -552,7 +560,7 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
                                                 index: 0usize,
                                                 aria_label: "Canvas handles",
                                                 class: "min-w-8",
-                                                attributes,
+                                                attributes: keep_toggle_slot(attributes),
                                                 span { "Handles" }
                                             }
                                         },
@@ -585,7 +593,7 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
                                         index: 0usize,
                                         aria_label: "2D",
                                         class: "min-w-8",
-                                        attributes,
+                                        attributes: keep_toggle_slot(attributes),
                                         svg { class: "fill-none stroke-current", stroke_width: "var(--icon-stroke, 2)", view_box: "0 0 20 20", "aria-hidden": "true",
                                             rect { x: "3", y: "3", width: "14", height: "14", rx: "2" }
                                             path { d: "M3 8h14M8 3v14" }
@@ -603,7 +611,7 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
                                         index: 1usize,
                                         aria_label: "3D assembly",
                                         class: "min-w-8",
-                                        attributes,
+                                        attributes: keep_toggle_slot(attributes),
                                         svg { class: "fill-none stroke-current", stroke_width: "var(--icon-stroke, 2)", view_box: "0 0 20 20", "aria-hidden": "true",
                                             path { d: "m10 2 7 4v8l-7 4-7-4V6ZM3 6l7 4 7-4M10 10v8" }
                                         }

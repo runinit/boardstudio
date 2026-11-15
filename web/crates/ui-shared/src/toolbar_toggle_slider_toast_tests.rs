@@ -3,6 +3,7 @@ use dioxus::prelude::*;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_test::*;
 
+use crate::canvas_layers::{LayerPanel, LayerToggleButton};
 use crate::test_role::{all_by_role_name, by_role_name};
 use crate::test_wait::wait_until;
 use crate::ui::{
@@ -92,6 +93,16 @@ fn fixture() -> Element {
         output { role: "status", aria_label: "Caller focus", "{caller_focus}" }
         output { role: "status", aria_label: "Slider keys", "{slider_keys}" }
         ToastProvider { ToastTrigger {} }
+        // Ticket 002 item 6: only the marked disclosure trigger joins the roving order.
+        // Kept last so ticket-008-keyboard.py's earlier Tab sequence holds.
+        Toolbar { aria_label: "Disclosure tools",
+            ToolbarButton { index: 0usize, "Before layers" }
+            button { tabindex: "-1", "Unmarked action" }
+            LayerPanel { trigger_label: "Tool layers", trigger_id: "ticket-008-tool-layers", list_id: "ticket-008-tool-layers-list",
+                LayerToggleButton { label: "Keys", swatch: "Keys", aria_label: "Hide Keys", visible: true, on_toggle: move |_| {} }
+            }
+            ToolbarButton { index: 1usize, "After layers" }
+        }
     }
 }
 
@@ -237,6 +248,73 @@ async fn toolbar_roves_across_an_embedded_toggle_group() {
             .length(),
         1
     );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn toolbar_admits_only_the_marked_disclosure_trigger() {
+    let root = mount();
+    ready(&root).await;
+    let focused = |name: &str| control(&root, "button", name).matches(":focus").unwrap();
+    let trigger = control(&root, "button", "Tool layers");
+    trigger.click();
+    wait_until("disclosure opens", || {
+        by_role_name(&root, "button", "Hide Keys").is_some_and(|choice| {
+            choice.get_bounding_client_rect().width() > 0.0
+                && choice.closest("[inert]").ok().flatten().is_none()
+        })
+    })
+    .await;
+    let before = control(&root, "button", "Before layers");
+    before.focus().unwrap();
+    // The unmarked button between them is skipped.
+    key(&before, "ArrowRight");
+    wait_until("toolbar reaches the marked disclosure trigger", || {
+        focused("Tool layers")
+    })
+    .await;
+    // The open disclosure's own layer choice is skipped.
+    key(&trigger, "ArrowRight");
+    wait_until("toolbar skips the disclosure's layer choice", || {
+        focused("After layers")
+    })
+    .await;
+    key(&control(&root, "button", "After layers"), "ArrowLeft");
+    wait_until("toolbar returns to the disclosure trigger", || {
+        focused("Tool layers")
+    })
+    .await;
+    // A focused layer choice keeps its own keys: toolbar arrows do not move it.
+    let choice = control(&root, "button", "Hide Keys");
+    choice.focus().unwrap();
+    key(&choice, "ArrowRight");
+    assert!(focused("Hide Keys"));
+    // One toolbar stop, native controls without a tabindex included; the open
+    // disclosure list keeps its own choice stops.
+    let toolbar = control(&root, "toolbar", "Disclosure tools");
+    let focusables = toolbar
+        .query_selector_all("button, a[href], input, select, textarea, [tabindex]")
+        .unwrap();
+    let stops = (0..focusables.length())
+        .filter_map(|index| {
+            focusables
+                .item(index)?
+                .dyn_into::<web_sys::HtmlElement>()
+                .ok()
+        })
+        .filter(|item| {
+            let rect = item.get_bounding_client_rect();
+            item.tab_index() >= 0
+                && !item.has_attribute("disabled")
+                && rect.width() > 0.0
+                && rect.height() > 0.0
+                && item
+                    .closest("[hidden], [inert], [data-slot=collapsible-content]")
+                    .unwrap()
+                    .is_none()
+        })
+        .count();
+    assert_eq!(stops, 1, "{}", toolbar.outer_html());
     root.remove();
 }
 

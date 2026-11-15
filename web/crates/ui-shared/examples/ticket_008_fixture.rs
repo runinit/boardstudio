@@ -1,6 +1,6 @@
 //! Browser entry point for the ticket 008 fixture, without the WASM test harness's main.
 #[cfg(target_arch = "wasm32")]
-pub use boardstudio_web_ui_shared::ui;
+pub use boardstudio_web_ui_shared::{canvas_layers, ui};
 #[cfg(target_arch = "wasm32")]
 #[path = "../src/toolbar_toggle_slider_toast_tests.rs"]
 mod fixture;

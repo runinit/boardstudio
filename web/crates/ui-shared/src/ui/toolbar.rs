@@ -33,9 +33,13 @@ impl Drop for ToolbarObserver {
 
 // The pinned primitive's collection is private; repair focus within this owned toolbar DOM only.
 // Closed accordion reveals retain their controls inert, so only rendered items are stops.
+// `data-toolbar-item` admits a control whose own `data-slot` names a different part
+// (the canvas layers disclosure trigger); its nested choices stay outside.
 fn all_buttons(root: &web_sys::Element) -> Vec<web_sys::HtmlElement> {
     let nodes = root
-        .query_selector_all("[data-slot=toolbar-button], [data-slot=toggle-group-item]")
+        .query_selector_all(
+            "[data-slot=toolbar-button], [data-slot=toggle-group-item], [data-toolbar-item]",
+        )
         .expect("toolbar item selector");
     (0..nodes.length())
         .filter_map(|index| nodes.item(index)?.dyn_into::<web_sys::HtmlElement>().ok())
@@ -56,6 +60,22 @@ fn is_rendered(item: &web_sys::HtmlElement) -> bool {
 
 fn buttons(root: &web_sys::Element) -> Vec<web_sys::HtmlElement> {
     all_buttons(root).into_iter().filter(is_rendered).collect()
+}
+
+/// Whether `item` is wider than the nearest horizontally scrolling ancestor inside `root`.
+fn wider_than_its_lane(item: &web_sys::HtmlElement, root: &web_sys::Element) -> bool {
+    let width = item.get_bounding_client_rect().width();
+    let mut ancestor = item.parent_element();
+    while let Some(current) = ancestor {
+        if current.scroll_width() > current.client_width() {
+            return width > f64::from(current.client_width()) + 0.5;
+        }
+        if &current == root {
+            break;
+        }
+        ancestor = current.parent_element();
+    }
+    false
 }
 
 fn sync_tab_stop(root: &web_sys::Element) {
@@ -152,6 +172,17 @@ pub fn Toolbar(props: ToolbarProps) -> Element {
             };
             event.prevent_default();
             let _ = items[next].focus();
+            // Native focus scrolling leaves a partly clipped item in a scrolling lane
+            // unrevealed; reveal it like native focus does (nearest), centred when it is
+            // wider than its lane so its centre stays reachable (oversized reach rule).
+            let view = web_sys::ScrollIntoViewOptions::new();
+            view.set_block(web_sys::ScrollLogicalPosition::Nearest);
+            view.set_inline(if wider_than_its_lane(&items[next], &element) {
+                web_sys::ScrollLogicalPosition::Center
+            } else {
+                web_sys::ScrollLogicalPosition::Nearest
+            });
+            items[next].scroll_into_view_with_scroll_into_view_options(&view);
             sync_tab_stop(&element);
         },
     });

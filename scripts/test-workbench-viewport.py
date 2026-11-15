@@ -349,8 +349,13 @@ def canvas_visibility_report():
         "if(after&&!isUsable(after)){ try{ btn.scrollIntoView({block:'nearest',inline:'end',behavior:'auto'}); after=detail(); strategy='end'; }catch(_){} }"
         "}"
         "const usable=isUsable(before)?before:(after&&isUsable(after)?after:null);"
+        # Oversized-control reach (ticket 002 item 6): the first lane scroll that leaves the
+        # enabled control in the row and hit at its centre, never a whole-control claim.
+        "const reaches=(r)=>!r.effDis&&!r.effInert&&r.h+1e-6>=32&&r.withinRow&&r.inside&&r.hit;"
+        "let reach=reaches(before)?before:null;"
+        "for(const inline of ['nearest','start','center','end']){ if(reach) break; try{ btn.scrollIntoView({block:'nearest',inline,behavior:'auto'}); const d=detail(); if(reaches(d)) reach=Object.assign(d,{strategy:inline}); }catch(_){} }"
         "try{track.scrollLeft=origScroll;}catch(_){}"
-        "return {before,after,scrolled,strategy,usable:!!usable,usableDetail:usable};"
+        "return {before,after,scrolled,strategy,usable:!!usable,usableDetail:usable,reach};"
         "})()"
     )
 
@@ -506,7 +511,7 @@ def check_layers_open(tag, failures):
     evaluate("document.querySelector('#m1-layers-trigger').click()")
     browser("wait", "--fn", "document.querySelector(\"#m1-layers-trigger\").getAttribute(\"aria-expanded\")===\"true\"")
     wait_for_settled()
-    evaluate("(()=>{ document.querySelectorAll('[data-slot=tooltip-trigger], .layout-selection-guidance').forEach(t=>{ try{ if(document.activeElement===t) t.blur(); t.dispatchEvent(new MouseEvent('mouseleave',{bubbles:true})); }catch(_){} }); })()")
+    evaluate("(()=>{ document.querySelectorAll('[data-slot=tooltip-trigger], [data-slot=tooltip] > button, .layout-selection-guidance').forEach(t=>{ try{ if(document.activeElement===t) t.blur(); t.dispatchEvent(new MouseEvent('mouseleave',{bubbles:true})); }catch(_){} }); })()")
     browser("wait", "--fn", "document.querySelectorAll('[data-slot=tooltip][data-state=open]').length===0")
     check_layers_geometry(tag, failures)
     evaluate("document.querySelector('#m1-layers-trigger').click()")
@@ -1329,6 +1334,135 @@ def matrix_setup_tests(width, height, failures):
     browser("wait", "--fn", "!document.querySelector('[aria-label=\"New matrix\"]')")
 
 
+VIEW_LANE_PATH = ["View", "2D", "3D assembly", "Footprints", "Canvas visibility", "Canvas handles", "Objects", "Inspect"]
+BANK_JS = "[...document.querySelectorAll('[data-workbench-section] > button, .workbench-utility')].map(e=>e.getBoundingClientRect().x)"
+
+
+def toolbar_focus_probe():
+    # Focused control: its label, whether it is inside the row, hit at its centre
+    # (oversized controls are reached, not whole), plus bank/page positions.
+    return evaluate(
+        "(()=>{const a=document.activeElement,row=document.querySelector('.workbench-tool-row');"
+        "const b=a.getBoundingClientRect(),cx=b.x+b.width/2,cy=b.y+b.height/2;"
+        "const el=(cx>=0&&cx<=innerWidth&&cy>=0&&cy<=innerHeight)?document.elementFromPoint(cx,cy):null;"
+        "const t=a.closest('.workbench-tool-track');"
+        "return {aria:a.getAttribute('aria-label'),inRow:!!(row&&row.contains(a)),hit:el===a||!!(el&&a.contains(el)),"
+        "el:el&&!(el===a||a.contains(el))?el.tagName+':'+(el.getAttribute('aria-label')||el.getAttribute('data-slot')||el.className||'').toString().slice(0,60):null,"
+        "scroll:t?t.scrollLeft:null,x:b.x,w:b.width,"
+        f"bank:{BANK_JS},pageX:scrollX,pageY:scrollY}};}})()"
+    )
+
+
+def toolbar_tab_stops():
+    # Every rendered control in the row that real Tab can land on, native
+    # controls without an explicit tabindex included. Inert/hidden lanes are out.
+    return evaluate(
+        "(()=>{const row=document.querySelector('.workbench-tool-row');"
+        "const shown=e=>{const b=e.getBoundingClientRect();return b.width>0&&b.height>0&&!e.closest('[hidden],[inert]');};"
+        "return [...row.querySelectorAll('button,a[href],input,select,textarea,[tabindex]')]"
+        ".filter(e=>shown(e)&&!e.disabled&&e.tabIndex>=0)"
+        ".map(e=>e.getAttribute('aria-label')||(e.textContent||'').trim().slice(0,30));})()"
+    )
+
+
+def press_and_probe(key):
+    browser("press", key)
+    browser("wait", 120)
+    return toolbar_focus_probe()
+
+
+def rove_to(label, key="ArrowRight", limit=14):
+    probe = toolbar_focus_probe()
+    for _ in range(limit):
+        if probe.get("aria") == label:
+            break
+        probe = press_and_probe(key)
+    return probe
+
+
+def view_lane_arrow_paths():
+    # From View: trusted ArrowRight across the lane to Inspect, then ArrowLeft back.
+    forward = [toolbar_focus_probe()]
+    for _ in VIEW_LANE_PATH[1:]:
+        forward.append(press_and_probe("ArrowRight"))
+    reverse = [forward[-1]]
+    for _ in VIEW_LANE_PATH[1:]:
+        reverse.append(press_and_probe("ArrowLeft"))
+    return forward, reverse
+
+
+def view_lane_keyboard_checks(tag, failures):
+    # Ticket 002 item 6: View-open toolbar navigation with trusted keys. One
+    # toolbar Tab stop; arrows cross every lane control in DOM order; focus
+    # reveals clipped lane controls while banks and page stay put.
+    evaluate("(()=>{ document.querySelectorAll('[data-slot=tooltip-trigger], [data-slot=tooltip] > button, .layout-selection-guidance').forEach(t=>{ try{ t.dispatchEvent(new MouseEvent('mouseleave',{bubbles:true})); }catch(_){} }); })()")
+    if toolbar_focus_probe().get("aria") != "View":
+        browser("press", "Shift+Tab")
+        browser("press", "Tab")
+    entry = toolbar_focus_probe()
+    if entry.get("aria") != "View":
+        failures.append((f"view-keys-{tag}", f"real Tab re-entry not on the View trigger: {entry}"))
+        return
+    stops = toolbar_tab_stops()
+    print(f"VIEW-KEYS-STOPS {tag}: {json.dumps(stops)}", flush=True)
+    if stops != ["View"]:
+        failures.append((f"view-keys-{tag}", f"View open must leave exactly one toolbar Tab stop (View), got {stops}"))
+    forward, reverse = view_lane_arrow_paths()
+    print(f"VIEW-KEYS-FORWARD {tag}: {json.dumps(forward)}", flush=True)
+    print(f"VIEW-KEYS-REVERSE {tag}: {json.dumps(reverse)}", flush=True)
+    if [p.get("aria") for p in forward] != VIEW_LANE_PATH:
+        failures.append((f"view-keys-{tag}", f"ArrowRight path {[p.get('aria') for p in forward]}, want {VIEW_LANE_PATH}"))
+    if [p.get("aria") for p in reverse] != VIEW_LANE_PATH[::-1]:
+        failures.append((f"view-keys-{tag}", f"ArrowLeft path {[p.get('aria') for p in reverse]}, want {VIEW_LANE_PATH[::-1]}"))
+    for probe in forward + reverse:
+        if not (probe.get("inRow") and probe.get("hit")):
+            failures.append((f"view-keys-{tag}", f"reached control not revealed and hit in the row: {probe}"))
+        if probe.get("bank") != entry.get("bank") or (probe.get("pageX"), probe.get("pageY")) != (0, 0):
+            failures.append((f"view-keys-{tag}", f"banks/page moved during arrow traversal: {entry} -> {probe}"))
+    end = press_and_probe("End")
+    home = press_and_probe("Home")
+    print(f"VIEW-KEYS-HOME-END {tag}: end {json.dumps(end)} home {json.dumps(home)}", flush=True)
+    if end.get("aria") != "Inspect" or home.get("aria") != "Select":
+        failures.append((f"view-keys-{tag}", f"End/Home must reach Inspect/Select, got {end.get('aria')}/{home.get('aria')}"))
+    # Tab exits from a retained lane stop and Shift+Tab re-enters on it.
+    rove_to("Footprints")
+    exited = press_and_probe("Tab")
+    back = press_and_probe("Shift+Tab")
+    retained = toolbar_tab_stops()
+    print(f"VIEW-KEYS-TAB {tag}: exit {json.dumps(exited)} back {json.dumps(back)} stops {json.dumps(retained)}", flush=True)
+    if exited.get("inRow") or back.get("aria") != "Footprints" or retained != ["Footprints"]:
+        failures.append((f"view-keys-{tag}", f"Tab must exit and Shift+Tab return to the retained Footprints stop: exit {exited}, back {back}, stops {retained}"))
+    # Enter/Space keep the existing view-only toggles and the disclosure working.
+    # Enter toggles and Space restores on every control, so both keys activate each.
+    for label, attr in (("Footprints", "aria-pressed"),
+                        ("Canvas visibility", "aria-expanded"),
+                        ("Canvas handles", "aria-pressed")):
+        reached = rove_to(label)
+        read = f"[...document.querySelectorAll('.workbench-tool-row button')].find(e=>e.getAttribute('aria-label')==={json.dumps(label)}).getAttribute('{attr}')"
+        before = evaluate(read)
+        toggled = press_and_probe("Enter")
+        during = evaluate(read)
+        restored = press_and_probe("Space")
+        after = evaluate(read)
+        print(f"VIEW-KEYS-ACTIVATE {tag} {label}: {before} -Enter-> {during} -Space-> {after} focus {toggled.get('aria')}/{restored.get('aria')}", flush=True)
+        if reached.get("aria") != label or during == before or after != before or toggled.get("aria") != label or restored.get("aria") != label:
+            failures.append((f"view-keys-{tag}", f"Enter then Space on {label} must toggle and restore {attr} and keep focus: {before}->{during}->{after}, focus {toggled}/{restored}"))
+    # Closing View excludes its retained lane controls from both Tab and arrows.
+    rove_to("View", key="ArrowLeft")
+    browser("press", "Enter")
+    browser("wait", "--fn", "document.querySelector(\"[data-workbench-section='view'][data-open='false']\")!==null")
+    wait_for_settled()
+    closed_stops = toolbar_tab_stops()
+    closed_next = press_and_probe("ArrowRight")
+    print(f"VIEW-KEYS-CLOSED {tag}: stops {json.dumps(closed_stops)} next {json.dumps(closed_next)}", flush=True)
+    if closed_stops != ["View"] or closed_next.get("aria") != "Objects":
+        failures.append((f"view-keys-{tag}", f"closed View must exclude lane controls: stops {closed_stops}, ArrowRight reached {closed_next.get('aria')}"))
+    rove_to("View", key="ArrowLeft")
+    browser("press", "Enter")
+    browser("wait", "--fn", "document.querySelector(\"[data-workbench-section='view'][data-open='true']\")!==null")
+    wait_for_settled()
+
+
 def production_viewport_tests(url, width=320, height=480, setup_matrix=False):
     browser("set", "viewport", width, height)
     browser("open", url)
@@ -1447,7 +1581,7 @@ def production_viewport_tests(url, width=320, height=480, setup_matrix=False):
         # Close hover-opened tooltips (mouse may rest over lane after trusted click)
         # so lane overflow (auto/scroll) is measured steady-closed. Tooltip access
         # itself is proven separately via explicit focus/hover.
-        evaluate("(()=>{ document.querySelectorAll('[data-slot=tooltip-trigger], .layout-selection-guidance').forEach(t=>{ try{ if(document.activeElement===t) t.blur(); t.dispatchEvent(new MouseEvent('mouseleave',{bubbles:true})); }catch(_){} }); })()")
+        evaluate("(()=>{ document.querySelectorAll('[data-slot=tooltip-trigger], [data-slot=tooltip] > button, .layout-selection-guidance').forEach(t=>{ try{ if(document.activeElement===t) t.blur(); t.dispatchEvent(new MouseEvent('mouseleave',{bubbles:true})); }catch(_){} }); })()")
         browser("wait", "--fn", "document.querySelectorAll('[data-slot=tooltip][data-state=open]').length===0")
         if sec == "Snap" and width == 320:
             # Slice 4 row K (coordinator disposition 2026-11-14): the fitting-era
@@ -1599,8 +1733,14 @@ def production_viewport_tests(url, width=320, height=480, setup_matrix=False):
                     failures.append((f"view-icon-{sec}", f"icon hit regions <32x32 {icons['small']}, full {icons}"))
                 canvas = canvas_visibility_report()
                 print(f"CANVAS open-{sec}: {json.dumps(canvas)}", flush=True)
-                if not canvas.get("usable"):
-                    failures.append((f"canvas-{sec}", f"Canvas visibility not reachable as whole >=32x32 via lane scroll (fully within all clippers+viewport, hit, enabled), full {canvas}"))
+                # The trigger keeps its natural width (ticket 002 item 6, user-approved CSS
+                # exception 2026-11-14); wider than its lane, it follows the Handles reach rule.
+                seen_canvas = canvas.get("reach") or {}
+                canvas_partial = bool(seen_canvas) and seen_canvas["w"] > seen_canvas["track"]["w"] + 0.5
+                if canvas_partial:
+                    print(f"CANVAS-PARTIAL open-{sec}: {seen_canvas['w']}px control in {seen_canvas['track']['w']}px lane, reachable and hit", flush=True)
+                if not (canvas.get("usable") or canvas_partial):
+                    failures.append((f"canvas-{sec}", f"Canvas visibility not reachable via lane scroll (whole >=32x32 when it fits the lane, otherwise enabled, in row and hit), full {canvas}"))
                 handles = handles_visibility_report()
                 print(f"HANDLES open-{sec}: {json.dumps(handles)}", flush=True)
                 # A control wider than its lane cannot be whole: it stays full width, scrolls into reach and
@@ -1616,6 +1756,7 @@ def production_viewport_tests(url, width=320, height=480, setup_matrix=False):
                 # also runnable standalone via --scenario layers (320 full flow now
                 # passes with the rewritten K oracle; the scenario stays a scoped run).
                 check_layers_open(f"open-{sec}", failures)
+                view_lane_keyboard_checks(f"open-{sec}", failures)
 
     # Panel opens via real accessibility click; Close still needs true hit test.
     for utility, panel_id, close_label in [
@@ -1941,6 +2082,38 @@ def assembly_3d_checks(url, width=1440, height=900):
         if want_shown == (u["display"] == "none"):
             failures.append(("3d-utils", f"utility {u} at W {row['W']}"))
     check_page_overflow("3d", failures)
+    # Ticket 002 item 6: the 3D row keeps one toolbar Tab stop, End/Home cross
+    # it with trusted keys and Enter on 2D returns to the 2D layout. Imperative
+    # focus only seeds the remounted row.
+    evaluate("[...document.querySelectorAll('.workbench-tool-row button')].find(e=>e.getAttribute('aria-label')==='3D assembly').focus()")
+    stops_3d = toolbar_tab_stops()
+    end_3d = press_and_probe("End")
+    home_3d = press_and_probe("Home")
+    path_3d = ["2D", "3D assembly", "Objects", "Inspect"]
+    forward_3d = [home_3d.get("aria")] + [press_and_probe("ArrowRight").get("aria") for _ in path_3d[1:]]
+    reverse_3d = [forward_3d[-1]] + [press_and_probe("ArrowLeft").get("aria") for _ in path_3d[1:]]
+    print(f"KEYS-3D: stops {json.dumps(stops_3d)} end {json.dumps(end_3d)} home {json.dumps(home_3d)} forward {json.dumps(forward_3d)} reverse {json.dumps(reverse_3d)}", flush=True)
+    if stops_3d != ["3D assembly"] or end_3d.get("aria") != "Inspect" or home_3d.get("aria") != "2D":
+        failures.append(("3d-keys", f"3D row must have one Tab stop and End/Home Inspect/2D: stops {stops_3d}, end {end_3d.get('aria')}, home {home_3d.get('aria')}"))
+    if forward_3d != path_3d or reverse_3d != path_3d[::-1]:
+        failures.append(("3d-keys", f"3D row arrows {forward_3d} / {reverse_3d}, want {path_3d} and back"))
+    if reverse_3d[-1] == "2D":
+        browser("press", "Enter")
+        returned_js = ("!!document.querySelector(\"[data-workbench-section='view']\")&&"
+            "[...document.querySelectorAll('.workbench-tool-row button')].some(e=>e.getAttribute('aria-label')==='2D'&&e.getAttribute('aria-pressed')==='true')")
+        returned = False
+        for _ in range(40):
+            returned = evaluate(returned_js)
+            if returned:
+                break
+            time.sleep(0.25)
+        print(f"KEYS-3D-RETURN: {returned}", flush=True)
+        if not returned:
+            failures.append(("3d-keys", "Enter on 2D did not restore the 2D layout (2D pressed, View lane present)"))
+        else:
+            wait_for_settled()
+    else:
+        failures.append(("3d-keys", f"keyboard could not reach 2D to return: {reverse_3d}"))
     check_browser_errors(failures)
     print(f"FAILURES ({len(failures)}): {json.dumps(failures, indent=2)}", flush=True)
     assert not failures, failures
@@ -2265,62 +2438,48 @@ def overlay_surface_checks(url, width=390, height=844):
         failures.append(("tip-no-restart", f"overlay cycle replayed the entry: {restart_frames}"))
     wait_for_settled()
 
-    # ---- Tooltips: Handles via real keyboard focus (Tab) ----
-    # Tab, not arrows: the View lane is outside the toolbar roving scope
-    # (pre-existing defect photographed below), but Tab reaches Handles with
-    # real keystrokes and the tooltip opens from that focus.
-    kb_entry = active_focus_state()
-    for _ in range(8):
-        if kb_entry.get('aria') == 'View':
-            break
-        browser("press", "Shift+Tab")
-        kb_entry = active_focus_state()
+    # ---- Tooltips: Handles via real keyboard focus (toolbar arrows) ----
+    # The View lane is inside the toolbar roving scope (ticket 002 item 6):
+    # real Tab re-enters on the retained stop (Canvas visibility after the
+    # Escape proof above), trusted arrows reach View and then Handles, and the
+    # tooltip opens from that focus.
+    retained_stop = toolbar_tab_stops()
+    browser("press", "Shift+Tab")
+    kb_reentry = press_and_probe("Tab")
+    print(f"TIP-KEYBOARD reentry {json.dumps(kb_reentry)} retained {json.dumps(retained_stop)}", flush=True)
+    if [kb_reentry.get('aria')] != retained_stop:
+        failures.append(("tip-keyboard", f"real Tab re-entry not on the retained toolbar stop {retained_stop}: {kb_reentry}"))
+    kb_entry = rove_to('View', key='ArrowLeft', limit=8)
     if kb_entry.get('aria') != 'View':
         failures.append(("tip-keyboard", f"roving entry not on View trigger: {kb_entry}"))
     else:
-        for _ in range(6):
-            browser("press", "Tab")
-            if active_focus_state().get('aria') == 'Canvas handles':
-                break
-        kb_focus = active_focus_state()
+        kb_focus = rove_to('Canvas handles', limit=6)
         print(f"TIP-KEYBOARD focus {json.dumps(kb_focus)}", flush=True)
         if kb_focus.get('aria') != 'Canvas handles':
-            failures.append(("tip-keyboard", f"Tab never reached Handles: {kb_focus}"))
+            failures.append(("tip-keyboard", f"toolbar arrows never reached Handles: {kb_focus}"))
         else:
             browser("wait", 300)
             tip = tooltip_report('view')
             print(f"TIP-KEYBOARD tip {json.dumps(tip)}", flush=True)
             if not (tip.get('open') and tip.get('hit') and tip.get('withinViewport')):
                 failures.append(("tip-keyboard", f"tooltip did not open from reached focus: {tip}"))
-            browser("press", "Shift+Tab")
+            rove_to('View', key='ArrowLeft', limit=6)
             browser("wait", 250)
 
-    # ---- View-lane roving defect photograph (pre-existing, needs disposition) ----
-    # Architecture contract: one roving tab stop, arrows across enabled visible
-    # controls including lane controls. Observed: arrows from View skip the lane
-    # (View->Objects->Inspect) and the open row holds several real tab stops.
+    # ---- View-lane roving (ticket 002 item 6, required) ----
+    # One toolbar Tab stop with View open; arrows cross every lane control.
     browser("press", "Shift+Tab")
-    browser("press", "Tab")
-    roving_entry = active_focus_state()
-    for _ in range(6):
-        if roving_entry.get('aria') == 'View':
-            break
-        browser("press", "Shift+Tab")
-        roving_entry = active_focus_state()
-    arrow_path = [roving_entry.get('aria')]
-    for _ in range(3):
-        browser("press", "ArrowRight")
-        arrow_path.append(active_focus_state().get('aria'))
-    row_stops = evaluate("(()=>{const r=document.querySelector('.workbench-tool-row');" +
-        "return [...r.querySelectorAll('[tabindex=\"0\"]')].filter(e=>{const b=e.getBoundingClientRect();" +
-        "return b.width>0&&b.height>0&&!e.closest('[hidden]');}).length;})()")
-    print(f"ROVING-DEFECT path {json.dumps(arrow_path)} visibleTabStops {row_stops}", flush=True)
-    if arrow_path[1] != 'Objects' or row_stops <= 1:
-        print("ROVING-DEFECT-UNEXPECTED: arrow path or stop count changed; re-examine", flush=True)
-    # Follow-up, not a scenario blocker (ticket item 6): the broader View-lane
-    # roving defect stays recorded here and in the ticket, uncoupled from O
-    # pass/fail. Required O/K keyboard paths prove Tab access separately.
-    followups.append(("roving-view-lane", f"arrows skip the View lane {arrow_path}, {row_stops} visible tab stops with View open (architecture: one roving stop, arrows across lane controls)"))
+    reentry = press_and_probe("Tab")
+    if reentry.get('aria') != 'View':
+        failures.append(("roving-view-lane", f"real Tab re-entry must return to the retained View stop: {reentry}"))
+    rove_to('View', key='ArrowLeft', limit=8)
+    row_stops = toolbar_tab_stops()
+    forward, reverse = view_lane_arrow_paths()
+    arrow_path = [p.get('aria') for p in forward]
+    back_path = [p.get('aria') for p in reverse]
+    print(f"ROVING path {json.dumps(arrow_path)} back {json.dumps(back_path)} tabStops {json.dumps(row_stops)}", flush=True)
+    if row_stops != ['View'] or arrow_path != VIEW_LANE_PATH or back_path != VIEW_LANE_PATH[::-1]:
+        failures.append(("roving-view-lane", f"View open: stops {row_stops}, arrows {arrow_path}, back {back_path}; want one View stop and {VIEW_LANE_PATH}"))
 
     # ---- Tooltips: Handles focus during entry cancels the entry ----
     # Imperative focus here is timing determinism only; focus-open itself is
@@ -2410,10 +2569,11 @@ def overlay_surface_checks(url, width=390, height=844):
     tip = tooltip_report('view')
     if not tip.get('open'):
         failures.append(("tip-close", f"tooltip not open before the close-with-tip-open story: {tip}"))
-    for _ in range(16):
-        if active_focus_state().get('aria') == 'View':
-            break
+    # Real Shift+Tab re-enters the toolbar on its retained stop (Handles, after
+    # the Tab-away above); toolbar arrows then reach View (ticket 002 item 6).
+    if not toolbar_focus_probe().get('inRow'):
         browser("press", "Shift+Tab")
+    rove_to('View', key='ArrowLeft', limit=8)
     if active_focus_state().get('aria') != 'View':
         failures.append(("tip-close", f"could not focus View trigger for keyboard close: {active_focus_state()}"))
     else:
