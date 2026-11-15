@@ -1,0 +1,38 @@
+# Exact legacy identities 001–003; numeric IDs retain their identity without TOML leading zeros.
+# Shared requirements are verified for each entry's output family; original receipts stay in references.
+
+[[entry]]
+id = 1
+type = "story"
+title = "ZMK export admission"
+description = "Establish the output-specific admission seam with ZMK: the accepted board/instance's known firmware prerequisites drive both displayed blockers and click admission, preserving Runtime/Session, builder and final-delivery ownership for reuse by 002 and 003."
+verify = "Click the real mounted Available ZMK row through Runtime/Session with a viable accepted fixture, genuinely reviewed profile, assignments, applicable split roles/transport/peripherals and controlled browser adapters; inspect the named firmware artifact or exact provider failure. Check visible disabled blockers, incomplete-project save/reopen and unrelated valid outputs; retain controls across board/instance, same-ID/revision reopen, accepted-source and executor changes and require no wrong-source dispatch, stale artifact or false success, with fresh-row availability and no detached-row message requirement. Exercise plan changes between display/click, delayed preparation, genuine firmware rejection and corrected-plan/failure retry. Both still-current overlapping captures may deliver while only the newest relevant status wins; delivery after active settlement remains valid, stale captures deliver nothing and browser download failure is distinct. Preserve independent Runtime source/worker revalidation, Session admission, leases, in-progress checks, builder validation and final delivery. Extend existing ZMK row/owner/retry, Runtime delivery and firmware-adapter regressions; run changed native/browser targets and record commands/results under the epic's ordered proof-map, affected-check, boundary-mutation, fresh combined review and integrated closure gates. Native tests supplement, never replace, mounted row clicks."
+covers = ["R1", "R4", "R5", "R6", "R7", "R8", "R9"]
+after = []
+hitl = false
+risk = "high"
+references = ["docs/plans/export-admission/issues/001-zmk-export-admission.md", "docs/plans/export-admission/map.md"]
+
+[[entry]]
+id = 2
+type = "story"
+title = "PCB and design-file export admission"
+description = "Reuse 001's output-specific admission seam for ordinary/Draft KiCad, SVG/DXF and footprint libraries, tying displayed eligibility and captured-source clicks to their own prerequisites while retaining resolved wiring, preparation/protection, package validation and retries."
+verify = "Click actual mounted Available ordinary KiCad, Draft KiCad, SVG, DXF and footprint rows through real Runtime/Session with viable accepted fixtures and controlled browser adapters; inspect each named artifact's format/content or precise changed-source/provider failure. Check visible PCB/wiring, selected-board contour and footprint-definition blockers, multi-board selection and ordinary wiring rejection while Draft remains actionable with its findings report. Exercise wiring-plan refresh, export-owned accepted preparation/protection and capture advancement only for that export, unrelated-edit refusal and package-failure retry without abandoned work blocking the next attempt. Retain controls across board/instance where relevant, same-ID/revision session reopen, accepted-source and executor changes: no wrong-source dispatch, stale result or false success; verify fresh rows without detached-row messages. Preserve incomplete-design save/reopen/edit and unrelated valid outputs, captured ownership, Runtime revalidation, Session admission, leases, active-work and builder checks, current final delivery after settlement and distinct browser download errors. Extend mounted KiCad-row, Runtime export, PCB retry, Session ownership and builder regressions; run changed browser/native targets and record commands/results under the epic's ordered proof-map, affected-check, boundary-mutation, fresh combined review and integrated closure gates. Direct callbacks, ready booleans and native-only evidence are insufficient."
+covers = ["R2", "R4", "R5", "R6", "R7", "R8", "R9"]
+after = [1]
+hitl = false
+risk = "high"
+references = ["docs/plans/export-admission/issues/002-pcb-design-file-admission.md", "docs/plans/export-admission/map.md"]
+
+[[entry]]
+id = 3
+type = "story"
+title = "Geometry-package export admission"
+description = "Reuse 001's output-specific admission seam for keycap STL, authored Case STEP and generated mechanical packages, binding eligibility and clicks to accepted geometry and selected board/instance while retaining exact-generation evidence, providers, leases and final delivery. Independent of 002 after 001."
+verify = "Click actual mounted Available keycap STL, authored Case STEP and generated mechanical rows through Runtime/Session with viable accepted fixtures and controlled browser adapters; inspect named artifacts or precise provider limitations/failures, not ready booleans or direct Runtime calls. Check visible blockers for missing board, stale accepted scene, authored Case findings, mount initialization, selected-instance mismatch and generation diagnostics; unrelated valid rows remain actionable and incomplete split designs remain saveable/reopenable/editable. Retain controls across board/instance, same-ID/revision reopen, accepted-source and executor changes: no wrong-source dispatch, stale delivery or false success; fresh rows reflect current owners without detached-row messages. Delay generation and refresh a disposable preview with unchanged accepted source: the valid capture still delivers, including after active settlement; accepted-source/executor changes suppress stale output and browser download failures are distinct. Keep exact authored STEP/generated geometry separate from previews and keycap meshes, preserving Runtime source/worker revalidation, Session admission, leases, active-work ownership, output builders and final-delivery checks. Extend Export-row, Runtime lease/delivery, authored-case and CAD output regressions; supplement with focused native Runtime/Session/Core/provider checks, run changed browser/native targets and record commands/results under the epic's ordered proof-map, affected-check, boundary-mutation, fresh combined review and integrated closure gates."
+covers = ["R3", "R4", "R5", "R6", "R7", "R8", "R9"]
+after = [1]
+hitl = false
+risk = "high"
+references = ["docs/plans/export-admission/issues/003-geometry-package-admission.md", "docs/plans/export-admission/map.md"]

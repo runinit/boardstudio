@@ -1,0 +1,7 @@
+[[epic]]
+id = 1
+slug = "epic-output-specific-export-admission"
+title = "Output-specific export admission"
+description = "Designers see output-specific blockers and begin exports from the accepted design, receiving current artifacts or precise failures while ownership and incomplete-design saveability remain intact."
+covers = ["R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8", "R9"]
+after = []
