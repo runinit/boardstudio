@@ -247,12 +247,29 @@ fn change_anchor_retargets_dependants_with_preview_cancel_and_undo() {
 #[test]
 fn reanchoring_a_matrix_moves_it_and_keeps_its_stored_frame() {
     let (mut engine, doc) = anchored_fixture();
-    let origin_before = doc
+    let mut thumb = doc
         .matrices
         .iter()
         .find(|matrix| matrix.id == "thumb")
-        .expect("thumb matrix")
-        .origin;
+        .unwrap()
+        .clone();
+    thumb.origin = Vec2 { x: 3.0, y: -23.0 };
+    thumb.rotation = Some(17.0);
+    let (_, doc) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::SetMatrix {
+            matrix: thumb,
+            definitions: None,
+        },
+    );
+    let frame_before = doc
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "thumb")
+        .unwrap()
+        .clone();
+    let origin_before = frame_before.origin;
     let anchor_before = anchor_of(&doc, "thumb");
     let key_before = at(&doc, &member("thumb", 0, 0));
     let moved = MatrixAnchor {
@@ -286,11 +303,34 @@ fn reanchoring_a_matrix_moves_it_and_keeps_its_stored_frame() {
             .origin,
         origin_before
     );
+    let mut expected_frame = frame_before.clone();
+    expected_frame.anchor = anchor_of(&committed, "thumb");
+    assert_eq!(
+        committed
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "thumb")
+            .unwrap(),
+        &expected_frame,
+        "the complete stored frame and member geometry stay untouched"
+    );
+    for column in 0..3 {
+        let id = member("thumb", 0, column);
+        let before = pose_of(&doc, &id);
+        let after = pose_of(&committed, &id);
+        near(after.at, before.at.x - 38.0, before.at.y);
+        assert_eq!(after.rotation, before.rotation);
+    }
     assert_ne!(at(&committed, &member("thumb", 0, 0)), key_before);
-    // One Undo entry restores the old anchor and pose.
+    // One Undo entry restores the old anchor and every member pose.
     let undone_doc = undone(&mut engine);
     assert_eq!(anchor_of(&undone_doc, "thumb"), anchor_before);
+    assert_eq!(undone_doc.matrices, doc.matrices);
+    assert_eq!(undone_doc.parts, doc.parts);
     assert_eq!(at(&undone_doc, &member("thumb", 0, 0)), key_before);
+    let replayed = redone(&mut engine);
+    assert_eq!(replayed.matrices, committed.matrices);
+    assert_eq!(replayed.parts, committed.parts);
 }
 
 fn snapshot(engine: &mut CoreEngine) -> ProjectDoc {

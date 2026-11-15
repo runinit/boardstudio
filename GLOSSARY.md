@@ -300,8 +300,10 @@ _Avoid_: parent, reference (unqualified)
 A key of a matrix in the part's own layout that an independent part follows. Spread,
 Stagger and Splay carry in the anchor frame; Offset and Rotation apply for the part alone.
 The part may follow the target's X, Y and rotation, or only some of them (Follow). A dropped
-part anchors to the nearest key of its half and keeps the drop point, upright; Detach clears
-the anchor and places the part from the half origin.
+part anchors to the nearest key of its half and keeps the drop point, upright. Picking another
+anchor key retains Spread, Stagger, Splay, Offset and Rotation and moves the part from the new
+key with the requested Follow subset. Follow changes and Detach preserve the evaluated pose;
+Detach clears the anchor and places the part from the half origin.
 _Avoid_: parent, reference (unqualified)
 
 **Row offset**:

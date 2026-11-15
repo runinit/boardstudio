@@ -396,6 +396,311 @@ fn pick_moves_the_mirror_partner_by_the_mirrored_amount() {
     assert_eq!(partner_pose.at.y, source_pose.at.y);
 }
 
+/// Independent ADR placement oracle: carry in the followed key frame, then
+/// rotate the local offset in the key-plus-splay frame.
+fn fresh_pick_pose(key: Pose2, anchor: &PartAnchor) -> Pose2 {
+    let angle = if anchor.follow.rotation {
+        key.rotation
+    } else {
+        0.0
+    };
+    let (sin, cos) = angle.to_radians().sin_cos();
+    let (local_sin, local_cos) = (angle + anchor.splay).to_radians().sin_cos();
+    Pose2 {
+        at: Vec2 {
+            x: if anchor.follow.x { key.at.x } else { 0.0 } + cos * anchor.spread
+                - sin * anchor.stagger
+                + local_cos * anchor.offset.x
+                - local_sin * anchor.offset.y,
+            y: if anchor.follow.y { key.at.y } else { 0.0 }
+                + sin * anchor.spread
+                + cos * anchor.stagger
+                + local_sin * anchor.offset.x
+                + local_cos * anchor.offset.y,
+        },
+        rotation: angle + anchor.splay + anchor.rotation,
+    }
+}
+
+fn assert_pose_near(actual: Pose2, expected: Pose2) {
+    assert!(
+        (actual.at.x - expected.at.x).abs() < 1e-9,
+        "{actual:?} != {expected:?}"
+    );
+    assert!(
+        (actual.at.y - expected.at.y).abs() < 1e-9,
+        "{actual:?} != {expected:?}"
+    );
+    assert!(
+        (actual.rotation - expected.rotation).abs() < 1e-9,
+        "{actual:?} != {expected:?}"
+    );
+}
+
+#[test]
+fn pick_retains_all_values_from_either_half_with_rotated_keys_and_every_follow_subset() {
+    for mirror_side in [false, true] {
+        for mask in 0..8 {
+            let (mut engine, _, doc) = open(pair_doc());
+            let mut doc = drop_u1(&mut engine, &doc);
+            let partner = part_records(&doc)[0].mirror_id.clone();
+            for change in [
+                PartAnchorValueChange::Spread(4.0),
+                PartAnchorValueChange::Stagger(7.0),
+                PartAnchorValueChange::Splay(13.0),
+                PartAnchorValueChange::Offset(Vec2 { x: 2.0, y: -3.0 }),
+                PartAnchorValueChange::Rotation(11.0),
+            ] {
+                doc = edit(
+                    &mut engine,
+                    &doc,
+                    EditOperation::SetPartAnchorValues {
+                        part_id: "u1".into(),
+                        change,
+                    },
+                )
+                .1;
+            }
+            let mut matrix = doc
+                .matrices
+                .iter()
+                .find(|matrix| matrix.id == "main")
+                .unwrap()
+                .clone();
+            matrix.rotation = Some(30.0);
+            doc = edit(
+                &mut engine,
+                &doc,
+                EditOperation::SetMatrix {
+                    matrix,
+                    definitions: None,
+                },
+            )
+            .1;
+            let owner = if mirror_side { partner.as_str() } else { "u1" };
+            let stored = part_of(&doc, owner).anchor.unwrap();
+            let follow = Follow {
+                x: mask & 1 != 0,
+                y: mask & 2 != 0,
+                rotation: mask & 4 != 0,
+            };
+            let mut requested = stored.clone();
+            requested.row = 1;
+            requested.column = 4;
+            requested.follow = follow;
+            // Request values must not replace any stored carried/local value.
+            requested.spread = 99.0;
+            requested.stagger = 98.0;
+            requested.splay = 97.0;
+            requested.offset = Vec2 { x: 96.0, y: 95.0 };
+            requested.rotation = 94.0;
+            let picked = edit(
+                &mut engine,
+                &doc,
+                EditOperation::SetPartAnchor {
+                    part_id: owner.into(),
+                    anchor: requested,
+                },
+            )
+            .1;
+            let mut expected_anchor = stored;
+            expected_anchor.row = 1;
+            expected_anchor.column = 4;
+            expected_anchor.follow = follow;
+            assert_eq!(
+                part_of(&picked, owner).anchor,
+                Some(expected_anchor.clone())
+            );
+            let key = board_pose(&picked, &member(&expected_anchor.matrix_id, 1, 4));
+            assert!(key.rotation.abs() > 1.0, "exercise a rotated target");
+            assert_pose_near(
+                board_pose(&picked, owner),
+                fresh_pick_pose(key, &expected_anchor),
+            );
+            for id in ["u1", partner.as_str()] {
+                let anchor = part_of(&picked, id).anchor.unwrap();
+                let key = board_pose(&picked, &member(&anchor.matrix_id, 1, 4));
+                assert_pose_near(board_pose(&picked, id), fresh_pick_pose(key, &anchor));
+                assert_ne!(board_pose(&picked, id), board_pose(&doc, id));
+            }
+            let source = part_of(&picked, "u1").anchor.unwrap();
+            let mirrored = part_of(&picked, &partner).anchor.unwrap();
+            assert_eq!(source.matrix_id, "main");
+            assert_eq!(mirrored.matrix_id, "main-mirror");
+            assert_eq!((mirrored.row, mirrored.column), (1, 4));
+            assert_eq!(mirrored.follow, source.follow);
+            assert_eq!(mirrored.spread, -source.spread);
+            assert_eq!(mirrored.stagger, source.stagger);
+            assert_eq!(mirrored.splay, -source.splay);
+            assert_eq!(
+                mirrored.offset,
+                Vec2 {
+                    x: -source.offset.x,
+                    y: source.offset.y
+                }
+            );
+            assert_eq!(mirrored.rotation, -source.rotation);
+            let restored = undone(&mut engine);
+            assert_eq!(restored.parts, doc.parts, "one Undo restores both halves");
+            let replayed = redone(&mut engine);
+            assert_eq!(replayed.parts, picked.parts);
+            for id in ["u1", partner.as_str()] {
+                assert_eq!(board_pose(&restored, id), board_pose(&doc, id));
+                assert_eq!(board_pose(&replayed, id), board_pose(&picked, id));
+            }
+        }
+    }
+}
+
+#[test]
+fn pick_refusals_leave_the_document_and_history_unchanged() {
+    let (mut engine, _, doc) = open(pair_doc());
+    let dropped = drop_u1(&mut engine, &doc);
+    for case in [
+        "locked",
+        "driven",
+        "member",
+        "cross-layout",
+        "cross-board",
+        "missing-part",
+        "missing-target",
+        "missing-key",
+        "driven-key",
+        "missing-counterpart",
+    ] {
+        let mut fixture = dropped.clone();
+        let mut owner = "u1".to_owned();
+        let mut target = part_of(&fixture, "u1").anchor.unwrap();
+        target.row = 1;
+        target.column = 4;
+        let expected = match case {
+            "locked" => {
+                fixture
+                    .parts
+                    .iter_mut()
+                    .find(|part| part.id == "u1")
+                    .unwrap()
+                    .locked = Some(true);
+                "locked"
+            }
+            "member" => {
+                owner = member("main", 0, 0);
+                "follows its matrix"
+            }
+            "missing-part" => {
+                owner = "missing".into();
+                "Unknown"
+            }
+            "missing-target" => {
+                target.matrix_id = "missing".into();
+                "missing"
+            }
+            "missing-key" => {
+                target.row = 99;
+                "missing"
+            }
+            "cross-layout" => {
+                target.matrix_id = "main-mirror".into();
+                "same board and Layout"
+            }
+            "cross-board" | "missing-counterpart" => {
+                let mut extra = matrix_3x6("extra", 0.0, None);
+                extra.part_ids.clear();
+                if case == "cross-board" {
+                    let mut board = fixture.boards[0].clone();
+                    board.id = "foreign".into();
+                    board.part_ids.clear();
+                    fixture.boards.push(board);
+                    extra.board_id = Some("foreign".into());
+                }
+                fixture.matrices.push(extra);
+                if case == "cross-board" {
+                    fixture.layouts.push(Layout {
+                        id: "foreign-layout".into(),
+                        name: "Foreign layout".into(),
+                        board_id: "foreign".into(),
+                        matrix_ids: vec!["extra".into()],
+                        part_ids: vec![],
+                        mirror_link: None,
+                    });
+                } else {
+                    // A mirror-only matrix has no source counterpart; this is
+                    // a valid document, unlike an unmapped source matrix.
+                    fixture.layouts[1].matrix_ids.push("extra".into());
+                    owner = part_records(&fixture)[0].mirror_id.clone();
+                }
+                target.matrix_id = "extra".into();
+                if case == "cross-board" {
+                    "same board and Layout"
+                } else {
+                    "counterpart"
+                }
+            }
+            "driven" | "driven-key" => {
+                // Constraining a linked matrix key is separately prohibited.
+                // Unlink first so this fixture reaches the Pick-specific guard.
+                fixture.layouts[1].mirror_link = None;
+                fixture.constraints.push(Constraint::Offset {
+                    id: "driver".into(),
+                    source_part_id: member("main", 0, 0),
+                    target_part_id: if case == "driven" {
+                        "u1".into()
+                    } else {
+                        member("main", 1, 4)
+                    },
+                    offset: Vec2 { x: 5.0, y: 6.0 },
+                    rotation: 0.0,
+                });
+                if case == "driven" {
+                    "driven by a constraint"
+                } else {
+                    "constraint-driven"
+                }
+            }
+            _ => unreachable!(),
+        };
+        let (mut engine, _, accepted) = open(fixture);
+        // Establish a known undo/redo entry unrelated to the refused owner.
+        let mut matrix = accepted
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "main")
+            .unwrap()
+            .clone();
+        matrix.name = Some("history sentinel".into());
+        let before = edit(
+            &mut engine,
+            &accepted,
+            EditOperation::SetMatrix {
+                matrix,
+                definitions: None,
+            },
+        )
+        .1;
+        let message = edit_error(
+            &mut engine,
+            &before,
+            EditOperation::SetPartAnchor {
+                part_id: owner,
+                anchor: target,
+            },
+        );
+        assert!(message.contains(expected), "{case}: {message}");
+        let snapshot = scene(engine.handle(CoreRequest::Snapshot {
+            id: "snapshot".into(),
+        }))
+        .1;
+        assert_eq!(snapshot, before, "{case}: refusal must be atomic");
+        let restored = undone(&mut engine);
+        assert_eq!(restored.parts, accepted.parts, "{case}");
+        assert_eq!(
+            restored.matrices, accepted.matrices,
+            "{case}: no refusal history entry"
+        );
+        assert_eq!(redone(&mut engine).matrices, before.matrices, "{case}");
+    }
+}
+
 #[test]
 fn carried_stagger_moves_the_part_by_the_transported_amount() {
     let (mut engine, _, doc) = open(pair_doc());

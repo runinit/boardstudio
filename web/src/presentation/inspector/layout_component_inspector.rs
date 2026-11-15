@@ -2339,6 +2339,7 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                     } else {
                         p { "Detached · placed from the half origin." }
                     }
+                    p { "Picking another key moves the part, keeping Spread, Stagger, Splay, Offset and Rotation. Follow changes and Detach keep the current pose." }
                     div { class: "grid grid-cols-2 gap-2",
                         Field { FieldLabel { html_for: "anchor-matrix", "Anchor matrix" }
                           Select::<String> {
