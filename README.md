@@ -82,6 +82,7 @@ python3 scripts/check.py quick   # the routine loop: only what your changes touc
 python3 scripts/check.py build   # checked web build without wasm-opt
 python3 scripts/check.py browser # mounted browser tests and browser smoke checks
 python3 scripts/check.py         # the full project check
+python3 scripts/check.py agent-tools # optional agent-integration and diagnostic utility tests
 ```
 
 A single Core Rust test runs with `cargo test -p boardstudio_core --test integration <filter>`.
@@ -115,6 +116,11 @@ opt-in `release` step (`python3 scripts/check.py release`) keeps both and is wha
 The mounted Layout interaction suite in the `browser` step drives
 pointer down/move/up through the production Runtime/Core seam and asserts accepted state, final
 values, guards and rendered drag state.
+
+**Optional agent tools.** `agent-tools` runs the GitNexus refresh/stop-hook, mutation-runner and
+verification-receipt fixture suites. These are excluded from default and CI product checks;
+`quick` includes them when their utility or fixture sources change. Mutation campaigns and
+receipt generation remain optional utilities, not additional BMad workflow requirements.
 
 **Old-CSS count.** The `repo` step reports how many `.board-*` and `.m1-*` selectors and `--wb-*` variables
 remain under `web/` (distinct names, build output skipped) and never fails on them. `python3 scripts/check.py old-css`

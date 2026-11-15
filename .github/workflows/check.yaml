@@ -52,6 +52,8 @@ jobs:
             cad/monstertruck -> target
           env-vars: ImageOS
           save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]' && github.event.pull_request.user.login != 'dependabot[bot]') }}
+      # Shared product checks; optional agent-tools suites run locally when needed.
+      # Native/web checks still gate release-build below.
       - run: python3 scripts/check.py repo tooling lint test
 
   # Release build and mounted browser tests.

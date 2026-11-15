@@ -7,7 +7,7 @@
                           (partial subset; skips the full page build)
   check.py browser --keep-going      continue independent browser launches after a failure
   check.py quick          the routine loop: only the checks that cover your changed files
-                          run the full check once after focused checks and fixes
+                          choose further checks through BMad and accepted requirements
   check.py quick --files F...   the same for the named files instead of the git diff
   check.py test --update-native-baseline   after the tests pass, record the executed native test
                           names as the new baseline (use when tests were removed or renamed on purpose)
@@ -20,6 +20,7 @@ number before starting check.py. The scheduler validates and holds it for the wh
 Steps:
   repo*       documentation link check and its tests
   tooling*    tests for the Python build, content and CAD tooling
+  agent-tools optional GitNexus integration, mutation-runner and receipt utility tests
   build*      checked web build (providers without wasm-opt, unoptimized page)
   release     production web build: providers with wasm-opt and the optimized page
   test*       native Rust tests (Core, application, footprints, renderer, CAD, web); fails when a
@@ -79,12 +80,15 @@ TOOLING_TESTS = (
     "cad/scripts/test-face-completeness-gate.py",
     "scripts/test-build-web.py", "scripts/test-build-patched-wasm-bindgen.py", "scripts/test-serve-web.py",
     "scripts/test-dev-web.py", "scripts/test-run-wasm-tests.py", "scripts/test-check-wasm-tests.py",
-    "scripts/test-stage-ergogen-models.py", "scripts/test-check.py", "scripts/test-check-quick.py", "scripts/test-catalogue-tools.py", "scripts/test-gitnexus-refresh.py",
-    "scripts/test-gitnexus-stop-hook.py",
-    "scripts/test-verification-receipt.py", "scripts/test-parallel-interrupt.py", "scripts/test-verify-no-node.py", "scripts/test-build-time.py",
-    "scripts/test-check-native-tests.py", "scripts/test-mutation-check.py", "scripts/test-browser-tools.py",
+    "scripts/test-stage-ergogen-models.py", "scripts/test-check.py", "scripts/test-check-quick.py", "scripts/test-catalogue-tools.py",
+    "scripts/test-parallel-interrupt.py", "scripts/test-verify-no-node.py", "scripts/test-build-time.py",
+    "scripts/test-check-native-tests.py", "scripts/test-browser-tools.py",
     "scripts/test-chrome-for-testing.py", "scripts/test-bump-chrome-for-testing.py", "tools/browser-harness/test-response-probe-cleanup.py",
     "scripts/test-ci-workflow.py", "scripts/test-verify-update-adoption.py",
+)
+AGENT_TOOL_TESTS = (
+    "scripts/test-gitnexus-refresh.py", "scripts/test-gitnexus-stop-hook.py",
+    "scripts/test-mutation-check.py", "scripts/test-verification-receipt.py",
 )
 WASM_PAGE = ["--no-default-features", "--features", "page"]
 ISOLATED = ("presentation::case_workspace::",)
@@ -194,6 +198,7 @@ STEPS: dict[str, tuple[bool, list[Command]]] = {
                        [PY, "-B", "cad/scripts/test-cad-provider-gate.py"], *[
         [PY, "-B", script]
         for script in TOOLING_TESTS]]),
+    "agent-tools": (False, [[PY, "-B", script] for script in AGENT_TOOL_TESTS]),
     # The routine build skips wasm-opt and the optimized Dioxus build; `release` keeps both.
     "build": (True, [[PY, "scripts/build-web.py", "--fast"]]),
     "lint": (True, LINT),
@@ -1336,6 +1341,8 @@ def quick_plan(selection: "check_quick.Selection", packages: "dict[str, check_qu
     plan: list[tuple[str, list[Command]]] = [("repo", STEPS["repo"][1])]
     if selection.tooling:
         plan.append(("tooling", STEPS["tooling"][1]))
+    if selection.agent_tools:
+        plan.append(("agent-tools", STEPS["agent-tools"][1]))
     if selection.rust:
         plan += [("test-css", [TEST_CSS]), ("lint", LINT), ("typecheck", typecheck())]
         if selection.full_rust:
