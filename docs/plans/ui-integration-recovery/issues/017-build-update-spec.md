@@ -219,9 +219,9 @@ HEAD `118e60f1`; Status `resolved`. Executed in this pass: documentation reconci
 doc-links PASS (719; `.evidence/ui-integration-recovery/019-doc-reconciliation-links.log`),
 `git diff --check` PASS and final diff read; no product tests or new full gate claimed.
 Reused: reviewed 018/019 and
-[draft-safety 008–015](../../update-draft-safety/map.md#decisions-so-far), especially
-[010 packaged proof](../../update-draft-safety/issues/010-packaged-a-to-b-proof.md#answer)
-and [015 closure](../../update-draft-safety/issues/015-coverage-mutation-and-closure.md#answer).
+draft-safety 008–015 (retired draft-safety plan), especially
+010 packaged proof (retired draft-safety plan)
+and 015 closure (retired draft-safety plan).
 [019's completion record](019-adopt-build-safely.md#completion-record-coordinator-2026-11-08)
 records the fixed combined-review endpoints, final delta PASS/READY, combined AC7
 proof, failed/flake runs, reused full gate and owned cleanup. No unmet gate or

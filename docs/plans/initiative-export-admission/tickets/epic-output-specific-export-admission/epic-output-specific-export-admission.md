@@ -16,6 +16,10 @@ risk: high
 
 # Output-specific export admission
 
+## Workflow
+
+Installed BMad skills govern orchestration, ticketing, review and verification. Legacy sources and historical notes retain behavioral requirements and evidence, not their proof-map, mutation, fixed-review or ordered-closure protocols. Functional acceptance and explicit human/phase approvals remain unchanged.
+
 ## Description
 
 Deliver output-specific availability and click admission across the existing Export flow. ZMK establishes the seam first; PCB/design-file and geometry-package admission reuse it independently. Preserve the frozen tickets' complete requirements and acceptance obligations through the adopted source companions.
@@ -42,7 +46,7 @@ R7 (parent R7): Captured source ownership, independent Runtime source/worker rev
 
 R8 (parent R8): Preserve exactly 001 ZMK export admission, 002 PCB and design-file export admission, and 003 Geometry-package export admission. Demonstrate 001 as the first admission-seam slice, with 002 and 003 depending on 001 and independent of each other; preserve legacy ready status as ready-for-dev plans without claiming implementation completion.
 
-R9 (parent R9): Each ticket extends the relevant existing regressions, runs changed native and browser targets, and records commands/results at closure. Demonstrate source-specific artifacts, blockers and ownership at the mounted boundary, supplemented by focused native Runtime/Session/Core/provider evidence, under the project's ordered closure protocol.
+R9 (parent R9): Each ticket extends the relevant existing regressions, runs changed native and browser targets, and records commands/results at closure. Demonstrate source-specific artifacts, blockers and ownership at the mounted boundary, supplemented by focused native Runtime/Session/Core/provider evidence.
 
 ## Constraints
 
@@ -58,7 +62,7 @@ R9 (parent R9): Each ticket extends the relevant existing regressions, runs chan
 - ZMK proves reviewed profile, assignments, split roles, transport and applicable peripheral admission, genuine firmware-request rejection, corrected-plan/failure retry and delayed/source-changing preparation. Two still-current overlapping exports can both deliver while only the newest relevant status wins; final delivery works after active operation settlement, and browser download errors remain distinct. Captured ownership, Runtime source/worker revalidation, Session admission, leases, in-progress checks, builders and final delivery keep their independent checks for every family.
 - PCB/design-file clicks preserve ordinary wiring rejection versus actionable Draft findings, selected-board contours and footprint definitions, multi-board identity, refreshed plans, export-owned accepted preparation/protection and capture advancement only for that export, unrelated-edit refusal and package-failure retry without abandoned operations blocking the next attempt.
 - Geometry clicks distinguish accepted keycap mesh outputs from authored Case exact STEP and generated mechanical packages, preserving selected-instance/mount initialization, accepted-scene currency and generation findings. An unchanged-source export survives disposable preview refresh; accepted-source/executor changes reject stale delivery, and download failures remain separately visible.
-- Each ticket records its requirement-to-proof map and newly run versus reused evidence, extends existing regressions, and runs changed native and browser targets with commands/results. Closure follows RED or recorded proof gap → fix → affected checks (including lint for browser-gated/wasm32-only Rust changes) → named boundary mutations for proof-gap rows only via mutation-check.py --locked → one fresh combined Spec+Standards review → integrated ticket gate. The completion record names HEAD, unmet criteria, cleanup/follow-ups and next action; no child status alone establishes epic acceptance.
+- Extend relevant regressions and run changed native/browser targets, recording newly run versus reused results in the BMad plan; no child status alone establishes epic acceptance.
 
 ## Boundaries
 
@@ -77,7 +81,6 @@ R9 (parent R9): Each ticket extends the relevant existing regressions, runs chan
 - research — [Candidate 02](../../../../research/2026-10-20-export-readiness-dispatch-deepening.md), ownership and evidence limits
 - architecture policy — [ADR-0005](../../../../adr/0005-resolve-queued-edits-at-execution.md), [ADR-0014](../../../../adr/0014-document-authority-and-captured-lifetimes.md), [ADR-0015](../../../../adr/0015-exact-generated-cad-and-mesh-preview-scope.md), [ADR-0016](../../../../adr/0016-export-ownership-is-separate-from-preview-currency.md)
 - verification and persistence policy — [ADR-0021](../../../../adr/0021-test-real-workflows-natively-and-browser-behavior-mounted.md), [ADR-0027](../../../../adr/0027-save-incomplete-split-designs-with-output-specific-readiness.md)
-- process — [issue tracker](../../../../agents/issue-tracker.md#building-and-verifying-a-ticket), Proof map, Slice boundary, Review reports and Completion record
 
 ## Notes
 

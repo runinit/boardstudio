@@ -17,6 +17,10 @@ risk: high
 
 # Accept all workspaces and retire the old dock
 
+## Workflow
+
+Installed BMad skills govern orchestration, ticketing, review and verification. Legacy sources and historical notes retain behavioral requirements and evidence, not their proof-map, mutation, fixed-review or ordered-closure protocols. Functional acceptance and explicit human/phase approvals remain unchanged.
+
 ## Description
 
 After the five adapters are complete and the user authorizes M3, perform the six-workspace responsive, keyboard, contrast, motion, packaged and adapter acceptance. Retire superseded dock paths only after parity is demonstrated, preserving unrelated preferences, actions and source-defined behavior.
@@ -33,9 +37,9 @@ R5 (parent R5): Check the completed M2 adapter inventory dispositions and eviden
 
 R6 (parent R6): Preserve 007's M1/M2 prerequisites and 008's dependency on 007. Begin this epic only after completed adapters and explicit M3 authorization; acceptance must precede retirement.
 
-R7 (parent R7): Each of 007 and 008 maps each requirement to a distinct observable proof row with a faithful independent oracle, tier and status; existing evidence is reused only with a receipt, proof gaps name their boundary mutation, and unrun evidence remains planned. Verify the proof map and receipts at ticket closure.
+R7 (parent R7): Record concise evidence for accepted behavior in the BMad ticket plan, distinguishing executed, reused and unrun checks; no separate proof-map protocol is required.
 
-R8 (parent R8): Each of 007 and 008 closes in this order: RED or recorded proof gap → fix → affected checks → named boundary mutations for proof-gap rows only → one fresh combined Spec+Standards reviewer → integrated ticket gate, followed by required human approval where the phase or ticket awaits it. Report unmet criteria and follow-ups distinctly; approval is not waived by a reviewer.
+R8 (parent R8): Use installed BMad skills for implementation, review and verification. Explicit human and phase approvals remain required; report unmet criteria and follow-ups without waiving approval.
 
 R9 (parent R9): Carry M1's applicable Layout/global-header receipts and limitations into 007, reusing unchanged evidence while adding the later adapters' acceptance. Do not retroactively treat M1 evidence as proof of M2 behavior; the M1 candidate and hands-on stop remain owned by the Layout epic.
 
@@ -55,7 +59,7 @@ R11 (parent R11): 007 owns final six-workspace width/zoom, keyboard/focus/touch,
 - The user has authorized M3 after all adapters are complete, and the two assigned entries retain their source gates and original dependency order.
 - 007 demonstrates the named width, touch/focus, rendered contrast, packaged visual parity, adapter integration and reduced-motion criteria across all six workspaces, reusing unchanged M1 receipts with limitations stated.
 - 008 demonstrates parity, preserved preferences/commands, proof retention, shipped documentation and the final stable integrated gate before retiring old paths.
-- Every ticket follows RED/proof-gap → fix → affected checks → named proof-gap mutations only → one fresh combined Spec+Standards review → integrated ticket gate; required user approval is recorded and no gate is waived.
+- Follow installed BMad skills for implementation, review and verification; explicit user and phase approvals remain required.
 
 ## Boundaries
 

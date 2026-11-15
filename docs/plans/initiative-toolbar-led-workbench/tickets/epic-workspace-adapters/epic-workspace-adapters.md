@@ -17,6 +17,10 @@ risk: high
 
 # Adapt PCB, Keymap, Keycaps, Case and Parts
 
+## Workflow
+
+Installed BMad skills govern orchestration, ticketing, review and verification. Legacy sources and historical notes retain behavioral requirements and evidence, not their proof-map, mutation, fixed-review or ordered-closure protocols. Functional acceptance and explicit human/phase approvals remain unchanged.
+
 ## Description
 
 After M1 is complete and the user approves M2 following hands-on review, adapt the five remaining workspaces to the shared toolbar and panel host. Preserve each domain's inventory, editor and selection ownership, update-safety behavior and action semantics; do not infer unanswered M2 policy from the shared shell.
@@ -35,9 +39,9 @@ R5 (parent R5): The later adapters retain their named workspace capabilities and
 
 R6 (parent R6): Preserve M2's identities, order 010, 011, 012, 013, 015, 014 and exact prerequisites. Begin implementation only after the M1 hands-on approval, resolve each named domain gate, and hand completed adapters to the separately authorized M3 epic.
 
-R7 (parent R7): Each M2 adapter ticket maps each requirement to a distinct observable proof row with a faithful independent oracle, tier and status; existing evidence is reused only with a receipt, proof gaps name their boundary mutation, and unrun evidence remains planned. Verify the proof map and receipts at ticket closure.
+R7 (parent R7): Record concise evidence for accepted behavior in the BMad ticket plan, distinguishing executed, reused and unrun checks; no separate proof-map protocol is required.
 
-R8 (parent R8): Each M2 ticket closes in this order: RED or recorded proof gap → fix → affected checks → named boundary mutations for proof-gap rows only → one fresh combined Spec+Standards reviewer → integrated ticket gate, followed by required human approval where the phase or ticket awaits it. Report unmet criteria and follow-ups distinctly; approval is not waived by a reviewer.
+R8 (parent R8): Use installed BMad skills for implementation, review and verification. Explicit human and phase approvals remain required; report unmet criteria and follow-ups without waiving approval.
 
 R11 (parent R11): Each of 010–015 demonstrates its applicable adapter-specific responsive, keyboard, target-size and motion behavior against the architecture contract, including Case Preview's separately approved task controls. Preserve the M1 shared mechanics and record measurements and limitations for 007's final six-workspace acceptance.
 
@@ -52,7 +56,7 @@ R11 (parent R11): Each of 010–015 demonstrates its applicable adapter-specific
 
 - The user has approved M2 after reviewing the M1 candidate, and all six assigned adapter entries have their exact source-derived work and unresolved decisions recorded.
 - Each approved adapter retains every source-inventoried capability and domain owner, with its stale-owner, draft/update-safety and action parity proofs complete and receipts recorded.
-- Every ticket follows RED/proof-gap → fix → affected checks → named proof-gap mutations only → one fresh combined Spec+Standards review → integrated ticket gate; phase approvals remain with the user.
+- Follow installed BMad skills for implementation, review and verification; explicit user and phase approvals remain required.
 - No undocumented M2 policy, capability removal or implementation claim remains; M3 starts only after the user authorizes it and the M2 epic is complete.
 
 ## Boundaries

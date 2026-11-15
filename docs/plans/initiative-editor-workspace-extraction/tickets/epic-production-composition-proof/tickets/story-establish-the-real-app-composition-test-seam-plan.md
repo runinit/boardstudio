@@ -14,4 +14,4 @@ Documentation-only migration, 2026-11-15. Original 002 is ready/build with no bl
 
 ## Documentation validation
 
-See the [migration validation record](../../../validation.md): independent Spec PASS, original Standards PARTIAL retained, administrative routing/link-check requests resolved by the coordinator. This is documentation readiness, not a build or runtime completion record.
+Migration validation (2026-11-15): independent Spec PASS; original Standards PARTIAL retained. The coordinator resolved the administrative asks with a passing root documentation-link check and the dispatch record confirming `thinking=xhigh`, accepting documentation readiness. No ticket-content defect remained. This is not implementation, build or runtime completion evidence; the separate validation document was consolidated here.

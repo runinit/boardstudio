@@ -18,7 +18,7 @@ The Decisions and original Comments remain authoritative and unchanged.
   resolved; detection-to-notification slice, does not alone complete Refresh.
 - [019: Adopt the waiting build through protected Refresh](019-adopt-build-safely.md):
   reviewed and resolved (2026-11-08), including
-  [draft-safety 008–015](../../update-draft-safety/map.md#decisions-so-far) and combined
+  draft-safety 008–015 (retired draft-safety plan) and combined
   packaged draft + held-save proof. Its Completion record distinguishes executed
   checks, reused full gate, flakes and retained risks; final review is Spec PASS /
   Standards PASS, READY. This supersedes the 2026-11-07 pending-review checkpoint.

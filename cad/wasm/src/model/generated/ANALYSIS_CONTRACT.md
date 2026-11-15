@@ -109,11 +109,11 @@ exercise the qualified query. The CAD replacement map records delivery in its
 010 and 014 outcomes; 014 cites `01680d84`. Existing exact-key v1 checks remain
 required for v1 payloads. This section is a wire contract, not a preview-admission gate.
 Admission follows the current vendor-preview policy: ADR-0017 and ADR-0018
-(accepted 2026-10-19) and the CAD backend replacement plan
-([map](../../../../../docs/plans/cad-backend-replacement/map.md), ticket 015 and its
-successors). Tickets 016–018 own delivery of surviving partial geometry, visible
-incomplete-model errors and approximate queries; these are policy requirements,
-not claims that those routes already work. Unsupported accuracy and whole-model
+(accepted 2026-10-19). The CAD backend replacement plan was canceled on
+2026-11-15; its [historical map](https://github.com/runinit/boardstudio/blob/ad9db473012a4a4201217bd5094a4f24e7801932/docs/plans/cad-backend-replacement/map.md)
+and tickets 015–018 are no longer active work. The accepted policy requirements
+for surviving partial geometry, visible incomplete-model errors and approximate
+queries remain policy, not claims that those routes already work. Unsupported accuracy and whole-model
 clearance stay uncertain.
 
 Active identities: `m1/generated-analysis-v2/` uses the existing prepared-body

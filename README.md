@@ -72,13 +72,16 @@ Cleanup is deferred when browser coordination is unavailable or any saved projec
 
 ## Checks
 
-Two commands, by purpose:
+Installed BMad skills govern planning, ticketing, orchestration, review and verification.
+These commands are project tools, not an additional workflow or closure protocol.
+
+Available commands, by purpose:
 
 ```sh
 python3 scripts/check.py quick   # the routine loop: only what your changes touch
 python3 scripts/check.py build   # checked web build without wasm-opt
 python3 scripts/check.py browser # mounted browser tests and browser smoke checks
-python3 scripts/check.py         # the full pre-PR check
+python3 scripts/check.py         # the full project check
 ```
 
 A single Core Rust test runs with `cargo test -p boardstudio_core --test integration <filter>`.
@@ -89,7 +92,7 @@ The verifier first runs its own PATH and absolute-path positive controls, then t
 the command and descendants. It fails on attempts to execute a pathname named `node`
 or `npm`, on command failure, or if tracing cannot be verified. It observes only the
 traced process tree: renamed or embedded runtimes and the GitHub Actions runtime are
-outside its scope. It does not change CI or replace the required verification checks.
+outside its scope. It does not change CI or establish product correctness.
 
 **Routine loop.** `quick` takes the files changed against `main` (plus untracked files; or name
 them with `--files`) and runs the documentation checks, rustfmt and Clippy, WASM page compilation,
@@ -109,7 +112,7 @@ and step prints its wall time. On machines with 8 or more CPUs the full check ru
 machines, `BOARDSTUDIO_CHECK_JOBS=1`, `--receipt` and partial plans keep the serial order.
 The checked `build` skips `wasm-opt` and the optimized page build; the
 opt-in `release` step (`python3 scripts/check.py release`) keeps both and is what ships.
-The required drag proof is the mounted Layout interaction suite in the `browser` step: it drives
+The mounted Layout interaction suite in the `browser` step drives
 pointer down/move/up through the production Runtime/Core seam and asserts accepted state, final
 values, guards and rendered drag state.
 
@@ -150,8 +153,8 @@ interrupted output is incomplete, never zero failures, and a complete page run w
 is not reported as passing. The native section reuses the name guard's matched/missing/new
 retention semantics and identifies the guard list's recording revision and local changes.
 Before/after group deltas stay `unknown` unless a base run is supplied with `--base-receipt PATH`,
-which is then labelled reused with its original run and source identity. Provide the summary (or
-the receipt) at review transfer.
+which is then labelled reused with its original run and source identity. Receipt generation is
+optional; keep concise outcomes in the BMad plan rather than requiring a separate transfer record.
 
 ## Source layout
 

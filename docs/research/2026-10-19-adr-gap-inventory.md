@@ -65,8 +65,8 @@ repair route. The working-tree CAD map changes 007 from committed `claimed` to
 uncommitted tracker edit, not a new architecture decision. Its dated current-work
 section is more specific about ongoing implementation.
 Do not turn its final strict terminal policy into an already-enforced guarantee
-([007 current work](../plans/cad-backend-replacement/issues/007-strict-step-import.md#current-work--2026-10-19),
-[CAD map](../plans/cad-backend-replacement/map.md#slices--current-status)).
+([007 current work](https://github.com/runinit/boardstudio/blob/ad9db473012a4a4201217bd5094a4f24e7801932/docs/plans/cad-backend-replacement/issues/007-strict-step-import.md#current-work--2026-10-19),
+[CAD map](https://github.com/runinit/boardstudio/blob/ad9db473012a4a4201217bd5094a4f24e7801932/docs/plans/cad-backend-replacement/map.md#slices--current-status)).
 
 ## Method, provenance and limitations
 
@@ -96,8 +96,8 @@ Do not turn its final strict terminal policy into an already-enforced guarantee
   mockup-only wording and 014's early “all bounds unknown” checkpoints are not
   current production status: their later Answers/current sections and the source
   supersede those checkpoints. Conversely, a plan's approved declaration does not
-  prove that declaration landed ([013 Answer](../plans/cad-backend-replacement/issues/013-layered-case-construction.md#answer),
-  [014 current](../plans/cad-backend-replacement/issues/014-vendor-mesh-collision-validation.md#current--2026-10-18-rescope)).
+  prove that declaration landed ([013 Answer](https://github.com/runinit/boardstudio/blob/ad9db473012a4a4201217bd5094a4f24e7801932/docs/plans/cad-backend-replacement/issues/013-layered-case-construction.md#answer),
+  [014 current](https://github.com/runinit/boardstudio/blob/ad9db473012a4a4201217bd5094a4f24e7801932/docs/plans/cad-backend-replacement/issues/014-vendor-mesh-collision-validation.md#current--2026-10-18-rescope)).
   The original [Monstertruck feature assessment](cad/monstertruck-feature-assessment-2026-10-16.md#finding)
   explicitly marks its broader Boolean/exact-keycap API inventory as historical
   after the 2026-10-17 scope change; its earlier “production still uses Cadrum”
@@ -121,7 +121,7 @@ Retrieve an old source with `git show <commit>:<path>`.
 | H5 | `35991dce0`; native Runtime decision | Explicit user choice of a real Session/Core native Runtime and shared gate vocabulary, rather than a second resolver/session implementation. |
 | H6 | `5cb0a47f0276ca3b16314b728730cd6e8cbc3c9c`; its README addition “Local project safety” | Documents conflicts preserving pending edits, deferred asset cleanup, unreadable-record recovery, a 100-edit Undo limit and 128 MiB project imports. Does not enumerate rejected storage designs. |
 | H7 | `8d481b7a8743ed7c8b62f47253e6d00b3096bca6` | Delays offline-worker activation until old clients close. |
-| H8 | `91eb771f3526d7428b02d4ffcdba8beb44579f0a`; [CAD scope decisions](../plans/cad-backend-replacement/map.md#scope-decisions-2026-10-17-user) and [closure rescope](../plans/cad-backend-replacement/map.md#closure-rescope-2026-10-18-user) | Recorded user-approved exact/mesh split, adoption of layered construction, named refusals and bounded closure evidence rather than universal geometry certification. |
+| H8 | `91eb771f3526d7428b02d4ffcdba8beb44579f0a`; [CAD scope decisions](https://github.com/runinit/boardstudio/blob/ad9db473012a4a4201217bd5094a4f24e7801932/docs/plans/cad-backend-replacement/map.md#scope-decisions-2026-10-17-user) and [closure rescope](https://github.com/runinit/boardstudio/blob/ad9db473012a4a4201217bd5094a4f24e7801932/docs/plans/cad-backend-replacement/map.md#closure-rescope-2026-10-18-user) | Recorded user-approved exact/mesh split, adoption of layered construction, named refusals and bounded closure evidence rather than universal geometry certification. |
 | H9 | `68224a7725074e4684de31b7516f2099cf32b325`; fixture onboarding answer | Runtime owns complete collision execution; controlled-worker tests and actual-provider qualification are deliberately different evidence. |
 | H10 | `2dc09ebaeba1905fb3be004629fad5d07f7941b9`; split sequence through `bb2e1ebb2` | Shared presentation vocabulary and workspace crates were extracted; commit text explains avoiding feature dependence on shell-specific types. Not a recovered decision to freeze every dependency edge forever. |
 | H11 | `5a472a9426e6e38993361da402cd4ec730feb369`; [onboarding guide](../hardware/component-onboarding.md#onboarding-workflow) | Documents mounted source ownership, independent embedded copies and evidence-specific hardware readiness. The architectural choice's rejected alternatives are not recovered here. |
@@ -293,12 +293,12 @@ authority. Keycaps are appearance/optional-print meshes, not exact keycap STEP.
   `reviewed_sealed_opening_is_refused_with_opening_context`;
   [runtime_collision_browser_tests.rs](../../web/crates/runtime/src/runtime_collision_browser_tests.rs),
   `source_pcb_collision_preserves_curves_drills_placement_and_complete_cache_identity`.
-- **Why recovered:** [013 Why](../plans/cad-backend-replacement/issues/013-layered-case-construction.md#why)
+- **Why recovered:** [013 Why](https://github.com/runinit/boardstudio/blob/ad9db473012a4a4201217bd5094a4f24e7801932/docs/plans/cad-backend-replacement/issues/013-layered-case-construction.md#why)
   identifies Z-axis features and failures in general 3D Boolean chains; its
-  [Answer](../plans/cad-backend-replacement/issues/013-layered-case-construction.md#answer)
+  [Answer](https://github.com/runinit/boardstudio/blob/ad9db473012a4a4201217bd5094a4f24e7801932/docs/plans/cad-backend-replacement/issues/013-layered-case-construction.md#answer)
   adopts direct layered construction. H8 records user scope: exact cases/PCBs,
   mesh keycaps/vendor assets, no required general Boolean engine or final OCCT/C++
-  fallback. [008](../plans/cad-backend-replacement/issues/008-step-export-independent-accuracy.md)
+  fallback. [008](https://github.com/runinit/boardstudio/blob/ad9db473012a4a4201217bd5094a4f24e7801932/docs/plans/cad-backend-replacement/issues/008-step-export-independent-accuracy.md)
   requires independent analytic/reference evidence, not just same-kernel roundtrips.
 - **Alternatives/consequences:** the general Boolean predecessor and polyline-only
   `i_overlay` versus line/arc `cavalier_contours` are documented in 013, not invented
@@ -325,20 +325,20 @@ derived representation, not permission to drop geometry or declare exact solids.
   original source, occurrence transforms, source-face tags, precision and preview
   data. `StepImportOptions` keeps selected repair budget and deflection separate.
   `validate_invariants` is a cheap consistency check, not proof of every repair
-  route's movement. [007 current work](../plans/cad-backend-replacement/issues/007-strict-step-import.md#current-work--2026-10-19)
+  route's movement. [007 current work](https://github.com/runinit/boardstudio/blob/ad9db473012a4a4201217bd5094a4f24e7801932/docs/plans/cad-backend-replacement/issues/007-strict-step-import.md#current-work--2026-10-19)
   explicitly leaves counters/owner routes and packages open.
 - **Named tests:** [step_import.rs](../../cad/monstertruck/tests/step_import.rs),
   `independent_tetrahedron_retains_exact_geometry_original_bytes_and_mm_mesh`,
   `absent_units_mean_mm_and_metre_coordinates_convert_once`,
   `dropped_face_or_unreferenced_solid_cannot_succeed_with_partial_mesh`, and
   `shared_exact_solid_keeps_both_rotated_and_translated_occurrences`.
-- **Why recovered:** the [CAD destination and user scope](../plans/cad-backend-replacement/map.md#destination)
+- **Why recovered:** the [CAD destination and user scope](https://github.com/runinit/boardstudio/blob/ad9db473012a4a4201217bd5094a4f24e7801932/docs/plans/cad-backend-replacement/map.md#destination)
   explicitly separates exact generated output from vendor preview/alignment/collision
   and authorizes default `max(2 × authenticated declared precision, 0.02 mm)` or an
   explicit per-file preview budget, retaining declared precision, selected budget
   and actual movement separately. This is a recorded policy, not inferred from tests.
 - **Limits/alternatives:** no primary rationale for the exact numerical default was
-  recovered beyond its recorded authorization. [007 closure rules](../plans/cad-backend-replacement/issues/007-strict-step-import.md#closure-rules-shared-by-every-package)
+  recovered beyond its recorded authorization. [007 closure rules](https://github.com/runinit/boardstudio/blob/ad9db473012a4a4201217bd5094a4f24e7801932/docs/plans/cad-backend-replacement/issues/007-strict-step-import.md#closure-rules-shared-by-every-package)
   require final routes to terminate as identity, bounded repair or refusal, but
   identify incomplete source-selection/master/surface coverage. Do not claim that
   final strict policy is fully landed. Unknown analysis is not automatically a
@@ -369,14 +369,14 @@ unsupported or insufficient accuracy stays Unknown.
   [runtime_collision_browser_tests.rs](../../web/crates/runtime/src/runtime_collision_browser_tests.rs),
   `complete_check_shares_one_vendor_refinement_across_repeated_placements` and
   `obsolete_false_view_entry_cannot_retire_an_active_complete_check`.
-- **Why recovered:** [014 user collision decision](../plans/cad-backend-replacement/issues/014-vendor-mesh-collision-validation.md#comments)
+- **Why recovered:** [014 user collision decision](https://github.com/runinit/boardstudio/blob/ad9db473012a4a4201217bd5094a4f24e7801932/docs/plans/cad-backend-replacement/issues/014-vendor-mesh-collision-validation.md#comments)
   chooses supported tolerance bands by default, refinement on demand and explicit
   0.01 mm tighter requests. Its acceptance text distinguishes unsigned surface
   distance from solid containment and forbids fabricated clear results.
   The original [collision research](cad/vendor-collision-validation-2026-10-17.md#recommendation)
   explains the source/mesh/query/containment distinction and records subsequent user
   adoption; its old v8 blockers are snapshot evidence, not current qualification.
-  [Final current section](../plans/cad-backend-replacement/issues/014-vendor-mesh-collision-validation.md#current--2026-10-18-rescope)
+  [Final current section](https://github.com/runinit/boardstudio/blob/ad9db473012a4a4201217bd5094a4f24e7801932/docs/plans/cad-backend-replacement/issues/014-vendor-mesh-collision-validation.md#current--2026-10-18-rescope)
   accepts qualified classes while preserving unsupported/insufficient cases as Unknown.
 - **Consequences:** selecting 0.01 mm meshing is not a certificate of 0.01 mm source
   accuracy; qualified separating slabs do not establish general solid containment
@@ -602,7 +602,7 @@ records removal and number reassignment; new records must not reuse 0003.
   than documenting the fixture, retry helper and every cancellation batch as new
   decisions (H9; 167).
 - **Independent manufacturing reference checks:** part of G5/G7, not an ADR for each
-  volume fixture or external tool invocation. The bounded [008](../plans/cad-backend-replacement/issues/008-step-export-independent-accuracy.md)
+  volume fixture or external tool invocation. The bounded [008](https://github.com/runinit/boardstudio/blob/ad9db473012a4a4201217bd5094a4f24e7801932/docs/plans/cad-backend-replacement/issues/008-step-export-independent-accuracy.md)
   evidence explicitly does not establish a general STEP validator.
 - **Universal generator templates/custom authoring:** [investigation](../investigations/universal-footprint-generation.md)
   explicitly labels the redesign proposed and records the requirement for all
@@ -612,7 +612,7 @@ records removal and number reassignment; new records must not reuse 0003.
   its implementation status while filling historical ADR gaps.
 - **CAD final universal repair terminal policy:** retain as future/partially
   implemented policy within G6, not a claim of universal current enforcement;
-  [007 current work](../plans/cad-backend-replacement/issues/007-strict-step-import.md#current-work--2026-10-19)
+  [007 current work](https://github.com/runinit/boardstudio/blob/ad9db473012a4a4201217bd5094a4f24e7801932/docs/plans/cad-backend-replacement/issues/007-strict-step-import.md#current-work--2026-10-19)
   names unfinished work. Ticket role labels alone cannot resolve completion.
 - **Build-speed knobs, CSS tokens, exact crate file sizes, retained helper names,
   test launch counts:** operational/current implementation details unless a specific

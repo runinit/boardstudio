@@ -22,6 +22,10 @@ risk: high
 
 # Layout canvas controls
 
+## Workflow
+
+Installed BMad skills govern orchestration, ticketing, review and verification. Legacy sources and historical notes retain behavioral requirements and evidence, not their proof-map, mutation, fixed-review or ordered-closure protocols. Functional acceptance and explicit human/phase approvals remain unchanged.
+
 ## Description
 
 Preserve and complete the approved variant D Layout controls outcome through exactly the eight existing tickets. The frozen source companions retain detailed acceptance, decisions and progress.
@@ -50,21 +54,21 @@ R8 (parent R8): Anchored matrix and part rails offer canvas Anchor pick, candida
 
 R9 (parent R9): Preserve the eight original titles and actual Blocked by edges. 01, 02, 03, 05 and 06 are resolved; 04, 07 and 08 are ready. Demonstrate status translation without treating historical partial evidence as a newly passed gate.
 
-R10 (parent R10): Each ticket retains its own RED/GREEN, applicable native, mounted and live evidence, source-specific reviews, full check and ordered project closure obligations. Demonstrate the named behavior and record actual evidence and unmet gates.
+R10 (parent R10): Demonstrate the named behavior with applicable native, mounted and live checks and record actual evidence and unmet criteria in the BMad plan; BMad governs review and verification.
 
 ## Constraints
 
 - Source companions are the detailed behavioral and testing contract; exact original Blocked by headers govern dependencies. Shared files require coordination without invented dependencies.
-- Variant D is superseded where the map explicitly requires re-anchor to move; Follow-subset changes, Detach and drop auto-anchor retain pose. Only 04 changes public Core anchor semantics; its source explicitly requires combined Spec + Standards review. Current closure for every implementation ticket follows the review gate below.
+- Variant D is superseded where the map explicitly requires re-anchor to move; Follow-subset changes, Detach and drop auto-anchor retain pose. Only 04 changes public Core anchor semantics; review and verification follow BMad.
 - Compact hit areas remain undecided; retain row Offset by default and leave the upper strip unchanged pending its live confirmation. No implementation is authorized by this migration.
 
 ## Done when
 
 - 01's approved variant D, later map decisions and precise sizing and color roles remain traceable. 02 demonstrates screen-size labels, 7 px ring and selection readout at two zooms, unchanged mounted suites, live light/dark three-zoom comparison and DESIGN.md update; 03 demonstrates rail geometry, existing handles, hover/active/leave without revision, live drags including Ctrl Offset and nudge and DESIGN.md; 05 demonstrates Row/Key tool lists, drag mapping, amber preview, one Undo, hidden handles and mirror rules; 06 demonstrates reducer choose/drag/commit/zero/Esc/expiry, mounted docking/follow/toast with no extra revision and polite focus-preserving announcement. Each source requires full `python3 scripts/check.py`; retain recorded partial or waived historical results honestly.
-- 04 follows RED/GREEN at the public Core interface: unchanged carried/local values and moved pose, one Undo and restore; mirrored pair and matrix movement with stored frame; unchanged Follow and Detach tests; locked, driven, member, cross-layout, missing key/mirror and loop refusals; mutation restoring `solve_for_pose` killed; boundary transcript re-blessed only if downstream Pick hashes change and diff explained; mounted Inspector movement with values retained; ADR-0040 and applicable glossary/help corrected; one fresh combined Spec + Standards review adjudicated in the Answer, followed by full `python3 scripts/check.py` as the integrated gate.
+- 04 demonstrates at the public Core interface: unchanged carried/local values and moved pose, one Undo and restore; mirrored pair and matrix movement with stored frame; unchanged Follow and Detach tests; locked, driven, member, cross-layout, missing key/mirror and loop refusals; boundary transcript re-blessed only if downstream Pick hashes change and diff explained; mounted Inspector movement with values retained; ADR-0040 and applicable glossary/help corrected; full `python3 scripts/check.py`; BMad governs review and verification.
 - 07 demonstrates anchored, detached, member and locked native tool lists; mounted Move, Rotate and Stagger, one Undo each, mirror and dimmed-half focus, popup/toast and selected/unselected outline roles; confirms the unchanged upper strip in the live pass; existing part-drag browser smoke and full `python3 scripts/check.py` pass. Existing 07 Answer records substantial implementation and scoped tests but its header remains ready and its smoke/full gate unchecked.
 - 08 demonstrates native matrix, anchored/detached part candidates and loop exclusion; mounted enter, hover preview matching committed pose, click with one revision/movement/toast, Undo and Esc without revision; live split-board pass on both halves including dimmed; DESIGN.md update and full `python3 scripts/check.py`. Use Core evaluation for preview and retain loop refusal.
-- For each implementation closure, map requirements to proof and distinguish reused from newly run evidence; establish RED or an identified proof gap, fix, run affected checks (including applicable lint), run named boundary mutations for proof-gap rows through `scripts/mutation-check.py --locked`, run one fresh reviewer covering Spec and Standards, adjudicate findings, then run the integrated ticket gate. Source disclosures of RED/GREEN and diff-only review remain historical evidence, not a replacement for this current closure order. Record HEAD, commands/results, unmet criteria, cleanup and follow-ups. Use native-baseline updates only for deliberate test renames. Historical resolved status alone does not prove all original gates passed.
+- Keep actual results and unmet functional criteria in the BMad ticket plan. Historical resolved status alone does not establish passing evidence; BMad governs review and verification.
 
 ## Boundaries
 
@@ -77,7 +81,6 @@ R10 (parent R10): Each ticket retains its own RED/GREEN, applicable native, moun
 
 - [Parent requirements](../../initiative-layout-controls-polish.md#requirements) and [frozen map](../../../layout-controls-polish/map.md).
 - [01](../../../layout-controls-polish/issues/01-layout-controls-iconography-mockup.md), [02](../../../layout-controls-polish/issues/02-screen-space-canvas-chrome.md), [03](../../../layout-controls-polish/issues/03-handle-rail.md), [04](../../../layout-controls-polish/issues/04-re-anchor-moves.md), [05](../../../layout-controls-polish/issues/05-row-and-key-shift-bend-handles.md), [06](../../../layout-controls-polish/issues/06-value-popup-and-commit-toast.md), [07](../../../layout-controls-polish/issues/07-part-rail.md), [08](../../../layout-controls-polish/issues/08-canvas-anchor-pick.md): source requirements, acceptance and original evidence.
-- [Issue tracker](../../../../agents/issue-tracker.md#building-and-verifying-a-ticket), proof map, slice boundary, review reports and completion record.
 
 ## Notes
 

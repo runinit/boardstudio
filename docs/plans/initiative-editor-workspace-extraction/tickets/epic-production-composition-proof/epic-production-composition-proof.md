@@ -15,6 +15,10 @@ risk: high
 
 # Prove real production composition and lifecycle boundaries
 
+## Workflow
+
+Installed BMad skills govern orchestration, ticketing, review and verification. Legacy sources and historical notes retain behavioral requirements and evidence, not their proof-map, mutation, fixed-review or ordered-closure protocols. Functional acceptance and explicit human/phase approvals remain unchanged.
+
 ## Description
 
 Establish the actual production composition as the test seam, preserving startup and behavior while supplying the existing test Runtime. Original 002 is the only story: its scope-correct characterization proves which work and resources belong to App, Editor and visible children before further extraction is considered.
@@ -53,7 +57,7 @@ The initiative's constraints bind this epic: preserve hook scope, providers, cur
 
 1. All R1–R6 and the ten original 002 criteria have observable passing proof through real production composition; normal production startup still uses its original Runtime construction and single subscriber.
 2. The unchanged-source baseline, current revision, exact commands, critical gate timing, independent oracles, diagnostic classification and receipt scope are recorded. Existing native/feature evidence is reused where sufficient, with its seam named.
-3. The fixed boundary completes in this order: genuine RED or named proof-gap obligation → fix → affected checks → boundary mutations → one fresh reviewer covering Spec and Standards → integrated gate. Browser/WASM-only Rust changes include the repository lint check; proof-gap mutations must fail at their named assertion/tier, while RED rows are not redundantly mutated.
+3. BMad governs implementation, review and verification; record actual results without a separate ordered-closure protocol.
 4. The integrated 002 gate passes documented changed-scope quick checks, page-only WASM compilation, page-bin mounted browser suite, relevant Runtime tests and retained mounted Editor tests. Record reused versus newly executed results; this subset is not original 013's full pre-PR/provider/drag acceptance.
 5. Real Library hiding, Editor-only removal and App removal remain distinct under held-work completion. Unsafe fixture driving/unmount blocks this gate, and normal startup contains no fixture-only controls or mockup diagnostics.
 
@@ -72,7 +76,6 @@ The initiative's constraints bind this epic: preserve hook scope, providers, cur
 - source — [original map](../../../editor-workspace-extraction/map.md), shared implementation and verification contract.
 - proposal — [approved phase and original dispositions](../../../research-editor-workspace-ownership/ticket-proposal.md), Approved scope and Requirements and source.
 - research — [ownership report](../../../research-editor-workspace-ownership/research-editor-workspace-ownership.md), Questions 1–4 and limits; source inspection is not passing runtime evidence.
-- process — [issue tracker](../../../../agents/issue-tracker.md), ordered slice boundary and completion record.
 
 ## Notes
 

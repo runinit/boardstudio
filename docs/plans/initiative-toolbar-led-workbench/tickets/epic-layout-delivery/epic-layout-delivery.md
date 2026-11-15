@@ -18,6 +18,10 @@ risk: high
 
 # Complete Layout workbench
 
+## Workflow
+
+Installed BMad skills govern orchestration, ticketing, review and verification. Legacy sources and historical notes retain behavioral requirements and evidence, not their proof-map, mutation, fixed-review or ordered-closure protocols. Functional acceptance and explicit human/phase approvals remain unchanged.
+
 ## Description
 
 Deliver the complete M1 Layout redesign in the actual app by integrating the shared host, the Layout tools, Objects and Inspect, the retained Add/setup/placement/legacy workflows and the global header. This epic preserves domain ownership and ends at the user's hands-on review; it does not authorize M2/M3 implementation, production rollout or a merge to main.
@@ -38,9 +42,9 @@ R4 (parent R4): The Layout migration retains every listed tool, navigation and w
 
 R6 (parent R6): Preserve M1's identities and prerequisites in order 001, 009, 002, 003, 004, 006, 005, including 006 before 005. Deliver the M1 candidate and stop for user hands-on review; M2 and M3 phase execution belongs to the later epics.
 
-R7 (parent R7): Every M1 implementation ticket maps each requirement to a distinct observable proof row with a faithful independent oracle, tier and status; existing evidence is reused only with a receipt, proof gaps name their boundary mutation, and unrun evidence remains planned. Verify the proof map and receipts at ticket closure.
+R7 (parent R7): Record concise evidence for accepted behavior in the BMad ticket plan, distinguishing executed, reused and unrun checks; no separate proof-map protocol is required.
 
-R8 (parent R8): Each M1 ticket closes in this order: RED or recorded proof gap → fix → affected checks → named boundary mutations for proof-gap rows only → one fresh combined Spec+Standards reviewer → integrated ticket gate, followed by required human approval where the phase or ticket awaits it. Report unmet criteria and follow-ups distinctly; approval is not waived by a reviewer.
+R8 (parent R8): Use installed BMad skills for implementation, review and verification. Explicit human and phase approvals remain required; report unmet criteria and follow-ups without waiving approval.
 
 R9 (parent R9): M1 acceptance includes the named Layout and global-header 007 rows, the mixed-shell integration routes, a stable integrated candidate gate and hands-on keyboard/visual review, with evidence and limitations recorded. Stop for the user's hands-on review before M2; do not claim M1 proves future adapter acceptance.
 
@@ -55,8 +59,8 @@ R11 (parent R11): Demonstrate the architecture's responsive, keyboard, touch/tra
 ## Done when
 
 - The resolved 001 transfer record and all six remaining M1 entries have their source-linked plans and approved status transitions.
-- The production Layout consumer, all retained capabilities, owner/draft safeguards and named M1 acceptance rows meet their ticket proof maps with receipts and limitations recorded.
-- Every ticket follows RED/proof-gap → fix → affected checks → named proof-gap mutations only → one fresh combined Spec+Standards review → integrated ticket gate; approval required by a phase or ticket remains with the user.
+- The production Layout consumer, all retained capabilities, owner/draft safeguards and named M1 acceptance rows meet their accepted behavior with results and limitations recorded.
+- Follow installed BMad skills for implementation, review and verification; explicit user and phase approvals remain required.
 - A stable integrated M1 candidate is ready for hands-on keyboard/visual review, then implementation stops before M2 until the user approves.
 
 ## Boundaries

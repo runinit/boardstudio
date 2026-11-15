@@ -17,6 +17,10 @@ risk: high
 
 # Export admission
 
+## Workflow
+
+Installed BMad skills govern orchestration, ticketing, review and verification. Legacy sources and historical notes retain behavioral requirements and evidence, not their proof-map, mutation, fixed-review or ordered-closure protocols. Functional acceptance and explicit human/phase approvals remain unchanged.
+
 ## Description
 
 Align each Export row's displayed prerequisites and click admission for the accepted design, without replacing captured export ownership or delivery checks. Migrate the three existing tickets into one epic, preserving their scope and original evidence in the frozen source tickets.
@@ -43,7 +47,7 @@ R7 (001–003 §Implementation Decisions; 001 §Testing Decisions): Captured sou
 
 R8 (map.md §Tickets; §Dependencies): Preserve exactly 001 ZMK export admission, 002 PCB and design-file export admission, and 003 Geometry-package export admission. Demonstrate 001 as the first admission-seam slice, with 002 and 003 depending on 001 and independent of each other; preserve legacy ready status as ready-for-dev plans without claiming implementation completion.
 
-R9 (001–003 §Testing Decisions): Each ticket extends the relevant existing regressions, runs changed native and browser targets, and records commands/results at closure. Demonstrate source-specific artifacts, blockers and ownership at the mounted boundary, supplemented by focused native Runtime/Session/Core/provider evidence, under the project's ordered closure protocol.
+R9 (001–003 §Testing Decisions): Each ticket extends the relevant existing regressions, runs changed native and browser targets, and records commands/results at closure. Demonstrate source-specific artifacts, blockers and ownership at the mounted boundary, supplemented by focused native Runtime/Session/Core/provider evidence.
 
 ## Constraints
 
@@ -58,7 +62,7 @@ R9 (001–003 §Testing Decisions): Each ticket extends the relevant existing re
 - All named output families demonstrate honest mounted availability, specific blockers and real click admission using accepted fixtures through Runtime/Session, yielding named artifacts or precise reported failures.
 - Retained controls, asynchronous source/executor changes, overlapping firmware exports, KiCad preparation/retry and final delivery preserve their source-specific ownership rules, including distinct download failures and preview refresh independence.
 - Incomplete designs still save, reopen and edit, and unrelated valid outputs remain usable; exact geometry and existing provider limitations are preserved.
-- Exactly the approved three tickets retain their dependencies and source evidence, and each implementation closure records changed native/browser targets, proof-map evidence, ordered project gates and unmet criteria without treating child status as acceptance.
+- Exactly the approved three tickets retain their dependencies and source evidence, and each implementation closure records changed native/browser targets, evidence and unmet criteria without treating child status as acceptance.
 
 ## Boundaries
 
@@ -79,7 +83,6 @@ Tracer: mounted ZMK row → output-specific admission → real Runtime/Session �
 - architecture policy — [ADR-0005](../../adr/0005-resolve-queued-edits-at-execution.md), [ADR-0014](../../adr/0014-document-authority-and-captured-lifetimes.md), [ADR-0015](../../adr/0015-exact-generated-cad-and-mesh-preview-scope.md), [ADR-0016](../../adr/0016-export-ownership-is-separate-from-preview-currency.md)
 - verification and persistence policy — [ADR-0021](../../adr/0021-test-real-workflows-natively-and-browser-behavior-mounted.md), [ADR-0027](../../adr/0027-save-incomplete-split-designs-with-output-specific-readiness.md)
 - terminology — [glossary](../../../GLOSSARY.md#mechanical-relationships)
-- process — [issue tracker](../../agents/issue-tracker.md#building-and-verifying-a-ticket), proof map, ordered slice boundary and completion record; [AI documentation](../../agents/ai-documentation.md)
 
 ## Notes
 

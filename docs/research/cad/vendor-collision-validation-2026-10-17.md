@@ -2,7 +2,7 @@
 
 Date: 2026-10-17. Proposal only; Parry 0.31.1 was latest on inspection date. No ticket or product contract changed. [P1]
 
-Subsequent user decision,2026-10-17: approved supported tolerance bands by default, on-demand refinement and0.01 mm as an explicit tighter check. Unsupported accuracy remains uncertain. The recommendation below is now adopted in [014](../../plans/cad-backend-replacement/issues/014-vendor-mesh-collision-validation.md); this does not certify any existing mesh or change source-completeness requirements.
+Subsequent user decision,2026-10-17: approved supported tolerance bands by default, on-demand refinement and0.01 mm as an explicit tighter check. Unsupported accuracy remains uncertain. The recommendation below is now adopted in [014](https://github.com/runinit/boardstudio/blob/ad9db473012a4a4201217bd5094a4f24e7801932/docs/plans/cad-backend-replacement/issues/014-vendor-mesh-collision-validation.md); this does not certify any existing mesh or change source-completeness requirements.
 
 ## Recommendation
 
@@ -35,6 +35,6 @@ The v8 transfer's two positive previews use 0.1 mm / 0.5 rad tessellation, repor
 - P7: [TriMesh flags and builder source](https://docs.rs/crate/parry3d-f64/0.31.1/source/src/shape/trimesh.rs).
 - P8: [composite distance source](https://docs.rs/crate/parry3d-f64/0.31.1/source/src/query/distance/distance_composite_shape_shape.rs).
 - L1: Production STEP 007 v8 transfer (`../../../.evidence/production-step-007/review-v8/TRANSFER.md`), local private evidence.
-- L2: [ticket 007](../../plans/cad-backend-replacement/issues/007-strict-step-import.md).
+- L2: [ticket 007](https://github.com/runinit/boardstudio/blob/ad9db473012a4a4201217bd5094a4f24e7801932/docs/plans/cad-backend-replacement/issues/007-strict-step-import.md).
 
 Research was limited to primary docs/source and existing local evidence; no build, corpus run, new target, or application change was made.

@@ -22,6 +22,10 @@ risk: high
 
 # Toolbar-led workbench
 
+## Workflow
+
+Installed BMad skills govern orchestration, ticketing, review and verification. Legacy sources and historical notes retain behavioral requirements and evidence, not their proof-map, mutation, fixed-review or ordered-closure protocols. Functional acceptance and explicit human/phase approvals remain unchanged.
+
 ## Description
 
 Give BoardStudio users a quieter, consistent workbench across Layout, PCB, Keymap, Keycaps, Case and Parts while preserving each workspace's domain-owned tools, selection, editing, setup, preview and export behavior. The work is staged: first deliver and review the complete Layout redesign in the real app, then adapt the other workspaces after explicit approval, and finally prove six-workspace parity before retiring the old dock paths. The frozen design direction and the current delivery limits are in the linked sources and architecture companion.
@@ -44,9 +48,9 @@ R5 (inventory.md §PCB adapter; inventory.md §Keymap adapter; inventory.md §Ke
 
 R6 (map.md §Tickets and dependency order; delivery.md §Milestones and authority): Delivery keeps the documented dependency order and phase boundaries: M1 includes 001 as the resolved planning/transfer record and 009, 002, 003, 004, 006 and 005, with 006 before 005; M2 contains 010–015; M3 contains 007/008. Use only the approved three-epic split and exact 15 legacy identities, preserving dependencies, and preserve the hands-on stop after M1 before M2 begins.
 
-R7 (verification.md §Reuse first and keep stories distinct; verification.md §Mutation boundary): Every implementation ticket maps each requirement to a distinct observable proof row with a faithful independent oracle, tier and status; existing evidence is reused only with a receipt, proof gaps name their boundary mutation, and unrun evidence remains planned. Verify the proof map and receipts at ticket closure.
+R7 (verification.md §Reuse first and keep stories distinct; verification.md §Mutation boundary): Record concise evidence for accepted behavior in the BMad ticket plan, distinguishing executed, reused and unrun checks; no separate proof-map protocol is required.
 
-R8 (verification.md §Closure and limits): Each ticket closes in this order: RED or recorded proof gap → fix → affected checks → named boundary mutations for proof-gap rows only → one fresh combined Spec+Standards reviewer → integrated ticket gate, followed by required human approval where the phase or ticket awaits it. Report unmet criteria and follow-ups distinctly; approval is not waived by a reviewer.
+R8 (verification.md §Closure and limits): Use installed BMad skills for implementation, review and verification. Explicit human and phase approvals remain required; report unmet criteria and follow-ups without waiving approval.
 
 R9 (delivery.md §M1 acceptance and proof ownership; delivery.md §Coordination, verification and stop; verification.md §Closure and limits): M1 acceptance includes the named Layout and global-header 007 rows, the mixed-shell integration routes, a stable integrated candidate gate and hands-on keyboard/visual review, with evidence and limitations recorded. Stop for the user's hands-on review before M2; do not claim M1 proves future adapter acceptance.
 
@@ -90,7 +94,6 @@ Proposed tracer path, subject to approval: resolved 001 transfer record → shar
 - inventory — [frozen capability inventory](../toolbar-led-workbench/inventory.md), Shared shell and global surfaces; Layout tools and canvas; Layout Objects and Inspector; PCB adapter; Keymap adapter; Keycaps adapter; Case adapter; Parts adapter; Overflow routing proposal; Completeness boundary
 - delivery — [frozen delivery contract](../toolbar-led-workbench/delivery.md), Milestones and authority; M1 acceptance and proof ownership; Coordination, verification and stop
 - verification — [frozen proof and execution contract](../toolbar-led-workbench/verification.md), Reuse first and keep stories distinct; Mutation boundary; Closure and limits
-- process — [issue tracker](../../agents/issue-tracker.md), Slice boundary; [AI documentation guidance](../../agents/ai-documentation.md)
 - project — [ADR-0041](../../adr/0041-toolbar-led-workbench.md)
 
 ## Notes

@@ -28,6 +28,10 @@ risk: high
 
 # Layout controls polish
 
+## Workflow
+
+Installed BMad skills govern orchestration, ticketing, review and verification. Legacy sources and historical notes retain behavioral requirements and evidence, not their proof-map, mutation, fixed-review or ordered-closure protocols. Functional acceptance and explicit human/phase approvals remain unchanged.
+
 ## Description
 
 Migrate the existing Layout controls polish plan into one epic, preserving its eight ticket identities, statuses, actual dependency headers, source decisions and evidence in the frozen originals.
@@ -56,20 +60,20 @@ R8 (08 §Acceptance): Anchored matrix and part rails offer canvas Anchor pick, c
 
 R9 (map §Tickets; issue headers): Preserve the eight original titles and actual Blocked by edges. 01, 02, 03, 05 and 06 are resolved; 04, 07 and 08 are ready. Demonstrate status translation without treating historical partial evidence as a newly passed gate.
 
-R10 (02–08 §Acceptance and review headers): Each ticket retains its own RED/GREEN, applicable native, mounted and live evidence, source-specific reviews, full check and ordered project closure obligations. Demonstrate the named behavior and record actual evidence and unmet gates.
+R10 (02–08 §Acceptance and review headers): Demonstrate the named behavior with applicable native, mounted and live checks and record actual evidence and unmet criteria in the BMad plan; BMad governs review and verification.
 
 ## Constraints
 
 - Preserve DESIGN.md tokens and the approved variant D reference `mockup/layout-controls-iconography` at `e91865f43`, `?variant=D`; later map decisions supersede conflicting mockup behavior. (01; map §Decisions so far)
-- Only 04 changes public Core anchor semantics; its source explicitly requires combined Spec + Standards review. Current implementation closure for every ticket also follows the project review-before-integrated-gate protocol. Follow-subset changes, Detach and drop auto-anchor preserve their existing pose behavior. (04)
+- Only 04 changes public Core anchor semantics; review and verification follow BMad. Follow-subset changes, Detach and drop auto-anchor preserve their existing pose behavior. (04)
 - 03's compact hit areas remain undecided; 05 retains Offset by default; 07 leaves the upper strip unchanged by default and confirms it in the live pass. (03, 05, 07 §Carried point)
 - This approved migration changes documentation only; original plan files and progress stay in place, and no new feature or refactor ticket is added. No source architecture exists to copy.
 
 ## Done when
 
 - The approved reference and all eight source-specific behavior and verification obligations are preserved under the epic and entries, with completed evidence accurately distinguished from pending checks.
-- Re-anchor, part rail and canvas pick meet their source acceptance and closure gates, including 04's combined review, 07's part-drag smoke and 08's live split-board pass.
-- Original dependencies and statuses are retained, and each implementation completion records proof, commands/results, unmet criteria and follow-ups under the project closure protocol.
+- Re-anchor, part rail and canvas pick meet their source acceptance and closure gates, including 07's part-drag smoke and 08's live split-board pass.
+- Original dependencies and statuses are retained, and each implementation completion records proof, commands/results, unmet criteria and follow-ups in the BMad plan.
 
 ## Boundaries
 
@@ -83,7 +87,6 @@ R10 (02–08 §Acceptance and review headers): Each ticket retains its own RED/G
 - [Frozen map](../layout-controls-polish/map.md), destination, ticket graph and decisions.
 - [01 mockup](../layout-controls-polish/issues/01-layout-controls-iconography-mockup.md); [02 chrome](../layout-controls-polish/issues/02-screen-space-canvas-chrome.md); [03 rail](../layout-controls-polish/issues/03-handle-rail.md); [04 re-anchor](../layout-controls-polish/issues/04-re-anchor-moves.md).
 - [05 Shift/Bend](../layout-controls-polish/issues/05-row-and-key-shift-bend-handles.md); [06 feedback](../layout-controls-polish/issues/06-value-popup-and-commit-toast.md); [07 part rail](../layout-controls-polish/issues/07-part-rail.md); [08 pick](../layout-controls-polish/issues/08-canvas-anchor-pick.md). These adopted companions retain detailed requirements, acceptance and original progress.
-- [Issue tracker](../../agents/issue-tracker.md#building-and-verifying-a-ticket) and [AI documentation](../../agents/ai-documentation.md).
 
 ## Notes
 

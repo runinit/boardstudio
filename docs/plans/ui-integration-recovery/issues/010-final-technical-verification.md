@@ -282,7 +282,7 @@ Fresh strict old-CSS receipt:
 | Strict old-CSS | Fresh, `010-old-css-strict.log` | 0/0 on this candidate. |
 | Spec and Standards reviews | Fresh, checkpoints below | Integrated-reference cross-checks plus the explicitly accepted aggregate coverage; no full-diff line-read claim. |
 | [008](008-restore-drag-save-undo-proof.md#answer), [009](009-verify-reload-persistence.md#answer), [022](022-restore-collision-provider-browser-proof.md#answer) Answers and receipts | Retained | Bounded repair/proof history; unchanged relevant source since their gates or superseded by this full combined gate. 009 and 022 are resolved; 008 is covered through 009. |
-| [Draft-safety reviewed closure](../../update-draft-safety/issues/015-coverage-mutation-and-closure.md#answer), [019](019-adopt-build-safely.md#answer), [020](020-split-firmware-either-half-central.md#answer), [021](021-repeated-save-toasts.md#answer) | Retained | Reviewed closures and delta rechecks remain applicable to unchanged relevant source; this gate supersedes older full-gate limitations, not their scope/risk caveats. |
+| Draft-safety reviewed closure (retired draft-safety plan), [019](019-adopt-build-safely.md#answer), [020](020-split-firmware-either-half-central.md#answer), [021](021-repeated-save-toasts.md#answer) | Retained | Reviewed closures and delta rechecks remain applicable to unchanged relevant source; this gate supersedes older full-gate limitations, not their scope/risk caveats. |
 
 003 remains `declined` / not applicable following 002's withdrawn MCU premise.
 The user-cancelled 004–007 are not blockers and are not restored behaviors.

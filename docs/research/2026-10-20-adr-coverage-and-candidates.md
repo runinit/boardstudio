@@ -107,7 +107,7 @@ of every ownership rule (H1/H2 below).
 Cadrum/OCCT and offers keycap STEP with separate inlays. The
 [docs index](../README.md#current-references) links it as a current reference.
 [0015](../adr/0015-exact-generated-cad-and-mesh-preview-scope.md) and the
-[CAD scope decisions](../plans/cad-backend-replacement/map.md#scope-decisions-2026-10-17-user)
+[CAD scope decisions](https://github.com/runinit/boardstudio/blob/ad9db473012a4a4201217bd5094a4f24e7801932/docs/plans/cad-backend-replacement/map.md#scope-decisions-2026-10-17-user)
 instead explicitly limit exact generated output to cases/PCBs and make keycaps
 display/optional-print meshes. The CAD map's resolved 009 records mesh/STL delivery;
 this is not evidence from a fresh run here. H3 pins the scope-change provenance.
@@ -199,8 +199,8 @@ ADR and no inferred implementation-completion claim.
 
 - [0017/0018](../adr/0017-forgiving-vendor-previews-with-preserved-source.md) allow useful
   partial/repaired display and approximate observations, not universal certification
-  admission. [Current CAD policy](../plans/cad-backend-replacement/map.md#current-vendor-preview-policy-2026-10-19)
-  explicitly overrides older strict text. [Successor spec](../plans/cad-backend-replacement/spec.md#successor-task-graph)
+  admission. [Current CAD policy](https://github.com/runinit/boardstudio/blob/ad9db473012a4a4201217bd5094a4f24e7801932/docs/plans/cad-backend-replacement/map.md#current-vendor-preview-policy-2026-10-19)
+  explicitly overrides older strict text. [Successor spec](https://github.com/runinit/boardstudio/blob/ad9db473012a4a4201217bd5094a4f24e7801932/docs/plans/cad-backend-replacement/spec.md#successor-task-graph)
   already publishes 015→016→{017,018}; parent 007 remains claimed. The inspected
   [STEP tests](../../cad/monstertruck/tests/step_import.rs),
   `dropped_face_or_unreferenced_solid_cannot_succeed_with_partial_mesh`, still assert

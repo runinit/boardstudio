@@ -16,6 +16,10 @@ legacy_source_status: ready
 
 # Separate Editor workspace ownership without changing lifetimes
 
+## Workflow
+
+Installed BMad skills govern orchestration, ticketing, review and verification. Legacy sources and historical notes retain behavioral requirements and evidence, not their proof-map, mutation, fixed-review or ordered-closure protocols. Functional acceptance and explicit human/phase approvals remain unchanged.
+
 ## Description
 
 Adopt only the approved production-composition proof phase of the original Editor ownership specification. The maintainer can supply the existing test Runtime to the real application composition and verify navigation, pending work, reconciliation and genuine teardown without a second application. Original parent 001 remains open at its exact source path; this phase neither completes that parent nor schedules the remaining ownership extractions.
@@ -37,14 +41,14 @@ Maintainers can demonstrate that real application composition preserves editing 
 
 - Preserve existing hook scopes, three lifetimes, operation-specific admission and shared authorities. No fake App, competing subscriber, active-only workspace controller mount or wholesale mockup merge. Source: original 002 Scope and constraints; original map Shared implementation and verification contract.
 - This phase moves no workspace controllers and changes no UI policy, camera formula, schema or public cross-crate contract. No registry, framework, broad draft cache or duplicate authority. Source: original 002 Verification; original map shared contract; proposal Approved direction.
-- Record a genuine RED or a named proof-gap mutation obligation, then fix, affected checks, boundary mutations, one fresh combined Spec+Standards review and the integrated ticket gate. A proof-gap mutation must fail at its named independent oracle; do not fabricate RED or relabel historical partial evidence. Source: proposal Done when; repository issue-tracker protocol.
+- Use BMad for review and verification; do not fabricate failing evidence or relabel historical partial results.
 - No explanatory HTML, root-DOM removal, manually advanced generation or serialized Open behind a held edit may stand in for real teardown/reconciliation or delivery after accepted replacement. Keep any controlled-adapter proof explicitly lower seam. Source: original map shared contract; original 002 Acceptance criteria.
 
 ## Done when
 
 1. The production seam and complete original 002 acceptance work through the real subscriber/providers and controls; normal startup behavior remains unchanged.
 2. Real mounted scope driving, hidden-versus-removed owners and held-work completion have warning-free observable evidence; failure to drive/unmount safely stops further extraction rather than waiving the gate.
-3. The fixed proof boundary completes in order: RED/proof-gap evidence, fix, affected checks, boundary mutations, fresh Spec+Standards review, integrated gate.
+3. BMad governs implementation, review and verification; record actual results without a separate ordered-closure protocol.
 4. Changed-scope quick checks, lint where browser/WASM-only Rust changes, page-only WASM compilation, page-bin mounted suite, relevant Runtime tests and existing mounted Editor tests pass with exact baseline/current receipts. This is not original 013's full integrated extraction acceptance.
 5. Evidence distinguishes fresh runs, reused lower-seam results and historical mockup observations. Closing this adopted phase never closes source parent 001 or original 013 automatically.
 
@@ -64,7 +68,6 @@ Maintainers can demonstrate that real application composition preserves editing 
 - parent — [original 001](../editor-workspace-extraction/issues/001-editor-workspace-ownership.md), broader unresolved specification; identity retained, not closed here.
 - source — [original map](../editor-workspace-extraction/map.md), dependency graph and shared verification contract.
 - research — [committed-snapshot ownership report](../research-editor-workspace-ownership/research-editor-workspace-ownership.md), findings and limits; refresh current source before implementation.
-- process — [issue tracker](../../agents/issue-tracker.md), proof map, slice boundary and completion record.
 
 ## Notes
 
