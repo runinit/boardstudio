@@ -1,0 +1,25 @@
+# M3 waits for all adapters and explicit user acceptance authorization.
+
+[[entry]]
+id = 7
+type = "story"
+title = "Six-workspace responsive, keyboard and visual acceptance"
+description = "Prove the shared toolbar-led workbench across Layout, PCB, Keymap, Keycaps, Case and Parts, including responsive layouts, keyboard operation, accessibility, theme/contrast, motion and packaged integration."
+verify = "Complete the ordered closure sequence in this epic's Done when, including applicable human approval. Product evidence: Run the six-workspace acceptance matrix and focused evidence for responsive behavior, keyboard/focus, accessibility, theme/contrast, reduced motion and packaged integration; reconcile each result with its named owner and proof map."
+covers = ["R1", "R5", "R6", "R7", "R8", "R9", "R11"]
+after = ["1.3", "1.4", "1.5", "1.6", "2.10", "2.11", "2.12", "2.13", "2.14", "2.15"]
+hitl = false
+unknown = "Await M3 user authorization after all six workspace adapters are complete; retain required human acceptance and fresh combined Spec+Standards review."
+references = ["docs/plans/toolbar-led-workbench/issues/007-responsive-accessibility-acceptance.md"]
+
+[[entry]]
+id = 8
+type = "story"
+title = "Parity-gated dock retirement, proof preservation and shipped docs"
+description = "Retire the legacy dock only after all-workspace parity and acceptance, preserving proof and migration references and updating shipped documentation without deleting frozen source records."
+verify = "Complete the ordered closure sequence in this epic's Done when, including applicable human approval. Product evidence: Verify parity and acceptance gates, preserved legacy receipts, documented shipped behavior and final integrated ticket gate before retirement; require explicit user approval for the acceptance/retirement phase."
+covers = ["R6", "R7", "R8", "R9", "R10"]
+after = [7]
+hitl = false
+unknown = "Await completion of ticket 007 and explicit user authorization for M3 retirement; keep frozen source docs and receipts intact."
+references = ["docs/plans/toolbar-led-workbench/issues/008-remove-dock-paths-docs.md"]
