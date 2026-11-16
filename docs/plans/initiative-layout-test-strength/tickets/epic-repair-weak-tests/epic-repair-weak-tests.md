@@ -6,7 +6,7 @@ covers: [R1, R2, R3, R4, R5, R6, R9]
 sources: []
 companions: []
 after: []
-refined: false
+refined: true
 risk: low
 ---
 
@@ -20,6 +20,22 @@ Seven tests named by the audit pass whether or not the behaviour they describe w
 
 A developer who breaks case-closure adoption, a framed solve, splay-origin validation, duplicate-reference picking, rotated snapping or membership retirement sees the named test fail.
 
+## Requirements
+
+- R1 (parent R1): The case-closure adoption test fails when case-closure parts are no longer excluded from adoption, and shows an ordinary unassigned part being adopted in the same fixture.
+- R2 (parent R2): The persisted framed-constraint test and the local-mirror endpoint test each fail when the solve does not move the target.
+- R3 (parent R3): The non-finite splay-origin case is rejected by the finite-origin check itself, shown by the case failing when that check is absent.
+- R4 (parent R4): The layout-viewer pick test no longer carries the duplicate-reference block that cannot reach duplicate resolution; it still asserts that a unique reference selects its part, and the direct duplicate-rejection test in `case_preview.rs` still passes.
+- R5 (parent R5): The rotated-envelope snap test fails when envelope rotation is ignored.
+- R6 (parent R6): The membership-cache test shows a populated membership cleared on close and recomputed when the same owner reopens, and fails when membership is not retired on close.
+- R7 (parent R9): The repeated resize/reset/zip fixture block in the three test modules P1 names is replaced by one helper per module, with scenario inputs and assertions unchanged.
+
+## Constraints
+
+- No production behaviour changes inside a repair story. A repaired test that fails against current production code gets a bug ticket in this epic, and the repaired test lands together with that fix; no ignored test is committed.
+- A counter-example is a temporary change that breaks the named behaviour, in production code or in the test's own act step; it is run to show the test fails, recorded in the story's plan, and never committed.
+- A fixture shared with other tests is changed inside the repaired test, not in the shared helper, so tests outside this epic keep their inputs.
+
 ## Done when
 
 - Each of the six repaired tests passes as delivered and fails when its counter-example is applied; the redundant duplicate-pick block is removed.
@@ -31,9 +47,20 @@ A developer who breaks case-closure adoption, a framed solve, splay-origin valid
 
 - Out: the linked key-resize test and the audit harness; owner: epic-audit-harness.
 - Out: production code changes, except the fix for a bug a repaired test exposes, under its own bug ticket.
-- Must not change: the behaviour each test names; existing assertions are not weakened or removed. Fixtures change and assertions may be added.
+- Must not change: the behaviour each test names; existing assertions are not weakened or removed, except the duplicate-reference block R4 removes. Fixtures change and assertions may be added.
 
 ## References
 
 - parent — docs/plans/initiative-layout-test-strength/initiative-layout-test-strength.md, section Requirements
 - research — docs/plans/initiative-layout-test-strength/research-necessist-audit/research-necessist-audit.md, section Findings
+
+## Notes
+
+- Decision: 2026-11-15 — refined from the initiative's lines alone; the research file's Findings give each test's location and mechanism, so nothing more is needed before stories.
+- Unknown: none blocking. Adoption keeps only parts on the source side of the mirror axis (`core/src/matrix/layout.rs:3612`), so entry 1's hole and ordinary part must both sit there or its counter-example passes for the wrong reason.
+- Decision: 2026-11-15 — the fixture helper takes the field it sets (`stagger`, `splay` or `splay_origin`); a module with a single occurrence may use a direct assignment instead. The check is that the resize/reset/zip pattern no longer appears in the three modules.
+- Decision: 2026-11-15 — tracer bullet is the case-closure adoption repair (entry 1): it proves the whole pattern once (fixture change, counter-example shown failing, record in the plan, full check) on the finding with the clearest mechanism.
+- Decision: 2026-11-15 — the rotated-envelope snap repair is second because it is the repair most likely to expose a production defect.
+- Decision: 2026-11-15 — the closing "Refactor sweep" carries R7 (the fixture helper) plus cleanup the earlier stories defer.
+- Decision: 2026-11-15 — splitting the sweep into a helper story and a separate sweep was offered and declined.
+- Decision: 2026-11-15 — entry 4 keeps the membership repair and the pick-block removal together; the removal is too small to stand alone.

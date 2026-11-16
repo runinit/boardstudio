@@ -53,7 +53,7 @@ Anyone changing matrix layout, constraint, snapping or layout-viewer code gets a
 - Out: wasm-only tests, PCB wiring and electrical tests, mirrored-half reconciliation tests.
 - Out: auditing any Core integration file other than `core/tests/matrix_placement.rs`; a wider audit is a later decision made from R8's result.
 - Out: any other test-helper or fixture cleanup beyond the block P1 names.
-- Must not change: the behaviour each test names; existing assertions are not weakened or removed. Fixtures change and assertions may be added.
+- Must not change: the behaviour each test names; existing assertions are not weakened or removed, except the duplicate-reference block R4 removes. Fixtures change and assertions may be added.
 - Tracer path: repair one Core fixture test end to end (R1) with its counter-example shown failing, then repeat the pattern for the rest, then the harness.
 
 ## References
