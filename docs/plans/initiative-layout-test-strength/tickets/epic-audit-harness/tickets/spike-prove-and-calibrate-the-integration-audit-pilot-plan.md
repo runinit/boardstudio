@@ -77,6 +77,41 @@ Implementation and coordinating Build review complete. No production changes, de
 - Cost: pilot 69.09 s = **8,597 completed candidates/audit hour**, counting nonbuildable outcomes; only 56 buildable outcomes = **2,918/hour**. Setup wall interval from host checkout's `.git` timestamp (17:27:31.251 UTC) to pilot start (17:33:39.539 UTC) is approximately 368.29 s, including inspection/calibration; setup-inclusive 437.38 s = **1,358 candidates/hour**. Initial named standalone execution 0.55 s and integration build/execution 24.90 s; deleted controls 2.20/9.13 s; Necessist calibration 5.52 s; restored list/run standalone 0.93/0.19 s, integration 6.37/0.20 s. No manual cache seed; no isolated cold-cache benchmark was measured, so warm-cache rates must not be extrapolated. Individual normal-target replay plus restored module run cost 140.29 s, separate from audit throughput. Final restore builds/runs cost 0.87/5.04 s. Tooling setup hiccup: `/usr/bin/time` absent (exit 127 before any build); reran with Bash `time -p`.
 - All **27 passing spans** matched baseline text/coordinates and reproduced individually using normal `integration matrix_placement::<name> -- --exact --nocapture`, followed by source restoration and 29 module passes. No stale results, harness-only leads or confirmed defects; **0 findings/file**. Replays are `replay-01.log` through `replay-27.log` and `replay-summary.log`.
 
+### A3 — Inert reconstruction evidence — 2026-11-16
+
+This retention addendum describes the completed pilot, not a new exclusion policy or authorization to execute, rerun, create a database, or clean up. Pilot evidence was committed as `086fa1f21725e3868460a66b328328b9ad5fdb13`; the audited source remains `b8d7011a259736ec4838161a095fc6aee0779706`. The recorded versions, invocation, outcomes and limitations above remain unchanged.
+
+**Effective exclusions.** The retained `P/necessist.toml` contains exactly these two lines (inert quotation, not an operational file):
+
+```text
+ignored_functions = ["axis_case", "convert_case", "internal_constraint_translation", "assert_reflected_keys", "assert_same_poses", "assert_translated"]
+ignored_tests = ["stagger_axis_matches_location", "convert_preserves_poses_on_an_unsplayed_column", "convert_preserves_poses_on_the_last_column_and_a_custom_origin"]
+```
+
+Necessist 4.1.0's default assertion exclusions remained enabled; these are additional exclusions, not a replacement assertion policy. The three excluded tests still executed normally but were not audited for removals. The helper-only `matrix_translation_preserves_internal_constraint_without_retuning` and `column_translation_preserves_internal_constraint_without_retuning` had zero eligible candidates. These gaps are not coverage claims.
+
+**Temporary mapping.** The disposable `P/core/Cargo.toml` retained `autotests = false` and the ordinary `integration` target at `tests/integration.rs`; it additionally contained the following mapping. This is evidence only; do not install it in the delivered manifest:
+
+```text
+[[test]]
+name = "matrix_placement_audit"
+path = "tests/matrix_placement.rs"
+```
+
+**Cargo forwarding reconstruction.** The retained `P/.scratch/pilot-bin/cargo` is a Python 3 entry point. Its complete behavior is specified below; reconstruction is not executed by A3.
+
+- Invoke `/usr/bin/cargo` followed by every incoming argument after the wrapper's argv[0], unchanged and without shell interpretation. No explicit cwd or environment override is supplied: the child inherits the wrapper's working directory and environment, including stdin.
+- Generate the log stamp as decimal `time.time_ns()`, a hyphen, and decimal `os.getpid()`. The fixed log directory is `/home/chris/.t3/worktrees/ts-boardstudio2/audit-layout-engine-pcb-2e505e394500cb50/.evidence/integration-audit-pilot-2-2`; open `cargo-<stamp>.log` in binary write mode after the child completes. The wrapper does not create the directory.
+- Measure elapsed time with `time.monotonic()` starting immediately before `subprocess.run`. Capture stdout and stderr separately with pipes; do not request text decoding, shell execution, a timeout, or exception-on-nonzero.
+- Set `pass_fds=(9,)` only if `os.environ.get("BOARDSTUDIO_BUILD_LOCK_FD") == "9"`; otherwise pass an empty tuple. This preserves the existing FD9 build lock when signaled by that exact environment value, not arbitrary descriptors.
+- After completion, write an encoded header containing the current timezone-aware UTC ISO timestamp, newline, `cwd=<os.getcwd()>`, newline, `$ <shlex.join(command)>`, newline. Append raw captured stdout bytes, then raw stderr bytes, then an encoded footer consisting of a newline, `exit=<done.returncode> elapsed=<seconds to three decimals>s`, and a final newline. Encoding uses Python's default UTF-8; the elapsed value is evaluated when this footer is written, after the stream bytes.
+- Replay stdout bytes to `sys.stdout.buffer` and stderr bytes to `sys.stderr.buffer` separately, after logging. This buffers output until child completion; neither live streaming nor cross-stream chronological ordering is preserved.
+- Exit with the child's nonnegative return code; a negative subprocess return code maps to `128 - done.returncode`, i.e. 128 plus the signal number. No launch, invalid-FD, logging, or replay exception is caught; such failures do not manufacture a successful Cargo result.
+
+The recorded Necessist invocation and named-target/replay commands remain in Pilot evidence and Verification above. Necessist's Cargo child uses this forwarding entry point while its path is selected in the disposable environment; no new PATH setting or operational wrapper is delivered here.
+
+**Read-only verification.** Compared the retained two-line configuration, manifest mapping and 23-line forwarder with this addendum. The retained child log `cargo-1794850353826255677-2106851.log` records the disposable cwd, absolute Cargo executable/manifest, named standalone control failure, assertion diagnostic and exit 101. The already recorded baseline/restoration evidence establishes the passing runs; signal mapping and FD9 handling are source-inspected behavior, not claims of newly executed signal/descriptor controls. Neither database was opened; no reconstruction, audit, build, mutation or cleanup was run for this addendum.
+
 ### Triage and recommendation
 
 - **14 benign redundancies:** `column_stagger_moves_this_and_following_columns` lines 257/261 (max-length/reset); `convert_errors_on_a_splayed_default_origin_and_changes_nothing` lines 954/958/966/967/971 (already sized/defaulted/overwritten); roundtrip lines 1045/1049/1061/1062/1066/1074/1077 (equivalent max lengths, already-sized vectors and reset-before-overwrite). No behavior is lost by these removals.
