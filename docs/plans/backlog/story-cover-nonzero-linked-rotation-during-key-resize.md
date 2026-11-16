@@ -7,7 +7,7 @@ sources:
   - docs/plans/initiative-layout-test-strength/tickets/epic-audit-harness/epic-audit-harness-retrospective.md
 companions: []
 after: [3]
-refined: false
+refined: true
 hitl: false
 risk: low
 ---
@@ -51,3 +51,5 @@ Add a synthetic linked-half resize scenario whose accepted nonzero rotation dist
 - Decision: 2026-11-16 — user requested scheduling A1–A3. This ticket waits on backlog story 3 (A1), whose metadata oracle it must retain; they share the linked-resize test lane. A3 is independent and has working priority before either.
 - Owner: Layout test maintainer (Amelia); risk low because no product behavior changes.
 - Location: linked-resize coverage in `web/crates/layout/src/objects/keycap_resize.rs`; a neighboring single-matrix rotated test is not a substitute for this explicit linked pair.
+
+- Decision: 2026-11-16 — user authorized refinement from existing requirements and A2 Build while A1 remains built/in review and unaccepted. Existing full criteria are confirmed; no scope change. A1 supplies the required metadata oracle.
