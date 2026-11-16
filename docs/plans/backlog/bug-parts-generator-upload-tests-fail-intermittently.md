@@ -6,7 +6,7 @@ parent: none
 covers: []
 after: []
 assignee: ""
-refined: false
+refined: true
 hitl: false
 risk: low
 severity: P2
@@ -59,4 +59,4 @@ Both tests run their effects, wait a fixed 30 ms (`gloo_timers::future::TimeoutF
 ## Notes
 
 - Open question: is the missing parameter late or lost? The first step of the work is to tell these apart.
-- Assumption: severity P2 (the check is impaired and a retry is the workaround); risk low (test gate only, no user-facing behaviour known to be wrong).
+- Decision: 2026-11-16 — criteria approved as written; severity P2 (the check is impaired and a retry is the workaround), risk low (test gate only, no user-facing behaviour known to be wrong).
