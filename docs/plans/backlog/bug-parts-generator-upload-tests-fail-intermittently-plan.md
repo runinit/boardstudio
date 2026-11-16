@@ -3,7 +3,7 @@ title: 'Stabilize Parts generator-upload browser tests'
 type: bugfix
 ticket: 1
 created: '2026-11-16'
-status: built
+status: done
 baseline_revision: '143e1d47ef01d3150daab3b087bb3224838849f9'
 route: full
 route_source: auto
@@ -66,6 +66,7 @@ context: []
 
 ## Implementation Notes
 
+- Acceptance: 2026-11-16 — user explicitly requested “Accept and close the Parts bug.” Marked this standalone ticket done based on repair commit `1e047c164aba4d217e371181aa38f434ad5a997e`, deterministic counter-examples, the approved five normal/five loaded runs and independent quick review with no findings. Full project check remains intentionally omitted; exact historical scheduling remains unknown. This acceptance does not close the repair epic or resolve its retrospective.
 - Completed coordinator verification and independent quick review with no findings or deferrals. Marked built after all four matrix scenarios executed successfully. Local commit is limited to this plan and the Parts test module; no remote operation.
 - Test-local `ControlledUpload` retains a real File and its original byte-read promise, overriding only that instance's `arrayBuffer` completion. Both affected mounted scenarios hold it beyond the old 100 × 20 ms observation plus drains/30 ms; controls check read entry, absent asset/binding, empty held effects, and active reading feedback before release.
 - The proposed completion helper drives returned continuations and newly held effects on every turn, requires matching accepted asset/binding and rendered filename, and returns bounded state diagnostics. It leaves queued Apply Core effects deferred after Upload acceptance, retaining the original failure injection and retry-preview assertions.
