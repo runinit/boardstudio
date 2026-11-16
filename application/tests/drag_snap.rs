@@ -48,18 +48,36 @@ fn snap_ties_keep_document_order_and_exclude_other_boards() {
 #[test]
 fn gap_snap_preserves_edge_alignment_for_rotated_envelopes() {
     let mut document = fixture();
-    let moving = Part {
-        pose: boardstudio_core::model::Pose2 {
-            at: Vec2 { x: 10.9, y: 0.3 },
-            rotation: 0.0,
-        },
-        ..document.parts[0].clone()
-    };
-    for rotation in [0.0, 90.0] {
+    document.definitions[0].keycap = Some(Vec2 { x: 18.0, y: 20.0 });
+    // The moving envelope has half-extents (9, 10). The target at (30, 0)
+    // has half-extents (9, 10) at 0 degrees and (10, 9) at 90 degrees.
+    // Leave a 1 mm horizontal gap and align the bottom edges independently
+    // of the production envelope helpers: x = 30 - target_half_x - 1 - 9,
+    // y = -target_half_y + 10.
+    for (rotation, expected) in [
+        (0.0, Vec2 { x: 11.0, y: 0.0 }),
+        (90.0, Vec2 { x: 10.0, y: 1.0 }),
+    ] {
+        let moving = Part {
+            pose: boardstudio_core::model::Pose2 {
+                at: Vec2 {
+                    x: expected.x - 0.1,
+                    y: 0.3,
+                },
+                rotation: 0.0,
+            },
+            ..document.parts[0].clone()
+        };
         document.parts[1].pose.rotation = rotation;
         let snap = snap_part_in_board(&document, "main", &moving, 2.0, Some(1.0)).unwrap();
-        assert!((snap.at.x - 11.0).abs() < 1e-9);
-        assert!(snap.at.y.abs() < 1e-9);
+        assert!(
+            (snap.at.x - expected.x).abs() < 1e-9,
+            "rotation {rotation}: {snap:?}"
+        );
+        assert!(
+            (snap.at.y - expected.y).abs() < 1e-9,
+            "rotation {rotation}: {snap:?}"
+        );
         assert_eq!(snap.label, "right · envelope gap 1.00 mm · edges aligned");
     }
 }
