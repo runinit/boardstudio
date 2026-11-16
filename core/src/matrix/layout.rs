@@ -4793,12 +4793,24 @@ mod case_hardware_tests {
     #[test]
     fn case_clearance_holes_are_not_adopted_by_linked_layouts() {
         let mut doc = ProjectDoc::empty("case", "Case");
-        doc.boards = serde_json::from_value(serde_json::json!([{"id":"board","name":"Board","outlineIds":[],"partIds":["case-closure/board/10/10"],"netIds":[],"thickness":1.6}])).unwrap();
-        doc.parts = serde_json::from_value(serde_json::json!([{"id":"case-closure/board/10/10","definitionId":"hole","reference":"MH1","pose":{"at":{"x":10,"y":10},"rotation":0},"side":"front"}])).unwrap();
-        doc.matrices = serde_json::from_value(serde_json::json!([{"id":"matrix","boardId":"board","rows":1,"columns":1,"pitch":{"x":19,"y":19},"origin":{"x":0,"y":0},"definitionId":"key","partIds":[]}])).unwrap();
+        let key_id = matrix::member_id("matrix", 0, 0);
+        doc.boards = serde_json::from_value(serde_json::json!([{"id":"board","name":"Board","outlineIds":[],"partIds":[key_id,"case-closure/board/10/10","controller"],"netIds":[],"thickness":1.6}])).unwrap();
+        // All three parts are left of the mirror axis, so only the case-closure
+        // exclusion can keep the unassigned hole out of the source layout.
+        doc.parts = serde_json::from_value(serde_json::json!([
+            {"id":key_id,"definitionId":"key","reference":"K1","pose":{"at":{"x":0,"y":0},"rotation":0},"side":"front"},
+            {"id":"case-closure/board/10/10","definitionId":"hole","reference":"MH1","pose":{"at":{"x":10,"y":10},"rotation":0},"side":"front"},
+            {"id":"controller","definitionId":"controller","reference":"U1","pose":{"at":{"x":20,"y":10},"rotation":0},"side":"front"}
+        ])).unwrap();
+        doc.matrices = serde_json::from_value(serde_json::json!([{"id":"matrix","boardId":"board","rows":1,"columns":1,"pitch":{"x":19,"y":19},"origin":{"x":0,"y":0},"definitionId":"key","partIds":[key_id]}])).unwrap();
         doc.layouts = serde_json::from_value(serde_json::json!([{"id":"left","name":"Left","boardId":"board","matrixIds":["matrix"],"partIds":[]}])).unwrap();
         adopt_unassigned_components(&mut doc, "left", 100.0, &mut vec![]).unwrap();
-        assert!(doc.layouts[0].part_ids.is_empty());
+        assert!(
+            !doc.layouts[0]
+                .part_ids
+                .contains(&"case-closure/board/10/10".to_owned())
+        );
+        assert_eq!(doc.layouts[0].part_ids, ["controller"]);
     }
 
     #[test]
