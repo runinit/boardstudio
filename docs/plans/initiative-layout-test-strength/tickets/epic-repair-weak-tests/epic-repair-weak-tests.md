@@ -1,6 +1,7 @@
 ---
 type: epic
 title: "Repair confirmed weak tests"
+status: done
 parent: initiative-layout-test-strength
 covers: [R1, R2, R3, R4, R5, R6, R9]
 sources: []
@@ -55,6 +56,8 @@ A developer who breaks case-closure adoption, a framed solve, splay-origin valid
 - research — docs/plans/initiative-layout-test-strength/research-necessist-audit/research-necessist-audit.md, section Findings
 
 ## Notes
+
+- Decision: 2026-11-16 — user accepted and closed this epic after the closure check confirmed all five stories done, requirements R1–R7 covered, six detected counter-examples with passing restorations, the redundant pick block removed, and the fixture-helper sweep complete without delivered production changes or ignored repairs. The recorded final repair-state full check passed all six steps (`.evidence/story-1-5-coordinator-full-check-retry.log`); this is evidence for that repair state, not a new run at current HEAD. The existing retrospective records acceptance with no blocking or deferred repair defects; its carry-forward lessons do not leave repair scope open. The retrospective remains unmodified and outside this closure commit. Spike 2.2 belongs to the audit-harness epic, requires separate authorization and remains unstarted.
 
 - Decision: 2026-11-15 — refined from the initiative's lines alone; the research file's Findings give each test's location and mechanism, so nothing more is needed before stories.
 - Unknown: none blocking. Adoption keeps only parts on the source side of the mirror axis (`core/src/matrix/layout.rs:3612`), so entry 1's hole and ordinary part must both sit there or its counter-example passes for the wrong reason.
