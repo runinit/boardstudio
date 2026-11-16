@@ -1963,17 +1963,9 @@ mod tests {
             MatrixPlacementChange::ColumnOffsetToStagger { column: 0 }
         );
         // A splayed column with a default origin is refused with Core's own reason.
-        {
-            let values = vec![12.0];
-            let count = values.len().max(matrix.column_layout.len());
-            matrix.column_layout.resize_with(count, Default::default);
-            for record in &mut matrix.column_layout {
-                record.splay = 0.0;
-            }
-            for (record, value) in matrix.column_layout.iter_mut().zip(values) {
-                record.splay = value;
-            }
-        }
+        matrix.column_layout[0].splay = 12.0;
+        matrix.column_layout[1].splay = 0.0;
+        matrix.column_layout[2].splay = 0.0;
         assert_eq!(
             build(&matrix),
             Err(convert_offset_available(&matrix, 0).unwrap_err())

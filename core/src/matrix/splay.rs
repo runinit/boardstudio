@@ -206,6 +206,23 @@ mod tests {
         }
     }
 
+    fn set_column_values<T: Default>(
+        matrix: &mut Matrix,
+        values: Vec<T>,
+        field: fn(&mut crate::model::ColumnLayout) -> &mut T,
+    ) {
+        matrix.column_layout.resize_with(
+            values.len().max(matrix.column_layout.len()),
+            Default::default,
+        );
+        for record in &mut matrix.column_layout {
+            *field(record) = T::default();
+        }
+        for (record, value) in matrix.column_layout.iter_mut().zip(values) {
+            *field(record) = value;
+        }
+    }
+
     fn key(matrix: &Matrix, row: u32, column: u32) -> Vec2 {
         super::super::evaluation::cell_pose(
             &evaluated(matrix, &ProjectDoc::empty("test", "Test")).unwrap(),
@@ -214,6 +231,26 @@ mod tests {
         )
         .unwrap()
         .at
+    }
+
+    #[test]
+    fn column_values_preserve_unselected_fields_and_record_counts() {
+        let mut short = matrix();
+        let mut expected = short.clone();
+        expected.column_layout[0].splay = 12.0;
+        expected.column_layout[1].splay = 0.0;
+        expected.column_layout[2].splay = 0.0;
+        set_column_values(&mut short, vec![12.0], |record| &mut record.splay);
+        assert_eq!(short, expected);
+
+        let mut long = matrix();
+        let mut expected = long.clone();
+        expected.column_layout[0].stagger = 0.0;
+        expected.column_layout[1].stagger = 0.0;
+        expected.column_layout[2].stagger = 0.0;
+        expected.column_layout.push(Default::default());
+        set_column_values(&mut long, vec![0.0; 4], |record| &mut record.stagger);
+        assert_eq!(long, expected);
     }
 
     #[test]
@@ -247,32 +284,10 @@ mod tests {
         before.mirror = None;
         before.rotation = Some(21.0);
         before.columns = 4;
-        {
-            let values = vec![0.0; 4];
-            before.column_layout.resize_with(
-                values.len().max(before.column_layout.len()),
-                Default::default,
-            );
-            for record in &mut before.column_layout {
-                record.stagger = 0.0;
-            }
-            for (record, value) in before.column_layout.iter_mut().zip(values) {
-                record.stagger = value;
-            }
-        }
-        {
-            let values = vec![12.0, 8.0, 0.0, 0.0];
-            before.column_layout.resize_with(
-                values.len().max(before.column_layout.len()),
-                Default::default,
-            );
-            for record in &mut before.column_layout {
-                record.splay = 0.0;
-            }
-            for (record, value) in before.column_layout.iter_mut().zip(values) {
-                record.splay = value;
-            }
-        }
+        set_column_values(&mut before, vec![0.0; 4], |record| &mut record.stagger);
+        set_column_values(&mut before, vec![12.0, 8.0, 0.0, 0.0], |record| {
+            &mut record.splay
+        });
         let after = update(
             &before,
             1,
