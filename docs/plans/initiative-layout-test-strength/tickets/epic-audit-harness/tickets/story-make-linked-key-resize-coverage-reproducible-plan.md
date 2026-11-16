@@ -3,7 +3,7 @@ title: 'Make linked key-resize coverage reproducible'
 type: chore
 ticket: 1
 created: '2026-11-16'
-status: built
+status: done
 baseline_revision: 'a2be9c7b3067ca368e4e4459f2f3125c5b608ac8'
 route: full
 route_source: auto

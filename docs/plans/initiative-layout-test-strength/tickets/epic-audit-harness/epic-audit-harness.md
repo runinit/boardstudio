@@ -1,6 +1,7 @@
 ---
 type: epic
 title: "Audit harness"
+status: in-progress
 parent: initiative-layout-test-strength
 covers: [R7, R8]
 sources: []
@@ -57,6 +58,8 @@ Linked keycap-size reflow is checked through Core and history in the ordinary ga
 - research — docs/plans/initiative-layout-test-strength/research-necessist-audit/research-necessist-audit.md, sections Lead, Harness limitation, Review corrections
 
 ## Notes
+
+- Decision: 2026-11-16 — user accepted story 2.1, implemented in `92ac157c2de936b71df297a60212fd7b3e274e67`; its plan is now done. Evidence records one named pass with zero ignored, ten module passes, four detected/restored counter-examples, all six full-check steps passing and no quick-review findings. The epic remains in progress for spike 2.2, whose disposable checkout, fresh database and audit execution still require separate authorization; no pilot has started.
 
 - Decision: 2026-11-16 — refined from the initiative's R7/R8 and the approved read-only continuation; no further shared design decision is needed. Story 1 owns reproducible linked-resize coverage, and spike 2 owns the uncertain integration-audit route and bounded pilot.
 - Decision: 2026-11-16 — the tracer bullet is story 1: a small synthetic linked document reaches real Core acceptance, source keycap-size reflow, linked propagation and history in the ordinary gate. This removes the external-fixture dependency before the less certain harness pilot.
