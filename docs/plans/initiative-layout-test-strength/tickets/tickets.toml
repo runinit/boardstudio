@@ -1,0 +1,15 @@
+# The initiative's epics in build order. `id` is permanent, never reused.
+
+[[epic]]
+id = 1
+slug = "epic-repair-weak-tests"
+title = "Repair confirmed weak tests"
+description = "Six tests the audit named fail under their counter-examples, the redundant duplicate-pick block is gone, and the repeated fixture block is one helper per module."
+covers = ["R1", "R2", "R3", "R4", "R5", "R6", "R9"]
+
+[[epic]]
+id = 2
+slug = "epic-audit-harness"
+title = "Audit harness"
+description = "Linked key resize is covered in the ordinary gate with no ignored test, and core/tests/matrix_placement.rs has a proven, measured Necessist audit."
+covers = ["R7", "R8"]
