@@ -1512,10 +1512,32 @@ mod tests {
             assert_eq!(result.values().collect::<BTreeSet<_>>().len(), 6);
             result
         };
+        let layout_metadata = |document: &ProjectDoc| {
+            ["left", "right"].map(|id| {
+                assert_eq!(document.layouts.iter().filter(|l| l.id == id).count(), 1);
+                let layout = document.layouts.iter().find(|l| l.id == id).unwrap();
+                (
+                    layout.id.clone(),
+                    layout.board_id.clone(),
+                    layout.matrix_ids.clone(),
+                    layout.part_ids.clone(),
+                    layout.mirror_link.clone(),
+                )
+            })
+        };
+        let accepted_metadata = layout_metadata(&accepted);
+        let axis_x = accepted_metadata[1].4.as_ref().unwrap().axis_x;
+        assert!(accepted_metadata[0].4.is_none());
+        assert_eq!(accepted_metadata[1].4.as_ref().unwrap().split_gap, None);
+        assert_eq!(accepted_metadata[1].4.as_ref().unwrap().spacing, None);
+        let mut expected_committed_metadata = accepted_metadata.clone();
+        // Legacy half-origin gap: 2 * (0 - (-80)) - (19 - 1) = 142 mm.
+        // Adoption preserves placement; these separated halves stay unspaced.
+        expected_committed_metadata[1].4.as_mut().unwrap().split_gap = Some(142.0);
         let original_members = members(&accepted, &scene.matrix_scenes);
         let snapshot = |document: &ProjectDoc, scenes: &[MatrixScene]| {
             assert_eq!(members(document, scenes), original_members);
-            original_members
+            let member_state = original_members
                 .iter()
                 .map(|((matrix_id, row, column), id)| {
                     let matrix = document
@@ -1548,7 +1570,8 @@ mod tests {
                         cell.offset,
                     )
                 })
-                .collect::<Vec<_>>()
+                .collect::<Vec<_>>();
+            (member_state, layout_metadata(document))
         };
         let before = snapshot(&accepted, &scene.matrix_scenes);
         let mut accepted_placements = Vec::new();
@@ -1610,17 +1633,13 @@ mod tests {
             },
         }));
         assert_eq!(saved.revision, accepted.revision + 1);
+        assert_eq!(
+            layout_metadata(&saved),
+            expected_committed_metadata,
+            "resize preserves ownership and mirror links with expected gap adoption"
+        );
         let after = snapshot(&saved, &saved_scene.matrix_scenes);
         assert_ne!(after, before);
-        let axis_x = saved
-            .layouts
-            .iter()
-            .find(|l| l.id == "right")
-            .unwrap()
-            .mirror_link
-            .as_ref()
-            .unwrap()
-            .axis_x;
         for column in 0..3 {
             let source_id = &original_members[&("m".into(), 0, column)];
             let partner_id = &original_members[&("partner".into(), 0, column)];
