@@ -1403,315 +1403,262 @@ mod tests {
         }
     }
 
-    /// End-to-end Core seam for linked key resize. Set `KEYCAPS_MIRROR_PROJECT_JSON` to the
-    /// extracted `project.json` from the pinned Sofle archive to run this opt-in fixture test.
     #[test]
-    #[ignore = "requires KEYCAPS_MIRROR_PROJECT_JSON to point at the pinned archive fixture"]
     fn replace_document_reflows_source_and_core_syncs_linked_partner_through_history() {
-        let source = std::env::var("KEYCAPS_MIRROR_PROJECT_JSON").unwrap();
-        let mut document: ProjectDoc =
-            serde_json::from_slice(&std::fs::read(source).unwrap()).unwrap();
-        let left = document
-            .layouts
-            .iter()
-            .find(|layout| layout.id == "left-keys-layout")
-            .unwrap()
-            .clone();
-        let right_index = document
-            .layouts
-            .iter()
-            .position(|layout| layout.id == "right-keys-layout")
-            .unwrap();
-        let right_matrix_id = document.layouts[right_index].matrix_ids[0].clone();
-        document.layouts[right_index].board_id = left.board_id.clone();
-        document.layouts[right_index].mirror_link =
-            Some(boardstudio_core::model::LayoutMirrorLink {
-                correspondences: vec![],
-                exceptions: vec![],
-                source_id: left.id.clone(),
-                axis_x: 0.0,
-                split_gap: None,
-                spacing: None,
-            });
-        let right_matrix_index = document
-            .matrices
-            .iter()
-            .position(|matrix| matrix.id == right_matrix_id)
-            .unwrap();
-        document.matrices[right_matrix_index].board_id = Some(left.board_id.clone());
-        let right_parts: BTreeSet<_> = document
-            .boards
-            .iter()
-            .find(|board| board.id == "right")
-            .unwrap()
-            .part_ids
-            .iter()
-            .cloned()
-            .collect();
-        document
-            .boards
-            .iter_mut()
-            .find(|board| board.id == "right")
-            .unwrap()
-            .part_ids
-            .retain(|id| !right_parts.contains(id));
-        document
-            .boards
-            .iter_mut()
-            .find(|board| board.id == left.board_id)
-            .unwrap()
-            .part_ids
-            .extend(right_parts);
+        use boardstudio_core::model::{LayoutMirrorLink, MirroredCorrespondence, MirroredItemKind};
 
-        let mut engine = boardstudio_core::CoreEngine::new();
-        let opened = engine.handle(CoreRequest::Open {
-            id: "open".into(),
-            document,
-        });
-        let (accepted, scene) = match opened {
+        let mut source = matrix();
+        source.origin = point(-80.0, 10.0);
+        source.part_ids = (0..3)
+            .map(|column| format!("matrix/m/r0c{column}"))
+            .collect();
+        let mut partner = source.clone();
+        partner.id = "partner".into();
+        partner.origin = point(80.0, 10.0);
+        partner.mirror = Some(Mirror::X);
+        partner.part_ids = (0..3)
+            .map(|column| format!("matrix/partner/r0c{column}"))
+            .collect();
+        let mut initial = document(&source);
+        initial.revision = 0;
+        initial.parts.clear();
+        for matrix in [&source, &partner] {
+            for (column, id) in matrix.part_ids.iter().enumerate() {
+                let direction = if matrix.id == "m" { 1.0 } else { -1.0 };
+                let mut member = part(id, matrix.origin.x + direction * column as f64 * 19.0);
+                member.pose.at.y = 10.0;
+                initial.parts.push(member);
+            }
+        }
+        initial.boards[0].part_ids = initial.parts.iter().map(|p| p.id.clone()).collect();
+        initial.matrices = vec![source, partner];
+        initial.definitions.push(
+            serde_json::from_value(serde_json::json!({
+                "id": "switch", "name": "Switch", "kind": "switch",
+                "keycap": {"x": 18.0, "y": 18.0},
+                "courtyard": [{"x": -3.0, "y": -3.0}, {"x": 3.0, "y": -3.0}, {"x": 3.0, "y": 3.0}],
+                "pads": []
+            }))
+            .unwrap(),
+        );
+        initial.layouts = vec![
+            Layout {
+                id: "left".into(),
+                name: "Left".into(),
+                board_id: "board".into(),
+                matrix_ids: vec!["m".into()],
+                part_ids: vec![],
+                mirror_link: None,
+            },
+            Layout {
+                id: "right".into(),
+                name: "Right".into(),
+                board_id: "board".into(),
+                matrix_ids: vec!["partner".into()],
+                part_ids: vec![],
+                mirror_link: Some(LayoutMirrorLink {
+                    source_id: "left".into(),
+                    axis_x: 0.0,
+                    correspondences: vec![MirroredCorrespondence {
+                        kind: MirroredItemKind::Matrix,
+                        source_id: "m".into(),
+                        mirror_id: "partner".into(),
+                        companion_mode: None,
+                        companion_tweak: None,
+                    }],
+                    exceptions: vec![],
+                    split_gap: None,
+                    spacing: None,
+                }),
+            },
+        ];
+        let unpack = |reply| match reply {
             CoreReply::Scene {
                 document, scene, ..
             } => (*document, scene),
-            other => panic!("linked fixture did not open: {other:?}"),
+            other => panic!("linked resize did not settle: {other:?}"),
         };
-        let source_matrix_id = accepted
-            .layouts
-            .iter()
-            .find(|layout| layout.id == "left-keys-layout")
-            .unwrap()
-            .matrix_ids[0]
-            .clone();
-        let source_matrix = accepted
-            .matrices
-            .iter()
-            .find(|matrix| matrix.id == source_matrix_id)
-            .unwrap();
-        let source_scene = scene
-            .matrix_scenes
-            .iter()
-            .find(|scene| scene.matrix_id == source_matrix_id)
-            .unwrap();
-        let cell = source_scene
-            .cells
-            .iter()
-            .find(|cell| cell.enabled && cell.row == 1 && cell.column == 2)
-            .unwrap();
-        let selected_id = cell.member_id.clone().unwrap();
+        let mut engine = boardstudio_core::CoreEngine::new();
+        let (accepted, scene) = unpack(engine.handle(CoreRequest::Open {
+            id: "open".into(),
+            document: initial,
+        }));
+
+        // Capture all cell identities before editing, not from the resize result.
+        let members = |document: &ProjectDoc, scenes: &[MatrixScene]| {
+            let mut result = BTreeMap::new();
+            for matrix_id in ["m", "partner"] {
+                let matrix = document
+                    .matrices
+                    .iter()
+                    .find(|m| m.id == matrix_id)
+                    .unwrap();
+                let scene = scenes.iter().find(|s| s.matrix_id == matrix_id).unwrap();
+                assert_eq!(scene.cells.len(), 3);
+                assert_eq!(matrix.part_ids.len(), 3);
+                for cell in &scene.cells {
+                    assert!(cell.enabled);
+                    let id = cell.member_id.clone().expect("enabled cell has a member");
+                    assert!(matrix.part_ids.contains(&id));
+                    assert_eq!(document.parts.iter().filter(|p| p.id == id).count(), 1);
+                    assert!(
+                        result
+                            .insert((matrix_id.to_owned(), cell.row, cell.column), id)
+                            .is_none()
+                    );
+                }
+            }
+            assert_eq!(result.len(), 6);
+            assert_eq!(result.values().collect::<BTreeSet<_>>().len(), 6);
+            result
+        };
+        let original_members = members(&accepted, &scene.matrix_scenes);
+        let snapshot = |document: &ProjectDoc, scenes: &[MatrixScene]| {
+            assert_eq!(members(document, scenes), original_members);
+            original_members
+                .iter()
+                .map(|((matrix_id, row, column), id)| {
+                    let matrix = document
+                        .matrices
+                        .iter()
+                        .find(|m| &m.id == matrix_id)
+                        .unwrap();
+                    let cell = matrix
+                        .cells
+                        .iter()
+                        .find(|c| c.row == *row && c.column == *column)
+                        .unwrap();
+                    let scene_cell = scenes
+                        .iter()
+                        .find(|s| &s.matrix_id == matrix_id)
+                        .unwrap()
+                        .cells
+                        .iter()
+                        .find(|c| c.row == *row && c.column == *column)
+                        .unwrap();
+                    let part = document.parts.iter().find(|p| &p.id == id).unwrap();
+                    assert_eq!(part.pose, scene_cell.pose, "document/scene pose for {id}");
+                    (
+                        matrix_id.clone(),
+                        *row,
+                        *column,
+                        id.clone(),
+                        part.pose,
+                        part.keycap,
+                        cell.offset,
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
+        let before = snapshot(&accepted, &scene.matrix_scenes);
         let mut accepted_placements = Vec::new();
         for matrix in &accepted.matrices {
-            let Some(matrix_scene) = scene
+            let matrix_scene = scene
                 .matrix_scenes
                 .iter()
-                .find(|scene| scene.matrix_id == matrix.id)
-            else {
-                continue;
-            };
-            for cell in matrix_scene.cells.iter().filter(|cell| cell.enabled) {
-                let Some(id) = cell.member_id.as_deref() else {
-                    continue;
-                };
-                let Some(part) = accepted.parts.iter().find(|part| part.id == id) else {
-                    continue;
-                };
-                if !matrix.part_ids.contains(&part.id) {
-                    continue;
-                }
+                .find(|s| s.matrix_id == matrix.id)
+                .unwrap();
+            for cell in &matrix_scene.cells {
+                let id = cell.member_id.as_ref().unwrap();
+                let part = accepted.parts.iter().find(|p| &p.id == id).unwrap();
                 let definition = accepted
                     .definitions
                     .iter()
-                    .find(|definition| definition.id == part.definition_id);
-                let gap = matrix.edge_gap.unwrap_or(point(1.0, 1.0));
-                let size = part
-                    .keycap
-                    .or_else(|| definition.and_then(|definition| definition.keycap))
-                    .unwrap_or(point(
-                        (matrix.pitch.x - gap.x).max(1.0),
-                        (matrix.pitch.y - gap.y).max(1.0),
-                    ));
+                    .find(|d| d.id == part.definition_id)
+                    .unwrap();
                 accepted_placements.push(KeycapPlacement {
-                    id: id.into(),
+                    id: id.clone(),
                     matrix_id: matrix.id.clone(),
                     row: cell.row,
                     column: cell.column,
                     at: cell.pose.at,
                     rotation: cell.pose.rotation,
-                    size,
+                    size: part.keycap.or(definition.keycap).unwrap(),
                 });
             }
         }
-        let units = point(3.0, 1.0);
-        let selected_ids = BTreeSet::from([selected_id.clone()]);
+        assert_eq!(accepted_placements.len(), 6);
+        assert!(
+            accepted_placements
+                .iter()
+                .all(|p| p.size == point(18.0, 18.0))
+        );
+        let selected_id = original_members[&("m".into(), 0, 1)].clone();
         let plan = plan_resize(KeycapResizeInput {
             document: &accepted,
             matrices: &accepted.matrices,
             scenes: &scene.matrix_scenes,
             layouts: &accepted.layouts,
             placements: &accepted_placements,
-            selected_ids: &selected_ids,
-            units,
+            selected_ids: &BTreeSet::from([selected_id]),
+            units: point(3.0, 1.0),
             axis: None,
         })
         .expect("linked source selection should make a plan");
-        let command = EditCommand {
-            base_revision: accepted.revision,
-            transaction_id: "keycaps-typed-mirror".into(),
-            phase: EditPhase::Commit,
-            target_ids: plan.target_ids.clone(),
-            // Ticket 33: the linked planner output commits as the typed edit.
-            operation: EditOperation::SetKeycapSize {
-                sizes: plan.sizes.clone(),
-                moves: plan.moves.clone(),
-                offsets: plan.offsets.clone(),
-            },
-        };
-        let committed = engine.handle(CoreRequest::Edit {
+        let (saved, saved_scene) = unpack(engine.handle(CoreRequest::Edit {
             id: "resize".into(),
-            command,
-        });
-        let (saved, saved_scene) = match committed {
-            CoreReply::Scene {
-                document, scene, ..
-            } => (*document, scene),
-            other => panic!("typed keycap-size resize was rejected: {other:?}"),
-        };
+            command: EditCommand {
+                base_revision: accepted.revision,
+                transaction_id: "keycaps-typed-mirror".into(),
+                phase: EditPhase::Commit,
+                target_ids: plan.target_ids.clone(),
+                operation: EditOperation::SetKeycapSize {
+                    sizes: plan.sizes.clone(),
+                    moves: plan.moves.clone(),
+                    offsets: plan.offsets.clone(),
+                },
+            },
+        }));
         assert_eq!(saved.revision, accepted.revision + 1);
-        let partner_layout = saved
+        let after = snapshot(&saved, &saved_scene.matrix_scenes);
+        assert_ne!(after, before);
+        let axis_x = saved
             .layouts
             .iter()
-            .find(|layout| layout.id == "right-keys-layout")
-            .unwrap();
-        let original_partner_scene = scene
-            .matrix_scenes
-            .iter()
-            .find(|scene| partner_layout.matrix_ids.contains(&scene.matrix_id))
-            .unwrap();
-        let partner_scene = saved_scene
-            .matrix_scenes
-            .iter()
-            .find(|scene| partner_layout.matrix_ids.contains(&scene.matrix_id))
-            .unwrap();
-        let partner_id = partner_scene
-            .cells
-            .iter()
-            .find(|cell| cell.row == 1 && cell.column == 2)
+            .find(|l| l.id == "right")
             .unwrap()
-            .member_id
+            .mirror_link
             .as_ref()
-            .unwrap();
-        let source_part = saved
-            .parts
-            .iter()
-            .find(|part| part.id == selected_id)
-            .unwrap();
-        let partner_part = saved
-            .parts
-            .iter()
-            .find(|part| &part.id == partner_id)
-            .unwrap();
-        assert_eq!(
-            source_part.keycap,
-            Some(point(
-                3.0 * source_matrix.pitch.x - source_matrix.edge_gap.unwrap_or(point(1.0, 1.0)).x,
-                source_matrix.pitch.y - source_matrix.edge_gap.unwrap_or(point(1.0, 1.0)).y
-            ))
-        );
-        assert_eq!(partner_part.keycap, source_part.keycap);
-        let axis_x = partner_layout.mirror_link.as_ref().unwrap().axis_x;
-        assert!((source_part.pose.at.x + partner_part.pose.at.x - 2.0 * axis_x).abs() < 1e-6);
-        assert!((source_part.pose.at.y - partner_part.pose.at.y).abs() < 1e-6);
-        let original_selected_pose = cell.pose.at;
-        assert!((source_part.pose.at.x - original_selected_pose.x).abs() < 1e-6);
-        assert!((source_part.pose.at.y - original_selected_pose.y).abs() < 1e-6);
-        for column in [1, 3] {
-            let original_cell = source_scene
-                .cells
-                .iter()
-                .find(|cell| cell.enabled && cell.row == 1 && cell.column == column)
-                .unwrap();
-            let neighbor_id = original_cell.member_id.as_ref().unwrap();
-            let original_neighbor = accepted
-                .parts
-                .iter()
-                .find(|part| &part.id == neighbor_id)
-                .unwrap();
-            let saved_neighbor = saved
-                .parts
-                .iter()
-                .find(|part| &part.id == neighbor_id)
-                .unwrap();
-            assert!((saved_neighbor.pose.at.x - original_neighbor.pose.at.x).abs() > 1e-6);
-            let original_partner_id = original_partner_scene
-                .cells
-                .iter()
-                .find(|cell| cell.row == 1 && cell.column == column)
-                .unwrap()
-                .member_id
-                .as_ref()
-                .unwrap();
-            let saved_partner_id = partner_scene
-                .cells
-                .iter()
-                .find(|cell| cell.row == 1 && cell.column == column)
-                .unwrap()
-                .member_id
-                .as_ref()
-                .unwrap();
-            let saved_partner = saved
-                .parts
-                .iter()
-                .find(|part| &part.id == saved_partner_id)
-                .unwrap();
+            .unwrap()
+            .axis_x;
+        for column in 0..3 {
+            let source_id = &original_members[&("m".into(), 0, column)];
+            let partner_id = &original_members[&("partner".into(), 0, column)];
+            let original = accepted.parts.iter().find(|p| &p.id == source_id).unwrap();
+            let source = saved.parts.iter().find(|p| &p.id == source_id).unwrap();
+            let partner = saved.parts.iter().find(|p| &p.id == partner_id).unwrap();
+            let displacement = [-19.0, 0.0, 19.0][column as usize];
+            assert!(
+                (source.pose.at.x - original.pose.at.x - displacement).abs() < 1e-6,
+                "source column {column} must reflow by {displacement}"
+            );
+            assert!((source.pose.at.y - original.pose.at.y).abs() < 1e-6);
+            assert_eq!(source.pose.rotation, original.pose.rotation);
+            let expected_size = Some(point(if column == 1 { 56.0 } else { 18.0 }, 18.0));
+            assert_eq!(source.keycap, expected_size);
             assert_eq!(
-                saved
-                    .parts
-                    .iter()
-                    .find(|part| part.id == *original_partner_id)
-                    .unwrap()
-                    .id,
-                *saved_partner_id
+                partner.keycap, expected_size,
+                "linked partner size at column {column}"
             );
             assert!(
-                (saved_neighbor.pose.at.x + saved_partner.pose.at.x - 2.0 * axis_x).abs() < 1e-6
+                (source.pose.at.x + partner.pose.at.x - 2.0 * axis_x).abs() < 1e-6,
+                "linked partner reflection at column {column}"
             );
-            assert!((saved_neighbor.pose.at.y - saved_partner.pose.at.y).abs() < 1e-6);
+            assert!((source.pose.at.y - partner.pose.at.y).abs() < 1e-6);
+            assert!((source.pose.rotation + partner.pose.rotation).rem_euclid(360.0) < 1e-6);
         }
 
-        let undone = engine.handle(CoreRequest::Undo { id: "undo".into() });
-        let (undone, _) = match undone {
-            CoreReply::Scene {
-                document, scene, ..
-            } => (*document, scene),
-            other => panic!("undo failed: {other:?}"),
-        };
+        let (undone, undone_scene) = unpack(engine.handle(CoreRequest::Undo { id: "undo".into() }));
         assert_eq!(
-            undone
-                .parts
-                .iter()
-                .find(|part| part.id == selected_id)
-                .unwrap()
-                .keycap,
-            accepted
-                .parts
-                .iter()
-                .find(|part| part.id == selected_id)
-                .unwrap()
-                .keycap
+            snapshot(&undone, &undone_scene.matrix_scenes),
+            before,
+            "Undo restores both halves"
         );
-        let redone = engine.handle(CoreRequest::Redo { id: "redo".into() });
-        let (redone, _) = match redone {
-            CoreReply::Scene {
-                document, scene, ..
-            } => (*document, scene),
-            other => panic!("redo failed: {other:?}"),
-        };
+        let (redone, redone_scene) = unpack(engine.handle(CoreRequest::Redo { id: "redo".into() }));
         assert_eq!(
-            redone
-                .parts
-                .iter()
-                .find(|part| part.id == selected_id)
-                .unwrap()
-                .keycap,
-            source_part.keycap
+            snapshot(&redone, &redone_scene.matrix_scenes),
+            after,
+            "Redo restores both halves"
         );
     }
 }
