@@ -1180,6 +1180,8 @@ mod projection_tests {
             }
         }
         assert!(valid_projection_matrix(&m).is_err());
+        let mut m = matrix();
+        assert!(valid_projection_matrix(&m).is_ok());
         {
             let values = (vec![Some(Vec2 {
                 x: f64::NAN,
