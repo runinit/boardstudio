@@ -23,7 +23,7 @@ Anyone changing matrix layout, constraint, snapping or layout-viewer code gets a
 
 - R1 (F1): The case-closure adoption test fails when case-closure parts are no longer excluded from adoption, and shows an ordinary unassigned part being adopted in the same fixture.
 - R2 (F2, F5): The persisted framed-constraint test and the local-mirror endpoint test each fail when the solve does not move the target.
-- R3 (F3): The non-finite splay-origin case is rejected by the finite-origin check itself, shown by the case failing when that check is absent.
+- R3 (F3): The non-finite splay-origin case uses a fresh otherwise-valid matrix and rejects the invalid origin; temporarily replacing only that origin with a finite value makes the unchanged rejection assertion fail. This proves dependency on invalid origin, not detection of a single finite-origin guard removal.
 - R4 (F4): The layout-viewer pick test no longer carries the duplicate-reference block that cannot reach duplicate resolution; it still asserts that a unique reference selects its part, and the direct duplicate-rejection test in `case_preview.rs` still passes.
 - R5 (F6): The rotated-envelope snap test fails when envelope rotation is ignored.
 - R6 (F7): The membership-cache test shows a populated membership cleared on close and recomputed when the same owner reopens, and fails when membership is not retired on close.
@@ -69,3 +69,5 @@ Anyone changing matrix layout, constraint, snapping or layout-viewer code gets a
 - Decision: 2026-11-15 — the pilot audit file is `core/tests/matrix_placement.rs`, chosen for sample size; nothing from the pilot is committed.
 - Decision: 2026-11-15 — the tracked Core integration tests stay as laid out; the audit adapts to them, not the reverse.
 - Decision: 2026-11-15 — the draft `docs/plans/plan-core-integration-necessist-audit.md` is deleted; the audit-harness epic's pilot audit replaces it.
+- Decision: 2026-11-16 — R3 adopts the user-approved test-act control: replace only the invalid splay origin with a finite value and demonstrate failure of the unchanged rejection assertion. Redundant downstream validation means this does not prove detection of a single input-guard removal. Only repair entry 1.3 needs revised acceptance; no requirement ids or epic ownership change.
+- Decision: 2026-11-16 — the repair epic records the existing nearest-previous-heading policy and the test-local fixture correction for 1.3; the observed 360-degree mismatch does not establish a production defect. No bug or policy spike is added. Stories 1.1/1.2, their plans and built status stay unchanged. Build remains paused; this is a planning-only replan, not approval to resume implementation.
