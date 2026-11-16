@@ -3,7 +3,7 @@ title: "Preserve integration-audit pilot reconstruction evidence"
 type: chore
 ticket: 2
 created: '2026-11-16'
-status: built
+status: done
 baseline_revision: 066726fc00fc3c4837e03f6ec85fdedba2f75efd
 route: oneshot
 route_source: auto
