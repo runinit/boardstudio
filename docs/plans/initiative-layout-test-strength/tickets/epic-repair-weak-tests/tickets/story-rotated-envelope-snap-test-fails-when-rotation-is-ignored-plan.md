@@ -3,7 +3,7 @@ title: 'Rotated-envelope snap test fails when rotation is ignored'
 type: chore
 ticket: 2
 created: '2026-11-16'
-status: built
+status: done
 baseline_revision: '7c2640ff1e48e12beef3cbeaf10e215ff241ddd4'
 route: oneshot
 route_source: auto

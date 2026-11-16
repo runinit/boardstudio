@@ -3,7 +3,7 @@ title: 'Prove populated membership retirement and remove redundant pick block'
 type: chore
 ticket: 4
 created: '2026-11-16'
-status: built
+status: done
 baseline_revision: '5aa4358e002716e884a673892ad945774030023c'
 route: oneshot
 route_source: auto

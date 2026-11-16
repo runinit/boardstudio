@@ -3,7 +3,7 @@ title: 'Framed solve tests and splay-origin validation fail under their counter-
 type: chore
 ticket: 3
 created: '2026-11-16'
-status: built
+status: done
 baseline_revision: '100a9b90095e1e9ce6af55712bbf6fac7b4c19a0'
 route: oneshot
 route_source: auto

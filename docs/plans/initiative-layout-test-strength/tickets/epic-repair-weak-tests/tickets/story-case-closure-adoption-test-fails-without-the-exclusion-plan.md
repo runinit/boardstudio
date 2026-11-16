@@ -3,7 +3,7 @@ title: 'Case-closure adoption test fails without the exclusion'
 type: chore
 ticket: 1
 created: '2026-11-15'
-status: built
+status: done
 baseline_revision: 'cdbd69ca6b0d2db21576d28f82e079b48e465c94'
 route: oneshot
 route_source: auto
