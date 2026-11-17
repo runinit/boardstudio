@@ -23,7 +23,7 @@ Add a synthetic linked-half resize scenario whose accepted nonzero rotation dist
 1. **Nonzero linked rotation** (retrospective A2)
    **Given** a Core-accepted synthetic linked pair with a nonzero source angle that is not reflection-equivalent to itself,
    **When** the real planner and typed key-size resize commit execute,
-   **Then** the linked partner has the independently expected reflected rotation and translated pose, with the requested sizes, stable identities and preserved metadata.
+   **Then** the linked partner has the independently expected reflected rotation and translated pose, with the requested sizes, stable identities and preserved metadata. For 23-degree cell rotation with horizontal centers 19 mm apart, projected spacing is 19*cos(23°), the original projected gap is max(0, 19*cos(23°)-18)=0, and the resized adjacent halfwidth sum is 37 mm. Expected source displacements are (−17.9594250584, −7.6233236509), (0, 0), (+17.9594250584, +7.6233236509) mm, independently established before planning. The zero-angle case retains exactly (−19, 0), (0, 0), (+19, 0) mm.
 2. **Rotation regression detection** (retrospective A2)
    **Given** the unchanged nonzero-angle assertions,
    **When** a temporary test-act control copies source rotation to the partner instead of reflecting it while retaining otherwise valid state,
@@ -53,3 +53,5 @@ Add a synthetic linked-half resize scenario whose accepted nonzero rotation dist
 - Location: linked-resize coverage in `web/crates/layout/src/objects/keycap_resize.rs`; a neighboring single-matrix rotated test is not a substitute for this explicit linked pair.
 
 - Decision: 2026-11-16 — user authorized refinement from existing requirements and A2 Build while A1 remains built/in review and unaccepted. Existing full criteria are confirmed; no scope change. A1 supplies the required metadata oracle.
+
+- Decision: 2026-11-16 — User approved the independent 23-degree CELL geometric oracle after source investigation. Cell rotation changes heading while centers remain horizontally 19 mm apart; do not change to matrix rotation. This resolves the prior numeric criteria conflict without establishing a production defect. Preserve zero-angle assertions, complete A1 metadata/history coverage and the historical failing named log. A1 is now accepted; resume A2 Build without another approval.
