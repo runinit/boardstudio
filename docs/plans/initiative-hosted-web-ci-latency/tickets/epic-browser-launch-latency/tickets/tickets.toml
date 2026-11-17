@@ -1,0 +1,15 @@
+# The epic's entries in build order. `id` is permanent, never reused.
+# Fix entries are added by re-slicing after spike 1 names the mechanism (see the epic's Notes).
+
+[[entry]]
+id = 1
+type = "spike"
+title = "Explain the ~300 s crate-launch wait from exact runner source"
+description = "From the exact wasm-bindgen-test-runner 0.2.129 source and the ChromeDriver shipped with Chrome for Testing 156.0.8078.73, the tiny_http patch and its history, and the fast-four crates' test pages, demonstrates which wait consumes 285-322 s in nine of fourteen launches and whether pageLoadStrategy eager applies to it; if source cannot settle it, specifies one discriminating instrumented experiment instead. Source-reading only: no builds, tests, reruns, or experiments."
+verify = "The finding written to docs/plans/initiative-hosted-web-ci-latency/tickets/epic-browser-launch-latency/finding-launch-wait.md names the wait with anchors in the exact runner/WebDriver source (or holds the complete experiment spec), states whether the existing tiny_http patched pair is relevant, and the user accepts it; this epic's deferred fix entries are who waits on it."
+covers = ["R1"]
+after = []
+hitl = false
+risk = "medium"
+references = ["docs/plans/research-web-ci-latency/research-web-ci-latency.md", "docs/plans/research-web-ci-latency/digests/measurements-logs.md"]
+done_checkpoint = true
