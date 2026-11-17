@@ -1,0 +1,121 @@
+name: CAD layout trial round
+on:
+  workflow_call:
+    inputs:
+      phase:
+        required: true
+        type: string
+permissions:
+  contents: read
+env:
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
+  RUSTUP_HOME: /home/runner/.rustup-pinned
+jobs:
+  measure:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arm: [control, split-web, cad]
+    name: ${{ matrix.arm }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Installs the pinned toolchain with the wasm32 target from rust-toolchain.toml into the empty RUSTUP_HOME.
+      - run: rustup toolchain install
+      - run: python3 -c 'import sys, tomllib; assert sys.version_info >= (3, 11), sys.version'
+      - uses: ./.github/actions/web-tools
+        if: matrix.arm != 'cad'
+      # wasm-pack's own tool cache (wasm-bindgen CLI and test runner, wasm-opt). Like the Chrome cache
+      # below, it saves per ref scope, so a pull request keeps its own ~9 MB copy; not worth restricting.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/.wasm-pack
+          key: cad-layout-${{ github.run_id }}-${{ matrix.arm }}-wasm-pack-0.15.0-wasm-bindgen-0.2.129
+      - name: Read pinned Chrome-for-Testing version
+        run: |
+          echo "CFT_VERSION=$(python3 -c 'import json; print(json.load(open("scripts/chrome-for-testing.json"))["version"])')" >> "$GITHUB_ENV"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/chrome-for-testing
+          key: cad-layout-${{ github.run_id }}-${{ matrix.arm }}-cft-${{ env.CFT_VERSION }}
+      - name: Install pinned Chrome for Testing
+        run: |
+          BOARDSTUDIO_CFT_DIR="$RUNNER_TEMP/chrome-for-testing" bash scripts/install-chrome-for-testing.sh
+          echo "CHROME_BIN=$RUNNER_TEMP/chrome-for-testing/chrome-linux64/chrome" >> "$GITHUB_ENV"
+          echo "CHROMEDRIVER=$RUNNER_TEMP/chrome-for-testing/chromedriver-linux64/chromedriver" >> "$GITHUB_ENV"
+      - name: Verify headless Chrome tools
+        run: |
+          "$CHROME_BIN" --version
+          "$CHROMEDRIVER" --version
+          version=$(python3 -c 'import json; print(json.load(open("scripts/chrome-for-testing.json"))["version"])')
+          test "$("$CHROME_BIN" --version | awk '{print $NF}')" = "$version"
+          test "$("$CHROMEDRIVER" --version | awk '{print $2}')" = "$version"
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        if: matrix.arm != 'cad'
+        with:
+          workspaces: |
+            . -> target
+            cad/monstertruck -> target
+          prefix-key: cad-layout-${{ github.run_id }}-${{ matrix.arm }}
+          shared-key: web
+          env-vars: ImageOS
+          save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]' && github.event.pull_request.user.login != 'dependabot[bot]') }}
+      - name: Identify patched runner toolchain
+        if: matrix.arm != 'cad'
+        id: pair-toolchain
+        run: echo "identity=$(rustc -vV | sha256sum | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+      - name: Cache patched wasm-bindgen pair
+        if: matrix.arm != 'cad'
+        id: patched-pair
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/wasm-bindgen-patched
+          key: cad-layout-${{ github.run_id }}-${{ matrix.arm }}-patched-wasm-bindgen-${{ runner.os }}-${{ runner.arch }}-${{ steps.pair-toolchain.outputs.identity }}-${{ hashFiles('scripts/build-patched-wasm-bindgen.py', 'Cargo.lock', 'rust-toolchain.toml', '.cargo/config.toml') }}
+      - name: Build patched wasm-bindgen pair on cache miss
+        if: matrix.arm != 'cad' && steps.patched-pair.outputs.cache-hit != 'true'
+        run: python3 scripts/build-patched-wasm-bindgen.py --output "$RUNNER_TEMP/wasm-bindgen-patched"
+      - name: Restore or save browser harness build
+        id: harness
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: tools/browser-harness/target
+          key: cad-layout-${{ github.run_id }}-${{ matrix.arm }}-harness
+      - name: Check harness cache state
+        if: matrix.arm != 'split-web'
+        env:
+          HIT: ${{ steps.harness.outputs.cache-hit }}
+          PHASE: ${{ inputs.phase }}
+        run: |
+          echo "phase=$PHASE harness cache hit=$HIT"
+          if [[ "$PHASE" == warm ]]; then test "$HIT" = true; else test "$HIT" != true; fi
+      - name: Run CAD capture controls
+        if: matrix.arm == 'cad'
+        env:
+          CARGO_PROFILE_DEV_DEBUG: "false"
+        run: |
+          time python3 -m cProfile -o "$RUNNER_TEMP/controls.prof" cad/scripts/test-cad-capture-controls.py
+          python3 -c 'import os,pstats; pstats.Stats(os.environ["RUNNER_TEMP"] + "/controls.prof").print_stats("_build_harness")'
+      - name: Run web suite
+        if: matrix.arm != 'cad'
+        shell: python
+        run: |
+          import sys
+          sys.path.insert(0, "scripts")
+          import check
+          if "${{ matrix.arm }}" == "split-web":
+              gates = check.STEPS["browser"][1]
+              controls = [check.PY, "cad/scripts/test-cad-capture-controls.py"]
+              assert gates.count(controls) == 1
+              gates.remove(controls)
+          raise SystemExit(check.main(["build", "browser"]))
+        # Test wasm without DWARF loads much faster, as it does locally. Set on the step so the
+        # rust-cache key stays shared with release-build.
+        env:
+          BOARDSTUDIO_WASM_BINDGEN_DIR: ${{ runner.temp }}/wasm-bindgen-patched
+          CARGO_PROFILE_DEV_DEBUG: "false"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: failure()
+        with:
+          name: browser-failure-${{ inputs.phase }}-${{ matrix.arm }}
+          path: web/target/test-results
+          retention-days: 7
