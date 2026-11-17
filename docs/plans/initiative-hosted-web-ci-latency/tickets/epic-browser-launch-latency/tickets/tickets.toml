@@ -27,3 +27,17 @@ risk = "medium"
 references = ["docs/plans/initiative-hosted-web-ci-latency/tickets/epic-browser-launch-latency/finding-launch-wait.md"]
 plan_checkpoint = true
 done_checkpoint = true
+unknown = "Paused 2026-11-17 after batches 1-2 both lost their tri-logs to runner deaths: resume only if the patched-pair A/B (entry 3) fails AND the capture is redesigned to survive a runner death - user decision after the A/B."
+
+[[entry]]
+id = 3
+type = "spike"
+title = "Patched-pair A/B: hosted launches with the existing patched runner"
+description = "On a throwaway branch and draft PR, builds the existing patched pair (scripts/build-patched-wasm-bindgen.py), selects it via BOARDSTUDIO_WASM_BINDGEN_DIR for the unchanged hosted batch, and streams a resource sampler (free/load every 5 s) into the job log. The verdict is read from check.py's streamed start/end timestamps - the count of launches with >=240 s overhead vs the 9/9/6-of-14 baselines - so it survives a runner death; a clean pass (0 of 14, counts unchanged) earns one web-only rerun as the second representative run. Trial only: adoption is a separate fix entry after user acceptance."
+verify = "finding-patched-pair-ab.md in this epic's folder records per-launch overheads for the A/B run(s) against the A1/A2/B1/B2 baselines, the page-runner wall and test counts, sampler output around any runner death, and a pass/fail/ambiguous verdict; the user accepts it. This epic's deferred fix entries are who waits on it."
+covers = ["R1"]
+after = [1]
+hitl = false
+risk = "medium"
+references = ["docs/plans/initiative-hosted-web-ci-latency/tickets/epic-browser-launch-latency/finding-launch-wait.md", "docs/plans/research-web-ci-latency/digests/measurements-logs.md"]
+done_checkpoint = true
