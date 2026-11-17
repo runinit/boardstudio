@@ -99,16 +99,32 @@ jobs:
           shared-key: web
           env-vars: ImageOS
           save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]' && github.event.pull_request.user.login != 'dependabot[bot]') }}
+      # Launch-wait experiment (ticket 1.2, experiment branch only): logging-only
+      # instrumented 0.2.129 pair; never merged as a fix.
+      - name: Build instrumented wasm-bindgen pair (launch-wait experiment)
+        run: python3 scripts/build-instrumented-wasm-bindgen.py --output "$RUNNER_TEMP/wasm-bindgen-instrumented"
       - run: python3 scripts/check.py build browser
         # Test wasm without DWARF loads much faster, as it does locally. Set on the step so the
         # rust-cache key stays shared with release-build.
         env:
           CARGO_PROFILE_DEV_DEBUG: "false"
+          BOARDSTUDIO_WASM_BINDGEN_DIR: ${{ runner.temp }}/wasm-bindgen-instrumented
+          BOARDSTUDIO_LAUNCH_LOG_DIR: ${{ runner.temp }}/launch-logs
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: failure()
         with:
           name: browser-failure
           path: web/target/test-results
+          retention-days: 7
+      # Launch-wait experiment (ticket 1.2): per-launch runner/net-log/chromedriver
+      # tri-logs plus the browser result timings, kept whatever the outcome.
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: launch-wait-logs
+          path: |
+            ${{ runner.temp }}/launch-logs
+            web/target/test-results/browser.json
           retention-days: 7
 
   # Release build and Pages deploy, moved here from the deleted `pages` workflow so a commit
