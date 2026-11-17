@@ -1405,10 +1405,22 @@ mod tests {
 
     #[test]
     fn replace_document_reflows_source_and_core_syncs_linked_partner_through_history() {
+        linked_resize_through_history(0.0);
+    }
+
+    #[test]
+    fn replace_document_reflows_nonzero_linked_rotation_through_history() {
+        linked_resize_through_history(23.0);
+    }
+
+    fn linked_resize_through_history(rotation: f64) {
         use boardstudio_core::model::{LayoutMirrorLink, MirroredCorrespondence, MirroredItemKind};
 
         let mut source = matrix();
         source.origin = point(-80.0, 10.0);
+        for cell in &mut source.cells {
+            cell.rotation = Some(rotation);
+        }
         source.part_ids = (0..3)
             .map(|column| format!("matrix/m/r0c{column}"))
             .collect();
@@ -1525,6 +1537,28 @@ mod tests {
                 )
             })
         };
+        for column in 0..3 {
+            let source = scene
+                .matrix_scenes
+                .iter()
+                .find(|m| m.matrix_id == "m")
+                .unwrap()
+                .cells
+                .iter()
+                .find(|c| c.column == column)
+                .unwrap();
+            let partner = scene
+                .matrix_scenes
+                .iter()
+                .find(|m| m.matrix_id == "partner")
+                .unwrap()
+                .cells
+                .iter()
+                .find(|c| c.column == column)
+                .unwrap();
+            assert!((source.pose.rotation - rotation).abs() < 1e-6);
+            assert!((partner.pose.rotation + rotation).rem_euclid(360.0) < 1e-6);
+        }
         let accepted_metadata = layout_metadata(&accepted);
         let axis_x = accepted_metadata[1].4.as_ref().unwrap().axis_x;
         assert!(accepted_metadata[0].4.is_none());
@@ -1606,6 +1640,18 @@ mod tests {
                 .iter()
                 .all(|p| p.size == point(18.0, 18.0))
         );
+        // Independent fixture geometry: cell headings rotate, centers stay 19 mm apart.
+        // At 23 degrees the projected old gap is clamped to zero; resizing gives
+        // adjacent halfwidths (18 + 56) / 2 = 37 mm. Zero degrees retains its 1 mm gap.
+        let expected_displacements = if rotation == 0.0 {
+            [point(-19.0, 0.0), point(0.0, 0.0), point(19.0, 0.0)]
+        } else {
+            [
+                point(-17.9594250584, -7.6233236509),
+                point(0.0, 0.0),
+                point(17.9594250584, 7.6233236509),
+            ]
+        };
         let selected_id = original_members[&("m".into(), 0, 1)].clone();
         let plan = plan_resize(KeycapResizeInput {
             document: &accepted,
@@ -1646,12 +1692,12 @@ mod tests {
             let original = accepted.parts.iter().find(|p| &p.id == source_id).unwrap();
             let source = saved.parts.iter().find(|p| &p.id == source_id).unwrap();
             let partner = saved.parts.iter().find(|p| &p.id == partner_id).unwrap();
-            let displacement = [-19.0, 0.0, 19.0][column as usize];
+            let displacement = expected_displacements[column as usize];
             assert!(
-                (source.pose.at.x - original.pose.at.x - displacement).abs() < 1e-6,
-                "source column {column} must reflow by {displacement}"
+                (source.pose.at.x - original.pose.at.x - displacement.x).abs() < 1e-6,
+                "source column {column} must reflow by {displacement:?}"
             );
-            assert!((source.pose.at.y - original.pose.at.y).abs() < 1e-6);
+            assert!((source.pose.at.y - original.pose.at.y - displacement.y).abs() < 1e-6);
             assert_eq!(source.pose.rotation, original.pose.rotation);
             let expected_size = Some(point(if column == 1 { 56.0 } else { 18.0 }, 18.0));
             assert_eq!(source.keycap, expected_size);
@@ -1664,7 +1710,10 @@ mod tests {
                 "linked partner reflection at column {column}"
             );
             assert!((source.pose.at.y - partner.pose.at.y).abs() < 1e-6);
-            assert!((source.pose.rotation + partner.pose.rotation).rem_euclid(360.0) < 1e-6);
+            assert!(
+                (partner.pose.rotation + rotation).rem_euclid(360.0) < 1e-6,
+                "linked partner reflected rotation at column {column}"
+            );
         }
 
         let (undone, undone_scene) = unpack(engine.handle(CoreRequest::Undo { id: "undo".into() }));
