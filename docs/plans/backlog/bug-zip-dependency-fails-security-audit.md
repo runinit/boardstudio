@@ -29,7 +29,7 @@ Core pins the affected release, so the workspace lockfile resolves that release 
 ## Acceptance Criteria
 
 1. Given the corrected workspace, when `python3 scripts/check.py security` runs with the advisory database, then it exits 0 without reporting `RUSTSEC-2026-0548` or adding an advisory exception.
-2. Given the resolved dependency, when `cargo test --locked -p boardstudio_core --lib archive::`, `cargo test --locked -p boardstudio_core --test legacy_archive_migration`, and `cargo check --locked -p boardstudio_core --target wasm32-unknown-unknown` run, then all three pass.
+2. Given the resolved dependency, when `cargo test --locked -p boardstudio_core --lib archive::`, `cargo test --locked -p boardstudio_core --test integration legacy_archive_migration::`, and `cargo check --locked -p boardstudio_core --target wasm32-unknown-unknown` run, then all three pass.
 3. Given the shared base of PRs #23 and #24, when the draft delivery is compared to that base, then the diff contains only the dependency fix and this bug's BMad records.
 4. Given evidence that the reproduction already passes on the shared base, when the cause is checked against that evidence, then the plan records the result and the dependency change is unnecessary.
 
