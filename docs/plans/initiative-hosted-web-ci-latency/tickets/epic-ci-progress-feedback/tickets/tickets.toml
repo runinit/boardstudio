@@ -1,0 +1,56 @@
+# The epic's entries in build order. `id` is permanent, never reused.
+
+[[entry]]
+id = 1
+type = "story"
+title = "Browser results artifact uploads on every hosted web run"
+description = "Changes the existing web-job artifact step from failure-only to always, so web/target/test-results (including browser.json) is retained on passing runs too; someone opening a passing run sees the artifact on its page."
+verify = "A passing and a failing hosted web run each carry the browser results artifact, and scripts/test-ci-workflow.py passes with the retention pinned."
+covers = ["R2"]
+after = []
+hitl = false
+risk = "low"
+
+[[entry]]
+id = 2
+type = "story"
+title = "Crate launch batch reports still-running launches"
+description = "run_parallel in scripts/check.py prints 'check: still running <elapsed>s - <commands>' every 60 s while launches are pending, leaving each launch's captured block whole and uninterleaved and the signal handling untouched."
+verify = "scripts/test-check.py and scripts/test-parallel-interrupt.py pass, including a blocked-worker case showing a still-running line before the first completion, and a long local batch log shows the lines at most 60 s apart."
+covers = ["R1"]
+after = []
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 3
+type = "story"
+title = "Build lanes report still-running lanes"
+description = "run_pool in scripts/build-web.py prints 'build-web: still running <elapsed>s - <lanes>' every 60 s while lanes run, still printing each lane's output whole and in lane order at the end and surfacing only the first failure with its output."
+verify = "scripts/test-build-web.py passes with lane order and first-failure behavior unchanged, and a long build log shows still-running lines at most 60 s apart."
+covers = ["R1"]
+after = []
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 4
+type = "story"
+title = "Page runner announces filter starts, durations, and still-running filters"
+description = "scripts/run-wasm-tests.py prints a start line per filter, the measured duration on each [i/n] report line, and 'run-wasm-tests: still running <elapsed>s - <filters>' every 60 s while waiting; reports stay in submission order, and browser.json is rewritten after each filter so partial durations survive a killed run."
+verify = "scripts/test-run-wasm-tests.py passes with the ordered-report test unchanged, a killed-mid-run case leaves a browser.json holding the completed filters, and a long run's log shows start lines, durations, and still-running lines at most 60 s apart."
+covers = ["R1", "R2"]
+after = []
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 5
+type = "story"
+title = "Refactor sweep"
+description = "Cleanup only, scoped at its start from the plans and review findings entries 1-4 deferred; no behavior change and no scope pushed out of another story."
+verify = "The full project check passes and the diff is cleanup only."
+covers = []
+after = [1, 2, 3, 4]
+hitl = false
+risk = "low"

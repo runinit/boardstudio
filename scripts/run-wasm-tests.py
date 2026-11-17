@@ -550,7 +550,10 @@ def run(filters, known, root=ROOT, expected_tests=None, env=None, unmatched_filt
             for filter_, skips, unsafe in selections:
                 yield None if unsafe else invoke(filter_, skips)
         else:
-            with ThreadPoolExecutor(max_workers=min(3, len(filters))) as executor:
+            # Experiment (throwaway branch only): cap concurrent page filters, each of which runs
+            # its own ~4.7 GiB wasm-bindgen pass over the same page-test binary.
+            page_jobs = max(1, int(os.environ.get("BOARDSTUDIO_WASM_PAGE_JOBS", "3")))
+            with ThreadPoolExecutor(max_workers=min(page_jobs, len(filters))) as executor:
                 futures = [None if unsafe else executor.submit(invoke, filter_, skips)
                            for filter_, skips, unsafe in selections]
                 for future in futures:
