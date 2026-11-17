@@ -1,7 +1,7 @@
 ---
 type: epic
 title: "Audit harness"
-status: in-progress
+status: done
 parent: initiative-layout-test-strength
 covers: [R7, R8]
 sources: []
@@ -58,6 +58,8 @@ Linked keycap-size reflow is checked through Core and history in the ordinary ga
 - research — docs/plans/initiative-layout-test-strength/research-necessist-audit/research-necessist-audit.md, sections Lead, Harness limitation, Review corrections
 
 ## Notes
+
+- Decision: 2026-11-16 — user explicitly approved epic closure after the resumed assessment. Both 2.1 and 2.2 are accepted/done; recorded implementation, controls, normal-target replays, measured recommendation and passing six-step checks satisfy R1/parent R7, R2/parent R8 and Done when. A1–A3 are completed and A4 applied; acceptance commit `a4a5552647ed968dba04e52d6aa65f6520e24149` accepts A2 and pilot 2.2. Earlier open/pending-acceptance summaries below are historical and superseded. No new verification, wider audit or cleanup ran. Whole-initiative closure remains a separate confirmation.
 
 - Decision: 2026-11-16 — user scheduled retrospective A1–A3 as independent backlog follow-ups, without changing this epic's accepted Requirements/Done when or starting implementation: A3 (backlog 2, preserve pilot reconstruction evidence) has working priority before disposable cleanup; A1 (backlog 3, linked metadata oracle) follows; A2 (backlog 4, nonzero linked rotation) waits on A1 in the shared test lane. A3 is technically independent. Sofia applied A4's historical-state labels to the earlier pilot-status note and story 2.1's delegate handoff; no ticket status or frozen intent changed. Spike 2.2 remains built and the epic remains open pending explicit human acceptance/closure.
 

@@ -1,7 +1,7 @@
 ---
 epic: epic-audit-harness
 date: '2026-11-16'
-verdict: accepted-with-open-items
+verdict: accepted
 criteria: declared
 headless: false
 ---
@@ -127,6 +127,17 @@ Process lessons already supported by evidence: retain no-timeout full-check exec
 ## Decision records
 
 None proposed or written. Synthetic test-fixture choice, relevant-state snapshot and disposable mapping/exclusion choices are local/reversible test strategies, already explained in the plans; they do not meet the hard-to-reverse/surprising/real-trade-off test for an architectural decision record. No permanent production or target-mapping decision was made.
+
+## Closure reconciliation — 2026-11-16
+
+User approved epic closure and this reconciliation. Current board rows 2.1 and 2.2 are done with no unfinished tickets or dependency warnings. Earlier built/pending-acceptance and queued/not-started summaries describe the original review state and are superseded here; original findings and evidence remain historical.
+
+- A1 completed and human-accepted: backlog story 3 plan records implementation `f7d7c5724ae222d6eb763b61d6ed0f9d20d08ffa`, independent adoption-aware metadata expectations, seven detected/restored controls and passing six-step verification. Owner: Layout test maintainer.
+- A2 completed and human-accepted: backlog story 4 plan records implementation `416dec73d33a408b6405c83c5ce40932d2fcdb5c`, separate zero/nonzero scenarios, detected copied-angle control, 11 module passes and an authorized unchanged passing full-check retry. Acceptance commit `a4a5552647ed968dba04e52d6aa65f6520e24149` also accepts pilot 2.2. Original browser failure remains preserved; cause is unproven. Owner: Layout test maintainer.
+- A3 completed: current backlog board reports story 2 done; spike 2.2 plan retains inert effective exclusions, target mapping and Cargo-forwarding reconstruction including streams, exit/signal mapping and FD9. Protected quick plan unread. Owner: audit evidence maintainer.
+- A4 already applied; frozen intent and historical evidence remain unchanged.
+
+Current declared-criteria closure assessment: **accepted**, with no remaining A1–A4 action item. The accepted-with-open-items verdict below is the original verdict at its recorded review revision. This reconciliation checks current plans, board and acceptance commit evidence; it does not repeat source review, primary-log reconciliation, builds, tests or controls. Previous repair retrospective remains unread, so its follow-through remains unverified. Wider audits and disposable cleanup require separate decisions. Sofia closes this epic under explicit user approval.
 
 ## Acceptance verdict
 
