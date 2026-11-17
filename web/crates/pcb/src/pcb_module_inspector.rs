@@ -1483,13 +1483,12 @@ mod mounted_save_replacement_tests {
     #[wasm_bindgen_test]
     async fn placement_fields_queue_two_commits_keep_the_draft_and_undo_in_order() {
         use crate::runtime::project_name_test_support as support;
-        let (session, core) = accepted(module_document(
-            "module-queue-project",
-            "Queue project",
-            1.0,
-        ));
         let runtime = support::new_runtime();
-        support::install(&runtime, session, core);
+        support::open_document(
+            &runtime,
+            module_document("module-queue-project", "Queue project", 1.0),
+        )
+        .await;
         let probe = Rc::new(Probe {
             initial_scope: runtime.scope().unwrap(),
             runtime: runtime.clone(),

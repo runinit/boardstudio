@@ -1,9 +1,15 @@
 name: Web build tools
 description: Install pinned web build tools.
+inputs:
+  test-css:
+    description: Install the standalone stylesheet compiler used by Dioxus 0.7.10
+    default: 'false'
 runs:
   using: composite
   steps:
     - shell: bash
+      env:
+        INSTALL_TEST_CSS: ${{ inputs.test-css }}
       run: |
         set -euo pipefail
         tools="$RUNNER_TEMP/web-tools"
@@ -19,6 +25,12 @@ runs:
         fetch https://github.com/DioxusLabs/dioxus/releases/download/v0.7.10/dx-x86_64-unknown-linux-gnu.tar.gz \
           4363e4ed2a3f1eb7f4d38d2d59aed59ce43271c44c16b425e92c89a64761fbe7 dx.tar.gz
         tar -xzf "$tools/dx.tar.gz" -C "$tools/bin" dx
+        if [[ "$INSTALL_TEST_CSS" == true ]]; then
+          fetch https://github.com/tailwindlabs/tailwindcss/releases/download/v4.1.5/tailwindcss-linux-x64 \
+            9d258a7786c22f8572aea20ed35848f8cbef1d06277e4e6b97ad8561ffc21e07 tailwindcss
+          chmod +x "$tools/tailwindcss"
+          echo "BOARDSTUDIO_TAILWINDCSS=$tools/tailwindcss" >> "$GITHUB_ENV"
+        fi
         echo "$tools/bin" >> "$GITHUB_PATH"
         "$tools/bin/wasm-pack" --version
         "$tools/bin/dx" --version

@@ -105,8 +105,7 @@ class QuickPlanTests(unittest.TestCase):
         names = [name for name, _ in plan]
         self.assertLess(names.index("test-css"), names.index("browser"))
         command = dict(plan)["test-css"][0]
-        self.assertEqual(command, ["dx", "build", "--web", "--no-default-features",
-                                   "--features", "page", "--cargo-args=--locked"])
+        self.assertEqual(command, check.TEST_CSS)
         self.assertIn("browser", names)
         self.assertNotIn("layout-test-css", names)
 

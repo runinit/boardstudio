@@ -54,17 +54,31 @@ jobs:
             cad/wasm -> target
           env-vars: ImageOS
           save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]' && github.event.pull_request.user.login != 'dependabot[bot]') }}
+      - uses: ./.github/actions/web-tools
+        with:
+          test-css: 'true'
       - run: python3 scripts/check.py repo tooling lint test
 
   # Release build and mounted browser tests.
   web:
+    name: web-${{ matrix.suite }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - suite: packaged
+            cache: web
+          - suite: wasm
+            cache: web-wasm
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # Installs the pinned toolchain with the wasm32 target from rust-toolchain.toml into the empty RUSTUP_HOME.
       - run: rustup toolchain install
       - run: python3 -c 'import sys, tomllib; assert sys.version_info >= (3, 11), sys.version'
       - uses: ./.github/actions/web-tools
+        with:
+          test-css: ${{ matrix.suite == 'wasm' }}
       # wasm-pack's own tool cache (wasm-bindgen CLI and test runner, wasm-opt). Like the Chrome cache
       # below, it saves per ref scope, so a pull request keeps its own ~9 MB copy; not worth restricting.
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -95,23 +109,55 @@ jobs:
           workspaces: |
             . -> target
             cad/wasm -> target
-          shared-key: web
+          shared-key: ${{ matrix.cache }}
           env-vars: ImageOS
           save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]' && github.event.pull_request.user.login != 'dependabot[bot]') }}
-      - run: python3 scripts/check.py build browser
+      - name: Identify patched runner toolchain
+        id: pair-toolchain
+        run: echo "identity=$(rustc -vV | sha256sum | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+      - name: Cache patched wasm-bindgen pair
+        id: patched-pair
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/wasm-bindgen-patched
+          key: patched-wasm-bindgen-${{ runner.os }}-${{ runner.arch }}-${{ steps.pair-toolchain.outputs.identity }}-${{ hashFiles('scripts/build-patched-wasm-bindgen.py', 'Cargo.lock', 'rust-toolchain.toml', '.cargo/config.toml') }}
+      - name: Build patched wasm-bindgen pair on cache miss
+        if: steps.patched-pair.outputs.cache-hit != 'true'
+        run: python3 scripts/build-patched-wasm-bindgen.py --output "$RUNNER_TEMP/wasm-bindgen-patched"
+      - name: Build and check packaged site
+        if: matrix.suite == 'packaged'
+        run: python3 scripts/check.py build browser-packaged
+        env:
+          BOARDSTUDIO_WASM_BINDGEN_DIR: ${{ runner.temp }}/wasm-bindgen-patched
+          CARGO_PROFILE_DEV_DEBUG: "false"
+      - name: Run Wasm browser tests
+        if: matrix.suite == 'wasm'
+        run: python3 scripts/check.py browser-wasm
+        env:
+          BOARDSTUDIO_WASM_BINDGEN_DIR: ${{ runner.temp }}/wasm-bindgen-patched
+          CARGO_PROFILE_DEV_DEBUG: "false"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: failure()
         with:
-          name: browser-failure
+          name: browser-failure-${{ matrix.suite }}
           path: web/target/test-results
           retention-days: 7
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: success()
+        if: success() && matrix.suite == 'packaged'
         with:
           name: drag-browser-receipts
           path: web/target/test-results/drag-browser/*/receipt.json
           if-no-files-found: ignore
           retention-days: 7
+
+  # Keep the existing required check name for branch protection.
+  web-result:
+    name: web
+    needs: web
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - run: test "${{ needs.web.result }}" = success
 
   # Release build and Pages deploy, moved here from the deleted `pages` workflow so a commit
   # reaches users only after the native and web validation jobs of the same commit pass.

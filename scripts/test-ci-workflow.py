@@ -119,9 +119,18 @@ class CachePolicyTests(unittest.TestCase):
             self.assertRegex(step, re.compile(r"^ +env-vars: ImageOS$", re.M), "image family must stay in the key")
 
     def test_web_and_release_build_share_one_key(self):
-        keys = [re.search(r"shared-key: (\S+)", cache_steps(job(name))[0]) for name in ("web", "release-build")]
-        self.assertTrue(all(keys))
-        self.assertEqual(keys[0].group(1), keys[1].group(1))
+        self.assertIn("shared-key: ${{ matrix.cache }}", cache_steps(job("web"))[0])
+        self.assertIn("- suite: packaged\n            cache: web\n", job("web"))
+        self.assertIn("shared-key: web\n", cache_steps(job("release-build"))[0])
+
+    def test_both_web_suites_gate_release(self):
+        web = job("web")
+        self.assertIn("fail-fast: false", web)
+        self.assertIn("- suite: wasm\n            cache: web-wasm", web)
+        self.assertIn("if: matrix.suite == 'packaged'\n        run: python3 scripts/check.py build browser-packaged", web)
+        self.assertIn("if: matrix.suite == 'wasm'\n        run: python3 scripts/check.py browser-wasm", web)
+        self.assertIn("needs: [native, web]", job("release-build"))
+        self.assertIn('test "${{ needs.web.result }}" = success', job("web-result"))
 
     def test_native_caches_every_cad_target_dir(self):
         [step] = cache_steps(job("native"))

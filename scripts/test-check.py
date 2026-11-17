@@ -483,6 +483,23 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
                 run_plan.assert_not_called()
                 build.assert_not_called()
 
+    def test_pinned_stylesheet_compiler_bypasses_the_page_build(self):
+        with mock.patch.dict(os.environ, {"BOARDSTUDIO_TAILWINDCSS": "/pinned/tailwindcss"}):
+            self.assertEqual(check.test_css_command(), ["/pinned/tailwindcss", "-i", "tailwind.css", "-o", "assets/tailwind.css"])
+        with mock.patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(check.test_css_command()[:3], ["dx", "build", "--web"])
+
+    def test_hosted_web_suites_partition_the_local_browser_commands(self):
+        packaged = check.STEPS["browser-packaged"][1]
+        wasm = check.STEPS["browser-wasm"][1]
+        self.assertCountEqual(packaged + wasm, check.STEPS["browser"][1])
+        self.assertTrue(set(map(tuple, packaged)).isdisjoint(map(tuple, wasm)))
+        self.assertIn(check.DRAG_SMOKE, packaged)
+        self.assertEqual(sum(bool(check.launch_crate(cmd)) for cmd in wasm), 14)
+        self.assertIn("scripts/run-wasm-tests.py", packaged[-1])
+        self.assertFalse(any("--list" in cmd for cmd in packaged + wasm))
+        self.assertIn([check.PY, "cad/scripts/test-cad-browser.py"], packaged)
+
     def test_browser_runs_packaged_provider_regressions(self):
         self.assertIn([check.PY, "cad/scripts/test-cad-provider.py"], check.STEPS["browser"][1])
         self.assertIn([check.PY, "cad/scripts/face-completeness-gate.py"], check.STEPS["browser"][1])

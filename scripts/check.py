@@ -87,9 +87,13 @@ TOOLING_TESTS = (
 WASM_PAGE = ["--no-default-features", "--features", "page"]
 ISOLATED = ("presentation::case_workspace::",)
 DRAG_SMOKE = [PY, "scripts/run-drag-browser.py"]
-TEST_CSS: list[str] = [
-    "dx", "build", "--web", "--no-default-features", "--features", "page", "--cargo-args=--locked",
-]
+def test_css_command() -> list[str]:
+    if compiler := os.environ.get("BOARDSTUDIO_TAILWINDCSS"):
+        return [compiler, "-i", "tailwind.css", "-o", "assets/tailwind.css"]
+    return ["dx", "build", "--web", "--no-default-features", "--features", "page", "--cargo-args=--locked"]
+
+
+TEST_CSS = test_css_command()
 # These browser-test targets include the generated Tailwind stylesheet at compile time.
 CSS_TEST_CRATES = {"ui-shared", "keycaps", "case", "layout"}
 
@@ -104,7 +108,6 @@ def typecheck() -> list[Command]:
 
 
 def browser() -> list[Command]:
-    wasm_pack = ["wasm-pack", "test", "--headless", "--chrome", "web", "--locked", *WASM_PAGE]
     return [
         DRAG_SMOKE,
         [PY, "cad/scripts/test-cad-capture-controls.py"],
@@ -133,7 +136,6 @@ def browser() -> list[Command]:
         # webdriver.json gives it the desktop viewport it needs.
         ["wasm-pack", "test", "--headless", "--chrome", "web/crates/layout", "--locked", "--lib", "--", "--skip", "setup_guide::"],
         ["wasm-pack", "test", "--headless", "--chrome", "web/crates/layout", "--locked", "--lib", "--", "setup_guide::"],
-        [*wasm_pack, "--bin", "boardstudio-web", "--", "--list"],
         [PY, "scripts/run-wasm-tests.py", "--all", "--depth", "1", *[f"--isolate={name}" for name in ISOLATED],
          "--result-json", "web/target/test-results/browser.json"],
     ]
@@ -192,6 +194,8 @@ STEPS: dict[str, tuple[bool, list[Command]]] = {
     "test": (True, [*CARGO_TESTS, [PY, "cad/scripts/test-cad.py"]]),
     "typecheck": (False, typecheck()),
     "browser": (True, browser()),
+    "browser-packaged": (False, [cmd for cmd in browser() if not launch_crate(cmd)]),
+    "browser-wasm": (False, [cmd for cmd in browser() if launch_crate(cmd)]),
     "drag-smoke": (False, [DRAG_SMOKE]),
     "security": (False, [[PY, "-B", "scripts/security-audit.test.py"], [PY, "scripts/security-audit.py"]]),
     # Fails while any .board-*, .m1-* selector or --wb-* variable remains (the final merge gate).
@@ -250,7 +254,7 @@ def parse_only_crates(raw: Sequence[str] | None,
 
 
 def is_browser_step(name: str) -> bool:
-    return name == "browser" or name.startswith("browser (")
+    return name in ("browser", "browser-packaged", "browser-wasm") or name.startswith("browser (")
 
 
 def check_jobs() -> int:
@@ -891,7 +895,7 @@ def run(names: list[str], update_native_baseline: bool = False,
         _RECEIPT.plan_commands([(name, STEPS[name][1]) for name in names])
     has_drag_smoke = any("scripts/run-drag-browser.py" in command for command in STEPS["browser"][1])
     smoke_indices = [index for index, step in enumerate(names)
-                     if step == "drag-smoke" or (step == "browser" and has_drag_smoke)]
+                     if step in ("drag-smoke", "browser-packaged") or (step == "browser" and has_drag_smoke)]
     if smoke_indices:
         # Fail before the page build, which is minutes of work the smoke cannot use without these.
         # The opt-in Rust driver needs only Chrome; the default Node runner also needs its client.
@@ -911,10 +915,12 @@ def run(names: list[str], update_native_baseline: bool = False,
             else:
                 names.insert(smoke_index, names.pop(later_build))
     plan = [(name, STEPS[name][1]) for name in names]
-    if "lint" in names:
-        lint_index = names.index("lint")
-        if not any(name in ("build", "release") for name in names[:lint_index]):
-            plan.insert(lint_index, ("test-css", [TEST_CSS]))
+    for index, name in enumerate(names):
+        if name in ("build", "release"):
+            break  # The packaged build generates the stylesheet.
+        if name in ("lint", "browser-wasm"):
+            plan.insert(index, ("test-css", [TEST_CSS]))
+            break
     return (run_plan(plan, update_native_baseline, keep_going=True)
             if keep_going else run_plan(plan, update_native_baseline))
 

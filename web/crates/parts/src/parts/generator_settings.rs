@@ -1529,6 +1529,7 @@ mod tests {
         second: PartDefinition,
         runtime: Rc<Runtime>,
         requests: Rc<RefCell<VecDeque<CandidateRequest>>>,
+        next_runtime_change: Rc<RefCell<Option<oneshot::Sender<()>>>>,
     }
 
     #[derive(Clone, Copy)]
@@ -1567,8 +1568,12 @@ mod tests {
         let _ = version();
         use_hook({
             let runtime = fixture.runtime.clone();
+            let next_change = fixture.next_runtime_change.clone();
             move || {
                 runtime.subscribe(Rc::new(move || {
+                    if let Some(wake) = next_change.borrow_mut().take() {
+                        let _ = wake.send(());
+                    }
                     let mut version = version;
                     version += 1;
                 }))
@@ -1669,6 +1674,7 @@ mod tests {
             second,
             runtime: runtime.clone(),
             requests: requests.clone(),
+            next_runtime_change: Default::default(),
         });
         let handles = Rc::new(RefCell::new(None));
         let document = web_sys::window().unwrap().document().unwrap();
@@ -2094,7 +2100,25 @@ mod tests {
         input
             .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &init).unwrap())
             .unwrap();
-        let mut effects = VecDeque::new();
+        // Reading the file and saving its bytes happen before there is an effect to drive.
+        // Retain the first batch so Apply can still be queued before Upload lands.
+        let mut effects: VecDeque<_> = boardstudio_web_ui_shared::test_wait::bounded(
+            "released generator upload to submit an effect",
+            30_000.0,
+            async {
+                loop {
+                    let effects = support::take_held_effects(&fixture.runtime);
+                    if !effects.is_empty() {
+                        return VecDeque::from(effects);
+                    }
+                    let (wake, changed) = oneshot::channel();
+                    fixture.next_runtime_change.replace(Some(wake));
+                    changed.await.expect("mounted runtime notification");
+                }
+            },
+        )
+        .await
+        .expect("generator upload did not submit after file release");
         let mut apply_queued = false;
         for _ in 0..100 {
             gloo_timers::future::TimeoutFuture::new(20).await;
