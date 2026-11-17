@@ -546,7 +546,8 @@ def run(filters, known, root=ROOT, expected_tests=None, env=None, unmatched_filt
         return result, time.monotonic() - started
 
     def results():
-        if check_jobs() == 1 or not filters:
+        # Concurrent bindgen passes over the page binary exceed hosted runner memory.
+        if check_jobs() == 1 or env.get("GITHUB_ACTIONS") == "true" or not filters:
             for filter_, skips, unsafe in selections:
                 yield None if unsafe else invoke(filter_, skips)
         else:

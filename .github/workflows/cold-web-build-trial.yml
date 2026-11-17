@@ -1,0 +1,32 @@
+name: Cold web build comparison
+on: pull_request
+permissions:
+  contents: read
+jobs:
+  cold-build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [baseline, opt1]
+    env:
+      RUSTUP_HOME: /home/runner/.rustup-pinned
+      CARGO_PROFILE_DEV_DEBUG: "false"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - run: rustup toolchain install
+      - uses: ./.github/actions/web-tools
+      - name: Build from empty Cargo targets
+        env:
+          VARIANT: ${{ matrix.variant }}
+        run: |
+          set -euo pipefail
+          test ! -d target
+          test ! -d web/target
+          test ! -d cad/monstertruck/target
+          if [[ "$VARIANT" == opt1 ]]; then
+            export CARGO_PROFILE_RELEASE_OPT_LEVEL=1
+          fi
+          rustc -vV
+          /usr/bin/time -f 'cold build elapsed=%e seconds' python3 scripts/build-web.py --fast
+          find web/target/providers -name '*.wasm' -printf '%p %s bytes\n'
