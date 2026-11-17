@@ -77,27 +77,30 @@ Wall and test time in seconds; overhead = wall − tests.
 
 Overhead seconds per launch; bold = slow (≥240 s).
 
-| Launch | A1 | A2 | B1 | B2 |
-| --- | ---: | ---: | ---: | ---: |
-| pcb | **315.7** | **307.6** | 33.0 | **300.6** |
-| case | **315.5** | **307.9** | **295.8** | **331.4** |
-| parts | 47.3 | **309.9** | **319.6** | 58.2 |
-| layout, skip `setup_guide::` | **321.7** | **313.6** | 42.5 | 62.3 |
-| layout, `setup_guide::` | **299.1** | **304.7** | **292.6** | 20.2 |
-| ui-shared, skip `panels::` | **303.7** | **293.0** | 9.7 | **285.5** |
-| ui-shared, `panels::` | **302.3** | **291.5** | 9.3 | **285.3** |
-| library | **296.2** | **285.3** | **278.6** | 11.7 |
-| keymap | **294.3** | **285.0** | **280.3** | 12.1 |
-| keycaps | **296.3** | 18.4 | **278.1** | **280.7** |
-| host | 21.3 | 20.8 | 7.4 | 11.6 |
-| runtime | 23.3 | 20.2 | 8.1 | 13.6 |
-| ui-model | 22.7 | 15.7 | 6.9 | 11.5 |
-| catalogue | 18.4 | 10.8 | 7.7 | 8.8 |
+| Launch | Tests (all batches) | A1 | A2 | B1 | B2 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| pcb | 66 | **315.7** | **307.6** | 33.0 | **300.6** |
+| case | 100 | **315.5** | **307.9** | **295.8** | **331.4** |
+| parts | 108 | 47.3 | **309.9** | **319.6** | 58.2 |
+| layout, skip `setup_guide::` | 281 | **321.7** | **313.6** | 42.5 | 62.3 |
+| layout, `setup_guide::` | 2 | **299.1** | **304.7** | **292.6** | 20.2 |
+| ui-shared, skip `panels::` | 94 | **303.7** | **293.0** | 9.7 | **285.5** |
+| ui-shared, `panels::` | 2 | **302.3** | **291.5** | 9.3 | **285.3** |
+| library | 22 | **296.2** | **285.3** | **278.6** | 11.7 |
+| keymap | 48 | **294.3** | **285.0** | **280.3** | 12.1 |
+| keycaps | 34 | **296.3** | 18.4 | **278.1** | **280.7** |
+| host | 50 | 21.3 | 20.8 | 7.4 | 11.6 |
+| runtime | 69 | 23.3 | 20.2 | 8.1 | 13.6 |
+| ui-model | 9 | 22.7 | 15.7 | 6.9 | 11.5 |
+| catalogue | 12 | 18.4 | 10.8 | 7.7 | 8.8 |
 | **Slow count** | **9/14** | **9/14** | **6/14** | **5/14** |
 | Crate-batch span | 973.1 s | 916.9 s | 626 s | 596 s |
 
 B2's count (5/14) is new with this finding; B1's extraction matches the
-6/14 recorded when entry 1.2 paused. Every baseline batch carried a
+6/14 recorded when entry 1.2 paused. The Tests column is per-launch
+passed counts: A1/A2 from the measurements digest, B1/B2 extracted from
+their logs here — all four baseline batches match runs 1–2 launch for
+launch (897 per batch), which is the evidence behind "counts unchanged". Every baseline batch carried a
 278–331 s overhead cluster; neither patched batch has any launch above
 96.7 s, and the batch span fell from 596–973 s to 167–187 s (**measured**).
 
@@ -114,9 +117,20 @@ B2's count (5/14) is new with this finding; B1's extraction matches the
 
 The page-runner death occurs with and without the patched pair (3 of 4
 baseline attempts, both A/B attempts), always shortly after the page
-runner starts and before any `[n/3]` filter line. It is the already-known
+runner starts. No `[n/3]` filter line printed in any dying attempt, but
+that only shows no filter had *completed*: `run-wasm-tests.py` submits
+every filter to a `ThreadPoolExecutor` (max 3 workers) at once and prints
+`[n/3]` only as each future returns (`scripts/run-wasm-tests.py:540-562`),
+so up to three `wasm-pack test` filter invocations — cargo/bindgen/Chrome
+each — were already in flight when the shutdown arrived (in healthy A2,
+`[1/3]` printed 454 s after selection). It is the already-known
 lost-runner event, **not** something the patch introduced (**measured**
 co-occurrence; the death's cause remains **unknown**, see sampler below).
+Neither A/B `web` job hung after the death, so the protocol's
+cancel-on-hang branch never fired: run 1's job concluded `failure` at
+16:09:22Z, 5 s after its check step ended; run 2's at 16:34:38Z, 3 s
+after (run API, **measured**). No `gh run cancel` was used on either
+protocol run.
 
 ## Sampler evidence (measured values; interpretation labelled)
 
@@ -150,7 +164,8 @@ Run 2 (started 16:33:47Z, shutdown 16:34:35Z):
   peaked at 23.2 / 23.6 during the build phase without incident.
   **Measured.**
 - That the death is memory-exhaustion-related (runner agent starved or
-  OOM-adjacent pressure when the page test binary's Chrome starts) is a
+  OOM-adjacent pressure as the page runner's up-to-three concurrent
+  filter launches each start their cargo/bindgen/Chrome chain) is a
   **hypothesis** the sampler now supports but does not prove: the sampler
   cannot name the consuming process, and no OOM-kill line is in the job
   log. Identifying the consumer needs per-process sampling, which this
@@ -158,13 +173,17 @@ Run 2 (started 16:33:47Z, shutdown 16:34:35Z):
 
 ## What this does and does not prove
 
-Does prove (**measured**, intervention at batch level): selecting the
-existing patched pair for the unchanged hosted batch removes the
-278–331 s overhead group in two consecutive representative runs
-(0/14 + 0/14 vs 9/9/6/5 of 14 across four unpatched batches), with all
-launch counts and pass criteria unchanged. Per-launch independence within
-a batch is not claimed; the batch-level contrast (slow group present in
-4/4 unpatched batches, absent in 2/2 patched) is the evidence.
+Does prove, at batch level: the 278–331 s overhead group is absent from
+both patched batches and present in all four unpatched ones
+(0/14 + 0/14 vs 9/9/6/5 of 14), with all launch counts and pass criteria
+unchanged — those counts and overheads are **measured** off the named
+logs. Attributing the absence to the patched pair is an intervention
+inference from that contrast (**hypothesis**-grade as a causal claim,
+strengthened below), not a measurement. Per-launch independence within
+a batch is not claimed, and the two patched batches are attempts 1 and 2
+of one workflow run ~25 minutes apart, sharing runner pool and image
+conditions — "representative" in the protocol's sense (unchanged batch
+on hosted runners), not two independently sampled occasions.
 
 Strengthens but does not demonstrate (**hypothesis**): finding 1.1 §4's
 mechanism — the `tiny_http` TaskPool lost-queue stranding as the hosted
@@ -176,9 +195,10 @@ only designed path to request-level proof; its ticket note says resume
 only if this A/B failed, which it did not.
 
 Does not prove: that the page runner's 263 tests pass under the patched
-pair (it never got to run them — the death precedes test execution and
-also occurs unpatched); why three launches run at 81–97 s overhead; what
-consumes the memory at page-runner start; anything about local runs.
+pair (no filter completed before the runner died, so no page test result
+was recorded — and the same death occurs unpatched); why three launches
+run at 81–97 s overhead; what consumes the memory at page-runner start;
+anything about local runs.
 
 ## Recommended next step (user decision)
 
@@ -192,7 +212,8 @@ consumes the memory at page-runner start; anything about local runs.
 3. Decide the lost-runner scope question now that sampler evidence
    exists: the page-runner memory collapse killed 5 of the last 6 hosted
    web attempts regardless of runner patch. It needs its own scoped
-   spike/fix (per-process memory attribution at page-runner start) or an
+   spike/fix (per-process memory attribution across the page runner's
+   up-to-three concurrent filter launches) or an
    explicit decision to leave it — it will otherwise keep failing the
    `web` job even with launch latency fixed.
 4. Entry 1.2 stays paused; per its recorded resume condition (resume only

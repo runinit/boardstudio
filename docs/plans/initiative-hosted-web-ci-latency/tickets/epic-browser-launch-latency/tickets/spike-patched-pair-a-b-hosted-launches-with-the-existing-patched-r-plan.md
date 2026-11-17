@@ -3,16 +3,16 @@ title: 'Patched-pair A/B: hosted launches with the existing patched runner'
 type: feature
 ticket: 3
 created: '2026-11-17'
-status: in-progress
+status: built
 baseline_revision: 'fba9ddac15c9b16f978c253ff7f5ae3e2bbb1dcb'
 route: oneshot
 route_source: auto
 risk: medium
-review: ''
-review_source: ''
-lenses_ran: []
+review: quick
+review_source: pinned
+lenses_ran: [quick]
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context: []
 warnings: []
 deferred: []
@@ -45,6 +45,14 @@ Oneshot because the code change is one ~20-line workflow edit on a throwaway bra
 
 ## Review Triage Log
 
+### 2026-11-17 — Review pass
+- verdicts: 4 findings — high 0, medium 2, low 2, false 0, maybe-false 0
+- findings:
+  - `[medium]` `[patch]` Finding misstated the page-runner death as preceding test execution (`finding-patched-pair-ab.md`, "before any `[n/3]` filter line" / "the death precedes test execution") — verified in `scripts/run-wasm-tests.py:540-562`: all filters submit at once to a 3-worker `ThreadPoolExecutor` and `[n/3]` prints only on completion, so up to three filter invocations were in flight at the death. Patched: death-position passages, the sampler hypothesis (concurrent filter launches, not a singular Chrome start), and recommendation 3's attribution scope rewritten to match.
+  - `[medium]` `[patch]` Central sentence labelled **measured** while claiming the pair "removes" the slow group in "representative" runs — verified against the finding's own label rule: counts are measured, causation/representativeness are inference, and runs 1–2 are attempts of one workflow run ~25 min apart. Patched: "Does prove" rewritten to separate the measured contrast from the hypothesis-grade causal attribution and to qualify representativeness.
+  - `[low]` `[patch]` Finding stopped at step exit 143 without either web job's conclusion/end time, leaving the protocol's cancel-on-hang branch unauditable — verified via run API: both jobs concluded `failure` 5 s / 3 s after their check steps, neither hung, no `gh run cancel` used. Patched: job-conclusion record added to the page-runner section.
+  - `[low]` `[patch]` "Counts unchanged" was not checkable for B1/B2 (no per-launch counts in the finding) — verified: extracted B counts existed only in parser output. Patched: baseline table gained a per-launch Tests column (A from digest, B extracted; all batches 897) with an evidence note.
+
 ## Verification
 
 **Commands:**
@@ -55,3 +63,16 @@ Oneshot because the code change is one ~20-line workflow edit on a throwaway bra
 
 **Manual checks (if no CLI):**
 - Finding doc's tables trace every number to a named run/attempt/job log; verdict sentence states the exact decision left for the user.
+
+## Auto Run Result
+
+- Summary: ran the patched-pair A/B exactly per protocol. Throwaway branch `experiment/patched-pair-ab` + draft PR #21; only `.github/workflows/check.yaml`'s `web` job changed (patched-pair build step, `BOARDSTUDIO_WASM_BINDGEN_DIR`, in-step 5 s resource sampler). Run 1 (run 44119032280 attempt 1) read 0/14 slow with counts unchanged → PASS → one web rerun (attempt 2), also 0/14. Page runner died in both (~42/48 s, shutdown signal) as in A1/B1/B2; sampler captured available memory collapsing ~11–13 GiB → ~0.2 GiB at page-runner start in both runs. Baselines: A1/A2 9/14 (digest), B1 6/14 (extraction matches record), B2 5/14 (new extraction). Verdict PASS, recorded in `finding-patched-pair-ab.md`; stopped at the ticket's `done_checkpoint` — no adoption, no merge, no `workflow_dispatch`.
+- Files changed:
+  - `.github/workflows/check.yaml` — experiment-only `web` job edit (build patched pair to `$RUNNER_TEMP/wasm-bindgen-patched`, select via env, sampler wraps check step preserving exit code). Throwaway; not for cherry-pick.
+  - `docs/plans/initiative-hosted-web-ci-latency/tickets/epic-browser-launch-latency/finding-patched-pair-ab.md` — the finding (new).
+  - this plan — created and kept current through the run.
+- Commits on `experiment/patched-pair-ab`: `7a99d1995a415f8105652d482e03413f0d22e8bc` (plan), `da590d550a2a1189c76c30c80d49a5a76e6492a4` (workflow experiment), `067d02be4401996cd020e74684c4ee29ef4cb99e` (finding + plan notes), plus the review-fix/bookkeeping commit that carries this result. Doc-carrying commits for cherry-pick: the plan commit, the finding commit, and the review-fix commit — not the workflow commit.
+- Review findings breakdown: quick lens, 4 findings — 2 medium + 2 low, all verified real and patched (finding-doc corrections; see triage log). Deferred: none. Rejected: none.
+- Follow-up review: patched counts by verdict — high 0, medium 2, low 2. `followup_review_recommended: true`: two medium entries were patched by the implementer without independent re-read; the specific unverified risk is that the rewritten passages (page-runner death position vs `scripts/run-wasm-tests.py`, claim-label split, job-conclusion record, baseline Tests column) still misstate a source or log fact in a way only a fresh lens would catch.
+- Verification performed: YAML parse of the workflow (ok, before push and after patches); sampler snippet + exit-code preservation exercised locally; diff since baseline read in full (only the three intended `web` changes + two docs); `gh pr view 21` confirms draft/base/head; per-launch extraction run on all four web logs (B1 6/14 reproduces the recorded count; run 1/run 2 0/14; walls cross-checked against `check: start/end` timestamps); job conclusions/times read from the run API; verification re-run after review patches (all green). The docs-push-triggered run 44128359986 (not protocol evidence) was cancelled.
+- Residual risks: the A/B's two runs are back-to-back attempts of one workflow run, so the causal attribution is intervention inference, not request-level proof (entry 1.2 remains the designed proof path); the 263 page tests are unverified under the patched pair because the runner died first in both runs; the page-runner memory death (5 of last 6 hosted web attempts) is unscoped and will keep failing the `web` job until separately decided.
