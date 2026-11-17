@@ -1,0 +1,56 @@
+name: Dioxus build audit
+on: pull_request
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        lane: [normal, isolated]
+    env:
+      RUSTUP_HOME: /home/runner/.rustup-pinned
+      CARGO_PROFILE_DEV_DEBUG: "false"
+      CARGO_PROFILE_WASM_DEV_DEBUG: "false"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - run: rustup toolchain install
+      - uses: ./.github/actions/web-tools
+      - name: Capture Cargo timings from the existing dx command
+        env:
+          LANE: ${{ matrix.lane }}
+        run: |
+          set -euo pipefail
+          export DX_REAL="$(command -v dx)"
+          mkdir -p "$RUNNER_TEMP/timed-tools" "$RUNNER_TEMP/dx-timings"
+          cat > "$RUNNER_TEMP/timed-tools/dx" <<'WRAPPER'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          args=()
+          for arg in "$@"; do
+            if [[ "$arg" == --cargo-args=--locked ]]; then arg="--cargo-args=--locked --timings"; fi
+            args+=("$arg")
+          done
+          /usr/bin/time -f 'dx elapsed=%e seconds' "$DX_REAL" "${args[@]}"
+          WRAPPER
+          chmod +x "$RUNNER_TEMP/timed-tools/dx"
+          export PATH="$RUNNER_TEMP/timed-tools:$PATH"
+          test ! -d target
+          dx_only() {
+            (cd web && dx build --web --debug-symbols false --base-path /boardstudio/ --no-default-features --features page --cargo-args=--locked)
+          }
+          if [[ "$LANE" == normal ]]; then
+            python3 scripts/build-web.py --fast
+          else
+            dx_only
+          fi
+          report=$(find "$GITHUB_WORKSPACE" -path '*/cargo-timings/cargo-timing.html' -print -quit)
+          cp "$report" "$RUNNER_TEMP/dx-timings/cold.html"
+          dx_only
+          cp "$report" "$RUNNER_TEMP/dx-timings/unchanged.html"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: dx-timings-${{ matrix.lane }}
+          path: ${{ runner.temp }}/dx-timings
+          if-no-files-found: error
