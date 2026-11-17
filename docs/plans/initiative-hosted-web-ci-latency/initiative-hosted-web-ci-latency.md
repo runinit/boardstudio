@@ -1,5 +1,6 @@
 ---
 type: initiative
+status: in-progress
 title: "Hosted web CI is predictable in duration and shows useful progress while it runs"
 parent: none
 sources:
