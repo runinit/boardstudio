@@ -1,0 +1,15 @@
+# The initiative's epics in build order. `id` is permanent, never reused.
+
+[[epic]]
+id = 1
+slug = "epic-browser-launch-latency"
+title = "Browser launch latency is explained and the proven wait removed"
+description = "The ~300 s wait inside nine of fourteen crate launches is demonstrated from exact runner source (or one discriminating experiment is specified), and any adopted fix removes it on representative hosted runs with every launch and page test still passing."
+covers = ["R1", "R2"]
+
+[[epic]]
+id = 2
+slug = "epic-ci-progress-feedback"
+title = "Web CI progress feedback and diagnostic retention"
+description = "The build lanes, crate launch batch and page runner report useful progress in the hosted log within the interval set at refinement, and per-filter browser.json durations are retained as an artifact on success and failure."
+covers = ["R3", "R4"]
