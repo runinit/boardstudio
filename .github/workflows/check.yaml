@@ -99,11 +99,28 @@ jobs:
           shared-key: web
           env-vars: ImageOS
           save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]' && github.event.pull_request.user.login != 'dependabot[bot]') }}
-      - run: python3 scripts/check.py build browser
+      # Experiment (ticket 1.3, throwaway branch only): build the existing patched wasm-bindgen
+      # pair job-locally and select it for the unchanged check below.
+      - name: Build patched wasm-bindgen pair (experiment)
+        run: python3 scripts/build-patched-wasm-bindgen.py --output "$RUNNER_TEMP/wasm-bindgen-patched"
+      # The sampler streams UTC time, memory and load into this step's log every 5 s for the
+      # whole check, so resource state around any launch stall or runner death is in the log.
+      - run: |
+          ( while :; do
+              echo "sampler $(date -u +%Y-%m-%dT%H:%M:%SZ) $(free -m | awk '/^Mem:/ {printf "mem-total=%sMiB mem-used=%sMiB mem-free=%sMiB mem-available=%sMiB", $2, $3, $4, $7}') loadavg=$(tr ' ' ',' < /proc/loadavg)"
+              sleep 5
+            done ) &
+          sampler_pid=$!
+          check_status=0
+          python3 scripts/check.py build browser || check_status=$?
+          kill "$sampler_pid" 2>/dev/null || true
+          wait "$sampler_pid" 2>/dev/null || true
+          exit "$check_status"
         # Test wasm without DWARF loads much faster, as it does locally. Set on the step so the
         # rust-cache key stays shared with release-build.
         env:
           CARGO_PROFILE_DEV_DEBUG: "false"
+          BOARDSTUDIO_WASM_BINDGEN_DIR: ${{ runner.temp }}/wasm-bindgen-patched
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: failure()
         with:
