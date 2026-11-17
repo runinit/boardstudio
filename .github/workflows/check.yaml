@@ -107,7 +107,9 @@ jobs:
       # whole check, so resource state around any launch stall or runner death is in the log.
       - run: |
           ( while :; do
-              echo "sampler $(date -u +%Y-%m-%dT%H:%M:%SZ) $(free -m | awk '/^Mem:/ {printf "mem-total=%sMiB mem-used=%sMiB mem-free=%sMiB mem-available=%sMiB", $2, $3, $4, $7}') loadavg=$(tr ' ' ',' < /proc/loadavg)"
+              echo "sampler $(date -u +%Y-%m-%dT%H:%M:%SZ) $(free -m | awk '/^Mem:/ {printf "mem-total=%sMiB mem-used=%sMiB mem-free=%sMiB mem-available=%sMiB", $2, $3, $4, $7} /^Swap:/ {printf " swap-used=%sMiB", $3}') loadavg=$(tr ' ' ',' < /proc/loadavg)"
+              # Experiment (page-runner death): top resident processes, so the consumer is named.
+              echo "sampler-rss $(date -u +%Y-%m-%dT%H:%M:%SZ) $(ps -eo rss=,comm= --sort=-rss | head -6 | awk '{printf "%s=%dMiB ", $2, $1/1024}')"
               sleep 5
             done ) &
           sampler_pid=$!
@@ -121,6 +123,8 @@ jobs:
         env:
           CARGO_PROFILE_DEV_DEBUG: "false"
           BOARDSTUDIO_WASM_BINDGEN_DIR: ${{ runner.temp }}/wasm-bindgen-patched
+          # Experiment (page-runner death): one page filter at a time; the crate batch is unchanged.
+          BOARDSTUDIO_WASM_PAGE_JOBS: "1"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: failure()
         with:
