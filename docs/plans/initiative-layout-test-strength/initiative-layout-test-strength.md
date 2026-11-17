@@ -1,5 +1,6 @@
 ---
 type: initiative
+status: done
 title: "Layout engine and PCB layout tests fail when the behaviour they name breaks"
 parent: none
 sources:
@@ -61,6 +62,8 @@ Anyone changing matrix layout, constraint, snapping or layout-viewer code gets a
 - research — docs/plans/initiative-layout-test-strength/research-necessist-audit/research-necessist-audit.md, sections Findings, Lead, Harness limitation, Review corrections
 
 ## Notes
+
+- Decision: 2026-11-16 — user explicitly approved initiative closure and commit after the completed closure check found no unmet declared criteria. All seven tickets and both epics are done. Recorded controls/restorations cover R1–R6, the helper sweep covers R9, and accepted linked coverage and the calibrated pilot cover R7–R8; recorded full project checks pass. Audit-harness closure and retrospective reconciliation are committed in `66214d4`. This closure uses existing evidence, with no new builds, tests or controls. Historical browser failures and their unproven causes remain preserved; wider audits and disposable cleanup require separate decisions. Protected pre-existing untracked files remain unread and untouched.
 
 - Decision: 2026-11-15 — two epics, test repairs first and audit harness second, so the certain repairs do not wait on the uncertain harness work. One epic of six entries was offered and declined.
 - Decision: 2026-11-15 — no platform-baseline epic; this is an existing codebase with its check and build in place.
