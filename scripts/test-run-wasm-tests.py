@@ -141,6 +141,22 @@ class RunWasmTestsTests(unittest.TestCase):
         self.assertEqual(calls, [("first", threading.current_thread()),
                                  ("second", threading.current_thread())])
 
+    def test_hosted_filters_run_serially_and_report_failures(self):
+        calls = []
+
+        def fake_filter(filter_, env, root):
+            calls.append((filter_, threading.current_thread()))
+            status = "FAILED" if filter_ == "second" else "ok"
+            name = f"{filter_}::test"
+            return int(status == "FAILED"), {name: status}, f"test {name} ... {status}\n"
+
+        filters = ["first", "second", "third"]
+        with patch.object(runner, "run_filter", side_effect=fake_filter), \
+             patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "4"}):
+            count, failed, _, problems, _ = runner.run(filters, {}, env={"GITHUB_ACTIONS": "true"})
+        self.assertEqual(calls, [(name, threading.current_thread()) for name in filters])
+        self.assertEqual((count, failed, problems), (3, ["second::test"], []))
+
     def test_parallel_failing_filter_fails_the_run(self):
         self.fake('case "$1" in\n'
                   'first) echo "test first::test ... ok" ;;\n'
