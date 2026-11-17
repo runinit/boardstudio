@@ -3,8 +3,7 @@ title: 'Preserve linked-resize axis and history metadata'
 type: chore
 ticket: 3
 created: '2026-11-16'
-status: built
-blocked_reason: ''
+status: done
 baseline_revision: '564cf69fd996e149bcaacbcdafd93702cdf00b71'
 route: oneshot
 route_source: auto
@@ -35,6 +34,8 @@ Oneshot: fewer than 100 source lines expected, one local test. Low business risk
 - Historical block (resolved by approved criteria in Plan Change Log): the first strengthened named test fails against unchanged production. Accepted partner link has `split_gap: None`; committed partner link has `split_gap: Some(142.0)`. Other displayed ownership/link fields match. `core/src/model.rs` documents absent split gap as legacy board-coordinate placement until the first committed geometry edit adopts the half frame. This suggested a requirement/fixture-semantic question, not a confirmed production bug. At that point Build stopped for separate investigation; no assertion weakening, fixture repair or production fix was authorized.
 
 ## Plan Change Log
+
+- 2026-11-16 — User explicitly accepted A1 as done on existing passing evidence: implementation `f7d7c5724ae222d6eb763b61d6ed0f9d20d08ffa`, named/module passes, seven failing/restored controls and six-step full check recorded below. This accepts A1 only; pilot acceptance and epic closure remain outside scope.
 
 - 2026-11-16 — User explicitly approved aligning this frozen intent with the adoption-aware ticket committed as `c956d5d3409a96d9ced1b0957d13bc38a83608ba`, clearing the resolved block and resuming A1 Build. Original baseline and failure evidence below are preserved. Whole-link invariance across commit is superseded by an independently expected complete adopted link, not metadata exclusion; no production defect established. Independent Ticket validation returned no findings. Existing A1 test edits remain authorized continuation work.
 - Gortex plan writes were rejected twice as stale after HEAD changed; used the repository's native-edit fallback. The historical blocked note and original named log below remain evidence of the prior criteria conflict, not a current unresolved product bug.
