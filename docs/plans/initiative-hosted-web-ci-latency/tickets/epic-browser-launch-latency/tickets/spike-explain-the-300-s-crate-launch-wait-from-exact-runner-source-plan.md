@@ -3,7 +3,7 @@ title: 'Explain the ~300 s crate-launch wait from exact runner source'
 type: feature
 ticket: 1
 created: '2026-11-17'
-status: built
+status: done
 baseline_revision: 'e66cfcff21073dec7760c030bf246956865dcbbe'
 route: oneshot
 route_source: auto

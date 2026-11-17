@@ -1,5 +1,5 @@
 # The epic's entries in build order. `id` is permanent, never reused.
-# Fix entries are added by re-slicing after spike 1 names the mechanism (see the epic's Notes).
+# Fix entries are added by re-slicing after entry 2's experiment reports (see the epic's Notes).
 
 [[entry]]
 id = 1
@@ -12,4 +12,18 @@ after = []
 hitl = false
 risk = "medium"
 references = ["docs/plans/research-web-ci-latency/research-web-ci-latency.md", "docs/plans/research-web-ci-latency/digests/measurements-logs.md"]
+done_checkpoint = true
+
+[[entry]]
+id = 2
+type = "spike"
+title = "Run the instrumented launch-wait experiment (finding §7)"
+description = "First re-reviews the patched sections 6-7 of finding-launch-wait.md independently; then, with the design confirmed or amended in the plan, runs the finding's section 7 experiment: the exact 0.2.129 runner rebuilt with logging only (phase timestamps including the raw Navigate body, TaskPool::spawn queue log, per-launch Chrome net-logs), the unchanged 14-launch batch under hosted-like 4-CPU contention, up to three batches stopping at the first conclusive one. No fix is applied and the patched pair is not used; instrumentation never merges as a fix."
+verify = "finding-launch-wait-experiment.md in this epic's folder records, off one slow launch's aligned logs, which of H1-H4 settled (or inconclusive after three batches per the stopping condition), and the user accepts it; this epic's deferred fix entries are who waits on it."
+covers = ["R1"]
+after = [1]
+hitl = false
+risk = "medium"
+references = ["docs/plans/initiative-hosted-web-ci-latency/tickets/epic-browser-launch-latency/finding-launch-wait.md"]
+plan_checkpoint = true
 done_checkpoint = true
