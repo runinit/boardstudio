@@ -3,7 +3,7 @@ title: 'Prove and calibrate the integration-audit pilot'
 type: chore
 ticket: 2
 created: '2026-11-16'
-status: built
+status: done
 baseline_revision: b8d7011a259736ec4838161a095fc6aee0779706
 route: full
 route_source: auto
@@ -122,6 +122,8 @@ The recorded Necessist invocation and named-target/replay commands remain in Pil
 - 2026-11-16: User explicitly approved the plan, disposable checkout, fresh database, calibration, audit/removals and native execution if Gortex remains unavailable. Plan re-read unchanged before approval was recorded.
 
 ## Plan Change Log
+
+- Decision: 2026-11-16 — User explicitly accepted pilot 2.2. Marked done against the recorded mapping/calibration control, matching 29-test execution sets, bounded 165-outcome pilot, 27 normal-target replays, measured cost/recommendation, passing six-step project check and completed review. A3 reconstruction evidence and all stated coverage/cost limitations remain intact. Historical pending-acceptance statements above describe earlier stages and are superseded by this decision. This accepts the spike only; the epic and initiative remain open pending separate closure confirmation. No audit rerun, cleanup, new verification, push or PR.
 
 ## Review Triage Log
 

@@ -3,7 +3,7 @@ title: 'Cover nonzero linked rotation during key resize'
 type: chore
 ticket: 4
 created: '2026-11-16'
-status: built
+status: done
 baseline_revision: '5c88ca4abfa0f3dfde5bb202e9960d13283574c2'
 route: oneshot
 route_source: auto
@@ -33,6 +33,8 @@ deferred: []
 Oneshot: under 100 changed source lines in keycap_resize.rs. Share the existing assertion body between separately named zero-angle and nonzero-angle tests. Use cell rotation to preserve the established half origins. Cell centers remain 19 mm apart horizontally; projected separation is 19*cos(23°), old gap max(0,19*cos(23°)-18)=0, resized halfwidth sum 37, so outward movement is 37-19*cos(23°) along (cos(23°),sin(23°)). Establish expectations before the act without production helpers or post-edit output. Independent Sofia Ticket validation found no blockers; A1 is accepted/done and user explicitly authorizes continuation. Previous blocked state was mistaken and cleared. Gortex exact route returns view_building; source write retry after 30 seconds also failed, so use authorized exact native edits.
 
 ## Plan Change Log
+
+- Decision: 2026-11-16 — User explicitly accepted A2. Marked done against implementation `416dec73d33a408b6405c83c5ce40932d2fcdb5c`, the recorded nonzero/restored/zero-angle passes, detected copied-angle control, 11 passing module tests, unchanged six-step full-check retry and completed quick-review triage. Original failure evidence and its unproven cause remain preserved. This accepts A2 only; no epic/initiative closure, new verification run, push or PR.
 
 - Independent Sofia Ticket validation confirmed the geometric values and zero-angle retention; fixed stale A1 wording and explicitly labeled the original blocked result historical.
 
