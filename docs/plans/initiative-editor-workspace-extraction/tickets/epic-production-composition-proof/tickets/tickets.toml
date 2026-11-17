@@ -1,0 +1,21 @@
+# BMad governs workflow; source process protocols are historical, not additional gates.
+[[entry]]
+id = 2
+type = "story"
+title = "Establish the real App composition test seam"
+description = "Retain original002: expose one private real-production composition seam using the existing test Runtime, establish a scope-correct two-board fixture and characterize navigation, held work, reconciliation, replacement and genuine teardown without moving workspace controllers."
+verify = """Pass all ten original002 criteria and epic R1-R6 through actual production subscription/providers and controls: one Runtime seam with unchanged startup; real board reconciliation; two-board edit plus filtered reply/save gates and isolated DOM/preferences; workspace cycle with no accepted edit and once-only held settlement; Export Back/Escape/header return to last non-Export; Library hides Editor; actual Editor-only and App removal followed by held completion causes no stale DOM/focus/navigation/dropped-Signal access; reused-ID replacement rejects old callbacks; late replies retain explicit controlled-adapter proof; fixture driving is warning-free and fixture UI/diagnostics never ship. Stop further extraction if safe driving/unmount is not demonstrated. Record baseline/current scope and exact receipts. Use BMad for review and verification. Retain documented changed-scope quick checks, page-only WASM compilation, page-bin mounted browser suite, relevant Runtime tests and retained Editor mounted tests. Reuse sufficient existing lower-seam proof without calling it full composition or original013 acceptance."""
+covers = ["R1", "R2", "R3", "R4", "R5", "R6"]
+after = []
+hitl = false
+risk = "high"
+references = [
+  "docs/plans/editor-workspace-extraction/issues/002-production-composition-test-seam.md",
+  "docs/plans/editor-workspace-extraction/map.md",
+  "docs/plans/research-editor-workspace-ownership/ticket-proposal.md",
+]
+legacy_id = "002"
+legacy_parent = "001"
+legacy_source = "docs/plans/editor-workspace-extraction/issues/002-production-composition-test-seam.md"
+legacy_source_status = "ready"
+legacy_source_type = "build"

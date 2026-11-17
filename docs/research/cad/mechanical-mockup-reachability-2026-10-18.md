@@ -16,7 +16,7 @@ Runtime's existing [captured preparation](../../../web/crates/host/src/cad_jobs.
 
 ## Four finite dispositions
 
-Retained requirements are [006](../../plans/cad-backend-replacement/issues/006-complete-case-features.md):15–19 (blind depths, openings/material ownership, named cone adoption gap) and [013](../../plans/cad-backend-replacement/issues/013-layered-case-construction.md):72–73 (sealed representation **or rejection**, named wall-cone refusal). The opening producer is [mechanical.rs](../../../core/src/mechanical.rs):1419 followed by [internal.rs](../../../core/src/mechanical/gasket/internal.rs):1185; both keep authored polygons/Z/height.
+Retained requirements are [006](https://github.com/runinit/boardstudio/blob/ad9db473012a4a4201217bd5094a4f24e7801932/docs/plans/cad-backend-replacement/issues/006-complete-case-features.md):15–19 (blind depths, openings/material ownership, named cone adoption gap) and [013](https://github.com/runinit/boardstudio/blob/ad9db473012a4a4201217bd5094a4f24e7801932/docs/plans/cad-backend-replacement/issues/013-layered-case-construction.md):72–73 (sealed representation **or rejection**, named wall-cone refusal). The opening producer is [mechanical.rs](../../../core/src/mechanical.rs):1419 followed by [internal.rs](../../../core/src/mechanical/gasket/internal.rs):1185; both keep authored polygons/Z/height.
 
 | Mockup / changed input | Executed Core output and actual backend | Acceptance disposition / exact remaining input |
 | --- | --- | --- |

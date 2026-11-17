@@ -1,8 +1,8 @@
 # AI-generated documentation and retrieval
 
 Use this guidance when producing agent notes, research, transfers or generated documentation,
-or changing Gortex exclusions. It supplements the current instructions; it does not replace the
-[committed issue tracker](issue-tracker.md#building-and-verifying-a-ticket).
+or changing Gortex exclusions. It supplements the current instructions; installed BMad skills govern planning,
+ticketing, orchestration, review and verification.
 
 ## Place the output
 
@@ -10,9 +10,9 @@ or changing Gortex exclusions. It supplements the current instructions; it does 
   memory store. These are working material, not project authority.
 - Keep verification logs in `.evidence/`, following the root instructions. Retain committed
   transfer records and ticket evidence links; a retrieval exclusion is not permission to remove
-  files or stop recording required proof.
-- Keep ticket proof maps, review verdicts and completion records in their existing ticket
-  workflow. Keep approved specifications, ADRs, `GLOSSARY.md`, human-reviewed research, code and
+  files or discard accepted functional evidence.
+- Keep concise task outcomes in BMad's existing ticket plans; do not create duplicate
+  validation documents or parallel status records. Keep approved specifications, ADRs, `GLOSSARY.md`, human-reviewed research, code and
   tests in their established locations. AI authorship alone is not an exclusion criterion.
 
 ## Promote a claim, not a transcript
@@ -24,7 +24,7 @@ receipts. Human review or the existing approval protocol decides authority; a ge
 search hit or repeated agent assertion does not establish it.
 
 If a draft contradicts an approved decision, report the conflict for a decision instead of
-rewriting the authority. Preserve the ticket's mandatory gates and completion record.
+rewriting the authority. Preserve accepted functional requirements and explicit human approval decisions.
 
 ## Change retrieval safely
 

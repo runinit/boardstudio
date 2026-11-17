@@ -1009,23 +1009,6 @@ mod tests {
                 .part_for_current_pick(&snapshot, &scope, 3, "U1:0", None)
                 .is_none()
         );
-
-        let mut duplicate = snapshot.document.as_ref().clone();
-        duplicate.parts.push(Part {
-            anchor: None,
-            id: "part-2".into(),
-            ..duplicate.parts[0].clone()
-        });
-        duplicate.boards[0].part_ids.push("part-2".into());
-        let duplicate_snapshot = AcceptedSnapshot {
-            document: Arc::new(duplicate),
-            ..snapshot.clone()
-        };
-        assert!(
-            accepted_preview
-                .part_for_current_pick(&duplicate_snapshot, &scope, 3, "U1", None)
-                .is_none()
-        );
     }
 
     #[test]

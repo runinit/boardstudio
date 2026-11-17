@@ -16,6 +16,12 @@ import subprocess
 SHARED = ("Cargo.toml", "Cargo.lock", "rust-toolchain.toml", ".cargo/", "deny.toml")
 # Tooling scripts are covered by the `tooling` step.
 TOOLING = ("scripts/", "cad/scripts/")
+# Optional utilities retain coverage when edited, without joining routine product checks.
+AGENT_TOOLS = (
+    "scripts/gitnexus-", "scripts/test-gitnexus-",
+    "scripts/mutation-check.py", "scripts/test-mutation-check.py",
+    "scripts/verification_receipt.py", "scripts/test-verification-receipt.py",
+)
 # Prose and plans need only the documentation checks.
 DOCS = ("docs/", "README.md", "AGENTS.md", "CLAUDE.md", "GLOSSARY.md", "DESIGN.md", "PRODUCT.md")
 # Data and assets consumed through a build rather than compiled: the build step owns them.
@@ -41,6 +47,7 @@ class Selection:
     page_files: list[str] = field(default_factory=list)
     unplaced: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
+    agent_tools: bool = False
 
 
 def workspace_packages(root: Path) -> dict[str, Package]:
@@ -104,6 +111,7 @@ def select(files: list[str], packages: dict[str, Package]) -> Selection:
             selection.notes.append(f"{path}: shared build input, every Rust check applies")
         elif path.startswith(TOOLING):
             selection.tooling = True
+            selection.agent_tools |= path.startswith(AGENT_TOOLS)
             if path == "scripts/test-import-kicad-parts.py":
                 # Its suite moved to the `test` step; tooling alone would never run it.
                 selection.extra_tests.append(path)

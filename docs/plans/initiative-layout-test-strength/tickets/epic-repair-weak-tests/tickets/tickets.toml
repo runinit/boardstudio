@@ -1,0 +1,56 @@
+# The epic's planned stories in build order. `id` is permanent, never reused.
+
+[[entry]]
+id = 1
+type = "story"
+title = "Case-closure adoption test fails without the exclusion"
+description = "Gives the adoption fixture a key part and an ordinary unassigned part, both on the source side of the mirror axis, so the test shows the ordinary part adopted and the case-closure hole left out."
+verify = "The test passes; with the case-closure exclusion temporarily removed from adoption it fails, and that run is recorded in the story's plan; the full project check passes."
+covers = ["R1"]
+after = []
+hitl = false
+risk = "low"
+
+[[entry]]
+id = 2
+type = "story"
+title = "Rotated-envelope snap test fails when rotation is ignored"
+description = "Replaces the square keycap with a non-square envelope and independently computed expected positions for each rotation."
+verify = "The test passes; with the rotation assignment temporarily removed it fails, and that run is recorded in the story's plan."
+covers = ["R5"]
+after = []
+hitl = false
+risk = "low"
+
+[[entry]]
+id = 3
+type = "story"
+title = "Framed solve tests and splay-origin validation fail under their counter-examples"
+description = "Starts both framed-constraint targets away from their solved position and heading; the persisted test's authoritative target starts at heading 0 degrees to retain the existing literal oracle under nearest-previous-heading selection. Gives the non-finite splay-origin case a fresh otherwise-valid matrix so oversized geometry cannot mask origin rejection; leaves the repeated fixture block for the Refactor sweep."
+verify = "All three cases pass with existing assertion intent unchanged; each framed test fails with its own solve call temporarily removed. The splay-origin case fails when only its NaN origin is temporarily replaced with a finite value, using the unchanged rejection assertion; this is not proof of detecting a single input-guard removal. Restore each counter-example immediately and rerun successfully, recording evidence in the story's plan; neighboring tests and the full project check pass."
+covers = ["R2", "R3"]
+after = []
+hitl = false
+risk = "low"
+
+[[entry]]
+id = 4
+type = "story"
+title = "Membership cache retirement is shown on populated data; redundant pick block removed"
+description = "Retains the membership test's notification-reuse and owner-change checks, then asserts concrete nonempty eligible and live membership immediately before close; close clears both and reopening the identical full owner recomputes the expected ids. Removes the redundant duplicate-reference block from the layout-viewer pick test."
+verify = "The membership test passes with populated pre-close membership, empty membership after close without calling compute, and recomputation on identical-full-owner reopen; temporarily bypassing close makes it fail, then restoration passes. The viewer pick test keeps unique-reference selection and passes without the redundant block; the direct duplicate-rejection test in case_preview.rs and the full project check pass; execution evidence is recorded in the story's plan."
+covers = ["R4", "R6"]
+after = []
+hitl = false
+risk = "low"
+
+[[entry]]
+id = 5
+type = "story"
+title = "Refactor sweep"
+description = "Replaces the repeated resize/reset/zip fixture block with one helper per test module, including the block in the splay-origin test entry 3 changed, and clears cleanup the earlier stories deferred; test code only."
+verify = "The three modules no longer contain the repeated block, their tests pass with scenario inputs and assertions unchanged, and the full project check passes."
+covers = ["R7"]
+after = [1, 2, 3, 4]
+hitl = false
+risk = "low"

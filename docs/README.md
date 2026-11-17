@@ -1,8 +1,10 @@
 # Documentation
 
 Start with [development and checks](../README.md), [architecture](architecture.md),
-and the [domain vocabulary](../GLOSSARY.md). The [backlog](backlog.md) tracks open
-problems and completion conditions.
+and the [domain vocabulary](../GLOSSARY.md). Installed BMad skills and their configured
+ticket tree govern planning, task state, orchestration, review and verification.
+The [backlog](backlog.md) retains deferred ideas and historical problem descriptions,
+not a parallel ticket tracker.
 
 ## Current references
 
@@ -38,10 +40,9 @@ unimplemented change list.
 The [architecture review of 2026-10-07](investigations/architecture-review-2026-10-07.html)
 proposes six module deepenings; that plan is finished and lives in Git history.
 
-The [application workflow verification spec](plans/application-workflow-verification/map.md)
-defines six bounded recovery, offline, renderer, keyboard, assembly and package-notice
-outcomes through three approved public seams. Operational and physical checks remain
-explicitly separate from source/mounted evidence; implementation tickets are not yet published.
+The application workflow verification plan and its proposed ticket-tree migration
+were canceled on 2026-11-15. The removed specification remains in Git history;
+its publication did not establish implementation or verification completion.
 
 [TypeScript and Node removal](investigations/typescript-node-removal.md) inventories
 the remaining provider, content, build and test dependencies, with a phased removal

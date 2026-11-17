@@ -1,0 +1,25 @@
+# Approved epic split, 2026-11-15. The IDs of all 15 legacy tickets stay permanent.
+# Table order is build order; M2 and M3 implementation remain behind their phase gates.
+
+[[epic]]
+id = 1
+slug = "epic-layout-delivery"
+title = "Complete Layout workbench"
+description = "BoardStudio users can use the complete Layout redesign through the M1 hands-on review stop, with shared chrome, preserved Layout workflows and recorded acceptance evidence."
+covers = ["R1", "R2", "R3", "R4", "R6", "R7", "R8", "R9", "R11"]
+
+[[epic]]
+id = 2
+slug = "epic-workspace-adapters"
+title = "Adapt PCB, Keymap, Keycaps, Case and Parts"
+description = "After M1 completion and explicit user approval, each remaining workspace uses the shared chrome while preserving its own inventoried capabilities and domain owners."
+covers = ["R1", "R3", "R5", "R6", "R7", "R8", "R11"]
+after = [{ epic = 1, needs = "M1 is complete and the user has approved M2 after hands-on review." }]
+
+[[epic]]
+id = 3
+slug = "epic-acceptance-retirement"
+title = "Accept all workspaces and retire the old dock"
+description = "After all six adapters and explicit user authorization, demonstrate integrated acceptance and retire superseded dock paths only after parity is proven."
+covers = ["R1", "R5", "R6", "R7", "R8", "R9", "R10", "R11"]
+after = [{ epic = 1, needs = "The M1 tickets directly required by six-workspace acceptance are complete." }, { epic = 2, needs = "All M2 adapters are complete and the user has authorized M3 acceptance and retirement." }]

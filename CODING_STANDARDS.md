@@ -1,7 +1,7 @@
 # Coding standards
 
-Read before adding or changing tests, and during review. Mechanical rules live in checks
-(`python3 scripts/check.py`); this file holds the judgement calls that no check can make.
+Code and test-design guidance; installed BMad skills govern the workflow. Mechanical
+rules live in checks (`python3 scripts/check.py`).
 
 - **Reuse the helper.** When the module or its neighbours already hold the geometry or the
   arithmetic (`rotate` in `matrix/splay.rs`), call it, widening its visibility if needed. A
@@ -37,19 +37,15 @@ Read before adding or changing tests, and during review. Mechanical rules live i
 - **Earn repeated coverage.** Test common mechanics at their agreed seam; repeat coverage for
   owner wiring, canonicalization or lifetime only where it can fail independently. Repeating a
   whole matrix at another layer needs a distinct failure rationale. Use the cheapest tier faithful
-  to the boundary; focused runs do not replace required integrated acceptance or final gates.
+  to the behavior being checked; preserve accepted functional coverage.
 - **Review maintenance cost.** Hold fixtures and helpers to the production-code quality bar.
   New fixtures, helpers or mount paths must explain why existing setup is insufficient.
   Refactor tests for repeated setup edits, diagnosed flakiness or measured runtime cost, not
   test volume or cosmetic line savings. Judge failure coverage and upkeep, not counts or ratios.
-- **Preserve proof.** Consolidation preserves required acceptance cases, named baseline guards
-  and RED/GREEN or mutation evidence. Map every retired or renamed test to the surviving case
-  carrying its assertions; rerun affected mutation checks when consolidation could weaken them.
+- **Preserve coverage.** Consolidation preserves required acceptance cases and meaningful
+  assertions. Identify the surviving coverage when retiring or renaming tests; do not silently
+  lose regression protection.
 - **Protect the oracle.** Fix production code to reach GREEN; never weaken assertions, expected
   values, goldens or baselines merely to pass. Correct a genuinely wrong test only with independent
   evidence (spec, worked example or known-good reference); record that evidence. Contract changes
   require approval, not silent oracle updates.
-- **Stop at the boundary.** Write the cases the request or the ticket's
-  [slice boundary](docs/agents/issue-tracker.md#slice-boundary) names. A further case or a
-  surviving mutation joins the change only when it shows a named case cannot fail; otherwise
-  list it as a follow-up.

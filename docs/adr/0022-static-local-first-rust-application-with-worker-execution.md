@@ -28,9 +28,9 @@ Scope remains each registration's own scope: root and subpath routes are isolate
 
 This amendment **supersedes the Draft detection paragraph of 2026-11-07** above,
 not the worker-authoritative adoption protocol or ordinary delayed activation.
-[Draft-safety 008–015](../plans/update-draft-safety/map.md#decisions-so-far) implements
+Draft-safety 008–015 (retired draft-safety plan) implements
 and verifies a Runtime-owned `DraftOwnerRegistry`. The
-[015 coverage audit](../plans/update-draft-safety/issues/015-coverage-mutation-and-closure.md#answer)
+015 coverage audit (retired draft-safety plan)
 accounts for all **14 Class A owners / 17 registrations**. Both initial Update Now
 and post-takeover reload synchronously poll live per-(owner, admission-key)
 reports. Owner-canonical comparison with the accepted or initial baseline,
@@ -41,7 +41,7 @@ retire them. A completed save or preview alone is not proof that all drafts are 
 
 Class B blur-committing owners remain an **explicit, revocable risk acceptance**,
 not registered coverage or a proof of safety for every blur ordering. The
-[accepted transfer](../plans/update-draft-safety/issues/006-agree-verification-and-implementation-transfer.md#risk-acceptance-exclusions-remaining-blockers)
+accepted transfer (retired draft-safety plan)
 revokes it on **any observed Class B draft loss, any new Class B owner, or a
 blur-ordering counterexample** (Enter→blur, portal focus-out,
 unmount-without-blur), reopening Class B adapters through a fresh ticket.

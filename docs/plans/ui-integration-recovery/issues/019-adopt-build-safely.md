@@ -298,9 +298,9 @@ review checkpoints `review-019` and `review-019-delta` hold the review records.
   receipts above; packaged second-editor/offline continuity, scope isolation and
   failed-install controls in `019-rev-green-final.log` (339/339). Sole-client
   authority is in the worker, not a page probe; blocked adoption is cancel-only.
-- AC2/3: [draft-safety 008–015](../../update-draft-safety/map.md#decisions-so-far),
-  especially [010 packaged proof](../../update-draft-safety/issues/010-packaged-a-to-b-proof.md#answer)
-  and [015 closure](../../update-draft-safety/issues/015-coverage-mutation-and-closure.md#answer):
+- AC2/3: draft-safety 008–015 (retired draft-safety plan),
+  especially 010 packaged proof (retired draft-safety plan)
+  and 015 closure (retired draft-safety plan):
   Runtime registry, all 14 Class A owners / 17 registrations, held-save/failure/retry,
   exact saved-project reopening. AC7 is now additionally proven **combined** above.
 - AC4/8: worker-authoritative adoption and guarded cache cleanup, ordinary delayed
@@ -334,8 +334,8 @@ review checkpoints `review-019` and `review-019-delta` hold the review records.
 - Worker-restart/ADOPTER lifetime and navigating-client/cache races: explicitly
   **retained risks**, not proven safe; ADR residuals remain. Stale precache and
   failed-install incomplete cache: **STILL-OPEN, out of scope**, not fixed by closure;
-  see draft-safety [map](../../update-draft-safety/map.md#out-of-scope) /
-  [spec](../../update-draft-safety/spec.md#out-of-scope) boundaries.
+  see draft-safety map (retired draft-safety plan) /
+  spec (retired draft-safety plan) boundaries.
 - Open-PCB pre-change baseline: permanent attribution caveat; RED-as-control
   (pre-019 build, not same-tree revert) caveat retained. Native test baseline: CLOSED
   by the recorded 019 baseline update/full gate. Toast title heuristic: constrained,

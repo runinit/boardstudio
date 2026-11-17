@@ -258,6 +258,36 @@ mod selection_retention_tests {
             operation_id: OperationId(1),
             document: matrix_fixture(),
         });
+        runtime.submit(fixed_commit(
+            OperationId(2),
+            Resolution::submit_with_transaction_id(
+                vec!["matrix-main".into()],
+                "create-matrix",
+                EditOperation::SetMatrix {
+                    matrix: Matrix {
+                        id: "matrix-main".into(),
+                        name: None,
+                        rows: 1,
+                        columns: 1,
+                        pitch: Vec2 { x: 19.05, y: 19.05 },
+                        origin: Vec2 { x: 0.0, y: 0.0 },
+                        definition_id: "switch".into(),
+                        part_ids: vec![],
+                        board_id: Some("main".into()),
+                        mirror: None,
+                        rotation: None,
+                        edge_gap: None,
+                        diode_direction: None,
+                        row_layout: vec![],
+                        column_layout: vec![],
+                        anchor: None,
+                        cells: vec![],
+                    },
+                    definitions: None,
+                },
+            ),
+        ));
+        let key_id = "matrix/matrix-main/r0c0";
         let mut model = runtime.model();
         assert!(
             model.accepted.is_some(),
@@ -267,8 +297,8 @@ mod selection_retention_tests {
         let compute = |model: &boardstudio_application::ReadModel| {
             calls.set(calls.get() + 1);
             SelectionMembership {
-                eligible: eligible_ids(model, "matrix-main", "key"),
-                live: live_ids(model, "key"),
+                eligible: eligible_ids(model, "matrix-main", key_id),
+                live: live_ids(model, key_id),
             }
         };
         let mut cache = SelectionMembershipCache::default();
@@ -322,19 +352,33 @@ mod selection_retention_tests {
         let accepted = model.accepted.as_mut().unwrap();
         Arc::make_mut(&mut accepted.document).revision += 1;
         expect_refresh(&model);
+
+        // The owner-change cases left the populated board. Cache real membership
+        // again so close must retire data, not just another empty projection.
+        model.active_board_id = "main".into();
+        model.active_instance_id = None;
+        let before = calls.get();
+        let populated = cache.project(&model, compute);
+        assert_eq!(calls.get(), before + 1);
+        assert_eq!(populated.eligible, vec![key_id]);
+        assert_eq!(populated.live, vec![key_id]);
+        // Preserve the full pre-close owner, including both Arc allocations.
+        let reopened = model.clone();
         model.accepted = None;
         let empty = cache.project(&model, |_| {
             panic!("closed source has no membership to project")
         });
         assert!(empty.eligible.is_empty() && empty.live.is_empty());
-        let reopened = runtime.model();
+        assert_eq!(calls.get(), before + 1, "close must not compute membership");
         let before = calls.get();
-        cache.project(&reopened, compute);
+        let restored = cache.project(&reopened, compute);
         assert_eq!(
             calls.get(),
             before + 1,
             "reopen cannot inherit retired membership"
         );
+        assert_eq!(restored.eligible, vec![key_id]);
+        assert_eq!(restored.live, vec![key_id]);
     }
 
     #[test]

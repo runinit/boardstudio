@@ -1,5 +1,7 @@
 # Issue tracker: committed Markdown tickets
 
+> Retired workflow — 2026-11-15. The body below is preserved only to interpret historical records, not as operating instructions. Installed BMad skills now govern planning, ticketing, orchestration, review and verification; these roles, statuses, routes and process gates impose no additional requirements.
+
 Tickets are Markdown files in a plan's `issues/` directory, one per ticket, each named in that
 plan's `map.md`. Each plan is a directory under `docs/plans/`;
 finished plans are removed from the tree and stay in Git history.

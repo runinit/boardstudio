@@ -20,12 +20,18 @@ settles temporary disable/re-enable: resume the same input's prior bindings even
 across save/reopen, without making it active while disabled. This does not promise
 retention of all Part-owned settings/wiring or establish runtime acceptance.
 
+**Plan cancellation (2026-11-15):** the application workflow verification plan and
+its proposed ticket-tree migration were canceled and the original plan removed.
+Workflow links below point to the historical specification; its readiness and
+coordination statements describe that snapshot, not active work. This cancellation
+does not revoke the separately recorded domain decisions.
+
 ## 1. Inventory before more interviews
 
 **Conversation queue completed (2026-10-20):** the user chose the new matrix's
 Objects entry as keyboard-focus destination after saved creation succeeds and the
 form closes. This ordinary UX rule is recorded in the
-[workflow spec](../plans/application-workflow-verification/issues/001-verify-six-application-workflows.md),
+[workflow spec](https://github.com/runinit/boardstudio/blob/ad9db473012a4a4201217bd5094a4f24e7801932/docs/plans/application-workflow-verification/issues/001-verify-six-application-workflows.md),
 not a new ADR. With the camera, temporary-input and notice choices above/below
 recorded, the four researched groups are settled. Transfer to bounded implementation
 and verification; this does not establish that any pending behavior is delivered.
@@ -44,8 +50,8 @@ integrity checks remain. These are policy decisions, not implementation evidence
 Read [root instructions](../../AGENTS.md), [domain instructions](../agents/domain.md),
 [glossary](../../GLOSSARY.md), [ADR index](../adr/README.md) and relevant current
 records through 0033, the installed domain modelling guide and both format guides,
-the [workflow map](../plans/application-workflow-verification/map.md) and its
-[48-story parent specification](../plans/application-workflow-verification/issues/001-verify-six-application-workflows.md).
+the [workflow map](https://github.com/runinit/boardstudio/blob/ad9db473012a4a4201217bd5094a4f24e7801932/docs/plans/application-workflow-verification/map.md) and its
+[48-story parent specification](https://github.com/runinit/boardstudio/blob/ad9db473012a4a4201217bd5094a4f24e7801932/docs/plans/application-workflow-verification/issues/001-verify-six-application-workflows.md).
 Reconciled the four prior reports:
 [workflow evidence](2026-10-20-application-workflow-evidence.md),
 [compatibility/identity/provenance](2026-10-20-compatibility-identity-provenance-deep-dive.md),
@@ -63,7 +69,7 @@ Their older candidate lists are not today's decision queue.
 | Hardware topology | **Settled / delivery debt:** [0024–0028](../adr/README.md) cover shared routing with actual assembly/jumpers, exclusive removed-half design/accessory deletion with Undo, either side central, incomplete designs saveable, explicit reversible conversion without merging routing. |
 | Vendor geometry/collision | **Settled / existing work:** [0017](../adr/0017-forgiving-vendor-previews-with-preserved-source.md)/[0018](../adr/0018-distinguish-collision-observations-from-clearance-guarantees.md) admit useful repaired/partial previews and approximate observations with explicit limitations; unsupported accuracy and whole-model clearance remain uncertain. |
 | Scripting | **Excluded:** [0029](../adr/0029-constrain-geometry-scripts-and-apply-results-atomically.md#scope-correction-2026-10-20) deprecates the feature premise. Retained code safety is not intended workflow; removal/compatibility is later scoped work. |
-| Release/GPU/hardware confidence | **Operational evidence, not an invented policy vacancy:** source-bound A/B artifacts and authorized disposable origin, genuine supported context loss, target toolchain, downstream routing/DRC and qualified bench/fit resources remain pending under the [spec prerequisites](../plans/application-workflow-verification/issues/001-verify-six-application-workflows.md#operational-and-human-prerequisites). No handshake or all-hardware qualification policy follows from missing runs. |
+| Release/GPU/hardware confidence | **Operational evidence, not an invented policy vacancy:** source-bound A/B artifacts and authorized disposable origin, genuine supported context loss, target toolchain, downstream routing/DRC and qualified bench/fit resources remain pending under the [spec prerequisites](https://github.com/runinit/boardstudio/blob/ad9db473012a4a4201217bd5094a4f24e7801932/docs/plans/application-workflow-verification/issues/001-verify-six-application-workflows.md#operational-and-human-prerequisites). No handshake or all-hardware qualification policy follows from missing runs. |
 
 **Deduplicated queue: four grouped areas, supported by four evidence sets below.**
 Camera belongs with 0014, temporary-input identity with 0032, and notice boundaries
@@ -73,12 +79,12 @@ reversal cost, surprising behavior and a genuine trade-off.
 
 Existing [Editor 011](../plans/editor-workspace-extraction/issues/011-shared-camera-and-surface-coordination.md)
 owns behavior-preserving camera/surface extraction, not a persistence redesign.
-[Workflow 001](../plans/application-workflow-verification/map.md) is a ready
+[Workflow 001](https://github.com/runinit/boardstudio/blob/ad9db473012a4a4201217bd5094a4f24e7801932/docs/plans/application-workflow-verification/map.md) is a ready
 **spec**, with approved S-A real application/mounted, S-B source-bound page and S-C
 actual-package seams; its children are unpublished. Reuse existing Editor work,
 CAD browser harness 016,
 deploy gate 06 and
-[forgiving-preview successors](../plans/cad-backend-replacement/spec.md), not duplicate
+[forgiving-preview successors](https://github.com/runinit/boardstudio/blob/ad9db473012a4a4201217bd5094a4f24e7801932/docs/plans/cad-backend-replacement/spec.md), not duplicate
 tickets. Publication is not delivery. Stale historical links are not this domain loop.
 
 ## 2. Priority 1 — camera after preview recovery

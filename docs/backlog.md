@@ -5,9 +5,9 @@ Historical investigation is available in Git at cutover commit `323967ff` under
 `.scratch/dioxus-frontend-v1/refactor-findings.json`. Reproduce a current issue before
 implementing a repair; historical symptoms may already have bounded fixes.
 
-For new work, record the observed problem, affected behavior and completion
-condition. Update the entry when the behavior is verified. Ordinary development
-uses the commands in the root README.
+For new work, use the installed BMad skills and configured ticket tree. This list
+is an idea and historical reference, not live task state or a parallel tracker.
+Ordinary development uses the commands in the root README.
 
 Layout queued coordinate edits are resolved by the
 edit-settlement tracer bullet

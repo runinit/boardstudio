@@ -1,8 +1,13 @@
 # Orchestration model lookup
 
+> Retired workflow — 2026-11-15. The body below is preserved only to interpret historical records, not as operating instructions. Installed BMad skills now govern planning, ticketing, orchestration, review and verification; these roles, statuses, routes and process gates impose no additional requirements.
+
 Reading the T3 orchestration catalog for one provider/model without printing the whole
-catalog. The helper is [`scripts/model-lookup.js`](../../scripts/model-lookup.js); its
-fixture tests are [`scripts/test-model-lookup.cjs`](../../scripts/test-model-lookup.cjs).
+catalog. The retired helper `scripts/model-lookup.js` and fixture
+`scripts/test-model-lookup.cjs` were removed with this workflow cleanup. Their final
+sources remain in Git at `fac38bc86f4211ee2eb26fe1eddc14e8b7828c6f`; for example,
+`git show fac38bc86f4211ee2eb26fe1eddc14e8b7828c6f:scripts/model-lookup.js`.
+The recipe below is historical, not an executable project requirement.
 
 ## When
 

@@ -1,0 +1,74 @@
+# BMad governs workflow; source process protocols are historical, not additional gates.
+# M2 entries are held by the epic gate and their specific open domain decisions.
+
+[[entry]]
+id = 10
+type = "story"
+title = "PCB adapter with placement and Routing & nets parity"
+description = "Adapt PCB Objects, applicable toolbar controls and both Inspect panes while retaining routing, placement, error, readiness, pending and stale-scope owners."
+verify = "Follow installed BMad skills; retain applicable human approval. Demonstrate this adapter's applicable responsive, keyboard, target-size and motion behavior against the architecture contract (R11), leaving six-workspace packaged acceptance to 007. Domain evidence: PCB inventory, pane drafts, wiring/remap guards and Add/Browse/placement return proofs show unchanged scoped results, retained feedback and no foreign-owner edit."
+covers = ["R1", "R3", "R5", "R7", "R8", "R11"]
+after = ["1.2", "1.5"]
+hitl = false
+unknown = "Await M2 phase approval; classify any unregistered PCB form's commit trigger and update-safety treatment before implementation."
+references = ["docs/plans/toolbar-led-workbench/issues/010-pcb-workspace-adapter.md"]
+
+[[entry]]
+id = 11
+type = "story"
+title = "Keymap adapter with layer and input-editor identity intact"
+description = "Move Keymap navigation, layer operations, Keys/Macros/Encoders editors and existing view/export controls into the shared chrome while preserving layer and input identity."
+verify = "Follow installed BMad skills; retain applicable human approval. Demonstrate this adapter's applicable responsive, keyboard, target-size and motion behavior against the architecture contract (R11), leaving six-workspace packaged acceptance to 007. Domain evidence: Layer guards, editor drafts, blur settlement, update-safety treatment and input-generation proofs preserve current owners and never admit a stale or foreign binding."
+covers = ["R1", "R3", "R5", "R7", "R8", "R11"]
+after = ["1.9"]
+hitl = false
+unknown = "Await M2 phase approval; classify BindingEditor, MacroEditor and EncoderEditor commit modes and identify which unresolved forms need update-safety registration."
+references = ["docs/plans/toolbar-led-workbench/issues/011-keymap-workspace-adapter.md"]
+
+[[entry]]
+id = 12
+type = "story"
+title = "Keycaps adapter with defaults, overrides and fit ownership"
+description = "Relocate existing Keycaps defaults, overrides, fit findings and applicable view controls without duplicating editors or changing fit/navigation ownership."
+verify = "Follow installed BMad skills; retain applicable human approval. Demonstrate this adapter's applicable responsive, keyboard, target-size and motion behavior against the architecture contract (R11), leaving six-workspace packaged acceptance to 007. Domain evidence: Board, matrix and key settings retain inheritance and reset behavior; ordinary navigation leaves Inspect closed, and captured stale fit results cannot select or move a foreign owner."
+covers = ["R1", "R3", "R5", "R7", "R8", "R11"]
+after = ["1.4", "1.9"]
+hitl = false
+unknown = "Await M2 phase approval; decide board-default relocation and classify existing Keycaps field commit triggers/update-safety treatment before retaining unresolved forms off screen."
+references = ["docs/plans/toolbar-led-workbench/issues/012-keycaps-workspace-adapter.md"]
+
+[[entry]]
+id = 13
+type = "story"
+title = "Case tree, Inspector and View with physical-instance ownership"
+description = "Adapt Case assembly/instance navigation, Inspector content and existing View controls using Case-owned selection and display state, with no duplicate viewer or generation owner."
+verify = "Follow installed BMad skills; retain applicable human approval. Demonstrate this adapter's applicable responsive, keyboard, target-size and motion behavior against the architecture contract (R11), leaving six-workspace packaged acceptance to 007. Domain evidence: Case tree/display/view operations preserve physical-instance scope, draft and view-only behavior, do not remount the viewer, and keep update-safety decisions tied to the real editor."
+covers = ["R1", "R3", "R5", "R7", "R8", "R11"]
+after = ["1.9"]
+hitl = false
+unknown = "Await M2 phase approval; approve the concrete Case View/editor interface and classify MechanicalSettings/CaseBodyInspector commit triggers and update-safety treatment."
+references = ["docs/plans/toolbar-led-workbench/issues/013-case-workspace-adapter.md"]
+
+[[entry]]
+id = 15
+type = "story"
+title = "Case Preview presentation with one generation/command owner"
+description = "Expose the existing Case Preview controls through one approved presentation interface without duplicating automatic generation, command registration or exact-result authority."
+verify = "Follow installed BMad skills; retain applicable human approval. Demonstrate this adapter's applicable responsive, keyboard, target-size and motion behavior against the architecture contract (R11), leaving six-workspace packaged acceptance to 007. Domain evidence: A user-approved interface presents current preview/error/cancel/export behavior through one generation observer and command owner, and stale or foreign results never authorize Export."
+covers = ["R3", "R5", "R6", "R7", "R8", "R11"]
+after = ["1.9", 13]
+hitl = false
+unknown = "Await M2 phase approval and user approval of the concrete Case Preview interface/placement; no cross-crate visibility or duplicate owner is presumed."
+references = ["docs/plans/toolbar-led-workbench/issues/015-case-preview-owner-contract.md"]
+
+[[entry]]
+id = 14
+type = "story"
+title = "Parts adapter with catalog, authoring and placement continuity"
+description = "Adapt the Parts catalog, retained authoring and placement tasks, previews and PCB return route while preserving Parts selection, generation and placement owners."
+verify = "Follow installed BMad skills; retain applicable human approval. Demonstrate this adapter's applicable responsive, keyboard, target-size and motion behavior against the architecture contract (R11), leaving six-workspace packaged acceptance to 007. Domain evidence: Inventory workflows remain reachable, drafts restore only to their captured definition/module/assembly owner, and delayed import/generator/placement results cannot write to a replaced selection."
+covers = ["R1", "R3", "R5", "R7", "R8", "R11"]
+after = ["1.9", "1.5"]
+hitl = false
+unknown = "Await M2 phase approval; classify any unregistered authoring form's actual commit trigger and update-safety treatment without adding a second registry."
+references = ["docs/plans/toolbar-led-workbench/issues/014-parts-workspace-adapter.md"]

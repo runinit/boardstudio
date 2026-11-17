@@ -270,7 +270,6 @@ class CheckTests(unittest.TestCase):
             "scripts/test-workbench-viewport.py": "viewport journey requiring a packaged build and served page",
             "scripts/test-command-palette.py": "ticket 012 agent-browser command palette journey",
             "cad/scripts/test-startup-readiness.py": "Rust diagnostic requiring a packaged site and Chrome",
-            "scripts/test-model-lookup.cjs": "original Node fixture retained for parity comparisons",
             "scripts/test-ergogen-parity.cjs": "maintainer Node parity contract retained for comparison",
         }
         self.assertEqual(scripts, registered | opt_in.keys())
@@ -397,8 +396,19 @@ class CheckTests(unittest.TestCase):
                 with self.subTest(step=step, command=command):
                     self.assertNotIn(Path(command[0]).name, forbidden)
 
-    def test_model_lookup_node_fixture_stays_out_of_tooling(self):
-        self.assertNotIn(["node", "scripts/test-model-lookup.cjs"], check.STEPS["tooling"][1])
+    def test_agent_tools_are_opt_in_and_explicit_runs_propagate_failure(self):
+        optional = {
+            "scripts/test-gitnexus-refresh.py", "scripts/test-gitnexus-stop-hook.py",
+            "scripts/test-mutation-check.py", "scripts/test-verification-receipt.py",
+        }
+        self.assertNotIn("agent-tools", check.DEFAULT)
+        self.assertEqual(check.STEPS["agent-tools"],
+                         (False, [[check.PY, "-B", path] for path in check.AGENT_TOOL_TESTS]))
+        self.assertEqual(set(check.AGENT_TOOL_TESTS), optional)
+        self.assertTrue(optional.isdisjoint(check.TOOLING_TESTS))
+        with mock.patch.object(check, "run_plan", return_value=1) as run:
+            self.assertEqual(check.run(["agent-tools"]), 1)
+        self.assertEqual(run.call_args.args[0], [("agent-tools", check.STEPS["agent-tools"][1])])
         self.assertIn([check.PY, "-B", "scripts/test-build-patched-wasm-bindgen.py"], check.STEPS["tooling"][1])
 
     def test_measurement_protocols_run_in_tooling_and_the_worker_protocol_in_the_provider_gate(self):

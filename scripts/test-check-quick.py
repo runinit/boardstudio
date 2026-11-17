@@ -62,6 +62,19 @@ class QuickSelectionTests(unittest.TestCase):
         selection = quick.select(["scripts/check.py"], PACKAGES)
         self.assertTrue(selection.tooling)
         self.assertFalse(selection.rust)
+        self.assertNotIn("agent-tools", dict(check.quick_plan(selection, PACKAGES)))
+
+    def test_optional_agent_utility_and_fixture_edits_select_their_retained_suites(self):
+        for name in ("gitnexus-refresh", "gitnexus-stop-hook", "mutation-check", "verification_receipt"):
+            fixture = name.replace("_", "-")
+            for path in (f"scripts/{name}.py", f"scripts/test-{fixture}.py"):
+                with self.subTest(path=path):
+                    selection = quick.select([path], PACKAGES)
+                    self.assertFalse(selection.rust)
+                    self.assertEqual(check.quick_plan(selection, PACKAGES),
+                                     [("repo", check.STEPS["repo"][1]),
+                                      ("tooling", check.STEPS["tooling"][1]),
+                                      ("agent-tools", check.STEPS["agent-tools"][1])])
 
     def test_moved_kicad_parts_suite_still_runs_for_its_own_path(self):
         selection = quick.select(["scripts/test-import-kicad-parts.py"], PACKAGES)

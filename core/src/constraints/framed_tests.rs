@@ -459,6 +459,8 @@ fn local_and_omitted_mirrors_cannot_be_addressed_as_linked() {
 #[test]
 fn a_local_mirror_is_an_ordinary_part_endpoint() {
     let mut doc = with_exception("local");
+    set_at(&mut doc, "beta/T", -12.0, 9.0);
+    set_heading(&mut doc, "beta/T", -20.0);
     let record = framed(
         "c",
         part_endpoint("local/P"),
@@ -686,6 +688,10 @@ fn framed_constraint_endpoints_and_relations_round_trip() {
 #[test]
 fn persisted_framed_constraints_solve_through_the_stored_document_path() {
     let mut doc = document((20.0, -7.0));
+    set_at(&mut doc, "alpha/T", -12.0, 9.0);
+    set_heading(&mut doc, "alpha/T", 0.0);
+    set_at(&mut doc, "beta/T", 0.0, 0.0);
+    set_heading(&mut doc, "beta/T", 0.0);
     doc.constraints.push(Constraint::Framed {
         id: "durable/framed".into(),
         source: part_endpoint("local/P"),

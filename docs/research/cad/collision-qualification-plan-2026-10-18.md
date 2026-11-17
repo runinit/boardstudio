@@ -1,9 +1,9 @@
 # Collision qualification: finite implementation plan
 
 Date: 2026-10-18. Inspected revision: `797ab74e31f608a630c6983216842c7ea9b829e8`.
-This is a research/specification checkpoint for [007](../../plans/cad-backend-replacement/issues/007-strict-step-import.md)
-and [014](../../plans/cad-backend-replacement/issues/014-vendor-mesh-collision-validation.md),
-under the [accepted scope](../../plans/cad-backend-replacement/map.md).
+This is a research/specification checkpoint for [007](https://github.com/runinit/boardstudio/blob/ad9db473012a4a4201217bd5094a4f24e7801932/docs/plans/cad-backend-replacement/issues/007-strict-step-import.md)
+and [014](https://github.com/runinit/boardstudio/blob/ad9db473012a4a4201217bd5094a4f24e7801932/docs/plans/cad-backend-replacement/issues/014-vendor-mesh-collision-validation.md),
+under the [accepted scope](https://github.com/runinit/boardstudio/blob/ad9db473012a4a4201217bd5094a4f24e7801932/docs/plans/cad-backend-replacement/map.md).
 It changes no production code, contract, ticket status or acceptance criterion.
 The derivations below are proposed proof obligations, not an installed certificate.
 

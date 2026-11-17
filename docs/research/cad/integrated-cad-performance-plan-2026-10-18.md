@@ -1,8 +1,8 @@
 # Integrated CAD performance: baseline readiness and paired measurement plan
 
 Researched 2026-10-18 at `797ab74e31f608a630c6983216842c7ea9b829e8` for
-[011](../../plans/cad-backend-replacement/issues/011-integrated-cad-performance.md)
-and [012](../../plans/cad-backend-replacement/issues/012-final-cutover-remove-cadrum.md).
+[011](https://github.com/runinit/boardstudio/blob/ad9db473012a4a4201217bd5094a4f24e7801932/docs/plans/cad-backend-replacement/issues/011-integrated-cad-performance.md)
+and [012](https://github.com/runinit/boardstudio/blob/ad9db473012a4a4201217bd5094a4f24e7801932/docs/plans/cad-backend-replacement/issues/012-final-cutover-remove-cadrum.md).
 This is preparation, with no final timing, performance acceptance or ticket closure.
 The parent must freeze the measured behavior and grant an exclusive measurement
 window before timed runs. No Cargo, wasm-pack or image compilation ran in this lane.
@@ -243,7 +243,7 @@ threshold, mesh simplification, lower precision or capability deletion is invent
 
 ## Scope differences and required acceptance
 
-The [dated migration decisions](../../plans/cad-backend-replacement/map.md) require
+The [dated migration decisions](https://github.com/runinit/boardstudio/blob/ad9db473012a4a4201217bd5094a4f24e7801932/docs/plans/cad-backend-replacement/map.md) require
 exact **case and PCB** geometry/STEP, mesh keycap appearance/optional printing and
 complete source-retaining vendor previews. Obsolete exact keycap STEP and general
 3D Boolean workloads are excluded explicitly, not timed failures or reasons to

@@ -1,0 +1,7 @@
+[[epic]]
+id = 1
+slug = "epic-layout-canvas-controls"
+title = "Layout canvas controls"
+description = "Deliver the approved compact Layout canvas controls, feedback, part rail and re-anchor pick while retaining existing completed work and source evidence."
+covers = ["R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8", "R9", "R10"]
+after = []

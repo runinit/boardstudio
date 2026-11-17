@@ -5,15 +5,25 @@
 - UI/product: [DESIGN.md](DESIGN.md), [PRODUCT.md](PRODUCT.md).
 - Hardware: [component onboarding](docs/hardware/component-onboarding.md).
 
+## Workflow authority
+
+- Use installed BMad skills as the sole authority for project planning,
+  ticketing, implementation orchestration, review and verification.
+- Keep live task state in BMad's configured ticket tree and plans.
+- Follow the active BMad skill and accepted functional requirements;
+  do not add a separate project-wide validation or review protocol.
+- Use repository documentation for commands, architecture and domain
+  constraints—not retired workflow mandates.
+- Keep concise outcomes in BMad plans; do not create duplicate
+  validation documents or parallel status records.
+- Historical plans and retired agent guides are evidence, not
+  operating instructions. Canceled work remains canceled.
+- The CAD backend replacement plan remains canceled as of 2026-11-15.
+
 ## Editing
 
-- Inventory: to find every use of a field or type you change, remove it and read the `cargo check` errors.
-- Scripted edits: replace one exact, unique string and assert the match count. Read the diff before running tests. Checkpoint with a WIP commit on your branch before a large scripted edit.
-- CAD migration review: follow the [map decisions](docs/plans/cad-backend-replacement/map.md#closure-and-workflow-decisions-2026-10-18-user). Run one combined spec+standards review at ticket closure or when a change touches public API, geometry, allowances or a cross-crate contract; private storage and test-only slices get RED/GREEN evidence and a diff read instead. An explicit review request and 012's final two-axis review still apply.
-- Verification: every mutation runs through `scripts/mutation-check.py --locked`, which restores the source and takes the build lock around each run; `check.py test` guards native test counts by test name.
-- Baselines: compare against another commit in a `git worktree add` checkout. `git stash` is shared by every worktree and session, so leave it alone.
-- Tests: before adding, changing or reviewing test code, read [test economy](CODING_STANDARDS.md#test-economy).
-- Stop rule: a review finding, surviving mutation or new test idea adds work only when it shows a required check or acceptance criterion unmet; otherwise list it as a follow-up and continue. After two attempts that leave the result unchanged, stop and report. Full rule: [slice boundary](docs/agents/issue-tracker.md#slice-boundary).
+- Scripted edits: replace one exact, unique string and assert the match count. Read the diff before running tests.
+- Shared worktrees: `git stash` is shared by every worktree and session, so leave it alone.
 - Gortex stale writes: delegates read through Gortex and write through its edit tools. When a Gortex write is rejected as stale, `view_building` or read-only, retry once after 30 seconds, then use native Edit/Write for that file and report it. Do not stop for a stale Gortex view; this is the project's "proceed without Gortex" exception for writes.
 - Evidence: `.evidence/` holds logs only, except committed transfer records; redirect long check and mutation output there and report only results and relevant failures. Never create Cargo `target` directories or copy crate source trees inside `.evidence/`. Never generate `PREIMAGES.json`, `POSTIMAGES.json`, `before/` or `after/` file copies, or custom SHA-256 manifest files—Git already tracks source state.
 
@@ -42,19 +52,6 @@ Core workflow:
 
 For agent drafts, research, transfers or Gortex exclusions, follow [documentation and retrieval](docs/agents/ai-documentation.md).
 
-### Issue tracker
-
-Committed Markdown tickets under `docs/plans/<plan>/issues/`. Authoring, implementing or reviewing a ticket: follow its proof-map, slice-boundary, review-report and completion-record protocol in [issue tracker](docs/agents/issue-tracker.md#building-and-verifying-a-ticket). That protocol sets review cadence, reviewer count and mutation scope.
-
-### Status labels
-
-The five default roles, recorded as a ticket's `Status:`. See `docs/agents/status-labels.md`.
-
 ### Domain docs
 
 Single-context: `GLOSSARY.md` and `docs/adr/`. See `docs/agents/domain.md`.
-
-### Orchestration
-
-- Routing delegated planning, implementation, research, checks, and review: [model routing](docs/agents/model-routing.md).
-- Looking up one selected provider/model for delegation: [model lookup](docs/agents/model-lookup.md).

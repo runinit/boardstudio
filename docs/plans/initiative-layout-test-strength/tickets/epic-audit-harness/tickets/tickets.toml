@@ -1,0 +1,23 @@
+# The epic's planned entries in build order. `id` is permanent, never reused.
+
+[[entry]]
+id = 1
+type = "story"
+title = "Make linked key-resize coverage reproducible"
+description = "Replaces the ignored external-archive linked keycap-size reflow test with a synthetic in-code document that exercises real Core acceptance, source resizing and neighbor reflow, linked-partner sizes and reflected poses, stable identities, and both halves through Undo/Redo."
+verify = "The replacement executes in the ordinary gate without KEYCAPS_MIRROR_PROJECT_JSON or an ignore annotation. Assertions check the source size change and neighbor reflow, linked-partner sizes/reflected poses and stable identities, and both halves' relevant state after Undo and Redo; the full project check passes. Record execution counts and evidence in the story's plan."
+covers = ["R1"]
+after = []
+hitl = false
+risk = "low"
+
+[[entry]]
+id = 2
+type = "spike"
+title = "Prove and calibrate the integration-audit pilot"
+description = "At a recorded commit in a separately authorized disposable checkout and database, validates target mapping and a failing control, then audits only core/tests/matrix_placement.rs without restructuring the normal integration target. Records measured cost, outcome counts, triage and the recommendation on a wider audit."
+verify = "Show the named tests execute and a deliberate failing control is detected before accepting results; exclude ignored tests and assertion-helper calls, reproduce each finding in the normal integration target, and record elapsed/setup time, removals per hour and findings per file in the epic's Notes. Commit no temporary mapping, scaffolding, mutation or database; the normal project check remains unchanged. An unsuccessful pilot records its blocker but does not satisfy epic R2/initiative R8 or close the epic."
+covers = ["R2"]
+after = []
+hitl = false
+risk = "low"

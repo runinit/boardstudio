@@ -1810,6 +1810,219 @@ mod tests {
 
     const DEFINITION_ID: &str = "generator:ceoloide/switch_mx";
 
+    struct ControlledUpload {
+        file: web_sys::File,
+        read_started: Rc<std::cell::Cell<bool>>,
+        resolve: js_sys::Function,
+        buffer: js_sys::Promise,
+        _read: wasm_bindgen::closure::Closure<dyn FnMut() -> js_sys::Promise>,
+    }
+
+    impl ControlledUpload {
+        fn new() -> Self {
+            let file = web_sys::File::new_with_str_sequence(
+                &js_sys::Array::of1(&"solid test\nendsolid test\n".into()),
+                "test.stl",
+            )
+            .unwrap();
+            // Preserve the real File bytes, but control when its read completes.
+            let buffer = file.array_buffer();
+            let mut resolve = None;
+            let pending = js_sys::Promise::new(&mut |complete, _| resolve = Some(complete));
+            let read_started = Rc::new(std::cell::Cell::new(false));
+            let started = read_started.clone();
+            let read = wasm_bindgen::closure::Closure::wrap(Box::new(move || {
+                started.set(true);
+                pending.clone()
+            })
+                as Box<dyn FnMut() -> js_sys::Promise>);
+            js_sys::Reflect::set(&file, &"arrayBuffer".into(), read.as_ref()).unwrap();
+            Self {
+                file,
+                read_started,
+                resolve: resolve.unwrap(),
+                buffer,
+                _read: read,
+            }
+        }
+
+        fn dispatch(&self, root: &web_sys::Element) {
+            let filename = by_role_name(root, "textbox", "switch_3dmodel_filename").unwrap();
+            let container = filename
+                .parent_element()
+                .unwrap()
+                .parent_element()
+                .unwrap()
+                .parent_element()
+                .unwrap();
+            let input = container
+                .query_selector("input[type=file]")
+                .unwrap()
+                .unwrap();
+            let descriptor = js_sys::Object::new();
+            js_sys::Reflect::set(
+                &descriptor,
+                &"value".into(),
+                &js_sys::Array::of1(&self.file),
+            )
+            .unwrap();
+            js_sys::Object::define_property(
+                input.unchecked_ref::<js_sys::Object>(),
+                &"files".into(),
+                &descriptor,
+            );
+            let init = web_sys::EventInit::new();
+            init.set_bubbles(true);
+            input
+                .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &init).unwrap())
+                .unwrap();
+        }
+
+        fn release(&self) {
+            self.resolve
+                .call1(&wasm_bindgen::JsValue::NULL, &self.buffer)
+                .unwrap();
+        }
+    }
+
+    fn uploaded_binding(fixture: &GeneratorMountedFixture) -> Option<String> {
+        let accepted = fixture.runtime.model().accepted?;
+        let binding = accepted
+            .document
+            .definitions
+            .iter()
+            .find(|definition| definition.id == fixture.first.id)?
+            .generator
+            .as_ref()?
+            .parameters
+            .get("switch_3dmodel_filename")?
+            .as_str()?;
+        accepted
+            .document
+            .assets
+            .iter()
+            .any(|asset| {
+                asset.name == "test.stl" && binding == format!("boardstudio-asset:{}", asset.id)
+            })
+            .then(|| binding.to_owned())
+    }
+
+    // Drive both queues on every turn: file/storage callbacks can submit effects
+    // after a previous drain. Once Upload lands, do not run a queued Apply Core.
+    async fn wait_for_uploaded_model(
+        root: &web_sys::Element,
+        fixture: &GeneratorMountedFixture,
+        effects: &mut VecDeque<boardstudio_application::Effect>,
+        queue_apply: bool,
+        apply_queued: &mut bool,
+        polls: usize,
+    ) -> Result<String, String> {
+        for _ in 0..polls {
+            effects.extend(support::take_held_effects(&fixture.runtime));
+            if queue_apply && !*apply_queued && !effects.is_empty() {
+                by_role_name(root, "button", "Apply generator settings")
+                    .unwrap()
+                    .click();
+                *apply_queued = true;
+            }
+            let binding = uploaded_binding(fixture);
+            if let Some(index) = effects.iter().position(|effect| {
+                binding.is_none() || !matches!(effect, boardstudio_application::Effect::Core { .. })
+            }) {
+                let effect = effects.remove(index).unwrap();
+                effects.extend(support::run_effect(&fixture.runtime, effect).await);
+            } else if let Some(binding) = binding
+                && mounted_value(root, "textbox", "switch_3dmodel_filename") == binding
+                && root
+                    .text_content()
+                    .unwrap_or_default()
+                    .contains("Remove model")
+            {
+                return Ok(binding);
+            }
+            gloo_timers::future::TimeoutFuture::new(20).await;
+        }
+        let accepted = fixture.runtime.model().accepted.unwrap();
+        Err(format!(
+            "generator upload incomplete after {polls} polls; binding={:?}; assets={:?}; queued effects={effects:?}; mounted text={}",
+            uploaded_binding(fixture),
+            accepted.document.assets,
+            root.text_content().unwrap_or_default(),
+        ))
+    }
+
+    async fn observe_withheld_upload(
+        root: &web_sys::Element,
+        fixture: &GeneratorMountedFixture,
+        upload: &ControlledUpload,
+    ) {
+        // The old observation sequence: 100 asset polls, queue drains, 30 ms.
+        // Holding the real File read guarantees that this boundary is too early.
+        let mut effects = VecDeque::new();
+        for _ in 0..100 {
+            gloo_timers::future::TimeoutFuture::new(20).await;
+            effects.extend(support::take_held_effects(&fixture.runtime));
+            if let Some(effect) = effects.pop_front() {
+                effects.extend(support::run_effect(&fixture.runtime, effect).await);
+            }
+            if fixture
+                .runtime
+                .model()
+                .accepted
+                .unwrap()
+                .document
+                .assets
+                .iter()
+                .any(|asset| asset.name == "test.stl")
+            {
+                break;
+            }
+        }
+        effects.extend(support::take_held_effects(&fixture.runtime));
+        while let Some(effect) = effects.pop_front() {
+            effects.extend(support::run_effect(&fixture.runtime, effect).await);
+        }
+        gloo_timers::future::TimeoutFuture::new(30).await;
+        assert!(
+            upload.read_started.get(),
+            "mounted upload entered the controlled File read"
+        );
+        assert!(uploaded_binding(fixture).is_none());
+        assert!(
+            !fixture
+                .runtime
+                .model()
+                .accepted
+                .unwrap()
+                .document
+                .definitions[0]
+                .generator
+                .as_ref()
+                .unwrap()
+                .parameters
+                .contains_key("switch_3dmodel_filename")
+        );
+        assert!(
+            fixture
+                .runtime
+                .model()
+                .accepted
+                .unwrap()
+                .document
+                .assets
+                .is_empty()
+        );
+        assert!(support::take_held_effects(&fixture.runtime).is_empty());
+        assert!(
+            root.text_content()
+                .unwrap_or_default()
+                .contains("Reading and saving")
+        );
+        wasm_bindgen_test::console_log!(
+            "old boundary: File read pending, asset/binding absent, held effects empty"
+        );
+    }
+
     struct CandidateRequest {
         definition: PartDefinition,
         schema: BTreeMap<String, Value>,
@@ -2375,6 +2588,39 @@ mod tests {
         uploaded_model_projection(true).await;
     }
 
+    #[wasm_bindgen_test]
+    async fn uploaded_model_refresh_preserves_apply_draft() {
+        uploaded_model_projection(false).await;
+    }
+
+    #[wasm_bindgen_test]
+    async fn never_completed_model_upload_fails_diagnostically() {
+        let (root, fixture, _) = mount_generator_editor().await;
+        let initial = take_initial_default_request(&fixture.requests).await;
+        finish_request(initial, Err("superseded".into())).await;
+        let upload = ControlledUpload::new();
+        upload.dispatch(&root);
+        let mut effects = VecDeque::new();
+        let error = wait_for_uploaded_model(&root, &fixture, &mut effects, false, &mut false, 3)
+            .await
+            .expect_err("a withheld read cannot satisfy upload completion");
+        assert!(upload.read_started.get());
+        assert!(error.contains("incomplete after 3 polls"));
+        assert!(error.contains("binding=None"));
+        assert!(error.contains("assets=[]"));
+        assert!(error.contains("queued effects=[]"));
+        assert!(error.contains("Reading and saving"));
+        // Release and finish the real work so no async upload leaks into the suite.
+        upload.release();
+        wait_for_uploaded_model(&root, &fixture, &mut effects, false, &mut false, 150)
+            .await
+            .unwrap_or_else(|error| panic!("{error}"));
+        let refreshed = take_initial_default_request(&fixture.requests).await;
+        finish_request(refreshed, Err("test complete".into())).await;
+        fixture.runtime.unsubscribe();
+        root.remove();
+    }
+
     async fn uploaded_model_projection(fail_queued_apply: bool) {
         let (root, fixture, handles) = mount_generator_editor().await;
         let initial = take_initial_default_request(&fixture.requests).await;
@@ -2383,76 +2629,24 @@ mod tests {
         let request = take_request(&fixture.requests, 21.0).await;
         let prepared = candidate(&request);
         finish_request(request, Ok(prepared)).await;
-        let filename_field = by_role_name(&root, "textbox", "switch_3dmodel_filename")
-            .expect("mounted generator model filename");
-        let container = filename_field
-            .parent_element()
-            .and_then(|input_group| input_group.parent_element())
-            .and_then(|field| field.parent_element())
-            .expect("model field container");
-        let input = container
-            .query_selector("input[type=file]")
-            .unwrap()
-            .expect("mounted generator model file input")
-            .dyn_into::<web_sys::HtmlInputElement>()
-            .unwrap();
-        let file = web_sys::File::new_with_str_sequence(
-            &js_sys::Array::of1(&wasm_bindgen::JsValue::from_str(
-                "solid test\nendsolid test\n",
-            )),
-            "test.stl",
-        )
-        .unwrap();
-        let descriptor = js_sys::Object::new();
-        js_sys::Reflect::set(&descriptor, &"value".into(), &js_sys::Array::of1(&file)).unwrap();
-        js_sys::Object::define_property(
-            input.unchecked_ref::<js_sys::Object>(),
-            &"files".into(),
-            &descriptor,
-        );
-        let init = web_sys::EventInit::new();
-        init.set_bubbles(true);
-        input
-            .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &init).unwrap())
-            .unwrap();
+        let upload = ControlledUpload::new();
+        upload.dispatch(&root);
+        if fail_queued_apply {
+            observe_withheld_upload(&root, &fixture, &upload).await;
+        }
+        upload.release();
         let mut effects = VecDeque::new();
         let mut apply_queued = false;
-        for _ in 0..100 {
-            gloo_timers::future::TimeoutFuture::new(20).await;
-            effects.extend(support::take_held_effects(&fixture.runtime));
-            if fail_queued_apply && !apply_queued && !effects.is_empty() {
-                by_role_name(&root, "button", "Apply generator settings")
-                    .expect("apply action")
-                    .click();
-                apply_queued = true;
-            }
-            if let Some(effect) = effects.pop_front() {
-                effects.extend(support::run_effect(&fixture.runtime, effect).await);
-            }
-            if fixture
-                .runtime
-                .model()
-                .accepted
-                .as_ref()
-                .unwrap()
-                .document
-                .assets
-                .iter()
-                .any(|asset| asset.name == "test.stl")
-            {
-                break;
-            }
-        }
-        let mut deferred_core = VecDeque::new();
-        while let Some(effect) = effects.pop_front() {
-            if matches!(effect, boardstudio_application::Effect::Core { .. }) {
-                deferred_core.push_back(effect);
-            } else {
-                effects.extend(support::run_effect(&fixture.runtime, effect).await);
-            }
-        }
-        effects = deferred_core;
-        gloo_timers::future::TimeoutFuture::new(30).await;
+        wait_for_uploaded_model(
+            &root,
+            &fixture,
+            &mut effects,
+            fail_queued_apply,
+            &mut apply_queued,
+            150,
+        )
+        .await
+        .unwrap_or_else(|error| panic!("{error}"));
         let accepted = fixture.runtime.model().accepted.unwrap();
         let filename = accepted.document.definitions[0]
             .generator
@@ -3420,63 +3614,14 @@ mod tests {
             "the Remove input was processed before the Upload submits"
         );
         finish_request(remove_request, Err("superseded by 012 P2".into())).await;
-        // Submit Upload through the real file/model admission (as in
-        // uploaded_model_projection): a test.stl file via the file input.
-        let input = container
-            .query_selector("input[type=file]")
-            .unwrap()
-            .expect("mounted generator model file input")
-            .dyn_into::<web_sys::HtmlInputElement>()
-            .unwrap();
-        let file = web_sys::File::new_with_str_sequence(
-            &js_sys::Array::of1(&wasm_bindgen::JsValue::from_str(
-                "solid test\nendsolid test\n",
-            )),
-            "test.stl",
-        )
-        .unwrap();
-        let descriptor = js_sys::Object::new();
-        js_sys::Reflect::set(&descriptor, &"value".into(), &js_sys::Array::of1(&file)).unwrap();
-        js_sys::Object::define_property(
-            input.unchecked_ref::<js_sys::Object>(),
-            &"files".into(),
-            &descriptor,
-        );
-        let init = web_sys::EventInit::new();
-        init.set_bubbles(true);
-        input
-            .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &init).unwrap())
-            .unwrap();
-        // Drive the real Upload until it lands; the accepted document must reflect it.
+        let upload = ControlledUpload::new();
+        upload.dispatch(&root);
+        observe_withheld_upload(&root, &fixture, &upload).await;
+        upload.release();
         let mut effects = VecDeque::new();
-        for _ in 0..100 {
-            gloo_timers::future::TimeoutFuture::new(20).await;
-            effects.extend(support::take_held_effects(&fixture.runtime));
-            if let Some(effect) = effects.pop_front() {
-                effects.extend(support::run_effect(&fixture.runtime, effect).await);
-            }
-            if fixture
-                .runtime
-                .model()
-                .accepted
-                .as_ref()
-                .unwrap()
-                .document
-                .assets
-                .iter()
-                .any(|asset| asset.name == "test.stl")
-            {
-                break;
-            }
-        }
-        while let Some(effect) = effects.pop_front() {
-            effects.extend(support::run_effect(&fixture.runtime, effect).await);
-        }
-        effects.extend(support::take_held_effects(&fixture.runtime));
-        while let Some(effect) = effects.pop_front() {
-            effects.extend(support::run_effect(&fixture.runtime, effect).await);
-        }
-        gloo_timers::future::TimeoutFuture::new(30).await;
+        wait_for_uploaded_model(&root, &fixture, &mut effects, false, &mut false, 150)
+            .await
+            .unwrap_or_else(|error| panic!("{error}"));
         let accepted = fixture.runtime.model().accepted.unwrap();
         let filename = accepted.document.definitions[0]
             .generator

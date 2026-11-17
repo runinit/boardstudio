@@ -1,0 +1,79 @@
+# BMad governs workflow; source process protocols are historical, not additional gates.
+# Legacy ticket identities and order are preserved; references point to frozen source issues.
+
+[[entry]]
+id = 1
+type = "story"
+title = "Reconcile direction and hand off the first complete Layout milestone"
+description = "Records the confirmed direction, six-workspace capability destinations, corrected M1 scope and dependencies, accepted requirements, and the honest M1-only transfer contract."
+verify = "Follow installed BMad skills; retain applicable human approval. Reuse the recorded closure evidence for resolved 001. Product evidence: The transfer record confirms M1 authorization and its hands-on stop, preserves the six-workspace scope and source ownership, and leaves M2/M3 decisions and product proofs explicitly open."
+covers = ["R6", "R7", "R8"]
+after = []
+hitl = false
+references = ["docs/plans/toolbar-led-workbench/issues/001-reconcile-design-adr-scope.md"]
+
+[[entry]]
+id = 9
+type = "story"
+title = "Shared toolbar/panel host and lifetime/focus requests"
+description = "Build the private shared host at the existing composition seam, with one bounded toolbar row, Objects/Inspect exclusion, focus and dismissal, target-aware commands, and caller-owned task lifetimes."
+verify = "Follow installed BMad skills; retain applicable human approval. Product evidence: Mounted proofs through the production private host show one current panel authority, correct focus/dismissal/routing, inert hidden content and unchanged canvas bounds without copied task or domain state."
+covers = ["R1", "R3", "R7", "R8"]
+after = [1]
+hitl = false
+references = ["docs/plans/toolbar-led-workbench/issues/009-shared-toolbar-panel-host.md"]
+
+[[entry]]
+id = 2
+type = "story"
+title = "Layout's measured 42px accordion and existing tools"
+description = "Deliver Layout's Select, Transform, Align, Snap and View controls in the 42px row with the approved width-band density and solid-motion contract."
+verify = "Follow installed BMad skills; retain applicable human approval. Product evidence: The real built Layout toolbar keeps all seven entry points reachable at 42px with existing availability and action parity, no page overflow, native lane scrolling, approved motion and reduced-motion behavior."
+covers = ["R2", "R4", "R7", "R8", "R11"]
+after = [9]
+hitl = false
+references = ["docs/plans/toolbar-led-workbench/issues/002-toolbar-accordion-label-fitting.md"]
+
+[[entry]]
+id = 3
+type = "story"
+title = "Layout Inspect with reset-safe editor ownership"
+description = "Move the existing Layout inspector content into unpinned Inspect and retain typed draft ownership, explicit reveals, findings, relationships and existing settlement rules."
+verify = "Follow installed BMad skills; retain applicable human approval. Product evidence: Layout inspector inventory and captured-owner proofs show drafts and errors survive required switches, hidden registered drafts defer Update Now, ordinary picks do not reveal Inspect, and Escape/camera/edit behavior remains owned by existing domains."
+covers = ["R3", "R4", "R7", "R8"]
+after = [2]
+hitl = false
+references = ["docs/plans/toolbar-led-workbench/issues/003-inspect-popout.md"]
+
+[[entry]]
+id = 4
+type = "story"
+title = "Layout Objects with active-outline and half-focus parity"
+description = "Move Layout navigation into searchable compact Objects while preserving selection intentions, active-outline semantics, saved half links, and truthful component references."
+verify = "Follow installed BMad skills; retain applicable human approval. Product evidence: Objects search, grouping, disclosure and picks retain selection and focus behavior; active-outline selection does not activate another version, half focus does not change saved links/history, and association labels match canvas data."
+covers = ["R4", "R7", "R8"]
+after = [2]
+hitl = false
+references = ["docs/plans/toolbar-led-workbench/issues/004-objects-popover.md"]
+
+[[entry]]
+id = 6
+type = "story"
+title = "Quieter global topbar without action or save-state loss"
+description = "Apply the quieter global header across workspaces and relevant project/Export surfaces while preserving commands, truthful save state and target-aware reveals."
+verify = "Follow installed BMad skills; retain applicable human approval. Product evidence: Mounted and packaged checks show named header actions and routes remain reachable, Export/project pages do not gain canvas panels, explicit reveals use the target workspace authority, and failed saves never appear as Saved."
+covers = ["R1", "R4", "R7", "R8", "R9"]
+after = [9]
+hitl = false
+references = ["docs/plans/toolbar-led-workbench/issues/006-topbar-simplification.md"]
+
+[[entry]]
+id = 5
+type = "story"
+title = "Retain Add, setup, placement and legacy overflow workflows"
+description = "Route existing Layout Add/setup/placement and legacy geometry-script workflows through the approved larger task surfaces without changing their owners, safety or accepted edit paths."
+verify = "Follow installed BMad skills; retain applicable human approval. Product evidence: Every M1 overflow workflow remains reachable and its real preview, error, pending admission, hidden-draft/update-safety, Cancel, placement and legacy Apply behavior preserves existing owner semantics."
+covers = ["R3", "R4", "R7", "R8"]
+after = [3, 4, 6]
+hitl = false
+references = ["docs/plans/toolbar-led-workbench/issues/005-retain-objects-capabilities.md"]

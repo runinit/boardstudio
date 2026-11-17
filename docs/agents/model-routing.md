@@ -1,5 +1,7 @@
 # Model routing
 
+> Retired workflow — 2026-11-15. The body below is preserved only to interpret historical records, not as operating instructions. Installed BMad skills now govern planning, ticketing, orchestration, review and verification; these roles, statuses, routes and process gates impose no additional requirements.
+
 The user's direct requests take precedence over these defaults. Select from the available catalog; do not switch providers without the user requesting it. If a requested selection is unavailable, report that rather than silently substituting another provider.
 
 ## Roles

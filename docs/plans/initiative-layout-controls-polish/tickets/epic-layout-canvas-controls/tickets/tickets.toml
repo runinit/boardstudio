@@ -1,0 +1,97 @@
+# BMad governs workflow; source process protocols are historical, not additional gates.
+# Legacy identities 01–08 are numeric IDs; original progress stays in each source.
+[[entry]]
+id = 1
+type = "story"
+title = "Layout controls iconography mockup"
+description = "Compare the shipped controls and variants, recording approved variant D and the later overriding re-anchor decisions."
+verify = "Record the approved variant D mockup and its exact sizing, color roles, covered controls and feedback; preserve map decisions on carried part tools, moving re-anchor and pose-preserving Follow/Detach. Link original Answer and user approval."
+covers = ["R1", "R9"]
+after = []
+hitl = true
+risk = "low"
+references = ["docs/plans/layout-controls-polish/issues/01-layout-controls-iconography-mockup.md", "docs/plans/layout-controls-polish/map.md"]
+
+[[entry]]
+id = 2
+type = "story"
+title = "Screen-size labels and passive canvas chrome"
+description = "Render passive labels, anchor badge/readout and color roles at the approved screen size without changing behavior or document state; a person compares the live app to variant D at three zooms in light and dark themes."
+verify = "Native-test pixel-to-canvas scaling; render-test 11 px labels at two zooms, the 7 px ring and column, anchored-matrix and part readout including clearing. Keep existing badge, split focus, spacing ghost and field preview mounted suites green with selector-only updates disclosed. Compare live app to variant D at three zooms in light/dark and record DESIGN.md rule. Run full scripts/check.py, record actual results in the BMad plan. Preserve source Answer's pre-existing failures and partial full-gate evidence; do not claim they passed."
+covers = ["R1", "R2", "R9", "R10"]
+after = []
+hitl = true
+risk = "medium"
+references = ["docs/plans/layout-controls-polish/issues/02-screen-space-canvas-chrome.md", "docs/plans/layout-controls-polish/map.md"]
+
+[[entry]]
+id = 3
+type = "story"
+title = "Handle rail for the existing tools"
+description = "Present existing transform handles in a screen-sized rail, preserving gestures, quick Offset, keyboard nudge and hidden-handles behavior; a person performs the live tool-drag, Ctrl Offset and nudge pass."
+verify = "Native rail geometry tests for width, centering, offset, zoom and empty tools; keep mounted handle tests with only disclosed geometry changes; mount hover, amber movers, active and leave without document revision. Live drag each covered tool including Ctrl Offset and nudge; update DESIGN.md and run full scripts/check.py including drag smoke; record actual results in the BMad plan. Compact hit areas at 980 px or less remain undecided. Preserve source Answer's partial live and gate evidence, not a full green claim."
+covers = ["R1", "R3", "R9", "R10"]
+after = []
+hitl = true
+risk = "medium"
+references = ["docs/plans/layout-controls-polish/issues/03-handle-rail.md", "docs/plans/layout-controls-polish/map.md"]
+
+[[entry]]
+id = 4
+type = "story"
+title = "Re-anchoring moves the item"
+description = "Change part Pick to keep carried and local values and move from the new anchor, preserving matrix behavior, refusals and pose-preserving Follow/Detach."
+verify = "Test via public Core SetPartAnchor: stored values unchanged, new placement formula pose, one Undo and restoration; mirror-pair movement and matrix stored-frame/movement tests; locked, driven, member, cross-layout, missing key/counterpart and loop refusals remain. Keep Follow-subset and Detach pose tests unchanged. Re-bless boundary transcript only if downstream Pick hashes change and explain the diff. Mount Inspector Pick and show movement with values retained; update Inspector help, ADR-0040 and applicable glossary. Run full scripts/check.py and record actual results in the BMad plan; BMad governs review and verification. Toast wording is '<item> anchored to <new anchor> (was <old anchor>) · 1 Undo step'; 06 renders it."
+covers = ["R1", "R4", "R9", "R10"]
+after = []
+hitl = false
+risk = "high"
+references = ["docs/plans/layout-controls-polish/issues/04-re-anchor-moves.md", "docs/plans/layout-controls-polish/map.md"]
+
+[[entry]]
+id = 5
+type = "story"
+title = "Row and key Shift / Bend handles"
+description = "Add row and key Shift/Bend handles on existing placement operations, keeping the shipped row Offset token."
+verify = "Native tool-list and drag mapping tests for Row Offset/Shift/Bend, Key Shift/Bend and hidden handles; mount row Bend and key Shift drags with one Undo each, hover amber sets equal to field_preview, mirrored sync and Local keys unchanged. Run full scripts/check.py and scoped native/browser checks; record actual results in the BMad plan. Preserve source Answer's full-suite limitations and user-waived smoke; do not claim full gate green."
+covers = ["R3", "R5", "R9", "R10"]
+after = [3]
+hitl = false
+risk = "medium"
+references = ["docs/plans/layout-controls-polish/issues/05-row-and-key-shift-bend-handles.md", "docs/plans/layout-controls-polish/map.md"]
+
+[[entry]]
+id = 6
+type = "story"
+title = "Value popup and commit toast"
+description = "Show the view-only value popup and one-Undo commit toast, with accessible status and no extra document revision."
+verify = "Native reducer tests for choose, drag, commit, zero delta, Esc and expiry; mount docking above rail, pointer following, commit toast without extra revision and timeout; confirm role=status politely announces without stealing focus and reduced-motion behavior. Run full scripts/check.py; record actual results in the BMad plan. Preserve original Answer's partial full-suite evidence and user-waived smoke."
+covers = ["R1", "R6", "R9", "R10"]
+after = [3]
+hitl = false
+risk = "medium"
+references = ["docs/plans/layout-controls-polish/issues/06-value-popup-and-commit-toast.md", "docs/plans/layout-controls-polish/map.md"]
+
+[[entry]]
+id = 7
+type = "story"
+title = "Part rail: Move, Rotate, Spread and Stagger on the canvas"
+description = "Give independent parts the applicable anchored or detached rail and feedback; preserve member tools, mirror and half focus. A person confirms the unchanged upper strip in the live pass. Original Answer records substantial work while ready status and unchecked gates remain."
+verify = "Native lists for anchored Move/Rotate/Spread/Stagger, detached Move/Rotate, member matrix tools and locked none; mount anchored Move, Rotate and Stagger with one Undo each, mirrored partner and dimmed-half focus; show 06 popup/toast and accent selected versus violet unselected outline. Confirm unchanged upper strip in live pass. Run existing part-drag browser smoke and full scripts/check.py; record actual results in the BMad plan. Retain source Answer's implemented detached Rotate and scoped tests as existing progress, without treating incomplete smoke/full gates as passed."
+covers = ["R3", "R6", "R7", "R9", "R10"]
+after = [3, 6]
+hitl = true
+risk = "high"
+references = ["docs/plans/layout-controls-polish/issues/07-part-rail.md", "docs/plans/layout-controls-polish/map.md"]
+
+[[entry]]
+id = 8
+type = "story"
+title = "Canvas Anchor pick mode"
+description = "Add canvas Anchor pick to anchored matrix and part rails, using Core evaluation for moving previews and one-Undo commit; a person checks both halves, including the dimmed half, on a live split board."
+verify = "Native candidates for anchored matrix, anchored and detached parts, current anchor and loop exclusion; mount enter, amber hover preview matching committed moved pose, click one revision and toast, Undo, Esc without revision and second-token dismissal. Prove loop targets excluded or refused with Core message, specified violet key/major rings and pinned popup. Live split-board pass both halves including dimmed; update DESIGN.md and run full scripts/check.py; record actual results in the BMad plan. Toast follows 04's decided wording."
+covers = ["R1", "R2", "R4", "R6", "R7", "R8", "R9", "R10"]
+after = [2, 4, 6, 7]
+hitl = true
+risk = "high"
+references = ["docs/plans/layout-controls-polish/issues/08-canvas-anchor-pick.md", "docs/plans/layout-controls-polish/map.md"]

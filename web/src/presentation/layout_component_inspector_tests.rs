@@ -2429,6 +2429,126 @@ fn try_commit_position(input: &web_sys::HtmlInputElement, value: &str) {
 }
 
 #[wasm_bindgen_test]
+async fn mounted_pick_moves_with_all_values_retained_and_one_undo_redo() {
+    use boardstudio_core::model::{Follow, PartAnchor};
+    let anchor = PartAnchor {
+        matrix_id: "matrix".into(),
+        row: 2,
+        column: 5,
+        follow: Follow {
+            x: true,
+            y: true,
+            rotation: true,
+        },
+        spread: 4.0,
+        stagger: 7.0,
+        splay: 13.0,
+        offset: Vec2 { x: 2.0, y: -3.0 },
+        rotation: 11.0,
+    };
+    let initial_anchor = anchor.clone();
+    let (probe, root) =
+        mounted_probe_configured("layout-component-pick-movement-root", move |document| {
+            // Isolate Pick from mirrored-half adoption; Core materializes the keys.
+            document.layouts.truncate(1);
+            document.matrices.truncate(1);
+            let matrix = &mut document.matrices[0];
+            matrix.rows = 3;
+            matrix.columns = 6;
+            matrix.rotation = Some(30.0);
+            matrix.cells.clear();
+            document
+                .parts
+                .iter_mut()
+                .find(|part| part.id == "selected-part")
+                .unwrap()
+                .anchor = Some(initial_anchor);
+        })
+        .await;
+    settle_mounted_component_inspector(&probe).await;
+    let accepted_part = || {
+        let snapshot = probe.runtime.model().accepted.unwrap();
+        let part = snapshot
+            .document
+            .parts
+            .iter()
+            .find(|part| part.id == "selected-part")
+            .unwrap()
+            .clone();
+        let pose = boardstudio_core::evaluated_part_pose(&snapshot.document, &part);
+        (part, pose)
+    };
+    let assert_displayed_values = || {
+        for (label, expected) in [
+            ("Anchor spread millimetres", 4.0),
+            ("Anchor stagger millimetres", 7.0),
+            ("Anchor splay degrees", 13.0),
+            ("Anchor offset X millimetres", 2.0),
+            ("Anchor offset Y millimetres", -3.0),
+            ("Anchor rotation degrees", 11.0),
+        ] {
+            assert_eq!(
+                position_input(probe.root_id, label)
+                    .value()
+                    .parse::<f64>()
+                    .unwrap(),
+                expected,
+                "{label}"
+            );
+        }
+    };
+    let (before_part, before_pose) = accepted_part();
+    assert_eq!(before_part.anchor, Some(anchor.clone()));
+    assert_displayed_values();
+    let revision = accepted_revision(&probe);
+    try_commit_position(&position_input(probe.root_id, "Anchor row"), "2");
+    try_commit_position(&position_input(probe.root_id, "Anchor column"), "5");
+    settle_mounted_component_inspector(&probe).await;
+    assert_eq!(
+        accepted_revision(&probe),
+        revision,
+        "typing the key is not a document edit"
+    );
+    click_component_inspector(probe.root_id, "button", "Pick anchor key");
+    accept_pending(&probe).await;
+    let (picked_part, picked_pose) = accepted_part();
+    let mut expected_anchor = anchor;
+    expected_anchor.row = 1;
+    expected_anchor.column = 4;
+    assert_eq!(picked_part.anchor, Some(expected_anchor));
+    assert_displayed_values();
+    assert_ne!(picked_pose, before_pose);
+    // Moving from R3C6 to R2C5 translates by (-pitch, -pitch) in
+    // the independently known 30-degree key frame, not by a re-solved offset.
+    let (sin, cos) = 30f64.to_radians().sin_cos();
+    assert!((picked_pose.at.x - before_pose.at.x - 19.0 * (sin - cos)).abs() < 1e-9);
+    assert!((picked_pose.at.y - before_pose.at.y + 19.0 * (sin + cos)).abs() < 1e-9);
+    assert_eq!(picked_pose.rotation, before_pose.rotation);
+    assert!(
+        root.text_content()
+            .unwrap()
+            .contains("Picking another key moves the part")
+    );
+    probe.runtime.submit(boardstudio_application::Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    accept_pending(&probe).await;
+    assert_eq!(
+        accepted_part(),
+        (before_part, before_pose),
+        "one Undo restores anchor, values and evaluated pose"
+    );
+    assert_displayed_values();
+    probe.runtime.submit(boardstudio_application::Event::Redo {
+        operation_id: probe.runtime.operation(),
+    });
+    accept_pending(&probe).await;
+    assert_eq!(accepted_part(), (picked_part, picked_pose));
+    assert_displayed_values();
+    root.remove();
+}
+
+#[wasm_bindgen_test]
 async fn mounted_rapid_xy_queued_edits_keep_both_coordinates_and_undo_removes_only_y() {
     let (probe, root) = mounted_probe_configured(
         "layout-component-position-queued-xy-test-root",
