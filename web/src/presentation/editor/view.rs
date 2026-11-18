@@ -349,7 +349,7 @@ where
                 objects::AddMatrixSurface {
                     matrix_setup,
                     mirrored_pair,
-                    guide_covering_single: guide_none,
+                    guide_covering_single: !guide_none,
                 }
             }
             {workspace_composition::toolbar(toolbar_input)}
