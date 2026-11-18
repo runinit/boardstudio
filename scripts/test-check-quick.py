@@ -63,6 +63,15 @@ class QuickSelectionTests(unittest.TestCase):
         self.assertTrue(selection.tooling)
         self.assertFalse(selection.rust)
 
+    def test_moved_kicad_parts_suite_still_runs_for_the_importer_and_its_test(self):
+        for path in ("scripts/import-kicad-parts.py", "scripts/test-import-kicad-parts.py"):
+            with self.subTest(path=path):
+                selection = quick.select([path], PACKAGES)
+                self.assertEqual(check.quick_plan(selection, PACKAGES),
+                                 [("repo", check.STEPS["repo"][1]),
+                                  ("tooling", check.STEPS["tooling"][1]),
+                                  ("test", [check.KICAD_PARTS_TEST])])
+
     def test_measurement_protocol_edits_keep_the_tooling_only_quick_selection(self):
         for path in ("cad/scripts/test-measure-cad.py", "cad/scripts/measure-cad-worker.cjs"):
             with self.subTest(path=path):

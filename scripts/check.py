@@ -80,12 +80,13 @@ TOOLING_TESTS = (
     "scripts/test-build-web.py", "scripts/test-build-patched-wasm-bindgen.py", "scripts/test-serve-web.py",
     "scripts/test-dev-web.py", "scripts/test-run-wasm-tests.py", "scripts/test-check-wasm-tests.py",
     "scripts/test-stage-ergogen-models.py", "scripts/test-check.py", "scripts/test-check-quick.py", "scripts/test-catalogue-tools.py", "scripts/test-gitnexus-refresh.py",
-    "scripts/test-import-kicad-parts.py", "scripts/test-gitnexus-stop-hook.py",
+    "scripts/test-gitnexus-stop-hook.py",
     "scripts/test-verification-receipt.py", "scripts/test-drag-receipt-bytes.py", "scripts/test-parallel-interrupt.py", "scripts/test-verify-no-node.py",
     "scripts/test-check-native-tests.py", "scripts/test-mutation-check.py", "scripts/test-browser-tools.py",
     "scripts/test-chrome-for-testing.py", "scripts/test-bump-chrome-for-testing.py", "scripts/test-graphite-preflight.py", "tools/browser-harness/test-response-probe-cleanup.py",
     "scripts/test-ci-workflow.py", "scripts/test-build-time.py",
 )
+KICAD_PARTS_TEST = [PY, "scripts/test-import-kicad-parts.py"]
 WASM_PAGE = ["--no-default-features", "--features", "page"]
 # Every wasm test build shares the checked page build's profile, and so its units; see Cargo.toml.
 WASM_CRATE_BUILD = ["cargo", "test", "--no-run", "--lib", "--target", "wasm32-unknown-unknown",
@@ -214,7 +215,7 @@ STEPS: dict[str, tuple[bool, list[Command]]] = {
     "build": (True, [[PY, "scripts/build-web.py", "--fast"]]),
     "lint": (True, LINT),
     "release": (False, [[PY, "scripts/build-web.py"]]),
-    "test": (True, [*CARGO_TESTS, [PY, "cad/scripts/test-cad.py"]]),
+    "test": (True, [*CARGO_TESTS, [PY, "cad/scripts/test-cad.py"], KICAD_PARTS_TEST]),
     "typecheck": (False, typecheck()),
     "browser": (True, browser()),
     "browser-packaged": (False, [cmd for cmd in browser() if not (is_crate_build(cmd) or launch_crate(cmd))]),
@@ -645,7 +646,8 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
         child_env = {**environment, **config}
         if receipt is not None:
             child_env.update(BOARDSTUDIO_RECEIPT_RUN_ID=receipt.run_id, BOARDSTUDIO_RECEIPT_ATTEMPT_ID=attempt)
-        if not any(script in command for script in ("cad/scripts/test-cad.py", "scripts/run-wasm-tests.py")):
+        if not any(script in command for script in ("cad/scripts/test-cad.py", "scripts/run-wasm-tests.py",
+                                                    KICAD_PARTS_TEST[1])):
             child_env.pop("BOARDSTUDIO_BUILD_LOCK_FD", None)
         done = launch_command(argv, registry=registry, cwd=cwd, env=child_env, stdout=subprocess.PIPE,
                                  stderr=subprocess.STDOUT, text=True,
@@ -1240,6 +1242,8 @@ def quick_plan(selection: "check_quick.Selection", packages: "dict[str, check_qu
             plan.append(("browser", commands))
     if selection.cad:
         plan.append(("test", [[PY, "cad/scripts/test-cad.py"]]))
+    if selection.kicad_parts:
+        plan.append(("test", [KICAD_PARTS_TEST]))
     return plan
 
 
