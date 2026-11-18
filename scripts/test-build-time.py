@@ -59,6 +59,26 @@ class AttributionTests(unittest.TestCase):
 
 
 class RealCpuTests(unittest.TestCase):
+    def test_report_uses_step_attribution_and_real_cpu_when_commands_overlap(self):
+        import contextlib
+        import io
+        output = "/repo/target/wasm32-unknown-unknown/wasm-check/deps"
+        units = [
+            {"step": "build", "start": 10.0, "secs": 4.0, "cpu": 2.0,
+             "out": output, "target": "wasm32-unknown-unknown"},
+            {"step": "test", "start": 10.0, "secs": 6.0, "cpu": 3.0,
+             "out": "/repo/target/debug/deps", "target": "host"},
+        ]
+        data = {"run": (units, {"build": 4.0, "test": 6.0, "total": 6.0},
+                        "cold: wall 6.0s, process tree CPU 6.0s")}
+        with contextlib.redirect_stdout(io.StringIO()) as result:
+            REPORT.compare(["run"], data)
+        rows = {line.split()[0]: line.split()[1:] for line in result.getvalue().splitlines() if line.split()}
+        self.assertEqual(rows["build"], ["4.0", "4.0", "2"])
+        self.assertEqual(rows["test"], ["6.0", "6.0", "3"])
+        self.assertEqual(rows["total"], ["6.0", "6.0", "5"])
+        self.assertEqual(rows["root/wasm32/wasm-check"], ["2"])
+
     def test_wrapper_records_child_cpu_and_report_totals_it(self):
         import json, os, subprocess, sys, tempfile
         code = "sum(range(10**7))"

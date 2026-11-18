@@ -267,3 +267,9 @@ build and the checked Dioxus page build also passed. The first Dioxus probe
 exposed a retry hazard for rustc inputs from stdin. The wrapper now bypasses
 those invocations and the stable compiler rejects the deliberately unstable
 stdin probe. The Dioxus build passed after cleaning the affected target.
+
+### H1. Focused self-tests
+
+All 358 tests in 14 focused suites passed, including the real KiCad importer
+driver build. The measurement control attributes two simultaneous rustc units
+to their own steps and sums recorded CPU independently of compiler wall time.

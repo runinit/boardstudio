@@ -14,6 +14,9 @@ import time
 import tomllib
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import browser_tools
+
 ROOT = Path(__file__).resolve().parent.parent.parent
 EVIDENCE = ROOT / ".evidence" / "cold-build-port"
 WIPE = [
@@ -22,7 +25,8 @@ WIPE = [
     "cad/wasm/pkg", "renderer/pkg", "cad/.cache",
     "web/assets/cad", "web/assets/cad-worker", "web/assets/core-worker",
     # web/target also covers all three worker outputs, including the offline worker.
-    "web/assets/ergogen-models", "web/assets/renderer", "web/assets/tailwind.css",
+    "web/assets/ergogen-models", "web/assets/imported-modules.json",
+    "web/assets/renderer", "web/assets/tailwind.css",
 ]
 TARGETS = [p for p in WIPE if p.endswith("target")]
 LOAD_LIMIT = 5.0
@@ -64,11 +68,10 @@ def main(argv):
     if Path(name).name != name or name in (".", ".."):
         print("cold: run name must be a filename", file=sys.stderr)
         return 2
-    lock = os.environ.get("BOARDSTUDIO_BUILD_LOCK_FD")
-    if not lock:
+    lock = browser_tools._inherited_build_lock()
+    if lock is None:
         print("cold: acquire BOARDSTUDIO_BUILD_LOCK_FD before running", file=sys.stderr)
         return 2
-    os.fstat(int(lock))
     reasons = [] if no_wipe else refusal_reasons(os.environ, lambda p: (ROOT / p).is_symlink(), os.getloadavg()[0])
     if reasons:
         for reason in reasons:
@@ -90,7 +93,7 @@ def main(argv):
     with open(EVIDENCE / f"{name}.log", "w") as log:
         start = time.monotonic()
         code = subprocess.run([sys.executable, "scripts/check.py", *steps],
-                              cwd=ROOT, env=env, pass_fds=(int(lock),),
+                              cwd=ROOT, env=env, pass_fds=(lock,),
                               stdout=log, stderr=subprocess.STDOUT).returncode
         usage = resource.getrusage(resource.RUSAGE_CHILDREN)
         print(f"cold: wall {time.monotonic() - start:.1f}s, "
