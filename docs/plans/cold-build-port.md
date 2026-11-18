@@ -258,3 +258,12 @@ systemctl --user daemon-reload
 ```
 
 The cache directory can be removed separately after stopping the service.
+
+### G3. Cache verification
+
+Locked native Cargo build and Clippy passed with the service running. A fresh
+target built while the service was stopped. The renderer's locked wasm-pack
+build and the checked Dioxus page build also passed. The first Dioxus probe
+exposed a retry hazard for rustc inputs from stdin. The wrapper now bypasses
+those invocations and the stable compiler rejects the deliberately unstable
+stdin probe. The Dioxus build passed after cleaning the affected target.
