@@ -791,7 +791,7 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
         self.mock_wasm_dir()
         launches = check.with_crate_build([check.crate_launch(name) for name in ("keymap", "ui-shared")])
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as config:
-            json.dump({"goog:chromeOptions": {"binary": "/usr/bin/true"}}, config)
+            json.dump({"pageLoadStrategy": "normal", "goog:chromeOptions": {"binary": "/usr/bin/true"}}, config)
         self.addCleanup(Path(config.name).unlink)
         for jobs in ("3", "1"):
             with self.subTest(jobs=jobs):

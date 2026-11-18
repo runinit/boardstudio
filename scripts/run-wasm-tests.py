@@ -527,16 +527,12 @@ def all_module_selection(env, root=ROOT, depth=None, isolated=()):
 
 @contextmanager
 def desktop_webdriver_config(env, root=ROOT):
-    """Set a deterministic desktop Chrome viewport unless the caller supplied capabilities.
-
-    A caller-supplied WASM_BINDGEN_TEST_WEBDRIVER_JSON is honored as-is. The
-    crate webdriver.json path and the generated temp config both get the
-    resolved chrome binary merged into goog:chromeOptions as "binary".
-    """
+    """Set desktop capabilities while preserving caller-supplied values."""
     env = dict(env)
     if env.get(WEBDRIVER_CONFIG_ENV):
+        path = Path(env[WEBDRIVER_CONFIG_ENV]).resolve()
         try:
-            supplied = json.loads(Path(env[WEBDRIVER_CONFIG_ENV]).read_text())
+            supplied = json.loads(path.read_text())
             options = supplied.get("goog:chromeOptions", {})
             binary = options.get("binary") if isinstance(options, dict) else None
         except (OSError, ValueError, AttributeError) as error:
@@ -544,26 +540,24 @@ def desktop_webdriver_config(env, root=ROOT):
         chrome = env.get(CHROME_BIN_ENV)
         if binary and chrome and Path(binary).resolve() != Path(chrome).resolve():
             raise RunnerError("caller WebDriver browser conflicts with selected Chrome")
+        if "pageLoadStrategy" in supplied and (binary or not chrome):
+            env[WEBDRIVER_CONFIG_ENV] = str(path)
+            yield env
+            return
+        supplied.setdefault("pageLoadStrategy", "eager")
         if chrome and not binary:
             if not isinstance(options, dict):
                 raise RunnerError("invalid caller WebDriver chrome options")
             supplied["goog:chromeOptions"] = {**options, "binary": chrome}
-            with TemporaryDirectory(prefix="boardstudio-wasm-webdriver-") as temporary:
-                config = Path(temporary) / "webdriver.json"
-                config.write_text(json.dumps(supplied))
-                env[WEBDRIVER_CONFIG_ENV] = str(config)
-                yield env
-            return
-        env[WEBDRIVER_CONFIG_ENV] = str(Path(env[WEBDRIVER_CONFIG_ENV]).resolve())
-        yield env
+        with TemporaryDirectory(prefix="boardstudio-wasm-webdriver-") as temporary:
+            config = Path(temporary) / "webdriver.json"
+            config.write_text(json.dumps(supplied))
+            env[WEBDRIVER_CONFIG_ENV] = str(config)
+            yield env
         return
     chrome = resolve_chrome_binary(env)
     existing = next((path for path in (Path(root) / "web/webdriver.json", Path(root) / "webdriver.json")
                      if path.is_file()), None)
-    if existing and chrome is None:
-        env[WEBDRIVER_CONFIG_ENV] = str(existing.resolve())
-        yield env
-        return
     try:
         base = json.loads(existing.read_text()) if existing else {}
     except (OSError, ValueError):
@@ -582,6 +576,8 @@ def desktop_webdriver_config(env, root=ROOT):
         args.append("--window-size=1280,900")
     if chrome is not None:
         options["binary"] = chrome
+    # Navigation otherwise waits up to 300s for load before the runner reads test output.
+    base.setdefault("pageLoadStrategy", "eager")
     with TemporaryDirectory(prefix="boardstudio-wasm-webdriver-") as temporary:
         config = Path(temporary) / "webdriver.json"
         config.write_text(json.dumps(base))
