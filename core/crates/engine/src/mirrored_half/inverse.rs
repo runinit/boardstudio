@@ -45,7 +45,6 @@ use crate::model::{
     MirroredCompanionTweak, MirroredCorrespondence, MirroredExceptionState, MirroredHalves,
     MirroredItemKind, Part, PartKind, Pose2, Position, ProjectDoc, Vec2,
 };
-use boardstudio_model::mechanical::halves::MirroredHalfOverlays;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 

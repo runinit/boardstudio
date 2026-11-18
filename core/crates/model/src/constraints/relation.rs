@@ -3,14 +3,7 @@ use crate::model::{Constraint, MirrorAxis, Pose2, Vec2};
 pub use crate::model::ConstraintRelation;
 
 /// A directional relation evaluated between the source and target endpoint views.
-pub trait ConstraintRelationSolver {
-    fn from_legacy(constraint: &Constraint) -> Self;
-    fn apply(&self, source: Pose2) -> Result<Pose2, String>;
-    fn inverse(&self, target: Pose2) -> Result<Pose2, String>;
-    fn validate(&self) -> Result<(), String>;
-}
-
-impl ConstraintRelationSolver for ConstraintRelation {
+impl ConstraintRelation {
     /// The relation a stored record states, so every record kind is compiled by one path.
     /// A vertical mirror at `c` is the line through `(c, 0)` heading 90; a horizontal one is
     /// the line through `(0, c)` heading 0.
@@ -20,7 +13,8 @@ impl ConstraintRelationSolver for ConstraintRelation {
     /// (`x` untouched, `2c - y`, heading `-r`, keeping a zero heading's sign), which is every
     /// line this compiles. Any other angle uses the general reflection, which is equal to the
     /// literal reflection only within rounding, and is never produced from a stored record.
-    fn from_legacy(constraint: &Constraint) -> Self {
+    // `from_legacy` and `inverse` have no production caller yet: the compile-all-records pass and the drag seam land with 114/115.
+    pub fn from_legacy(constraint: &Constraint) -> Self {
         match constraint {
             Constraint::Offset {
                 offset, rotation, ..
@@ -56,7 +50,7 @@ impl ConstraintRelationSolver for ConstraintRelation {
         }
     }
 
-    fn apply(&self, source: Pose2) -> Result<Pose2, String> {
+    pub(crate) fn apply(&self, source: Pose2) -> Result<Pose2, String> {
         self.validate()?;
         validate_pose(source)?;
 
@@ -112,7 +106,8 @@ impl ConstraintRelationSolver for ConstraintRelation {
         Ok(result)
     }
 
-    fn inverse(&self, target: Pose2) -> Result<Pose2, String> {
+    #[cfg_attr(not(test), expect(dead_code))]
+    pub(crate) fn inverse(&self, target: Pose2) -> Result<Pose2, String> {
         self.validate()?;
         validate_pose(target)?;
 
@@ -145,7 +140,7 @@ impl ConstraintRelationSolver for ConstraintRelation {
         Ok(result)
     }
 
-    fn validate(&self) -> Result<(), String> {
+    pub fn validate(&self) -> Result<(), String> {
         let finite = match self {
             Self::Offset { offset, rotation } | Self::PartOffset { offset, rotation } => {
                 offset.x.is_finite() && offset.y.is_finite() && rotation.is_finite()

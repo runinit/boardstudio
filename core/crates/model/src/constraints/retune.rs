@@ -6,14 +6,14 @@
 //! this module's to change; it returns the new numbers and the authority pose they imply.
 
 use super::endpoints::EndpointFrame;
-use super::relation::{ConstraintRelation, ConstraintRelationSolver};
+use super::relation::ConstraintRelation;
 use crate::model::{Pose2, Vec2};
 
 /// The relation with its numbers retuned, and the target authority pose they place.
 #[derive(Debug, PartialEq)]
 pub struct Retuned {
     pub relation: ConstraintRelation,
-    pub target_authority: Pose2,
+    pub(crate) target_authority: Pose2,
 }
 
 /// Retunes `relation` so the target, seen through `target_frame`, lands on `requested`.

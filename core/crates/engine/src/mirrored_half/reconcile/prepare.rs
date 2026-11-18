@@ -14,7 +14,6 @@ use crate::model::{
     Position, ProjectDoc, Scope, Severity,
 };
 use crate::{ScriptRunner, constraints::FramedConstraint};
-use boardstudio_model::mechanical::halves::MirroredHalfOverlays;
 use std::collections::{BTreeMap, BTreeSet};
 
 #[cfg(test)]

@@ -1,5 +1,4 @@
-use super::relation::ConstraintRelationSolver;
-use crate::mechanical::{halves::MirroredHalfOverlays, pair};
+use crate::mechanical::pair;
 use crate::model::{
     ConstraintRelation, MechanicalMirrorPair, MirroredCompanionMode, MirroredCorrespondence,
     MirroredExceptionState, MirroredHalves, MirroredItemKind, PartKind, Pose2, ProjectDoc, Vec2,
@@ -350,7 +349,11 @@ impl EndpointFrame {
         Ok(projected)
     }
 
-    pub fn unproject(self, visible: Pose2, previous_authoritative: Pose2) -> Result<Pose2, String> {
+    pub(crate) fn unproject(
+        self,
+        visible: Pose2,
+        previous_authoritative: Pose2,
+    ) -> Result<Pose2, String> {
         validate_pose(visible)?;
         validate_pose(previous_authoritative)?;
         let authoritative = match self {
@@ -615,7 +618,7 @@ fn derived_from<'a>(
 
 /// The part that owns `part_id`'s geometry: its source while a live part correspondence derives
 /// it, otherwise the part itself. A Local or Omitted mirror is not derived, so it owns itself.
-pub fn authoritative_part<'a>(document: &'a ProjectDoc, part_id: &'a str) -> &'a str {
+pub(crate) fn authoritative_part<'a>(document: &'a ProjectDoc, part_id: &'a str) -> &'a str {
     derived_from(document, part_id).map_or(part_id, |(_, correspondence)| {
         correspondence.source_id.as_str()
     })

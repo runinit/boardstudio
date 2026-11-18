@@ -4,8 +4,6 @@
 //! the counterpart of each item (correspondences) and any per-item exception. Absent `halves`
 //! means the pair is unpaired: it links mechanical features and nothing else.
 
-use boardstudio_model::mechanical::halves::MirroredHalfOverlays;
-
 use crate::model::{
     MechanicalMirrorPair, MirroredCompanionMode, MirroredCompanionTweak, MirroredExceptionState,
     MirroredHalves, MirroredItemKind, ProjectDoc,

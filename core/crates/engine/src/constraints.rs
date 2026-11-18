@@ -14,7 +14,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use boardstudio_model::constraints::endpoints;
 #[cfg(test)]
 mod framed_tests;
-use boardstudio_model::constraints::relation::{self, ConstraintRelationSolver};
+use boardstudio_model::constraints::relation;
 use boardstudio_model::constraints::retune;
 
 // The mirrored-half preparation seam carries only these private compiler records across the

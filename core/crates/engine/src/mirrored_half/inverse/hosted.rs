@@ -39,7 +39,6 @@ use crate::model::{
     EditOperation, MirroredExceptionState, MirroredItemKind, PartDefinition, Pose2, Side, Vec2,
 };
 use crate::modules::{ModuleConnection, ModuleDefinition, MountedModule};
-use boardstudio_model::mechanical::halves::MirroredHalfOverlays;
 use std::collections::{BTreeMap, BTreeSet};
 
 const SHARED_DEFINITION: &str = "a module definition is shared by both halves: the mirror and the source name the same \
