@@ -76,8 +76,63 @@ debug = "line-tables-only"
 # Dependencies compile once, so optimizing them is free after the first build, and tests that
 # hash, compress or parse (the demo-project acceptance test) run about 2.4x faster. The
 # workspace's own crates stay unoptimized so edit-and-test builds stay quick.
-[profile.dev.package."*"]
-opt-level = 2
+[profile.dev.package]
+"*" = { opt-level = 2 }
+# Proc macros and the libraries only they use run inside the compiler, never in a test or the
+# page. "*" gave them opt-level 2 too, and their LLVM time sat on every cold build's critical
+# path: syn alone took 15 s, and Core could not start until 40 s in. At opt-level 0 the cold
+# wasm page build went from 85 s to 68 s and expansion got no slower (Core's type-check, which
+# expands every serde derive, took 15.4 s instead of 16.8 s). A named package overrides "*".
+async-stream-impl = { opt-level = 0 }
+async-trait = { opt-level = 0 }
+const-random-macro = { opt-level = 0 }
+const-serialize-macro = { opt-level = 0 }
+const_format_proc_macros = { opt-level = 0 }
+convert_case = { opt-level = 0 }
+darling = { opt-level = 0 }
+darling_core = { opt-level = 0 }
+darling_macro = { opt-level = 0 }
+derive_more-impl = { opt-level = 0 }
+dioxus-attributes = { opt-level = 0 }
+dioxus-config-macro = { opt-level = 0 }
+dioxus-core-macro = { opt-level = 0 }
+dioxus-fullstack-macro = { opt-level = 0 }
+dioxus-html-internal-macro = { opt-level = 0 }
+dioxus-rsx = { opt-level = 0 }
+dioxus-stores-macro = { opt-level = 0 }
+displaydoc = { opt-level = 0 }
+enumset_derive = { opt-level = 0 }
+futures-macro = { opt-level = 0 }
+heck = { opt-level = 0 }
+ident_case = { opt-level = 0 }
+macro-string = { opt-level = 0 }
+manganis-macro = { opt-level = 0 }
+multiversion_no_op = { opt-level = 0 }
+open-enum-derive = { opt-level = 0 }
+palette_derive = { opt-level = 0 }
+pin-project-internal = { opt-level = 0 }
+proc-macro2 = { opt-level = 0 }
+proc-macro2-diagnostics = { opt-level = 0 }
+quote = { opt-level = 0 }
+rhai_codegen = { opt-level = 0 }
+rustversion = { opt-level = 0 }
+serde_derive = { opt-level = 0 }
+sledgehammer_bindgen_macro = { opt-level = 0 }
+strum_macros = { opt-level = 0 }
+syn = { opt-level = 0 }
+synstructure = { opt-level = 0 }
+thiserror-impl = { opt-level = 0 }
+time-macros = { opt-level = 0 }
+tokio-macros = { opt-level = 0 }
+tracing-attributes = { opt-level = 0 }
+warnings-macro = { opt-level = 0 }
+wasm-bindgen-macro = { opt-level = 0 }
+wasm-bindgen-macro-support = { opt-level = 0 }
+wasm-bindgen-test-macro = { opt-level = 0 }
+yoke-derive = { opt-level = 0 }
+zerocopy-derive = { opt-level = 0 }
+zerofrom-derive = { opt-level = 0 }
+zerovec-derive = { opt-level = 0 }
 
 # The profile for every wasm build `scripts/check.py` makes: the packaged page
 # (`build-web.py --fast`), the page tests and each crate's `wasm-pack test`. With the wasm rustflags
