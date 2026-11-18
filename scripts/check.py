@@ -293,6 +293,10 @@ def launch_order(command: Command) -> int:
     return 0 if launch_crate(command) in HEAVY_CRATES else 1
 
 
+def is_harness_clippy(command: Command) -> bool:
+    return command[:2] == ["cargo", "clippy"] and HARNESS_MANIFEST in command
+
+
 def is_cargo_test(command: Command) -> bool:
     return command[:2] == ["cargo", "test"]
 
@@ -504,7 +508,7 @@ def launch_command(command, *, registry=None, **kwargs):
 def run_serial(command: Command, environment: dict[str, str], cwd: Path = ROOT,
                captured: list[tuple[Command, str]] | None = None,
                outputs: list[tuple[Command, str]] | None = None,
-               completed=None, build_capture=None, *, invocation=None) -> tuple[float, int, str, str]:
+               completed=None, build_capture=None, *, invocation=None, defer_output=False) -> tuple[float, int, str, str]:
     argv = command
     if invocation:
         argv, cwd, config = invocation
@@ -548,12 +552,13 @@ def run_serial(command: Command, environment: dict[str, str], cwd: Path = ROOT,
         if outputs is not None:
             outputs.append((command, text))
         code = done.returncode
-    elif outputs is not None and (is_crate_launch(command) or is_wasm_pack_test(command)
+    elif outputs is not None and (defer_output or is_crate_launch(command) or is_wasm_pack_test(command)
                                  or "scripts/run-drag-browser.py" in command):
         done = run(argv, cwd=cwd, env=environment, stdout=subprocess.PIPE,
                               stderr=subprocess.STDOUT, text=True, **lock_args)
         text = output_text(done.stdout)
-        print(text, end="" if text.endswith("\n") or not text else "\n", flush=True)
+        if not defer_output:
+            print(text, end="" if text.endswith("\n") or not text else "\n", flush=True)
         outputs.append((command, text))
         code = done.returncode
     else:
@@ -845,6 +850,25 @@ def _report_launch_failure(command: Command, text: str) -> None:
         print("check: " + summary, file=sys.stderr)
 
 
+def run_lint_overlap(commands: list[Command], environment: dict[str, str], cwd: Path) -> tuple[float, bool]:
+    started = time.monotonic()
+    for command in commands:
+        if command[:2] == ["cargo", "fmt"] and run_serial(command, environment, cwd)[1]:
+            return time.monotonic() - started, False
+    harness = next(command for command in commands if is_harness_clippy(command))
+    root = [command for command in commands if command[:2] != ["cargo", "fmt"] and command != harness]
+    outputs: list[tuple[Command, str]] = []
+    with ThreadPoolExecutor(max_workers=1, thread_name_prefix="harness-clippy") as pool:
+        harness_run = pool.submit(run_serial, harness, environment, cwd, outputs=outputs, defer_output=True)
+        passed = all(run_serial(command, environment, cwd)[1] == 0 for command in root)
+        harness_code = harness_run.result()[1]
+    for _, output in outputs:
+        print(output, end="" if output.endswith("\n") or not output else "\n", flush=True)
+    if harness_code:
+        print("check: command failed: " + shlex.join(harness), file=sys.stderr)
+    return time.monotonic() - started, passed and harness_code == 0
+
+
 def run_commands(name: str, commands: list[Command], environment: dict[str, str], cwd: Path = ROOT,
                  captured: list[tuple[Command, str]] | None = None,
                  *, keep_going: bool = False,
@@ -857,6 +881,8 @@ def run_commands(name: str, commands: list[Command], environment: dict[str, str]
         for command in failed:
             print("check: command failed: " + shlex.join(command), file=sys.stderr)
         return elapsed, not failed
+    if name == "lint" and check_jobs() > 1 and receipt is None and any(map(is_harness_clippy, commands)):
+        return run_lint_overlap(commands, environment, cwd)
     browser_step = is_browser_step(name)
     total = 0.0
     any_failed = False

@@ -838,6 +838,29 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
             with mock.patch.object(check.os, "cpu_count", return_value=None):
                 self.assertEqual(check.check_jobs(), 4)
 
+    def test_harness_clippy_overlaps_root_clippys_after_formats(self):
+        import threading
+        started = threading.Barrier(2, timeout=5)
+        seen = []
+
+        def run(command, *args, **kwargs):
+            seen.append(command)
+            if command[:2] == ["cargo", "clippy"] and "--target" not in command:
+                started.wait()
+            if check.is_harness_clippy(command):
+                kwargs["outputs"].append((command, "harness diagnostics"))
+                return 0.0, 1, "", ""
+            return 0.0, 0, "", ""
+
+        with mock.patch.object(check, "run_serial", side_effect=run), \
+             mock.patch.object(check, "check_jobs", return_value=2), \
+             contextlib.redirect_stdout(io.StringIO()) as stdout, contextlib.redirect_stderr(io.StringIO()):
+            self.assertFalse(check.run_commands("lint", check.LINT, {})[1])
+        self.assertEqual(seen[:2], [command for command in check.LINT if command[:2] == ["cargo", "fmt"]])
+        self.assertEqual([command for command in seen if "--all-targets" in command
+                          and not check.is_harness_clippy(command)], check.LINT[1:3])
+        self.assertIn("harness diagnostics", stdout.getvalue())
+
     def test_build_is_fast_and_release_is_opt_in(self):
         self.assertIn("--fast", check.STEPS["build"][1][0])
         self.assertNotIn("--fast", check.STEPS["release"][1][0])
