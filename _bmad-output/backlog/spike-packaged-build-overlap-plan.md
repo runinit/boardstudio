@@ -45,8 +45,8 @@ Both arms use clean source from `a6cfa51839bf5d4c11b558e4221935db5d08013b`. Keep
 
 - [x] In the detached experiment checkout, trace each generated asset from its producer through its first read by staging, compilation, bundling and browser checks. Verify the offline-worker output has no earlier reader and identify each command’s actual Cargo target.
 - [x] Use a temporary local measurement driver outside tracked source. Use `python3 scripts/check.py build browser-packaged --receipt <arm-receipt>` in both arms with the same pinned patched Wasm tool pair and `CARGO_PROFILE_DEV_DEBUG=false`, as in the dev packaged job. Keep the sequential arm's existing order and target reuse. In the overlap arm launch the offline-worker command at its original position, use its own Cargo target, continue to the renderer and remaining stages, and join before `embed_offline_worker`. Provision that extra target empty in both arms. Charge its compilation to the arm that uses it. Preserve lock inheritance and propagate failures. Keep all other stages and browser lanes in their original order.
-- [ ] Start each arm at the same absolute paths from a reproducible cache state. Record tool versions, cache preparation, source revision and diff, CPU affinity, Cargo jobs, target mapping and ambient load. Keep profiles and generated assets isolated between runs. Sample per-core busy time from `/proc/stat` throughout and capture timestamped Cargo lock messages, including the observed duration where available.
-- [ ] Under `.evidence/packaged-build-overlap/`, save per-arm logs from monotonic start through final gate completion, stage intervals, named outcomes, gate receipts and actual page inventory. Compare test and gate identities and outcomes, allowing per-run paths, timestamps and timings to differ. Compare staged and packaged renderer files with the matching producer output.
+- [x] Start each arm at the same absolute paths from a reproducible cache state. Record tool versions, cache preparation, source revision and diff, CPU affinity, Cargo jobs, target mapping and ambient load. Keep profiles and generated assets isolated between runs. Sample per-core busy time from `/proc/stat` throughout and capture timestamped Cargo lock messages, including the observed duration where available.
+- [x] Under `.evidence/packaged-build-overlap/`, save per-arm logs from monotonic start through final gate completion, stage intervals, named outcomes, gate receipts and actual page inventory. Compare test and gate identities and outcomes, allowing per-run paths, timestamps and timings to differ. Compare staged and packaged renderer files with the matching producer output.
 - [x] Record times, evidence paths, coverage comparison and decision in this plan. Run sequential then overlap. Only if warranted run overlap then sequential from the same starting conditions.
 
 **Acceptance criteria**
@@ -56,6 +56,23 @@ Both arms use clean source from `a6cfa51839bf5d4c11b558e4221935db5d08013b`. Keep
 - Given the completed pair or pairs, when applying the ticket's local decision rule, then the plan reports every measured time and calculation, or identifies the exact dependency or failed check that prevents a valid comparison.
 
 ## Implementation Notes
+
+### Completed benchmark after the drag harness repair
+
+**Retain sequential execution.** The first complete sequential/overlap pair passed equivalent dev coverage. Overlap took 77.186 s longer (9.90%) through the last required packaged check. The ticket reserves the reverse-order pair for a promising first result, so measurement ended after these two arms.
+
+| Local schedule | Fast build | Last page command | Start through last required check | Process exit |
+|---|---:|---:|---:|---:|
+| Sequential | 375.231 s | 217.457 s | 779.802 s | 779.876 s, exit 0 |
+| Overlap | 410.381 s | 260.126 s | 856.989 s | 857.069 s, exit 0 |
+
+Both arms checked out dev `a6cfa51839bf5d4c11b558e4221935db5d08013b` and applied the same single-file drag harness from `e390f885514cd6c427b6d9d14c31d9e909119061`. Each started with empty Cargo targets at identical paths, the same patched tool pair, and a fresh private copy of one offline Cargo registry and Git dependency snapshot. Both ran on the same 16 logical CPUs with 12 Cargo jobs per invocation. OS page cache and other host load varied. The observed difference includes 35.150 s in the build and 42.669 s in the subsequent page-test command. One pair establishes the local stopping decision, not the cause of each stage difference.
+
+The worker and renderer ran concurrently for about 36.6 s on separate targets. The worker had finished before embedding began. Cargo reported zero package-cache lock notices sequentially and eight with overlap, with individual upper bounds of 30–304 ms to the next output or process exit. Mean host CPU busy time across the two runs was 39.5% and 40.1%, respectively.
+
+The command inventories, named outcomes and isolation filters matched. All ten packaged commands passed, including model lookup, all 15 drag checks, and 126 named page tests (one renderer decode, 121 presentation, four isolated case-workspace). Each arm verified all six renderer files at both destinations and matched the packaged offline worker to its own producer. The earlier drag-failing runs below are historical evidence and are excluded from this comparison.
+
+[Comparison and stage traces](../../.evidence/packaged-overlap-fixed-drag/comparison.log) · [Sequential gate receipt](../../.evidence/packaged-overlap-fixed-drag/01-sequential/check-receipt.json.md) · [Overlap gate receipt](../../.evidence/packaged-overlap-fixed-drag/02-overlap/check-receipt.json.md)
 
 Use native tools as authorized. The clean detached experiment checkout is `/home/chris/.cache/tmp/packaged-overlap.8F80HoAl/dev`. Evidence and this plan belong in the ticket workspace.
 
