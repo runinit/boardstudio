@@ -64,9 +64,9 @@ pub use layout_align::{
 pub use layout_align_controller::use_canvas_align;
 pub use layout_canvas_controls::LayoutCanvasControls;
 pub use layout_toolbar::{
-    LayoutCommandMenu, LayoutCommandPill, LayoutSelectionKind, LayoutSnapDock, LayoutSnapIntent,
-    LayoutSnapSettings, TreeCellAnchor, context_for_selection_kind, gesture_snap_inputs,
-    layout_canvas_grid_style, snap_label as layout_snap_label,
+    GestureSnapInputs, LayoutCommandMenu, LayoutCommandPill, LayoutSelectionKind, LayoutSnapDock,
+    LayoutSnapIntent, LayoutSnapSettings, TreeCellAnchor, context_for_selection_kind,
+    gesture_snap_inputs, layout_canvas_grid_style, snap_label as layout_snap_label,
 };
 pub use layout_transform_toolbar::LayoutPartToolOverlay;
 pub use layout_transform_toolbar::LayoutTransformToolOverlay;
