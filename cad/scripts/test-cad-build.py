@@ -5,6 +5,7 @@ import http.server
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -40,6 +41,7 @@ class CadBuildTests(unittest.TestCase):
         self.patch = patch.multiple(build, CAD_ROOT=self.root)
         self.patch.start()
         self.addCleanup(self.patch.stop)
+        self.enterContext(patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "1"}))
 
     def wasm_sources(self):
         (self.root / "wasm/src/model").mkdir(parents=True)
@@ -150,7 +152,7 @@ class CadBuildTests(unittest.TestCase):
             self.assertTrue(any(command[:len(selection)] == selection for command in owner_commands), selection)
         self.assertTrue(all(command[3] == "monstertruck-qualification/Cargo.toml"
                             for command in commands[1:]))
-        with patch.object(build, "run", side_effect=[None, subprocess.CalledProcessError(1, "cargo")]):
+        with patch.object(build, "run", side_effect=subprocess.CalledProcessError(1, "cargo")):
             with self.assertRaises(subprocess.CalledProcessError):
                 build.test_cad()
 
@@ -187,7 +189,7 @@ class CadBuildTests(unittest.TestCase):
         with patch.object(build.subprocess, "run", return_value=self.PASSED) as run, \
                 contextlib.redirect_stdout(io.StringIO()) as printed:
             build.test_cad()
-        self.assertEqual(printed.getvalue(), self.PASSED.stdout * len(build.OWNER_TESTS))
+        self.assertEqual(printed.getvalue(), self.PASSED.stdout * (len(build.OWNER_TESTS) + 1))
         for call in run.call_args_list[1:]:
             self.assertEqual(call.kwargs["stdout"], subprocess.PIPE)
             self.assertEqual(call.kwargs["stderr"], subprocess.STDOUT)
@@ -200,7 +202,23 @@ class CadBuildTests(unittest.TestCase):
                 build.test_cad()
         self.assertIs(raised.exception, failure)
         self.assertEqual(run.call_count, 2)
-        self.assertEqual(printed.getvalue(), failure.stdout)
+        self.assertEqual(printed.getvalue(), self.PASSED.stdout + failure.stdout)
+
+    def test_parallel_lanes_print_both_failures_including_empty_owner_selection(self):
+        barrier = threading.Barrier(2, timeout=5)
+
+        def run(command, **kwargs):
+            barrier.wait()
+            if "boardstudio-cad-wasm" in command:
+                raise subprocess.CalledProcessError(7, command, output="production failure output\n")
+            return subprocess.CompletedProcess(command, 0, stdout="owner output with no test results\n")
+
+        with patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "2"}), patch.object(build, "run", side_effect=run), \
+                contextlib.redirect_stdout(io.StringIO()) as stdout, contextlib.redirect_stderr(io.StringIO()) as stderr:
+            with self.assertRaises(subprocess.CalledProcessError):
+                build.test_cad()
+        self.assertEqual(stdout.getvalue(), "production failure output\nowner output with no test results\n")
+        self.assertIn("CAD owner selection has no executed tests", stderr.getvalue())
 
     def test_provider_tests_are_registered_or_accounted_for(self):
         scripts = {path.name for path in (REPO_ROOT / "cad/wasm/tests").glob("*.cjs")}

@@ -1,6 +1,8 @@
 """Pure-Rust Monstertruck CAD WASM build and native test orchestration."""
 
+from concurrent.futures import ThreadPoolExecutor
 import hashlib
+import io
 import os
 from pathlib import Path
 import re
@@ -136,32 +138,53 @@ def build_wasm(*, no_opt=False):
     stamp.write_text(inputs + "\n")
 
 
-def test_cad():
-    library_target, owner_target = NATIVE_TEST_TARGETS
-    library_env = dict(os.environ, CARGO_TARGET_DIR=str(CAD_ROOT / library_target))
-    run(
-        [
-            "cargo",
-            "test",
-            "--manifest-path",
-            "monstertruck/Cargo.toml",
-            "-p", "boardstudio-cad",
-            "-p", "boardstudio-cad-wasm",
-            "--release",
-            "--locked",
-        ],
-        env=library_env,
-    )
-    owner_env = dict(os.environ, CARGO_TARGET_DIR=str(CAD_ROOT / owner_target))
+def _test_production_cad(output):
+    library_target, _ = NATIVE_TEST_TARGETS
+    command = ["cargo", "test", "--manifest-path", "monstertruck/Cargo.toml",
+               "-p", "boardstudio-cad", "-p", "boardstudio-cad-wasm", "--release", "--locked"]
+    _run_test(command, library_target, output)
+
+
+def _test_cad_owners(output):
+    _, owner_target = NATIVE_TEST_TARGETS
     # Filter legacy suites; external fixtures are read only by the tests that use them.
     for package, *selection in OWNER_TESTS:
-        try:
-            result = run(["cargo", "test", "--manifest-path", "monstertruck-qualification/Cargo.toml",
-                          "-p", package, *selection, "--release", "--locked"], env=owner_env,
-                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-        except subprocess.CalledProcessError as error:
-            print(error.stdout or "", end="", flush=True)
-            raise
-        print(result.stdout, end="", flush=True)
-        if not re.search(r"^test result: ok\. [1-9][0-9]* passed;", result.stdout, re.M):
+        command = ["cargo", "test", "--manifest-path", "monstertruck-qualification/Cargo.toml",
+                   "-p", package, *selection, "--release", "--locked"]
+        result = _run_test(command, owner_target, output)
+        if not re.search(r"^test result: ok\. [1-9][0-9]* passed;", result, re.M):
             raise RuntimeError(f"CAD owner selection has no executed tests: {package} {' '.join(selection)}")
+
+
+def _run_test(command, target, output):
+    env = dict(os.environ, CARGO_TARGET_DIR=str(CAD_ROOT / target))
+    try:
+        result = run(command, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    except subprocess.CalledProcessError as error:
+        output.write(error.stdout or "")
+        raise
+    output.write(result.stdout)
+    return result.stdout
+
+
+def test_cad():
+    lanes = (_test_production_cad, _test_cad_owners)
+    try:
+        serial = int(os.environ.get("BOARDSTUDIO_CHECK_JOBS", "2")) <= 1
+    except ValueError:
+        serial = False
+    if serial:
+        for lane in lanes:
+            lane(sys.stdout)
+        return
+    outputs = [io.StringIO() for _ in lanes]
+    with ThreadPoolExecutor(max_workers=len(lanes), thread_name_prefix="cad-test") as pool:
+        futures = [pool.submit(lane, output) for lane, output in zip(lanes, outputs)]
+    failures = []
+    for lane, output, future in zip(lanes, outputs, futures):
+        print(output.getvalue(), end="", flush=True)
+        if error := future.exception():
+            print(f"cad: {lane.__name__}: {error}", file=sys.stderr, flush=True)
+            failures.append(error)
+    if failures:
+        raise failures[0]
