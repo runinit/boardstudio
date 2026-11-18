@@ -569,7 +569,7 @@ async fn scene(page: &Page) -> Result<Value> {
 async fn saved(page: &Page) -> Result<()> {
     driver::wait_for(
         page,
-        r#"document.querySelector('.m1-save-state')?.dataset.state === 'saved'"#,
+        r#"document.querySelector('.header-save')?.dataset.state === 'saved'"#,
         "a saved document",
         Duration::from_secs(20),
     )
@@ -580,9 +580,9 @@ async fn start_save_tracking(page: &Page) -> Result<()> {
     driver::eval(
         page,
         r#"(() => {
-    window.__saveStates = [document.querySelector('.m1-save-state')?.dataset.state];
+    window.__saveStates = [document.querySelector('.header-save')?.dataset.state];
     new MutationObserver(() => {
-      const state = document.querySelector('.m1-save-state')?.dataset.state;
+      const state = document.querySelector('.header-save')?.dataset.state;
       if (state && window.__saveStates.at(-1) !== state) window.__saveStates.push(state);
     }).observe(document.body, { attributes: true, childList: true, subtree: true, attributeFilter: ['data-state'] });
     return true;
@@ -824,7 +824,7 @@ async fn start_event_capture(page: &Page) -> Result<()> {
           movementY: event.movementY,
           detail: event.detail,
           isPrimary: event.isPrimary,
-          label: event.target.closest?.('.m1-transform-handle')?.getAttribute('aria-label'),
+          label: event.target.closest?.('[data-transform-handle]')?.getAttribute('aria-label'),
           partId: event.target.closest?.('[data-part-id]')?.getAttribute('data-part-id'),
         }), true);
       }
@@ -889,7 +889,7 @@ async fn observe_live_drag(page: &Page) -> Result<LiveDrag> {
     let capture = driver::eval(
         page,
         r#"(() => { const down = window.__dragEvents.find(event => event.type === 'pointerdown');
-      return !!down && [...document.querySelectorAll('svg.m1-canvas,.m1-transform-handle')]
+      return !!down && [...document.querySelectorAll('svg:has([data-geometry="scene-part"]),[data-transform-handle]')]
         .some(element => element.hasPointerCapture(down.pointerId)); })()"#,
     )
     .await?;
