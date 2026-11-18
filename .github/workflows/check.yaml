@@ -112,18 +112,22 @@ jobs:
           shared-key: ${{ matrix.cache }}
           env-vars: ImageOS
           save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]' && github.event.pull_request.user.login != 'dependabot[bot]') }}
-      - name: Identify patched runner toolchain
-        id: pair-toolchain
-        run: echo "identity=$(rustc -vV | sha256sum | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+      - name: Validate workspace and identify patched wasm-bindgen pair
+        id: patched-pair-key
+        run: |
+          key=$(python3 scripts/build-patched-wasm-bindgen.py --cache-key)
+          echo "key=$key" >> "$GITHUB_OUTPUT"
       - name: Cache patched wasm-bindgen pair
         id: patched-pair
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/wasm-bindgen-patched
-          key: patched-wasm-bindgen-${{ runner.os }}-${{ runner.arch }}-${{ steps.pair-toolchain.outputs.identity }}-${{ hashFiles('scripts/build-patched-wasm-bindgen.py', 'Cargo.lock', 'rust-toolchain.toml', '.cargo/config.toml') }}
+          key: ${{ steps.patched-pair-key.outputs.key }}
       - name: Build patched wasm-bindgen pair on cache miss
         if: steps.patched-pair.outputs.cache-hit != 'true'
         run: python3 scripts/build-patched-wasm-bindgen.py --output "$RUNNER_TEMP/wasm-bindgen-patched"
+      - name: Verify patched wasm-bindgen pair
+        run: python3 scripts/build-patched-wasm-bindgen.py --verify "$RUNNER_TEMP/wasm-bindgen-patched"
       - name: Build and check packaged site
         if: matrix.suite == 'packaged'
         run: python3 scripts/check.py build browser-packaged
