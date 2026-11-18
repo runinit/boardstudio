@@ -740,3 +740,54 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+#[component]
+pub(crate) fn ExportPanel(
+    #[props(default)] zmk_firmware: Option<ZmkFirmwareExportPanelInput>,
+) -> Element {
+    use boardstudio_web_ui_shared::ui::{
+        checkbox::{Checkbox, CheckboxState},
+        label::Label,
+    };
+    let runtime = use_context::<Rc<Runtime>>();
+    let _ = use_context::<Signal<u64>>()();
+    let model = runtime.model();
+    let archive = runtime.clone();
+    let preference = runtime.clone();
+    let step = runtime.clone();
+    rsx! {
+        section { class: "m-auto w-[min(100%,760px)] p-7 text-foreground [&>p]:max-w-[60ch] [&>p]:text-muted-foreground [&>h2]:mt-6 [&>h2]:mb-2.5", "aria-label": "Export",
+            h1 { "Export" }
+            p { "Create files from the saved keyboard in the current board and instance scope." }
+            div { class: "my-5 flex flex-wrap gap-2",
+                Button { variant: ButtonVariant::Secondary, disabled: model.accepted.is_none(), onclick: move |_| step.export_step(), "Export STEP" }
+            }
+            if let Some(firmware) = zmk_firmware {
+                h2 { "Design files" }
+                div { class: "grid gap-2",
+                    ZmkFirmwareExportRow { ready: firmware.ready, on_export: firmware.on_export }
+                }
+            }
+            section { class: "mt-6 grid gap-2.5 rounded-md border border-border bg-card p-4 [&_h2]:m-0 [&_p]:m-0 [&_p]:text-muted-foreground", "aria-label": "Portable project",
+                h2 { "Portable project" }
+                p { "Keep an editable copy of the whole project, including all boards." }
+                Label { class: "flex items-start gap-2.5 [&_span]:grid [&_span]:gap-[3px] [&_small]:text-xs [&_small]:text-muted-foreground",
+                    Checkbox {
+                        aria_label: "Embed used models",
+                        checked: if runtime.embed_used_models() { CheckboxState::Checked } else { CheckboxState::Unchecked },
+                        on_checked_change: move |state: CheckboxState| preference.set_embed_used_models(state == CheckboxState::Checked),
+                    }
+                    span { strong { "Embed used models" } small { "Include attached 3D model files used in this project." } }
+                }
+                Button { variant: ButtonVariant::Secondary,
+                    class: "justify-self-start",
+                    disabled: model.accepted.is_none(),
+                    onclick: move |_| archive.export_project_copy(),
+                    "Save .boardstudio project"
+                }
+            }
+            RuntimeReportBanner {}
+        }
+    }
+}

@@ -1,5 +1,5 @@
 //! One shell consumer; workspace changes never remount the provider or drain a result twice.
-use super::{Runtime, RuntimeReportBanner};
+use super::Runtime;
 use boardstudio_web_ui_shared::ui::toast::{ToastOptions, ToastProvider, use_toast};
 use dioxus::prelude::*;
 use std::rc::Rc;
@@ -142,5 +142,24 @@ mod tests {
         assert!(all_by_role_name(&root, "status", failure).is_empty());
         assert!(runtime.take_notifications().is_empty());
         root.remove();
+    }
+}
+
+#[component]
+pub(crate) fn RuntimeReportBanner() -> Element {
+    let runtime = use_context::<Rc<Runtime>>();
+    let version = use_context::<Signal<u64>>();
+    let _ = version();
+    let alert = runtime.status_is_alert();
+    let status = runtime.status();
+    rsx! {
+        if !runtime.status_is_transient() && (alert || status != "Saved locally.") {
+            p {
+                role: if alert { "alert" } else { "status" },
+                "aria-live": if alert { "assertive" } else { "polite" },
+                class: "m-0 flex-none truncate border-t border-border bg-card px-3 py-[5px] text-xs text-muted-foreground",
+                "{status}"
+            }
+        }
     }
 }
