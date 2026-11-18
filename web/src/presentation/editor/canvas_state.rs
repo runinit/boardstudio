@@ -371,3 +371,117 @@ pub(super) fn use_inspector_projections(
         canvas_aria_label,
     }
 }
+
+// GROUPING: allow until the Editor rewrite lands; remove then.
+#[allow(dead_code)]
+pub(super) struct CanvasNamed {
+    pub selection: CanvasSelectionState,
+    pub inspector: InspectorProjections,
+}
+
+// GROUPING: allow until the Editor rewrite lands; remove then.
+#[allow(dead_code)]
+pub(super) fn use_canvas_bundle(
+    setup_a: &super::setup_shell::SetupA,
+    views: &super::setup_workspaces::Views,
+    cam: &super::camera::CamNamed,
+    snapshot: &AcceptedSnapshot,
+    render_scope: &Scope,
+) -> CanvasNamed {
+    let adapter = &setup_a.adapter;
+    let model = &setup_a.model;
+    let layer_visibility = setup_a.layer_visibility;
+    let canvas_source = &cam.scene_bounds.canvas_source;
+    let accepted_canvas_source = &cam.scene_bounds.accepted_canvas_source;
+    let document = &views.document;
+    let active_workspace = setup_a.active_workspace;
+    let layout_snap_settings = setup_a.layout_snap_settings;
+    let layout_owner = &setup_a.layout_owner;
+    let layout_assembly_3d = setup_a.layout_assembly_3d;
+    let layout_state = setup_a.layout_state;
+    let layout_component_inspector_lifetime = &setup_a.layout_component_inspector_lifetime;
+    let accepted_token = setup_a.accepted_token;
+    let current_scope = &setup_a.current_scope;
+    let render_generation = setup_a.render_generation;
+    let board_inspector = &setup_a.board_inspector;
+    let matrix_inspector = &setup_a.matrix_inspector;
+    let key_size = &setup_a.key_size;
+    let matrix_transform_inspector = &setup_a.matrix_transform_inspector;
+    let outline_inspector = &setup_a.outline_inspector;
+    let zoom_surface_size = cam.svg_surface.zoom_surface_size;
+    let runtime = &setup_a.runtime;
+    let svg = &cam.svg_surface.svg;
+    let part_placement = &cam.placement.part_placement;
+    let matrix_placement = &setup_a.matrix_placement;
+    let spacing_ghost_state = setup_a.spacing_ghost_state;
+    let CanvasSelectionState {
+        selected_tree_context,
+        canvas_anchor_badge,
+        spacing_ghost_prop,
+        layout_transform_target,
+        part_rail_selection,
+        part_rail_snap,
+    } = use_canvas_selection_state(CanvasSelectionStateInput {
+        adapter: adapter.clone(),
+        render_scope: render_scope.clone(),
+        model,
+        layer_visibility,
+        canvas_source: canvas_source.clone(),
+        spacing_ghost_state,
+        snapshot,
+        accepted_canvas_source: accepted_canvas_source.clone(),
+        document: document.clone(),
+        active_workspace,
+        layout_snap_settings,
+        layout_owner: layout_owner.clone(),
+        layout_assembly_3d,
+        layout_state,
+    });
+    let InspectorProjections {
+        component_inspector,
+        companion_placement,
+        board_inspector_projection,
+        show_position_inspector,
+        context_summary,
+        mount,
+        canvas_aria_label,
+    } = use_inspector_projections(InspectorProjectionsInput {
+        model,
+        active_workspace,
+        selected_tree_context: selected_tree_context.clone(),
+        layout_component_inspector_lifetime: layout_component_inspector_lifetime.clone(),
+        adapter: adapter.clone(),
+        accepted_token,
+        current_scope: current_scope.clone(),
+        render_generation,
+        board_inspector: board_inspector.clone(),
+        matrix_inspector: matrix_inspector.clone(),
+        key_size: key_size.clone(),
+        matrix_transform_inspector: matrix_transform_inspector.clone(),
+        outline_inspector: outline_inspector.clone(),
+        zoom_surface_size,
+        runtime: runtime.clone(),
+        svg: svg.clone(),
+        part_placement: part_placement.clone(),
+        matrix_placement: matrix_placement.clone(),
+    });
+    CanvasNamed {
+        selection: CanvasSelectionState {
+            selected_tree_context,
+            canvas_anchor_badge,
+            spacing_ghost_prop,
+            layout_transform_target,
+            part_rail_selection,
+            part_rail_snap,
+        },
+        inspector: InspectorProjections {
+            component_inspector,
+            companion_placement,
+            board_inspector_projection,
+            show_position_inspector,
+            context_summary,
+            mount,
+            canvas_aria_label,
+        },
+    }
+}

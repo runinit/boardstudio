@@ -627,3 +627,225 @@ pub(super) fn use_placement_bindings(input: PlacementBindingsInput<'_>) -> Place
         observed_interaction_version,
     }
 }
+
+// GROUPING: allow until the Editor rewrite lands; remove then.
+#[allow(dead_code)]
+pub(super) struct CamNamed {
+    pub svg_surface: SvgSurface,
+    pub scene_bounds: SceneBounds,
+    pub footer_bounds: FooterBounds,
+    pub placement: PlacementBindings,
+}
+
+// GROUPING: allow until the Editor rewrite lands; remove then.
+#[allow(dead_code)]
+// Unnameable handler tuple cannot be factored; &Vec keeps .clone() verbatim.
+#[allow(clippy::type_complexity, clippy::ptr_arg)]
+pub(super) fn use_camera_bundle(
+    setup_a: &super::setup_shell::SetupA,
+    setup_b: &super::setup_shell::SetupB,
+    views: &super::setup_workspaces::Views,
+    snapshot: &AcceptedSnapshot,
+    render_scope: &Scope,
+    visible: &Vec<&Part>,
+    matrix_setup: &mut objects::MatrixSetupMount,
+) -> (
+    CamNamed,
+    impl FnMut(()) + 'static,
+    impl FnMut(()) + 'static,
+    impl FnMut(()) + 'static,
+    impl FnMut(()) + 'static,
+) {
+    let runtime = &setup_a.runtime;
+    let adapter = &setup_a.adapter;
+    let workspace = setup_a.workspace;
+    let layout_owner = &setup_a.layout_owner;
+    let model = &setup_a.model;
+    let document = &views.document;
+    let scene = &views.scene;
+    let active_workspace = setup_a.active_workspace;
+    let keymap_view = &setup_b.keymap_view;
+    let keymap_contours = &setup_b.keymap_contours;
+    let keycaps_view = &setup_b.keycaps_view;
+    let keycaps_contours = &setup_b.keycaps_contours;
+    let layout_assembly_3d = setup_a.layout_assembly_3d;
+    let version = setup_a.version;
+    let layout_selection_kind = setup_a.layout_selection_kind;
+    let guide_preferences = setup_a.guide_preferences;
+    let parts_query = setup_a.parts_query;
+    let parts_selection = setup_a.parts_selection;
+    let layout_snap_settings = setup_a.layout_snap_settings;
+    let layout_target = setup_a.layout_target;
+    let objects_open = setup_a.objects_open;
+    let inspect_open = setup_a.inspect_open;
+    let canvas_interaction = &setup_a.canvas_interaction;
+    let mirrored_pair = &setup_a.mirrored_pair;
+    let canvas_navigation = &setup_a.canvas_navigation;
+    let render_generation = setup_a.render_generation;
+    let SvgSurface {
+        svg,
+        zoom_surface_size,
+    } = use_svg_surface(canvas_navigation, workspace);
+
+    let SceneBounds {
+        accepted_canvas_source,
+        canvas_source,
+        displayed_layout_bounds,
+        workspace_rect_bounds,
+        bounds,
+        min_x,
+        max_x,
+        min_y,
+        max_y,
+        keymap_scale_ratio,
+        zoom_percent,
+        width,
+        height,
+        view_x,
+        view_y,
+        view_box,
+    } = use_scene_bounds(SceneBoundsInput {
+        model,
+        snapshot,
+        document: document.clone(),
+        scene: scene.clone(),
+        render_scope: render_scope.clone(),
+        active_workspace,
+        keymap_view: keymap_view.clone(),
+        keymap_contours: keymap_contours.clone(),
+        keycaps_view: keycaps_view.clone(),
+        keycaps_contours: keycaps_contours.clone(),
+        visible: visible.clone(),
+        layout_assembly_3d,
+        svg: svg.clone(),
+        zoom_surface_size,
+    });
+    let FooterBounds {
+        footer_camera_bounds,
+        footer_board_bounds,
+        footer_selection_bounds,
+        footer_selection_available,
+    } = footer_bounds(FooterBoundsInput {
+        min_x,
+        max_x,
+        min_y,
+        max_y,
+        workspace_rect_bounds,
+        displayed_layout_bounds,
+        active_workspace,
+        keymap_view: keymap_view.clone(),
+        document: document.clone(),
+        scene: scene.clone(),
+        board_id: render_scope.board_id.clone(),
+        model,
+    });
+    let on_fit_keymap_board = on_fit_keymap_board_handler(
+        layout_owner.clone(),
+        runtime.clone(),
+        workspace,
+        adapter.clone(),
+        svg.clone(),
+        footer_board_bounds,
+        footer_camera_bounds,
+    );
+    let on_fit_keymap_selection = on_fit_keymap_selection_handler(OnFitKeymapSelectionInput {
+        layout_owner: layout_owner.clone(),
+        runtime: runtime.clone(),
+        workspace,
+        adapter: adapter.clone(),
+        svg: svg.clone(),
+        footer_camera_bounds,
+        selection_ids: model.selected_part_ids.clone(),
+        footer_selection_bounds,
+    });
+    let mut zoom_keymap = zoom_keymap_handler(ZoomKeymapInput {
+        zoom_runtime: runtime.clone(),
+        zoom_workspace: workspace,
+        zoom_scope: render_scope.clone(),
+        zoom_owner: layout_owner.clone(),
+        zoom_adapter: adapter.clone(),
+        zoom_svg: svg.clone(),
+        zoom_token: snapshot.token,
+        zoom_revision: snapshot.document.revision,
+        zoom_ratio: keymap_scale_ratio,
+        zoom_bounds: bounds,
+        zoom_view: (view_x, view_y, width, height),
+        render_generation,
+    });
+    let mut zoom_out = zoom_keymap.clone();
+    let on_zoom_keymap_out = move |_| zoom_out(-1.0);
+    let on_zoom_keymap_in = move |_| zoom_keymap(1.0);
+    let PlacementBindings {
+        part_placement,
+        drag,
+        space_down,
+        interaction_version,
+        observed_interaction_version,
+    } = use_placement_bindings(PlacementBindingsInput {
+        min_x,
+        max_x,
+        min_y,
+        max_y,
+        camera_center: model.camera.center,
+        runtime: runtime.clone(),
+        workspace,
+        adapter: adapter.clone(),
+        version,
+        layout_selection_kind,
+        guide_preferences,
+        parts_query,
+        parts_selection,
+        layout_snap_settings,
+        layout_target,
+        objects_open,
+        inspect_open,
+        canvas_interaction: canvas_interaction.clone(),
+        matrix_setup: &mut *matrix_setup,
+        mirrored_pair: mirrored_pair.clone(),
+        svg: svg.clone(),
+        canvas_navigation,
+    });
+    (
+        CamNamed {
+            svg_surface: SvgSurface {
+                svg,
+                zoom_surface_size,
+            },
+            scene_bounds: SceneBounds {
+                accepted_canvas_source,
+                canvas_source,
+                displayed_layout_bounds,
+                workspace_rect_bounds,
+                bounds,
+                min_x,
+                max_x,
+                min_y,
+                max_y,
+                keymap_scale_ratio,
+                zoom_percent,
+                width,
+                height,
+                view_x,
+                view_y,
+                view_box,
+            },
+            footer_bounds: FooterBounds {
+                footer_camera_bounds,
+                footer_board_bounds,
+                footer_selection_bounds,
+                footer_selection_available,
+            },
+            placement: PlacementBindings {
+                part_placement,
+                drag,
+                space_down,
+                interaction_version,
+                observed_interaction_version,
+            },
+        },
+        on_fit_keymap_board,
+        on_fit_keymap_selection,
+        on_zoom_keymap_out,
+        on_zoom_keymap_in,
+    )
+}

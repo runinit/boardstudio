@@ -625,3 +625,260 @@ pub(super) fn on_pcb_part_hit_handler(
         );
     }
 }
+
+// GROUPING: allow until the Editor rewrite lands; remove then.
+#[allow(dead_code)]
+pub(super) struct SelHandlersNamed {
+    pub on_open_module_placement: EventHandler<String>,
+    pub on_module_attached: EventHandler<parts::AttachedModuleNavigation>,
+}
+
+// GROUPING: allow until the Editor rewrite lands; remove then.
+#[allow(dead_code)]
+// Unnameable handler tuple cannot be factored into a type alias.
+#[allow(clippy::type_complexity)]
+pub(super) fn build_selection_handlers(
+    setup_a: &super::setup_shell::SetupA,
+    snapshot: &AcceptedSnapshot,
+    render_scope: &Scope,
+    workspace_routing: WorkspaceRoutingSlots,
+) -> (
+    SelHandlersNamed,
+    impl FnMut(objects::TreeSelectRequest) + 'static,
+    impl FnMut(objects::LayoutSelectionKind) + 'static,
+    impl FnMut(objects::LayoutSnapIntent) + 'static,
+    impl FnMut(objects::LayoutSelectionKind) + 'static,
+    impl FnMut(objects::LayoutSnapIntent) + 'static,
+    impl FnMut(String) + Clone + 'static,
+    impl FnMut(String) + Clone + 'static,
+    impl FnMut(pcb_scene::PcbPartHit) + 'static,
+    impl FnMut(String) + 'static,
+    impl FnMut(()) + 'static,
+    impl FnMut(case_workspace::TreeAction) + 'static,
+    impl FnMut(case_workspace::DisplayRequest) + 'static,
+    impl FnMut(String) + 'static,
+    impl FnMut(()) + 'static,
+    impl FnMut(objects::TreeNudgeRequest) + 'static,
+) {
+    let runtime = &setup_a.runtime;
+    let adapter = &setup_a.adapter;
+    let workspace = setup_a.workspace;
+    let render_generation = setup_a.render_generation;
+    let inspect_open = setup_a.inspect_open;
+    let tree_cell_anchor = &setup_a.tree_cell_anchor;
+    let objects_open = setup_a.objects_open;
+    let instance_selection = setup_a.instance_selection;
+    let layout_owner = &setup_a.layout_owner;
+    let inspector_panel_settings = setup_a.inspector_panel_settings;
+    let parts_selection = setup_a.parts_selection;
+    let layout_state = setup_a.layout_state;
+    let keymap_layer_id = setup_a.keymap_layer_id;
+    let outline_activation = setup_a.outline_activation;
+    let layout_selection_kind = setup_a.layout_selection_kind;
+    let layout_snap_settings = setup_a.layout_snap_settings;
+    let objects_panel_settings = setup_a.objects_panel_settings;
+    let parts_selection_generation = setup_a.parts_selection_generation;
+    let parts_state = setup_a.parts_state;
+    let case_workspace_state = setup_a.case_workspace_state;
+    let keymap_state = setup_a.keymap_state;
+    let select_tree = select_tree_handler(SelectTreeInput {
+        runtime: runtime.clone(),
+        adapter: adapter.clone(),
+        owner: layout_owner.clone(),
+        tree_cell_anchor: tree_cell_anchor.clone(),
+        generation: render_generation,
+        workspace,
+        inspector_settings: inspector_panel_settings,
+        objects_open,
+        inspect_open,
+        layout_state,
+        outline_activation,
+    });
+    let on_layout_selection_kind = on_layout_selection_kind_handler(OnLayoutSelectionKindInput {
+        runtime: runtime.clone(),
+        adapter: adapter.clone(),
+        owner: layout_owner.clone(),
+        tree_cell_anchor: tree_cell_anchor.clone(),
+        objects_open,
+        inspect_open,
+        selection_kind: layout_selection_kind,
+        workspace,
+        inspector_panel_settings,
+    });
+    let on_layout_snap_intent = on_layout_snap_intent_handler(
+        runtime.clone(),
+        adapter.clone(),
+        layout_owner.clone(),
+        layout_snap_settings,
+        workspace,
+    );
+    let on_pcb_selection_kind = on_pcb_selection_kind_handler(OnPcbSelectionKindInput {
+        runtime: runtime.clone(),
+        adapter: adapter.clone(),
+        owner: layout_owner.clone(),
+        tree_cell_anchor: tree_cell_anchor.clone(),
+        objects_open,
+        inspect_open,
+        selection_kind: layout_selection_kind,
+        workspace,
+        inspector_panel_settings,
+    });
+    let on_pcb_snap_intent = on_pcb_snap_intent_handler(
+        runtime.clone(),
+        adapter.clone(),
+        layout_owner.clone(),
+        layout_snap_settings,
+        workspace,
+    );
+    let on_keymap_select = on_keymap_select_handler(OnKeymapSelectInput {
+        runtime: runtime.clone(),
+        adapter: adapter.clone(),
+        scope: render_scope.clone(),
+        generation: render_generation,
+        objects_open,
+        inspect_open,
+        workspace,
+        keymap_layer_id,
+    });
+    let on_keycaps_select = on_keycaps_select_handler(OnKeycapsSelectInput {
+        runtime: runtime.clone(),
+        adapter: adapter.clone(),
+        scope: render_scope.clone(),
+        generation: render_generation,
+        objects_open,
+        inspect_open,
+        workspace,
+        instance_selection,
+    });
+    let on_pcb_part_hit = on_pcb_part_hit_handler(OnPcbPartHitInput {
+        runtime: runtime.clone(),
+        adapter: adapter.clone(),
+        scope: render_scope.clone(),
+        generation: render_generation,
+        token: snapshot.token,
+        owner: layout_owner.clone(),
+        tree_cell_anchor: tree_cell_anchor.clone(),
+        workspace,
+        instance_selection,
+        layout_selection_kind,
+    });
+    let on_mounted_module_select = super::action_handlers::on_mounted_module_select_handler(
+        super::action_handlers::OnMountedModuleSelectInput {
+            runtime: runtime.clone(),
+            adapter: adapter.clone(),
+            scope: render_scope.clone(),
+            generation: render_generation,
+            token: snapshot.token,
+            revision: snapshot.document.revision,
+            inspect_open,
+            workspace,
+            instance_selection,
+            parts_state,
+            objects_open,
+            objects_panel_settings,
+        },
+    );
+    let on_open_module_placement = super::action_handlers::on_open_module_placement_handler(
+        super::action_handlers::OnOpenModulePlacementInput {
+            runtime: runtime.clone(),
+            adapter: adapter.clone(),
+            scope: render_scope.clone(),
+            generation: render_generation,
+            token: snapshot.token,
+            revision: snapshot.document.revision,
+            workspace,
+            objects_open,
+            inspect_open,
+            instance_selection,
+            parts_selection,
+        },
+    );
+    let on_module_attached = super::action_handlers::on_module_attached_handler(
+        super::action_handlers::OnModuleAttachedInput {
+            runtime: runtime.clone(),
+            adapter: adapter.clone(),
+            workspace,
+            objects_open,
+            inspect_open,
+            parts_selection_generation,
+            parts_selection,
+            instance_selection,
+        },
+    );
+    let on_pcb_wiring_edit_board = super::action_handlers::on_pcb_wiring_edit_board_handler(
+        runtime.clone(),
+        adapter.clone(),
+        render_scope.clone(),
+        render_generation,
+        snapshot.token,
+        workspace,
+        instance_selection,
+    );
+    let case_admission = super::action_handlers::case_admission(
+        runtime.clone(),
+        adapter.clone(),
+        case_workspace_state,
+        instance_selection,
+        render_scope.clone(),
+        snapshot.token,
+        render_generation,
+    );
+    let on_case_action = super::action_handlers::on_case_action_handler(
+        case_admission.clone(),
+        workspace_routing.navigate,
+        workspace,
+        case_workspace_state,
+    );
+    let on_case_display = super::action_handlers::on_case_display_handler(
+        case_admission,
+        workspace,
+        case_workspace_state,
+    );
+    let on_keymap_layer = super::action_handlers::on_keymap_layer_handler(
+        runtime.clone(),
+        adapter.clone(),
+        render_scope.clone(),
+        render_generation,
+        workspace,
+        keymap_state,
+    );
+    let on_keymap_export = super::action_handlers::on_keymap_export_handler(
+        super::action_handlers::OnKeymapExportInput {
+            runtime: runtime.clone(),
+            adapter: adapter.clone(),
+            scope: render_scope.clone(),
+            token: snapshot.token,
+            revision: snapshot.document.revision,
+            generation: render_generation,
+            workspace,
+            instance_selection,
+        },
+    );
+    let nudge_tree = super::action_handlers::nudge_tree_handler(
+        runtime.clone(),
+        adapter.clone(),
+        render_generation,
+        inspect_open,
+    );
+    (
+        SelHandlersNamed {
+            on_open_module_placement,
+            on_module_attached,
+        },
+        select_tree,
+        on_layout_selection_kind,
+        on_layout_snap_intent,
+        on_pcb_selection_kind,
+        on_pcb_snap_intent,
+        on_keymap_select,
+        on_keycaps_select,
+        on_pcb_part_hit,
+        on_mounted_module_select,
+        on_pcb_wiring_edit_board,
+        on_case_action,
+        on_case_display,
+        on_keymap_layer,
+        on_keymap_export,
+        nudge_tree,
+    )
+}

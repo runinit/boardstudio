@@ -776,3 +776,145 @@ pub(super) fn wheel_handler(input: WheelInput) -> impl FnMut(WheelEvent) + Clone
         let _ = window.request_animation_frame(callback.unchecked_ref());
     }
 }
+
+// GROUPING: allow until the Editor rewrite lands; remove then.
+#[allow(dead_code)]
+// Unnameable handler tuple cannot be factored into a type alias.
+#[allow(clippy::type_complexity)]
+pub(super) fn build_keyboard_bundle(
+    setup_a: &super::setup_shell::SetupA,
+    cam: &super::camera::CamNamed,
+    snapshot: &AcceptedSnapshot,
+    render_scope: &Scope,
+) -> (
+    impl FnMut(KeyboardEvent) + Clone + 'static,
+    impl FnMut(KeyboardEvent) + Clone + 'static,
+    impl FnMut(PointerEvent) + Clone + 'static,
+    impl FnMut(pcb_scene::PcbPartPointerDown) + 'static,
+    impl FnMut(PointerEvent) + 'static,
+    impl FnMut(WheelEvent) + Clone + 'static,
+) {
+    let runtime = &setup_a.runtime;
+    let drag = &cam.placement.drag;
+    let svg = &cam.svg_surface.svg;
+    let space_down = &cam.placement.space_down;
+    let mirrored_pair = &setup_a.mirrored_pair;
+    let part_placement = &cam.placement.part_placement;
+    let matrix_placement = &setup_a.matrix_placement;
+    let canvas_interaction = &setup_a.canvas_interaction;
+    let layout_snap_settings = setup_a.layout_snap_settings;
+    let pending_splay_origin_pick = setup_a.pending_splay_origin_pick;
+    let pending_anchor_pick = setup_a.pending_anchor_pick;
+    let matrix_transform_inspector = &setup_a.matrix_transform_inspector;
+    let interaction_version = cam.placement.interaction_version;
+    let canvas_navigation = &setup_a.canvas_navigation;
+    let adapter = &setup_a.adapter;
+    let layout_owner = &setup_a.layout_owner;
+    let workspace = setup_a.workspace;
+    let view_x = cam.scene_bounds.view_x;
+    let view_y = cam.scene_bounds.view_y;
+    let width = cam.scene_bounds.width;
+    let height = cam.scene_bounds.height;
+    let render_generation = setup_a.render_generation;
+    let instance_selection = setup_a.instance_selection;
+    let layout_selection_kind = setup_a.layout_selection_kind;
+    let keymap_scale_ratio = cam.scene_bounds.keymap_scale_ratio;
+    let min_x = cam.scene_bounds.min_x;
+    let max_x = cam.scene_bounds.max_x;
+    let min_y = cam.scene_bounds.min_y;
+    let max_y = cam.scene_bounds.max_y;
+    let tree_cell_anchor = &setup_a.tree_cell_anchor;
+    let keyboard = keyboard_handler(KeyboardInput {
+        runtime: runtime.clone(),
+        drag: drag.clone(),
+        svg: svg.clone(),
+        render_scope: render_scope.clone(),
+        space_down: space_down.clone(),
+        mirrored_pair: mirrored_pair.clone(),
+        placement: part_placement.clone(),
+        matrix_placement: matrix_placement.clone(),
+        canvas_interaction: canvas_interaction.clone(),
+        snap_settings: layout_snap_settings,
+        pending_splay_pick: pending_splay_origin_pick,
+        pending_anchor_pick,
+        transform_inspector: matrix_transform_inspector.clone(),
+        interaction_version,
+    });
+    let key_up = key_up_handler(canvas_navigation.clone());
+    let start_pan = start_pan_handler(StartPanInput {
+        navigation: canvas_navigation.clone(),
+        render_scope: render_scope.clone(),
+        render_generation,
+        runtime: runtime.clone(),
+        svg: svg.clone(),
+        adapter: adapter.clone(),
+        mirrored_pair: mirrored_pair.clone(),
+        canvas_interaction: canvas_interaction.clone(),
+        pending_splay_pick: pending_splay_origin_pick,
+        transform_inspector: matrix_transform_inspector.clone(),
+        layout_owner_for_pick: layout_owner.clone(),
+        workspace,
+        view_x,
+        view_y,
+        width,
+        height,
+    });
+    let on_pcb_part_pointer_down = on_pcb_part_pointer_down_handler(OnPcbPartPointerDownInput {
+        runtime: runtime.clone(),
+        adapter: adapter.clone(),
+        svg: svg.clone(),
+        drag: drag.clone(),
+        owner: layout_owner.clone(),
+        scope: render_scope.clone(),
+        accepted_token: snapshot.token,
+        accepted_revision: snapshot.document.revision,
+        generation: render_generation,
+        navigation: canvas_navigation.clone(),
+        space_down: space_down.clone(),
+        tree_cell_anchor: tree_cell_anchor.clone(),
+        canvas_interaction: canvas_interaction.clone(),
+        workspace,
+        view_x,
+        view_y,
+        width,
+        height,
+        instance_selection,
+        layout_selection_kind,
+    });
+    let on_pcb_empty_hit = on_pcb_empty_hit_handler(OnPcbEmptyHitInput {
+        runtime: runtime.clone(),
+        adapter: adapter.clone(),
+        scope: render_scope.clone(),
+        generation: render_generation,
+        token: snapshot.token,
+        space_down: space_down.clone(),
+        drag: drag.clone(),
+        canvas_interaction: canvas_interaction.clone(),
+        workspace,
+        instance_selection,
+    });
+    let wheel = wheel_handler(WheelInput {
+        runtime: runtime.clone(),
+        svg: svg.clone(),
+        scope: render_scope.clone(),
+        adapter: adapter.clone(),
+        render_generation,
+        view_x,
+        view_y,
+        width,
+        height,
+        keymap_scale_ratio,
+        min_x,
+        max_x,
+        min_y,
+        max_y,
+    });
+    (
+        keyboard,
+        key_up,
+        start_pan,
+        on_pcb_part_pointer_down,
+        on_pcb_empty_hit,
+        wheel,
+    )
+}

@@ -1012,3 +1012,99 @@ pub(super) fn moved(drag: &Drag, point: Vec2) -> Vec<Position> {
         })
         .collect()
 }
+
+// GROUPING: allow until the Editor rewrite lands; remove then.
+#[allow(dead_code)]
+pub(super) fn use_pointer_bundle(
+    setup_a: &super::setup_shell::SetupA,
+    cam: &super::camera::CamNamed,
+    render_scope: &Scope,
+) -> (
+    impl FnMut(PointerEvent) + Clone + 'static,
+    impl FnMut(PointerEvent) + Clone + 'static,
+    impl FnMut(PointerEvent) + Clone + 'static,
+) {
+    let canvas_navigation = &setup_a.canvas_navigation;
+    let runtime = &setup_a.runtime;
+    let svg = &cam.svg_surface.svg;
+    let drag = &cam.placement.drag;
+    let adapter = &setup_a.adapter;
+    let layout_owner = &setup_a.layout_owner;
+    let layout_snap_settings = setup_a.layout_snap_settings;
+    let part_placement = &cam.placement.part_placement;
+    let matrix_placement = &setup_a.matrix_placement;
+    let tree_cell_anchor = &setup_a.tree_cell_anchor;
+    let mirrored_pair = &setup_a.mirrored_pair;
+    let canvas_interaction = &setup_a.canvas_interaction;
+    let workspace = setup_a.workspace;
+    let view_x = cam.scene_bounds.view_x;
+    let view_y = cam.scene_bounds.view_y;
+    let width = cam.scene_bounds.width;
+    let height = cam.scene_bounds.height;
+    let render_generation = setup_a.render_generation;
+    let interaction_version = cam.placement.interaction_version;
+    let active_workspace = setup_a.active_workspace;
+    let space_down = &cam.placement.space_down;
+    let move_pointer = move_pointer_handler(MovePointerInput {
+        navigation: canvas_navigation.clone(),
+        runtime: runtime.clone(),
+        svg: svg.clone(),
+        drag: drag.clone(),
+        adapter: adapter.clone(),
+        render_scope: render_scope.clone(),
+        owner: layout_owner.clone(),
+        snap_settings: layout_snap_settings,
+        placement: part_placement.clone(),
+        matrix_placement: matrix_placement.clone(),
+        tree_cell_anchor: tree_cell_anchor.clone(),
+        mirrored_pair: mirrored_pair.clone(),
+        canvas_interaction: canvas_interaction.clone(),
+        workspace,
+        view_x,
+        view_y,
+        width,
+        height,
+        render_generation,
+    });
+    let end_pointer = end_pointer_handler(EndPointerInput {
+        navigation: canvas_navigation.clone(),
+        runtime: runtime.clone(),
+        svg: svg.clone(),
+        drag: drag.clone(),
+        adapter: adapter.clone(),
+        owner: layout_owner.clone(),
+        placement: part_placement.clone(),
+        matrix_placement: matrix_placement.clone(),
+        snap_settings: layout_snap_settings,
+        render_scope: render_scope.clone(),
+        canvas_interaction: canvas_interaction.clone(),
+        workspace,
+        view_x,
+        view_y,
+        width,
+        height,
+        render_generation,
+        interaction_version,
+    });
+    let cancel_pointer = cancel_pointer_handler(CancelPointerInput {
+        runtime: runtime.clone(),
+        svg: svg.clone(),
+        drag: drag.clone(),
+        placement: part_placement.clone(),
+        matrix_placement: matrix_placement.clone(),
+        render_scope: render_scope.clone(),
+        canvas_interaction: canvas_interaction.clone(),
+        render_generation,
+        interaction_version,
+    });
+    use_pointer_workspace_effect(
+        active_workspace,
+        runtime.clone(),
+        drag.clone(),
+        svg.clone(),
+        space_down.clone(),
+        render_scope.clone(),
+        interaction_version,
+    );
+    (move_pointer, end_pointer, cancel_pointer)
+}
