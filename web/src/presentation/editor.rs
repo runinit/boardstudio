@@ -12,6 +12,8 @@ mod setup_guide_state;
 mod setup_shell;
 mod setup_workspaces;
 mod toolbar_inputs;
+mod view;
+mod view_scene;
 mod workspace_inputs;
 
 /// Ticket 18: the ghost of the previous spacing lives here, in the Editor,
@@ -57,7 +59,7 @@ pub(super) fn Editor() -> Element {
         spacing_ghost_state,
         layout_snap_settings,
         layout_command_menu,
-        mut layout_transform_tool,
+        layout_transform_tool,
         layout_assembly_3d,
         tree_cell_anchor,
         matrix_inspector,
@@ -1324,7 +1326,7 @@ pub(super) fn Editor() -> Element {
             guide_adapter: adapter.clone(),
             guide_runtime: runtime.clone(),
         });
-    let (mut full_case_settings, on_open_workspace) =
+    let (full_case_settings, on_open_workspace) =
         setup_guide_state::use_on_open_workspace(setup_guide_state::OnOpenWorkspaceArgs {
             guide_workspace_for_action: workspace,
             guide_adapter_for_action: adapter.clone(),
@@ -1447,627 +1449,184 @@ pub(super) fn Editor() -> Element {
         section { class: "flex min-h-0 flex-1 flex-col", "aria-label": "Keyboard editor",
             div { class: if active_workspace == "Export" { "dock-desk relative flex min-h-0 flex-1 flex-row gap-2 overflow-hidden bg-background p-2 [&_[id=workspace-panel-sheet]]:hidden!" } else { "dock-desk relative flex min-h-0 flex-1 flex-row gap-2 overflow-hidden bg-background p-2" },
                 DockLayout {
-                    objects: if guide.is_none() { Some(rsx! {
-                ObjectsPanel { compact_open: objects_open, settings: objects_panel_settings,
-                    header_action: if active_workspace == "Layout" {
-                        Some(layout_workspace::add_object_header_action(layout_state.add_object_menu_open()))
-                    } else { None },
-                    div { class: "min-h-0 min-w-0 flex-[1_1_auto] overflow-x-hidden overflow-y-auto",
-                    {workspace_composition::objects(objects_input)}
-                    }
-                    div { class: "relative mt-auto min-w-0 flex-none border-t border-border max-[760px]:[&_button]:min-h-control-touch [&>[data-slot=collapsible]]:overflow-visible [&_[id=m1-layers-list]]:absolute [&_[id=m1-layers-list]]:bottom-full [&_[id=m1-layers-list]]:left-0 [&_[id=m1-layers-list]]:z-30 [&_[id=m1-layers-list]]:w-full [&_[id=m1-layers-list]]:max-h-[min(65vh,520px)] [&_[id=m1-layers-list]]:overflow-auto [&_[id=m1-layers-list]]:rounded-t-xl [&_[id=m1-layers-list]]:border [&_[id=m1-layers-list]]:border-border-strong [&_[id=m1-layers-list]]:bg-card [&_[id=m1-layers-list]]:p-3",
-                        if active_workspace == "Layout" && !layout_assembly_3d() {
-                            CanvasLayers {
-                                initially_open: false,
-                                trigger_label: "Canvas visibility".to_owned(),
-                                trigger_id: String::from("m1-layers-trigger"),
-                                list_id: String::from("m1-layers-list"),
-                                groups: canvas_layers::layout_groups(),
-                            }
-                        }
-                        if active_workspace == "PCB" {
-                            pcb_layers::PcbLayerControls { initially_open: false, snapshot: snapshot.clone(), scope: render_scope.clone() }
-                        }
-                        boardstudio_web_ui_shared::layer_dock::LayerDockOutlet {}
-                    }
-                    if active_workspace == "Layout" && !layout_assembly_3d() {
-                        objects::LayoutSnapDock {
-                            settings: layout_snap_settings.read().clone(),
-                            open_menu: layout_command_menu,
-                            on_snap_intent: layout_snap_intent,
-                            handles_visible: layout_state.transform_handles()(),
-                            on_toggle_handles: EventHandler::new(move |visible| layout_state.transform_handles().set(visible)),
-                        }
-                    }
+                    objects: view::objects_panel(view::ObjectsPanelInput {
+                        guide_none: guide.is_none(),
+                        objects_open,
+                        objects_panel_settings,
+                        active_workspace,
+                        layout_state,
+                        objects_input,
+                        layout_assembly_3d,
+                        snapshot,
+                        render_scope: render_scope.clone(),
+                        layout_snap_settings,
+                        layout_command_menu,
+                        layout_snap_intent,
+                    }),
+                    inspector: view::inspector_panel(view::InspectorPanelInput {
+                        guide_none: guide.is_none(),
+                        has_inspector,
+                        inspect_open,
+                        inspector_panel_settings,
+                        active_workspace,
+                        layout_findings,
+                        document: document.clone(),
+                        findings: &findings,
+                        render_scope: render_scope.clone(),
+                        snapshot,
+                        render_generation,
+                        on_close_layout_findings,
+                        on_layout_finding,
+                        inspector_input,
+                    }),
                 }
-                    }) } else { None },
-                    inspector: if has_inspector && guide.is_none() { Some(rsx! {
-                    InspectorPanel { compact_open: inspect_open, settings: inspector_panel_settings,
-                        if active_workspace != "Layout" && (layout_findings.open)() {
-                            layout_findings::LayoutFindingsInspector {
-                                open: true,
-                                document: Rc::new(document.as_ref().clone()),
-                                findings: findings.clone(),
-                                source: layout_findings::Source {
-                                    workspace: active_workspace,
-                                    scope: render_scope.clone(),
-                                    token: snapshot.token,
-                                    revision: snapshot.document.revision,
-                                    generation: render_generation,
-                                },
-                                on_close: on_close_layout_findings,
-                                on_navigate: on_layout_finding,
-                            }
-                        } else {
-                            {workspace_composition::inspector(inspector_input)}
-                        }
-
-                    }
-                    }) } else { None },
-                if guide.is_some() {
-                    section { class: "absolute inset-y-0 left-0 z-24 flex w-[min(380px,calc(100vw-32px))] max-w-[calc(100%-16px)] flex-col overflow-hidden border-r border-border-strong bg-card shadow-[8px_0_24px_rgb(0_0_0/16%)] [&>[role=alert]]:mx-4 [&>[role=alert]]:mt-3 [&>[role=alert]]:text-destructive max-[760px]:z-40 max-[760px]:w-[min(380px,calc(100vw-16px))]", aria_label: "Keyboard setup",
-                    if full_case_settings() && active_workspace == "Case" {
-                        aside { class: "flex min-h-0 flex-1 flex-col bg-card p-4 [&>header]:flex [&>header]:items-center [&>header]:gap-3 [&>header]:pb-4 [&>header_h2]:m-0 [&>header_h2]:text-lg", aria_label: "Full case settings",
-                            header {
-                                Button { variant: ButtonVariant::Secondary,
-                                    class: "max-[960px]:h-control-touch [@media(pointer:coarse)]:h-control-touch",
-                                    aria_label: "Back to setup guide",
-                                    onclick: move |_| full_case_settings.set(false),
-                                    svg { width: "20", height: "20", view_box: "0 0 24 24", fill: "none", stroke: "currentColor", stroke_width: "1.8", "aria-hidden": "true",
-                                        path { d: "M19 12H5m7-7-7 7 7 7" }
-                                    }
-                                    "Back to guide"
-                                }
-                                h2 { "Case settings" }
-                            }
-                            div { class: "min-h-0 overflow-y-auto",
-                                if let Some(settings) = mechanical_settings.props.clone() {
-                                    boardstudio_web_case::mechanical_settings::MechanicalSettings { ..settings }
-                                }
-                            }
-                        }
-                    } else {
-                    if let Some(preferences) = guide.clone() {
-                        if let Some(message) = guide_name_failure() { FieldError { "{message}" } }
-                        setup_guide::ProjectSetupGuide {
-                            stage: preferences.current_stage,
-                            stage_readiness: guide_stage_readiness,
-                            stage_detail: guide_stage_detail,
-                            project_name: name_value,
-                            on_name_change,
-                            on_name_commit,
-                            on_stage_change,
-                            on_open_workspace,
-                            on_open_matrix_setup: Some(matrix_setup.on_open),
-                            matrix_setup: inline_matrix_setup,
-                            case_basics: inline_case_basics,
-                            controller_picker: inline_controller_picker,
-                            has_matrix,
-                            on_choose_controller: Some(part_placement.on_choose_controller),
-                            on_dismiss: on_dismiss_guide,
-                            on_finish: on_finish_guide,
-                            project_controls: if preferences.current_stage
-                                == SetupGuideStage::Project
-                            {
-                                Some(pcb_physical_setup::controller::project_setup_controls(
-                                    physical_setup_mount.clone(),
-                                ))
-                            } else { None },
-                        }
-                    }
-                    }
-                    }
-                }
-                section { class: if setup_guide_active { "relative order-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border-0 bg-card shadow-sm [container:layout-canvas/inline-size] [&>[data-workspace-toolbar]]:hidden" } else if active_workspace == "Export" { "relative order-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-auto rounded-xl border-0 bg-card shadow-sm" } else { "relative order-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border-0 bg-card shadow-sm [container:layout-canvas/inline-size]" }, role: "region", id: "m1-workspace-panel", aria_label: "{active_workspace} workspace",
-                    onfocusin: {
-                        let mut objects_open = objects_open;
-                        let mut inspect_open = inspect_open;
-                        move |_| {
-                        let compact = web_sys::window()
-                            .and_then(|window| window.match_media("(max-width: 760px)").ok().flatten())
-                            .is_some_and(|query| query.matches());
-                        if workspace() == "Case" && compact {
-                            if objects_open() { objects_open.set(false); }
-                            if inspect_open() { inspect_open.set(false); }
-                        }
-                        }
+                {view::guide_panel(
+                    view::GuidePanelInput {
+                        guide: &guide,
+                        full_case_settings,
+                        active_workspace,
+                        mechanical_settings: &mechanical_settings,
+                        guide_name_failure,
+                        guide_stage_readiness,
+                        guide_stage_detail,
+                        name_value,
+                        on_name_change,
+                        on_name_commit,
+                        matrix_setup_on_open: matrix_setup.on_open,
+                        inline_matrix_setup,
+                        inline_case_basics,
+                        inline_controller_picker,
+                        has_matrix,
+                        on_choose_controller: part_placement.on_choose_controller,
+                        physical_setup_mount: &physical_setup_mount,
                     },
-                    if active_workspace == "Layout" {
-                        objects::AddMatrixSurface {
-                            matrix_setup: matrix_setup.clone(),
-                            mirrored_pair: mirrored_pair.clone(),
-                            guide_covering_single: guide.is_some(),
-                        }
-                    }
-                    {workspace_composition::toolbar(toolbar_input)}
-                    if guide.as_ref().is_some_and(|guide| guide.current_stage == SetupGuideStage::Project) {
-                        setup_guide::SetupHardwarePreview {
-                            split: physical_setup_mount.projection.topology == boardstudio_core::model::HardwareTopology::Split,
-                            wired: physical_setup_mount.projection.transport == boardstudio_core::model::HardwareTransport::Wired,
-                        }
-                    } else if matches!(active_workspace, "Layout" | "Keymap" | "Keycaps")
-                        && layout_assembly_3d()
-                    {
-                        layout_viewer::LayoutCanonicalViewer {
-                            on_mounted_module_pick: (active_workspace == "Layout")
-                                .then_some(mounted_module_select),
-                            keycaps_fit: if matches!(active_workspace, "Keymap" | "Keycaps") {
-                                keycaps_fit_state.state.clone()
-                            } else {
-                                None
-                            },
-                            focused_finding: if active_workspace == "Layout" {
-                                focused_keycaps_finding()
-                            } else {
-                                None
-                            },
-                        }
-                    } else if active_workspace == "Layout" {
-                    svg { class: "mt-[76px] block h-[calc(100%-120px)] min-h-0 w-full touch-none bg-canvas max-[760px]:mt-0 max-[760px]:h-full", view_box: "{view_box}", preserve_aspect_ratio: "xMidYMid meet", tabindex: "0", role: "group", "aria-label": "{canvas_aria_label}", onmounted: mount,
-                    onpointerdown: start_pan, onpointermove: move_pointer, onpointerup: end_pointer, onpointercancel: cancel_pointer.clone(), onlostpointercapture: cancel_pointer, onkeydown: keyboard, onkeyup: key_up, onwheel: wheel,
-                    defs {
-                        pattern { id: "m1-layout-grid-small", width: "{canvas_grid.spacing_mm}", height: "{canvas_grid.spacing_mm}", pattern_units: "userSpaceOnUse",
-                            circle { cx: "0", cy: "0", r: "{canvas_grid.radius_mm}", fill: "var(--grid-large)", stroke: "none" }
-                        }
-                    }
-                    rect { x: "{view_x}", y: "{view_y}", width: "{width}", height: "{height}", fill: "url(#m1-layout-grid-small)" }
-                    g { transform: "scale(1,-1)",
-                        if !(layer_visibility.hidden)().contains("Board") {
-                            for contour in scene.board_contours.iter().filter(|b| b.board_id == model.active_board_id).flat_map(|b| &b.contours) {
-                                polygon { points: polygon_points(&contour.points), class: if contour.hole { "fill-canvas stroke-destructive stroke-[0.3] [stroke-dasharray:0.8_0.55]" } else { "fill-geometry-fill stroke-geometry-board stroke-[0.3]" } }
-                            }
-                        }
-                        if let Some(projection) = outline_inspector.clone().filter(|projection| (projection.editing_points)()) {
-                            outline_lifecycle::OutlinePointCanvasOverlay {
-                                key: "{outline_overlay_key.as_deref().unwrap_or_default()}",
-                                projection,
-                                runtime: outline_lifecycle::OutlineRuntimeHandle::new(
-                                    runtime.clone(),
-                                ),
-                                arbiter: canvas_interaction.clone(),
-                                svg: svg.clone(),
-                                view_x,
-                                view_y,
-                                width,
-                                height,
-                                snap_settings: outline_snap_settings.clone(),
-                                pitch: outline_pitch,
-                                origins: outline_snap_origins.as_ref().clone(),
-                            }
-                        }
-                        if let Some(bridge) = selected_bridge {
-                            polygon { points: polygon_points(&bridge.points), class: "pointer-events-none fill-none stroke-primary stroke-[1.25]", "data-outline-bridge": bridge.id.clone() }
-                        }
-                        if !(layer_visibility.hidden)().contains("Keys") {
-                            if let Some(active) = matrix_placement.placement.as_ref() {
-                                {
-                                    let cells = crate::mirrored_pair_geometry::preview_cells(&active.scene, &active.matrix);
-                                    rsx! {
-                                        g {
-                                            class: "pointer-events-none",
-                                            "aria-label": "Matrix placement preview",
-                                            transform: "translate({active.matrix.origin.x} {active.matrix.origin.y})",
-                                            for cell in cells {
-                                                g { key: "{cell.row}-{cell.column}", transform: "translate({cell.center.x} {cell.center.y}) rotate({cell.rotation})",
-                                                    rect { class: "fill-primary/20 stroke-primary stroke-[0.35]", x: "{-cell.size.x / 2.0}", y: "{-cell.size.y / 2.0}", width: "{cell.size.x}", height: "{cell.size.y}", rx: "1" }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            if let Some(active_pair) = mirrored_pair.placement.as_ref() {
-                                {
-                                    let pair = &active_pair.pair;
-                                    let left_cells = crate::mirrored_pair_geometry::preview_cells(&active_pair.left_scene, &pair.matrix);
-                                    let right_cells = crate::mirrored_pair_geometry::preview_cells(&active_pair.right_scene, &pair.right_preview);
-                                    let line_half_height = f64::from(pair.matrix.rows) * pair.matrix.pitch.y / 2.0 + 16.0;
-                                    rsx! {
-                                        g { class: "pointer-events-none", "aria-label": "Mirrored pair placement preview", transform: "translate({pair.center.x} {pair.center.y})",
-                                            line { class: "stroke-primary stroke-[0.35] [stroke-dasharray:2_2]", x1: "0", x2: "0", y1: "{-line_half_height}", y2: "{line_half_height}" }
-                                            for cell in left_cells {
-                                                g { key: "left-{cell.row}-{cell.column}", transform: "translate({cell.center.x} {cell.center.y}) rotate({cell.rotation})",
-                                                    rect { class: "fill-primary/20 stroke-primary stroke-[0.35]", x: "{-cell.size.x / 2.0}", y: "{-cell.size.y / 2.0}", width: "{cell.size.x}", height: "{cell.size.y}", rx: "1" }
-                                                }
-                                            }
-                                            for cell in right_cells {
-                                                g { key: "right-{cell.row}-{cell.column}", transform: "translate({cell.center.x} {cell.center.y}) rotate({cell.rotation})",
-                                                    rect { class: "fill-primary/20 stroke-primary stroke-[0.35]", x: "{-cell.size.x / 2.0}", y: "{-cell.size.y / 2.0}", width: "{cell.size.x}", height: "{cell.size.y}", rx: "1" }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        layout_canvas::Scene {
-                            source: canvas_source,
-                            focused_half: split_focused_half,
-                            preview_active: model.display_preview.is_some(),
-                            accepted_scene: model
-                                .display_preview
-                                .as_ref()
-                                .map(|_| snapshot.scene.clone()),
-                            spacing_ghost: spacing_ghost_prop.clone(),
-                            selected_ids: model.selected_part_ids.clone(),
-                            selected_context: selected_tree_context.clone(),
-                            view_width_world: width,
-                            surface_width_px: zoom_surface_size().0,
-                            anchor_badge: canvas_anchor_badge.clone(),
-                            keys_visible: !(layer_visibility.hidden)().contains("Keys"),
-                            components_visible: !(layer_visibility.hidden)().contains("Components"),
-                            keycaps_visible: !(layer_visibility.hidden)().contains("Keycaps"),
-                            footprints_visible: (layer_visibility.footprints)()
-                                && !(layer_visibility.hidden)().contains("Footprints"),
-                            on_matrix_pointer_down: matrix_pointer_down,
-                            on_part_pointer_down: part_pointer_down,
-                        }
-                        if let Some((x, y, scale)) = selection_geometry_anchor
-                            && let Some(tools) = canvas_transform_menu.clone()
-                            && matrix_transform_inspector.projection.is_some()
-                        {
-                            g {
-                                foreignObject { class: "overflow-visible", transform: "translate({x - 60.0 * scale} {y - 66.0 * scale}) scale({scale} {-scale})", width: "120", height: "44",
-                                objects::SelectionDeleteControl { mount: matrix_transform_inspector.clone() }
-                            }
-                            if !matches!(selected_tree_context.as_ref().map(|selected| &selected.context), Some(objects::TreeContext::Column { .. } | objects::TreeContext::Row { .. })) {
-                            { let runtime = runtime.clone(); let svg = svg.clone(); let drag = drag.clone();
-                                  let owner = layout_owner.clone(); let adapter = adapter.clone();
-                                  let arbiter = canvas_interaction.clone(); let scope = render_scope.clone();
-                                  rsx! {
-                                    g {
-                                        class: "cursor-grab touch-none fill-card stroke-current text-primary outline-none [pointer-events:all] [stroke-width:0.4] active:cursor-grabbing focus-visible:stroke-foreground [&_path]:fill-none",
-                                        transform: "translate({x} {y - 18.0 * scale}) scale({scale * 3.0})",
-                                        role: "button", tabindex: "0", "aria-label": "Move selection",
-                                        "aria-description": "Drag to move. Press Enter to edit the exact position.",
-                                        onkeydown: move |event: KeyboardEvent| {
-                                            if event.key() == Key::Enter || event.key() == Key::Character(" ".into()) {
-                                                event.prevent_default(); event.stop_propagation();
-                                                tools.on_show_properties.call(());
-                                            }
-                                        },
-                                        onpointerdown: move |event: PointerEvent| {
-                                            let Some(pointer) = event.data().try_as_web_event() else { return; };
-                                            if pointer.button() != 0 || arbiter.current().is_some()
-                                                || !layout_owner_is_current(&runtime, workspace, &adapter, &owner)
-                                                || drag.borrow().is_some() || runtime.model().gesture.is_some() { return; }
-                                            pointer.prevent_default(); pointer.stop_propagation();
-                                            let Some(origin) = coordinates(&svg, &pointer, view_x, view_y, width, height) else { return; };
-                                            let current = runtime.model();
-                                            let Some(snapshot) = current.accepted else { return; };
-                                            let positions: Vec<_> = snapshot.document.parts.iter().filter(|p| current.selected_part_ids.contains(&p.id)).map(|p| Position { id: p.id.clone(), at: p.pose.at }).collect();
-                                            if positions.is_empty() { return; }
-                                            if let Some(surface) = svg.borrow().as_ref() {
-                                                let _ = surface.set_pointer_capture(pointer.pointer_id());
-                                                let options = web_sys::FocusOptions::new(); options.set_prevent_scroll(true);
-                                                let _ = surface.focus_with_options(&options);
-                                            }
-                                            *drag.borrow_mut() = Some(Drag { pointer: i64::from(pointer.pointer_id()), scope: scope.clone(), generation: owner.generation, gesture_generation: None, origin, client_x: f64::from(pointer.client_x()), client_y: f64::from(pointer.client_y()), positions, active: false, pan: false, camera: Vec2::default() });
-                                        },
-                                        circle { r: "5" }
-                                        path { d: "M0 -3.2v6.4M-3.2 0h6.4M-1.4 -1.8 0 -3.2l1.4 1.4M-1.4 1.8 0 3.2l1.4 -1.4M-1.8 -1.4-3.2 0l1.4 1.4M1.8 -1.4 3.2 0l-1.4 1.4" }
-                                        title { "Move selection" }
-                                    }
-                                  }
-                                }
-                            }
-                            }
-                        }
-                        if active_workspace == "Layout"
-                            && !layout_assembly_3d()
-                            && let Some((matrix, projection, context)) = layout_transform_target.clone()
-                        {
-                            for tool in layout_canvas::transform_tools(&context, layout_transform_tool(), layout_state.transform_handles()(), None) {
-                            // Ticket 08: the anchored matrix's Anchor token
-                            // arms canvas pick mode instead of a drag; an
-                            // unanchored matrix offers no token.
-                            if tool == objects::LayoutTransformTool::Anchor && matrix.anchor.is_some() {
-                            objects::LayoutAnchorPickOverlay {
-                                key: "{tool:?}",
-                                runtime: objects::LayoutTransformRuntime(runtime.clone()),
-                                svg: objects::LayoutTransformSvg(svg.clone()),
-                                arbiter: canvas_interaction.clone(),
-                                owner: layout_owner.clone(),
-                                selected_context: adapter.selected_context,
-                                scope_generation: adapter.generation,
-                                surface_size: Some(zoom_surface_size),
-                                workspace,
-                                pick_owner: objects::AnchorPickOwner::Matrix {
-                                    matrix: matrix.clone(),
-                                    projection: projection.clone(),
-                                    context: context.clone(),
-                                },
-                                view_x,
-                                view_y,
-                                width,
-                                height,
-                            }
-                            }
-                            if tool != objects::LayoutTransformTool::Anchor {
-                            objects::LayoutTransformToolOverlay {
-                                key: "{tool:?}",
-                                runtime: objects::LayoutTransformRuntime(runtime.clone()),
-                                svg: objects::LayoutTransformSvg(svg.clone()),
-                                arbiter: canvas_interaction.clone(),
-                                owner: layout_owner.clone(),
-                                selected_context: adapter.selected_context,
-                                scope_generation: adapter.generation,
-                                surface_size: Some(zoom_surface_size),
-                                workspace,
-                                matrix: matrix.clone(),
-                                projection: projection.clone(),
-                                context: context.clone(),
-                                tool,
-                                snap_settings: layout_snap_settings.read().clone(),
-                                snap_origins: outline_snap_origins.clone(),
-                                splay_affect: matrix_splay_affect,
-                                view_x,
-                                view_y,
-                                width,
-                                height,
-                                on_finish: EventHandler::new(move |_| layout_transform_tool.set(None)),
-                            }
-                            }
-                            }
-                        }
-                        // Ticket 07: the independent part's own rail. Move and
-                        // Rotate edit the local Offset and Rotation; Spread and
-                        // Stagger edit the values carried from the anchor key.
-                        // The strip above is unchanged: it keeps offering
-                        // Position for a part selection.
-                        if active_workspace == "Layout"
-                            && !layout_assembly_3d()
-                            && let Some((part_id, facts)) = part_rail_selection.clone()
-                            && let Some(selected) = selected_tree_context.clone()
-                            && let Some(part_snap) = part_rail_snap
-                        {
-                            {
-                                let part_context = selected.context.clone();
-                                rsx! {
-                                    for tool in layout_canvas::transform_tools(&part_context, layout_transform_tool(), layout_state.transform_handles()(), Some(facts)) {
-                                    // Ticket 08: the part rail ends in the
-                                    // Anchor token, which arms canvas pick
-                                    // mode instead of a drag.
-                                    if tool == objects::LayoutTransformTool::Anchor {
-                                    objects::LayoutAnchorPickOverlay {
-                                        key: "{tool:?}",
-                                        runtime: objects::LayoutTransformRuntime(runtime.clone()),
-                                        svg: objects::LayoutTransformSvg(svg.clone()),
-                                        arbiter: canvas_interaction.clone(),
-                                        owner: layout_owner.clone(),
-                                        selected_context: adapter.selected_context,
-                                        scope_generation: adapter.generation,
-                                        workspace,
-                                        surface_size: Some(zoom_surface_size),
-                                        pick_owner: objects::AnchorPickOwner::Part {
-                                            part_id: part_id.clone(),
-                                        },
-                                        view_x,
-                                        view_y,
-                                        width,
-                                        height,
-                                    }
-                                    }
-                                    if tool != objects::LayoutTransformTool::Anchor {
-                                    objects::LayoutPartToolOverlay {
-                                        key: "{tool:?}",
-                                        runtime: objects::LayoutTransformRuntime(runtime.clone()),
-                                        svg: objects::LayoutTransformSvg(svg.clone()),
-                                        arbiter: canvas_interaction.clone(),
-                                        owner: layout_owner.clone(),
-                                        selected_context: adapter.selected_context,
-                                        scope_generation: adapter.generation,
-                                        workspace,
-                                        surface_size: Some(zoom_surface_size),
-                                        part_id: part_id.clone(),
-                                        tool,
-                                        snap: part_snap,
-                                        view_x,
-                                        view_y,
-                                        width,
-                                        height,
-                                        on_finish: EventHandler::new(move |_| layout_transform_tool.set(None)),
-                                        on_focus_half: {
-                                            let document = document.clone();
-                                            let mut split_focus = split_focus;
-                                            let part_context = part_context.clone();
-                                            EventHandler::new(move |_| {
-                                                if let Some(half) = boardstudio_web_ui_model::split_focus::context_half(&document, &part_context)
-                                                    && half != split_focus()
-                                                {
-                                                    split_focus.set(half);
-                                                }
-                                            })
-                                        },
-                                    }
-                                    }
-                                    }
-                                }
-                            }
-                        }
-                        if let Some(placement) = part_placement.projection.as_ref() {
-                            { let definition = placement.pending.definition.clone();
-                              let at = placement.pending.part.pose.at;
-                              let courtyard = polygon_points(&definition.courtyard);
-                              let reference = placement.pending.part.reference.clone();
-                              // Ticket 02: the preview name keeps the part-label
-                              // rule: at the top of the part at a fixed 11 px.
-                              let preview_courtyard_top = definition.courtyard.iter().map(|point| point.y).fold(f64::NEG_INFINITY, f64::max);
-                              let preview_courtyard_top = if preview_courtyard_top.is_finite() { preview_courtyard_top } else { 0.0 };
-                              let preview_label_font = boardstudio_web_layout::screen_scale::px_to_world(11.0, width, zoom_surface_size().0);
-                              let preview_label_y = preview_courtyard_top - boardstudio_web_layout::screen_scale::px_to_world(12.0, width, zoom_surface_size().0);
-                              rsx! {
-                                g {
-                                    class: "pointer-events-none opacity-[0.68]",
-                                    "data-placement-preview": "part",
-                                    transform: "translate({at.x},{at.y})",
-                                    "aria-hidden": "true",
-                                    polygon { points: "{courtyard}", class: "fill-selected stroke-primary stroke-[0.7] [stroke-dasharray:2_1]" }
-                                    FootprintGraphics {
-                                        definition: definition.clone(),
-                                        parameters: placement.pending.part.generator_parameters.clone(),
-                                    }
-                                    for pad in &definition.pads {
-                                        g { transform: "translate({pad.at.x} {pad.at.y}) rotate({pad.rotation.unwrap_or(0.0)})",
-                                            if pad.plated != Some(false) {
-                                                rect { class: "fill-geometry-part stroke-none", x: "{-pad.size.x / 2.0}", y: "{-pad.size.y / 2.0}", width: "{pad.size.x}", height: "{pad.size.y}" }
-                                            }
-                                            if let Some(drill) = pad.drill { circle { class: "fill-canvas stroke-geometry-outline stroke-[0.1]", r: "{drill / 2.0}" } }
-                                        }
-                                    }
-                                    text { transform: "scale(1,-1)", text_anchor: "middle", class: "pointer-events-none fill-geometry-label font-mono", style: "font-size:{preview_label_font}px", x: "0", y: "{preview_label_y}", "{reference}" }
-                                }
-                              }
-                            }
-                        }
-                        keycaps_finding_marker::FocusedFindingMarker {
-                            workspace: active_workspace.to_owned(),
-                            scope: Some(render_scope.clone()),
-                            token: Some(snapshot.token),
-                            revision: Some(snapshot.document.revision),
-                            active_board_id: model.active_board_id.clone(),
-                            finding: focused_keycaps_finding(),
-                            markers: Rc::from(snapshot.scene.finding_markers.clone()),
-                        }
-                        if let Some(projection) = outline_inspector.clone().filter(|projection| (projection.drawing_operation)().is_some()) {
-                            outline_lifecycle::OutlineDraftCanvasOverlay {
-                                key: "{outline_overlay_key.as_deref().unwrap_or_default()}-draft",
-                                projection,
-                                runtime: outline_lifecycle::OutlineRuntimeHandle::new(runtime.clone()),
-                                arbiter: canvas_interaction.clone(),
-                                svg: svg.clone(),
-                                view_x,
-                                view_y,
-                                width,
-                                height,
-                                snap_settings: outline_snap_settings.clone(),
-                                pitch: outline_pitch,
-                                origins: outline_snap_origins.as_ref().clone(),
-                            }
-                        }
-                    }
-                        }
-                    } else if active_workspace == "Export" {
-                        export_workspace::ExportWorkspace {
-                            zmk_firmware: Some(zmk_firmware_export_panel),
+                    on_stage_change,
+                    on_open_workspace,
+                    on_dismiss_guide,
+                    on_finish_guide,
+                )}
+                {view::canvas_section(
+                    view::CanvasSectionInput {
+                        setup_guide_active,
+                        active_workspace,
+                        objects_open,
+                        inspect_open,
+                        workspace,
+                        matrix_setup,
+                        mirrored_pair: mirrored_pair.clone(),
+                        guide_none: guide.is_none(),
+                        toolbar_input,
+                        guide_project_stage: guide.as_ref().is_some_and(|guide| {
+                            guide.current_stage == SetupGuideStage::Project
+                        }),
+                        hardware_split: physical_setup_mount.projection.topology
+                            == boardstudio_core::model::HardwareTopology::Split,
+                        hardware_wired: physical_setup_mount.projection.transport
+                            == boardstudio_core::model::HardwareTransport::Wired,
+                        layout_assembly_3d,
+                        mounted_module_select,
+                        keycaps_fit_state,
+                        focused_keycaps_finding,
+                        zmk_firmware_export_panel,
+                        return_workspace,
+                        inspector_panel_settings,
+                        canvas_input,
+                        model: &model,
+                        snapshot,
+                        on_empty_board_matrix,
+                        on_browse_parts,
+                        show_empty_board,
+                        part_placement: &part_placement,
+                        document: document.clone(),
+                        pending_splay_origin_pick,
+                        pending_anchor_pick,
+                        field_preview,
+                        canvas_anchor_badge: &canvas_anchor_badge,
+                        svg: view_scene::LayoutSvgInput {
+                            view_box,
+                            canvas_aria_label,
+                            mount,
+                            canvas_grid: &canvas_grid,
+                            view_x,
+                            view_y,
+                            width,
+                            height,
+                            layer_visibility: &layer_visibility,
+                            scene: &scene,
+                            model: &model,
+                            outline_inspector: &outline_inspector,
+                            outline_overlay_key: &outline_overlay_key,
+                            runtime: runtime.clone(),
+                            canvas_interaction: canvas_interaction.clone(),
+                            svg: svg.clone(),
+                            outline_snap_settings: &outline_snap_settings,
+                            outline_pitch,
+                            outline_snap_origins: &outline_snap_origins,
+                            selected_bridge,
+                            matrix_placement: &matrix_placement,
+                            mirrored_pair: &mirrored_pair,
+                            canvas_source,
+                            split_focused_half,
+                            spacing_ghost_prop: &spacing_ghost_prop,
+                            selected_tree_context: &selected_tree_context,
+                            zoom_surface_size,
+                            canvas_anchor_badge: &canvas_anchor_badge,
+                            matrix_pointer_down,
+                            part_pointer_down,
+                            selection_geometry_anchor,
+                            canvas_transform_menu,
+                            matrix_transform_inspector,
+                            layout_owner,
+                            adapter,
+                            drag: drag.clone(),
+                            render_scope: render_scope.clone(),
                             workspace,
-                            return_workspace,
-                            inspect_open,
-                            inspector_settings: inspector_panel_settings,
-                        }
-                    } else if let Some(input) = canvas_input {
-                        {workspace_composition::canvas(input)}
-                    } else {
-                        span {}
-                    }
-                    if show_empty_board {
-                        empty_board_canvas::EmptyBoardCanvas {
-                            editable: model.lifecycle == Lifecycle::Ready
-                                && model.durability == (Durability::Saved { revision: snapshot.document.revision })
-                                && model.gesture.is_none()
-                                && model.display_preview.is_none(),
-                            on_matrix: on_empty_board_matrix,
-                            on_parts: on_browse_parts,
-                        }
-                    }
-                    if active_workspace == "Layout"
-                        && let Some(placement) = part_placement.projection.as_ref()
-                    {
-                        div { class: "pointer-events-none absolute right-[17px] bottom-[62px] flex items-center gap-2 rounded-sm border border-border bg-card px-[9px] py-[7px] text-[10px] text-muted-foreground shadow-[0_4px_14px_#24373312]", role: "status",
-                            {format!("Place {}", parts::placement_label(&placement.pending.definition))}
-                            if let Some(layout_name) = placement.owner.layout_id.as_ref()
-                                .and_then(|id| document.layouts.iter().find(|layout| &layout.id == id))
-                                .map(|layout| layout.name.as_str())
-                            {
-                                " in {layout_name}"
-                            }
-                            " · Click or Enter to place · Esc cancels"
-                        }
-                    }
-                    if active_workspace == "Layout" && pending_splay_origin_pick().is_some() {
-                        div { class: "pointer-events-none absolute right-[17px] bottom-[62px] flex items-center gap-2 rounded-sm border border-border bg-card px-[9px] py-[7px] text-[10px] text-muted-foreground shadow-[0_4px_14px_#24373312]", role: "status",
-                            "Pick splay origin · Click the canvas · Esc cancels"
-                        }
-                    }
-                    if active_workspace == "Layout" && pending_anchor_pick().is_some() {
-                        div { class: "pointer-events-none absolute right-[17px] bottom-[62px] flex items-center gap-2 rounded border border-border bg-card px-2 py-1.5 text-[10px] text-muted-foreground shadow-sm", role: "status",
-                            "Pick anchor key · Click a key · Esc cancels"
-                        }
-                    }
-                    // Ticket 16: the at-rest field preview names the keys the
-                    // hovered or focused Inspector number field would move.
-                    if active_workspace == "Layout"
-                        && let Some(state) = field_preview() {
-                        div { class: "pointer-events-none absolute right-[17px] bottom-[62px] flex items-center gap-2 rounded border border-border bg-card px-2 py-1.5 text-[10px] font-semibold text-warning shadow-sm", role: "status", "data-field-preview-hint": "",
-                            "{state.hint}"
-                        }
-                    }
-                    // Ticket 02: the "Placed from" readout (prototype variant
-                    // D) names what the selection is placed from at the
-                    // canvas's bottom left. It shares the canvas ring's badge
-                    // projection and clears with the selection.
-                    if active_workspace == "Layout"
-                        && !layout_assembly_3d()
-                        && let Some(badge) = canvas_anchor_badge.as_ref()
-                    {
-                        div { class: "pointer-events-none absolute bottom-[62px] left-3 flex items-center gap-1.5 rounded border border-border bg-card px-2 py-1.5 font-mono text-[11px] text-geometry-part shadow-sm", "data-canvas-anchor-readout": "",
-                            "Placed from {badge.label}"
-                        }
-                    }
-                }
-                }
+                            layout_state,
+                            layout_transform_tool,
+                            layout_snap_settings,
+                            layout_transform_target,
+                            matrix_splay_affect,
+                            part_rail_selection,
+                            part_rail_snap,
+                            part_placement: &part_placement,
+                            document: document.clone(),
+                            split_focus,
+                            focused_keycaps_finding,
+                            snapshot,
+                            active_workspace,
+                            layout_assembly_3d,
+                        },
+                    },
+                    start_pan,
+                    move_pointer,
+                    end_pointer,
+                    cancel_pointer,
+                    keyboard,
+                    key_up,
+                    wheel,
+                )}
             }
-            footer { class: "shell-footer", hidden: active_workspace == "Export", aria_label: "Canvas status",
-                boardstudio_web_ui_shared::ui::toolbar::Toolbar { class: "shell-history", aria_label: "Footer edit history",
-                    boardstudio_web_ui_shared::ui::toolbar::ToolbarButton { index: 0usize, aria_label: "Undo", on_click: move |_| undo.submit(Event::Undo { operation_id: undo.operation() }), "Undo" }
-                    boardstudio_web_ui_shared::ui::toolbar::ToolbarButton { index: 1usize, aria_label: "Redo", on_click: move |_| redo.submit(Event::Redo { operation_id: redo.operation() }), "Redo" }
-                }
-                if matches!(active_workspace, "Layout" | "PCB" | "Keymap" | "Keycaps") && !layout_assembly_3d() {
-                    canvas_status_footer::CanvasStatusFooter {
-                        snap_settings: layout_snap_settings.read().clone(),
-                        active_part_position,
-                        snap_menu_available: matches!(active_workspace, "Layout" | "PCB"),
-                        open_menu: layout_command_menu,
-                        board_available: true,
-                        selection_available: footer_selection_available,
-                        zoom_percent,
-                        findings_count: Some(keycaps_fit::presented_findings(
-                            &findings,
-                            &snapshot.document,
-                        ).len()),
-                        on_toggle_findings: on_toggle_layout_findings,
-                        on_fit_board: on_fit_keymap_board,
-                        on_fit_selection: on_fit_keymap_selection,
-                        on_zoom_out: on_zoom_keymap_out,
-                        on_zoom_in: on_zoom_keymap_in,
-                    }
-                    if let Some(guide) = model.snap_guide.as_ref() {
-                        span { class: "ml-auto max-w-[min(35vw,340px)] truncate", role: "status", "{guide.label}" }
-                    }
-                } else {
-                    span { "{model.camera.zoom * 100.0:.0}%" }
-                }
-                if active_workspace != "Export"
-                    && !(matches!(active_workspace, "Layout" | "PCB" | "Keymap" | "Keycaps")
-                        && !layout_assembly_3d())
-                {
-                    canvas_status_footer::FindingsButton {
-                        count: keycaps_fit::presented_findings(
-                            &findings,
-                            &snapshot.document,
-                        ).len(),
-                        on_toggle: on_toggle_layout_findings,
-                    }
-                }
-            }
+            {view::view_footer(
+                view::FooterInput {
+                    active_workspace,
+                    layout_assembly_3d,
+                    undo,
+                    redo,
+                    layout_snap_settings,
+                    active_part_position,
+                    layout_command_menu,
+                    footer_selection_available,
+                    zoom_percent,
+                    findings: &findings,
+                    snapshot,
+                    on_toggle_layout_findings,
+                    on_fit_keymap_board,
+                    on_zoom_keymap_out,
+                    on_zoom_keymap_in,
+                    model: &model,
+                },
+                on_fit_keymap_selection,
+            )}
         }
     }
-}
-
-fn polygon_points(points: &[Vec2]) -> String {
-    points
-        .iter()
-        .map(|p| format!("{},{}", p.x, p.y))
-        .collect::<Vec<_>>()
-        .join(" ")
 }
