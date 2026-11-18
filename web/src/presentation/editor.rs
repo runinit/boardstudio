@@ -1,4 +1,5 @@
 use super::*;
+mod keyboard;
 mod pointer;
 
 /// Ticket 18: the ghost of the previous spacing lives here, in the Editor,
@@ -3124,639 +3125,92 @@ pub(super) fn Editor() -> Element {
         render_scope.clone(),
         interaction_version,
     );
-    let keyboard = {
-        let runtime = runtime.clone();
-        let drag = drag.clone();
-        let svg = svg.clone();
-        let render_scope = render_scope.clone();
-        let space_down = space_down.clone();
-        let mirrored_pair = mirrored_pair.clone();
-        let placement = part_placement.clone();
-        let matrix_placement = matrix_placement.clone();
-        let canvas_interaction = canvas_interaction.clone();
-        let snap_settings = layout_snap_settings;
-        let mut pending_splay_pick = pending_splay_origin_pick;
-        let mut pending_anchor_pick = pending_anchor_pick;
-        let transform_inspector = matrix_transform_inspector.clone();
-        move |event: KeyboardEvent| {
-            let key = event.data().key().to_string();
-            let code = event.data().code().to_string();
-            let modifiers = event.data().modifiers();
-            if canvas_interaction.is_owner(CanvasInteractionOwner::MatrixPlacement) {
-                let Some(active) = matrix_placement.placement.as_ref() else {
-                    if key == "Escape"
-                        && let Some(owner) = matrix_placement.cancel_owner.clone()
-                    {
-                        event.prevent_default();
-                        matrix_placement.on_cancel.call(owner);
-                    } else {
-                        event.prevent_default();
-                    }
-                    return;
-                };
-                let owner = active.owner.clone();
-                if key == "Escape" {
-                    event.prevent_default();
-                    matrix_placement.on_cancel.call(owner);
-                    return;
-                }
-                if key == "Enter" {
-                    event.prevent_default();
-                    matrix_placement
-                        .on_commit
-                        .call(objects::MatrixPlacementMove {
-                            owner,
-                            center: active.matrix.origin,
-                        });
-                    return;
-                }
-                let (dx, dy) = match key.as_str() {
-                    "ArrowLeft" => (-1.0, 0.0),
-                    "ArrowRight" => (1.0, 0.0),
-                    "ArrowDown" => (0.0, -1.0),
-                    "ArrowUp" => (0.0, 1.0),
-                    _ => (0.0, 0.0),
-                };
-                if dx != 0.0 || dy != 0.0 {
-                    event.prevent_default();
-                    let fraction = snap_settings.read().snap_fraction;
-                    let step = |pitch: f64| {
-                        if fraction.is_sign_negative() {
-                            -fraction
-                        } else {
-                            pitch * if fraction == 0.0 { 0.25 } else { fraction }
-                        }
-                    };
-                    matrix_placement.on_move.call(objects::MatrixPlacementMove {
-                        owner,
-                        center: Vec2 {
-                            x: active.matrix.origin.x + dx * step(active.matrix.pitch.x),
-                            y: active.matrix.origin.y + dy * step(active.matrix.pitch.y),
-                        },
-                    });
-                    return;
-                }
-            }
-            if canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair)
-                && let Some(placement) = mirrored_pair.placement.as_ref()
-            {
-                let owner = placement.owner.clone();
-                if key == "Escape" {
-                    event.prevent_default();
-                    mirrored_pair.on_cancel.call(owner);
-                    return;
-                }
-                if key == "Enter" {
-                    event.prevent_default();
-                    mirrored_pair.on_commit.call(objects::MirroredPairMove {
-                        owner,
-                        center: placement.pair.center,
-                    });
-                    return;
-                }
-                let (dx, dy) = match key.as_str() {
-                    "ArrowLeft" => (-1.0, 0.0),
-                    "ArrowRight" => (1.0, 0.0),
-                    "ArrowDown" => (0.0, -1.0),
-                    "ArrowUp" => (0.0, 1.0),
-                    _ => (0.0, 0.0),
-                };
-                if dx != 0.0 || dy != 0.0 {
-                    event.prevent_default();
-                    let settings = snap_settings.read();
-                    let fraction = settings.snap_fraction;
-                    let pitch = placement.pair.matrix.pitch;
-                    let step = |axis_pitch: f64| {
-                        if fraction.is_sign_negative() {
-                            -fraction
-                        } else {
-                            axis_pitch * if fraction == 0.0 { 0.25 } else { fraction }
-                        }
-                    };
-                    mirrored_pair.on_move.call(objects::MirroredPairMove {
-                        owner,
-                        center: Vec2 {
-                            x: placement.pair.center.x + dx * step(pitch.x),
-                            y: placement.pair.center.y + dy * step(pitch.y),
-                        },
-                    });
-                    return;
-                }
-            }
-            if key == "Escape"
-                && canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair)
-                && let Some(form) = mirrored_pair.form.as_ref()
-                && mirrored_pair.placement.is_none()
-            {
-                event.prevent_default();
-                mirrored_pair.on_cancel.call(form.owner.clone());
-                return;
-            }
-            if canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair) {
-                return;
-            }
-            if canvas_interaction.is_owner(CanvasInteractionOwner::PartPlacement) {
-                if let Some(active) = placement.projection.as_ref() {
-                    if key == "Escape" {
-                        event.prevent_default();
-                        placement.on_cancel.call(());
-                    } else if key == "Enter" {
-                        event.prevent_default();
-                        placement.on_commit.call(active.pending.at);
-                    } else if matches!(
-                        key.as_str(),
-                        "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight"
-                    ) {
-                        event.prevent_default();
-                        let mut at = active.pending.at;
-                        let fraction = snap_settings.read().snap_fraction;
-                        let step = if fraction < 0.0 {
-                            -fraction
-                        } else if fraction > 0.0 {
-                            19.05 * fraction
-                        } else {
-                            0.1
-                        };
-                        match key.as_str() {
-                            "ArrowUp" => at.y += step,
-                            "ArrowDown" => at.y -= step,
-                            "ArrowLeft" => at.x -= step,
-                            "ArrowRight" => at.x += step,
-                            _ => {}
-                        }
-                        placement.on_move.call(at);
-                    }
-                } else if key == "Escape" {
-                    event.prevent_default();
-                    placement.on_cancel.call(());
-                } else {
-                    event.prevent_default();
-                }
-                return;
-            }
-            if key == "Escape" && pending_splay_pick.peek().is_some() {
-                pending_splay_pick.set(None);
-                event.prevent_default();
-                return;
-            }
-            if key == "Escape" && pending_anchor_pick.peek().is_some() {
-                pending_anchor_pick.set(None);
-                transform_inspector.clear_aggregate_pick();
-                event.prevent_default();
-                return;
-            }
-            if key == " " || code == "Space" {
-                space_down.set(true);
-                event.prevent_default();
-            } else if key == "Escape" {
-                space_down.set(false);
-                selection::cancel_scoped_drag(&runtime, &drag, &svg, Some(&render_scope));
-                let mut interaction_version = interaction_version;
-                interaction_version += 1;
-            } else if (modifiers.ctrl() || modifiers.meta()) && key.eq_ignore_ascii_case("z") {
-                event.prevent_default();
-                runtime.submit(if modifiers.shift() {
-                    Event::Redo {
-                        operation_id: runtime.operation(),
-                    }
-                } else {
-                    Event::Undo {
-                        operation_id: runtime.operation(),
-                    }
-                });
-            }
-        }
-    };
-    let key_up = {
-        let navigation = canvas_navigation.clone();
-        move |event: KeyboardEvent| {
-            let key = event.data().key().to_string();
-            let code = event.data().code().to_string();
-            navigation.release_space_key(&key, &code);
-        }
-    };
-    let start_pan = canvas_navigation.space_pan_handler(
-        render_scope.clone(),
+    let keyboard = keyboard::keyboard_handler(keyboard::KeyboardInput {
+        runtime: runtime.clone(),
+        drag: drag.clone(),
+        svg: svg.clone(),
+        render_scope: render_scope.clone(),
+        space_down: space_down.clone(),
+        mirrored_pair: mirrored_pair.clone(),
+        placement: part_placement.clone(),
+        matrix_placement: matrix_placement.clone(),
+        canvas_interaction: canvas_interaction.clone(),
+        snap_settings: layout_snap_settings,
+        pending_splay_pick: pending_splay_origin_pick,
+        pending_anchor_pick,
+        transform_inspector: matrix_transform_inspector.clone(),
+        interaction_version,
+    });
+    let key_up = keyboard::key_up_handler(canvas_navigation.clone());
+    let start_pan = keyboard::start_pan_handler(keyboard::StartPanInput {
+        navigation: canvas_navigation.clone(),
+        render_scope: render_scope.clone(),
         render_generation,
-        runtime.clone(),
-        svg.clone(),
-        Rc::new({
-            let adapter = adapter.clone();
-            move || (adapter.generation)() == render_generation
-        }),
-        {
-            let runtime = runtime.clone();
-            let svg = svg.clone();
-            let adapter = adapter.clone();
-            let mirrored_pair = mirrored_pair.clone();
-            let canvas_interaction = canvas_interaction.clone();
-            let mut pending_splay_pick = pending_splay_origin_pick;
-            let transform_inspector = matrix_transform_inspector.clone();
-            let layout_owner_for_pick = layout_owner.clone();
-            move |event: PointerEvent| {
-                let Some(pointer) = event.data().try_as_web_event() else {
-                    return;
-                };
-                if canvas_interaction.is_owner(CanvasInteractionOwner::MatrixPlacement) {
-                    pointer.prevent_default();
-                    pointer.stop_propagation();
-                    return;
-                }
-                if canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair)
-                    && let Some(placement) = mirrored_pair.placement.as_ref()
-                    && pointer.button() == 0
-                {
-                    let owner = placement.owner.clone();
-                    if workspace() != "Layout"
-                        || runtime.scope().as_ref() != Some(&owner.scope)
-                        || (adapter.generation)() != owner.scope_generation
-                    {
-                        mirrored_pair.on_cancel.call(owner);
-                        return;
-                    }
-                    if let Some(center) = coordinates(&svg, &pointer, view_x, view_y, width, height)
-                    {
-                        pointer.prevent_default();
-                        pointer.stop_propagation();
-                        mirrored_pair
-                            .on_commit
-                            .call(objects::MirroredPairMove { owner, center });
-                    }
-                    return;
-                }
-                if canvas_interaction.current().is_some() {
-                    pointer.prevent_default();
-                    pointer.stop_propagation();
-                    return;
-                }
-                if pointer.button() == 0
-                    && workspace() == "Layout"
-                    && pending_splay_pick.peek().is_some()
-                    && let Some(point) = coordinates(&svg, &pointer, view_x, view_y, width, height)
-                {
-                    pointer.prevent_default();
-                    pointer.stop_propagation();
-                    apply_pending_splay_origin_pick(
-                        &runtime,
-                        workspace,
-                        &adapter,
-                        &layout_owner_for_pick,
-                        PendingSplayOriginPick {
-                            pending: &mut pending_splay_pick,
-                            inspector: &transform_inspector,
-                            point,
-                            swing: pointer.ctrl_key(),
-                        },
-                    );
-                }
-            }
-        },
-    );
-    let on_pcb_part_pointer_down = {
-        let runtime = runtime.clone();
-        let adapter = adapter.clone();
-        let svg = svg.clone();
-        let drag = drag.clone();
-        let owner = layout_owner.clone();
-        let scope = render_scope.clone();
-        let accepted_token = snapshot.token;
-        let accepted_revision = snapshot.document.revision;
-        let generation = render_generation;
-        let navigation = canvas_navigation.clone();
-        let space_down = space_down.clone();
-        let tree_cell_anchor = tree_cell_anchor.clone();
-        let canvas_interaction = canvas_interaction.clone();
-        move |request: pcb_scene::PcbPartPointerDown| {
-            if request.scope != scope
-                || request.token != accepted_token
-                || request.generation != generation
-                || !pcb_owner_is_current(&runtime, workspace, &adapter, &owner)
-                || !instance_selection.is_current(&runtime.model())
-                || canvas_interaction.current().is_some()
-                || drag.borrow().is_some()
-                || runtime.model().gesture.is_some()
-            {
-                return;
-            }
-            let Some(origin) = coordinates_at(
-                &svg,
-                request.client_x,
-                request.client_y,
-                view_x,
-                view_y,
-                width,
-                height,
-            ) else {
-                return;
-            };
-            if space_down.get() {
-                if let Some(surface) = svg.borrow().as_ref() {
-                    let _ = surface.set_pointer_capture(request.pointer_id as i32);
-                    let options = web_sys::FocusOptions::new();
-                    options.set_prevent_scroll(true);
-                    let _ = surface.focus_with_options(&options);
-                }
-                navigation.start_space_pan(
-                    boardstudio_web_ui_shared::canvas_navigation::PanStart {
-                        pointer_id: request.pointer_id,
-                        scope: scope.clone(),
-                        generation,
-                        client: (f64::from(request.client_x), f64::from(request.client_y)),
-                        camera: runtime.model().camera.center,
-                    },
-                );
-                return;
-            }
-            let model = runtime.model();
-            let Some(board) = model.accepted.as_ref().and_then(|snapshot| {
-                snapshot
-                    .document
-                    .boards
-                    .iter()
-                    .find(|board| board.id == scope.board_id)
-            }) else {
-                return;
-            };
-            if !board.part_ids.contains(&request.part_id) {
-                return;
-            }
-            let Some(hit_context) = objects::context_for_part(&model, &request.part_id) else {
-                return;
-            };
-            if !selection::context_is_current(&model, &scope, &hit_context) {
-                return;
-            }
-            update_tree_cell_anchor(&tree_cell_anchor, &owner, &model, Some(&hit_context));
-            let retained = tree_cell_anchor_for_owner(&tree_cell_anchor, &owner);
-            let projection = objects::context_for_selection_kind(
-                &model,
-                &hit_context,
-                layout_selection_kind(),
-                retained.as_ref(),
-            );
-            let context = projection
-                .as_ref()
-                .map(|projection| projection.context.clone())
-                .unwrap_or(hit_context);
-            let mode = if request.range {
-                SelectionMode::Range
-            } else if request.additive {
-                SelectionMode::Toggle
-            } else {
-                SelectionMode::Replace
-            };
-            let range_ids = if mode == SelectionMode::Range {
-                selection::eligible_live_ids(&model)
-                    .into_iter()
-                    .filter(|id| board.part_ids.contains(id))
-                    .collect()
-            } else {
-                Vec::new()
-            };
-            if !model.selected_part_ids.contains(&request.part_id)
-                || mode != SelectionMode::Replace
-                || projection
-                    .as_ref()
-                    .is_some_and(|projection| projection.part_ids != model.selected_part_ids)
-            {
-                selection::submit_canvas_selection(
-                    &runtime,
-                    &adapter,
-                    &scope,
-                    generation,
-                    context.clone(),
-                    mode,
-                    range_ids,
-                );
-            } else {
-                let mut selected_context = adapter.selected_context;
-                selected_context.set(Some(objects::ScopedTreeContext {
-                    scope: scope.clone(),
-                    context: context.clone(),
-                }));
-            }
-            // Modified hits change selection only, matching the reference.
-            if mode != SelectionMode::Replace {
-                return;
-            }
-            if runtime.scope().as_ref() != Some(&scope) || (adapter.generation)() != generation {
-                return;
-            }
-            let current = runtime.model();
-            let Some(current_snapshot) = current.accepted.as_ref() else {
-                return;
-            };
-            if current_snapshot.token != request.token
-                || current_snapshot.document.revision != accepted_revision
-                || !current.selected_part_ids.contains(&request.part_id)
-            {
-                return;
-            }
-            let positions: Vec<_> = current_snapshot
-                .document
-                .parts
-                .iter()
-                .filter(|part| {
-                    current.selected_part_ids.contains(&part.id)
-                        && board.part_ids.contains(&part.id)
-                        && part.locked != Some(true)
-                })
-                .map(|part| Position {
-                    id: part.id.clone(),
-                    at: part.pose.at,
-                })
-                .collect();
-            if positions.is_empty()
-                || positions.len() != current.selected_part_ids.len()
-                || current.lifecycle != Lifecycle::Ready
-                || current.durability
-                    != (Durability::Saved {
-                        revision: current_snapshot.document.revision,
-                    })
-                || current.display_preview.is_some()
-                || current.gesture.is_some()
-            {
-                return;
-            }
-            if let Some(surface) = svg.borrow().as_ref() {
-                let _ = surface.set_pointer_capture(request.pointer_id as i32);
-                let options = web_sys::FocusOptions::new();
-                options.set_prevent_scroll(true);
-                let _ = surface.focus_with_options(&options);
-            }
-            *drag.borrow_mut() = Some(Drag {
-                pointer: request.pointer_id,
-                scope: scope.clone(),
-                generation,
-                gesture_generation: None,
-                origin,
-                client_x: f64::from(request.client_x),
-                client_y: f64::from(request.client_y),
-                positions,
-                active: false,
-                pan: false,
-                camera: Vec2::default(),
-            });
-        }
-    };
-    let on_pcb_empty_hit = {
-        let runtime = runtime.clone();
-        let adapter = adapter.clone();
-        let scope = render_scope.clone();
-        let generation = render_generation;
-        let token = snapshot.token;
-        let space_down = space_down.clone();
-        let drag = drag.clone();
-        let canvas_interaction = canvas_interaction.clone();
-        move |event: PointerEvent| {
-            let Some(pointer) = event.data().try_as_web_event() else {
-                return;
-            };
-            if pointer.button() != 0
-                || space_down.get()
-                || drag.borrow().is_some()
-                || canvas_interaction.current().is_some()
-                || workspace() != "PCB"
-                || runtime.scope().as_ref() != Some(&scope)
-                || (adapter.generation)() != generation
-            {
-                return;
-            }
-            let model = runtime.model();
-            if !active_board_scope_matches(&model, &scope) || !instance_selection.is_current(&model)
-            {
-                return;
-            }
-            let Some(snapshot) = model
-                .accepted
-                .as_ref()
-                .filter(|snapshot| snapshot.token == token)
-            else {
-                return;
-            };
-            if !snapshot
-                .document
-                .boards
-                .iter()
-                .any(|board| board.id == scope.board_id)
-            {
-                return;
-            }
-            let mut selected_context = adapter.selected_context;
-            selected_context.set(None);
-            let mut anchor_scope = adapter.anchor_scope;
-            anchor_scope.set(None);
-            runtime.submit(Event::SelectParts {
-                operation_id: runtime.operation(),
-                part_ids: Vec::new(),
-                range_part_ids: Vec::new(),
-                mode: SelectionMode::Replace,
-            });
-        }
-    };
-    let wheel = {
-        let runtime = runtime.clone();
-        let svg = svg.clone();
-        let scope = render_scope.clone();
-        let adapter = adapter.clone();
-        // Wheel bursts (trackpads emit dozens of ticks per gesture) coalesce
-        // into one zoom application per animation frame: ticks only add to
-        // this burst, and the single rAF flush submits once. Without this,
-        // every tick ran Runtime::submit -> changed()/notify() plus a DOM
-        // rect read, re-rendering the full scene per tick (Issue 2).
-        let pending = Rc::new(RefCell::new(layout_camera::WheelZoomCoalescer::new()));
-        move |event: WheelEvent| {
-            if runtime.scope().as_ref() != Some(&scope)
-                || (adapter.generation)() != render_generation
-            {
-                return;
-            }
-            let Some(wheel) = event.data().try_as_web_event() else {
-                return;
-            };
-            wheel.prevent_default();
-            let surface = svg.borrow();
-            let Some(element) = surface.as_ref() else {
-                return;
-            };
-            let rect = element.get_bounding_client_rect();
-            if rect.width() <= 0.0 || rect.height() <= 0.0 {
-                return;
-            }
-            let Some(location) = pointer_location(
-                &rect,
-                wheel.client_x(),
-                wheel.client_y(),
-                view_x,
-                view_y,
-                width,
-                height,
-            ) else {
-                return;
-            };
-            let Some(window) = web_sys::window() else {
-                return;
-            };
-            let schedule_flush = pending.borrow_mut().push(
-                wheel.delta_y(),
-                layout_camera::WheelAnchor {
-                    world: location.world,
-                    x_fraction: location.x_fraction,
-                    y_fraction: location.y_fraction,
-                },
-            );
-            if !schedule_flush {
-                // A flush is already queued for this frame; this tick rides it.
-                return;
-            }
-            let flush_pending = pending.clone();
-            let flush_runtime = runtime.clone();
-            let flush_scope = scope.clone();
-            let flush_generation = adapter.generation;
-            // keymap_scale_ratio is 1.0 outside Keymap, so Layout and Keymap
-            // share the reference 0.25..4 limits.
-            let flush = move || {
-                let start_zoom = flush_runtime.model().camera.zoom;
-                // Replay the burst tick-by-tick through the clamp: a burst
-                // that hits a limit mid-burst then backs off ends exactly
-                // where sequential application ends.
-                let final_zoom = flush_pending
-                    .borrow()
-                    .coalesced_zoom(start_zoom, keymap_scale_ratio);
-                let Some(batch) = flush_pending.borrow_mut().take_batch() else {
-                    return;
-                };
-                let Some(final_zoom) = final_zoom else {
-                    return;
-                };
-                if final_zoom == start_zoom {
-                    return;
-                }
-                if flush_runtime.scope().as_ref() != Some(&flush_scope)
-                    || (flush_generation)() != render_generation
-                {
-                    return;
-                }
-                CanvasNavigationState::apply_zoom_target(
-                    &flush_runtime,
-                    boardstudio_web_ui_shared::canvas_navigation::ZoomTarget {
-                        center: CanvasNavigationState::zoom_center_at(
-                            (min_x, max_x, min_y, max_y),
-                            PointerLocation {
-                                world: batch.anchor.world,
-                                x_fraction: batch.anchor.x_fraction,
-                                y_fraction: batch.anchor.y_fraction,
-                            },
-                            final_zoom,
-                        ),
-                        zoom: final_zoom,
-                    },
-                );
-            };
-            let callback = Closure::once_into_js(flush);
-            let _ = window.request_animation_frame(callback.unchecked_ref());
-        }
-    };
+        runtime: runtime.clone(),
+        svg: svg.clone(),
+        adapter: adapter.clone(),
+        mirrored_pair: mirrored_pair.clone(),
+        canvas_interaction: canvas_interaction.clone(),
+        pending_splay_pick: pending_splay_origin_pick,
+        transform_inspector: matrix_transform_inspector.clone(),
+        layout_owner_for_pick: layout_owner.clone(),
+        workspace,
+        view_x,
+        view_y,
+        width,
+        height,
+    });
+    let on_pcb_part_pointer_down =
+        keyboard::on_pcb_part_pointer_down_handler(keyboard::OnPcbPartPointerDownInput {
+            runtime: runtime.clone(),
+            adapter: adapter.clone(),
+            svg: svg.clone(),
+            drag: drag.clone(),
+            owner: layout_owner.clone(),
+            scope: render_scope.clone(),
+            accepted_token: snapshot.token,
+            accepted_revision: snapshot.document.revision,
+            generation: render_generation,
+            navigation: canvas_navigation.clone(),
+            space_down: space_down.clone(),
+            tree_cell_anchor: tree_cell_anchor.clone(),
+            canvas_interaction: canvas_interaction.clone(),
+            workspace,
+            view_x,
+            view_y,
+            width,
+            height,
+            instance_selection,
+            layout_selection_kind,
+        });
+    let on_pcb_empty_hit = keyboard::on_pcb_empty_hit_handler(keyboard::OnPcbEmptyHitInput {
+        runtime: runtime.clone(),
+        adapter: adapter.clone(),
+        scope: render_scope.clone(),
+        generation: render_generation,
+        token: snapshot.token,
+        space_down: space_down.clone(),
+        drag: drag.clone(),
+        canvas_interaction: canvas_interaction.clone(),
+        workspace,
+        instance_selection,
+    });
+    let wheel = keyboard::wheel_handler(keyboard::WheelInput {
+        runtime: runtime.clone(),
+        svg: svg.clone(),
+        scope: render_scope.clone(),
+        adapter: adapter.clone(),
+        render_generation,
+        view_x,
+        view_y,
+        width,
+        height,
+        keymap_scale_ratio,
+        min_x,
+        max_x,
+        min_y,
+        max_y,
+    });
     let undo = runtime.clone();
     let redo = runtime.clone();
     let retry = runtime.clone();
