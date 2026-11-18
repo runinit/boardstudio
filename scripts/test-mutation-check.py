@@ -114,6 +114,13 @@ class MutationCheckTests(unittest.TestCase):
         self.assertEqual((results, status), ([], 2))
         self.assertIn("unmutated tests do not pass", errors)
 
+    def test_an_empty_unmutated_suite_is_refused_before_mutation(self):
+        self.command = [sys.executable, "-c", "print('running 0 tests\\ntest result: ok. 0 passed; 0 failed; 1 ignored')"]
+        results, status, errors = self.run_check([{"name": "m1", "edits": [edit("omega", "OMEGA")]}])
+        self.assertEqual((results, status), ([], 2))
+        self.assertIn("executed no tests", errors)
+        self.assert_original()
+
     def test_files_are_restored_when_the_run_is_interrupted(self):
         with mock.patch.object(mutation_check, "run_command", side_effect=KeyboardInterrupt), \
                 self.assertRaises(KeyboardInterrupt):

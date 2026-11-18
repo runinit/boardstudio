@@ -12,7 +12,7 @@ one of:
 
 Spec file (JSON): a list of
   {"name": "m1-...", "description": "what the mutation does",
-   "edits": [{"file": "core/src/x.rs", "old": "exact text", "new": "replacement", "count": 1}]}
+   "edits": [{"file": "core/crates/engine/src/x.rs", "old": "exact text", "new": "replacement", "count": 1}]}
 `file` is relative to --root; `count` defaults to 1. Edits of one mutation apply in order.
 
 Exit status: 0 when every file was restored (survivors are reported, not failed), 1 when a
@@ -40,12 +40,13 @@ import sys
 import time
 
 REPO = Path(__file__).resolve().parents[1]
-DEFAULT_COMMAND = "cargo test -p boardstudio_core --locked --lib"
+DEFAULT_COMMAND = "cargo test -p boardstudio-core-engine -p boardstudio-model -p boardstudio-script --locked --lib"
 KILLED = "killed"
 SURVIVED = "survived"
 COMPILE_FAILURE = "compile-failure (does not count)"
 COMPILE_MARKER = "could not compile"
 FAILED_TEST = re.compile(r"^test (\S+) \.\.\. FAILED$")
+EXECUTED_TEST = re.compile(r"^test \S+ \.\.\. ok$|^test result: ok\. [1-9]\d* passed;", re.MULTILINE)
 
 
 class SpecError(Exception):
@@ -240,6 +241,10 @@ def check(root: Path, spec: list[dict], command: list[str], evidence: Path, *, o
             print("mutation-check: the unmutated tests do not pass, so no mutation result would mean "
                   f"anything (see {evidence / '_baseline.log'}); fix them or use --skip-baseline",
                   file=sys.stderr)
+            return [], 2
+        if not EXECUTED_TEST.search(output):
+            print("mutation-check: the unmutated baseline executed no tests "
+                  f"(see {evidence / '_baseline.log'})", file=sys.stderr)
             return [], 2
     results: list[dict] = []
     try:
