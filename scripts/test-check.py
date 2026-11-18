@@ -875,6 +875,56 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
                           and not check.is_harness_clippy(command)], check.LINT[1:3])
         self.assertIn("harness diagnostics", stdout.getvalue())
 
+    def test_overlap_requires_complete_step_commands_cpu_budget_and_no_receipt_or_ci(self):
+        plan = [(name, check.STEPS[name][1]) for name in check.DEFAULT]
+        with mock.patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "2"}, clear=True), \
+             mock.patch.object(check.os, "cpu_count", return_value=8):
+            self.assertEqual(check.overlap_span(plan, None), (2, 5))
+            self.assertIsNone(check.overlap_span(plan[:4], None))
+            self.assertIsNone(check.overlap_span(plan, mock.Mock()))
+            with mock.patch.dict(os.environ, {"CI": "true"}):
+                self.assertIsNone(check.overlap_span(plan, None))
+            with mock.patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "1"}):
+                self.assertIsNone(check.overlap_span(plan, None))
+            with mock.patch.object(check.os, "cpu_count", return_value=7):
+                self.assertIsNone(check.overlap_span(plan, None))
+
+    def test_overlapped_steps_get_one_fifo_and_only_test_gets_the_baseline_flag(self):
+        group = [(name, check.STEPS[name][1]) for name in ("build", "lint", "test")]
+
+        def run(batch, environment, *, invocations, in_order, elapsed_by_command):
+            self.assertTrue(in_order)
+            self.assertEqual([command[2] for command in batch], ["build", "lint", "test"])
+            self.assertEqual([command[3:] for command in batch], [[], [], ["--update-native-baseline"]])
+            configs = [invocations[tuple(command)][2] for command in batch]
+            self.assertEqual([config.get("CARGO_TARGET_DIR") for config in configs],
+                             [None, str(ROOT / "target/lint"), None])
+            self.assertEqual(len({config["MAKEFLAGS"] for config in configs}), 1)
+            self.assertEqual(len({config[check.OVERLAP_CSS] for config in configs}), 1)
+            fifo = Path(configs[0]["MAKEFLAGS"].split("fifo:", 1)[1])
+            self.assertTrue(fifo.is_fifo())
+            fd = os.open(fifo, os.O_RDONLY | os.O_NONBLOCK)
+            try:
+                self.assertEqual(os.read(fd, 20), b"+" * 7)
+            finally:
+                os.close(fd)
+            for seconds, command in enumerate(batch, 1):
+                elapsed_by_command[tuple(command)] = float(seconds)
+            return 3.0, batch[1:]
+
+        with mock.patch.object(check, "run_parallel", side_effect=run), \
+             mock.patch.dict(os.environ, {}, clear=True), mock.patch.object(check.os, "cpu_count", return_value=8):
+            self.assertEqual(check.run_overlapped_steps(group, True),
+                             ({"build": 1.0, "lint": 2.0, "test": 3.0}, ["lint", "test"]))
+
+    def test_wasm_clippy_fails_if_the_concurrent_build_does_not_produce_css(self):
+        with tempfile.TemporaryDirectory() as temporary, mock.patch.object(check, "launch_command") as launch, \
+             contextlib.redirect_stderr(io.StringIO()) as error:
+            (Path(temporary) / "failed").touch()
+            self.assertEqual(check.run_serial(check.LINT[2], {check.OVERLAP_CSS: temporary})[1], 1)
+        launch.assert_not_called()
+        self.assertIn("could not get the packaged build's stylesheet", error.getvalue())
+
     def test_build_is_fast_and_release_is_opt_in(self):
         self.assertIn("--fast", check.STEPS["build"][1][0])
         self.assertNotIn("--fast", check.STEPS["release"][1][0])

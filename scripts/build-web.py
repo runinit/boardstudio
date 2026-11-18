@@ -10,12 +10,13 @@ import hashlib
 import io
 import time
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
 import sys
 import browser_tools
-from check import check_jobs
+from check import check_jobs, OVERLAP_CSS
 
 ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "web"
@@ -54,6 +55,10 @@ def run(command: list[str], *, cwd: Path = ROOT, env: dict[str, str] | None = No
         raise
     if output is not None:
         output.write(result.stdout)
+    if command[:2] == ["dx", "build"] and (css_sync := os.environ.get(OVERLAP_CSS)):
+        css = cwd / "assets/tailwind.css"
+        if css.is_file() and css.stat().st_size:
+            (Path(css_sync) / "ready").touch()
 
 
 def run_lanes(lanes: list[list[tuple[list[str], Path]]]) -> None:

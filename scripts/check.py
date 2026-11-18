@@ -39,7 +39,7 @@ Steps:
 from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
-from contextlib import ExitStack
+from contextlib import contextmanager, ExitStack
 import argparse
 import codecs
 import io
@@ -68,6 +68,9 @@ import wasm_bindgen_tools  # noqa: E402
 
 
 PY = "python3"
+OVERLAP_CSS = "BOARDSTUDIO_OVERLAP_CSS"
+OVERLAP_MIN_CPUS = 8
+OVERLAP_STEPS = frozenset({"build", "lint", "test"})
 # One workspace invocation compiles Core once for every crate's tests. Footprints runs
 # separately: its serde_json `preserve_order` dev-feature must not leak into Core's tests.
 CARGO_TESTS: list[list[str]] = [
@@ -99,7 +102,7 @@ BUILD_LOCK_SCRIPTS = (
     "scripts/run-drag-browser.py", "cad/scripts/test-cad-capture-controls.py", "cad/scripts/test-cold-responses.py",
     "cad/scripts/face-completeness-gate.py", "cad/scripts/test-cad-provider.py", "scripts/build-web.py",
     "scripts/run-wasm-tests.py", "cad/scripts/test-cad.py", KICAD_PARTS_TEST[1], "scripts/browser_tools.py",
-    "scripts/model-lookup-pilot.py", "scripts/ergogen-parity/test_generate.py",
+    "scripts/model-lookup-pilot.py", "scripts/ergogen-parity/test_generate.py", "scripts/check.py",
 )
 def test_css_command() -> list[str]:
     if compiler := os.environ.get("BOARDSTUDIO_TAILWINDCSS"):
@@ -524,6 +527,15 @@ def run_serial(command: Command, environment: dict[str, str], cwd: Path = ROOT,
     if invocation:
         argv, cwd, config = invocation
         environment = {**environment, **config}
+    if (css_sync := environment.get(OVERLAP_CSS)) and argv[:2] == ["cargo", "clippy"] \
+            and "wasm32-unknown-unknown" in argv:
+        folder = Path(css_sync)
+        while not (folder / "ready").is_file():
+            if (folder / "failed").is_file():
+                print("check: WASM Clippy could not get the packaged build's stylesheet", file=sys.stderr)
+                now = datetime.now(timezone.utc).isoformat()
+                return 0.0, 1, now, now
+            time.sleep(0.25)
     print("$ " + shlex.join(argv), flush=True)
     lock_fd = browser_tools._inherited_build_lock()
     if not any(script in command for script in BUILD_LOCK_SCRIPTS):
@@ -602,7 +614,7 @@ except OSError as error:
 """
             mask = ",".join(str(int(s)) for s in registry["mask"])
             process = subprocess.Popen([sys.executable, "-I", "-S", "-c", wrapper, mask, *command],
-                                       start_new_session=True, **kwargs)
+                                       start_new_session=not registry.get("inside_step_group"), **kwargs)
         except OSError as error:
             return subprocess.CompletedProcess(command, 127, f"startup failed: {error}\n")
         registry["processes"].add(process)
@@ -630,14 +642,16 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
                  captured: list[tuple[Command, str]] | None = None,
                  outputs: list[tuple[Command, str]] | None = None,
                  receipt: verification_receipt.Collector | None = None,
-                 step: str = "", *, invocations=None, workers=None) -> tuple[float, list[Command]]:
+                 step: str = "", *, invocations=None, workers=None, in_order=False,
+                 elapsed_by_command=None) -> tuple[float, list[Command]]:
     """Runs independent launches together, printing each completed launch's output whole."""
     lock_fd = browser_tools._inherited_build_lock()
     invocations = invocations or {}
     # Workers retain completed results even if submit is interrupted before it
     # returns the corresponding future to the main thread.
     completed = []
-    registry = {"lock": threading.Lock(), "cancelled": False, "processes": set(), "workers": 0}
+    registry = {"lock": threading.Lock(), "cancelled": False, "processes": set(), "workers": 0,
+                "inside_step_group": OVERLAP_CSS in os.environ}
     workers_changed = threading.Condition(registry["lock"])
 
     def launch(command: Command):
@@ -663,9 +677,15 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
             child_env.update(BOARDSTUDIO_RECEIPT_RUN_ID=receipt.run_id, BOARDSTUDIO_RECEIPT_ATTEMPT_ID=attempt)
         if not any(script in command for script in BUILD_LOCK_SCRIPTS):
             child_env.pop("BOARDSTUDIO_BUILD_LOCK_FD", None)
-        done = launch_command(argv, registry=registry, cwd=cwd, env=child_env, stdout=subprocess.PIPE,
-                                 stderr=subprocess.STDOUT, text=True,
-                                 **({"pass_fds": (lock_fd,)} if lock_fd is not None else {}))
+        try:
+            done = launch_command(argv, registry=registry, cwd=cwd, env=child_env, stdout=subprocess.PIPE,
+                                  stderr=subprocess.STDOUT, text=True,
+                                  **({"pass_fds": (lock_fd,)} if lock_fd is not None else {}))
+        finally:
+            if argv[1:] == ["scripts/check.py", "build"] and (css_sync := config.get(OVERLAP_CSS)):
+                folder = Path(css_sync)
+                if not (folder / "ready").is_file():
+                    (folder / "failed").touch()
         if done is None:
             return None
         code, output = done.returncode, done.stdout
@@ -682,8 +702,8 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
         return result
 
     # Start the page suite before the heavy crates so its listing and filters can overlap.
-    ordered = sorted(batch, key=lambda command: -1 if "scripts/run-wasm-tests.py" in command
-                     else launch_order(command))
+    ordered = batch if in_order else sorted(
+        batch, key=lambda command: -1 if "scripts/run-wasm-tests.py" in command else launch_order(command))
     started = time.monotonic()
     failed: list[Command] = []
     futures = []
@@ -697,6 +717,25 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
     previous_term = signal.getsignal(signal.SIGTERM) if main_thread else None
     previous_mask = signal.pthread_sigmask(signal.SIG_BLOCK, signals) if main_thread else None
     registry["mask"] = previous_mask if main_thread else signal.pthread_sigmask(signal.SIG_BLOCK, set())
+    def emit(command, result):
+        code, output, elapsed, started_at, ended_at, attempt = result
+        text = output_text(output)
+        if receipt is not None:
+            receipt.observe(step, command, code, elapsed, text, started_at=started_at,
+                            ended_at=ended_at, attempt_id=attempt)
+        if captured is not None and is_cargo_test(command):
+            captured.append((command, text))
+        if outputs is not None:
+            outputs.append((command, text))
+        if code:
+            failed.append(command)
+        if elapsed_by_command is not None:
+            elapsed_by_command[tuple(command)] = elapsed
+        argv, _, _ = invocations.get(tuple(command), (command, ROOT, {}))
+        print("$ " + shlex.join(argv), flush=True)
+        print(text, end="" if text.endswith("\n") or not text else "\n", flush=True)
+        print(f"  ({elapsed:.1f}s)", flush=True)
+
     try:
         if main_thread:
             def interrupt(signum, _frame):
@@ -732,21 +771,9 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
                 if future.cancelled():
                     continue
                 command = commands_by_future[future]
-                code, output, elapsed, started_at, ended_at, attempt = future.result()
-                text = output_text(output)
-                if receipt is not None:
-                    receipt.observe(step, command, code, elapsed, text, started_at=started_at,
-                                    ended_at=ended_at, attempt_id=attempt)
-                if captured is not None and is_cargo_test(command):
-                    captured.append((command, text))
-                if outputs is not None:
-                    outputs.append((command, text))
-                if code:
-                    failed.append(command)
-                argv, _, _ = invocations.get(tuple(command), (command, ROOT, {}))
-                print("$ " + shlex.join(argv), flush=True)
-                print(text, end="" if text.endswith("\n") or not text else "\n", flush=True)
-                print(f"  ({elapsed:.1f}s)", flush=True)
+                result = future.result()
+                if not in_order:
+                    emit(command, result)
     except BaseException as caught:
         error = caught
     finally:
@@ -770,13 +797,19 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
                 future.cancel()
             for process in processes:
                 try:
-                    os.killpg(process.pid, signal.SIGTERM)
+                    if registry["inside_step_group"]:
+                        process.terminate()
+                    else:
+                        os.killpg(process.pid, signal.SIGTERM)
                 except ProcessLookupError:
                     pass
             _, pending = wait([f for _, f in futures], timeout=0.5)
             for process in processes:
                 try:
-                    os.killpg(process.pid, signal.SIGKILL)
+                    if registry["inside_step_group"]:
+                        process.kill()
+                    else:
+                        os.killpg(process.pid, signal.SIGKILL)
                 except ProcessLookupError:
                     pass
             _, pending = wait(pending, timeout=2)
@@ -846,6 +879,11 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
                     receipt.recording_failed(attempt, code, elapsed, started_at, ended_at)
                     if error is None:
                         error = caught
+    if in_order:
+        results = {tuple(command): result for command, result in completed}
+        for command in ordered:
+            if result := results.get(tuple(command)):
+                emit(command, result)
     if error is None and interrupted is not None:
         error = KeyboardInterrupt() if interrupted == signal.SIGINT else SystemExit(143)
     if error is not None:
@@ -868,7 +906,10 @@ def run_lint_overlap(commands: list[Command], environment: dict[str, str], cwd: 
     root = [command for command in commands if command[:2] != ["cargo", "fmt"] and command != harness]
     outputs: list[tuple[Command, str]] = []
     with ThreadPoolExecutor(max_workers=1, thread_name_prefix="harness-clippy") as pool:
-        harness_run = pool.submit(run_serial, harness, environment, cwd, outputs=outputs, defer_output=True)
+        harness_env = environment.copy()
+        if OVERLAP_CSS in harness_env:
+            harness_env.pop("CARGO_TARGET_DIR", None)
+        harness_run = pool.submit(run_serial, harness, harness_env, cwd, outputs=outputs, defer_output=True)
         passed = all(run_serial(command, environment, cwd)[1] == 0 for command in root)
         harness_code = harness_run.result()[1]
     for _, output in outputs:
@@ -1080,7 +1121,8 @@ def run(names: list[str], update_native_baseline: bool = False,
         if name in ("build", "release"):
             break  # The packaged build generates the stylesheet.
         if name in ("lint", "browser-wasm"):
-            plan.insert(index, ("test-css", [TEST_CSS]))
+            if name != "lint" or OVERLAP_CSS not in os.environ:
+                plan.insert(index, ("test-css", [TEST_CSS]))
             break
     return (run_plan(plan, update_native_baseline, keep_going=True)
             if keep_going else run_plan(plan, update_native_baseline))
@@ -1187,6 +1229,56 @@ def run_plan(plan: list[tuple[str, list[Command]]], update_native_baseline: bool
     return _run_plan(plan, update_native_baseline, keep_going=keep_going, partial=partial)
 
 
+def overlap_span(plan, receipt):
+    cpus = os.cpu_count() or 1
+    if receipt is not None or os.environ.get("CI") or check_jobs() <= 1 or cpus < OVERLAP_MIN_CPUS:
+        return None
+    for start in range(len(plan) - 2):
+        group = plan[start:start + 3]
+        if ({name for name, _ in group} == OVERLAP_STEPS
+                and all(commands == STEPS[name][1] for name, commands in group)):
+            return start, start + 3
+    return None
+
+
+@contextmanager
+def overlap_jobserver(directory, cpus):
+    parent_flags = os.environ.get("MAKEFLAGS", "")
+    if "--jobserver" in parent_flags:
+        yield parent_flags
+        return
+    path = directory / "jobserver"
+    os.mkfifo(path, 0o600)
+    fd = os.open(path, os.O_RDWR)
+    try:
+        os.write(fd, b"+" * (cpus - 1))
+        yield f"{parent_flags} --jobserver-auth=fifo:{path}".strip()
+    finally:
+        os.close(fd)
+
+
+def run_overlapped_steps(group, update_native_baseline):
+    batch: list[Command] = []
+    timings: dict[tuple[str, ...], float] = {}
+    with tempfile.TemporaryDirectory(prefix="check-compile-") as temporary:
+        directory = Path(temporary)
+        with overlap_jobserver(directory, os.cpu_count() or OVERLAP_MIN_CPUS) as makeflags:
+            invocations = {}
+            for name, _ in group:
+                command = [sys.executable, "scripts/check.py", name]
+                if name == "test" and update_native_baseline:
+                    command.append("--update-native-baseline")
+                config = {"MAKEFLAGS": makeflags, OVERLAP_CSS: temporary}
+                if name == "lint":
+                    config["CARGO_TARGET_DIR"] = str(ROOT / "target/lint")
+                batch.append(command)
+                invocations[tuple(command)] = (command, ROOT, config)
+            _, failures = run_parallel(batch, os.environ.copy(), invocations=invocations,
+                                       in_order=True, elapsed_by_command=timings)
+    return ({command[2]: timings[tuple(command)] for command in batch},
+            [command[2] for command in failures])
+
+
 def _run_plan(plan, update_native_baseline=False, *, keep_going=False, partial=False,
               browser_environment=None, crate_configs=None):
     names = [name for name, _ in plan]
@@ -1206,7 +1298,8 @@ def _run_plan(plan, update_native_baseline=False, *, keep_going=False, partial=F
         _RECEIPT = None
         return code
 
-    for name, commands in plan:
+    def run_step(name, commands):
+        nonlocal baseline_written
         print(f"== {name}", flush=True)
         environment = os.environ.copy()
         if "BUILDTIME_LOG" in environment:
@@ -1221,7 +1314,7 @@ def _run_plan(plan, update_native_baseline=False, *, keep_going=False, partial=F
                 environment = wasm_bindgen_tools.configure(environment, ROOT)
             except ValueError as error:
                 print(f"check: {error}", file=sys.stderr)
-                return finish(1)
+                return False
             # Match the page runner's bounded budget for browser crate batches.
             environment.setdefault("WASM_BINDGEN_TEST_TIMEOUT", "120")
             # Test wasm without DWARF is about a seventh of the size, which is most of a launch.
@@ -1243,13 +1336,36 @@ def _run_plan(plan, update_native_baseline=False, *, keep_going=False, partial=F
             baseline_written = baseline_written or written
         if not passed:
             print(f"check: step '{name}' failed", file=sys.stderr)
+        return passed
+
+    span = overlap_span(plan, receipt)
+    start_time = time.monotonic() if span is not None else None
+    if span is None:
+        before, after = plan, []
+    else:
+        first, end = span
+        before, after = plan[:first], plan[end:]
+    for name, commands in before:
+        if not run_step(name, commands):
+            return finish(1)
+    if span is not None:
+        elapsed, failed = run_overlapped_steps(plan[first:end], update_native_baseline)
+        totals.update(elapsed)
+        if failed:
+            for name in failed:
+                print(f"check: step '{name}' failed", file=sys.stderr)
+            return finish(1)
+        baseline_written |= update_native_baseline
+    for name, commands in after:
+        if not run_step(name, commands):
             return finish(1)
     if update_native_baseline and not baseline_written:
         print("check: --update-native-baseline: no native `cargo test` ran, so the baseline is unchanged",
               file=sys.stderr)
         return finish(1)
+    total_wall = time.monotonic() - start_time if start_time is not None else sum(totals.values())
     print("check: step times: " + ", ".join(f"{name} {seconds:.1f}s" for name, seconds in totals.items())
-          + f", total {sum(totals.values()):.1f}s")
+          + f", total {total_wall:.1f}s")
     if partial:
         print("check: partial steps passed: " + ", ".join(dict.fromkeys(names))
               + " (subset only; full browser gate not run)")
