@@ -603,3 +603,216 @@ pub(super) fn toolbar_input(
         _ => workspace_composition::WorkspaceToolbarInput::Other,
     }
 }
+
+// GROUPING: allow until the Editor rewrite lands; remove then.
+#[allow(dead_code)]
+pub(super) struct WsInputs {
+    pub on_layout_view_mode: EventHandler<bool>,
+    pub toolbar_input: workspace_composition::WorkspaceToolbarInput,
+    pub canvas_input: Option<workspace_composition::WorkspaceCanvasInput>,
+    pub on_component_inspector_action: EventHandler<inspector::LayoutComponentInspectorAction>,
+    pub on_companion_placement_action: EventHandler<inspector::CompanionPlacementAction>,
+}
+
+// GROUPING: allow until the Editor rewrite lands; remove then.
+#[allow(dead_code)]
+#[allow(clippy::too_many_arguments, clippy::ptr_arg)] // &Vec keeps .clone() verbatim.
+pub(super) fn use_workspace_inputs(
+    setup_a: &super::setup_shell::SetupA,
+    setup_b: &super::setup_shell::SetupB,
+    cam: &super::camera::CamNamed,
+    canvas: &super::canvas_state::CanvasNamed,
+    wir: &super::workspace_inputs::WsWiring,
+    snapshot: &AcceptedSnapshot,
+    render_scope: &Scope,
+    matrices: &Vec<&boardstudio_core::model::Matrix>,
+    matrix_setup: &objects::MatrixSetupMount,
+    instance_scope_pending: bool,
+    start_pan: impl FnMut(PointerEvent) + Clone + 'static,
+    move_pointer: impl FnMut(PointerEvent) + Clone + 'static,
+    key_up: impl FnMut(KeyboardEvent) + Clone + 'static,
+) -> WsInputs {
+    let runtime = &setup_a.runtime;
+    let adapter = &setup_a.adapter;
+    let layout_owner = &setup_a.layout_owner;
+    let workspace = setup_a.workspace;
+    let layout_assembly_3d = setup_a.layout_assembly_3d;
+    let layout_state = setup_a.layout_state;
+    let drag = &cam.placement.drag;
+    let svg = &cam.svg_surface.svg;
+    let interaction_version = cam.placement.interaction_version;
+    let part_placement = &cam.placement.part_placement;
+    let matrix_placement = &setup_a.matrix_placement;
+    let canvas_interaction = &setup_a.canvas_interaction;
+    let mirrored_pair = &setup_a.mirrored_pair;
+    let tree_cell_anchor = &setup_a.tree_cell_anchor;
+    let accepted_canvas_source = &cam.scene_bounds.accepted_canvas_source;
+    let model = &setup_a.model;
+    let selected_tree_context = &canvas.selection.selected_tree_context;
+    let active_workspace = setup_a.active_workspace;
+    let show_position_inspector = canvas.inspector.show_position_inspector;
+    let matrix_transform_inspector = &setup_a.matrix_transform_inspector;
+    let objects_open = setup_a.objects_open;
+    let inspect_open = setup_a.inspect_open;
+    let inspector_panel_settings = setup_a.inspector_panel_settings;
+    let layout_transform_tool = setup_a.layout_transform_tool;
+    let on_layout_selection_kind_handler = wir.wiring.on_layout_selection_kind_handler;
+    let layer_visibility = setup_a.layer_visibility;
+    let layout_snap_settings = setup_a.layout_snap_settings;
+    let layout_command_menu = setup_a.layout_command_menu;
+    let toggle_footprints = wir.wiring.toggle_footprints;
+    let retry_save = wir.wiring.retry_save;
+    let download_pending = wir.wiring.download_pending;
+    let recover_saved = wir.wiring.recover_saved;
+    let layout_selection_kind = setup_a.layout_selection_kind;
+    let component_inspector = &canvas.inspector.component_inspector;
+    let pcb_selection_kind = wir.wiring.pcb_selection_kind;
+    let pcb_snap_intent = wir.wiring.pcb_snap_intent;
+    let layout_transform_target = &canvas.selection.layout_transform_target;
+    let layout_align = &setup_a.layout_align;
+    let layout_snap_intent = wir.wiring.layout_snap_intent;
+    let pcb_align = &setup_a.pcb_align;
+    let mount = canvas.inspector.mount;
+    let canvas_end_pointer = wir.wiring.canvas_end_pointer;
+    let canvas_cancel_pointer = wir.wiring.canvas_cancel_pointer;
+    let canvas_keyboard = wir.wiring.canvas_keyboard;
+    let canvas_wheel = wir.wiring.canvas_wheel;
+    let view_box = &cam.scene_bounds.view_box;
+    let render_generation = setup_a.render_generation;
+    let keymap_view = &setup_b.keymap_view;
+    let keymap_contours = &setup_b.keymap_contours;
+    let keycaps_view = &setup_b.keycaps_view;
+    let keycaps_contours = &setup_b.keycaps_contours;
+    let keymap_select = wir.wiring.keymap_select;
+    let keycaps_select = wir.wiring.keycaps_select;
+    let mechanical_settings = &setup_b.mechanical_settings;
+    let current_scope = &setup_a.current_scope;
+    let parts_query = setup_a.parts_query;
+    let parts_selection = setup_a.parts_selection;
+    let pcb_empty_hit = wir.wiring.pcb_empty_hit;
+    let pcb_part_hit = wir.wiring.pcb_part_hit;
+    let pcb_part_pointer_down = wir.wiring.pcb_part_pointer_down;
+    let mounted_module_select = wir.wiring.mounted_module_select;
+    let layout_component_inspector_lifetime = &setup_a.layout_component_inspector_lifetime;
+    let on_layout_view_mode = super::workspace_inputs::on_layout_view_mode(super::workspace_inputs::OnLayoutViewModeArgs {
+        runtime: runtime.clone(),
+        adapter: adapter.clone(),
+        layout_owner: layout_owner.clone(),
+        workspace,
+        layout_assembly_3d,
+        layout_state,
+        drag: drag.clone(),
+        svg: svg.clone(),
+        render_scope: render_scope.clone(),
+        interaction_version,
+        part_placement: part_placement.clone(),
+        matrix_placement: matrix_placement.clone(),
+        canvas_interaction: canvas_interaction.clone(),
+        mirrored_pair: mirrored_pair.clone(),
+        matrix_setup: matrix_setup.clone(),
+    });
+    let toolbar_selection_availability = use_toolbar_selection_availability(
+        tree_cell_anchor.clone(),
+        layout_owner.clone(),
+        accepted_canvas_source.clone(),
+        snapshot,
+        model,
+        selected_tree_context.clone(),
+        active_workspace,
+    );
+    let toolbar_input =
+        toolbar_input(ToolbarInputArgs {
+            active_workspace,
+            toolbar_selection_availability,
+            selected_tree_context: selected_tree_context.clone(),
+            show_position_inspector,
+            matrix_transform_inspector: matrix_transform_inspector.clone(),
+            runtime: runtime.clone(),
+            adapter: adapter.clone(),
+            workspace,
+            objects_open,
+            inspect_open,
+            inspector_panel_settings,
+            layout_owner: layout_owner.clone(),
+            layout_transform_tool,
+            on_layout_selection_kind_handler,
+            matrices: matrices.clone(),
+            layer_visibility,
+            model,
+            layout_snap_settings,
+            layout_command_menu,
+            layout_assembly_3d,
+            on_layout_view_mode,
+            toggle_footprints,
+            retry_save,
+            download_pending,
+            recover_saved,
+            layout_selection_kind,
+            component_inspector: component_inspector.clone(),
+            pcb_selection_kind,
+            pcb_snap_intent,
+            layout_transform_target: layout_transform_target.clone(),
+            layout_align: layout_align.clone(),
+            layout_snap_intent,
+            pcb_align: pcb_align.clone(),
+        });
+    let canvas_input = super::canvas_inspector_inputs::canvas_input(
+        super::canvas_inspector_inputs::CanvasInputArgs {
+            mount,
+            end_pointer: canvas_end_pointer,
+            cancel_pointer: canvas_cancel_pointer,
+            keyboard: canvas_keyboard,
+            wheel: canvas_wheel,
+            snapshot,
+            render_scope: render_scope.clone(),
+            view_box: view_box.clone(),
+            model,
+            render_generation,
+            keymap_view: keymap_view.clone(),
+            keymap_contours: keymap_contours.clone(),
+            keycaps_view: keycaps_view.clone(),
+            keycaps_contours: keycaps_contours.clone(),
+            keymap_select,
+            keycaps_select,
+            mechanical_settings: mechanical_settings.clone(),
+            instance_scope_pending,
+            part_placement: part_placement.clone(),
+            current_scope: current_scope.clone(),
+            parts_query,
+            parts_selection,
+            workspace,
+            active_workspace,
+            pcb_empty_hit,
+            pcb_part_hit,
+            pcb_part_pointer_down,
+            mounted_module_select,
+        },
+        start_pan.clone(),
+        move_pointer.clone(),
+        key_up.clone(),
+    );
+    let on_component_inspector_action =
+        super::canvas_inspector_inputs::on_component_inspector_action_handler(
+            runtime.clone(),
+            adapter.clone(),
+            layout_owner.clone(),
+            layout_component_inspector_lifetime.clone(),
+            workspace,
+            inspect_open,
+            layout_state,
+        );
+    let on_companion_placement_action =
+        super::canvas_inspector_inputs::on_companion_placement_action_handler(
+            runtime.clone(),
+            adapter.clone(),
+            workspace,
+            layout_state,
+        );
+    WsInputs {
+        on_layout_view_mode,
+        toolbar_input,
+        canvas_input,
+        on_component_inspector_action,
+        on_companion_placement_action,
+    }
+}
