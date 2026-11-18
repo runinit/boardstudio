@@ -3,6 +3,7 @@ mod action_handlers;
 mod camera;
 mod canvas_inspector_inputs;
 mod canvas_state;
+mod commands;
 mod findings_navigation;
 mod keyboard;
 mod pointer;
@@ -1978,124 +1979,37 @@ pub(super) fn Editor() -> Element {
     });
 
     // Only a linked Layout split has an unfocused half.
-    let split_focused_half = if boardstudio_web_ui_model::split_focus::has_split(&document) {
-        Some(split_focus())
-    } else {
-        None
-    };
-    let on_fit_keymap_board = EventHandler::new(on_fit_keymap_board);
-    let on_zoom_keymap_out = EventHandler::new(on_zoom_keymap_out);
-    let on_zoom_keymap_in = EventHandler::new(on_zoom_keymap_in);
-    let object_commands = use_memo(use_reactive(
-        (
-            &accepted_canvas_source,
-            &snapshot.token,
-            &render_scope,
-            &render_generation,
-            &active_workspace,
-        ),
-        {
-            let model = model.clone();
-            let on_select = workspace_routing.select_tree;
-            move |(_, _, scope, generation, workspace)| {
-                command_palette::editor_commands(&model, workspace, &scope, generation, on_select)
-            }
+    let commands::Commands {
+        split_focused_half,
+        on_fit_keymap_board,
+        on_zoom_keymap_out,
+        on_zoom_keymap_in,
+    } = commands::use_commands(
+        commands::CommandsInput {
+            document: document.clone(),
+            split_focus,
+            accepted_canvas_source: accepted_canvas_source.clone(),
+            snapshot,
+            render_scope: render_scope.clone(),
+            render_generation,
+            active_workspace,
+            model: &model,
+            workspace_routing,
+            layout_assembly_3d,
+            on_layout_view_mode,
+            toggle_footprints,
+            layout_state,
+            objects_open,
+            inspect_open,
+            objects_panel_settings,
+            inspector_panel_settings,
+            guide: guide.clone(),
+            has_inspector,
         },
-    ));
-    let mut palette_commands = object_commands();
-    if matches!(active_workspace, "Layout" | "PCB" | "Keymap" | "Keycaps") && !layout_assembly_3d()
-    {
-        for (label, on_select) in [
-            ("Fit board", on_fit_keymap_board),
-            ("Zoom out", on_zoom_keymap_out),
-            ("Zoom in", on_zoom_keymap_in),
-        ] {
-            palette_commands.push(boardstudio_web_ui_shared::ui::command::Command {
-                group: "View",
-                label: label.into(),
-                reason: None,
-                hint: None,
-                on_select,
-            });
-        }
-    }
-    if active_workspace == "Layout" {
-        for (label, mode) in [("2D", false), ("3D assembly", true)] {
-            palette_commands.push(boardstudio_web_ui_shared::ui::command::Command {
-                group: "View",
-                label: label.into(),
-                reason: None,
-                hint: None,
-                on_select: EventHandler::new(move |()| on_layout_view_mode.call(mode)),
-            });
-        }
-        palette_commands.push(boardstudio_web_ui_shared::ui::command::Command {
-            group: "View",
-            label: "Footprints".into(),
-            reason: None,
-            hint: None,
-            on_select: toggle_footprints,
-        });
-        let mut add_open = layout_state.add_object_menu_open();
-        let mut objects_open = objects_open;
-        let mut inspect_open = inspect_open;
-        let mut objects_settings = objects_panel_settings;
-        palette_commands.push(boardstudio_web_ui_shared::ui::command::Command {
-            group: "Current Workspace",
-            label: "Add object".into(),
-            reason: None,
-            hint: None,
-            on_select: EventHandler::new(move |()| {
-                if is_compact_viewport() {
-                    inspect_open.set(false);
-                    objects_open.set(true);
-                } else {
-                    let mut current = objects_settings();
-                    current.mode = PanelMode::Pinned;
-                    objects_settings.set(current);
-                }
-                add_open.set(true);
-            }),
-        });
-    }
-    let toggle_panel = |mut requested: Signal<bool>,
-                        mut opposite: Signal<bool>,
-                        mut settings: Signal<PanelSettings>| {
-        if is_compact_viewport() {
-            let was_open = requested();
-            opposite.set(false);
-            requested.set(!was_open);
-        } else {
-            let mut current = settings();
-            current.mode = match current.mode {
-                PanelMode::Pinned => PanelMode::Collapsed,
-                PanelMode::Collapsed => PanelMode::Pinned,
-            };
-            settings.set(current);
-        }
-    };
-    let toggle_objects =
-        use_callback(move |()| toggle_panel(objects_open, inspect_open, objects_panel_settings));
-    let toggle_inspector =
-        use_callback(move |()| toggle_panel(inspect_open, objects_open, inspector_panel_settings));
-    if guide.is_none() && active_workspace != "Export" {
-        for (label, on_select, available) in [
-            ("Show/hide Objects", toggle_objects, true),
-            ("Show/hide Inspector", toggle_inspector, has_inspector),
-        ] {
-            if !available {
-                continue;
-            }
-            palette_commands.push(boardstudio_web_ui_shared::ui::command::Command {
-                group: "View",
-                label: label.into(),
-                reason: None,
-                hint: None,
-                on_select,
-            });
-        }
-    }
-    boardstudio_web_ui_shared::ui::command::use_commands(palette_commands);
+        on_fit_keymap_board,
+        on_zoom_keymap_out,
+        on_zoom_keymap_in,
+    );
 
     rsx! {
         section { class: "flex min-h-0 flex-1 flex-col", "aria-label": "Keyboard editor",
