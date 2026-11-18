@@ -2096,7 +2096,7 @@ async fn drag_scenarios(smoke: &mut Smoke) -> Result<()> {
     saved(&page).await?;
     let cancel_before = doc(&page).await?;
     let cancel_scene = scene(&page).await?;
-    {
+    let captured = {
         let (live, mut hold) = drag(
             "Stagger cancel",
             &page,
@@ -2111,24 +2111,35 @@ async fn drag_scenarios(smoke: &mut Smoke) -> Result<()> {
             driver::end_drag(&page, &mut hold).await.ok();
             return Err(fail("Stagger cancel: a real preview appeared"));
         }
+        if !live.capture {
+            driver::end_drag(&page, &mut hold).await?;
+            return Err(fail("Stagger cancel: pointer capture missing during preview"));
+        }
         driver::press_key(&page, "Escape", "Escape", 27).await?;
         driver::end_drag(&page, &mut hold).await?;
-    }
+        live.capture
+    };
+    // Cancelling clears the preview on a later render without writing a document.
+    tokio::time::timeout(Duration::from_secs(10), async {
+        while scene(&page).await? != cancel_scene {
+            tokio::time::sleep(Duration::from_millis(30)).await;
+        }
+        Ok::<(), Error>(())
+    })
+    .await
+    .map_err(|_| fail("Stagger cancel: timed out restoring the exact canvas scene"))??;
     saved(&page).await?;
     wait_document(&page, &cancel_before.page_signature).await?;
     let cancel_after = doc(&page).await?;
     if cancel_after.revision != cancel_before.revision {
         return Err(fail("Stagger cancel created no saved revision"));
     }
-    if signature_of(&scene(&page).await?) != signature_of(&cancel_scene) {
-        return Err(fail("Stagger cancel restored the exact canvas scene"));
-    }
     record(
         &mut smoke.checks,
         "Stagger cancel",
         detail(&[
             ("previewSeen", json!(true)),
-            ("pointerCapture", json!(true)),
+            ("pointerCapture", json!(captured)),
             ("exactDocument", json!(true)),
             ("exactScene", json!(true)),
         ]),
