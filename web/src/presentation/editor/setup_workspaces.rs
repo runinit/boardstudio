@@ -471,3 +471,50 @@ pub(super) fn on_show_mechanical_finding_handler(
         },
     )
 }
+
+// GROUPING: allow until the Editor rewrite lands; remove then.
+#[allow(dead_code)]
+pub(super) struct Views {
+    pub document: std::sync::Arc<boardstudio_core::model::ProjectDoc>,
+    pub scene: std::sync::Arc<boardstudio_core::model::SceneDelta>,
+    pub findings: Vec<LayoutFinding>,
+    pub visible_ids: Rc<Vec<String>>,
+}
+
+// GROUPING: allow until the Editor rewrite lands; remove then.
+#[allow(dead_code)]
+pub(super) fn derive_views(model: &ReadModel, snapshot: &AcceptedSnapshot) -> Views {
+    let document = snapshot.document.clone();
+    let scene = model
+        .display_preview
+        .clone()
+        .unwrap_or_else(|| snapshot.scene.clone());
+    let findings = layout_findings_for_display(
+        &snapshot.scene.findings,
+        model
+            .display_preview
+            .as_ref()
+            .map(|preview| preview.findings.as_slice()),
+    );
+    let board = document
+        .boards
+        .iter()
+        .find(|b| b.id == model.active_board_id);
+    let board_part_ids: HashSet<_> = board
+        .into_iter()
+        .flat_map(|board| board.part_ids.iter().map(String::as_str))
+        .collect();
+    let visible: Vec<_> = document
+        .parts
+        .iter()
+        .filter(|part| board_part_ids.contains(part.id.as_str()))
+        .collect();
+    let visible_ids: Rc<Vec<String>> =
+        Rc::new(visible.iter().map(|part| part.id.clone()).collect());
+    Views {
+        document,
+        scene,
+        findings,
+        visible_ids,
+    }
+}
