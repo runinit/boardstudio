@@ -10,6 +10,7 @@ use crate::model::{
     AggregateAnchor, AnchorPart, Constraint, HalfExceptionState, MirroredExceptionState,
     MirroredItemKind,
 };
+use boardstudio_model::mechanical::halves::MirroredHalfOverlays;
 use std::collections::BTreeSet;
 
 #[derive(Clone, Debug, PartialEq, Eq)]

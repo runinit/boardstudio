@@ -2768,7 +2768,7 @@ pub struct ArtifactError {
 }
 
 impl ArtifactError {
-    pub(crate) fn new(code: ArtifactErrorCode, message: impl Into<String>) -> Self {
+    pub fn new(code: ArtifactErrorCode, message: impl Into<String>) -> Self {
         Self {
             code,
             message: message.into(),

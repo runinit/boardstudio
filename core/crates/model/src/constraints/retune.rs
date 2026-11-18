@@ -6,14 +6,14 @@
 //! this module's to change; it returns the new numbers and the authority pose they imply.
 
 use super::endpoints::EndpointFrame;
-use super::relation::ConstraintRelation;
+use super::relation::{ConstraintRelation, ConstraintRelationSolver};
 use crate::model::{Pose2, Vec2};
 
 /// The relation with its numbers retuned, and the target authority pose they place.
 #[derive(Debug, PartialEq)]
-pub(super) struct Retuned {
-    pub(super) relation: ConstraintRelation,
-    pub(super) target_authority: Pose2,
+pub struct Retuned {
+    pub relation: ConstraintRelation,
+    pub target_authority: Pose2,
 }
 
 /// Retunes `relation` so the target, seen through `target_frame`, lands on `requested`.
@@ -21,7 +21,7 @@ pub(super) struct Retuned {
 /// `requested_heading` is the full requested visible heading when the operation supplies one;
 /// `None` leaves the stored turn untouched, bit for bit. A reflecting relation has nothing to
 /// retune and refuses, as a dragged mirror target already does.
-pub(super) fn retune_target(
+pub fn retune_target(
     relation: &ConstraintRelation,
     source_authority: Pose2,
     source_frame: EndpointFrame,

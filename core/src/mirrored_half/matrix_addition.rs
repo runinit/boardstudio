@@ -39,6 +39,7 @@ use crate::model::{
     Layout, Matrix, MirroredCompanionMode, MirroredCompanionTweak, MirroredCorrespondence,
     MirroredHalves, MirroredItemKind, Net, Pin, Pose2, ProjectDoc,
 };
+use boardstudio_model::mechanical::halves::MirroredHalfOverlays;
 use std::collections::{BTreeMap, BTreeSet};
 
 /// The document with the mirror matrix added, and every id the transition created or changed.

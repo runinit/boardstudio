@@ -5,7 +5,7 @@
 //! `F(x, y) = (20 - 0.8x - 0.6y, -7 - 0.6x + 0.8y)`.
 
 use super::endpoints::{ConstraintEndpoint, FramedConstraint, Side};
-use super::relation::ConstraintRelation;
+use super::relation::{ConstraintRelation, ConstraintRelationSolver};
 use super::resolve_prepared;
 use crate::model::{Constraint, Pose2, ProjectDoc, Vec2};
 use serde_json::json;

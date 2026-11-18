@@ -1,16 +1,17 @@
-use crate::mechanical::pair;
+use super::relation::ConstraintRelationSolver;
+use crate::mechanical::{halves::MirroredHalfOverlays, pair};
 use crate::model::{
     ConstraintRelation, MechanicalMirrorPair, MirroredCompanionMode, MirroredCorrespondence,
     MirroredExceptionState, MirroredHalves, MirroredItemKind, PartKind, Pose2, ProjectDoc, Vec2,
 };
 use serde::{Deserialize, Serialize};
 
-pub(crate) use crate::model::ConstraintEndpoint;
+pub use crate::model::ConstraintEndpoint;
 
 /// Private wire-shape candidate; the existing global constraint ID stays attached to the record.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case")]
-pub(crate) enum FramedConstraint {
+pub enum FramedConstraint {
     Framed {
         id: String,
         source: ConstraintEndpoint,
@@ -19,16 +20,16 @@ pub(crate) enum FramedConstraint {
     },
 }
 
-#[cfg_attr(not(test), expect(dead_code))] // Only tests read these accessors; the solver binds through resolve_endpoint.
+#[cfg(test)]
 impl ConstraintEndpoint {
-    pub(super) fn visible_part_id(&self) -> &str {
+    fn visible_part_id(&self) -> &str {
         match self {
             Self::Part { part_id } => part_id,
             Self::LinkedMirror { mirror_part_id, .. } => mirror_part_id,
         }
     }
 
-    pub(super) fn authoritative_part_id(&self) -> &str {
+    fn authoritative_part_id(&self) -> &str {
         match self {
             Self::Part { part_id } => part_id,
             Self::LinkedMirror { source_part_id, .. } => source_part_id,
@@ -38,7 +39,7 @@ impl ConstraintEndpoint {
 
 /// Compiles a legacy record's literal endpoint IDs into live endpoint views. Legacy records
 /// keep their wire shape; this is the private solver/adapter representation for the same ID.
-pub(crate) fn compile_legacy(
+pub fn compile_legacy(
     document: &ProjectDoc,
     constraint: &crate::model::Constraint,
 ) -> Result<FramedConstraint, String> {
@@ -139,7 +140,7 @@ fn legacy_endpoint(
 
 /// How a mirrored companion sits against its mirrored key (ADR-0010).
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) enum CompanionRule {
+pub enum CompanionRule {
     /// Reflect the companion's pose like the key's.
     Literal,
     /// Keep the source's world heading; the position is reflected.
@@ -254,7 +255,7 @@ impl CompanionRule {
 
 /// A live endpoint frame. Linked mappings are supplied by the current pair owner.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) enum EndpointFrame {
+pub enum EndpointFrame {
     Identity,
     /// An independent mirrored part: the full heading is turned half a turn.
     LinkedMirror {
@@ -282,7 +283,7 @@ pub(super) enum EndpointFrame {
 impl EndpointFrame {
     /// A companion frame with the resolved pose of the key it is measured against; other
     /// frames do not depend on a key and are returned as they are.
-    pub(super) fn with_key(self, resolved: Option<Pose2>) -> Self {
+    pub fn with_key(self, resolved: Option<Pose2>) -> Self {
         match (self, resolved) {
             (Self::LinkedCompanion { mapping, rule, .. }, Some(key)) => Self::LinkedCompanion {
                 mapping,
@@ -293,7 +294,7 @@ impl EndpointFrame {
         }
     }
 
-    pub(super) fn project(self, authoritative: Pose2) -> Result<Pose2, String> {
+    pub fn project(self, authoritative: Pose2) -> Result<Pose2, String> {
         validate_pose(authoritative)?;
         let projected = match self {
             Self::Identity => authoritative,
@@ -349,11 +350,7 @@ impl EndpointFrame {
         Ok(projected)
     }
 
-    pub(super) fn unproject(
-        self,
-        visible: Pose2,
-        previous_authoritative: Pose2,
-    ) -> Result<Pose2, String> {
+    pub fn unproject(self, visible: Pose2, previous_authoritative: Pose2) -> Result<Pose2, String> {
         validate_pose(visible)?;
         validate_pose(previous_authoritative)?;
         let authoritative = match self {
@@ -455,7 +452,7 @@ fn validate_pose(pose: Pose2) -> Result<(), String> {
 
 /// Which end of a relation an endpoint is, for located messages.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum Side {
+pub enum Side {
     Source,
     Target,
 }
@@ -472,14 +469,14 @@ impl Side {
 /// An endpoint bound to the live document: the part the author sees, the part that owns the
 /// geometry, and the frame between them.
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct ResolvedEndpoint {
-    pub(super) visible_id: String,
-    pub(super) authoritative_id: String,
+pub struct ResolvedEndpoint {
+    pub visible_id: String,
+    pub authoritative_id: String,
     /// For a companion frame, `key` is a placeholder until the solver supplies `owner`'s pose.
-    pub(super) frame: EndpointFrame,
+    pub frame: EndpointFrame,
     /// The authoritative key a companion endpoint is projected against. The solver resolves it
     /// first, so the projection depends on the key's live pose and a cycle through it is refused.
-    pub(super) owner: Option<String>,
+    pub owner: Option<String>,
 }
 
 fn state_name(state: MirroredExceptionState) -> &'static str {
@@ -618,7 +615,7 @@ fn derived_from<'a>(
 
 /// The part that owns `part_id`'s geometry: its source while a live part correspondence derives
 /// it, otherwise the part itself. A Local or Omitted mirror is not derived, so it owns itself.
-pub(super) fn authoritative_part<'a>(document: &'a ProjectDoc, part_id: &'a str) -> &'a str {
+pub fn authoritative_part<'a>(document: &'a ProjectDoc, part_id: &'a str) -> &'a str {
     derived_from(document, part_id).map_or(part_id, |(_, correspondence)| {
         correspondence.source_id.as_str()
     })
@@ -626,7 +623,7 @@ pub(super) fn authoritative_part<'a>(document: &'a ProjectDoc, part_id: &'a str)
 
 /// Binds one authored endpoint to the document as it stands. Nothing is cached: a later
 /// pair map, correspondence or exception change is read again on the next resolution.
-pub(super) fn resolve_endpoint(
+pub fn resolve_endpoint(
     document: &ProjectDoc,
     constraint_id: &str,
     side: Side,
@@ -711,7 +708,7 @@ pub(super) fn resolve_endpoint(
 }
 
 /// Evaluate source → target in their authored endpoint frames, then return target authority.
-pub(super) fn solve_target(
+pub fn solve_target(
     source_authority: Pose2,
     source_frame: EndpointFrame,
     target_frame: EndpointFrame,

@@ -344,27 +344,25 @@ pub(crate) fn remove(doc: &mut ProjectDoc, id: &str) -> Result<Vec<String>, Stri
     Ok(vec![removed.id, removed.host_board_id])
 }
 
-impl ModuleBoard {
-    pub(crate) fn placed(mut self, placement: Pose2, flipped: bool) -> Self {
-        for contour in &mut self.contours {
-            for p in &mut contour.points {
-                *p = placed_point(placement, flipped, *p);
-            }
+pub(crate) fn placed(mut board: ModuleBoard, placement: Pose2, flipped: bool) -> ModuleBoard {
+    for contour in &mut board.contours {
+        for p in &mut contour.points {
+            *p = placed_point(placement, flipped, *p);
         }
-        for hole in &mut self.holes {
-            for p in hole {
-                *p = placed_point(placement, flipped, *p);
-            }
-        }
-        self.pcb_source = self
-            .pcb_source
-            .as_ref()
-            .map(|source| source_profile(placement, flipped, source));
-        for mount in &mut self.round_drills {
-            mount.at = placed_point(placement, flipped, mount.at);
-        }
-        self
     }
+    for hole in &mut board.holes {
+        for p in hole {
+            *p = placed_point(placement, flipped, *p);
+        }
+    }
+    board.pcb_source = board
+        .pcb_source
+        .as_ref()
+        .map(|source| source_profile(placement, flipped, source));
+    for mount in &mut board.round_drills {
+        mount.at = placed_point(placement, flipped, mount.at);
+    }
+    board
 }
 
 fn xy(instance: &MountedModule, flipped: bool, p: Vec2) -> Vec2 {

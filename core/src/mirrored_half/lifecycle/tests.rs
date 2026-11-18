@@ -8,6 +8,7 @@ use super::{
 use crate::constraints::{ConstraintEndpoint, ConstraintRelation, FramedConstraint};
 use crate::mirrored_half::reconcile::tests::fixture_document;
 use crate::model::*;
+use boardstudio_model::mechanical::halves::MirroredHalfOverlays;
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 

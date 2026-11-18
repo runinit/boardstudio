@@ -2,6 +2,7 @@
 
 use super::{Link, Links, Target};
 use crate::model::{Layout, MirroredExceptionState, MirroredItemKind};
+use boardstudio_model::mechanical::halves::MirroredHalfOverlays;
 use std::collections::BTreeSet;
 
 const OVERLAP: &str = "A layout cannot use native mirrored-pair and legacy layout mirror links together; unlink one before editing it";

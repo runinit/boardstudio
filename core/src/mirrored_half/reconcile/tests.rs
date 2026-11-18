@@ -18,6 +18,7 @@ use crate::mirrored_half::{
     MechanicalChange, MechanicalEdit, MechanicalFeatureCorrespondence, MechanicalTarget,
 };
 use crate::model::*;
+use boardstudio_model::mechanical::halves::MirroredHalfOverlays;
 
 pub(in crate::mirrored_half) fn fixture_mapping() -> Pose2 {
     Pose2 {

@@ -11,6 +11,7 @@ autotests = false
 name = "dump_firmware"
 
 [dependencies]
+boardstudio-model = { path = "crates/model" }
 boardstudio-contracts = { path = "../contracts/rust" }
 boardstudio-footprints = { path = "../footprints" }
 cavalier_contours = "=0.9.0"

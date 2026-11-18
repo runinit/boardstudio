@@ -42,14 +42,17 @@ fn read_board_source(
     let (preview, thickness) = preview::board_parsed(&board, 0)?;
     let (profile, round_drills) =
         mechanical_extract::extract_board_source(&board, Vec2::default())?;
-    Ok(crate::model::ModuleBoard {
-        contours: preview.contours,
-        holes: preview.holes,
-        thickness,
-        pcb_source: Some(profile),
-        round_drills,
-    }
-    .placed(placement, flipped))
+    Ok(crate::modules::placed(
+        crate::model::ModuleBoard {
+            contours: preview.contours,
+            holes: preview.holes,
+            thickness,
+            pcb_source: Some(profile),
+            round_drills,
+        },
+        placement,
+        flipped,
+    ))
 }
 
 /// Parse source-owned footprint graphics for module preview without widening the parser helpers.

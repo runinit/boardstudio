@@ -4,6 +4,7 @@ members = [
   "application",
   "contracts/rust",
   "core",
+  "core/crates/*",
   "footprints",
   "renderer",
   "web",

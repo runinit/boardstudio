@@ -4,53 +4,12 @@
 //! the counterpart of each item (correspondences) and any per-item exception. Absent `halves`
 //! means the pair is unpaired: it links mechanical features and nothing else.
 
+use boardstudio_model::mechanical::halves::MirroredHalfOverlays;
+
 use crate::model::{
-    MechanicalMirrorPair, MirroredCompanionMode, MirroredCompanionTweak, MirroredCorrespondence,
-    MirroredException, MirroredExceptionState, MirroredHalves, MirroredItemKind, ProjectDoc,
+    MechanicalMirrorPair, MirroredCompanionMode, MirroredCompanionTweak, MirroredExceptionState,
+    MirroredHalves, MirroredItemKind, ProjectDoc,
 };
-
-impl MirroredHalves {
-    /// The correspondence an exception overlays: same kind and mirror item. An exception without
-    /// one is a legacy, unassociated record.
-    pub(crate) fn overlaid_correspondence(
-        &self,
-        exception: &MirroredException,
-    ) -> Option<&MirroredCorrespondence> {
-        self.correspondences.iter().find(|correspondence| {
-            correspondence.kind == exception.kind && correspondence.mirror_id == exception.mirror_id
-        })
-    }
-
-    /// The authored item an overlay belongs to, from its correspondence.
-    pub(crate) fn overlay_source(&self, exception: &MirroredException) -> Option<&str> {
-        self.overlaid_correspondence(exception)
-            .map(|correspondence| correspondence.source_id.as_str())
-    }
-
-    /// The state overlay on a correspondence, if the mirror item is Local or Omitted.
-    pub(crate) fn overlay_of(
-        &self,
-        correspondence: &MirroredCorrespondence,
-    ) -> Option<&MirroredException> {
-        self.exceptions.iter().find(|exception| {
-            exception.kind == correspondence.kind && exception.mirror_id == correspondence.mirror_id
-        })
-    }
-
-    /// The overlay on the item that mirrors `source_id`, when one is stored.
-    pub(crate) fn overlay_for_source(
-        &self,
-        kind: MirroredItemKind,
-        source_id: &str,
-    ) -> Option<&MirroredException> {
-        self.correspondences
-            .iter()
-            .find(|correspondence| {
-                correspondence.kind == kind && correspondence.source_id == source_id
-            })
-            .and_then(|correspondence| self.overlay_of(correspondence))
-    }
-}
 
 /// A mirror net that is absent by rule, with nothing stored: every pin of its source net that is
 /// not on the controller belongs to an Omitted (absent) mirror part. A net with no such pin is not

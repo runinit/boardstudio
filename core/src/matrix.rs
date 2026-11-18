@@ -78,14 +78,7 @@ fn matrix_terminal_pad_ids(definition: &crate::model::PartDefinition, row: bool)
         .collect()
 }
 
-pub(crate) fn member_id(matrix: &str, row: u32, column: u32) -> String {
-    format!("matrix/{matrix}/r{row}c{column}")
-}
-
-/// The generated part ID of one assembly on a matrix key.
-pub(crate) fn companion_id(key_id: &str, assembly_id: &str) -> String {
-    format!("{key_id}/{assembly_id}")
-}
+pub(crate) use boardstudio_model::matrix::{companion_id, member_id};
 
 fn companion_pose(key: Pose2, assembly: &crate::model::MatrixAssembly) -> Pose2 {
     let (sin, cos) = key.rotation.to_radians().sin_cos();

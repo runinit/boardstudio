@@ -1,16 +1,6 @@
 use super::{FirmwareRequest, gpio_spec_flags};
-use crate::model::{EncoderDriver, RotaryProfile};
-use serde::{Deserialize, Serialize};
+use crate::model::EncoderDriver;
 use std::collections::BTreeSet;
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct FirmwareEncoder {
-    pub id: String,
-    pub profile: RotaryProfile,
-    pub a_gpio: String,
-    pub b_gpio: String,
-}
 
 fn label(id: &str) -> String {
     format!(

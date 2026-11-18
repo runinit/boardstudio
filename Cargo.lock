@@ -227,6 +227,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "boardstudio-model"
+version = "0.1.0"
+dependencies = [
+ "boardstudio-contracts",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "boardstudio-renderer"
 version = "0.1.0"
 dependencies = [
@@ -546,6 +555,7 @@ version = "0.1.0"
 dependencies = [
  "boardstudio-contracts",
  "boardstudio-footprints",
+ "boardstudio-model",
  "cavalier_contours",
  "i_overlay",
  "js-sys",

@@ -2,14 +2,14 @@
 use crate::hash::sha256_hex;
 use crate::model::*;
 use boardstudio_contracts::polygon_contains;
-pub mod change;
+pub use boardstudio_model::mechanical::change;
 pub mod clearance;
 pub mod edit;
 pub mod features;
 mod gasket;
 pub mod halves;
 pub mod inputs;
-pub mod pair;
+pub use boardstudio_model::mechanical::pair;
 pub use change::{MechanicalChange, MechanicalEdit, MechanicalTarget};
 pub use edit::{MechanicalEditDisposition, evaluate_edit};
 use i_overlay::core::{fill_rule::FillRule, overlay_rule::OverlayRule};

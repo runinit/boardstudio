@@ -15,6 +15,7 @@ use crate::model::{
     Matrix, MirroredCorrespondence, MirroredExceptionState, MirroredHalves, MirroredItemKind,
     OutlineFeature, Part, Pose2, ProjectDoc, Vec2,
 };
+use boardstudio_model::mechanical::halves::MirroredHalfOverlays;
 use std::collections::{BTreeMap, BTreeSet};
 
 #[path = "lifecycle.rs"]

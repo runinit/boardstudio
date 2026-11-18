@@ -6,10 +6,7 @@ use serde_json::Value;
 #[cfg(test)]
 use crate::generators;
 
-/// The version this build reads and writes.
-pub const CURRENT_VERSION: u32 = 7;
-/// The version of a document that does not state one.
-pub const LEGACY_VERSION: u32 = 1;
+pub use boardstudio_model::migrate::*;
 
 /// Typed Core admission never migrates or modifies the candidate document.
 pub(crate) fn require_current_version(version: u32) -> Result<(), String> {

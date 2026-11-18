@@ -1,16 +1,7 @@
 use super::{evaluated, valid_projection_matrix};
 use crate::model::{Matrix, MatrixSplayAffect, MatrixSplayChange, ProjectDoc, Vec2};
 
-pub(crate) fn rotate(point: Vec2, degrees: f64, pivot: Vec2) -> Vec2 {
-    let angle = degrees.to_radians();
-    let (sin, cos) = angle.sin_cos();
-    let x = point.x - pivot.x;
-    let y = point.y - pivot.y;
-    Vec2 {
-        x: pivot.x + x * cos - y * sin,
-        y: pivot.y + x * sin + y * cos,
-    }
-}
+pub(crate) use boardstudio_model::matrix::splay::rotate;
 
 fn with_origin(
     matrix: &Matrix,
