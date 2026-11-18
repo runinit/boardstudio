@@ -26,7 +26,6 @@ PATCHED_ADVISORIES = ("RUSTSEC-2026-0196", "RUSTSEC-2026-0197")
 ACCEPTED_ADVISORIES = ("RUSTSEC-2026-0386",)
 CGMATH_MANIFESTS = (
     "Cargo.toml",
-    "cad/wasm/Cargo.toml",
     "cad/monstertruck/Cargo.toml",
     "renderer/vendor/cgmath-next-0.18.1/Cargo.toml",
 )

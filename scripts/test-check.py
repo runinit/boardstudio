@@ -89,8 +89,9 @@ class CheckTests(unittest.TestCase):
                 mock.patch.object(check.shutil, "disk_usage", return_value=mock.Mock(free=1024 ** 3)), \
                 contextlib.redirect_stdout(output):
             self.assertEqual(check.run_plan(plan), 0)
-        for target in ("cad/monstertruck/target", "cad/wasm/target", "cad/monstertruck-qualification/target"):
+        for target in ("cad/monstertruck/target", "cad/monstertruck-qualification/target"):
             self.assertIn(str(ROOT / target), output.getvalue())
+        self.assertNotIn(str(ROOT / "cad/wasm/target"), output.getvalue())
 
     def test_preflight_reports_configured_target_and_tmpdir(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -12,6 +12,8 @@ import browser_tools
 
 CAD_ROOT = Path(__file__).resolve().parents[1]
 OUT_NAME = "boardstudio_cad_wasm"
+WASM_BUILD_TARGET = "wasm/target"
+NATIVE_TEST_TARGETS = ("monstertruck/target", "monstertruck-qualification/target")
 VENDOR_CRATES = (
     "inflector",
     "monstertruck-core",
@@ -76,8 +78,8 @@ def wasm_inputs_digest(*, no_opt=False):
     digest.update(Path(__file__).read_bytes())
     roots = [
         (CAD_ROOT.parent, ("Cargo.toml", "rust-toolchain.toml")),
-        (CAD_ROOT / "wasm", ("Cargo.toml", "Cargo.lock", "src", "assets")),
-        (CAD_ROOT / "monstertruck", ("Cargo.toml", "src")),
+        (CAD_ROOT / "wasm", ("Cargo.toml", "src", "assets")),
+        (CAD_ROOT / "monstertruck", ("Cargo.toml", "Cargo.lock", "src")),
         (contracts, ("Cargo.toml", "src")),
         (CAD_ROOT.parent / "renderer/vendor/cgmath-next-0.18.1", ("Cargo.toml", "src")),
     ]
@@ -113,7 +115,7 @@ def build_wasm(*, no_opt=False):
             stale.unlink(missing_ok=True)
     stamp.parent.mkdir(parents=True, exist_ok=True)
     wasm_opt = ["--no-opt"] if no_opt else []
-    env = dict(os.environ, CARGO_TARGET_DIR=str(CAD_ROOT / "wasm/target"))
+    env = dict(os.environ, CARGO_TARGET_DIR=str(CAD_ROOT / WASM_BUILD_TARGET))
     run(
         [
             "wasm-pack",
@@ -135,31 +137,22 @@ def build_wasm(*, no_opt=False):
 
 
 def test_cad():
-    library_env = dict(os.environ, CARGO_TARGET_DIR=str(CAD_ROOT / "monstertruck/target"))
+    library_target, owner_target = NATIVE_TEST_TARGETS
+    library_env = dict(os.environ, CARGO_TARGET_DIR=str(CAD_ROOT / library_target))
     run(
         [
             "cargo",
             "test",
             "--manifest-path",
             "monstertruck/Cargo.toml",
+            "-p", "boardstudio-cad",
+            "-p", "boardstudio-cad-wasm",
             "--release",
             "--locked",
         ],
         env=library_env,
     )
-    wasm_env = dict(os.environ, CARGO_TARGET_DIR=str(CAD_ROOT / "wasm/target"))
-    run(
-        [
-            "cargo",
-            "test",
-            "--manifest-path",
-            "wasm/Cargo.toml",
-            "--release",
-            "--locked",
-        ],
-        env=wasm_env,
-    )
-    owner_env = dict(os.environ, CARGO_TARGET_DIR=str(CAD_ROOT / "monstertruck-qualification/target"))
+    owner_env = dict(os.environ, CARGO_TARGET_DIR=str(CAD_ROOT / owner_target))
     # Filter legacy suites; external fixtures are read only by the tests that use them.
     for package, *selection in OWNER_TESTS:
         try:

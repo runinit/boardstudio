@@ -2,10 +2,10 @@
 
 This standalone crate records qualification of the CPU-only Rust dependency slice
 used by the CAD backend replacement. The committed production provider now uses
-Monstertruck, with full migration acceptance still open. Both
-[`cad/monstertruck`](../monstertruck/Cargo.toml) and
-[`cad/wasm`](../wasm/Cargo.toml) patch dependencies to this directory's `vendor/`
-trees: preserve them during cleanup. The
+Monstertruck, with full migration acceptance still open. The
+[`cad/monstertruck`](../monstertruck/Cargo.toml) workspace patches dependencies for
+the library and the [`cad/wasm`](../wasm/Cargo.toml) member to this directory's
+`vendor/` trees: preserve them during cleanup. The
 [current acceptance reconciliation](../../docs/research/cad/migration-acceptance-2026-10-18.md)
 distinguishes production evidence from historical candidate results below.
 

@@ -51,7 +51,6 @@ jobs:
             . -> target
             cad/monstertruck -> target
             cad/monstertruck-qualification -> target
-            cad/wasm -> target
           env-vars: ImageOS
           save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]' && github.event.pull_request.user.login != 'dependabot[bot]') }}
       - uses: ./.github/actions/web-tools
@@ -108,7 +107,7 @@ jobs:
         with:
           workspaces: |
             . -> target
-            cad/wasm -> target
+            cad/monstertruck -> ../wasm/target
           shared-key: ${{ matrix.cache }}
           env-vars: ImageOS
           save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]' && github.event.pull_request.user.login != 'dependabot[bot]') }}
@@ -188,7 +187,7 @@ jobs:
         with:
           workspaces: |
             . -> target
-            cad/wasm -> target
+            cad/monstertruck -> ../wasm/target
           shared-key: web
           env-vars: ImageOS
           save-if: false

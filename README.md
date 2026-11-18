@@ -168,9 +168,10 @@ the receipt) at review handoff.
 | `scripts/` | Build, content preparation and checks |
 
 The Rust crates share one Cargo workspace (root `Cargo.toml`, `Cargo.lock` and
-`target/`), so dependencies compile once per profile and target. `cad/wasm` stays
-outside it because it patches the vendored Monstertruck crates with its own lockfile. It declares an empty `[workspace]` so cargo treats it as its own
-root, which also lets it build from a worktree nested under another checkout.
+`target/`), so dependencies compile once per profile and target. The CAD workspace
+at `cad/monstertruck` contains the library and the `cad/wasm` member. It has a
+separate lockfile and patches the vendored Monstertruck crates. Native CAD tests
+use `cad/monstertruck/target`, and the wasm provider uses `cad/wasm/target`.
 
 The repository has no TypeScript or Node dependency; Python scripts handle build, content preparation and checks. Footprint generation runs in Rust inside Core and the page. User-supplied
 JavaScript generators are not executed. Bundled model export includes used assets;
