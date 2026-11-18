@@ -1,6 +1,8 @@
 use super::*;
+mod action_handlers;
 mod keyboard;
 mod pointer;
+mod selection_handlers;
 
 /// Ticket 18: the ghost of the previous spacing lives here, in the Editor,
 /// next to the other Layout view state. The tracker below records the last
@@ -811,979 +813,188 @@ pub(super) fn Editor() -> Element {
         .collect();
     let visible_ids: Rc<Vec<String>> =
         Rc::new(visible.iter().map(|part| part.id.clone()).collect());
-    let select_tree = {
-        let runtime = runtime.clone();
-        let adapter = adapter.clone();
-        let owner = layout_owner.clone();
-        let tree_cell_anchor = tree_cell_anchor.clone();
-        let generation = render_generation;
-        let mut workspace = workspace;
-        let inspector_settings = inspector_panel_settings;
-        let mut objects_open = objects_open;
-        let mut inspect_open = inspect_open;
-        move |request: objects::TreeSelectRequest| {
-            if request
-                .outline_action
-                .as_ref()
-                .is_some_and(|action| !action.is_current(&runtime, generation))
-                || (adapter.generation)() != generation
-                || runtime.scope().as_ref() != Some(&request.scope)
-                || !selection::context_is_current(
-                    &runtime.model(),
-                    &request.scope,
-                    &request.context,
-                )
-            {
-                return;
-            }
-            let (close_objects, open_inspect) = match &request.context {
-                objects::TreeContext::Board { .. } => (false, false),
-                objects::TreeContext::MountedModule { .. }
-                | objects::TreeContext::Outline { .. }
-                | objects::TreeContext::OutlineVersion { .. }
-                | objects::TreeContext::Bridge { .. } => (true, true),
-                objects::TreeContext::LayoutGroup { .. } => (true, false),
-                objects::TreeContext::Matrix { .. }
-                | objects::TreeContext::Row { .. }
-                | objects::TreeContext::Column { .. }
-                | objects::TreeContext::Key { .. }
-                | objects::TreeContext::Component { .. } => (true, true),
-            };
-            let outline_route = matches!(
-                &request.context,
-                objects::TreeContext::Outline { .. }
-                    | objects::TreeContext::OutlineVersion { .. }
-                    | objects::TreeContext::Bridge { .. }
-            );
-            let bridge_id = match &request.context {
-                objects::TreeContext::Bridge { bridge_id, .. } => Some(bridge_id.clone()),
-                _ => None,
-            };
-            let activation = request.outline_action.clone();
-            let scope = request.scope.clone();
-            layout_state.set_selection_kind_from_context(&request.context);
-            update_tree_cell_anchor(
-                &tree_cell_anchor,
-                &owner,
-                &runtime.model(),
-                Some(&request.context),
-            );
-            selection::submit_context(&runtime, &adapter, request.into());
-            if (adapter.generation)() != generation || runtime.scope().as_ref() != Some(&scope) {
-                return;
-            }
-            if let Some(action) = activation {
-                workspace.set("Layout");
-                outline_activation.call(action);
-            }
-            if outline_route {
-                workspace.set("Layout");
-                fit_selected_bridge(&runtime, bridge_id.as_deref());
-                pin_inspector_on_desktop(inspector_settings);
-            }
-            if close_objects {
-                objects_open.set(false);
-            }
-            if open_inspect {
-                inspect_open.set(true);
-            }
-        }
-    };
-    let on_layout_selection_kind = {
-        let runtime = runtime.clone();
-        let adapter = adapter.clone();
-        let owner = layout_owner.clone();
-        let tree_cell_anchor = tree_cell_anchor.clone();
-        let mut objects_open = objects_open;
-        let mut inspect_open = inspect_open;
-        let mut selection_kind = layout_selection_kind;
-        move |kind: objects::LayoutSelectionKind| {
-            if !layout_owner_is_current(&runtime, workspace, &adapter, &owner) {
-                return;
-            }
-            selection_kind.set(kind);
-            let model = runtime.model();
-            let Some(scope) = owner.scope.as_ref() else {
-                tree_cell_anchor.borrow_mut().take();
-                return;
-            };
-            let Some(selected) = adapter
-                .selected_context
-                .read()
-                .clone()
-                .filter(|selected| selected.scope == *scope)
-            else {
-                tree_cell_anchor.borrow_mut().take();
-                return;
-            };
-            if !selection::context_is_current(&model, scope, &selected.context) {
-                tree_cell_anchor.borrow_mut().take();
-                return;
-            }
-            let retained = tree_cell_anchor_for_owner(&tree_cell_anchor, &owner);
-            let Some(projection) = objects::context_for_selection_kind(
-                &model,
-                &selected.context,
-                kind,
-                retained.as_ref(),
-            ) else {
-                return;
-            };
-            if !selection::context_is_current(&model, scope, &projection.context) {
-                return;
-            }
-            update_tree_cell_anchor(&tree_cell_anchor, &owner, &model, Some(&projection.context));
-            selection::submit_context(
-                &runtime,
-                &adapter,
-                objects::TreeSelectRequest {
-                    scope: scope.clone(),
-                    context: projection.context,
-                    mode: SelectionMode::Replace,
-                    outline_action: None,
-                }
-                .into(),
-            );
-            if layout_owner_is_current(&runtime, workspace, &adapter, &owner) {
-                pin_inspector_on_desktop(inspector_panel_settings);
-                objects_open.set(false);
-                inspect_open.set(true);
-            }
-        }
-    };
-    let on_layout_snap_intent = {
-        let runtime = runtime.clone();
-        let adapter = adapter.clone();
-        let owner = layout_owner.clone();
-        let mut snap_settings = layout_snap_settings;
-        move |intent: objects::LayoutSnapIntent| {
-            if !layout_owner_is_current(&runtime, workspace, &adapter, &owner) {
-                return;
-            }
-            let mut settings = snap_settings.read().clone();
-            match intent {
-                objects::LayoutSnapIntent::Fraction(value)
-                    if [0.0, 0.125, 0.25, 0.5, 1.0, -1.0, -0.5, -0.1].contains(&value) =>
-                {
-                    settings.snap_fraction = value;
-                }
-                objects::LayoutSnapIntent::GeometrySnap(enabled) => {
-                    settings.geometry_snap = enabled;
-                }
-                objects::LayoutSnapIntent::GapSnap(enabled) => {
-                    settings.gap_snap = enabled;
-                }
-                objects::LayoutSnapIntent::GapOverride(value) => {
-                    settings.gap_override = value;
-                }
-                objects::LayoutSnapIntent::Fraction(_) => return,
-            }
-            snap_settings.set(settings);
-        }
-    };
-    let on_pcb_selection_kind = {
-        let runtime = runtime.clone();
-        let adapter = adapter.clone();
-        let owner = layout_owner.clone();
-        let tree_cell_anchor = tree_cell_anchor.clone();
-        let mut objects_open = objects_open;
-        let mut inspect_open = inspect_open;
-        let mut selection_kind = layout_selection_kind;
-        move |kind: objects::LayoutSelectionKind| {
-            if !pcb_owner_is_current(&runtime, workspace, &adapter, &owner) {
-                return;
-            }
-            selection_kind.set(kind);
-            let model = runtime.model();
-            let Some(scope) = owner.scope.as_ref() else {
-                tree_cell_anchor.borrow_mut().take();
-                return;
-            };
-            let Some(selected) = adapter
-                .selected_context
-                .read()
-                .clone()
-                .filter(|selected| selected.scope == *scope)
-            else {
-                tree_cell_anchor.borrow_mut().take();
-                return;
-            };
-            if !selection::context_is_current(&model, scope, &selected.context) {
-                tree_cell_anchor.borrow_mut().take();
-                return;
-            }
-            let retained = tree_cell_anchor_for_owner(&tree_cell_anchor, &owner);
-            let Some(projection) = objects::context_for_selection_kind(
-                &model,
-                &selected.context,
-                kind,
-                retained.as_ref(),
-            ) else {
-                return;
-            };
-            if !selection::context_is_current(&model, scope, &projection.context) {
-                return;
-            }
-            update_tree_cell_anchor(&tree_cell_anchor, &owner, &model, Some(&projection.context));
-            selection::submit_context(
-                &runtime,
-                &adapter,
-                objects::TreeSelectRequest {
-                    scope: scope.clone(),
-                    context: projection.context,
-                    mode: SelectionMode::Replace,
-                    outline_action: None,
-                }
-                .into(),
-            );
-            if pcb_owner_is_current(&runtime, workspace, &adapter, &owner) {
-                pin_inspector_on_desktop(inspector_panel_settings);
-                objects_open.set(false);
-                inspect_open.set(true);
-            }
-        }
-    };
-    let on_pcb_snap_intent = {
-        let runtime = runtime.clone();
-        let adapter = adapter.clone();
-        let owner = layout_owner.clone();
-        let mut snap_settings = layout_snap_settings;
-        move |intent: objects::LayoutSnapIntent| {
-            if !pcb_owner_is_current(&runtime, workspace, &adapter, &owner) {
-                return;
-            }
-            let mut settings = snap_settings.read().clone();
-            match intent {
-                objects::LayoutSnapIntent::Fraction(value)
-                    if [0.0, 0.125, 0.25, 0.5, 1.0, -1.0, -0.5, -0.1].contains(&value) =>
-                {
-                    settings.snap_fraction = value;
-                }
-                objects::LayoutSnapIntent::GeometrySnap(enabled) => {
-                    settings.geometry_snap = enabled;
-                }
-                objects::LayoutSnapIntent::GapSnap(enabled) => {
-                    settings.gap_snap = enabled;
-                }
-                objects::LayoutSnapIntent::GapOverride(value) => {
-                    settings.gap_override = value;
-                }
-                objects::LayoutSnapIntent::Fraction(_) => return,
-            }
-            snap_settings.set(settings);
-        }
-    };
-    let on_keymap_select = {
-        let runtime = runtime.clone();
-        let adapter = adapter.clone();
-        let scope = render_scope.clone();
-        let generation = render_generation;
-        let mut objects_open = objects_open;
-        let mut inspect_open = inspect_open;
-        move |key_id: String| {
-            if workspace() != "Keymap"
-                || runtime.scope().as_ref() != Some(&scope)
-                || (adapter.generation)() != generation
-            {
-                return;
-            }
-            let model = runtime.model();
-            if !active_board_scope_matches(&model, &scope) {
-                return;
-            }
-            let Some(snapshot) = model.accepted.as_ref() else {
-                return;
-            };
-            if key_id.is_empty() {
-                let mut selected_context = adapter.selected_context;
-                selected_context.set(None);
-                let mut anchor_scope = adapter.anchor_scope;
-                anchor_scope.set(None);
-                runtime.submit(Event::SelectParts {
-                    operation_id: runtime.operation(),
-                    part_ids: Vec::new(),
-                    range_part_ids: Vec::new(),
-                    mode: SelectionMode::Replace,
-                });
-                return;
-            }
-            let layer_id = keymap_layer_id();
-            let Some(view) =
-                keymap::project(snapshot, Some(&scope), &model.active_board_id, &layer_id)
-            else {
-                return;
-            };
-            if !view.keys.iter().any(|key| key.id.as_ref() == key_id) {
-                return;
-            }
-            let Some(context) = objects::context_for_part(&model, &key_id) else {
-                return;
-            };
-            if !selection::context_is_current(&model, &scope, &context) {
-                return;
-            }
-            let Some(selected_ids) = selection::submit_canvas_selection(
-                &runtime,
-                &adapter,
-                &scope,
-                generation,
-                context.clone(),
-                SelectionMode::Replace,
-                Vec::new(),
-            ) else {
-                return;
-            };
-            if selected_ids.is_empty()
-                || runtime.scope().as_ref() != Some(&scope)
-                || (adapter.generation)() != generation
-            {
-                return;
-            }
-            let current = runtime.model();
-            if !active_board_scope_matches(&current, &scope)
-                || !selection::context_is_current(&current, &scope, &context)
-            {
-                return;
-            }
-            let Some(snapshot) = current.accepted.as_ref() else {
-                return;
-            };
-            let layer_id = keymap_layer_id();
-            let Some(view) =
-                keymap::project(snapshot, Some(&scope), &current.active_board_id, &layer_id)
-            else {
-                return;
-            };
-            if !view.keys.iter().any(|key| key.id.as_ref() == key_id) {
-                return;
-            }
-            objects_open.set(false);
-            inspect_open.set(true);
-        }
-    };
-    let on_keycaps_select = {
-        let runtime = runtime.clone();
-        let adapter = adapter.clone();
-        let scope = render_scope.clone();
-        let generation = render_generation;
-        let mut objects_open = objects_open;
-        let mut inspect_open = inspect_open;
-        move |key_id: String| {
-            if workspace() != "Keycaps"
-                || runtime.scope().as_ref() != Some(&scope)
-                || (adapter.generation)() != generation
-            {
-                return;
-            }
-            let model = runtime.model();
-            if !active_board_scope_matches(&model, &scope) || !instance_selection.is_current(&model)
-            {
-                return;
-            }
-            if key_id.is_empty() {
-                let mut selected_context = adapter.selected_context;
-                selected_context.set(None);
-                let mut anchor_scope = adapter.anchor_scope;
-                anchor_scope.set(None);
-                runtime.submit(Event::SelectParts {
-                    operation_id: runtime.operation(),
-                    part_ids: Vec::new(),
-                    range_part_ids: Vec::new(),
-                    mode: SelectionMode::Replace,
-                });
-                return;
-            }
-            let Some(snapshot) = model.accepted.as_ref() else {
-                return;
-            };
-            let Some(view) = keycaps_scene::project(snapshot, &scope, &model.active_board_id)
-            else {
-                return;
-            };
-            if !view.keys.iter().any(|key| key.id.as_ref() == key_id) {
-                return;
-            }
-            let Some(context) = objects::context_for_part(&model, &key_id) else {
-                return;
-            };
-            if !selection::context_is_current(&model, &scope, &context) {
-                return;
-            }
-            let Some(selected_ids) = selection::submit_canvas_selection(
-                &runtime,
-                &adapter,
-                &scope,
-                generation,
-                context.clone(),
-                SelectionMode::Replace,
-                Vec::new(),
-            ) else {
-                return;
-            };
-            if selected_ids.is_empty()
-                || runtime.scope().as_ref() != Some(&scope)
-                || (adapter.generation)() != generation
-            {
-                return;
-            }
-            let current = runtime.model();
-            if !active_board_scope_matches(&current, &scope)
-                || !selection::context_is_current(&current, &scope, &context)
-                || !instance_selection.is_current(&current)
-            {
-                return;
-            }
-            let Some(snapshot) = current.accepted.as_ref() else {
-                return;
-            };
-            let Some(view) = keycaps_scene::project(snapshot, &scope, &current.active_board_id)
-            else {
-                return;
-            };
-            if !view.keys.iter().any(|key| key.id.as_ref() == key_id) {
-                return;
-            }
-            objects_open.set(false);
-            inspect_open.set(true);
-        }
-    };
-    let on_pcb_part_hit = {
-        let runtime = runtime.clone();
-        let adapter = adapter.clone();
-        let scope = render_scope.clone();
-        let generation = render_generation;
-        let token = snapshot.token;
-        let owner = layout_owner.clone();
-        let tree_cell_anchor = tree_cell_anchor.clone();
-        move |request: pcb_scene::PcbPartHit| {
-            if workspace() != "PCB"
-                || request.scope != scope
-                || request.token != token
-                || request.generation != generation
-                || runtime.scope().as_ref() != Some(&scope)
-                || (adapter.generation)() != generation
-            {
-                return;
-            }
-            let model = runtime.model();
-            if !active_board_scope_matches(&model, &scope) || !instance_selection.is_current(&model)
-            {
-                return;
-            }
-            let Some(snapshot) = model
-                .accepted
-                .as_ref()
-                .filter(|snapshot| snapshot.token == request.token)
-            else {
-                return;
-            };
-            let Some(board) = snapshot
-                .document
-                .boards
-                .iter()
-                .find(|board| board.id == scope.board_id)
-            else {
-                return;
-            };
-            if !board.part_ids.contains(&request.part_id)
-                || !snapshot
-                    .document
-                    .parts
-                    .iter()
-                    .any(|part| part.id == request.part_id)
-            {
-                return;
-            }
-            let Some(hit_context) = objects::context_for_part(&model, &request.part_id) else {
-                return;
-            };
-            if !selection::context_is_current(&model, &scope, &hit_context) {
-                return;
-            }
-            update_tree_cell_anchor(&tree_cell_anchor, &owner, &model, Some(&hit_context));
-            let retained = tree_cell_anchor_for_owner(&tree_cell_anchor, &owner);
-            let context = objects::context_for_selection_kind(
-                &model,
-                &hit_context,
-                layout_selection_kind(),
-                retained.as_ref(),
-            )
-            .map(|projection| projection.context)
-            .unwrap_or(hit_context);
-            let mode = if request.range {
-                SelectionMode::Range
-            } else if request.additive {
-                SelectionMode::Toggle
-            } else {
-                SelectionMode::Replace
-            };
-            let range_ids = if mode == SelectionMode::Range {
-                selection::eligible_live_ids(&model)
-                    .into_iter()
-                    .filter(|id| board.part_ids.contains(id))
-                    .collect()
-            } else {
-                Vec::new()
-            };
-            selection::submit_canvas_selection(
-                &runtime, &adapter, &scope, generation, context, mode, range_ids,
-            );
-        }
-    };
-    let on_mounted_module_select = {
-        let runtime = runtime.clone();
-        let mut adapter = adapter.clone();
-        let scope = render_scope.clone();
-        let generation = render_generation;
-        let token = snapshot.token;
-        let revision = snapshot.document.revision;
-        let mut inspect_open = inspect_open;
-        move |module_id: String| {
-            if !matches!(workspace(), "PCB" | "Layout")
-                || runtime.scope().as_ref() != Some(&scope)
-                || (adapter.generation)() != generation
-            {
-                return;
-            }
-            let model = runtime.model();
-            if !active_board_scope_matches(&model, &scope) || !instance_selection.is_current(&model)
-            {
-                return;
-            }
-            let Some(accepted) = model.accepted.as_ref().filter(|snapshot| {
-                snapshot.token == token && snapshot.document.revision == revision
-            }) else {
-                return;
-            };
-            let Some(module) =
-                accepted.document.modules.iter().find(|module| {
-                    module.id == module_id && module.host_board_id == scope.board_id
-                })
-            else {
-                return;
-            };
-            if !accepted
-                .document
-                .module_definitions
-                .iter()
-                .any(|definition| definition.id == module.definition_id)
-            {
-                return;
-            }
-            let module_definition_id = module.definition_id.clone();
-            let context = objects::TreeContext::MountedModule {
-                board_id: scope.board_id.clone(),
-                module_id,
-            };
-            if !selection::context_is_current(&model, &scope, &context) {
-                return;
-            }
-            adapter
-                .selected_context
-                .set(Some(objects::ScopedTreeContext {
-                    scope: scope.clone(),
-                    context,
-                }));
-            adapter.anchor_scope.set(None);
-            runtime.submit(Event::SelectParts {
-                operation_id: runtime.operation(),
-                part_ids: Vec::new(),
-                range_part_ids: Vec::new(),
-                mode: SelectionMode::Replace,
-            });
-            parts_state.select_mounted_module(scope.clone(), &module_definition_id);
-            browse_parts_workspace(
-                workspace,
-                objects_open,
-                objects_panel_settings,
-                is_compact_viewport(),
-            );
-            inspect_open.set(true);
-        }
-    };
-    let on_open_module_placement = {
-        let runtime = runtime.clone();
-        let adapter = adapter.clone();
-        let scope = render_scope.clone();
-        let generation = render_generation;
-        let token = snapshot.token;
-        let revision = snapshot.document.revision;
-        let mut workspace = workspace;
-        let mut objects_open = objects_open;
-        let mut inspect_open = inspect_open;
-        EventHandler::new(move |module_id: String| {
-            if workspace() != "Parts"
-                || runtime.scope().as_ref() != Some(&scope)
-                || (adapter.generation)() != generation
-            {
-                return;
-            }
-            let model = runtime.model();
-            if !active_board_scope_matches(&model, &scope) || !instance_selection.is_current(&model)
-            {
-                return;
-            }
-            let current_context = adapter.selected_context.read().clone();
-            let Some(current_context) = current_context.filter(|selected| {
-                selected.scope == scope
-                    && matches!(
-                        &selected.context,
-                        objects::TreeContext::MountedModule { board_id, module_id: selected_id }
-                            if board_id == &scope.board_id && selected_id == &module_id
-                    )
-            }) else {
-                return;
-            };
-            if !selection::context_is_current(&model, &scope, &current_context.context) {
-                return;
-            }
-            let Some(accepted) = model.accepted.as_ref().filter(|snapshot| {
-                snapshot.token == token && snapshot.document.revision == revision
-            }) else {
-                return;
-            };
-            let selected_definition = parts_selection().and_then(|(selected_scope, id)| {
-                (selected_scope == Some(scope.clone()))
-                    .then(|| id.strip_prefix("module:").map(str::to_owned))
-                    .flatten()
-            });
-            if !accepted.document.modules.iter().any(|module| {
-                module.id == module_id
-                    && module.host_board_id == scope.board_id
-                    && Some(module.definition_id.clone()) == selected_definition
-            }) {
-                return;
-            }
-            workspace.set("PCB");
-            objects_open.set(false);
-            inspect_open.set(true);
-        })
-    };
-    let on_module_attached = {
-        let runtime = runtime.clone();
-        let mut adapter = adapter.clone();
-        let mut workspace = workspace;
-        let mut objects_open = objects_open;
-        let mut inspect_open = inspect_open;
-        EventHandler::new(move |request: parts::AttachedModuleNavigation| {
-            if workspace() != "Parts"
-                || runtime.scope().as_ref() != Some(&request.scope)
-                || parts_selection_generation() != request.selection_generation
-                || parts_selection()
-                    != Some((
-                        Some(request.scope.clone()),
-                        format!("module:{}", request.definition_id),
-                    ))
-            {
-                return;
-            }
-            let model = runtime.model();
-            if !active_board_scope_matches(&model, &request.scope)
-                || !instance_selection.is_current(&model)
-            {
-                return;
-            }
-            let Some(accepted) = model.accepted.as_ref().filter(|snapshot| {
-                snapshot.token == request.snapshot_token
-                    && snapshot.document.revision == request.revision
-            }) else {
-                return;
-            };
-            if !accepted.document.modules.iter().any(|module| {
-                module.id == request.module_id
-                    && module.definition_id == request.definition_id
-                    && module.host_board_id == request.scope.board_id
-            }) {
-                return;
-            }
-            let context = objects::TreeContext::MountedModule {
-                board_id: request.scope.board_id.clone(),
-                module_id: request.module_id,
-            };
-            if !selection::context_is_current(&model, &request.scope, &context) {
-                return;
-            }
-            adapter
-                .selected_context
-                .set(Some(objects::ScopedTreeContext {
-                    scope: request.scope,
-                    context,
-                }));
-            adapter.anchor_scope.set(None);
-            runtime.submit(Event::SelectParts {
-                operation_id: runtime.operation(),
-                part_ids: Vec::new(),
-                range_part_ids: Vec::new(),
-                mode: SelectionMode::Replace,
-            });
-            workspace.set("PCB");
-            objects_open.set(false);
-            inspect_open.set(true);
-        })
-    };
-    let on_pcb_wiring_edit_board = {
-        let runtime = runtime.clone();
-        let adapter = adapter.clone();
-        let scope = render_scope.clone();
-        let generation = render_generation;
-        let token = snapshot.token;
-        move |()| {
-            if workspace() != "PCB"
-                || runtime.scope().as_ref() != Some(&scope)
-                || (adapter.generation)() != generation
-            {
-                return;
-            }
-            let model = runtime.model();
-            if !active_board_scope_matches(&model, &scope) || !instance_selection.is_current(&model)
-            {
-                return;
-            }
-            let Some(snapshot) = model
-                .accepted
-                .as_ref()
-                .filter(|snapshot| snapshot.token == token)
-            else {
-                return;
-            };
-            if !snapshot
-                .document
-                .boards
-                .iter()
-                .any(|board| board.id == scope.board_id)
-            {
-                return;
-            }
-            let mut selected_context = adapter.selected_context;
-            selected_context.set(None);
-            let mut anchor_scope = adapter.anchor_scope;
-            anchor_scope.set(None);
-            runtime.submit(Event::SelectParts {
-                operation_id: runtime.operation(),
-                part_ids: Vec::new(),
-                range_part_ids: Vec::new(),
-                mode: SelectionMode::Replace,
-            });
-        }
-    };
-    let case_admission = case_workspace::Admission {
-        runtime: runtime.clone(),
-        adapter: adapter.clone(),
-        case_state: case_workspace_state,
+    let select_tree =
+        selection_handlers::select_tree_handler(selection_handlers::SelectTreeInput {
+            runtime: runtime.clone(),
+            adapter: adapter.clone(),
+            owner: layout_owner.clone(),
+            tree_cell_anchor: tree_cell_anchor.clone(),
+            generation: render_generation,
+            workspace,
+            inspector_settings: inspector_panel_settings,
+            objects_open,
+            inspect_open,
+            layout_state,
+            outline_activation,
+        });
+    let on_layout_selection_kind = selection_handlers::on_layout_selection_kind_handler(
+        selection_handlers::OnLayoutSelectionKindInput {
+            runtime: runtime.clone(),
+            adapter: adapter.clone(),
+            owner: layout_owner.clone(),
+            tree_cell_anchor: tree_cell_anchor.clone(),
+            objects_open,
+            inspect_open,
+            selection_kind: layout_selection_kind,
+            workspace,
+            inspector_panel_settings,
+        },
+    );
+    let on_layout_snap_intent = selection_handlers::on_layout_snap_intent_handler(
+        runtime.clone(),
+        adapter.clone(),
+        layout_owner.clone(),
+        layout_snap_settings,
+        workspace,
+    );
+    let on_pcb_selection_kind = selection_handlers::on_pcb_selection_kind_handler(
+        selection_handlers::OnPcbSelectionKindInput {
+            runtime: runtime.clone(),
+            adapter: adapter.clone(),
+            owner: layout_owner.clone(),
+            tree_cell_anchor: tree_cell_anchor.clone(),
+            objects_open,
+            inspect_open,
+            selection_kind: layout_selection_kind,
+            workspace,
+            inspector_panel_settings,
+        },
+    );
+    let on_pcb_snap_intent = selection_handlers::on_pcb_snap_intent_handler(
+        runtime.clone(),
+        adapter.clone(),
+        layout_owner.clone(),
+        layout_snap_settings,
+        workspace,
+    );
+    let on_keymap_select =
+        selection_handlers::on_keymap_select_handler(selection_handlers::OnKeymapSelectInput {
+            runtime: runtime.clone(),
+            adapter: adapter.clone(),
+            scope: render_scope.clone(),
+            generation: render_generation,
+            objects_open,
+            inspect_open,
+            workspace,
+            keymap_layer_id,
+        });
+    let on_keycaps_select =
+        selection_handlers::on_keycaps_select_handler(selection_handlers::OnKeycapsSelectInput {
+            runtime: runtime.clone(),
+            adapter: adapter.clone(),
+            scope: render_scope.clone(),
+            generation: render_generation,
+            objects_open,
+            inspect_open,
+            workspace,
+            instance_selection,
+        });
+    let on_pcb_part_hit =
+        selection_handlers::on_pcb_part_hit_handler(selection_handlers::OnPcbPartHitInput {
+            runtime: runtime.clone(),
+            adapter: adapter.clone(),
+            scope: render_scope.clone(),
+            generation: render_generation,
+            token: snapshot.token,
+            owner: layout_owner.clone(),
+            tree_cell_anchor: tree_cell_anchor.clone(),
+            workspace,
+            instance_selection,
+            layout_selection_kind,
+        });
+    let on_mounted_module_select = action_handlers::on_mounted_module_select_handler(
+        action_handlers::OnMountedModuleSelectInput {
+            runtime: runtime.clone(),
+            adapter: adapter.clone(),
+            scope: render_scope.clone(),
+            generation: render_generation,
+            token: snapshot.token,
+            revision: snapshot.document.revision,
+            inspect_open,
+            workspace,
+            instance_selection,
+            parts_state,
+            objects_open,
+            objects_panel_settings,
+        },
+    );
+    let on_open_module_placement = action_handlers::on_open_module_placement_handler(
+        action_handlers::OnOpenModulePlacementInput {
+            runtime: runtime.clone(),
+            adapter: adapter.clone(),
+            scope: render_scope.clone(),
+            generation: render_generation,
+            token: snapshot.token,
+            revision: snapshot.document.revision,
+            workspace,
+            objects_open,
+            inspect_open,
+            instance_selection,
+            parts_selection,
+        },
+    );
+    let on_module_attached =
+        action_handlers::on_module_attached_handler(action_handlers::OnModuleAttachedInput {
+            runtime: runtime.clone(),
+            adapter: adapter.clone(),
+            workspace,
+            objects_open,
+            inspect_open,
+            parts_selection_generation,
+            parts_selection,
+            instance_selection,
+        });
+    let on_pcb_wiring_edit_board = action_handlers::on_pcb_wiring_edit_board_handler(
+        runtime.clone(),
+        adapter.clone(),
+        render_scope.clone(),
+        render_generation,
+        snapshot.token,
+        workspace,
         instance_selection,
-        owner_scope: render_scope.clone(),
-        owner_token: snapshot.token,
-        owner_generation: render_generation,
-    };
-    let on_case_action = {
-        let admission = case_admission.clone();
-        let navigate = workspace_routing.navigate;
-        move |action| {
-            if workspace() != "Case" {
-                return;
-            }
-            case_workspace_state.apply_tree_action(action, &admission, navigate);
-        }
-    };
-    let on_case_display = {
-        let admission = case_admission;
-        move |request| {
-            if workspace() != "Case" {
-                return;
-            }
-            case_workspace_state.apply_display_request(request, &admission);
-        }
-    };
-    let on_keymap_layer = {
-        let runtime = runtime.clone();
-        let adapter = adapter.clone();
-        let scope = render_scope.clone();
-        let generation = render_generation;
-        move |layer_id: String| {
-            if workspace() != "Keymap"
-                || runtime.scope().as_ref() != Some(&scope)
-                || (adapter.generation)() != generation
-            {
-                return;
-            }
-            let model = runtime.model();
-            if !active_board_scope_matches(&model, &scope) {
-                return;
-            }
-            let Some(snapshot) = model.accepted.as_ref() else {
-                return;
-            };
-            let exists = snapshot
-                .document
-                .keymap
-                .as_ref()
-                .filter(|map| !map.layers.is_empty())
-                .map_or(layer_id == "base", |map| {
-                    map.layers.iter().any(|layer| layer.id == layer_id)
-                });
-            if exists {
-                keymap_state.select_layer(layer_id);
-            }
-        }
-    };
-    let on_keymap_export = {
-        let runtime = runtime.clone();
-        let adapter = adapter.clone();
-        let scope = render_scope.clone();
-        let token = snapshot.token;
-        let revision = snapshot.document.revision;
-        let generation = render_generation;
-        move |_| {
-            if workspace() != "Keymap"
-                || runtime.scope().as_ref() != Some(&scope)
-                || (adapter.generation)() != generation
-            {
-                return;
-            }
-            let model = runtime.model();
-            if !active_board_scope_matches(&model, &scope) || !instance_selection.is_current(&model)
-            {
-                return;
-            }
-            if model.accepted.as_ref().is_none_or(|accepted| {
-                accepted.token != token
-                    || accepted.document.revision != revision
-                    || accepted.scene.revision != revision
-            }) {
-                return;
-            }
-            runtime.export_firmware();
-        }
-    };
-    let nudge_tree =
-        {
-            let runtime = runtime.clone();
-            let adapter = adapter.clone();
-            let generation = render_generation;
-            let mut inspect_open = inspect_open;
-            move |request: objects::TreeNudgeRequest| {
-                if runtime.scope().as_ref() != Some(&request.scope)
-                    || (adapter.generation)() != generation
-                    || !((request.dx == 0 && request.dy.abs() == 1)
-                        || (request.dy == 0 && request.dx.abs() == 1))
-                {
-                    return;
-                }
-                let model = runtime.model();
-                let Some(snapshot) = model.accepted.as_ref() else {
-                    return;
-                };
-                let Some(part) = snapshot
-                    .document
-                    .parts
-                    .iter()
-                    .find(|part| part.id == request.part_id)
-                else {
-                    return;
-                };
-                if part.locked == Some(true) {
-                    return;
-                }
-                let Some(board) = snapshot
-                    .document
-                    .boards
-                    .iter()
-                    .find(|board| board.id == model.active_board_id)
-                else {
-                    return;
-                };
-                if !board.part_ids.contains(&part.id) {
-                    return;
-                }
-                let Some(context) = objects::context_for_part(&model, &part.id) else {
-                    return;
-                };
-                if !matches!(
-                    context,
-                    objects::TreeContext::Key { .. }
-                        | objects::TreeContext::Component {
-                            matrix_id: None,
-                            ..
-                        }
-                ) {
-                    return;
-                }
-                let selected_ids = if model.selected_part_ids.contains(&part.id) {
-                    model.selected_part_ids.clone()
-                } else {
-                    vec![part.id.clone()]
-                };
-                let eligible = selection::eligible_live_ids(&model);
-                let moving: Vec<_> =
-                    selected_ids
-                        .iter()
-                        .filter(|id| eligible.iter().any(|candidate| candidate == *id))
-                        .filter_map(|id| {
-                            snapshot.document.parts.iter().find(|candidate| {
-                                candidate.id == *id && candidate.locked != Some(true)
-                            })
-                        })
-                        .collect();
-                if moving.is_empty() {
-                    return;
-                }
-                let step = if request.large_step { 1.0 } else { 0.1 };
-                let moving_ids: Vec<_> = moving.iter().map(|part| part.id.clone()).collect();
-                let mut selected_context = adapter.selected_context;
-                selected_context.set(Some(objects::ScopedTreeContext {
-                    scope: request.scope.clone(),
-                    context,
-                }));
-                let mut anchor_scope = adapter.anchor_scope;
-                anchor_scope.set(None);
-                runtime.submit(Event::SelectParts {
-                    operation_id: runtime.operation(),
-                    part_ids: moving_ids.clone(),
-                    range_part_ids: Vec::new(),
-                    mode: SelectionMode::Replace,
-                });
-                let current = runtime.model();
-                if runtime.scope().as_ref() != Some(&request.scope) {
-                    return;
-                }
-                if current.selection_anchor_id.as_ref() == moving_ids.first()
-                    && current.selection_anchor_id.as_ref().is_some_and(|anchor| {
-                        selection::eligible_live_ids(&current).contains(anchor)
-                    })
-                {
-                    anchor_scope.set(Some(request.scope));
-                }
-                inspect_open.set(true);
-                // Each press is a delta intent: it moves each part by one step from the
-                // position accepted when it runs, so held-key repeats all land.
-                let _ = boardstudio_web_runtime::edit_ticket::EditTicket::begin(
-                    &runtime,
-                    "layout-nudge",
-                    Some("move".into()),
-                    layout_component_edits::nudge_resolver(
-                        moving_ids,
-                        model.active_board_id.clone(),
-                        Vec2 {
-                            x: f64::from(request.dx) * step,
-                            y: f64::from(request.dy) * step,
-                        },
-                    ),
-                );
-                let direction = match (request.dx, request.dy) {
-                    (-1, 0) => "left",
-                    (1, 0) => "right",
-                    (0, 1) => "up",
-                    (0, -1) => "down",
-                    _ => return,
-                };
-                runtime.report(format!(
-                    "{} moved {direction} {step:.1} mm. Position X {:.1}, Y {:.1} mm.",
-                    part.reference,
-                    part.pose.at.x + f64::from(request.dx) * step,
-                    part.pose.at.y + f64::from(request.dy) * step,
-                ));
-            }
-        };
+    );
+    let case_admission = action_handlers::case_admission(
+        runtime.clone(),
+        adapter.clone(),
+        case_workspace_state,
+        instance_selection,
+        render_scope.clone(),
+        snapshot.token,
+        render_generation,
+    );
+    let on_case_action = action_handlers::on_case_action_handler(
+        case_admission.clone(),
+        workspace_routing.navigate,
+        workspace,
+        case_workspace_state,
+    );
+    let on_case_display =
+        action_handlers::on_case_display_handler(case_admission, workspace, case_workspace_state);
+    let on_keymap_layer = action_handlers::on_keymap_layer_handler(
+        runtime.clone(),
+        adapter.clone(),
+        render_scope.clone(),
+        render_generation,
+        workspace,
+        keymap_state,
+    );
+    let on_keymap_export =
+        action_handlers::on_keymap_export_handler(action_handlers::OnKeymapExportInput {
+            runtime: runtime.clone(),
+            adapter: adapter.clone(),
+            scope: render_scope.clone(),
+            token: snapshot.token,
+            revision: snapshot.document.revision,
+            generation: render_generation,
+            workspace,
+            instance_selection,
+        });
+    let nudge_tree = action_handlers::nudge_tree_handler(
+        runtime.clone(),
+        adapter.clone(),
+        render_generation,
+        inspect_open,
+    );
     let svg = use_hook(|| Rc::new(RefCell::new(None::<SvgElement>)));
     let zoom_surface_size = canvas_navigation.surface_size();
     // Read actual post-layout dimensions so attached controls keep their screen size
