@@ -28,6 +28,7 @@ sha2 = "=0.10.9"
 step-p21 = "=0.1.1"
 
 [patch.crates-io]
+Inflector = { path = "../monstertruck-qualification/vendor/inflector" }
 cgmath = { path = "../../renderer/vendor/cgmath-next-0.18.1" }
 monstertruck-core = { path = "../monstertruck-qualification/vendor/monstertruck-core" }
 monstertruck-derive = { path = "../monstertruck-qualification/vendor/monstertruck-derive" }

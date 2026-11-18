@@ -13,6 +13,7 @@ import browser_tools
 CAD_ROOT = Path(__file__).resolve().parents[1]
 OUT_NAME = "boardstudio_cad_wasm"
 VENDOR_CRATES = (
+    "inflector",
     "monstertruck-core",
     "monstertruck-derive",
     "monstertruck-geometry",
