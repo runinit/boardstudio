@@ -20,6 +20,9 @@ OFFLINE_WORKER = WEB / "target/providers/offline-worker"
 # Route name -> Dioxus base path. Pages deploys only `subpath`.
 ROUTES = {"subpath": "/boardstudio/", "root": "/"}
 DEFAULT_ROUTES = ("subpath",)
+# .cargo/config.toml already passes dx's getrandom cfg to every wasm build; adding it twice would
+# give dx's units different flags from wasm-pack's and stop them being shared.
+DX_FLAGS = ("--wasm-js-cfg", "false")
 
 
 def dx_public(release: bool) -> Path:
@@ -167,10 +170,13 @@ def build(output: Path, *, release: bool = True, prepare_providers: bool = True,
         prefix = ROUTES[route]
         if public.exists():
             shutil.rmtree(public)
-        command = ["dx", "build", "--web", "--base-path", prefix,
+        command = ["dx", "build", "--web", "--base-path", prefix, *DX_FLAGS,
                    "--no-default-features", "--features", "page", "--cargo-args=--locked"]
         if release:
             command.insert(3, "--release")
+        elif fast:
+            # The checked build shares the `wasm-check` profile with every wasm test build.
+            command[3:3] = ["--profile", "wasm-check"]
         run(command, cwd=WEB)
         if not public.is_dir():
             raise FileNotFoundError(f"Dioxus did not produce its web public directory: {public}")

@@ -205,12 +205,13 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     server.daemon_threads = True
     print(f"$ dx serve --web --addr 127.0.0.1 --port {internal_port} --cross-origin-policy"
-          " --open false --no-default-features --features page --cargo-args=--locked", flush=True)
+          " --open false --wasm-js-cfg false --no-default-features --features page --cargo-args=--locked",
+          flush=True)
     process = None
     try:
         process = subprocess.Popen([
             "dx", "serve", "--web", "--addr", "127.0.0.1", "--port", str(internal_port),
-            "--cross-origin-policy", "--open", "false", "--no-default-features",
+            "--cross-origin-policy", "--open", "false", "--wasm-js-cfg", "false", "--no-default-features",
             "--features", "page", "--cargo-args=--locked",
         ], cwd=WEB)
         server.timeout = 0.2

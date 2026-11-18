@@ -78,3 +78,35 @@ debug = "line-tables-only"
 # workspace's own crates stay unoptimized so edit-and-test builds stay quick.
 [profile.dev.package."*"]
 opt-level = 2
+
+# The profile for every wasm build `scripts/check.py` makes: the packaged page
+# (`build-web.py --fast`), the page tests and each crate's `wasm-pack test`. With the wasm rustflags
+# in .cargo/config.toml and dx run with `--wasm-js-cfg false`, those builds reuse each other's
+# dependency and proc-macro units instead of compiling the graph once per tool. `dx serve` keeps
+# `wasm-dev`, with line tables and hot reload.
+[profile.wasm-check]
+inherits = "dev"
+# A check compiles each crate once; incremental bookkeeping made those cold builds about a third slower.
+incremental = false
+
+# Dioxus 0.7 compiles hot-reload scaffolding into every `rsx!` template when debug assertions are on.
+# Only `dx serve` uses it. These crates have no `debug_assert!` or `cfg(debug_assertions)` of their
+# own, so here it only costs compile time.
+[profile.wasm-check.package.boardstudio-web]
+debug-assertions = false
+[profile.wasm-check.package.boardstudio-web-ui-shared]
+debug-assertions = false
+[profile.wasm-check.package.boardstudio-web-keycaps]
+debug-assertions = false
+[profile.wasm-check.package.boardstudio-web-case]
+debug-assertions = false
+[profile.wasm-check.package.boardstudio-web-parts]
+debug-assertions = false
+[profile.wasm-check.package.boardstudio-web-layout]
+debug-assertions = false
+[profile.wasm-check.package.boardstudio-web-pcb]
+debug-assertions = false
+[profile.wasm-check.package.boardstudio-web-keymap]
+debug-assertions = false
+[profile.wasm-check.package.boardstudio-web-library]
+debug-assertions = false

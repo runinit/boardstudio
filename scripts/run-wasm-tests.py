@@ -39,8 +39,9 @@ from check import format_wasm_failure_summary, summarize_wasm_failure  # noqa: E
 KNOWN_FAILURES = Path(__file__).with_name("wasm-known-failures.json")
 TEST_OWNERS = Path(__file__).with_name("wasm-test-owners.json")
 RUNNER_ENV = "BOARDSTUDIO_WASM_TEST_COMMAND"
+# `wasm-check` is the profile the checked page build uses, so the page tests reuse its units.
 WASM_PACK = ["wasm-pack", "test", "--headless", "--chrome", "--mode", "no-install", "web", "--locked",
-             "--no-default-features", "--features", "page", "--bin", "boardstudio-web", "--"]
+             "--profile", "wasm-check", "--no-default-features", "--features", "page", "--bin", "boardstudio-web", "--"]
 CHROME_BINARIES = ("google-chrome-stable", "google-chrome", "chromium", "chromium-browser", "chrome")
 CHROME_BIN_ENV = "CHROME_BIN"
 CFT_DIR_ENV = "BOARDSTUDIO_CFT_DIR"
