@@ -30,6 +30,7 @@ mod keymap_workspace;
 pub(crate) use boardstudio_web_ui_shared::layout_camera;
 #[cfg(test)]
 mod layout_anchor_badge_tests;
+mod layout_bounds;
 mod layout_canvas;
 mod layout_component_edits;
 #[cfg(test)]
@@ -99,6 +100,7 @@ use boardstudio_web_ui_shared::ui::{
 };
 use part_placement::{LayoutPlacementCancellation, layout_view_mode_handler};
 mod parts_workspace;
+mod setup_project_name;
 mod setup_workspace;
 pub(crate) use boardstudio_web_pcb::pcb_layers;
 pub(crate) use boardstudio_web_pcb::pcb_module_footprints;
@@ -107,9 +109,11 @@ pub(crate) use boardstudio_web_pcb::pcb_physical_setup;
 pub(crate) use boardstudio_web_pcb::pcb_scene;
 pub(crate) use boardstudio_web_pcb::pcb_wiring;
 mod pcb_workspace;
+mod pending_picks;
 pub(crate) use boardstudio_web_case::shared_viewer;
 pub(crate) use boardstudio_web_layout::setup_guide;
 mod notifications;
+mod tree_cell_anchor;
 mod workbench_shortcuts;
 mod workspace_composition;
 mod workspace_navigation;
@@ -120,6 +124,9 @@ pub(crate) use boardstudio_web_ui_shared::footprint_graphics;
 use canvas_interaction::{CanvasInteractionArbiter, CanvasInteractionOwner};
 use canvas_layers::CanvasLayers;
 use editor::Editor;
+pub(crate) use layout_bounds::{
+    accepted_board_contours, keycaps_bounds, keymap_bounds, keymap_toolbar_height, pcb_bounds,
+};
 use library::Library;
 pub(crate) use mechanical_settings::{MechanicalSettings, MechanicalSettingsProps};
 pub(crate) use mechanical_settings_mount::MechanicalSettingsMount;
@@ -128,8 +135,16 @@ use panels::{
     use_panel_settings,
 };
 use parts::{PartsQuery, PartsSelection};
+pub(crate) use pending_picks::{
+    PendingAnchorPick, PendingSplayOriginPick, apply_pending_anchor_pick,
+    apply_pending_splay_origin_pick,
+};
 use selection::{ReentrancyReset, SelectionAdapter};
 use setup_guide::{PendingNewKeyboard, SetupGuideRequest, SetupGuideStage};
+pub(crate) use setup_project_name::{SetupProjectNameEdit, use_setup_project_name};
+pub(crate) use tree_cell_anchor::{
+    OwnedTreeCellAnchor, tree_cell_anchor_for_owner, update_tree_cell_anchor,
+};
 use zmk_firmware_export::use_export_panel_input;
 #[cfg(test)]
 use zmk_firmware_export::{ZmkFirmwareExportPanelInput, ZmkFirmwareExportRow};
@@ -259,12 +274,6 @@ mod physical_setup_owner_tests {
             "physical setup belongs to the active Case assembly scope even when no part is selected"
         );
     }
-}
-
-#[derive(Clone)]
-struct OwnedTreeCellAnchor {
-    owner: LayoutOwnerIdentity,
-    cell: objects::TreeCellAnchor,
 }
 
 #[derive(Clone, Copy)]
@@ -820,23 +829,6 @@ fn ExportPanel(#[props(default)] zmk_firmware: Option<ZmkFirmwareExportPanelInpu
     }
 }
 
-fn accepted_board_contours(snapshot: &AcceptedSnapshot, board_id: &str) -> Rc<[Contour]> {
-    let contours = snapshot
-        .scene
-        .board_contours
-        .iter()
-        .find(|board| board.board_id == board_id)
-        .map(|board| board.contours.as_slice())
-        .unwrap_or_else(|| {
-            if snapshot.document.boards.len() == 1 {
-                snapshot.scene.contours.as_slice()
-            } else {
-                &[]
-            }
-        });
-    Rc::<[Contour]>::from(contours.to_vec())
-}
-
 fn current_case_layer_ids(
     runtime: &Runtime,
     scope: &Scope,
@@ -863,232 +855,6 @@ fn current_case_layer_ids(
             })
             .unwrap_or_default(),
     ))
-}
-
-fn keymap_bounds(view: &keymap::KeymapView, contours: &[Contour]) -> Option<(f64, f64, f64, f64)> {
-    let mut bounds: Option<(f64, f64, f64, f64)> = None;
-    let mut include = |x: f64, y: f64| {
-        bounds = Some(bounds.map_or((x, x, y, y), |(min_x, max_x, min_y, max_y)| {
-            (min_x.min(x), max_x.max(x), min_y.min(y), max_y.max(y))
-        }));
-    };
-    for key in &view.keys {
-        let angle = key.pose.rotation.to_radians();
-        let (sin, cos) = angle.sin_cos();
-        for (local_x, local_y) in [
-            (-key.size.x / 2.0, -key.size.y / 2.0),
-            (-key.size.x / 2.0, key.size.y / 2.0),
-            (key.size.x / 2.0, -key.size.y / 2.0),
-            (key.size.x / 2.0, key.size.y / 2.0),
-        ] {
-            let x = key.pose.at.x + local_x * cos - local_y * sin;
-            let y = key.pose.at.y + local_x * sin + local_y * cos;
-            include(x, y);
-        }
-    }
-    for contour in contours {
-        for point in &contour.points {
-            include(point.x, point.y);
-        }
-    }
-    bounds
-}
-
-fn keymap_toolbar_height() -> f64 {
-    web_sys::window()
-        .and_then(|window| window.document())
-        .and_then(|document| {
-            document
-                .query_selector("[role='group'][aria-label='Keymap commands']")
-                .ok()
-                .flatten()
-        })
-        .map(|toolbar| toolbar.get_bounding_client_rect().height())
-        .filter(|height| height.is_finite() && *height > 0.0)
-        .unwrap_or(42.0)
-}
-
-fn keycaps_bounds(
-    view: &keycaps_scene::KeycapsView,
-    contours: &[Contour],
-) -> Option<(f64, f64, f64, f64)> {
-    let mut bounds: Option<(f64, f64, f64, f64)> = None;
-    let mut include = |x: f64, y: f64| {
-        bounds = Some(bounds.map_or((x, x, y, y), |(min_x, max_x, min_y, max_y)| {
-            (min_x.min(x), max_x.max(x), min_y.min(y), max_y.max(y))
-        }));
-    };
-    for key in &view.keys {
-        let angle = key.pose.rotation.to_radians();
-        let (sin, cos) = angle.sin_cos();
-        for (local_x, local_y) in [
-            (-key.size.x / 2.0, -key.size.y / 2.0),
-            (-key.size.x / 2.0, key.size.y / 2.0),
-            (key.size.x / 2.0, -key.size.y / 2.0),
-            (key.size.x / 2.0, key.size.y / 2.0),
-        ] {
-            include(
-                key.pose.at.x + local_x * cos - local_y * sin,
-                key.pose.at.y + local_x * sin + local_y * cos,
-            );
-        }
-    }
-    for contour in contours {
-        for point in &contour.points {
-            include(point.x, point.y);
-        }
-    }
-    bounds
-}
-
-fn pcb_bounds(snapshot: &AcceptedSnapshot, scope: &Scope) -> Option<(f64, f64, f64, f64)> {
-    if snapshot.session_epoch != scope.session_epoch || snapshot.document.id != scope.document_id {
-        return None;
-    }
-    let board = snapshot
-        .document
-        .boards
-        .iter()
-        .find(|board| board.id == scope.board_id)?;
-    let member_ids: BTreeSet<&str> = board.part_ids.iter().map(String::as_str).collect();
-    let mut bounds: Option<(f64, f64, f64, f64)> = None;
-    let mut include = |x: f64, y: f64| {
-        bounds = Some(bounds.map_or((x, x, y, y), |(min_x, max_x, min_y, max_y)| {
-            (min_x.min(x), max_x.max(x), min_y.min(y), max_y.max(y))
-        }));
-    };
-    for contour in accepted_board_contours(snapshot, &scope.board_id).iter() {
-        for point in &contour.points {
-            include(point.x, point.y);
-        }
-    }
-    for part in snapshot
-        .document
-        .parts
-        .iter()
-        .filter(|part| member_ids.contains(part.id.as_str()))
-    {
-        let pose = snapshot
-            .scene
-            .transforms
-            .iter()
-            .find(|transform| transform.id == part.id)
-            .map(|transform| transform.pose)
-            .unwrap_or(part.pose);
-        include(pose.at.x, pose.at.y);
-    }
-    bounds
-}
-
-/// A pending splay-origin pick and the pointer state that fires it: with Ctrl
-/// held the pick swings the keys instead of holding them still.
-struct PendingSplayOriginPick<'a> {
-    pending: &'a mut Signal<Option<objects::MatrixTransformInspectorOwner>>,
-    inspector: &'a objects::MatrixTransformInspectorMount,
-    point: Vec2,
-    swing: bool,
-}
-
-fn apply_pending_splay_origin_pick(
-    runtime: &Runtime,
-    workspace: Signal<&'static str>,
-    adapter: &SelectionAdapter,
-    owner: &LayoutOwnerIdentity,
-    pick: PendingSplayOriginPick<'_>,
-) -> bool {
-    let PendingSplayOriginPick {
-        pending,
-        inspector,
-        point,
-        swing,
-    } = pick;
-    let Some(picked_owner) = pending.peek().clone() else {
-        return false;
-    };
-    pending.set(None);
-    let selected_is_current = adapter
-        .selected_context
-        .read()
-        .as_ref()
-        .is_some_and(|selected| {
-            selected.scope == picked_owner.scope
-                && selected.context == picked_owner.context
-                && matches!(&selected.context, objects::TreeContext::Column { .. })
-                && selection::context_is_current(
-                    &runtime.model(),
-                    &selected.scope,
-                    &selected.context,
-                )
-        });
-    let inspector_is_current = inspector
-        .projection
-        .as_ref()
-        .is_some_and(|projection| projection.owner == picked_owner);
-    if !layout_owner_is_current(runtime, workspace, adapter, owner)
-        || !selected_is_current
-        || !inspector_is_current
-        || !inspector.pick_splay_origin(point, swing)
-    {
-        runtime.report("Column selection changed. Pick the splay origin again.");
-    }
-    true
-}
-
-/// A pending anchor-key pick and the picked key identity: the canvas hit
-/// already carries the key, so unlike the splay pick there is no world point
-/// to resolve.
-struct PendingAnchorPick<'a> {
-    pending: &'a mut Signal<Option<objects::MatrixTransformInspectorOwner>>,
-    inspector: &'a objects::MatrixTransformInspectorMount,
-    matrix_id: String,
-    row: u32,
-    column: u32,
-}
-
-fn apply_pending_anchor_pick(
-    runtime: &Runtime,
-    workspace: Signal<&'static str>,
-    adapter: &SelectionAdapter,
-    owner: &LayoutOwnerIdentity,
-    pick: PendingAnchorPick<'_>,
-) -> bool {
-    let PendingAnchorPick {
-        pending,
-        inspector,
-        matrix_id,
-        row,
-        column,
-    } = pick;
-    let Some(picked_owner) = pending.peek().clone() else {
-        return false;
-    };
-    pending.set(None);
-    let selected_is_current = adapter
-        .selected_context
-        .read()
-        .as_ref()
-        .is_some_and(|selected| {
-            selected.scope == picked_owner.scope
-                && selected.context == picked_owner.context
-                && matches!(&selected.context, objects::TreeContext::Matrix { .. })
-                && selection::context_is_current(
-                    &runtime.model(),
-                    &selected.scope,
-                    &selected.context,
-                )
-        });
-    let inspector_is_current = inspector
-        .projection
-        .as_ref()
-        .is_some_and(|projection| projection.owner == picked_owner);
-    if !layout_owner_is_current(runtime, workspace, adapter, owner)
-        || !selected_is_current
-        || !inspector_is_current
-        || !inspector.pick_matrix_anchor(matrix_id, row, column)
-    {
-        runtime.report("Matrix selection changed. Pick the anchor key again.");
-    }
-    true
 }
 
 fn layout_finding_context(
@@ -2646,85 +2412,6 @@ fn design_consumer_view_mode_handler(
     })
 }
 
-fn tree_cell_anchor_for_owner(
-    anchor: &Rc<RefCell<Option<OwnedTreeCellAnchor>>>,
-    owner: &LayoutOwnerIdentity,
-) -> Option<objects::TreeCellAnchor> {
-    anchor
-        .borrow()
-        .as_ref()
-        .filter(|stored| stored.owner == *owner)
-        .map(|stored| stored.cell.clone())
-}
-
-fn update_tree_cell_anchor(
-    anchor: &Rc<RefCell<Option<OwnedTreeCellAnchor>>>,
-    owner: &LayoutOwnerIdentity,
-    model: &boardstudio_application::ReadModel,
-    context: Option<&objects::TreeContext>,
-) {
-    if owner.workspace != "Layout" && owner.workspace != "PCB" {
-        anchor.borrow_mut().take();
-        return;
-    }
-    let (Some(scope), Some(token), Some(revision), Some(context)) =
-        (owner.scope.as_ref(), owner.token, owner.revision, context)
-    else {
-        anchor.borrow_mut().take();
-        return;
-    };
-    if !active_board_scope_matches(model, scope)
-        || model.accepted.as_ref().is_none_or(|snapshot| {
-            snapshot.token != token || snapshot.document.revision != revision
-        })
-    {
-        anchor.borrow_mut().take();
-        return;
-    }
-    let exact_cell = match context {
-        objects::TreeContext::Key {
-            matrix_id,
-            row,
-            column,
-        }
-        | objects::TreeContext::Component {
-            matrix_id: Some(matrix_id),
-            row: Some(row),
-            column: Some(column),
-            ..
-        } => Some(objects::TreeCellAnchor {
-            matrix_id: matrix_id.clone(),
-            row: *row,
-            column: *column,
-        }),
-        _ => None,
-    };
-    if let Some(cell) = exact_cell {
-        if objects::context_for_cell(model, &cell.matrix_id, cell.row, cell.column).is_some() {
-            *anchor.borrow_mut() = Some(OwnedTreeCellAnchor {
-                owner: owner.clone(),
-                cell,
-            });
-            return;
-        }
-        anchor.borrow_mut().take();
-        return;
-    }
-    let retained = tree_cell_anchor_for_owner(anchor, owner);
-    let compatible = retained.as_ref().is_some_and(|cell| {
-        objects::context_for_selection_kind(
-            model,
-            context,
-            objects::LayoutSelectionKind::Key,
-            Some(cell),
-        )
-        .is_some()
-    });
-    if !compatible {
-        anchor.borrow_mut().take();
-    }
-}
-
 fn matrix_snap_parameters(
     model: &boardstudio_application::ReadModel,
     scope: &Scope,
@@ -3045,137 +2732,4 @@ fn fit_selected_bridge(runtime: &Rc<Runtime>, bridge_id: Option<&str>) {
         ),
         zoom,
     });
-}
-
-struct SetupProjectNameEdit {
-    draft: Signal<Option<(String, String)>>,
-    failure: Signal<Option<String>>,
-    on_change: Callback<String>,
-    on_commit: Callback<()>,
-}
-
-fn use_setup_project_name(runtime: Rc<Runtime>) -> SetupProjectNameEdit {
-    use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
-    let accepted = runtime.model().accepted;
-    let owner = accepted
-        .as_ref()
-        .map(|snapshot| (snapshot.session_epoch, snapshot.document.id.clone()));
-    let accepted_name = accepted
-        .as_ref()
-        .map(|snapshot| (snapshot.document.id.clone(), snapshot.document.name.clone()));
-    let mut draft = use_signal(|| accepted_name.clone());
-    let mut dirty = use_signal(|| false);
-    let mut failure = use_signal(|| None::<String>);
-    let mut tickets =
-        use_signal(Vec::<((boardstudio_application::SessionEpoch, String), EditTicket)>::new);
-    let mut latest = use_signal(|| None::<boardstudio_application::OperationId>);
-    let mut previous_owner = use_signal(|| owner.clone());
-    let mut previous_name = use_signal(|| accepted_name.clone());
-    let version = use_context::<Signal<u64>>()();
-    let operations = tickets
-        .read()
-        .iter()
-        .map(|(_, ticket)| ticket.operation())
-        .collect::<Vec<_>>();
-    use_effect(use_reactive(
-        (&owner, &accepted_name, &version, &operations),
-        move |(owner, accepted_name, _, _)| {
-            let owner_changed = *previous_owner.peek() != owner;
-            let name_changed = *previous_name.peek() != accepted_name;
-            previous_owner.set(owner.clone());
-            previous_name.set(accepted_name.clone());
-            let mut pending = tickets.peek().clone();
-            let had_tickets = !pending.is_empty();
-            pending.retain(|(ticket_owner, ticket)| {
-                match ticket.settlement(owner.as_ref() == Some(ticket_owner)) {
-                    Settlement::Pending => true,
-                    settlement => {
-                        if *latest.peek() == Some(ticket.operation()) {
-                            failure.set(match settlement {
-                                Settlement::Failed { message } => Some(message),
-                                _ => None,
-                            });
-                        }
-                        false
-                    }
-                }
-            });
-            if owner_changed
-                || (pending.is_empty() && !*dirty.peek() && (name_changed || had_tickets))
-            {
-                draft.set(accepted_name);
-                dirty.set(false);
-            }
-            if owner_changed {
-                failure.set(None);
-            }
-            if pending.len() != tickets.peek().len() {
-                tickets.set(pending);
-            }
-        },
-    ));
-    let on_change = use_callback({
-        let owner = owner.clone();
-        move |name: String| {
-            if let Some((_, id)) = &owner {
-                failure.set(None);
-                dirty.set(true);
-                draft.set(Some((id.clone(), name)));
-            }
-        }
-    });
-    let on_commit = use_callback(move |_| {
-        if !dirty() {
-            return;
-        }
-        dirty.set(false);
-        let Some((epoch, id)) = owner.as_ref() else {
-            return;
-        };
-        let Some(current) = runtime.model().accepted else {
-            return;
-        };
-        if current.session_epoch != *epoch || current.document.id != *id {
-            return;
-        }
-        let proposed = draft()
-            .filter(|(project_id, _)| project_id == id)
-            .map(|(_, name)| name.trim().to_owned())
-            .unwrap_or_default();
-        if proposed.is_empty() {
-            draft.set(Some((id.clone(), current.document.name.clone())));
-            return;
-        }
-        let resolver = boardstudio_application::EditResolver::new(
-            "setup-project-name",
-            move |accepted: &boardstudio_application::AcceptedSnapshot| {
-                if accepted.document.name == proposed {
-                    return boardstudio_application::Resolution::Unchanged;
-                }
-                let mut document = accepted.document.as_ref().clone();
-                document.name = proposed.clone();
-                boardstudio_application::Resolution::submit(
-                    vec![document.id.clone()],
-                    EditOperation::ReplaceDocument {
-                        document: Box::new(document),
-                    },
-                )
-            },
-        );
-        let ticket = EditTicket::begin(
-            &runtime,
-            "setup-project-name",
-            Some("project name".into()),
-            resolver,
-        );
-        latest.set(Some(ticket.operation()));
-        failure.set(None);
-        tickets.write().push(((*epoch, id.clone()), ticket));
-    });
-    SetupProjectNameEdit {
-        draft,
-        failure,
-        on_change,
-        on_commit,
-    }
 }
