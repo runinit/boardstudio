@@ -1,4 +1,4 @@
-use crate::model::{Operation, OutlineFeature, Part, Pose2, ProjectDoc, Side, Vec2};
+use boardstudio_model::model::{Operation, OutlineFeature, Part, Pose2, ProjectDoc, Side, Vec2};
 use rhai::{Dynamic, Engine, EvalAltResult, Position};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -330,7 +330,7 @@ pub fn apply_scripts(doc: &mut ProjectDoc) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::Script;
+    use boardstudio_model::model::Script;
 
     /// Build a Rhai string variable by appending `chunk` `times` times, so the
     /// test controls the exact byte length without relying on loop counts alone.

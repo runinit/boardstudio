@@ -107,9 +107,9 @@ fn effective_family(
 fn is_legacy_mx_stabilizer(profile: &MechanicalPartProfile) -> bool {
     profile.plate_to_pcb == 5.0
         && profile.source_geometry.as_ref().is_some_and(|source| {
-            source.text == include_str!("../tests/fixtures/mechanical/STAB_MX_2u.kicad_mod")
+            source.text == include_str!("../../../tests/fixtures/mechanical/STAB_MX_2u.kicad_mod")
                 || source.text
-                    == include_str!("../tests/fixtures/mechanical/STAB_MX_6.25u.kicad_mod")
+                    == include_str!("../../../tests/fixtures/mechanical/STAB_MX_6.25u.kicad_mod")
         })
 }
 
@@ -2365,7 +2365,7 @@ pub fn builtin_profile(
         MechanicalBuiltinProfile::MxStab2u => (
             "STAB_MX_2u",
             Some(include_str!(
-                "../tests/fixtures/mechanical/STAB_MX_2u.kicad_mod"
+                "../../../tests/fixtures/mechanical/STAB_MX_2u.kicad_mod"
             )),
             None,
             None,
@@ -2373,7 +2373,7 @@ pub fn builtin_profile(
         MechanicalBuiltinProfile::MxStab625u => (
             "STAB_MX_6.25u",
             Some(include_str!(
-                "../tests/fixtures/mechanical/STAB_MX_6.25u.kicad_mod"
+                "../../../tests/fixtures/mechanical/STAB_MX_6.25u.kicad_mod"
             )),
             None,
             None,
@@ -3095,9 +3095,10 @@ mod tests {
     }
     #[test]
     fn imported_stabilizers_use_the_mx_mounting_datum() {
-        let catalogue: serde_json::Value =
-            serde_json::from_str(include_str!("../../catalogue/parts/imported-parts.json"))
-                .unwrap();
+        let catalogue: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../catalogue/parts/imported-parts.json"
+        ))
+        .unwrap();
         let stabilizers: Vec<_> = catalogue["parts"]
             .as_array()
             .unwrap()
@@ -3529,8 +3530,8 @@ mod tests {
 
     #[test]
     fn legacy_mx_stabilizer_profiles_are_recognized_only_by_reviewed_source_and_original_gap() {
-        let two_u = include_str!("../tests/fixtures/mechanical/STAB_MX_2u.kicad_mod");
-        let wide = include_str!("../tests/fixtures/mechanical/STAB_MX_6.25u.kicad_mod");
+        let two_u = include_str!("../../../tests/fixtures/mechanical/STAB_MX_2u.kicad_mod");
+        let wide = include_str!("../../../tests/fixtures/mechanical/STAB_MX_6.25u.kicad_mod");
         for (text, gap, family, spacing) in [
             (Some(two_u), 5.0, Some(MechanicalSwitchFamily::Mx), 3.5),
             (Some(wide), 5.0, Some(MechanicalSwitchFamily::Mx), 3.5),

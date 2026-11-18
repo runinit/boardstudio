@@ -1,0 +1,18 @@
+[package]
+name = "boardstudio-script"
+version = "0.1.0"
+edition = "2024"
+publish = false
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+boardstudio-model = { path = "../model" }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+rhai = { version = "1.26.1", default-features = false, features = ["std"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+rhai = { version = "1.26.1", default-features = false, features = ["std", "wasm-bindgen"] }
+
+[lints]
+workspace = true

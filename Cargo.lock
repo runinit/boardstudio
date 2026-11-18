@@ -217,6 +217,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "boardstudio-core-engine"
+version = "0.1.0"
+dependencies = [
+ "boardstudio-contracts",
+ "boardstudio-footprints",
+ "boardstudio-model",
+ "boardstudio-script",
+ "cavalier_contours",
+ "i_overlay",
+ "kiutils_sexpr",
+ "serde",
+ "serde_json",
+ "sha2",
+ "zip",
+]
+
+[[package]]
 name = "boardstudio-footprints"
 version = "0.1.0"
 dependencies = [
@@ -249,6 +266,14 @@ dependencies = [
  "three-d-asset",
  "wasm-bindgen",
  "web-sys",
+]
+
+[[package]]
+name = "boardstudio-script"
+version = "0.1.0"
+dependencies = [
+ "boardstudio-model",
+ "rhai",
 ]
 
 [[package]]
@@ -553,15 +578,11 @@ dependencies = [
 name = "boardstudio_core"
 version = "0.1.0"
 dependencies = [
- "boardstudio-contracts",
+ "boardstudio-core-engine",
  "boardstudio-footprints",
- "boardstudio-model",
- "cavalier_contours",
- "i_overlay",
+ "boardstudio-script",
  "js-sys",
- "kiutils_sexpr",
  "regex",
- "rhai",
  "serde",
  "serde_json",
  "sha2",

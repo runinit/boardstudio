@@ -1,19 +1,19 @@
 //! Composition of inverse translation and the existing forward kernels (ticket 115).
 //!
 //! This module owns disposable drafts. It does not publish a revision or history entry; the edit
-//! lifecycle publishes drafts returned by `prepare_transaction_with_ledger` and `prepare_open`.
+//! lifecycle publishes drafts returned by `prepare_transaction_with_ledger` and `prepare_open_with_scripts`.
 
 use super::{
     HostedTransition, IndependentPartTransition, PartProjection, Projection,
     is_omitted_matrix_link, omitted_mirror_matrix, reconcile, unique_board_owner,
 };
-use crate::constraints::FramedConstraint;
 use crate::mirrored_half::inverse::{self, Canonical, PreparedConstraintEdit};
 use crate::model::{
     BoardContours, CompanionPlacementTarget, EditOperation, Finding, HalfExceptionState, Matrix,
     MirroredCompanionMode, MirroredCompanionTweak, MirroredExceptionState, MirroredItemKind, Pose2,
     Position, ProjectDoc, Scope, Severity,
 };
+use crate::{ScriptRunner, constraints::FramedConstraint};
 use boardstudio_model::mechanical::halves::MirroredHalfOverlays;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -21,18 +21,27 @@ use std::collections::{BTreeMap, BTreeSet};
 #[path = "prepare/tests.rs"]
 mod tests;
 
+#[cfg(test)]
+pub(crate) fn prepare_open(
+    accepted: &ProjectDoc,
+    board_contours: &[BoardContours],
+) -> Result<(ProjectDoc, Vec<Finding>), String> {
+    prepare_open_with_scripts(accepted, board_contours, boardstudio_script::apply_scripts)
+}
+
 /// Builds the source-authoritative document draft used by Open without publishing it.
 /// Open has its own route: it does not canonicalize an edit or use transaction preparation,
 /// whose ReplaceDocument behavior intentionally preserves replacement geometry.
-pub(crate) fn prepare_open(
+pub(crate) fn prepare_open_with_scripts(
     accepted: &ProjectDoc,
     _board_contours: &[BoardContours],
+    run_scripts: ScriptRunner,
 ) -> Result<(ProjectDoc, Vec<Finding>), String> {
     let mut draft = accepted.clone();
     if let Some(keymap) = &draft.keymap {
         crate::keymap::validate(keymap)?;
     }
-    crate::script::apply_scripts(&mut draft)?;
+    run_scripts(&mut draft)?;
     crate::matrix::layout::resolve(&mut draft)?;
 
     // Repair only independently linked Parts that can be derived from an existing source before
@@ -615,6 +624,7 @@ pub(crate) fn prepare_transaction(
         board_contours,
         operation,
         &crate::mechanical::edit::MechanicalIdentityLedger::default(),
+        boardstudio_script::apply_scripts,
     )
 }
 
@@ -626,6 +636,7 @@ pub(crate) fn prepare_transaction_with_ledger(
     board_contours: &[BoardContours],
     operation: &EditOperation,
     identities: &crate::mechanical::edit::MechanicalIdentityLedger,
+    run_scripts: ScriptRunner,
 ) -> Result<(ProjectDoc, Vec<String>), String> {
     crate::mechanical::halves::validate_document(accepted)?;
     let mut canonical =
@@ -634,8 +645,14 @@ pub(crate) fn prepare_transaction_with_ledger(
         super::lifecycle::retire_replacement_records(accepted, document)?;
     }
     let mut draft = accepted.clone();
-    let mut changed =
-        apply_canonical(&mut draft, accepted, board_contours, &canonical, identities)?;
+    let mut changed = apply_canonical(
+        &mut draft,
+        accepted,
+        board_contours,
+        &canonical,
+        identities,
+        run_scripts,
+    )?;
 
     if let Some(keymap) = &draft.keymap {
         crate::keymap::validate(keymap)?;
@@ -1062,6 +1079,7 @@ fn apply_canonical(
     board_contours: &[BoardContours],
     canonical: &Canonical,
     identities: &crate::mechanical::edit::MechanicalIdentityLedger,
+    run_scripts: ScriptRunner,
 ) -> Result<Vec<String>, String> {
     if let EditOperation::AddMirrorOnlyPart { board_id, part, .. } = &canonical.operation {
         if id_exists_outside_parts(accepted, &part.id) {
@@ -1127,8 +1145,13 @@ fn apply_canonical(
         let pair_id = pair_for_instance(accepted, instance_id)?;
         return crate::mechanical::halves::unlink_pair(draft, &pair_id);
     }
-    let mut changed =
-        crate::apply_with_ledger(draft, board_contours, &canonical.operation, identities)?;
+    let mut changed = crate::apply_with_ledger(
+        draft,
+        board_contours,
+        &canonical.operation,
+        identities,
+        Some(run_scripts),
+    )?;
     // Ticket 29 B4: removing a halves-pair source over an Omitted mirror
     // orphans the mirror layout shell — its matrix is absent by design and
     // its source is gone, so layout validation could never resolve it. Drop

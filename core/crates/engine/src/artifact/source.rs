@@ -1340,7 +1340,7 @@ mod tests {
     #[test]
     fn upgrade_legacy_arcs_matches_the_recorded_javascript_export() {
         let directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../footprints/tests/golden/generators");
+            .join("../../../footprints/tests/golden/generators");
         let mut compared = 0;
         for path in std::fs::read_dir(directory)
             .unwrap()

@@ -22,8 +22,8 @@ use std::collections::{BTreeMap, BTreeSet};
 mod lifecycle;
 mod prepare;
 #[cfg(test)]
-pub(crate) use prepare::prepare_transaction;
-pub(crate) use prepare::{prepare_open, prepare_transaction_with_ledger};
+pub(crate) use prepare::{prepare_open, prepare_transaction};
+pub(crate) use prepare::{prepare_open_with_scripts, prepare_transaction_with_ledger};
 mod outlines;
 mod settings;
 // Ticket 147: keycap settings and plain nets follow their source after creation.
@@ -6363,9 +6363,8 @@ fn prepare_membership_transition_kernel(
                     .part_ids
                     .retain(|id| !retained_local_parts.contains(id));
             }
-            crate::apply(
+            crate::apply_unscripted(
                 &mut draft,
-                &[],
                 &crate::model::EditOperation::RemoveMatrix {
                     id: matrix_pair.mirror_id.clone(),
                 },

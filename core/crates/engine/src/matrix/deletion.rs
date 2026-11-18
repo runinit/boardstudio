@@ -446,9 +446,8 @@ pub(crate) fn remove_axis(
         let mut changed = changed_ids(&changes);
         changed.extend(pruned);
         for matrix in matrices {
-            changed.extend(crate::apply(
+            changed.extend(crate::apply_unscripted(
                 doc,
-                &[],
                 &EditOperation::RemoveMatrix { id: matrix.id },
             )?);
         }

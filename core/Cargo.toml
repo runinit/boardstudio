@@ -11,27 +11,18 @@ autotests = false
 name = "dump_firmware"
 
 [dependencies]
-boardstudio-model = { path = "crates/model" }
-boardstudio-contracts = { path = "../contracts/rust" }
-boardstudio-footprints = { path = "../footprints" }
-cavalier_contours = "=0.9.0"
-i_overlay = "9.0.0"
-kiutils_sexpr = "=0.1.1"
-serde = { version = "1", features = ["derive"] }
+boardstudio-core-engine = { path = "crates/engine" }
+boardstudio-script = { path = "crates/script" }
 serde_json = "1"
-sha2 = { version = "=0.11.0", default-features = false }
 wasm-bindgen = "0.2.129"
 js-sys = "0.3.106"
-zip = { version = "=9.0.1", default-features = false, features = ["deflate-flate2-zlib-rs"] }
-
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-rhai = { version = "1.26.1", default-features = false, features = ["std"] }
-
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-rhai = { version = "1.26.1", default-features = false, features = ["std", "wasm-bindgen"] }
 
 [dev-dependencies]
+boardstudio-footprints = { path = "../footprints" }
 regex = { version = "1", default-features = false, features = ["std", "perf", "unicode"] }
+serde = { version = "1", features = ["derive"] }
+sha2 = { version = "=0.11.0", default-features = false }
+zip = { version = "=9.0.1", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 
 [[test]]
 name = "integration"

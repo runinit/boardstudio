@@ -23,7 +23,7 @@
   "support_polygon_tests::exact_duplicates_and_nearby_distinct_edges_are_preserved",
   "support_polygon_tests::exact_orientation_covers_subnormal_products_and_large_finite_inputs"
  ],
- "boardstudio_core": [
+ "boardstudio_core_engine": [
   "archive::tests::actual_read_limits_stop_at_the_first_excess_byte",
   "archive::tests::bounded_writer_discards_teardown_writes_without_growing_past_the_cap",
   "archive::tests::framed_endpoint_relations_cross_the_archive_boundary_without_reinterpretation",
@@ -735,13 +735,6 @@
   "preview_electrical_loss_tests::repeated_identities_are_deduplicated_and_notice_ids_are_collision_safe",
   "preview_electrical_loss_tests::retained_net_and_board_registration_report_only_the_removed_pin",
   "preview_electrical_loss_tests::whole_net_removal_reports_each_distinct_pin_net_and_registration",
-  "script::tests::apply_scripts_keeps_the_document_when_the_emission_budget_is_exceeded",
-  "script::tests::collect_accepts_an_emission_exactly_on_the_aggregate_string_byte_budget",
-  "script::tests::collect_counts_emitted_string_fields_as_utf8_bytes",
-  "script::tests::collect_refuses_emissions_past_the_object_count_budget",
-  "script::tests::collect_refuses_the_first_emission_beyond_the_aggregate_string_byte_budget",
-  "script::tests::collect_shares_one_budget_across_part_and_rect_emissions",
-  "script::tests::collect_stays_failed_after_a_script_tries_to_catch_the_budget_error",
   "set_wiring_mode_tests::changing_mode_preserves_the_board_configuration",
   "set_wiring_mode_tests::setting_direct_creates_board_configuration_and_reports_only_the_board",
   "set_wiring_mode_tests::setting_mode_for_an_unknown_board_is_an_edit_error",
@@ -846,6 +839,15 @@
   "tests::supports_wrl_box_primitives_and_vertex_colors",
   "tests::tessellates_board_surface_and_silkscreen_strokes",
   "tests::winds_wrl_box_triangles_with_outward_normals"
+ ],
+ "boardstudio_script": [
+  "script::tests::apply_scripts_keeps_the_document_when_the_emission_budget_is_exceeded",
+  "script::tests::collect_accepts_an_emission_exactly_on_the_aggregate_string_byte_budget",
+  "script::tests::collect_counts_emitted_string_fields_as_utf8_bytes",
+  "script::tests::collect_refuses_emissions_past_the_object_count_budget",
+  "script::tests::collect_refuses_the_first_emission_beyond_the_aggregate_string_byte_budget",
+  "script::tests::collect_shares_one_budget_across_part_and_rect_emissions",
+  "script::tests::collect_stays_failed_after_a_script_tries_to_catch_the_budget_error"
  ],
  "boardstudio_web_case": [
   "case_display::tests::gasket_upper_lower_share_color_without_changing_visibility",

@@ -3160,9 +3160,8 @@ fn prepare_lifecycle_transition(
                 .map(|a| a.mirror_id.as_str())
                 .collect();
             matrix.part_ids.retain(|id| !retained.contains(id.as_str()));
-            crate::apply(
+            crate::apply_unscripted(
                 &mut draft,
-                &[],
                 &crate::model::EditOperation::RemoveMatrix {
                     id: matrix_pair.mirror_id.clone(),
                 },

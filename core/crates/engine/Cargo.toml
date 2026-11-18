@@ -1,0 +1,24 @@
+[package]
+name = "boardstudio-core-engine"
+version = "0.1.0"
+edition = "2024"
+publish = false
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+boardstudio-model = { path = "../model" }
+boardstudio-contracts = { path = "../../../contracts/rust" }
+boardstudio-footprints = { path = "../../../footprints" }
+cavalier_contours = "=0.9.0"
+i_overlay = "9.0.0"
+kiutils_sexpr = "=0.1.1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = { version = "=0.11.0", default-features = false }
+zip = { version = "=9.0.1", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+
+[dev-dependencies]
+boardstudio-script = { path = "../script" }
+
+[lints]
+workspace = true

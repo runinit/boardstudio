@@ -831,7 +831,7 @@ fn embed_circuit(
         joins: source_joins,
     };
     let mut staged_source = links.document.clone();
-    crate::apply(&mut staged_source, &[], &source_operation)?;
+    crate::apply_unscripted(&mut staged_source, &source_operation)?;
 
     let (source_prefix, mirror_prefix) = (
         format!("embedded/{source_id}/"),

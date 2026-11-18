@@ -1085,9 +1085,10 @@ mod projection_tests {
     // fixture pins saved-pose reads without Local exceptions or layoutOverride.
     #[test]
     fn ordinary_parts_match_saved_pose_and_member_id_fixtures_in_every_mirror_mode() {
-        let fixtures: serde_json::Value =
-            serde_json::from_str(include_str!("../tests/fixtures/matrix-projections.json"))
-                .unwrap();
+        let fixtures: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../tests/fixtures/matrix-projections.json"
+        ))
+        .unwrap();
         let cases = fixtures["cases"].as_array().unwrap();
         assert_eq!(cases.len(), 9);
         let mut cell_count = 0;

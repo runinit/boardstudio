@@ -9,7 +9,7 @@ use serde_json::json;
 
 // The shared fixture also serves the integration target, which calls with_construction_features.
 #[allow(dead_code)]
-#[path = "../../../../tests/support/synthetic_half.rs"]
+#[path = "../../../../../../tests/support/synthetic_half.rs"]
 mod synthetic_half_fixture;
 
 fn part<'a>(document: &'a ProjectDoc, id: &str) -> &'a crate::model::Part {
@@ -2198,9 +2198,15 @@ fn ambiguous_mirror_board_target_is_refused_before_prepared_addition() {
     let canonical = crate::mirrored_half::inverse::canonicalize(&accepted, &operation)
         .expect("the Add request canonicalizes before target selection");
     let mut draft = accepted.clone();
-    let refusal =
-        super::apply_canonical(&mut draft, &accepted, &[], &canonical, &Default::default())
-            .expect_err("two pairs with this target board are ambiguous");
+    let refusal = super::apply_canonical(
+        &mut draft,
+        &accepted,
+        &[],
+        &canonical,
+        &Default::default(),
+        boardstudio_script::apply_scripts,
+    )
+    .expect_err("two pairs with this target board are ambiguous");
     assert!(refusal.contains("matched 2 pairs"), "{refusal}");
     assert_eq!(draft, accepted, "the private prepared stage is atomic");
     assert_eq!(serde_json::to_vec(&accepted).unwrap(), before);
