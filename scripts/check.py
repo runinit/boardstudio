@@ -93,6 +93,14 @@ WASM_CRATE_BUILD = ["cargo", "test", "--no-run", "--lib", "--target", "wasm32-un
                     "--profile", "wasm-check", "--locked", "--message-format=json"]
 ISOLATED = ("presentation::case_workspace::",)
 DRAG_SMOKE = [PY, "scripts/run-drag-browser.py"]
+PAGE_TEST_BUILD = [PY, "scripts/run-wasm-tests.py", "--build-only"]
+HARNESS_BUILD = [PY, "scripts/browser_tools.py"]
+BUILD_LOCK_SCRIPTS = (
+    "scripts/run-drag-browser.py", "cad/scripts/test-cad-capture-controls.py", "cad/scripts/test-cold-responses.py",
+    "cad/scripts/face-completeness-gate.py", "cad/scripts/test-cad-provider.py", "scripts/build-web.py",
+    "scripts/run-wasm-tests.py", "cad/scripts/test-cad.py", KICAD_PARTS_TEST[1], "scripts/browser_tools.py",
+    "scripts/model-lookup-pilot.py", "scripts/ergogen-parity/test_generate.py",
+)
 def test_css_command() -> list[str]:
     if compiler := os.environ.get("BOARDSTUDIO_TAILWINDCSS"):
         return [compiler, "-i", "tailwind.css", "-o", "assets/tailwind.css"]
@@ -177,6 +185,9 @@ WEB_WASM_PACKAGES: tuple[str, ...] = (
     *dict.fromkeys(f"boardstudio-web-{crate}" for cmd in browser() if (crate := launch_crate(cmd))),
 )
 
+BROWSER_CRATE_BUILD = next(command for command in browser() if is_crate_build(command))
+BROWSER_PREBUILDS = [BROWSER_CRATE_BUILD, PAGE_TEST_BUILD, HARNESS_BUILD]
+
 # `--no-deps` keeps Clippy off the vendored cgmath fork; its lints are audited separately.
 # The browser harness lives outside the workspace with its own lockfile, so it
 # gets its own manifest-scoped format and lint commands.
@@ -212,7 +223,7 @@ STEPS: dict[str, tuple[bool, list[Command]]] = {
         [PY, "-B", script]
         for script in TOOLING_TESTS]]),
     # The routine build skips wasm-opt and the optimized Dioxus build; `release` keeps both.
-    "build": (True, [[PY, "scripts/build-web.py", "--fast"]]),
+    "build": (True, [[PY, "scripts/build-web.py", "--fast"], *BROWSER_PREBUILDS]),
     "lint": (True, LINT),
     "release": (False, [[PY, "scripts/build-web.py"]]),
     "test": (True, [*CARGO_TESTS, [PY, "cad/scripts/test-cad.py"], KICAD_PARTS_TEST]),
@@ -515,8 +526,7 @@ def run_serial(command: Command, environment: dict[str, str], cwd: Path = ROOT,
         environment = {**environment, **config}
     print("$ " + shlex.join(argv), flush=True)
     lock_fd = browser_tools._inherited_build_lock()
-    if not any(part in command for part in ("scripts/run-drag-browser.py", "cad/scripts/test-cad-capture-controls.py", "cad/scripts/test-cold-responses.py", "cad/scripts/face-completeness-gate.py", "cad/scripts/test-cad-provider.py", "scripts/build-web.py",
-               "scripts/run-wasm-tests.py", "cad/scripts/test-cad.py", "scripts/test-import-kicad-parts.py", "scripts/model-lookup-pilot.py", "scripts/ergogen-parity/test_generate.py")):
+    if not any(script in command for script in BUILD_LOCK_SCRIPTS):
         environment = environment.copy()
         environment.pop("BOARDSTUDIO_BUILD_LOCK_FD", None)
     lock_args = {"pass_fds": (lock_fd,)} if lock_fd is not None else {}
@@ -651,8 +661,7 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
         child_env = {**environment, **config}
         if receipt is not None:
             child_env.update(BOARDSTUDIO_RECEIPT_RUN_ID=receipt.run_id, BOARDSTUDIO_RECEIPT_ATTEMPT_ID=attempt)
-        if not any(script in command for script in ("cad/scripts/test-cad.py", "scripts/run-wasm-tests.py",
-                                                    KICAD_PARTS_TEST[1])):
+        if not any(script in command for script in BUILD_LOCK_SCRIPTS):
             child_env.pop("BOARDSTUDIO_BUILD_LOCK_FD", None)
         done = launch_command(argv, registry=registry, cwd=cwd, env=child_env, stdout=subprocess.PIPE,
                                  stderr=subprocess.STDOUT, text=True,
@@ -923,6 +932,8 @@ def run_commands(name: str, commands: list[Command], environment: dict[str, str]
         attempt = receipt.prepare(command, step=name) if receipt is not None else None
         completed = (lambda code, elapsed, start, end: receipt.recording_failed(attempt, code, elapsed, start, end)) if receipt is not None else None
         child_env = environment.copy()
+        if command in BROWSER_PREBUILDS or name == "drag-smoke":
+            child_env.setdefault("CARGO_PROFILE_DEV_DEBUG", "false")
         if receipt is not None:
             child_env.update(BOARDSTUDIO_RECEIPT_RUN_ID=receipt.run_id, BOARDSTUDIO_RECEIPT_ATTEMPT_ID=attempt)
         args = (command, child_env, cwd, captured, serial_outputs)
@@ -975,8 +986,10 @@ def run_commands(name: str, commands: list[Command], environment: dict[str, str]
                 end += 1
             launches = commands[index + 1:end]
             try:
-                artifacts = crate_test_artifacts(serial_outputs[-1][1], cwd, () if code else browser_crates(launches))
-                if not code:
+                crates = tuple(command[idx + 1].removeprefix("boardstudio-web-")
+                               for idx, token in enumerate(command) if token == "-p")
+                artifacts = crate_test_artifacts(serial_outputs[-1][1], cwd, () if code else crates)
+                if not code and launches:
                     runner = importlib.import_module("run-wasm-tests")
                     pair = environment.get(wasm_bindgen_tools.DIRECTORY_ENV)
                     directory = Path(pair) if pair else runner.wasm_bindgen_dir(cwd)
@@ -1056,6 +1069,13 @@ def run(names: list[str], update_native_baseline: bool = False,
             else:
                 names.insert(smoke_index, names.pop(later_build))
     plan = [(name, STEPS[name][1]) for name in names]
+    # Hosted packaged checks keep their existing partition from the crate suite.
+    if "browser" not in names and any(name in names for name in ("browser-packaged", "drag-smoke")):
+        unused = [BROWSER_CRATE_BUILD]
+        if "browser-packaged" not in names:
+            unused.append(PAGE_TEST_BUILD)
+        plan = [(name, [command for command in commands if command not in unused] if name == "build" else commands)
+                for name, commands in plan]
     for index, name in enumerate(names):
         if name in ("build", "release"):
             break  # The packaged build generates the stylesheet.
@@ -1136,7 +1156,8 @@ def run_plan(plan: list[tuple[str, list[Command]]], update_native_baseline: bool
         return 1
     direct = any(is_wasm_pack_test(command) for _, commands in plan for command in commands)
     page = not os.environ.get("BOARDSTUDIO_WASM_TEST_COMMAND") and any(
-        "scripts/run-wasm-tests.py" in command for _, commands in plan for command in commands)
+        "scripts/run-wasm-tests.py" in command and command != PAGE_TEST_BUILD
+        for _, commands in plan for command in commands)
     crate_launches = [command for _, commands in plan for command in commands
                       if command[:1] == [wasm_bindgen_tools.TEST_RUNNER]]
     if direct or page or crate_launches:

@@ -668,6 +668,7 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
             self.assertEqual(check.run(["browser"]), 0)
         self.assertEqual([name for name, _ in captured["plan"]], ["build", "browser"])
         self.assertEqual(captured["plan"][-1][1][0], check.DRAG_SMOKE)
+        self.assertEqual(captured["plan"][0][1][1:], check.BROWSER_PREBUILDS)
 
     def test_drag_smoke_can_run_as_a_fresh_build_preflight(self):
         captured = {}
@@ -680,6 +681,19 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
             self.assertEqual(check.run(["drag-smoke"]), 0)
         self.assertEqual([name for name, _ in captured["plan"]], ["build", "drag-smoke"])
         self.assertEqual(captured["plan"][-1][1], [check.DRAG_SMOKE])
+        self.assertEqual(captured["plan"][0][1][1:], [check.HARNESS_BUILD])
+
+    def test_browser_prebuild_failure_stops_before_other_artifacts(self):
+        commands = check.STEPS["build"][1]
+
+        def fail_second(command, environment, cwd, captured, outputs):
+            outputs.append((command, ""))
+            return 0.0, 7 if check.is_crate_build(command) else 0, "", ""
+
+        with mock.patch.object(check, "run_serial", side_effect=fail_second) as run, \
+             contextlib.redirect_stderr(io.StringIO()):
+            self.assertFalse(check.run_commands("build", commands, {})[1])
+        self.assertEqual([call.args[0] for call in run.call_args_list], commands[:2])
 
     def test_missing_browser_tools_fail_before_any_command_or_build_is_launched(self):
         self.chrome.side_effect = check.browser_tools.MissingBrowserTool("missing browser tool")
