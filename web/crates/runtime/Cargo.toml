@@ -40,7 +40,7 @@ futures-channel = "=0.3.34"
 wasm-bindgen-test = "=0.3.79"
 
 [build-dependencies]
-boardstudio_core = { path = "../../../core" }
+sha2 = { version = "=0.11.0", default-features = false }
 
 [lints]
 workspace = true

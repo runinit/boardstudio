@@ -1,4 +1,7 @@
-use boardstudio_core::hash::sha256_hex;
+// Compile only the shared hash helper into the host-side model generator.
+#[path = "../../../core/src/hash.rs"]
+mod hash;
+use hash::sha256_hex;
 use std::{
     collections::BTreeSet,
     env, fs,
