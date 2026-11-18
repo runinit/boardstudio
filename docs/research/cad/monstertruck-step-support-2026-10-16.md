@@ -67,7 +67,7 @@ Generated case/keycap geometry remains a separate exact-B-rep workflow. See
 [worker routing](../../../web/crates/host/src/cad_worker.rs),
 [model delivery](../../../web/crates/runtime/src/model_delivery.rs),
 [footprint export](../../../web/crates/runtime/src/export_footprints.rs), and
-[project archive](../../../core/src/archive.rs).
+[project archive](../../../core/crates/engine/src/archive.rs).
 
 The actual CAD feature surface that needs a replacement kernel is broader than
 STEP preview: case construction covers plates/trays/lids, holes and cavities,

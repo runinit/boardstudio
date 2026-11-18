@@ -101,7 +101,7 @@ unchanged in this slice, including their licences and calibrated geometry.
 3. **Evidence:** Core's `render_jobs` calls `bundled().render`, obtains model
    bindings, resolves model paths, invokes `export_forms`, then upgrades legacy
    arcs. Preview and export both use these jobs. [`generation::{render_jobs,preview,export}`,
-   lines 21–74](../../core/src/artifact/kicad/generation.rs#L21-L74).
+   lines 21–74](../../core/crates/engine/src/artifact/kicad/generation.rs#L21-L74).
 4. **Evidence:** export normalization rewrites model paths, converts legacy
    `module` heads to `footprint`, and separates board objects. It is not another
    pad/text constructor. [`export_forms`, lines 65–93](../../footprints/src/export.rs#L65-L93).

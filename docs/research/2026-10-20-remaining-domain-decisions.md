@@ -97,7 +97,7 @@ checkout**. Its relevant current counterparts are `CameraBasis` (bounds/surface 
 finding navigation), Session's 2D camera and Editor's workspace-specific fit basis
 ([types](../../web/crates/keycaps/src/keycaps_fit.rs#L60-L64),
 [Editor](../../web/src/presentation.rs#L4640-L4726)). These are not a serialized 3D
-viewpoint. [ProjectDoc](../../core/src/model.rs#L903-L970) has no dedicated camera
+viewpoint. [ProjectDoc](../../core/crates/model/src/model.rs#L903-L970) has no dedicated camera
 record; the renderer separately owns target/yaw/pitch/distance and GPU objects
 ([fields](../../renderer/src/wasm.rs#L375-L399)). Do not promise restoration of every
 GPU field or add preferences merely to answer a user-visible scope question.
@@ -129,12 +129,12 @@ Editor 011 without changing its extraction scope silently.
 
 The real [selected-key actions](../../web/src/presentation/layout_key_selection_actions.rs#L335-L386)
 distinguish Enable/Disable (`SetMatrixCellsEnabled`) from Delete
-(`RemoveSelectedMatrixCells`). [edit_selected_cells](../../core/src/matrix/deletion.rs#L470-L544)
+(`RemoveSelectedMatrixCells`). [edit_selected_cells](../../core/crates/engine/src/matrix/deletion.rs#L470-L544)
 refuses deleted cells, changes `enabled`, retains other cell fields and calls
 `set_matrix`; it does not set `deleted` for a temporary disable.
 
 For an **ordinary unpaired matrix**, inspected
-[set_matrix](../../core/src/matrix.rs#L714-L998) establishes:
+[set_matrix](../../core/crates/engine/src/matrix.rs#L714-L998) establishes:
 
 - The cell's definition/variant/offset/rotation/assembly recipe remains. A disabled
   cell creates no Part or companions. Parts, Board membership, net pins, constraints
@@ -147,11 +147,11 @@ For an **ordinary unpaired matrix**, inspected
   from a dormant Part archive; a new Part gets defaults. Deleted net-pin/constraint
   records are not automatically restored. Retained keycap-map values are different
   from `Part.keycap`.
-- [Electrical discovery](../../core/src/electrical.rs#L206-L295) skips disabled cells
+- [Electrical discovery](../../core/crates/engine/src/electrical.rs#L206-L295) skips disabled cells
   and requires actual Board-owned Parts. [Firmware adaptation](../../web/crates/runtime/src/firmware_request_adapter.rs#L90-L171)
   emits current assignments/auxiliary inputs, not every retained binding-map entry.
   On re-enable, if planning succeeds, the reused ID can again retrieve its retained
-  legacy binding; [typed source generation](../../core/src/keymap.rs#L472-L500) looks
+  legacy binding; [typed source generation](../../core/crates/model/src/keymap.rs#L472-L500) looks
   up the same current key IDs. A dormant binding is not an active firmware key.
 
 This is **source-derived partial retention**, not a full ‘temporarily hide everything
@@ -181,10 +181,10 @@ compacted survivors or Undo.
 
 ### Evidence set N: available facts versus product choices
 
-[PartDefinition/PartGenerator](../../core/src/model.rs#L135-L214) retain source text,
+[PartDefinition/PartGenerator](../../core/crates/model/src/model.rs#L135-L214) retain source text,
 profiles and parameters, not a universal custom-author/change-history record.
-[Asset](../../core/src/model.rs#L644-L654) has optional licence/source strings;
-[HardwareSource](../../core/src/hardware.rs#L4-L52) can retain repository, revision,
+[Asset](../../core/crates/model/src/model.rs#L644-L654) has optional licence/source strings;
+[HardwareSource](../../core/crates/model/src/hardware.rs#L4-L52) can retain repository, revision,
 path, licence and optional hash. The
 [marbastlib manifest](../../catalogue/parts/import-manifest.json#L4-L15) already
 supplies a pin, path, hash and licence, while runtime
@@ -203,8 +203,8 @@ template dependency pins are not licence grants.
 
 [prepare_archive](../../web/crates/runtime/src/portable_archive.rs#L10-L96) clones
 existing asset metadata but creates bundled asset records with no licence.
-[Core admission](../../core/src/archive.rs#L44-L121) and
-[entry allowlist](../../core/src/archive.rs#L216-L240) still lack notice support and
+[Core admission](../../core/crates/engine/src/archive.rs#L44-L121) and
+[entry allowlist](../../core/crates/engine/src/archive.rs#L216-L240) still lack notice support and
 retention. [build_handoff](../../web/crates/runtime/src/pcb_handoff.rs#L65-L218)
 puts board/models into an inner ZIP and that ZIP plus assembly/wiring files into
 the outer package; [model loading](../../web/crates/runtime/src/pcb_handoff.rs#L220-L275)
@@ -215,7 +215,7 @@ inner archive alone nor that an outer notice suffices for that workflow.
 in [portable_archive](../../web/crates/runtime/src/portable_archive.rs#L374-L503)
 checks metadata/byte precedence, with opaque payloads, not notices.
 `unpack_verifies_missing_assets_and_hashes_before_any_output` in
-[archive](../../core/src/archive.rs#L594-L616) supplies integrity coverage to retain.
+[archive](../../core/crates/engine/src/archive.rs#L594-L616) supplies integrity coverage to retain.
 `native_board_export_preserves_untouched_source_spans_and_kicad_10_parses_and_plots_both_sides`
 in [KiCad integration](../../core/tests/kicad_integration.rs#L774-L830) preserves a
 synthetic Vendor note, not custom legal attribution. No mixed package was generated.

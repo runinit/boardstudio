@@ -13,7 +13,7 @@ Historical linked gaps: controller bay 0.10 mm and switch cutout 1.066 mm on bot
 
 ## Hardware gate
 
-[46](46-sofle-hardware-inputs.md) records the user-specified target installed hardware/BOM, qualified plate/switch/stabiliser profile and any remaining outline/mount/clearance decisions. Screws/spacers may be added. Use BoardStudio’s existing case-generation tool for gasket, plate and tolerance; inspect supported defaults/options before asking for a remaining setting. Do not require upstream manufacturing specifications or invent a separate geometry/tolerance workflow. Current Core [builtin_profile](../../../../core/src/mechanical.rs) distinguishes MX, Choc v1 and v2 and retains source provenance; select and validate the intended profile instead of assuming a new Choc dimension or reusing a hardcoded test square.
+[46](46-sofle-hardware-inputs.md) records the user-specified target installed hardware/BOM, qualified plate/switch/stabiliser profile and any remaining outline/mount/clearance decisions. Screws/spacers may be added. Use BoardStudio’s existing case-generation tool for gasket, plate and tolerance; inspect supported defaults/options before asking for a remaining setting. Do not require upstream manufacturing specifications or invent a separate geometry/tolerance workflow. Current Core [builtin_profile](../../../../core/crates/engine/src/mechanical.rs) distinguishes MX, Choc v1 and v2 and retains source provenance; select and validate the intended profile instead of assuming a new Choc dimension or reusing a hardcoded test square.
 
 ## One-hour slice and ownership
 

@@ -143,11 +143,11 @@ A standalone variant/refresh ADR becomes justified only if a broader ownership c
   Thus even an explicit refresh is not evidence of a general upstream-version upgrade system.
 - [Registry `render`](../../footprints/src/registry.rs#L157-L249) supports **one** version string,
   `bundled-1`, merges definition/part values and supplies current declared defaults for missing/null
-  values. It runs the currently compiled body. [Core export `render_jobs`](../../core/src/artifact/kicad/generation.rs#L23-L59)
+  values. It runs the currently compiled body. [Core export `render_jobs`](../../core/crates/engine/src/artifact/kicad/generation.rs#L23-L59)
   invokes that registry from captured data; saving data does not pin historical code or defaults.
 - [Normalizer](../../footprints/src/definition.rs#L82-L110) preserves saved pad IDs/nets **by index**
   and explicitly says pad count/order must not change without migration. This is recovered
-  compatibility guidance, not a newly invented precaution. [Core normalization regression](../../core/src/generators.rs#L440-L457),
+  compatibility guidance, not a newly invented precaution. [Core normalization regression](../../core/crates/engine/src/generators.rs#L440-L457),
   `normalization_regenerates_pads_and_keeps_saved_ids`, checks the index-preservation behavior.
 - `normalization_leaves_non_generator_definitions_alone_and_rejects_unknown_ones` in
   [framework tests](../../footprints/tests/framework.rs#L289-L308) rejects an unsupported version;
@@ -190,12 +190,12 @@ keymap migration; that disclaimer does not describe every current cleanup path.
 
 **Newly traced lifecycle:**
 
-- [`member_id`, `removed_members`, `set_matrix`](../../core/src/matrix.rs) derive key IDs as
+- [`member_id`, `removed_members`, `set_matrix`](../../core/crates/engine/src/matrix.rs) derive key IDs as
   `matrix/{matrix}/r{row}c{column}`. A surviving key moved without changing its coordinate keeps
   that ID. Shrinking drops out-of-bounds cells/parts and net/constraint membership; regrowth
   computes the same coordinate IDs. The `set_matrix` cleanup shown here does not itself clear
   typed keymap/legacy binding maps.
-- [`matrix::deletion::remove_axis` → `remap_parts`](../../core/src/matrix/deletion.rs#L119-L262)
+- [`matrix::deletion::remove_axis` → `remap_parts`](../../core/crates/engine/src/matrix/deletion.rs#L119-L262)
   simultaneously renames survivors and remaps typed bindings, sensors, keycaps, net pins,
   constraints, board/layout membership and electrical key bindings/assignments. It intentionally
   leaves protected handoff baselines immutable. The comment explicitly prevents a removed slot
@@ -206,12 +206,12 @@ keymap migration; that disclaimer does not describe every current cleanup path.
   The structural deleted-cell marker is **not** a promised deleted-input keymap tombstone or
   automatic semantic migration system. Do not “fix” PRODUCT's disclaimer merely because a
   test uses the word tombstone.
-- [`keymap::validate`/`apply_edit`/`source`](../../core/src/keymap.rs) validate binding values and
+- [`keymap::validate`/`apply_edit`/`source`](../../core/crates/model/src/keymap.rs) validate binding values and
   current edit targets, but source emission walks the **current supplied key order** and looks
   up bindings by ID, with legacy base-layer and transparent higher-layer fallbacks. Validation
   does not prove every stored binding key is a currently present input. [Firmware adapter](../../web/crates/runtime/src/firmware_request_adapter.rs#L90-L171)
   builds keys from electrical assignments and appends auxiliary pushes; `keys_for_bindings`
-  reads board-scoped legacy values. [`firmware::keymap`](../../core/src/firmware.rs#L773-L800)
+  reads board-scoped legacy values. [`firmware::keymap`](../../core/crates/engine/src/firmware.rs#L773-L800)
   combines halves and lowers the typed map using that order.
 - This yields a **static, bounded concern**, not a reproduced new defect: retained map entries
   and coordinate reallocation can reconnect after shrink/regrow or generic removal, while
@@ -327,7 +327,7 @@ and licensing are different contracts; no blanket licence or legal conclusion is
   directly saved references and local assets. [`portable_archive::prepare_archive`](../../web/crates/runtime/src/portable_archive.rs#L47-L96)
   embeds bundled model bytes into a cloned document with `license: None` and the generic source
   `bundled footprint library`. Existing document asset records retain their own metadata/bytes;
-  [Asset](../../core/src/model.rs#L638-L649) can store optional licence/source. The inspected
+  [Asset](../../core/crates/model/src/model.rs#L638-L649) can store optional licence/source. The inspected
   `pack_round_trip_keeps_local_bytes_and_optionally_adds_opaque_model_bytes` confirms this
   bounded propagation and preserves a document-owned model over the current bundled copy.
 - [PCB `load_model_files`/`build_handoff`](../../web/crates/runtime/src/pcb_handoff.rs#L65-L275)
@@ -384,12 +384,12 @@ uses that preparation and labels source-backed versus nominal unpopulated PCB wi
 ID/hash/thickness in `assembly.json`; component solids are not claimed included.
 
 Conversely, [`build_handoff`](../../web/crates/runtime/src/pcb_handoff.rs#L83-L160) calls
-`ArtifactRequest::ExportPcb` with the accepted document/Board contours. [Planning](../../core/src/artifact/kicad/planning.rs)
-selects generated/imported/authored **footprint** handling; [finalization](../../core/src/artifact/kicad/output.rs#L537-L877)
+`ArtifactRequest::ExportPcb` with the accepted document/Board contours. [Planning](../../core/crates/engine/src/artifact/kicad/planning.rs)
+selects generated/imported/authored **footprint** handling; [finalization](../../core/crates/engine/src/artifact/kicad/output.rs#L537-L877)
 writes accepted Board traces/vias and generated objects. An imported source-backed footprint
 is a different ownership mode from an imported routed Board. Its original spans are patched
-for placement, nets and identity via [`patch_footprint`](../../core/src/artifact/source.rs#L123-L147),
-not rebuilt from an incomplete preview. [`compile_authored`](../../core/src/artifact/compile.rs#L4-L20)
+for placement, nets and identity via [`patch_footprint`](../../core/crates/engine/src/artifact/source.rs#L123-L147),
+not rebuilt from an incomplete preview. [`compile_authored`](../../core/crates/engine/src/artifact/compile.rs#L4-L20)
 explicitly refuses both authoritative KiCad source and generator-backed fallback.
 
 **Existing evidence:** [assembly reference](../features/assembly-preview.md#preview-limits)

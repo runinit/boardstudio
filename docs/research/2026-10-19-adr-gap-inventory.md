@@ -284,7 +284,7 @@ authority. Keycaps are appearance/optional-print meshes, not exact keycap STEP.
   `prepare_physical_step_assembly`, shares complete physical PCB preparation between
   export and collision, retaining source contours/drills and rejecting mismatch.
   [CAD build_case](../../cad/monstertruck/src/lib.rs) calls
-  `layered::build_layered_case`; [Core case preparation](../../core/src/case.rs)
+  `layered::build_layered_case`; [Core case preparation](../../core/crates/engine/src/case.rs)
   rejects mixed revisions.
 - **Named tests:** [layered/tests.rs](../../cad/monstertruck/src/layered/tests.rs),
   `original_round_seat_chain_matches_independent_volume_and_material`,
@@ -426,7 +426,7 @@ browser coordination and all readable projects establish a safe startup.
 content-addressed assets through a validated, bounded Core archive service, not an
 arbitrary browser ZIP extraction path.
 
-- **What:** [archive.rs](../../core/src/archive.rs), `dispatch`, `unpack`,
+- **What:** [archive.rs](../../core/crates/engine/src/archive.rs), `dispatch`, `unpack`,
   `verify_references`, `project_entry_limit` and `read_bounded`, validates paths,
   duplicate entries, SHA-256 references and declared/actual byte budgets before
   returning project asset buffers. Current project limits are 128 MiB compressed,
@@ -437,7 +437,7 @@ arbitrary browser ZIP extraction path.
   `limits_apply_to_pack_and_unpack_including_total_and_compressed_bytes`,
   `actual_read_limits_stop_at_the_first_excess_byte`, and
   `generic_exports_preserve_paths_and_have_no_project_numeric_limits` in
-  [archive.rs](../../core/src/archive.rs).
+  [archive.rs](../../core/crates/engine/src/archive.rs).
 - **Rationale status:** H1 §6 assigns archive/domain validation to Rust and original
   asset/file effects to Host; H6 records the import cap. The historical rationale
   for this exact portable envelope and individual limits was **not recovered**.

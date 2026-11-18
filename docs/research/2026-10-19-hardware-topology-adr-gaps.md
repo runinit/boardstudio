@@ -54,17 +54,17 @@ before recording a new decision (implementation evidence below).
 
 | Term | Exact current meaning and owner | Evidence |
 | --- | --- | --- |
-| Board / `boardId` | A PCB **design**, not a physical half. `ProjectDoc.boards` contains membership in parts, nets and outlines, thickness and routed copper. Parts/nets live in project collections; a board references their IDs. | [Glossary](../../GLOSSARY.md#mechanical-relationships); [model](../../core/src/model.rs), `Board`, `ProjectDoc`; [validation](../../core/src/validate.rs), `validate` |
-| Physical instance / `instanceId` | One realization of a Board: durable ID, board reference, name, `half`, `role`, `flipped`, optional controller reference and mechanical configuration/ownership. Identity does not collapse when the Board is reused. | [model](../../core/src/model.rs#L1045-L1067), `PhysicalBoardInstance`; [0010](../adr/0010-mirrored-half-is-a-core-maintained-reflection.md) |
-| Topology | Project `hardware.topology`: `unibody` or `split`. This describes intended physical/electrical organization; the enum alone is not an exactly-one/exactly-two admission invariant. A source-half fixture legitimately starts `split` with only one instance; firmware separately requires two appropriately labelled members. | [model](../../core/src/model.rs#L1014-L1043), `HardwareConfiguration`; [synthetic fixture builder](../../core/tests/support/synthetic_half.rs#L31-L43); [Runtime firmware](../../web/crates/runtime/src/runtime.rs#L6613-L6628) |
+| Board / `boardId` | A PCB **design**, not a physical half. `ProjectDoc.boards` contains membership in parts, nets and outlines, thickness and routed copper. Parts/nets live in project collections; a board references their IDs. | [Glossary](../../GLOSSARY.md#mechanical-relationships); [model](../../core/crates/model/src/model.rs), `Board`, `ProjectDoc`; [validation](../../core/crates/engine/src/validate.rs), `validate` |
+| Physical instance / `instanceId` | One realization of a Board: durable ID, board reference, name, `half`, `role`, `flipped`, optional controller reference and mechanical configuration/ownership. Identity does not collapse when the Board is reused. | [model](../../core/crates/model/src/model.rs#L1045-L1067), `PhysicalBoardInstance`; [0010](../adr/0010-mirrored-half-is-a-core-maintained-reflection.md) |
+| Topology | Project `hardware.topology`: `unibody` or `split`. This describes intended physical/electrical organization; the enum alone is not an exactly-one/exactly-two admission invariant. A source-half fixture legitimately starts `split` with only one instance; firmware separately requires two appropriately labelled members. | [model](../../core/crates/model/src/model.rs#L1014-L1043), `HardwareConfiguration`; [synthetic fixture builder](../../core/tests/support/synthetic_half.rs#L31-L43); [Runtime firmware](../../web/crates/runtime/src/runtime.rs#L6613-L6628) |
 | Transport | Project `hardware.transport`: `none`, `wireless`, `wired`. Setup selects wireless on entering split and none on entering unibody. Transport-only setup accepts wired/wireless only on split; it changes no wiring itself. Firmware maps wired to UART and consumes separate resolved plans. | [setup](../../web/crates/catalogue/src/physical_setup.rs#L345-L351), `propose_topology`, `propose_transport`; [firmware adapter](../../web/crates/runtime/src/firmware_request_adapter.rs#L332-L409), `build_request` |
-| Half | A persisted **string**, used by setup for left/right/unibody labels, not a board identity or geometric transform. It is operational too: firmware currently requires central=left and peripheral=right, and reversible setup sets flips using `half == "right"`. | [instance model](../../core/src/model.rs#L1045-L1067); [setup](../../web/crates/catalogue/src/physical_setup.rs#L472-L506), `propose_reversible`; [Runtime](../../web/crates/runtime/src/runtime.rs#L6617-L6628) |
-| Role | Another persisted string: setup uses central/peripheral/standalone; firmware selects members by role. It is not the module interface's host/module role, nor inherently a side. Current firmware nevertheless couples it to side. | [setup](../../web/crates/catalogue/src/physical_setup.rs#L359-L419); [Runtime](../../web/crates/runtime/src/runtime.rs#L6617-L6668); [module interface](../../core/src/modules.rs#L73-L90), `ModuleInterface` |
-| Electrical board configuration | `hardware.boards`, keyed by Board ID: controller, matrix/direct mode, locks, assignments, firmware-position `key_bindings`, jumper states, protected handoff. It is **not one independent configuration per physical instance**. The instance has its own optional controller reference; Runtime forwards that reference when resolving instance-specific firmware/handoff plans. | [model](../../core/src/model.rs#L1103-L1114), `ElectricalBoardConfiguration`; [planner](../../core/src/electrical.rs#L850-L909), `resolve`; [Runtime](../../web/crates/runtime/src/runtime.rs#L5799-L5835), `resolve_pcb_handoff_plan` |
-| Electrical plan | Derived board/revision/controller/optional-instance result with assignments, nets, jumpers, diagnostics and fingerprint; not a second persisted PCB design. Explicit request controller wins over board configuration; otherwise the single eligible placed controller can be selected. | [plan](../../core/src/electrical.rs#L53-L75), `ElectricalPlan`; [resolve](../../core/src/electrical.rs#L791-L909) |
-| Mechanical mirror pair | Explicit pair of **instance IDs**, mapping, shared construction and linked features. Optional native `halves` extends it with source/mirror Board IDs, correspondences and exceptions. A mechanical-only link is not necessarily native whole-board reflection. | [model](../../core/src/model.rs), `MechanicalMirrorPair`, `MirroredHalves`; [0010](../adr/0010-mirrored-half-is-a-core-maintained-reflection.md); [link review](../../web/crates/catalogue/src/physical_setup.rs#L614-L752) |
-| Layout mirror link | Separate relationship between layouts/matrices, including an X axis; it does not itself create physical instances or a mechanical pair. Native/legacy overlap is explicitly refused on affected edits rather than treated as two interchangeable authorities. | [setup](../../web/crates/catalogue/src/physical_setup.rs), `a_layout_only_pair_proposes_no_mechanical_pair_and_invents_no_instances`; [inverse layout](../../core/src/mirrored_half/inverse/layout.rs#L1-L62), `translate` |
-| Effective physical view | Derived document/parts/contours for one selected instance. `physical_instance_id` is also used as a projection/context carrier; it does not create ownership of a second parts collection. Mechanical resolution uses Local, Pair or Legacy construction ownership, then linked features and defaults. | [inputs](../../core/src/mechanical/inputs.rs#L99-L164), `effective_inputs_inner`; [projection](../../core/src/mechanical/inputs.rs#L1023-L1091), `effective_document`; [configuration resolution](../../core/src/mechanical/inputs.rs#L744-L825) |
+| Half | A persisted **string**, used by setup for left/right/unibody labels, not a board identity or geometric transform. It is operational too: firmware currently requires central=left and peripheral=right, and reversible setup sets flips using `half == "right"`. | [instance model](../../core/crates/model/src/model.rs#L1045-L1067); [setup](../../web/crates/catalogue/src/physical_setup.rs#L472-L506), `propose_reversible`; [Runtime](../../web/crates/runtime/src/runtime.rs#L6617-L6628) |
+| Role | Another persisted string: setup uses central/peripheral/standalone; firmware selects members by role. It is not the module interface's host/module role, nor inherently a side. Current firmware nevertheless couples it to side. | [setup](../../web/crates/catalogue/src/physical_setup.rs#L359-L419); [Runtime](../../web/crates/runtime/src/runtime.rs#L6617-L6668); [module interface](../../core/crates/model/src/modules.rs#L73-L90), `ModuleInterface` |
+| Electrical board configuration | `hardware.boards`, keyed by Board ID: controller, matrix/direct mode, locks, assignments, firmware-position `key_bindings`, jumper states, protected handoff. It is **not one independent configuration per physical instance**. The instance has its own optional controller reference; Runtime forwards that reference when resolving instance-specific firmware/handoff plans. | [model](../../core/crates/model/src/model.rs#L1103-L1114), `ElectricalBoardConfiguration`; [planner](../../core/crates/engine/src/electrical.rs#L850-L909), `resolve`; [Runtime](../../web/crates/runtime/src/runtime.rs#L5799-L5835), `resolve_pcb_handoff_plan` |
+| Electrical plan | Derived board/revision/controller/optional-instance result with assignments, nets, jumpers, diagnostics and fingerprint; not a second persisted PCB design. Explicit request controller wins over board configuration; otherwise the single eligible placed controller can be selected. | [plan](../../core/crates/model/src/electrical.rs#L53-L75), `ElectricalPlan`; [resolve](../../core/crates/engine/src/electrical.rs#L791-L909) |
+| Mechanical mirror pair | Explicit pair of **instance IDs**, mapping, shared construction and linked features. Optional native `halves` extends it with source/mirror Board IDs, correspondences and exceptions. A mechanical-only link is not necessarily native whole-board reflection. | [model](../../core/crates/model/src/model.rs), `MechanicalMirrorPair`, `MirroredHalves`; [0010](../adr/0010-mirrored-half-is-a-core-maintained-reflection.md); [link review](../../web/crates/catalogue/src/physical_setup.rs#L614-L752) |
+| Layout mirror link | Separate relationship between layouts/matrices, including an X axis; it does not itself create physical instances or a mechanical pair. Native/legacy overlap is explicitly refused on affected edits rather than treated as two interchangeable authorities. | [setup](../../web/crates/catalogue/src/physical_setup.rs), `a_layout_only_pair_proposes_no_mechanical_pair_and_invents_no_instances`; [inverse layout](../../core/crates/engine/src/mirrored_half/inverse/layout.rs#L1-L62), `translate` |
+| Effective physical view | Derived document/parts/contours for one selected instance. `physical_instance_id` is also used as a projection/context carrier; it does not create ownership of a second parts collection. Mechanical resolution uses Local, Pair or Legacy construction ownership, then linked features and defaults. | [inputs](../../core/crates/engine/src/mechanical/inputs.rs#L99-L164), `effective_inputs_inner`; [projection](../../core/crates/engine/src/mechanical/inputs.rs#L1023-L1091), `effective_document`; [configuration resolution](../../core/crates/engine/src/mechanical/inputs.rs#L744-L825) |
 
 ### Three transforms that must not be collapsed
 
@@ -72,14 +72,14 @@ before recording a new decision (implementation evidence below).
    zero pair translation/rotation. The physical reflection is `(-x, y)`; it creates
    an instance and pair, not copied parts/nets. Pinned source-only modules refuse
    by name; board-owned embedded circuits need no copy
-   ([`reuse_board`](../../core/src/mirrored_half.rs#L848-L921)).
+   ([`reuse_board`](../../core/crates/engine/src/mirrored_half.rs#L848-L921)).
 2. **Different mirrored PCB design:** `new_board` creates fresh board, matrix,
    part, net and hosted-item identities with correspondences. A placed part retains
    its authored side/parameters; heading/companion rules are not a physical PCB
    flip. Copper is not reflected. These are already explicit choices, including
    exceptions for switches and stabilizers
    ([0010 amendments](../adr/0010-mirrored-half-is-a-core-maintained-reflection.md),
-   [`new_board`](../../core/src/mirrored_half.rs#L1362-L1501)).
+   [`new_board`](../../core/crates/engine/src/mirrored_half.rs#L1362-L1501)).
 3. **Mechanical mapping between existing instances:** review can supply a translated/
    rotated mapping, construction source and durable feature correspondences. Default
    mapping derives only from opposite flip flags, not names, part coordinates or a
@@ -91,15 +91,15 @@ before recording a new decision (implementation evidence below).
 
 | Scenario | Supported behavior and limits |
 | --- | --- |
-| One reversible board manufactured twice | Two instance IDs reference one Board ID; no duplicated board circuitry. Physical part/contour projection reflects the flipped instance. Existing regression `reuse_board_projects_authored_features_without_copying_board_data` checks the creation contract. This is not a universal qualification of reversible hardware or pin population: onboarding demands front/back connectivity evidence. ([Core test](../../core/tests/mirrored_half.rs), [inputs](../../core/src/mechanical/inputs.rs#L99-L164), [onboarding](../hardware/component-onboarding.md#onboarding-workflow)) |
-| Distinct left/right PCBs | Native new-board creation remaps IDs, controller references and electrical function keys; keeps matrix numbering/pins; mirror `key_bindings` starts empty and protected handoff is not copied. Keycap legends/settings do copy. Existing Board data is not a rename-in-place topology conversion. ([`new_board`](../../core/src/mirrored_half.rs#L1784-L1859), [0010](../adr/0010-mirrored-half-is-a-core-maintained-reflection.md)) |
+| One reversible board manufactured twice | Two instance IDs reference one Board ID; no duplicated board circuitry. Physical part/contour projection reflects the flipped instance. Existing regression `reuse_board_projects_authored_features_without_copying_board_data` checks the creation contract. This is not a universal qualification of reversible hardware or pin population: onboarding demands front/back connectivity evidence. ([Core test](../../core/tests/mirrored_half.rs), [inputs](../../core/crates/engine/src/mechanical/inputs.rs#L99-L164), [onboarding](../hardware/component-onboarding.md#onboarding-workflow)) |
+| Distinct left/right PCBs | Native new-board creation remaps IDs, controller references and electrical function keys; keeps matrix numbering/pins; mirror `key_bindings` starts empty and protected handoff is not copied. Keycap legends/settings do copy. Existing Board data is not a rename-in-place topology conversion. ([`new_board`](../../core/crates/engine/src/mirrored_half.rs#L1784-L1859), [0010](../adr/0010-mirrored-half-is-a-core-maintained-reflection.md)) |
 | Unibody | Setup retains the selected existing instance, or a board-matching fallback, relabels it unibody/standalone and sets transport none. It replaces the **instances list**, not the Board collection. A unibody can also contain two linked layout halves without becoming a two-instance split. ([`propose_topology`](../../web/crates/catalogue/src/physical_setup.rs#L254-L449), [layout-only test](../../web/crates/catalogue/src/physical_setup.rs), `a_layout_only_pair_proposes_no_mechanical_pair_and_invents_no_instances`) |
-| Enter split from ordinary unflipped unibody | Proposal requests a same-board flipped secondary and a native pair, resolves shared construction, captures explicit labels; the adapter converts it to one Core `CreateMirroredHalf` with `physical_setup`. Core applies setup plus pair on a draft, and invalid transport refuses without mutation. One Undo restores the input. ([adapter](../../web/crates/pcb/src/pcb_physical_setup/controller.rs#L614-L675), [Core](../../core/src/mirrored_half.rs#L133-L205), [test](../../core/tests/mirrored_half.rs#L153-L198), `physical_setup_and_pair_creation_are_one_atomic_core_edit`) |
+| Enter split from ordinary unflipped unibody | Proposal requests a same-board flipped secondary and a native pair, resolves shared construction, captures explicit labels; the adapter converts it to one Core `CreateMirroredHalf` with `physical_setup`. Core applies setup plus pair on a draft, and invalid transport refuses without mutation. One Undo restores the input. ([adapter](../../web/crates/pcb/src/pcb_physical_setup/controller.rs#L614-L675), [Core](../../core/crates/engine/src/mirrored_half.rs#L133-L205), [test](../../core/tests/mirrored_half.rs#L153-L198), `physical_setup_and_pair_creation_are_one_atomic_core_edit`) |
 | Enter split from an already-flipped primary | The proposal deliberately retains that flip; its new secondary is also flipped, so no default eligible reflection map exists. It may therefore follow the non-pair replacement path. A split label is not evidence a linked pair was created. This is explicitly tested **as proposal behavior**, not comprehensive firmware acceptance. ([setup test](../../web/crates/catalogue/src/physical_setup.rs#L983-L1043), `topology_preserves_flipped_primary_and_shared_construction_and_adds_reversible_secondary`; [dispatch](../../web/crates/pcb/src/pcb_physical_setup/controller.rs#L648-L675)) |
-| Link independent existing halves | Catalogue review carries explicit mapping/source/matches and leaves the input unchanged. Core's mechanical `LinkMirrorPair` is a distinct operation; do not send arbitrary existing-board links through `into_mirrored_operation`, which constructs a fresh **ReuseBoard** request. The catalogue's distinct-board test verifies proposal contents, not that creation adapter accepting the proposal as a new half. ([review test](../../web/crates/catalogue/src/physical_setup.rs#L1521-L1603), [conversion](../../web/crates/catalogue/src/physical_setup.rs#L79-L143), [mechanical edit](../../core/src/mechanical/edit.rs), `link_mirror_pair`) |
+| Link independent existing halves | Catalogue review carries explicit mapping/source/matches and leaves the input unchanged. Core's mechanical `LinkMirrorPair` is a distinct operation; do not send arbitrary existing-board links through `into_mirrored_operation`, which constructs a fresh **ReuseBoard** request. The catalogue's distinct-board test verifies proposal contents, not that creation adapter accepting the proposal as a new half. ([review test](../../web/crates/catalogue/src/physical_setup.rs#L1521-L1603), [conversion](../../web/crates/catalogue/src/physical_setup.rs#L79-L143), [mechanical edit](../../core/crates/engine/src/mechanical/edit.rs), `link_mirror_pair`) |
 | Switch wired/wireless | Transport-only proposal changes only that field; it neither places connectors nor rewires copper. Firmware subsequently needs valid plans; wired adapter uses UART and reverses peripheral TX/RX. Do not describe changing the dropdown as electrical certification. ([setup test](../../web/crates/catalogue/src/physical_setup.rs#L1248-L1272), `transport_changes_only_the_transport_field`; [adapter](../../web/crates/runtime/src/firmware_request_adapter.rs#L332-L409); [test](../../web/tests/firmware_request_adapter.rs), `split_wired_request_preserves_peripheral_offset_and_reverses_uart`) |
-| Split back to unibody / remove member | Removed instance does not imply removed Board. Core reconciles dangling pair ownership and materializes the survivor's previously effective mechanical configuration locally. Typed paired-member removal also clears a selected removed-instance carrier. It is not a general PCB/net/keymap merge algorithm. ([reconciliation](../../core/src/mechanical/edit.rs#L1302-L1353), `remove_physical_instance`; [`reconcile_physical_topology`](../../core/src/mechanical/edit.rs#L1484-L1598); [integration tests](../../core/tests/mechanical_integration.rs#L1210-L1359)) |
-| Mounted daughterboard versus embedded copy | Mounted source circuitry stays separate; an optional host-instance pin controls which physical population includes a mounted module. Embedded circuits belong to the host Board and have no instance pin. Reuse-board copies neither; new-board mirrors hosted items under fresh IDs/namespaces. These decisions are already covered, not a new topology ADR. ([0023](../adr/0023-distinguish-mounted-daughterboards-from-embedded-circuits.md), [module types](../../core/src/modules.rs#L205-L251), [0010](../adr/0010-mirrored-half-is-a-core-maintained-reflection.md), [`reuse_board`](../../core/src/mirrored_half.rs#L875-L895)) |
+| Split back to unibody / remove member | Removed instance does not imply removed Board. Core reconciles dangling pair ownership and materializes the survivor's previously effective mechanical configuration locally. Typed paired-member removal also clears a selected removed-instance carrier. It is not a general PCB/net/keymap merge algorithm. ([reconciliation](../../core/crates/engine/src/mechanical/edit.rs#L1302-L1353), `remove_physical_instance`; [`reconcile_physical_topology`](../../core/crates/engine/src/mechanical/edit.rs#L1484-L1598); [integration tests](../../core/tests/mechanical_integration.rs#L1210-L1359)) |
+| Mounted daughterboard versus embedded copy | Mounted source circuitry stays separate; an optional host-instance pin controls which physical population includes a mounted module. Embedded circuits belong to the host Board and have no instance pin. Reuse-board copies neither; new-board mirrors hosted items under fresh IDs/namespaces. These decisions are already covered, not a new topology ADR. ([0023](../adr/0023-distinguish-mounted-daughterboards-from-embedded-circuits.md), [module types](../../core/crates/model/src/modules.rs#L205-L251), [0010](../adr/0010-mirrored-half-is-a-core-maintained-reflection.md), [`reuse_board`](../../core/crates/engine/src/mirrored_half.rs#L875-L895)) |
 
 ## Enforcement and preservation: what is actually checked
 
@@ -111,7 +111,7 @@ before recording a new decision (implementation evidence below).
   `resolver_scopes_board_and_honors_controller_and_locks`,
   `missing_controller_is_reported_without_inventing_one` and
   `handoff_cannot_be_silently_overridden_by_new_locks`
-  ([planner](../../core/src/electrical.rs), `discover_keys`, `allocate_pins`,
+  ([planner](../../core/crates/engine/src/electrical.rs), `discover_keys`, `allocate_pins`,
   `finalize_nets`, `resolve`; [tests](../../core/tests/electrical_wiring.rs)).
 - **Plans and identity remaps have boundaries.** A topology proposal clones the
   document and retains `hardware.boards`; it does not remap parts/nets or project
@@ -121,17 +121,17 @@ before recording a new decision (implementation evidence below).
   preserves keymaps” means existing data is retained, not that two designs are
   merged or new keys automatically receive semantic bindings
   ([setup](../../web/crates/catalogue/src/physical_setup.rs#L321-L449);
-  [new-board IDs](../../core/src/mirrored_half.rs#L1392-L1501);
-  [electrical copy](../../core/src/mirrored_half.rs#L1814-L1859)).
+  [new-board IDs](../../core/crates/engine/src/mirrored_half.rs#L1392-L1501);
+  [electrical copy](../../core/crates/engine/src/mirrored_half.rs#L1814-L1859)).
 - **Interface checks are separate from mechanical mirroring.** Mounted connections
   name a real host connector, module port, bus, actual MCU terminals, cable and
   rails. `connection_findings` validates the electrical connection; electrical
   resolution imports those findings and locks. Firmware gates then check the
   selected physical host, module driver qualification and embedded circuitry;
   they do not infer supported behavior from a reflected pose
-  ([module contract](../../core/src/modules.rs#L187-L228), `ModuleConnection`;
-  [checks](../../core/src/modules/electrical.rs), `connection_findings`;
-  [planner](../../core/src/electrical.rs#L996-L1015);
+  ([module contract](../../core/crates/model/src/modules.rs#L187-L228), `ModuleConnection`;
+  [checks](../../core/crates/engine/src/modules/electrical.rs), `connection_findings`;
+  [planner](../../core/crates/engine/src/electrical.rs#L996-L1015);
   [firmware hardware tests](../../core/tests/firmware_hardware.rs),
   `invalid_or_missing_physical_context_cannot_hide_scoped_modules`,
   `rust_generated_module_connection_findings_block_functional_firmware`).
@@ -142,7 +142,7 @@ before recording a new decision (implementation evidence below).
   on both halves. The output's left/right targets do not prove distinct PCB IDs
   ([Runtime](../../web/crates/runtime/src/runtime.rs#L6613-L6676);
   [adapter](../../web/crates/runtime/src/firmware_request_adapter.rs#L194-L210);
-  [generation](../../core/src/firmware.rs#L449-L493)).
+  [generation](../../core/crates/engine/src/firmware.rs#L449-L493)).
 - **Persisted authority versus defaults:** Board/instance/pair records and explicit
   assignments are durable document data. Electrical plans, effective mechanics,
   mirrored contours and UI setup proposals are derived. Local instances own their
@@ -150,8 +150,8 @@ before recording a new decision (implementation evidence below).
   shared construction, including the first-instance fallback. New setup instances
   are Local, not newly created Legacy records. Wireless battery defaults are reads,
   not evidence a physical battery was placed
-  ([configuration resolution](../../core/src/mechanical/inputs.rs#L744-L825),
-  `shared_source`, `apply_mechanical_defaults` in [inputs](../../core/src/mechanical/inputs.rs);
+  ([configuration resolution](../../core/crates/engine/src/mechanical/inputs.rs#L744-L825),
+  `shared_source`, `apply_mechanical_defaults` in [inputs](../../core/crates/engine/src/mechanical/inputs.rs);
   [new instance](../../web/crates/catalogue/src/physical_setup.rs#L899-L923)).
 - **Atomicity is specific, not universal typed migration.** Mirrored setup creation
   is one accepted Core edit/Undo step. Other physical setup intents still submit an
@@ -179,7 +179,7 @@ sharing a reversible PCB does not create independent writable circuitry.”
   circuits establish the split. `matrix_and_direct_plans_keep_scan_rows_keys_and_bindings`
   and `split_profiled_encoders_keep_each_plans_identity_and_gpio` test adapter data;
   `scoped_module_validation_uses_the_selected_physical_host` checks population
-  filtering ([model](../../core/src/model.rs#L1103-L1114),
+  filtering ([model](../../core/crates/model/src/model.rs#L1103-L1114),
   [Runtime](../../web/crates/runtime/src/runtime.rs#L6613-L6668),
   [adapter tests](../../web/tests/firmware_request_adapter.rs),
   [Core hardware tests](../../core/tests/firmware_hardware.rs)).
@@ -250,7 +250,7 @@ assemblies materialize their effective paired configuration before losing the pa
    contract retroactively on all imported/partial documents
    ([synthetic source](../../core/tests/support/synthetic_half.rs#L31-L43),
    [review fixture](../../web/crates/catalogue/src/physical_setup.rs#L1553-L1560),
-   [Core creation](../../core/src/mirrored_half.rs#L149-L168),
+   [Core creation](../../core/crates/engine/src/mirrored_half.rs#L149-L168),
    [Runtime](../../web/crates/runtime/src/runtime.rs#L6621-L6628)).
 3. **Topology/reversibility controls have different effects.** Entering split sets
    `reversibleLayout=true`, but does not run the generator normalizer that explicit
@@ -275,7 +275,7 @@ assemblies materialize their effective paired configuration before losing the pa
    legacy layout-pair feature distinct, mark historical scope when documenting it,
    and do not use the old brief to override native pair rules
    ([brief](../design/mirrored-layout-pair.md),
-   [overlap refusal](../../core/src/mirrored_half/inverse/layout.rs#L1-L62),
+   [overlap refusal](../../core/crates/engine/src/mirrored_half/inverse/layout.rs#L1-L62),
    [0010](../adr/0010-mirrored-half-is-a-core-maintained-reflection.md)).
 
 Open policy, not proven defects: what should happen to modules pinned to an instance

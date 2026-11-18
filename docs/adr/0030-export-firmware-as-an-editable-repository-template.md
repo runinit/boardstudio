@@ -8,7 +8,7 @@ Firmware export currently means a source handoff: an editable repository templat
 
 An included external build workflow or local build script supports the handoff; it does not make in-app compilation, repository creation/publication or flashing part of this decision. A future binary-building feature needs a separate scope decision. Generated source is not proof of physical hardware operation; output readiness and supported hardware mappings remain separate from the delivery format. Preserve [ADR-0024](0024-share-reversible-pcb-routing-not-half-firmware-configuration.md)'s per-half assembly mapping and [ADR-0026](0026-decouple-firmware-role-from-physical-side.md)'s independent side/role boundary.
 
-Evidence: [current firmware generator and output tests](../../core/src/firmware.rs), `generate`, `exports_reproducible_local_build_commands_for_each_half` and `emits_pinned_manifest_and_compact_keymap`, produce source/configuration, a pinned dependency manifest and local/external build entry points. These are inspected implementation facts, not a fresh build, a pinned-version policy or proof that every target already supports the accepted hardware decisions.
+Evidence: [current firmware generator and output tests](../../core/crates/engine/src/firmware.rs), `generate`, `exports_reproducible_local_build_commands_for_each_half` and `emits_pinned_manifest_and_compact_keymap`, produce source/configuration, a pinned dependency manifest and local/external build entry points. These are inspected implementation facts, not a fresh build, a pinned-version policy or proof that every target already supports the accepted hardware decisions.
 
 ## Amendment: unfinished optional-peripheral support (2026-10-20)
 
