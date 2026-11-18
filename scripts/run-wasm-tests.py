@@ -39,8 +39,10 @@ KNOWN_FAILURES = Path(__file__).with_name("wasm-known-failures.json")
 TEST_OWNERS = Path(__file__).with_name("wasm-test-owners.json")
 RUNNER_ENV = "BOARDSTUDIO_WASM_TEST_COMMAND"
 # `wasm-check` is the profile the checked page build uses, so the page tests reuse its units.
-WASM_PACK = ["wasm-pack", "test", "--headless", "--chrome", "--mode", "no-install", "web", "--locked",
-             "--profile", "wasm-check", "--no-default-features", "--features", "page", "--bin", "boardstudio-web", "--"]
+PAGE_BUILD = ["cargo", "test", "--no-run", "--target", "wasm32-unknown-unknown", "--locked",
+              "--profile", "wasm-check", "--no-default-features", "--features", "page",
+              "-p", "boardstudio-web", "--bin", "boardstudio-web", "--message-format=json"]
+PAGE_ARTIFACT = "BOARDSTUDIO_PAGE_TEST_ARTIFACT"
 CHROME_BINARIES = ("google-chrome-stable", "google-chrome", "chromium", "chromium-browser", "chrome")
 CHROME_BIN_ENV = "CHROME_BIN"
 CFT_DIR_ENV = "BOARDSTUDIO_CFT_DIR"
@@ -266,10 +268,6 @@ def runner_environment(root=ROOT, *, browser_only=False):
     env[CHROME_BIN_ENV] = chrome
     if browser_only:
         return env
-    if not shutil.which("wasm-pack"):
-        raise RunnerError("wasm-pack not found on PATH; install it with `cargo install wasm-pack`")
-    env["CHROMEDRIVER"] = driver
-    env[CHROME_BIN_ENV] = chrome
     if wasm_bindgen_tools.DIRECTORY_ENV in env:
         try:
             env = wasm_bindgen_tools.configure(env, root)
@@ -281,9 +279,46 @@ def runner_environment(root=ROOT, *, browser_only=False):
     return env
 
 
-def run_filter(filter_, env, root=ROOT, skip_filters=()):
+def build_page_test(root, env):
+    fd = browser_tools._inherited_build_lock()
+    build_env = dict(env)
+    build_env.setdefault("CARGO_PROFILE_DEV_DEBUG", "false")
+    try:
+        result = subprocess.run(PAGE_BUILD, cwd=root, env=build_env, text=True,
+                                stdout=subprocess.PIPE, pass_fds=() if fd is None else (fd,))
+    except OSError as error:
+        raise RunnerError(f"could not build the page test: {error}") from error
+    artifacts = []
+    for line in result.stdout.splitlines():
+        try:
+            message = json.loads(line)
+        except json.JSONDecodeError:
+            print(line, file=sys.stderr)
+            continue
+        if message.get("reason") == "compiler-message":
+            if rendered := message["message"].get("rendered"):
+                print(rendered, end="", file=sys.stderr)
+        if (message.get("reason") == "compiler-artifact" and message["profile"]["test"]
+                and message["target"]["kind"] == ["bin"] and message["target"]["name"] == "boardstudio-web"
+                and Path(message["manifest_path"]) == root / "web/Cargo.toml"
+                and (executable := message.get("executable")) and executable.endswith(".wasm")):
+            artifacts.append(root / executable)
+    if result.returncode:
+        raise RunnerError(f"page test build exited {result.returncode}")
+    if len(artifacts) != 1 or not artifacts[0].is_file():
+        raise RunnerError("expected one existing page test wasm artifact from Cargo")
+    return artifacts[0]
+
+
+def page_runner(env):
     override = os.environ.get(RUNNER_ENV)
-    command = shlex.split(override) if override else [*WASM_PACK[:4], "--chromedriver", env["CHROMEDRIVER"], *WASM_PACK[4:]]
+    if override:
+        return shlex.split(override)
+    return [wasm_bindgen_tools.TEST_RUNNER, env[PAGE_ARTIFACT]]
+
+
+def run_filter(filter_, env, root=ROOT, skip_filters=()):
+    command = page_runner(env)
     if filter_:
         command.append(filter_)
     for skip_filter in skip_filters:
@@ -306,9 +341,7 @@ LIST_LINE = re.compile(r"^(\S+): test$", re.M)
 
 
 def list_wasm_tests(env, root=ROOT):
-    override = os.environ.get(RUNNER_ENV)
-    command = (shlex.split(override) if override else
-               [*WASM_PACK[:4], "--chromedriver", env["CHROMEDRIVER"], *WASM_PACK[4:]]) + ["--list"]
+    command = [*page_runner(env), "--list"]
     fd = browser_tools._inherited_build_lock()
     result = subprocess.run(command, cwd=root, env=env, text=True, capture_output=True,
                             **({"pass_fds": (fd,)} if fd is not None else {}))
@@ -556,7 +589,16 @@ def desktop_webdriver_config(env, root=ROOT):
 def run(filters, known, root=ROOT, expected_tests=None, env=None, unmatched_filters=None,
         listed_tests=None, selection=None, result_json_path=None):
     """Return execution summary and logs; optionally write a structured result report."""
-    env = env if env is not None else (os.environ.copy() if os.environ.get(RUNNER_ENV) else runner_environment(root))
+    if env is None:
+        if os.environ.get(RUNNER_ENV):
+            env = os.environ.copy()
+        else:
+            env = runner_environment(root)
+            env[PAGE_ARTIFACT] = str(build_page_test(Path(root).resolve(), env))
+            env["WASM_BINDGEN_TEST_ONLY_WEB"] = "1"
+            with desktop_webdriver_config(env, root) as configured:
+                return run(filters, known, root, expected_tests, configured, unmatched_filters,
+                           listed_tests, selection, result_json_path)
     outcomes, problems, logs = {}, [], []
     if not filters and not unmatched_filters:
         problems.append("no wasm tests selected; refusing an empty passing run")
@@ -697,6 +739,7 @@ def main(argv=None):
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--files", nargs="+", metavar="FILE")
     group.add_argument("--all", action="store_true")
+    group.add_argument("--build-only", action="store_true", help="compile the page test wasm without launching it")
     parser.add_argument("--depth", type=int, default=None, metavar="N",
                         help="with --all or --files: group tests by their first N module segments instead of "
                              "one run per module (fewer, faster runs; less isolation)")
@@ -709,6 +752,9 @@ def main(argv=None):
     args = parser.parse_args(argv)
     root = Path(args.root).resolve()
     try:
+        if args.build_only:
+            print(build_page_test(root, os.environ))
+            return 0
         known = load_known_failures()
         custom_runner = bool(os.environ.get(RUNNER_ENV))
         env = os.environ.copy() if custom_runner else runner_environment(root)
@@ -717,8 +763,10 @@ def main(argv=None):
                 env = wasm_bindgen_tools.configure(env, root)
             except ValueError as error:
                 raise RunnerError(str(error)) from error
-        browser_setup = not custom_runner
-        with (desktop_webdriver_config(env, root) if browser_setup else nullcontext(env)) as env:
+        else:
+            env[PAGE_ARTIFACT] = str(build_page_test(root, env))
+            env["WASM_BINDGEN_TEST_ONLY_WEB"] = "1"
+        with (nullcontext(env) if custom_runner else desktop_webdriver_config(env, root)) as env:
             if args.files:
                 filters, expected_tests, unmatched_filters, listed_tests, diagnostics = \
                     selection_for_listed_files(args.files, env, root, depth=args.depth,

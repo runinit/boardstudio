@@ -32,7 +32,7 @@ class RunWasmTestsTests(unittest.TestCase):
             self.assertEqual(runner.runner_environment()["WASM_BINDGEN_TEST_TIMEOUT"], "37")
 
     def test_selected_driver_is_explicit_for_listing_and_execution(self):
-        env = {"CHROMEDRIVER": "/selected/driver", "PATH": "/conflict"}
+        env = {"CHROMEDRIVER": "/selected/driver", "PATH": "/conflict", runner.PAGE_ARTIFACT: "/page.wasm"}
         result = subprocess.CompletedProcess([], 0, stdout="sample::test: test\ntest sample::test ... ok\n", stderr="")
         with patch.dict(os.environ, {"CHROMEDRIVER": "/conflicting/driver"}, clear=True), \
              patch.object(runner.subprocess, "run", return_value=result) as call:
@@ -40,8 +40,29 @@ class RunWasmTestsTests(unittest.TestCase):
             runner.run_filter("sample", env)
         for invocation in call.call_args_list:
             command = invocation.args[0]
-            self.assertEqual(command[command.index("--chromedriver") + 1], "/selected/driver")
-            self.assertLess(command.index("--chromedriver"), command.index("--"))
+            self.assertEqual(command[:2], ["wasm-bindgen-test-runner", "/page.wasm"])
+            self.assertEqual(invocation.kwargs["env"]["CHROMEDRIVER"], "/selected/driver")
+        self.assertEqual(call.call_args_list[0].args[0][-1], "--list")
+        self.assertEqual(call.call_args_list[1].args[0][-1], "sample")
+
+    def test_page_build_requires_one_current_cargo_artifact(self):
+        wasm = self.dir / "page.wasm"
+        wasm.touch()
+        artifact = json.dumps({
+            "reason": "compiler-artifact", "profile": {"test": True},
+            "target": {"kind": ["bin"], "name": "boardstudio-web"},
+            "manifest_path": str(self.dir / "web/Cargo.toml"), "executable": str(wasm),
+        })
+        with patch.object(runner.subprocess, "run") as compile_page:
+            compile_page.return_value = subprocess.CompletedProcess([], 0, stdout=artifact)
+            self.assertEqual(runner.build_page_test(self.dir, {}), wasm)
+            self.assertEqual(compile_page.call_args.args[0], runner.PAGE_BUILD)
+            compile_page.return_value = subprocess.CompletedProcess([], 1, stdout=artifact)
+            with self.assertRaisesRegex(runner.RunnerError, "exited 1"):
+                runner.build_page_test(self.dir, {})
+            compile_page.return_value = subprocess.CompletedProcess([], 0, stdout=f"{artifact}\n{artifact}")
+            with self.assertRaisesRegex(runner.RunnerError, "expected one"):
+                runner.build_page_test(self.dir, {})
 
     def test_caller_config_conflicting_browser_is_rejected(self):
         config = self.dir / "caller.json"
@@ -196,24 +217,25 @@ class RunWasmTestsTests(unittest.TestCase):
         pair = self.dir / "pair"
         pair.mkdir()
         (self.dir / "Cargo.lock").write_text('[[package]]\nname = "wasm-bindgen"\nversion = "0.2.129"\n')
-        for name in ("wasm-bindgen", "wasm-bindgen-test-runner"):
-            tool = pair / name
-            tool.write_text(f'#!/bin/sh\nif [ "$1" = --version ]; then echo "{name} 0.2.129"; '
-                            f'else echo "{name}" >> "{self.log}"; fi\n')
-            tool.chmod(0o755)
-        pack = self.dir / "wasm-pack"
-        pack.write_text('#!/bin/sh\nwasm-bindgen use\nwasm-bindgen-test-runner use\n'
-                        'case " $* " in *" --list "*) echo "a::b::t: test";; '
-                        '*) echo "test a::b::t ... ok";; esac\n')
-        pack.chmod(0o755)
+        bindgen = pair / "wasm-bindgen"
+        bindgen.write_text('#!/bin/sh\necho "wasm-bindgen 0.2.129"\n')
+        bindgen.chmod(0o755)
+        test_runner = pair / "wasm-bindgen-test-runner"
+        test_runner.write_text(
+            '#!/bin/sh\nif [ "$1" = --version ]; then echo "wasm-bindgen-test-runner 0.2.129"; exit; fi\n'
+            f'echo "$*" >> "{self.log}"\n'
+            'case "$2" in --list) echo "a::b::t: test";; *) echo "test a::b::t ... ok";; esac\n')
+        test_runner.chmod(0o755)
+        wasm = self.dir / "page.wasm"
         with patch.dict(os.environ, {"PATH": f"{self.dir}:/bin", "CHROME_BIN": "/bin/true",
                                      "CHROMEDRIVER": "/bin/true",
                                      "BOARDSTUDIO_WASM_BINDGEN_DIR": str(pair)}, clear=True), \
-             patch.object(runner, "wasm_bindgen_dir", side_effect=AssertionError("cache used")):
+             patch.object(runner, "wasm_bindgen_dir", side_effect=AssertionError("cache used")), \
+             patch.object(runner, "build_page_test", return_value=wasm) as build:
             code, out, err = self.main("--all")
         self.assertEqual(code, 0, out + err)
-        self.assertEqual(self.log.read_text().splitlines(),
-                         ["wasm-bindgen", "wasm-bindgen-test-runner"] * 2)
+        build.assert_called_once()
+        self.assertEqual(self.log.read_text().splitlines(), [f"{wasm} --list", f"{wasm} a::b::"])
 
     def test_file_to_module_filter_mapping(self):
         f = runner.module_filter
