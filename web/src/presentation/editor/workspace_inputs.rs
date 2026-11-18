@@ -727,6 +727,7 @@ pub(super) fn use_workspace_wiring<
     matrix_setup: &objects::MatrixSetupMount,
     workspace_routing: &mut WorkspaceRoutingSlots,
     instance_scope_pending: bool,
+    layer_actions: &keymap::LayerActions,
     cam: &super::camera::CamNamed,
     sel: (
         super::selection_handlers::SelHandlersNamed,
@@ -821,7 +822,6 @@ where
     let matrix_placement = &setup_a.matrix_placement;
     let keymap_view = &setup_b.keymap_view;
     let keymap_layer_id = setup_a.keymap_layer_id;
-    let layer_actions = &setup_b.layer_actions;
     let keycaps_view = &setup_b.keycaps_view;
     let keycaps_settings_actions = &setup_b.keycaps_settings_actions;
     let case_tree_expanded = setup_a.case_tree_expanded;

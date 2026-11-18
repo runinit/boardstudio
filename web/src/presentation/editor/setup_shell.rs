@@ -714,13 +714,10 @@ pub(super) struct SetupB {
     pub part_net_actions: pcb_wiring::PartNetActions,
     pub part_input_actions: pcb_wiring::PartInputActions,
     pub physical_setup_mount: pcb_physical_setup::PhysicalSetupMount,
-    pub layer_actions: keymap::LayerActions,
-    pub binding_actions: keymap::BindingActions,
     pub keymap_view: Option<Rc<keymap::KeymapView>>,
     pub keymap_contours: Option<Rc<[Contour]>>,
     pub keycaps_view: Option<Rc<keycaps_scene::KeycapsView>>,
     pub keycaps_contours: Option<Rc<[Contour]>>,
-    pub macro_actions: keymap::MacroActions,
     pub on_show_mechanical_finding:
         EventHandler<mechanical_settings_mount::MechanicalFindingNavigation>,
     pub mechanical_settings: mechanical_settings_mount::MechanicalSettingsMount,
@@ -921,7 +918,14 @@ pub(super) fn use_editor_setup_shell() -> (
 
 // GROUPING: allow until the Editor rewrite lands; remove then.
 #[allow(dead_code)]
-pub(super) fn use_setup_workspaces(setup_a: &SetupA) -> SetupB {
+pub(super) fn use_setup_workspaces(
+    setup_a: &SetupA,
+) -> (
+    SetupB,
+    keymap::LayerActions,
+    keymap::BindingActions,
+    keymap::MacroActions,
+) {
     let model = &setup_a.model;
     let current_scope = &setup_a.current_scope;
     let runtime = &setup_a.runtime;
@@ -1011,30 +1015,32 @@ pub(super) fn use_setup_workspaces(setup_a: &SetupA) -> SetupB {
         case_selection,
         on_show_mechanical_finding,
     );
-    SetupB {
-        active_board_id,
-        keycaps_state,
-        focused_keycaps_finding,
-        keycaps_navigation_alive,
-        keycaps_fit_state,
-        keycaps_settings_actions,
-        resolution_signal,
-        resolution,
-        on_resolve,
-        firmware_feedback,
-        firmware_editable,
-        firmware_on_edit,
-        part_net_actions,
-        part_input_actions,
-        physical_setup_mount,
+    (
+        SetupB {
+            active_board_id,
+            keycaps_state,
+            focused_keycaps_finding,
+            keycaps_navigation_alive,
+            keycaps_fit_state,
+            keycaps_settings_actions,
+            resolution_signal,
+            resolution,
+            on_resolve,
+            firmware_feedback,
+            firmware_editable,
+            firmware_on_edit,
+            part_net_actions,
+            part_input_actions,
+            physical_setup_mount,
+            keymap_view,
+            keymap_contours,
+            keycaps_view,
+            keycaps_contours,
+            on_show_mechanical_finding,
+            mechanical_settings,
+        },
         layer_actions,
         binding_actions,
-        keymap_view,
-        keymap_contours,
-        keycaps_view,
-        keycaps_contours,
         macro_actions,
-        on_show_mechanical_finding,
-        mechanical_settings,
-    }
+    )
 }
