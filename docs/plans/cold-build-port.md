@@ -226,3 +226,10 @@ These trade one cost for another, so each gets its own A/B after H:
 - **A bindgen cache per binary in the patched runner.**
 
 Expected result: about 550 to 700 s for a cold run with no cache hits. A new worktree with `sccache` warm should go lower. H3 measures both.
+
+## Implementation record
+
+### G1. Cache installation
+
+Installed `sccache 0.19.0` in `~/.cargo/bin/sccache` using `cargo binstall`
+with the pinned version and `--no-track` to preserve Cargo's installation registry.
