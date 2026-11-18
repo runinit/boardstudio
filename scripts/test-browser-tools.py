@@ -96,7 +96,7 @@ class BrowserToolsTests(unittest.TestCase):
                             "grandchild": "import check; check.run_serial(['cargo'], dict(os.environ))",
                             "web": "import importlib; m=importlib.import_module('build-web'); m.run(['cargo'])",
                             "cad": "sys.path.insert(0, os.environ['CAD']); import cad_build; cad_build.run(['cargo'])",
-                            "wasm": "import importlib; m=importlib.import_module('run-wasm-tests'); m.run_filter(None, dict(os.environ))",
+                            "wasm": "import importlib; m=importlib.import_module('run-wasm-tests'); m.build_page_test(m.ROOT, dict(os.environ))",
                         }
                         # Standalone uses flock's own process; the others inherit a validated descriptor.
                         source = ("import os, sys\n" if mode == "standalone" else setup) + calls[mode]
