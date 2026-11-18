@@ -84,7 +84,7 @@ TOOLING_TESTS = (
     "scripts/test-verification-receipt.py", "scripts/test-drag-receipt-bytes.py", "scripts/test-parallel-interrupt.py", "scripts/test-verify-no-node.py",
     "scripts/test-check-native-tests.py", "scripts/test-mutation-check.py", "scripts/test-browser-tools.py",
     "scripts/test-chrome-for-testing.py", "scripts/test-bump-chrome-for-testing.py", "scripts/test-graphite-preflight.py", "tools/browser-harness/test-response-probe-cleanup.py",
-    "scripts/test-ci-workflow.py",
+    "scripts/test-ci-workflow.py", "scripts/test-build-time.py",
 )
 WASM_PAGE = ["--no-default-features", "--features", "page"]
 # Every wasm test build shares the checked page build's profile, and so its units; see Cargo.toml.
@@ -1142,6 +1142,8 @@ def _run_plan(plan, update_native_baseline=False, *, keep_going=False, partial=F
     for name, commands in plan:
         print(f"== {name}", flush=True)
         environment = os.environ.copy()
+        if "BUILDTIME_LOG" in environment:
+            environment["BUILDTIME_STEP"] = name
         if name == "test":
             # An editor's AppImage directory redirects system KiCad's library lookup.
             environment.pop("APPDIR", None)
