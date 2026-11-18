@@ -29,7 +29,7 @@ Steps:
   typecheck   WASM page compilation (the build step already compiles the page for WASM)
   browser*    mounted headless-browser tests and the real-browser CAD smoke gate; crate launches
               share one WASM test build without debug info and run up to
-              BOARDSTUDIO_CHECK_JOBS (default 4) at once;
+              BOARDSTUDIO_CHECK_JOBS (up to 6 by default, bounded by CPU count) at once;
               the independent native test commands also run together
   security    dependency audit of every Rust lockfile (separate CI workflow)
   deny        cargo-deny license, ban and source policy from deny.toml (separate CI workflow)
@@ -281,10 +281,11 @@ def is_browser_step(name: str) -> bool:
 
 
 def check_jobs() -> int:
+    default = min(6, os.cpu_count() or 4)
     try:
-        return max(1, int(os.environ.get("BOARDSTUDIO_CHECK_JOBS", "4")))
+        return max(1, int(os.environ.get("BOARDSTUDIO_CHECK_JOBS", str(default))))
     except ValueError:
-        return 4
+        return default
 
 
 def launch_order(command: Command) -> int:
