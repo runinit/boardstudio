@@ -8,17 +8,20 @@ pub use boardstudio_core_engine::{
     part_correspondence, proposed_creation_gap,
 };
 
-use model::{ArchiveReply, CoreReply, CoreRequest, ProjectDoc};
+#[cfg(target_arch = "wasm32")]
+use model::ArchiveReply;
+use model::{CoreReply, CoreRequest, ProjectDoc};
+#[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
-#[wasm_bindgen]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 pub struct CoreEngine {
     engine: boardstudio_core_engine::CoreEngine,
 }
 
-#[wasm_bindgen]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 impl CoreEngine {
-    #[wasm_bindgen(constructor)]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(constructor))]
     pub fn new() -> Self {
         Self::default()
     }
@@ -54,12 +57,13 @@ impl CoreEngine {
 }
 
 /// Handle an artifact request without mutating the stateful document engine.
-#[wasm_bindgen]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 pub fn artifact_request(json: &str) -> String {
     artifact::request(json)
 }
 
 /// Archive payloads cross WASM as typed buffers, independently of JSON metadata.
+#[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub fn archive_request(metadata: &str, buffers: js_sys::Array) -> js_sys::Array {
     use wasm_bindgen::JsCast;
