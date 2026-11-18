@@ -1,11 +1,14 @@
 use super::*;
 mod action_handlers;
 mod camera;
+mod canvas_inspector_inputs;
 mod canvas_state;
 mod findings_navigation;
 mod keyboard;
 mod pointer;
 mod selection_handlers;
+mod toolbar_inputs;
+mod workspace_inputs;
 
 /// Ticket 18: the ghost of the previous spacing lives here, in the Editor,
 /// next to the other Layout view state. The tracker below records the last
@@ -23,7 +26,7 @@ pub(super) fn Editor() -> Element {
     let runtime = use_context::<Rc<Runtime>>();
     let compact_panel_state = use_context::<CompactPanelState>();
     let objects_open = compact_panel_state.objects_open;
-    let mut inspect_open = compact_panel_state.inspector_open;
+    let inspect_open = compact_panel_state.inspector_open;
     let preference_warning = use_context::<PreferenceStorageWarning>().0;
     let objects_panel_settings = use_panel_settings(PanelSide::Objects, preference_warning);
     let inspector_panel_settings = use_panel_settings(PanelSide::Inspector, preference_warning);
@@ -1420,1147 +1423,384 @@ pub(super) fn Editor() -> Element {
         min_y,
         max_y,
     });
-    let undo = runtime.clone();
-    let redo = runtime.clone();
-    let retry = runtime.clone();
-    let recover = runtime.clone();
-    workspace_routing.select_tree.replace(Box::new(select_tree));
-    workspace_routing.navigate.replace(Box::new(navigate));
-    let nudge_tree = EventHandler::new(nudge_tree);
-    let parts_select = EventHandler::new(on_parts_select);
-    let keymap_select = EventHandler::new(on_keymap_select.clone());
-    let keycaps_select = EventHandler::new(on_keycaps_select.clone());
-    let keycaps_finding = EventHandler::new(on_keycaps_finding);
-    let pcb_empty_hit = EventHandler::new(on_pcb_empty_hit);
-    let pcb_part_hit = EventHandler::new(on_pcb_part_hit);
-    let mounted_module_select = EventHandler::new(on_mounted_module_select);
-    let pcb_part_pointer_down = EventHandler::new(on_pcb_part_pointer_down);
-    let pcb_wiring_edit_board = EventHandler::new(on_pcb_wiring_edit_board);
-    let on_layout_selection_kind_handler = EventHandler::new(on_layout_selection_kind);
-    let layout_snap_intent = EventHandler::new(on_layout_snap_intent);
-    let pcb_selection_kind = EventHandler::new(on_pcb_selection_kind);
-    let pcb_snap_intent = EventHandler::new(on_pcb_snap_intent);
-    let case_action = EventHandler::new(on_case_action);
-    let case_display = EventHandler::new(on_case_display);
-    let keymap_layer = EventHandler::new(on_keymap_layer);
-    let keymap_export = EventHandler::new(on_keymap_export);
-    let show_configured_board = EventHandler::new(on_show_configured_board);
-    let open_geometry_scripts = {
-        let mut workspace = workspace;
-        let mut objects_open = objects_open;
-        let mut inspect_open = inspect_open;
-        let inspector_settings = inspector_panel_settings;
-        EventHandler::new(move |_| {
-            workspace.set("Layout");
-            objects_open.set(false);
-            inspect_open.set(true);
-            setup_state.set_geometry_scripts_open(true);
-            pin_inspector_on_desktop(inspector_settings);
-        })
-    };
-    let toggle_footprints = EventHandler::new(move |_| {
-        let mut footprints = layer_visibility.footprints;
-        footprints.set(!footprints());
-    });
-    let retry_save = {
-        let retry = retry.clone();
-        EventHandler::new(move |_| {
-            retry.submit(Event::RetrySave {
-                operation_id: retry.operation(),
-            });
-        })
-    };
-    let download_pending = {
-        let pending = runtime.clone();
-        EventHandler::new(move |_| pending.download_pending_edits())
-    };
-    let recover_saved = {
-        let recover = recover.clone();
-        EventHandler::new(move |_| recover.recover_saved())
-    };
-    let canvas_end_pointer = EventHandler::new(end_pointer.clone());
-    let canvas_cancel_pointer = EventHandler::new(cancel_pointer.clone());
-    let canvas_keyboard = EventHandler::new(keyboard.clone());
-    let canvas_wheel = EventHandler::new(wheel.clone());
-    let board_setup = objects::use_board_setup(
-        runtime.clone(),
-        version,
-        workspace,
-        adapter.generation,
-        workspace_routing.navigate,
-    );
-    let shared_objects = workspace_composition::SharedObjectsInput {
-        selected_context: adapter.selected_context,
-        on_select: workspace_routing.select_tree,
-        on_navigate: workspace_routing.navigate,
-        on_nudge: nudge_tree,
-        on_open_geometry_scripts: open_geometry_scripts,
-        board_setup,
-    };
-    let case_scene = case_workspace::workspace_display_scene(runtime.cad_scene(), &render_scope);
-    let pcb_wiring_source = current_scope
-        .as_ref()
-        .filter(|scope| {
-            active_board_scope_matches(&model, scope) && instance_selection.is_current(&model)
-        })
-        .and_then(|scope| {
-            let mut board_scope = scope.clone();
-            board_scope.instance_id = None;
-            pcb_wiring::PcbWiringSource::new(
-                snapshot,
-                &board_scope,
-                scope,
-                model.selected_part_ids.first().map(String::as_str),
-                runtime.electrical_preview_executor_epoch(),
-                (adapter.generation)(),
-            )
-        });
-    let pcb_wiring_mode_actions = pcb_wiring::use_board_wiring_mode_edits(
-        runtime.clone(),
-        version,
-        workspace,
-        adapter.generation,
-        {
-            let runtime = runtime.clone();
-            Rc::new(move || instance_selection.is_current(&runtime.model()))
-        },
-        pcb_wiring_source.clone(),
-        pcb_wiring_mount.resolution_signal,
-    );
-    let pcb_wiring_pin_actions = pcb_wiring::use_pcb_wiring_pin_edits(
-        runtime.clone(),
-        version,
-        workspace,
-        adapter.generation,
-        {
-            let runtime = runtime.clone();
-            Rc::new(move || instance_selection.is_current(&runtime.model()))
-        },
-        pcb_wiring_source.clone(),
-        pcb_wiring_mount.resolution_signal,
-    );
-    let pcb_wiring_protected_remap_actions = pcb_wiring::use_protected_remap_review(
-        runtime.clone(),
-        version,
-        workspace,
-        adapter.generation,
-        {
-            let runtime = runtime.clone();
-            Rc::new(move || instance_selection.is_current(&runtime.model()))
-        },
-        pcb_wiring_source.clone(),
-    );
-    let pcb_wiring_apply_actions = pcb_wiring::use_board_wiring_apply(
-        runtime.clone(),
-        version,
-        workspace,
-        adapter.generation,
-        {
-            let runtime = runtime.clone();
-            Rc::new(move || instance_selection.is_current(&runtime.model()))
-        },
-        pcb_wiring_source.clone(),
-        pcb_wiring_mount.resolution_signal,
-    );
-    let zmk_firmware_export_panel = use_export_panel_input(
-        runtime.clone(),
-        workspace,
-        adapter.generation,
-        pcb_wiring_source.clone(),
-        pcb_wiring_mount.resolution_signal,
-        instance_selection,
-    );
-    let case_selected_body_id = case_selection
-        .body
-        .read()
-        .as_ref()
-        .filter(|selection| selection.scope == render_scope)
-        .map(|selection| selection.body_id.clone());
-    let case_selected_layer_id = case_selection.layer_id(&render_scope);
-    let case_selected_context = adapter
-        .selected_context
-        .read()
-        .clone()
-        .filter(|selected| selected.scope == render_scope);
-    let on_browse_parts = EventHandler::new(move |_| {
-        browse_parts_workspace(
+    let workspace_inputs::WorkspaceEventWiring {
+        undo,
+        redo,
+        parts_select,
+        keymap_select,
+        keycaps_select,
+        keycaps_finding,
+        pcb_empty_hit,
+        pcb_part_hit,
+        mounted_module_select,
+        pcb_part_pointer_down,
+        pcb_wiring_edit_board,
+        on_layout_selection_kind_handler,
+        layout_snap_intent,
+        pcb_selection_kind,
+        pcb_snap_intent,
+        case_action,
+        case_display,
+        keymap_layer,
+        keymap_export,
+        show_configured_board,
+        toggle_footprints,
+        retry_save,
+        download_pending,
+        recover_saved,
+        canvas_end_pointer,
+        canvas_cancel_pointer,
+        canvas_keyboard,
+        canvas_wheel,
+        shared_objects,
+    } = workspace_inputs::use_workspace_event_wiring(
+        workspace_inputs::WorkspaceEventWiringInput {
+            runtime: runtime.clone(),
+            adapter: adapter.clone(),
             workspace,
             objects_open,
-            objects_panel_settings,
-            is_compact_viewport(),
-        );
-    });
-    let on_empty_board_matrix = use_callback({
-        let runtime = runtime.clone();
-        let owner_scope = render_scope.clone();
-        let owner_token = snapshot.token;
-        let owner_revision = snapshot.document.revision;
-        let generation = adapter.generation;
-        let mut workspace = workspace;
-        let on_open = matrix_setup.on_open;
-        move |_| {
-            let model = runtime.model();
-            if workspace() != active_workspace
-                || generation() != render_generation
-                || runtime.scope().as_ref() != Some(&owner_scope)
-                || model.lifecycle != Lifecycle::Ready
-                || model.durability
-                    != (Durability::Saved {
-                        revision: owner_revision,
-                    })
-                || model.gesture.is_some()
-                || model.display_preview.is_some()
-                || !model.accepted.as_ref().is_some_and(|accepted| {
-                    accepted.token == owner_token && accepted.document.revision == owner_revision
-                })
-            {
-                return;
-            }
-            workspace.set("Layout");
-            let mut layout_assembly_3d = layout_assembly_3d;
-            layout_assembly_3d.set(false);
-            on_open.call(());
-        }
-    });
-    let objects_input = match active_workspace {
-        "PCB" => {
-            let pcb_add_owner = LayoutOwnerIdentity {
-                scope: Some(render_scope.clone()),
-                token: Some(snapshot.token),
-                revision: Some(snapshot.document.revision),
-                generation: render_generation,
-                workspace: "PCB",
-            };
-            let pcb_add_is_current =
-                pcb_add_layout_owner_is_current(&runtime, workspace, &adapter, &pcb_add_owner);
-            let mut pcb_shared_objects = shared_objects;
-            pcb_shared_objects.on_select = pcb_add_outline_select_handler(
-                runtime.clone(),
-                workspace,
-                adapter.clone(),
-                pcb_add_owner.clone(),
-                layout_assembly_3d,
-                pcb_shared_objects.on_select,
-            );
-            pcb_shared_objects.on_open_geometry_scripts = pcb_add_layout_open_handler(
-                runtime.clone(),
-                workspace,
-                adapter.clone(),
-                pcb_add_owner.clone(),
-                layout_assembly_3d,
-                pcb_shared_objects.on_open_geometry_scripts,
-            );
-            let mut pcb_matrix_setup = matrix_setup.clone();
-            pcb_matrix_setup.can_open = pcb_add_is_current
-                && pcb_matrix_setup.projection.is_none()
-                && canvas_interaction.current().is_none();
-            pcb_matrix_setup.on_open = pcb_add_layout_open_handler(
-                runtime.clone(),
-                workspace,
-                adapter.clone(),
-                pcb_add_owner.clone(),
-                layout_assembly_3d,
-                matrix_setup.on_open,
-            );
-            workspace_composition::WorkspaceObjectsInput::Pcb(Box::new(
-                pcb_workspace::ObjectsInput {
-                    shared: pcb_shared_objects,
-                    matrix_setup: pcb_matrix_setup,
-                    on_place_component: part_placement.on_place_component,
-                    layout_target,
-                    parts_query,
-                    on_browse_parts,
-                    placement_error: matrix_placement
-                        .error
-                        .clone()
-                        .or_else(|| part_placement.error.clone()),
-                },
-            ))
-        }
-        "Keymap" => workspace_composition::WorkspaceObjectsInput::Keymap(
-            keymap_workspace::NavigationInput {
-                view: keymap_view.clone(),
-                scope: render_scope.clone(),
-                active_layer_id: keymap_layer_id(),
-                selected_key_id: model.selected_part_ids.first().cloned(),
-                layer_actions: keymap::LayerActions {
-                    enabled: layer_actions.enabled,
-                    feedback: layer_actions.feedback.clone(),
-                    on_operation: layer_actions.on_operation,
-                },
-                on_layer: keymap_layer,
-                on_select_key: keymap_select,
-            },
-        ),
-        "Keycaps" => workspace_composition::WorkspaceObjectsInput::Keycaps(
-            keycaps_workspace::NavigationInput {
-                shared: shared_objects,
-                view: keycaps_view.clone(),
-                settings_actions: keycaps_settings_actions.clone(),
-            },
-        ),
-        "Case" => workspace_composition::WorkspaceObjectsInput::Case(Box::new(
-            case_workspace::ObjectsInput {
-                model: &model,
-                scope: current_scope.clone(),
-                instance_scope_pending,
-                scene: case_scene.clone(),
-                selected_context: adapter.selected_context,
-                selected_body_id: case_selected_body_id.clone(),
-                selected_layer_id: case_selected_layer_id.clone(),
-                case_selection,
-                expanded: case_tree_expanded,
-                on_action: case_action,
-                on_select: workspace_routing.select_tree,
-                on_display: case_display,
-            },
-        )),
-        "Parts" => {
-            workspace_composition::WorkspaceObjectsInput::Parts(parts_workspace::ObjectsInput {
-                snapshot: snapshot.clone(),
-                scope: current_scope.clone(),
-                scope_generation: adapter.generation,
-                workspace,
-                query: parts_query,
-                selected: parts_selection,
-                on_select: parts_select,
-            })
-        }
-        _ => workspace_composition::WorkspaceObjectsInput::Layout(Box::new(
-            layout_workspace::ObjectsInput {
-                shared: shared_objects,
-                matrix_setup: matrix_setup.clone(),
-                matrix_inspector: matrix_inspector.clone(),
-                pair_created: pair_created_selection,
-                on_place_component: part_placement.on_place_component,
-                layout_target,
-                parts_query,
-                on_browse_parts,
-                placement_error: matrix_placement
-                    .error
-                    .clone()
-                    .or_else(|| part_placement.error.clone()),
-                add_object_menu_open: layout_state.add_object_menu_open(),
-            },
-        )),
-    };
-    let on_layout_view_mode = layout_view_mode_handler(
-        {
-            let runtime = runtime.clone();
-            let adapter = adapter.clone();
-            let owner = layout_owner.clone();
-            move || layout_owner_is_current(&runtime, workspace, &adapter, &owner)
+            inspect_open,
+            inspector_panel_settings,
+            setup_state,
+            layer_visibility,
+            version,
         },
-        layout_assembly_3d,
-        {
-            move |assembly_3d| {
-                layout_state.set_assembly_3d(assembly_3d);
-            }
-        },
-        LayoutPlacementCancellation {
-            parts: part_placement.clone(),
-            matrices: matrix_placement.clone(),
-            interactions: canvas_interaction.clone(),
-        },
-        {
-            let runtime = runtime.clone();
-            let drag = drag.clone();
-            let svg = svg.clone();
-            let render_scope = render_scope.clone();
-            move || {
-                selection::cancel_scoped_drag(&runtime, &drag, &svg, Some(&render_scope));
-                let mut interaction_version = interaction_version;
-                interaction_version += 1;
-            }
-        },
-        {
-            let mirrored_pair = mirrored_pair.clone();
-            let matrix_setup = matrix_setup.clone();
-            let matrix_placement = matrix_placement.clone();
-            move || {
-                if let Some(active) = mirrored_pair.placement.as_ref() {
-                    mirrored_pair.on_cancel.call(active.owner.clone());
-                } else if let Some(form) = mirrored_pair.form.as_ref() {
-                    mirrored_pair.on_cancel.call(form.owner.clone());
-                }
-                if let Some(projection) = matrix_setup.projection.as_ref() {
-                    matrix_setup.on_cancel.call(projection.owner.clone());
-                }
-                if let Some(owner) = matrix_placement.cancel_owner.clone() {
-                    matrix_placement.on_cancel.call(owner);
-                }
-            }
-        },
+        &mut workspace_routing,
+        select_tree,
+        navigate,
+        nudge_tree,
+        on_parts_select,
+        on_keymap_select.clone(),
+        on_keycaps_select.clone(),
+        on_keycaps_finding,
+        on_pcb_empty_hit,
+        on_pcb_part_hit,
+        on_mounted_module_select,
+        on_pcb_part_pointer_down,
+        on_pcb_wiring_edit_board,
+        on_layout_selection_kind,
+        on_layout_snap_intent,
+        on_pcb_selection_kind,
+        on_pcb_snap_intent,
+        on_case_action,
+        on_case_display,
+        on_keymap_layer,
+        on_keymap_export,
+        on_show_configured_board,
+        end_pointer.clone(),
+        cancel_pointer.clone(),
+        keyboard.clone(),
+        wheel.clone(),
     );
-    let retained_toolbar_cell = tree_cell_anchor_for_owner(&tree_cell_anchor, &layout_owner);
-    let toolbar_selection_availability = use_memo(use_reactive(
-        (
-            &accepted_canvas_source,
-            &snapshot.token,
-            &snapshot.session_epoch,
-            &model.active_instance_id,
-            &selected_tree_context,
-            &retained_toolbar_cell,
-            &active_workspace,
-        ),
-        |(source, token, session_epoch, active_instance_id, selected, retained, workspace)| {
-            if !matches!(workspace, "Layout" | "PCB") {
-                return (false, false);
-            }
-            let model = ReadModel {
-                accepted: Some(AcceptedSnapshot {
-                    token,
-                    session_epoch,
-                    document: source.document,
-                    scene: source.scene,
-                }),
-                active_board_id: source.board_id,
-                active_instance_id,
-                ..ReadModel::default()
-            };
-            let supports = |kind| {
-                selected.as_ref().is_some_and(|selected| {
-                    objects::context_for_selection_kind(
-                        &model,
-                        &selected.context,
-                        kind,
-                        retained.as_ref(),
-                    )
-                    .is_some()
-                })
-            };
-            (
-                supports(objects::LayoutSelectionKind::Column),
-                supports(objects::LayoutSelectionKind::Row),
-            )
+    let workspace_inputs::PcbWiringBindings {
+        case_scene,
+        pcb_wiring_source,
+        pcb_wiring_mode_actions,
+        pcb_wiring_pin_actions,
+        pcb_wiring_protected_remap_actions,
+        pcb_wiring_apply_actions,
+        zmk_firmware_export_panel,
+        case_selected_body_id,
+        case_selected_layer_id,
+        case_selected_context,
+        on_browse_parts,
+        on_empty_board_matrix,
+    } = workspace_inputs::use_pcb_wiring_bindings(workspace_inputs::PcbWiringBindingsInput {
+        runtime: runtime.clone(),
+        current_scope: current_scope.clone(),
+        model: &model,
+        instance_selection,
+        snapshot,
+        adapter: adapter.clone(),
+        version,
+        workspace,
+        matrix_setup: matrix_setup.clone(),
+        layout_assembly_3d,
+        render_scope: render_scope.clone(),
+        render_generation,
+        active_workspace,
+        case_selection,
+        objects_open,
+        objects_panel_settings,
+        resolution_signal: pcb_wiring_mount.resolution_signal,
+    });
+    let objects_input = workspace_inputs::objects_input(workspace_inputs::ObjectsInputArgs {
+        active_workspace,
+        runtime: runtime.clone(),
+        render_generation,
+        canvas_interaction: canvas_interaction.clone(),
+        render_scope: render_scope.clone(),
+        snapshot,
+        workspace,
+        adapter: adapter.clone(),
+        layout_assembly_3d,
+        shared_objects,
+        matrix_setup: matrix_setup.clone(),
+        part_placement: part_placement.clone(),
+        layout_target,
+        parts_query,
+        on_browse_parts,
+        matrix_placement: matrix_placement.clone(),
+        keymap_view: keymap_view.clone(),
+        keymap_layer_id,
+        model: &model,
+        layer_actions: &layer_actions,
+        keymap_layer,
+        keymap_select,
+        keycaps_view: keycaps_view.clone(),
+        keycaps_settings_actions: keycaps_settings_actions.clone(),
+        case_scene: case_scene.clone(),
+        current_scope: current_scope.clone(),
+        instance_scope_pending,
+        case_selected_body_id: case_selected_body_id.clone(),
+        case_selected_layer_id: case_selected_layer_id.clone(),
+        case_selection,
+        case_tree_expanded,
+        case_action,
+        case_display,
+        pair_created_selection,
+        layout_state,
+        workspace_routing,
+        parts_selection,
+        parts_select,
+        matrix_inspector: matrix_inspector.clone(),
+    });
+    let on_layout_view_mode =
+        workspace_inputs::on_layout_view_mode(workspace_inputs::OnLayoutViewModeArgs {
+            runtime: runtime.clone(),
+            adapter: adapter.clone(),
+            layout_owner: layout_owner.clone(),
+            workspace,
+            layout_assembly_3d,
+            layout_state,
+            drag: drag.clone(),
+            svg: svg.clone(),
+            render_scope: render_scope.clone(),
+            interaction_version,
+            part_placement: part_placement.clone(),
+            matrix_placement: matrix_placement.clone(),
+            canvas_interaction: canvas_interaction.clone(),
+            mirrored_pair: mirrored_pair.clone(),
+            matrix_setup: matrix_setup.clone(),
+        });
+    let toolbar_selection_availability = toolbar_inputs::use_toolbar_selection_availability(
+        tree_cell_anchor.clone(),
+        layout_owner.clone(),
+        accepted_canvas_source.clone(),
+        snapshot,
+        &model,
+        selected_tree_context.clone(),
+        active_workspace,
+    );
+    let toolbar_input = toolbar_inputs::toolbar_input(toolbar_inputs::ToolbarInputArgs {
+        active_workspace,
+        toolbar_selection_availability,
+        selected_tree_context: selected_tree_context.clone(),
+        show_position_inspector,
+        matrix_transform_inspector: matrix_transform_inspector.clone(),
+        runtime: runtime.clone(),
+        adapter: adapter.clone(),
+        workspace,
+        objects_open,
+        inspect_open,
+        inspector_panel_settings,
+        layout_owner: layout_owner.clone(),
+        layout_transform_tool,
+        on_layout_selection_kind_handler,
+        matrices: matrices.clone(),
+        layer_visibility,
+        model: &model,
+        layout_snap_settings,
+        layout_command_menu,
+        layout_assembly_3d,
+        on_layout_view_mode,
+        toggle_footprints,
+        retry_save,
+        download_pending,
+        recover_saved,
+        layout_selection_kind,
+        component_inspector: component_inspector.clone(),
+        pcb_selection_kind,
+        pcb_snap_intent,
+        layout_transform_target: layout_transform_target.clone(),
+        layout_align: layout_align.clone(),
+        layout_snap_intent,
+        pcb_align: pcb_align.clone(),
+    });
+    let canvas_input = canvas_inspector_inputs::canvas_input(
+        canvas_inspector_inputs::CanvasInputArgs {
+            mount,
+            end_pointer: canvas_end_pointer,
+            cancel_pointer: canvas_cancel_pointer,
+            keyboard: canvas_keyboard,
+            wheel: canvas_wheel,
+            snapshot,
+            render_scope: render_scope.clone(),
+            view_box: view_box.clone(),
+            model: &model,
+            render_generation,
+            keymap_view: keymap_view.clone(),
+            keymap_contours: keymap_contours.clone(),
+            keycaps_view: keycaps_view.clone(),
+            keycaps_contours: keycaps_contours.clone(),
+            keymap_select,
+            keycaps_select,
+            mechanical_settings: mechanical_settings.clone(),
+            instance_scope_pending,
+            part_placement: part_placement.clone(),
+            current_scope: current_scope.clone(),
+            parts_query,
+            parts_selection,
+            workspace,
+            active_workspace,
+            pcb_empty_hit,
+            pcb_part_hit,
+            pcb_part_pointer_down,
+            mounted_module_select,
         },
-    ))();
-    let toolbar_input = match active_workspace {
-        "Layout" => {
-            let properties_available = selected_tree_context.as_ref().is_some_and(|selected| {
-                matches!(
-                    &selected.context,
-                    objects::TreeContext::Matrix { .. }
-                        | objects::TreeContext::Row { .. }
-                        | objects::TreeContext::Column { .. }
-                        | objects::TreeContext::Key { .. }
-                        | objects::TreeContext::Component { .. }
-                )
-            }) && (show_position_inspector
-                || matrix_transform_inspector.projection.is_some());
-            let on_show_properties = EventHandler::new({
-                let runtime = runtime.clone();
-                let adapter = adapter.clone();
-                let owner = layout_owner.clone();
-                let mut objects_open = objects_open;
-                let mut inspect_open = inspect_open;
-                move |_| {
-                    if !layout_owner_is_current(&runtime, workspace, &adapter, &owner) {
-                        return;
-                    }
-                    pin_inspector_on_desktop(inspector_panel_settings);
-                    objects_open.set(false);
-                    inspect_open.set(true);
-                }
-            });
-            let pointer_tools_available = layout_transform_target.is_some();
-            let on_transform_tool = EventHandler::new({
-                let runtime = runtime.clone();
-                let adapter = adapter.clone();
-                let owner = layout_owner.clone();
-                let mut active_tool = layout_transform_tool;
-                let on_selection_kind = on_layout_selection_kind_handler;
-                let matrix_ids: BTreeSet<_> =
-                    matrices.iter().map(|matrix| matrix.id.clone()).collect();
-                move |tool| {
-                    if !layout_owner_is_current(&runtime, workspace, &adapter, &owner) {
-                        return;
-                    }
-                    let Some(selected) =
-                        adapter.selected_context.read().clone().filter(|selected| {
-                            owner.scope.as_ref() == Some(&selected.scope)
-                                && selection::context_is_current(
-                                    &runtime.model(),
-                                    &selected.scope,
-                                    &selected.context,
-                                )
-                        })
-                    else {
-                        return;
-                    };
-                    let matrix_id = match &selected.context {
-                        objects::TreeContext::Matrix { matrix_id }
-                        | objects::TreeContext::Row { matrix_id, .. }
-                        | objects::TreeContext::Column { matrix_id, .. }
-                        | objects::TreeContext::Key { matrix_id, .. } => matrix_id.as_str(),
-                        objects::TreeContext::Component {
-                            matrix_id: Some(matrix_id),
-                            ..
-                        } => matrix_id.as_str(),
-                        _ => return,
-                    };
-                    if !matrix_ids.contains(matrix_id) {
-                        active_tool.set(None);
-                        return;
-                    }
-                    let activation =
-                        objects::activate_transform_tool(active_tool(), tool, &selected.context);
-                    active_tool.set(activation.active);
-                    if let Some(kind) = activation.selection_kind {
-                        on_selection_kind.call(kind);
-                    }
-                }
-            });
-            let matrix_rotate_followed =
-                matrix_transform_inspector
-                    .projection
-                    .as_ref()
-                    .and_then(|projection| match &projection.fields {
-                        boardstudio_web_layout::matrix_transform_operation::MatrixTransformFields::Matrix {
-                            rotation_followed,
-                            ..
-                        } => Some(*rotation_followed),
-                        _ => None,
-                    });
-            let transform = objects::LayoutTransformMenuMount {
-                properties_available,
-                column_available: toolbar_selection_availability.0,
-                row_available: toolbar_selection_availability.1,
-                pointer_tools_visible: true,
-                pointer_tools_available,
-                active_tool: layout_transform_tool(),
-                matrix_rotate_followed,
-                on_selection_kind: on_layout_selection_kind_handler,
-                on_show_properties,
-                on_transform_tool,
-            };
-            let footprints_pressed = (layer_visibility.footprints)()
-                && !(layer_visibility.hidden)().contains("Footprints");
-            workspace_composition::WorkspaceToolbarInput::Layout(Box::new(
-                layout_workspace::ToolbarInput {
-                    save_failure: match &model.durability {
-                        Durability::Failed { reason, .. } => Some(reason.clone()),
-                        _ => None,
-                    },
-                    recovery_required: model.lifecycle
-                        == boardstudio_application::Lifecycle::RecoveryRequired,
-                    footprints_pressed,
-                    on_toggle_footprints: toggle_footprints,
-                    assembly_3d: layout_assembly_3d(),
-                    on_view_mode: on_layout_view_mode,
-                    on_retry_save: retry_save,
-                    save_conflict: runtime.has_save_conflict(),
-                    on_download_pending: download_pending,
-                    on_recover_saved: recover_saved,
-                    selection_kind: layout_selection_kind(),
-                    snap_settings: layout_snap_settings.read().clone(),
-                    command_label: "Layout commands".to_owned(),
-                    align: layout_align.clone(),
-                    transform,
-                    menu_owner_key: format!("{layout_owner:?}"),
-                    open_menu: layout_command_menu,
-                    on_selection_kind: on_layout_selection_kind_handler,
-                    on_snap_intent: layout_snap_intent,
-                    show_relationships: true,
-                    has_selection_context: matrix_transform_inspector.projection.is_some()
-                        || component_inspector.is_some(),
-                    on_show_relationships: EventHandler::new(move |()| {
-                        inspect_open.set(true);
-                    }),
-                },
-            ))
-        }
-        "PCB" => {
-            let properties_available = selected_tree_context.as_ref().is_some_and(|selected| {
-                matches!(
-                    &selected.context,
-                    objects::TreeContext::Matrix { .. }
-                        | objects::TreeContext::Row { .. }
-                        | objects::TreeContext::Column { .. }
-                        | objects::TreeContext::Key { .. }
-                        | objects::TreeContext::Component {
-                            part_id: Some(_),
-                            ..
-                        }
-                )
-            }) && show_position_inspector;
-            let on_show_properties = {
-                let runtime = runtime.clone();
-                let adapter = adapter.clone();
-                let owner = layout_owner.clone();
-                let mut objects_open = objects_open;
-                let mut inspect_open = inspect_open;
-                move |_| {
-                    if !pcb_owner_is_current(&runtime, workspace, &adapter, &owner)
-                        || !properties_available
-                    {
-                        return;
-                    }
-                    pin_inspector_on_desktop(inspector_panel_settings);
-                    objects_open.set(false);
-                    inspect_open.set(true);
-                }
-            };
-            let transform = objects::LayoutTransformMenuMount {
-                properties_available,
-                column_available: toolbar_selection_availability.0,
-                row_available: toolbar_selection_availability.1,
-                pointer_tools_visible: false,
-                pointer_tools_available: false,
-                active_tool: None,
-                matrix_rotate_followed: None,
-                on_selection_kind: pcb_selection_kind,
-                on_show_properties: EventHandler::new(on_show_properties),
-                on_transform_tool: EventHandler::new(|_| {}),
-            };
-            workspace_composition::WorkspaceToolbarInput::Pcb(Box::new(
-                pcb_workspace::ToolbarInput {
-                    command_label: "PCB commands".to_owned(),
-                    menu_owner_key: format!("{layout_owner:?}"),
-                    open_menu: layout_command_menu,
-                    selection_kind: layout_selection_kind(),
-                    snap_settings: layout_snap_settings.read().clone(),
-                    transform,
-                    align: pcb_align.clone(),
-                    on_selection_kind: pcb_selection_kind,
-                    on_snap_intent: pcb_snap_intent,
-                    show_relationships: false,
-                    has_selection_context: false,
-                    on_show_relationships: EventHandler::new(|()| {}),
-                },
-            ))
-        }
-        "Keymap" => {
-            let on_view_mode = design_consumer_view_mode_handler(
-                runtime.clone(),
-                workspace,
-                adapter.clone(),
-                layout_owner.clone(),
-                layout_assembly_3d,
-            );
-            workspace_composition::WorkspaceToolbarInput::Keymap(
-                shared_viewer::DesignViewToolbarProps {
-                    contextual_tools: Some(rsx! { workspace_navigation::InspectorActions {
-                        label: "Keymap tools", workspace, inspect_open, inspector_settings: inspector_panel_settings,
-                        generation: adapter.generation, actions: vec![("Assign", "[aria-label='Keymap editors'] [aria-label='Keys']", true), ("Macros", "[aria-label='Keymap editors'] [aria-label='Macros']", true), ("Encoders", "[aria-label='Keymap editors'] [aria-label='Encoders']", true)],
-                        disabled: false,
-                    } }),
-                    label: "Keymap".into(),
-                    detail: "Layers & key behaviors".into(),
-                    assembly_3d: layout_assembly_3d(),
-                    footprints_visible: (layer_visibility.footprints)()
-                        && !(layer_visibility.hidden)().contains("Footprints"),
-                    on_view_mode,
-                    on_toggle_footprints: toggle_footprints,
-                },
-            )
-        }
-        "Keycaps" => {
-            let on_view_mode = design_consumer_view_mode_handler(
-                runtime.clone(),
-                workspace,
-                adapter.clone(),
-                layout_owner.clone(),
-                layout_assembly_3d,
-            );
-            workspace_composition::WorkspaceToolbarInput::Keycaps(
-                shared_viewer::DesignViewToolbarProps {
-                    contextual_tools: Some(rsx! { workspace_navigation::InspectorActions {
-                        label: "Keycaps tools", workspace, inspect_open, inspector_settings: inspector_panel_settings,
-                        generation: adapter.generation, actions: vec![("Profile", "[aria-label^='Keycap overrides for '] [data-slot='select-trigger'][aria-label^='Profile override for ']", false), ("Legend", "[aria-label^='Keycap overrides for '] [aria-label^='Legend for ']", false), ("Color", "[aria-label^='Keycap overrides for '] [aria-label^='Keycap color for ']", false)],
-                        disabled: model.selected_part_ids.is_empty(),
-                    } }),
-                    label: "Keycaps".into(),
-                    detail: "Profiles, legends & fit".into(),
-                    assembly_3d: layout_assembly_3d(),
-                    footprints_visible: (layer_visibility.footprints)()
-                        && !(layer_visibility.hidden)().contains("Footprints"),
-                    on_view_mode,
-                    on_toggle_footprints: toggle_footprints,
-                },
-            )
-        }
-        "Case" => workspace_composition::WorkspaceToolbarInput::Case,
-        "Parts" => workspace_composition::WorkspaceToolbarInput::Parts,
-        "Export" => workspace_composition::WorkspaceToolbarInput::Export,
-        _ => workspace_composition::WorkspaceToolbarInput::Other,
-    };
-    let canvas_handlers = workspace_composition::CanvasEventHandlers {
-        mount,
-        start_pan: EventHandler::new(start_pan.clone()),
-        move_pointer: EventHandler::new(move_pointer.clone()),
-        end_pointer: canvas_end_pointer,
-        cancel_pointer: canvas_cancel_pointer,
-        keyboard: canvas_keyboard,
-        key_up: EventHandler::new(key_up.clone()),
-        wheel: canvas_wheel,
-    };
-    let canvas_input = match active_workspace {
-        "PCB" => Some(workspace_composition::WorkspaceCanvasInput::Pcb(Box::new(
-            pcb_workspace::CanvasInput {
-                snapshot: snapshot.clone(),
-                scope: render_scope.clone(),
-                view_box: view_box.clone(),
-                selected_ids: model.selected_part_ids.clone(),
-                generation: render_generation,
-                handlers: canvas_handlers,
-                on_empty_hit: pcb_empty_hit,
-                on_part_hit: pcb_part_hit,
-                on_part_pointer_down: pcb_part_pointer_down,
-                on_module_select: mounted_module_select,
-            },
-        ))),
-        "Keymap" => Some(workspace_composition::WorkspaceCanvasInput::Keymap(
-            Box::new(keymap_workspace::CanvasInput {
-                view: keymap_view.clone(),
-                contours: keymap_contours
-                    .clone()
-                    .unwrap_or_else(|| Rc::<[Contour]>::from(Vec::new())),
-                view_box: view_box.clone(),
-                selected_ids: model.selected_part_ids.iter().cloned().collect(),
-                handlers: canvas_handlers,
-                on_select_key: keymap_select,
-            }),
-        )),
-        "Keycaps" => Some(workspace_composition::WorkspaceCanvasInput::Keycaps(
-            Box::new(keycaps_workspace::CanvasInput {
-                view: keycaps_view.clone(),
-                contours: keycaps_contours
-                    .clone()
-                    .unwrap_or_else(|| Rc::<[Contour]>::from(Vec::new())),
-                view_box: view_box.clone(),
-                selected_ids: model.selected_part_ids.iter().cloned().collect(),
-                handlers: canvas_handlers,
-                on_select_key: keycaps_select,
-            }),
-        )),
-        "Case" => Some(workspace_composition::WorkspaceCanvasInput::Case(Box::new(
-            case_workspace::CanvasInput {
-                generation_ready: mechanical_settings.generation_ready,
-                instance_scope_pending,
-                mechanical_settings: mechanical_settings.props.clone(),
-            },
-        ))),
-        "Parts" => Some(workspace_composition::WorkspaceCanvasInput::Parts(
-            parts_workspace::CanvasInput {
-                controller_back: part_placement.controller_back,
-                snapshot: snapshot.clone(),
-                scope: current_scope.clone(),
-                query: parts_query,
-                selected: parts_selection,
-            },
-        )),
-        "Layout" | "Export" => None,
-        _ => Some(workspace_composition::WorkspaceCanvasInput::Other(
-            workspace_composition::PlaceholderInput {
-                workspace,
-                name: active_workspace,
-                message: "Parts library editing is not available yet in the Rust interface.",
-            },
-        )),
-    };
-    let component_inspector_pending_edits = layout_state.component_inspector_edits();
-    let (
-        component_inspector_x,
-        component_inspector_y,
-        component_inspector_margin,
-        component_inspector_error,
-    ) = layout_state.component_inspector_drafts();
-    let (
-        component_inspector_x_failure,
-        component_inspector_y_failure,
-        component_inspector_margin_failure,
-    ) = layout_state.component_inspector_field_failures();
-    let (
-        component_inspector_layout_pending,
-        component_inspector_constraint_pending,
-        component_inspector_remove_pending,
-        component_inspector_mirrored_half_pending,
-    ) = layout_state.component_inspector_pending_controls();
-    let (companion_placement_pending, mut companion_placement_error, companion_placement_edits) =
-        layout_state.companion_placement_controls();
-    let on_component_inspector_action = EventHandler::new({
-        let runtime = runtime.clone();
-        let adapter = adapter.clone();
-        let owner = layout_owner.clone();
-        let lifetime = layout_component_inspector_lifetime.clone();
-        move |action: inspector::LayoutComponentInspectorAction| {
-            dispatch_layout_component_inspector_action(
-                &runtime,
-                &adapter,
-                &owner,
-                &lifetime,
-                (workspace, inspect_open),
-                component_inspector_pending_edits,
-                action,
-            )
-        }
-    });
-    let on_companion_placement_action = EventHandler::new({
-        let runtime = runtime.clone();
-        let adapter = adapter.clone();
-        let owner_workspace = workspace;
-        move |action: inspector::CompanionPlacementAction| {
-            if !companion_placement_owner_is_current(
-                &runtime,
-                owner_workspace,
-                &adapter,
-                &action.owner,
-                &action.pair_id,
-                &action.targets,
-            ) {
-                companion_placement_error.set(Some(
-                    "The selection changed before this edit ran; placement was not changed.".into(),
-                ));
-                return;
-            }
-            companion_placement_error.set(None);
-            submit_layout_component_edit(
-                &runtime,
-                companion_placement_edits,
-                layout_component_edits::InspectorField::CompanionPlacement,
-                layout_component_edits::companion_placement_resolver(
-                    action.pair_id,
-                    action.targets,
-                    action.mode,
-                    action.tweak,
-                ),
-                None,
-            );
-        }
-    });
+        start_pan.clone(),
+        move_pointer.clone(),
+        key_up.clone(),
+    );
+    let on_component_inspector_action =
+        canvas_inspector_inputs::on_component_inspector_action_handler(
+            runtime.clone(),
+            adapter.clone(),
+            layout_owner.clone(),
+            layout_component_inspector_lifetime.clone(),
+            workspace,
+            inspect_open,
+            layout_state,
+        );
+    let on_companion_placement_action =
+        canvas_inspector_inputs::on_companion_placement_action_handler(
+            runtime.clone(),
+            adapter.clone(),
+            workspace,
+            layout_state,
+        );
     let inspector_input = match active_workspace {
-        "Keymap" => workspace_composition::WorkspaceInspectorInput::Keymap(Box::new(
-            keymap_workspace::InspectorInput {
-                view: keymap_view.clone(),
-                scope: render_scope.clone(),
-                layer_actions,
-                active_layer_id: keymap_layer_id(),
-                selected_key_id: model.selected_part_ids.first().cloned(),
-                on_layer: keymap_layer,
-                on_export: keymap_export,
-                firmware_export_enabled: keymap_view
-                    .as_ref()
-                    .is_some_and(|view| !view.keys.is_empty())
-                    || binding_actions
-                        .encoder_projection
-                        .as_ref()
-                        .is_some_and(|projection| !projection.rows.is_empty()),
-                on_select_key: keymap_select,
+        "Keymap" => canvas_inspector_inputs::keymap_inspector_input(
+            canvas_inspector_inputs::KeymapInspectorArgs {
+                keymap_view: keymap_view.clone(),
+                render_scope: render_scope.clone(),
+                keymap_layer_id,
+                model: &model,
+                keymap_layer,
+                keymap_export,
                 binding_actions,
                 macro_actions,
-                admission_token: snapshot.token,
-                admission_revision: snapshot.document.revision,
-                scope_generation: (adapter.generation)(),
+                keymap_select,
+                snapshot,
+                scope_generation: adapter.generation,
+                layer_actions,
             },
-        )),
-        "Case" => workspace_composition::WorkspaceInspectorInput::Case(Box::new(
-            case_workspace::InspectorInput {
-                physical_setup: physical_setup_mount.clone(),
+        ),
+        "Case" => canvas_inspector_inputs::case_inspector_input(
+            canvas_inspector_inputs::CaseInspectorArgs {
+                physical_setup_mount: physical_setup_mount.clone(),
                 mechanical_settings: mechanical_settings.clone(),
                 instance_scope_pending,
-                scope: current_scope.clone(),
-                scene: case_scene,
+                current_scope: current_scope.clone(),
+                case_scene,
                 case_selection,
-                selected_layer_id: case_selected_layer_id,
-                selected_context: case_selected_context,
-                selected_part_summary: case_workspace::selected_part_summary(
-                    &model,
-                    selected_tree_context.as_ref(),
-                ),
-                on_show_configured_board: show_configured_board,
-                on_display: case_display,
+                case_selected_layer_id,
+                case_selected_context,
+                model: &model,
+                selected_tree_context: selected_tree_context.clone(),
+                show_configured_board,
+                case_display,
             },
-        )),
-        "Parts" => workspace_composition::WorkspaceInspectorInput::Parts(Box::new(
-            parts_workspace::InspectorInput {
-                snapshot: snapshot.clone(),
-                scope: current_scope.clone(),
-                query: parts_query,
-                selected: parts_selection,
+        ),
+        "Parts" => canvas_inspector_inputs::parts_inspector_input(
+            canvas_inspector_inputs::PartsInspectorArgs {
+                snapshot,
+                current_scope: current_scope.clone(),
+                parts_query,
+                parts_selection,
                 selected_context: adapter.selected_context,
-                on_place_controller: part_placement.on_place_controller,
-                on_place_component: part_placement.on_place_component,
-                controller_placement_enabled: part_placement.controller_placement_enabled,
-                placement_busy: part_placement.busy || matrix_placement.busy,
-                placement_error: matrix_placement
-                    .error
-                    .clone()
-                    .or_else(|| part_placement.error.clone()),
+                part_placement: part_placement.clone(),
+                matrix_placement: matrix_placement.clone(),
                 layout_target,
-                on_place_assembly: on_place_matrix_assembly,
-                on_board_placed: EventHandler::new(move |_| {
-                    let mut selection_kind = layout_selection_kind;
-                    selection_kind.set(objects::LayoutSelectionKind::Part);
-                }),
+                on_place_matrix_assembly,
                 on_open_module_placement,
                 on_module_attached,
+                layout_selection_kind,
             },
-        )),
-        "PCB" => {
-            let selected_module = selected_tree_context.as_ref().and_then(|selected| {
-                if selected.scope != render_scope {
-                    return None;
-                }
-                match &selected.context {
-                    objects::TreeContext::MountedModule {
-                        board_id,
-                        module_id,
-                    } if board_id == &render_scope.board_id => Some(module_id.clone()),
-                    _ => None,
-                }
-            });
-            if let Some(module_id) = selected_module {
-                workspace_composition::WorkspaceInspectorInput::PcbModule(Box::new(
-                    pcb_module_inspector::InspectorInput {
-                        runtime: runtime.clone(),
-                        snapshot: snapshot.clone(),
-                        scope: render_scope.clone(),
-                        module_id,
-                        selected_context: adapter.selected_context,
-                        on_place_component: part_placement.on_place_component,
-                    },
-                ))
-            } else {
-                workspace_composition::WorkspaceInspectorInput::Pcb(pcb_wiring_source.map(
-                    |source| {
-                        let firmware_position_projection = pcb_wiring::firmware_position_projection(
-                            &source,
-                            render_generation,
-                            &pcb_wiring_mount.resolution,
-                        );
-                        let firmware_feedback =
-                            firmware_position_actions
-                                .feedback
-                                .clone()
-                                .filter(|feedback| {
-                                    feedback.target.is_visible(
-                                        &source.ui_scope,
-                                        render_generation,
-                                        &firmware_position_projection,
-                                    )
-                                });
-                        let firmware_controls = rsx! {
-                            firmware_positions::FirmwareKeymapPanel {
-                                projection: firmware_position_projection.clone(),
-                                feedback: firmware_feedback.clone(),
-                                editable: firmware_position_actions.editable,
-                                on_change: firmware_position_actions.on_edit,
-                            }
-                        };
-                        Box::new(pcb_wiring::PcbWiringInspectorProps {
-                            board_overview: true,
-                            source,
-                            resolution: pcb_wiring_mount.resolution.clone(),
-                            firmware_positions: firmware_position_projection,
-                            firmware_feedback,
-                            firmware_controls,
-                            part_net_actions: pcb_part_net_actions.clone(),
-                            part_input_actions: part_input_actions.clone(),
-                            on_firmware_edit: firmware_position_actions.on_edit,
-                            on_resolve: pcb_wiring_mount.on_resolve,
-                            on_choose_controller: part_placement.on_choose_controller,
-                            on_edit_board_wiring: pcb_wiring_edit_board,
-                            mode_actions: pcb_wiring_mode_actions.clone(),
-                            pin_actions: pcb_wiring_pin_actions.clone(),
-                            apply_actions: pcb_wiring_apply_actions.clone(),
-                            protected_remap_actions: pcb_wiring_protected_remap_actions.clone(),
-                        })
-                    },
-                ))
-            }
-        }
-        "Keycaps" => {
-            let selected_key_id = model.selected_part_ids.first().cloned();
-            let mechanical_layer_ids = current_scope
-                .as_ref()
-                .zip(model.accepted.as_ref())
-                .and_then(|(scope, snapshot)| current_case_layer_ids(&runtime, scope, snapshot))
-                .unwrap_or_else(|| Rc::from([]));
-            let settings_editor = keycaps_view.as_deref().and_then(|view| {
-                let selected = keycaps_settings::project_selected_key(
-                    &document,
-                    view,
-                    selected_key_id.as_deref(),
-                )?;
-                keycaps_settings_actions
-                    .clone()
-                    .map(|actions| (selected, actions))
-            });
-            workspace_composition::WorkspaceInspectorInput::Keycaps(Box::new(
-                keycaps_workspace::InspectorInput {
-                    view: keycaps_view.clone(),
-                    document: Rc::new((*document).clone()),
-                    selected_key_id,
-                    on_select_key: keycaps_select,
-                    settings_editor,
-                    settings_actions: keycaps_settings_actions.clone(),
-                    fit_state: keycaps_fit_state.state.clone(),
-                    mechanical_layer_ids,
-                    fit_retry: keycaps_fit_state.on_retry,
-                    fit_navigate: keycaps_finding,
-                },
-            ))
-        }
-        _ => workspace_composition::WorkspaceInspectorInput::Layout(Box::new(
-            layout_workspace::InspectorInput {
-                geometry_scripts_open: geometry_scripts_open(),
-                on_close_geometry_scripts: EventHandler::new(move |()| {
-                    setup_state.set_geometry_scripts_open(false)
-                }),
-                context_title: context_summary
-                    .as_ref()
-                    .map(|summary| summary.title.clone())
-                    .or_else(|| {
-                        board_inspector_projection
-                            .as_ref()
-                            .map(|board| board.board_name.clone())
-                    }),
-                context_detail: context_summary
-                    .as_ref()
-                    .and_then(|summary| summary.detail.clone())
-                    .or_else(|| {
-                        board_inspector_projection
-                            .as_ref()
-                            .map(|_| "Layout".to_owned())
-                    }),
+        ),
+        "PCB" => canvas_inspector_inputs::pcb_inspector_input(
+            canvas_inspector_inputs::PcbInspectorArgs {
+                selected_tree_context: selected_tree_context.clone(),
+                render_scope: render_scope.clone(),
+                runtime: runtime.clone(),
+                snapshot,
+                selected_context: adapter.selected_context,
+                part_placement: part_placement.clone(),
+                pcb_wiring_source,
+                render_generation,
+                resolution: pcb_wiring_mount.resolution.clone(),
+                firmware_feedback: firmware_position_actions.feedback.clone(),
+                firmware_editable: firmware_position_actions.editable,
+                firmware_on_edit: firmware_position_actions.on_edit,
+                part_net_actions: pcb_part_net_actions.clone(),
+                part_input_actions: part_input_actions.clone(),
+                pcb_wiring_edit_board,
+                mode_actions: pcb_wiring_mode_actions.clone(),
+                pin_actions: pcb_wiring_pin_actions.clone(),
+                apply_actions: pcb_wiring_apply_actions.clone(),
+                protected_remap_actions: pcb_wiring_protected_remap_actions.clone(),
+                on_resolve: pcb_wiring_mount.on_resolve,
+            },
+        ),
+        "Keycaps" => canvas_inspector_inputs::keycaps_inspector_input(
+            canvas_inspector_inputs::KeycapsInspectorArgs {
+                model: &model,
+                current_scope: current_scope.clone(),
+                runtime: runtime.clone(),
+                document: document.clone(),
+                keycaps_view: keycaps_view.clone(),
+                keycaps_settings_actions: keycaps_settings_actions.clone(),
+                keycaps_select,
+                keycaps_fit_state: keycaps_fit_state.clone(),
+                keycaps_finding,
+            },
+        ),
+        _ => canvas_inspector_inputs::layout_inspector_input(
+            canvas_inspector_inputs::LayoutInspectorArgs {
+                layout_state,
+                geometry_scripts_open,
+                setup_state,
+                runtime: runtime.clone(),
+                context_summary: &context_summary,
+                board_inspector_projection: board_inspector_projection.clone(),
                 show_position_inspector,
                 component_inspector: component_inspector.clone(),
-                component_inspector_pending_edits,
-                component_inspector_x,
-                component_inspector_y,
-                component_inspector_margin,
-                component_inspector_error,
-                component_inspector_x_failure,
-                component_inspector_y_failure,
-                component_inspector_margin_failure,
-                component_inspector_layout_pending,
-                component_inspector_constraint_pending,
-                component_inspector_remove_pending,
-                component_inspector_mirrored_half_pending,
                 companion_placement: companion_placement.clone(),
-                companion_placement_pending,
-                companion_placement_error,
-                companion_placement_edits,
-                on_companion_placement_action,
-                on_component_inspector_action,
                 matrix_inspector,
                 key_size,
                 matrix_transform_inspector: matrix_transform_inspector.clone(),
-                on_pick_splay_origin: {
-                    let mount = matrix_transform_inspector.clone();
-                    let mut pending = pending_splay_origin_pick;
-                    let mut anchor_pending = pending_anchor_pick;
-                    EventHandler::new(move |()| {
-                        let Some(projection) = mount.projection.as_ref() else {
-                            return;
-                        };
-                        if matches!(
-                            &projection.owner.context,
-                            objects::TreeContext::Column { .. }
-                        ) && mount.editable
-                        {
-                            anchor_pending.set(None);
-                            pending.set(Some(projection.owner.clone()));
-                        }
-                    })
-                },
-                on_pick_anchor: {
-                    let mount = matrix_transform_inspector.clone();
-                    let mut pending = pending_anchor_pick;
-                    let mut splay_pending = pending_splay_origin_pick;
-                    EventHandler::new(move |()| {
-                        let Some(projection) = mount.projection.as_ref() else {
-                            return;
-                        };
-                        if matches!(
-                            &projection.owner.context,
-                            objects::TreeContext::Matrix { .. }
-                        ) && mount.editable
-                        {
-                            splay_pending.set(None);
-                            mount.clear_aggregate_pick();
-                            pending.set(Some(projection.owner.clone()));
-                        }
-                    })
-                },
-                anchor_pick_pending: pending_anchor_pick().is_some(),
-                on_cancel_anchor_pick: {
-                    let mount = matrix_transform_inspector.clone();
-                    let mut pending = pending_anchor_pick;
-                    EventHandler::new(move |()| {
-                        mount.clear_aggregate_pick();
-                        pending.set(None);
-                    })
-                },
-                splay_origin_pick_pending: pending_splay_origin_pick().is_some(),
-                on_cancel_splay_origin_pick: {
-                    let mut pending = pending_splay_origin_pick;
-                    EventHandler::new(move |()| pending.set(None))
-                },
-                inspector_tab: layout_state.inspector_tab(),
-                matrix_relations: matrix_context_relations(&model, selected_tree_context.as_ref()),
-                relation_target: {
-                    let runtime = runtime.clone();
-                    Rc::new(move |request| relation_target_request(&runtime, request))
-                },
-                relation_scope: selected_tree_context
-                    .as_ref()
-                    .map(|selected| selected.scope.clone()),
-                on_navigate_anchor_part: {
-                    let runtime = runtime.clone();
-                    let scope = selected_tree_context
-                        .as_ref()
-                        .map(|selected| selected.scope.clone());
-                    let select = workspace_routing.select_tree;
-                    EventHandler::new(move |context: objects::TreeContext| {
-                        let Some(scope) = scope.clone() else {
-                            return;
-                        };
-                        let request = objects::TreeSelectRequest {
-                            scope,
-                            context,
-                            mode: boardstudio_application::SelectionMode::Replace,
-                            outline_action: None,
-                        };
-                        // A part key removed since the section was projected:
-                        // do nothing; the next accepted revision re-projects.
-                        let Some(request) = relation_target_request(&runtime, request) else {
-                            return;
-                        };
-                        select.call(request);
-                    })
-                },
-                on_select_context: workspace_routing.select_tree,
-                outline_inspector: outline_inspector.clone().map(Box::new),
-                findings_return_available: (layout_findings.return_target)().as_ref().is_some_and(
-                    |target| {
-                        layout_finding_return_is_current(
-                            &model,
-                            &layout_owner,
-                            selected_tree_context.as_ref(),
-                            target,
-                        )
-                    },
-                ),
-                on_findings_return: on_return_from_layout_finding,
-                board_inspector_mount: board_inspector.clone(),
-                findings_page: Some(layout_findings::InspectorMount {
-                    open: (layout_findings.open)(),
-                    document: Rc::new(document.as_ref().clone()),
-                    findings: findings.clone(),
-                    source: layout_findings::Source {
-                        workspace: active_workspace,
-                        scope: render_scope.clone(),
-                        token: snapshot.token,
-                        revision: snapshot.document.revision,
-                        generation: render_generation,
-                    },
-                    on_close: on_close_layout_findings,
-                    on_navigate: on_layout_finding,
-                }),
+                pending_anchor_pick,
+                pending_splay_origin_pick,
+                selected_tree_context: selected_tree_context.clone(),
+                model: &model,
+                select_tree: workspace_routing.select_tree,
+                outline_inspector: outline_inspector.clone(),
+                layout_findings,
+                layout_owner: layout_owner.clone(),
+                board_inspector: board_inspector.clone(),
+                document: document.clone(),
+                findings: findings.clone(),
+                active_workspace,
+                render_scope: render_scope.clone(),
+                snapshot,
+                render_generation,
+                on_close_layout_findings,
+                on_layout_finding,
+                on_return_from_layout_finding,
+                on_companion_placement_action,
+                on_component_inspector_action,
             },
-        )),
+        ),
     };
     let _board_reference_editor = if matches!(active_workspace, "Layout" | "Case") {
         let reference = document
