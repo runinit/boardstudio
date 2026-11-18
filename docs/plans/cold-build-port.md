@@ -233,3 +233,28 @@ Expected result: about 550 to 700 s for a cold run with no cache hits. A new wor
 
 Installed `sccache 0.19.0` in `~/.cargo/bin/sccache` using `cargo binstall`
 with the pinned version and `--no-track` to preserve Cargo's installation registry.
+
+### G2. Cache service and wrapper
+
+The user unit `boardstudio-sccache.service` puts its Unix socket at
+`$XDG_RUNTIME_DIR/boardstudio-sccache/server.sock` and limits
+`~/.cache/sccache` to 30 GiB. It uses sccache client-side mode so Rust
+compilation on cache misses runs in Cargo's process tree. The wrapper tries the
+service only for non-incremental Rust compilation. It calls `dx`, Clippy's
+driver, and other workspace wrappers directly. It also calls rustc directly
+if the socket is unavailable or a cache call returns an error. Set
+`BOARDSTUDIO_SCCACHE_BYPASS=1` to bypass the wrapper's cache path for a run.
+
+The machine configuration files were absent before setup. Their prior-state
+record is `/home/chris/.cache/tmp/boardstudio-sccache-before.SUHur1Em/prior-state`.
+To undo the setup, remove the four files below. Disabling the service first
+removes its enablement symlink and stops its process.
+
+```sh
+systemctl --user disable --now boardstudio-sccache.service
+rm -- ~/.cargo/config.toml ~/.local/bin/rustc-sccache-fail-open \
+    ~/.config/systemd/user/boardstudio-sccache.service ~/.cargo/bin/sccache
+systemctl --user daemon-reload
+```
+
+The cache directory can be removed separately after stopping the service.
