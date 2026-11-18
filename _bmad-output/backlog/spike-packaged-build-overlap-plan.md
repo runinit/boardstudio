@@ -3,7 +3,7 @@ title: "Measure one producer overlap in packaged validation"
 type: chore
 ticket: 2
 created: '2026-11-17'
-status: built
+status: done
 baseline_revision: 'a6cfa51839bf5d4c11b558e4221935db5d08013b'
 route: full
 route_source: auto
@@ -56,6 +56,26 @@ Both arms use clean source from `a6cfa51839bf5d4c11b558e4221935db5d08013b`. Keep
 - Given the completed pair or pairs, when applying the ticket's local decision rule, then the plan reports every measured time and calculation, or identifies the exact dependency or failed check that prevents a valid comparison.
 
 ## Implementation Notes
+
+### Closure and cold-build breakdown
+
+Closed by maintainer decision. Keep the sequential packaged schedule. The completed sequential arm took 779.802 s through the final check, including 375.231 s for the fast site build and approximately 404.6 s for validation and runner overhead. The measurement starts with empty Cargo targets and populated dependency sources. Patched tool installation happened before the timer.
+
+| Fast site build, in execution order | Wall seconds | Evidence inside the stage |
+|---|---:|---|
+| Core worker | 107.263 | First release Wasm build on the cold workspace target. Cargo build took 96.54 s and its full metadata query took 8.32 s. |
+| CAD worker | 6.735 | Next worker on the same target. The compile log lists the web host and web crate. |
+| Offline worker | 12.901 | Service-worker feature build. Cargo took 12.51 s. |
+| Renderer | 19.842 | Cargo release build took 19.33 s. |
+| CAD Wasm provider | 41.128 | Separate CAD target. Cargo release build took 39.44 s. |
+| Dioxus page | 185.464 | The page-feature Cargo invocation under the wasm-dev profile took 157.85 s. Dioxus reported about 26.3 s from starting bundling to client completion, including wasm-bindgen. |
+| Remaining staging, embedding and orchestration | 1.898 | Residual of the fast build after the six stages above. |
+
+Dioxus and the core worker account for 78% of the site build. The fast path skips wasm-opt but the providers still compile optimized Rust. The worker and page use different profiles and features. Both compilation logs include BoardStudio core, contracts, footprints, web host and web. Those shared names show where to investigate profile and feature costs; they do not give per-crate critical-path times.
+
+The two largest validation commands were the page suite (217.457 s) and drag smoke (110.681 s). The page suite spent 155.90 s on its own Cargo test build; the three filtered browser runs took 12.217 s, 31.637 s and 14.347 s including runner overhead. Drag smoke first built the native browser harness in its separate target (48.03 s). The remaining eight gates together took 75.44 s, led by face completeness (27.746 s) and CAD capture controls (18.795 s). The core-worker Cargo build, page Cargo build and page test Cargo build alone occupied 410.29 s of sequential wall time across separate invocations. These measurements describe this cold local run. Warm-cache savings and per-crate bottlenecks were not measured.
+
+[Stage and gate events](../../.evidence/packaged-overlap-fixed-drag/01-sequential/stages.jsonl) · [Cargo invocation trace](../../.evidence/packaged-overlap-fixed-drag/01-sequential/cargo.jsonl) · [Dioxus and compiler output](../../.evidence/packaged-overlap-fixed-drag/01-sequential/run.log) · [Page filter timings](../../.evidence/packaged-overlap-fixed-drag/01-sequential/page-result.json)
 
 ### Completed benchmark after the drag harness repair
 
