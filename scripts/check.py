@@ -941,7 +941,7 @@ def run_commands(name: str, commands: list[Command], environment: dict[str, str]
                         crate = launch_crate(launch)
                         invocations[tuple(launch)] = (
                             [str(directory / wasm_bindgen_tools.TEST_RUNNER), str(artifacts[crate]), *launch[2:]],
-                            cwd / launch[1], crate_configs[crate],
+                            cwd / launch[1], dict(crate_configs[crate], RAYON_NUM_THREADS="1"),
                         )
             except (ValueError, RuntimeError) as error:
                 print(f"check: {error}", file=sys.stderr)

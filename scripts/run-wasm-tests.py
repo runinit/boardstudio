@@ -324,7 +324,8 @@ def run_filter(filter_, env, root=ROOT, skip_filters=()):
     for skip_filter in skip_filters:
         command.extend(["--skip", skip_filter])
     fd = browser_tools._inherited_build_lock()
-    result = subprocess.run(command, cwd=root, env=env, text=True, capture_output=True,
+    result = subprocess.run(command, cwd=root, env=dict(env, RAYON_NUM_THREADS="1"),
+                            text=True, capture_output=True,
                             **({"pass_fds": (fd,)} if fd is not None else {}))
     output = result.stdout + "\n" + result.stderr
     outcomes = {}
@@ -343,7 +344,8 @@ LIST_LINE = re.compile(r"^(\S+): test$", re.M)
 def list_wasm_tests(env, root=ROOT):
     command = [*page_runner(env), "--list"]
     fd = browser_tools._inherited_build_lock()
-    result = subprocess.run(command, cwd=root, env=env, text=True, capture_output=True,
+    result = subprocess.run(command, cwd=root, env=dict(env, RAYON_NUM_THREADS="1"),
+                            text=True, capture_output=True,
                             **({"pass_fds": (fd,)} if fd is not None else {}))
     names = LIST_LINE.findall(result.stdout + "\n" + result.stderr)
     if result.returncode or not names:
