@@ -7,6 +7,7 @@ mod findings_navigation;
 mod keyboard;
 mod pointer;
 mod selection_handlers;
+mod setup_guide_state;
 mod toolbar_inputs;
 mod workspace_inputs;
 
@@ -1802,403 +1803,131 @@ pub(super) fn Editor() -> Element {
             },
         ),
     };
-    let _board_reference_editor = if matches!(active_workspace, "Layout" | "Case") {
-        let reference = document
-            .board_references
-            .iter()
-            .find(|reference| reference.board_id == render_scope.board_id)
-            .cloned();
-        let owner = LayoutOwnerIdentity {
-            scope: Some(render_scope.clone()),
-            token: Some(snapshot.token),
-            revision: Some(snapshot.document.revision),
-            generation: render_generation,
-            workspace: active_workspace,
-        };
-        let assets = document.assets.clone();
-        let editable = boardstudio_web_pcb::board_reference_owner::board_reference_owner_is_current(
-            &runtime, workspace, &adapter, &owner,
-        );
-        Some((reference, assets, editable, owner))
-    } else {
-        None
-    };
-    let selected_bridge = selected_tree_context.as_ref().and_then(|selected| {
-        let objects::TreeContext::Bridge {
-            board_id,
-            bridge_id,
-        } = &selected.context
-        else {
-            return None;
-        };
-        snapshot
-            .scene
-            .board_outline_scenes
-            .iter()
-            .find(|scene| scene.board_id == *board_id)
-            .and_then(|scene| scene.bridges.iter().find(|bridge| bridge.id == *bridge_id))
+    let setup_guide_state::GuideState {
+        selected_bridge,
+        active_part_position,
+        guide,
+        has_matrix,
+        setup_guide_active,
+        setup_wiring_error,
+    } = setup_guide_state::use_guide_state(setup_guide_state::GuideStateInput {
+        active_workspace,
+        document: document.clone(),
+        render_scope: render_scope.clone(),
+        snapshot,
+        render_generation,
+        adapter: adapter.clone(),
+        runtime: runtime.clone(),
+        workspace,
+        selected_tree_context: selected_tree_context.clone(),
+        model: &model,
+        visible: visible.clone(),
+        scene: scene.clone(),
+        part_placement: part_placement.clone(),
+        matrix_placement: matrix_placement.clone(),
+        parts_query,
+        guide_preferences,
+        matrices: matrices.clone(),
+        mirrored_pair: mirrored_pair.clone(),
+        resolution: pcb_wiring_mount.resolution.clone(),
     });
-    let active_part_position = model.selected_part_ids.first().and_then(|selected_id| {
-        visible
-            .iter()
-            .find(|part| part.id == *selected_id)
-            .map(|part| {
-                scene
-                    .transforms
-                    .iter()
-                    .find(|transform| transform.id == part.id)
-                    .map(|transform| transform.pose.at)
-                    .unwrap_or(part.pose.at)
-            })
-    });
-    let controller_guide_hidden = part_placement.projection.is_some()
-        || part_placement.busy
-        || matrix_placement.placement.is_some()
-        || matrix_placement.busy
-        || (active_workspace == "Parts"
-            && parts_query().trim() == "controller"
-            && guide_preferences()
-                .as_ref()
-                .is_some_and(|preferences| preferences.current_stage == SetupGuideStage::Wiring));
-    let guide = guide_preferences().filter(|preferences| {
-        preferences.project_id == document.id
-            && preferences.open
-            // Keep the guide visible while matrix setup overlays the Layout canvas.
-            && !(active_workspace == "Layout"
-                && (matrix_placement.placement.is_some()
-                    || matrix_placement.busy
-                    || mirrored_pair.form.is_some()
-                    || mirrored_pair.placement.is_some()))
-            && !controller_guide_hidden
-    });
-    let has_matrix = !matrices.is_empty();
-    let setup_guide_active = guide.is_some();
-    let mut setup_wiring_error = use_signal(|| None::<String>);
-    use_effect(use_reactive(
-        (&guide_preferences(), &pcb_wiring_mount.resolution),
-        {
-            let runtime = runtime.clone();
-            move |(guide, resolution)| {
-                if !guide.as_ref().is_some_and(|guide| {
-                    guide.open && guide.current_stage == SetupGuideStage::Wiring
-                }) {
-                    return;
-                }
-                let pcb_wiring::PcbWiringResolution::Current { identity, plan } = resolution else {
-                    return;
-                };
-                let Some(accepted) = runtime.model().accepted else {
-                    return;
-                };
-                if identity.token != accepted.token
-                    || plan.controller_part_id.is_none()
-                    || plan
-                        .diagnostics
-                        .iter()
-                        .any(|finding| finding.severity == "error")
-                {
-                    return;
-                }
-                let mut proposal = (*accepted.document).clone();
-                if let Err(error) = boardstudio_core::electrical::materialize(&mut proposal, &plan)
-                {
-                    setup_wiring_error.set(Some(error));
-                    return;
-                }
-                setup_wiring_error.set(None);
-                if proposal == *accepted.document {
-                    return;
-                }
-                runtime.submit(boardstudio_application::Event::ResolveEdit {
-                    operation_id: runtime.operation(),
-                    label: "Setup wiring".into(),
-                    resolver: boardstudio_application::EditResolver::new(
-                        "setup-wiring",
-                        move |current| {
-                            if current.token != identity.token {
-                                return boardstudio_application::Resolution::Retire(
-                                    "The board changed while wiring was being prepared.".into(),
-                                );
-                            }
-                            boardstudio_application::Resolution::submit(
-                                vec![identity.scope.board_id.clone()],
-                                EditOperation::ReplaceDocument {
-                                    document: Box::new(proposal.clone()),
-                                },
-                            )
-                        },
-                    ),
-                });
-            }
-        },
-    ));
-    let matrix_count = matrices.len();
-    let placing_matrix = matrix_placement.placement.is_some() || matrix_placement.busy;
-    let auto_open_matrix = use_reactive(
-        (
-            &guide_preferences(),
-            &workspace(),
-            &matrix_setup.can_open,
-            &matrix_count,
-            &placing_matrix,
-        ),
-        {
-            let project_id = document.id.clone();
-            let on_open = matrix_setup.on_open;
-            move |(preferences, active_workspace, can_open, matrix_count, placing)| {
-                if active_workspace == "Layout"
-                    && can_open
-                    && matrix_count == 0
-                    && !placing
-                    && preferences.as_ref().is_some_and(|preferences| {
-                        preferences.project_id == project_id
-                            && preferences.open
-                            && preferences.current_stage == SetupGuideStage::Layout
-                    })
-                {
-                    on_open.call(());
-                }
-            }
-        },
-    );
-    use_effect(auto_open_matrix);
-    let inline_matrix_setup = if guide.is_some() {
-        matrix_setup.projection.clone().map(|mut projection| {
-            projection.can_cancel &= has_matrix;
-            rsx! {
-                objects::MatrixSetup {
-                    projection,
-                    on_cancel: matrix_setup.on_cancel,
-                    on_create: matrix_setup.on_create,
-                }
-            }
-        })
-    } else {
-        None
-    };
-    let inline_case_basics = guide
-        .as_ref()
-        .and_then(|_| mechanical_settings.props.clone())
-        .map(|settings| {
-            rsx! {
-                boardstudio_web_case::mechanical_settings::MechanicalSetupBasics { settings }
-            }
-        });
-    let inline_controller_picker = guide
-        .as_ref()
-        .filter(|preferences| {
-            preferences.current_stage == SetupGuideStage::Wiring
-        })
-        .map(|_| {
-            rsx! {
-                div {
-                    parts::ControllerSetupPicker {
-                        snapshot: snapshot.clone(),
-                        scope: current_scope.clone(),
-                        selected: parts_selection,
-                        on_place: part_placement.on_place_controller,
-                        enabled: part_placement.controller_placement_enabled,
-                        busy: part_placement.busy || matrix_placement.busy,
-                        error: setup_wiring_error().or_else(|| matrix_placement.error.clone()).or_else(|| part_placement.error.clone()),
-                    }
-                }
-            }
-        });
-    let show_empty_board = guide.is_none()
-        && matches!(active_workspace, "Layout" | "PCB" | "Keymap" | "Keycaps")
-        && !layout_assembly_3d()
-        && visible.is_empty()
-        && matrices.is_empty()
-        && !scene.board_contours.iter().any(|contours| {
-            contours.board_id == model.active_board_id && !contours.contours.is_empty()
-        })
-        && mirrored_pair.placement.is_none()
-        && part_placement.projection.is_none()
-        && !part_placement.busy;
-    let show_empty_board =
-        show_empty_board && matrix_placement.placement.is_none() && !matrix_placement.busy;
-    let outline_pitch = {
-        let retained = tree_cell_anchor_for_owner(&tree_cell_anchor, &layout_owner);
-        matrix_snap_parameters(&model, &render_scope, &adapter, retained.as_ref())
-            .0
-            .unwrap_or(Vec2 { x: 19.05, y: 19.05 })
-    };
-    let outline_snap_origins = use_memo(use_reactive((&accepted_canvas_source,), |(source,)| {
-        Rc::new(layout_canvas::snap_origins(
-            &source.document,
-            &source.board_id,
-            &source.scene,
-        ))
-    }))();
-    let outline_snap_settings = layout_snap_settings.read().clone();
-    let outline_grid_active = outline_inspector
-        .as_ref()
-        .is_some_and(|projection| (projection.editing_points)());
-    let canvas_grid = objects::layout_canvas_grid_style(
+    let setup_guide_state::GuideOverlays {
+        inline_matrix_setup,
+        inline_case_basics,
+        inline_controller_picker,
+        show_empty_board,
+        outline_pitch,
+        outline_snap_origins,
+        outline_snap_settings,
+        canvas_grid,
+        outline_overlay_key,
+    } = setup_guide_state::use_guide_overlays(setup_guide_state::GuideOverlaysInput {
+        guide: &guide,
+        matrix_setup: matrix_setup.clone(),
+        mechanical_settings: mechanical_settings.clone(),
+        snapshot,
+        current_scope: current_scope.clone(),
+        parts_selection,
+        part_placement: part_placement.clone(),
+        matrix_placement: matrix_placement.clone(),
+        setup_wiring_error,
+        active_workspace,
+        layout_assembly_3d,
+        visible: visible.clone(),
+        matrices: matrices.clone(),
+        scene: scene.clone(),
+        model: &model,
+        mirrored_pair: mirrored_pair.clone(),
+        tree_cell_anchor: tree_cell_anchor.clone(),
+        layout_owner: layout_owner.clone(),
+        render_scope: render_scope.clone(),
+        adapter: adapter.clone(),
+        accepted_canvas_source: accepted_canvas_source.clone(),
+        layout_snap_settings,
+        outline_inspector: outline_inspector.clone(),
+        document: document.clone(),
+        has_matrix,
+        guide_preferences,
+        workspace,
         width,
-        zoom_surface_size().0,
-        outline_pitch.x,
-        outline_snap_settings.snap_fraction,
-        outline_grid_active,
+        zoom_surface_size,
+    });
+    let (name_value, on_name_change, on_name_commit) = setup_guide_state::guide_name_fields(
+        guide_name_draft,
+        document.clone(),
+        guide_name_edit.on_change,
+        guide_name_edit.on_commit,
     );
-    let outline_overlay_key = outline_inspector
-        .as_ref()
-        .map(outline_lifecycle::OutlineInspectorProjection::canvas_edit_key);
-    let name_value = guide_name_draft()
-        .filter(|(project_id, _)| project_id == &document.id)
-        .map(|(_, name)| name)
-        .unwrap_or_else(|| document.name.clone());
-    let on_name_change = guide_name_edit.on_change;
-    let on_name_commit = guide_name_edit.on_commit;
-    let guide_runtime = runtime.clone();
-    let mut guide_adapter = adapter.clone();
-    let setup_state_for_stage = setup_state;
-    let guide_workspace_for_stage = workspace;
-    let guide_project_id = document.id.clone();
-    let on_stage_change = move |stage: SetupGuideStage| {
-        if !setup_state_for_stage.update_guide_stage(&guide_project_id, stage) {
-            return;
-        }
-        setup_guide::activate_stage(
-            stage,
-            guide_workspace_for_stage,
+    let on_stage_change =
+        setup_guide_state::on_stage_change_handler(setup_guide_state::OnStageChangeArgs {
+            setup_state_for_stage: setup_state,
+            guide_project_id: document.id.clone(),
+            guide_workspace_for_stage: workspace,
             requested_workspace_panel,
             objects_open,
             inspect_open,
             objects_panel_settings,
             inspector_panel_settings,
-        );
-        guide_adapter.selected_context.set(None);
-        guide_adapter.anchor_scope.set(None);
-        guide_runtime.submit(Event::SelectParts {
-            operation_id: guide_runtime.operation(),
-            part_ids: Vec::new(),
-            range_part_ids: Vec::new(),
-            mode: SelectionMode::Replace,
+            guide_adapter: adapter.clone(),
+            guide_runtime: runtime.clone(),
         });
-    };
-    let mut guide_workspace_for_action = workspace;
-    let mut guide_adapter_for_action = adapter.clone();
-    let guide_runtime_for_action = runtime.clone();
-    let settings_project_id = document.id.clone();
-    let mut full_case_settings = use_signal(|| false);
-    let on_open_workspace = move |target: &'static str| {
-        if target == "Case" {
-            full_case_settings.set(true);
-            guide_workspace_for_action.set("Case");
-            return;
-        }
-        guide_workspace_for_action.set(target);
-        setup_guide::reveal_panels(
-            crate::setup_guide_state::GuideReveal::Settings,
+    let (mut full_case_settings, on_open_workspace) =
+        setup_guide_state::use_on_open_workspace(setup_guide_state::OnOpenWorkspaceArgs {
+            guide_workspace_for_action: workspace,
+            guide_adapter_for_action: adapter.clone(),
+            guide_runtime_for_action: runtime.clone(),
+            settings_project_id: document.id.clone(),
             objects_open,
             inspect_open,
             objects_panel_settings,
             inspector_panel_settings,
-        );
-        let focus_runtime = guide_runtime_for_action.clone();
-        let focus_project_id = settings_project_id.clone();
-        spawn(async move {
-            gloo_timers::future::TimeoutFuture::new(0).await;
-            if *guide_workspace_for_action.peek() == target
-                && focus_runtime
-                    .model()
-                    .accepted
-                    .as_ref()
-                    .is_some_and(|snapshot| snapshot.document.id == focus_project_id)
-            {
-                setup_guide::focus_settings(target);
-            }
         });
-        guide_adapter_for_action.selected_context.set(None);
-        guide_adapter_for_action.anchor_scope.set(None);
-        guide_runtime_for_action.submit(Event::SelectParts {
-            operation_id: guide_runtime_for_action.operation(),
-            part_ids: Vec::new(),
-            range_part_ids: Vec::new(),
-            mode: SelectionMode::Replace,
-        });
-    };
-    let setup_state_for_dismiss = setup_state;
-    let guide_project_id_for_dismiss = document.id.clone();
-    let on_dismiss_guide = move |_| {
-        setup_state_for_dismiss.dismiss_guide(&guide_project_id_for_dismiss);
-    };
-    let setup_state_for_finish = setup_state;
-    let guide_project_id_for_finish = document.id.clone();
-    let mut guide_workspace_for_finish = workspace;
-    let on_finish_guide = move |_| {
-        guide_workspace_for_finish.set("Layout");
-        setup_state_for_finish.dismiss_guide(&guide_project_id_for_finish);
-    };
-    let (guide_stage_readiness, guide_stage_detail) = guide
-        .as_ref()
-        .map(|preferences| {
-            let guide_statuses = setup_guide::stage_statuses(
-                &document,
-                &model.active_board_id,
-                &snapshot.scene,
-                match &pcb_wiring_mount.resolution {
-                    pcb_wiring::PcbWiringResolution::Current { identity, plan }
-                        if identity.scope.document_id == document.id
-                            && identity.scope.board_id == model.active_board_id
-                            && identity.scope.instance_id.is_none()
-                            && identity.token == snapshot.token
-                            && identity.revision == document.revision =>
-                    {
-                        Some(plan.as_ref())
-                    }
-                    _ => None,
-                },
-            );
-            let guide_stage_index = match preferences.current_stage {
-                SetupGuideStage::Project => 0,
-                SetupGuideStage::Layout => 1,
-                SetupGuideStage::Wiring => 2,
-                SetupGuideStage::Case => 3,
-                SetupGuideStage::Review => 4,
-            };
-            let guide_stage_detail = guide_statuses[guide_stage_index].detail.clone();
-            (
-                guide_statuses.map(|status| status.ready),
-                guide_stage_detail,
-            )
-        })
-        .unwrap_or_default();
-    let canvas_transform_menu = match &toolbar_input {
-        workspace_composition::WorkspaceToolbarInput::Layout(input) => {
-            Some(input.transform.clone())
-        }
-        _ => None,
-    };
-    let selection_geometry_anchor = (!layout_assembly_3d() && active_workspace == "Layout")
-        .then(|| {
-            let points: Vec<_> = visible
-                .iter()
-                .filter(|part| model.selected_part_ids.contains(&part.id))
-                .map(|part| {
-                    scene
-                        .transforms
-                        .iter()
-                        .find(|t| t.id == part.id)
-                        .map_or(part.pose.at, |t| t.pose.at)
-                })
-                .collect();
-            if points.is_empty() {
-                return None;
-            }
-            let scale = svg.borrow().as_ref().map_or(1.0, |_surface| {
-                let (surface_width, surface_height) = zoom_surface_size();
-                (width / surface_width.max(1.0)).max(height / surface_height.max(1.0))
-            });
-            let x = (points.iter().map(|p| p.x).sum::<f64>() / points.len() as f64).clamp(
-                view_x + 60.0 * scale,
-                (view_x + width - 60.0 * scale).max(view_x + 60.0 * scale),
-            );
-            let y = points.iter().map(|p| p.y).fold(f64::INFINITY, f64::min) - 12.0 - 6.0 * scale;
-            Some((x, y, scale))
-        })
-        .flatten();
+    let on_dismiss_guide =
+        setup_guide_state::on_dismiss_guide_handler(setup_state, document.id.clone());
+    let on_finish_guide =
+        setup_guide_state::on_finish_guide_handler(setup_state, document.id.clone(), workspace);
+    let setup_guide_state::GuideReadiness {
+        guide_stage_readiness,
+        guide_stage_detail,
+        canvas_transform_menu,
+        selection_geometry_anchor,
+    } = setup_guide_state::use_guide_readiness(setup_guide_state::GuideReadinessInput {
+        guide: &guide,
+        document: document.clone(),
+        model: &model,
+        snapshot,
+        resolution: pcb_wiring_mount.resolution.clone(),
+        toolbar_input: &toolbar_input,
+        layout_assembly_3d,
+        visible: visible.clone(),
+        scene: scene.clone(),
+        svg: svg.clone(),
+        zoom_surface_size,
+        width,
+        height,
+        view_x,
+        active_workspace,
+    });
     let matrix_pointer_down =
         pointer::matrix_pointer_down_handler(pointer::MatrixPointerDownInput {
             runtime: runtime.clone(),
