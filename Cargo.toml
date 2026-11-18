@@ -27,6 +27,26 @@ exclude = [
   "web/vendor/dioxus-interpreter-js-0.7.10",
 ]
 
+[workspace.dependencies]
+# One web-sys feature list for every web crate. Cargo compiles web-sys, and everything built on it
+# such as dioxus-web, once per distinct feature set, so per-crate lists made each crate's
+# `wasm-pack test` build its own copy instead of reusing the page build's units.
+web-sys = { version = "=0.3.106", features = [
+  "Blob", "BlobPropertyBag", "Cache", "CacheStorage", "Client", "ClientQueryOptions", "ClientType",
+  "Clients", "CssStyleDeclaration", "DedicatedWorkerGlobalScope", "Document", "DomException",
+  "DomRect", "Element", "ErrorEvent", "Event", "EventInit", "EventTarget", "ExtendableEvent",
+  "ExtendableMessageEvent", "FetchEvent", "File", "FileList", "FocusOptions", "HtmlAnchorElement",
+  "HtmlCanvasElement", "HtmlDialogElement", "HtmlElement", "HtmlInputElement", "IdbDatabase",
+  "IdbFactory", "IdbObjectStore", "IdbObjectStoreParameters", "IdbOpenDbRequest", "IdbRequest",
+  "IdbTransaction", "IdbTransactionMode", "KeyboardEvent", "KeyboardEventInit", "Location",
+  "MediaQueryList", "MessageChannel", "MessageEvent", "MessagePort", "MutationObserver",
+  "MutationObserverInit", "Navigator", "Node", "NodeList", "PointerEvent", "PointerEventInit",
+  "RegistrationOptions", "Request", "RequestDestination", "ResizeObserver", "Response",
+  "ServiceWorker", "ServiceWorkerContainer", "ServiceWorkerGlobalScope",
+  "ServiceWorkerRegistration", "Storage", "SvgElement", "Url", "Window", "Worker",
+  "WorkerGlobalScope", "WorkerOptions", "WorkerType"
+] }
+
 [patch.crates-io]
 cgmath = { path = "renderer/vendor/cgmath-next-0.18.1" }
 dioxus-interpreter-js = { path = "web/vendor/dioxus-interpreter-js-0.7.10" }

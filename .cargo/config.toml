@@ -9,3 +9,9 @@ jobs = 12
 # explicit WASM_BINDGEN_TEST_TIMEOUT in the environment still overrides this default.
 [env]
 WASM_BINDGEN_TEST_TIMEOUT = "120"
+
+# dx adds `--cfg getrandom_backend="wasm_js"` to its wasm builds. Setting it here gives wasm-pack,
+# cargo test and Clippy the same flags, so they reuse the page build's units; build-web.py,
+# dev-web.py and check.py run dx with `--wasm-js-cfg false` so it isn't added twice.
+[target.wasm32-unknown-unknown]
+rustflags = ["--cfg", 'getrandom_backend="wasm_js"']

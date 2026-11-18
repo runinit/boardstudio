@@ -41,7 +41,9 @@ boardstudio-web-keymap = { path = "crates/keymap", optional = true }
 boardstudio-web-library = { path = "crates/library", optional = true }
 boardstudio-web-keycaps = { path = "crates/keycaps", optional = true }
 serde = { version = "1", features = ["derive"] }
-serde_json = { version = "1", features = ["float_roundtrip"], optional = true }
+# `alloc` matches what wasm-bindgen-test turns on, so the page build and the page tests resolve
+# serde_json identically and share every unit built on it.
+serde_json = { version = "1", features = ["float_roundtrip", "alloc"], optional = true }
 sha2 = { version = "=0.11.0", default-features = false, optional = true }
 
 [dev-dependencies]
@@ -58,6 +60,9 @@ dioxus = { version = "=0.7.10", default-features = false, features = ["minimal"]
 tokio = { version = "=1.53.1", features = ["macros", "rt", "time"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
+# wasm-bindgen-test enables `libm`; enabling it here too keeps num-traits, and Core above it, shared
+# between the page build and the page tests.
+num-traits = { version = "=0.2.19", default-features = false, features = ["libm"] }
 dioxus = { version = "=0.7.10", default-features = false, features = ["minimal", "web", "mounted"], optional = true }
 dioxus-web = { version = "=0.7.10", default-features = false, features = ["mounted"], optional = true }
 gloo-timers = { version = "=0.3.0", features = ["futures"], optional = true }
@@ -66,13 +71,7 @@ wasm-bindgen-futures = "=0.4.79"
 js-sys = "=0.3.106"
 serde-wasm-bindgen = "=0.6.5"
 futures-channel = "=0.3.34"
-web-sys = { version = "=0.3.106", features = [
-  "DedicatedWorkerGlobalScope", "DomException", "ErrorEvent", "Event", "EventInit", "EventTarget", "MessageEvent", "KeyboardEventInit", "CssStyleDeclaration",
-  "Worker", "WorkerOptions", "WorkerType", "IdbDatabase", "IdbFactory", "IdbObjectStore", "IdbOpenDbRequest",
-  "IdbRequest", "IdbTransaction", "IdbTransactionMode", "IdbObjectStoreParameters", "Storage", "Window", "Document", "Element", "HtmlElement", "HtmlAnchorElement", "HtmlCanvasElement", "SvgElement", "PointerEvent", "KeyboardEvent", "FocusOptions", "DomRect", "Response", "Request", "Blob", "BlobPropertyBag", "Url", "Location", "Node", "File", "FileList", "HtmlInputElement", "ResizeObserver", "MediaQueryList",
-  "Cache", "CacheStorage", "ExtendableEvent", "FetchEvent", "Clients", "ServiceWorkerContainer", "ServiceWorker", "MessageChannel", "MessagePort", "ExtendableMessageEvent", "Client", "ClientQueryOptions", "ClientType",
-  "ServiceWorkerGlobalScope", "ServiceWorkerRegistration", "WorkerGlobalScope", "Navigator", "RegistrationOptions", "RequestDestination", "HtmlDialogElement"
-] }
+web-sys = { workspace = true }
 
 [target.wasm32-unknown-unknown.dev-dependencies]
 wasm-bindgen-test = "0.3.79"

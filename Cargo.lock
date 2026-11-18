@@ -265,6 +265,7 @@ dependencies = [
  "futures-channel",
  "gloo-timers",
  "js-sys",
+ "num-traits",
  "serde",
  "serde-wasm-bindgen",
  "serde_json",
