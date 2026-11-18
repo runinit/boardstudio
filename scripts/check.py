@@ -613,7 +613,7 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
                  captured: list[tuple[Command, str]] | None = None,
                  outputs: list[tuple[Command, str]] | None = None,
                  receipt: verification_receipt.Collector | None = None,
-                 step: str = "", *, invocations=None) -> tuple[float, list[Command]]:
+                 step: str = "", *, invocations=None, workers=None) -> tuple[float, list[Command]]:
     """Runs independent launches together, printing each completed launch's output whole."""
     lock_fd = browser_tools._inherited_build_lock()
     invocations = invocations or {}
@@ -644,7 +644,7 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
         child_env = {**environment, **config}
         if receipt is not None:
             child_env.update(BOARDSTUDIO_RECEIPT_RUN_ID=receipt.run_id, BOARDSTUDIO_RECEIPT_ATTEMPT_ID=attempt)
-        if "cad/scripts/test-cad.py" not in command:
+        if not any(script in command for script in ("cad/scripts/test-cad.py", "scripts/run-wasm-tests.py")):
             child_env.pop("BOARDSTUDIO_BUILD_LOCK_FD", None)
         done = launch_command(argv, registry=registry, cwd=cwd, env=child_env, stdout=subprocess.PIPE,
                                  stderr=subprocess.STDOUT, text=True,
@@ -664,14 +664,16 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
         completed.append((command, result))
         return result
 
-    ordered = sorted(batch, key=launch_order)
+    # Start the page suite before the heavy crates so its listing and filters can overlap.
+    ordered = sorted(batch, key=lambda command: -1 if "scripts/run-wasm-tests.py" in command
+                     else launch_order(command))
     started = time.monotonic()
     failed: list[Command] = []
     futures = []
     error = None
     submitting = True
     interrupted = None
-    pool = ThreadPoolExecutor(max_workers=check_jobs())
+    pool = ThreadPoolExecutor(max_workers=workers or check_jobs())
     main_thread = threading.current_thread() is threading.main_thread()
     signals = {signal.SIGINT, signal.SIGTERM}
     previous_int = signal.getsignal(signal.SIGINT) if main_thread else None
@@ -863,14 +865,26 @@ def run_commands(name: str, commands: list[Command], environment: dict[str, str]
             end = index
             while end < len(commands) and is_crate_launch(commands[end]):
                 end += 1
+            workers = check_jobs()
+            if (name == "browser" and end < len(commands)
+                    and "scripts/run-wasm-tests.py" in commands[end] and "--all" in commands[end]):
+                page = commands[end]
+                # Reserve up to three slots for the page process and its filter pool.
+                page_workers = min(3, workers - 1)
+                invocations[tuple(page)] = (page, cwd, {"BOARDSTUDIO_CHECK_JOBS": str(page_workers)})
+                workers -= page_workers - 1
+                end += 1
             batch_outputs: list[tuple[Command, str]] = []
             elapsed, failed = run_parallel(commands[index:end], environment, outputs=batch_outputs,
-                                           receipt=receipt, step=name, invocations=invocations)
+                                           receipt=receipt, step=name, invocations=invocations, workers=workers)
             total += elapsed
             if failed:
                 output_by_cmd = {tuple(cmd): text for cmd, text in batch_outputs}
                 for failed_cmd in failed:
-                    _report_launch_failure(failed_cmd, output_by_cmd.get(tuple(failed_cmd), ""))
+                    if is_crate_launch(failed_cmd):
+                        _report_launch_failure(failed_cmd, output_by_cmd.get(tuple(failed_cmd), ""))
+                    else:
+                        print("check: command failed: " + shlex.join(failed_cmd), file=sys.stderr)
                 if not keep_going:
                     return total, False
                 any_failed = True
