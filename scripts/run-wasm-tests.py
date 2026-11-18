@@ -16,6 +16,7 @@ whitespace are unsupported by its Cargo runner setting. check.py browser uses it
 
 import argparse
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager, nullcontext
 import hashlib
 import importlib.util
@@ -34,7 +35,7 @@ from tempfile import TemporaryDirectory
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from check import format_wasm_failure_summary, summarize_wasm_failure  # noqa: E402
+from check import check_jobs, format_wasm_failure_summary, summarize_wasm_failure  # noqa: E402
 KNOWN_FAILURES = Path(__file__).with_name("wasm-known-failures.json")
 TEST_OWNERS = Path(__file__).with_name("wasm-test-owners.json")
 RUNNER_ENV = "BOARDSTUDIO_WASM_TEST_COMMAND"
@@ -607,32 +608,48 @@ def run(filters, known, root=ROOT, expected_tests=None, env=None, unmatched_filt
     for filter_ in unmatched_filters or []:
         problems.append(f"zero tests executed for filter {filter_ or '<all tests>'}; "
                         "no matching module appeared in the wasm test list")
+    selections = []
+    for filter_ in filters:
+        expected_for_filter = set((expected_tests or {}).get(filter_, []))
+        skips = sorted(name for name in (listed_tests or [])
+                       if filter_ in name and name not in expected_for_filter)
+        unsafe = [skip for skip in skips if any(skip in name for name in expected_for_filter)]
+        selections.append((filter_, skips, unsafe))
+
+    def invoke(filter_, skips):
+        started = time.monotonic()
+        code, found, output = run_filter(filter_, env, root, skip_filters=skips)
+        actual = filter_
+        if (not found and (expected_tests is None or filter_ not in expected_tests)
+                and filter_.count("::") > 2 and (parent := parent_filter(filter_))):
+            code, found, output = run_filter(parent, env, root)
+            actual = parent
+        return code, found, output, actual, time.monotonic() - started
+
+    def results():
+        workers = min(check_jobs(), len(selections))
+        if workers <= 1:
+            for filter_, skips, unsafe in selections:
+                yield None if unsafe else invoke(filter_, skips)
+        else:
+            with ThreadPoolExecutor(max_workers=workers) as executor:
+                futures = [None if unsafe else executor.submit(invoke, filter_, skips)
+                           for filter_, skips, unsafe in selections]
+                for future in futures:
+                    yield None if future is None else future.result()
+
     filter_reports, observed_terminal_outcomes = [], []
-    for index, filter_ in enumerate(filters, 1):
+    for index, ((filter_, _, unsafe_skips), result) in enumerate(zip(selections, results()), 1):
         label = filter_ or "<all tests>"
         print(f"run-wasm-tests: [{index}/{len(filters)}] {label}", file=sys.stderr)
-        started = time.monotonic()
-        expected_for_filter = set((expected_tests or {}).get(filter_, []))
-        skip_filters = sorted(name for name in (listed_tests or [])
-                              if filter_ in name and name not in expected_for_filter)
-        unsafe_skips = [skip for skip in skip_filters
-                        if any(skip in name for name in expected_for_filter)]
         if unsafe_skips:
             problems.append(f"cannot safely exclude substring collision for filter {label}: "
                             + ", ".join(unsafe_skips))
             continue
-        if skip_filters:
-            code, found, output = run_filter(filter_, env, root, skip_filters=skip_filters)
-        else:
-            code, found, output = run_filter(filter_, env, root)
-        runner_filter = filter_
-        if (not found and (expected_tests is None or filter_ not in expected_tests)
-                and filter_.count("::") > 2 and parent_filter(filter_)):
-            parent = parent_filter(filter_)
-            print(f"run-wasm-tests: no tests under {label}; widening to {parent}", file=sys.stderr)
-            code, found, output = run_filter(parent, env, root)
-            runner_filter = parent
-            label = f"{label} (via {parent})"
+        code, found, output, runner_filter, duration = result
+        if runner_filter != filter_:
+            print(f"run-wasm-tests: no tests under {label}; widening to {runner_filter}", file=sys.stderr)
+            label = f"{label} (via {runner_filter})"
         observations = terminal_observations(output)
         observed_terminal_outcomes.extend(observations)
         first_failure = summarize_wasm_failure(output)
@@ -641,7 +658,7 @@ def run(filters, known, root=ROOT, expected_tests=None, env=None, unmatched_filt
             "runner_filter": runner_filter,
             "expected_tests": sorted((expected_tests or {}).get(filter_, [])),
             "terminal_outcomes": observations,
-            "duration_ms": round((time.monotonic() - started) * 1000),
+            "duration_ms": round(duration * 1000),
         }
         if first_failure is not None:
             filter_report["first_failure"] = first_failure
