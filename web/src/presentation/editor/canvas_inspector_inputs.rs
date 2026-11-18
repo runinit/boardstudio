@@ -456,7 +456,7 @@ pub(super) fn pcb_inspector_input(
         workspace_composition::WorkspaceInspectorInput::Pcb(pcb_wiring_source.map(|source| {
             let firmware_position_projection =
                 pcb_wiring::firmware_position_projection(&source, render_generation, &resolution);
-            let firmware_feedback = firmware_feedback.clone().filter(|feedback| {
+            let firmware_feedback = firmware_feedback.filter(|feedback| {
                 feedback.target.is_visible(
                     &source.ui_scope,
                     render_generation,
@@ -474,7 +474,7 @@ pub(super) fn pcb_inspector_input(
             Box::new(pcb_wiring::PcbWiringInspectorProps {
                 board_overview: true,
                 source,
-                resolution: resolution.clone(),
+                resolution,
                 firmware_positions: firmware_position_projection,
                 firmware_feedback,
                 firmware_controls,

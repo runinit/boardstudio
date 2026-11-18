@@ -19,7 +19,7 @@ pub(super) struct GuideStateInput<'a> {
     pub guide_preferences: Signal<Option<setup_guide::SetupGuidePreferences>>,
     pub matrices: Vec<&'a boardstudio_core::model::Matrix>,
     pub mirrored_pair: objects::MirroredPairMount,
-    pub resolution: pcb_wiring::PcbWiringResolution,
+    pub resolution: &'a pcb_wiring::PcbWiringResolution,
 }
 
 pub(super) struct GuideState<'a> {
@@ -125,7 +125,7 @@ pub(super) fn use_guide_state(input: GuideStateInput<'_>) -> GuideState<'_> {
     let has_matrix = !matrices.is_empty();
     let setup_guide_active = guide.is_some();
     let mut setup_wiring_error = use_signal(|| None::<String>);
-    use_effect(use_reactive((&guide_preferences(), &resolution), {
+    use_effect(use_reactive((&guide_preferences(), resolution), {
         let runtime = runtime.clone();
         move |(guide, resolution)| {
             if !guide
@@ -546,7 +546,7 @@ pub(super) struct GuideReadinessInput<'a> {
     pub document: std::sync::Arc<boardstudio_core::model::ProjectDoc>,
     pub model: &'a ReadModel,
     pub snapshot: &'a AcceptedSnapshot,
-    pub resolution: pcb_wiring::PcbWiringResolution,
+    pub resolution: &'a pcb_wiring::PcbWiringResolution,
     pub toolbar_input: &'a workspace_composition::WorkspaceToolbarInput,
     pub layout_assembly_3d: Signal<bool>,
     pub visible: Vec<&'a Part>,
@@ -591,7 +591,7 @@ pub(super) fn use_guide_readiness(input: GuideReadinessInput<'_>) -> GuideReadin
                 &document,
                 &model.active_board_id,
                 &snapshot.scene,
-                match &resolution {
+                match resolution {
                     pcb_wiring::PcbWiringResolution::Current { identity, plan }
                         if identity.scope.document_id == document.id
                             && identity.scope.board_id == model.active_board_id
