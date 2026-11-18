@@ -658,8 +658,6 @@ pub(super) fn use_guide_readiness(input: GuideReadinessInput<'_>) -> GuideReadin
     }
 }
 
-// GROUPING: allow until the Editor rewrite lands; remove then.
-#[allow(dead_code)]
 pub(super) struct GuideNamed<'a> {
     pub state: GuideState<'a>,
     pub show_empty_board: bool,
@@ -685,25 +683,21 @@ pub(super) struct GuideNamed<'a> {
     pub on_finish_guide: EventHandler<()>,
 }
 
-// GROUPING: allow until the Editor rewrite lands; remove then.
-#[allow(dead_code)]
-pub(super) struct GuideInput<'a> {
-    pub setup_a: &'a super::setup_shell::SetupA,
-    pub setup_b: &'a super::setup_shell::SetupB,
-    pub views: &'a super::setup_workspaces::Views,
-    pub cam: &'a super::camera::CamNamed,
-    pub canvas: &'a super::canvas_state::CanvasNamed,
-    pub inp: &'a super::toolbar_inputs::WsInputs,
+pub(super) struct GuideInput<'a, 'b> {
+    pub setup_a: &'a super::setup_bundles::SetupA,
+    pub setup_b: &'a super::setup_bundles::SetupB,
+    pub views: &'b super::setup_workspaces::Views,
+    pub cam: &'b super::camera::CamNamed,
+    pub canvas: &'b super::canvas_state::CanvasNamed,
+    pub inp: &'b super::toolbar_inputs::WsInputs,
     pub snapshot: &'a AcceptedSnapshot,
-    pub render_scope: &'a Scope,
-    pub visible: &'a Vec<&'a Part>,
-    pub matrices: &'a Vec<&'a boardstudio_core::model::Matrix>,
-    pub matrix_setup: &'a objects::MatrixSetupMount,
+    pub render_scope: &'b Scope,
+    pub visible: &'b Vec<&'a Part>,
+    pub matrices: &'b Vec<&'a boardstudio_core::model::Matrix>,
+    pub matrix_setup: &'b objects::MatrixSetupMount,
 }
 
-// GROUPING: allow until the Editor rewrite lands; remove then.
-#[allow(dead_code)]
-pub(super) fn use_guide_bundle<'a>(input: GuideInput<'a>) -> GuideNamed<'a> {
+pub(super) fn use_guide_bundle<'a, 'b>(input: GuideInput<'a, 'b>) -> GuideNamed<'a> {
     let GuideInput {
         setup_a,
         setup_b,

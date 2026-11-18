@@ -775,17 +775,13 @@ pub(super) fn wheel_handler(input: WheelInput) -> impl FnMut(WheelEvent) + Clone
     }
 }
 
-// GROUPING: allow until the Editor rewrite lands; remove then.
-#[allow(dead_code)]
 pub(super) struct PkNamed {
     pub on_pcb_part_pointer_down: EventHandler<pcb_scene::PcbPartPointerDown>,
     pub on_pcb_empty_hit: EventHandler<PointerEvent>,
 }
 
-// GROUPING: allow until the Editor rewrite lands; remove then.
-#[allow(dead_code)]
 pub(super) fn build_keyboard_bundle(
-    setup_a: &super::setup_shell::SetupA,
+    setup_a: &super::setup_bundles::SetupA,
     cam: &super::camera::CamNamed,
     render_scope: &Scope,
 ) -> (
@@ -853,10 +849,8 @@ pub(super) fn build_keyboard_bundle(
     (keyboard, key_up, start_pan)
 }
 
-// GROUPING: allow until the Editor rewrite lands; remove then.
-#[allow(dead_code)]
 pub(super) fn build_keyboard_rest(
-    setup_a: &super::setup_shell::SetupA,
+    setup_a: &super::setup_bundles::SetupA,
     cam: &super::camera::CamNamed,
     snapshot: &AcceptedSnapshot,
     render_scope: &Scope,

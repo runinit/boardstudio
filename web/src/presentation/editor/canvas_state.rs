@@ -372,17 +372,13 @@ pub(super) fn use_inspector_projections(
     }
 }
 
-// GROUPING: allow until the Editor rewrite lands; remove then.
-#[allow(dead_code)]
 pub(super) struct CanvasNamed {
     pub selection: CanvasSelectionState,
     pub inspector: InspectorProjections,
 }
 
-// GROUPING: allow until the Editor rewrite lands; remove then.
-#[allow(dead_code)]
 pub(super) fn use_canvas_bundle(
-    setup_a: &super::setup_shell::SetupA,
+    setup_a: &super::setup_bundles::SetupA,
     views: &super::setup_workspaces::Views,
     cam: &super::camera::CamNamed,
     snapshot: &AcceptedSnapshot,

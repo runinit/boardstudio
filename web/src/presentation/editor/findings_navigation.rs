@@ -797,8 +797,6 @@ pub(super) fn use_selection_cleanup(
     });
 }
 
-// GROUPING: allow until the Editor rewrite lands; remove then.
-#[allow(dead_code)]
 pub(super) type NavigateFn = Box<dyn FnMut((Scope, String, Option<String>))>;
 
 pub(super) struct NavNamed {
@@ -807,11 +805,9 @@ pub(super) struct NavNamed {
     pub show_configured_board: EventHandler<String>,
 }
 
-// GROUPING: allow until the Editor rewrite lands; remove then.
-#[allow(dead_code)]
 pub(super) fn use_navigation_bundle(
-    setup_a: &super::setup_shell::SetupA,
-    setup_b: &super::setup_shell::SetupB,
+    setup_a: &super::setup_bundles::SetupA,
+    setup_b: &super::setup_bundles::SetupB,
     cam: &super::camera::CamNamed,
     snapshot: &AcceptedSnapshot,
     render_scope: &Scope,

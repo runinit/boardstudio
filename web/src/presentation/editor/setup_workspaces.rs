@@ -472,8 +472,6 @@ pub(super) fn on_show_mechanical_finding_handler(
     )
 }
 
-// GROUPING: allow until the Editor rewrite lands; remove then.
-#[allow(dead_code)]
 pub(super) struct Views {
     pub document: std::sync::Arc<boardstudio_core::model::ProjectDoc>,
     pub scene: std::sync::Arc<boardstudio_core::model::SceneDelta>,
@@ -481,8 +479,6 @@ pub(super) struct Views {
     pub visible_ids: Rc<Vec<String>>,
 }
 
-// GROUPING: allow until the Editor rewrite lands; remove then.
-#[allow(dead_code)]
 pub(super) fn derive_views(model: &ReadModel, snapshot: &AcceptedSnapshot) -> Views {
     let document = snapshot.document.clone();
     let scene = model

@@ -178,3 +178,74 @@ pub(super) fn use_commands(
         on_zoom_keymap_in,
     }
 }
+
+pub(super) struct CmdInput<'a> {
+    pub setup_a: &'a super::setup_bundles::SetupA,
+    pub views: &'a super::setup_workspaces::Views,
+    pub cam: &'a super::camera::CamNamed,
+    pub wir: &'a super::workspace_inputs::WsWiring,
+    pub inp: &'a super::toolbar_inputs::WsInputs,
+    pub guide: &'a super::setup_guide_state::GuideNamed<'a>,
+    pub snapshot: &'a AcceptedSnapshot,
+    pub render_scope: &'a Scope,
+    pub workspace_routing: WorkspaceRoutingSlots,
+}
+
+pub(super) fn use_view_commands(input: CmdInput<'_>) -> Commands {
+    let CmdInput {
+        setup_a,
+        views,
+        cam,
+        wir,
+        inp,
+        guide,
+        snapshot,
+        render_scope,
+        workspace_routing,
+    } = input;
+    let document = &views.document;
+    let split_focus = setup_a.split_focus;
+    let accepted_canvas_source = &cam.scene_bounds.accepted_canvas_source;
+    let render_generation = setup_a.render_generation;
+    let active_workspace = setup_a.active_workspace;
+    let model = &setup_a.model;
+    let layout_assembly_3d = setup_a.layout_assembly_3d;
+    let on_layout_view_mode = inp.on_layout_view_mode;
+    let toggle_footprints = wir.wiring.toggle_footprints;
+    let layout_state = setup_a.layout_state;
+    let objects_open = setup_a.objects_open;
+    let inspect_open = setup_a.inspect_open;
+    let objects_panel_settings = setup_a.objects_panel_settings;
+    let inspector_panel_settings = setup_a.inspector_panel_settings;
+    let has_inspector = setup_a.has_inspector;
+    let on_fit_keymap_board = cam.on_fit_keymap_board;
+    let on_zoom_keymap_out = cam.on_zoom_keymap_out;
+    let on_zoom_keymap_in = cam.on_zoom_keymap_in;
+    // Only a linked Layout split has an unfocused half.
+    use_commands(
+        CommandsInput {
+            document: document.clone(),
+            split_focus,
+            accepted_canvas_source: accepted_canvas_source.clone(),
+            snapshot,
+            render_scope: render_scope.clone(),
+            render_generation,
+            active_workspace,
+            model,
+            workspace_routing,
+            layout_assembly_3d,
+            on_layout_view_mode,
+            toggle_footprints,
+            layout_state,
+            objects_open,
+            inspect_open,
+            objects_panel_settings,
+            inspector_panel_settings,
+            guide: guide.state.guide.clone(),
+            has_inspector,
+        },
+        on_fit_keymap_board,
+        on_zoom_keymap_out,
+        on_zoom_keymap_in,
+    )
+}

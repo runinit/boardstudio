@@ -294,17 +294,20 @@ pub(super) struct CanvasSectionInput<'a> {
     pub svg: super::view_scene::LayoutSvgInput<'a>,
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn canvas_section(
+pub(super) fn canvas_section<S, M, E, C, K, U>(
     input: CanvasSectionInput<'_>,
-    start_pan: impl FnMut(PointerEvent) + Clone + 'static,
-    move_pointer: impl FnMut(PointerEvent) + Clone + 'static,
-    end_pointer: impl FnMut(PointerEvent) + Clone + 'static,
-    cancel_pointer: impl FnMut(PointerEvent) + Clone + 'static,
-    keyboard: impl FnMut(KeyboardEvent) + Clone + 'static,
-    key_up: impl FnMut(KeyboardEvent) + Clone + 'static,
+    nav: super::view_scene::SvgNavHandlers<S, M, E>,
+    key: super::view_scene::SvgKeyHandlers<C, K, U>,
     wheel: impl FnMut(WheelEvent) + Clone + 'static,
-) -> Element {
+) -> Element
+where
+    S: FnMut(PointerEvent) + Clone + 'static,
+    M: FnMut(PointerEvent) + Clone + 'static,
+    E: FnMut(PointerEvent) + Clone + 'static,
+    C: FnMut(PointerEvent) + Clone + 'static,
+    K: FnMut(KeyboardEvent) + Clone + 'static,
+    U: FnMut(KeyboardEvent) + Clone + 'static,
+{
     let CanvasSectionInput {
         setup_guide_active,
         active_workspace,
@@ -373,7 +376,7 @@ pub(super) fn canvas_section(
                     },
                 }
             } else if active_workspace == "Layout" {
-                {super::view_scene::layout_svg(svg, start_pan, move_pointer, end_pointer, cancel_pointer, keyboard, key_up, wheel)}
+                {super::view_scene::layout_svg(svg, nav, key, wheel)}
             } else if active_workspace == "Export" {
                 export_workspace::ExportWorkspace {
                     zmk_firmware: Some(zmk_firmware_export_panel),
@@ -526,6 +529,247 @@ pub(super) fn view_footer(input: FooterInput<'_>, on_fit_selection: EventHandler
                     on_toggle: on_toggle_layout_findings,
                 }
             }
+        }
+    }
+}
+
+pub(super) struct ViewRootInput<'a> {
+    pub setup_a: &'a super::setup_bundles::SetupA,
+    pub setup_b: &'a super::setup_bundles::SetupB,
+    pub views: &'a super::setup_workspaces::Views,
+    pub cam: super::camera::CamNamed,
+    pub nav: &'a super::findings_navigation::NavNamed,
+    pub canvas: &'a super::canvas_state::CanvasNamed,
+    pub wir: &'a super::workspace_inputs::WsWiring,
+    pub inp: super::toolbar_inputs::WsInputs,
+    pub guide: super::setup_guide_state::GuideNamed<'a>,
+    pub ptr: super::pointer_bundles::PtrNamed,
+    pub cmds: super::commands::Commands,
+    pub objects_input: workspace_composition::WorkspaceObjectsInput<'a>,
+    pub inspector_input: workspace_composition::WorkspaceInspectorInput,
+    pub matrix_setup: objects::MatrixSetupMount,
+    pub render_scope: Scope,
+    pub snapshot: &'a AcceptedSnapshot,
+}
+
+pub(super) fn view_root<S, M, E, C, K, U>(
+    input: ViewRootInput<'_>,
+    nav_h: super::view_scene::SvgNavHandlers<S, M, E>,
+    key_h: super::view_scene::SvgKeyHandlers<C, K, U>,
+    wheel: impl FnMut(WheelEvent) + Clone + 'static,
+) -> Element
+where
+    S: FnMut(PointerEvent) + Clone + 'static,
+    M: FnMut(PointerEvent) + Clone + 'static,
+    E: FnMut(PointerEvent) + Clone + 'static,
+    C: FnMut(PointerEvent) + Clone + 'static,
+    K: FnMut(KeyboardEvent) + Clone + 'static,
+    U: FnMut(KeyboardEvent) + Clone + 'static,
+{
+    let guide_state = &input.guide.state;
+    let scene: &boardstudio_core::model::SceneDelta = &input.views.scene;
+    let model = &input.setup_a.model;
+    let super::view_scene::SvgNavHandlers {
+        start_pan,
+        move_pointer,
+        end_pointer,
+    } = nav_h;
+    let super::view_scene::SvgKeyHandlers {
+        cancel_pointer,
+        keyboard,
+        key_up,
+    } = key_h;
+    let super::toolbar_inputs::WsInputs {
+        toolbar_input,
+        canvas_input,
+        ..
+    } = input.inp;
+    rsx! {
+        section { class: "flex min-h-0 flex-1 flex-col", "aria-label": "Keyboard editor",
+            div { class: if input.setup_a.active_workspace == "Export" { "dock-desk relative flex min-h-0 flex-1 flex-row gap-2 overflow-hidden bg-background p-2 [&_[id=workspace-panel-sheet]]:hidden!" } else { "dock-desk relative flex min-h-0 flex-1 flex-row gap-2 overflow-hidden bg-background p-2" },
+                DockLayout {
+                    objects: objects_panel(ObjectsPanelInput {
+                        guide_none: guide_state.guide.is_none(),
+                        objects_open: input.setup_a.objects_open,
+                        objects_panel_settings: input.setup_a.objects_panel_settings,
+                        active_workspace: input.setup_a.active_workspace,
+                        layout_state: input.setup_a.layout_state,
+                        objects_input: input.objects_input,
+                        layout_assembly_3d: input.setup_a.layout_assembly_3d,
+                        snapshot: input.snapshot,
+                        render_scope: input.render_scope.clone(),
+                        layout_snap_settings: input.setup_a.layout_snap_settings,
+                        layout_command_menu: input.setup_a.layout_command_menu,
+                        layout_snap_intent: input.wir.wiring.layout_snap_intent,
+                    }),
+                    inspector: inspector_panel(InspectorPanelInput {
+                        guide_none: guide_state.guide.is_none(),
+                        has_inspector: input.setup_a.has_inspector,
+                        inspect_open: input.setup_a.inspect_open,
+                        inspector_panel_settings: input.setup_a.inspector_panel_settings,
+                        active_workspace: input.setup_a.active_workspace,
+                        layout_findings: input.setup_a.layout_findings,
+                        document: input.views.document.clone(),
+                        findings: &input.views.findings,
+                        render_scope: input.render_scope.clone(),
+                        snapshot: input.snapshot,
+                        render_generation: input.setup_a.render_generation,
+                        on_close_layout_findings: input.nav.callbacks.on_close_layout_findings,
+                        on_layout_finding: input.nav.callbacks.on_layout_finding,
+                        inspector_input: input.inspector_input,
+                    }),
+                }
+                {guide_panel(
+                    GuidePanelInput {
+                        guide: &guide_state.guide,
+                        full_case_settings: input.guide.full_case_settings,
+                        active_workspace: input.setup_a.active_workspace,
+                        mechanical_settings: &input.setup_b.mechanical_settings,
+                        guide_name_failure: input.setup_a.guide_name_failure,
+                        guide_stage_readiness: input.guide.guide_stage_readiness,
+                        guide_stage_detail: input.guide.guide_stage_detail,
+                        name_value: input.guide.name_value,
+                        on_name_change: input.guide.on_name_change,
+                        on_name_commit: input.guide.on_name_commit,
+                        matrix_setup_on_open: input.matrix_setup.on_open,
+                        inline_matrix_setup: input.guide.inline_matrix_setup,
+                        inline_case_basics: input.guide.inline_case_basics,
+                        inline_controller_picker: input.guide.inline_controller_picker,
+                        has_matrix: guide_state.has_matrix,
+                        on_choose_controller: input.cam.placement.part_placement.on_choose_controller,
+                        physical_setup_mount: &input.setup_b.physical_setup_mount,
+                    },
+                    input.guide.on_stage_change,
+                    input.guide.on_open_workspace,
+                    input.guide.on_dismiss_guide,
+                    input.guide.on_finish_guide,
+                )}
+                {canvas_section(
+                    CanvasSectionInput {
+                        setup_guide_active: guide_state.setup_guide_active,
+                        active_workspace: input.setup_a.active_workspace,
+                        objects_open: input.setup_a.objects_open,
+                        inspect_open: input.setup_a.inspect_open,
+                        workspace: input.setup_a.workspace,
+                        matrix_setup: input.matrix_setup,
+                        mirrored_pair: input.setup_a.mirrored_pair.clone(),
+                        guide_none: guide_state.guide.is_none(),
+                        toolbar_input,
+                        guide_project_stage: guide_state.guide.as_ref().is_some_and(|guide| {
+                            guide.current_stage == SetupGuideStage::Project
+                        }),
+                        hardware_split: input.setup_b.physical_setup_mount.projection.topology
+                            == boardstudio_core::model::HardwareTopology::Split,
+                        hardware_wired: input.setup_b.physical_setup_mount.projection.transport
+                            == boardstudio_core::model::HardwareTransport::Wired,
+                        layout_assembly_3d: input.setup_a.layout_assembly_3d,
+                        mounted_module_select: input.wir.wiring.mounted_module_select,
+                        keycaps_fit_state: input.setup_b.keycaps_fit_state.clone(),
+                        focused_keycaps_finding: input.setup_b.focused_keycaps_finding,
+                        zmk_firmware_export_panel: input.wir.pcb.zmk_firmware_export_panel.clone(),
+                        return_workspace: input.setup_a.return_workspace,
+                        inspector_panel_settings: input.setup_a.inspector_panel_settings,
+                        canvas_input,
+                        model,
+                        snapshot: input.snapshot,
+                        on_empty_board_matrix: input.wir.pcb.on_empty_board_matrix,
+                        on_browse_parts: input.wir.pcb.on_browse_parts,
+                        show_empty_board: input.guide.show_empty_board,
+                        part_placement: &input.cam.placement.part_placement,
+                        document: input.views.document.clone(),
+                        pending_splay_origin_pick: input.setup_a.pending_splay_origin_pick,
+                        pending_anchor_pick: input.setup_a.pending_anchor_pick,
+                        field_preview: input.setup_a.field_preview,
+                        canvas_anchor_badge: &input.canvas.selection.canvas_anchor_badge,
+                        svg: super::view_scene::LayoutSvgInput {
+                            view_box: input.cam.scene_bounds.view_box,
+                            canvas_aria_label: input.canvas.inspector.canvas_aria_label,
+                            mount: input.canvas.inspector.mount,
+                            canvas_grid: &input.guide.canvas_grid,
+                            view_x: input.cam.scene_bounds.view_x,
+                            view_y: input.cam.scene_bounds.view_y,
+                            width: input.cam.scene_bounds.width,
+                            height: input.cam.scene_bounds.height,
+                            layer_visibility: &input.setup_a.layer_visibility,
+                            scene,
+                            model,
+                            outline_inspector: &input.setup_a.outline_inspector,
+                            outline_overlay_key: &input.guide.outline_overlay_key,
+                            runtime: input.setup_a.runtime.clone(),
+                            canvas_interaction: input.setup_a.canvas_interaction.clone(),
+                            svg: input.cam.svg_surface.svg.clone(),
+                            outline_snap_settings: &input.guide.outline_snap_settings,
+                            outline_pitch: input.guide.outline_pitch,
+                            outline_snap_origins: &input.guide.outline_snap_origins,
+                            selected_bridge: guide_state.selected_bridge,
+                            matrix_placement: &input.setup_a.matrix_placement,
+                            mirrored_pair: &input.setup_a.mirrored_pair,
+                            canvas_source: input.cam.scene_bounds.canvas_source,
+                            split_focused_half: input.cmds.split_focused_half,
+                            spacing_ghost_prop: &input.canvas.selection.spacing_ghost_prop,
+                            selected_tree_context: &input.canvas.selection.selected_tree_context,
+                            zoom_surface_size: input.cam.svg_surface.zoom_surface_size,
+                            canvas_anchor_badge: &input.canvas.selection.canvas_anchor_badge,
+                            matrix_pointer_down: input.ptr.matrix_pointer_down,
+                            part_pointer_down: input.ptr.part_pointer_down,
+                            selection_geometry_anchor: input.guide.selection_geometry_anchor,
+                            canvas_transform_menu: input.guide.canvas_transform_menu,
+                            matrix_transform_inspector: input.setup_a.matrix_transform_inspector.clone(),
+                            layout_owner: input.setup_a.layout_owner.clone(),
+                            adapter: input.setup_a.adapter.clone(),
+                            drag: input.cam.placement.drag.clone(),
+                            render_scope: input.render_scope.clone(),
+                            workspace: input.setup_a.workspace,
+                            layout_state: input.setup_a.layout_state,
+                            layout_transform_tool: input.setup_a.layout_transform_tool,
+                            layout_snap_settings: input.setup_a.layout_snap_settings,
+                            layout_transform_target: input.canvas.selection.layout_transform_target.clone(),
+                            matrix_splay_affect: input.setup_a.matrix_splay_affect,
+                            part_rail_selection: input.canvas.selection.part_rail_selection.clone(),
+                            part_rail_snap: input.canvas.selection.part_rail_snap,
+                            part_placement: &input.cam.placement.part_placement,
+                            document: input.views.document.clone(),
+                            split_focus: input.setup_a.split_focus,
+                            focused_keycaps_finding: input.setup_b.focused_keycaps_finding,
+                            snapshot: input.snapshot,
+                            active_workspace: input.setup_a.active_workspace,
+                            layout_assembly_3d: input.setup_a.layout_assembly_3d,
+                        },
+                    },
+                    super::view_scene::SvgNavHandlers {
+                        start_pan,
+                        move_pointer,
+                        end_pointer,
+                    },
+                    super::view_scene::SvgKeyHandlers {
+                        cancel_pointer,
+                        keyboard,
+                        key_up,
+                    },
+                    wheel,
+                )}
+            }
+            {view_footer(
+                FooterInput {
+                    active_workspace: input.setup_a.active_workspace,
+                    layout_assembly_3d: input.setup_a.layout_assembly_3d,
+                    undo: input.wir.wiring.undo.clone(),
+                    redo: input.wir.wiring.redo.clone(),
+                    layout_snap_settings: input.setup_a.layout_snap_settings,
+                    active_part_position: guide_state.active_part_position,
+                    layout_command_menu: input.setup_a.layout_command_menu,
+                    footer_selection_available: input.cam.footer_bounds.footer_selection_available,
+                    zoom_percent: input.cam.scene_bounds.zoom_percent,
+                    findings: &input.views.findings,
+                    snapshot: input.snapshot,
+                    on_toggle_layout_findings: input.nav.callbacks.on_toggle_layout_findings,
+                    on_fit_keymap_board: input.cmds.on_fit_keymap_board,
+                    on_zoom_keymap_out: input.cmds.on_zoom_keymap_out,
+                    on_zoom_keymap_in: input.cmds.on_zoom_keymap_in,
+                    model,
+                },
+                input.cam.on_fit_keymap_selection,
+            )}
         }
     }
 }

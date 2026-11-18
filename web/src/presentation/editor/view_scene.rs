@@ -67,17 +67,32 @@ pub(super) struct LayoutSvgInput<'a> {
     pub layout_assembly_3d: Signal<bool>,
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn layout_svg(
+pub(super) struct SvgNavHandlers<S, M, E> {
+    pub start_pan: S,
+    pub move_pointer: M,
+    pub end_pointer: E,
+}
+
+pub(super) struct SvgKeyHandlers<C, K, U> {
+    pub cancel_pointer: C,
+    pub keyboard: K,
+    pub key_up: U,
+}
+
+pub(super) fn layout_svg<S, M, E, C, K, U>(
     input: LayoutSvgInput<'_>,
-    start_pan: impl FnMut(PointerEvent) + Clone + 'static,
-    move_pointer: impl FnMut(PointerEvent) + Clone + 'static,
-    end_pointer: impl FnMut(PointerEvent) + Clone + 'static,
-    cancel_pointer: impl FnMut(PointerEvent) + Clone + 'static,
-    keyboard: impl FnMut(KeyboardEvent) + Clone + 'static,
-    key_up: impl FnMut(KeyboardEvent) + Clone + 'static,
+    nav: SvgNavHandlers<S, M, E>,
+    key: SvgKeyHandlers<C, K, U>,
     wheel: impl FnMut(WheelEvent) + Clone + 'static,
-) -> Element {
+) -> Element
+where
+    S: FnMut(PointerEvent) + Clone + 'static,
+    M: FnMut(PointerEvent) + Clone + 'static,
+    E: FnMut(PointerEvent) + Clone + 'static,
+    C: FnMut(PointerEvent) + Clone + 'static,
+    K: FnMut(KeyboardEvent) + Clone + 'static,
+    U: FnMut(KeyboardEvent) + Clone + 'static,
+{
     let LayoutSvgInput {
         view_box,
         canvas_aria_label,
@@ -132,6 +147,16 @@ pub(super) fn layout_svg(
         active_workspace,
         layout_assembly_3d,
     } = input;
+    let SvgNavHandlers {
+        start_pan,
+        move_pointer,
+        end_pointer,
+    } = nav;
+    let SvgKeyHandlers {
+        cancel_pointer,
+        keyboard,
+        key_up,
+    } = key;
     rsx! {
         svg { class: "mt-[76px] block h-[calc(100%-120px)] min-h-0 w-full touch-none bg-canvas max-[760px]:mt-0 max-[760px]:h-full", view_box: "{view_box}", preserve_aspect_ratio: "xMidYMid meet", tabindex: "0", role: "group", "aria-label": "{canvas_aria_label}", onmounted: mount,
         onpointerdown: start_pan, onpointermove: move_pointer, onpointerup: end_pointer, onpointercancel: cancel_pointer.clone(), onlostpointercapture: cancel_pointer, onkeydown: keyboard, onkeyup: key_up, onwheel: wheel,

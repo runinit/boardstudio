@@ -628,8 +628,6 @@ pub(super) fn use_placement_bindings(input: PlacementBindingsInput<'_>) -> Place
     }
 }
 
-// GROUPING: allow until the Editor rewrite lands; remove then.
-#[allow(dead_code)]
 pub(super) struct CamNamed {
     pub svg_surface: SvgSurface,
     pub scene_bounds: SceneBounds,
@@ -641,17 +639,13 @@ pub(super) struct CamNamed {
     pub on_zoom_keymap_in: EventHandler<()>,
 }
 
-// GROUPING: allow until the Editor rewrite lands; remove then.
-#[allow(dead_code)]
-// &Vec keeps .clone() verbatim.
-#[allow(clippy::ptr_arg)]
 pub(super) fn use_camera_bundle(
-    setup_a: &super::setup_shell::SetupA,
-    setup_b: &super::setup_shell::SetupB,
+    setup_a: &super::setup_bundles::SetupA,
+    setup_b: &super::setup_bundles::SetupB,
     views: &super::setup_workspaces::Views,
     snapshot: &AcceptedSnapshot,
     render_scope: &Scope,
-    visible: &Vec<&Part>,
+    visible: Vec<&Part>,
     matrix_setup: &mut objects::MatrixSetupMount,
 ) -> CamNamed {
     let runtime = &setup_a.runtime;

@@ -614,94 +614,6 @@ pub(super) fn objects_input<'a>(
     }
 }
 
-pub(super) struct OnLayoutViewModeArgs {
-    pub runtime: Rc<Runtime>,
-    pub adapter: SelectionAdapter,
-    pub layout_owner: LayoutOwnerIdentity,
-    pub workspace: Signal<&'static str>,
-    pub layout_assembly_3d: Signal<bool>,
-    pub layout_state: layout_workspace::LayoutWorkspaceState,
-    pub drag: Rc<RefCell<Option<Drag>>>,
-    pub svg: Rc<RefCell<Option<SvgElement>>>,
-    pub render_scope: Scope,
-    pub interaction_version: Signal<u64>,
-    pub part_placement: part_placement::PartPlacementMount,
-    pub matrix_placement: objects::MatrixPlacementMount,
-    pub canvas_interaction: CanvasInteractionArbiter,
-    pub mirrored_pair: objects::MirroredPairMount,
-    pub matrix_setup: objects::MatrixSetupMount,
-}
-
-pub(super) fn on_layout_view_mode(input: OnLayoutViewModeArgs) -> EventHandler<bool> {
-    let OnLayoutViewModeArgs {
-        runtime,
-        adapter,
-        layout_owner,
-        workspace,
-        layout_assembly_3d,
-        layout_state,
-        drag,
-        svg,
-        render_scope,
-        interaction_version,
-        part_placement,
-        matrix_placement,
-        canvas_interaction,
-        mirrored_pair,
-        matrix_setup,
-    } = input;
-    layout_view_mode_handler(
-        {
-            let runtime = runtime.clone();
-            let adapter = adapter.clone();
-            let owner = layout_owner.clone();
-            move || layout_owner_is_current(&runtime, workspace, &adapter, &owner)
-        },
-        layout_assembly_3d,
-        {
-            move |assembly_3d| {
-                layout_state.set_assembly_3d(assembly_3d);
-            }
-        },
-        LayoutPlacementCancellation {
-            parts: part_placement.clone(),
-            matrices: matrix_placement.clone(),
-            interactions: canvas_interaction.clone(),
-        },
-        {
-            let runtime = runtime.clone();
-            let drag = drag.clone();
-            let svg = svg.clone();
-            let render_scope = render_scope.clone();
-            move || {
-                selection::cancel_scoped_drag(&runtime, &drag, &svg, Some(&render_scope));
-                let mut interaction_version = interaction_version;
-                interaction_version += 1;
-            }
-        },
-        {
-            let mirrored_pair = mirrored_pair.clone();
-            let matrix_setup = matrix_setup.clone();
-            let matrix_placement = matrix_placement.clone();
-            move || {
-                if let Some(active) = mirrored_pair.placement.as_ref() {
-                    mirrored_pair.on_cancel.call(active.owner.clone());
-                } else if let Some(form) = mirrored_pair.form.as_ref() {
-                    mirrored_pair.on_cancel.call(form.owner.clone());
-                }
-                if let Some(projection) = matrix_setup.projection.as_ref() {
-                    matrix_setup.on_cancel.call(projection.owner.clone());
-                }
-                if let Some(owner) = matrix_placement.cancel_owner.clone() {
-                    matrix_placement.on_cancel.call(owner);
-                }
-            }
-        },
-    )
-}
-
-// GROUPING: allow until the Editor rewrite lands; remove then.
-#[allow(dead_code)]
 pub(super) struct WsWiring {
     pub wiring: WorkspaceEventWiring,
     pub pcb: PcbWiringBindings,
@@ -709,26 +621,24 @@ pub(super) struct WsWiring {
     pub on_module_attached: EventHandler<parts::AttachedModuleNavigation>,
 }
 
-pub(super) struct WiringInput<'a> {
-    pub setup_a: &'a super::setup_shell::SetupA,
-    pub setup_b: &'a super::setup_shell::SetupB,
+pub(super) struct WiringInput<'a, 'b> {
+    pub setup_a: &'a super::setup_bundles::SetupA,
+    pub setup_b: &'b super::setup_bundles::SetupB,
     pub snapshot: &'a AcceptedSnapshot,
-    pub render_scope: &'a Scope,
-    pub matrix_setup: &'a objects::MatrixSetupMount,
-    pub workspace_routing: &'a mut WorkspaceRoutingSlots,
+    pub render_scope: &'b Scope,
+    pub matrix_setup: &'b objects::MatrixSetupMount,
+    pub workspace_routing: &'b mut WorkspaceRoutingSlots,
     pub instance_scope_pending: bool,
-    pub layer_actions: &'a keymap::LayerActions,
-    pub cam: &'a super::camera::CamNamed,
+    pub layer_actions: &'b keymap::LayerActions,
+    pub cam: &'b super::camera::CamNamed,
     pub sel: super::selection_handlers::SelHandlers,
-    pub nav: &'a super::findings_navigation::NavNamed,
+    pub nav: &'b super::findings_navigation::NavNamed,
     pub pk: super::keyboard::PkNamed,
     pub ops: EventHandler<()>,
 }
 
-// GROUPING: allow until the Editor rewrite lands; remove then.
-#[allow(dead_code)]
-pub(super) fn use_workspace_wiring<'a>(
-    input: WiringInput<'a>,
+pub(super) fn use_workspace_wiring<'a, 'b>(
+    input: WiringInput<'a, 'b>,
     select_tree: impl FnMut(objects::TreeSelectRequest) + 'static,
     navigate: super::findings_navigation::NavigateFn,
     end_pointer: impl FnMut(PointerEvent) + Clone + 'static,

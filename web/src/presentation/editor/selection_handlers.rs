@@ -622,8 +622,6 @@ pub(super) fn on_pcb_part_hit_handler(
     })
 }
 
-// GROUPING: allow until the Editor rewrite lands; remove then.
-#[allow(dead_code)]
 pub(super) struct SelHandlers {
     pub on_layout_selection_kind: EventHandler<objects::LayoutSelectionKind>,
     pub on_layout_snap_intent: EventHandler<objects::LayoutSnapIntent>,
@@ -643,10 +641,8 @@ pub(super) struct SelHandlers {
     pub on_module_attached: EventHandler<parts::AttachedModuleNavigation>,
 }
 
-// GROUPING: allow until the Editor rewrite lands; remove then.
-#[allow(dead_code)]
 pub(super) fn build_selection_handlers(
-    setup_a: &super::setup_shell::SetupA,
+    setup_a: &super::setup_bundles::SetupA,
     snapshot: &AcceptedSnapshot,
     render_scope: &Scope,
     workspace_routing: WorkspaceRoutingSlots,
