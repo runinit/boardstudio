@@ -2133,7 +2133,9 @@ async fn drag_scenarios(smoke: &mut Smoke) -> Result<()> {
         }
         if !live.capture {
             driver::end_drag(&page, &mut hold).await?;
-            return Err(fail("Stagger cancel: pointer capture missing during preview"));
+            return Err(fail(
+                "Stagger cancel: pointer capture missing during preview",
+            ));
         }
         driver::press_key(&page, "Escape", "Escape", 27).await?;
         driver::end_drag(&page, &mut hold).await?;
