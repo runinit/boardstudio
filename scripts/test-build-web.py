@@ -39,6 +39,51 @@ class BuildWebTests(unittest.TestCase):
         self.assertTrue(all("--no-opt" not in command for command in builds(False)))
         self.assertTrue(all("--release" in command for command in builds(True)))
 
+    def test_only_fast_single_route_overlaps_dx_and_provider_lanes(self):
+        import threading
+        barrier = threading.Barrier(3, timeout=5)
+        output = Path(self.enterContext(tempfile.TemporaryDirectory())) / "site"
+        public = output / "public"
+        finished = []
+
+        def fake_run(command, *, cwd, output=None):
+            if "scripts/stage-ergogen-models.py" in command:
+                finished.append("ergogen")
+            else:
+                self.assertEqual(finished[0], "ergogen")
+                if command[0] == "dx" or "m1_core_worker" in command or "cad/scripts/build-cad-wasm.py" in command:
+                    barrier.wait()
+                if command[0] == "dx":
+                    self.assertIn("--wasm-js-cfg", command)
+                    self.assertIn("wasm-check", command)
+                    public.mkdir()
+                finished.append(command)
+
+        def stage():
+            self.assertEqual(len(finished), 7)
+
+        with patch.object(BUILD, "run", fake_run), patch.object(BUILD, "check_jobs", return_value=3), \
+             patch.object(BUILD, "dx_public", return_value=public), patch.object(BUILD, "stage_runtime_assets", stage), \
+             patch.object(BUILD, "copy_runtime_assets"), patch.object(BUILD, "embed_offline_worker"), \
+             patch.object(BUILD.shutil, "copy2"):
+            BUILD.build(output, release=False, fast=True)
+        self.assertTrue((output / "site-subpath/boardstudio").is_dir())
+
+    def test_shipped_multi_route_and_single_job_never_launch_build_lanes(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(BUILD, "run_lanes") as lanes, \
+             patch.object(BUILD, "prepare_runtime_providers") as providers, patch.object(BUILD, "run"), \
+             patch.object(BUILD, "dx_public", return_value=Path(directory) / "missing"):
+            for release, fast, routes, jobs in (
+                (True, False, ("subpath",), 3),
+                (False, True, ("subpath", "root"), 3),
+                (False, True, ("subpath",), 1),
+            ):
+                with self.subTest(release=release, fast=fast, routes=routes, jobs=jobs), \
+                     patch.object(BUILD, "check_jobs", return_value=jobs), self.assertRaises(FileNotFoundError):
+                    BUILD.build(Path(directory), release=release, routes=routes, fast=fast)
+                self.assertIsNone(providers.call_args.kwargs["page_build"])
+            lanes.assert_not_called()
+
     def test_model_staging_command_runs_with_the_staging_cli(self):
         import subprocess
         with tempfile.TemporaryDirectory() as directory:

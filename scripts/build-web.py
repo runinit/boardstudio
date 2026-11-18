@@ -5,7 +5,9 @@ from __future__ import annotations
 
 import argparse
 import base64
+from concurrent.futures import ThreadPoolExecutor
 import hashlib
+import io
 import time
 import json
 from pathlib import Path
@@ -13,6 +15,7 @@ import shutil
 import subprocess
 import sys
 import browser_tools
+from check import check_jobs
 
 ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "web"
@@ -35,10 +38,40 @@ def route_site(output: Path, route: str) -> Path:
     return output / ("site-root" if route == "root" else "site-subpath/boardstudio")
 
 
-def run(command: list[str], *, cwd: Path = ROOT, env: dict[str, str] | None = None) -> None:
-    print("$ " + " ".join(command), flush=True)
+def run(command: list[str], *, cwd: Path = ROOT, env: dict[str, str] | None = None,
+        output=None) -> None:
+    options = {}
+    if output is not None:
+        options.update(stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    print("$ " + " ".join(command), file=output or sys.stdout, flush=True)
     fd = browser_tools._inherited_build_lock()
-    subprocess.run(command, cwd=cwd, env=env, check=True, **({"pass_fds": (fd,)} if fd is not None else {}))
+    try:
+        result = subprocess.run(command, cwd=cwd, env=env, check=True,
+                                pass_fds=() if fd is None else (fd,), **options)
+    except subprocess.CalledProcessError as error:
+        if output is not None:
+            output.write(error.stdout or "")
+        raise
+    if output is not None:
+        output.write(result.stdout)
+
+
+def run_lanes(lanes: list[list[tuple[list[str], Path]]]) -> None:
+    def run_lane(lane, output):
+        for command, cwd in lane:
+            run(command, cwd=cwd, output=output)
+
+    outputs = [io.StringIO() for _ in lanes]
+    with ThreadPoolExecutor(max_workers=min(check_jobs(), len(lanes)), thread_name_prefix="web-build") as pool:
+        futures = [pool.submit(run_lane, lane, output) for lane, output in zip(lanes, outputs)]
+    failures = []
+    for output, future in zip(outputs, futures):
+        print(output.getvalue(), end="", flush=True)
+        if error := future.exception():
+            print(f"build-web: {error}", file=sys.stderr, flush=True)
+            failures.append(error)
+    if failures:
+        raise failures[0]
 
 
 def provider_commands(fast: bool = False) -> list[tuple[list[str], Path]]:
@@ -158,26 +191,34 @@ def embed_offline_worker(site: Path, worker_dir: Path = OFFLINE_WORKER) -> None:
     (site / "service-worker.js").write_text(bootstrap)
 
 
+def dx_command(route: str, *, release: bool, fast: bool) -> tuple[list[str], Path]:
+    command = ["dx", "build", "--web", "--base-path", ROUTES[route], *DX_FLAGS,
+               "--no-default-features", "--features", "page", "--cargo-args=--locked"]
+    if release:
+        command.insert(3, "--release")
+    elif fast:
+        # The checked build shares the `wasm-check` profile with every wasm test build.
+        command[3:3] = ["--profile", "wasm-check"]
+    return command, WEB
+
+
 def build(output: Path, *, release: bool = True, prepare_providers: bool = True,
           routes: tuple[str, ...] = DEFAULT_ROUTES, fast: bool = False) -> Path:
     output = output.resolve()
     output.mkdir(parents=True, exist_ok=True)
-    if prepare_providers:
-        prepare_runtime_providers(fast)
     public = dx_public(release)
-
+    overlap = fast and not release and prepare_providers and len(routes) == 1 and check_jobs() > 1
+    if overlap and public.exists():
+        shutil.rmtree(public)
+    if prepare_providers:
+        page_build = dx_command(routes[0], release=release, fast=fast) if overlap else None
+        prepare_runtime_providers(fast, page_build=page_build)
     for route in routes:
-        prefix = ROUTES[route]
-        if public.exists():
-            shutil.rmtree(public)
-        command = ["dx", "build", "--web", "--base-path", prefix, *DX_FLAGS,
-                   "--no-default-features", "--features", "page", "--cargo-args=--locked"]
-        if release:
-            command.insert(3, "--release")
-        elif fast:
-            # The checked build shares the `wasm-check` profile with every wasm test build.
-            command[3:3] = ["--profile", "wasm-check"]
-        run(command, cwd=WEB)
+        if not overlap:
+            if public.exists():
+                shutil.rmtree(public)
+            command, cwd = dx_command(route, release=release, fast=fast)
+            run(command, cwd=cwd)
         if not public.is_dir():
             raise FileNotFoundError(f"Dioxus did not produce its web public directory: {public}")
         site = route_site(output, route)
@@ -191,9 +232,18 @@ def build(output: Path, *, release: bool = True, prepare_providers: bool = True,
     return output
 
 
-def prepare_runtime_providers(fast: bool = False) -> None:
-    for command, cwd in provider_commands(fast):
+def prepare_runtime_providers(fast: bool = False, *, page_build: tuple[list[str], Path] | None = None) -> None:
+    commands = provider_commands(fast)
+    if page_build is None:
+        for command, cwd in commands:
+            run(command, cwd=cwd)
+    else:
+        # Prepare Ergogen before dx sees the asset directory. Keep the root release
+        # providers together because they share the same target/profile lock.
+        release_providers, cad, ergogen = commands[:-2], commands[-2], commands[-1]
+        command, cwd = ergogen
         run(command, cwd=cwd)
+        run_lanes([release_providers, [cad], [page_build]])
     shutil.copy2(ROOT / "catalogue/modules/imported-modules.json",
                  WEB / "assets/imported-modules.json")
     stage_runtime_assets()
