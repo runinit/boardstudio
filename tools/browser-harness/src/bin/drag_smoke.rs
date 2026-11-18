@@ -1383,6 +1383,9 @@ async fn collision_scenario_inner(
         None => return Err(fail("no Case (optional) control")),
     }
     select_combobox_option(page, "Case mounting style", "Rigid mount").await?;
+    // Case basics live in the setup guide, which overlays the workspace's
+    // collision actions until the user dismisses it (as in the drag scenario).
+    driver::click_role(page, None, "button", "Hide guide").await?;
     driver::wait_for(
         page,
         r#"[...document.querySelectorAll('[role="status"]')].some(element => element.textContent.includes('Exact case geometry ready.'))"#,
@@ -1395,9 +1398,10 @@ async fn collision_scenario_inner(
     driver::wait_for(
         page,
         r#"(() => {
-      const panel = document.querySelector('.m1-case-collision-checks');
+      const panel = document.querySelector('[data-slot="collapsible"]:has(> [aria-label="Collision check"])');
       return panel && !panel.querySelector('[role="status"]')
-        && [...panel.querySelectorAll('p')].some(element => element.textContent.includes('↔') || element.getAttribute('role') === 'alert');
+        && (!!panel.querySelector('[role="alert"]')
+          || [...panel.querySelectorAll('p')].some(element => element.textContent.includes('↔')));
     })()"#,
         "collision findings",
         Duration::from_secs(120),
@@ -1407,18 +1411,18 @@ async fn collision_scenario_inner(
     let layout = driver::eval(
         page,
         r#"(() => {
-      const panel = document.querySelector('.m1-case-collision-checks');
-      const container = panel.closest('.m1-case-panel');
+      const panel = document.querySelector('[data-slot="collapsible"]:has(> [aria-label="Collision check"])');
+      const container = panel.closest('[aria-label="Case assembly"]');
       const viewer = document.querySelector('[aria-label^="Interactive 3D Case preview"]');
       const box = element => { const { x, y, width, height } = element.getBoundingClientRect(); return { x, y, width, height }; };
-      const outside = element => !element.closest('.m1-case-collision-provenance');
+      const outside = element => !element.closest('[data-slot="collapsible"]:has(> [aria-label="Witness identity"])');
       return {
-        alerts: [...panel.querySelectorAll('p[role="alert"]')].map(element => element.textContent),
+        alerts: [...panel.querySelectorAll('[role="alert"]')].map(element => element.textContent),
         findings: [...panel.querySelectorAll('p:not([role="alert"])')]
           .filter(element => outside(element) && element.textContent.includes('↔')).map(element => element.textContent),
         panel: { ...box(panel), scrollHeight: panel.scrollHeight, clientHeight: panel.clientHeight,
           overflowY: getComputedStyle(panel).overflowY },
-        container: container && box(container),
+        container: box(container),
         viewer: { ...box(viewer), display: getComputedStyle(viewer).display, visibility: getComputedStyle(viewer).visibility },
         viewport: { width: window.innerWidth, height: window.innerHeight },
       };
@@ -1598,6 +1602,7 @@ async fn qualification_scenario_inner(
     goto(page, url, "opening the preview").await?;
     driver::create_new_keyboard(page).await?;
     driver::click_role(page, None, "button", "Continue to layout").await?;
+    driver::click_role(page, None, "button", "Hide guide").await?;
     saved(page).await?;
     let rewrite = format!(
         r#"(async (unavailable) => new Promise((resolve, reject) => {{
@@ -1665,7 +1670,7 @@ async fn qualification_scenario_inner(
         driver::wait_for(
             page,
             r#"(() => {
-      const panel = document.querySelector('.m1-case-collision-checks');
+      const panel = document.querySelector('[data-slot="collapsible"]:has(> [aria-label="Collision check"])');
       return panel && !panel.querySelector('[role="status"]') && panel.textContent.includes('↔');
     })()"#,
             "qualification findings",
@@ -1675,12 +1680,12 @@ async fn qualification_scenario_inner(
         let observed = driver::eval(
             page,
             r#"(() => {
-      const panel = document.querySelector('.m1-case-collision-checks');
-      const outside = element => !element.closest('.m1-case-collision-provenance');
+      const panel = document.querySelector('[data-slot="collapsible"]:has(> [aria-label="Collision check"])');
+      const outside = element => !element.closest('[data-slot="collapsible"]:has(> [aria-label="Witness identity"])');
       return {
         summaries: [...panel.querySelectorAll('p')].filter(element => outside(element) && element.textContent.includes('↔')).map(element => element.textContent),
         alerts: [...panel.querySelectorAll('[role="alert"]')].map(element => element.textContent),
-        provenance: [...panel.querySelectorAll('.m1-case-collision-provenance')].map(element => element.textContent),
+        provenance: [...panel.querySelectorAll('[data-slot="collapsible"]:has(> [aria-label="Witness identity"])')].map(element => element.textContent),
         preparations: window.collisionPreparations,
       };
     })()"#,
@@ -1930,7 +1935,7 @@ async fn qualification_scenario_inner(
     // Only finding paragraphs (those containing ↔) count, like the old runner.
     let remaining_findings: i64 = driver::eval(
         page,
-        r#"[...document.querySelector('.m1-case-collision-checks').querySelectorAll('p')].filter(element => element.textContent.includes('↔')).length"#,
+        r#"[...document.querySelector('[data-slot="collapsible"]:has(> [aria-label="Collision check"])').querySelectorAll('p')].filter(element => element.textContent.includes('↔')).length"#,
     )
     .await?
     .as_i64()
@@ -1966,26 +1971,41 @@ struct FixtureRun {
     preparations: Value,
 }
 
-/// Choose a native select option by visible label, firing input/change.
+/// Drive the shared Select through its accessible trigger and scoped option.
+/// Trusted input is required: assigning a value bypasses the production control.
 async fn select_combobox_option(page: &Page, name: &str, option_label: &str) -> Result<()> {
-    let expression = format!(
+    let timeout = Duration::from_secs(5);
+    driver::click_role_timeout(page, None, "button", name, timeout).await?;
+    driver::wait_for(
+        page,
+        &format!(
+            r#"[...document.querySelectorAll('[role="listbox"]')].some(el => el.getAttribute('aria-label') === {} && el.getBoundingClientRect().height > 0)"#,
+            json!(name)
+        ),
+        &format!("open listbox {name}"),
+        timeout,
+    )
+    .await?;
+    let lists = driver::find_role(page, None, "listbox", name).await?;
+    let [(list, _)] = lists.as_slice() else {
+        return Err(fail(format!(
+            "expected one open listbox {name}, saw {}",
+            lists.len()
+        )));
+    };
+    driver::click_role_timeout(page, Some(*list), "option", option_label, timeout).await?;
+    driver::wait_for(
+        page,
+        &format!(
         r#"((name, optionLabel) => {{
-    const root = document.querySelector(`[aria-label="${{name}}"]`)
-      || [...document.querySelectorAll('[role="combobox"]')].find(el => el.getAttribute('aria-label') === name);
-    if (!root) throw new Error(`missing combobox ${{name}}`);
-    const select = root.tagName === 'SELECT' ? root : root.querySelector('select');
-    if (!select) throw new Error(`combobox ${{name}} is not a native select`);
-    const option = [...select.options].find(opt => (opt.text || opt.label || '').includes(optionLabel));
-    if (!option) throw new Error(`missing option ${{optionLabel}} in ${{name}}`);
-    select.value = option.value;
-    select.dispatchEvent(new Event('input', {{ bubbles: true }}));
-    select.dispatchEvent(new Event('change', {{ bubbles: true }}));
-    return true;
+    const trigger = [...document.querySelectorAll('button')].find(el => el.getAttribute('aria-label') === name);
+    return trigger?.textContent.trim() === optionLabel && trigger.getAttribute('aria-expanded') === 'false';
   }})({}, {})"#,
-        serde_json::to_string(name).unwrap_or_default(),
-        serde_json::to_string(option_label).unwrap_or_default()
-    );
-    driver::eval(page, &expression).await.map(|_| ())
+        json!(name), json!(option_label)
+        ),
+        &format!("{name} selected {option_label}"),
+        timeout,
+    ).await
 }
 
 /// Parse `matrix/<id>/r<row>c<column>` from a part id.
