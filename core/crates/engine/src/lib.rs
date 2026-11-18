@@ -12,7 +12,6 @@ pub mod firmware;
 pub mod generators;
 mod geometry;
 mod hardware;
-#[path = "../../../src/hash.rs"]
 pub mod hash;
 mod inputs;
 mod keycaps;

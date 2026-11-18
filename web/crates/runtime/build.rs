@@ -1,5 +1,5 @@
 // Compile only the shared hash helper into the host-side model generator.
-#[path = "../../../core/src/hash.rs"]
+#[path = "../../../core/crates/engine/src/hash.rs"]
 mod hash;
 use hash::sha256_hex;
 use std::{
