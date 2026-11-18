@@ -96,6 +96,9 @@ class QuickPlanTests(unittest.TestCase):
         launches = [command for command in plan["browser"] if check.is_crate_launch(command)]
         self.assertTrue(launches)
         self.assertTrue(all("web/crates/keymap" in command for command in launches))
+        self.assertEqual(plan["browser"], [
+            [*check.WASM_CRATE_BUILD, "-p", "boardstudio-web-keymap"], *launches,
+        ])
         self.assertEqual(plan["test"][0][:3], ["cargo", "test", "--locked"])
         self.assertIn("keymap", plan["test"][0])
         self.assertIn("web", plan["test"][0])

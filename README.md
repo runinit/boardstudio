@@ -120,19 +120,20 @@ fonts, and shared finding outlines live in `web/assets/workbench-base.css`.
 is missing; CI installs it. Only the generator export check (`core/tests/generator_export.rs`) can be skipped
 on purpose, with `BOARDSTUDIO_ALLOW_NO_KICAD=1`; the KiCad integration tests have no skip.
 
-**Browser tests.** The runner checks that every listed test actually executes. Each presentation crate
-under `web/crates/` is one test launch (`wasm-pack test --headless --chrome web/crates/<crate> --lib`,
-which starts its own `chromedriver` and Chrome); the Case workspace, panel and setup guide tests run
-separately because their mounted fixtures need an isolated DOM. The check runs up to four crate launches
-at once (`BOARDSTUDIO_CHECK_JOBS`, `1` for serial) and builds test wasm without debug info
-(`CARGO_PROFILE_DEV_DEBUG=false`, which is most of a launch's cost; run `wasm-pack test` by hand,
-without the variable, for source-level debugging). Use `python3 scripts/check.py browser --only <crate>...`
-to run only the named presentation crate launch(es) without the full packaged build or drag smoke (reported
-as a partial subset, not full acceptance), and add `--keep-going` to continue across independent browser
-launches while still exiting nonzero if any failed. CSS-dependent crate subsets first build the
-Dioxus page to generate the test stylesheet. Each batch has a bounded two-minute timeout,
-overridable with `WASM_BINDGEN_TEST_TIMEOUT`. A native test run alone does not compile WASM-only
-presentation code. Browser setup installs the locked wasm-bindgen runner before executing tests.
+**Browser tests.** The page runner checks that every listed test executes. The presentation crate suite
+builds the selected lib test binaries in one Cargo invocation, then runs them with the locked
+`wasm-bindgen-test-runner` from each crate directory. Each launch starts its own `chromedriver` and Chrome.
+The panel and setup guide tests each get a separate browser session using the same binary as their
+crate's other tests. The page suite also isolates the Case workspace fixtures. The check runs up to
+four crate launches at once (`BOARDSTUDIO_CHECK_JOBS`, `1` for serial), with a two-minute timeout per
+launch (`WASM_BINDGEN_TEST_TIMEOUT`). Use `python3 scripts/check.py browser --only <crate>...` for a
+partial crate run without the packaged build or drag smoke. Add `--keep-going` to continue across
+independent browser launches and still exit nonzero on failure. CSS-dependent subsets generate
+the test stylesheet first. The crate suite uses a matching wasm-bindgen pair from wasm-pack's cache,
+`PATH`, or an explicit `BOARDSTUDIO_WASM_BINDGEN_DIR`. On a fresh machine, install
+`wasm-bindgen-cli` at the version in `Cargo.lock` or populate the cache with a manual wasm-pack run.
+For source-level debugging, run `wasm-pack test --headless --chrome web/crates/<crate> --lib` by hand
+with `CARGO_PROFILE_DEV_DEBUG` unset. Add `--features page` for `host`.
 The browser step opens the packaged page and runs a trusted mouse-drag smoke over
 Part, Column, Stagger and Ctrl+Offset. It checks live preview, pointer capture, saved document state
 and exact Undo. Its success receipt and failure log are kept under `web/target/test-results/drag-browser/`.
@@ -140,7 +141,7 @@ Browser checks use the Rust harness and a Chrome or Chromium executable availabl
 
 **Verification receipts.** Add `--receipt PATH` to any check invocation to write a JSON receipt at
 `PATH` and a reviewer summary at `PATH.md`, both derived only from the output that invocation
-already captured. The receipt keeps native `cargo test` binaries, direct `wasm-pack test` crate
+already captured. The receipt keeps native `cargo test` binaries, browser crate
 launches, the `web/src` page suite and the provider/product smoke checks in separate scopes, each
 with its full observed test names and outcomes, module-prefix group counts, and its own exit
 status, completeness and problems. Planned-but-unrun commands are `not_run`; malformed or

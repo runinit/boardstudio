@@ -136,6 +136,8 @@ class CachePolicyTests(unittest.TestCase):
         self.assertIn("- suite: wasm\n            cache: web-wasm", web)
         self.assertIn("if: matrix.suite == 'packaged'\n        run: python3 scripts/check.py build browser-packaged", web)
         self.assertIn("if: matrix.suite == 'wasm'\n        run: python3 scripts/check.py browser-wasm", web)
+        self.assertIn("run: python3 scripts/check.py browser-wasm\n        env:\n"
+                      "          BOARDSTUDIO_WASM_BINDGEN_DIR: ${{ runner.temp }}/wasm-bindgen-patched", web)
         self.assertIn("needs: [native, web]", job("release-build"))
         self.assertIn('test "${{ needs.web.result }}" = success', job("web-result"))
 

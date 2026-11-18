@@ -17,7 +17,6 @@ whitespace are unsupported by its Cargo runner setting. check.py browser uses it
 import argparse
 from collections import Counter
 from contextlib import contextmanager, nullcontext
-import glob
 import hashlib
 import importlib.util
 import json
@@ -165,27 +164,25 @@ def load_test_owners(path=None):
     return normalized
 
 
-def locked_wasm_bindgen_version(root=ROOT):
-    lock = (Path(root) / "Cargo.lock").read_text()
-    match = re.search(r'name = "wasm-bindgen"\nversion = "([^"]+)"', lock)
-    return match.group(1) if match else None
-
-
 def wasm_bindgen_dir(root=ROOT):
-    candidates = [Path(p).parent for p in glob.glob(os.path.expanduser(
-        "~/.cache/.wasm-pack/wasm-bindgen-*/wasm-bindgen-test-runner"))]
-    if not candidates:
-        raise RunnerError("no cached wasm-bindgen-test-runner under ~/.cache/.wasm-pack; run "
-                          "`wasm-pack test --headless --chrome web ...` once with network access to populate it")
-    version = locked_wasm_bindgen_version(root)
-    for directory in sorted(candidates):
+    try:
+        version = wasm_bindgen_tools.locked_version(root)
+    except (OSError, ValueError) as error:
+        raise RunnerError(str(error)) from error
+    cache = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / ".wasm-pack"
+    candidates = [path.parent for path in sorted(cache.glob(
+        f"wasm-bindgen-*/{wasm_bindgen_tools.TEST_RUNNER}"))]
+    if bindgen := shutil.which("wasm-bindgen"):
+        candidates.insert(0, Path(bindgen).absolute().parent)
+    for directory in candidates:
         try:
-            out = subprocess.run([str(directory / "wasm-bindgen"), "--version"], capture_output=True, text=True).stdout
-        except OSError:
+            wasm_bindgen_tools.validate_pair(directory, version)
+        except (OSError, subprocess.SubprocessError, ValueError):
             continue
-        if version and out.split()[-1:] == [version]:
-            return directory
-    return sorted(candidates)[-1]
+        return directory
+    raise RunnerError(f"no wasm-bindgen pair at locked version {version} on PATH or in {cache}; "
+                      f"run `cargo install wasm-bindgen-cli --locked --version {version}` "
+                      "or set BOARDSTUDIO_WASM_BINDGEN_DIR to a matching pair")
 
 
 def pinned_cft_dir(env=None):
@@ -521,6 +518,7 @@ def desktop_webdriver_config(env, root=ROOT):
                 env[WEBDRIVER_CONFIG_ENV] = str(config)
                 yield env
             return
+        env[WEBDRIVER_CONFIG_ENV] = str(Path(env[WEBDRIVER_CONFIG_ENV]).resolve())
         yield env
         return
     chrome = resolve_chrome_binary(env)

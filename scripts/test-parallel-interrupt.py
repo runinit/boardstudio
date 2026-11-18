@@ -31,7 +31,9 @@ import os, signal, sys
 sys.path.insert(0, sys.argv[1])
 import check
 signal.pthread_sigmask(signal.SIG_SETMASK, {signal.SIGUSR1, signal.SIGINT} if sys.argv[4] == 'True' else set())
-check.run_parallel([[sys.executable, '-c', sys.argv[2], sys.argv[3]]], dict(os.environ))
+command = check.crate_launch('layout', 'setup_guide::')
+argv = [sys.executable, '-c', sys.argv[2], sys.argv[3]]
+check.run_parallel([command], dict(os.environ), invocations={tuple(command): (argv, sys.argv[3], {})})
 """
                 proc = subprocess.Popen([sys.executable, '-c', runner, str(ROOT / 'scripts'), child, directory, str(custom)], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
                 try:

@@ -6,7 +6,7 @@ scope, exit status and observed results, and keeps scopes separate:
 
   * `native`     `cargo test` binaries, with every observed test name and outcome and the
                  native name guard's matched/missing/new semantics against the retention list.
-  * `wasm-crate` each direct `wasm-pack test web/crates/<crate>` launch, with full names.
+  * `wasm-crate` each presentation-crate browser launch, with full names.
   * `page-suite` the `web/src` page runner JSON (a scoped part of the browser gate, not all of it).
   * `smoke`      the real-browser drag smoke and CAD provider checks: a separate evidence
                  scope, never added to Rust test counts.
@@ -30,11 +30,13 @@ import json
 import hashlib
 from pathlib import Path
 import re
+import shlex
 import subprocess
 import threading
 import uuid
 
 import check_native_tests
+import wasm_bindgen_tools
 
 SCHEMA_VERSION = 1
 
@@ -46,7 +48,7 @@ OTHER = "other"
 
 SMOKE_SCRIPTS = {"run-drag-browser.py", "test-cad-provider.py", "test-cad-browser.py", "face-completeness-gate.py"}
 
-# Terminal lines of a direct `wasm-pack test` launch.
+# Terminal lines of a wasm-bindgen-test-runner launch.
 WASM_STATUS = re.compile(r"^test (\S+) \.\.\. (ok|FAILED|FAIL|ignored)\s*$", re.M)
 WASM_INVOKED = re.compile(r"^\s*Invoking test: (\S+)\s*$", re.M)
 WASM_SUMMARY = re.compile(
@@ -80,10 +82,10 @@ def script_name(command: list[str]) -> str:
 
 
 def scope_of(command: list[str]) -> str:
-    if command[:2] == ["cargo", "test"]:
+    if command[:2] == ["cargo", "test"] and "--no-run" not in command:
         return NATIVE
-    if command[:2] == ["wasm-pack", "test"]:
-        return WASM_CRATE if crate_of(command) else OTHER
+    if crate_launch_key(command) is not None:
+        return WASM_CRATE
     name = script_name(command)
     if name == "run-wasm-tests.py":
         return PAGE_SUITE
@@ -95,6 +97,17 @@ def scope_of(command: list[str]) -> str:
 def crate_of(command: list[str]) -> str | None:
     return next((part.removeprefix("web/crates/") for part in command
                  if part.startswith("web/crates/")), None)
+
+
+def crate_launch_key(command: list[str]) -> tuple[str, tuple[str, ...]] | None:
+    """Match crate launches across runner versions by crate and exact test arguments."""
+    if command[:1] == [wasm_bindgen_tools.TEST_RUNNER] and len(command) >= 2:
+        if crate := crate_of(command[:2]):
+            return crate, tuple(command[2:])
+    if command[:2] == ["wasm-pack", "test"] and (crate := crate_of(command)):
+        filters = command[command.index("--") + 1:] if "--" in command else []
+        return crate, tuple(filters)
+    return None
 
 
 def group_counts(names: list[str]) -> dict[str, int]:
@@ -329,21 +342,28 @@ def _before_after(native: dict | None, commands: list[dict], base: dict | None,
                   base_path: Path | None) -> dict:
     if not base or base.get("schema_version") != SCHEMA_VERSION or not (base.get("source") or {}).get("revision"):
         return {"status": "unknown", "reason": "no base-revision run evidence supplied"}
-    base_by_key = {(record["scope"], tuple(record.get("command", []))): record
-                   for record in base.get("commands", [])}
+    base_by_key = {crate_launch_key(record.get("command", [])): record
+                   for record in base.get("commands", []) if record["scope"] == WASM_CRATE}
     groups = []
     for record in commands:
         if record["scope"] != WASM_CRATE or not record.get("passed") or not record.get("complete"):
             continue
-        base_record = base_by_key.get((record["scope"], tuple(record["command"])))
+        _, filters = key = crate_launch_key(record["command"])
+        base_record = base_by_key.get(key)
         if base_record is None or not base_record.get("passed") or not base_record.get("complete"):
             continue
         current = record.get("groups") or {}
         before = base_record.get("groups") or {}
         delta = {prefix: current.get(prefix, 0) - before.get(prefix, 0)
                  for prefix in sorted(set(current) | set(before))}
-        groups.append({"scope": record["scope"], "crate": record.get("crate"),
-                       "current": current, "base": before, "delta": delta})
+        current_tests = {test["name"]: test["outcome"] for test in record["tests"]}
+        before_tests = {test["name"]: test["outcome"] for test in base_record["tests"]}
+        groups.append({"scope": record["scope"], "crate": record.get("crate"), "filters": list(filters),
+                       "current": current, "base": before, "delta": delta,
+                       "missing": sorted(before_tests.keys() - current_tests.keys()),
+                       "new": sorted(current_tests.keys() - before_tests.keys()),
+                       "changed_outcomes": sorted(name for name in current_tests.keys() & before_tests.keys()
+                                                  if current_tests[name] != before_tests[name])})
     return {
         "status": "compared" if groups else "unknown",
         "reused": True,
@@ -528,7 +548,8 @@ def render_summary(receipt: dict) -> str:
         for entry in before_after.get("groups") or []:
             delta = ", ".join(f"{prefix}: {entry['base'].get(prefix, 0)} -> {entry['current'].get(prefix, 0)}"
                               for prefix in entry["delta"])
-            lines.append(f"  - web/crates/{entry['crate']}: {delta}")
+            filters = " " + shlex.join(entry["filters"]) if entry.get("filters") else ""
+            lines.append(f"  - web/crates/{entry['crate']}{filters}: {delta}")
     else:
         lines.append(f"- unknown: {before_after.get('reason', 'no base-revision run evidence supplied')}")
 

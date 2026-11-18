@@ -80,7 +80,7 @@ class BrowserToolsTests(unittest.TestCase):
             ready_fd = os.open(ready, os.O_RDWR | os.O_NONBLOCK)
             release_fd = os.open(release, os.O_RDWR | os.O_NONBLOCK)
             try:
-                for mode in ("harness", "standalone", "nested", "serial", "parallel", "web", "cad", "wasm", "grandchild"):
+                for mode in ("harness", "standalone", "nested", "serial", "shared-wasm-build", "parallel", "web", "cad", "wasm", "grandchild"):
                     with self.subTest(mode=mode):
                         setup = ("import fcntl, os, sys\n"
                                  "f = open(os.path.expanduser('~/.cache/tmp/boardstudio-build.lock'), 'w')\n"
@@ -91,6 +91,7 @@ class BrowserToolsTests(unittest.TestCase):
                             "standalone": "import browser_tools; browser_tools.build_drag_harness()",
                             "nested": "import check; from pathlib import Path; check.run_serial([sys.executable, 'scripts/run-drag-browser.py'], dict(os.environ), cwd=Path(os.environ['HOME']))",
                             "serial": "import check; check.run_serial(['cargo'], dict(os.environ), captured=[])",
+                            "shared-wasm-build": "import check; check.run_serial(check.WASM_CRATE_BUILD, dict(os.environ), outputs=[])",
                             "parallel": "import check; check.run_parallel([['cargo']], dict(os.environ))",
                             "grandchild": "import check; check.run_serial(['cargo'], dict(os.environ))",
                             "web": "import importlib; m=importlib.import_module('build-web'); m.run(['cargo'])",

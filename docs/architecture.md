@@ -97,9 +97,10 @@ modules its code addressed in the bin (`crate::runtime`, `super::SelectionAdapte
 `super::objects::TreeContext` and so on), and the bin re-exports each moved module where
 it was declared, so code keeps the paths it had before the split. Helpers that other
 crates' tests drive are behind each crate's `test-support` feature, which only
-dev-dependencies enable. Each crate runs its own browser tests with
-`wasm-pack test --headless --chrome web/crates/<crate> --lib` (`scripts/check.py browser`
-runs them all).
+dev-dependencies enable. `python3 scripts/check.py browser` builds the presentation crate
+lib tests together, with `boardstudio-web-host/page`, and runs the resulting WASM binaries
+in parallel with `wasm-bindgen-test-runner`. For source-level debugging, run one crate with
+`wasm-pack test --headless --chrome web/crates/<crate> --lib` and add `--features page` for `host`.
 
 Heavy CAD and artifact work runs outside the page. Generated JavaScript initializes
 WASM modules; browser worker and service-worker entrypoints are packaged with the

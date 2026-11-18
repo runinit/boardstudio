@@ -126,6 +126,31 @@ class RunWasmTestsTests(unittest.TestCase):
                          [str(pair / "wasm-bindgen"), str(pair / "wasm-bindgen-test-runner"),
                           str(config)])
 
+    def test_cached_bindgen_pair_must_match_both_locked_versions(self):
+        (self.dir / "Cargo.lock").write_text('[[package]]\nname = "wasm-bindgen"\nversion = "0.2.129"\n')
+        cache = self.dir / ".wasm-pack/wasm-bindgen-test"
+        cache.mkdir(parents=True)
+        for name, version in (("wasm-bindgen", "0.2.129"), ("wasm-bindgen-test-runner", "0.2.128")):
+            tool = cache / name
+            tool.write_text(f'#!/bin/sh\necho "{name} {version}"\n')
+            tool.chmod(0o755)
+        with patch.dict(os.environ, {"XDG_CACHE_HOME": str(self.dir), "PATH": "/bin"}, clear=True):
+            with self.assertRaisesRegex(runner.RunnerError, "locked version 0.2.129"):
+                runner.wasm_bindgen_dir(self.dir)
+            (cache / "wasm-bindgen-test-runner").write_text('#!/bin/sh\necho "wasm-bindgen-test-runner 0.2.129"\n')
+            self.assertEqual(runner.wasm_bindgen_dir(self.dir), cache)
+
+    def test_crate_webdriver_uses_its_viewport_and_selected_chrome(self):
+        crate = self.dir / "web/crates/layout"
+        crate.mkdir(parents=True)
+        (crate / "webdriver.json").write_text('{"goog:chromeOptions":{"args":["--window-size=1440,900"]}}')
+        with runner.desktop_webdriver_config({"CHROME_BIN": "/selected/chrome"}, crate) as env:
+            config = Path(env[runner.WEBDRIVER_CONFIG_ENV])
+            self.assertEqual(json.loads(config.read_text()), {
+                "goog:chromeOptions": {"args": ["--window-size=1440,900"], "binary": "/selected/chrome"},
+            })
+        self.assertFalse(config.exists())
+
     def test_bindgen_pair_default_missing_and_wrong_versions(self):
         import wasm_bindgen_tools as tools
         env = {"PATH": "/bin"}

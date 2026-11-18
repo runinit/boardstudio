@@ -385,6 +385,36 @@ class ReceiptBoundaryTests(unittest.TestCase):
         self.assertEqual(deltas["runtime"]["base"]["runtime::collision_browser_tests"], 12)
         self.assertEqual(deltas["runtime"]["delta"]["runtime::collision_browser_tests"], 2)
 
+    def test_shared_runner_compares_exact_names_and_split_filters_to_wasm_pack(self):
+        split = [["--skip", "panels::"], ["panels::"]]
+        legacy = [["wasm-pack", "test", "web/crates/ui-shared", "--lib", "--", *args] for args in split]
+        current = [check.crate_launch("ui-shared", *args) for args in split]
+        build = check.with_crate_build(current)[0]
+
+        def launch(command, name):
+            output = f"test {name} ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 1 filtered out; finished in 0.1s\n"
+            return observation("browser", command, output)
+
+        base = receipt.build_receipt(
+            [("browser", command) for command in legacy],
+            [launch(legacy[0], "other::old_name"), launch(legacy[1], "panels::test")],
+            source={"revision": "base"}, exit_code=0, partial=True)
+        compared = receipt.build_receipt(
+            [("browser", command) for command in [build, *current]],
+            [observation("browser", build, ""), launch(current[0], "other::new_name"),
+             launch(current[1], "panels::test")],
+            source={"revision": "current"}, exit_code=0, partial=True, base=base)
+        self.assertEqual([record["scope"] for record in compared["commands"]], ["other", "wasm-crate", "wasm-crate"])
+        skipped, panels = compared["before_after"]["groups"]
+        self.assertEqual(skipped["filters"], split[0])
+        self.assertEqual(skipped["delta"], {"other": 0})
+        self.assertEqual(skipped["missing"], ["other::old_name"])
+        self.assertEqual(skipped["new"], ["other::new_name"])
+        self.assertEqual(panels["filters"], split[1])
+        self.assertEqual(panels["missing"], [])
+        self.assertEqual(panels["new"], [])
+        self.assertEqual(compared["commands"][2]["tests"], [{"name": "panels::test", "outcome": "passed"}])
+
     def test_retention_list_alone_leaves_the_comparison_unknown(self):
         baseline = {"boardstudio_core": ["mirrored_half::reconcile::tests::alpha"]}
         built = receipt.build_receipt(

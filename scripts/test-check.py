@@ -35,6 +35,28 @@ class CheckTests(unittest.TestCase):
         self.chrome = chrome.start()
         self.addCleanup(chrome.stop)
 
+    def fake_wasm_build(self, command):
+        if not check.is_crate_build(command):
+            return None
+        lines = []
+        for idx, arg in enumerate(command[:-1]):
+            if arg != "-p":
+                continue
+            crate = command[idx + 1].removeprefix("boardstudio-web-")
+            binary = self.wasm_dir / f"{crate}.wasm"
+            binary.touch()
+            lines.append(json.dumps({
+                "reason": "compiler-artifact", "manifest_path": str(ROOT / "web/crates" / crate / "Cargo.toml"),
+                "profile": {"test": True}, "target": {"kind": ["lib"]}, "executable": str(binary),
+            }))
+        return mock.Mock(returncode=0, stdout="\n".join(lines))
+
+    def mock_wasm_dir(self):
+        self.wasm_dir = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        runner = importlib.import_module("run-wasm-tests")
+        self.enterContext(mock.patch.object(runner, "wasm_bindgen_dir", return_value=self.wasm_dir))
+        self.enterContext(mock.patch.dict(os.environ, {"CHROME_BIN": "/bin/true", "CHROMEDRIVER": "/bin/true"}))
+
     def test_preflight_rejects_invalid_lock_for_focused_browser_and_quick(self):
         import check_quick
         selection = mock.Mock(notes=[], unplaced=[])
@@ -495,7 +517,13 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
         self.assertCountEqual(packaged + wasm, check.STEPS["browser"][1])
         self.assertTrue(set(map(tuple, packaged)).isdisjoint(map(tuple, wasm)))
         self.assertIn(check.DRAG_SMOKE, packaged)
-        self.assertEqual(sum(bool(check.launch_crate(cmd)) for cmd in wasm), 14)
+        build, *launches = wasm
+        self.assertTrue(check.is_crate_build(build))
+        self.assertEqual([build[idx + 1] for idx, arg in enumerate(build) if arg == "-p"],
+                         list(check.WEB_WASM_PACKAGES[1:]))
+        self.assertEqual(build[-2:], ["--features", "boardstudio-web-host/page"])
+        self.assertEqual(len(launches), 14)
+        self.assertTrue(all(check.is_crate_launch(cmd) for cmd in launches))
         self.assertIn("scripts/run-wasm-tests.py", packaged[-1])
         self.assertFalse(any("--list" in cmd for cmd in packaged + wasm))
         self.assertIn([check.PY, "cad/scripts/test-cad-browser.py"], packaged)
@@ -686,7 +714,12 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
 
     def test_scoped_browser_only_does_not_acquire_the_drag_smoke_prerequisites(self):
         self.chrome.side_effect = check.browser_tools.MissingBrowserTool("absent")
-        with mock.patch.object(check.subprocess, "run", return_value=mock.Mock(returncode=0, stdout="")), \
+        self.mock_wasm_dir()
+
+        def fake(command, **kwargs):
+            return self.fake_wasm_build(command) or mock.Mock(returncode=0, stdout="")
+
+        with mock.patch.object(check.subprocess, "run", side_effect=fake), \
                 mock.patch.object(check, "_parallel_process", return_value=mock.Mock(returncode=0, stdout="")), \
                 contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             self.assertEqual(check.main(["browser", "--only", "case"]), 0)
@@ -696,7 +729,7 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
         launches = check.select_browser_crate_launches(["host"])
         self.assertEqual(len(launches), 1)
         command = launches[0]
-        self.assertEqual(command[command.index("--lib") + 1:], [],
+        self.assertEqual(command[2:], [],
                          "Host filtering must not exclude the CAD worker browser regressions")
 
 
@@ -725,26 +758,29 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
             self.assertNotIn("CARGO_PROFILE_DEV_DEBUG", os.environ)
 
     def test_crate_launches_run_together_and_a_failure_names_the_launch(self):
-        launches = [["wasm-pack", "test", "--headless", "--chrome", f"web/crates/{name}", "--locked", "--lib"]
-                    for name in ("keymap", "layout", "case")]
+        self.mock_wasm_dir()
+        build, *launches = check.with_crate_build([check.crate_launch(name) for name in ("keymap", "layout", "case")])
         serial = [sys.executable, "-c", "pass"]
         seen = []
 
         def fake(command, **kwargs):
             seen.append(command)
-            code = 1 if "web/crates/case" in command else 0
+            if result := self.fake_wasm_build(command):
+                return result
+            code = 1 if kwargs["cwd"] == ROOT / "web/crates/case" else 0
             return mock.Mock(returncode=code, stdout="output\n")
 
         error = io.StringIO()
         with mock.patch.object(check.subprocess, "run", side_effect=fake), \
                 mock.patch.object(check, "_parallel_process", side_effect=lambda command, registry, **kwargs: fake(command, **kwargs)), \
                 mock.patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "3"}), \
-                mock.patch.dict(check.STEPS, {"browser": (True, [serial, *launches, serial])}), \
+                mock.patch.dict(check.STEPS, {"browser": (True, [serial, build, *launches, serial])}), \
                 contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(error):
             self.assertEqual(check.run(["browser"]), 1)
         self.assertIn("web/crates/case", error.getvalue())
         self.assertEqual(seen[0], serial)
-        self.assertEqual(len(seen), 4, "the trailing serial command does not run after a failed batch")
+        self.assertEqual(seen[1], build)
+        self.assertEqual(len(seen), 5, "the trailing serial command does not run after a failed batch")
         self.assertEqual(check.launch_order(launches[1]), 0, "heavy crates start first")
         self.assertEqual(check.launch_order(launches[0]), 1)
 
@@ -752,8 +788,8 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
         # Missing loader or test lines do not prove no test ran, so the stall is reported, never relaunched.
         stalled = ("Running headless tests in Chrome on `http://127.0.0.1:1/`\n"
                    + check.HARNESS_TIMEOUT_LINE + "\n")
-        launches = [["wasm-pack", "test", "--headless", "--chrome", f"web/crates/{name}", "--locked", "--lib"]
-                    for name in ("keymap", "ui-shared")]
+        self.mock_wasm_dir()
+        launches = check.with_crate_build([check.crate_launch(name) for name in ("keymap", "ui-shared")])
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as config:
             json.dump({"goog:chromeOptions": {"binary": "/usr/bin/true"}}, config)
         self.addCleanup(Path(config.name).unlink)
@@ -762,7 +798,9 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
                 attempts, configs = [], []
 
                 def fake(command, **kwargs):
-                    attempts.append(launch := check.launch_crate(command))
+                    if result := self.fake_wasm_build(command):
+                        return result
+                    attempts.append(launch := kwargs["cwd"].name)
                     configs.append(kwargs["env"].get("WASM_BINDGEN_TEST_WEBDRIVER_JSON"))
                     return mock.Mock(returncode=1 if launch == "ui-shared" else 0,
                                      stdout=stalled if launch == "ui-shared" else "test panels::a ... ok\n")
@@ -889,15 +927,23 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
             ("host", "runtime", "ui-model", "ui-shared", "keycaps", "library",
              "keymap", "catalogue", "case", "parts", "pcb", "layout"),
         )
-        custom = [["wasm-pack", "test", "--headless", "--chrome", "web/crates/custom-crate", "--lib"]]
+        custom = [check.crate_launch("custom-crate")]
         with mock.patch.dict(check.STEPS, {"browser": (True, custom)}):
             self.assertEqual(check.browser_crates(), ("custom-crate",))
 
     def test_browser_only_selects_crate_launches_without_build_or_drag_smoke_and_reports_partial_run(self):
+        self.mock_wasm_dir()
         seen = []
 
         def fake(command, **kwargs):
             seen.append(command)
+            if result := self.fake_wasm_build(command):
+                return result
+            if Path(command[0]).name == "wasm-bindgen-test-runner":
+                self.assertEqual(kwargs["cwd"], ROOT / "web/crates" / Path(command[1]).stem)
+                self.assertEqual(kwargs["env"]["WASM_BINDGEN_TEST_ONLY_WEB"], "1")
+                self.assertEqual(kwargs["env"]["CHROMEDRIVER"], str(Path("/bin/true").resolve()))
+                self.assertEqual(kwargs["env"]["WASM_BINDGEN_TEST_TIMEOUT"], "120")
             return mock.Mock(returncode=0, stdout="ok\n")
 
         output = io.StringIO()
@@ -906,8 +952,13 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
                 contextlib.redirect_stdout(output), contextlib.redirect_stderr(io.StringIO()):
             self.assertEqual(check.main(["browser", "--only", "case", "ui-shared"]), 0)
         self.assertEqual(seen[0], check.TEST_CSS)
-        self.assertEqual(len(seen), 4, "test CSS followed by case and both ui-shared launches")
-        self.assertTrue(all(check.is_crate_launch(cmd) for cmd in seen[1:]))
+        self.assertTrue(check.is_crate_build(seen[1]))
+        self.assertEqual(seen[1][len(check.WASM_CRATE_BUILD):],
+                         ["-p", "boardstudio-web-ui-shared", "-p", "boardstudio-web-case"])
+        self.assertCountEqual(seen[2:], [
+            [str(self.wasm_dir / "wasm-bindgen-test-runner"), str(self.wasm_dir / f"{crate}.wasm"), *filters]
+            for crate, filters in [("case", []), ("ui-shared", ["--skip", "panels::"]), ("ui-shared", ["panels::"])]
+        ])
         self.assertFalse(any("build-web.py" in " ".join(cmd) or "run-drag-browser.py" in " ".join(cmd)
                              for cmd in seen))
         text = output.getvalue()
@@ -916,10 +967,13 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
         self.assertNotIn("check: all steps passed:", text)
 
     def test_browser_only_layout_runs_test_css_prerequisite_and_stops_if_it_fails(self):
+        self.mock_wasm_dir()
         seen = []
 
         def fake_pass(command, **kwargs):
             seen.append((command, kwargs.get("cwd")))
+            if result := self.fake_wasm_build(command):
+                return result
             return mock.Mock(returncode=0, stdout="ok\n")
 
         with mock.patch.object(check.subprocess, "run", side_effect=fake_pass), \
@@ -927,7 +981,10 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
                 contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             self.assertEqual(check.main(["browser", "--only", "layout"]), 0)
         self.assertEqual(seen[0], (check.TEST_CSS, check.ROOT / "web"))
-        self.assertEqual(len(seen), 3, "test-css followed by both layout crate launches")
+        self.assertEqual(len(seen), 4, "test-css, one build and both layout crate launches")
+        self.assertTrue(check.is_crate_build(seen[1][0]))
+        self.assertEqual([cwd for _, cwd in seen[2:]], [ROOT / "web/crates/layout"] * 2)
+        self.assertEqual([command[2:] for command, _ in seen[2:]], [["--skip", "setup_guide::"], ["setup_guide::"]])
 
         seen.clear()
         error = io.StringIO()
@@ -935,6 +992,26 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
                 contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(error):
             self.assertEqual(check.main(["browser", "--only", "layout", "--keep-going"]), 1)
         self.assertIn("step 'test-css' failed", error.getvalue())
+
+    def test_keep_going_skips_crate_runners_if_the_build_fails_or_omits_an_artifact(self):
+        build, *launches = check.with_crate_build([check.crate_launch("layout")])
+        trailing = [check.PY, "-c", "pass"]
+        for build_code in (0, 101):
+            with self.subTest(build_code=build_code):
+                seen = []
+
+                def fake(command, **kwargs):
+                    seen.append(command)
+                    return mock.Mock(returncode=build_code if command == build else 0, stdout="")
+
+                error = io.StringIO()
+                with mock.patch.object(check.subprocess, "run", side_effect=fake), \
+                        contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(error):
+                    _, ok = check.run_commands("browser", [build, *launches, trailing], {}, keep_going=True)
+                self.assertFalse(ok)
+                self.assertEqual(seen, [build, trailing])
+                if not build_code:
+                    self.assertIn("missing test wasm artifact(s) for layout", error.getvalue())
 
     def test_browser_only_and_keep_going_validate_argument_combinations(self):
         invalid = (
@@ -956,11 +1033,14 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
             self.assertIn(expected_error, stderr.getvalue())
 
     def test_browser_keep_going_runs_remaining_launches_serially_and_exits_nonzero(self):
+        self.mock_wasm_dir()
         seen = []
 
         def fake(command, **kwargs):
             seen.append(command)
-            failed = any(part in ("web/crates/library", "web/crates/case") for part in command)
+            if result := self.fake_wasm_build(command):
+                return result
+            failed = kwargs["cwd"].name in ("library", "case")
             return mock.Mock(returncode=1 if failed else 0, stdout="output\n")
 
         error = io.StringIO()
@@ -974,7 +1054,7 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
             )
         self.assertEqual(seen[0], check.TEST_CSS)
         self.assertEqual(
-            [check.launch_crate(cmd) for cmd in seen[1:]],
+            [Path(cmd[1]).stem for cmd in seen[2:]],
             ["library", "case", "parts"],
         )
         stderr = error.getvalue()
@@ -985,8 +1065,7 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
         # In a parallel batch with --keep-going, a failed crate launch continues to trailing
         # independent browser commands unless the page `--list` prerequisite itself fails.
         seen.clear()
-        launches = [["wasm-pack", "test", "--headless", "--chrome", f"web/crates/{name}", "--locked", "--lib"]
-                    for name in ("library", "case")]
+        launches = check.with_crate_build([check.crate_launch(name) for name in ("library", "case")])
         page_list = ["wasm-pack", "test", "--headless", "--chrome", "web", "--bin", "boardstudio-web", "--", "--list"]
         page_run = [sys.executable, "scripts/run-wasm-tests.py", "--all"]
         with mock.patch.object(check.subprocess, "run", side_effect=fake), \
@@ -1001,6 +1080,8 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
 
         def fail_list(command, **kwargs):
             seen.append(command)
+            if result := self.fake_wasm_build(command):
+                return result
             return mock.Mock(returncode=1 if "--list" in command else 0, stdout="")
 
         with mock.patch.object(check.subprocess, "run", side_effect=fail_list), \
@@ -1096,8 +1177,13 @@ driver status: signal: 9 (SIGKILL)
         self.assertFalse(timeout["timed_out_after_failure"])
         self.assertIn("first failure [timeout]", check.format_wasm_failure_summary(timeout))
 
+        self.mock_wasm_dir()
+
+        def fake(command, **kwargs):
+            return self.fake_wasm_build(command) or mock.Mock(returncode=1, stdout=trap_log)
+
         error = io.StringIO()
-        with mock.patch.object(check.subprocess, "run", return_value=mock.Mock(returncode=1, stdout=trap_log)), \
+        with mock.patch.object(check.subprocess, "run", side_effect=fake), \
                 mock.patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "1"}), \
                 contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(error):
             self.assertEqual(check.main(["browser", "--only", "library"]), 1)
