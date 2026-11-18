@@ -16,46 +16,6 @@ pub(crate) fn layout_findings_for_display(
     findings
 }
 
-#[cfg(test)]
-mod layout_findings_for_display_tests {
-    use super::*;
-    use boardstudio_core::model::{Scope as FindingScope, Severity as FindingSeverity};
-    use wasm_bindgen_test::wasm_bindgen_test;
-
-    #[wasm_bindgen_test]
-    fn preview_adds_only_electrical_notices_and_keeps_accepted_findings() {
-        let accepted = LayoutFinding {
-            id: "accepted:layout:warning".into(),
-            severity: FindingSeverity::Warning,
-            scope: FindingScope::Layout,
-            message: "Accepted diagnostic remains visible".into(),
-            target_ids: vec!["accepted-part".into()],
-        };
-        let ordinary_preview = LayoutFinding {
-            id: "preview:layout:warning".into(),
-            severity: FindingSeverity::Warning,
-            scope: FindingScope::Layout,
-            message: "Ordinary preview diagnostic stays hidden".into(),
-            target_ids: vec!["preview-part".into()],
-        };
-        let electrical_preview = LayoutFinding {
-            id: "preview:electrical:net:1-61".into(),
-            severity: FindingSeverity::Info,
-            scope: FindingScope::Pcb,
-            message: "Electrical preview notice is visible".into(),
-            target_ids: vec!["preview-pad".into()],
-        };
-
-        assert_eq!(
-            layout_findings_for_display(
-                std::slice::from_ref(&accepted),
-                Some(&[ordinary_preview, electrical_preview.clone()]),
-            ),
-            vec![accepted, electrical_preview],
-        );
-    }
-}
-
 pub(crate) fn layout_finding_context(
     model: &ReadModel,
     target: &keycaps_fit::FindingNavigationTarget,
@@ -418,4 +378,44 @@ pub(crate) fn fit_selected_bridge(runtime: &Rc<Runtime>, bridge_id: Option<&str>
         ),
         zoom,
     });
+}
+
+#[cfg(test)]
+mod layout_findings_for_display_tests {
+    use super::*;
+    use boardstudio_core::model::{Scope as FindingScope, Severity as FindingSeverity};
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    #[wasm_bindgen_test]
+    fn preview_adds_only_electrical_notices_and_keeps_accepted_findings() {
+        let accepted = LayoutFinding {
+            id: "accepted:layout:warning".into(),
+            severity: FindingSeverity::Warning,
+            scope: FindingScope::Layout,
+            message: "Accepted diagnostic remains visible".into(),
+            target_ids: vec!["accepted-part".into()],
+        };
+        let ordinary_preview = LayoutFinding {
+            id: "preview:layout:warning".into(),
+            severity: FindingSeverity::Warning,
+            scope: FindingScope::Layout,
+            message: "Ordinary preview diagnostic stays hidden".into(),
+            target_ids: vec!["preview-part".into()],
+        };
+        let electrical_preview = LayoutFinding {
+            id: "preview:electrical:net:1-61".into(),
+            severity: FindingSeverity::Info,
+            scope: FindingScope::Pcb,
+            message: "Electrical preview notice is visible".into(),
+            target_ids: vec!["preview-pad".into()],
+        };
+
+        assert_eq!(
+            layout_findings_for_display(
+                std::slice::from_ref(&accepted),
+                Some(&[ordinary_preview, electrical_preview.clone()]),
+            ),
+            vec![accepted, electrical_preview],
+        );
+    }
 }

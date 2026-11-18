@@ -1,38 +1,5 @@
 use super::*;
 
-#[cfg(test)]
-mod physical_setup_owner_tests {
-    use super::*;
-    use boardstudio_application::SessionEpoch;
-    use pcb_physical_setup::{OwnerContext, OwnerIdentity};
-    use wasm_bindgen_test::wasm_bindgen_test;
-
-    #[wasm_bindgen_test]
-    fn case_transport_owner_does_not_require_a_part_tree_selection() {
-        let scope = Scope {
-            session_epoch: SessionEpoch(7),
-            document_id: "sofle".into(),
-            board_id: "right-pcb".into(),
-            instance_id: Some("right-half".into()),
-        };
-        let identity = OwnerIdentity {
-            context: OwnerContext::CaseInspector,
-            session_epoch: scope.session_epoch,
-            document_id: scope.document_id.clone(),
-            board_id: scope.board_id.clone(),
-            instance_id: scope.instance_id.clone(),
-            token: SnapshotToken(23),
-            revision: 21,
-            generation: 4,
-            scope_transition: None,
-        };
-        assert!(
-            case_setup_context_is_current(&identity, true, "Case", Some(&scope)),
-            "physical setup belongs to the active Case assembly scope even when no part is selected"
-        );
-    }
-}
-
 pub(crate) fn case_setup_context_is_current(
     identity: &pcb_physical_setup::OwnerIdentity,
     strict: bool,
@@ -186,5 +153,38 @@ pub(crate) fn canvas_owner_is_current(
         "Layout" => layout_owner_is_current(runtime, workspace, adapter, owner),
         "PCB" => pcb_owner_is_current(runtime, workspace, adapter, owner),
         _ => false,
+    }
+}
+
+#[cfg(test)]
+mod physical_setup_owner_tests {
+    use super::*;
+    use boardstudio_application::SessionEpoch;
+    use pcb_physical_setup::{OwnerContext, OwnerIdentity};
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    #[wasm_bindgen_test]
+    fn case_transport_owner_does_not_require_a_part_tree_selection() {
+        let scope = Scope {
+            session_epoch: SessionEpoch(7),
+            document_id: "sofle".into(),
+            board_id: "right-pcb".into(),
+            instance_id: Some("right-half".into()),
+        };
+        let identity = OwnerIdentity {
+            context: OwnerContext::CaseInspector,
+            session_epoch: scope.session_epoch,
+            document_id: scope.document_id.clone(),
+            board_id: scope.board_id.clone(),
+            instance_id: scope.instance_id.clone(),
+            token: SnapshotToken(23),
+            revision: 21,
+            generation: 4,
+            scope_transition: None,
+        };
+        assert!(
+            case_setup_context_is_current(&identity, true, "Case", Some(&scope)),
+            "physical setup belongs to the active Case assembly scope even when no part is selected"
+        );
     }
 }

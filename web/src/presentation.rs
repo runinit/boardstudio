@@ -185,8 +185,6 @@ pub(crate) use view_helpers::{
     is_compact_viewport, matrix_snap_parameters, pin_inspector_on_desktop,
 };
 use zmk_firmware_export::use_export_panel_input;
-#[cfg(test)]
-use zmk_firmware_export::{ZmkFirmwareExportPanelInput, ZmkFirmwareExportRow};
 
 use crate::runtime::Runtime;
 #[cfg(test)]
