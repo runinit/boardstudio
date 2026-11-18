@@ -377,7 +377,7 @@ pub(super) struct OnPcbPartPointerDownInput {
 
 pub(super) fn on_pcb_part_pointer_down_handler(
     input: OnPcbPartPointerDownInput,
-) -> impl FnMut(pcb_scene::PcbPartPointerDown) + 'static {
+) -> EventHandler<pcb_scene::PcbPartPointerDown> {
     let OnPcbPartPointerDownInput {
         runtime,
         adapter,
@@ -400,7 +400,7 @@ pub(super) fn on_pcb_part_pointer_down_handler(
         instance_selection,
         layout_selection_kind,
     } = input;
-    move |request: pcb_scene::PcbPartPointerDown| {
+    EventHandler::new(move |request: pcb_scene::PcbPartPointerDown| {
         if request.scope != scope
             || request.token != accepted_token
             || request.generation != generation
@@ -569,7 +569,7 @@ pub(super) fn on_pcb_part_pointer_down_handler(
             pan: false,
             camera: Vec2::default(),
         });
-    }
+    })
 }
 
 pub(super) struct OnPcbEmptyHitInput {
@@ -585,9 +585,7 @@ pub(super) struct OnPcbEmptyHitInput {
     pub instance_selection: InstanceSelection,
 }
 
-pub(super) fn on_pcb_empty_hit_handler(
-    input: OnPcbEmptyHitInput,
-) -> impl FnMut(PointerEvent) + 'static {
+pub(super) fn on_pcb_empty_hit_handler(input: OnPcbEmptyHitInput) -> EventHandler<PointerEvent> {
     let OnPcbEmptyHitInput {
         runtime,
         adapter,
@@ -600,7 +598,7 @@ pub(super) fn on_pcb_empty_hit_handler(
         workspace,
         instance_selection,
     } = input;
-    move |event: PointerEvent| {
+    EventHandler::new(move |event: PointerEvent| {
         let Some(pointer) = event.data().try_as_web_event() else {
             return;
         };
@@ -643,7 +641,7 @@ pub(super) fn on_pcb_empty_hit_handler(
             range_part_ids: Vec::new(),
             mode: SelectionMode::Replace,
         });
-    }
+    })
 }
 
 pub(super) struct WheelInput {
@@ -779,20 +777,21 @@ pub(super) fn wheel_handler(input: WheelInput) -> impl FnMut(WheelEvent) + Clone
 
 // GROUPING: allow until the Editor rewrite lands; remove then.
 #[allow(dead_code)]
-// Unnameable handler tuple cannot be factored into a type alias.
-#[allow(clippy::type_complexity)]
+pub(super) struct PkNamed {
+    pub on_pcb_part_pointer_down: EventHandler<pcb_scene::PcbPartPointerDown>,
+    pub on_pcb_empty_hit: EventHandler<PointerEvent>,
+}
+
+// GROUPING: allow until the Editor rewrite lands; remove then.
+#[allow(dead_code)]
 pub(super) fn build_keyboard_bundle(
     setup_a: &super::setup_shell::SetupA,
     cam: &super::camera::CamNamed,
-    snapshot: &AcceptedSnapshot,
     render_scope: &Scope,
 ) -> (
     impl FnMut(KeyboardEvent) + Clone + 'static,
     impl FnMut(KeyboardEvent) + Clone + 'static,
     impl FnMut(PointerEvent) + Clone + 'static,
-    impl FnMut(pcb_scene::PcbPartPointerDown) + 'static,
-    impl FnMut(PointerEvent) + 'static,
-    impl FnMut(WheelEvent) + Clone + 'static,
 ) {
     let runtime = &setup_a.runtime;
     let drag = &cam.placement.drag;
@@ -816,14 +815,6 @@ pub(super) fn build_keyboard_bundle(
     let width = cam.scene_bounds.width;
     let height = cam.scene_bounds.height;
     let render_generation = setup_a.render_generation;
-    let instance_selection = setup_a.instance_selection;
-    let layout_selection_kind = setup_a.layout_selection_kind;
-    let keymap_scale_ratio = cam.scene_bounds.keymap_scale_ratio;
-    let min_x = cam.scene_bounds.min_x;
-    let max_x = cam.scene_bounds.max_x;
-    let min_y = cam.scene_bounds.min_y;
-    let max_y = cam.scene_bounds.max_y;
-    let tree_cell_anchor = &setup_a.tree_cell_anchor;
     let keyboard = keyboard_handler(KeyboardInput {
         runtime: runtime.clone(),
         drag: drag.clone(),
@@ -859,6 +850,39 @@ pub(super) fn build_keyboard_bundle(
         width,
         height,
     });
+    (keyboard, key_up, start_pan)
+}
+
+// GROUPING: allow until the Editor rewrite lands; remove then.
+#[allow(dead_code)]
+pub(super) fn build_keyboard_rest(
+    setup_a: &super::setup_shell::SetupA,
+    cam: &super::camera::CamNamed,
+    snapshot: &AcceptedSnapshot,
+    render_scope: &Scope,
+) -> (PkNamed, impl FnMut(WheelEvent) + Clone + 'static) {
+    let runtime = &setup_a.runtime;
+    let drag = &cam.placement.drag;
+    let svg = &cam.svg_surface.svg;
+    let space_down = &cam.placement.space_down;
+    let canvas_interaction = &setup_a.canvas_interaction;
+    let canvas_navigation = &setup_a.canvas_navigation;
+    let adapter = &setup_a.adapter;
+    let layout_owner = &setup_a.layout_owner;
+    let workspace = setup_a.workspace;
+    let view_x = cam.scene_bounds.view_x;
+    let view_y = cam.scene_bounds.view_y;
+    let width = cam.scene_bounds.width;
+    let height = cam.scene_bounds.height;
+    let render_generation = setup_a.render_generation;
+    let instance_selection = setup_a.instance_selection;
+    let layout_selection_kind = setup_a.layout_selection_kind;
+    let keymap_scale_ratio = cam.scene_bounds.keymap_scale_ratio;
+    let min_x = cam.scene_bounds.min_x;
+    let max_x = cam.scene_bounds.max_x;
+    let min_y = cam.scene_bounds.min_y;
+    let max_y = cam.scene_bounds.max_y;
+    let tree_cell_anchor = &setup_a.tree_cell_anchor;
     let on_pcb_part_pointer_down = on_pcb_part_pointer_down_handler(OnPcbPartPointerDownInput {
         runtime: runtime.clone(),
         adapter: adapter.clone(),
@@ -910,11 +934,10 @@ pub(super) fn build_keyboard_bundle(
         max_y,
     });
     (
-        keyboard,
-        key_up,
-        start_pan,
-        on_pcb_part_pointer_down,
-        on_pcb_empty_hit,
+        PkNamed {
+            on_pcb_part_pointer_down,
+            on_pcb_empty_hit,
+        },
         wheel,
     )
 }

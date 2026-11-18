@@ -155,10 +155,10 @@ pub(super) struct GuidePanelInput<'a> {
 
 pub(super) fn guide_panel(
     input: GuidePanelInput<'_>,
-    on_stage_change: impl FnMut(setup_guide::SetupGuideStage) + 'static,
-    on_open_workspace: impl FnMut(&'static str) + 'static,
-    on_dismiss: impl FnMut(()) + 'static,
-    on_finish: impl FnMut(()) + 'static,
+    on_stage_change: EventHandler<setup_guide::SetupGuideStage>,
+    on_open_workspace: EventHandler<&'static str>,
+    on_dismiss: EventHandler<()>,
+    on_finish: EventHandler<()>,
 ) -> Element {
     let GuidePanelInput {
         guide,
@@ -464,10 +464,7 @@ pub(super) struct FooterInput<'a> {
     pub model: &'a ReadModel,
 }
 
-pub(super) fn view_footer(
-    input: FooterInput<'_>,
-    on_fit_selection: impl FnMut(()) + 'static,
-) -> Element {
+pub(super) fn view_footer(input: FooterInput<'_>, on_fit_selection: EventHandler<()>) -> Element {
     let FooterInput {
         active_workspace,
         layout_assembly_3d,

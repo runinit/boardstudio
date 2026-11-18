@@ -119,7 +119,7 @@ pub(super) struct OnKeycapsFindingInput {
 
 pub(super) fn on_keycaps_finding_handler(
     input: OnKeycapsFindingInput,
-) -> impl FnMut(keycaps_fit::FindingNavigationRequest) + 'static {
+) -> EventHandler<keycaps_fit::FindingNavigationRequest> {
     let OnKeycapsFindingInput {
         runtime,
         adapter,
@@ -138,7 +138,7 @@ pub(super) fn on_keycaps_finding_handler(
         select_tree,
         case_selection,
     } = input;
-    move |request: keycaps_fit::FindingNavigationRequest| {
+    EventHandler::new(move |request: keycaps_fit::FindingNavigationRequest| {
         let owner = keycaps_navigation::OwnerIdentity {
             scope: &scope,
             generation,
@@ -256,7 +256,7 @@ pub(super) fn on_keycaps_finding_handler(
                 }
             },
         );
-    }
+    })
 }
 
 pub(super) struct LayoutFindingCallbacksInput {
@@ -735,8 +735,8 @@ pub(super) fn use_physical_setup_reconcile(
 pub(super) fn on_show_configured_board_handler(
     mut navigate: impl FnMut((Scope, String, Option<String>)) + 'static,
     scope: Scope,
-) -> impl FnMut(String) + 'static {
-    move |board_id: String| navigate((scope.clone(), board_id, None))
+) -> EventHandler<String> {
+    EventHandler::new(move |board_id: String| navigate((scope.clone(), board_id, None)))
 }
 
 pub(super) fn use_selection_cleanup(
@@ -799,15 +799,16 @@ pub(super) fn use_selection_cleanup(
 
 // GROUPING: allow until the Editor rewrite lands; remove then.
 #[allow(dead_code)]
+pub(super) type NavigateFn = Box<dyn FnMut((Scope, String, Option<String>))>;
+
 pub(super) struct NavNamed {
     pub callbacks: LayoutFindingCallbacks,
-    pub instance_scope_pending: bool,
+    pub keycaps_finding: EventHandler<keycaps_fit::FindingNavigationRequest>,
+    pub show_configured_board: EventHandler<String>,
 }
 
 // GROUPING: allow until the Editor rewrite lands; remove then.
 #[allow(dead_code)]
-// Unnameable handler tuple cannot be factored into a type alias.
-#[allow(clippy::type_complexity)]
 pub(super) fn use_navigation_bundle(
     setup_a: &super::setup_shell::SetupA,
     setup_b: &super::setup_shell::SetupB,
@@ -815,12 +816,7 @@ pub(super) fn use_navigation_bundle(
     snapshot: &AcceptedSnapshot,
     render_scope: &Scope,
     workspace_routing: WorkspaceRoutingSlots,
-) -> (
-    NavNamed,
-    impl FnMut((Scope, String, Option<String>)) + Clone + 'static,
-    impl FnMut(keycaps_fit::FindingNavigationRequest) + 'static,
-    impl FnMut(String) + 'static,
-) {
+) -> (NavNamed, NavigateFn, bool) {
     let runtime = &setup_a.runtime;
     let adapter = &setup_a.adapter;
     let drag = &cam.placement.drag;
@@ -948,10 +944,10 @@ pub(super) fn use_navigation_bundle(
                 on_layout_finding,
                 resume_pending_layout_finding,
             },
-            instance_scope_pending,
+            keycaps_finding: on_keycaps_finding,
+            show_configured_board: on_show_configured_board,
         },
-        navigate,
-        on_keycaps_finding,
-        on_show_configured_board,
+        Box::new(navigate.clone()),
+        instance_scope_pending,
     )
 }

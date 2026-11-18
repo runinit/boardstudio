@@ -31,9 +31,9 @@ pub(super) struct Commands {
 
 pub(super) fn use_commands(
     input: CommandsInput<'_>,
-    on_fit_keymap_board: impl FnMut(()) + 'static,
-    on_zoom_keymap_out: impl FnMut(()) + 'static,
-    on_zoom_keymap_in: impl FnMut(()) + 'static,
+    on_fit_keymap_board: EventHandler<()>,
+    on_zoom_keymap_out: EventHandler<()>,
+    on_zoom_keymap_in: EventHandler<()>,
 ) -> Commands {
     let CommandsInput {
         document,
@@ -61,9 +61,6 @@ pub(super) fn use_commands(
     } else {
         None
     };
-    let on_fit_keymap_board = EventHandler::new(on_fit_keymap_board);
-    let on_zoom_keymap_out = EventHandler::new(on_zoom_keymap_out);
-    let on_zoom_keymap_in = EventHandler::new(on_zoom_keymap_in);
     let object_commands = use_memo(use_reactive(
         (
             &accepted_canvas_source,

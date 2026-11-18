@@ -417,9 +417,7 @@ pub(super) struct OnStageChangeArgs {
     pub guide_runtime: Rc<Runtime>,
 }
 
-pub(super) fn on_stage_change_handler(
-    input: OnStageChangeArgs,
-) -> impl FnMut(SetupGuideStage) + 'static {
+pub(super) fn on_stage_change_handler(input: OnStageChangeArgs) -> EventHandler<SetupGuideStage> {
     let OnStageChangeArgs {
         setup_state_for_stage,
         guide_project_id,
@@ -432,7 +430,7 @@ pub(super) fn on_stage_change_handler(
         mut guide_adapter,
         guide_runtime,
     } = input;
-    move |stage: SetupGuideStage| {
+    EventHandler::new(move |stage: SetupGuideStage| {
         if !setup_state_for_stage.update_guide_stage(&guide_project_id, stage) {
             return;
         }
@@ -453,7 +451,7 @@ pub(super) fn on_stage_change_handler(
             range_part_ids: Vec::new(),
             mode: SelectionMode::Replace,
         });
-    }
+    })
 }
 
 pub(super) struct OnOpenWorkspaceArgs {
@@ -469,7 +467,7 @@ pub(super) struct OnOpenWorkspaceArgs {
 
 pub(super) fn use_on_open_workspace(
     input: OnOpenWorkspaceArgs,
-) -> (Signal<bool>, impl FnMut(&'static str) + 'static) {
+) -> (Signal<bool>, EventHandler<&'static str>) {
     let OnOpenWorkspaceArgs {
         mut guide_workspace_for_action,
         mut guide_adapter_for_action,
@@ -481,7 +479,7 @@ pub(super) fn use_on_open_workspace(
         inspector_panel_settings,
     } = input;
     let mut full_case_settings = use_signal(|| false);
-    let on_open_workspace = move |target: &'static str| {
+    let on_open_workspace = EventHandler::new(move |target: &'static str| {
         if target == "Case" {
             full_case_settings.set(true);
             guide_workspace_for_action.set("Case");
@@ -517,28 +515,28 @@ pub(super) fn use_on_open_workspace(
             range_part_ids: Vec::new(),
             mode: SelectionMode::Replace,
         });
-    };
+    });
     (full_case_settings, on_open_workspace)
 }
 
 pub(super) fn on_dismiss_guide_handler(
     setup_state_for_dismiss: setup_workspace::SetupWorkspaceState,
     guide_project_id_for_dismiss: String,
-) -> impl FnMut(()) + 'static {
-    move |_| {
+) -> EventHandler<()> {
+    EventHandler::new(move |_| {
         setup_state_for_dismiss.dismiss_guide(&guide_project_id_for_dismiss);
-    }
+    })
 }
 
 pub(super) fn on_finish_guide_handler(
     setup_state_for_finish: setup_workspace::SetupWorkspaceState,
     guide_project_id_for_finish: String,
     mut guide_workspace_for_finish: Signal<&'static str>,
-) -> impl FnMut(()) + 'static {
-    move |_| {
+) -> EventHandler<()> {
+    EventHandler::new(move |_| {
         guide_workspace_for_finish.set("Layout");
         setup_state_for_finish.dismiss_guide(&guide_project_id_for_finish);
-    }
+    })
 }
 
 pub(super) struct GuideReadinessInput<'a> {
@@ -657,5 +655,256 @@ pub(super) fn use_guide_readiness(input: GuideReadinessInput<'_>) -> GuideReadin
         guide_stage_detail,
         canvas_transform_menu,
         selection_geometry_anchor,
+    }
+}
+
+// GROUPING: allow until the Editor rewrite lands; remove then.
+#[allow(dead_code)]
+pub(super) struct GuideNamed<'a> {
+    pub state: GuideState<'a>,
+    pub show_empty_board: bool,
+    pub outline_pitch: Vec2,
+    pub outline_snap_origins: Rc<Vec<outline_snapping::Origin>>,
+    pub outline_snap_settings: objects::LayoutSnapSettings,
+    pub canvas_grid: objects::LayoutCanvasGridStyle,
+    pub outline_overlay_key: Option<String>,
+    pub on_name_change: Callback<String>,
+    pub on_name_commit: Callback<()>,
+    pub full_case_settings: Signal<bool>,
+    pub guide_stage_readiness: [bool; 5],
+    pub canvas_transform_menu: Option<objects::LayoutTransformMenuMount>,
+    pub selection_geometry_anchor: Option<(f64, f64, f64)>,
+    pub name_value: String,
+    pub inline_matrix_setup: Option<Element>,
+    pub inline_case_basics: Option<Element>,
+    pub inline_controller_picker: Option<Element>,
+    pub guide_stage_detail: String,
+    pub on_stage_change: EventHandler<SetupGuideStage>,
+    pub on_open_workspace: EventHandler<&'static str>,
+    pub on_dismiss_guide: EventHandler<()>,
+    pub on_finish_guide: EventHandler<()>,
+}
+
+// GROUPING: allow until the Editor rewrite lands; remove then.
+#[allow(dead_code)]
+pub(super) struct GuideInput<'a> {
+    pub setup_a: &'a super::setup_shell::SetupA,
+    pub setup_b: &'a super::setup_shell::SetupB,
+    pub views: &'a super::setup_workspaces::Views,
+    pub cam: &'a super::camera::CamNamed,
+    pub canvas: &'a super::canvas_state::CanvasNamed,
+    pub inp: &'a super::toolbar_inputs::WsInputs,
+    pub snapshot: &'a AcceptedSnapshot,
+    pub render_scope: &'a Scope,
+    pub visible: &'a Vec<&'a Part>,
+    pub matrices: &'a Vec<&'a boardstudio_core::model::Matrix>,
+    pub matrix_setup: &'a objects::MatrixSetupMount,
+}
+
+// GROUPING: allow until the Editor rewrite lands; remove then.
+#[allow(dead_code)]
+pub(super) fn use_guide_bundle<'a>(input: GuideInput<'a>) -> GuideNamed<'a> {
+    let GuideInput {
+        setup_a,
+        setup_b,
+        views,
+        cam,
+        canvas,
+        inp,
+        snapshot,
+        render_scope,
+        visible,
+        matrices,
+        matrix_setup,
+    } = input;
+    let active_workspace = setup_a.active_workspace;
+    let document = &views.document;
+    let render_generation = setup_a.render_generation;
+    let adapter = &setup_a.adapter;
+    let runtime = &setup_a.runtime;
+    let workspace = setup_a.workspace;
+    let selected_tree_context = &canvas.selection.selected_tree_context;
+    let model = &setup_a.model;
+    let scene = &views.scene;
+    let part_placement = &cam.placement.part_placement;
+    let matrix_placement = &setup_a.matrix_placement;
+    let parts_query = setup_a.parts_query;
+    let guide_preferences = setup_a.guide_preferences;
+    let mirrored_pair = &setup_a.mirrored_pair;
+    let resolution = &setup_b.resolution;
+    let current_scope = &setup_a.current_scope;
+    let parts_selection = setup_a.parts_selection;
+    let layout_assembly_3d = setup_a.layout_assembly_3d;
+    let tree_cell_anchor = &setup_a.tree_cell_anchor;
+    let layout_owner = &setup_a.layout_owner;
+    let accepted_canvas_source = &cam.scene_bounds.accepted_canvas_source;
+    let layout_snap_settings = setup_a.layout_snap_settings;
+    let outline_inspector = &setup_a.outline_inspector;
+    let width = cam.scene_bounds.width;
+    let zoom_surface_size = cam.svg_surface.zoom_surface_size;
+    let guide_name_draft = setup_a.guide_name_draft;
+    let guide_name_edit = &setup_a.guide_name_edit;
+    let setup_state = setup_a.setup_state;
+    let requested_workspace_panel = setup_a.requested_workspace_panel;
+    let objects_open = setup_a.objects_open;
+    let inspect_open = setup_a.inspect_open;
+    let objects_panel_settings = setup_a.objects_panel_settings;
+    let inspector_panel_settings = setup_a.inspector_panel_settings;
+    let toolbar_input = &inp.toolbar_input;
+    let svg = &cam.svg_surface.svg;
+    let height = cam.scene_bounds.height;
+    let view_x = cam.scene_bounds.view_x;
+    let mechanical_settings = &setup_b.mechanical_settings;
+    let GuideState {
+        selected_bridge,
+        active_part_position,
+        guide,
+        has_matrix,
+        setup_guide_active,
+        setup_wiring_error,
+    } = use_guide_state(GuideStateInput {
+        active_workspace,
+        document: document.clone(),
+        render_scope: render_scope.clone(),
+        snapshot,
+        render_generation,
+        adapter: adapter.clone(),
+        runtime: runtime.clone(),
+        workspace,
+        selected_tree_context: selected_tree_context.clone(),
+        model,
+        visible: visible.clone(),
+        scene: scene.clone(),
+        part_placement: part_placement.clone(),
+        matrix_placement: matrix_placement.clone(),
+        parts_query,
+        guide_preferences,
+        matrices: matrices.clone(),
+        mirrored_pair: mirrored_pair.clone(),
+        resolution,
+    });
+    let GuideOverlays {
+        inline_matrix_setup,
+        inline_case_basics,
+        inline_controller_picker,
+        show_empty_board,
+        outline_pitch,
+        outline_snap_origins,
+        outline_snap_settings,
+        canvas_grid,
+        outline_overlay_key,
+    } = use_guide_overlays(GuideOverlaysInput {
+        guide: &guide,
+        matrix_setup: matrix_setup.clone(),
+        mechanical_settings: mechanical_settings.clone(),
+        snapshot,
+        current_scope: current_scope.clone(),
+        parts_selection,
+        part_placement: part_placement.clone(),
+        matrix_placement: matrix_placement.clone(),
+        setup_wiring_error,
+        active_workspace,
+        layout_assembly_3d,
+        visible: visible.clone(),
+        matrices: matrices.clone(),
+        scene: scene.clone(),
+        model,
+        mirrored_pair: mirrored_pair.clone(),
+        tree_cell_anchor: tree_cell_anchor.clone(),
+        layout_owner: layout_owner.clone(),
+        render_scope: render_scope.clone(),
+        adapter: adapter.clone(),
+        accepted_canvas_source: accepted_canvas_source.clone(),
+        layout_snap_settings,
+        outline_inspector: outline_inspector.clone(),
+        document: document.clone(),
+        has_matrix,
+        guide_preferences,
+        workspace,
+        width,
+        zoom_surface_size,
+    });
+    let (name_value, on_name_change, on_name_commit) = guide_name_fields(
+        guide_name_draft,
+        document.clone(),
+        guide_name_edit.on_change,
+        guide_name_edit.on_commit,
+    );
+    let on_stage_change = on_stage_change_handler(OnStageChangeArgs {
+        setup_state_for_stage: setup_state,
+        guide_project_id: document.id.clone(),
+        guide_workspace_for_stage: workspace,
+        requested_workspace_panel,
+        objects_open,
+        inspect_open,
+        objects_panel_settings,
+        inspector_panel_settings,
+        guide_adapter: adapter.clone(),
+        guide_runtime: runtime.clone(),
+    });
+    let (full_case_settings, on_open_workspace) = use_on_open_workspace(OnOpenWorkspaceArgs {
+        guide_workspace_for_action: workspace,
+        guide_adapter_for_action: adapter.clone(),
+        guide_runtime_for_action: runtime.clone(),
+        settings_project_id: document.id.clone(),
+        objects_open,
+        inspect_open,
+        objects_panel_settings,
+        inspector_panel_settings,
+    });
+    let on_dismiss_guide = on_dismiss_guide_handler(setup_state, document.id.clone());
+    let on_finish_guide = on_finish_guide_handler(setup_state, document.id.clone(), workspace);
+    let GuideReadiness {
+        guide_stage_readiness,
+        guide_stage_detail,
+        canvas_transform_menu,
+        selection_geometry_anchor,
+    } = use_guide_readiness(GuideReadinessInput {
+        guide: &guide,
+        document: document.clone(),
+        model,
+        snapshot,
+        resolution,
+        toolbar_input,
+        layout_assembly_3d,
+        visible: visible.clone(),
+        scene: scene.clone(),
+        svg: svg.clone(),
+        zoom_surface_size,
+        width,
+        height,
+        view_x,
+        active_workspace,
+    });
+    GuideNamed {
+        state: GuideState {
+            selected_bridge,
+            active_part_position,
+            guide,
+            has_matrix,
+            setup_guide_active,
+            setup_wiring_error,
+        },
+        show_empty_board,
+        outline_pitch,
+        outline_snap_origins,
+        outline_snap_settings,
+        canvas_grid,
+        outline_overlay_key,
+        on_name_change,
+        on_name_commit,
+        full_case_settings,
+        guide_stage_readiness,
+        canvas_transform_menu,
+        selection_geometry_anchor,
+        name_value,
+        inline_matrix_setup,
+        inline_case_basics,
+        inline_controller_picker,
+        guide_stage_detail,
+        on_stage_change,
+        on_open_workspace,
+        on_dismiss_guide,
+        on_finish_guide,
     }
 }

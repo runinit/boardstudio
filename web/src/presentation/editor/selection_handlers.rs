@@ -109,7 +109,7 @@ pub(super) struct OnLayoutSelectionKindInput {
 
 pub(super) fn on_layout_selection_kind_handler(
     input: OnLayoutSelectionKindInput,
-) -> impl FnMut(objects::LayoutSelectionKind) + 'static {
+) -> EventHandler<objects::LayoutSelectionKind> {
     let OnLayoutSelectionKindInput {
         runtime,
         adapter,
@@ -121,7 +121,7 @@ pub(super) fn on_layout_selection_kind_handler(
         workspace,
         inspector_panel_settings,
     } = input;
-    move |kind: objects::LayoutSelectionKind| {
+    EventHandler::new(move |kind: objects::LayoutSelectionKind| {
         if !layout_owner_is_current(&runtime, workspace, &adapter, &owner) {
             return;
         }
@@ -170,7 +170,7 @@ pub(super) fn on_layout_selection_kind_handler(
             objects_open.set(false);
             inspect_open.set(true);
         }
-    }
+    })
 }
 
 pub(super) fn on_layout_snap_intent_handler(
@@ -179,8 +179,8 @@ pub(super) fn on_layout_snap_intent_handler(
     owner: LayoutOwnerIdentity,
     mut snap_settings: Signal<objects::LayoutSnapSettings>,
     workspace: Signal<&'static str>,
-) -> impl FnMut(objects::LayoutSnapIntent) + 'static {
-    move |intent: objects::LayoutSnapIntent| {
+) -> EventHandler<objects::LayoutSnapIntent> {
+    EventHandler::new(move |intent: objects::LayoutSnapIntent| {
         if !layout_owner_is_current(&runtime, workspace, &adapter, &owner) {
             return;
         }
@@ -203,7 +203,7 @@ pub(super) fn on_layout_snap_intent_handler(
             objects::LayoutSnapIntent::Fraction(_) => return,
         }
         snap_settings.set(settings);
-    }
+    })
 }
 
 pub(super) struct OnPcbSelectionKindInput {
@@ -220,7 +220,7 @@ pub(super) struct OnPcbSelectionKindInput {
 
 pub(super) fn on_pcb_selection_kind_handler(
     input: OnPcbSelectionKindInput,
-) -> impl FnMut(objects::LayoutSelectionKind) + 'static {
+) -> EventHandler<objects::LayoutSelectionKind> {
     let OnPcbSelectionKindInput {
         runtime,
         adapter,
@@ -232,7 +232,7 @@ pub(super) fn on_pcb_selection_kind_handler(
         workspace,
         inspector_panel_settings,
     } = input;
-    move |kind: objects::LayoutSelectionKind| {
+    EventHandler::new(move |kind: objects::LayoutSelectionKind| {
         if !pcb_owner_is_current(&runtime, workspace, &adapter, &owner) {
             return;
         }
@@ -281,7 +281,7 @@ pub(super) fn on_pcb_selection_kind_handler(
             objects_open.set(false);
             inspect_open.set(true);
         }
-    }
+    })
 }
 
 pub(super) fn on_pcb_snap_intent_handler(
@@ -290,8 +290,8 @@ pub(super) fn on_pcb_snap_intent_handler(
     owner: LayoutOwnerIdentity,
     mut snap_settings: Signal<objects::LayoutSnapSettings>,
     workspace: Signal<&'static str>,
-) -> impl FnMut(objects::LayoutSnapIntent) + 'static {
-    move |intent: objects::LayoutSnapIntent| {
+) -> EventHandler<objects::LayoutSnapIntent> {
+    EventHandler::new(move |intent: objects::LayoutSnapIntent| {
         if !pcb_owner_is_current(&runtime, workspace, &adapter, &owner) {
             return;
         }
@@ -314,7 +314,7 @@ pub(super) fn on_pcb_snap_intent_handler(
             objects::LayoutSnapIntent::Fraction(_) => return,
         }
         snap_settings.set(settings);
-    }
+    })
 }
 
 pub(super) struct OnKeymapSelectInput {
@@ -328,9 +328,7 @@ pub(super) struct OnKeymapSelectInput {
     pub keymap_layer_id: Signal<String>,
 }
 
-pub(super) fn on_keymap_select_handler(
-    input: OnKeymapSelectInput,
-) -> impl FnMut(String) + Clone + 'static {
+pub(super) fn on_keymap_select_handler(input: OnKeymapSelectInput) -> EventHandler<String> {
     let OnKeymapSelectInput {
         runtime,
         adapter,
@@ -341,7 +339,7 @@ pub(super) fn on_keymap_select_handler(
         workspace,
         keymap_layer_id,
     } = input;
-    move |key_id: String| {
+    EventHandler::new(move |key_id: String| {
         if workspace() != "Keymap"
             || runtime.scope().as_ref() != Some(&scope)
             || (adapter.generation)() != generation
@@ -419,7 +417,7 @@ pub(super) fn on_keymap_select_handler(
         }
         objects_open.set(false);
         inspect_open.set(true);
-    }
+    })
 }
 
 pub(super) struct OnKeycapsSelectInput {
@@ -433,9 +431,7 @@ pub(super) struct OnKeycapsSelectInput {
     pub instance_selection: InstanceSelection,
 }
 
-pub(super) fn on_keycaps_select_handler(
-    input: OnKeycapsSelectInput,
-) -> impl FnMut(String) + Clone + 'static {
+pub(super) fn on_keycaps_select_handler(input: OnKeycapsSelectInput) -> EventHandler<String> {
     let OnKeycapsSelectInput {
         runtime,
         adapter,
@@ -446,7 +442,7 @@ pub(super) fn on_keycaps_select_handler(
         workspace,
         instance_selection,
     } = input;
-    move |key_id: String| {
+    EventHandler::new(move |key_id: String| {
         if workspace() != "Keycaps"
             || runtime.scope().as_ref() != Some(&scope)
             || (adapter.generation)() != generation
@@ -520,7 +516,7 @@ pub(super) fn on_keycaps_select_handler(
         }
         objects_open.set(false);
         inspect_open.set(true);
-    }
+    })
 }
 
 pub(super) struct OnPcbPartHitInput {
@@ -538,7 +534,7 @@ pub(super) struct OnPcbPartHitInput {
 
 pub(super) fn on_pcb_part_hit_handler(
     input: OnPcbPartHitInput,
-) -> impl FnMut(pcb_scene::PcbPartHit) + 'static {
+) -> EventHandler<pcb_scene::PcbPartHit> {
     let OnPcbPartHitInput {
         runtime,
         adapter,
@@ -551,7 +547,7 @@ pub(super) fn on_pcb_part_hit_handler(
         instance_selection,
         layout_selection_kind,
     } = input;
-    move |request: pcb_scene::PcbPartHit| {
+    EventHandler::new(move |request: pcb_scene::PcbPartHit| {
         if workspace() != "PCB"
             || request.scope != scope
             || request.token != token
@@ -623,42 +619,40 @@ pub(super) fn on_pcb_part_hit_handler(
         selection::submit_canvas_selection(
             &runtime, &adapter, &scope, generation, context, mode, range_ids,
         );
-    }
+    })
 }
 
 // GROUPING: allow until the Editor rewrite lands; remove then.
 #[allow(dead_code)]
-pub(super) struct SelHandlersNamed {
+pub(super) struct SelHandlers {
+    pub on_layout_selection_kind: EventHandler<objects::LayoutSelectionKind>,
+    pub on_layout_snap_intent: EventHandler<objects::LayoutSnapIntent>,
+    pub on_pcb_selection_kind: EventHandler<objects::LayoutSelectionKind>,
+    pub on_pcb_snap_intent: EventHandler<objects::LayoutSnapIntent>,
+    pub on_keymap_select: EventHandler<String>,
+    pub on_keycaps_select: EventHandler<String>,
+    pub on_pcb_part_hit: EventHandler<pcb_scene::PcbPartHit>,
+    pub on_mounted_module_select: EventHandler<String>,
+    pub on_pcb_wiring_edit_board: EventHandler<()>,
+    pub on_case_action: EventHandler<case_workspace::TreeAction>,
+    pub on_case_display: EventHandler<case_workspace::DisplayRequest>,
+    pub on_keymap_layer: EventHandler<String>,
+    pub on_keymap_export: EventHandler<()>,
+    pub nudge_tree: EventHandler<objects::TreeNudgeRequest>,
     pub on_open_module_placement: EventHandler<String>,
     pub on_module_attached: EventHandler<parts::AttachedModuleNavigation>,
 }
 
 // GROUPING: allow until the Editor rewrite lands; remove then.
 #[allow(dead_code)]
-// Unnameable handler tuple cannot be factored into a type alias.
-#[allow(clippy::type_complexity)]
 pub(super) fn build_selection_handlers(
     setup_a: &super::setup_shell::SetupA,
     snapshot: &AcceptedSnapshot,
     render_scope: &Scope,
     workspace_routing: WorkspaceRoutingSlots,
 ) -> (
-    SelHandlersNamed,
+    SelHandlers,
     impl FnMut(objects::TreeSelectRequest) + 'static,
-    impl FnMut(objects::LayoutSelectionKind) + 'static,
-    impl FnMut(objects::LayoutSnapIntent) + 'static,
-    impl FnMut(objects::LayoutSelectionKind) + 'static,
-    impl FnMut(objects::LayoutSnapIntent) + 'static,
-    impl FnMut(String) + Clone + 'static,
-    impl FnMut(String) + Clone + 'static,
-    impl FnMut(pcb_scene::PcbPartHit) + 'static,
-    impl FnMut(String) + 'static,
-    impl FnMut(()) + 'static,
-    impl FnMut(case_workspace::TreeAction) + 'static,
-    impl FnMut(case_workspace::DisplayRequest) + 'static,
-    impl FnMut(String) + 'static,
-    impl FnMut(()) + 'static,
-    impl FnMut(objects::TreeNudgeRequest) + 'static,
 ) {
     let runtime = &setup_a.runtime;
     let adapter = &setup_a.adapter;
@@ -861,24 +855,24 @@ pub(super) fn build_selection_handlers(
         inspect_open,
     );
     (
-        SelHandlersNamed {
+        SelHandlers {
+            on_layout_selection_kind,
+            on_layout_snap_intent,
+            on_pcb_selection_kind,
+            on_pcb_snap_intent,
+            on_keymap_select,
+            on_keycaps_select,
+            on_pcb_part_hit,
+            on_mounted_module_select,
+            on_pcb_wiring_edit_board,
+            on_case_action,
+            on_case_display,
+            on_keymap_layer,
+            on_keymap_export,
+            nudge_tree,
             on_open_module_placement,
             on_module_attached,
         },
         select_tree,
-        on_layout_selection_kind,
-        on_layout_snap_intent,
-        on_pcb_selection_kind,
-        on_pcb_snap_intent,
-        on_keymap_select,
-        on_keycaps_select,
-        on_pcb_part_hit,
-        on_mounted_module_select,
-        on_pcb_wiring_edit_board,
-        on_case_action,
-        on_case_display,
-        on_keymap_layer,
-        on_keymap_export,
-        nudge_tree,
     )
 }

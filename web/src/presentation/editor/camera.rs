@@ -307,13 +307,13 @@ pub(super) fn on_fit_keymap_board_handler(
     svg: Rc<RefCell<Option<SvgElement>>>,
     footer_board_bounds: Option<(f64, f64, f64, f64)>,
     footer_camera_bounds: (f64, f64, f64, f64),
-) -> impl FnMut(()) + 'static {
+) -> EventHandler<()> {
     let footer_owner = layout_owner.clone();
     let footer_svg = svg.clone();
     let footer_runtime = runtime.clone();
     let footer_workspace = workspace;
     let footer_adapter = adapter.clone();
-    move |_| {
+    EventHandler::new(move |_| {
         if current_layout_owner(&footer_runtime, footer_workspace, &footer_adapter) != footer_owner
         {
             return;
@@ -344,7 +344,7 @@ pub(super) fn on_fit_keymap_board_handler(
             center: camera.center,
             zoom: camera.zoom,
         });
-    }
+    })
 }
 
 pub(super) struct OnFitKeymapSelectionInput {
@@ -360,7 +360,7 @@ pub(super) struct OnFitKeymapSelectionInput {
 
 pub(super) fn on_fit_keymap_selection_handler(
     input: OnFitKeymapSelectionInput,
-) -> impl FnMut(()) + 'static {
+) -> EventHandler<()> {
     let OnFitKeymapSelectionInput {
         layout_owner,
         runtime,
@@ -377,7 +377,7 @@ pub(super) fn on_fit_keymap_selection_handler(
     let selection_adapter = adapter.clone();
     let selection_svg = svg.clone();
     let selection_canvas_bounds = Some(footer_camera_bounds);
-    move |_| {
+    EventHandler::new(move |_| {
         if current_layout_owner(&selection_runtime, selection_workspace, &selection_adapter)
             != selection_owner
         {
@@ -417,7 +417,7 @@ pub(super) fn on_fit_keymap_selection_handler(
             center: camera.center,
             zoom: camera.zoom,
         });
-    }
+    })
 }
 
 pub(super) struct ZoomKeymapInput {
@@ -635,12 +635,16 @@ pub(super) struct CamNamed {
     pub scene_bounds: SceneBounds,
     pub footer_bounds: FooterBounds,
     pub placement: PlacementBindings,
+    pub on_fit_keymap_board: EventHandler<()>,
+    pub on_fit_keymap_selection: EventHandler<()>,
+    pub on_zoom_keymap_out: EventHandler<()>,
+    pub on_zoom_keymap_in: EventHandler<()>,
 }
 
 // GROUPING: allow until the Editor rewrite lands; remove then.
 #[allow(dead_code)]
-// Unnameable handler tuple cannot be factored; &Vec keeps .clone() verbatim.
-#[allow(clippy::type_complexity, clippy::ptr_arg)]
+// &Vec keeps .clone() verbatim.
+#[allow(clippy::ptr_arg)]
 pub(super) fn use_camera_bundle(
     setup_a: &super::setup_shell::SetupA,
     setup_b: &super::setup_shell::SetupB,
@@ -649,13 +653,7 @@ pub(super) fn use_camera_bundle(
     render_scope: &Scope,
     visible: &Vec<&Part>,
     matrix_setup: &mut objects::MatrixSetupMount,
-) -> (
-    CamNamed,
-    impl FnMut(()) + 'static,
-    impl FnMut(()) + 'static,
-    impl FnMut(()) + 'static,
-    impl FnMut(()) + 'static,
-) {
+) -> CamNamed {
     let runtime = &setup_a.runtime;
     let adapter = &setup_a.adapter;
     let workspace = setup_a.workspace;
@@ -773,8 +771,8 @@ pub(super) fn use_camera_bundle(
         render_generation,
     });
     let mut zoom_out = zoom_keymap.clone();
-    let on_zoom_keymap_out = move |_| zoom_out(-1.0);
-    let on_zoom_keymap_in = move |_| zoom_keymap(1.0);
+    let on_zoom_keymap_out = EventHandler::new(move |_| zoom_out(-1.0));
+    let on_zoom_keymap_in = EventHandler::new(move |_| zoom_keymap(1.0));
     let PlacementBindings {
         part_placement,
         drag,
@@ -805,47 +803,45 @@ pub(super) fn use_camera_bundle(
         svg: svg.clone(),
         canvas_navigation,
     });
-    (
-        CamNamed {
-            svg_surface: SvgSurface {
-                svg,
-                zoom_surface_size,
-            },
-            scene_bounds: SceneBounds {
-                accepted_canvas_source,
-                canvas_source,
-                displayed_layout_bounds,
-                workspace_rect_bounds,
-                bounds,
-                min_x,
-                max_x,
-                min_y,
-                max_y,
-                keymap_scale_ratio,
-                zoom_percent,
-                width,
-                height,
-                view_x,
-                view_y,
-                view_box,
-            },
-            footer_bounds: FooterBounds {
-                footer_camera_bounds,
-                footer_board_bounds,
-                footer_selection_bounds,
-                footer_selection_available,
-            },
-            placement: PlacementBindings {
-                part_placement,
-                drag,
-                space_down,
-                interaction_version,
-                observed_interaction_version,
-            },
+    CamNamed {
+        svg_surface: SvgSurface {
+            svg,
+            zoom_surface_size,
+        },
+        scene_bounds: SceneBounds {
+            accepted_canvas_source,
+            canvas_source,
+            displayed_layout_bounds,
+            workspace_rect_bounds,
+            bounds,
+            min_x,
+            max_x,
+            min_y,
+            max_y,
+            keymap_scale_ratio,
+            zoom_percent,
+            width,
+            height,
+            view_x,
+            view_y,
+            view_box,
+        },
+        footer_bounds: FooterBounds {
+            footer_camera_bounds,
+            footer_board_bounds,
+            footer_selection_bounds,
+            footer_selection_available,
+        },
+        placement: PlacementBindings {
+            part_placement,
+            drag,
+            space_down,
+            interaction_version,
+            observed_interaction_version,
         },
         on_fit_keymap_board,
         on_fit_keymap_selection,
         on_zoom_keymap_out,
         on_zoom_keymap_in,
-    )
+    }
 }

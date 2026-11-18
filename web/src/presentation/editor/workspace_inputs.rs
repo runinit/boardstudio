@@ -43,35 +43,38 @@ pub(super) struct WorkspaceEventWiring {
     pub canvas_wheel: EventHandler<WheelEvent>,
 }
 
-#[allow(clippy::too_many_arguments)]
+pub(super) struct WiringHandlers {
+    pub nudge_tree: EventHandler<objects::TreeNudgeRequest>,
+    pub on_parts_select: EventHandler<()>,
+    pub on_keymap_select: EventHandler<String>,
+    pub on_keycaps_select: EventHandler<String>,
+    pub on_keycaps_finding: EventHandler<keycaps_fit::FindingNavigationRequest>,
+    pub on_pcb_empty_hit: EventHandler<PointerEvent>,
+    pub on_pcb_part_hit: EventHandler<pcb_scene::PcbPartHit>,
+    pub on_mounted_module_select: EventHandler<String>,
+    pub on_pcb_part_pointer_down: EventHandler<pcb_scene::PcbPartPointerDown>,
+    pub on_pcb_wiring_edit_board: EventHandler<()>,
+    pub on_layout_selection_kind: EventHandler<objects::LayoutSelectionKind>,
+    pub on_layout_snap_intent: EventHandler<objects::LayoutSnapIntent>,
+    pub on_pcb_selection_kind: EventHandler<objects::LayoutSelectionKind>,
+    pub on_pcb_snap_intent: EventHandler<objects::LayoutSnapIntent>,
+    pub on_case_action: EventHandler<case_workspace::TreeAction>,
+    pub on_case_display: EventHandler<case_workspace::DisplayRequest>,
+    pub on_keymap_layer: EventHandler<String>,
+    pub on_keymap_export: EventHandler<()>,
+    pub on_show_configured_board: EventHandler<String>,
+    pub end_pointer: EventHandler<PointerEvent>,
+    pub cancel_pointer: EventHandler<PointerEvent>,
+    pub keyboard: EventHandler<KeyboardEvent>,
+    pub wheel: EventHandler<WheelEvent>,
+}
+
 pub(super) fn use_workspace_event_wiring(
     input: WorkspaceEventWiringInput,
     workspace_routing: &mut WorkspaceRoutingSlots,
     select_tree: impl FnMut(objects::TreeSelectRequest) + 'static,
-    navigate: impl FnMut((Scope, String, Option<String>)) + 'static,
-    nudge_tree: impl FnMut(objects::TreeNudgeRequest) + 'static,
-    on_parts_select: impl FnMut(()) + 'static,
-    on_keymap_select: impl FnMut(String) + 'static,
-    on_keycaps_select: impl FnMut(String) + 'static,
-    on_keycaps_finding: impl FnMut(keycaps_fit::FindingNavigationRequest) + 'static,
-    on_pcb_empty_hit: impl FnMut(PointerEvent) + 'static,
-    on_pcb_part_hit: impl FnMut(pcb_scene::PcbPartHit) + 'static,
-    on_mounted_module_select: impl FnMut(String) + 'static,
-    on_pcb_part_pointer_down: impl FnMut(pcb_scene::PcbPartPointerDown) + 'static,
-    on_pcb_wiring_edit_board: impl FnMut(()) + 'static,
-    on_layout_selection_kind: impl FnMut(objects::LayoutSelectionKind) + 'static,
-    on_layout_snap_intent: impl FnMut(objects::LayoutSnapIntent) + 'static,
-    on_pcb_selection_kind: impl FnMut(objects::LayoutSelectionKind) + 'static,
-    on_pcb_snap_intent: impl FnMut(objects::LayoutSnapIntent) + 'static,
-    on_case_action: impl FnMut(case_workspace::TreeAction) + 'static,
-    on_case_display: impl FnMut(case_workspace::DisplayRequest) + 'static,
-    on_keymap_layer: impl FnMut(String) + 'static,
-    on_keymap_export: impl FnMut(()) + 'static,
-    on_show_configured_board: impl FnMut(String) + 'static,
-    end_pointer: impl FnMut(PointerEvent) + 'static,
-    cancel_pointer: impl FnMut(PointerEvent) + 'static,
-    keyboard: impl FnMut(KeyboardEvent) + 'static,
-    wheel: impl FnMut(WheelEvent) + 'static,
+    navigate: super::findings_navigation::NavigateFn,
+    handlers: WiringHandlers,
 ) -> (
     WorkspaceEventWiring,
     workspace_composition::SharedObjectsInput,
@@ -92,26 +95,32 @@ pub(super) fn use_workspace_event_wiring(
     let retry = runtime.clone();
     let recover = runtime.clone();
     workspace_routing.select_tree.replace(Box::new(select_tree));
-    workspace_routing.navigate.replace(Box::new(navigate));
-    let nudge_tree = EventHandler::new(nudge_tree);
-    let parts_select = EventHandler::new(on_parts_select);
-    let keymap_select = EventHandler::new(on_keymap_select);
-    let keycaps_select = EventHandler::new(on_keycaps_select);
-    let keycaps_finding = EventHandler::new(on_keycaps_finding);
-    let pcb_empty_hit = EventHandler::new(on_pcb_empty_hit);
-    let pcb_part_hit = EventHandler::new(on_pcb_part_hit);
-    let mounted_module_select = EventHandler::new(on_mounted_module_select);
-    let pcb_part_pointer_down = EventHandler::new(on_pcb_part_pointer_down);
-    let pcb_wiring_edit_board = EventHandler::new(on_pcb_wiring_edit_board);
-    let on_layout_selection_kind_handler = EventHandler::new(on_layout_selection_kind);
-    let layout_snap_intent = EventHandler::new(on_layout_snap_intent);
-    let pcb_selection_kind = EventHandler::new(on_pcb_selection_kind);
-    let pcb_snap_intent = EventHandler::new(on_pcb_snap_intent);
-    let case_action = EventHandler::new(on_case_action);
-    let case_display = EventHandler::new(on_case_display);
-    let keymap_layer = EventHandler::new(on_keymap_layer);
-    let keymap_export = EventHandler::new(on_keymap_export);
-    let show_configured_board = EventHandler::new(on_show_configured_board);
+    workspace_routing.navigate.replace(navigate);
+    let WiringHandlers {
+        nudge_tree,
+        on_parts_select: parts_select,
+        on_keymap_select: keymap_select,
+        on_keycaps_select: keycaps_select,
+        on_keycaps_finding: keycaps_finding,
+        on_pcb_empty_hit: pcb_empty_hit,
+        on_pcb_part_hit: pcb_part_hit,
+        on_mounted_module_select: mounted_module_select,
+        on_pcb_part_pointer_down: pcb_part_pointer_down,
+        on_pcb_wiring_edit_board: pcb_wiring_edit_board,
+        on_layout_selection_kind: on_layout_selection_kind_handler,
+        on_layout_snap_intent: layout_snap_intent,
+        on_pcb_selection_kind: pcb_selection_kind,
+        on_pcb_snap_intent: pcb_snap_intent,
+        on_case_action: case_action,
+        on_case_display: case_display,
+        on_keymap_layer: keymap_layer,
+        on_keymap_export: keymap_export,
+        on_show_configured_board: show_configured_board,
+        end_pointer,
+        cancel_pointer,
+        keyboard,
+        wheel,
+    } = handlers;
     let open_geometry_scripts = {
         let mut workspace = workspace;
         let mut objects_open = objects_open;
@@ -145,10 +154,10 @@ pub(super) fn use_workspace_event_wiring(
         let recover = recover.clone();
         EventHandler::new(move |_| recover.recover_saved())
     };
-    let canvas_end_pointer = EventHandler::new(end_pointer);
-    let canvas_cancel_pointer = EventHandler::new(cancel_pointer);
-    let canvas_keyboard = EventHandler::new(keyboard);
-    let canvas_wheel = EventHandler::new(wheel);
+    let canvas_end_pointer = end_pointer;
+    let canvas_cancel_pointer = cancel_pointer;
+    let canvas_keyboard = keyboard;
+    let canvas_wheel = wheel;
     let board_setup = objects::use_board_setup(
         runtime.clone(),
         version,
@@ -696,92 +705,53 @@ pub(super) fn on_layout_view_mode(input: OnLayoutViewModeArgs) -> EventHandler<b
 pub(super) struct WsWiring {
     pub wiring: WorkspaceEventWiring,
     pub pcb: PcbWiringBindings,
+    pub on_open_module_placement: EventHandler<String>,
+    pub on_module_attached: EventHandler<parts::AttachedModuleNavigation>,
+}
+
+pub(super) struct WiringInput<'a> {
+    pub setup_a: &'a super::setup_shell::SetupA,
+    pub setup_b: &'a super::setup_shell::SetupB,
+    pub snapshot: &'a AcceptedSnapshot,
+    pub render_scope: &'a Scope,
+    pub matrix_setup: &'a objects::MatrixSetupMount,
+    pub workspace_routing: &'a mut WorkspaceRoutingSlots,
+    pub instance_scope_pending: bool,
+    pub layer_actions: &'a keymap::LayerActions,
+    pub cam: &'a super::camera::CamNamed,
+    pub sel: super::selection_handlers::SelHandlers,
+    pub nav: &'a super::findings_navigation::NavNamed,
+    pub pk: super::keyboard::PkNamed,
+    pub ops: EventHandler<()>,
 }
 
 // GROUPING: allow until the Editor rewrite lands; remove then.
 #[allow(dead_code)]
-// Unnameable handler tuple cannot be factored; many params are inherent to the call.
-#[allow(clippy::type_complexity, clippy::too_many_arguments)]
-pub(super) fn use_workspace_wiring<
-    'a,
-    S1,
-    S2,
-    S3,
-    S4,
-    S5,
-    S6,
-    S7,
-    S8,
-    S9,
-    S10,
-    S11,
-    S12,
-    S13,
-    S14,
-    S15,
->(
-    setup_a: &'a super::setup_shell::SetupA,
-    setup_b: &super::setup_shell::SetupB,
-    snapshot: &'a AcceptedSnapshot,
-    render_scope: &Scope,
-    matrix_setup: &objects::MatrixSetupMount,
-    workspace_routing: &mut WorkspaceRoutingSlots,
-    instance_scope_pending: bool,
-    layer_actions: &keymap::LayerActions,
-    cam: &super::camera::CamNamed,
-    sel: (
-        super::selection_handlers::SelHandlersNamed,
-        S1,
-        S2,
-        S3,
-        S4,
-        S5,
-        S6,
-        S7,
-        S8,
-        S9,
-        S10,
-        S11,
-        S12,
-        S13,
-        S14,
-        S15,
-    ),
-    navigate: impl FnMut((Scope, String, Option<String>)) + Clone + 'static,
-    on_keycaps_finding: impl FnMut(keycaps_fit::FindingNavigationRequest) + 'static,
-    on_show_configured_board: impl FnMut(String) + 'static,
-    on_pcb_part_pointer_down: impl FnMut(pcb_scene::PcbPartPointerDown) + 'static,
-    on_pcb_empty_hit: impl FnMut(PointerEvent) + 'static,
-    on_parts_select: impl FnMut(()) + 'static,
+pub(super) fn use_workspace_wiring<'a>(
+    input: WiringInput<'a>,
+    select_tree: impl FnMut(objects::TreeSelectRequest) + 'static,
+    navigate: super::findings_navigation::NavigateFn,
     end_pointer: impl FnMut(PointerEvent) + Clone + 'static,
     cancel_pointer: impl FnMut(PointerEvent) + Clone + 'static,
     keyboard: impl FnMut(KeyboardEvent) + Clone + 'static,
     wheel: impl FnMut(WheelEvent) + Clone + 'static,
-) -> (
-    WsWiring,
-    workspace_composition::WorkspaceObjectsInput<'a>,
-    super::selection_handlers::SelHandlersNamed,
-)
-where
-    S1: FnMut(objects::TreeSelectRequest) + 'static,
-    S2: FnMut(objects::LayoutSelectionKind) + 'static,
-    S3: FnMut(objects::LayoutSnapIntent) + 'static,
-    S4: FnMut(objects::LayoutSelectionKind) + 'static,
-    S5: FnMut(objects::LayoutSnapIntent) + 'static,
-    S6: FnMut(String) + Clone + 'static,
-    S7: FnMut(String) + Clone + 'static,
-    S8: FnMut(pcb_scene::PcbPartHit) + 'static,
-    S9: FnMut(String) + 'static,
-    S10: FnMut(()) + 'static,
-    S11: FnMut(case_workspace::TreeAction) + 'static,
-    S12: FnMut(case_workspace::DisplayRequest) + 'static,
-    S13: FnMut(String) + 'static,
-    S14: FnMut(()) + 'static,
-    S15: FnMut(objects::TreeNudgeRequest) + 'static,
-{
-    let (
-        sel_named,
-        select_tree,
+) -> (WsWiring, workspace_composition::WorkspaceObjectsInput<'a>) {
+    let WiringInput {
+        setup_a,
+        setup_b,
+        snapshot,
+        render_scope,
+        matrix_setup,
+        workspace_routing,
+        instance_scope_pending,
+        layer_actions,
+        cam,
+        sel,
+        nav,
+        pk,
+        ops,
+    } = input;
+    let super::selection_handlers::SelHandlers {
         on_layout_selection_kind,
         on_layout_snap_intent,
         on_pcb_selection_kind,
@@ -796,7 +766,38 @@ where
         on_keymap_layer,
         on_keymap_export,
         nudge_tree,
-    ) = sel;
+        on_open_module_placement,
+        on_module_attached,
+    } = sel;
+    let super::keyboard::PkNamed {
+        on_pcb_part_pointer_down,
+        on_pcb_empty_hit,
+    } = pk;
+    let handlers = WiringHandlers {
+        nudge_tree,
+        on_parts_select: ops,
+        on_keymap_select,
+        on_keycaps_select,
+        on_keycaps_finding: nav.keycaps_finding,
+        on_pcb_empty_hit,
+        on_pcb_part_hit,
+        on_mounted_module_select,
+        on_pcb_part_pointer_down,
+        on_pcb_wiring_edit_board,
+        on_layout_selection_kind,
+        on_layout_snap_intent,
+        on_pcb_selection_kind,
+        on_pcb_snap_intent,
+        on_case_action,
+        on_case_display,
+        on_keymap_layer,
+        on_keymap_export,
+        on_show_configured_board: nav.show_configured_board,
+        end_pointer: EventHandler::new(end_pointer.clone()),
+        cancel_pointer: EventHandler::new(cancel_pointer.clone()),
+        keyboard: EventHandler::new(keyboard.clone()),
+        wheel: EventHandler::new(wheel.clone()),
+    };
     let runtime = &setup_a.runtime;
     let adapter = &setup_a.adapter;
     let workspace = setup_a.workspace;
@@ -876,29 +877,7 @@ where
         &mut *workspace_routing,
         select_tree,
         navigate,
-        nudge_tree,
-        on_parts_select,
-        on_keymap_select.clone(),
-        on_keycaps_select.clone(),
-        on_keycaps_finding,
-        on_pcb_empty_hit,
-        on_pcb_part_hit,
-        on_mounted_module_select,
-        on_pcb_part_pointer_down,
-        on_pcb_wiring_edit_board,
-        on_layout_selection_kind,
-        on_layout_snap_intent,
-        on_pcb_selection_kind,
-        on_pcb_snap_intent,
-        on_case_action,
-        on_case_display,
-        on_keymap_layer,
-        on_keymap_export,
-        on_show_configured_board,
-        end_pointer.clone(),
-        cancel_pointer.clone(),
-        keyboard.clone(),
-        wheel.clone(),
+        handlers,
     );
     let PcbWiringBindings {
         case_scene,
@@ -1019,8 +998,9 @@ where
                 on_browse_parts,
                 on_empty_board_matrix,
             },
+            on_open_module_placement,
+            on_module_attached,
         },
         objects_input,
-        sel_named,
     )
 }

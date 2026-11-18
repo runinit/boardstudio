@@ -495,7 +495,7 @@ pub(super) struct EditorContextsInput {
 
 pub(super) fn use_editor_contexts(
     input: EditorContextsInput,
-) -> (EditorContexts, impl FnMut(()) + 'static) {
+) -> (EditorContexts, EventHandler<()>) {
     let EditorContextsInput {
         runtime,
         adapter,
@@ -524,14 +524,14 @@ pub(super) fn use_editor_contexts(
         active_workspace,
         "Layout" | "Parts" | "Keymap" | "Keycaps" | "Case" | "PCB"
     );
-    let on_parts_select = {
+    let on_parts_select = EventHandler::new({
         let mut objects_open = objects_open;
         let mut inspect_open = inspect_open;
         move |_| {
             objects_open.set(false);
             inspect_open.set(true);
         }
-    };
+    });
     let model = runtime.model();
     let current_scope = runtime.scope();
     let accepted_token = model.accepted.as_ref().map(|snapshot| snapshot.token);
@@ -729,7 +729,7 @@ pub(super) fn use_editor_setup_shell() -> (
     SetupA,
     WorkspaceRoutingSlots,
     objects::MatrixSetupMount,
-    impl FnMut(()) + 'static,
+    EventHandler<()>,
 ) {
     let WorkspaceShell {
         workspace_routing,

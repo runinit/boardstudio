@@ -17,7 +17,7 @@ pub(super) struct OnMountedModuleSelectInput {
 
 pub(super) fn on_mounted_module_select_handler(
     input: OnMountedModuleSelectInput,
-) -> impl FnMut(String) + 'static {
+) -> EventHandler<String> {
     let OnMountedModuleSelectInput {
         runtime,
         mut adapter,
@@ -32,7 +32,7 @@ pub(super) fn on_mounted_module_select_handler(
         objects_open,
         objects_panel_settings,
     } = input;
-    move |module_id: String| {
+    EventHandler::new(move |module_id: String| {
         if !matches!(workspace(), "PCB" | "Layout")
             || runtime.scope().as_ref() != Some(&scope)
             || (adapter.generation)() != generation
@@ -95,7 +95,7 @@ pub(super) fn on_mounted_module_select_handler(
             is_compact_viewport(),
         );
         inspect_open.set(true);
-    }
+    })
 }
 
 pub(super) struct OnOpenModulePlacementInput {
@@ -267,8 +267,8 @@ pub(super) fn on_pcb_wiring_edit_board_handler(
     token: boardstudio_application::SnapshotToken,
     workspace: Signal<&'static str>,
     instance_selection: InstanceSelection,
-) -> impl FnMut(()) + 'static {
-    move |()| {
+) -> EventHandler<()> {
+    EventHandler::new(move |()| {
         if workspace() != "PCB"
             || runtime.scope().as_ref() != Some(&scope)
             || (adapter.generation)() != generation
@@ -304,7 +304,7 @@ pub(super) fn on_pcb_wiring_edit_board_handler(
             range_part_ids: Vec::new(),
             mode: SelectionMode::Replace,
         });
-    }
+    })
 }
 
 pub(super) fn case_admission(
@@ -332,26 +332,26 @@ pub(super) fn on_case_action_handler(
     navigate: EventHandler<(Scope, String, Option<String>)>,
     workspace: Signal<&'static str>,
     case_workspace_state: case_workspace::CaseWorkspaceState,
-) -> impl FnMut(case_workspace::TreeAction) + 'static {
-    move |action| {
+) -> EventHandler<case_workspace::TreeAction> {
+    EventHandler::new(move |action| {
         if workspace() != "Case" {
             return;
         }
         case_workspace_state.apply_tree_action(action, &admission, navigate);
-    }
+    })
 }
 
 pub(super) fn on_case_display_handler(
     admission: case_workspace::Admission,
     workspace: Signal<&'static str>,
     case_workspace_state: case_workspace::CaseWorkspaceState,
-) -> impl FnMut(case_workspace::DisplayRequest) + 'static {
-    move |request| {
+) -> EventHandler<case_workspace::DisplayRequest> {
+    EventHandler::new(move |request| {
         if workspace() != "Case" {
             return;
         }
         case_workspace_state.apply_display_request(request, &admission);
-    }
+    })
 }
 
 pub(super) fn on_keymap_layer_handler(
@@ -361,8 +361,8 @@ pub(super) fn on_keymap_layer_handler(
     generation: u64,
     workspace: Signal<&'static str>,
     keymap_state: keymap_workspace::KeymapWorkspaceState,
-) -> impl FnMut(String) + 'static {
-    move |layer_id: String| {
+) -> EventHandler<String> {
+    EventHandler::new(move |layer_id: String| {
         if workspace() != "Keymap"
             || runtime.scope().as_ref() != Some(&scope)
             || (adapter.generation)() != generation
@@ -387,7 +387,7 @@ pub(super) fn on_keymap_layer_handler(
         if exists {
             keymap_state.select_layer(layer_id);
         }
-    }
+    })
 }
 
 pub(super) struct OnKeymapExportInput {
@@ -401,7 +401,7 @@ pub(super) struct OnKeymapExportInput {
     pub instance_selection: InstanceSelection,
 }
 
-pub(super) fn on_keymap_export_handler(input: OnKeymapExportInput) -> impl FnMut(()) + 'static {
+pub(super) fn on_keymap_export_handler(input: OnKeymapExportInput) -> EventHandler<()> {
     let OnKeymapExportInput {
         runtime,
         adapter,
@@ -412,7 +412,7 @@ pub(super) fn on_keymap_export_handler(input: OnKeymapExportInput) -> impl FnMut
         workspace,
         instance_selection,
     } = input;
-    move |_| {
+    EventHandler::new(move |_| {
         if workspace() != "Keymap"
             || runtime.scope().as_ref() != Some(&scope)
             || (adapter.generation)() != generation
@@ -431,7 +431,7 @@ pub(super) fn on_keymap_export_handler(input: OnKeymapExportInput) -> impl FnMut
             return;
         }
         runtime.export_firmware();
-    }
+    })
 }
 
 pub(super) fn nudge_tree_handler(
@@ -439,8 +439,8 @@ pub(super) fn nudge_tree_handler(
     adapter: SelectionAdapter,
     generation: u64,
     mut inspect_open: Signal<bool>,
-) -> impl FnMut(objects::TreeNudgeRequest) + 'static {
-    move |request: objects::TreeNudgeRequest| {
+) -> EventHandler<objects::TreeNudgeRequest> {
+    EventHandler::new(move |request: objects::TreeNudgeRequest| {
         if runtime.scope().as_ref() != Some(&request.scope)
             || (adapter.generation)() != generation
             || !((request.dx == 0 && request.dy.abs() == 1)
@@ -563,5 +563,5 @@ pub(super) fn nudge_tree_handler(
             part.pose.at.x + f64::from(request.dx) * step,
             part.pose.at.y + f64::from(request.dy) * step,
         ));
-    }
+    })
 }

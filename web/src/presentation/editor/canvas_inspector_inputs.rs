@@ -813,7 +813,6 @@ pub(super) fn inspector_input_for(
     canvas: &super::canvas_state::CanvasNamed,
     wir: &super::workspace_inputs::WsWiring,
     inp: &super::toolbar_inputs::WsInputs,
-    sel_named: super::selection_handlers::SelHandlersNamed,
     snapshot: &AcceptedSnapshot,
     render_scope: &Scope,
     workspace_routing: WorkspaceRoutingSlots,
@@ -891,10 +890,8 @@ pub(super) fn inspector_input_for(
     let on_return_from_layout_finding = nav.callbacks.on_return_from_layout_finding;
     let on_companion_placement_action = inp.on_companion_placement_action;
     let on_component_inspector_action = inp.on_component_inspector_action;
-    let super::selection_handlers::SelHandlersNamed {
-        on_open_module_placement,
-        on_module_attached,
-    } = sel_named;
+    let on_open_module_placement = wir.on_open_module_placement;
+    let on_module_attached = wir.on_module_attached;
     match active_workspace {
         "Keymap" => keymap_inspector_input(KeymapInspectorArgs {
             keymap_view: keymap_view.clone(),
