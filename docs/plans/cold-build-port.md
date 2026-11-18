@@ -1,0 +1,228 @@
+# Cold build: audit and port plan
+
+Audited 2026-11-18 against `dev` at `2ce123403`. The aim is that a fresh worktree's `python3 scripts/check.py` stops taking about 1,000 s, with every gate and count floor kept. No filesystem tricks: no reflink seeding and no shared target.
+
+Inputs:
+- Sol's full cold run at `2ce123403` (1,010.7 s), in that worktree's `.evidence/shared-wasm-test-build/full.log`.
+- Measurements taken today on an idle machine (load under 1 at the start), listed under each cause.
+- The unmerged branch `perf/cold-build-lanes` (39 commits). Its plan lives on that branch in `docs/plans/cold-build-time/`. It cut a cold run from 1,273.8 s to 762.0 s on an older base.
+
+## Where the time goes on `dev`
+
+| Step | Wall | What is in it |
+|---|---:|---|
+| repo, tooling | 79 s | Serial Python tests. `test-import-kicad-parts.py` takes 29.7 s, because it compiles a native driver. |
+| build | 177 s | Six builds one after another: the Core worker (release wasm, 76 s), the CAD worker, the offline worker, the renderer, the CAD wasm (36 s), then the `dx` page. |
+| lint | 152 s | `fmt`, then three Clippy runs one after another: native 36.6 s, wasm32 76.7 s, harness 34.1 s. |
+| test | 281 s | Workspace tests (148 s), footprints and `test-cad.py` already run at once. `test-cad.py` is the long pole: three CAD trees in series, with about 245 s of release compiles. |
+| browser | 322 s | Drag smoke 98.7 s, eight gates 53.4 s, crate test build 0.5 s, 14 crate launches 67.4 s, page suite 102.2 s. |
+
+Only `browser` needs `build` to finish first, yet the steps never overlap.
+
+The 1,010.7 s figure is low for a truly fresh worktree. In that run, the browser crate test build and the page test binary were already compiled (0.5 s and 0.15 s). Compiling them cold adds about 25 to 60 s.
+
+## Causes, one at a time
+
+Gains are estimates unless marked measured. "Old" means a ticket from `perf/cold-build-lanes`.
+
+| # | Cause | Evidence | Fix | Source | Expected gain |
+|---|---|---|---|---|---|
+| 1 | Each browser launch re-runs `wasm-bindgen` over a huge debug test binary | The page test wasm is 145 MB (84 MB function names, 56 MB code), `layout` is 104 MB and `host` is 56 MB. Measured `wasm-bindgen` time: page 11.1 to 15.6 s, `layout` 11.7 s, `host` 6.6 s. A one-test page launch took 16.6 s, and 15.7 s of that passed before Chrome started. There are 18 launches per run. | Run fewer passes in series (rows 2 and 3). If split launches still cost much after that, cache the bindgen output per binary in the patched runner the repo already builds for CI. | New | See rows 2 and 3 |
+| 2 | The page suite runs its launches one after another | 102.2 s total for 23.5 s of test bodies: one `--list` launch (4.5 s, measured; it parses the whole module) and three filter launches of about 14 s overhead each | Run the three filters at once, keeping report order deterministic | Old 17 part 2 (`403e13a69`, `2145e8630`) | About −50 s on `browser` |
+| 3 | `wasm-bindgen` oversubscribes the CPU | Measured on the page wasm: by default 23.7 s user plus 22.7 s system time for 11.1 s wall; with `RAYON_NUM_THREADS=1`, 11.7 s wall on 11.6 s of CPU. Four heavy crates at once: 10.8 to 11.0 s by default, 9.7 s on one thread each. | Set `RAYON_NUM_THREADS=1` in `runner_environment` (`scripts/run-wasm-tests.py:243`), which every launch uses | New | About −35 CPU-s per page launch. Wall is about the same alone, and the freed cores help everything running alongside. |
+| 4 | The drag smoke compiles its harness inside `browser` | 41 s pass between the smoke's start and its browser opening. Measured cold harness build: 34.3 s, plus 3.1 s for the other harness binaries. | Build every harness binary early, beside other work. It has its own workspace and target directory, so it takes no lock that the root build needs. | Old 06.2 (`445a1cbb7`), reworked | About −35 s on `browser` |
+| 5 | The browser test binaries compile inside `browser` on a fresh worktree | Hidden in the 1,010.7 s run because they were warm | Prebuild the crate tests (Sol's shared build) and the page test binary during the compile steps | Old 17 part 1 (`05e2dabb5`), redone on Sol's build | About −25 to −60 s on a fresh worktree |
+| 6 | The CAD tree compiles run one after another | About 245 s of release compiles in series inside `test-cad.py` | Drop `regex` from the CAD trees, merge the library and wasm workspaces, then run the trees as parallel lanes | Old 07, 20 and 04 | Test step from 281 s to about 150 s; −300 to −500 CPU-s |
+| 7 | The provider and page builds run one after another | The Core worker alone takes 76 s before anything else starts | Overlap the page and provider builds | Old 05 (`7102a22d0`), hand-ported | About −85 s on `build` |
+| 8 | The steps run in series on a 16-CPU machine | lint, test and build add up to 610 s of serial wall | Run them at once on 8 or more CPUs, sharing one jobserver capped at the CPU count. Give `lint` its own target directory, because Cargo locks a whole target directory. | Old 19 (`5ca187739`, `88dc66963`) | Old branch measured −107 s; it is CPU-bound, so expect less once rows 6 and 7 land |
+| 9 | Tooling compiles a native driver | 29.7 s in the serial tooling step | Move the KiCad parts test into `test`, and build its driver with the workspace test features so it shares Core | Old 06.3 (`59542cea1`, `c8b0ef432`, `88db7ddbb`) | About −25 s |
+| 10 | The harness Clippy waits for the root Clippys | 34.1 s at the end of `lint` | Run it beside them | Old 06.1 (`183545277`) | Old branch measured −24 s on `lint` |
+| 11 | Core always compiles `wasm-bindgen` and `js-sys` | Unconditional in `core/Cargo.toml` | Make them wasm32-only | Old 11, redone on the split Core | About −4 s, −20 CPU-s |
+| 12 | A rare page-load stall costs up to 300 s | The runner waits for the page's `load` event with a timeout of `max(300 s, test timeout)`. The old branch hit about 300 s stalls under contention. | `pageLoadStrategy: "eager"` | Old 17 (`bf6ba7288`) | Guard only. Measured no change on an idle machine (16.6 to 16.9 s either way). |
+| 13 | A fresh worktree compiles every registry crate once | About 1,700 CPU-s on the old branch's kit | Machine-wide `sccache` 0.19.0, approved on 2026-11-18 | Old 12 | About −290 s on a new worktree. Registry crates only: 0.19.0 still hashes the working directory and `CARGO_MANIFEST_DIR` for Rust, so worktree crates never hit across worktrees. |
+
+## What today's measurements ruled out
+
+- **Stripping the name section.** It shrinks the page wasm from 145 to 59 MB but cuts bindgen only from 11.1 to 9.9 s, and failure summaries lose wasm frame names.
+- **Harness without debug info.** It cuts its cold build only from 34.3 to 31.7 s.
+- **A faster linker.** Rust 1.90 made `rust-lld` the default on `x86_64-unknown-linux-gnu`, and wasm32 always uses it. `mold` would add little.
+
+## The browser harness: do we need it?
+
+`tools/browser-harness/` is a standalone Cargo workspace on `chromiumoxide`, a Chrome DevTools Protocol client. It has nine binaries. The drag smoke needs things nothing else here provides:
+- trusted pointer drags with pointer capture;
+- response bodies from the page and its workers;
+- dedicated and service worker sessions.
+
+The CAD binaries add downloads, screenshots and worker timing.
+
+**Alternatives considered:**
+- **The test runner, `wasm-bindgen-test-runner`.** It only runs tests inside the page, so it cannot make trusted input.
+- **Plain WebDriver through the pinned `chromedriver`.** It can make trusted drags. Network and worker capture need WebDriver BiDi over a WebSocket, which Python's standard library lacks.
+- **A thin hand-written CDP client.** It would drop the generated protocol types.
+
+Each of the last two means rewriting nine checks for about 35 s, and the harness was written in Rust to remove Node and Playwright.
+
+**Decision:** keep the harness, but take its build off the critical path.
+- **What it costs.** A cold build measured 39.2 s, and 25.5 s of that is one registry crate, `chromiumoxide_cdp`.
+- **What the build depends on.** It has no root-workspace dependencies. It embeds only its own CAD measurement scripts.
+- **What changes:**
+  - `sccache` caches `chromiumoxide_cdp` across worktrees.
+  - The rest compiles early, beside other compile work. It has its own target directory, so it takes no root lock.
+- **Not doing:** caching the finished binaries. `cad-capture` compiles in `CARGO_MANIFEST_DIR` to find a fixture at runtime, so a copied binary would read another worktree's fixture.
+
+## Cargo locks, as they affect overlap
+
+Cargo locks each `target/<triple>/<profile>` directory, plus the host directory of the same profile. It does not lock the whole target directory.
+
+| Work | Lock it takes | Conflicts with |
+|---|---|---|
+| Four release `wasm-pack` providers | root `target/wasm32-unknown-unknown/release` and `target/release` | each other only |
+| `dx` page and both browser test builds | root `wasm-check` dirs | each other |
+| Root Clippy and the native tests | root `target/debug` | each other, so `lint` moves to `target/lint` |
+| CAD wasm build | its own `CARGO_TARGET_DIR` | nothing in `test`, once it keeps its own directory after ticket 20 |
+| Harness build and harness Clippy | `tools/browser-harness/target` | each other |
+
+## The old branch's commits
+
+Dry-run cherry-picks onto `dev` with `git merge-tree`. Many conflicts are only the plan docs, which do not exist on `dev`; bringing `docs/plans/cold-build-time/` over first clears those.
+
+| Commits | Ticket | Applies cleanly? | Verdict |
+|---|---|---|---|
+| `7aefe4ce1`, `10bb7dac4` | 02, measurement kit | Docs and kit conflicts only | Take first. It gives real CPU per rustc unit for a fresh-worktree baseline. |
+| `403e13a69`, `2145e8630`, `bf6ba7288`, `f82c10263` | 17, 16 | Clean | Take. Only measure `f82c10263` (6 jobs) after row 3 lands. |
+| `5f2078dab`, `bd82bfc4a` | 07 | Qualification lockfile only | Take; regenerate that lock offline |
+| `ba82951a2`, `88dc66963` | 20 | `check.yaml`, `cad_build.py`, CAD locks, seeding script | Take, dropping the seeding edits. Read the lock diff in review. |
+| `a634279f3`, `7db1d9106` | 04 | `cad_build.py` | Take after 20 |
+| `7102a22d0` | 05 | `build-web.py` | Hand-port: `dev` added the `wasm-check` page profile and `--wasm-js-cfg false` |
+| `183545277`, `445a1cbb7`, `59542cea1`, `c8b0ef432`, `88db7ddbb` | 06 | `check.py`, `test-check.py`; the last two clean | Hand-port. Build the harness in the compile steps rather than in the crate batch. |
+| `05e2dabb5` | 17 prebuild | `check.py` | Redo on Sol's shared crate build |
+| `5ca187739`, `165061bf1` | 19 | `check.py`, `test-check.py` | Hand-port last; it is the largest `check.py` change |
+| `675d9189f` | 11 | `core/Cargo.toml`, `core/src/lib.rs` | Redo on the split Core |
+| `da651f484` and round one | 01 | — | Skip. `dev` did most of it another way (`a88019ef6`, the `wasm-check` profile). |
+| `62a274623` | single browser prebuild | — | Skip; Sol's `2ce123403` supersedes it |
+| `5d2b30c78`, `65376d318` | 03, seeding | — | Skip: ruled out |
+
+## Upstream status (checked 2026-11-18)
+
+- **rustc's parallel front end** is still nightly-only. Nightly is only now starting to enable it by default ([2026 goal](https://rust-lang.github.io/rust-project-goals/2026/parallel-front-end.html), [Phoronix](https://www.phoronix.com/news/Rust-Nightly-Parallel-Frontend)). This repo pins stable 1.98, so it is out of reach for now. It would help most on the serial crate chain.
+- **Fine-grained target-directory locking** is still unstable ([cargo#16155](https://github.com/rust-lang/cargo/pull/16155)). On stable, Cargo locks a whole target directory, so overlapping steps need separate target directories, as row 8 does.
+- **Cargo's cross-workspace cache** is a 2026 goal, nightly first, with no build scripts or proc macros in its first milestone ([goal](https://rust-lang.github.io/rust-project-goals/2026/cargo-cross-workspace-cache.html)). It is not usable yet. It may replace `sccache` later.
+- **`sccache` basedirs** (`SCCACHE_BASEDIRS`) are documented in 0.15 ([Configuration.md](https://docs.rs/crate/sccache/0.15.0/source/docs/Configuration.md)). Rust support is not stated there, so caching path crates across worktrees is still unconfirmed. Registry crates are cacheable without it.
+- **A shared jobserver** across concurrent Cargo processes is the standard way to cap total parallelism ([GNU make job slots](https://www.gnu.org/s/hello/manual/make/Job-Slots.html), [Gentoo](https://blogs.gentoo.org/mgorny/?p=2439)). Tools outside the protocol are not counted: here that means `wasm-bindgen`, which is another reason for row 3, plus Chrome and the test binaries.
+- No upstream issue was found for the per-launch bindgen cost or the 300 s page-load stalls.
+
+## Implementation plan
+
+Decided on 2026-11-18:
+- **Testing waits until every fix is in.** Each commit gets only its quick checks: the self-tests of the scripts it touches, and `cargo metadata`/`cargo tree --locked --offline` for manifest or lockfile changes. There is no baseline run, no per-fix timing and no `check.py` run between commits.
+- **`sccache` goes machine-wide**, outside the repo.
+- **One implementer works through the items in order** on branch `perf/cold-build-port`, cut from `dev` at `2ce123403`.
+
+Each item is one commit. "Old" names the `perf/cold-build-lanes` commits to start from.
+
+### A. Record and kit
+
+1. **Plan docs.** Bring `docs/plans/cold-build-time/` over from the branch as the record, plus this file. Mark at the top of that `map.md` that porting status lives here.
+2. **Measurement kit** (old `7aefe4ce1`, `10bb7dac4`, `35116597c`), without seeding:
+   - Leave out `seed-worktree-target.py` and the seed tests.
+   - Fix three things in `report.py`: add `wasm-check` to the profile buckets, sum real CPU rather than unit elapsed time, and attribute units correctly when steps overlap.
+   - Make the wipe list match today's outputs, including the offline worker and the CAD paths after item C2.
+   - Chain the unit logger to the `sccache` wrapper when one is configured.
+   - Add `test-build-time.py` to `TOOLING_TESTS`.
+
+### B. Browser step
+
+1. **The page suite runs the runner directly.**
+   - **Build first:** `run-wasm-tests.py` builds the page test binary once, using the same flags as `WASM_PACK` today: `wasm-check`, locked, no default features, `page`, `--bin boardstudio-web`, plus `--no-run --message-format=json`.
+   - **Then run it directly:** listing and filters call `wasm-bindgen-test-runner` on that artifact, with the environment Sol's crate launches already use, instead of `wasm-pack test`.
+   - **Keep the outputs the same:** `browser.json`, the per-filter logs, the known-failure and owner handling, and the duplicate checks.
+   - **Keep manual debugging:** the `wasm-pack test` instructions stay in the README.
+2. **One `wasm-bindgen` thread per launch.** Set `RAYON_NUM_THREADS=1` only in the runner's own process environment, for crate launches (`check.py` around line 1102) and page launches. It must not reach Cargo or rustc.
+3. **Page filters at the same time** (old `403e13a69`, `2145e8630`), adapted to the direct launches.
+   - Pool width comes from `check_jobs()`. On the branch, a setting of 2 still allowed 3.
+   - Report order stays deterministic.
+4. **Eager page load** (old `bf6ba7288`). It must cover generated crate configs and page configs. A caller's own capabilities still win.
+5. **Harness built once, before the browser checks.**
+   - Add a command that builds every harness binary the plan runs. It must use exactly the flags, features and target of `browser_tools._build_harness`, so the later per-gate builds are no-ops.
+   - `check.py browser`, `drag-smoke` and `browser-packaged` must still work alone.
+6. **The page suite beside the crate launch batch.** The page filters share the `check_jobs()` budget with the crate launches. If the final run shows stalls or flakes from this, revert only this commit.
+7. **CPU-aware jobs default** (old `f82c10263`): `min(6, CPUs)`.
+
+### C. CAD
+
+1. **Ticket 07** (old `5f2078dab`, `bd82bfc4a`): vendor `Inflector` with defaults off and patch all three CAD workspaces.
+   - Regenerate the qualification lock offline with minimal movement.
+   - Show that `cargo tree -i regex` is empty in all three trees.
+2. **Ticket 20** (old `ba82951a2`, plus the CAD parts of `88dc66963`): merge `cad/wasm` into the `cad/monstertruck` workspace.
+   - **Drop** the seeding edits.
+   - **Keep the wasm build's own target dir:** `build_wasm` keeps `CARGO_TARGET_DIR=cad/wasm/target`, so the `build` step does not lock against the `test` step's native CAD compile. The native tests of both packages use `cad/monstertruck/target`.
+   - **Lockfile versions:** keep existing versions where possible, using `cargo update --precise --offline`. Allow no non-patch movement in geometry crates. Keep `parry3d-f64 =0.31.1`, `spade 2.15.1` and `glam 0.33.11`. List every moved package in the commit message.
+   - **Update every reference:** `check.yaml` cache entries in all three jobs, `security-audit.py` and its test, `check.py` preflight, `test-ci-workflow.py`, Dependabot, `cad/.dockerignore`, `measure-cad.py`, and the comments in the root `Cargo.toml` and `deny.toml`.
+3. **Ticket 04** (old `a634279f3`, `7db1d9106`): run two CAD test lanes, the combined production tests and the ordered owner selections.
+   - Every lane's failure output must print, including the zero-tests error.
+   - `BOARDSTUDIO_CHECK_JOBS=1` stays serial.
+
+### D. Build step
+
+1. **Ticket 05** (old `7102a22d0`), on `dev`'s `build-web.py`, for fast single-route builds only. Three lanes run at once:
+   - lane A, the four release `wasm-pack` providers, one after another;
+   - lane B, the CAD wasm;
+   - lane C, the `dx` page in `wasm-check`.
+
+   Ergogen staging runs first. Join the lanes before copying provider assets or embedding the offline worker. Shipped and multi-route builds stay serial.
+
+### E. Overlap
+
+1. **KiCad parts test into `test`** (old `59542cea1`, `c8b0ef432`, `88db7ddbb`). Quick runs must still select it.
+2. **Harness Clippy beside the root Clippys** (old `183545277`).
+3. **Browser prebuild during the compile steps.** After `build-web.py --fast`, the `build` step also runs the crate test build (`WASM_CRATE_BUILD` through `with_crate_build`), the page test build (B1) and the harness build (B5). In the browser step, the same commands are then no-ops that still return the artifact paths. A failed prebuild must stop the step, never run stale binaries.
+4. **Ticket 19** (old `5ca187739`, the rest of `88dc66963`, `165061bf1`). `lint`, `test` and `build` run as child `check.py` processes under these rules:
+   - **Jobserver:** one fifo jobserver with `CPUs - 1` tokens.
+   - **Lint target:** `CARGO_TARGET_DIR=target/lint`.
+   - **When it applies:** on 8 or more CPUs, with `check_jobs() > 1` and no `--receipt`. Hosted, quick and receipt plans stay serial.
+   - **Output and failures:** output prints in plan order, and every failure is reported. `--update-native-baseline` goes to `test` only.
+
+### F. Core
+
+1. **Ticket 11**, redone on the `boardstudio_core` facade. The wasm-only dependencies go in a `wasm32` target table, with `cfg` on the JS-only code. Native APIs stay. The worker `.d.ts` files must stay byte-identical.
+
+### G. `sccache`, machine-wide
+
+1. **Install 0.19.0** to `~/.cargo/bin` with `cargo binstall`.
+2. **Wrap it so a build can't fail because of the cache.** Set `~/.cargo/config.toml` `[build] rustc-wrapper` to a small fail-open wrapper. Read that file first and keep a backup. The wrapper must:
+   - run the compiler uncached whenever the server is unreachable, so sandboxed agent shells with a private network still build;
+   - skip the cache when the workspace wrapper is `dx`, unless `dx build` and `dx serve` hot-patching are shown to work through it;
+   - run the server as a user service, with `SCCACHE_DIR` under `~/.cache/sccache` and a 30 GB cap.
+3. **Verify end to end:** plain `cargo`, `cargo clippy`, `wasm-pack`, `dx build`, and a build with the server stopped. Write down the undo steps.
+
+### H. Final verification: the only heavy testing
+
+1. **Self-tests:** every touched script's self-tests.
+2. **Full check:** the full `python3 scripts/check.py` in the implementation worktree must pass every gate, with the count floors:
+   - the same crate-launch test names;
+   - 126 page tests;
+   - every baselined native test;
+   - 15 drag checks;
+   - the CAD browser checks.
+
+   Find any failure by running single steps. If a failure appears only under overlap, revert that item; don't retune it.
+3. **Fresh-worktree cold runs.** Make a new disposable worktree at the branch head and use the kit to run twice:
+   - once with `sccache` warm from H2;
+   - once with the wrapper bypassed.
+
+   Report the step-times lines, total wall and real CPU, against the 1,010.7 s baseline.
+4. **Equivalence checks:**
+   - the page wasm is identical between serial and overlapped builds;
+   - the CAD wasm size before and after;
+   - every lockfile change, listed.
+
+### Afterwards, on data only
+
+These trade one cost for another, so each gets its own A/B after H:
+- **`opt-level = 1` for workspace crates in `wasm-check`.** Smaller test binaries mean faster bindgen, Chrome, tests and drag smoke, but the web crates compile more slowly.
+- **Narrow `dev`'s `"*" = { opt-level = 2 }`.**
+- **Tooling tests in parallel,** with a flake sweep.
+- **A bindgen cache per binary in the patched runner.**
+
+Expected result: about 550 to 700 s for a cold run with no cache hits. A new worktree with `sccache` warm should go lower. H3 measures both.
