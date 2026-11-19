@@ -7,7 +7,9 @@ use std::{
     rc::Rc,
     task::{Poll, Waker},
 };
-use web_sys::{Element, Storage};
+use web_sys::Element;
+#[cfg(any(test, feature = "test-support"))]
+use web_sys::Storage;
 
 struct RenderTask {
     future: Option<Pin<Box<dyn Future<Output = ()>>>>,
@@ -48,11 +50,15 @@ impl MountedFixture {
     }
 
     /// Owns an extra DOM node (e.g. a `<style>` in `document.head()`), removed on drop.
+    /// Absent when the ticket_008_fixture example includes this file directly.
+    #[cfg(any(test, feature = "test-support"))]
     pub fn own_node(&mut self, node: Element) {
         self.owned.push(node);
     }
 
     /// Owns extra DOM nodes (e.g. `<style>` elements in `document.head()`), removed on drop.
+    /// Absent when the ticket_008_fixture example includes this file directly.
+    #[cfg(any(test, feature = "test-support"))]
     pub fn with_owned_nodes(mut self, nodes: impl IntoIterator<Item = Element>) -> Self {
         self.owned.extend(nodes);
         self
@@ -77,11 +83,14 @@ impl Drop for MountedFixture {
 }
 
 /// Restores the saved values, including keys that were originally absent.
+/// Absent when the ticket_008_fixture example includes this file directly.
+#[cfg(any(test, feature = "test-support"))]
 pub struct SavedLocalStorage {
     storage: Storage,
     entries: Vec<(&'static str, Option<String>)>,
 }
 
+#[cfg(any(test, feature = "test-support"))]
 impl SavedLocalStorage {
     pub fn new(storage: Storage, keys: &[&'static str]) -> Result<Self, wasm_bindgen::JsValue> {
         let entries = keys
@@ -92,6 +101,7 @@ impl SavedLocalStorage {
     }
 }
 
+#[cfg(any(test, feature = "test-support"))]
 impl Drop for SavedLocalStorage {
     fn drop(&mut self) {
         for (key, value) in &self.entries {
