@@ -429,12 +429,15 @@ impl Inner {
         }
     }
 
-    async fn execute(
+    /// Allocate an id, register its pending entry and enqueue the command,
+    /// returning the id and its response receiver. The caller awaits the
+    /// reply via [`Inner::await_submitted`] with `request_timeout`.
+    fn submit_tracked(
         &self,
         method: &str,
         params: Value,
         session: Option<&str>,
-    ) -> Result<Value, CdpError> {
+    ) -> Result<(u64, oneshot::Receiver<CommandOutcome>), CdpError> {
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         let mut message = json!({"id": id, "method": method, "params": params});
         if let Some(session) = session {
@@ -459,6 +462,15 @@ impl Inner {
                 .remove(&id);
             return Err(CdpError::ChromeMessage("CDP transport closed".to_owned()));
         }
+        Ok((id, receiver))
+    }
+
+    /// Await a command submitted via [`Inner::submit_tracked`].
+    async fn await_submitted(
+        &self,
+        id: u64,
+        receiver: oneshot::Receiver<CommandOutcome>,
+    ) -> Result<Value, CdpError> {
         match tokio::time::timeout(self.request_timeout, receiver).await {
             Ok(Ok(outcome)) => outcome,
             Ok(Err(_)) => Err(CdpError::ChromeMessage(
@@ -472,6 +484,16 @@ impl Inner {
                 Err(CdpError::Timeout)
             }
         }
+    }
+
+    async fn execute(
+        &self,
+        method: &str,
+        params: Value,
+        session: Option<&str>,
+    ) -> Result<Value, CdpError> {
+        let (id, receiver) = self.submit_tracked(method, params, session)?;
+        self.await_submitted(id, receiver).await
     }
 
     /// Send a command without tracking its response. Responses to untracked
@@ -504,9 +526,12 @@ impl Inner {
 
     /// Run ordered setup for one attached waiting worker on a single task:
     /// `Network.enable` first when capturing, then resume. A failing
-    /// `Network.enable` never resumes, so uncaptured worker requests cannot
-    /// slip through. A service worker the harness does not capture is detached
-    /// on the same task, after its resume.
+    /// `Network.enable` never resumes a dedicated worker, so uncaptured worker
+    /// requests cannot slip through. A captured waiting service worker pipelines
+    /// both commands before awaiting either: Chromium 156 routes its
+    /// `Network.enable` to the paused worker thread, which stays silent until
+    /// `Runtime.runIfWaitingForDebugger` arrives. A service worker the harness
+    /// does not capture is detached on the same task, after its resume.
     fn spawn_worker_setup(
         self: &Arc<Self>,
         child: String,
@@ -517,6 +542,46 @@ impl Inner {
     ) {
         let inner = Arc::clone(self);
         tokio::spawn(async move {
+            if is_service_worker && capture && waiting {
+                // Enqueue both synchronously — Network.enable first — before
+                // awaiting either, so the wire order is fixed without
+                // deadlocking the paused worker thread.
+                let network = inner.submit_tracked("Network.enable", json!({}), Some(&child));
+                let resume = inner.submit_tracked(
+                    "Runtime.runIfWaitingForDebugger",
+                    json!({}),
+                    Some(&child),
+                );
+                match network {
+                    Ok((id, receiver)) => {
+                        if let Err(error) = inner.await_submitted(id, receiver).await {
+                            inner.push_handler_error(CdpError::ChromeMessage(format!(
+                                "worker setup Network.enable failed: {error}"
+                            )));
+                        }
+                    }
+                    Err(error) => {
+                        inner.push_handler_error(CdpError::ChromeMessage(format!(
+                            "worker setup Network.enable failed: {error}"
+                        )));
+                    }
+                }
+                match resume {
+                    Ok((id, receiver)) => {
+                        if let Err(error) = inner.await_submitted(id, receiver).await {
+                            inner.push_handler_error(CdpError::ChromeMessage(format!(
+                                "worker setup Runtime.runIfWaitingForDebugger failed: {error}"
+                            )));
+                        }
+                    }
+                    Err(error) => {
+                        inner.push_handler_error(CdpError::ChromeMessage(format!(
+                            "worker setup Runtime.runIfWaitingForDebugger failed: {error}"
+                        )));
+                    }
+                }
+                return;
+            }
             if waiting {
                 if capture {
                     if let Err(error) = inner
@@ -1929,6 +1994,81 @@ mod tests {
             commands.try_recv().is_err(),
             "failed Network.enable still resumed"
         );
+
+        let error = tokio::time::timeout(Duration::from_secs(5), handler.recv())
+            .await
+            .expect("handler error arrived")
+            .expect("handler channel open");
+        let message = error.to_string();
+        assert!(
+            message.contains("worker setup Network.enable failed"),
+            "{message}"
+        );
+    }
+
+    #[tokio::test]
+    async fn service_worker_setup_pipelines_network_before_resume() {
+        let (inner, mut commands, mut handler) = test_inner(true);
+        let mut state = ConnState::default();
+        state
+            .sessions
+            .insert("parent".to_owned(), "owner".to_owned());
+        let params = attached_params("child", "sw-target", "service_worker", true);
+        let raw = params.to_string();
+        on_attached(&inner, &mut state, Some("parent"), &params, &raw);
+
+        // Withhold the Network.enable reply until the resume arrives: a
+        // sequential setup would deadlock here on a paused service worker.
+        let first = next_command(&mut commands).await;
+        assert_eq!(first["method"], "Network.enable");
+        assert_eq!(first["sessionId"], "child");
+        let network_id = first["id"].as_u64().unwrap();
+
+        let second = next_command(&mut commands).await;
+        assert_eq!(second["method"], "Runtime.runIfWaitingForDebugger");
+        assert_eq!(second["sessionId"], "child");
+        let resume_id = second["id"].as_u64().unwrap();
+        assert!(
+            network_id < resume_id,
+            "Network.enable must precede resume on the wire"
+        );
+
+        // Both complete cleanly once the worker unpauses.
+        respond_ok(&inner, network_id);
+        respond_ok(&inner, resume_id);
+
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        assert!(
+            handler.try_recv().is_err(),
+            "pipelined service-worker setup must not report errors"
+        );
+        assert!(commands.try_recv().is_err(), "unexpected third command");
+    }
+
+    #[tokio::test]
+    async fn service_worker_setup_network_error_surfaces_on_handler() {
+        let (inner, mut commands, mut handler) = test_inner(true);
+        let mut state = ConnState::default();
+        state
+            .sessions
+            .insert("parent".to_owned(), "owner".to_owned());
+        let params = attached_params("child", "sw-target", "service_worker", true);
+        let raw = params.to_string();
+        on_attached(&inner, &mut state, Some("parent"), &params, &raw);
+
+        let first = next_command(&mut commands).await;
+        assert_eq!(first["method"], "Network.enable");
+        let network_id = first["id"].as_u64().unwrap();
+
+        // The resume is already enqueued to avoid the paused-worker deadlock.
+        let second = next_command(&mut commands).await;
+        assert_eq!(second["method"], "Runtime.runIfWaitingForDebugger");
+        let resume_id = second["id"].as_u64().unwrap();
+
+        let reply = format!(r#"{{"id":{network_id},"error":{{"code":-32000,"message":"nope"}}}}"#);
+        let reply_value: Value = serde_json::from_str(&reply).unwrap();
+        on_response(&inner, network_id, &reply_value, &reply);
+        respond_ok(&inner, resume_id);
 
         let error = tokio::time::timeout(Duration::from_secs(5), handler.recv())
             .await
