@@ -1592,8 +1592,7 @@ mod mounted_live_scene_tests {
         let _mounted = MountedFixture::new(root.clone(), dom);
         settle().await;
         for _ in 0..2 {
-            root
-                .query_selector("#case-navigation-enter")
+            root.query_selector("#case-navigation-enter")
                 .unwrap()
                 .unwrap()
                 .dyn_into::<web_sys::HtmlElement>()
@@ -1601,22 +1600,19 @@ mod mounted_live_scene_tests {
                 .click();
             settle().await;
             assert!(
-                root
-                    .query_selector("#case-navigation-content [aria-label='Case Inspector']")
+                root.query_selector("#case-navigation-content [aria-label='Case Inspector']")
                     .unwrap()
                     .is_some()
             );
             assert!(
-                root
-                    .query_selector(
-                        "#case-navigation-content [aria-label='Mechanical stack settings']"
-                    )
-                    .unwrap()
-                    .is_some(),
+                root.query_selector(
+                    "#case-navigation-content [aria-label='Mechanical stack settings']"
+                )
+                .unwrap()
+                .is_some(),
                 "entering Case mounts its real mechanical Inspector"
             );
-            root
-                .query_selector("#case-navigation-leave")
+            root.query_selector("#case-navigation-leave")
                 .unwrap()
                 .unwrap()
                 .dyn_into::<web_sys::HtmlElement>()
@@ -1624,9 +1620,8 @@ mod mounted_live_scene_tests {
                 .click();
             settle().await;
             assert!(
-                root
-                .query_selector("#case-navigation-content")
-                .unwrap()
+                root.query_selector("#case-navigation-content")
+                    .unwrap()
                     .unwrap()
                     .text_content()
                     .unwrap()
@@ -1634,9 +1629,8 @@ mod mounted_live_scene_tests {
                 "leaving Case restores the previous workspace"
             );
             assert_eq!(
-                root
-                .query_selector("#case-navigation-owner")
-                .unwrap()
+                root.query_selector("#case-navigation-owner")
+                    .unwrap()
                     .unwrap()
                     .text_content()
                     .unwrap(),
@@ -1738,8 +1732,7 @@ mod mounted_live_scene_tests {
         assert!(text.contains("Plate thickness"));
         assert!(!text.contains("Stale diagnostic from previous geometry"));
         assert_eq!(
-            root
-                .query_selector("#case11-shown-finding")
+            root.query_selector("#case11-shown-finding")
                 .unwrap()
                 .unwrap()
                 .text_content()
@@ -1797,8 +1790,7 @@ mod mounted_live_scene_tests {
         .click();
         settle().await;
         assert_eq!(
-            root
-                .query_selector("#case11-shown-finding")
+            root.query_selector("#case11-shown-finding")
                 .unwrap()
                 .unwrap()
                 .text_content()
@@ -1852,8 +1844,7 @@ mod mounted_live_scene_tests {
             .click();
         settle().await;
         assert!(
-            root
-                .query_selector("[id='m1-object-tree-case-generated:plate']")
+            root.query_selector("[id='m1-object-tree-case-generated:plate']")
                 .unwrap()
                 .is_none()
         );
