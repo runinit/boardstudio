@@ -23,7 +23,34 @@ PATCHED_ADVISORIES = ("RUSTSEC-2026-0196", "RUSTSEC-2026-0197")
 # compatible with this tree (`cargo update -p tokio` locks nothing newer), so
 # no patched release exists to take, and first-party code never calls the
 # affected API. Revisit on the next lockfile bump.
-ACCEPTED_ADVISORIES = ("RUSTSEC-2026-0386",)
+# Accepted pending-upstream-fix (reviewed 2026-11-19): RUSTSEC-2026-0574
+# through RUSTSEC-2026-0582 flag heapless 0.8.0 APIs as unsound. 0.8.0 is the
+# newest lockable heapless: it is the only 0.8.x release, rstar 0.13.1 still
+# requires heapless ^0.8, and rstar 0.14 (heapless ^0.9) is excluded by
+# parry3d-f64 0.31.1's rstar ^0.13 requirement (0.31.1 is the latest parry
+# release), so no patched release exists to take. All nine advisories name
+# affected functions outside `binary_heap` (sorted_linked_list, spsc, deque,
+# index_map, history_buf, vec::IntoIter, pools; 0579's `Deque::try_from`
+# range starts at 0.9.2 and 0580's `pool` range ends below 0.8.0), while
+# rstar 0.13.0 -- the sole heapless consumer in cad/monstertruck/Cargo.lock --
+# uses only `heapless::binary_heap` (`BinaryHeap::{new,push,pop,len,capacity,
+# into_vec}` in `src/algorithm/nearest_neighbor.rs`). The one reachable
+# 0577-adjacent path, `vec::IntoIter::drop` via `into_vec`, needs a panicking
+# element `Drop` to trigger, and rstar's element type is `Copy` with no
+# `Drop` (a shared reference plus a numeric scalar), so no affected API is
+# reachable. Revisit when parry3d-f64 supports rstar 0.14+.
+ACCEPTED_ADVISORIES = (
+    "RUSTSEC-2026-0386",
+    "RUSTSEC-2026-0574",
+    "RUSTSEC-2026-0575",
+    "RUSTSEC-2026-0576",
+    "RUSTSEC-2026-0577",
+    "RUSTSEC-2026-0578",
+    "RUSTSEC-2026-0579",
+    "RUSTSEC-2026-0580",
+    "RUSTSEC-2026-0581",
+    "RUSTSEC-2026-0582",
+)
 CGMATH_MANIFESTS = (
     "Cargo.toml",
     "cad/monstertruck/Cargo.toml",
