@@ -8378,7 +8378,7 @@ mod mounted_settlement_tests {
     };
     use boardstudio_web_ui_shared::{
         test_role::by_role_name,
-        test_wait::{wait_until, wait_until_future},
+        test_wait::{settle_until, wait_until, wait_until_future},
     };
     use futures_channel::oneshot;
     use std::{cell::RefCell, collections::VecDeque};
@@ -8648,14 +8648,6 @@ mod mounted_settlement_tests {
         gloo_timers::future::TimeoutFuture::new(40).await;
     }
 
-    async fn settle_until(runtime: &Rc<Runtime>, what: &str, done: impl Fn() -> bool) {
-        wait_until(what, || {
-            support::drive_pending(runtime);
-            done()
-        })
-        .await;
-    }
-
     fn wall_thickness(runtime: &Runtime) -> f64 {
         runtime
             .model()
@@ -8757,6 +8749,7 @@ mod mounted_settlement_tests {
             release.send(()).unwrap();
             settle_until(
                 &runtime,
+                async |runtime| support::drive_pending(runtime),
                 "the held landing is accepted and the newer original draft stays",
                 || {
                     accepted_revision(&runtime) > landed
@@ -8793,9 +8786,12 @@ mod mounted_settlement_tests {
         rendered().await;
         support::drive_pending(&runtime);
         release.send(()).unwrap();
-        settle_until(&runtime, "the latest mechanical commit is accepted", || {
-            wall_thickness(&runtime) == 4.0 && input.value() == "4"
-        })
+        settle_until(
+            &runtime,
+            async |runtime| support::drive_pending(runtime),
+            "the latest mechanical commit is accepted",
+            || wall_thickness(&runtime) == 4.0 && input.value() == "4",
+        )
         .await;
         assert_eq!(
             runtime
@@ -8816,6 +8812,7 @@ mod mounted_settlement_tests {
             });
             settle_until(
                 &runtime,
+                async |runtime| support::drive_pending(runtime),
                 "the undo restores the earlier accepted step",
                 || wall_thickness(&runtime) == accepted && input.value() == expected_text,
             )
@@ -8861,6 +8858,7 @@ mod mounted_settlement_tests {
             release.send(Err("catalogue unavailable".into())).unwrap();
             settle_until(
                 &runtime,
+                async |runtime| support::drive_pending(runtime),
                 "the catalogue failure restores or keeps the draft",
                 || {
                     input.value() == expected
@@ -8980,6 +8978,7 @@ mod mounted_settlement_tests {
         type_value(&height, "15");
         settle_until(
             &runtime,
+            async |runtime| support::drive_pending(runtime),
             "the profile volume failure restores its field",
             || {
                 bottom.value() == "0"
@@ -9021,11 +9020,16 @@ mod mounted_settlement_tests {
         release_b
             .send(Err("newer catalogue failure".into()))
             .unwrap();
-        settle_until(&runtime, "the newer catalogue failure is reported", || {
-            input.value() == "2"
-                && inline_failure(&root, "dimension")
-                    .is_some_and(|message| message.contains("newer catalogue failure"))
-        })
+        settle_until(
+            &runtime,
+            async |runtime| support::drive_pending(runtime),
+            "the newer catalogue failure is reported",
+            || {
+                input.value() == "2"
+                    && inline_failure(&root, "dimension")
+                        .is_some_and(|message| message.contains("newer catalogue failure"))
+            },
+        )
         .await;
         assert_eq!(input.value(), "2");
         assert!(
@@ -9084,6 +9088,7 @@ mod mounted_settlement_tests {
         release.send(()).unwrap();
         settle_until(
             &runtime,
+            async |runtime| support::drive_pending(runtime),
             "the held Session edit lands and the returned field shows it",
             || wall_thickness(&runtime) == 3.0 && returned.value() == "3",
         )
@@ -9133,6 +9138,7 @@ mod mounted_settlement_tests {
                 .unwrap();
             settle_until(
                 &runtime,
+                async |runtime| support::drive_pending(runtime),
                 "the newer preparation failure is reported",
                 || {
                     input.value() == newer
@@ -9155,6 +9161,7 @@ mod mounted_settlement_tests {
             release_a.send(()).unwrap();
             settle_until(
                 &runtime,
+                async |runtime| support::drive_pending(runtime),
                 "the held Session edit lands beside the newer draft",
                 || {
                     wall_thickness(&runtime) == 3.0

@@ -288,7 +288,7 @@ mod mounted_tests {
     use boardstudio_application::TerminalOutcome;
     use boardstudio_core::model::{Board, ProjectDoc};
     use boardstudio_web_ui_shared::test_role::by_role_name;
-    use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_future, wait_until_step};
+    use boardstudio_web_ui_shared::test_wait::{settle_until, wait_until, wait_until_future};
     use std::cell::RefCell;
     use wasm_bindgen_test::wasm_bindgen_test;
     use web_sys::{Element as DomElement, HtmlElement};
@@ -420,14 +420,6 @@ mod mounted_tests {
         by_role_name(root, "button", "Save fit profile").expect("save fit profile action")
     }
 
-    async fn settle_until(runtime: &Rc<Runtime>, what: &str, done: impl Fn() -> bool) {
-        wait_until_step(what, async || {
-            support::run_pending(runtime).await;
-            done()
-        })
-        .await;
-    }
-
     #[wasm_bindgen_test]
     async fn mechanical_profile_save_disables_entry_silently_and_rejects_retained_duplicate() {
         let (runtime, root, _) = mount().await;
@@ -456,13 +448,18 @@ mod mounted_tests {
             "one-shot saves have no pending message"
         );
         release.send(()).unwrap();
-        settle_until(&runtime, "mechanical profile save lands", || {
-            matches!(*first.borrow(), Some(TerminalOutcome::Completed))
-                && runtime.model().accepted.unwrap().document.definitions[0]
-                    .mechanical_profile
-                    .is_some()
-                && !entry(&root).has_attribute("disabled")
-        })
+        settle_until(
+            &runtime,
+            support::run_pending,
+            "mechanical profile save lands",
+            || {
+                matches!(*first.borrow(), Some(TerminalOutcome::Completed))
+                    && runtime.model().accepted.unwrap().document.definitions[0]
+                        .mechanical_profile
+                        .is_some()
+                    && !entry(&root).has_attribute("disabled")
+            },
+        )
         .await;
         assert!(matches!(*first.borrow(), Some(TerminalOutcome::Completed)));
         assert!(
@@ -494,9 +491,12 @@ mod mounted_tests {
             .unwrap();
         assert!(entry(&root).has_attribute("disabled"));
         release.send(()).unwrap();
-        settle_until(&runtime, "mechanical profile save error appears", || {
-            !entry(&root).has_attribute("disabled") && panel_alert(&root).is_some()
-        })
+        settle_until(
+            &runtime,
+            support::run_pending,
+            "mechanical profile save error appears",
+            || !entry(&root).has_attribute("disabled") && panel_alert(&root).is_some(),
+        )
         .await;
         let alert = panel_alert(&root).expect("mechanical profile save error");
         assert!(
@@ -532,12 +532,17 @@ mod mounted_tests {
             "retiring the observation re-enables the live parent control"
         );
         release.send(()).unwrap();
-        settle_until(&runtime, "retired mechanical profile save settles", || {
-            matches!(
-                runtime.model().durability,
-                boardstudio_application::Durability::Failed { .. }
-            ) && panel_alert(&root).is_none()
-        })
+        settle_until(
+            &runtime,
+            support::run_pending,
+            "retired mechanical profile save settles",
+            || {
+                matches!(
+                    runtime.model().durability,
+                    boardstudio_application::Durability::Failed { .. }
+                ) && panel_alert(&root).is_none()
+            },
+        )
         .await;
         assert!(panel_alert(&root).is_none());
         let text = root.text_content().unwrap();

@@ -212,6 +212,17 @@ const GLYPH_BEND: &str = "M-4 5C-4 0-1-4 4-4M1.5-6 4-4 1.5-2";
 /// Ticket 06: the commit toast lingers for 1.8 s, matching the prototype.
 const TOAST_TIMEOUT_MS: u32 = 1800;
 
+#[cfg(test)]
+struct ToastExpiryProbe {
+    release: futures_channel::oneshot::Receiver<()>,
+    finished: futures_channel::oneshot::Sender<()>,
+}
+
+#[cfg(test)]
+thread_local! {
+    static NEXT_TOAST_EXPIRY_PROBE: RefCell<Option<ToastExpiryProbe>> = const { RefCell::new(None) };
+}
+
 /// Arm one commit-toast expiry timer. The overlay remounts on every scope and
 /// selection change, so the timer can outlive its component: it only touches
 /// its signals while they are still alive and stays silent otherwise.
@@ -220,14 +231,30 @@ fn arm_commit_toast_expiry(
     generation: Signal<u64>,
     seen: u64,
 ) {
+    let timeout_ms = TOAST_TIMEOUT_MS;
+    #[cfg(test)]
+    let mut probe = NEXT_TOAST_EXPIRY_PROBE.with(|next| next.borrow_mut().take());
+    #[cfg(test)]
+    let timeout_ms = if probe.is_some() { 1 } else { timeout_ms };
     spawn_local(async move {
-        gloo_timers::future::TimeoutFuture::new(TOAST_TIMEOUT_MS).await;
+        gloo_timers::future::TimeoutFuture::new(timeout_ms).await;
+        #[cfg(test)]
+        if let Some(probe) = probe.as_mut() {
+            // The test releases the short timer after observing the overlay unmount.
+            if (&mut probe.release).await.is_err() {
+                return;
+            }
+        }
         let live = generation
             .try_peek()
             .map(|current| *current == seen)
             .unwrap_or(false);
         if live && let Ok(mut state) = feedback.try_write() {
             *state = advance_feedback(&state, FeedbackEvent::Expire);
+        }
+        #[cfg(test)]
+        if let Some(probe) = probe {
+            let _ = probe.finished.send(());
         }
     });
 }
@@ -6805,8 +6832,17 @@ mod shortcut_tests {
             .expect("the dock names the Canvas handles toggle")
     }
 
+    fn reports_state(root: &web_sys::Element, selector: &str, expected: &str) -> bool {
+        root.query_selector(selector)
+            .unwrap()
+            .and_then(|element| element.text_content())
+            .as_deref()
+            == Some(expected)
+    }
+
     #[wasm_bindgen_test]
     async fn handles_toggle_reports_intent_and_flips_view_only() {
+        use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         document.body().unwrap().append_child(&root).unwrap();
@@ -6814,14 +6850,22 @@ mod shortcut_tests {
             VirtualDom::new(snap_dock_host),
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        gloo_timers::future::TimeoutFuture::new(40).await;
+        wait_until("snap dock trigger is mounted", || {
+            root.query_selector("#m1-layout-snap-trigger")
+                .unwrap()
+                .is_some()
+        })
+        .await;
         root.query_selector("#m1-layout-snap-trigger")
             .unwrap()
             .expect("the snap dock trigger is mounted")
             .dyn_into::<web_sys::HtmlElement>()
             .unwrap()
             .click();
-        gloo_timers::future::TimeoutFuture::new(40).await;
+        wait_until("the snap dock exposes the Canvas handles checkbox", || {
+            by_role_name(&root, "checkbox", "Canvas handles").is_some()
+        })
+        .await;
         assert_eq!(
             handles_checkbox(&root)
                 .get_attribute("aria-checked")
@@ -6830,7 +6874,14 @@ mod shortcut_tests {
             "handles start visible"
         );
         handles_checkbox(&root).click();
-        gloo_timers::future::TimeoutFuture::new(40).await;
+        wait_until("hiding handles reports the intent", || {
+            reports_state(&root, "#snap-dock-toggled", "Some(false)")
+                && handles_checkbox(&root)
+                    .get_attribute("aria-checked")
+                    .as_deref()
+                    == Some("false")
+        })
+        .await;
         assert_eq!(
             root.query_selector("#snap-dock-toggled")
                 .unwrap()
@@ -6848,7 +6899,10 @@ mod shortcut_tests {
             "the checkbox follows view state"
         );
         handles_checkbox(&root).click();
-        gloo_timers::future::TimeoutFuture::new(40).await;
+        wait_until("restoring handles reports the intent", || {
+            reports_state(&root, "#snap-dock-toggled", "Some(true)")
+        })
+        .await;
         assert_eq!(
             root.query_selector("#snap-dock-toggled")
                 .unwrap()
@@ -6873,6 +6927,7 @@ mod shortcut_tests {
         pointer_tools_visible: bool,
         pointer_tools_available: bool,
     ) -> web_sys::Element {
+        use boardstudio_web_ui_shared::test_wait::wait_until;
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         document.body().unwrap().append_child(&root).unwrap();
@@ -6887,13 +6942,21 @@ mod shortcut_tests {
             ),
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        gloo_timers::future::TimeoutFuture::new(40).await;
+        wait_until(
+            "contextual action fixture has rendered its selection",
+            || {
+                root.query_selector("#context-action-state")
+                    .unwrap()
+                    .is_some()
+            },
+        )
+        .await;
         root
     }
 
     #[wasm_bindgen_test]
     async fn contextual_toolbar_has_one_tab_stop_and_end_reaches_last_action() {
-        use boardstudio_web_ui_shared::test_role::by_role_name;
+        use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
         let root = mount_context_actions(LayoutSelectionKind::Column, true).await;
         let toolbar = by_role_name(&root, "toolbar", "Actions for Column").unwrap();
         assert_eq!(
@@ -6920,7 +6983,13 @@ mod shortcut_tests {
                     .unwrap(),
             )
             .unwrap();
-        gloo_timers::future::TimeoutFuture::new(40).await;
+        let splay =
+            by_role_name(&toolbar, "button", "Activate Splay for the selected column").unwrap();
+        let document = web_sys::window().unwrap().document().unwrap();
+        wait_until("End focuses the Splay action", || {
+            document.active_element() == Some(splay.clone().into())
+        })
+        .await;
         assert_eq!(
             web_sys::window()
                 .unwrap()
@@ -6939,7 +7008,7 @@ mod shortcut_tests {
     #[wasm_bindgen_test]
     async fn contextual_tools_show_for_layout_selection_and_follow_existing_activation_scope() {
         let root = mount_context_actions(LayoutSelectionKind::Row, true).await;
-        use boardstudio_web_ui_shared::test_role::by_role_name;
+        use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
         let toolbar = by_role_name(&root, "toolbar", "Actions for Row").unwrap();
         let names = [
             "Open Row offsets properties for Row",
@@ -6954,7 +7023,11 @@ mod shortcut_tests {
         });
         assert_eq!(labels, ["Row offsets", "Offset", "Stagger"]);
         by_role_name(&toolbar, "button", names[2]).unwrap().click();
-        gloo_timers::future::TimeoutFuture::new(40).await;
+        wait_until(
+            "Stagger activates and changes the selection to Column",
+            || reports_state(&root, "#context-action-state", "Column:Stagger"),
+        )
+        .await;
         assert_eq!(
             root.query_selector("#context-action-state")
                 .unwrap()
@@ -6982,7 +7055,18 @@ mod shortcut_tests {
                     .unwrap(),
             )
             .unwrap();
-        gloo_timers::future::TimeoutFuture::new(40).await;
+        let document = web_sys::window().unwrap().document().unwrap();
+        wait_until(
+            "ArrowRight focuses Offset for the new column selection",
+            || {
+                document
+                    .active_element()
+                    .and_then(|element| element.get_attribute("aria-label"))
+                    .as_deref()
+                    == Some("Activate Offset for the selected column")
+            },
+        )
+        .await;
         assert_eq!(
             web_sys::window()
                 .unwrap()
@@ -8131,6 +8215,7 @@ mod tool_tests {
     use crate::presentation::objects::matrix_edit_test_support as fixture;
     use crate::runtime::project_name_test_support as support;
     use boardstudio_application::Scope;
+    use boardstudio_web_ui_shared::test_wait::{settle_until, wait_until, wait_until_future};
     use wasm_bindgen_test::wasm_bindgen_test;
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
@@ -8268,7 +8353,10 @@ mod tool_tests {
             VirtualDom::new_with_props(menu_host, MenuHostProps { available }),
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        gloo_timers::future::TimeoutFuture::new(40).await;
+        wait_until("the transform menu renders", || {
+            root.first_element_child().is_some()
+        })
+        .await;
         root
     }
 
@@ -8308,7 +8396,10 @@ mod tool_tests {
             VirtualDom::new_with_props(context_menu_host, MenuHostProps { available }),
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        gloo_timers::future::TimeoutFuture::new(40).await;
+        wait_until("the transform menu renders", || {
+            root.first_element_child().is_some()
+        })
+        .await;
         root
     }
 
@@ -8333,7 +8424,13 @@ mod tool_tests {
                     .unwrap(),
             )
             .unwrap();
-        gloo_timers::future::TimeoutFuture::new(80).await;
+        wait_until("Escape closes the menu and restores trigger focus", || {
+            trigger.get_attribute("aria-expanded").as_deref() == Some("false")
+                && document
+                    .active_element()
+                    .is_some_and(|element| element.id() == trigger.id())
+        })
+        .await;
         assert_eq!(
             trigger.get_attribute("aria-expanded").as_deref(),
             Some("false")
@@ -8341,7 +8438,10 @@ mod tool_tests {
         assert_eq!(document.active_element().unwrap().id(), trigger.id());
 
         trigger.click();
-        gloo_timers::future::TimeoutFuture::new(40).await;
+        wait_until("the transform menu reopens", || {
+            trigger.get_attribute("aria-expanded").as_deref() == Some("true")
+        })
+        .await;
         assert_eq!(
             trigger.get_attribute("aria-expanded").as_deref(),
             Some("true")
@@ -8354,7 +8454,13 @@ mod tool_tests {
             .unwrap()
             .focus()
             .unwrap();
-        gloo_timers::future::TimeoutFuture::new(80).await;
+        wait_until("outside focus closes the menu and stays outside", || {
+            trigger.get_attribute("aria-expanded").as_deref() == Some("false")
+                && document
+                    .active_element()
+                    .is_some_and(|element| element.id() == "transform-outside-target")
+        })
+        .await;
         assert_eq!(
             trigger.get_attribute("aria-expanded").as_deref(),
             Some("false")
@@ -8457,7 +8563,13 @@ mod tool_tests {
                 VirtualDom::new_with_props(matrix_menu_host, MatrixMenuHostProps { followed }),
                 dioxus_web::Config::new().rootnode(root.clone().into()),
             );
-            gloo_timers::future::TimeoutFuture::new(40).await;
+            wait_until("the Matrix menu renders its Rotate action", || {
+                let buttons = root.query_selector_all("button").unwrap();
+                (0..buttons.length())
+                    .filter_map(|index| buttons.item(index))
+                    .any(|button| button.text_content().as_deref() == Some("Rotate"))
+            })
+            .await;
             let buttons = root.query_selector_all("button").unwrap();
             let labels = (0..buttons.length())
                 .filter_map(|index| buttons.item(index))
@@ -8665,7 +8777,10 @@ mod tool_tests {
             VirtualDom::new_with_props(overlay_host, props),
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        gloo_timers::future::TimeoutFuture::new(60).await;
+        wait_until("the overlay-host-svg fixture SVG mounts", || {
+            root.query_selector("#overlay-host-svg").unwrap().is_some()
+        })
+        .await;
         *svg.0.borrow_mut() = root
             .query_selector("#overlay-host-svg")
             .unwrap()
@@ -8739,7 +8854,10 @@ mod tool_tests {
             VirtualDom::new_with_props(overlay_host, props),
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        gloo_timers::future::TimeoutFuture::new(60).await;
+        wait_until("the overlay-host-svg fixture SVG mounts", || {
+            root.query_selector("#overlay-host-svg").unwrap().is_some()
+        })
+        .await;
         *svg.0.borrow_mut() = root
             .query_selector("#overlay-host-svg")
             .unwrap()
@@ -8846,7 +8964,10 @@ mod tool_tests {
             VirtualDom::new_with_props(toggle_host, props),
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        gloo_timers::future::TimeoutFuture::new(60).await;
+        wait_until("the overlay-host-svg fixture SVG mounts", || {
+            root.query_selector("#overlay-host-svg").unwrap().is_some()
+        })
+        .await;
         *svg.0.borrow_mut() = root
             .query_selector("#overlay-host-svg")
             .unwrap()
@@ -9051,7 +9172,10 @@ mod tool_tests {
             VirtualDom::new_with_props(part_overlay_host, props),
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        gloo_timers::future::TimeoutFuture::new(60).await;
+        wait_until("the overlay-host-svg fixture SVG mounts", || {
+            root.query_selector("#overlay-host-svg").unwrap().is_some()
+        })
+        .await;
         *svg.0.borrow_mut() = root
             .query_selector("#overlay-host-svg")
             .unwrap()
@@ -9112,7 +9236,10 @@ mod tool_tests {
             VirtualDom::new_with_props(part_rail_host, props),
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        gloo_timers::future::TimeoutFuture::new(60).await;
+        wait_until("the overlay-host-svg fixture SVG mounts", || {
+            root.query_selector("#overlay-host-svg").unwrap().is_some()
+        })
+        .await;
         *svg.0.borrow_mut() = root
             .query_selector("#overlay-host-svg")
             .unwrap()
@@ -9353,7 +9480,10 @@ mod tool_tests {
             VirtualDom::new_with_props(rail_pair_host, props),
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        gloo_timers::future::TimeoutFuture::new(60).await;
+        wait_until("the rail-pair-svg fixture SVG mounts", || {
+            root.query_selector("#rail-pair-svg").unwrap().is_some()
+        })
+        .await;
         *svg.0.borrow_mut() = root
             .query_selector("#rail-pair-svg")
             .unwrap()
@@ -9502,7 +9632,19 @@ mod tool_tests {
         // Hover previews the movers in amber on a selection-surface token
         // and leaves with no document revision.
         dispatch_pointer(&stagger, "pointerenter", false, false, 0, (100, 100));
-        gloo_timers::future::TimeoutFuture::new(60).await;
+        wait_until(
+            "stagger hover highlights the token and previews its movers",
+            || {
+                token_rect_style(&root, "Drag to stagger").contains("var(--selected)")
+                    && probe.preview.borrow().as_ref().is_some_and(|signal| {
+                        signal
+                            .read()
+                            .as_ref()
+                            .is_some_and(|state| !state.parts.is_empty())
+                    })
+            },
+        )
+        .await;
         assert!(
             token_rect_style(&root, "Drag to stagger").contains("var(--selected)"),
             "hover fills the token with the selection surface"
@@ -9519,7 +9661,18 @@ mod tool_tests {
             "hover previews the keys the drag would move, got {preview:?}"
         );
         dispatch_pointer(&stagger, "pointerleave", false, false, 0, (100, 100));
-        gloo_timers::future::TimeoutFuture::new(60).await;
+        wait_until(
+            "stagger leave clears the preview and restores the muted token",
+            || {
+                !token_rect_style(&root, "Drag to stagger").contains("var(--selected)")
+                    && probe
+                        .preview
+                        .borrow()
+                        .as_ref()
+                        .is_none_or(|signal| signal.read().is_none())
+            },
+        )
+        .await;
         assert!(
             probe
                 .preview
@@ -10030,7 +10183,10 @@ mod tool_tests {
             VirtualDom::new_with_props(unmount_host, props),
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        gloo_timers::future::TimeoutFuture::new(60).await;
+        wait_until("the overlay-host-svg fixture SVG mounts", || {
+            root.query_selector("#overlay-host-svg").unwrap().is_some()
+        })
+        .await;
         *svg.0.borrow_mut() = root
             .query_selector("#overlay-host-svg")
             .unwrap()
@@ -10054,6 +10210,21 @@ mod tool_tests {
         (root, handle, show)
     }
 
+    fn observe_next_toast_expiry() -> (
+        futures_channel::oneshot::Sender<()>,
+        futures_channel::oneshot::Receiver<()>,
+    ) {
+        let (release, released) = futures_channel::oneshot::channel();
+        let (finished, expired) = futures_channel::oneshot::channel();
+        NEXT_TOAST_EXPIRY_PROBE.with(|next| {
+            next.replace(Some(ToastExpiryProbe {
+                release: released,
+                finished,
+            }));
+        });
+        (release, expired)
+    }
+
     #[wasm_bindgen_test]
     async fn stagger_toast_timer_survives_overlay_unmount() {
         TOAST_UNMOUNT_PANICS.lock().expect("panic log").clear();
@@ -10072,7 +10243,8 @@ mod tool_tests {
         };
         let (root, handle, mut show) =
             mount_unmountable_overlay(&runtime, LayoutTransformTool::Stagger, context).await;
-        // A real pointer drag commits a stagger, arming the 1.8 s toast timer.
+        // A real pointer drag commits a stagger and arms the observed timer.
+        let (release_expiry, expired) = observe_next_toast_expiry();
         let revision = fixture_revision(&runtime);
         dispatch_pointer(&handle, "pointerdown", false, false, 1, (100, 100));
         gloo_timers::future::TimeoutFuture::new(40).await;
@@ -10083,17 +10255,17 @@ mod tool_tests {
         // is already armed, and the commit below does not need the overlay
         // alive. Triggering on the toast (not the revision bump) keeps the
         // unmount ahead of the expiry no matter how slow the commit is.
-        for _ in 0..100 {
-            support::run_pending(&runtime).await;
-            if root
-                .query_selector("[data-feedback-toast]")
-                .unwrap()
-                .is_some()
-            {
-                break;
-            }
-            gloo_timers::future::TimeoutFuture::new(50).await;
-        }
+        settle_until(
+            &runtime,
+            support::run_pending,
+            "stagger toast has armed its expiry",
+            || {
+                root.query_selector("[data-feedback-toast]")
+                    .unwrap()
+                    .is_some()
+            },
+        )
+        .await;
         assert!(
             root.query_selector("[data-feedback-toast]")
                 .unwrap()
@@ -10101,17 +10273,17 @@ mod tool_tests {
             "the stagger commit raised its toast, arming the expiry timer"
         );
         show.set(false);
-        for _ in 0..100 {
-            support::run_pending(&runtime).await;
-            if root
-                .query_selector("[data-transform-handle]")
-                .unwrap()
-                .is_none()
-            {
-                break;
-            }
-            gloo_timers::future::TimeoutFuture::new(10).await;
-        }
+        settle_until(
+            &runtime,
+            support::run_pending,
+            "stagger overlay unmounts",
+            || {
+                root.query_selector("[data-transform-handle]")
+                    .unwrap()
+                    .is_none()
+            },
+        )
+        .await;
         assert!(
             root.query_selector("[data-transform-handle]")
                 .unwrap()
@@ -10120,21 +10292,23 @@ mod tool_tests {
         );
         // The commit lands without the overlay; the timer must then read
         // nothing instead of trapping on its dropped signals.
-        for _ in 0..500 {
-            support::run_pending(&runtime).await;
-            if fixture_revision(&runtime) > revision {
-                break;
-            }
-            gloo_timers::future::TimeoutFuture::new(10).await;
-        }
+        settle_until(
+            &runtime,
+            support::run_pending,
+            "stagger revision lands",
+            || fixture_revision(&runtime) > revision,
+        )
+        .await;
         assert!(
             fixture_revision(&runtime) > revision,
             "the stagger drag committed"
         );
-        // Headless Chrome throttles timers, so the 1.8 s toast can fire
-        // late: leave a wide window so the armed timer always runs while
-        // the overlay is gone.
-        gloo_timers::future::TimeoutFuture::new(4000).await;
+        release_expiry
+            .send(())
+            .expect("stagger toast armed the timer");
+        wait_until_future("stagger expiry callback finishes after unmount", expired)
+            .await
+            .expect("stagger expiry callback did not finish");
         drop(_restore);
         let panics = TOAST_UNMOUNT_PANICS.lock().expect("panic log");
         assert!(
@@ -10325,7 +10499,12 @@ mod tool_tests {
             .unwrap()
             .expect("the stagger token draws");
         dispatch_pointer(&handle, "pointerenter", false, false, 0, (100, 100));
-        gloo_timers::future::TimeoutFuture::new(60).await;
+        wait_until("stagger hover opens the value popup", || {
+            root.query_selector("[data-feedback-popup]")
+                .unwrap()
+                .is_some()
+        })
+        .await;
         let popup = root
             .query_selector("[data-feedback-popup]")
             .unwrap()
@@ -10351,7 +10530,22 @@ mod tool_tests {
                 .unwrap(),
         );
         dispatch_pointer(&handle, "pointermove", false, false, 1, (100, 40));
-        gloo_timers::future::TimeoutFuture::new(60).await;
+        wait_until(
+            "stagger popup follows the drag and shows its live delta",
+            || {
+                root.query_selector("[data-feedback-popup]")
+                    .unwrap()
+                    .is_some_and(|popup| {
+                        let (_, y) = translate_of(&popup);
+                        (y - following_start - 15.0).abs() < 1.5
+                            && popup
+                                .text_content()
+                                .unwrap_or_default()
+                                .contains("+14.29 mm")
+                    })
+            },
+        )
+        .await;
         let popup = root
             .query_selector("[data-feedback-popup]")
             .unwrap()
@@ -10396,13 +10590,17 @@ mod tool_tests {
             toast.text_content().unwrap_or_default(),
             "Stagger 14.29 mm (+14.29 mm) · 1 Undo step"
         );
-        gloo_timers::future::TimeoutFuture::new(300).await;
-        assert_eq!(
-            fixture_revision(&runtime),
-            revision + 1,
-            "the toast writes no extra revision"
-        );
-        gloo_timers::future::TimeoutFuture::new(2200).await;
+        wait_until("commit toast expires without an extra revision", || {
+            assert_eq!(
+                fixture_revision(&runtime),
+                revision + 1,
+                "the toast writes no extra revision"
+            );
+            root.query_selector("[data-feedback-toast]")
+                .unwrap()
+                .is_none()
+        })
+        .await;
         assert!(
             root.query_selector("[data-feedback-toast]")
                 .unwrap()
@@ -10448,6 +10646,7 @@ mod tool_tests {
         };
         let (root, handle, mut show) =
             mount_toggle_overlay(&runtime, LayoutTransformTool::Stagger, context).await;
+        let (release_expiry, expired) = observe_next_toast_expiry();
         let revision = fixture_revision(&runtime);
         dispatch_pointer(&handle, "pointerdown", false, false, 1, (100, 100));
         gloo_timers::future::TimeoutFuture::new(60).await;
@@ -10475,14 +10674,24 @@ mod tool_tests {
         // A production scope switch unmounts the overlay while the timer is
         // still pending; the timer must not touch the dropped signals.
         show.set(false);
-        gloo_timers::future::TimeoutFuture::new(120).await;
+        wait_until("the toast's overlay unmounts", || {
+            root.query_selector("[data-transform-handle]")
+                .unwrap()
+                .is_none()
+        })
+        .await;
         assert!(
             root.query_selector("[data-transform-handle]")
                 .unwrap()
                 .is_none(),
             "the toggle unmounted the overlay"
         );
-        gloo_timers::future::TimeoutFuture::new(2200).await;
+        release_expiry
+            .send(())
+            .expect("commit toast armed the timer");
+        wait_until_future("commit expiry callback finishes after unmount", expired)
+            .await
+            .expect("commit expiry callback did not finish");
         // Restore the previous hook before asserting, so a failure here never
         // masks its own message behind a re-entrant hook error.
         drop(_guard);
@@ -10528,12 +10737,6 @@ mod tool_tests {
                 .unwrap()
                 .unwrap_or_else(|| panic!("the {label} token draws"));
             dispatch_pointer(&token, "pointerenter", false, false, 0, (100, 100));
-            gloo_timers::future::TimeoutFuture::new(60).await;
-            let preview = probe
-                .preview
-                .borrow()
-                .as_ref()
-                .and_then(|signal| signal.read().clone());
             let accepted = runtime.model().accepted.expect("an accepted document");
             let expected = matrix_relations::field_preview(
                 &accepted.document,
@@ -10543,6 +10746,20 @@ mod tool_tests {
                 MatrixSplayAffect::Column,
             )
             .expect("the Inspector field previews its movers");
+            wait_until(&format!("{label} previews the Inspector's movers"), || {
+                probe.preview.borrow().as_ref().is_some_and(|signal| {
+                    signal
+                        .read()
+                        .as_ref()
+                        .is_some_and(|state| state.parts == expected.parts)
+                })
+            })
+            .await;
+            let preview = probe
+                .preview
+                .borrow()
+                .as_ref()
+                .and_then(|signal| signal.read().clone());
             assert_eq!(
                 preview.as_ref().map(|state| &state.parts),
                 Some(&expected.parts),
@@ -10553,7 +10770,14 @@ mod tool_tests {
                 "{label} previews a non-empty mover set"
             );
             dispatch_pointer(&token, "pointerleave", false, false, 0, (100, 100));
-            gloo_timers::future::TimeoutFuture::new(60).await;
+            wait_until(&format!("{label} clears the preview"), || {
+                probe
+                    .preview
+                    .borrow()
+                    .as_ref()
+                    .is_none_or(|signal| signal.read().is_none())
+            })
+            .await;
             assert!(
                 probe
                     .preview
@@ -10587,12 +10811,6 @@ mod tool_tests {
                 .unwrap()
                 .unwrap_or_else(|| panic!("the {label} token draws"));
             dispatch_pointer(&token, "pointerenter", false, false, 0, (100, 100));
-            gloo_timers::future::TimeoutFuture::new(60).await;
-            let preview = probe
-                .preview
-                .borrow()
-                .as_ref()
-                .and_then(|signal| signal.read().clone());
             let accepted = runtime.model().accepted.expect("an accepted document");
             let expected = matrix_relations::field_preview(
                 &accepted.document,
@@ -10602,6 +10820,20 @@ mod tool_tests {
                 MatrixSplayAffect::Column,
             )
             .expect("the Inspector field previews its movers");
+            wait_until(&format!("{label} previews the Inspector's movers"), || {
+                probe.preview.borrow().as_ref().is_some_and(|signal| {
+                    signal
+                        .read()
+                        .as_ref()
+                        .is_some_and(|state| state.parts == expected.parts)
+                })
+            })
+            .await;
+            let preview = probe
+                .preview
+                .borrow()
+                .as_ref()
+                .and_then(|signal| signal.read().clone());
             assert_eq!(
                 preview.as_ref().map(|state| &state.parts),
                 Some(&expected.parts),
@@ -10612,7 +10844,14 @@ mod tool_tests {
                 "{label} previews a non-empty mover set"
             );
             dispatch_pointer(&token, "pointerleave", false, false, 0, (100, 100));
-            gloo_timers::future::TimeoutFuture::new(60).await;
+            wait_until(&format!("{label} clears the preview"), || {
+                probe
+                    .preview
+                    .borrow()
+                    .as_ref()
+                    .is_none_or(|signal| signal.read().is_none())
+            })
+            .await;
             assert!(
                 probe
                     .preview
@@ -12353,7 +12592,10 @@ mod tool_tests {
             VirtualDom::new_with_props(pick_host, props),
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        gloo_timers::future::TimeoutFuture::new(60).await;
+        wait_until("the pick-host-svg fixture SVG mounts", || {
+            root.query_selector("#pick-host-svg").unwrap().is_some()
+        })
+        .await;
         *svg.0.borrow_mut() = root
             .query_selector("#pick-host-svg")
             .unwrap()
@@ -12492,7 +12734,18 @@ mod tool_tests {
         // Hovering previews the Core-evaluated post-commit pose in amber.
         let target = pick_ring(&root, "matrix:0:2");
         dispatch_pointer(&target, "pointerenter", false, false, 0, (60, 60));
-        gloo_timers::future::TimeoutFuture::new(120).await;
+        wait_until(
+            "hover shows the enlarged anchor ring and amber preview",
+            || {
+                ring_circle_radii(&pick_ring(&root, "matrix:0:2"))[1] == "3"
+                    && root
+                        .query_selector_all("[data-anchor-pick-preview]")
+                        .unwrap()
+                        .length()
+                        > 0
+            },
+        )
+        .await;
         assert_eq!(
             ring_circle_radii(&pick_ring(&root, "matrix:0:2"))[1],
             "3",
@@ -12802,7 +13055,13 @@ mod tool_tests {
         );
         let target = pick_ring(&root, "matrix:0:0");
         dispatch_pointer(&target, "pointerenter", false, false, 0, (60, 60));
-        gloo_timers::future::TimeoutFuture::new(120).await;
+        wait_until("hover shows the part anchor preview", || {
+            root.query_selector_all("[data-anchor-pick-preview]")
+                .unwrap()
+                .length()
+                > 0
+        })
+        .await;
         assert!(
             root.query_selector_all("[data-anchor-pick-preview]")
                 .unwrap()

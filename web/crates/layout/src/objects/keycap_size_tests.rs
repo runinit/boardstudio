@@ -246,14 +246,27 @@ async fn size_selection_is_submitted_once_for_its_owner_before_selection_changes
         projection(first_owner.clone(), &["a", "b"], &[18.0, 18.0]),
         None,
     );
-    rendered(20).await;
+    wait_until("the first owner's size control mounts", || {
+        by_role_name(&root, "combobox", "Key size").is_some()
+    })
+    .await;
     change_size(&root, "2").await;
-    rendered(20).await;
+    wait_until("the first owner's size is submitted", || {
+        !probe.accepted.borrow().is_empty()
+    })
+    .await;
     assert_eq!(probe.accepted.borrow().len(), 1);
     assert_eq!(probe.accepted.borrow()[0].owner, first_owner);
     *probe.live_owner.borrow_mut() = second_owner.clone();
     *probe.projection.borrow_mut() = projection(second_owner, &["c", "d"], &[18.0, 37.0]);
     rerender(&probe);
+    wait_until("the new owner's mixed-size preview renders", || {
+        root.query_selector("[role=img][aria-label='Keycap size Mixed']")
+            .unwrap()
+            .is_some()
+    })
+    .await;
+    // Observe the new owner for the original interval to catch a late stale submission.
     rendered(220).await;
     assert_eq!(
         probe.accepted.borrow().len(),

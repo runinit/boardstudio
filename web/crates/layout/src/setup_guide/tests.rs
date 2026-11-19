@@ -1,6 +1,9 @@
 use super::*;
 use crate::presentation::panels::{self, InspectorPanel, ObjectsPanel, PanelSettings};
-use boardstudio_web_ui_shared::test_mount::{MountedFixture, SavedLocalStorage};
+use boardstudio_web_ui_shared::{
+    test_mount::{MountedFixture, SavedLocalStorage},
+    test_wait::wait_until,
+};
 use wasm_bindgen_test::*;
 
 wasm_bindgen_test_configure!(run_in_browser);
@@ -46,9 +49,14 @@ fn panel_composition() -> Element {
     }
 }
 
-async fn rendered() {
-    gloo_timers::future::TimeoutFuture::new(60).await;
+fn in_workspace(root: &web_sys::Element, name: &str) -> bool {
+    root.query_selector("[role=region][aria-label='Fixture workspace']")
+        .unwrap()
+        .and_then(|element| element.text_content())
+        .as_deref()
+        == Some(name)
 }
+
 fn element(root: &web_sys::Element, selector: &str) -> web_sys::Element {
     root.query_selector(selector).unwrap().unwrap()
 }
@@ -98,7 +106,10 @@ async fn desktop_case_stage_opens_settings_and_keeps_the_guide_available() {
     .unwrap();
     document.body().unwrap().append_child(&root).unwrap();
     let _mounted = MountedFixture::new(root.clone(), VirtualDom::new(panel_composition));
-    rendered().await;
+    wait_until("the composed guide mounts in Layout", || {
+        in_workspace(&root, "Layout")
+    })
+    .await;
     assert_panels(&root, true, true);
     assert_eq!(
         element(&root, "#m1-inspector-panel")
@@ -107,7 +118,10 @@ async fn desktop_case_stage_opens_settings_and_keeps_the_guide_available() {
         Some("collapsed")
     );
     click(&root, "Case (optional)");
-    rendered().await;
+    wait_until("choosing the guide stage opens the Case workspace", || {
+        in_workspace(&root, "Case")
+    })
+    .await;
     assert_panels(&root, true, true);
     assert_eq!(
         element(&root, "[role=region][aria-label='Fixture workspace']")
@@ -132,7 +146,13 @@ async fn desktop_case_stage_opens_settings_and_keeps_the_guide_available() {
         "Case readiness detail must appear once"
     );
     click(&root, "Open full case settings");
-    rendered().await;
+    wait_until("opening full settings pins the Case inspector", || {
+        element(&root, "#m1-inspector-panel")
+            .get_attribute("data-mode")
+            .as_deref()
+            == Some("pinned")
+    })
+    .await;
     assert_panels(&root, true, true);
     assert_eq!(
         element(&root, "#m1-inspector-panel")
@@ -141,12 +161,18 @@ async fn desktop_case_stage_opens_settings_and_keeps_the_guide_available() {
         Some("pinned")
     );
     click(&root, "Test ordinary Layout navigation");
-    rendered().await;
+    wait_until("ordinary navigation returns to Layout", || {
+        in_workspace(&root, "Layout")
+    })
+    .await;
     click(&root, "Test ordinary Case navigation");
-    rendered().await;
+    wait_until("ordinary navigation returns to Case", || {
+        in_workspace(&root, "Case")
+    })
+    .await;
     assert_panels(&root, true, true);
     click(&root, "Test same-workspace guide reveal");
-    rendered().await;
+    gloo_timers::future::TimeoutFuture::new(60).await;
     assert_panels(&root, true, true);
     assert_eq!(
         element(&root, "#m1-objects-panel")
@@ -180,7 +206,7 @@ fn freely_navigable_guide() -> Element {
 
 #[wasm_bindgen_test]
 async fn guide_current_and_ready_steps_remain_freely_navigable_without_losing_the_name_draft() {
-    use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
+    use boardstudio_web_ui_shared::test_role::by_role_name;
     use wasm_bindgen::JsCast;
     let document = web_sys::window().unwrap().document().unwrap();
     let root = document.create_element("div").unwrap();

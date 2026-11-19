@@ -333,3 +333,15 @@ Scope the two previously leaking tests to their roots and dispose the VDOMs
 and roots of all four Case workspace mounts. Keep the page runner's manual
 isolation option. The default and quick plans no longer request it, and the
 full launch reserves two page slots for its two depth-one filters.
+
+### I4. Wait for named layout states
+
+Wait for the mounted SVG, focus, menu, hover, anchor preview and drag-toast
+states. The live expiry test still exercises the production timeout. The two
+unmount tests use a short test-only timer and let its callback proceed once
+the overlay is gone. Both wait for the callback to finish before inspecting
+the panic log. The key-size test waits for its new owner and retains the
+negative observation window for a late stale submission. The nine settlement
+helpers now share one bounded driver and preserve the Case suite's synchronous
+effect drain. The remaining short gesture waits and the launch-order stopping
+point need browser evidence at H.

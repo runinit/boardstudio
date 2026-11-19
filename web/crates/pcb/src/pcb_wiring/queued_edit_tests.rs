@@ -7,7 +7,7 @@ use boardstudio_core::{
     electrical::{self, ElectricalPlanRequest},
     model::*,
 };
-use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until_step};
+use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::settle_until};
 use std::{
     cell::{Cell, RefCell},
     collections::BTreeMap,
@@ -208,14 +208,6 @@ async fn mounted_with_document(document_fixture: ProjectDoc) -> (Probe, web_sys:
 async fn rendered() {
     gloo_timers::future::TimeoutFuture::new(30).await;
 }
-/// Drains held effects, then waits until `done` holds: the state the assertion after it needs.
-async fn settle_until(runtime: &Rc<Runtime>, what: &str, done: impl Fn() -> bool) {
-    wait_until_step(what, async || {
-        support::run_pending(runtime).await;
-        done()
-    })
-    .await;
-}
 /// Whether the host has rendered the revision Core accepted last (hook state is current).
 fn rendered_accepted(probe: &Probe) -> bool {
     probe.rendered_revision.get() == probe.runtime.model().accepted.unwrap().document.revision
@@ -308,6 +300,7 @@ async fn wiring_mode_and_peripheral_pin_lock_queue_and_undo_in_order() {
     release.send(()).unwrap();
     settle_until(
         runtime,
+        support::run_pending,
         "the held layer edit lands with its mode and lock",
         || {
             configuration_if_present(runtime).is_some_and(|config| {
@@ -324,6 +317,7 @@ async fn wiring_mode_and_peripheral_pin_lock_queue_and_undo_in_order() {
     });
     settle_until(
         runtime,
+        support::run_pending,
         "the undo removes the lock and keeps the mode",
         || {
             configuration_if_present(runtime).is_some_and(|config| {
@@ -340,6 +334,7 @@ async fn wiring_mode_and_peripheral_pin_lock_queue_and_undo_in_order() {
     });
     settle_until(
         runtime,
+        support::run_pending,
         "the second undo clears the board configuration",
         || {
             runtime
@@ -414,6 +409,7 @@ async fn create_net_disables_while_held_and_refuses_a_retained_duplicate_but_all
     release.send(()).unwrap();
     settle_until(
         runtime,
+        support::run_pending,
         "the net creation and the queued pad assignment land and the action re-enables",
         || {
             let document = runtime.model().accepted.unwrap().document;
@@ -464,19 +460,24 @@ async fn create_net_disables_while_held_and_refuses_a_retained_duplicate_but_all
     runtime.submit(Event::Undo {
         operation_id: runtime.operation(),
     });
-    settle_until(runtime, "the undo clears the net pins", || {
-        runtime
-            .model()
-            .accepted
-            .unwrap()
-            .document
-            .nets
-            .iter()
-            .find(|net| net.id == "net")
-            .unwrap()
-            .pins
-            .is_empty()
-    })
+    settle_until(
+        runtime,
+        support::run_pending,
+        "the undo clears the net pins",
+        || {
+            runtime
+                .model()
+                .accepted
+                .unwrap()
+                .document
+                .nets
+                .iter()
+                .find(|net| net.id == "net")
+                .unwrap()
+                .pins
+                .is_empty()
+        },
+    )
     .await;
     let document = runtime.model().accepted.unwrap().document;
     assert!(
@@ -500,16 +501,21 @@ async fn create_net_disables_while_held_and_refuses_a_retained_duplicate_but_all
     runtime.submit(Event::Undo {
         operation_id: runtime.operation(),
     });
-    settle_until(runtime, "the undo removes the created signal", || {
-        !runtime
-            .model()
-            .accepted
-            .unwrap()
-            .document
-            .nets
-            .iter()
-            .any(|net| net.name == "Created signal")
-    })
+    settle_until(
+        runtime,
+        support::run_pending,
+        "the undo removes the created signal",
+        || {
+            !runtime
+                .model()
+                .accepted
+                .unwrap()
+                .document
+                .nets
+                .iter()
+                .any(|net| net.name == "Created signal")
+        },
+    )
     .await;
     assert!(
         !runtime
@@ -574,6 +580,7 @@ async fn part_net_assignment_queued_behind_layout_preserves_both_edits_and_undo(
     release.send(()).unwrap();
     settle_until(
         runtime,
+        support::run_pending,
         "the layout move and the pad assignment both land",
         || {
             let document = runtime.model().accepted.unwrap().document;
@@ -613,11 +620,16 @@ async fn part_net_assignment_queued_behind_layout_preserves_both_edits_and_undo(
     runtime.submit(Event::Undo {
         operation_id: runtime.operation(),
     });
-    settle_until(runtime, "the undo clears the net pins", || {
-        runtime.model().accepted.unwrap().document.nets[0]
-            .pins
-            .is_empty()
-    })
+    settle_until(
+        runtime,
+        support::run_pending,
+        "the undo clears the net pins",
+        || {
+            runtime.model().accepted.unwrap().document.nets[0]
+                .pins
+                .is_empty()
+        },
+    )
     .await;
     assert!(
         runtime.model().accepted.unwrap().document.nets[0]
@@ -642,21 +654,26 @@ async fn part_net_assignment_queued_behind_layout_preserves_both_edits_and_undo(
     runtime.submit(Event::Undo {
         operation_id: runtime.operation(),
     });
-    settle_until(runtime, "the undo returns the connector", || {
-        runtime
-            .model()
-            .accepted
-            .unwrap()
-            .document
-            .parts
-            .iter()
-            .find(|part| part.id == "connector")
-            .unwrap()
-            .pose
-            .at
-            .x
-            == 0.0
-    })
+    settle_until(
+        runtime,
+        support::run_pending,
+        "the undo returns the connector",
+        || {
+            runtime
+                .model()
+                .accepted
+                .unwrap()
+                .document
+                .parts
+                .iter()
+                .find(|part| part.id == "connector")
+                .unwrap()
+                .pose
+                .at
+                .x
+                == 0.0
+        },
+    )
     .await;
     assert_eq!(
         runtime
@@ -712,6 +729,7 @@ async fn plan_queued_behind_part_deletion_is_refused_and_does_not_restore_the_pa
     release.send(()).unwrap();
     settle_until(
         runtime,
+        support::run_pending,
         "the accepted edit removes the mcu part and the refused apply reports",
         || {
             !runtime
@@ -757,16 +775,21 @@ async fn plan_queued_behind_part_deletion_is_refused_and_does_not_restore_the_pa
     runtime.submit(Event::Undo {
         operation_id: runtime.operation(),
     });
-    settle_until(runtime, "the undo restores the mcu part", || {
-        runtime
-            .model()
-            .accepted
-            .unwrap()
-            .document
-            .parts
-            .iter()
-            .any(|part| part.id == "mcu-left")
-    })
+    settle_until(
+        runtime,
+        support::run_pending,
+        "the undo restores the mcu part",
+        || {
+            runtime
+                .model()
+                .accepted
+                .unwrap()
+                .document
+                .parts
+                .iter()
+                .any(|part| part.id == "mcu-left")
+        },
+    )
     .await;
     assert!(
         runtime
@@ -791,9 +814,12 @@ async fn failed_field_ticket_restores_accepted_value_and_keeps_feedback_across_a
         identity: actions.identity.unwrap(),
         mode: ElectricalMode::Direct,
     });
-    settle_until(runtime, "the refused mode edit reports its failure", || {
-        (probe.mode.borrow().as_ref().unwrap().failure)().is_some()
-    })
+    settle_until(
+        runtime,
+        support::run_pending,
+        "the refused mode edit reports its failure",
+        || (probe.mode.borrow().as_ref().unwrap().failure)().is_some(),
+    )
     .await;
     assert!(
         runtime
@@ -830,9 +856,12 @@ async fn failed_field_ticket_restores_accepted_value_and_keeps_feedback_across_a
             },
         ),
     });
-    settle_until(runtime, "the unrelated edit is blocked by recovery", || {
-        unrelated.borrow().is_some()
-    })
+    settle_until(
+        runtime,
+        support::run_pending,
+        "the unrelated edit is blocked by recovery",
+        || unrelated.borrow().is_some(),
+    )
     .await;
     assert_eq!(
         *unrelated.borrow(),
@@ -856,9 +885,12 @@ async fn failed_field_ticket_restores_accepted_value_and_keeps_feedback_across_a
         range_part_ids: vec![],
         mode: boardstudio_application::SelectionMode::Replace,
     });
-    settle_until(runtime, "a different target shows no failure", || {
-        (probe.mode.borrow().as_ref().unwrap().failure)().is_none()
-    })
+    settle_until(
+        runtime,
+        support::run_pending,
+        "a different target shows no failure",
+        || (probe.mode.borrow().as_ref().unwrap().failure)().is_none(),
+    )
     .await;
     assert!(
         (probe.mode.borrow().as_ref().unwrap().failure)().is_none(),
@@ -902,11 +934,16 @@ async fn physical_topology_queued_behind_another_edit_preserves_it_and_undo() {
     assert!(probe.setup.borrow().as_ref().unwrap().projection.busy);
     assert!(probe.mode.borrow().as_ref().unwrap().editable);
     release.send(()).unwrap();
-    settle_until(runtime, "the layout name and split topology land", || {
-        let accepted = runtime.model().accepted.unwrap();
-        accepted.document.name == "Layout name"
-            && accepted.document.hardware.as_ref().unwrap().topology == HardwareTopology::Split
-    })
+    settle_until(
+        runtime,
+        support::run_pending,
+        "the layout name and split topology land",
+        || {
+            let accepted = runtime.model().accepted.unwrap();
+            accepted.document.name == "Layout name"
+                && accepted.document.hardware.as_ref().unwrap().topology == HardwareTopology::Split
+        },
+    )
     .await;
     let accepted = runtime.model().accepted.unwrap();
     assert_eq!(accepted.document.name, "Layout name");
@@ -929,6 +966,7 @@ async fn physical_topology_queued_behind_another_edit_preserves_it_and_undo() {
     });
     settle_until(
         runtime,
+        support::run_pending,
         "the undo keeps the name and removes the instances",
         || {
             let accepted = runtime.model().accepted.unwrap();
@@ -953,9 +991,12 @@ async fn physical_topology_queued_behind_another_edit_preserves_it_and_undo() {
     runtime.submit(Event::Undo {
         operation_id: runtime.operation(),
     });
-    settle_until(runtime, "the undo restores the mode test name", || {
-        runtime.model().accepted.unwrap().document.name == "Mode test"
-    })
+    settle_until(
+        runtime,
+        support::run_pending,
+        "the undo restores the mode test name",
+        || runtime.model().accepted.unwrap().document.name == "Mode test",
+    )
     .await;
     assert_eq!(runtime.model().accepted.unwrap().document.name, "Mode test");
     root.remove();

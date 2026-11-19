@@ -104,6 +104,20 @@ pub async fn wait_until_step(what: &str, step: impl AsyncFnMut() -> bool) {
     }
 }
 
+/// Drive the fixture before each check of an observed state.
+pub async fn settle_until<T>(
+    fixture: &T,
+    mut drive: impl AsyncFnMut(&T),
+    what: &str,
+    condition: impl Fn() -> bool,
+) {
+    wait_until_step(what, async || {
+        drive(fixture).await;
+        condition()
+    })
+    .await;
+}
+
 #[cfg(all(test, target_arch = "wasm32"))]
 mod tests {
     use super::*;

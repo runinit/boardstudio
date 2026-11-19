@@ -614,7 +614,7 @@ mod mounted_step_tests {
     use boardstudio_application::Event;
     use boardstudio_core::model::{KeyBinding, ProjectDoc};
     use boardstudio_web_ui_shared::test_role::by_role_name;
-    use boardstudio_web_ui_shared::test_wait::wait_until_step;
+    use boardstudio_web_ui_shared::test_wait::settle_until;
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::wasm_bindgen_test;
 
@@ -714,14 +714,6 @@ mod mounted_step_tests {
         gloo_timers::future::TimeoutFuture::new(40).await;
     }
 
-    async fn settle_until(runtime: &Rc<Runtime>, what: &str, condition: impl Fn() -> bool) {
-        wait_until_step(what, async || {
-            support::run_pending(runtime).await;
-            condition()
-        })
-        .await;
-    }
-
     fn input(root: &web_sys::Element, label: &str) -> web_sys::HtmlInputElement {
         by_role_name(
             root,
@@ -786,9 +778,12 @@ mod mounted_step_tests {
         // shared helper restores by submitted-value equality, independent of local dirty.
         type_value(&input(&root, label), submitted);
         release.send(()).unwrap();
-        settle_until(runtime, "the failed key field is restored", || {
-            input(&root, label).value() == accepted && field_failure(&root, label).is_some()
-        })
+        settle_until(
+            runtime,
+            support::run_pending,
+            "the failed key field is restored",
+            || input(&root, label).value() == accepted && field_failure(&root, label).is_some(),
+        )
         .await;
         assert_eq!(input(&root, label).value(), accepted);
         assert_inline_failure(&root, label);
@@ -819,6 +814,7 @@ mod mounted_step_tests {
         release.send(()).unwrap();
         settle_until(
             runtime,
+            support::run_pending,
             "the newer draft remains beside the failure",
             || input(&root, label).value() == newer && field_failure(&root, label).is_some(),
         )
@@ -847,11 +843,16 @@ mod mounted_step_tests {
         commit(&input(&root, "Keycode"), "C");
         support::drive_pending(runtime);
         release.send(()).unwrap();
-        settle_until(runtime, "the newest step edit is accepted", || {
-            input(&root, "Keycode").value() == "C"
-                && field_failure(&root, "Keycode").is_none()
-                && accepted_step_value(runtime, "Keycode").as_deref() == Some("C")
-        })
+        settle_until(
+            runtime,
+            support::run_pending,
+            "the newest step edit is accepted",
+            || {
+                input(&root, "Keycode").value() == "C"
+                    && field_failure(&root, "Keycode").is_none()
+                    && accepted_step_value(runtime, "Keycode").as_deref() == Some("C")
+            },
+        )
         .await;
         assert_eq!(input(&root, "Keycode").value(), "C");
         assert!(field_failure(&root, "Keycode").is_none());
@@ -870,17 +871,22 @@ mod mounted_step_tests {
                     operation_id: runtime.operation(),
                 });
                 let expected = if expected == "C" { "B" } else { "A" };
-                settle_until(runtime, "Undo restores the previous key field", || {
-                    input(&root, "Keycode").value() == expected
-                        && runtime.model().accepted.as_ref().is_some_and(|accepted| {
-                            accepted.document.keymap.as_ref().unwrap().macros[0].steps[0]
-                                == MacroStep::Tap {
-                                    binding: KeyBinding::KeyPress {
-                                        keycode: expected.into(),
-                                    },
-                                }
-                        })
-                })
+                settle_until(
+                    runtime,
+                    support::run_pending,
+                    "Undo restores the previous key field",
+                    || {
+                        input(&root, "Keycode").value() == expected
+                            && runtime.model().accepted.as_ref().is_some_and(|accepted| {
+                                accepted.document.keymap.as_ref().unwrap().macros[0].steps[0]
+                                    == MacroStep::Tap {
+                                        binding: KeyBinding::KeyPress {
+                                            keycode: expected.into(),
+                                        },
+                                    }
+                            })
+                    },
+                )
                 .await;
             }
         }
@@ -905,9 +911,12 @@ mod mounted_step_tests {
         rendered().await;
         assert!(by_role_name(&root, "textbox", "Keycode").is_some());
         release.send(()).unwrap();
-        settle_until(runtime, "the departed field failure is discarded", || {
-            input(&root, "Keycode").value() == "A" && field_failure(&root, "Keycode").is_none()
-        })
+        settle_until(
+            runtime,
+            support::run_pending,
+            "the departed field failure is discarded",
+            || input(&root, "Keycode").value() == "A" && field_failure(&root, "Keycode").is_none(),
+        )
         .await;
         assert!(
             field_failure(&root, "Keycode").is_none(),
@@ -932,10 +941,15 @@ mod mounted_step_tests {
             "the exact typed text stays visible while its edit is pending"
         );
         release.send(()).unwrap();
-        settle_until(runtime, "the canonical step text is accepted", || {
-            input(&root, label).value() == accepted
-                && accepted_step_value(runtime, label).as_deref() == Some(accepted)
-        })
+        settle_until(
+            runtime,
+            support::run_pending,
+            "the canonical step text is accepted",
+            || {
+                input(&root, label).value() == accepted
+                    && accepted_step_value(runtime, label).as_deref() == Some(accepted)
+            },
+        )
         .await;
         assert_eq!(
             input(&root, label).value(),
@@ -995,6 +1009,7 @@ mod mounted_step_tests {
         release.send(()).unwrap();
         settle_until(
             runtime,
+            support::run_pending,
             "the newer raw draft survives the accepted edit",
             || {
                 input(&root, label).value() == newer
@@ -1085,13 +1100,18 @@ mod mounted_step_tests {
             }
         );
         release.send(()).unwrap();
-        settle_until(runtime, "the departed panel edit reaches Core", || {
-            kind().text_content().unwrap().trim() == "wait"
-                && runtime.model().accepted.as_ref().is_some_and(|accepted| {
-                    accepted.document.keymap.as_ref().unwrap().macros[0].steps[0]
-                        == MacroStep::Wait { ms: 100 }
-                })
-        })
+        settle_until(
+            runtime,
+            support::run_pending,
+            "the departed panel edit reaches Core",
+            || {
+                kind().text_content().unwrap().trim() == "wait"
+                    && runtime.model().accepted.as_ref().is_some_and(|accepted| {
+                        accepted.document.keymap.as_ref().unwrap().macros[0].steps[0]
+                            == MacroStep::Wait { ms: 100 }
+                    })
+            },
+        )
         .await;
         let accepted = runtime.model().accepted.unwrap();
         assert_eq!(
