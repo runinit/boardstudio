@@ -332,17 +332,23 @@ pub struct Version {
 }
 
 /// A stream of one CDP event kind. Ends when its target is destroyed or the
-/// transport closes.
+/// transport closes. An event that no longer parses as `T` is reported on the
+/// handler instead of silently dropped.
 #[derive(Debug)]
 pub struct EventStream<T: EventKind> {
-    events: mpsc::UnboundedReceiver<Value>,
+    events: mpsc::UnboundedReceiver<(Value, Option<String>)>,
+    inner: std::sync::Weak<Inner>,
     marker: std::marker::PhantomData<T>,
 }
 
 impl<T: EventKind> EventStream<T> {
-    fn new(events: mpsc::UnboundedReceiver<Value>) -> Self {
+    fn new(
+        events: mpsc::UnboundedReceiver<(Value, Option<String>)>,
+        inner: std::sync::Weak<Inner>,
+    ) -> Self {
         Self {
             events,
+            inner,
             marker: std::marker::PhantomData,
         }
     }
@@ -354,9 +360,15 @@ impl<T: EventKind + Unpin> Stream for EventStream<T> {
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         loop {
             match Pin::new(&mut self.events).poll_recv(cx) {
-                Poll::Ready(Some(value)) => {
-                    if let Ok(event) = serde_json::from_value::<T>(value) {
-                        return Poll::Ready(Some(Arc::new(event)));
+                Poll::Ready(Some((value, raw))) => {
+                    match serde_json::from_value::<T>(value.clone()) {
+                        Ok(event) => return Poll::Ready(Some(Arc::new(event))),
+                        Err(error) => {
+                            if let Some(inner) = self.inner.upgrade() {
+                                let payload = raw.unwrap_or_else(|| value.to_string());
+                                inner.push_invalid(&payload, error.to_string());
+                            }
+                        }
                     }
                 }
                 Poll::Ready(None) => return Poll::Ready(None),
@@ -370,7 +382,7 @@ impl<T: EventKind + Unpin> Stream for EventStream<T> {
 struct Subscription {
     target: Option<String>,
     method: &'static str,
-    sender: mpsc::UnboundedSender<Value>,
+    sender: mpsc::UnboundedSender<(Value, Option<String>)>,
 }
 
 type CommandOutcome = Result<Value, CdpError>;
@@ -379,6 +391,7 @@ type CommandOutcome = Result<Value, CdpError>;
 struct PendingEntry {
     sender: oneshot::Sender<CommandOutcome>,
     started: Instant,
+    is_browser_close: bool,
 }
 
 #[derive(Debug)]
@@ -436,6 +449,7 @@ impl Inner {
                 PendingEntry {
                     sender,
                     started: Instant::now(),
+                    is_browser_close: method == "Browser.close" && session.is_none(),
                 },
             );
         if self.commands.send(message.to_string()).is_err() {
@@ -488,7 +502,64 @@ impl Inner {
         });
     }
 
-    fn subscribe<T: EventKind>(&self, target: Option<String>) -> EventStream<T> {
+    /// Run ordered setup for one attached waiting worker on a single task:
+    /// `Network.enable` first when capturing, then resume. A failing
+    /// `Network.enable` never resumes, so uncaptured worker requests cannot
+    /// slip through. A service worker the harness does not capture is detached
+    /// on the same task, after its resume.
+    fn spawn_worker_setup(
+        self: &Arc<Self>,
+        child: String,
+        parent: String,
+        is_service_worker: bool,
+        capture: bool,
+        waiting: bool,
+    ) {
+        let inner = Arc::clone(self);
+        tokio::spawn(async move {
+            if waiting {
+                if capture {
+                    if let Err(error) = inner
+                        .execute("Network.enable", json!({}), Some(&child))
+                        .await
+                    {
+                        inner.push_handler_error(CdpError::ChromeMessage(format!(
+                            "worker setup Network.enable failed: {error}"
+                        )));
+                        return;
+                    }
+                }
+                if let Err(error) = inner
+                    .execute("Runtime.runIfWaitingForDebugger", json!({}), Some(&child))
+                    .await
+                {
+                    inner.push_handler_error(CdpError::ChromeMessage(format!(
+                        "worker setup Runtime.runIfWaitingForDebugger failed: {error}"
+                    )));
+                }
+            } else if capture {
+                inner.push_handler_error(CdpError::ChromeMessage(format!(
+                    "worker {child:?} attached without pause"
+                )));
+            }
+            if is_service_worker && !(capture && waiting) {
+                if let Err(error) = inner
+                    .execute(
+                        "Target.detachFromTarget",
+                        json!({"sessionId": child}),
+                        Some(&parent),
+                    )
+                    .await
+                {
+                    inner.push_handler_error(CdpError::ChromeMessage(format!(
+                        "worker setup Target.detachFromTarget failed: {error}"
+                    )));
+                }
+            }
+        });
+    }
+
+    fn subscribe<T: EventKind>(self: &Arc<Self>, target: Option<String>) -> EventStream<T> {
         let (sender, receiver) = mpsc::unbounded_channel();
         self.subscriptions
             .lock()
@@ -498,17 +569,19 @@ impl Inner {
                 method: T::method_id(),
                 sender,
             });
-        EventStream::new(receiver)
+        EventStream::new(receiver, Arc::downgrade(self))
     }
 
-    fn publish(&self, target: Option<&str>, method: &str, value: Value) {
+    fn publish(&self, target: Option<&str>, method: &str, value: Value, raw: Option<&str>) {
         let subscriptions = self
             .subscriptions
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         for subscription in subscriptions.iter() {
             if subscription.target.as_deref() == target && subscription.method == method {
-                let _ = subscription.sender.send(value.clone());
+                let _ = subscription
+                    .sender
+                    .send((value.clone(), raw.map(str::to_owned)));
             }
         }
     }
@@ -963,7 +1036,7 @@ impl Browser {
     pub async fn close(&self) -> Result<(), CdpError> {
         let result = self.execute("Browser.close", json!({})).await;
         if result.is_ok() {
-            self.inner.closing.store(true, Ordering::Relaxed);
+            self.inner.closing.store(true, Ordering::Release);
         }
         result.map(|_| ())
     }
@@ -1167,15 +1240,63 @@ fn connected(
 }
 
 async fn canonicalize_except_snap(path: std::path::PathBuf) -> std::io::Result<std::path::PathBuf> {
-    let canonical = tokio::fs::canonicalize(&path).await?;
+    let resolved = resolve_bare_name_on_path(&path);
+    let canonical = tokio::fs::canonicalize(&resolved).await?;
     if canonical
         .to_str()
         .is_some_and(|path| path.ends_with("/snap"))
     {
-        Ok(path)
+        Ok(resolved)
     } else {
         Ok(canonical)
     }
+}
+
+/// Resolve a bare executable name against `PATH`, leaving every other path
+/// untouched. A name found nowhere falls back to itself so `canonicalize`
+/// still reports `NotFound`.
+fn resolve_bare_name_on_path(path: &std::path::Path) -> std::path::PathBuf {
+    let Some(paths) = std::env::var_os("PATH") else {
+        return path.to_path_buf();
+    };
+    let dirs: Vec<std::path::PathBuf> = std::env::split_paths(&paths).collect();
+    resolve_bare_name(path, &dirs)
+}
+
+/// Resolve a bare executable name (`"google-chrome"`) to the first executable
+/// file of that name on `search_dirs`. Paths with directory components
+/// (`"./foo"`, `"bin/chrome"`, `"/usr/bin/chromium"`) are returned untouched,
+/// as are names found nowhere.
+fn resolve_bare_name(
+    path: &std::path::Path,
+    search_dirs: &[std::path::PathBuf],
+) -> std::path::PathBuf {
+    if path.components().count() != 1 || path.is_absolute() {
+        return path.to_path_buf();
+    }
+    for dir in search_dirs {
+        let candidate = dir.join(path);
+        if candidate.is_file() && is_executable_file(&candidate) {
+            return candidate;
+        }
+    }
+    path.to_path_buf()
+}
+
+/// True when `candidate` is runnable: on Unix it needs an execute bit.
+#[cfg(unix)]
+fn is_executable_file(candidate: &std::path::Path) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::metadata(candidate)
+        .map(|metadata| metadata.permissions().mode() & 0o111 != 0)
+        .unwrap_or(false)
+}
+
+/// True when `candidate` is runnable: without execute bits, being a file is
+/// enough.
+#[cfg(not(unix))]
+fn is_executable_file(_candidate: &std::path::Path) -> bool {
+    true
 }
 
 async fn kill_and_wait(child: &mut tokio::process::Child) -> std::io::Result<()> {
@@ -1296,23 +1417,21 @@ pub const NETWORK_EVENT_METHOD: &str = "BoardStudio.NetworkEvent";
 /// passes through untouched.
 fn validate_event(method: &str, params: &Value) -> Result<(), String> {
     match method {
-        "Runtime.exceptionThrown" => {
-            let valid = params
-                .get("exceptionDetails")
-                .and_then(Value::as_object)
-                .is_some_and(|details| details.get("text").and_then(Value::as_str).is_some());
-            if valid {
-                Ok(())
-            } else {
-                Err("Runtime.exceptionThrown missing exceptionDetails.text".to_owned())
-            }
+        "Runtime.exceptionThrown" => serde_json::from_value::<EventExceptionThrown>(params.clone())
+            .map(|_| ())
+            .map_err(|error| format!("Runtime.exceptionThrown invalid: {error}")),
+        "Target.targetDestroyed" => serde_json::from_value::<EventTargetDestroyed>(params.clone())
+            .map(|_| ())
+            .map_err(|error| format!("Target.targetDestroyed invalid: {error}")),
+        "Browser.downloadWillBegin" => {
+            serde_json::from_value::<EventDownloadWillBegin>(params.clone())
+                .map(|_| ())
+                .map_err(|error| format!("Browser.downloadWillBegin invalid: {error}"))
         }
-        "Target.targetDestroyed" => {
-            if params.get("targetId").and_then(Value::as_str).is_some() {
-                Ok(())
-            } else {
-                Err("Target.targetDestroyed missing targetId".to_owned())
-            }
+        "Browser.downloadProgress" => {
+            serde_json::from_value::<EventDownloadProgress>(params.clone())
+                .map(|_| ())
+                .map_err(|error| format!("Browser.downloadProgress invalid: {error}"))
         }
         "Target.attachedToTarget" => {
             if params.get("sessionId").and_then(Value::as_str).is_none() {
@@ -1361,7 +1480,7 @@ async fn run_connection(
                 match message {
                     Some(Ok(WsMessage::Text(text))) => on_text(&inner, &mut state, text.as_str()),
                     Some(Ok(WsMessage::Close(_))) | None => {
-                        if !inner.closing.load(Ordering::Relaxed) {
+                        if !inner.closing.load(Ordering::Acquire) {
                             inner.push_handler_error(CdpError::NoResponse);
                         }
                         break;
@@ -1437,7 +1556,7 @@ fn on_text(inner: &Arc<Inner>, state: &mut ConnState, raw: &str) {
         }
     };
     if let Some(id) = value.get("id").and_then(Value::as_u64) {
-        on_response(inner, id, &value);
+        on_response(inner, id, &value, raw);
         return;
     }
     let Some(method) = value.get("method").and_then(Value::as_str) else {
@@ -1450,10 +1569,10 @@ fn on_text(inner: &Arc<Inner>, state: &mut ConnState, raw: &str) {
         inner.push_invalid(raw, cause);
         return;
     }
-    on_event(inner, state, method, session, &params);
+    on_event(inner, state, method, session, &params, raw);
 }
 
-fn on_response(inner: &Inner, id: u64, value: &Value) {
+fn on_response(inner: &Inner, id: u64, value: &Value, raw: &str) {
     let entry = inner
         .pending
         .lock()
@@ -1469,9 +1588,16 @@ fn on_response(inner: &Inner, id: u64, value: &Value) {
             let _ = entry.sender.send(Err(CdpError::ChromeMessage(format!(
                 "CDP error {code}: {message}"
             ))));
+        } else if let Some(result) = value.get("result").filter(|result| result.is_object()) {
+            if entry.is_browser_close {
+                inner.closing.store(true, Ordering::Release);
+            }
+            let _ = entry.sender.send(Ok(result.clone()));
         } else {
-            let result = value.get("result").cloned().unwrap_or(Value::Null);
-            let _ = entry.sender.send(Ok(result));
+            let _ = entry.sender.send(Err(CdpError::InvalidMessage(
+                raw.to_owned(),
+                "CDP response missing result object or error".to_owned(),
+            )));
         }
     }
 }
@@ -1482,9 +1608,10 @@ fn on_event(
     method: &str,
     session: Option<&str>,
     params: &Value,
+    raw: &str,
 ) {
     match method {
-        "Target.attachedToTarget" => on_attached(inner, state, session, params),
+        "Target.attachedToTarget" => on_attached(inner, state, session, params, raw),
         "Target.detachedFromTarget" => {
             if let Some(detached) = params.get("sessionId").and_then(Value::as_str) {
                 let target = state.sessions.remove(detached);
@@ -1505,7 +1632,7 @@ fn on_event(
                 }
                 inner.drop_load_waiters(detached);
             }
-            inner.publish(None, method, params.clone());
+            inner.publish(None, method, params.clone(), Some(raw));
         }
         "Target.targetDestroyed" => {
             if let Some(destroyed) = params.get("targetId").and_then(Value::as_str) {
@@ -1521,13 +1648,13 @@ fn on_event(
                 }
                 inner.remove_target_subscriptions(destroyed);
             }
-            inner.publish(None, method, params.clone());
+            inner.publish(None, method, params.clone(), Some(raw));
         }
         "Page.loadEventFired" => {
             if let Some(session) = session {
                 inner.wake_load_waiters(session);
                 if let Some(target) = state.sessions.get(session) {
-                    inner.publish(Some(target), method, params.clone());
+                    inner.publish(Some(target), method, params.clone(), Some(raw));
                 }
             }
         }
@@ -1544,6 +1671,7 @@ fn on_event(
                             Some(&owner),
                             NETWORK_EVENT_METHOD,
                             json!({"session": session, "method": method, "params": params}),
+                            None,
                         );
                     }
                 }
@@ -1554,10 +1682,10 @@ fn on_event(
                 return;
             }
             match session {
-                None => inner.publish(None, method, params.clone()),
+                None => inner.publish(None, method, params.clone(), Some(raw)),
                 Some(session) => {
                     if let Some(target) = state.sessions.get(session) {
-                        inner.publish(Some(target), method, params.clone());
+                        inner.publish(Some(target), method, params.clone(), Some(raw));
                     }
                 }
             }
@@ -1565,7 +1693,13 @@ fn on_event(
     }
 }
 
-fn on_attached(inner: &Arc<Inner>, state: &mut ConnState, session: Option<&str>, params: &Value) {
+fn on_attached(
+    inner: &Arc<Inner>,
+    state: &mut ConnState,
+    session: Option<&str>,
+    params: &Value,
+    raw: &str,
+) {
     let Some(child) = params.get("sessionId").and_then(Value::as_str) else {
         return;
     };
@@ -1578,7 +1712,7 @@ fn on_attached(inner: &Arc<Inner>, state: &mut ConnState, session: Option<&str>,
     };
     state.sessions.insert(child.to_owned(), target.to_owned());
     let Some(parent) = session else {
-        inner.publish(None, "Target.attachedToTarget", params.clone());
+        inner.publish(None, "Target.attachedToTarget", params.clone(), Some(raw));
         return;
     };
     let kind = params
@@ -1586,9 +1720,27 @@ fn on_attached(inner: &Arc<Inner>, state: &mut ConnState, session: Option<&str>,
         .and_then(|info| info.get("type"))
         .and_then(Value::as_str)
         .unwrap_or("");
+    let waiting = params
+        .get("waitingForDebugger")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
     if kind != "worker" && kind != "service_worker" {
+        // `Page::initialize` auto-attaches every child target paused, including
+        // out-of-process iframes: resume them without touching Network.
+        if waiting {
+            inner.spawn_internal(
+                "Runtime.runIfWaitingForDebugger",
+                json!({}),
+                Some(child.to_owned()),
+            );
+        }
         if let Some(owner) = state.sessions.get(parent) {
-            inner.publish(Some(owner), "Target.attachedToTarget", params.clone());
+            inner.publish(
+                Some(owner),
+                "Target.attachedToTarget",
+                params.clone(),
+                Some(raw),
+            );
         }
         return;
     }
@@ -1599,37 +1751,20 @@ fn on_attached(inner: &Arc<Inner>, state: &mut ConnState, session: Option<&str>,
             .insert(child.to_owned(), parent.to_owned());
     }
     let capture = inner.capture_workers.load(Ordering::Relaxed);
-    let waiting = params
-        .get("waitingForDebugger")
-        .and_then(Value::as_bool)
-        .unwrap_or(false);
-    if waiting {
-        if capture {
-            inner.spawn_internal("Network.enable", json!({}), Some(child.to_owned()));
-        }
-        inner.spawn_internal(
-            "Runtime.runIfWaitingForDebugger",
-            json!({}),
-            Some(child.to_owned()),
-        );
-    } else if capture {
-        inner.push_handler_error(CdpError::ChromeMessage(format!(
-            "worker {child:?} attached without pause"
-        )));
-    }
-    if kind == "service_worker" && !(capture && waiting) {
-        inner.spawn_internal(
-            "Target.detachFromTarget",
-            json!({"sessionId": child}),
-            Some(parent.to_owned()),
-        );
-    }
+    inner.spawn_worker_setup(
+        child.to_owned(),
+        parent.to_owned(),
+        kind == "service_worker",
+        capture,
+        waiting,
+    );
     if capture {
         if let Some(owner) = state.sessions.get(parent) {
             inner.publish(
                 Some(owner),
                 NETWORK_EVENT_METHOD,
                 json!({"session": parent, "method": "Target.attachedToTarget", "params": params}),
+                None,
             );
         }
     }
@@ -1653,6 +1788,524 @@ mod tests {
         assert!(validate_event("Target.targetDestroyed", &json!({"targetId": "t"})).is_ok());
         assert!(validate_event("Target.targetDestroyed", &json!({})).is_err());
         assert!(validate_event("Network.responseReceived", &json!({})).is_ok());
+    }
+
+    #[test]
+    fn typed_events_reject_wrongly_typed_fields() {
+        assert!(validate_event(
+            "Runtime.exceptionThrown",
+            &json!({"exceptionDetails": {"text": "boom", "exception": {"description": 42}}})
+        )
+        .is_err());
+        assert!(validate_event(
+            "Runtime.exceptionThrown",
+            &json!({"exceptionDetails": {"text": "boom", "exception": {"description": "Error"}}})
+        )
+        .is_ok());
+        assert!(validate_event("Target.targetDestroyed", &json!({"targetId": 42})).is_err());
+        assert!(validate_event(
+            "Browser.downloadWillBegin",
+            &json!({"guid": "g", "suggestedFilename": "f"})
+        )
+        .is_ok());
+        assert!(validate_event("Browser.downloadWillBegin", &json!({"guid": "g"})).is_err());
+        assert!(validate_event(
+            "Browser.downloadProgress",
+            &json!({"guid": "g", "state": "completed"})
+        )
+        .is_ok());
+        assert!(validate_event(
+            "Browser.downloadProgress",
+            &json!({"guid": "g", "state": "inProgress"})
+        )
+        .is_ok());
+        assert!(validate_event(
+            "Browser.downloadProgress",
+            &json!({"guid": "g", "state": "nope"})
+        )
+        .is_err());
+    }
+
+    fn test_inner(
+        capture: bool,
+    ) -> (
+        Arc<Inner>,
+        mpsc::UnboundedReceiver<String>,
+        mpsc::UnboundedReceiver<CdpError>,
+    ) {
+        let (commands, command_receiver) = mpsc::unbounded_channel();
+        let (handler_sender, handler_receiver) = mpsc::unbounded_channel();
+        let inner = Arc::new(Inner {
+            commands,
+            pending: Mutex::new(HashMap::new()),
+            next_id: AtomicU64::new(0),
+            child: AsyncMutex::new(None),
+            ws_url: "ws://test/".to_owned(),
+            subscriptions: Mutex::new(Vec::new()),
+            load_waiters: Mutex::new(HashMap::new()),
+            capture_workers: AtomicBool::new(capture),
+            closing: AtomicBool::new(false),
+            surface_invalid: true,
+            request_timeout: Duration::from_secs(5),
+            viewport: None,
+            handler_errors: Mutex::new(Some(handler_sender)),
+        });
+        (inner, command_receiver, handler_receiver)
+    }
+
+    fn attached_params(child: &str, target: &str, kind: &str, waiting: bool) -> Value {
+        json!({
+            "sessionId": child,
+            "targetInfo": {"targetId": target, "type": kind},
+            "waitingForDebugger": waiting,
+        })
+    }
+
+    async fn next_command(commands: &mut mpsc::UnboundedReceiver<String>) -> Value {
+        let text = tokio::time::timeout(Duration::from_secs(5), commands.recv())
+            .await
+            .expect("setup command arrived")
+            .expect("command channel open");
+        serde_json::from_str(&text).expect("command is JSON")
+    }
+
+    fn respond_ok(inner: &Arc<Inner>, id: u64) {
+        let raw = format!(r#"{{"id":{id},"result":{{}}}}"#);
+        let value: Value = serde_json::from_str(&raw).unwrap();
+        on_response(inner, id, &value, &raw);
+    }
+
+    #[tokio::test]
+    async fn worker_setup_enables_network_before_resuming() {
+        let (inner, mut commands, _handler) = test_inner(true);
+        let mut state = ConnState::default();
+        state
+            .sessions
+            .insert("parent".to_owned(), "owner".to_owned());
+        let params = attached_params("child", "worker-target", "worker", true);
+        let raw = params.to_string();
+        on_attached(&inner, &mut state, Some("parent"), &params, &raw);
+
+        let first = next_command(&mut commands).await;
+        assert_eq!(first["method"], "Network.enable");
+        assert_eq!(first["sessionId"], "child");
+        let id = first["id"].as_u64().unwrap();
+
+        // Hold the ack: nothing else may be sent before Network.enable resolves.
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert!(
+            commands.try_recv().is_err(),
+            "resume sent before Network.enable resolved"
+        );
+        respond_ok(&inner, id);
+
+        let second = next_command(&mut commands).await;
+        assert_eq!(second["method"], "Runtime.runIfWaitingForDebugger");
+        assert_eq!(second["sessionId"], "child");
+        respond_ok(&inner, second["id"].as_u64().unwrap());
+    }
+
+    #[tokio::test]
+    async fn worker_setup_network_failure_never_resumes() {
+        let (inner, mut commands, mut handler) = test_inner(true);
+        let mut state = ConnState::default();
+        state
+            .sessions
+            .insert("parent".to_owned(), "owner".to_owned());
+        let params = attached_params("child", "worker-target", "worker", true);
+        let raw = params.to_string();
+        on_attached(&inner, &mut state, Some("parent"), &params, &raw);
+
+        let first = next_command(&mut commands).await;
+        assert_eq!(first["method"], "Network.enable");
+        let id = first["id"].as_u64().unwrap();
+        let reply = format!(r#"{{"id":{id},"error":{{"code":-32000,"message":"nope"}}}}"#);
+        let reply_value: Value = serde_json::from_str(&reply).unwrap();
+        on_response(&inner, id, &reply_value, &reply);
+
+        // The setup task must return without resuming.
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        assert!(
+            commands.try_recv().is_err(),
+            "failed Network.enable still resumed"
+        );
+
+        let error = tokio::time::timeout(Duration::from_secs(5), handler.recv())
+            .await
+            .expect("handler error arrived")
+            .expect("handler channel open");
+        let message = error.to_string();
+        assert!(
+            message.contains("worker setup Network.enable failed"),
+            "{message}"
+        );
+    }
+
+    #[tokio::test]
+    async fn service_worker_setup_sequences_resume_before_detach() {
+        let (inner, mut commands, _handler) = test_inner(false);
+        let mut state = ConnState::default();
+        state
+            .sessions
+            .insert("parent".to_owned(), "owner".to_owned());
+        let params = attached_params("child", "sw-target", "service_worker", true);
+        let raw = params.to_string();
+        on_attached(&inner, &mut state, Some("parent"), &params, &raw);
+
+        let first = next_command(&mut commands).await;
+        assert_eq!(first["method"], "Runtime.runIfWaitingForDebugger");
+        assert_eq!(first["sessionId"], "child");
+
+        // The detach must wait for the resume ack: one task, in order.
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert!(
+            commands.try_recv().is_err(),
+            "detach sent before resume resolved"
+        );
+        respond_ok(&inner, first["id"].as_u64().unwrap());
+
+        let second = next_command(&mut commands).await;
+        assert_eq!(second["method"], "Target.detachFromTarget");
+        assert_eq!(second["sessionId"], "parent");
+        assert_eq!(second["params"]["sessionId"], "child");
+        respond_ok(&inner, second["id"].as_u64().unwrap());
+
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert!(commands.try_recv().is_err(), "unexpected third command");
+    }
+
+    #[derive(Debug, Clone, Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct AttachedProbe {
+        session_id: String,
+    }
+
+    impl EventKind for AttachedProbe {
+        fn method_id() -> &'static str {
+            "Target.attachedToTarget"
+        }
+    }
+
+    #[tokio::test]
+    async fn waiting_iframe_resumes_without_network_enable() {
+        let (inner, mut commands, _handler) = test_inner(true);
+        let mut state = ConnState::default();
+        state
+            .sessions
+            .insert("parent".to_owned(), "owner".to_owned());
+        let mut attached = inner.subscribe::<AttachedProbe>(Some("owner".to_owned()));
+        let params = attached_params("child", "iframe-target", "iframe", true);
+        let raw = params.to_string();
+        on_attached(&inner, &mut state, Some("parent"), &params, &raw);
+
+        let command = next_command(&mut commands).await;
+        assert_eq!(command["method"], "Runtime.runIfWaitingForDebugger");
+        assert_eq!(command["sessionId"], "child");
+        respond_ok(&inner, command["id"].as_u64().unwrap());
+
+        // Capture is on, but a non-worker target must never enable Network.
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        assert!(
+            commands.try_recv().is_err(),
+            "iframe setup must not enable Network"
+        );
+
+        let event = tokio::time::timeout(Duration::from_secs(5), attached.next())
+            .await
+            .expect("attached event published")
+            .expect("stream open");
+        assert_eq!(event.session_id, "child");
+    }
+
+    #[tokio::test]
+    async fn malformed_exception_event_surfaces_invalid_message() {
+        let (inner, _commands, mut handler) = test_inner(false);
+        let mut state = ConnState::default();
+        let raw = r#"{"method":"Runtime.exceptionThrown","params":{"exceptionDetails":{"text":"boom","exception":{"description":42}}}}"#;
+        on_text(&inner, &mut state, raw);
+        let error = tokio::time::timeout(Duration::from_secs(5), handler.recv())
+            .await
+            .expect("handler error arrived")
+            .expect("handler channel open");
+        assert!(
+            matches!(&error, CdpError::InvalidMessage(payload, _) if payload == raw),
+            "malformed exception must surface InvalidMessage, got {error:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn event_stream_reports_unparsable_subscription() {
+        let (inner, _commands, mut handler) = test_inner(false);
+        let mut stream = inner.subscribe::<EventExceptionThrown>(None);
+        inner.publish(
+            None,
+            "Runtime.exceptionThrown",
+            json!({"exceptionDetails": 7}),
+            Some("bad-frame"),
+        );
+        inner.publish(
+            None,
+            "Runtime.exceptionThrown",
+            json!({"exceptionDetails": {"text": "boom"}}),
+            Some("good-frame"),
+        );
+        let event = tokio::time::timeout(Duration::from_secs(5), stream.next())
+            .await
+            .expect("good event arrived")
+            .expect("stream open");
+        assert_eq!(event.exception_details.text, "boom");
+        let error = tokio::time::timeout(Duration::from_secs(5), handler.recv())
+            .await
+            .expect("handler error arrived")
+            .expect("handler channel open");
+        assert!(
+            matches!(&error, CdpError::InvalidMessage(payload, _) if payload == "bad-frame"),
+            "unparsable subscription must surface InvalidMessage, got {error:?}"
+        );
+
+        // Without the raw frame, the payload falls back to the value itself.
+        let mut stream = inner.subscribe::<EventExceptionThrown>(None);
+        let bad = json!({"exceptionDetails": 7});
+        inner.publish(None, "Runtime.exceptionThrown", bad.clone(), None);
+        inner.publish(
+            None,
+            "Runtime.exceptionThrown",
+            json!({"exceptionDetails": {"text": "again"}}),
+            None,
+        );
+        let event = tokio::time::timeout(Duration::from_secs(5), stream.next())
+            .await
+            .expect("good event arrived")
+            .expect("stream open");
+        assert_eq!(event.exception_details.text, "again");
+        let error = tokio::time::timeout(Duration::from_secs(5), handler.recv())
+            .await
+            .expect("handler error arrived")
+            .expect("handler channel open");
+        assert!(
+            matches!(&error, CdpError::InvalidMessage(payload, _) if payload == &bad.to_string()),
+            "fallback payload must be the value, got {error:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn browser_close_response_before_close_frame_is_clean() {
+        use futures::StreamExt;
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.unwrap();
+            let mut ws = async_tungstenite::tokio::accept_async(socket)
+                .await
+                .unwrap();
+            while let Some(message) = ws.next().await {
+                let command: Value =
+                    serde_json::from_str(message.unwrap().to_text().unwrap()).unwrap();
+                if command["method"] == "Browser.close" {
+                    ws.send(format!(r#"{{"id":{},"result":{{}}}}"#, command["id"]).into())
+                        .await
+                        .unwrap();
+                    ws.close(None).await.unwrap();
+                    break;
+                }
+            }
+        });
+        let (browser, mut handler) = Browser::connect(format!("ws://{address}")).await.unwrap();
+        browser.close().await.expect("Browser.close succeeds");
+        let mut errors = Vec::new();
+        loop {
+            match tokio::time::timeout(Duration::from_secs(5), handler.next()).await {
+                Ok(Some(Err(error))) => errors.push(error.to_string()),
+                Ok(Some(Ok(()))) => {}
+                Ok(None) => break,
+                Err(_) => panic!("handler did not end after close"),
+            }
+        }
+        assert!(
+            errors.is_empty(),
+            "clean close must not report handler errors: {errors:?}"
+        );
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn close_before_browser_close_response_reports_no_response() {
+        use futures::StreamExt;
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.unwrap();
+            let mut ws = async_tungstenite::tokio::accept_async(socket)
+                .await
+                .unwrap();
+            while let Some(message) = ws.next().await {
+                let command: Value =
+                    serde_json::from_str(message.unwrap().to_text().unwrap()).unwrap();
+                if command["method"] == "Browser.close" {
+                    ws.close(None).await.unwrap();
+                    break;
+                }
+            }
+        });
+        let (browser, mut handler) = Browser::connect(format!("ws://{address}")).await.unwrap();
+        let result = browser.close().await;
+        assert!(result.is_err(), "unanswered Browser.close must fail");
+        let mut saw_no_response = false;
+        loop {
+            match tokio::time::timeout(Duration::from_secs(5), handler.next()).await {
+                Ok(Some(Err(CdpError::NoResponse))) => saw_no_response = true,
+                Ok(Some(_)) => {}
+                Ok(None) => break,
+                Err(_) => panic!("handler did not end after close"),
+            }
+        }
+        assert!(
+            saw_no_response,
+            "close before the Browser.close response must report NoResponse"
+        );
+        server.await.unwrap();
+        drop(browser);
+    }
+
+    #[tokio::test]
+    async fn response_without_result_fails_request() {
+        let (inner, mut commands, _handler) = test_inner(false);
+        let pending = tokio::spawn({
+            let inner = Arc::clone(&inner);
+            async move { inner.execute("Page.navigate", json!({}), None).await }
+        });
+        let command = next_command(&mut commands).await;
+        let id = command["id"].as_u64().unwrap();
+        let raw = format!(r#"{{"id":{id}}}"#);
+        let value: Value = serde_json::from_str(&raw).unwrap();
+        on_response(&inner, id, &value, &raw);
+        match pending.await.unwrap() {
+            Err(CdpError::InvalidMessage(payload, cause)) => {
+                assert_eq!(payload, raw);
+                assert_eq!(cause, "CDP response missing result object or error");
+            }
+            other => panic!("reply without result must fail, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn response_with_null_result_fails_request() {
+        let (inner, mut commands, _handler) = test_inner(false);
+        let pending = tokio::spawn({
+            let inner = Arc::clone(&inner);
+            async move { inner.execute("Page.navigate", json!({}), None).await }
+        });
+        let command = next_command(&mut commands).await;
+        let id = command["id"].as_u64().unwrap();
+        let raw = format!(r#"{{"id":{id},"result":null}}"#);
+        let value: Value = serde_json::from_str(&raw).unwrap();
+        on_response(&inner, id, &value, &raw);
+        match pending.await.unwrap() {
+            Err(CdpError::InvalidMessage(payload, cause)) => {
+                assert_eq!(payload, raw);
+                assert_eq!(cause, "CDP response missing result object or error");
+            }
+            other => panic!("reply with null result must fail, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn malformed_browser_close_response_does_not_arm_closing() {
+        let (inner, mut commands, _handler) = test_inner(false);
+        let pending = tokio::spawn({
+            let inner = Arc::clone(&inner);
+            async move { inner.execute("Browser.close", json!({}), None).await }
+        });
+        let command = next_command(&mut commands).await;
+        let id = command["id"].as_u64().unwrap();
+        let raw = format!(r#"{{"id":{id}}}"#);
+        let value: Value = serde_json::from_str(&raw).unwrap();
+        on_response(&inner, id, &value, &raw);
+        assert!(
+            pending.await.unwrap().is_err(),
+            "malformed Browser.close reply must fail"
+        );
+        assert!(
+            !inner.closing.load(Ordering::Acquire),
+            "malformed reply must not arm closing"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn bare_name_resolution_skips_non_executable() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = tempfile::tempdir().unwrap();
+        let plain = root.path().join("plain");
+        let armed = root.path().join("armed");
+        std::fs::create_dir(&plain).unwrap();
+        std::fs::create_dir(&armed).unwrap();
+        let decoy = plain.join("fake-chrome");
+        let real = armed.join("fake-chrome");
+        std::fs::write(&decoy, b"nope").unwrap();
+        std::fs::write(&real, b"#!/bin/sh\n").unwrap();
+        std::fs::set_permissions(&decoy, std::fs::Permissions::from_mode(0o644)).unwrap();
+        std::fs::set_permissions(&real, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+        // A non-executable first on the search path is skipped.
+        assert_eq!(
+            resolve_bare_name(
+                std::path::Path::new("fake-chrome"),
+                &[plain.clone(), armed.clone()]
+            ),
+            real
+        );
+        // The first executable wins once the decoy gains its bit.
+        std::fs::set_permissions(&decoy, std::fs::Permissions::from_mode(0o755)).unwrap();
+        assert_eq!(
+            resolve_bare_name(std::path::Path::new("fake-chrome"), &[plain.clone(), armed]),
+            decoy
+        );
+        // Unknown names fall back untouched.
+        assert_eq!(
+            resolve_bare_name(std::path::Path::new("missing-chrome"), &[plain]),
+            std::path::PathBuf::from("missing-chrome")
+        );
+    }
+
+    #[test]
+    fn directory_paths_are_never_resolved() {
+        let dirs = vec![
+            std::path::PathBuf::from("/bin"),
+            std::path::PathBuf::from("/usr/bin"),
+        ];
+        for path in ["./missing", "bin/chrome", "/no/such", "/"] {
+            assert_eq!(
+                resolve_bare_name(std::path::Path::new(path), &dirs),
+                std::path::PathBuf::from(path),
+                "{path}"
+            );
+        }
+        // The PATH-backed wrapper agrees without touching the environment.
+        for path in ["./missing", "bin/chrome", "/no/such"] {
+            assert_eq!(
+                resolve_bare_name_on_path(std::path::Path::new(path)),
+                std::path::PathBuf::from(path),
+                "{path}"
+            );
+        }
+        // Unknown bare names fall back untouched.
+        assert_eq!(
+            resolve_bare_name_on_path(std::path::Path::new("boardstudio-no-such-binary")),
+            std::path::PathBuf::from("boardstudio-no-such-binary")
+        );
+    }
+
+    #[tokio::test]
+    async fn canonicalize_resolves_absolute_paths() {
+        let root = tempfile::tempdir().unwrap();
+        let file = root.path().join("chrome");
+        std::fs::write(&file, b"x").unwrap();
+        let canonical = canonicalize_except_snap(file.clone()).await.unwrap();
+        assert_eq!(canonical, tokio::fs::canonicalize(&file).await.unwrap());
     }
 
     #[test]
