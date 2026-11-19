@@ -317,6 +317,7 @@ mod mounted_tests {
     use boardstudio_core::model::{
         Board, EditOperation, MechanicalAssembly, Operation, OutlineFeature, ProjectDoc, Vec2,
     };
+    use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::test_role::by_role_name;
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::*;
@@ -591,10 +592,7 @@ mod mounted_tests {
             .unwrap();
         let dom = VirtualDom::new(export_host);
         dom.provide_root_context(runtime.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         settle().await;
 
         let export = export_geometry_button();
@@ -656,10 +654,7 @@ mod mounted_tests {
             .unwrap();
         let dom = VirtualDom::new(export_host);
         dom.provide_root_context(runtime.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         settle().await;
         assert!(
             !export_geometry_button_in(root_id).has_attribute("disabled"),
@@ -773,10 +768,7 @@ mod mounted_tests {
             .unwrap();
         let dom = VirtualDom::new(export_host);
         dom.provide_root_context(runtime.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         settle().await;
         assert!(!export_geometry_button_in(root_id).has_attribute("disabled"));
         let _ = support::take_held_effects(&runtime);
@@ -882,10 +874,7 @@ mod mounted_tests {
             .unwrap();
         let dom = VirtualDom::new(host);
         dom.provide_root_context(runtime.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         settle().await;
         assert_eq!(
             job_effects(&support::take_held_effects(&runtime)),

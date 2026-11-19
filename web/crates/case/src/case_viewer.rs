@@ -1863,6 +1863,7 @@ mod keycap_consumer_tests {
         model::{CoreReply, CoreRequest, PreparedCaseAssemblyIR},
     };
     use boardstudio_web_host::cad_jobs::{CadBodyMesh, CadResult};
+    use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use futures_channel::oneshot;
     use gloo_timers::future::TimeoutFuture;
     use js_sys::{Array, Float32Array, Reflect};
@@ -2088,10 +2089,7 @@ mod keycap_consumer_tests {
         let dom = VirtualDom::new(mounted_host);
         dom.provide_root_context(runtime.clone());
         dom.provide_root_context(probe);
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         for _ in 0..200 {
             if packets
                 .borrow()
@@ -2243,6 +2241,7 @@ mod gesture_cancellation_tests {
             PreparedCaseRegion, ProjectDoc, Vec2,
         },
     };
+    use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use wasm_bindgen_test::wasm_bindgen_test;
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
@@ -2577,10 +2576,7 @@ mod gesture_cancellation_tests {
         dom.provide_root_context(scene.clone());
         dom.provide_root_context(gesture_probe.clone());
         dom.provide_root_context(escape_probe.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
 
         let canvas = {
             let mut mounted = None;

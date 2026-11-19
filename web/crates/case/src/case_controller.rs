@@ -850,6 +850,7 @@ impl CaseBodyEdit {
 mod queued_body_tests {
     use super::*;
     use crate::runtime::project_name_test_support as support;
+    use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::test_role::by_role_name;
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::*;
@@ -889,10 +890,7 @@ mod queued_body_tests {
         dom_document.body().unwrap().append_child(&root).unwrap();
         let dom = VirtualDom::new(host);
         dom.provide_root_context(runtime.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         gloo_timers::future::TimeoutFuture::new(50).await;
         let commit = |name: &str, value: &str| {
             let input = by_role_name(&root, "spinbutton", name)
@@ -978,10 +976,7 @@ mod queued_body_tests {
         dom_document.body().unwrap().append_child(&root).unwrap();
         let dom = VirtualDom::new(host);
         dom.provide_root_context(runtime.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         gloo_timers::future::TimeoutFuture::new(50).await;
         let commit = |name: &str, value: &str| {
             let input = by_role_name(&root, "spinbutton", name)
@@ -1085,7 +1080,7 @@ mod queued_body_tests {
 
     // ---- Settlement of a bound body field through the real number input.
 
-    async fn mounted_two_bodies() -> (Rc<Runtime>, web_sys::Element) {
+    async fn mounted_two_bodies() -> (Rc<Runtime>, web_sys::Element, MountedFixture) {
         let runtime = support::new_runtime();
         let mut document = ProjectDoc::empty("body-settlement", "Bodies");
         document.boards.push(
@@ -1105,12 +1100,9 @@ mod queued_body_tests {
         dom_document.body().unwrap().append_child(&root).unwrap();
         let dom = VirtualDom::new(host);
         dom.provide_root_context(runtime.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let mounted = MountedFixture::new(root.clone(), dom);
         gloo_timers::future::TimeoutFuture::new(50).await;
-        (runtime, root)
+        (runtime, root, mounted)
     }
 
     fn select_body(root: &web_sys::Element, index: u32) {
@@ -1181,7 +1173,7 @@ mod queued_body_tests {
 
     #[wasm_bindgen_test]
     async fn a_failed_unchanged_body_draft_restores_the_accepted_value_with_an_inline_failure() {
-        let (runtime, root) = mounted_two_bodies().await;
+        let (runtime, root, _mounted) = mounted_two_bodies().await;
         support::fail_next_core_reply(&runtime, "body executor failed");
         let input = thickness_input(&root);
         type_into(&input, "4");
@@ -1201,7 +1193,7 @@ mod queued_body_tests {
 
     #[wasm_bindgen_test]
     async fn a_newer_body_draft_survives_an_older_failure_that_reports_inline() {
-        let (runtime, root) = mounted_two_bodies().await;
+        let (runtime, root, _mounted) = mounted_two_bodies().await;
         support::fail_next_core_reply(&runtime, "body executor failed");
         let input = thickness_input(&root);
         type_into(&input, "4");
@@ -1224,7 +1216,7 @@ mod queued_body_tests {
 
     #[wasm_bindgen_test]
     async fn a_second_edit_to_one_body_field_replaces_the_observation_and_both_edits_undo() {
-        let (runtime, root) = mounted_two_bodies().await;
+        let (runtime, root, _mounted) = mounted_two_bodies().await;
         let (entered, release) = support::gate_next_core_reply(&runtime);
         let input = thickness_input(&root);
         type_into(&input, "4");
@@ -1252,7 +1244,7 @@ mod queued_body_tests {
 
     #[wasm_bindgen_test]
     async fn repeated_enter_and_native_blur_commit_one_body_edit_then_the_field_follows_undo() {
-        let (runtime, root) = mounted_two_bodies().await;
+        let (runtime, root, _mounted) = mounted_two_bodies().await;
         let (entered, release) = support::gate_next_core_reply(&runtime);
         let input = thickness_input(&root);
         let _ = input.focus();
@@ -1285,7 +1277,7 @@ mod queued_body_tests {
 
     #[wasm_bindgen_test]
     async fn a_body_field_that_leaves_with_its_body_tab_keeps_its_held_edit() {
-        let (runtime, root) = mounted_two_bodies().await;
+        let (runtime, root, _mounted) = mounted_two_bodies().await;
         let (entered, release) = support::gate_next_core_reply(&runtime);
         let input = thickness_input(&root);
         type_into(&input, "4");

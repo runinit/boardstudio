@@ -1,6 +1,7 @@
 //! Mount the leased controls on SharedViewer; its transient values stay in the production owner.
 use super::*;
 use boardstudio_application::SessionEpoch;
+use boardstudio_web_ui_shared::test_mount::MountedFixture;
 use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
 use wasm_bindgen_test::wasm_bindgen_test;
 
@@ -87,10 +88,7 @@ async fn viewer_slot_exclusions_preserve_actual_inline_controls_in_four_themes()
     document.body().unwrap().append_child(&root).unwrap();
     let dom = VirtualDom::new(inline_fixture);
     dom.provide_root_context(crate::runtime::project_name_test_support::new_runtime());
-    dioxus_web::launch::launch_virtual_dom(
-        dom,
-        dioxus_web::Config::new().rootnode(root.clone().into()),
-    );
+    let _mounted = MountedFixture::new(root.clone(), dom);
     wait_until("the production inline controls mount", || {
         by_role_name(&root, "button", "Fit").is_some()
     })
@@ -229,10 +227,7 @@ async fn noninline_parts_viewer_keeps_transient_values_and_control_identity() {
     document.body().unwrap().append_child(&root).unwrap();
     let dom = VirtualDom::new(fixture);
     dom.provide_root_context(crate::runtime::project_name_test_support::new_runtime());
-    dioxus_web::launch::launch_virtual_dom(
-        dom,
-        dioxus_web::Config::new().rootnode(root.clone().into()),
-    );
+    let _mounted = MountedFixture::new(root.clone(), dom);
     wait_until("the production Parts view controls mount", || {
         by_role_name(&root, "button", "View controls").is_some()
     })
@@ -374,10 +369,7 @@ async fn design_view_toolbar_uses_toggle_groups_and_keeps_view_state() {
     let document = web_sys::window().unwrap().document().unwrap();
     let root = document.create_element("div").unwrap();
     document.body().unwrap().append_child(&root).unwrap();
-    dioxus_web::launch::launch_virtual_dom(
-        VirtualDom::new(toolbar_fixture),
-        dioxus_web::Config::new().rootnode(root.clone().into()),
-    );
+    let _mounted = MountedFixture::new(root.clone(), VirtualDom::new(toolbar_fixture));
     wait_until("the view toolbar mounts", || {
         by_role_name(&root, "button", "2D").is_some()
     })

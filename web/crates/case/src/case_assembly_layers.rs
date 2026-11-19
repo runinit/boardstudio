@@ -399,6 +399,7 @@ fn focus_layers_trigger() {
 mod tests {
     use super::*;
     use crate::presentation::model_delivery::{DeliveredModel, ValidatedMesh};
+    use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
     use std::rc::Rc;
     use wasm_bindgen::JsCast;
@@ -597,10 +598,9 @@ mod tests {
         let root = document.create_element("div").unwrap();
         root.set_id("case-assembly-layer-test-root");
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(layer_menu_composition),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let mut mounted =
+            MountedFixture::new(root.clone(), VirtualDom::new(layer_menu_composition));
+        mounted.own_node(stylesheet.clone());
         rendered().await;
 
         let scope = root.clone();

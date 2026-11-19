@@ -210,6 +210,7 @@ mod browser_tests {
     use super::*;
     use crate::runtime::project_name_test_support as support;
     use boardstudio_core::model::{PreparedCaseAssemblyIR, ProjectDoc};
+    use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
     use gloo_timers::future::TimeoutFuture;
     use wasm_bindgen_test::wasm_bindgen_test;
@@ -353,10 +354,8 @@ mod browser_tests {
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(mounted_qualified_witness),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted =
+            MountedFixture::new(root.clone(), VirtualDom::new(mounted_qualified_witness));
         wait_for(&root, "Source surface distance:").await;
         let text = root.text_content().unwrap();
         for expected in [
@@ -382,10 +381,7 @@ mod browser_tests {
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(mounted_witness),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), VirtualDom::new(mounted_witness));
         wait_for(&root, "surface separation 0.500 mm").await;
         let trigger = by_role_name(&root, "button", "Witness identity")
             .expect("witness identity disclosure trigger");
@@ -454,10 +450,7 @@ mod browser_tests {
         document.body().unwrap().append_child(&root).unwrap();
         let dom = VirtualDom::new(mounted);
         dom.provide_root_context(runtime.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         wait_for(&root, "Check collisions").await;
         let checks_trigger = by_role_name(&root, "button", "Collision check")
             .expect("collision check disclosure trigger");
@@ -518,10 +511,7 @@ mod browser_tests {
         let dom = VirtualDom::new(mounted_captured_scene);
         dom.provide_root_context(runtime.clone());
         dom.provide_root_context(scene.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         wait_for(&root, "Check collisions").await;
         by_role_name(&root, "button", "Check collisions")
             .expect("default check control")

@@ -1,6 +1,7 @@
 //! Tests mount the production field so draft and validation ownership remain in Case.
 use super::*;
 use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
+use boardstudio_web_ui_shared::test_mount::MountedFixture;
 use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
 use wasm_bindgen_test::wasm_bindgen_test;
 
@@ -39,10 +40,7 @@ async fn dimension_error_is_described_by_its_precise_input() {
     let document = web_sys::window().unwrap().document().unwrap();
     let root = document.create_element("div").unwrap();
     document.body().unwrap().append_child(&root).unwrap();
-    dioxus_web::launch::launch_virtual_dom(
-        VirtualDom::new(dimension_page),
-        dioxus_web::Config::new().rootnode(root.clone().into()),
-    );
+    let _mounted = MountedFixture::new(root.clone(), VirtualDom::new(dimension_page));
     wait_until("production dimension mounts", || {
         by_role_name(&root, "spinbutton", "Plate thickness").is_some()
     })
