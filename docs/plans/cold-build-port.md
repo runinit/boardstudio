@@ -292,3 +292,14 @@ wrong directory, which failed the same renderer-import test in isolation.
 The runner now starts in the page package, and both the isolated test and
 the full check pass. The vendored crate retains its lint checks without
 adding lint suppressions.
+
+## I. Follow-up implementation
+
+### I1. Share the Wasm test feature set
+
+Keep the crate test build first and build only the page binary in the second
+invocation. The full locked, offline Wasm trees match on all 224 distinct
+package and feature rows after removing Cargo's repetition markers and blank
+lines. The page package is the only extra row. Runtime and Case already had
+`test-support` in both invocations. Host's added feature exposes the raw
+IndexedDB fixture writer and its private helper.

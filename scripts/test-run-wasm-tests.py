@@ -59,7 +59,11 @@ class RunWasmTestsTests(unittest.TestCase):
         with patch.object(runner.subprocess, "run") as compile_page:
             compile_page.return_value = subprocess.CompletedProcess([], 0, stdout=artifact)
             self.assertEqual(runner.build_page_test(self.dir, {}), wasm)
-            self.assertEqual(compile_page.call_args.args[0], runner.PAGE_BUILD)
+            command = compile_page.call_args.args[0]
+            self.assertEqual(command, runner.PAGE_BUILD)
+            self.assertEqual(command[command.index("--features") + 1], "page,boardstudio-web-host/test-support")
+            self.assertEqual(command[command.index("--bin") + 1], "boardstudio-web")
+            self.assertNotIn("--lib", command)
             compile_page.return_value = subprocess.CompletedProcess([], 1, stdout=artifact)
             with self.assertRaisesRegex(runner.RunnerError, "exited 1"):
                 runner.build_page_test(self.dir, {})

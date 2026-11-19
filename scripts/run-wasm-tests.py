@@ -41,7 +41,7 @@ TEST_OWNERS = Path(__file__).with_name("wasm-test-owners.json")
 RUNNER_ENV = "BOARDSTUDIO_WASM_TEST_COMMAND"
 # `wasm-check` is the profile the checked page build uses, so the page tests reuse its units.
 PAGE_BUILD = ["cargo", "test", "--no-run", "--target", "wasm32-unknown-unknown", "--locked",
-              "--profile", "wasm-check", "--no-default-features", "--features", "page",
+              "--profile", "wasm-check", "--no-default-features", "--features", "page,boardstudio-web-host/test-support",
               "-p", "boardstudio-web", "--bin", "boardstudio-web", "--message-format=json"]
 PAGE_ARTIFACT = "BOARDSTUDIO_PAGE_TEST_ARTIFACT"
 CHROME_BINARIES = ("google-chrome-stable", "google-chrome", "chromium", "chromium-browser", "chrome")
