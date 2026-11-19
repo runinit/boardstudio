@@ -970,6 +970,19 @@
   "anchor_badge::tests::row_badges_the_row_below_it",
   "anchor_badge::tests::stale_anchor_has_no_badge",
   "anchor_badge::tests::unanchored_matrix_badges_the_half_origin",
+  "anchor_pick::tests::anchored_part_lists_layout_keys_with_current_anchor",
+  "anchor_pick::tests::detached_part_marks_the_half_origin_current",
+  "anchor_pick::tests::detached_part_pick_defaults_to_full_follow",
+  "anchor_pick::tests::landing_check_reads_the_live_anchor",
+  "anchor_pick::tests::matrix_pick_builds_a_follow_keeping_single_key_op",
+  "anchor_pick::tests::matrix_pick_of_a_loop_target_is_a_noop",
+  "anchor_pick::tests::matrix_pick_of_the_current_anchor_is_a_noop",
+  "anchor_pick::tests::matrix_preview_matches_the_post_commit_members",
+  "anchor_pick::tests::part_pick_builds_a_follow_carrying_op_with_zeroed_values",
+  "anchor_pick::tests::part_preview_matches_the_post_commit_pose",
+  "anchor_pick::tests::row_selection_arms_no_pick",
+  "anchor_pick::tests::thumb_matrix_lists_main_keys_marks_current_and_excludes_loops",
+  "anchor_pick::tests::unanchored_matrix_arms_no_pick",
   "matrix_relations::tests::a_bent_key_reports_its_transported_cumulative_shift_from_core_facts",
   "matrix_relations::tests::a_blank_matrix_shows_structure_at_once_and_no_departures_or_constraints",
   "matrix_relations::tests::a_column_chain_marks_before_turns_totals_and_mixed_shifts_as_varies",
@@ -1354,6 +1367,7 @@
   "transform_feedback::tests::delta_text_signs_every_component_like_the_prototype",
   "transform_feedback::tests::dismiss_clears_the_popup_and_keeps_the_toast",
   "transform_feedback::tests::expire_clears_the_toast_and_keeps_the_popup",
+  "transform_feedback::tests::text_note_commit_reports_the_anchor_toast",
   "transform_feedback::tests::zero_delta_commit_raises_no_toast",
   "tree::tests::bridge_has_same_board_selection_at_outline_and_owning_matrix_occurrences",
   "tree::tests::bulk_eligibility_preserves_context_rules_without_per_part_lookups",
@@ -1392,25 +1406,14 @@
  "case_profile_region": [
   "accepts_a_strictly_inside_near_collinear_hole"
  ],
- "choc_socket_qualification": [
-  "configured_terminals_and_effective_pad_layers_are_exact_and_distinct",
-  "datasheet_drills_and_dimensioned_left_land_match_nominals_at_both_faces_and_angles"
- ],
- "context": [
-  "the_context_matches_the_javascript_provider",
-  "unknown_generators_and_versions_keep_their_baseline_text"
- ],
- "diode_sod123_qualification": [
-  "absent_null_false_and_malformed_side_keep_legacy_rendering",
-  "model_binding_keeps_emitted_defaults_overrides_and_empty_omission",
-  "opt_in_lands_match_vishay_callouts_and_fixed_pose_oracles",
-  "opt_in_requires_a_front_or_back_nonreversible_smd_configuration",
-  "part_null_overrides_definition_true_with_the_declaration_default",
-  "schema_exposes_the_opt_in_as_a_default_false_boolean"
- ],
  "drag_snap": [
+  "an_eligible_geometry_target_wins_even_when_the_grid_is_closer",
+  "component_drag_captures_exactly_and_releases_after_the_wider_hysteresis_radius",
+  "component_drag_pulls_smoothly_toward_the_drag_start_grid_anchor",
+  "gap_edge_alignment_does_not_push_snap_outside_attraction_radius",
   "gap_snap_preserves_edge_alignment_for_rotated_envelopes",
   "legacy_unindexed_board_and_missing_board_keep_their_distinct_policies",
+  "multi_component_drag_keeps_its_relative_placement",
   "snap_ties_keep_document_order_and_exclude_other_boards"
  ],
  "durable_session": [
@@ -1423,6 +1426,8 @@
   "carried_shift_preview_cancel_commit_and_history_use_the_accepted_matrix",
   "document_completions_carry_the_landing_of_the_installed_snapshot",
   "drag_coalesces_previews_and_commits_the_pointerup_sample_once",
+  "drag_preview_acknowledges_latest_and_coalesces_inflight_samples",
+  "ending_gesture_at_origin_preserves_other_transaction_preview",
   "failed_export_is_removed_and_not_cancelled_again_after_reopen",
   "failed_replacement_retries_the_exact_candidate_without_core_or_early_publication",
   "generation_block_is_typed_and_stale_block_completion_is_ignored",
@@ -1449,12 +1454,93 @@
   "retry_persists_retained_commit_without_replaying_engine_edit",
   "same_id_revision_reopen_invalidates_generation_and_export_tokens",
   "selection_navigation_and_camera_updates_are_session_only",
-  "uncertain_worker_outcome_is_never_replayed_and_requires_explicit_reopen"
+  "uncertain_worker_outcome_is_never_replayed_and_requires_explicit_reopen",
+  "undo_save_completing_after_a_superseded_drag_save_keeps_the_restored_document",
+  "unrelated_rejection_does_not_cancel_active_gesture"
  ],
- "encoder_ec11e15244g1_qualification": [
-  "declared_parameters_are_explicitly_available_for_this_pattern",
-  "front_pattern_geometry_roles_and_export_match_independent_nominals",
-  "normalization_preserves_saved_pad_ids_and_nets_by_literal_index"
+ "footprints_integration": [
+  "choc_socket_qualification::configured_terminals_and_effective_pad_layers_are_exact_and_distinct",
+  "choc_socket_qualification::datasheet_drills_and_dimensioned_left_land_match_nominals_at_both_faces_and_angles",
+  "context::the_context_matches_the_javascript_provider",
+  "context::unknown_generators_and_versions_keep_their_baseline_text",
+  "diode_sod123_qualification::absent_null_false_and_malformed_side_keep_legacy_rendering",
+  "diode_sod123_qualification::model_binding_keeps_emitted_defaults_overrides_and_empty_omission",
+  "diode_sod123_qualification::opt_in_lands_match_vishay_callouts_and_fixed_pose_oracles",
+  "diode_sod123_qualification::opt_in_requires_a_front_or_back_nonreversible_smd_configuration",
+  "diode_sod123_qualification::part_null_overrides_definition_true_with_the_declaration_default",
+  "diode_sod123_qualification::schema_exposes_the_opt_in_as_a_default_false_boolean",
+  "encoder_ec11e15244g1_qualification::declared_parameters_are_explicitly_available_for_this_pattern",
+  "encoder_ec11e15244g1_qualification::front_pattern_geometry_roles_and_export_match_independent_nominals",
+  "encoder_ec11e15244g1_qualification::normalization_preserves_saved_pad_ids_and_nets_by_literal_index",
+  "generators::every_registered_generator_has_a_fixture",
+  "generators::golden_ceoloide_battery_connector_jst_ph_2",
+  "generators::golden_ceoloide_battery_connector_molex_pico_ezmate_1x02",
+  "generators::golden_ceoloide_diode_tht_sod123",
+  "generators::golden_ceoloide_display_nice_view",
+  "generators::golden_ceoloide_display_ssd1306",
+  "generators::golden_ceoloide_led_sk6812mini_e",
+  "generators::golden_ceoloide_mcu_nice_nano",
+  "generators::golden_ceoloide_mcu_supermini_nrf52840",
+  "generators::golden_ceoloide_mounting_hole_npth",
+  "generators::golden_ceoloide_mounting_hole_plated",
+  "generators::golden_ceoloide_power_switch_smd_side",
+  "generators::golden_ceoloide_reset_switch_smd_side",
+  "generators::golden_ceoloide_reset_switch_tht_top",
+  "generators::golden_ceoloide_rotary_encoder_ec11_ec12",
+  "generators::golden_ceoloide_switch_choc_v1_v2",
+  "generators::golden_ceoloide_switch_gateron_ks27_ks33",
+  "generators::golden_ceoloide_switch_mx",
+  "generators::golden_ceoloide_trrs_pj320a",
+  "generators::golden_ceoloide_utility_filled_zone",
+  "generators::golden_ceoloide_utility_keepout_zone",
+  "generators::golden_ceoloide_utility_logo",
+  "generators::golden_ceoloide_utility_point_debugger",
+  "generators::golden_ceoloide_utility_router",
+  "generators::golden_ceoloide_utility_text",
+  "generators::golden_infused_kim_conn_molex_pico_ezmate_1x02",
+  "generators::golden_infused_kim_conn_molex_pico_ezmate_1x05",
+  "generators::golden_infused_kim_icon_bat",
+  "generators::golden_infused_kim_mounting_hole",
+  "generators::golden_infused_kim_nice_view",
+  "generators::golden_infused_kim_pads",
+  "generators::golden_infused_kim_point_debugger",
+  "generators::golden_infused_kim_smd_0805",
+  "generators::golden_infused_kim_switch_power",
+  "generators::golden_infused_kim_switch_reset",
+  "generators::golden_infused_kim_text",
+  "generators::golden_infused_kim_trackpoint_mount",
+  "generators::unlisted_bundled_generators_match_the_golden_baseline",
+  "golden_forms::export_matches_apart_from_arcs_core_upgrades",
+  "golden_forms::geometry_matches_the_recorded_pads_and_courtyards",
+  "golden_forms::model_references_match",
+  "golden_forms::parser_behaviour_matches_the_provider_fixture",
+  "golden_forms::preview_paths_follow_the_recorded_rules",
+  "golden_forms::recorded_forms_round_trip_through_the_parser",
+  "licenses::declared_licences_match_the_file_headers",
+  "mx_socket_qualification::recommended_land_sizes_match_drawing_reference_dimensions",
+  "mx_socket_qualification::recommended_socket_hole_pair_spacing_survives_side_and_placement_rotation",
+  "mx_socket_qualification::selected_sofle_switch_pose_preserves_source_layout_hole_spacing",
+  "mx_socket_qualification::socket_terminals_keep_distinct_nets_and_effective_side_layers",
+  "numeric::hypot_matches_v8",
+  "numeric::number_to_string_matches_v8",
+  "numeric::string_to_number_matches_v8",
+  "numeric::to_fixed_matches_v8",
+  "numeric::trigonometry_is_bit_identical_to_v8",
+  "numeric::uri_component_encoding_matches_v8",
+  "parameter_check::an_undeclared_name_is_reported_and_null_is_absent",
+  "parameter_check::an_unknown_generator_is_an_error",
+  "parameter_check::every_bundled_default_passes_its_own_check",
+  "parameter_check::every_problem_is_reported_in_name_order",
+  "parameter_check::non_empty_list_text_is_a_wrong_type_for_an_array_parameter",
+  "parameter_check::text_for_a_number_is_a_wrong_type_named_by_parameter",
+  "reset_switch_smd_side_qualification::boss_model_default_and_explicit_model_transforms_are_preserved",
+  "reset_switch_smd_side_qualification::land_pattern_contacts_layers_bosses_and_poses_match_independent_oracle",
+  "text_literal_escaping::bare_references_stay_atoms_until_quoting_is_needed",
+  "text_literal_escaping::both_text_generators_emit_the_literal_text_on_front_and_back",
+  "text_literal_escaping::logo_layer_parameter_is_literal_on_both_sides",
+  "text_literal_escaping::pad_row_labels_and_reference_are_literal_on_front_and_back",
+  "text_literal_escaping::plain_text_controls_keep_their_existing_output",
+  "text_literal_escaping::smd_labels_and_reference_are_literal_on_front_and_back"
  ],
  "framework": [
   "an_authored_courtyard_is_kept_and_a_missing_one_falls_back_to_pad_extents",
@@ -1470,18 +1556,6 @@
   "the_catalogue_lists_generators_as_definitions",
   "the_registry_rejects_inconsistent_declarations",
   "the_schema_lists_declared_types_in_declaration_order"
- ],
- "generators": [
-  "bundled_generators_match_the_golden_baseline",
-  "every_registered_generator_has_a_fixture"
- ],
- "golden_forms": [
-  "export_matches_apart_from_arcs_core_upgrades",
-  "geometry_matches_the_recorded_pads_and_courtyards",
-  "model_references_match",
-  "parser_behaviour_matches_the_provider_fixture",
-  "preview_paths_follow_the_recorded_rules",
-  "recorded_forms_round_trip_through_the_parser"
  ],
  "integration": [
   "boundary_parity::a_mismatch_inside_an_array_names_the_entry_by_its_id",
@@ -2364,6 +2438,10 @@
   "split_half_frame_parts::moving_toward_the_axis_clamps_widens_and_keeps_half_frame_values",
   "split_part_anchoring::carried_stagger_moves_the_part_by_the_transported_amount",
   "split_part_anchoring::detach_keeps_the_pose_from_the_half_origin",
+  "split_part_anchoring::detached_rotation_commits_exact_pose_with_undo_redo_and_reload",
+  "split_part_anchoring::detached_rotation_keeps_guards_and_refuses_bad_input",
+  "split_part_anchoring::detached_rotation_mirrors_the_partner_in_one_entry",
+  "split_part_anchoring::detached_rotation_refuses_locked_parts",
   "split_part_anchoring::dragging_an_anchored_part_edits_spread_and_stagger",
   "split_part_anchoring::drop_anchors_to_the_nearest_key_and_keeps_the_drop_point_upright",
   "split_part_anchoring::follow_subset_change_keeps_the_pose",
@@ -2399,36 +2477,11 @@
   "the_catalogue_lists_every_bundled_generator_with_shape",
   "trackpoint_extension_needs_a_large_enough_drill"
  ],
- "licenses": [
-  "declared_licences_match_the_file_headers"
- ],
- "mx_socket_qualification": [
-  "recommended_land_sizes_match_drawing_reference_dimensions",
-  "recommended_socket_hole_pair_spacing_survives_side_and_placement_rotation",
-  "selected_sofle_switch_pose_preserves_source_layout_hole_spacing",
-  "socket_terminals_keep_distinct_nets_and_effective_side_layers"
- ],
- "numeric": [
-  "hypot_matches_v8",
-  "number_to_string_matches_v8",
-  "string_to_number_matches_v8",
-  "to_fixed_matches_v8",
-  "trigonometry_is_bit_identical_to_v8",
-  "uri_component_encoding_matches_v8"
- ],
  "outline_queue_orders": [
   "a_linked_refinement_follows_a_queued_placement_and_its_fixed_alternative_stays",
   "matrix_mechanical_and_outline_edits_queued_in_order_resolve_against_the_accepted_document",
   "the_same_linked_and_fixed_contract_holds_in_reverse_queue_order",
   "the_same_three_actions_queued_in_reverse_order_hold_the_same_contract"
- ],
- "parameter_check": [
-  "an_undeclared_name_is_reported_and_null_is_absent",
-  "an_unknown_generator_is_an_error",
-  "every_bundled_default_passes_its_own_check",
-  "every_problem_is_reported_in_name_order",
-  "non_empty_list_text_is_a_wrong_type_for_an_array_parameter",
-  "text_for_a_number_is_a_wrong_type_named_by_parameter"
  ],
  "parameter_lint": [
   "a_numeric_text_exception_applies_only_to_its_generator_and_parameter",
@@ -2446,17 +2499,5 @@
   "the_name_helpers_classify_edge_cases",
   "the_numeric_text_list_is_sorted_and_unique",
   "the_registry_refuses_what_the_lint_reports_for_its_own_rules"
- ],
- "reset_switch_smd_side_qualification": [
-  "boss_model_default_and_explicit_model_transforms_are_preserved",
-  "land_pattern_contacts_layers_bosses_and_poses_match_independent_oracle"
- ],
- "text_literal_escaping": [
-  "bare_references_stay_atoms_until_quoting_is_needed",
-  "both_text_generators_emit_the_literal_text_on_front_and_back",
-  "logo_layer_parameter_is_literal_on_both_sides",
-  "pad_row_labels_and_reference_are_literal_on_front_and_back",
-  "plain_text_controls_keep_their_existing_output",
-  "smd_labels_and_reference_are_literal_on_front_and_back"
  ]
 }
