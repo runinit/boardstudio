@@ -16,6 +16,7 @@ use super::*;
 use crate::runtime::{Runtime, project_name_test_support as support};
 use boardstudio_application::Event;
 use boardstudio_web_catalogue::physical_setup::PreparedSetup;
+use boardstudio_web_ui_shared::test_mount::MountedFixture;
 use boardstudio_web_ui_shared::test_wait::{settle_until, wait_until_step};
 use dioxus::prelude::*;
 use std::{
@@ -145,7 +146,7 @@ fn fixture_document(id: &str, revision: u64) -> boardstudio_core::model::Project
     document
 }
 
-async fn mounted(id: &str) -> (Probe, web_sys::Element) {
+async fn mounted(id: &str) -> (Probe, web_sys::Element, MountedFixture) {
     let runtime = support::new_runtime();
     support::open_document(&runtime, fixture_document(id, 1)).await;
     let probe = Probe {
@@ -163,12 +164,9 @@ async fn mounted(id: &str) -> (Probe, web_sys::Element) {
     document.body().unwrap().append_child(&root).unwrap();
     let dom = VirtualDom::new(host);
     dom.provide_root_context(probe.clone());
-    dioxus_web::launch::launch_virtual_dom(
-        dom,
-        dioxus_web::Config::new().rootnode(root.clone().into()),
-    );
+    let mounted = MountedFixture::new(root.clone(), dom);
     rendered().await;
-    (probe, root)
+    (probe, root, mounted)
 }
 
 async fn rendered() {
@@ -237,7 +235,7 @@ async fn hold_in_flight(probe: &Probe) -> futures_channel::oneshot::Sender<()> {
 
 #[wasm_bindgen_test]
 async fn exact_accepted_proposal_lands_silently_without_leaking_to_another_context() {
-    let (probe, root) = mounted("setup-landing").await;
+    let (probe, root, _mounted) = mounted("setup-landing").await;
     let runtime = probe.runtime.clone();
     let release = hold_in_flight(&probe).await;
     assert!(
@@ -275,7 +273,7 @@ async fn exact_accepted_proposal_lands_silently_without_leaking_to_another_conte
 
 #[wasm_bindgen_test]
 async fn hidden_success_settles_silently_for_its_exact_accepted_proposal() {
-    let (probe, root) = mounted("setup-hidden-success").await;
+    let (probe, root, _mounted) = mounted("setup-hidden-success").await;
     let runtime = probe.runtime.clone();
     let release = hold_in_flight(&probe).await;
     probe.active.set(false);
@@ -313,7 +311,7 @@ async fn hidden_success_settles_silently_for_its_exact_accepted_proposal() {
 
 #[wasm_bindgen_test]
 async fn an_in_flight_setup_retires_silently_when_its_owner_departs() {
-    let (probe, root) = mounted("setup-retire").await;
+    let (probe, root, _mounted) = mounted("setup-retire").await;
     let release = hold_in_flight(&probe).await;
     probe.active.set(false);
     poke(&probe);
@@ -351,7 +349,7 @@ async fn an_in_flight_setup_retires_silently_when_its_owner_departs() {
 
 #[wasm_bindgen_test]
 async fn a_stage_hidden_during_preparation_submits_no_edit() {
-    let (probe, root) = mounted("setup-hidden-preparation").await;
+    let (probe, root, _mounted) = mounted("setup-hidden-preparation").await;
     let runtime = probe.runtime.clone();
     mount(&probe).submit(PhysicalSetupIntent::ProjectReversibleLayout(true));
     rendered().await;
@@ -392,7 +390,7 @@ async fn a_stage_hidden_during_preparation_submits_no_edit() {
 
 #[wasm_bindgen_test]
 async fn retained_rendered_controls_cannot_retarget_another_project() {
-    let (probe, root) = mounted("setup-retarget").await;
+    let (probe, root, _mounted) = mounted("setup-retarget").await;
     let runtime = probe.runtime.clone();
     let stale = mount(&probe);
     runtime.submit(Event::Open {
@@ -428,7 +426,7 @@ async fn retained_rendered_controls_cannot_retarget_another_project() {
 #[wasm_bindgen_test]
 async fn retained_rendered_controls_reject_replaced_token_and_generation() {
     // A replaced accepted revision leaves the rendered owner's token and revision stale.
-    let (probe, root) = mounted("setup-stale-revision").await;
+    let (probe, root, _mounted) = mounted("setup-stale-revision").await;
     let runtime = probe.runtime.clone();
     let stale = mount(&probe);
     runtime.submit(Event::Open {
@@ -460,7 +458,7 @@ async fn retained_rendered_controls_reject_replaced_token_and_generation() {
     root.remove();
 
     // An advanced generation leaves the rendered owner stale even with the same source.
-    let (probe, root) = mounted("setup-stale-generation").await;
+    let (probe, root, _mounted) = mounted("setup-stale-generation").await;
     let runtime = probe.runtime.clone();
     let stale = mount(&probe);
     probe.generation.set(1);
@@ -478,7 +476,7 @@ async fn retained_rendered_controls_reject_replaced_token_and_generation() {
 
 #[wasm_bindgen_test]
 async fn a_failed_save_reports_once_for_its_exact_owner() {
-    let (probe, root) = mounted("setup-failure").await;
+    let (probe, root, _mounted) = mounted("setup-failure").await;
     let runtime = probe.runtime.clone();
     support::fail_next_persist(&runtime, "disk");
     queue_reply(&probe, admit());
@@ -539,7 +537,7 @@ fn mounting_hole_template() -> boardstudio_core::model::PartDefinition {
 
 #[wasm_bindgen_test]
 async fn a_reversible_split_establishes_its_mirror_pair_and_undoes_in_one_step() {
-    let (probe, root) = mounted("setup-pair").await;
+    let (probe, root, _mounted) = mounted("setup-pair").await;
     let runtime = probe.runtime.clone();
     // The reversible layout first: it is what makes the split's second half flipped
     // and therefore an eligible mechanical mirror pair.

@@ -103,6 +103,7 @@ fn envelope_size(definition: &PartDefinition) -> Option<(f64, f64)> {
 #[cfg(all(test, target_arch = "wasm32"))]
 mod mounted_style_tests {
     use super::*;
+    use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::test_wait::wait_until;
     use std::rc::Rc;
     use wasm_bindgen_test::*;
@@ -128,10 +129,7 @@ mod mounted_style_tests {
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(fixture),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), VirtualDom::new(fixture));
         wait_until("component details mount", || {
             root.query_selector("[aria-label='Selected component details']")
                 .unwrap()

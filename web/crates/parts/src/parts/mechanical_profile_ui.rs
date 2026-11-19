@@ -287,6 +287,7 @@ mod mounted_tests {
     use crate::runtime::project_name_test_support as support;
     use boardstudio_application::TerminalOutcome;
     use boardstudio_core::model::{Board, ProjectDoc};
+    use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::test_role::by_role_name;
     use boardstudio_web_ui_shared::test_wait::{settle_until, wait_until, wait_until_future};
     use std::cell::RefCell;
@@ -355,7 +356,7 @@ mod mounted_tests {
         }
     }
 
-    async fn mount() -> (Rc<Runtime>, DomElement, Fixture) {
+    async fn mount() -> (Rc<Runtime>, DomElement, Fixture, MountedFixture) {
         let definition: PartDefinition = serde_json::from_value(serde_json::json!({
             "id": "mechanical-one-shot-part", "name": "Mechanical test part",
             "kind": "custom", "courtyard": [], "pads": []
@@ -385,17 +386,14 @@ mod mounted_tests {
         let dom = VirtualDom::new(mounted_profile_host);
         dom.provide_root_context(runtime.clone());
         dom.provide_root_context(fixture.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let mounted = MountedFixture::new(root.clone(), dom);
         wait_until("mechanical profile entry mounts", || {
             by_role_name(&root, "button", "Define profile")
                 .or_else(|| by_role_name(&root, "button", "Edit profile"))
                 .is_some()
         })
         .await;
-        (runtime, root, fixture)
+        (runtime, root, fixture, mounted)
     }
 
     fn entry(root: &DomElement) -> HtmlElement {
@@ -422,7 +420,7 @@ mod mounted_tests {
 
     #[wasm_bindgen_test]
     async fn mechanical_profile_save_disables_entry_silently_and_rejects_retained_duplicate() {
-        let (runtime, root, _) = mount().await;
+        let (runtime, root, _, _mounted) = mount().await;
         let save = open_editor(&root).await;
         let (entered, release) = support::gate_next_core_reply(&runtime);
         let first = support::observe_next(&runtime);
@@ -480,7 +478,7 @@ mod mounted_tests {
 
     #[wasm_bindgen_test]
     async fn mechanical_profile_save_failure_reenables_entry_with_inline_error() {
-        let (runtime, root, _) = mount().await;
+        let (runtime, root, _, _mounted) = mount().await;
         let save = open_editor(&root).await;
         let (entered, release) = support::gate_next_core_reply(&runtime);
         support::fail_next_persist(&runtime, "mechanical profile disk failure");
@@ -511,7 +509,7 @@ mod mounted_tests {
 
     #[wasm_bindgen_test]
     async fn mechanical_profile_save_owner_retirement_reenables_entry_silently() {
-        let (runtime, root, fixture) = mount().await;
+        let (runtime, root, fixture, _mounted) = mount().await;
         let save = open_editor(&root).await;
         let (entered, release) = support::gate_next_core_reply(&runtime);
         support::fail_next_persist(&runtime, "departed mechanical profile disk failure");

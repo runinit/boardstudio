@@ -164,6 +164,7 @@ mod mounted_tests {
         FirmwarePlanIdentity, FirmwarePositionIdentity, FirmwarePositionKey,
     };
     use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
+    use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
     use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
     use wasm_bindgen::JsCast;
@@ -211,10 +212,7 @@ mod mounted_tests {
         let capture = Rc::new(RefCell::new(None));
         let dom = VirtualDom::new(fixture);
         dom.provide_root_context(Capture(capture.clone()));
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         wait_until("firmware disclosure mounts", || {
             by_role_name(&root, "button", "Firmware keymap 0/1 assigned").is_some()
         })

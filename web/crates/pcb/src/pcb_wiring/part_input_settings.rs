@@ -319,6 +319,7 @@ fn edit_identity(
 mod tests {
     use super::*;
     use boardstudio_core::{model::Board, model::Matrix};
+    use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use serde_json::json;
     use wasm_bindgen_test::wasm_bindgen_test;
 
@@ -363,10 +364,7 @@ mod tests {
         let capture = std::rc::Rc::new(std::cell::RefCell::new(None));
         let dom = VirtualDom::new(mounted_scan_mode);
         dom.provide_root_context(Capture(capture.clone()));
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         wait_until("scan picker mounts", || {
             by_role_name(&root, "button", "Press scan mode").is_some()
         })

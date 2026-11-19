@@ -1502,6 +1502,7 @@ mod tests {
     use crate::runtime::project_name_test_support as support;
     use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
     use boardstudio_core::model::{Board, MechanicalPartProfile, ProjectDoc, SceneDelta};
+    use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::test_role::by_role_name;
     use futures_channel::oneshot;
     use std::sync::Arc;
@@ -1630,6 +1631,7 @@ mod tests {
         web_sys::Element,
         Rc<GeneratorMountedFixture>,
         Rc<RefCell<Option<GeneratorMountedSignals>>>,
+        MountedFixture,
     ) {
         mount_generator_editor_with(definition()).await
     }
@@ -1640,6 +1642,7 @@ mod tests {
         web_sys::Element,
         Rc<GeneratorMountedFixture>,
         Rc<RefCell<Option<GeneratorMountedSignals>>>,
+        MountedFixture,
     ) {
         let mut second = first.clone();
         second.id = "test:other-mx-switch".into();
@@ -1686,12 +1689,9 @@ mod tests {
         dom.provide_root_context(handles.clone());
         dom.provide_root_context(runtime);
         dom.provide_root_context(controlled_candidate_provider(requests));
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let mounted = MountedFixture::new(root.clone(), dom);
         wait_for_control(&root, "spinbutton", "Keycap Width").await;
-        (root, fixture, handles)
+        (root, fixture, handles, mounted)
     }
 
     async fn wait_for_control(root: &web_sys::Element, role: &str, name: &str) {
@@ -1955,7 +1955,7 @@ mod tests {
 
     #[wasm_bindgen_test]
     async fn mounted_apply_queued_behind_rename_preserves_both_and_undo() {
-        let (root, fixture, _) = mount_generator_editor().await;
+        let (root, fixture, _, _mounted) = mount_generator_editor().await;
         let initial = take_initial_default_request(&fixture.requests).await;
         finish_request(initial, Err("superseded by test edit".into())).await;
         dispatch_width(&root, "20");
@@ -2061,7 +2061,7 @@ mod tests {
     }
 
     async fn uploaded_model_projection(fail_queued_apply: bool) {
-        let (root, fixture, handles) = mount_generator_editor().await;
+        let (root, fixture, handles, _mounted) = mount_generator_editor().await;
         let initial = take_initial_default_request(&fixture.requests).await;
         finish_request(initial, Err("superseded".into())).await;
         dispatch_width(&root, "21");
@@ -2302,7 +2302,7 @@ mod tests {
 
     #[wasm_bindgen_test]
     async fn a_new_apply_can_return_a_parameter_to_its_original_value() {
-        let (root, fixture, _) = mount_generator_editor().await;
+        let (root, fixture, _, _mounted) = mount_generator_editor().await;
         let initial = take_initial_default_request(&fixture.requests).await;
         finish_request(initial, Err("superseded".into())).await;
         dispatch_width(&root, "20");
@@ -2377,7 +2377,7 @@ mod tests {
 
     #[wasm_bindgen_test]
     async fn failed_apply_restores_accepted_parameters_and_reports_failure() {
-        let (root, fixture, _) = mount_generator_editor().await;
+        let (root, fixture, _, _mounted) = mount_generator_editor().await;
         let initial = take_initial_default_request(&fixture.requests).await;
         finish_request(initial, Err("superseded".into())).await;
         dispatch_width(&root, "20");
@@ -2408,7 +2408,7 @@ mod tests {
 
     #[wasm_bindgen_test]
     async fn mounted_generator_provider_failure_is_visible_and_never_enables_apply() {
-        let (root, fixture, _) = mount_generator_editor().await;
+        let (root, fixture, _, _mounted) = mount_generator_editor().await;
         dispatch_width(&root, "19");
         wait_for_text(&root, "[role='status']", "Generating footprint preview").await;
         let request = take_request(&fixture.requests, 19.0).await;
@@ -2483,7 +2483,7 @@ mod tests {
             let mut saved_definition = definition();
             saved_definition.generator.as_mut().unwrap().parameters =
                 serde_json::from_value(saved).unwrap();
-            let (root, fixture, _) = mount_generator_editor_with(saved_definition).await;
+            let (root, fixture, _, _mounted) = mount_generator_editor_with(saved_definition).await;
             let width = mounted_value(&root, "spinbutton", "Keycap Width");
             assert_eq!(width.parse::<f64>(), Ok(18.0));
             assert!(mounted_checked(&root, "hotswap"));
@@ -2536,7 +2536,7 @@ mod tests {
 
     #[wasm_bindgen_test]
     async fn explicit_null_draft_selects_the_default_and_non_null_draft_wins() {
-        let (root, fixture, _) = mount_generator_editor().await;
+        let (root, fixture, _, _mounted) = mount_generator_editor().await;
         let request = take_initial_default_request(&fixture.requests).await;
         let mut saved = request.definition.clone();
         saved
@@ -2570,7 +2570,7 @@ mod tests {
 
     #[wasm_bindgen_test]
     async fn mounted_generator_initial_schema_default_seeds_unapplied_preview() {
-        let (root, fixture, handles) = mount_generator_editor().await;
+        let (root, fixture, handles, _mounted) = mount_generator_editor().await;
         let side = by_role_name(&root, "button", "side").expect("mounted Board side control");
         assert!(
             side.text_content().unwrap_or_default().contains("Front"),
@@ -2623,7 +2623,7 @@ mod tests {
 
     #[wasm_bindgen_test]
     async fn mounted_generator_discards_superseded_edit_and_selection_results() {
-        let (root, fixture, handles) = mount_generator_editor().await;
+        let (root, fixture, handles, _mounted) = mount_generator_editor().await;
         let initial_request = take_initial_default_request(&fixture.requests).await;
         dispatch_width(&root, "19");
         let older_edit = take_request(&fixture.requests, 19.0).await;

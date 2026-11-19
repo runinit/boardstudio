@@ -680,6 +680,7 @@ mod mounted_tests {
     use crate::runtime::{Runtime, project_name_test_support as support};
     use boardstudio_application::{Event as AppEvent, Scope};
     use boardstudio_core::model::{PartDefinition, ProjectDoc};
+    use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::test_role::{all_by_role_name, by_role_name};
     use dioxus::prelude::*;
     use std::{cell::RefCell, rc::Rc};
@@ -869,10 +870,7 @@ mod mounted_tests {
         let dom = VirtualDom::new(host);
         dom.provide_root_context(seed);
         dom.provide_root_context(runtime.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         settle().await;
         section_trigger(&root).click();
         settle().await;
@@ -1055,10 +1053,7 @@ mod mounted_tests {
         let dom = VirtualDom::new(host);
         dom.provide_root_context(seed);
         dom.provide_root_context(runtime.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         settle().await;
         section_trigger(&root).click();
         settle().await;
@@ -1125,10 +1120,7 @@ mod mounted_tests {
         let dom = VirtualDom::new(host);
         dom.provide_root_context(seed);
         dom.provide_root_context(runtime.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         settle().await;
         section_trigger(&root).click();
         settle().await;
@@ -1200,6 +1192,7 @@ mod mounted_tests {
         Option<Scope>,
         Rc<RefCell<Option<State>>>,
         web_sys::Element,
+        MountedFixture,
     ) {
         let (runtime, snapshot, scope) = opened(document).await;
         let state = Rc::new(RefCell::new(None));
@@ -1229,16 +1222,13 @@ mod mounted_tests {
         let dom = VirtualDom::new(host);
         dom.provide_root_context(seed);
         dom.provide_root_context(runtime.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let mounted = MountedFixture::new(root.clone(), dom);
         settle().await;
         if open_section {
             section_trigger(&root).click();
             settle().await;
         }
-        (runtime, snapshot, scope, state, root)
+        (runtime, snapshot, scope, state, root, mounted)
     }
 
     /// Drive a released gate's continuation and every pending effect to completion, then
@@ -1296,7 +1286,7 @@ mod mounted_tests {
         // The cause was the harness: a pad-less definition's custom section defaults
         // open, so the old test's summary click closed it and focus/blur no-opped on
         // hidden inputs. With the section open the blur commits and lands.
-        let (runtime, snapshot, _scope, state, root) =
+        let (runtime, snapshot, _scope, state, root, _mounted) =
             mount_panel(courtyard_document("Courtyard"), false).await;
         let controls = state.borrow().as_ref().unwrap().clone();
         assert!(
@@ -1320,7 +1310,7 @@ mod mounted_tests {
 
     #[wasm_bindgen_test]
     async fn mounted_rapid_width_height_keeps_both_and_undo_reverts_only_height() {
-        let (runtime, snapshot, _scope, state, root) =
+        let (runtime, snapshot, _scope, state, root, _mounted) =
             mount_panel(courtyard_document("Courtyard"), false).await;
         let controls = state.borrow().as_ref().unwrap().clone();
         let width = courtyard_width_input(&root);
@@ -1386,7 +1376,7 @@ mod mounted_tests {
 
     #[wasm_bindgen_test]
     async fn mounted_rename_then_field_edit_queued_behind_it_both_survive() {
-        let (runtime, snapshot, _scope, state, root) =
+        let (runtime, snapshot, _scope, state, root, _mounted) =
             mount_panel(courtyard_document("Original name"), false).await;
         let controls = state.borrow().as_ref().unwrap().clone();
 
@@ -1430,7 +1420,7 @@ mod mounted_tests {
 
     #[wasm_bindgen_test]
     async fn mounted_pad_actions_refuse_retained_double_clicks_while_core_is_held() {
-        let (runtime, snapshot, _scope, state, root) =
+        let (runtime, snapshot, _scope, state, root, _mounted) =
             mount_panel(courtyard_document("Pad actions"), false).await;
         let controls = state.borrow().as_ref().unwrap().clone();
         let add = by_role_name(&root, "button", "+ Add pad").expect("add pad action");
@@ -1484,7 +1474,7 @@ mod mounted_tests {
             {"id":"a","number":"1","at":{"x":0.0,"y":0.0},"size":{"x":2.0,"y":2.0},"shape":"circle"},
             {"id":"b","number":"2","at":{"x":3.0,"y":0.0},"size":{"x":2.0,"y":2.0},"shape":"circle"}
         ])).unwrap();
-        let (runtime, snapshot, _scope, state, root) = mount_panel(document, true).await;
+        let (runtime, snapshot, _scope, state, root, _mounted) = mount_panel(document, true).await;
         let controls = state.borrow().as_ref().unwrap().clone();
         let (entered, release) = support::gate_next_core_reply(&runtime);
         type_value(&courtyard_width_input(&root), "12");
@@ -1522,7 +1512,7 @@ mod mounted_tests {
 
     #[wasm_bindgen_test]
     async fn mounted_recommitted_name_and_width_baselines_win_over_pending_values() {
-        let (runtime, snapshot, _scope, state, root) =
+        let (runtime, snapshot, _scope, state, root, _mounted) =
             mount_panel(courtyard_document("Original name"), false).await;
         let controls = state.borrow().as_ref().unwrap().clone();
         let (entered, release) = support::gate_next_core_reply(&runtime);
@@ -1564,7 +1554,7 @@ mod mounted_tests {
 
     #[wasm_bindgen_test]
     async fn mounted_landed_courtyard_keeps_a_newer_draft_then_clean_undo_redo_syncs() {
-        let (runtime, _snapshot, _scope, state, root) =
+        let (runtime, _snapshot, _scope, state, root, _mounted) =
             mount_panel(courtyard_document("Courtyard"), false).await;
         let controls = state.borrow().as_ref().unwrap().clone();
         let (entered, release) = support::gate_next_core_reply(&runtime);
@@ -1624,7 +1614,7 @@ mod mounted_tests {
             {"id":"a","number":"1","at":{"x":0.0,"y":0.0},"size":{"x":2.0,"y":2.0},"shape":"circle"}
         ]))
         .unwrap();
-        let (runtime, _snapshot, _scope, state, root) = mount_panel(document, true).await;
+        let (runtime, _snapshot, _scope, state, root, _mounted) = mount_panel(document, true).await;
         let controls = state.borrow().as_ref().unwrap().clone();
         let (entered, release) = support::gate_next_core_reply(&runtime);
         type_value(&pad_number_input(&root), "7");
@@ -1647,7 +1637,7 @@ mod mounted_tests {
             "the newer pad draft survives its accepted refresh"
         );
         root.remove();
-        let (runtime, _snapshot, _scope, state, root) =
+        let (runtime, _snapshot, _scope, state, root, _mounted) =
             mount_panel(courtyard_document("Original name"), false).await;
         let controls = state.borrow().as_ref().unwrap().clone();
         let (entered, release) = support::gate_next_core_reply(&runtime);
@@ -1685,7 +1675,7 @@ mod mounted_tests {
         other.id = "other".into();
         other.name = "Other definition".into();
         document.definitions.push(other);
-        let (runtime, snapshot, scope, state, root) = mount_panel(document, false).await;
+        let (runtime, snapshot, scope, state, root, _mounted) = mount_panel(document, false).await;
         let mut controls = state.borrow().as_ref().unwrap().clone();
         let (entered, release) = support::gate_next_core_reply(&runtime);
 
@@ -1736,7 +1726,7 @@ mod mounted_tests {
 
     #[wasm_bindgen_test]
     async fn mounted_failed_save_returns_the_field_to_the_accepted_value_with_a_message() {
-        let (runtime, snapshot, _scope, state, root) =
+        let (runtime, snapshot, _scope, state, root, _mounted) =
             mount_panel(courtyard_document("Courtyard"), false).await;
         let controls = state.borrow().as_ref().unwrap().clone();
         support::fail_next_persist(&runtime, "injected durable write failure");
@@ -1772,7 +1762,7 @@ mod mounted_tests {
 
     #[wasm_bindgen_test]
     async fn mounted_definition_deletion_retires_the_queued_field_edit_with_a_reason() {
-        let (runtime, snapshot, _scope, state, root) =
+        let (runtime, snapshot, _scope, state, root, _mounted) =
             mount_panel(courtyard_document("Courtyard"), false).await;
         let controls = state.borrow().as_ref().unwrap().clone();
 
@@ -1871,10 +1861,7 @@ mod mounted_tests {
         let dom = VirtualDom::new(host);
         dom.provide_root_context(seed);
         dom.provide_root_context(runtime.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         settle().await;
 
         let field = input(&root);

@@ -578,6 +578,7 @@ fn add_object_groups<'a>(
 mod add_object_menu_tests {
     use super::*;
     use boardstudio_application::SnapshotToken;
+    use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::test_role::by_role_name;
     use boardstudio_web_ui_shared::test_wait::wait_until;
     use std::{cell::RefCell, rc::Rc, sync::Arc};
@@ -754,10 +755,7 @@ mod add_object_menu_tests {
         let signals: Rc<RefCell<Option<BrowseSignals>>> = Rc::new(RefCell::new(None));
         let dom = VirtualDom::new_with_props(BrowseChooserHost, BrowseChooserHostProps { compact });
         dom.provide_root_context(signals.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         wait_until("Parts browse chooser mounts", || {
             by_role_name(&root, "searchbox", "Search parts").is_some()
         })
@@ -828,10 +826,7 @@ mod add_object_menu_tests {
         dom.provide_root_context(fixture.clone());
         dom.provide_root_context(loader);
         dom.provide_root_context(fixture.runtime.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
 
         wait_until("catalogue loading state renders", || {
             root.text_content()

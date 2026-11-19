@@ -899,6 +899,7 @@ mod settlement_tests {
     use boardstudio_core::model::ProjectDoc;
     use boardstudio_web_runtime::pending_edits::PendingEdits;
     use boardstudio_web_runtime::runtime::project_name_test_support as support;
+    use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::test_role::by_role_name;
     use boardstudio_web_ui_shared::test_wait::{
         settle_until, wait_until, wait_until_future, wait_until_step,
@@ -1017,10 +1018,7 @@ mod settlement_tests {
         dom.provide_root_context(runtime.clone());
         dom.provide_root_context(handler_probe.clone());
         dom.provide_root_context(event_probe.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         wait_until("model upload control mounts", || {
             root.query_selector("input[type=file]").unwrap().is_some()
                 && handler_probe.borrow().is_some()
@@ -1139,10 +1137,7 @@ mod settlement_tests {
         document.body().unwrap().append_child(&root).unwrap();
         let dom = VirtualDom::new(host);
         dom.provide_root_context(runtime.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         wait_until("model offset input mounts", || {
             by_role_name(&root, "spinbutton", "Offset X mm").is_some()
         })
@@ -1223,10 +1218,7 @@ mod settlement_tests {
         document.body().unwrap().append_child(&root).unwrap();
         let dom = VirtualDom::new(host);
         dom.provide_root_context(runtime.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         wait_until("model offset input mounts", || {
             by_role_name(&root, "spinbutton", "Offset X mm").is_some()
         })
@@ -1339,10 +1331,7 @@ mod settlement_tests {
         document.body().unwrap().append_child(&root).unwrap();
         let dom = VirtualDom::new(host);
         dom.provide_root_context(runtime.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         wait_until("model offset inputs mount", || {
             by_role_name(&root, "spinbutton", "Offset X mm").is_some()
                 && by_role_name(&root, "spinbutton", "Offset Y mm").is_some()

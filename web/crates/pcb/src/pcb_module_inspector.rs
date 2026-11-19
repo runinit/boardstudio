@@ -1185,6 +1185,7 @@ mod mounted_save_replacement_tests {
         Completion, Effect, OperationId, SaveResult, Scope as AppScope, Session,
     };
     use boardstudio_core::{CoreEngine, model::*};
+    use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::test_role::by_role_name;
     use boardstudio_web_ui_shared::test_wait::wait_until_step;
     use gloo_timers::future::TimeoutFuture;
@@ -1415,10 +1416,7 @@ mod mounted_save_replacement_tests {
         document.body().unwrap().append_child(&root).unwrap();
         let dom = VirtualDom::new(mounted_editor_host);
         dom.provide_root_context(probe);
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         wait_until("module face choice mounts", || {
             by_role_name(&root, "button", "Module host face").is_some()
         })
@@ -1499,10 +1497,7 @@ mod mounted_save_replacement_tests {
         document.body().unwrap().append_child(&root).unwrap();
         let dom = VirtualDom::new(mounted_editor_host);
         dom.provide_root_context(probe);
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         settle().await;
         let x = by_role_name(&root, "spinbutton", "X (mm)")
             .unwrap()
@@ -1598,10 +1593,7 @@ mod mounted_save_replacement_tests {
         document.body().unwrap().append_child(&root).unwrap();
         let dom = VirtualDom::new(mounted_editor_host);
         dom.provide_root_context(probe);
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         settle().await;
         let first = by_role_name(&root, "button", "Remove copy circuit/first").unwrap();
         let sibling = by_role_name(&root, "button", "Remove copy circuit/sibling").unwrap();
@@ -1685,10 +1677,7 @@ mod mounted_save_replacement_tests {
         document.body().unwrap().append_child(&root).unwrap();
         let dom = VirtualDom::new(mounted_editor_host);
         dom.provide_root_context(probe);
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         settle().await;
         let x = by_role_name(&root, "spinbutton", "X (mm)")
             .unwrap()
@@ -1791,10 +1780,7 @@ mod mounted_save_replacement_tests {
             document.body().unwrap().append_child(&root).unwrap();
             let dom = VirtualDom::new(mounted_editor_host);
             dom.provide_root_context(probe);
-            dioxus_web::launch::launch_virtual_dom(
-                dom,
-                dioxus_web::Config::new().rootnode(root.clone().into()),
-            );
+            let _mounted = MountedFixture::new(root.clone(), dom);
             settle().await;
             let x = by_role_name(&root, "spinbutton", "X (mm)")
                 .unwrap()
@@ -1866,10 +1852,7 @@ mod mounted_save_replacement_tests {
         document.body().unwrap().append_child(&root).unwrap();
         let dom = VirtualDom::new(mounted_editor_host);
         dom.provide_root_context(probe);
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         settle().await;
 
         let (entered, release) =

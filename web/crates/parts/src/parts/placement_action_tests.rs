@@ -1,4 +1,5 @@
 use super::*;
+use boardstudio_web_ui_shared::test_mount::MountedFixture;
 use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
 use std::sync::Arc;
 use wasm_bindgen::JsCast;
@@ -73,6 +74,7 @@ async fn mounted_action(
 ) -> (
     Rc<RefCell<Option<super::super::part_placement::ComponentPlacementAction>>>,
     web_sys::HtmlElement,
+    MountedFixture,
 ) {
     let document = web_sys::window().unwrap().document().unwrap();
     let root = document.create_element("div").unwrap();
@@ -85,7 +87,7 @@ async fn mounted_action(
         definition,
         apply_to_key,
     });
-    dioxus_web::launch::launch_virtual_dom(dom, dioxus_web::Config::new().rootnode(root.into()));
+    let mounted = MountedFixture::new(root.clone(), dom);
     let root = document.get_element_by_id(root_id).unwrap();
     let name = if apply_to_key {
         "Apply to selected key"
@@ -97,7 +99,7 @@ async fn mounted_action(
     })
     .await;
     let button = by_role_name(&root, "button", name).unwrap();
-    (action, button)
+    (action, button, mounted)
 }
 
 fn add_object_snapshot() -> AcceptedSnapshot {
@@ -196,6 +198,7 @@ async fn mounted_add_object_chooser(
 ) -> (
     Rc<RefCell<Vec<super::super::part_placement::ComponentPlacementAction>>>,
     web_sys::Element,
+    MountedFixture,
 ) {
     let snapshot = add_object_snapshot();
     let scope = Scope {
@@ -228,20 +231,17 @@ async fn mounted_add_object_chooser(
     let dom = VirtualDom::new(add_object_host);
     dom.provide_root_context(probe);
     dom.provide_root_context(loader);
-    dioxus_web::launch::launch_virtual_dom(
-        dom,
-        dioxus_web::Config::new().rootnode(root.clone().into()),
-    );
+    let mounted = MountedFixture::new(root.clone(), dom);
     wait_until("the Add Reset switch action mounts", || {
         by_role_name(&root, "button", "Add Reset switch").is_some()
     })
     .await;
-    (actions, root)
+    (actions, root, mounted)
 }
 
 #[wasm_bindgen_test]
 async fn mounted_add_object_chooser_keeps_default_and_exposes_mirror_only_only_on_mirror_board() {
-    let (actions, mirror_root) =
+    let (actions, mirror_root, _mirror_mounted) =
         mounted_add_object_chooser("mirror-only-choice", "board-mirror").await;
     let default = by_role_name(&mirror_root, "button", "Add Reset switch").unwrap();
     let mirror_only =
@@ -263,7 +263,7 @@ async fn mounted_add_object_chooser_keeps_default_and_exposes_mirror_only_only_o
     );
     mirror_root.remove();
 
-    let (_source_actions, source_root) =
+    let (_source_actions, source_root, _source_mounted) =
         mounted_add_object_chooser("source-only-choice", "board-main").await;
     assert!(by_role_name(&source_root, "button", "Add Reset switch to this half only").is_none());
     source_root.remove();
@@ -283,7 +283,8 @@ async fn mounted_add_object_chooser_retains_categories_and_board_owned_layout_se
             )
             .unwrap();
     };
-    let (_actions, root) = mounted_add_object_chooser("chooser-controls", "board-mirror").await;
+    let (_actions, root, _mounted) =
+        mounted_add_object_chooser("chooser-controls", "board-mirror").await;
     let category = by_role_name(&root, "button", "Components").unwrap();
     let choice = by_role_name(&root, "button", "Add Reset switch").unwrap();
     assert!(choice.closest("[data-slot=item]").unwrap().is_some());
@@ -373,7 +374,7 @@ async fn mounted_add_object_chooser_retains_categories_and_board_owned_layout_se
 async fn inspector_disables_a_non_input_definition_for_a_selected_key() {
     let passive = definition("imported:passive", "passive");
     assert!(!matrix_input_available(&passive));
-    let (action, button) = mounted_action("parts-passive-test", passive, true).await;
+    let (action, button, _mounted) = mounted_action("parts-passive-test", passive, true).await;
 
     assert!(button.has_attribute("disabled"));
     assert!(
@@ -393,7 +394,7 @@ async fn inspector_click_routes_a_switch_to_the_selected_key_action() {
     let mut switch = definition("generator:switch", "switch");
     switch.pads = vec![input_pad("one", "1"), input_pad("two", "2")];
     assert!(matrix_input_available(&switch));
-    let (action, button) = mounted_action("parts-switch-test", switch, true).await;
+    let (action, button, _mounted) = mounted_action("parts-switch-test", switch, true).await;
 
     assert!(!button.has_attribute("disabled"));
     assert_eq!(
@@ -416,7 +417,8 @@ async fn inspector_click_routes_a_switch_to_the_selected_key_action() {
 async fn inspector_disables_a_switch_without_independent_press_contacts() {
     let switch = definition("generator:switch-no-input", "switch");
     assert!(!matrix_input_available(&switch));
-    let (action, button) = mounted_action("parts-switch-no-input-test", switch, true).await;
+    let (action, button, _mounted) =
+        mounted_action("parts-switch-no-input-test", switch, true).await;
 
     assert!(button.has_attribute("disabled"));
     button.click();

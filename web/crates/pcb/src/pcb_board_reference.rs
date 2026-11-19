@@ -1078,6 +1078,7 @@ mod mounted_async_tests {
     use crate::runtime::{in_process_support, project_name_test_support as support};
     use boardstudio_application::{AcceptedSnapshot, Event, Scope};
     use boardstudio_core::model::{Asset, Board, BoardReference, Pose2, Vec2};
+    use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::test_role::by_role_name;
     use js_sys::{Array, Uint8Array};
     use std::{cell::RefCell, rc::Rc};
@@ -1237,10 +1238,7 @@ mod mounted_async_tests {
                 fixture: fixture.clone(),
             },
         );
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         wait_until("routed reference disclosure mounts", || {
             by_role_name(&root, "button", "Routed PCB reference").is_some()
         })
@@ -1306,10 +1304,7 @@ mod mounted_async_tests {
                 fixture: fixture.clone(),
             },
         );
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         TimeoutFuture::new(10).await;
         let x = by_role_name(&root, "spinbutton", "X (mm)")
             .unwrap()
@@ -1396,10 +1391,7 @@ mod mounted_async_tests {
                 fixture: fixture.clone(),
             },
         );
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
 
         for _ in 0..100 {
             if by_role_name(
@@ -1616,14 +1608,14 @@ mod mounted_async_tests {
             let root = document.create_element("div").unwrap();
             root.set_id(&format!("pcb-reference-replace-stale-test-{index}"));
             document.body().unwrap().append_child(&root).unwrap();
-            dioxus_web::launch::launch_virtual_dom(
+            let _mounted = MountedFixture::new(
+                root.clone(),
                 VirtualDom::new_with_props(
                     replace_host,
                     replace_hostProps {
                         probe: probe.clone(),
                     },
                 ),
-                dioxus_web::Config::new().rootnode(root.clone().into()),
             );
             let (entered, release) = test_support::install_import_gate();
             for _ in 0..100 {

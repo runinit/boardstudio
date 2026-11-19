@@ -370,6 +370,7 @@ pub fn project_setup_controls(mount: PhysicalSetupMount) -> Element {
 #[cfg(test)]
 mod mounted_setup_tests {
     use super::*;
+    use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
     use std::cell::RefCell;
     use wasm_bindgen_test::*;
@@ -418,10 +419,7 @@ mod mounted_setup_tests {
         document.body().unwrap().append_child(&root).unwrap();
         let dom = VirtualDom::new(fixture);
         dom.provide_root_context(Capture(Rc::new(RefCell::new(Vec::new()))));
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         wait_until("setup mounts", || {
             by_role_name(&root, "group", "Half connection").is_some()
         })
@@ -457,10 +455,7 @@ mod mounted_setup_tests {
         let capture = Rc::new(RefCell::new(Vec::new()));
         let dom = VirtualDom::new(fixture);
         dom.provide_root_context(Capture(capture.clone()));
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         wait_until("setup mounts", || {
             by_role_name(&root, "button", "Wireless").is_some()
         })
@@ -494,10 +489,7 @@ mod mounted_setup_tests {
         let capture = Rc::new(RefCell::new(Vec::new()));
         let dom = VirtualDom::new(fixture);
         dom.provide_root_context(Capture(capture.clone()));
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         wait_until("setup mounts", || {
             by_role_name(&root, "button", "Wireless").is_some()
         })

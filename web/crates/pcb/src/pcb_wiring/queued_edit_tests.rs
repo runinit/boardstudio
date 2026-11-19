@@ -7,6 +7,7 @@ use boardstudio_core::{
     electrical::{self, ElectricalPlanRequest},
     model::*,
 };
+use boardstudio_web_ui_shared::test_mount::MountedFixture;
 use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::settle_until};
 use std::{
     cell::{Cell, RefCell},
@@ -173,10 +174,12 @@ fn host() -> Element {
     } }
 }
 
-async fn mounted() -> (Probe, web_sys::Element) {
+async fn mounted() -> (Probe, web_sys::Element, MountedFixture) {
     mounted_with_document(document()).await
 }
-async fn mounted_with_document(document_fixture: ProjectDoc) -> (Probe, web_sys::Element) {
+async fn mounted_with_document(
+    document_fixture: ProjectDoc,
+) -> (Probe, web_sys::Element, MountedFixture) {
     let runtime = support::new_runtime();
     support::open_document(&runtime, document_fixture).await;
     runtime.submit(Event::Navigate {
@@ -198,12 +201,9 @@ async fn mounted_with_document(document_fixture: ProjectDoc) -> (Probe, web_sys:
     document.body().unwrap().append_child(&root).unwrap();
     let dom = VirtualDom::new(host);
     dom.provide_root_context(probe.clone());
-    dioxus_web::launch::launch_virtual_dom(
-        dom,
-        dioxus_web::Config::new().rootnode(root.clone().into()),
-    );
+    let mounted = MountedFixture::new(root.clone(), dom);
     rendered().await;
-    (probe, root)
+    (probe, root, mounted)
 }
 async fn rendered() {
     gloo_timers::future::TimeoutFuture::new(30).await;
@@ -243,7 +243,7 @@ fn configuration(runtime: &Runtime) -> ElectricalBoardConfiguration {
 
 #[wasm_bindgen_test]
 async fn wiring_mode_and_peripheral_pin_lock_queue_and_undo_in_order() {
-    let (probe, root) = mounted().await;
+    let (probe, root, _mounted) = mounted().await;
     let runtime = &probe.runtime;
     let accepted = runtime.model().accepted.unwrap();
     let first_plan = plan(&accepted.document);
@@ -363,7 +363,7 @@ async fn wiring_mode_and_peripheral_pin_lock_queue_and_undo_in_order() {
 
 #[wasm_bindgen_test]
 async fn create_net_disables_while_held_and_refuses_a_retained_duplicate_but_allows_assignment() {
-    let (probe, root) = mounted().await;
+    let (probe, root, _mounted) = mounted().await;
     let runtime = &probe.runtime;
     runtime.submit(Event::SelectParts {
         operation_id: runtime.operation(),
@@ -532,7 +532,7 @@ async fn create_net_disables_while_held_and_refuses_a_retained_duplicate_but_all
 
 #[wasm_bindgen_test]
 async fn part_net_assignment_queued_behind_layout_preserves_both_edits_and_undo() {
-    let (probe, root) = mounted().await;
+    let (probe, root, _mounted) = mounted().await;
     let runtime = &probe.runtime;
     runtime.submit(Event::SelectParts {
         operation_id: runtime.operation(),
@@ -698,7 +698,7 @@ async fn plan_queued_behind_part_deletion_is_refused_and_does_not_restore_the_pa
     let mut fixture = document();
     fixture.parts.retain(|part| part.id != "connector");
     fixture.boards[0].part_ids.retain(|id| id != "connector");
-    let (probe, root) = mounted_with_document(fixture).await;
+    let (probe, root, _mounted) = mounted_with_document(fixture).await;
     let runtime = &probe.runtime;
     let (entered, release) = support::gate_next_core_reply(runtime);
     support::submit_fixed_command(
@@ -806,7 +806,7 @@ async fn plan_queued_behind_part_deletion_is_refused_and_does_not_restore_the_pa
 
 #[wasm_bindgen_test]
 async fn failed_field_ticket_restores_accepted_value_and_keeps_feedback_across_another_edit() {
-    let (probe, root) = mounted().await;
+    let (probe, root, _mounted) = mounted().await;
     let runtime = &probe.runtime;
     support::fail_next_core_reply(runtime, "injected wiring refusal");
     let actions = probe.mode.borrow().as_ref().unwrap().clone();
@@ -901,7 +901,7 @@ async fn failed_field_ticket_restores_accepted_value_and_keeps_feedback_across_a
 
 #[wasm_bindgen_test]
 async fn physical_topology_queued_behind_another_edit_preserves_it_and_undo() {
-    let (probe, root) = mounted().await;
+    let (probe, root, _mounted) = mounted().await;
     let runtime = &probe.runtime;
     let (entered, release) = support::gate_next_core_reply(runtime);
     runtime.submit(Event::ResolveEdit {
