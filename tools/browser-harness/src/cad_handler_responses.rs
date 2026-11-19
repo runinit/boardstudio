@@ -1,11 +1,7 @@
 //! Collect ordered responses from the page's own flattened worker sessions.
 use crate::cad_responses::{self, Resource};
+use boardstudio_browser_harness::cdp::{EventKind, Page};
 use boardstudio_browser_harness::{Error, Result};
-use chromiumoxide::{
-    cdp::CustomEvent,
-    types::{MethodId, MethodType},
-    Page,
-};
 use futures::StreamExt;
 use serde::Deserialize;
 use serde_json::Value;
@@ -17,12 +13,11 @@ struct NetworkEvent {
     method: String,
     params: Value,
 }
-impl MethodType for NetworkEvent {
-    fn method_id() -> MethodId {
-        "BoardStudio.NetworkEvent".into()
+impl EventKind for NetworkEvent {
+    fn method_id() -> &'static str {
+        "BoardStudio.NetworkEvent"
     }
 }
-impl CustomEvent for NetworkEvent {}
 
 fn is_completion_event(method: &str) -> bool {
     matches!(method, "Network.loadingFinished" | "Network.loadingFailed")

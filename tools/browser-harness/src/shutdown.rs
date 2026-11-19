@@ -1,11 +1,11 @@
+use boardstudio_browser_harness::cdp::Browser;
 use boardstudio_browser_harness::driver::HandlerErrors;
 use boardstudio_browser_harness::{Error, Result};
-use chromiumoxide::Browser;
 use std::time::Duration;
 
 /// Close and reap the browser; return whether its termination was confirmed.
 pub(super) async fn finish_browser(
-    mut browser: Browser,
+    browser: Browser,
     drain: tokio::task::JoinHandle<()>,
     handler_errors: &HandlerErrors,
     boundaries_complete: bool,

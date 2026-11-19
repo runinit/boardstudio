@@ -16,11 +16,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use boardstudio_browser_harness::driver::{self, DragHold, HandlerErrors, PageErrors};
 use boardstudio_browser_harness::{Error, IsolatedDirs, Result};
 
-use chromiumoxide::{
-    cdp::CustomEvent,
-    types::{MethodId, MethodType},
-    Browser, Page,
-};
+use boardstudio_browser_harness::cdp::{Browser, EventKind, Page};
 use futures::StreamExt;
 use serde_json::{json, Value};
 
@@ -31,12 +27,11 @@ struct NetworkObservation {
     params: Value,
 }
 
-impl MethodType for NetworkObservation {
-    fn method_id() -> MethodId {
-        "BoardStudio.NetworkEvent".into()
+impl EventKind for NetworkObservation {
+    fn method_id() -> &'static str {
+        "BoardStudio.NetworkEvent"
     }
 }
-impl CustomEvent for NetworkObservation {}
 
 async fn observe_network(
     page: &Page,
@@ -154,61 +149,73 @@ async fn document_body(
     expected: &str,
 ) -> Value {
     use base64::Engine;
-    use chromiumoxide::cdp::browser_protocol::network::GetResponseBodyParams;
     let unknown =
         |reason: String| json!({"scope":"page-document-only", "matches":null, "reason":reason});
     let _ = preview;
+    let frame = |tree: &Value| {
+        tree.get("frameTree")
+            .and_then(|tree| tree.get("frame"))
+            .cloned()
+            .unwrap_or(Value::Null)
+    };
     let frame_tree = match tokio::time::timeout(
         Duration::from_secs(5),
-        page.execute(chromiumoxide::cdp::browser_protocol::page::GetFrameTreeParams::default()),
+        page.execute("Page.getFrameTree", json!({})),
     )
     .await
     {
-        Ok(Ok(tree)) => tree.result.frame_tree.frame,
+        Ok(Ok(tree)) => frame(&tree),
         _ => return unknown("cannot determine current main frame".into()),
     };
+    let field = |name: &str| frame_tree.get(name).and_then(Value::as_str).unwrap_or("");
     let Some((id, provenance)) = document_request(
         events,
         page.session_id().as_ref(),
-        frame_tree.id.as_ref(),
-        frame_tree.loader_id.as_ref(),
-        &frame_tree.url,
+        field("id"),
+        field("loaderId"),
+        field("url"),
     ) else {
         return unknown("ambiguous or incomplete current main-frame document".into());
     };
     let result = tokio::time::timeout(
         Duration::from_secs(5),
-        page.execute(GetResponseBodyParams::new(id)),
+        page.execute("Network.getResponseBody", json!({"requestId": id})),
     )
     .await;
     let body = match result {
-        Ok(Ok(result)) => result.result,
+        Ok(Ok(result)) => result,
         Ok(Err(e)) => return unknown(format!("body retrieval failed: {e}")),
         Err(_) => return unknown("body retrieval timed out".into()),
     };
-    let bytes = if body.base64_encoded {
-        match base64::engine::general_purpose::STANDARD.decode(body.body) {
+    let bytes = if body.get("base64Encoded").and_then(Value::as_bool) == Some(true) {
+        match base64::engine::general_purpose::STANDARD
+            .decode(body.get("body").and_then(Value::as_str).unwrap_or_default())
+        {
             Ok(b) => b,
             Err(e) => return unknown(format!("invalid body encoding: {e}")),
         }
     } else {
-        body.body.into_bytes()
+        body.get("body")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .as_bytes()
+            .to_vec()
     };
     if bytes.len() > 4 * 1024 * 1024 {
         return unknown(format!("body exceeds 4 MiB: {} bytes", bytes.len()));
     }
     let current = match tokio::time::timeout(
         Duration::from_secs(5),
-        page.execute(chromiumoxide::cdp::browser_protocol::page::GetFrameTreeParams::default()),
+        page.execute("Page.getFrameTree", json!({})),
     )
     .await
     {
-        Ok(Ok(tree)) => tree.result.frame_tree.frame,
+        Ok(Ok(tree)) => frame(&tree),
         _ => return unknown("cannot verify current main frame".into()),
     };
-    if current.id != frame_tree.id
-        || current.loader_id != frame_tree.loader_id
-        || current.url != frame_tree.url
+    if current.get("id") != frame_tree.get("id")
+        || current.get("loaderId") != frame_tree.get("loaderId")
+        || current.get("url") != frame_tree.get("url")
     {
         return unknown("main-frame navigation changed during body capture".into());
     }
@@ -1581,8 +1588,9 @@ async fn qualification_scenario_inner(
     checks: &mut Vec<Check>,
     unavailable_pcb: bool,
 ) -> Result<()> {
-    use chromiumoxide::cdp::browser_protocol::page::AddScriptToEvaluateOnNewDocumentParams;
-    page.execute(AddScriptToEvaluateOnNewDocumentParams::from(
+    page.execute(
+        "Page.addScriptToEvaluateOnNewDocument",
+        json!({"source":
         r#"(() => {
     window.collisionPreparations = [];
     const postMessage = Worker.prototype.postMessage;
@@ -1595,8 +1603,8 @@ async fn qualification_scenario_inner(
       }
       return postMessage.call(this, message, ...args);
     };
-  })()"#,
-    ))
+  })()"#}),
+    )
     .await
     .map_err(|error| fail(format!("cannot install the worker observer: {error}")))?;
     goto(page, url, "opening the preview").await?;
@@ -2325,7 +2333,7 @@ async fn run() -> Result<usize> {
         let product = version.product;
         // Playwright reports the bare version; strip any `Chrome/` product prefix.
         let browser_version = product.rsplit('/').next().unwrap_or(&product).to_owned();
-        println!("drag-smoke: browser {browser_version} (chromiumoxide 0.9.1)");
+        println!("drag-smoke: browser {browser_version} (direct CDP)");
 
         // Every launch-path await carries a bound: a wedged browser must fail
         // loudly, never hang the smoke past its step timeout.
@@ -2469,8 +2477,8 @@ async fn run() -> Result<usize> {
         network_observations,
     };
     // The checksum covers the compact receipt without its own hash, exactly as
-    // the launcher re-computes it. `preserve_order` keeps the declared field
-    // order stable in both the digest input and the file.
+    // the launcher re-computes it. Struct field order is stable in both the
+    // digest input and the file.
     let payload = receipt_json(&receipt);
     let digest = hex::encode(Sha256::digest(payload.as_bytes()));
     write_receipt(std::path::Path::new(&receipt_path), payload, &digest)?;

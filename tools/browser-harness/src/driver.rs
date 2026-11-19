@@ -8,26 +8,13 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use chromiumoxide::cdp::browser_protocol::accessibility::QueryAxTreeParams;
-use chromiumoxide::cdp::browser_protocol::browser::BrowserContextId;
-use chromiumoxide::cdp::browser_protocol::dom::{
-    BackendNodeId, DescribeNodeParams, GetDocumentParams, QuerySelectorParams,
-    ScrollIntoViewIfNeededParams,
+use crate::cdp::{
+    BackendNodeId, Browser, BrowserConfig, BrowserContextId, CdpError, DispatchKeyEventType,
+    DispatchMouseEventType, EventExceptionThrown, EventTargetDestroyed, Handler, MouseButton, Page,
+    RemoteObjectId, Viewport,
 };
-use chromiumoxide::cdp::browser_protocol::input::{
-    DispatchKeyEventParams, DispatchKeyEventType, DispatchMouseEventParams, DispatchMouseEventType,
-    MouseButton,
-};
-use chromiumoxide::cdp::browser_protocol::target::CreateTargetParams;
-use chromiumoxide::cdp::browser_protocol::target::{
-    CreateBrowserContextParams, DisposeBrowserContextParams, EventTargetDestroyed,
-};
-use chromiumoxide::cdp::js_protocol::runtime::{EvaluateParams, EventExceptionThrown};
-use chromiumoxide::error::CdpError;
-use chromiumoxide::handler::viewport::Viewport;
-use chromiumoxide::{Browser, BrowserConfig, Handler, Page};
 use futures::StreamExt;
-use serde_json::Value;
+use serde_json::{json, Value};
 
 use crate::{Error, IsolatedDirs, Result};
 
@@ -464,22 +451,37 @@ pub async fn spawn_page_error_listener(page: &Page, errors: Arc<PageErrors>) -> 
 /// Promises are awaited. A page-side exception is a fatal `Err`: evaluation
 /// errors are never swallowed by waits.
 pub async fn eval(page: &Page, expression: &str) -> Result<Value> {
-    let params = EvaluateParams::builder()
-        .expression(expression)
-        .await_promise(true)
-        .return_by_value(true)
-        .build()
+    let result = page
+        .execute(
+            "Runtime.evaluate",
+            json!({
+                "expression": expression,
+                "awaitPromise": true,
+                "returnByValue": true,
+            }),
+        )
+        .await
         .map_err(|error| {
             Error(format!(
-                "drag browser smoke cannot build an evaluation: {error}"
+                "page evaluation failed for {expression:?}: {error}"
             ))
         })?;
-    let evaluation = page.evaluate_expression(params).await.map_err(|error| {
-        Error(format!(
-            "page evaluation failed for {expression:?}: {error}"
-        ))
-    })?;
-    Ok(evaluation.value().cloned().unwrap_or(Value::Null))
+    if let Some(details) = result.get("exceptionDetails") {
+        let text = details
+            .get("exception")
+            .and_then(|exception| exception.get("description"))
+            .and_then(Value::as_str)
+            .or_else(|| details.get("text").and_then(Value::as_str))
+            .unwrap_or("unknown evaluation failure");
+        return Err(Error(format!(
+            "page evaluation failed for {expression:?}: {text}"
+        )));
+    }
+    Ok(result
+        .get("result")
+        .and_then(|result| result.get("value"))
+        .cloned()
+        .unwrap_or(Value::Null))
 }
 
 /// Poll `expression` until it evaluates to `true`.
@@ -514,42 +516,43 @@ pub async fn find_role(
 ) -> Result<Vec<(BackendNodeId, String)>> {
     let root = match root {
         Some(root) => root,
-        None => {
-            page.execute(GetDocumentParams::builder().depth(0).build())
-                .await
-                .map_err(|error| Error(format!("cannot read the page document: {error}")))?
-                .result
-                .root
-                .backend_node_id
-        }
+        None => page
+            .execute("DOM.getDocument", json!({"depth": 0}))
+            .await
+            .map_err(|error| Error(format!("cannot read the page document: {error}")))?
+            .get("root")
+            .and_then(|root| root.get("backendNodeId"))
+            .and_then(Value::as_i64)
+            .ok_or_else(|| Error("page document has no root backend node".to_owned()))?,
     };
-    let mut query = QueryAxTreeParams::builder()
-        .backend_node_id(root)
-        .role(role);
+    let mut params = json!({"backendNodeId": root, "role": role});
     if !name.is_empty() {
-        query = query.accessible_name(name);
+        params["accessibleName"] = json!(name);
     }
     let nodes = page
-        .execute(query.build())
+        .execute("Accessibility.queryAXTree", params)
         .await
         .map_err(|error| Error(format!("role lookup failed for {role} {name:?}: {error}")))?
-        .result
-        .nodes;
+        .get("nodes")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
     Ok(nodes
         .into_iter()
-        .filter(|node| !node.ignored)
+        .filter(|node| node.get("ignored").and_then(Value::as_bool) != Some(true))
         .filter_map(|node| {
             let label = node
-                .name
-                .as_ref()
-                .and_then(|name| name.value.as_ref())
-                .and_then(|value| value.as_str())
+                .get("name")
+                .and_then(|name| name.get("value"))
+                .and_then(Value::as_str)
                 .unwrap_or("")
                 .to_owned();
             if !name.is_empty() && label != name {
                 return None;
             }
-            node.backend_dom_node_id.map(|id| (id, label))
+            node.get("backendDOMNodeId")
+                .and_then(Value::as_i64)
+                .map(|id| (id, label))
         })
         .collect())
 }
@@ -566,26 +569,41 @@ pub async fn backend_of(page: &Page, selector: &str) -> Result<BackendNodeId> {
     let mut last_error = String::new();
     for _ in 0..20 {
         let root = page
-            .execute(GetDocumentParams::builder().depth(0).build())
+            .execute("DOM.getDocument", json!({"depth": 0}))
             .await
             .map_err(|error| Error(format!("cannot read the page document: {error}")))?
-            .result
-            .root
-            .node_id;
+            .get("root")
+            .and_then(|root| root.get("nodeId"))
+            .and_then(Value::as_i64)
+            .ok_or_else(|| Error("page document has no root node".to_owned()))?;
         let node = page
-            .execute(QuerySelectorParams::new(root, selector))
+            .execute(
+                "DOM.querySelector",
+                json!({"nodeId": root, "selector": selector}),
+            )
             .await
             .map_err(|error| Error(format!("no match for selector {selector:?}: {error}")))?
-            .result
-            .node_id;
-        if node.inner() == &0 {
+            .get("nodeId")
+            .and_then(Value::as_i64)
+            .unwrap_or(0);
+        if node == 0 {
             return Err(Error(format!("no match for selector {selector:?}")));
         }
         match page
-            .execute(DescribeNodeParams::builder().node_id(node).build())
+            .execute("DOM.describeNode", json!({"nodeId": node}))
             .await
         {
-            Ok(described) => return Ok(described.result.node.backend_node_id),
+            Ok(described) => {
+                return described
+                    .get("node")
+                    .and_then(|node| node.get("backendNodeId"))
+                    .and_then(Value::as_i64)
+                    .ok_or_else(|| {
+                        Error(format!(
+                            "cannot describe node for {selector:?}: missing backend id"
+                        ))
+                    })
+            }
             Err(error) => {
                 last_error = format!("cannot describe node for {selector:?}: {error}");
                 if !last_error.contains("Could not find node with given id") {
@@ -636,13 +654,9 @@ pub async fn backend_of_wait(
 
 /// Center of a backend node in CSS pixels, scrolled into view.
 pub async fn center(page: &Page, id: BackendNodeId) -> Result<(f64, f64)> {
-    page.execute(
-        ScrollIntoViewIfNeededParams::builder()
-            .backend_node_id(id)
-            .build(),
-    )
-    .await
-    .map_err(|error| Error(format!("cannot scroll target into view: {error}")))?;
+    page.execute("DOM.scrollIntoViewIfNeeded", json!({"backendNodeId": id}))
+        .await
+        .map_err(|error| Error(format!("cannot scroll target into view: {error}")))?;
     let (x, y, width, height) = element_rect(page, id)
         .await
         .map_err(|error| Error(format!("target has no visible geometry: {error}")))?;
@@ -688,63 +702,78 @@ async fn dispatch_mouse(
         DispatchMouseEventType::MouseMoved if buttons != 0 => Some(0.5),
         _ => None,
     };
-    let mut params = DispatchMouseEventParams::builder()
-        .r#type(kind)
-        .x(x)
-        .y(y)
-        .modifiers(modifiers)
-        .buttons(buttons)
-        .button(if pressed_or_released || buttons != 0 {
-            MouseButton::Left
+    let mut params = json!({
+        "type": kind.as_str(),
+        "x": x,
+        "y": y,
+        "modifiers": modifiers,
+        "buttons": buttons,
+        "button": if pressed_or_released || buttons != 0 {
+            MouseButton::Left.as_str()
         } else {
-            MouseButton::None
-        });
+            MouseButton::None.as_str()
+        },
+    });
     if let Some(force) = force {
-        params = params.force(force);
+        params["force"] = json!(force);
     }
     if pressed_or_released {
-        params = params.click_count(1);
+        params["clickCount"] = json!(1);
     }
-    page.execute(params.build().map_err(|error| {
-        MouseError::Other(Error(format!(
-            "cannot build a trusted mouse event: {error}"
-        )))
-    })?)
-    .await
-    .map_err(|error| match error {
-        CdpError::Timeout => MouseError::Timeout,
-        other => MouseError::Other(Error(format!("trusted mouse event failed: {other}"))),
-    })?;
+    page.execute("Input.dispatchMouseEvent", params)
+        .await
+        .map_err(|error| match error {
+            CdpError::Timeout => MouseError::Timeout,
+            other => MouseError::Other(Error(format!("trusted mouse event failed: {other}"))),
+        })?;
     Ok(())
 }
 
 /// Resolve a backend node to a live JS object id.
-async fn resolve_object(
-    page: &Page,
-    id: BackendNodeId,
-) -> Result<chromiumoxide::cdp::js_protocol::runtime::RemoteObjectId> {
-    use chromiumoxide::cdp::browser_protocol::dom::ResolveNodeParams;
-    let object = page
-        .execute(ResolveNodeParams::builder().backend_node_id(id).build())
+async fn resolve_object(page: &Page, id: BackendNodeId) -> Result<RemoteObjectId> {
+    page.execute("DOM.resolveNode", json!({"backendNodeId": id}))
         .await
         .map_err(|error| Error(format!("cannot resolve the target node: {error}")))?
-        .result
-        .object;
-    object
-        .object_id
+        .get("object")
+        .and_then(|object| object.get("objectId"))
+        .and_then(Value::as_str)
+        .map(str::to_owned)
         .ok_or_else(|| Error("target node has no live object".to_owned()))
+}
+
+/// Call `function` on a live object and return its value by value, `Null`
+/// when the call produced no value.
+async fn call_function_on(
+    page: &Page,
+    object_id: &str,
+    function: &str,
+    what: &str,
+) -> Result<Value> {
+    Ok(page
+        .execute(
+            "Runtime.callFunctionOn",
+            json!({
+                "functionDeclaration": function,
+                "objectId": object_id,
+                "returnByValue": true,
+            }),
+        )
+        .await
+        .map_err(|error| Error(format!("{what}: {error}")))?
+        .get("result")
+        .and_then(|result| result.get("value"))
+        .cloned()
+        .unwrap_or(Value::Null))
 }
 
 /// In-page box of a backend node: the same `getBoundingClientRect` geometry a
 /// real pointer observes. CDP box models can report zero areas for laid-out
 /// controls; the rect cannot.
 async fn element_rect(page: &Page, id: BackendNodeId) -> Result<(f64, f64, f64, f64)> {
-    use chromiumoxide::cdp::js_protocol::runtime::CallFunctionOnParams;
-    let verdict = page
-        .execute(
-            CallFunctionOnParams::builder()
-                .function_declaration(
-                    r#"function() {
+    let verdict = call_function_on(
+        page,
+        &resolve_object(page, id).await?,
+        r#"function() {
   const rect = this.getBoundingClientRect();
   const style = getComputedStyle(this);
   return {
@@ -752,18 +781,12 @@ async fn element_rect(page: &Page, id: BackendNodeId) -> Result<(f64, f64, f64, 
     shown: style.visibility !== 'hidden' && style.display !== 'none'
   };
 }"#,
-                )
-                .object_id(resolve_object(page, id).await?)
-                .return_by_value(true)
-                .build()
-                .map_err(|error| Error(format!("cannot build the geometry read: {error}")))?,
-        )
-        .await
-        .map_err(|error| Error(format!("cannot read target geometry: {error}")))?
-        .result
-        .result
-        .value
-        .ok_or_else(|| Error("target geometry has no value".to_owned()))?;
+        "cannot read target geometry",
+    )
+    .await?;
+    if verdict == Value::Null {
+        return Err(Error("target geometry has no value".to_owned()));
+    }
     let number = |field: &str| verdict.get(field).and_then(Value::as_f64).unwrap_or(0.0);
     let shown = verdict
         .get("shown")
@@ -894,10 +917,12 @@ async fn dispatch_click(
         Ok(Ok(())) => Ok(()),
         Ok(Err(MouseError::Other(error))) => Err(error),
         Ok(Err(MouseError::Timeout)) | Err(_) => {
-            use chromiumoxide::cdp::browser_protocol::target::CloseTargetParams;
             let close = tokio::time::timeout(
                 timeout,
-                page.execute(CloseTargetParams::new(page.target_id().clone())),
+                page.execute(
+                    "Target.closeTarget",
+                    json!({"targetId": page.target_id().inner()}),
+                ),
             )
             .await;
             let status = match close {
@@ -918,41 +943,29 @@ async fn dispatch_click(
 /// Whether the node is (inside) a disabled button. Non-button targets are
 /// never disabled; a disabled control must not be clicked through.
 async fn is_disabled_button(page: &Page, id: BackendNodeId) -> Result<bool> {
-    use chromiumoxide::cdp::js_protocol::runtime::CallFunctionOnParams;
-    let verdict = page
-        .execute(
-            CallFunctionOnParams::builder()
-                .function_declaration(
-                    r#"function() {
+    let verdict = call_function_on(
+        page,
+        &resolve_object(page, id).await?,
+        r#"function() {
   const button = this.closest('button,[role="button"]');
   if (!button) return false;
   return button.disabled === true || button.getAttribute('aria-disabled') === 'true';
 }"#,
-                )
-                .object_id(resolve_object(page, id).await?)
-                .return_by_value(true)
-                .build()
-                .map_err(|error| Error(format!("cannot build the enabled check: {error}")))?,
-        )
-        .await
-        .map_err(|error| Error(format!("the enabled check failed: {error}")))?
-        .result
-        .result
-        .value;
-    Ok(verdict == Some(Value::Bool(true)))
+        "the enabled check failed",
+    )
+    .await?;
+    Ok(verdict == Value::Bool(true))
 }
 
 /// Hit-test verdict for a backend node: `ok` when the topmost element at the
 /// node's center is the node itself or a descendant, otherwise a short
 /// description of what covers it (or `void` for no hit, e.g. offscreen).
 async fn receives_pointer_events(page: &Page, id: BackendNodeId) -> Result<String> {
-    use chromiumoxide::cdp::js_protocol::runtime::CallFunctionOnParams;
     let object_id = resolve_object(page, id).await?;
-    let verdict = page
-        .execute(
-            CallFunctionOnParams::builder()
-                .function_declaration(
-                    r#"function() {
+    let verdict = call_function_on(
+        page,
+        &object_id,
+        r#"function() {
   const rect = this.getBoundingClientRect();
   const x = rect.x + rect.width / 2, y = rect.y + rect.height / 2;
   const hit = document.elementFromPoint(x, y);
@@ -964,20 +977,11 @@ async fn receives_pointer_events(page: &Page, id: BackendNodeId) -> Result<Strin
   const text = (hit.textContent || '').trim().slice(0, 80);
   return 'covered by ' + label + ' saying ' + JSON.stringify(text);
 }"#,
-                )
-                .object_id(object_id)
-                .return_by_value(true)
-                .build()
-                .map_err(|error| Error(format!("cannot build the hit test: {error}")))?,
-        )
-        .await
-        .map_err(|error| Error(format!("the hit test failed: {error}")))?
-        .result
-        .result
-        .value;
+        "the hit test failed",
+    )
+    .await?;
     Ok(verdict
-        .as_ref()
-        .and_then(Value::as_str)
+        .as_str()
         .unwrap_or("unreadable hit verdict")
         .to_owned())
 }
@@ -1116,13 +1120,13 @@ pub async fn press_key(page: &Page, key: &str, code: &str, windows_key_code: i64
         DispatchKeyEventType::KeyUp,
     ] {
         page.execute(
-            DispatchKeyEventParams::builder()
-                .r#type(kind)
-                .key(key)
-                .code(code)
-                .windows_virtual_key_code(windows_key_code)
-                .build()
-                .map_err(|error| Error(format!("cannot build a trusted key event: {error}")))?,
+            "Input.dispatchKeyEvent",
+            json!({
+                "type": kind.as_str(),
+                "key": key,
+                "code": code,
+                "windowsVirtualKeyCode": windows_key_code,
+            }),
         )
         .await
         .map_err(|error| Error(format!("trusted key event failed: {error}")))?;
@@ -1139,14 +1143,14 @@ pub async fn control(page: &Page, kind: DispatchKeyEventType) -> Result<()> {
         0
     };
     page.execute(
-        DispatchKeyEventParams::builder()
-            .r#type(kind)
-            .key("Control")
-            .code("ControlLeft")
-            .windows_virtual_key_code(17)
-            .modifiers(modifiers)
-            .build()
-            .map_err(|error| Error(format!("cannot build a trusted Control event: {error}")))?,
+        "Input.dispatchKeyEvent",
+        json!({
+            "type": kind.as_str(),
+            "key": "Control",
+            "code": "ControlLeft",
+            "windowsVirtualKeyCode": 17,
+            "modifiers": modifiers,
+        }),
     )
     .await
     .map_err(|error| Error(format!("trusted Control event failed: {error}")))?;
@@ -1276,22 +1280,13 @@ pub async fn new_isolated_page(
     url: &str,
     errors: &Arc<PageErrors>,
 ) -> Result<(BrowserContextId, Page)> {
-    let context = browser
-        .create_browser_context(CreateBrowserContextParams::default())
-        .await
-        .map_err(|error| {
-            Error(format!(
-                "cannot create an isolated browser context: {error}"
-            ))
-        })?;
+    let context = browser.create_browser_context().await.map_err(|error| {
+        Error(format!(
+            "cannot create an isolated browser context: {error}"
+        ))
+    })?;
     let page = browser
-        .new_page(
-            CreateTargetParams::builder()
-                .url(url)
-                .browser_context_id(context.clone())
-                .build()
-                .map_err(|error| Error(format!("cannot build a page target: {error}")))?,
-        )
+        .new_page_in_context(url, &context)
         .await
         .map_err(|error| Error(format!("cannot open an isolated page: {error}")))?;
     spawn_page_error_listener(&page, Arc::clone(errors)).await?;
@@ -1348,7 +1343,7 @@ pub async fn dispose_isolated_page(
     let disposal = if let Some(context) = context {
         tokio::time::timeout(
             Duration::from_secs(60),
-            browser.execute(DisposeBrowserContextParams::new(context)),
+            browser.dispose_browser_context(&context),
         )
         .await
         .map_err(|_| Error("browser context disposal timed out after 60s".to_owned()))
@@ -1421,10 +1416,9 @@ mod redaction_tests {
         use std::time::Duration;
 
         let dirs = crate::IsolatedDirs::create(std::path::Path::new("/tmp")).unwrap();
-        let (mut chrome, handler) =
-            super::launch_chrome(&std::env::var("CHROME_BIN").unwrap(), &dirs)
-                .await
-                .unwrap();
+        let (chrome, handler) = super::launch_chrome(&std::env::var("CHROME_BIN").unwrap(), &dirs)
+            .await
+            .unwrap();
         let drain = super::spawn_handler_drain(
             handler,
             Arc::new(super::HandlerErrors::new()),
@@ -1471,7 +1465,7 @@ mod redaction_tests {
                     }
                 }
             });
-            let (browser, handler) = chromiumoxide::Browser::connect(format!("ws://{address}"))
+            let (browser, handler) = crate::cdp::Browser::connect(format!("ws://{address}"))
                 .await
                 .unwrap();
             let proxy_drain = super::spawn_handler_drain(
@@ -1530,10 +1524,9 @@ mod redaction_tests {
         use std::time::Duration;
 
         let dirs = crate::IsolatedDirs::create(std::path::Path::new("/tmp")).unwrap();
-        let (mut chrome, handler) =
-            super::launch_chrome(&std::env::var("CHROME_BIN").unwrap(), &dirs)
-                .await
-                .unwrap();
+        let (chrome, handler) = super::launch_chrome(&std::env::var("CHROME_BIN").unwrap(), &dirs)
+            .await
+            .unwrap();
         let drain = super::spawn_handler_drain(
             handler,
             Arc::new(super::HandlerErrors::new()),
@@ -1587,7 +1580,7 @@ mod redaction_tests {
                     }
                 }
             });
-            let (browser, handler) = chromiumoxide::Browser::connect(format!("ws://{address}"))
+            let (browser, handler) = crate::cdp::Browser::connect(format!("ws://{address}"))
                 .await
                 .unwrap();
             let proxy_drain = super::spawn_handler_drain(
@@ -1679,21 +1672,18 @@ mod redaction_tests {
         let script = root.join("browser");
         std::fs::write(&script, format!("#!/bin/sh\necho $$ > {}/pid\necho 'DevTools listening on ws://{address}/devtools/browser/test' >&2\nexec /usr/bin/tail -f /dev/null\n", root.display())).unwrap();
         std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o700)).unwrap();
-        let config = chromiumoxide::BrowserConfig::builder()
+        let config = crate::cdp::BrowserConfig::builder()
             .chrome_executable(&script)
             .launch_timeout(std::time::Duration::from_millis(100))
             .build()
             .unwrap();
         let result = tokio::time::timeout(
             std::time::Duration::from_secs(3),
-            chromiumoxide::Browser::launch(config),
+            crate::cdp::Browser::launch(config),
         )
         .await;
         assert!(
-            matches!(
-                result,
-                Ok(Err(chromiumoxide::error::CdpError::LaunchTimeout(_)))
-            ),
+            matches!(result, Ok(Err(crate::cdp::CdpError::LaunchTimeout(_)))),
             "launch must time out during handshake"
         );
         let pid = std::fs::read_to_string(root.join("pid")).unwrap();
@@ -1722,7 +1712,7 @@ mod redaction_tests {
         std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o700)).unwrap();
         let dirs = crate::IsolatedDirs::create(&root).unwrap();
         let profile = dirs.profile_dir.clone();
-        let (mut browser, handler) = super::launch_chrome(script.to_str().unwrap(), &dirs)
+        let (browser, handler) = super::launch_chrome(script.to_str().unwrap(), &dirs)
             .await
             .unwrap();
         drop(handler);
@@ -1760,7 +1750,7 @@ mod redaction_tests {
             }
             drop(ws);
         });
-        let (mut browser, handler) = chromiumoxide::Browser::connect(format!("ws://{address}"))
+        let (browser, handler) = crate::cdp::Browser::connect(format!("ws://{address}"))
             .await
             .unwrap();
         let handler_errors = std::sync::Arc::new(super::HandlerErrors::new());
@@ -1807,14 +1797,9 @@ mod redaction_tests {
                 }
             }
         });
-        let config = chromiumoxide::handler::HandlerConfig {
-            ignore_invalid_messages: false,
-            ..Default::default()
-        };
-        let (mut browser, handler) =
-            chromiumoxide::Browser::connect_with_config(format!("ws://{address}"), config)
-                .await
-                .unwrap();
+        let (browser, handler) = crate::cdp::Browser::connect(format!("ws://{address}"))
+            .await
+            .unwrap();
         let handler_errors = std::sync::Arc::new(super::HandlerErrors::new());
         let page_errors = std::sync::Arc::new(super::PageErrors::new());
         let drain = super::spawn_handler_drain(handler, handler_errors.clone(), page_errors);

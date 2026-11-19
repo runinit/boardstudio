@@ -4,6 +4,7 @@
 //! lookup, bounded waits, trusted input, evaluation and fatal error capture.
 //! Helpers exist only because a current check script uses them.
 
+pub mod cdp;
 pub mod driver;
 
 /// A fatal harness or page failure. Messages are actionable: they name the
