@@ -362,6 +362,20 @@ fixture paths are unchanged, and the manual capture tests keep their ignore
 attributes and environment requirements. The commit message lists every
 binary and test name mapping.
 
+### H1 and H2 native baseline after I and J
+
+All 385 tests in 17 focused suites passed. The approved baseline records
+2,447 names. The test step reported:
+
+```text
+check: native tests: baseline recorded, 2447 executed test(s); 46 previously baselined test(s) dropped (check-native-tests-baseline.json)
+```
+
+The retained H2 native log contained 2,411 workspace names and 513 CAD
+names. Applying the I2 splits and I5 moves yielded 2,447 expected
+workspace names and 565 expected CAD names. All executed. There were no
+unmapped losses or J renames.
+
 ### Section H commands after the VM is off
 
 Run H1, H2 and H4 from the implementation worktree using a shell outside the
