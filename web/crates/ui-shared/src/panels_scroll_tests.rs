@@ -37,7 +37,9 @@ fn composition() -> Element {
     }
 }
 
-fn mount_fixture(component: fn() -> Element) -> web_sys::Element {
+fn mount_fixture(
+    component: fn() -> Element,
+) -> (web_sys::Element, crate::test_mount::MountedFixture) {
     let document = web_sys::window().unwrap().document().unwrap();
     if let Some(previous) = document.get_element_by_id("inspector-scroll-test-root") {
         previous.remove();
@@ -47,11 +49,8 @@ fn mount_fixture(component: fn() -> Element) -> web_sys::Element {
     root.set_attribute("style", "width:min(100%,1000px)")
         .unwrap();
     document.body().unwrap().append_child(&root).unwrap();
-    dioxus_web::launch::launch_virtual_dom(
-        VirtualDom::new(component),
-        dioxus_web::Config::new().rootnode(root.clone().into()),
-    );
-    root
+    let mounted = crate::test_mount::MountedFixture::new(root.clone(), VirtualDom::new(component));
+    (root, mounted)
 }
 
 fn element(selector: &str) -> HtmlElement {
@@ -96,7 +95,7 @@ fn scroll_owner(element: &HtmlElement) -> Option<HtmlElement> {
 
 #[wasm_bindgen_test]
 async fn inspector_content_has_a_bounded_scroll_owner_outside_its_heading_and_menu() {
-    let root = mount_fixture(composition);
+    let (root, _mounted) = mount_fixture(composition);
     gloo_timers::future::TimeoutFuture::new(80).await;
     let by_role = |role, name| crate::test_role::by_role_name(&root, role, name).unwrap();
     let header_action = by_role("button", "Add object");
@@ -137,5 +136,4 @@ async fn inspector_content_has_a_bounded_scroll_owner_outside_its_heading_and_me
         (current_canvas.width(), current_canvas.height()),
         (canvas.width(), canvas.height())
     );
-    root.remove();
 }

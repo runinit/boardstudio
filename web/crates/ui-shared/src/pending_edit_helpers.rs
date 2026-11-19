@@ -554,6 +554,19 @@ mod mounted_tests {
         EditResolver::new("helper-test", |_accepted| Resolution::Unchanged)
     }
 
+    struct MountedProbe<T> {
+        probe: T,
+        _mounted: crate::test_mount::MountedFixture,
+    }
+
+    impl<T> std::ops::Deref for MountedProbe<T> {
+        type Target = T;
+
+        fn deref(&self) -> &Self::Target {
+            &self.probe
+        }
+    }
+
     #[derive(Clone, Default)]
     struct Probe {
         runtime: Rc<RefCell<Option<TestRuntime>>>,
@@ -678,7 +691,7 @@ mod mounted_tests {
         "pending-edit-helper-root"
     }
 
-    async fn mount_fixture(runtime: TestRuntime) -> Probe {
+    async fn mount_fixture(runtime: TestRuntime) -> MountedProbe<Probe> {
         let probe = Probe {
             runtime: Rc::new(RefCell::new(Some(runtime))),
             results: Default::default(),
@@ -694,14 +707,14 @@ mod mounted_tests {
         dom_document.body().unwrap().append_child(&root).unwrap();
         let dom = VirtualDom::new(helper_host);
         dom.provide_root_context(probe.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let mounted = crate::test_mount::MountedFixture::new(root, dom);
         // launch_virtual_dom renders in a background task; wait for the fixture DOM.
         rendered().await;
         rendered().await;
-        probe
+        MountedProbe {
+            probe,
+            _mounted: mounted,
+        }
     }
 
     fn element(selector: &str) -> web_sys::Element {
@@ -1179,7 +1192,7 @@ mod mounted_tests {
     async fn mount_retention_fixture(
         runtime: TestRuntime,
         initial: RetainedDraft,
-    ) -> RetentionProbe {
+    ) -> MountedProbe<RetentionProbe> {
         let probe = RetentionProbe {
             runtime,
             initial: Rc::new(RefCell::new(Some(initial))),
@@ -1194,13 +1207,13 @@ mod mounted_tests {
         document.body().unwrap().append_child(&root).unwrap();
         let dom = VirtualDom::new(retention_host);
         dom.provide_root_context(probe.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.into()),
-        );
+        let mounted = crate::test_mount::MountedFixture::new(root, dom);
         rendered().await;
         rendered().await;
-        probe
+        MountedProbe {
+            probe,
+            _mounted: mounted,
+        }
     }
 
     #[wasm_bindgen_test]
@@ -1372,7 +1385,7 @@ mod mounted_tests {
         }
     }
 
-    async fn mount_unbind_fixture(runtime: TestRuntime) -> UnbindProbe {
+    async fn mount_unbind_fixture(runtime: TestRuntime) -> MountedProbe<UnbindProbe> {
         let probe = UnbindProbe {
             runtime: Rc::new(RefCell::new(Some(runtime))),
             helpers: Rc::new(RefCell::new(Some(PendingEditSignals::new()))),
@@ -1388,13 +1401,13 @@ mod mounted_tests {
         dom_document.body().unwrap().append_child(&root).unwrap();
         let dom = VirtualDom::new(unbind_host);
         dom.provide_root_context(probe.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let mounted = crate::test_mount::MountedFixture::new(root, dom);
         rendered().await;
         rendered().await;
-        probe
+        MountedProbe {
+            probe,
+            _mounted: mounted,
+        }
     }
 
     fn exists(selector: &str) -> bool {
