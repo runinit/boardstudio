@@ -259,7 +259,7 @@ class CheckIntegrationTests(unittest.TestCase):
         self.runs = []
 
     def execute(self, outputs, *, jobs, update=False, commands=None, names=("test",)):
-        commands = commands or check.CARGO_TESTS
+        commands = commands or [*check.CARGO_TESTS, [check.PY, "cad/scripts/test-cad.py"]]
 
         def fake(command, **kwargs):
             self.runs.append(command)
@@ -279,7 +279,7 @@ class CheckIntegrationTests(unittest.TestCase):
         footprints = ("     Running unittests src/lib.rs (target/debug/deps/boardstudio_footprints-0011223344556677)\n"
                       "test generates ... ok\n")
         self.path.write_text(json.dumps({**EXECUTED, "boardstudio_footprints": ["generates"]}))
-        return {tuple(check.CARGO_TESTS[0]): core, tuple(check.CARGO_TESTS[1]): footprints}
+        return {tuple(check.CARGO_TESTS[0]): core + footprints}
 
     def test_a_deleted_test_fails_the_step_serially_and_in_parallel(self):
         gutted = CORE_OUTPUT.replace("test beta::roundtrip ... ok\n", "")
@@ -295,7 +295,7 @@ class CheckIntegrationTests(unittest.TestCase):
             with self.subTest(jobs=jobs):
                 self.runs.clear()
                 self.assertEqual(self.execute(self.outputs(CORE_OUTPUT), jobs=jobs)[0], 0)
-                self.assertEqual(self.runs, check.CARGO_TESTS)
+                self.assertEqual(sorted(self.runs), sorted([*check.CARGO_TESTS, [check.PY, "cad/scripts/test-cad.py"]]))
 
     def test_the_update_flag_records_a_deliberate_removal(self):
         gutted = CORE_OUTPUT.replace("test beta::roundtrip ... ok\n", "")

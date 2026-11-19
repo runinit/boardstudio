@@ -101,6 +101,14 @@ class QuickPlanTests(unittest.TestCase):
         self.assertEqual(names.count("test-css"), 1)
         self.assertLess(names.index("test-css"), names.index("lint"))
 
+    def test_core_and_footprints_use_one_workspace_test_command(self):
+        self.assertEqual(check.CARGO_TESTS, [["cargo", "test", "--workspace", "--locked"]])
+        plan = self.plan(["core/src/lib.rs", "catalogue/footprints/a.rs"])
+        self.assertEqual(len(plan["test"]), 1)
+        self.assertEqual(plan["test"][0][:3], ["cargo", "test", "--locked"])
+        self.assertIn("boardstudio-footprints", plan["test"][0])
+        self.assertIn("core", plan["test"][0])
+
     def test_a_web_crate_edit_runs_its_launches_without_full_web_build(self):
         plan = self.plan(["web/crates/keymap/src/lib.rs"])
         self.assertNotIn("build", plan)

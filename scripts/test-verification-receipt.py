@@ -660,7 +660,7 @@ class CheckCliTests(unittest.TestCase):
 
     def test_cli_records_native_binaries_through_the_shared_name_guard(self):
         receipt_path = Path(self.temporary.name) / "native.json"
-        cargo = ["cargo", "test", "--workspace", "--locked", "--exclude", "boardstudio-footprints"]
+        cargo = ["cargo", "test", "--workspace", "--locked"]
         baseline = {"boardstudio_core": ["mirrored_half::reconcile::tests::alpha",
                                          "mirrored_half::reconcile::tests::delta"]}
         with mock.patch.object(check.subprocess, "run",

@@ -71,11 +71,9 @@ PY = "python3"
 OVERLAP_CSS = "BOARDSTUDIO_OVERLAP_CSS"
 OVERLAP_MIN_CPUS = 8
 OVERLAP_STEPS = frozenset({"build", "lint", "test"})
-# One workspace invocation compiles Core once for every crate's tests. Footprints runs
-# separately: its serde_json `preserve_order` dev-feature must not leak into Core's tests.
+# One workspace invocation compiles Core once for every crate's tests, including footprints.
 CARGO_TESTS: list[list[str]] = [
-    ["cargo", "test", "--workspace", "--locked", "--exclude", "boardstudio-footprints"],
-    ["cargo", "test", "-p", "boardstudio-footprints", "--locked"],
+    ["cargo", "test", "--workspace", "--locked"],
 ]
 TOOLING_TESTS = (
     "cad/scripts/test-cad-build.py", "cad/scripts/test-measure-cad.py",
@@ -1461,10 +1459,8 @@ def quick_plan(selection: "check_quick.Selection", packages: "dict[str, check_qu
         if selection.full_rust:
             native = list(CARGO_TESTS)
         else:
-            names = sorted(selection.packages - {"boardstudio-footprints"})
+            names = sorted(selection.packages)
             native = [["cargo", "test", "--locked", *[part for name in names for part in ("-p", name)]]] if names else []
-            if "boardstudio-footprints" in selection.packages:
-                native.append(CARGO_TESTS[1])
         plan.append(("test", native))
         crates = {Path(package.directory).name for name, package in packages.items()
                   if name in selection.packages and package.directory.startswith("web/crates/")}
