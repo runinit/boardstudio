@@ -12,6 +12,7 @@ use boardstudio_core::model::{
     MirroredExceptionState, MirroredItemKind, Part, PartDefinition, PartKind, Pose2, ProjectDoc,
     Side, Vec2,
 };
+use boardstudio_web_ui_shared::test_mount::MountedFixture;
 use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
 use dioxus_web::WebEventExt;
 use std::{
@@ -76,11 +77,24 @@ fn matrix_transform_host() -> Element {
         };
         let callback =
             wasm_bindgen::closure::Closure::wrap(Box::new(move |event: web_sys::KeyboardEvent| {
-                if event.key() == "Escape" && esc_armed() {
-                    esc_armed.set(false);
-                    if let Some(mount) = esc_probe.mount.borrow().as_ref() {
-                        mount.clear_aggregate_pick();
-                    }
+                // The document listener outlives the fixture (forgotten on
+                // purpose); ignore keys once the VDOM dropped its signals.
+                if event.key() != "Escape" {
+                    return;
+                }
+                let live = esc_armed.try_peek().map(|armed| *armed).unwrap_or(false);
+                if !live {
+                    return;
+                }
+                if esc_armed
+                    .try_write()
+                    .map(|mut armed| *armed = false)
+                    .is_err()
+                {
+                    return;
+                }
+                if let Some(mount) = esc_probe.mount.borrow().as_ref() {
+                    mount.clear_aggregate_pick();
                 }
             })
                 as Box<dyn FnMut(web_sys::KeyboardEvent)>);
@@ -661,7 +675,7 @@ async fn mount_selection_probe(
     document: ProjectDoc,
     context: TreeContext,
     selected_ids: &[&str],
-) -> (Probe, web_sys::Element) {
+) -> (Probe, web_sys::Element, MountedFixture) {
     mount_selection_probe_with_canvas(root_id, document, context, selected_ids, false).await
 }
 
@@ -671,7 +685,7 @@ async fn mount_selection_probe_with_canvas(
     context: TreeContext,
     selected_ids: &[&str],
     canvas_controls: bool,
-) -> (Probe, web_sys::Element) {
+) -> (Probe, web_sys::Element, MountedFixture) {
     let runtime = support::new_runtime();
     support::open_document(&runtime, document).await;
     runtime.submit(Event::SelectParts {
@@ -700,11 +714,8 @@ async fn mount_selection_probe_with_canvas(
     document.body().unwrap().append_child(&root).unwrap();
     let dom = VirtualDom::new(matrix_transform_host);
     dom.provide_root_context(probe.clone());
-    dioxus_web::launch::launch_virtual_dom(
-        dom,
-        dioxus_web::Config::new().rootnode(root.clone().into()),
-    );
-    (probe, root)
+    let mounted = MountedFixture::new(root.clone(), dom);
+    (probe, root, mounted)
 }
 
 fn accepted_cell(probe: &Probe, column: u32) -> boardstudio_core::model::MatrixCell {
@@ -730,7 +741,7 @@ fn accepted_cell(probe: &Probe, column: u32) -> boardstudio_core::model::MatrixC
 #[wasm_bindgen_test]
 async fn additive_canvas_selection_keeps_key_properties_for_same_matrix_keys() {
     let (document, context) = two_key_fixture(false);
-    let (probe, root) = mount_selection_probe(
+    let (probe, root, _mounted) = mount_selection_probe(
         "matrix-transform-multiselect-mounted-test",
         document,
         context,
@@ -929,7 +940,7 @@ async fn additive_canvas_selection_keeps_key_properties_for_same_matrix_keys() {
 #[wasm_bindgen_test]
 async fn additive_mixed_component_selection_keeps_first_part_group_context() {
     let (document, context) = two_key_fixture(true);
-    let (probe, root) = mount_selection_probe(
+    let (probe, root, _mounted) = mount_selection_probe(
         "matrix-transform-multiselect-mounted-test",
         document,
         context,
@@ -984,7 +995,7 @@ async fn additive_mixed_component_selection_keeps_first_part_group_context() {
 #[wasm_bindgen_test]
 async fn toggle_removal_keeps_the_inspector_and_commands_aimed_at_remaining_keys() {
     let (document, context) = three_key_fixture();
-    let (probe, root) = mount_selection_probe(
+    let (probe, root, _mounted) = mount_selection_probe(
         "matrix-transform-multiselect-mounted-test",
         document,
         context,
@@ -1128,7 +1139,7 @@ async fn settle(probe: &Probe) {
 async fn pending_reset_disables_its_button_and_rejects_a_retained_duplicate() {
     let (mut document, context) = fixture();
     document.matrices[0].cells[0].offset = Some(Vec2 { x: 3.0, y: 0.0 });
-    let (probe, root) = mount_selection_probe(
+    let (probe, root, _mounted) = mount_selection_probe(
         "matrix-transform-pending-reset-test",
         document,
         context,
@@ -1237,7 +1248,7 @@ async fn pending_reset_disables_its_button_and_rejects_a_retained_duplicate() {
 #[wasm_bindgen_test]
 async fn failed_numeric_edit_keeps_a_newer_typed_draft() {
     let (document, context) = fixture();
-    let (probe, root) = mount_selection_probe(
+    let (probe, root, _mounted) = mount_selection_probe(
         "matrix-transform-failed-draft-test",
         document,
         context,
@@ -1293,7 +1304,7 @@ async fn failed_numeric_edit_keeps_a_newer_typed_draft() {
 #[wasm_bindgen_test]
 async fn failed_numeric_edit_keeps_its_inline_error_after_restoring_the_draft() {
     let (document, context) = fixture();
-    let (probe, root) = mount_selection_probe(
+    let (probe, root, _mounted) = mount_selection_probe(
         "matrix-transform-restored-failure-test",
         document,
         context,
@@ -1367,7 +1378,7 @@ async fn failed_numeric_edit_keeps_its_inline_error_after_restoring_the_draft() 
 async fn mounted_attached_component_choices_are_current_item_scoped_and_emit_the_selected_replacement()
  {
     let (document, context) = fixture();
-    let (probe, root) = mount_selection_probe(
+    let (probe, root, _mounted) = mount_selection_probe(
         "matrix-transform-inspector-mounted-test",
         document,
         context,
@@ -1426,7 +1437,7 @@ async fn mounted_attached_component_choices_are_current_item_scoped_and_emit_the
 #[wasm_bindgen_test]
 async fn deleting_selected_keys_removes_cells_and_assemblies_and_undo_restores_them() {
     let (document, context) = two_key_fixture(false);
-    let (probe, root) = mount_selection_probe(
+    let (probe, root, _mounted) = mount_selection_probe(
         "matrix-transform-delete-selected-test",
         document,
         context,
@@ -1466,7 +1477,7 @@ async fn deleting_selected_keys_removes_cells_and_assemblies_and_undo_restores_t
 #[wasm_bindgen_test]
 async fn queued_key_edit_retires_after_column_deletion_instead_of_editing_reindexed_survivor() {
     let (document, context) = two_key_fixture(false);
-    let (probe, root) = mount_selection_probe(
+    let (probe, root, _mounted) = mount_selection_probe(
         "matrix-transform-queued-delete-test",
         document,
         context,
@@ -1529,7 +1540,7 @@ async fn queued_key_edit_retires_after_column_deletion_instead_of_editing_reinde
 #[wasm_bindgen_test]
 async fn mixed_enabled_selection_displays_unchecked_and_enables_every_selected_cell() {
     let (document, context) = two_key_fixture(false);
-    let (probe, root) = mount_selection_probe(
+    let (probe, root, _mounted) = mount_selection_probe(
         "matrix-transform-mixed-enabled-test",
         document,
         context,
@@ -1600,7 +1611,7 @@ async fn row_and_column_delete_controls_submit_structural_removal() {
         ),
     ] {
         let (document, _) = two_key_fixture(false);
-        let (probe, root) =
+        let (probe, root, _mounted) =
             mount_selection_probe("matrix-transform-axis-delete-test", document, context, &[])
                 .await;
         settle(&probe).await;
@@ -1642,7 +1653,7 @@ async fn column_angle_scope_switches_display_and_discards_the_other_fields_draft
         .resize_with(1, Default::default);
     document.matrices[0].column_layout[0].splay = 7.0;
     document.matrices[0].column_layout[0].rotation = 10.0;
-    let (probe, root) =
+    let (probe, root, _mounted) =
         mount_selection_probe("column-angle-scope-test", document, column_context(0), &[]).await;
     settle(&probe).await;
     let input = root
@@ -1768,7 +1779,7 @@ fn has_exact_text(root: &web_sys::Element, expected: &str) -> bool {
 #[wasm_bindgen_test]
 async fn inspector_stagger_lands_as_a_placement_edit_that_moves_later_columns_with_one_undo() {
     let (document, _) = two_key_fixture(false);
-    let (probe, root) = mount_selection_probe(
+    let (probe, root, _mounted) = mount_selection_probe(
         "matrix-transform-stagger-test",
         document,
         column_context(0),
@@ -1849,7 +1860,7 @@ fn field_number(root: &web_sys::Element, label: &str) -> f64 {
 async fn convert_to_stagger_appears_only_for_a_nonzero_offset_y_and_is_one_undo_step() {
     // No offset Y: no action.
     let (document, _) = two_key_fixture(false);
-    let (probe, root) = mount_selection_probe(
+    let (probe, root, _mounted) = mount_selection_probe(
         "matrix-transform-convert-hidden-test",
         document,
         column_context(0),
@@ -1872,7 +1883,7 @@ async fn convert_to_stagger_appears_only_for_a_nonzero_offset_y_and_is_one_undo_
             record.offset = value;
         }
     }
-    let (probe, root) = mount_selection_probe(
+    let (probe, root, _mounted) = mount_selection_probe(
         "matrix-transform-convert-test",
         document,
         column_context(0),
@@ -1960,7 +1971,7 @@ async fn convert_to_stagger_is_disabled_with_core_reason_on_a_splayed_column() {
             record.splay = value;
         }
     }
-    let (probe, root) = mount_selection_probe(
+    let (probe, root, _mounted) = mount_selection_probe(
         "matrix-transform-convert-splayed-test",
         document,
         column_context(0),
@@ -1989,7 +2000,7 @@ async fn convert_to_stagger_is_disabled_with_core_reason_on_a_splayed_column() {
 #[wasm_bindgen_test]
 async fn collapsing_column_sections_preserves_drafts_nodes_and_edit_owner() {
     let (document, _) = two_key_fixture(false);
-    let (probe, root) = mount_selection_probe(
+    let (probe, root, _mounted) = mount_selection_probe(
         "matrix-transform-disclosure-test",
         document,
         column_context(0),
@@ -2056,7 +2067,7 @@ async fn collapsing_column_sections_preserves_drafts_nodes_and_edit_owner() {
 #[wasm_bindgen_test]
 async fn canvas_dimensions_preserve_inspector_drafts_and_share_undo() {
     let (document, _) = two_key_fixture(false);
-    let (probe, root) = mount_selection_probe_with_canvas(
+    let (probe, root, _mounted) = mount_selection_probe_with_canvas(
         "canvas-independent-drafts",
         document,
         column_context(0),
@@ -2204,7 +2215,7 @@ fn scene_key_at(probe: &Probe, row: u32, column: u32) -> Vec2 {
 #[wasm_bindgen_test]
 async fn inspector_row_shift_moves_later_row_keys_with_one_undo() {
     let (document, _) = two_row_fixture();
-    let (probe, root) = mount_selection_probe(
+    let (probe, root, _mounted) = mount_selection_probe(
         "matrix-transform-row-shift-test",
         document,
         row_context(0),
@@ -2281,7 +2292,7 @@ async fn inspector_row_shift_moves_later_row_keys_with_one_undo() {
 #[wasm_bindgen_test]
 async fn inspector_key_shift_carries_down_its_column_with_one_undo() {
     let (document, selected) = shift_grid_fixture();
-    let (probe, root) =
+    let (probe, root, _mounted) =
         mount_selection_probe("matrix-transform-key-shift-test", document, selected, &[]).await;
     settle(&probe).await;
     let before_moved = scene_key_at(&probe, 0, 0);
@@ -2378,7 +2389,7 @@ fn scene_key_rotation(probe: &Probe, row: u32, column: u32) -> f64 {
 #[wasm_bindgen_test]
 async fn inspector_row_bend_turns_later_row_keys_with_one_undo() {
     let (document, _) = two_row_fixture();
-    let (probe, root) = mount_selection_probe(
+    let (probe, root, _mounted) = mount_selection_probe(
         "matrix-transform-row-bend-test",
         document,
         row_context(0),
@@ -2433,7 +2444,7 @@ async fn inspector_row_bend_turns_later_row_keys_with_one_undo() {
 #[wasm_bindgen_test]
 async fn inspector_key_bend_carries_down_its_column_with_one_undo() {
     let (document, selected) = shift_grid_fixture();
-    let (probe, root) =
+    let (probe, root, _mounted) =
         mount_selection_probe("matrix-transform-key-bend-test", document, selected, &[]).await;
     settle(&probe).await;
     let revision = probe.runtime.model().accepted.unwrap().document.revision;
@@ -2489,7 +2500,7 @@ async fn inspector_key_bend_carries_down_its_column_with_one_undo() {
 #[wasm_bindgen_test]
 async fn inspector_spread_moves_later_columns_with_one_undo() {
     let (document, _) = two_key_fixture(false);
-    let (probe, root) = mount_selection_probe(
+    let (probe, root, _mounted) = mount_selection_probe(
         "matrix-transform-spread-test",
         document,
         column_context(1),
@@ -2553,7 +2564,7 @@ async fn inspector_spread_moves_later_columns_with_one_undo() {
 #[wasm_bindgen_test]
 async fn inspector_padding_moves_only_its_own_row_with_one_undo() {
     let (document, _) = two_row_fixture();
-    let (probe, root) = mount_selection_probe(
+    let (probe, root, _mounted) = mount_selection_probe(
         "matrix-transform-padding-test",
         document,
         row_context(1),
@@ -2624,7 +2635,7 @@ fn section_named(root: &web_sys::Element, name: &str) -> Option<web_sys::Element
 #[wasm_bindgen_test]
 async fn column_zero_hides_spread_with_an_accessible_reason() {
     let (document, _) = two_key_fixture(false);
-    let (probe, root) = mount_selection_probe(
+    let (probe, root, _mounted) = mount_selection_probe(
         "matrix-transform-no-spread-test",
         document,
         column_context(0),
@@ -2654,7 +2665,7 @@ async fn column_zero_hides_spread_with_an_accessible_reason() {
 #[wasm_bindgen_test]
 async fn row_zero_hides_padding_with_an_accessible_reason() {
     let (document, _) = two_row_fixture();
-    let (probe, root) = mount_selection_probe(
+    let (probe, root, _mounted) = mount_selection_probe(
         "matrix-transform-no-padding-test",
         document,
         row_context(0),
@@ -2685,7 +2696,7 @@ async fn row_zero_hides_padding_with_an_accessible_reason() {
 #[wasm_bindgen_test]
 async fn default_spread_shows_the_pitch_badge_and_explicit_spread_does_not() {
     let (document, _) = two_key_fixture(false);
-    let (probe, root) = mount_selection_probe(
+    let (probe, root, _mounted) = mount_selection_probe(
         "matrix-transform-spread-badge-test",
         document,
         column_context(1),
@@ -2740,7 +2751,7 @@ async fn default_spread_shows_the_pitch_badge_and_explicit_spread_does_not() {
 #[wasm_bindgen_test]
 async fn carried_and_this_only_sections_group_the_named_fields() {
     let (document, _) = two_key_fixture(false);
-    let (probe, root) = mount_selection_probe(
+    let (probe, root, _mounted) = mount_selection_probe(
         "matrix-transform-sections-test",
         document,
         column_context(1),
@@ -2776,7 +2787,7 @@ async fn carried_and_this_only_sections_group_the_named_fields() {
 #[wasm_bindgen_test]
 async fn committed_shift_names_the_changed_field_with_one_undo() {
     let (document, _) = two_row_fixture();
-    let (probe, root) = mount_selection_probe(
+    let (probe, root, _mounted) = mount_selection_probe(
         "matrix-transform-status-test",
         document,
         row_context(0),
@@ -2823,7 +2834,7 @@ async fn committed_shift_names_the_changed_field_with_one_undo() {
 #[wasm_bindgen_test]
 async fn unfollowed_rotation_disables_the_rotation_field_with_a_reason() {
     let (document, context) = anchored_matrix_fixture(false);
-    let (probe, root) = mount_selection_probe(
+    let (probe, root, _mounted) = mount_selection_probe(
         "matrix-transform-rotation-follow-test",
         document,
         context,
@@ -2857,7 +2868,7 @@ async fn unfollowed_rotation_disables_the_rotation_field_with_a_reason() {
 #[wasm_bindgen_test]
 async fn followed_rotation_keeps_the_rotation_field_editable() {
     let (document, context) = anchored_matrix_fixture(true);
-    let (probe, root) = mount_selection_probe(
+    let (probe, root, _mounted) = mount_selection_probe(
         "matrix-transform-rotation-follow-control-test",
         document,
         context,
@@ -2884,7 +2895,7 @@ async fn followed_rotation_keeps_the_rotation_field_editable() {
 #[wasm_bindgen_test]
 async fn detach_clears_the_anchor_keeping_every_pose_with_one_undo() {
     let (document, context) = anchored_matrix_fixture(true);
-    let (probe, root) =
+    let (probe, root, _mounted) =
         mount_selection_probe("matrix-transform-detach-test", document, context, &[]).await;
     settle(&probe).await;
     let target = root
@@ -2990,7 +3001,7 @@ async fn detach_clears_the_anchor_keeping_every_pose_with_one_undo() {
 #[wasm_bindgen_test]
 async fn detach_proposal_confirms_the_named_local_exception_atomically() {
     let (document, context) = linked_detach_fixture();
-    let (probe, root) = mount_selection_probe(
+    let (probe, root, _mounted) = mount_selection_probe(
         "matrix-transform-detach-confirm-test",
         document,
         context,
@@ -3201,7 +3212,7 @@ async fn detach_proposal_confirms_the_named_local_exception_atomically() {
 #[wasm_bindgen_test]
 async fn follow_rotation_toggle_updates_the_anchor_with_one_undo() {
     let (document, context) = anchored_matrix_fixture(true);
-    let (probe, root) =
+    let (probe, root, _mounted) =
         mount_selection_probe("matrix-transform-follow-test", document, context, &[]).await;
     settle(&probe).await;
     let rotation = by_role_name(&root, "checkbox", "Follow rotation")
@@ -3349,7 +3360,7 @@ fn pick_anchor_fixture() -> (ProjectDoc, TreeContext) {
 #[wasm_bindgen_test]
 async fn anchor_pick_retargets_the_anchor_with_one_undo() {
     let (document, context) = pick_anchor_fixture();
-    let (probe, root) =
+    let (probe, root, _mounted) =
         mount_selection_probe("matrix-transform-anchor-pick-test", document, context, &[]).await;
     settle(&probe).await;
     let buttons = root.query_selector_all("button").unwrap();
@@ -3439,7 +3450,7 @@ async fn anchor_pick_retargets_the_anchor_with_one_undo() {
 #[wasm_bindgen_test]
 async fn anchor_pick_refuses_an_invalid_target_without_committing() {
     let (document, context) = pick_anchor_fixture();
-    let (probe, root) = mount_selection_probe(
+    let (probe, root, _mounted) = mount_selection_probe(
         "matrix-transform-anchor-pick-refusal-test",
         document,
         context,
@@ -3507,7 +3518,7 @@ async fn anchor_pick_refuses_an_invalid_target_without_committing() {
 #[wasm_bindgen_test]
 async fn key_selection_adds_an_anchored_matrix_with_one_undo() {
     let (document, context) = add_anchored_matrix_fixture();
-    let (probe, root) = mount_selection_probe(
+    let (probe, root, _mounted) = mount_selection_probe(
         "matrix-transform-add-anchored-test",
         document,
         context,
@@ -3800,7 +3811,7 @@ fn aggregate_anchor_three_key_fixture() -> (ProjectDoc, TreeContext) {
 #[wasm_bindgen_test]
 async fn aggregate_anchor_section_lists_part_links_that_navigate_without_writing() {
     let (document, context) = aggregate_anchor_fixture();
-    let (probe, root) = mount_selection_probe(
+    let (probe, root, _mounted) = mount_selection_probe(
         "matrix-transform-aggregate-parts-test",
         document,
         context,
@@ -3870,7 +3881,7 @@ async fn select_intersection_method(root: &web_sys::Element) {
 #[wasm_bindgen_test]
 async fn aggregate_method_switch_writes_one_intent_with_one_undo() {
     let (document, context) = aggregate_anchor_fixture();
-    let (probe, root) = mount_selection_probe(
+    let (probe, root, _mounted) = mount_selection_probe(
         "matrix-transform-aggregate-method-test",
         document,
         context,
@@ -3965,7 +3976,7 @@ async fn aggregate_method_switch_writes_one_intent_with_one_undo() {
 #[wasm_bindgen_test]
 async fn aggregate_part_remove_writes_one_intent_with_one_undo() {
     let (document, context) = aggregate_anchor_fixture();
-    let (probe, root) = mount_selection_probe(
+    let (probe, root, _mounted) = mount_selection_probe(
         "matrix-transform-aggregate-remove-test",
         document,
         context,
@@ -4117,7 +4128,7 @@ fn picked_text(root: &web_sys::Element) -> Option<String> {
 #[wasm_bindgen_test]
 async fn aggregate_multi_pick_adds_pending_parts_and_esc_cancels_without_writing() {
     let (document, context) = aggregate_anchor_three_key_fixture();
-    let (probe, root) = mount_selection_probe(
+    let (probe, root, _mounted) = mount_selection_probe(
         "matrix-transform-aggregate-pick-test",
         document,
         context,
@@ -4180,7 +4191,7 @@ async fn aggregate_multi_pick_adds_pending_parts_and_esc_cancels_without_writing
 #[wasm_bindgen_test]
 async fn aggregate_multi_pick_commit_writes_one_intent_with_one_undo() {
     let (document, context) = aggregate_anchor_three_key_fixture();
-    let (probe, root) = mount_selection_probe(
+    let (probe, root, _mounted) = mount_selection_probe(
         "matrix-transform-aggregate-commit-test",
         document,
         context,
@@ -4284,7 +4295,7 @@ async fn aggregate_multi_pick_commit_writes_one_intent_with_one_undo() {
 #[wasm_bindgen_test]
 async fn aggregate_commit_with_self_part_refuses_through_core() {
     let (document, context) = aggregate_anchor_fixture();
-    let (probe, root) = mount_selection_probe(
+    let (probe, root, _mounted) = mount_selection_probe(
         "matrix-transform-aggregate-refusal-test",
         document,
         context,
@@ -4399,7 +4410,7 @@ fn aggregate_method_of(probe: &Probe) -> AggregateMethod {
 #[wasm_bindgen_test]
 async fn aggregate_method_switch_commits_with_redo_and_pose_round_trip() {
     let (document, context) = aggregate_anchor_fixture();
-    let (probe, root) = mount_selection_probe(
+    let (probe, root, _mounted) = mount_selection_probe(
         "matrix-transform-aggregate-36-method-test",
         document,
         context,
@@ -4475,7 +4486,7 @@ async fn aggregate_method_switch_commits_with_redo_and_pose_round_trip() {
 #[wasm_bindgen_test]
 async fn aggregate_part_remove_updates_dependant_pose_with_undo_round_trip() {
     let (document, context) = aggregate_anchor_fixture();
-    let (probe, root) = mount_selection_probe(
+    let (probe, root, _mounted) = mount_selection_probe(
         "matrix-transform-aggregate-36-parts-test",
         document,
         context,
@@ -4904,10 +4915,7 @@ async fn mirror_key_omit_checkbox_toggles_half_exception() {
     document.body().unwrap().append_child(&root).unwrap();
     let dom = VirtualDom::new(matrix_transform_host);
     dom.provide_root_context(probe.clone());
-    dioxus_web::launch::launch_virtual_dom(
-        dom,
-        dioxus_web::Config::new().rootnode(root.clone().into()),
-    );
+    let _mounted = MountedFixture::new(root.clone(), dom);
     settle(&probe).await;
     let before_revision = probe
         .runtime

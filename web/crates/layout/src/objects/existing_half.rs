@@ -760,6 +760,7 @@ pub fn ExistingHalfSetup(props: ExistingHalfProps) -> Element {
 #[cfg(test)]
 mod adoption_tests {
     use super::*;
+    use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
     use wasm_bindgen::JsCast;
 
@@ -814,10 +815,8 @@ mod adoption_tests {
         document.head().unwrap().append_child(&stylesheet).unwrap();
         let root = document.create_element("div").unwrap();
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(form),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let mut mounted = MountedFixture::new(root.clone(), VirtualDom::new(form));
+        mounted.own_node(stylesheet.clone());
         wait_until("Mirror dock mounts", || {
             by_role_name(&root, "region", "Mirror existing half").is_some()
         })
@@ -858,10 +857,7 @@ mod adoption_tests {
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(form),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), VirtualDom::new(form));
         wait_until("actual Mirror form mounts", || {
             by_role_name(&root, "spinbutton", "Mirror axis X").is_some()
         })

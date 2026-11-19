@@ -247,6 +247,7 @@ mod tests {
     use super::*;
     use boardstudio_application::SessionEpoch;
     use boardstudio_core::model::{Board, Part, Pose2, Scope as FindingScope, Side, Vec2};
+    use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
     use std::cell::RefCell;
     use wasm_bindgen_test::wasm_bindgen_test;
@@ -385,27 +386,24 @@ mod tests {
         }
     }
 
-    async fn mount(root_id: &str, host: Host) -> web_sys::Element {
+    async fn mount(root_id: &str, host: Host) -> (web_sys::Element, MountedFixture) {
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         root.set_id(root_id);
         document.body().unwrap().append_child(&root).unwrap();
         let dom = VirtualDom::new(findings_host);
         dom.provide_root_context(host);
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let mounted = MountedFixture::new(root.clone(), dom);
         wait_until("the actual findings Inspector mounts", || {
             by_role_name(&root, "button", "Back to selection").is_some()
         })
         .await;
-        root
+        (root, mounted)
     }
 
     #[wasm_bindgen_test]
     async fn findings_navigation_and_heading_keep_their_layout_without_legacy_classes() {
-        let root = mount(
+        let (root, mut mounted) = mount(
             "findings-layout-test-root",
             Host {
                 document: Rc::new(document()),
@@ -422,6 +420,7 @@ mod tests {
             include_str!("../../../assets/tailwind.css")
         )));
         document.head().unwrap().append_child(&stylesheet).unwrap();
+        mounted.own_node(stylesheet.clone());
         let back = by_role_name(&root, "button", "Back to selection").unwrap();
         let navigation = back.parent_element().unwrap();
         let heading = document
@@ -471,7 +470,7 @@ mod tests {
 
     #[wasm_bindgen_test]
     async fn findings_footer_stays_compact_without_legacy_classes() {
-        let root = mount(
+        let (root, mut mounted) = mount(
             "findings-footer-layout-test-root",
             Host {
                 document: Rc::new(document()),
@@ -484,6 +483,7 @@ mod tests {
         let stylesheet = document.create_element("style").unwrap();
         stylesheet.set_text_content(Some(include_str!("../../../assets/tailwind.css")));
         document.head().unwrap().append_child(&stylesheet).unwrap();
+        mounted.own_node(stylesheet.clone());
         let button = by_role_name(&root, "button", "Layout findings: 0").unwrap();
         let classes = button.get_attribute("class").unwrap_or_default();
         button
@@ -510,7 +510,7 @@ mod tests {
     #[wasm_bindgen_test]
     async fn finding_action_is_rendered_only_for_a_live_target_and_a_stale_target_has_none() {
         let requests = Rc::new(RefCell::new(Vec::new()));
-        let live = mount(
+        let (live, _live_mounted) = mount(
             "layout-findings-live-test-root",
             Host {
                 document: Rc::new(document()),
@@ -542,7 +542,7 @@ mod tests {
         stale_document.parts.retain(|part| part.id != "left-part");
         stale_document.boards[0].part_ids.clear();
         let stale_requests = Rc::new(RefCell::new(Vec::new()));
-        let stale = mount(
+        let (stale, _stale_mounted) = mount(
             "layout-findings-stale-test-root",
             Host {
                 document: Rc::new(stale_document),
@@ -571,7 +571,7 @@ mod tests {
         moved_document.boards[0].part_ids.clear();
         moved_document.boards[1].part_ids.push("left-part".into());
         let moved_requests = Rc::new(RefCell::new(Vec::new()));
-        let moved = mount(
+        let (moved, _moved_mounted) = mount(
             "layout-findings-moved-test-root",
             Host {
                 document: Rc::new(moved_document),
@@ -600,7 +600,7 @@ mod tests {
         accepted_document.boards[1].part_ids = vec!["right/U1".into()];
         accepted_document.parts[1].id = "right/U1".into();
         accepted_document.parts[1].reference = "right-U1".into();
-        let preview = mount(
+        let (preview, _mounted) = mount(
             "layout-findings-preview-electrical-test-root",
             Host {
                 document: Rc::new(accepted_document),

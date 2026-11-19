@@ -158,6 +158,7 @@ fn finite_positive(value: f64) -> Option<f64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use wasm_bindgen_test::wasm_bindgen_test;
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
@@ -187,10 +188,8 @@ mod tests {
         document.head().unwrap().append_child(&stylesheet).unwrap();
         let root = document.create_element("div").unwrap();
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(snap_dock_fixture),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let mut mounted = MountedFixture::new(root.clone(), VirtualDom::new(snap_dock_fixture));
+        mounted.own_node(stylesheet.clone());
         wait_until("snap trigger", || {
             by_role_name(&root, "button", "Snap").is_some()
         })
@@ -236,10 +235,7 @@ mod tests {
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(snap_dock_fixture),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), VirtualDom::new(snap_dock_fixture));
         wait_until("snap trigger", || {
             by_role_name(&root, "button", "Snap").is_some()
         })
@@ -292,10 +288,7 @@ mod tests {
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(snap_options_instances),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), VirtualDom::new(snap_options_instances));
         gloo_timers::future::TimeoutFuture::new(40).await;
         let mut ids = std::collections::HashSet::new();
         for name in ["Geometry snap", "Envelope gap"] {
@@ -337,10 +330,7 @@ mod tests {
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(direct_selection_fixture),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), VirtualDom::new(direct_selection_fixture));
         gloo_timers::future::TimeoutFuture::new(40).await;
         for kind in LayoutSelectionKind::ALL {
             let button = boardstudio_web_ui_shared::test_role::by_role_name(
@@ -464,26 +454,26 @@ mod tests {
             .count()
     }
 
-    async fn mount_pill(open: Option<LayoutCommandMenu>) -> web_sys::Element {
+    async fn mount_pill(open: Option<LayoutCommandMenu>) -> (web_sys::Element, MountedFixture) {
         mount_pill_with_tools(open, true).await
     }
 
     async fn mount_pill_with_tools(
         open: Option<LayoutCommandMenu>,
         tools: bool,
-    ) -> web_sys::Element {
+    ) -> (web_sys::Element, MountedFixture) {
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
+        let mounted = MountedFixture::new(
+            root.clone(),
             VirtualDom::new_with_props(
                 pill_duplicate_probe_host,
                 PillDuplicateProbeProps { open, tools },
             ),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         gloo_timers::future::TimeoutFuture::new(40).await;
-        root
+        (root, mounted)
     }
 
     fn scope_trigger(root: &web_sys::Element, kind: &str) -> web_sys::HtmlElement {
@@ -501,7 +491,7 @@ mod tests {
 
     #[wasm_bindgen_test]
     async fn column_tools_appear_once_when_transform_popover_opens() {
-        let root = mount_pill(Some(LayoutCommandMenu::Transform)).await;
+        let (root, _mounted) = mount_pill(Some(LayoutCommandMenu::Transform)).await;
         root.query_selector("#pill-probe-open")
             .unwrap()
             .unwrap()
@@ -521,7 +511,7 @@ mod tests {
 
     #[wasm_bindgen_test]
     async fn scope_popover_keeps_hint_when_nothing_selected() {
-        let root = mount_pill_with_tools(Some(LayoutCommandMenu::Select), false).await;
+        let (root, _mounted) = mount_pill_with_tools(Some(LayoutCommandMenu::Select), false).await;
         click(
             &root
                 .query_selector("#pill-probe-open")
@@ -545,7 +535,7 @@ mod tests {
 
     #[wasm_bindgen_test]
     async fn column_scope_trigger_opens_migration_actions_when_tools_visible() {
-        let root = mount_pill(Some(LayoutCommandMenu::Select)).await;
+        let (root, _mounted) = mount_pill(Some(LayoutCommandMenu::Select)).await;
         click(&scope_trigger(&root, "Column")).await;
         let dialog =
             boardstudio_web_ui_shared::test_role::by_role_name(&root, "dialog", "Column actions")
@@ -607,10 +597,8 @@ mod tests {
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(scope_reselect_probe_host),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted =
+            MountedFixture::new(root.clone(), VirtualDom::new(scope_reselect_probe_host));
         gloo_timers::future::TimeoutFuture::new(40).await;
         click(&scope_trigger(&root, "Column")).await;
         assert!(

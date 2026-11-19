@@ -2903,6 +2903,7 @@ mod tests {
         use crate::runtime::project_name_test_support as support;
         use boardstudio_web_runtime::edit_ticket::EditTicket;
         use boardstudio_web_runtime::edit_ticket::Settlement;
+        use boardstudio_web_ui_shared::test_mount::MountedFixture;
         use wasm_bindgen::JsCast;
         use wasm_bindgen_test::wasm_bindgen_test;
 
@@ -2968,7 +2969,11 @@ mod tests {
 
         async fn mount_matrix_inspector(
             runtime: Rc<Runtime>,
-        ) -> (MountedMatrixInspectorProbe, web_sys::Element) {
+        ) -> (
+            MountedMatrixInspectorProbe,
+            web_sys::Element,
+            MountedFixture,
+        ) {
             let scope = runtime.scope().expect("matrix fixture has active scope");
             let probe = MountedMatrixInspectorProbe {
                 runtime,
@@ -2984,12 +2989,9 @@ mod tests {
             document.body().unwrap().append_child(&root).unwrap();
             let dom = VirtualDom::new(mounted_matrix_inspector_host);
             dom.provide_root_context(probe.clone());
-            dioxus_web::launch::launch_virtual_dom(
-                dom,
-                dioxus_web::Config::new().rootnode(root.clone().into()),
-            );
+            let mounted = MountedFixture::new(root.clone(), dom);
             gloo_timers::future::TimeoutFuture::new(5).await;
-            (probe, root)
+            (probe, root, mounted)
         }
 
         fn button_named(root: &web_sys::Element, name: &str) -> web_sys::HtmlElement {
@@ -3143,7 +3145,7 @@ mod tests {
         #[wasm_bindgen_test]
         async fn mounted_delete_stays_disabled_until_saved_then_clears_its_exact_selection() {
             let runtime = fixture::open_matrix_runtime().await;
-            let (probe, root) = mount_matrix_inspector(runtime.clone()).await;
+            let (probe, root, _mounted) = mount_matrix_inspector(runtime.clone()).await;
             let (entered, release) = support::gate_next_core_reply(&runtime);
 
             button_named(&root, "Delete matrix").click();
@@ -3192,7 +3194,7 @@ mod tests {
         #[wasm_bindgen_test]
         async fn mounted_delete_does_not_clear_a_newer_outline_selection() {
             let runtime = fixture::open_matrix_runtime().await;
-            let (probe, root) = mount_matrix_inspector(runtime.clone()).await;
+            let (probe, root, _mounted) = mount_matrix_inspector(runtime.clone()).await;
             let (entered, release) = support::gate_next_core_reply(&runtime);
 
             button_named(&root, "Delete matrix").click();
@@ -3234,7 +3236,7 @@ mod tests {
         #[wasm_bindgen_test]
         async fn current_matrix_owner_still_reports_a_held_delete_save_failure() {
             let runtime = fixture::open_matrix_runtime().await;
-            let (probe, root) = mount_matrix_inspector(runtime.clone()).await;
+            let (probe, root, _mounted) = mount_matrix_inspector(runtime.clone()).await;
             let (core_entered, release_core) = support::gate_next_core_reply(&runtime);
 
             button_named(&root, "Delete matrix").click();
@@ -3266,7 +3268,7 @@ mod tests {
         #[wasm_bindgen_test]
         async fn mounted_field_failure_stays_inline_beside_a_newer_draft() {
             let runtime = fixture::open_matrix_runtime().await;
-            let (probe, root) = mount_matrix_inspector(runtime.clone()).await;
+            let (probe, root, _mounted) = mount_matrix_inspector(runtime.clone()).await;
             let rows = matrix_input(&root, "Rows");
             let (entered, release) = support::gate_next_core_reply(&runtime);
 
@@ -3331,7 +3333,7 @@ mod tests {
         #[wasm_bindgen_test]
         async fn changing_name_target_resets_the_actual_mounted_name_draft() {
             let runtime = fixture::open_matrix_runtime().await;
-            let (probe, root) = mount_matrix_inspector(runtime.clone()).await;
+            let (probe, root, _mounted) = mount_matrix_inspector(runtime.clone()).await;
             let matrix_name = matrix_input(&root, "Matrix name");
             type_matrix_input(&matrix_name, "Old matrix draft");
             let mut replacement = (*runtime
@@ -3408,7 +3410,7 @@ mod tests {
             other_matrix.cells.clear();
             document.matrices.push(other_matrix);
             support::open_document(&runtime, document).await;
-            let (probe, root) = mount_matrix_inspector(runtime.clone()).await;
+            let (probe, root, _mounted) = mount_matrix_inspector(runtime.clone()).await;
             let cases = [
                 ("Matrix name", "Draft A", "Same"),
                 ("Rows", "8", "1"),
@@ -3471,7 +3473,7 @@ mod tests {
         #[wasm_bindgen_test]
         async fn same_owner_revision_keeps_the_mounted_uncommitted_name_draft() {
             let runtime = fixture::open_matrix_runtime().await;
-            let (probe, root) = mount_matrix_inspector(runtime.clone()).await;
+            let (probe, root, _mounted) = mount_matrix_inspector(runtime.clone()).await;
             let name = matrix_input(&root, "Matrix name");
             type_matrix_input(&name, "Uncommitted matrix name");
 
@@ -3525,7 +3527,7 @@ mod tests {
         #[wasm_bindgen_test]
         async fn hidden_retired_field_does_not_restore_old_draft_after_real_landing() {
             let runtime = fixture::open_matrix_runtime().await;
-            let (probe, root) = mount_matrix_inspector(runtime.clone()).await;
+            let (probe, root, _mounted) = mount_matrix_inspector(runtime.clone()).await;
             let rows = matrix_input(&root, "Rows");
             let (entered, release) = support::gate_next_core_reply(&runtime);
 
@@ -3671,7 +3673,7 @@ mod tests {
         async fn mounted_unlink_halves_confirms_then_clears_link_with_one_undo() {
             let runtime = support::new_runtime();
             support::open_document(&runtime, linked_unlink_document()).await;
-            let (probe, root) = mount_matrix_inspector(runtime.clone()).await;
+            let (probe, root, _mounted) = mount_matrix_inspector(runtime.clone()).await;
             gloo_timers::future::TimeoutFuture::new(10).await;
             let revision_before = runtime
                 .model()

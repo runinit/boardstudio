@@ -8,6 +8,7 @@ use boardstudio_application::{
 use boardstudio_core::CoreEngine;
 use boardstudio_core::model::Vec2;
 use boardstudio_core::model::{Part, Pose2, Side};
+use boardstudio_web_ui_shared::test_mount::MountedFixture;
 use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
 use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::JsCast;
@@ -108,7 +109,7 @@ fn projection(owner: KeySizeOwner, ids: &[&str], sizes: &[f64]) -> KeySizeProjec
 fn mounted(
     initial: KeySizeProjection,
     feedback: Option<KeySizeFeedback>,
-) -> (Probe, web_sys::Element) {
+) -> (Probe, web_sys::Element, MountedFixture) {
     let owner = initial.owner.clone();
     let probe = Probe {
         projection: Rc::new(RefCell::new(initial)),
@@ -122,11 +123,8 @@ fn mounted(
     document.body().unwrap().append_child(&root).unwrap();
     let dom = VirtualDom::new(host);
     dom.provide_root_context(probe.clone());
-    dioxus_web::launch::launch_virtual_dom(
-        dom,
-        dioxus_web::Config::new().rootnode(root.clone().into()),
-    );
-    (probe, root)
+    let mounted = MountedFixture::new(root.clone(), dom);
+    (probe, root, mounted)
 }
 
 #[wasm_bindgen_test]
@@ -147,7 +145,8 @@ async fn key_size_preview_keeps_its_geometry_without_legacy_classes() {
         &["a"],
         1,
     );
-    let (_, root) = mounted(projection(key_owner, &["a"], &[18.0]), None);
+    let (_, root, mut mounted) = mounted(projection(key_owner, &["a"], &[18.0]), None);
+    mounted.own_node(stylesheet.clone());
     wait_until("key size mounts", || {
         root.query_selector("section[aria-label='Key size']")
             .unwrap()
@@ -242,7 +241,7 @@ async fn size_selection_is_submitted_once_for_its_owner_before_selection_changes
         &["c", "d"],
         2,
     );
-    let (probe, root) = mounted(
+    let (probe, root, _mounted) = mounted(
         projection(first_owner.clone(), &["a", "b"], &[18.0, 18.0]),
         None,
     );
@@ -615,7 +614,7 @@ async fn size_selector_and_rotate_checkbox_submit_through_the_same_owner() {
         &["a"],
         1,
     );
-    let (probe, root) = mounted(projection(first_owner.clone(), &["a"], &[18.0]), None);
+    let (probe, root, _mounted) = mounted(projection(first_owner.clone(), &["a"], &[18.0]), None);
     rendered(20).await;
     change_size(&root, "2").await;
     rendered(20).await;
@@ -655,7 +654,8 @@ async fn feedback_from_another_selection_is_not_shown_in_the_inspector() {
         field: KeySizeField::Width,
         message: Some("Old selection failed".into()),
     };
-    let (probe, root) = mounted(projection(first_owner, &["a"], &[18.0]), Some(old_feedback));
+    let (probe, root, _mounted) =
+        mounted(projection(first_owner, &["a"], &[18.0]), Some(old_feedback));
     rendered(20).await;
     *probe.live_owner.borrow_mut() = second_owner.clone();
     *probe.projection.borrow_mut() = projection(second_owner.clone(), &["b"], &[18.0]);
@@ -816,7 +816,7 @@ async fn overlap_status_matches_react_selection_deduplication_and_truncation() {
     );
     let mut initial = projection(current_owner, &["part-0"], &[18.0]);
     initial.overlap_references = labels;
-    let (_probe, root) = mounted(initial, None);
+    let (_probe, root, _mounted) = mounted(initial, None);
     rendered(20).await;
     assert!(
         element(&root, "[role='status']")
@@ -1126,10 +1126,7 @@ async fn size_selector_tracks_accepted_undo_redo_and_failed_edit_feedback() {
     document.body().unwrap().append_child(&root).unwrap();
     let dom = VirtualDom::new(runtime_host);
     dom.provide_root_context(probe.clone());
-    dioxus_web::launch::launch_virtual_dom(
-        dom,
-        dioxus_web::Config::new().rootnode(root.clone().into()),
-    );
+    let _mounted = MountedFixture::new(root.clone(), dom);
     rendered(30).await;
     change_size(&root, "2").await;
     for _ in 0..50 {

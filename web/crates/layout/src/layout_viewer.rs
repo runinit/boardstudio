@@ -497,6 +497,7 @@ fn finding_focus_ids_for_target(
 mod mounted_keycaps_preview_tests {
     use super::*;
     use crate::presentation::selection::SelectionAdapter;
+    use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use futures_channel::oneshot;
     use gloo_timers::future::TimeoutFuture;
     use std::{cell::RefCell, collections::VecDeque};
@@ -648,10 +649,7 @@ mod mounted_keycaps_preview_tests {
         let dom = dioxus::prelude::VirtualDom::new(mounted_preview_host);
         dom.provide_root_context(probe.clone());
         dom.provide_root_context(provider);
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
 
         let initial = next_preview(&requests).await;
         assert_eq!(initial.input.scope.board_id, "left");
