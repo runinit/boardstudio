@@ -292,6 +292,14 @@ class ReceiptBoundaryTests(unittest.TestCase):
         self.assertIsNone(second["exit_code"])
         self.assertEqual(built["invocation"]["not_run_commands"][0]["command"], plan[1][1])
 
+    def test_page_prebuild_is_accepted_without_a_page_result(self):
+        command = check.PAGE_TEST_BUILD
+        built = receipt.build_receipt([("build", command)], [observation("build", command, "")],
+                                      source={"revision": "abc", "dirty": False}, exit_code=0, partial=True)
+        self.assertEqual(built["commands"][0]["scope"], receipt.OTHER)
+        self.assertTrue(built["commands"][0]["passed"])
+        self.assertTrue(built["invocation"]["accepted"])
+
     def test_page_suite_keeps_raw_failures_and_known_exclusions_separate(self):
         plan = [("browser", PAGE_COMMAND)]
         built = receipt.build_receipt(plan, [observation("browser", PAGE_COMMAND, "")],

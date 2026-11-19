@@ -739,3 +739,11 @@ text_literal_escaping::pad_row_labels_and_reference_are_literal_on_front_and_bac
 text_literal_escaping::plain_text_controls_keep_their_existing_output -> footprints_integration::text_literal_escaping::plain_text_controls_keep_their_existing_output
 text_literal_escaping::smd_labels_and_reference_are_literal_on_front_and_back -> footprints_integration::text_literal_escaping::smd_labels_and_reference_are_literal_on_front_and_back
 ```
+
+## J. Follow-up implementation
+
+### J1. Classify the page prebuild as a build command
+
+Treat `run-wasm-tests.py --build-only` like the other prebuilds in a receipt.
+Its exit status determines success. Page suite launches still require a fresh
+result, and the receipt summary includes only those launches as page evidence.
