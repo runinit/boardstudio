@@ -61,7 +61,7 @@ pub struct SetupGuideStageStatus {
     pub detail: String,
 }
 
-fn sync_stage_trigger(stage: SetupGuideStage) {
+fn sync_stage_trigger(root: web_sys::Element, stage: SetupGuideStage) {
     let index = match stage {
         SetupGuideStage::Project => 0,
         SetupGuideStage::Layout => 1,
@@ -70,18 +70,15 @@ fn sync_stage_trigger(stage: SetupGuideStage) {
         SetupGuideStage::Review => 4,
     };
     // Accordion exposes default_open only, so sync after Dioxus commits the new stage.
-    wasm_bindgen_futures::spawn_local(async move {
+    spawn(async move {
         gloo_timers::future::TimeoutFuture::new(0).await;
-        if let Some(trigger) = web_sys::window()
-            .and_then(|window| window.document())
-            .and_then(|document| {
-                document
-                    .query_selector(&format!("[aria-controls='m1-setup-panel-{index}']"))
-                    .ok()
-                    .flatten()
-            })
-            .and_then(|element| element.dyn_into::<web_sys::HtmlElement>().ok())
-            && trigger.get_attribute("aria-expanded").as_deref() != Some("true")
+        // A click can change stages before this task runs. Opening the old
+        // stage's trigger would dispatch another navigation and undo that click.
+        let selector = format!(
+            "[aria-controls='m1-setup-panel-{index}'][aria-current='step'][aria-expanded='false']"
+        );
+        if let Ok(Some(trigger)) = root.query_selector(&selector)
+            && let Ok(trigger) = trigger.dyn_into::<web_sys::HtmlElement>()
         {
             trigger.click();
         }
@@ -298,9 +295,12 @@ pub fn ProjectSetupGuide(
     project_controls: Option<Element>,
 ) -> Element {
     let mut expanded = use_signal(|| Some(stage));
+    let mut guide_root = use_signal(|| None::<web_sys::Element>);
     use_effect(use_reactive((&stage,), move |(stage,)| {
         expanded.set(Some(stage));
-        sync_stage_trigger(stage);
+        if let Some(root) = guide_root() {
+            sync_stage_trigger(root, stage);
+        }
     }));
     let stage_change = on_stage_change;
     let footer = match stage {
@@ -326,6 +326,9 @@ pub fn ProjectSetupGuide(
     let mut expanded_for_trigger = expanded;
     rsx! {
             aside { class: "grid min-h-0 min-w-0 flex-1 grid-rows-[auto_minmax(0,1fr)_auto] content-start gap-3 overflow-hidden bg-card p-4 text-foreground [&_button]:min-h-control-touch", "aria-label": "Project setup guide",
+            onmounted: move |event| {
+                guide_root.set(event.data().downcast::<web_sys::Element>().cloned());
+            },
             onkeydown: move |event: KeyboardEvent| {
                 if event.key().to_string() == " " {
                     event.stop_propagation();
