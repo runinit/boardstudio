@@ -202,6 +202,24 @@ class QuickPlanTests(unittest.TestCase):
         with mock.patch.object(quick.subprocess, "run", side_effect=fake):
             self.assertEqual(quick.changed_files(ROOT), ["a.rs", "b.rs", "c.rs"])
 
+    def test_quick_plans_never_emit_split_or_combined_build_commands(self):
+        selections = (
+            ["Cargo.lock"],
+            ["web/crates/keymap/src/lib.rs"],
+            ["web/src/presentation/a.rs"],
+            ["core/src/lib.rs"],
+        )
+        for files in selections:
+            with self.subTest(files=files):
+                plan = check.quick_plan(quick.select(files, PACKAGES), PACKAGES)
+                for name, commands in plan:
+                    self.assertNotEqual(name, "build")
+                    for command in commands:
+                        self.assertNotIn("--phase", command)
+                        if check.is_crate_build(command):
+                            self.assertNotIn("--bin", command)
+                            self.assertNotIn(check.PAGE_PACKAGE, command)
+
 
 if __name__ == "__main__":
     unittest.main()

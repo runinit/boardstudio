@@ -54,6 +54,8 @@ class CheckTests(unittest.TestCase):
         page_dx = mock.patch.object(build_web, "matching_dx", return_value="/tools/dx")
         self.page_dx = page_dx.start()
         self.addCleanup(page_dx.stop)
+        check._PAGE_TEST_ARTIFACT = None
+        self.addCleanup(setattr, check, "_PAGE_TEST_ARTIFACT", None)
 
     def fake_wasm_build(self, command):
         if not check.is_crate_build(command):
@@ -62,7 +64,17 @@ class CheckTests(unittest.TestCase):
         for idx, arg in enumerate(command[:-1]):
             if arg != "-p":
                 continue
-            crate = command[idx + 1].removeprefix("boardstudio-web-")
+            package = command[idx + 1]
+            if package == check.PAGE_PACKAGE:
+                binary = self.wasm_dir / "page.wasm"
+                binary.touch()
+                lines.append(json.dumps({
+                    "reason": "compiler-artifact", "manifest_path": str(ROOT / "web/Cargo.toml"),
+                    "profile": {"test": True}, "target": {"kind": ["bin"], "name": "boardstudio-web"},
+                    "executable": str(binary),
+                }))
+                continue
+            crate = package.removeprefix("boardstudio-web-")
             binary = self.wasm_dir / f"{crate}.wasm"
             binary.touch()
             lines.append(json.dumps({
@@ -767,44 +779,128 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
             self.assertFalse(check.run_commands("build", commands, {})[1])
         self.assertEqual([call.args[0] for call in run.call_args_list], commands[:2])
 
-    def test_build_prebuilds_overlap_in_two_ordered_lanes(self):
+    def test_build_splits_page_staging_and_combines_the_wasm_prebuilds(self):
         commands = check.STEPS["build"][1]
-        barrier = threading.Barrier(2, timeout=5)
+        combined = check.combined_wasm_prebuild(check.BROWSER_CRATE_BUILD)
+        self.assertIsNotNone(combined)
+        stage = [check.PY, "scripts/build-web.py", "--fast", "--phase", "stage"]
+        barrier = threading.Barrier(3, timeout=5)
         seen = []
         output = io.StringIO()
 
         def serial(command, environment, *args, **kwargs):
-            self.assertEqual(command, commands[0])
-            seen.append("css")
+            self.assertEqual(command, [check.PY, "scripts/build-web.py", "--fast", "--phase", "cargo"])
+            seen.append("cargo")
             return 0.0, 0, "", ""
 
         def launch(command, **kwargs):
             self.assertEqual(kwargs["env"]["CARGO_PROFILE_DEV_DEBUG"], "false")
             seen.append(command)
-            if command in (check.BROWSER_CRATE_BUILD, check.HARNESS_BUILD):
-                barrier.wait()
-            if command == check.PAGE_TEST_BUILD:
-                self.assertIn(check.BROWSER_CRATE_BUILD, seen)
-            return subprocess.CompletedProcess(command, 0, stdout=f"payload {commands.index(command)}\n")
+            barrier.wait()
+            label = {tuple(stage): "stage", tuple(combined): "combined",
+                     tuple(check.HARNESS_BUILD): "harness"}[tuple(command)]
+            return subprocess.CompletedProcess(command, 0, stdout=f"payload {label}\n")
 
         def fake_artifacts(text, _cwd, _crates, *, stream=None):
             print(text, end="", file=stream)
             return {}
 
         with mock.patch.object(check, "check_jobs", return_value=2), \
+             mock.patch.object(check, "plain_page_tools_available", return_value=True), \
+             mock.patch.object(check, "run_serial", side_effect=serial), \
+             mock.patch.object(check, "launch_command", side_effect=launch), \
+             mock.patch.object(check, "crate_test_artifacts", side_effect=fake_artifacts), \
+             mock.patch.object(check, "page_test_artifact", return_value=Path("/fake/page.wasm")), \
+             contextlib.redirect_stdout(output):
+            self.assertTrue(check.run_commands("build", commands, {})[1])
+        self.assertEqual(seen[0], "cargo")
+        self.assertCountEqual(seen[1:], [stage, combined, check.HARNESS_BUILD])
+        self.assertNotIn(check.PAGE_TEST_BUILD, seen)
+        self.assertEqual([line for line in output.getvalue().splitlines() if line.startswith("payload")],
+                         ["payload stage", "payload combined", "payload harness"])
+
+    def test_build_without_plain_page_tools_combines_prebuilds_after_a_serial_page(self):
+        commands = check.STEPS["build"][1]
+        combined = check.combined_wasm_prebuild(check.BROWSER_CRATE_BUILD)
+        self.assertIsNotNone(combined)
+        barrier = threading.Barrier(2, timeout=5)
+        seen = []
+        output = io.StringIO()
+
+        def serial(command, environment, *args, **kwargs):
+            self.assertEqual(command, commands[0])
+            seen.append("page")
+            return 0.0, 0, "", ""
+
+        def launch(command, **kwargs):
+            self.assertEqual(kwargs["env"]["CARGO_PROFILE_DEV_DEBUG"], "false")
+            seen.append(command)
+            barrier.wait()
+            label = {tuple(combined): "combined", tuple(check.HARNESS_BUILD): "harness"}[tuple(command)]
+            return subprocess.CompletedProcess(command, 0, stdout=f"payload {label}\n")
+
+        def fake_artifacts(text, _cwd, _crates, *, stream=None):
+            print(text, end="", file=stream)
+            return {}
+
+        with mock.patch.object(check, "check_jobs", return_value=2), \
+             mock.patch.object(check, "plain_page_tools_available", return_value=False), \
+             mock.patch.object(check, "run_serial", side_effect=serial), \
+             mock.patch.object(check, "launch_command", side_effect=launch), \
+             mock.patch.object(check, "crate_test_artifacts", side_effect=fake_artifacts), \
+             mock.patch.object(check, "page_test_artifact", return_value=Path("/fake/page.wasm")), \
+             contextlib.redirect_stdout(output):
+            self.assertTrue(check.run_commands("build", commands, {})[1])
+        self.assertEqual(seen[0], "page")
+        self.assertCountEqual(seen[1:], [combined, check.HARNESS_BUILD])
+        self.assertNotIn(check.PAGE_TEST_BUILD, seen)
+        self.assertEqual([line for line in output.getvalue().splitlines() if line.startswith("payload")],
+                         ["payload combined", "payload harness"])
+
+    def test_build_keeps_serial_wasm_prebuilds_when_combining_rejects_drift(self):
+        commands = check.STEPS["build"][1]
+        stage = [check.PY, "scripts/build-web.py", "--fast", "--phase", "stage"]
+        barrier = threading.Barrier(3, timeout=5)
+        seen = []
+        output = io.StringIO()
+
+        def serial(command, environment, *args, **kwargs):
+            self.assertEqual(command, [check.PY, "scripts/build-web.py", "--fast", "--phase", "cargo"])
+            seen.append("cargo")
+            return 0.0, 0, "", ""
+
+        def launch(command, **kwargs):
+            seen.append(command)
+            if command in (stage, check.BROWSER_CRATE_BUILD, check.HARNESS_BUILD):
+                barrier.wait()
+            if command == check.PAGE_TEST_BUILD:
+                self.assertIn(check.BROWSER_CRATE_BUILD, seen)
+            label = "stage" if command == stage else commands.index(command)
+            return subprocess.CompletedProcess(command, 0, stdout=f"payload {label}\n")
+
+        def fake_artifacts(text, _cwd, _crates, *, stream=None):
+            print(text, end="", file=stream)
+            return {}
+
+        with mock.patch.object(check, "check_jobs", return_value=2), \
+             mock.patch.object(check, "plain_page_tools_available", return_value=True), \
+             mock.patch.object(check, "combined_wasm_prebuild", return_value=None), \
              mock.patch.object(check, "run_serial", side_effect=serial), \
              mock.patch.object(check, "launch_command", side_effect=launch), \
              mock.patch.object(check, "crate_test_artifacts", side_effect=fake_artifacts), \
              contextlib.redirect_stdout(output):
             self.assertTrue(check.run_commands("build", commands, {})[1])
-        self.assertEqual(seen[0], "css")
+        self.assertEqual(seen[0], "cargo")
+        self.assertCountEqual(seen[1:], [stage, *commands[1:]])
         self.assertEqual([line for line in output.getvalue().splitlines() if line.startswith("payload")],
-                         ["payload 1", "payload 2", "payload 3"])
+                         ["payload stage", "payload 1", "payload 2", "payload 3"])
 
     def test_build_overlap_renders_diagnostics_without_raw_artifact_json(self):
         self.mock_wasm_dir()
         commands = check.STEPS["build"][1]
-        artifact_json = self.fake_wasm_build(check.BROWSER_CRATE_BUILD).stdout
+        combined = check.combined_wasm_prebuild(check.BROWSER_CRATE_BUILD)
+        self.assertIsNotNone(combined)
+        artifact_json = self.fake_wasm_build(combined).stdout
         diag_json = json.dumps({
             "reason": "compiler-message",
             "message": {"rendered": "warning: unused variable\n"},
@@ -812,16 +908,18 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
 
         def run_case(code):
             def launch(command, **kwargs):
-                if command == check.BROWSER_CRATE_BUILD:
+                if check.is_crate_build(command):
                     return subprocess.CompletedProcess(
                         command, code,
                         stdout=f"Compiling boardstudio-web-layout\n{diag_json}\n{artifact_json}\n",
                     )
-                return subprocess.CompletedProcess(command, 0, stdout=f"ok {commands.index(command)}\n")
+                label = "stage" if command[-1] == "stage" else "harness"
+                return subprocess.CompletedProcess(command, 0, stdout=f"ok {label}\n")
 
             output = io.StringIO()
             errors = io.StringIO()
             with mock.patch.object(check, "check_jobs", return_value=2), \
+                 mock.patch.object(check, "plain_page_tools_available", return_value=True), \
                  mock.patch.object(check, "run_serial", return_value=(0.0, 0, "", "")), \
                  mock.patch.object(check, "launch_command", side_effect=launch), \
                  contextlib.redirect_stdout(output), \
@@ -833,7 +931,8 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
         self.assertTrue(passed, err)
         self.assertNotIn("compiler-artifact", out)
         self.assertIn("Compiling boardstudio-web-layout\nwarning: unused variable\n", out)
-        self.assertLess(out.index("warning: unused variable"), out.index("ok 2"))
+        self.assertLess(out.index("warning: unused variable"), out.index("ok harness"))
+        self.assertEqual(check._PAGE_TEST_ARTIFACT, self.wasm_dir / "page.wasm")
 
         passed, out, err = run_case(101)
         self.assertFalse(passed)
@@ -850,6 +949,7 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
             return subprocess.CompletedProcess(command, 0, stdout="invalid artifacts")
 
         with mock.patch.object(check, "check_jobs", return_value=2), \
+             mock.patch.object(check, "plain_page_tools_available", return_value=True), \
              mock.patch.object(check, "run_serial", return_value=(0.0, 0, "", "")), \
              mock.patch.object(check, "launch_command", side_effect=launch), \
              mock.patch.object(check, "crate_test_artifacts", side_effect=ValueError("missing artifacts")), \
@@ -876,6 +976,127 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
                 self.assertTrue(check.run_commands("build", commands, {}, receipt=receipt)[1])
             parallel.assert_not_called()
             self.assertEqual([call.args[0] for call in serial.call_args_list], commands)
+
+    def test_combined_wasm_prebuild_merges_crate_and_page_test_builds(self):
+        combined = check.combined_wasm_prebuild(check.BROWSER_CRATE_BUILD)
+        self.assertTrue(check.is_crate_build(combined))
+        self.assertEqual(combined[:len(check.WASM_CRATE_BUILD)], check.WASM_CRATE_BUILD)
+        rest = combined[len(check.WASM_CRATE_BUILD):]
+        browser_rest = check.BROWSER_CRATE_BUILD[len(check.WASM_CRATE_BUILD):]
+        browser_packages = [browser_rest[index + 1]
+                            for index, token in enumerate(browser_rest[:-1]) if token == "-p"]
+        packages = [rest[index + 1] for index, token in enumerate(rest[:-1]) if token == "-p"]
+        self.assertEqual(packages, [*browser_packages, check.PAGE_PACKAGE])
+        self.assertEqual([rest[index + 1] for index, token in enumerate(rest[:-1]) if token == "--bin"],
+                         [check.PAGE_PACKAGE])
+        self.assertEqual(rest.count("--lib"), 0, "--lib lives in the shared prefix")
+        self.assertIn("--no-default-features", rest)
+        features = [rest[index + 1] for index, token in enumerate(rest[:-1]) if token == "--features"]
+        self.assertEqual(features, ["boardstudio-web-host/page,boardstudio-web/page,"
+                                    "boardstudio-web-host/test-support"])
+        self.assertEqual(rest[-7:], ["-p", check.PAGE_PACKAGE, "--bin", check.PAGE_PACKAGE,
+                                    "--no-default-features", "--features", features[0]])
+
+    def test_combined_wasm_prebuild_rejects_subset_and_drifted_flags(self):
+        import sys
+        import types
+        subset = check.with_crate_build([check.crate_launch("layout")])[0]
+        self.assertIsNone(check.combined_wasm_prebuild(subset))
+        self.assertIsNone(check.combined_wasm_prebuild([*check.BROWSER_CRATE_BUILD, "--extra"]))
+
+        real = importlib.import_module("run-wasm-tests").PAGE_BUILD
+
+        def edited(*edits):
+            page = list(real)
+            for edit in edits:
+                edit(page)
+            return page
+
+        def replace(old, new):
+            def edit(page):
+                page[page.index(old)] = new
+            return edit
+
+        def drop(option, takes_value=True):
+            def edit(page):
+                start = page.index(option)
+                del page[start:start + (2 if takes_value else 1)]
+            return edit
+
+        def repackage(page):
+            page[page.index("-p") + 1] = "boardstudio-web-layout"
+
+        cases = {
+            "profile": edited(replace("wasm-check", "dev")),
+            "target": edited(replace("wasm32-unknown-unknown", "x86_64-unknown-linux-gnu")),
+            "message-format": edited(replace("--message-format=json", "--message-format=short")),
+            "unlocked": edited(drop("--locked", takes_value=False)),
+            "default-features": edited(drop("--no-default-features", takes_value=False)),
+            "extra-target": edited(lambda page: page.append("--lib")),
+            "other-package": edited(repackage),
+            "missing-bin": edited(drop("--bin")),
+            "missing-features": edited(drop("--features")),
+        }
+        for name, page in cases.items():
+            with self.subTest(name=name):
+                fake = types.SimpleNamespace(PAGE_BUILD=page)
+                with mock.patch.dict(sys.modules, {"run-wasm-tests": fake}):
+                    self.assertIsNone(check.combined_wasm_prebuild(check.BROWSER_CRATE_BUILD))
+
+    def test_page_test_artifact_requires_one_existing_bin_artifact(self):
+        self.mock_wasm_dir()
+        wasm = self.wasm_dir / "page.wasm"
+        wasm.touch()
+
+        def artifact(**changes):
+            message = {"reason": "compiler-artifact", "profile": {"test": True},
+                       "target": {"kind": ["bin"], "name": "boardstudio-web"},
+                       "manifest_path": str(ROOT / "web/Cargo.toml"), "executable": str(wasm)}
+            message.update(changes)
+            return json.dumps(message)
+
+        lib = json.dumps({"reason": "compiler-artifact", "profile": {"test": True},
+                          "target": {"kind": ["lib"], "name": "boardstudio_web_layout"},
+                          "manifest_path": str(ROOT / "web/crates/layout/Cargo.toml"),
+                          "executable": str(self.wasm_dir / "layout.wasm")})
+        self.assertEqual(check.page_test_artifact(f"Compiling page\n{lib}\n{artifact()}\n", ROOT), wasm)
+        for lines in ([lib], [artifact(), artifact()],
+                      [artifact(executable=str(self.wasm_dir / "missing.wasm"))],
+                      [artifact(manifest_path=str(ROOT / "web/crates/layout/Cargo.toml"))],
+                      [artifact(profile={"test": False})],
+                      [artifact(target={"kind": ["bin"], "name": "other"})]):
+            with self.subTest(lines=lines), self.assertRaises(ValueError):
+                check.page_test_artifact("\n".join(lines), ROOT)
+
+    def test_page_test_artifact_env_matches_the_wasm_runner(self):
+        runner = importlib.import_module("run-wasm-tests")
+        self.assertEqual(check.PAGE_TEST_ARTIFACT_ENV, runner.PAGE_ARTIFACT)
+
+    def test_browser_step_reuses_the_combined_prebuild_page_artifact(self):
+        page_wasm = Path("/fake/combined-page.wasm")
+        seen_env = {}
+
+        def fake_run_commands(name, commands, environment, *args, **kwargs):
+            if name == "build":
+                check._PAGE_TEST_ARTIFACT = page_wasm
+                return 0.0, True
+            seen_env[name] = dict(environment)
+            return 0.0, True
+
+        def run_plan(plan):
+            with mock.patch.object(check, "run_commands", side_effect=fake_run_commands), \
+                 mock.patch.object(check.wasm_bindgen_tools, "configure",
+                                   side_effect=lambda env, root: env), \
+                 contextlib.redirect_stdout(io.StringIO()):
+                return check._run_plan(plan)
+
+        plan = [("build", check.STEPS["build"][1]), ("browser", [check.PAGE_SUITE])]
+        self.assertEqual(run_plan(plan), 0)
+        self.assertEqual(seen_env["browser"][check.PAGE_TEST_ARTIFACT_ENV], str(page_wasm))
+        # A later plan without a combined prebuild does not reuse a stale artifact.
+        seen_env.clear()
+        self.assertEqual(run_plan([("browser", [check.PAGE_SUITE])]), 0)
+        self.assertNotIn(check.PAGE_TEST_ARTIFACT_ENV, seen_env["browser"])
 
     def test_missing_browser_tools_fail_before_any_command_or_build_is_launched(self):
         self.chrome.side_effect = check.browser_tools.MissingBrowserTool("missing browser tool")

@@ -321,14 +321,31 @@ def index_html(base_path: str) -> str:
     )
 
 
-def plain_page(route: str, tools: tuple[Path, Path, str], public: Path = PAGE_PUBLIC, output=None) -> None:
-    """Build the checked page with plain Cargo, so no `dx` rustc wrapper splits its build units."""
-    _tailwind, bindgen, dx = tools
+def plain_page_cargo(public: Path = PAGE_PUBLIC, output=None) -> Path:
+    """Compile the checked page with plain Cargo and stage its module for `plain_page_stage`.
+
+    This is the page build's last Cargo invocation; everything after it is file staging that
+    holds no Cargo lock, so check.py can overlap it with the wasm test prebuilds.
+    """
     artifact = cargo_page_artifact(output)
     public.mkdir(parents=True, exist_ok=True)
     # `dx tools assets` writes the bundled asset paths into the module it reads, so leave Cargo's alone.
     module = public.parent / "boardstudio-web.wasm"
     shutil.copy2(artifact, module)
+    return module
+
+
+def plain_page_stage(route: str, tools: tuple[Path, Path, str], public: Path = PAGE_PUBLIC,
+                     output=None) -> None:
+    """Run `dx tools assets`, wasm-bindgen and the Dioxus loader for a staged page module.
+
+    No Cargo runs here; the module must come from `plain_page_cargo` (or `plain_page`).
+    """
+    _tailwind, bindgen, dx = tools
+    module = public.parent / "boardstudio-web.wasm"
+    if not module.is_file():
+        raise FileNotFoundError(f"checked page module missing; compile it before staging: {module}")
+    public.mkdir(parents=True, exist_ok=True)
     assets = public / "assets"
     run([dx, "tools", "assets", str(module), str(assets)], cwd=WEB, output=output)
     if not assets.is_dir() or not any(assets.iterdir()):
@@ -345,10 +362,80 @@ def plain_page(route: str, tools: tuple[Path, Path, str], public: Path = PAGE_PU
     (public / "index.html").write_text(index_html(ROUTES[route]))
 
 
+def plain_page(route: str, tools: tuple[Path, Path, str], public: Path = PAGE_PUBLIC, output=None) -> None:
+    """Build the checked page with plain Cargo, so no `dx` rustc wrapper splits its build units."""
+    plain_page_cargo(public, output)
+    plain_page_stage(route, tools, public, output)
+
+
+def package_route(output: Path, public: Path, route: str) -> Path:
+    """Copy a built `public` directory into the route's site with runtime assets and the offline worker."""
+    if not public.is_dir():
+        raise FileNotFoundError(f"the page build did not produce its web public directory: {public}")
+    site = route_site(output, route)
+    if site.exists():
+        shutil.rmtree(site)
+    site.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(public, site)
+    copy_runtime_assets(site)
+    embed_offline_worker(site)
+    return site
+
+
+def phased_build(output: Path, *, routes: tuple[str, ...], fast: bool, release: bool,
+                 prepare_providers: bool, phase: str) -> Path:
+    """The checked page build split so check.py can overlap post-Cargo staging with test prebuilds.
+
+    `cargo` runs everything through the last Cargo invocation (stylesheet, providers, page
+    compile); `stage` runs only file operations after it (`dx tools assets`, wasm-bindgen,
+    provider staging, route packaging). Only the checked single-route provider build splits;
+    anything else, the `dx build` fallback included, stays in `build()`.
+    """
+    if phase not in ("cargo", "stage"):
+        raise ValueError(f"--phase must be cargo or stage, got {phase!r}")
+    if not (fast and not release and prepare_providers and len(routes) == 1):
+        raise ValueError("--phase needs the checked single-route provider build (--fast with providers)")
+    tools = page_tools()
+    if tools is None:
+        raise ValueError("--phase needs the plain-page tools; without them the page builds "
+                         "with dx and cannot split")
+    public = PAGE_PUBLIC
+    if phase == "cargo":
+        if public.exists():
+            shutil.rmtree(public)
+        # Beside lint and test, check.py has already written the stylesheet WASM Clippy is reading.
+        if IN_OVERLAP_ENV not in os.environ:
+            generate_css(tools[0])
+        if check_jobs() > 1:
+            page_build = lambda lane_output: plain_page_cargo(public, lane_output)
+            prepare_runtime_providers(fast, page_build=page_build, defer_staging=True)
+        else:
+            prepare_runtime_providers(fast, defer_staging=True)
+            plain_page_cargo(public)
+        module = public.parent / "boardstudio-web.wasm"
+        print(module, flush=True)
+        return output
+    module = public.parent / "boardstudio-web.wasm"
+    if not module.is_file():
+        raise FileNotFoundError(f"--phase stage needs --phase cargo first (missing {module})")
+    # Content-hashed asset names would leave stale files beside fresh ones without a clean directory.
+    if public.exists():
+        shutil.rmtree(public)
+    plain_page_stage(routes[0], tools, public)
+    finish_provider_staging()
+    package_route(output, public, routes[0])
+    print(output, flush=True)
+    return output
+
+
 def build(output: Path, *, release: bool = True, prepare_providers: bool = True,
-          routes: tuple[str, ...] = DEFAULT_ROUTES, fast: bool = False) -> Path:
+          routes: tuple[str, ...] = DEFAULT_ROUTES, fast: bool = False,
+          phase: str | None = None) -> Path:
     output = output.resolve()
     output.mkdir(parents=True, exist_ok=True)
+    if phase is not None:
+        return phased_build(output, routes=routes, fast=fast, release=release,
+                            prepare_providers=prepare_providers, phase=phase)
     tools = page_tools() if fast and not release else None
     public = PAGE_PUBLIC if tools else dx_public(release)
     overlap = fast and not release and prepare_providers and len(routes) == 1 and check_jobs() > 1
@@ -373,21 +460,24 @@ def build(output: Path, *, release: bool = True, prepare_providers: bool = True,
             else:
                 command, cwd = dx_command(route, release=release, fast=fast)
                 run(command, cwd=cwd)
-        if not public.is_dir():
-            raise FileNotFoundError(f"the page build did not produce its web public directory: {public}")
-        site = route_site(output, route)
-        if site.exists():
-            shutil.rmtree(site)
-        site.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copytree(public, site)
-        copy_runtime_assets(site)
-        embed_offline_worker(site)
+        package_route(output, public, route)
     print(output, flush=True)
     return output
 
 
-def prepare_runtime_providers(fast: bool = False, *, page_build=None) -> None:
-    """Build the providers; `page_build`, a step for `run_lanes`, overlaps them with the CAD build."""
+def finish_provider_staging() -> None:
+    """Copy provider metadata into the asset directory; the staging half `defer_staging` skips."""
+    shutil.copy2(ROOT / "catalogue/modules/imported-modules.json",
+                 WEB / "assets/imported-modules.json")
+    stage_runtime_assets()
+
+
+def prepare_runtime_providers(fast: bool = False, *, page_build=None, defer_staging: bool = False) -> None:
+    """Build the providers; `page_build`, a step for `run_lanes`, overlaps them with the CAD build.
+
+    `defer_staging` leaves the trailing asset copies for `--phase stage`, which runs them beside
+    the wasm test prebuilds instead of behind the Cargo lock.
+    """
     commands = provider_commands(fast)
     if page_build is None:
         for command, cwd in commands:
@@ -399,9 +489,9 @@ def prepare_runtime_providers(fast: bool = False, *, page_build=None) -> None:
         command, cwd = ergogen
         run(command, cwd=cwd)
         run_lanes([[*wasm_packs, page_build], [cad]])
-    shutil.copy2(ROOT / "catalogue/modules/imported-modules.json",
-                 WEB / "assets/imported-modules.json")
-    stage_runtime_assets()
+    if defer_staging:
+        return
+    finish_provider_staging()
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -419,17 +509,24 @@ def main(argv: list[str] | None = None) -> int:
                              "to Pages) and/or root (/)")
     parser.add_argument("--providers-only", action="store_true",
                         help="build runtime providers for `python3 scripts/dev-web.py` without packaging routes")
+    parser.add_argument("--phase", choices=("cargo", "stage"), default=None,
+                        help="split the checked build so check.py overlaps post-Cargo staging with the "
+                             "wasm test prebuilds: cargo stops after the last Cargo invocation, stage "
+                             "runs only the file staging after it (single-route --fast with providers)")
     args = parser.parse_args(argv)
     routes = tuple(dict.fromkeys(name.strip() for name in args.routes.split(",") if name.strip()))
     unknown = [name for name in routes if name not in ROUTES]
     if unknown or not routes:
         parser.error(f"--routes must name one or more of: {', '.join(ROUTES)}")
+    if args.phase and (args.providers_only or args.skip_providers or not args.fast or len(routes) != 1):
+        parser.error("--phase needs the checked single-route provider build (--fast with providers)")
     try:
         if args.providers_only:
             prepare_runtime_providers(args.fast)
         else:
             build(args.output, release=not (args.debug or args.fast),
-                  prepare_providers=not args.skip_providers, routes=routes, fast=args.fast)
+                  prepare_providers=not args.skip_providers, routes=routes, fast=args.fast,
+                  phase=args.phase)
     except (OSError, ValueError, subprocess.CalledProcessError) as error:
         print(f"build-web: {error}", file=sys.stderr)
         return error.returncode if isinstance(error, subprocess.CalledProcessError) else 1

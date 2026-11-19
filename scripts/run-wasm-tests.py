@@ -294,6 +294,11 @@ def runner_environment(root=ROOT, *, browser_only=False):
 
 
 def build_page_test(root, env):
+    # check.py sets this after a just-completed combined prebuild in the same process, so the
+    # browser step reuses that artifact instead of re-invoking Cargo; a missing file (or an
+    # ordinary run without the prebuild) falls through to the build below.
+    if (preset := env.get(PAGE_ARTIFACT)) and Path(preset).is_file():
+        return Path(preset)
     fd = browser_tools._inherited_build_lock()
     build_env = dict(env)
     build_env.setdefault("CARGO_PROFILE_DEV_DEBUG", "false")

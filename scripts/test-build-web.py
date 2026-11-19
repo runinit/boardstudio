@@ -532,5 +532,133 @@ class BuildWebTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             BUILD.main(["--routes", "elsewhere"])
 
+    def test_plain_page_is_cargo_then_stage(self):
+        calls = []
+        tools = ("tailwindcss", Path("wasm-bindgen"), "dx")
+        with patch.object(BUILD, "plain_page_cargo",
+                          lambda public, output: calls.append(("cargo", public, output))), \
+             patch.object(BUILD, "plain_page_stage",
+                          lambda route, tools, public, output: calls.append(("stage", route, tools, public, output))):
+            BUILD.plain_page("subpath", tools, Path("/fake/public"), output="out")
+        self.assertEqual(calls, [("cargo", Path("/fake/public"), "out"),
+                                 ("stage", "subpath", tools, Path("/fake/public"), "out")])
+
+    def test_phase_cargo_runs_providers_and_page_compile_without_staging(self):
+        import threading
+        barrier = threading.Barrier(2, timeout=5)
+        root = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        output, public = root / "site", root / "public"
+        tools = ("tailwindcss", Path("wasm-bindgen"), "dx")
+        finished = []
+        artifact = root / "cargo.wasm"
+        artifact.write_bytes(b"cargo")
+
+        def fake_run(command, *, cwd, output=None):
+            if "scripts/stage-ergogen-models.py" in command:
+                finished.append("ergogen")
+                return
+            if command[0] == "tailwindcss":
+                finished.append("css")
+                return
+            if command[0] == "dx" or "wasm-bindgen" in command[0]:
+                self.fail(f"staging ran during the cargo phase: {command}")
+            if "m1_core_worker" in command or "cad/scripts/build-cad-wasm.py" in command:
+                barrier.wait()
+            finished.append(command)
+
+        def fail_staging(*args, **kwargs):
+            self.fail(f"staging ran during the cargo phase: {args}")
+
+        stdout = io.StringIO()
+        with patch.object(BUILD, "run", fake_run), patch.object(BUILD, "check_jobs", return_value=3), \
+             patch.object(BUILD, "page_tools", return_value=tools), patch.object(BUILD, "PAGE_PUBLIC", public), \
+             patch.object(BUILD, "cargo_page_artifact", return_value=artifact), \
+             patch.object(BUILD, "generate_css", lambda tailwind: fake_run([tailwind], cwd=BUILD.WEB)), \
+             patch.object(BUILD, "finish_provider_staging", fail_staging), \
+             patch.object(BUILD, "copy_runtime_assets", fail_staging), \
+             patch.object(BUILD, "embed_offline_worker", fail_staging), \
+             patch.object(BUILD.sys, "stdout", stdout), patch.dict(os.environ):
+            os.environ.pop(BUILD.IN_OVERLAP_ENV, None)
+            self.assertEqual(BUILD.build(output, release=False, fast=True, phase="cargo"), output)
+        self.assertEqual(finished[:2], ["css", "ergogen"])
+        self.assertEqual(len([step for step in finished[2:] if step[0] == "wasm-pack"]), 4)
+        self.assertTrue(any("cad/scripts/build-cad-wasm.py" in step for step in finished[2:]))
+        module = public.parent / "boardstudio-web.wasm"
+        self.assertTrue(module.is_file())
+        self.assertEqual(module.read_bytes(), b"cargo")
+        self.assertIn(str(module), stdout.getvalue())
+        self.assertFalse((output / "site-subpath/boardstudio").exists())
+
+    def test_phase_stage_runs_only_post_cargo_staging(self):
+        root = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        output, public = root / "site", root / "public"
+        tools = ("tailwindcss", Path("wasm-bindgen"), "dx")
+        (public.parent / "boardstudio-web.wasm").parent.mkdir(parents=True, exist_ok=True)
+        (public.parent / "boardstudio-web.wasm").write_bytes(b"cargo")
+        bindgen_js = ("let wasmModule, wasmInstance, wasm;\nfunction __wbg_get_imports() {}\n"
+                      "function initSync(module) {}\nasync function __wbg_init(module_or_path) {}\n")
+        calls = []
+
+        def fake_run(command, *, cwd=BUILD.ROOT, env=None, output=None):
+            calls.append(command)
+            if "wasm-pack" in command[0] or "build-cad-wasm" in " ".join(command) \
+                    or "stage-ergogen-models" in " ".join(command):
+                self.fail(f"cargo ran during the stage phase: {command}")
+            if command[1:3] == ["tools", "assets"]:
+                assets = Path(command[4])
+                assets.mkdir(parents=True)
+                (assets / "focus-trap-dxh0.js").write_text("export {}")
+            else:
+                out = Path(command[command.index("--out-dir") + 1])
+                out.mkdir(parents=True)
+                (out / "boardstudio-web.js").write_text(bindgen_js)
+
+        staged = []
+        with patch.object(BUILD, "run", fake_run), \
+             patch.object(BUILD, "page_tools", return_value=tools), patch.object(BUILD, "PAGE_PUBLIC", public), \
+             patch.object(BUILD, "cargo_page_artifact", side_effect=AssertionError("cargo ran")), \
+             patch.object(BUILD, "generate_css", side_effect=AssertionError("css ran")), \
+             patch.object(BUILD, "finish_provider_staging", lambda: staged.append("providers")), \
+             patch.object(BUILD, "copy_runtime_assets", lambda site: staged.append("copy")), \
+             patch.object(BUILD, "embed_offline_worker", lambda site: staged.append("offline")), \
+             patch.object(BUILD.sys, "stdout", io.StringIO()):
+            self.assertEqual(BUILD.build(output, release=False, fast=True, phase="stage"), output)
+        self.assertEqual([command[0] for command in calls], ["dx", "wasm-bindgen"])
+        self.assertEqual(staged, ["providers", "copy", "offline"])
+        site = output / "site-subpath/boardstudio"
+        self.assertTrue((site / "index.html").is_file())
+        self.assertTrue((site / "assets/focus-trap-dxh0.js").is_file())
+        self.assertTrue((site / "wasm/boardstudio-web.js").is_file())
+
+    def test_phase_rejects_non_splittable_builds(self):
+        for argv in (["--fast", "--phase", "cargo", "--providers-only"],
+                    ["--fast", "--phase", "cargo", "--skip-providers"],
+                    ["--phase", "cargo"],
+                    ["--fast", "--phase", "stage", "--routes", "subpath,root"]):
+            with self.subTest(argv=argv), self.assertRaises(SystemExit):
+                BUILD.main(argv)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            tools = ("tailwindcss", Path("wasm-bindgen"), "dx")
+            with patch.object(BUILD, "page_tools", return_value=tools):
+                for kwargs in ({"release": True, "fast": False},
+                               {"release": False, "fast": True, "prepare_providers": False},
+                               {"release": False, "fast": True, "routes": ("subpath", "root")},
+                               {"release": False, "fast": True, "phase": "bogus"}):
+                    with self.subTest(kwargs=kwargs), self.assertRaises(ValueError):
+                        BUILD.build(root / "out", **{"phase": "cargo", **kwargs})
+            with patch.object(BUILD, "page_tools", return_value=None), \
+                 self.assertRaisesRegex(ValueError, "plain-page tools"):
+                BUILD.build(root / "out", release=False, fast=True, phase="cargo")
+
+    def test_phase_stage_without_cargo_phase_fails_closed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            tools = ("tailwindcss", Path("wasm-bindgen"), "dx")
+            with patch.object(BUILD, "page_tools", return_value=tools), \
+                 patch.object(BUILD, "PAGE_PUBLIC", root / "public"), \
+                 self.assertRaisesRegex(FileNotFoundError, "--phase cargo first"):
+                BUILD.build(root / "out", release=False, fast=True, phase="stage")
+
 if __name__ == "__main__":
     unittest.main()

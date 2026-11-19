@@ -119,6 +119,12 @@ PAGE_SUITE = [PY, "scripts/run-wasm-tests.py", "--all", "--depth", "1",
               "--result-json", "web/target/test-results/browser.json"]
 PAGE_TEST_BUILD = [PY, "scripts/run-wasm-tests.py", "--build-only"]
 HARNESS_BUILD = [PY, "scripts/browser_tools.py"]
+PAGE_PACKAGE = "boardstudio-web"
+# Must equal run-wasm-tests.PAGE_ARTIFACT; check.py cannot import that module at load time
+# because it imports check back, so the equality is pinned by scripts/test-check.py instead.
+PAGE_TEST_ARTIFACT_ENV = "BOARDSTUDIO_PAGE_TEST_ARTIFACT"
+# The page test artifact from this process's combined prebuild, reused by its browser step.
+_PAGE_TEST_ARTIFACT: Path | None = None
 BUILD_LOCK_SCRIPTS = (
     "scripts/run-drag-browser.py", "cad/scripts/test-cad-capture-controls.py", "cad/scripts/test-cold-responses.py",
     "cad/scripts/face-completeness-gate.py", "cad/scripts/test-cad-provider.py", "scripts/build-web.py",
@@ -202,6 +208,85 @@ WEB_WASM_PACKAGES: tuple[str, ...] = (
 
 BROWSER_CRATE_BUILD = next(command for command in browser() if is_crate_build(command))
 BROWSER_PREBUILDS = [BROWSER_CRATE_BUILD, PAGE_TEST_BUILD, HARNESS_BUILD]
+
+
+def plain_page_tools_available() -> bool:
+    """Whether `build-web.py --fast` uses the splittable plain-Cargo page (not the `dx` fallback)."""
+    return importlib.import_module("build-web").page_tools(quiet=True) is not None
+
+
+def _cargo_option_values(command: Command, flag: str) -> list[str]:
+    """Values of `--flag value` and `--flag=value` occurrences, in command order."""
+    values = [command[index + 1] for index, token in enumerate(command[:-1]) if token == flag]
+    return values + [token.split("=", 1)[1] for token in command if token.startswith(flag + "=")]
+
+
+def combined_wasm_prebuild(crate_build: Command) -> Command | None:
+    """One `cargo test --no-run` for the full crate prebuild plus the page test build, or None.
+
+    The two prebuilds share profile, target and (every presentation crate's dev-dependencies
+    already unify `test-support`) features, so one invocation compiles the page's library units
+    beside the crate tests instead of after them. Returns None when either side's flags drifted
+    from the combinable shape, so the caller keeps the serial scheduling.
+    """
+    if crate_build != BROWSER_CRATE_BUILD:
+        return None
+    page = importlib.import_module("run-wasm-tests").PAGE_BUILD
+    if page[:3] != ["cargo", "test", "--no-run"] or "--locked" not in page:
+        return None
+    shared = ("--target", "--profile", "--message-format")
+    expected = {flag: _cargo_option_values(WASM_CRATE_BUILD, flag) for flag in shared}
+    actual = {flag: _cargo_option_values(page, flag) for flag in shared}
+    if any(len(values) != 1 for values in (*expected.values(), *actual.values())) or expected != actual:
+        return None
+    if any(token in ("--lib", "--bins", "--examples", "--tests", "--benches", "--all-targets",
+                     "--doc", "--test", "--example", "--bench") for token in page):
+        return None
+    packages = _cargo_option_values(page, "-p")
+    bins = _cargo_option_values(page, "--bin")
+    features = _cargo_option_values(page, "--features")
+    if (packages != [PAGE_PACKAGE] or bins != [PAGE_PACKAGE] or len(features) != 1 or not features[0]
+            or "--no-default-features" not in page):
+        return None
+    rest = crate_build[len(WASM_CRATE_BUILD):]
+    crates: list[str] = []
+    index = 0
+    while index < len(rest) and rest[index] == "-p":
+        if index + 1 >= len(rest):
+            return None
+        crates.append(rest[index + 1])
+        index += 2
+    flags = rest[index:]
+    if flags == []:
+        crate_features: list[str] = []
+    elif len(flags) == 2 and flags[0] == "--features" and flags[1]:
+        crate_features = flags[1].split(",")
+    else:
+        return None
+    merged = list(dict.fromkeys([*crate_features,
+                                 *(feature if "/" in feature else f"{PAGE_PACKAGE}/{feature}"
+                                   for feature in features[0].split(","))]))
+    return [*WASM_CRATE_BUILD, *(part for crate in crates for part in ("-p", crate)),
+            "-p", PAGE_PACKAGE, "--bin", PAGE_PACKAGE, "--no-default-features",
+            "--features", ",".join(merged)]
+
+
+def page_test_artifact(output: str, cwd: Path) -> Path:
+    """The existing boardstudio-web test wasm in combined-prebuild Cargo JSON output."""
+    found = []
+    for line in output.splitlines():
+        try:
+            message = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(message, dict):
+            continue
+        if ((executable := cargo_json.wasm_executable(message, kind="bin", name=PAGE_PACKAGE, test=True))
+                and Path(message.get("manifest_path", "")) == cwd / "web/Cargo.toml"):
+            found.append(cwd / executable)
+    if len(found) != 1 or not found[0].is_file():
+        raise ValueError(f"expected one existing {PAGE_PACKAGE} test wasm artifact from Cargo, got {found}")
+    return found[0]
 
 # `--no-deps` keeps Clippy off the vendored cgmath fork; its lints are audited separately.
 # The browser harness lives outside the workspace with its own lockfile, so it
@@ -968,33 +1053,57 @@ def run_commands(name: str, commands: list[Command], environment: dict[str, str]
         lanes = [command for command in commands if command in (DRAG_SMOKE, CAD_BROWSER, *HARNESS_CHECKS)]
         commands = [command for command in commands if command not in lanes]
     index = 0
+    stage_command: Command | None = None
     while index < len(commands):
         command = commands[index]
-        # The page build must produce CSS first; afterward the two root-target
-        # prebuilds share one lane while the independent harness builds in another.
+        # The checked page build splits after its last Cargo invocation, so its file staging
+        # overlaps the wasm test prebuilds below. The `dx` fallback, single-job and receipt
+        # runs keep the exact serial scheduling.
+        if (name == "build" and index == 0 and command == [PY, "scripts/build-web.py", "--fast"]
+                and check_jobs() > 1 and receipt is None and plain_page_tools_available()):
+            cargo_command = [PY, "scripts/build-web.py", "--fast", "--phase", "cargo"]
+            elapsed, code, _, _ = run_serial(cargo_command, environment, cwd)
+            total += elapsed
+            if code:
+                print("check: command failed: " + shlex.join(cargo_command), file=sys.stderr)
+                return total, False
+            stage_command = [PY, "scripts/build-web.py", "--fast", "--phase", "stage"]
+            index += 1
+            continue
+        # The page build must produce CSS first; afterward the root-target prebuilds share one
+        # lane while the independent harness (and page staging, when split) build in another.
         prebuilds = commands[index:]
         wasm_prebuilds = [cmd for cmd in prebuilds if cmd in (BROWSER_CRATE_BUILD, PAGE_TEST_BUILD)]
         if (name == "build" and check_jobs() > 1 and receipt is None
                 and index > 0 and commands[0] == [PY, "scripts/build-web.py", "--fast"]
-                and prebuilds == [*wasm_prebuilds, HARNESS_BUILD] and wasm_prebuilds):
+                and prebuilds == [*wasm_prebuilds, HARNESS_BUILD]
+                and (wasm_prebuilds or stage_command)):
             child_env = environment.copy()
             child_env.setdefault("CARGO_PROFILE_DEV_DEBUG", "false")
             def validate_prebuild(cmd, code, output):
                 if not is_crate_build(cmd):
                     return code, output
                 rendered = io.StringIO()
-                crates = tuple(cmd[i + 1].removeprefix("boardstudio-web-")
-                               for i, token in enumerate(cmd) if token == "-p")
+                packages = [cmd[i + 1] for i, token in enumerate(cmd[:-1]) if token == "-p"]
+                crates = tuple(package.removeprefix("boardstudio-web-")
+                               for package in packages if package != PAGE_PACKAGE)
                 try:
                     crate_test_artifacts(output_text(output), cwd, () if code else crates, stream=rendered)
+                    if not code and PAGE_PACKAGE in packages:
+                        global _PAGE_TEST_ARTIFACT
+                        _PAGE_TEST_ARTIFACT = page_test_artifact(output_text(output), cwd)
                 except (ValueError, RuntimeError) as error:
                     return 1, rendered.getvalue() + f"check: {error}\n"
                 return code, rendered.getvalue()
 
+            combined = (combined_wasm_prebuild(BROWSER_CRATE_BUILD)
+                        if wasm_prebuilds == [BROWSER_CRATE_BUILD, PAGE_TEST_BUILD] else None)
+            wasm_lane = [combined] if combined else wasm_prebuilds
+            batch = ([stage_command] if stage_command else []) + wasm_lane + [HARNESS_BUILD]
             elapsed, failed = run_parallel(
-                prebuilds, child_env, captured, step=name, workers=2, in_order=True,
-                invocations={tuple(cmd): (cmd, cwd, {}) for cmd in prebuilds},
-                sequential_after={tuple(wasm_prebuilds[0]): wasm_prebuilds[1:]},
+                batch, child_env, captured, step=name, workers=3 if stage_command else 2, in_order=True,
+                invocations={tuple(cmd): (cmd, cwd, {}) for cmd in batch},
+                sequential_after={tuple(wasm_lane[0]): wasm_lane[1:]} if wasm_lane else None,
                 validate_output=validate_prebuild,
             )
             total += elapsed
@@ -1379,6 +1488,8 @@ def run_overlapped_steps(group, update_native_baseline):
 
 def _run_plan(plan, update_native_baseline=False, *, keep_going=False, partial=False,
               browser_environment=None, crate_configs=None):
+    global _PAGE_TEST_ARTIFACT
+    _PAGE_TEST_ARTIFACT = None
     names = [name for name, _ in plan]
     # `--only` and any named-step/quick selection are focused; only the full default plan is not.
     focused = partial or tuple(names) != DEFAULT
@@ -1418,6 +1529,10 @@ def _run_plan(plan, update_native_baseline=False, *, keep_going=False, partial=F
             environment.setdefault("WASM_BINDGEN_TEST_TIMEOUT", "120")
             # Test wasm without DWARF is about a seventh of the size, which is most of a launch.
             environment.setdefault("CARGO_PROFILE_DEV_DEBUG", "false")
+            # The combined prebuild's page artifact is still fresh: nothing between the build
+            # and browser steps touches its fingerprints, so the page suite reuses it directly.
+            if _PAGE_TEST_ARTIFACT is not None:
+                environment.setdefault(PAGE_TEST_ARTIFACT_ENV, str(_PAGE_TEST_ARTIFACT))
         captured: list[tuple[Command, str]] | None = [] if name == "test" else None
         cwd = ROOT / "web" if name == "test-css" else ROOT
         elapsed, passed = run_commands(

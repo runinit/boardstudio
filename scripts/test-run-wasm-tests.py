@@ -85,6 +85,22 @@ class RunWasmTestsTests(unittest.TestCase):
             with self.assertRaisesRegex(runner.RunnerError, "expected one"):
                 runner.build_page_test(self.dir, {})
 
+    def test_page_build_reuses_a_preset_artifact_without_cargo(self):
+        wasm = self.dir / "combined-page.wasm"
+        wasm.touch()
+        with patch.object(runner.subprocess, "run", side_effect=AssertionError("cargo ran")):
+            self.assertEqual(runner.build_page_test(self.dir, {runner.PAGE_ARTIFACT: str(wasm)}), wasm)
+        artifact = json.dumps({
+            "reason": "compiler-artifact", "profile": {"test": True},
+            "target": {"kind": ["bin"], "name": "boardstudio-web"},
+            "manifest_path": str(self.dir / "web/Cargo.toml"), "executable": str(wasm),
+        })
+        with patch.object(runner.subprocess, "run",
+                          return_value=subprocess.CompletedProcess([], 0, stdout=artifact)) as compile_page:
+            self.assertEqual(
+                runner.build_page_test(self.dir, {runner.PAGE_ARTIFACT: str(self.dir / "missing.wasm")}), wasm)
+            compile_page.assert_called_once()
+
     def test_caller_config_conflicting_browser_is_rejected(self):
         config = self.dir / "caller.json"
         config.write_text(json.dumps({"goog:chromeOptions": {"binary": "/other/chrome"}}))
