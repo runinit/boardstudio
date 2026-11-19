@@ -17,11 +17,7 @@ import browser_tools
 
 ROOT = Path(__file__).resolve().parents[1]
 BINARY = browser_tools.build_drag_harness()
-BROWSER_TMP = Path.home() / ".cache/tmp"
-# Leave room for the nested browser profiles and their Unix socket paths.
-if len(os.fsencode(BROWSER_TMP)) > 40:
-    BROWSER_TMP = Path("/tmp")
-BROWSER_TMP.mkdir(parents=True, exist_ok=True)
+BROWSER_TMP = browser_tools.shallow_browser_tmpdir()
 BUTTONS = '<section id="m1-library-landing-content">' + "".join(
     f"<button>{name}</button>"
     for name in ("Create new keyboard", "Split keyboard", "Continue to layout")

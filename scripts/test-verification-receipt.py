@@ -1451,5 +1451,37 @@ class DragBindingTests(unittest.TestCase):
             collector.observations[-1].output += "\n" + marker
             self.assertEqual(collector.finish(0)["drag_bindings"][0]["site_comparison"], "unknown")
 
+    def test_collector_links_two_concurrent_suite_observations_independently(self):
+        # Two `--suite drag` / `--suite collision` commands in one receipt run
+        # each bind to their own attempt id, receipt path and suite marker.
+        with tempfile.TemporaryDirectory() as tmp:
+            collector = receipt.Collector(path=Path(tmp) / "result.json", source={})
+            build_cmd = ["python3", "scripts/build-web.py"]
+            build_id = collector.prepare(build_cmd, step="build")
+            collector.observe("build", build_cmd, 0, 1, attempt_id=build_id)
+            site = {"path": "/site", "sha256": "a" * 64}
+            collector.build_bindings.append({"run_id": collector.run_id, "attempt_id": build_id, "output": site})
+            suites = {}
+            for suite in ("drag", "collision"):
+                command = ["python3", "scripts/run-drag-browser.py", "--suite", suite]
+                attempt = collector.prepare(command, step="browser")
+                marker = "BOARDSTUDIO_DRAG_BINDING " + json.dumps({"run_id": collector.run_id,
+                    "attempt_id": attempt, "suite": suite,
+                    "receipt_path": f"/{suite}-receipt", "site": site})
+                # Observe out of order: the collision output lands first.
+                suites[suite] = (command, attempt, marker)
+            for suite in ("collision", "drag"):
+                command, attempt, marker = suites[suite]
+                collector.observe("browser", command, 0, 1, marker, attempt_id=attempt)
+            bindings = collector.finish(0)["drag_bindings"]
+            self.assertEqual(len(bindings), 2)
+            by_receipt = {binding["receipt_path"]: binding for binding in bindings}
+            self.assertEqual(set(by_receipt), {"/drag-receipt", "/collision-receipt"})
+            for binding in bindings:
+                self.assertEqual((binding["build_attempt_id"], binding["site_comparison"]),
+                                 (build_id, "equal"))
+            self.assertEqual(by_receipt["/drag-receipt"]["attempt_id"], suites["drag"][1])
+            self.assertEqual(by_receipt["/collision-receipt"]["attempt_id"], suites["collision"][1])
+
 if __name__ == "__main__":
     unittest.main()

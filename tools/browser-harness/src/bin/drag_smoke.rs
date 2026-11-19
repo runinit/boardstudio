@@ -365,6 +365,30 @@ mod scenario_verdict_tests {
     }
 
     #[test]
+    fn suite_selection_parses_all_names_and_rejects_unknown() {
+        assert_eq!(parse_suite("all").unwrap(), Suite::All);
+        assert_eq!(parse_suite("drag").unwrap(), Suite::Drag);
+        assert_eq!(parse_suite("collision").unwrap(), Suite::Collision);
+        assert!(parse_suite("").is_err());
+        assert!(parse_suite("Drag").is_err());
+        assert!(parse_suite("collisions").is_err());
+    }
+
+    #[test]
+    fn suite_check_counts_partition_all_fifteen_checks() {
+        assert_eq!(Suite::All.expected_checks(), 15);
+        assert_eq!(Suite::Drag.expected_checks(), 11);
+        assert_eq!(Suite::Collision.expected_checks(), 4);
+        assert_eq!(
+            Suite::Drag.expected_checks() + Suite::Collision.expected_checks(),
+            Suite::All.expected_checks()
+        );
+        assert!(Suite::All.runs_drag() && Suite::All.runs_collision());
+        assert!(Suite::Drag.runs_drag() && !Suite::Drag.runs_collision());
+        assert!(!Suite::Collision.runs_drag() && Suite::Collision.runs_collision());
+    }
+
+    #[test]
     fn disposal_failure_fails_and_preserves_scenario_failure() {
         assert!(scenario_verdict(Ok(()), Err(fail("disposal"))).is_err());
         let error = scenario_verdict(Err(fail("scenario")), Err(fail("disposal")))
@@ -415,6 +439,82 @@ fn iso_now() -> String {
 fn env(name: &str) -> Result<String> {
     std::env::var(name)
         .map_err(|_| fail(format!("drag browser smoke needs {name} from its runner")))
+}
+
+/// Which scenarios this run executes. `all` preserves the historical
+/// single-run behavior; `drag` and `collision` split it into two
+/// parallel-capable suites with disjoint checks.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Suite {
+    All,
+    Drag,
+    Collision,
+}
+
+impl Suite {
+    fn runs_drag(self) -> bool {
+        matches!(self, Suite::All | Suite::Drag)
+    }
+
+    fn runs_collision(self) -> bool {
+        matches!(self, Suite::All | Suite::Collision)
+    }
+
+    /// The exact check count a successful run of this suite records, so a
+    /// silently dropped scenario fails the run instead of passing short.
+    fn expected_checks(self) -> usize {
+        match self {
+            Suite::All => 15,
+            Suite::Drag => 11,
+            Suite::Collision => 4,
+        }
+    }
+
+    fn describe(self) -> &'static str {
+        match self {
+            Suite::All => "drag, cancellation, Undo and collision",
+            Suite::Drag => "drag, cancellation and Undo",
+            Suite::Collision => "collision",
+        }
+    }
+}
+
+fn parse_suite(value: &str) -> Result<Suite> {
+    match value {
+        "all" => Ok(Suite::All),
+        "drag" => Ok(Suite::Drag),
+        "collision" => Ok(Suite::Collision),
+        other => Err(fail(format!(
+            "unknown drag smoke suite {other:?}; expected one of all, drag, collision"
+        ))),
+    }
+}
+
+/// The selected suite: `--suite <name>` wins, then `BOARDSTUDIO_DRAG_SUITE`,
+/// then `all`. Unknown arguments fail loud so a typo cannot silently run the
+/// wrong suite.
+fn select_suite() -> Result<Suite> {
+    let mut args = std::env::args().skip(1);
+    let mut flag: Option<String> = None;
+    while let Some(arg) = args.next() {
+        if let Some(value) = arg.strip_prefix("--suite=") {
+            flag = Some(value.to_owned());
+        } else if arg == "--suite" {
+            flag =
+                Some(args.next().ok_or_else(|| {
+                    fail("drag smoke --suite needs a value: all, drag or collision")
+                })?);
+        } else {
+            return Err(fail(format!("unexpected drag smoke argument {arg:?}")));
+        }
+    }
+    match flag {
+        Some(value) => parse_suite(&value),
+        None => match std::env::var("BOARDSTUDIO_DRAG_SUITE") {
+            Ok(value) if !value.is_empty() => parse_suite(&value),
+            _ => Ok(Suite::All),
+        },
+    }
 }
 
 fn has_exec_bit(path: &std::path::Path) -> bool {
@@ -2296,6 +2396,8 @@ async fn main() -> std::process::ExitCode {
 async fn run() -> Result<usize> {
     use sha2::{Digest, Sha256};
     let started_at = iso_now();
+    // Fail fast on an unknown suite, before launching Chrome.
+    let suite = select_suite()?;
     let chrome = resolve_chrome()?;
     let preview_url = env("BOARDSTUDIO_PREVIEW_URL")?;
     let receipt_path = env("BOARDSTUDIO_DRAG_RECEIPT_PATH")?;
@@ -2364,29 +2466,35 @@ async fn run() -> Result<usize> {
         };
 
         let scenarios = async {
-            drag_scenarios(&mut smoke).await?;
-            collision_scenario(&browser, &preview_url, &page_errors, &mut smoke.checks).await?;
-            qualification_scenario(
-                &browser,
-                &preview_url,
-                &repo_root,
-                &page_errors,
-                &mut smoke.checks,
-                false,
-            )
-            .await?;
-            qualification_scenario(
-                &browser,
-                &preview_url,
-                &repo_root,
-                &page_errors,
-                &mut smoke.checks,
-                true,
-            )
-            .await?;
-            if smoke.checks.len() < 11 {
+            if suite.runs_drag() {
+                drag_scenarios(&mut smoke).await?;
+            }
+            if suite.runs_collision() {
+                collision_scenario(&browser, &preview_url, &page_errors, &mut smoke.checks).await?;
+                qualification_scenario(
+                    &browser,
+                    &preview_url,
+                    &repo_root,
+                    &page_errors,
+                    &mut smoke.checks,
+                    false,
+                )
+                .await?;
+                qualification_scenario(
+                    &browser,
+                    &preview_url,
+                    &repo_root,
+                    &page_errors,
+                    &mut smoke.checks,
+                    true,
+                )
+                .await?;
+            }
+            let expected = suite.expected_checks();
+            if smoke.checks.len() != expected {
                 return Err(fail(format!(
-                    "smoke completed all drag, cancellation, Undo and collision checks: saw {}",
+                    "smoke completed all {} checks: saw {} of {expected}",
+                    suite.describe(),
                     smoke.checks.len()
                 )));
             }
