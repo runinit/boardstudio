@@ -199,7 +199,6 @@ Each item is one commit. "Old" names the `perf/cold-build-lanes` commits to star
 ### H. Final verification: the only heavy testing
 
 1. **Self-tests:** every touched script's self-tests.
-   Run the ten-run tooling flake sweep before H2. Revert J8 if the overlap flakes.
 2. **Full check:** the full `python3 scripts/check.py` in the implementation worktree must pass every gate, with the count floors:
    - the same crate-launch test names;
    - 126 page tests;
@@ -218,6 +217,11 @@ Each item is one commit. "Old" names the `perf/cold-build-lanes` commits to star
    - the page wasm is identical between serial and overlapped builds;
    - the CAD wasm size before and after;
    - every lockfile change, listed.
+
+Tooling runs three times during H, once in the H2 full gate and once in each
+H3 cold run. If any of those tooling runs fails, rerun the step serially under
+the build lock with `BOARDSTUDIO_CHECK_JOBS=1 python3 scripts/check.py tooling`.
+If the failure does not reproduce serially, revert J8.
 
 ### Afterwards, on data only
 
@@ -386,26 +390,6 @@ done
 python3 -B scripts/test-import-kicad-parts.py > "$evidence/H1-I5-import-kicad.log" 2>&1
 python3 -B scripts/test-check-core-tests.py > "$evidence/H1-J-test-registration.log" 2>&1
 python3 -B scripts/test-check-old-css.py > "$evidence/H1-J-test-old-css.log" 2>&1
-```
-
-#### H1. Tooling flake sweep before H2
-
-Use the normal worker count above one and the open build lock. Preserve all
-ten logs and stop before H2 if any run fails. If tooling flakes under overlap,
-revert J8 and proceed through H with tooling serial.
-
-```bash
-failed=0
-for attempt in {01..10}; do
-    log="$evidence/H1-J8-tooling-$attempt.log"
-    if BOARDSTUDIO_CHECK_JOBS=6 python3 scripts/check.py tooling > "$log" 2>&1; then
-        printf 'tooling %s passed\n' "$attempt"
-    else
-        printf 'tooling %s failed (exit %s), see %s\n' "$attempt" "$?" "$log" >&2
-        failed=1
-    fi
-done
-test "$failed" -eq 0
 ```
 
 #### H2. Record deliberate name changes, then run the full gate
