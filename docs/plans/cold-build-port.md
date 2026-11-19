@@ -753,3 +753,9 @@ result, and the receipt summary includes only those launches as page evidence.
 The repository registration gate checks both Core and Footprints. A top-level
 test file must be an explicit Cargo test target or a module of the integration
 target. Core keeps its existing diagnostics.
+
+### J3. Bound the production toast expiry check
+
+The expiry test returns as soon as the toast disappears. It uses the shared
+bounded polling helper with a 2,500 ms limit so a substantially longer
+production timeout still fails the test.

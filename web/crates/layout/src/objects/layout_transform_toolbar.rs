@@ -8215,7 +8215,9 @@ mod tool_tests {
     use crate::presentation::objects::matrix_edit_test_support as fixture;
     use crate::runtime::project_name_test_support as support;
     use boardstudio_application::Scope;
-    use boardstudio_web_ui_shared::test_wait::{settle_until, wait_until, wait_until_future};
+    use boardstudio_web_ui_shared::test_wait::{
+        settle_until, wait_for, wait_until, wait_until_future,
+    };
     use wasm_bindgen_test::wasm_bindgen_test;
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
@@ -10590,17 +10592,22 @@ mod tool_tests {
             toast.text_content().unwrap_or_default(),
             "Stagger 14.29 mm (+14.29 mm) · 1 Undo step"
         );
-        wait_until("commit toast expires without an extra revision", || {
-            assert_eq!(
-                fixture_revision(&runtime),
-                revision + 1,
-                "the toast writes no extra revision"
-            );
-            root.query_selector("[data-feedback-toast]")
-                .unwrap()
-                .is_none()
-        })
-        .await;
+        wait_for(
+            "commit toast expires without an extra revision",
+            2_500.0,
+            || {
+                assert_eq!(
+                    fixture_revision(&runtime),
+                    revision + 1,
+                    "the toast writes no extra revision"
+                );
+                root.query_selector("[data-feedback-toast]")
+                    .unwrap()
+                    .is_none()
+            },
+        )
+        .await
+        .unwrap();
         assert!(
             root.query_selector("[data-feedback-toast]")
                 .unwrap()
