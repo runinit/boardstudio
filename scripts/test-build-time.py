@@ -79,6 +79,115 @@ class RealCpuTests(unittest.TestCase):
         self.assertEqual(rows["total"], ["6.0", "6.0", "5"])
         self.assertEqual(rows["root/wasm32/wasm-check"], ["2"])
 
+class SccacheStatsTests(unittest.TestCase):
+    SAMPLE = """\
+Compile requests                      0
+Compile requests executed         18181
+Cache hits                         9190
+Cache hits (Rust)                  9190
+Cache misses                       8898
+Cache misses (Rust)                8898
+Cache hits rate                   50.81 %
+Cache timeouts                        0
+Cache read errors                     0
+Forced recaches                       0
+Cache write errors                    0
+Cache errors                          0
+Compilations                       8898
+Compilation failures                 93
+Non-cacheable compilations            0
+Non-cacheable calls                1454
+Cache size                            8 GiB
+Max cache size                       30 GiB
+"""
+
+    def test_socket_prefers_xdg_runtime_dir(self):
+        socket = COLD.sccache_socket({"XDG_RUNTIME_DIR": "/run/user/1000"}, 1000, lambda p: True)
+        self.assertEqual(socket, "/run/user/1000/boardstudio-sccache/server.sock")
+
+    def test_socket_defaults_to_run_user_uid(self):
+        seen = []
+        socket = COLD.sccache_socket({}, 1000, lambda p: seen.append(p) or True)
+        self.assertEqual(socket, "/run/user/1000/boardstudio-sccache/server.sock")
+        self.assertEqual(seen, [socket])
+
+    def test_socket_falls_back_when_xdg_candidate_missing(self):
+        exists = lambda p: p == "/run/user/1000/boardstudio-sccache/server.sock"  # noqa: E731
+        socket = COLD.sccache_socket({"XDG_RUNTIME_DIR": "/tmp/gone"}, 1000, exists)
+        self.assertEqual(socket, "/run/user/1000/boardstudio-sccache/server.sock")
+
+    def test_socket_is_none_when_daemon_absent(self):
+        self.assertIsNone(COLD.sccache_socket({}, 1000, lambda p: False))
+
+    def test_parse_reads_counters_and_ignores_rates_and_sizes(self):
+        stats = COLD.parse_sccache_stats(self.SAMPLE)
+        self.assertEqual(stats["Compile requests"], 0)
+        self.assertEqual(stats["Compile requests executed"], 18181)
+        self.assertEqual(stats["Cache hits"], 9190)
+        self.assertEqual(stats["Cache misses"], 8898)
+        self.assertEqual(stats["Cache errors"], 0)
+        self.assertEqual(stats["Compilation failures"], 93)
+        self.assertEqual(stats["Non-cacheable calls"], 1454)
+
+    def test_parse_defaults_missing_counters_to_zero(self):
+        stats = COLD.parse_sccache_stats("Cache hits                         3\n")
+        self.assertEqual(stats["Cache hits"], 3)
+        self.assertEqual(stats["Cache misses"], 0)
+        self.assertEqual(stats["Non-cacheable calls"], 0)
+
+    def test_delta_math_sums_error_counters(self):
+        before = COLD.parse_sccache_stats(self.SAMPLE)
+        after = dict(before, **{"Compile requests executed": 18281,
+                                "Cache hits": 9290, "Cache misses": 8899,
+                                "Cache errors": 1, "Compilation failures": 95,
+                                "Non-cacheable calls": 1454})
+        line = COLD.format_sccache_delta(before, after)
+        self.assertIn("+100 executed", line)
+        self.assertIn("+100 hits", line)
+        self.assertIn("+1 misses", line)
+        self.assertIn("+0 non-cacheable", line)
+        self.assertIn("+3 errors", line)
+
+    def test_snapshot_is_fail_open(self):
+        self.assertIsNone(COLD.snapshot_sccache("/nonexistent/sccache", "/nonexistent.sock"))
+        # Nonzero exit also yields None rather than raising.
+        import subprocess
+        from unittest import mock
+        with mock.patch.object(subprocess, "run") as run:
+            run.return_value.returncode = 1
+            run.return_value.stdout = ""
+            self.assertIsNone(COLD.snapshot_sccache("sccache", "sock"))
+
+    def test_report_sccache_handles_missing_snapshots(self):
+        import contextlib
+        import io
+        import tempfile
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(REPORT, "EVIDENCE", Path(tmp)):
+                output = io.StringIO()
+                with contextlib.redirect_stdout(output):
+                    self.assertEqual(REPORT.main(["ghost", "--sccache"]), 0)
+                self.assertIn("no sccache snapshots", output.getvalue())
+
+    def test_report_sccache_prints_delta_from_snapshots(self):
+        import contextlib
+        import io
+        import tempfile
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "run-sccache-before.log").write_text(self.SAMPLE)
+            (root / "run-sccache-after.log").write_text(
+                self.SAMPLE.replace("9190\nCache hits (Rust)", "9290\nCache hits (Rust)"))
+            with mock.patch.object(REPORT, "EVIDENCE", root):
+                output = io.StringIO()
+                with contextlib.redirect_stdout(output):
+                    self.assertEqual(REPORT.main(["run", "--sccache"]), 0)
+                self.assertIn("+100 hits", output.getvalue())
+
+
+class RustcLogTests(unittest.TestCase):
     def test_wrapper_records_child_cpu_and_report_totals_it(self):
         import json, os, subprocess, sys, tempfile
         code = "sum(range(10**7))"

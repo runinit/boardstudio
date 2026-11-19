@@ -1,15 +1,23 @@
 #!/usr/bin/env python3
 """Compare cold-run unit logs from .evidence/cold-build-port/.
 
-Usage: report.py <run> [<run>...] [--lanes] [--attrib crate,crate,...]
+Usage: report.py <run> [<run>...] [--lanes] [--attrib crate,crate,...] [--sccache]
 """
 import collections
+import importlib.util
 import json
 import re
 import sys
 from pathlib import Path
 
 EVIDENCE = Path(__file__).resolve().parent.parent.parent / ".evidence" / "cold-build-port"
+
+
+def cold():
+    spec = importlib.util.spec_from_file_location("_cold", Path(__file__).resolve().parent / "cold.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def load(name):
@@ -119,8 +127,23 @@ def attrib(names, data, crates):
                 print(f"  {crate:30s} {len(rs):4d}x cpu {cpu_display(rs):>6s}s attrib {attributed_wall(R, {crate}):6.1f}s")
 
 
+def sccache(names):
+    """One-line sccache counter deltas per run from its before/after snapshots."""
+    mod = cold()
+    for name in names:
+        before = EVIDENCE / f"{name}-sccache-before.log"
+        after = EVIDENCE / f"{name}-sccache-after.log"
+        if not before.is_file() or not after.is_file():
+            print(f"{name}: no sccache snapshots (run without cache or daemon unreachable)")
+            continue
+        print(f"{name}: " + mod.format_sccache_delta(
+            mod.parse_sccache_stats(before.read_text(errors="replace")),
+            mod.parse_sccache_stats(after.read_text(errors="replace"))).removeprefix("cold: "))
+
+
 def main(argv):
     lanes_flag = "--lanes" in argv
+    sccache_flag = "--sccache" in argv
     attrib_set = None
     names = []
     it = iter(range(len(argv)))
@@ -128,11 +151,14 @@ def main(argv):
         if argv[i] == "--attrib":
             j = next(it, None)
             attrib_set = set(argv[j].split(",")) - {""} if j is not None else set()
-        elif argv[i] != "--lanes":
+        elif argv[i] not in ("--lanes", "--sccache"):
             names.append(argv[i])
     if not names:
         print(__doc__, file=sys.stderr)
         return 2
+    if sccache_flag:
+        sccache(names)
+        return 0
     data = {n: load(n) for n in names}
     if lanes_flag:
         lanes(names, data)

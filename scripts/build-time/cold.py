@@ -4,6 +4,10 @@
 Usage: cold.py <name> [--no-wipe] [--without-cache] [check.py steps...]
 Logs land in .evidence/cold-build-port/<name>.{log,jsonl} regardless of the caller's cwd.
 Refuses to run when the wipe would not be a comparable cold run.
+
+For warm runs, seed the sccache daemon with the exact same check.py steps on an
+empty target/ first: units already fresh in target/ during the seed are skipped
+by cargo, never stored, and will miss in the warm run.
 """
 import os
 import resource
@@ -30,6 +34,69 @@ WIPE = [
 ]
 TARGETS = [p for p in WIPE if p.endswith("target")]
 LOAD_LIMIT = 5.0
+SCCACHE_KEYS = (
+    "Compile requests",
+    "Compile requests executed",
+    "Cache hits",
+    "Cache misses",
+    "Cache errors",
+    "Compilation failures",
+    "Non-cacheable compilations",
+    "Non-cacheable calls",
+)
+
+
+def sccache_socket(env, uid, exists):
+    """UDS path of the shared boardstudio-sccache daemon, or None when absent."""
+    runtime = env.get("XDG_RUNTIME_DIR") or f"/run/user/{uid}"
+    for candidate in (f"{runtime}/boardstudio-sccache/server.sock",
+                      f"/run/user/{uid}/boardstudio-sccache/server.sock"):
+        if exists(candidate):
+            return candidate
+    return None
+
+
+def sccache_binary():
+    """sccache client, preferring ~/.cargo/bin over PATH. None when absent."""
+    dot_cargo = Path.home() / ".cargo" / "bin" / "sccache"
+    if dot_cargo.is_file():
+        return str(dot_cargo)
+    return shutil.which("sccache")
+
+
+def snapshot_sccache(binary, socket):
+    """Raw `sccache --show-stats` text against the UDS daemon; None on any failure."""
+    try:
+        env = dict(os.environ, SCCACHE_SERVER_UDS=socket)
+        run = subprocess.run([binary, "--show-stats"], env=env,
+                             capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if run.returncode != 0:
+        return None
+    return run.stdout
+
+
+def parse_sccache_stats(text):
+    """Map each known `sccache --show-stats` counter to its int value (0 when absent)."""
+    values = {}
+    for line in text.splitlines():
+        name, _, value = line.rpartition("  ")
+        name, value = name.strip(), value.strip()
+        if name and value.isdigit():
+            values[name] = int(value)
+    return {key: values.get(key, 0) for key in SCCACHE_KEYS}
+
+
+def format_sccache_delta(before, after):
+    """One-line `+N` counter deltas between two parsed snapshots."""
+    delta = {key: after[key] - before[key] for key in SCCACHE_KEYS}
+    return ("cold: sccache delta: "
+            f"+{delta['Compile requests executed']} executed, "
+            f"+{delta['Cache hits']} hits, "
+            f"+{delta['Cache misses']} misses, "
+            f"+{delta['Non-cacheable calls']} non-cacheable, "
+            f"+{delta['Cache errors'] + delta['Compilation failures']} errors")
 
 
 def refusal_reasons(env, islink, loadavg):
@@ -86,6 +153,12 @@ def main(argv):
     EVIDENCE.mkdir(parents=True, exist_ok=True)
     jsonl = EVIDENCE / f"{name}.jsonl"
     jsonl.unlink(missing_ok=True)
+    socket = None if without_cache else sccache_socket(
+        os.environ, os.getuid(), lambda p: Path(p).exists())
+    binary = sccache_binary() if socket else None
+    before = snapshot_sccache(binary, socket) if binary else None
+    if before is not None:
+        (EVIDENCE / f"{name}-sccache-before.log").write_text(before)
     env = dict(os.environ, BUILDTIME_LOG=str(jsonl),
                BUILDTIME_NEXT_WRAPPER="" if without_cache else configured_wrapper(os.environ),
                RUSTC_WRAPPER=str(ROOT / "scripts" / "build-time" / "rustc-log.py"))
@@ -98,9 +171,14 @@ def main(argv):
         usage = resource.getrusage(resource.RUSAGE_CHILDREN)
         print(f"cold: wall {time.monotonic() - start:.1f}s, "
               f"process tree CPU {usage.ru_utime + usage.ru_stime:.1f}s", file=log)
+        after = snapshot_sccache(binary, socket) if binary else None
+        if before is not None and after is not None:
+            (EVIDENCE / f"{name}-sccache-after.log").write_text(after)
+            print(format_sccache_delta(parse_sccache_stats(before),
+                                       parse_sccache_stats(after)), file=log)
     print(f"exit {code}")
     for line in (EVIDENCE / f"{name}.log").read_text(errors="replace").splitlines():
-        if line.startswith(("check: step times", "check: all steps", "cold: wall")) or "FAILED" in line:
+        if line.startswith(("check: step times", "check: all steps", "cold: wall", "cold: sccache")) or "FAILED" in line:
             print(line)
     return code
 
