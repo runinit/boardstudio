@@ -313,3 +313,10 @@ with its own thread budget. Fallback tests still cover newly added STEP and
 registered generator fixtures. The commit records every old and new name.
 Only the footprints names enter the current native baseline. The CAD tests
 run through their separate production lane.
+
+### I3a. Rejoin the UI shared panel launch
+
+Restore the resize fixture's localStorage value and browser spies before
+asserting its observations. The scoped mount owns the Dioxus render loop
+and removes the root when it is disposed. The panel tests now run in the
+ordinary UI shared launch.

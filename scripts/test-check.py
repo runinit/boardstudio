@@ -530,7 +530,7 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
         ])
         scoped, _ = check.with_crate_build([check.crate_launch("layout")])
         self.assertEqual(scoped[-2:], ["--features", "boardstudio-web-layout/test-support"])
-        self.assertEqual(len(launches), 14)
+        self.assertEqual(len(launches), 13)
         self.assertTrue(all(check.is_crate_launch(cmd) for cmd in launches))
         self.assertIn("scripts/run-wasm-tests.py", packaged[-1])
         self.assertFalse(any("--list" in cmd for cmd in packaged + wasm))
@@ -1057,7 +1057,7 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
                          ["-p", "boardstudio-web-ui-shared", "-p", "boardstudio-web-case"])
         self.assertCountEqual(seen[2:], [
             [str(self.wasm_dir / "wasm-bindgen-test-runner"), str(self.wasm_dir / f"{crate}.wasm"), *filters]
-            for crate, filters in [("case", []), ("ui-shared", ["--skip", "panels::"]), ("ui-shared", ["panels::"])]
+            for crate, filters in [("case", []), ("ui-shared", [])]
         ])
         self.assertFalse(any("build-web.py" in " ".join(cmd) or "run-drag-browser.py" in " ".join(cmd)
                              for cmd in seen))

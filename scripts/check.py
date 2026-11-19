@@ -140,9 +140,7 @@ def browser() -> list[Command]:
             crate_launch("host"),
             crate_launch("runtime"),
             crate_launch("ui-model"),
-            # Panel tests need an isolated browser session.
-            crate_launch("ui-shared", "--skip", "panels::"),
-            crate_launch("ui-shared", "panels::"),
+            crate_launch("ui-shared"),
             crate_launch("keycaps"),
             crate_launch("library"),
             crate_launch("keymap"),

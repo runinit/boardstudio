@@ -46,6 +46,8 @@ pub mod project_menu;
 // Bounded waits for the browser tests of the workspace crates (test-support only).
 #[cfg(all(target_arch = "wasm32", any(test, feature = "test-support")))]
 pub mod test_wait;
+#[cfg(all(target_arch = "wasm32", any(test, feature = "test-support")))]
+pub mod test_mount;
 // Finds controls by accessible role and name, as a user or assistive technology would (test-support only).
 #[cfg(all(target_arch = "wasm32", any(test, feature = "test-support")))]
 pub mod test_role;

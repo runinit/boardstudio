@@ -126,8 +126,8 @@ builds the selected lib test binaries in one Cargo invocation, then runs them wi
 `test-support` for selected keymap, layout, library and PCB crates, and the separate page binary
 test build enables `boardstudio-web-host/test-support` so both full builds resolve the same shared
 features. Each launch starts its own `chromedriver` and Chrome.
-The panel and setup guide tests each get a separate browser session using the same binary as their
-crate's other tests. The page suite also isolates the Case workspace fixtures. The check runs up to
+The setup guide tests get a separate browser session using the same binary as the other layout
+tests. The page suite also isolates the Case workspace fixtures. The check runs up to
 four crate launches at once (`BOARDSTUDIO_CHECK_JOBS`, `1` for serial), with a two-minute timeout per
 launch (`WASM_BINDGEN_TEST_TIMEOUT`). Use `python3 scripts/check.py browser --only <crate>...` for a
 partial crate run without the packaged build or drag smoke. Add `--keep-going` to continue across
