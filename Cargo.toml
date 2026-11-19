@@ -167,3 +167,11 @@ debug-assertions = false
 debug-assertions = false
 [profile.wasm-check.package.boardstudio-web-library]
 debug-assertions = false
+
+# `dioxus-primitives` and `dioxus-sdk-time` unify `dioxus/default` -> `dioxus-web/devtools`,
+# which `dioxus-web` gates on `#[cfg(all(feature = "devtools", debug_assertions))]`.
+# `wasm-check` is static/test-only (`dx serve` keeps `wasm-dev` with `debug-assertions = true`,
+# and `release` already compiles `mod devtools` out), so disabling debug assertions here keeps
+# hot-reload WebSocket reconnect loops, `inline1.js`, and the devtools panic hook out of checks.
+[profile.wasm-check.package.dioxus-web]
+debug-assertions = false
