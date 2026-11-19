@@ -123,7 +123,7 @@ on purpose, with `BOARDSTUDIO_ALLOW_NO_KICAD=1`; the KiCad integration tests hav
 **Browser tests.** The page runner checks that every listed test executes. The presentation crate suite
 builds the selected lib test binaries in one Cargo invocation, then runs them with the locked
 `wasm-bindgen-test-runner` from each crate directory. The checked crate build enables
-`test-support` for selected keymap, layout, library and PCB crates, and the separate page binary
+`boardstudio-web-host/page` when testing `host`, and the separate page binary
 test build enables `boardstudio-web-host/test-support` so both full builds resolve the same shared
 features. Each launch starts its own `chromedriver` and Chrome.
 Layout uses a desktop viewport for the setup guide and the other layout tests. The page filters

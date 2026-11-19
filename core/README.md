@@ -59,7 +59,9 @@ definitions; registration and placement share one undo step.
 
 ## Tests
 
-Core's integration tests are modules of `core/tests/integration.rs`
-(`autotests = false`). Register a new file there with `#[path = "name.rs"] mod name;`;
+Core's integration tests are split across four `[[test]]` roots (`autotests = false`):
+`core/tests/integration.rs`, `core/tests/integration_matrix.rs`,
+`core/tests/integration_mechanical.rs`, and `core/tests/integration_modules.rs`.
+Register a new file in one of those roots with `#[path = "name.rs"] mod name;`;
 `python3 scripts/check-core-tests.py` fails for a file no target compiles. Run one test with
-`cargo test -p boardstudio_core --test integration <name>`.
+`cargo test -p boardstudio_core --test <root> <name>` (for example `--test integration <name>`).
