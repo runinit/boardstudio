@@ -385,6 +385,84 @@ names. Applying the I2 splits and I5 moves yielded 2,447 expected
 workspace names and 565 expected CAD names. All executed. There were no
 unmapped losses or J renames.
 
+### H2 full gate after the setup-guide fix
+
+The full gate passed at `b915b5754`:
+
+```text
+check: step times: repo 1.9s, tooling 30.8s, build 91.3s, lint 52.4s, test 45.7s, browser 390.8s, total 514.9s
+check: native tests: all 2447 baselined test(s) executed
+```
+
+The full run matched 799 crate browser test names across 12 launches, all 126
+page test names, all 15 drag checks, and all 364 CAD browser labels. The native
+inventory again matched all 2,447 workspace and 565 CAD names. The shared
+Layout launch passed all 258 tests on three consecutive focused runs before the
+full gate. The Case launch took 294.1 s, of which the runner reported 10.93 s
+in test bodies. All 100 Case tests passed.
+
+The first attempt needed `~/.cargo/bin` on the shell's PATH for `wasm-pack`.
+`45b315077` brought the module declarations added in I3a (`101a0bed2`) and
+the Case fixture edits from I3c (`446411d49`) into the root rustfmt gate's
+format. The temporary I3b revert (`627459c81`) restored the exact previous
+Layout filters and the original guide fixture. `b915b5754` rejoined the guide
+after fixing its deferred stage sync. No tooling run required a J8 revert.
+
+### H3 cold runs
+
+Both runs passed at `b915b5754` in the existing
+`cold-build-port-verification` worktree. The kit wiped build outputs each
+time. The one-minute load was 2.45 before the warm run and 4.87 before bypass.
+An interrupted run at the prior revision was excluded.
+
+```text
+check: step times: repo 2.0s, tooling 30.2s, build 497.4s, lint 438.6s, test 336.5s, browser 159.9s, total 689.7s
+cold: wall 689.8s, process tree CPU 5045.8s
+check: step times: repo 2.0s, tooling 31.0s, build 554.4s, lint 494.6s, test 404.3s, browser 393.7s, total 981.2s
+cold: wall 981.4s, process tree CPU 6009.4s
+```
+
+| Run | Wall | Real compiler child CPU | Wall saved against 1,010.7 s |
+| --- | ---: | ---: | ---: |
+| Warm cache | 689.8 s | 4,127 s | 320.9 s (31.8%) |
+| Cache bypassed | 981.4 s | 5,090 s | 29.3 s (2.9%) |
+
+sccache 0.19.0 recorded 1,230 hits and 386 misses during the warm run,
+a 76.1% hit rate. The bypass run omitted the cache wrapper. The Case
+launch took 26.8 s warm and 294.8 s on bypass. This browser launch
+variance prevents attributing the full wall-time difference to caching.
+Both runs retained the native floor and all default gates. The kit's logs
+and comparison are in the verification worktree under
+`.evidence/cold-build-port/`.
+
+### H4 artifact and lockfile equivalence
+
+- The serial and overlapped page builds produced identical WebAssembly bytes
+  (53,757,088 bytes).
+- The packaged CAD WebAssembly went from 10,691,257 to 10,687,905 bytes
+  (3,352 bytes smaller).
+- All four Core and CAD worker declarations matched the reference byte for byte.
+- The standalone CAD provider lock was absorbed into the library lock. The
+  provider now shares `cc` 1.8.0 (was 1.5.1), `equivalent` 1.0.3 (was
+  1.0.2), `libc` 0.2.191 (was 0.2.189), `syn` 3.0.9 (was 3.0.6), and
+  `unicode-ident` 1.0.27 (was 1.0.26) with the library. The combined lock
+  retains `approx` 0.5.1 and `cpufeatures` 0.2.17 for the provider.
+  `glam` 0.33.11, `parry3d-f64` 0.31.1 and `spade` 2.15.1 stay pinned.
+- Both CAD lockfiles use vendored `Inflector` 0.11.4. The qualification lock
+  drops `aho-corasick` 1.1.5, `lazy_static` 1.5.1, `regex` 1.13.1 and
+  `regex-automata` 0.4.18. The merged lock drops those four and
+  `regex-syntax` 0.8.11 relative to the union of the two original locks.
+  The raw diff and per-lock package/version diff are in
+  `.evidence/cold-build-port/H4-I5-lockfiles.log` and
+  `.evidence/cold-build-port/H4-I5-lock-versions.log`.
+
+### Open measurement risks
+
+The browser launch delay remains intermittent. One run per cache mode cannot
+separate its wall-time contribution from cache savings. Layout still had the
+longest crate test-body time in the final H2 run (22.12 s). The three focused
+Layout runs and H2–H3 passed with the guide in the shared session.
+
 ### Section H commands after the VM is off
 
 Run H1, H2 and H4 from the implementation worktree using a shell outside the
@@ -397,6 +475,7 @@ cd "$root"
 evidence="$root/.evidence/cold-build-port"
 reference=/home/chris/.t3/worktrees/ts-boardstudio2/t3-d04ee7db-eda77b8bc79b8ab2
 mkdir -p "$evidence"
+export PATH="$PATH:$HOME/.cargo/bin"
 exec 9<~/.cache/tmp/boardstudio-build.lock
 flock 9
 export BOARDSTUDIO_BUILD_LOCK_FD=9
@@ -562,13 +641,13 @@ PY
 
 #### H3. Warm-cache and cache-bypassed cold runs
 
-Use a fresh, detached worktree at the revision with the reviewed baseline.
-Leave it in place. Run each cold command once machine load is below the kit's
-threshold.
+Move the existing verification worktree to the revision with the reviewed
+baseline. Leave it in place. Run each cold command once machine load is below
+the kit's threshold. The kit wipes prior build outputs before each run.
 
 ```bash
-verify="$(dirname "$root")/cold-build-port-i5-verification"
-git worktree add --detach "$verify" HEAD
+verify="$(dirname "$root")/cold-build-port-verification"
+git -C "$verify" checkout --detach "$(git rev-parse HEAD)"
 (
     cd "$verify"
     mkdir -p .evidence/cold-build-port
