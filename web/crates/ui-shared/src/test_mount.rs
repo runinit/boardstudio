@@ -17,6 +17,7 @@ struct RenderTask {
 /// Dropping the fixture stops rendering, disposes the VDOM, and removes its root.
 pub struct MountedFixture {
     root: Element,
+    owned: Vec<Element>,
     render: Rc<RefCell<RenderTask>>,
 }
 
@@ -39,7 +40,22 @@ impl MountedFixture {
             task.waker = Some(cx.waker().clone());
             result
         }));
-        Self { root, render }
+        Self {
+            root,
+            owned: Vec::new(),
+            render,
+        }
+    }
+
+    /// Owns an extra DOM node (e.g. a `<style>` in `document.head()`), removed on drop.
+    pub fn own_node(&mut self, node: Element) {
+        self.owned.push(node);
+    }
+
+    /// Owns extra DOM nodes (e.g. `<style>` elements in `document.head()`), removed on drop.
+    pub fn with_owned_nodes(mut self, nodes: impl IntoIterator<Item = Element>) -> Self {
+        self.owned.extend(nodes);
+        self
     }
 }
 
@@ -51,6 +67,9 @@ impl Drop for MountedFixture {
         };
         drop(future);
         self.root.remove();
+        for node in &self.owned {
+            node.remove();
+        }
         if let Some(waker) = waker {
             waker.wake();
         }
