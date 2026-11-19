@@ -95,62 +95,91 @@ use string::pluralize::to_plural;
 #[cfg(feature = "heavyweight")]
 use string::singularize::to_singular;
 
-#[allow(missing_docs)]
+/// String case conversions and inflections.
 pub trait Inflector {
 
+    /// Convert the string to camel case.
     fn to_camel_case(&self) -> String;
+    /// Test whether the string is in camel case.
     fn is_camel_case(&self) -> bool;
 
+    /// Convert the string to pascal case.
     fn to_pascal_case(&self) -> String;
+    /// Test whether the string is in pascal case.
     fn is_pascal_case(&self) -> bool;
 
+    /// Convert the string to snake case.
     fn to_snake_case(&self) -> String;
+    /// Test whether the string is in snake case.
     fn is_snake_case(&self) -> bool;
 
+    /// Convert the string to screaming snake case.
     fn to_screaming_snake_case(&self) -> String;
+    /// Test whether the string is in screaming snake case.
     fn is_screaming_snake_case(&self) -> bool;
 
+    /// Convert the string to kebab case.
     fn to_kebab_case(&self) -> String;
+    /// Test whether the string is in kebab case.
     fn is_kebab_case(&self) -> bool;
 
+    /// Convert the string to train case.
     fn to_train_case(&self) -> String;
+    /// Test whether the string is in train case.
     fn is_train_case(&self) -> bool;
 
+    /// Convert the string to sentence case.
     fn to_sentence_case(&self) -> String;
+    /// Test whether the string is in sentence case.
     fn is_sentence_case(&self) -> bool;
 
+    /// Convert the string to title case.
     fn to_title_case(&self) -> String;
+    /// Test whether the string is in title case.
     fn is_title_case(&self) -> bool;
 
+    /// Convert a number to its ordinal form.
     fn ordinalize(&self) -> String;
+    /// Remove the ordinal suffix from a number.
     fn deordinalize(&self) -> String;
 
+    /// Convert the string to a foreign key name.
     fn to_foreign_key(&self) -> String;
+    /// Test whether the string is a foreign key name.
     fn is_foreign_key(&self) -> bool;
 
     #[cfg(feature = "heavyweight")]
+    /// Return the last component of a qualified name.
     fn demodulize(&self) -> String;
     #[cfg(feature = "heavyweight")]
+    /// Return the parent portion of a qualified name.
     fn deconstantize(&self) -> String;
 
     #[cfg(feature = "heavyweight")]
+    /// Convert the string to class case.
     fn to_class_case(&self) -> String;
     #[cfg(feature = "heavyweight")]
+    /// Test whether the string is in class case.
     fn is_class_case(&self) -> bool;
 
     #[cfg(feature = "heavyweight")]
+    /// Convert the string to table case.
     fn to_table_case(&self) -> String;
     #[cfg(feature = "heavyweight")]
+    /// Test whether the string is in table case.
     fn is_table_case(&self) -> bool;
     #[cfg(feature = "heavyweight")]
+    /// Convert a word to its plural form.
     fn to_plural(&self) -> String;
     #[cfg(feature = "heavyweight")]
+    /// Convert a word to its singular form.
     fn to_singular(&self) -> String;
 }
 
 
-#[allow(missing_docs)]
+/// Ordinal forms of numbers.
 pub trait InflectorNumbers {
+    /// Convert a number to its ordinal form.
     fn ordinalize(&self) -> String;
 }
 

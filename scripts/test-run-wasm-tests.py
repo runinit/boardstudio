@@ -41,6 +41,7 @@ class RunWasmTestsTests(unittest.TestCase):
         for invocation in call.call_args_list:
             command = invocation.args[0]
             self.assertEqual(command[:2], ["wasm-bindgen-test-runner", "/page.wasm"])
+            self.assertEqual(invocation.kwargs["cwd"], runner.ROOT / "web")
             self.assertEqual(invocation.kwargs["env"]["CHROMEDRIVER"], "/selected/driver")
             self.assertEqual(invocation.kwargs["env"]["RAYON_NUM_THREADS"], "1")
         self.assertNotIn("RAYON_NUM_THREADS", env)

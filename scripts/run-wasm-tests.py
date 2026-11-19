@@ -311,23 +311,26 @@ def build_page_test(root, env):
     return artifacts[0]
 
 
-def page_runner(env):
+def run_page_runner(args, env, root):
     override = os.environ.get(RUNNER_ENV)
     if override:
-        return shlex.split(override)
-    return [wasm_bindgen_tools.TEST_RUNNER, env[PAGE_ARTIFACT]]
+        command = shlex.split(override)
+        cwd = root
+    else:
+        command = [wasm_bindgen_tools.TEST_RUNNER, env[PAGE_ARTIFACT]]
+        # wasm-pack launched from the page package. The runner serves its relative assets here.
+        cwd = Path(root) / "web"
+        env = dict(env, RAYON_NUM_THREADS="1")
+    fd = browser_tools._inherited_build_lock()
+    return subprocess.run([*command, *args], cwd=cwd, env=env, text=True, capture_output=True,
+                          pass_fds=() if fd is None else (fd,))
 
 
 def run_filter(filter_, env, root=ROOT, skip_filters=()):
-    command = page_runner(env)
-    if filter_:
-        command.append(filter_)
+    args = [filter_] if filter_ else []
     for skip_filter in skip_filters:
-        command.extend(["--skip", skip_filter])
-    fd = browser_tools._inherited_build_lock()
-    result = subprocess.run(command, cwd=root, env=dict(env, RAYON_NUM_THREADS="1"),
-                            text=True, capture_output=True,
-                            **({"pass_fds": (fd,)} if fd is not None else {}))
+        args.extend(["--skip", skip_filter])
+    result = run_page_runner(args, env, root)
     output = result.stdout + "\n" + result.stderr
     outcomes = {}
     for name, status in TEST_LINE.findall(output):
@@ -343,11 +346,7 @@ LIST_LINE = re.compile(r"^(\S+): test$", re.M)
 
 
 def list_wasm_tests(env, root=ROOT):
-    command = [*page_runner(env), "--list"]
-    fd = browser_tools._inherited_build_lock()
-    result = subprocess.run(command, cwd=root, env=dict(env, RAYON_NUM_THREADS="1"),
-                            text=True, capture_output=True,
-                            **({"pass_fds": (fd,)} if fd is not None else {}))
+    result = run_page_runner(["--list"], env, root)
     names = LIST_LINE.findall(result.stdout + "\n" + result.stderr)
     if result.returncode or not names:
         detail = f" (runner exit {result.returncode})" if result.returncode else ""

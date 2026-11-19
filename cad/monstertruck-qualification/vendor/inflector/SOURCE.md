@@ -15,4 +15,5 @@ whose modules reference neither regex nor any gated item.
 Path dependencies do not get cargo's lint cap, so the crate's `#![deny(warnings)]`
 fires on this toolchain. Twelve no-op `.clone()` calls on `&str` (all in tests)
 were removed. The case import in `classcase` is gated on `heavyweight`, like its
-callers.
+callers. The unused legacy ASCII import was removed, and the public trait
+items are documented so the upstream lint suppressions can be omitted.

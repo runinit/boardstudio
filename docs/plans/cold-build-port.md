@@ -273,3 +273,20 @@ stdin probe. The Dioxus build passed after cleaning the affected target.
 All 358 tests in 14 focused suites passed, including the real KiCad importer
 driver build. The measurement control attributes two simultaneous rustc units
 to their own steps and sums recorded CPU independently of compiler wall time.
+
+### H2. Full gate
+
+```text
+check: step times: repo 6.3s, tooling 49.3s, build 113.6s, lint 82.6s, test 121.3s, browser 193.9s, total 370.9s
+check: native tests: all 2384 baselined test(s) executed; 27 new, record with --update-native-baseline
+```
+
+All 14 crate launches matched the baseline's 799 test names and
+multiplicities. The page suite matched all 126 names, drag smoke passed all
+15 checks and the CAD browser gate matched all 364 check labels. The warm
+full run followed two corrected failures. A live CAD lockfile link needed
+the new workspace path. The page runner initially served assets from the
+wrong directory, which failed the same renderer-import test in isolation.
+The runner now starts in the page package, and both the isolated test and
+the full check pass. The vendored crate retains its lint checks without
+adding lint suppressions.
