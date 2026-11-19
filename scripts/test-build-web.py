@@ -189,19 +189,33 @@ class BuildWebTests(unittest.TestCase):
                                            web))
 
     def test_page_tools_fall_back_to_dx_when_any_tool_is_missing(self):
-        for missing in ("tailwind_cli", "locked_wasm_bindgen", "dx"):
+        for missing in ("tailwind_cli", "locked_wasm_bindgen", "matching_dx"):
             found = {"tailwind_cli": Path("/t/tailwindcss"), "locked_wasm_bindgen": Path("/t/wasm-bindgen")}
             with self.subTest(missing=missing), \
                  patch.object(BUILD, "tailwind_cli", return_value=None if missing == "tailwind_cli" else found["tailwind_cli"]), \
                  patch.object(BUILD, "locked_wasm_bindgen",
                               return_value=None if missing == "locked_wasm_bindgen" else found["locked_wasm_bindgen"]), \
-                 patch.object(BUILD.shutil, "which", return_value=None if missing == "dx" else "/t/dx"), \
+                 patch.object(BUILD, "matching_dx", return_value=None if missing == "matching_dx" else "/t/dx"), \
                  patch.object(BUILD.sys, "stderr", io.StringIO()):
                 self.assertIsNone(BUILD.page_tools())
         with patch.object(BUILD, "tailwind_cli", return_value=Path("/t/tailwindcss")), \
              patch.object(BUILD, "locked_wasm_bindgen", return_value=Path("/t/wasm-bindgen")), \
-             patch.object(BUILD.shutil, "which", return_value="/t/dx"):
+             patch.object(BUILD, "matching_dx", return_value="/t/dx"):
             self.assertEqual(BUILD.page_tools(), (Path("/t/tailwindcss"), Path("/t/wasm-bindgen"), "/t/dx"))
+
+    def test_matching_dx_requires_the_pinned_plain_page_version(self):
+        with patch.object(BUILD.shutil, "which", return_value=None):
+            self.assertIsNone(BUILD.matching_dx())
+        for returncode, stdout, expected in (
+            (0, f"dioxus {BUILD.PLAIN_PAGE_DX_VERSION} (57d6794)\n", "/t/dx"),
+            (0, "dioxus 0.8.0 (abc1234)\n", None),
+            (1, f"dioxus {BUILD.PLAIN_PAGE_DX_VERSION}\n", None),
+        ):
+            with self.subTest(returncode=returncode, stdout=stdout), \
+                 patch.object(BUILD.shutil, "which", return_value="/t/dx"), \
+                 patch.object(BUILD.subprocess, "run",
+                              return_value=subprocess.CompletedProcess(["/t/dx", "--version"], returncode, stdout, "")):
+                self.assertEqual(BUILD.matching_dx(), expected)
 
     def test_tailwind_cli_prefers_the_override_then_path_then_newest_dx_tool(self):
         def tool(path, banner):
@@ -341,13 +355,30 @@ class BuildWebTests(unittest.TestCase):
             (root / "page.wasm").write_bytes(b"cargo")
 
             def fake_run(command, *, cwd=BUILD.ROOT, env=None, output=None):
-                if "--out-dir" in command:
+                if command[1:3] == ["tools", "assets"]:
+                    assets = Path(command[4])
+                    assets.mkdir(parents=True)
+                    (assets / "focus-trap-dxh0.js").write_text("export {}")
+                elif "--out-dir" in command:
                     out = Path(command[command.index("--out-dir") + 1])
                     out.mkdir(parents=True)
                     (out / "boardstudio-web.js").write_text("function initSync(module) {}\n")
 
             with patch.object(BUILD, "cargo_page_artifact", return_value=root / "page.wasm"), \
                  patch.object(BUILD, "run", fake_run), self.assertRaisesRegex(ValueError, "__wbg_init"):
+                BUILD.plain_page("subpath", (Path("t"), Path("b"), "dx"), root / "public")
+
+    def test_plain_page_rejects_empty_extracted_assets(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "page.wasm").write_bytes(b"cargo")
+
+            def fake_run(command, *, cwd=BUILD.ROOT, env=None, output=None):
+                if command[1:3] == ["tools", "assets"]:
+                    Path(command[4]).mkdir(parents=True)
+
+            with patch.object(BUILD, "cargo_page_artifact", return_value=root / "page.wasm"), \
+                 patch.object(BUILD, "run", fake_run), self.assertRaisesRegex(FileNotFoundError, "extracted no files"):
                 BUILD.plain_page("subpath", (Path("t"), Path("b"), "dx"), root / "public")
 
     def test_model_staging_command_runs_with_the_staging_cli(self):

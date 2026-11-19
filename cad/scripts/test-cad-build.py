@@ -136,7 +136,7 @@ class CadBuildTests(unittest.TestCase):
         commands = [call.args[0] for call in run.call_args_list]
         self.assertEqual(commands[0], ["cargo", "test", "--manifest-path", "monstertruck/Cargo.toml",
                                       "-p", "boardstudio-cad", "-p", "boardstudio-cad-wasm",
-                                      "--profile", "cad-test", "--lib", "--tests", "--locked"])
+                                      "--profile", "cad-test", "--lib", "--tests", "--examples", "--locked"])
         self.assertEqual(run.call_args_list[0].kwargs["env"]["CARGO_TARGET_DIR"],
                          str(self.root / "monstertruck/target"))
         self.assertTrue(all("--locked" in command and command[-3:] == ["--profile", "cad-test", "--locked"]

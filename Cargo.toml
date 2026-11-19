@@ -96,6 +96,9 @@ regex-automata = { opt-level = 1 }
 regex-syntax = { opt-level = 1 }
 aho-corasick = { opt-level = 1 }
 # Static builds avoid Dioxus hot-reload scaffolding; wasm-dev restores it for dx serve.
+# Do NOT add dioxus-cli-config (or "*") here: dioxus-cli-config reads
+# <meta name="DIOXUS_ASSET_ROOT"> at runtime only under cfg(debug_assertions), which
+# plain-Cargo subpath builds rely on.
 boardstudio-web = { debug-assertions = false }
 boardstudio-web-ui-shared = { debug-assertions = false }
 boardstudio-web-keycaps = { debug-assertions = false }

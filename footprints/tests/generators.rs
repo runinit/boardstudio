@@ -1068,7 +1068,10 @@ impl OrderScanner<'_> {
 ///
 /// The parsed fixture `Value` intentionally forgets object key order (without
 /// `serde_json/preserve_order` the map is sorted), so the schema-order check
-/// reads the order straight from the raw fixture text instead.
+/// reads the order straight from the raw fixture text instead. Duplicate keys
+/// inside `"parameters"` are reported twice (failing the order check), and a
+/// duplicate top-level `"parameters"` key returns the first object rather than
+/// `serde_json`'s last-one-wins.
 fn parameter_key_order(fixture_raw: &str) -> Result<Vec<String>, String> {
     let mut scan = OrderScanner {
         bytes: fixture_raw.as_bytes(),

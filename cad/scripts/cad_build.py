@@ -142,7 +142,7 @@ def _test_production_cad(output):
     library_target, _ = NATIVE_TEST_TARGETS
     command = ["cargo", "test", "--manifest-path", "monstertruck/Cargo.toml",
                "-p", "boardstudio-cad", "-p", "boardstudio-cad-wasm",
-               "--profile", "cad-test", "--lib", "--tests", "--locked"]
+               "--profile", "cad-test", "--lib", "--tests", "--examples", "--locked"]
     _run_test(command, library_target, output)
 
 

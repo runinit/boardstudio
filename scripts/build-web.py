@@ -31,6 +31,7 @@ DEFAULT_ROUTES = ("subpath",)
 DX_FLAGS = ("--wasm-js-cfg", "false")
 # The checked page built by plain Cargo, outside dx's rustc wrapper.
 PAGE_PUBLIC = WEB / "target/page/public"
+PLAIN_PAGE_DX_VERSION = "0.7.10"
 TAILWIND_ENV = "BOARDSTUDIO_TAILWINDCSS"
 DX_TOOLS = Path.home() / ".local/share/.dx/tools"
 PAGE_CARGO = ["cargo", "build", "--locked", "--target", "wasm32-unknown-unknown", "--profile", "wasm-check",
@@ -145,7 +146,8 @@ def provider_commands(fast: bool = False) -> list[tuple[list[str], Path]]:
           "--manifest", "web/target/providers/ergogen-models.json"], ROOT),
     ]
     if fast:
-        # Every checked wasm build, the page included, shares the `wasm-check` profile.
+        # Every checked wasm build, the page included, shares the `wasm-check` profile
+        # (dev semantics instead of release; `check.py release` and CI keep `--release` and `wasm-opt`).
         for command, _ in commands:
             if command[:2] == ["wasm-pack", "build"]:
                 command[command.index("--release"):command.index("--release") + 1] = [
@@ -292,10 +294,24 @@ def locked_wasm_bindgen() -> Path | None:
     return None
 
 
+def matching_dx() -> str | None:
+    """The `dx` CLI matching the plain-page template version, or None to fall back to `dx build`."""
+    dx = shutil.which("dx")
+    if not dx:
+        return None
+    try:
+        result = subprocess.run([dx, "--version"], capture_output=True, text=True)
+    except OSError:
+        return None
+    if result.returncode == 0 and result.stdout.strip().split()[:2] == ["dioxus", PLAIN_PAGE_DX_VERSION]:
+        return dx
+    return None
+
+
 def page_tools() -> tuple[Path, Path, str] | None:
     """Tools for the plain-Cargo checked page, or None to fall back to `dx build`."""
     tools = {"standalone tailwindcss": tailwind_cli(), "locked wasm-bindgen": locked_wasm_bindgen(),
-             "dx": shutil.which("dx")}
+             f"dx {PLAIN_PAGE_DX_VERSION}": matching_dx()}
     if missing := [name for name, path in tools.items() if not path]:
         print(f"build-web: {', '.join(missing)} unavailable; building the checked page with dx",
               file=sys.stderr, flush=True)
@@ -306,6 +322,7 @@ def page_tools() -> tuple[Path, Path, str] | None:
 
 def generate_css(tailwind: Path) -> None:
     """Generate the stylesheet the page's `include_str!`s and WASM Clippy read, as dx would."""
+    print(f"build-web: stylesheet via {tailwind}", flush=True)
     run([str(tailwind), "-i", "tailwind.css", "-o", "assets/tailwind.css"], cwd=WEB)
     signal_css_ready()
 
@@ -362,7 +379,10 @@ def plain_page(route: str, tools: tuple[Path, Path, str], public: Path = PAGE_PU
     # `dx tools assets` writes the bundled asset paths into the module it reads, so leave Cargo's alone.
     module = public.parent / "boardstudio-web.wasm"
     shutil.copy2(artifact, module)
-    run([dx, "tools", "assets", str(module), str(public / "assets")], cwd=WEB, output=output)
+    assets = public / "assets"
+    run([dx, "tools", "assets", str(module), str(assets)], cwd=WEB, output=output)
+    if not assets.is_dir() or not any(assets.iterdir()):
+        raise FileNotFoundError(f"dx tools assets extracted no files into {assets}")
     # dx's checked page has no name section either; it would triple the module the browser loads.
     run([str(bindgen), "--target", "web", "--no-typescript", "--remove-name-section",
          "--out-dir", str(public / "wasm"), "--out-name", "boardstudio-web", str(module)],
