@@ -771,3 +771,8 @@ The provider pages, face completeness, CAD-build fake driver, and three dev-web
 server sites poll for shutdown every 50 ms. The CAD deletion delay and timeout
 checks keep their original settings. The static-preview test terminates its
 server process directly.
+
+### J6. Load the catalogue only for the VIK display adapter
+
+Read the imported catalogue inside the STEP display-adapter assertion branch.
+The named cases and the fallback still check the same assets and bounds.

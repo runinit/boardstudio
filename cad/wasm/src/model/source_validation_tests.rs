@@ -78,7 +78,7 @@ fn triple(value: &Value) -> [f64; 3] {
     ]
 }
 
-fn check_vik_step_mesh(asset: &Value, tight: &Value, catalogue: &Value) {
+fn check_vik_step_mesh(asset: &Value, tight: &Value) {
     let file = asset["bundledFile"].as_str().unwrap();
     let input = fs::read(root().join(file)).unwrap();
     let model = read_step_model_data(input.clone())
@@ -143,6 +143,7 @@ fn check_vik_step_mesh(asset: &Value, tight: &Value, catalogue: &Value) {
     // asymmetric H1/H2 rims the display transform must match; reuse this single
     // parse instead of importing the STEP a second time.
     if asset["path"] == "pcb/1.47inch/1.47inch.step" {
+        let catalogue = json("catalogue/modules/imported-modules.json");
         let definition = catalogue["modules"]
             .as_array()
             .unwrap()
@@ -243,7 +244,6 @@ macro_rules! vik_step_meshes {
                 check_vik_step_mesh(
                     asset,
                     &json("cad/test/fixtures/vik-model-tight-bounds.json"),
-                    &json("catalogue/modules/imported-modules.json"),
                 );
             }
         )+
@@ -253,10 +253,9 @@ macro_rules! vik_step_meshes {
             let listed = [$($path),+];
             let ledger = json("catalogue/modules/asset-ledger.json");
             let tight = json("cad/test/fixtures/vik-model-tight-bounds.json");
-            let catalogue = json("catalogue/modules/imported-modules.json");
             for asset in vik_step_assets(&ledger) {
                 if !listed.contains(&asset["path"].as_str().unwrap()) {
-                    check_vik_step_mesh(asset, &tight, &catalogue);
+                    check_vik_step_mesh(asset, &tight);
                 }
             }
         }
