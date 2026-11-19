@@ -1,51 +1,31 @@
 # BoardStudio
 
-- Commands: [README.md](README.md).
-- Architecture: [architecture](docs/architecture.md), [decisions](docs/adr/README.md), [terms](GLOSSARY.md).
-- UI/product: [DESIGN.md](DESIGN.md), [PRODUCT.md](PRODUCT.md).
-- Hardware: [component onboarding](docs/hardware/component-onboarding.md).
+## References
 
-## Editing
+- Commands: [README.md](README.md)
+- Standards (read during authoring & review): [CODING_STANDARDS.md](CODING_STANDARDS.md)
+- Architecture & decisions: [architecture](docs/architecture.md), [ADRs](docs/adr/README.md), [glossary](GLOSSARY.md)
+- Product & UI: [PRODUCT.md](PRODUCT.md), [DESIGN.md](DESIGN.md)
+- Hardware: [component onboarding](docs/hardware/component-onboarding.md)
 
-- Inventory: to find every use of a field or type you change, remove it and read the `cargo check` errors.
-- Scripted edits: replace one exact, unique string and assert the match count. Read the diff before running tests. Checkpoint with a WIP commit on your branch before a large scripted edit.
-- CAD migration review: follow the [map decisions](docs/plans/cad-backend-replacement/map.md#closure-and-workflow-decisions-2026-10-18-user). Run one combined spec+standards review at ticket closure or when a change touches public API, geometry, allowances or a cross-crate contract; private storage and test-only slices get RED/GREEN evidence and a diff read instead. An explicit `code-review` request and 012's final two-axis review still apply.
-- Verification: mutation checks use `scripts/mutation-check.py`; `check.py test` guards native test counts by test name.
-- Evidence: `.evidence/` holds logs only, except committed handoff records; redirect long check and mutation output there and report only results and relevant failures. Never create Cargo `target` directories or copy crate source trees inside `.evidence/`. Never generate `PREIMAGES.json`, `POSTIMAGES.json`, `before/` or `after/` file copies, or custom SHA-256 manifest files—Git already tracks source state.
+## Build & Environment
 
-## Environment & Build Guardrails
+- **Shared build lock & shallow `TMPDIR`:** Hold `~/.cache/tmp/boardstudio-build.lock` with a blocking `flock` (never fail-fast `flock -n`) and export `BOARDSTUDIO_BUILD_LOCK_FD=9 TMPDIR="$HOME/.cache/tmp"` for Cargo and browser runs. `$TMPDIR` changes when the sandbox is lifted—write persistent files to absolute paths.
+- **Chrome Unix socket limit:** Linux caps `SingletonSocket` at 108 bytes. Always launch Chrome via `browser_tools.shallow_browser_tmpdir()` / `browser_tools.browser_env()`, never raw sandbox/worktree `$TMPDIR`.
+- **Cargo sandbox & `PATH`:** Lift the sandbox unless `.claude/settings.json` (carried by `.worktreeinclude`) allowlists `readlink -f target`. Non-login shells may omit `~/.cargo/bin` (where `wasm-pack` lives) from `PATH`.
+- **Profiles & concurrency:** Let `.cargo/config.toml` (`jobs = 12`) and repo profiles (`dev`, `wasm-check`, `cad-test`) govern builds. Never pass `CARGO_BUILD_JOBS=2`, `CARGO_INCREMENTAL=0`, or `CARGO_PROFILE_DEV_DEBUG=2`, and never add a `rustc-wrapper` to repo `.cargo/config.toml`.
+- **Single build per target:** Never overlap manual `cargo` or `wasm-pack` runs against the same `target` directory or tight-poll background jobs. `scripts/check.py` owns bounded concurrency, strictly capped by `BOARDSTUDIO_CHECK_JOBS`. Keep `lint` overlapped in `target/lint`: Cargo hashes `build` and `clippy` dependency modes separately, so `clippy` cannot reuse external `.rlib`s from `build`/`test`.
+- **Manifest hygiene:** Leave zero Cargo warnings (`did not match any packages`, ignored workspace-member `resolver`). Never inspect or print `target/dx/.captured-args/*.json`.
 
-- `$TMPDIR` changes when the sandbox is lifted; write anything that must survive to an absolute path.
-- Cargo: lift the sandbox unless `.claude/settings.json` allowlists the directory `readlink -f target` prints (it differs per worktree: lane worktrees point into `~/.cache/boardstudio-target`, session worktrees share the main checkout's `target`). `.worktreeinclude` carries that file into new worktrees.
-- Build flags: let `.cargo/config.toml` (`jobs = 12`) and `scripts/run-wasm-tests.py` (`CARGO_PROFILE_DEV_DEBUG=false`) govern concurrency and debuginfo. Never pass `CARGO_BUILD_JOBS=2`, `CARGO_INCREMENTAL=0`, or `CARGO_PROFILE_DEV_DEBUG=2`.
-- Single build per target: do not manually launch overlapping `cargo` or `wasm-pack` commands against the same `target` directory or busy-poll background commands in a tight loop. The supported `scripts/check.py` scheduler owns its bounded independent launches, governed by `BOARDSTUDIO_CHECK_JOBS`.
+## Editing & Verification
 
-Historical workflow documents are not operating instructions.
+- **Inventory & scripted edits:** Find all uses of a changed type/field by removing it and reading `cargo check`. For scripted edits, replace one exact unique string, assert match count, read the diff before testing, and WIP-commit before large rewrites. Never use `git stash`.
+- **Checks & baselines:** Use `python3 scripts/check.py quick` during iteration and `check.py` for full gates. After merging parallel worktrees, run `python3 scripts/check.py repo tooling` before continuing (cross-script tests live outside individual script test files). Update native test baselines only via `check.py test --update-native-baseline` and verify zero test names were dropped. Mutation checks use `scripts/mutation-check.py`.
+- **Evidence:** `.evidence/` holds logs only (plus committed handoff records). Redirect long check/mutation logs there and report concise results. Never create `target` dirs, crate copies, `before/`/`after/` trees, or custom SHA-256 manifests inside `.evidence/`.
 
-## Browser Automation
+## Workflow & Conventions
 
-Use `agent-browser` for web automation. Run `agent-browser --help` for all commands.
-
-Core workflow:
-
-1. `agent-browser open <url>` - Navigate to page
-2. `agent-browser snapshot -i` - Get interactive elements with refs (@e1, @e2)
-3. `agent-browser click @e1` / `fill @e2 "text"` - Interact using refs
-4. Re-snapshot after page changes
-
-### Issue tracker
-
-Committed Markdown tickets under `docs/plans/<plan>/issues/`. See `docs/agents/issue-tracker.md`.
-
-### Triage labels
-
-The five default roles, recorded as a ticket's `Status:`. See `docs/agents/triage-labels.md`.
-
-### Domain docs
-
-Single-context: `GLOSSARY.md` and `docs/adr/`. See `docs/agents/domain.md`.
-
-### Orchestration
-
-- Routing delegated planning, implementation, research, checks, and review: [model routing](docs/agents/model-routing.md).
-- Looking up one selected provider/model for delegation: [model lookup](docs/agents/model-lookup.md).
+- Browser automation: use `agent-browser` (`agent-browser --help`: `open` -> `snapshot -i` -> `click`/`fill` by `@ref` -> re-snapshot).
+- Tickets & triage: [issue tracker](docs/agents/issue-tracker.md), [triage labels](docs/agents/triage-labels.md), [domain docs](docs/agents/domain.md).
+- Orchestration: [model routing](docs/agents/model-routing.md), [model lookup](docs/agents/model-lookup.md).
+- Historical workflow documents are not operating instructions.
