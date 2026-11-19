@@ -124,11 +124,12 @@ class QuickPlanTests(unittest.TestCase):
         self.assertIn("web", plan["test"][0])
 
     def test_quick_layout_runs_prepare_css_before_browser(self):
-        plan = check.quick_plan(quick.select(["web/crates/layout/src/lib.rs"], PACKAGES), PACKAGES)
+        with mock.patch.object(check, "tailwind_cli", return_value=Path("/tools/tailwindcss")):
+            plan = check.quick_plan(quick.select(["web/crates/layout/src/lib.rs"], PACKAGES), PACKAGES)
         names = [name for name, _ in plan]
         self.assertLess(names.index("test-css"), names.index("browser"))
         command = dict(plan)["test-css"][0]
-        self.assertEqual(command, check.TEST_CSS)
+        self.assertEqual(command, ["/tools/tailwindcss", "-i", "tailwind.css", "-o", "assets/tailwind.css"])
         self.assertIn("browser", names)
         self.assertNotIn("layout-test-css", names)
 

@@ -614,6 +614,88 @@ class RunWasmTestsTests(unittest.TestCase):
                     runner.all_module_selection({}, self.dir, depth=depth)
             list_tests.assert_not_called()
 
+    def test_max_group_tests_requires_all_and_depth_and_a_positive_limit(self):
+        for argv, message in ((["--all", "--max-group-tests", "5"], "requires --depth"),
+                              (["--all", "--depth", "1", "--max-group-tests", "0"], "positive integer"),
+                              (["--files", "web/src/presentation/x.rs", "--depth", "1", "--max-group-tests", "5"],
+                               "applies to --all")):
+            with self.subTest(argv=argv), self.assertRaises(SystemExit) as raised:
+                self.main(*argv)
+            self.assertEqual(raised.exception.code, 2)
+        with patch.object(runner, "list_wasm_tests") as list_tests:
+            for depth, limit, message in ((None, 5, "requires --depth"), (1, 0, "positive integer"),
+                                          (1, -2, "positive integer")):
+                with self.subTest(depth=depth, limit=limit), self.assertRaisesRegex(runner.RunnerError, message):
+                    runner.all_module_selection({}, self.dir, depth=depth, max_group_tests=limit)
+            list_tests.assert_not_called()
+
+    def test_max_group_tests_peels_largest_children_and_covers_every_test_once(self):
+        sizes = {"big": 9, "mid": 5, "small": 3, "pair": 2, "one": 1}
+        names = [f"presentation::{child}::tests::t{index}" for child, count in sizes.items() for index in range(count)]
+        names += ["presentation::direct_test", "model_tests::t0", "solo::only::t0", "solo::only::t1",
+                  "solo::only::t2", "cad_presentation::big::tests::t0"]
+        with patch.object(runner, "list_wasm_tests", return_value=names):
+            filters, expected = runner.all_module_selection(
+                {}, self.dir, depth=1, isolated=["presentation::one::"], max_group_tests=6)
+        self.assertEqual(filters, [
+            "cad_presentation::", "model_tests::", "presentation::", "presentation::big::",
+            "presentation::mid::", "presentation::one::", "solo::",
+        ])
+        self.assertEqual(sorted(expected["presentation::"]), sorted(
+            [*(name for name in names if name.startswith(("presentation::small::", "presentation::pair::"))),
+             "presentation::direct_test"]))
+        # A group whose tests share one child cannot shrink without leaving its own filter empty.
+        self.assertEqual(len(expected["solo::"]), 3)
+        flattened = [name for group in expected.values() for name in group]
+        self.assertCountEqual(flattened, names, "every listed test runs exactly once")
+        self.assertTrue(all(expected[group] for group in filters), "no filter is left without tests")
+        with patch.object(runner, "list_wasm_tests", return_value=names):
+            self.assertEqual(runner.all_module_selection({}, self.dir, depth=1, max_group_tests=100),
+                             runner.all_module_selection({}, self.dir, depth=1))
+
+    def test_max_group_tests_runs_split_groups_with_collision_free_skips(self):
+        names = [*(f"presentation::inspector::t{index}" for index in range(3)),
+                 *(f"presentation::canvas::t{index}" for index in range(2)), "presentation::panel::t0",
+                 "cad_presentation::inspector::t9"]
+        listing = " ".join(f'"{name}: test"' for name in names)
+        groups = {"cad_presentation::": names[-1:], "presentation::inspector::": names[:3], "presentation::": names[3:6]}
+        cases = " ".join(f'{prefix}) {"; ".join(f"echo \'test {name} ... ok\'" for name in group)};;'
+                         for prefix, group in groups.items())
+        self.fake(f'if [ "$1" = --list ]; then printf "%s\\n" {listing}; exit 0; fi\ncase "$1" in {cases} esac')
+        report = self.dir / "report.json"
+        with patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "1"}):
+            code, out, err = self.main("--all", "--depth", "1", "--max-group-tests", "3", "--result-json", str(report))
+        self.assertEqual(code, 0, out + err)
+        calls = self.log.read_text().splitlines()[1:]
+        self.assertIn("presentation:: --skip cad_presentation::inspector::t9 --skip presentation::inspector::t0 "
+                      "--skip presentation::inspector::t1 --skip presentation::inspector::t2", calls)
+        self.assertIn("presentation::inspector:: --skip cad_presentation::inspector::t9", calls)
+        self.assertIn("executed 7", out)
+        data = json.loads(report.read_text())
+        self.assertEqual(data["selection"]["max_group_tests"], 3)
+        self.assertEqual([item["filter"] for item in data["filters"]],
+                         ["cad_presentation::", "presentation::", "presentation::inspector::"])
+
+    def test_parallel_filters_start_largest_first_and_report_in_filter_order(self):
+        started, lock = [], __import__("threading").Lock()
+
+        def fake_run_filter(filter_, env, root, skip_filters=()):
+            with lock:
+                started.append(filter_)
+            tests = {name: "ok" for name in expected[filter_]}
+            return 0, tests, "".join(f"test {name} ... ok\n" for name in tests)
+
+        expected = {"a::": ["a::m::t0"], "b::": [f"b::m::t{index}" for index in range(3)],
+                    "c::": [f"c::m::t{index}" for index in range(2)]}
+        err = io.StringIO()
+        with patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "2"}), \
+                patch.object(runner, "run_filter", side_effect=fake_run_filter), contextlib.redirect_stderr(err):
+            executed, failed, _, problems, _ = runner.run(list(expected), {}, self.dir, expected, env={})
+        self.assertEqual((executed, failed, problems), (6, [], []))
+        self.assertEqual(set(started[:2]), {"b::", "c::"})
+        self.assertEqual(started[2], "a::")
+        self.assertEqual(re.findall(r"\[\d/3\] (\S+)", err.getvalue()), ["a::", "b::", "c::"])
+
     def test_result_json_distinguishes_complete_known_failure_from_success(self):
         self.fake("echo 'test presentation::x::tests::known_broken ... FAIL'; exit 1")
         report_path = self.dir / "report.json"

@@ -35,7 +35,9 @@ from tempfile import TemporaryDirectory
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from check import check_jobs, format_wasm_failure_summary, summarize_wasm_failure  # noqa: E402
+import cargo_json  # noqa: E402
+from check import format_wasm_failure_summary, summarize_wasm_failure  # noqa: E402
+from tailwind_tools import check_jobs  # noqa: E402
 KNOWN_FAILURES = Path(__file__).with_name("wasm-known-failures.json")
 TEST_OWNERS = Path(__file__).with_name("wasm-test-owners.json")
 RUNNER_ENV = "BOARDSTUDIO_WASM_TEST_COMMAND"
@@ -298,21 +300,9 @@ def build_page_test(root, env):
                                 stdout=subprocess.PIPE, pass_fds=() if fd is None else (fd,))
     except OSError as error:
         raise RunnerError(f"could not build the page test: {error}") from error
-    artifacts = []
-    for line in result.stdout.splitlines():
-        try:
-            message = json.loads(line)
-        except json.JSONDecodeError:
-            print(line, file=sys.stderr)
-            continue
-        if message.get("reason") == "compiler-message":
-            if rendered := message["message"].get("rendered"):
-                print(rendered, end="", file=sys.stderr)
-        if (message.get("reason") == "compiler-artifact" and message["profile"]["test"]
-                and message["target"]["kind"] == ["bin"] and message["target"]["name"] == "boardstudio-web"
-                and Path(message["manifest_path"]) == root / "web/Cargo.toml"
-                and (executable := message.get("executable")) and executable.endswith(".wasm")):
-            artifacts.append(root / executable)
+    artifacts = [root / executable for message in cargo_json.messages(result.stdout, sys.stderr)
+                 if (executable := cargo_json.wasm_executable(message, kind="bin", name="boardstudio-web", test=True))
+                 and Path(message["manifest_path"]) == root / "web/Cargo.toml"]
     if result.returncode:
         raise RunnerError(f"page test build exited {result.returncode}")
     if len(artifacts) != 1 or not artifacts[0].is_file():
@@ -499,11 +489,39 @@ def filters_for_listed_files(files, env, root=ROOT):
     return filters, expected, unmatched
 
 
-def all_module_selection(env, root=ROOT, depth=None, isolated=()):
+def split_large_groups(names, groups, isolated, depth, limit):
+    """Isolate the largest `depth + 1` child modules of each group over `limit` tests.
+
+    A group keeps at least one test of its own, so a group whose remaining tests share one
+    child (or sit directly in the group module) is left whole."""
+    isolated = list(isolated)
+    for group in groups:
+        while True:
+            remaining = [name for name in names if name.startswith(group)
+                         and not any(name.startswith(prefix) for prefix in isolated)]
+            if len(remaining) <= limit:
+                break
+            sizes = Counter(test_module_filter(name, depth + 1) for name in remaining)
+            children = [child for child in sizes if child != group and child.endswith("::")
+                        and not any(child.startswith(prefix) or prefix.startswith(child) for prefix in isolated)]
+            if len(sizes) < 2 or not children:
+                break
+            isolated.append(min(children, key=lambda child: (-sizes[child], child)))
+    return isolated
+
+
+def all_module_selection(env, root=ROOT, depth=None, isolated=(), max_group_tests=None):
     """One filter per test module (or per `depth` leading path segments): a single unfiltered run
-    shares one page, so a crash or leaked state in one module masks or breaks the rest."""
+    shares one page, so a crash or leaked state in one module masks or breaks the rest.
+
+    `max_group_tests` splits a depth group over that many tests into its largest child modules."""
     if depth is not None and depth <= 0:
         raise RunnerError("--depth must be a positive integer")
+    if max_group_tests is not None:
+        if depth is None:
+            raise RunnerError("--max-group-tests requires --depth")
+        if max_group_tests <= 0:
+            raise RunnerError("--max-group-tests must be a positive integer")
     names = list_wasm_tests(env, root)
     modules = sorted({test_module_filter(name, depth) for name in names})
     filters = [m for m in modules if not any(o != m and m.startswith(o) for o in modules)]
@@ -522,6 +540,8 @@ def all_module_selection(env, root=ROOT, depth=None, isolated=()):
         parent = next((module for module in filters if prefix.startswith(module) and prefix != module), None)
         if parent is None:
             raise RunnerError(f"isolated module is not a strict descendant of a depth group: {prefix}")
+    if max_group_tests is not None:
+        isolated = sorted(split_large_groups(names, filters, isolated, depth, max_group_tests))
     expected = {
         module: [name for name in names if name.startswith(module)
                  and not any(name.startswith(prefix) for prefix in isolated)]
@@ -637,8 +657,13 @@ def run(filters, known, root=ROOT, expected_tests=None, env=None, unmatched_filt
                 yield None if unsafe else invoke(filter_, skips)
         else:
             with ThreadPoolExecutor(max_workers=workers) as executor:
-                futures = [None if unsafe else executor.submit(invoke, filter_, skips)
-                           for filter_, skips, unsafe in selections]
+                # The largest filters start first; results are still reported in filter order.
+                futures = [None] * len(selections)
+                for index in sorted(range(len(selections)),
+                                    key=lambda index: -len((expected_tests or {}).get(selections[index][0], ()))):
+                    filter_, skips, unsafe = selections[index]
+                    if not unsafe:
+                        futures[index] = executor.submit(invoke, filter_, skips)
                 for future in futures:
                     yield None if future is None else future.result()
 
@@ -769,10 +794,20 @@ def main(argv=None):
     parser.add_argument("--isolate", action="append", default=[], metavar="MODULE",
                         help="with --depth: run this module prefix separately, e.g. presentation::setup_guide:: "
                              "(--files ignores isolates outside its selection)")
+    parser.add_argument("--max-group-tests", type=int, default=None, metavar="N",
+                        help="with --all and --depth: run the largest child modules of a group over N "
+                             "tests separately, so no one browser page runs most of the suite")
     parser.add_argument("--root", default=str(ROOT))
     parser.add_argument("--result-json", metavar="PATH",
                         help="write the exact listed, selected and terminal outcomes as JSON")
     args = parser.parse_args(argv)
+    if args.max_group_tests is not None:
+        if not args.all:
+            parser.error("--max-group-tests applies to --all")
+        if args.depth is None:
+            parser.error("--max-group-tests requires --depth")
+        if args.max_group_tests <= 0:
+            parser.error("--max-group-tests must be a positive integer")
     root = Path(args.root).resolve()
     try:
         if args.build_only:
@@ -798,11 +833,13 @@ def main(argv=None):
                              "depth": args.depth, "isolated": args.isolate,
                              "resolved_filters": filters, "diagnostics": diagnostics}
             else:
-                filters, expected_tests = all_module_selection(env, root, args.depth, args.isolate)
+                filters, expected_tests = all_module_selection(env, root, args.depth, args.isolate,
+                                                               args.max_group_tests)
                 listed_tests = sorted({name for names in expected_tests.values() for name in names})
                 unmatched_filters = []
                 diagnostics = [f"--all -> {filter_ or '<all tests>'}" for filter_ in filters]
                 selection = {"mode": "all", "depth": args.depth, "isolated": args.isolate,
+                             "max_group_tests": args.max_group_tests,
                              "resolved_filters": filters, "diagnostics": diagnostics}
             for diagnostic in diagnostics:
                 print(f"run-wasm-tests: selection: {diagnostic}", file=sys.stderr)

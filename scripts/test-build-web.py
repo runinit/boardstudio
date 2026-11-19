@@ -14,6 +14,7 @@ from unittest.mock import patch
 SPEC = importlib.util.spec_from_file_location("build_web", Path(__file__).with_name("build-web.py"))
 BUILD = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(BUILD)
+import tailwind_tools  # noqa: E402  (build-web.py put the scripts directory on sys.path)
 
 
 class BuildWebTests(unittest.TestCase):
@@ -161,32 +162,30 @@ class BuildWebTests(unittest.TestCase):
         self.assertEqual(calls, ["tailwindcss", "subpath", "root"])
         lanes.assert_not_called()
 
-    def test_generated_stylesheet_signals_wasm_clippy(self):
-        with tempfile.TemporaryDirectory() as directory:
-            web, sync = Path(directory) / "web", Path(directory) / "sync"
-            (web / "assets").mkdir(parents=True)
-            sync.mkdir()
-            commands = []
+    def test_generated_stylesheet_runs_the_standalone_cli_from_the_web_project(self):
+        commands = []
+        with patch.object(BUILD, "run", lambda command, *, cwd: commands.append((command, cwd))), \
+             patch.object(BUILD.sys, "stdout", io.StringIO()):
+            BUILD.generate_css(Path("/tools/tailwindcss"))
+        self.assertEqual(commands, [(["/tools/tailwindcss", "-i", "tailwind.css", "-o", "assets/tailwind.css"],
+                                     BUILD.WEB)])
 
-            def fake_run(command, *, cwd):
-                commands.append((command, cwd))
-                (cwd / "assets/tailwind.css").write_text(css)
-
-            with patch.object(BUILD, "WEB", web), patch.object(BUILD, "run", fake_run), \
-                 patch.dict(os.environ, {BUILD.OVERLAP_CSS: str(sync)}):
-                css = ""
-                BUILD.generate_css(Path("/tools/tailwindcss"))
-                self.assertFalse((sync / "ready").exists(), "an empty stylesheet must not unblock Clippy")
-                css = ".a{}"
-                BUILD.generate_css(Path("/tools/tailwindcss"))
-                self.assertTrue((sync / "ready").is_file())
-                # A vanished sync folder is an error, not a silent skip that leaves Clippy waiting.
-                sync.joinpath("ready").unlink()
-                sync.rmdir()
-                with self.assertRaises(FileNotFoundError):
-                    BUILD.generate_css(Path("/tools/tailwindcss"))
-            self.assertEqual(commands[0], (["/tools/tailwindcss", "-i", "tailwind.css", "-o", "assets/tailwind.css"],
-                                           web))
+    def test_overlapped_build_keeps_the_stylesheet_check_py_already_wrote(self):
+        # check.py writes it before starting build, lint and test together; WASM Clippy may be reading it.
+        tools = ("tailwindcss", Path("wasm-bindgen"), "dx")
+        for overlapped, expected in ((False, ["tailwindcss"]), (True, [])):
+            calls = []
+            with self.subTest(overlapped=overlapped), tempfile.TemporaryDirectory() as directory, \
+                 patch.dict(os.environ), patch.object(BUILD, "page_tools", return_value=tools), \
+                 patch.object(BUILD, "PAGE_PUBLIC", Path(directory) / "public"), \
+                 patch.object(BUILD, "generate_css", calls.append), \
+                 patch.object(BUILD, "plain_page", lambda _route, _tools, public: public.mkdir(parents=True)), \
+                 patch.object(BUILD, "copy_runtime_assets"), patch.object(BUILD, "embed_offline_worker"):
+                os.environ.pop(BUILD.IN_OVERLAP_ENV, None)
+                if overlapped:
+                    os.environ[BUILD.IN_OVERLAP_ENV] = "1"
+                BUILD.build(Path(directory) / "out", release=False, fast=True, prepare_providers=False)
+            self.assertEqual(calls, expected)
 
     def test_page_tools_fall_back_to_dx_when_any_tool_is_missing(self):
         for missing in ("tailwind_cli", "locked_wasm_bindgen", "matching_dx"):
@@ -230,22 +229,22 @@ class BuildWebTests(unittest.TestCase):
             newest = tool(root / "dx/tailwindcss-v4.1.5/tailwindcss", "tailwindcss v4.1.5")
             os.utime(old, (1, 1))
             v3 = tool(root / "bin/tailwindcss", "tailwindcss v3.4.15")
-            with patch.object(BUILD, "DX_TOOLS", root / "dx"), patch.dict(os.environ, {}, clear=False):
-                os.environ.pop(BUILD.TAILWIND_ENV, None)
+            with patch.object(tailwind_tools, "DX_TOOLS", root / "dx"), patch.dict(os.environ, {}, clear=False):
+                os.environ.pop(tailwind_tools.TAILWIND_ENV, None)
                 with patch.object(BUILD.shutil, "which", return_value=str(v3)):
                     self.assertEqual(BUILD.tailwind_cli(), newest)
                 v4 = tool(root / "bin/tailwindcss", "tailwindcss v4.1.4")
                 with patch.object(BUILD.shutil, "which", return_value=str(v4)):
                     self.assertEqual(BUILD.tailwind_cli(), v4)
-                os.environ[BUILD.TAILWIND_ENV] = str(old)
+                os.environ[tailwind_tools.TAILWIND_ENV] = str(old)
                 self.assertEqual(BUILD.tailwind_cli(), old)
-                os.environ[BUILD.TAILWIND_ENV] = str(v3)
+                os.environ[tailwind_tools.TAILWIND_ENV] = str(v3)
                 tool(v3, "tailwindcss v3.4.15")
                 with self.assertRaises(ValueError):
                     BUILD.tailwind_cli()
-            with patch.object(BUILD, "DX_TOOLS", root / "none"), patch.object(BUILD.shutil, "which", return_value=None), \
+            with patch.object(tailwind_tools, "DX_TOOLS", root / "none"), patch.object(BUILD.shutil, "which", return_value=None), \
                  patch.dict(os.environ, {}, clear=False):
-                os.environ.pop(BUILD.TAILWIND_ENV, None)
+                os.environ.pop(tailwind_tools.TAILWIND_ENV, None)
                 self.assertIsNone(BUILD.tailwind_cli())
 
     def test_cargo_page_artifact_needs_exactly_one_page_wasm(self):
@@ -456,6 +455,32 @@ class BuildWebTests(unittest.TestCase):
                 self.assertTrue((site / "assets/core-worker/entry.js").is_file())
                 self.assertTrue((site / "assets/cad-worker/entry.js").is_file())
                 self.assertTrue((site / "service-worker.js").is_file())
+
+    def test_site_and_dev_assets_stage_the_same_providers_and_worker_entries(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for path in ("web/assets/workbench-base.css", "catalogue/modules/imported-modules.json",
+                         "cad/wasm/pkg/cad.js", "renderer/pkg/renderer.js",
+                         "web/target/providers/core-worker/m1_core_worker.js",
+                         "web/target/providers/cad-worker/m1_cad_worker.js"):
+                (root / path).parent.mkdir(parents=True, exist_ok=True)
+                (root / path).write_text(path)
+            site = root / "site"
+            BUILD.copy_runtime_assets(site, root)
+            BUILD.stage_runtime_assets(root)
+            dev = root / "web/assets"
+            self.assertTrue((site / "assets/workbench-base.css").is_file())
+            self.assertTrue((site / "assets/imported-modules.json").is_file())
+            self.assertFalse((dev / "imported-modules.json").exists(), "dx serve's copy is prepare_runtime_providers'")
+            for relative in ("cad/cad.js", "renderer/renderer.js", "core-worker/m1_core_worker.js",
+                             "cad-worker/m1_cad_worker.js", "core-worker/entry.js", "cad-worker/entry.js"):
+                self.assertEqual((site / "assets" / relative).read_text(), (dev / relative).read_text(), relative)
+            self.assertEqual((dev / "core-worker/entry.js").read_text(),
+                             'import init, { start_core_worker } from "./m1_core_worker.js";\n'
+                             'await init();\nstart_core_worker();\n')
+            self.assertEqual((dev / "cad-worker/entry.js").read_text(),
+                             'import init, { start_cad_worker } from "./m1_cad_worker.js";\nawait init();\n'
+                             'start_cad_worker(new URL("../cad/boardstudio_cad_wasm.js", import.meta.url).href);\n')
 
     def test_offline_worker_bootstrap_passes_route_manifest(self):
         import json

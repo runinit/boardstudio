@@ -17,7 +17,8 @@ import shutil
 import subprocess
 import sys
 import browser_tools
-from check import check_jobs, OVERLAP_CSS
+import cargo_json
+from tailwind_tools import DX_TOOLS, IN_OVERLAP_ENV, check_jobs, tailwind_cli
 import wasm_bindgen_tools
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -32,8 +33,6 @@ DX_FLAGS = ("--wasm-js-cfg", "false")
 # The checked page built by plain Cargo, outside dx's rustc wrapper.
 PAGE_PUBLIC = WEB / "target/page/public"
 PLAIN_PAGE_DX_VERSION = "0.7.10"
-TAILWIND_ENV = "BOARDSTUDIO_TAILWINDCSS"
-DX_TOOLS = Path.home() / ".local/share/.dx/tools"
 PAGE_CARGO = ["cargo", "build", "--locked", "--target", "wasm32-unknown-unknown", "--profile", "wasm-check",
               "-p", "boardstudio-web", "--bin", "boardstudio-web", "--no-default-features",
               "--features", "page", "--message-format=json"]
@@ -86,16 +85,6 @@ def run(command: list[str], *, cwd: Path = ROOT, env: dict[str, str] | None = No
         raise
     if output is not None:
         output.write(result.stdout)
-    if command[:2] == ["dx", "build"]:
-        signal_css_ready(cwd)
-
-
-def signal_css_ready(web: Path | None = None) -> None:
-    """Unblock check.py's WASM Clippy once the generated stylesheet exists."""
-    if css_sync := os.environ.get(OVERLAP_CSS):
-        css = (web or WEB) / "assets/tailwind.css"
-        if css.is_file() and css.stat().st_size:
-            (Path(css_sync) / "ready").touch()
 
 
 def run_lanes(lanes: list[list]) -> None:
@@ -156,14 +145,14 @@ def provider_commands(fast: bool = False) -> list[tuple[list[str], Path]]:
     return commands
 
 
-def copy_runtime_assets(site: Path, provider_root: Path | None = None) -> None:
-    provider_root = provider_root or ROOT
-    assets = site / "assets"
-    shutil.copytree(provider_root / "web/assets", assets, dirs_exist_ok=True,
-                    ignore=shutil.ignore_patterns("layout-generators.js", "layout-generators",
-                                                 "preview-generator"))
-    shutil.copy2(provider_root / "catalogue/modules/imported-modules.json",
-                 assets / "imported-modules.json")
+def _stage_provider_entries(assets: Path, provider_root: Path, *, include_site_assets: bool = False) -> None:
+    """Copy the generated providers into `assets` and write the worker entry modules."""
+    if include_site_assets:
+        shutil.copytree(provider_root / "web/assets", assets, dirs_exist_ok=True,
+                        ignore=shutil.ignore_patterns("layout-generators.js", "layout-generators",
+                                                     "preview-generator"))
+        shutil.copy2(provider_root / "catalogue/modules/imported-modules.json",
+                     assets / "imported-modules.json")
     shutil.copytree(provider_root / "cad/wasm/pkg", assets / "cad", dirs_exist_ok=True)
     for name in ("core-worker", "cad-worker"):
         shutil.copytree(provider_root / f"web/target/providers/{name}", assets / name,
@@ -180,24 +169,13 @@ def copy_runtime_assets(site: Path, provider_root: Path | None = None) -> None:
     )
 
 
+def copy_runtime_assets(site: Path, provider_root: Path | None = None) -> None:
+    _stage_provider_entries(site / "assets", provider_root or ROOT, include_site_assets=True)
+
+
 def stage_runtime_assets(provider_root: Path = ROOT) -> None:
     """Copy generated providers into the asset directory watched by dx serve."""
-    assets = provider_root / "web/assets"
-    shutil.copytree(provider_root / "cad/wasm/pkg", assets / "cad", dirs_exist_ok=True)
-    shutil.copytree(provider_root / "web/target/providers/core-worker", assets / "core-worker",
-                    dirs_exist_ok=True)
-    shutil.copytree(provider_root / "web/target/providers/cad-worker", assets / "cad-worker",
-                    dirs_exist_ok=True)
-    shutil.copytree(provider_root / "renderer/pkg", assets / "renderer", dirs_exist_ok=True)
-    (assets / "core-worker/entry.js").write_text(
-        'import init, { start_core_worker } from "./m1_core_worker.js";\n'
-        'await init();\nstart_core_worker();\n'
-    )
-    (assets / "cad-worker/entry.js").write_text(
-        'import init, { start_cad_worker } from "./m1_cad_worker.js";\n'
-        'await init();\n'
-        'start_cad_worker(new URL("../cad/boardstudio_cad_wasm.js", import.meta.url).href);\n'
-    )
+    _stage_provider_entries(provider_root / "web/assets", provider_root)
 
 
 def validate_offline_manifest(manifest: dict) -> None:
@@ -253,26 +231,6 @@ def dx_command(route: str, *, release: bool, fast: bool) -> tuple[list[str], Pat
     return command, WEB
 
 
-def tailwind_cli() -> Path | None:
-    """A standalone Tailwind v4 CLI: $BOARDSTUDIO_TAILWINDCSS, PATH, then the newest dx-installed one."""
-    def is_v4(path: Path) -> bool:
-        try:
-            result = subprocess.run([str(path), "--help"], capture_output=True, text=True)
-        except OSError:
-            return False
-        return "tailwindcss v4." in result.stdout + result.stderr
-
-    if explicit := os.environ.get(TAILWIND_ENV):
-        if not is_v4(Path(explicit)):
-            raise ValueError(f"{TAILWIND_ENV}={explicit} is not a standalone Tailwind v4 CLI")
-        return Path(explicit)
-    candidates = [Path(found)] if (found := shutil.which("tailwindcss")) else []
-    installed = [path / "tailwindcss" if path.is_dir() else path for path in DX_TOOLS.glob("tailwindcss-*")]
-    candidates += sorted((path for path in installed if path.is_file() and os.access(path, os.X_OK)),
-                         key=lambda path: path.stat().st_mtime, reverse=True)
-    return next((path for path in candidates if is_v4(path)), None)
-
-
 def locked_wasm_bindgen() -> Path | None:
     """The `wasm-bindgen` CLI at Cargo.lock's version, as `dx build` would select it."""
     version = wasm_bindgen_tools.locked_version(ROOT)
@@ -324,7 +282,6 @@ def generate_css(tailwind: Path) -> None:
     """Generate the stylesheet the page's `include_str!`s and WASM Clippy read, as dx would."""
     print(f"build-web: stylesheet via {tailwind}", flush=True)
     run([str(tailwind), "-i", "tailwind.css", "-o", "assets/tailwind.css"], cwd=WEB)
-    signal_css_ready()
 
 
 def cargo_page_artifact(output=None) -> Path:
@@ -333,21 +290,9 @@ def cargo_page_artifact(output=None) -> Path:
     fd = browser_tools._inherited_build_lock()
     result = subprocess.run(PAGE_CARGO, cwd=ROOT, text=True, capture_output=True,
                             pass_fds=() if fd is None else (fd,))
-    artifacts = []
-    for line in result.stdout.splitlines():
-        try:
-            message = json.loads(line)
-        except json.JSONDecodeError:
-            print(line, file=out)
-            continue
-        if message.get("reason") == "compiler-message":
-            if rendered := message["message"].get("rendered"):
-                print(rendered, end="", file=out)
-        elif (message.get("reason") == "compiler-artifact" and message["target"]["kind"] == ["bin"]
-              and message["target"]["name"] == "boardstudio-web"
-              and Path(message["manifest_path"]) == WEB / "Cargo.toml"
-              and (executable := message.get("executable")) and executable.endswith(".wasm")):
-            artifacts.append(Path(executable))
+    artifacts = [Path(executable) for message in cargo_json.messages(result.stdout, out)
+                 if (executable := cargo_json.wasm_executable(message, kind="bin", name="boardstudio-web"))
+                 and Path(message["manifest_path"]) == WEB / "Cargo.toml"]
     out.write(result.stderr)
     out.flush()
     if result.returncode:
@@ -404,7 +349,8 @@ def build(output: Path, *, release: bool = True, prepare_providers: bool = True,
     overlap = fast and not release and prepare_providers and len(routes) == 1 and check_jobs() > 1
     if overlap and public.exists():
         shutil.rmtree(public)
-    if tools:
+    # Beside lint and test, check.py has already written the stylesheet WASM Clippy is reading.
+    if tools and IN_OVERLAP_ENV not in os.environ:
         generate_css(tools[0])
     if prepare_providers:
         page_build = None

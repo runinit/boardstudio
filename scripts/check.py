@@ -28,8 +28,9 @@ Steps:
   lint*       rustfmt and Clippy with warnings denied (workspace lints live in Cargo.toml)
   typecheck   WASM page compilation (the build step already compiles the page for WASM)
   browser*    mounted headless-browser tests and the real-browser CAD smoke gate; crate launches
-              share one WASM test build without debug info and run up to
-              BOARDSTUDIO_CHECK_JOBS (up to 6 by default, bounded by CPU count) at once;
+              share one WASM test build without debug info and run with the page suite up to
+              BOARDSTUDIO_CHECK_JOBS (up to 6 by default, bounded by CPU count) at once,
+              beside two lanes of packaged checks (the drag smoke; the CAD browser checks);
               the independent native test commands also run together
   security    dependency audit of every Rust lockfile (separate CI workflow)
   deny        cargo-deny license, ban and source policy from deny.toml (separate CI workflow)
@@ -62,30 +63,33 @@ from datetime import datetime, timezone
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import browser_tools  # noqa: E402  (needs the scripts directory on sys.path)
+import cargo_json  # noqa: E402
 import check_native_tests  # noqa: E402  (needs the scripts directory on sys.path)
+from tailwind_tools import IN_OVERLAP_ENV, check_jobs, tailwind_cli  # noqa: E402
 import verification_receipt  # noqa: E402  (needs the scripts directory on sys.path)
 import wasm_bindgen_tools  # noqa: E402
 
 
 PY = "python3"
-OVERLAP_CSS = "BOARDSTUDIO_OVERLAP_CSS"
 OVERLAP_MIN_CPUS = 8
 OVERLAP_STEPS = frozenset({"build", "lint", "test"})
 # One workspace invocation compiles Core once for every crate's tests, including footprints.
 CARGO_TESTS: list[list[str]] = [
     ["cargo", "test", "--workspace", "--locked"],
 ]
+# Longest first, so the parallel batch ends with short scripts; the serial scripts run after it.
 TOOLING_TESTS = (
-    "cad/scripts/test-cad-build.py", "cad/scripts/test-measure-cad.py",
-    "cad/scripts/test-face-completeness-gate.py",
-    "scripts/test-build-web.py", "scripts/test-build-patched-wasm-bindgen.py", "scripts/test-serve-web.py",
-    "scripts/test-dev-web.py", "scripts/test-run-wasm-tests.py", "scripts/test-check-wasm-tests.py",
-    "scripts/test-stage-ergogen-models.py", "scripts/test-check.py", "scripts/test-check-quick.py", "scripts/test-catalogue-tools.py", "scripts/test-gitnexus-refresh.py",
-    "scripts/test-gitnexus-stop-hook.py",
-    "scripts/test-verification-receipt.py", "scripts/test-drag-receipt-bytes.py", "scripts/test-parallel-interrupt.py", "scripts/test-verify-no-node.py",
-    "scripts/test-check-native-tests.py", "scripts/test-mutation-check.py", "scripts/test-browser-tools.py",
-    "scripts/test-chrome-for-testing.py", "scripts/test-bump-chrome-for-testing.py", "scripts/test-graphite-preflight.py", "tools/browser-harness/test-response-probe-cleanup.py",
-    "scripts/test-ci-workflow.py", "scripts/test-build-time.py",
+    "scripts/test-verification-receipt.py", "cad/scripts/test-cad-build.py", "scripts/test-ci-workflow.py",
+    "scripts/test-check-quick.py", "scripts/test-check.py", "scripts/test-browser-tools.py",
+    "tools/browser-harness/test-response-probe-cleanup.py", "cad/scripts/test-measure-cad.py",
+    "scripts/test-mutation-check.py", "scripts/test-graphite-preflight.py", "scripts/test-run-wasm-tests.py",
+    "scripts/test-gitnexus-stop-hook.py", "scripts/test-stage-ergogen-models.py", "scripts/test-dev-web.py",
+    "scripts/test-build-web.py", "scripts/test-build-time.py", "scripts/test-build-patched-wasm-bindgen.py",
+    "scripts/test-gitnexus-refresh.py", "cad/scripts/test-face-completeness-gate.py",
+    "scripts/test-bump-chrome-for-testing.py", "scripts/test-chrome-for-testing.py",
+    "scripts/test-check-native-tests.py", "scripts/test-verify-no-node.py", "scripts/test-drag-receipt-bytes.py",
+    "scripts/test-check-wasm-tests.py", "scripts/test-catalogue-tools.py",
+    "scripts/test-serve-web.py", "scripts/test-parallel-interrupt.py",
 )
 SERIAL_TOOLING_SCRIPTS = {
     "scripts/test-serve-web.py",  # Releases its selected port before starting the preview process.
@@ -97,6 +101,22 @@ WASM_PAGE = ["--no-default-features", "--features", "page"]
 WASM_CRATE_BUILD = ["cargo", "test", "--no-run", "--lib", "--target", "wasm32-unknown-unknown",
                     "--profile", "wasm-check", "--locked", "--message-format=json"]
 DRAG_SMOKE = [PY, "scripts/run-drag-browser.py"]
+CAD_BROWSER = [PY, "cad/scripts/test-cad-browser.py"]
+# Each of these first runs a Cargo build of the browser harness (a no-op after `build`). In a parallel
+# browser batch they run one after another behind the Cargo-free CAD browser check, which outlasts
+# the drag smoke's own harness build, so two harness builds do not overlap.
+HARNESS_CHECKS = [
+    [PY, "cad/scripts/face-completeness-gate.py"],
+    [PY, "cad/scripts/test-cad-capture-controls.py"],
+    [PY, "cad/scripts/test-cad-provider.py"],
+    [PY, "cad/scripts/test-cold-responses.py"],
+    [PY, "-B", "scripts/ergogen-parity/test_generate.py", "--source"],
+    [PY, "scripts/model-lookup-pilot.py", "--gate"],
+]
+# Two depth-one pages. Each further page costs ~15s of loading beside the crate launches, more than
+# splitting the larger group with `--max-group-tests` saves (measured 2026-11-19).
+PAGE_SUITE = [PY, "scripts/run-wasm-tests.py", "--all", "--depth", "1",
+              "--result-json", "web/target/test-results/browser.json"]
 PAGE_TEST_BUILD = [PY, "scripts/run-wasm-tests.py", "--build-only"]
 HARNESS_BUILD = [PY, "scripts/browser_tools.py"]
 BUILD_LOCK_SCRIPTS = (
@@ -106,13 +126,13 @@ BUILD_LOCK_SCRIPTS = (
     "scripts/model-lookup-pilot.py", "scripts/ergogen-parity/test_generate.py", "scripts/check.py",
 )
 def test_css_command() -> list[str]:
-    if compiler := os.environ.get("BOARDSTUDIO_TAILWINDCSS"):
-        return [compiler, "-i", "tailwind.css", "-o", "assets/tailwind.css"]
+    """The standalone Tailwind CLI's stylesheet build, or else the page build that also writes it."""
+    if compiler := tailwind_cli():
+        return [str(compiler), "-i", "tailwind.css", "-o", "assets/tailwind.css"]
     return ["dx", "build", "--web", "--profile", "wasm-check", "--wasm-js-cfg", "false",
             "--no-default-features", "--features", "page", "--cargo-args=--locked"]
 
 
-TEST_CSS = test_css_command()
 # These browser-test targets include the generated Tailwind stylesheet at compile time.
 CSS_TEST_CRATES = {"ui-shared", "keycaps", "case", "layout"}
 
@@ -129,14 +149,8 @@ def typecheck() -> list[Command]:
 def browser() -> list[Command]:
     return [
         DRAG_SMOKE,
-        [PY, "cad/scripts/test-cad-capture-controls.py"],
-        [PY, "cad/scripts/test-cold-responses.py"],
-        [PY, "scripts/check-wasm-tests.py"],
-        [PY, "cad/scripts/test-cad-provider.py"],
-        [PY, "scripts/model-lookup-pilot.py", "--gate"],
-        [PY, "-B", "scripts/ergogen-parity/test_generate.py", "--source"],
-        [PY, "cad/scripts/face-completeness-gate.py"],
-        [PY, "cad/scripts/test-cad-browser.py"],
+        CAD_BROWSER,
+        *HARNESS_CHECKS,
         *with_crate_build([
             crate_launch("host"),
             crate_launch("runtime"),
@@ -151,8 +165,7 @@ def browser() -> list[Command]:
             crate_launch("pcb"),
             crate_launch("layout"),
         ]),
-        [PY, "scripts/run-wasm-tests.py", "--all", "--depth", "1",
-         "--result-json", "web/target/test-results/browser.json"],
+        PAGE_SUITE,
     ]
 
 
@@ -218,6 +231,8 @@ STEPS: dict[str, tuple[bool, list[Command]]] = {
         [PY, "scripts/check-adr-index.py"],
         [PY, "-B", "scripts/test-check-old-css.py"],
         [PY, "scripts/check-old-css.py"],
+        # A static check of the page's browser-test modules; it needs no browser or built site.
+        [PY, "scripts/check-wasm-tests.py"],
     ]),
     "tooling": (True, [[PY, "-B", "scripts/ergogen-parity/test_generate.py", "--hermetic"],
                        [PY, "-B", "cad/scripts/test-face-completeness-web.py", "--hermetic"],
@@ -295,14 +310,6 @@ def is_browser_step(name: str) -> bool:
     return name in ("browser", "browser-packaged", "browser-wasm") or name.startswith("browser (")
 
 
-def check_jobs() -> int:
-    default = min(6, os.cpu_count() or 4)
-    try:
-        return max(1, int(os.environ.get("BOARDSTUDIO_CHECK_JOBS", str(default))))
-    except ValueError:
-        return default
-
-
 def launch_order(command: Command) -> int:
     return 0 if launch_crate(command) in HEAVY_CRATES else 1
 
@@ -319,29 +326,24 @@ def is_wasm_pack_test(command: Command) -> bool:
     return command[:2] == ["wasm-pack", "test"]
 
 
+def is_page_suite(command: Command) -> bool:
+    return "scripts/run-wasm-tests.py" in command and "--all" in command
+
+
+def page_suite_jobs(workers: int) -> int:
+    """Browser pages for the page suite within a parallel batch of `workers` lanes."""
+    return min(3, max(1, workers - 1)) if workers >= 4 else min(2, workers - 1)
+
+
 def crate_test_artifacts(output: str, cwd: Path, crates: Iterable[str], *, stream=None) -> dict[str, Path]:
     out = stream if stream is not None else sys.stdout
     flush = stream is None
     manifests = {cwd / "web/crates" / crate / "Cargo.toml": crate for crate in crates}
     artifacts: dict[str, Path] = {}
-    for line in output.splitlines():
-        try:
-            message = json.loads(line)
-        except json.JSONDecodeError:
-            print(line, file=out, flush=flush)
+    for message in cargo_json.messages(output, out, flush=flush):
+        if not (executable := cargo_json.wasm_executable(message, kind="lib", test=True)):
             continue
-        if not isinstance(message, dict):
-            print(line, file=out, flush=flush)
-            continue
-        if message.get("reason") == "compiler-message":
-            if rendered := message["message"].get("rendered"):
-                print(rendered, end="", file=out, flush=flush)
-        if (message.get("reason") != "compiler-artifact" or not message["profile"]["test"]
-                or "lib" not in message["target"]["kind"]):
-            continue
-        crate = manifests.get(Path(message["manifest_path"]))
-        executable = message.get("executable")
-        if crate and executable and executable.endswith(".wasm"):
+        if crate := manifests.get(Path(message["manifest_path"])):
             binary = cwd / executable
             if crate in artifacts or not binary.is_file():
                 raise ValueError(f"invalid or duplicate test artifact for {crate}: {binary}")
@@ -530,15 +532,6 @@ def run_serial(command: Command, environment: dict[str, str], cwd: Path = ROOT,
     if invocation:
         argv, cwd, config = invocation
         environment = {**environment, **config}
-    if (css_sync := environment.get(OVERLAP_CSS)) and argv[:2] == ["cargo", "clippy"] \
-            and "wasm32-unknown-unknown" in argv:
-        folder = Path(css_sync)
-        while not (folder / "ready").is_file():
-            if (folder / "failed").is_file():
-                print("check: WASM Clippy could not get the packaged build's stylesheet", file=sys.stderr)
-                now = datetime.now(timezone.utc).isoformat()
-                return 0.0, 1, now, now
-            time.sleep(0.25)
     print("$ " + shlex.join(argv), flush=True)
     lock_fd = browser_tools._inherited_build_lock()
     if not any(script in command for script in BUILD_LOCK_SCRIPTS):
@@ -648,15 +641,21 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
                  outputs: list[tuple[Command, str]] | None = None,
                  receipt: verification_receipt.Collector | None = None,
                  step: str = "", *, invocations=None, workers=None, in_order=False,
-                 elapsed_by_command=None, sequential_after=None, validate_output=None) -> tuple[float, list[Command]]:
-    """Runs independent launches together, printing each completed launch's output whole."""
+                 elapsed_by_command=None, sequential_after=None, continue_on_failure=False,
+                 validate_output=None) -> tuple[float, list[Command]]:
+    """Runs independent launches together, printing each completed launch's output whole.
+
+    `sequential_after` maps a command to the commands that run after it in its lane; they stop at
+    the first failure unless `continue_on_failure`."""
     lock_fd = browser_tools._inherited_build_lock()
     invocations = invocations or {}
     # Workers retain completed results even if submit is interrupted before it
     # returns the corresponding future to the main thread.
     completed = []
+    # Results of the commands each lane ran after its first, which is the lane's future result.
+    followed: dict[tuple[str, ...], list] = {}
     registry = {"lock": threading.Lock(), "cancelled": False, "processes": set(), "workers": 0,
-                "inside_step_group": OVERLAP_CSS in os.environ}
+                "inside_step_group": IN_OVERLAP_ENV in os.environ}
     workers_changed = threading.Condition(registry["lock"])
 
     def launch(command: Command):
@@ -665,12 +664,15 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
                 return None
             registry["workers"] += 1
         try:
-            result = run_worker(command)
-            if result is not None and result[0] == 0:
-                for following in (sequential_after or {}).get(tuple(command), []):
-                    next_result = run_worker(following)
-                    if next_result is None or next_result[0] != 0:
-                        break
+            result = last = run_worker(command)
+            lane = followed.setdefault(tuple(command), [])
+            for following in (sequential_after or {}).get(tuple(command), []) if result is not None else ():
+                if last[0] != 0 and not continue_on_failure:
+                    break
+                last = run_worker(following)
+                if last is None:
+                    break
+                lane.append((following, last))
             return result
         finally:
             with workers_changed:
@@ -691,15 +693,9 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
             child_env.pop("BOARDSTUDIO_BUILD_LOCK_FD", None)
             if step == "tooling":
                 child_lock_fd = None
-        try:
-            done = launch_command(argv, registry=registry, cwd=cwd, env=child_env, stdout=subprocess.PIPE,
-                                  stderr=subprocess.STDOUT, text=True,
-                                  **({"pass_fds": (child_lock_fd,)} if child_lock_fd is not None else {}))
-        finally:
-            if argv[1:] == ["scripts/check.py", "build"] and (css_sync := config.get(OVERLAP_CSS)):
-                folder = Path(css_sync)
-                if not (folder / "ready").is_file():
-                    (folder / "failed").touch()
+        done = launch_command(argv, registry=registry, cwd=cwd, env=child_env, stdout=subprocess.PIPE,
+                              stderr=subprocess.STDOUT, text=True,
+                              **({"pass_fds": (child_lock_fd,)} if child_lock_fd is not None else {}))
         if done is None:
             return None
         code, output = done.returncode, done.stdout
@@ -717,9 +713,11 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
         completed.append((command, result))
         return result
 
-    # Start the page suite before the heavy crates so its listing and filters can overlap.
+    # The packaged lanes and then the page suite start before the heavy crates, so the longest
+    # browser work overlaps the rest.
     ordered = batch if in_order else sorted(
-        batch, key=lambda command: -1 if "scripts/run-wasm-tests.py" in command else launch_order(command))
+        batch, key=lambda command: (-2 if command in (DRAG_SMOKE, CAD_BROWSER)
+                                    else -1 if "scripts/run-wasm-tests.py" in command else launch_order(command)))
     started = time.monotonic()
     failed: list[Command] = []
     futures = []
@@ -792,6 +790,8 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
                 result = future.result()
                 if not in_order:
                     emit(command, result)
+                    for following, following_result in followed.get(tuple(command), []):
+                        emit(following, following_result)
     except BaseException as caught:
         error = caught
     finally:
@@ -925,7 +925,7 @@ def run_lint_overlap(commands: list[Command], environment: dict[str, str], cwd: 
     outputs: list[tuple[Command, str]] = []
     with ThreadPoolExecutor(max_workers=1, thread_name_prefix="harness-clippy") as pool:
         harness_env = environment.copy()
-        if OVERLAP_CSS in harness_env:
+        if IN_OVERLAP_ENV in harness_env:
             harness_env.pop("CARGO_TARGET_DIR", None)
         harness_run = pool.submit(run_serial, harness, harness_env, cwd, outputs=outputs, defer_output=True)
         passed = all(run_serial(command, environment, cwd)[1] == 0 for command in root)
@@ -946,7 +946,12 @@ def run_commands(name: str, commands: list[Command], environment: dict[str, str]
     workspaces of `test` and independent tooling self-tests, run together.
     `captured` collects each `cargo test` command's output."""
     if name == "test" and check_jobs() > 1 and len(commands) > 1:
-        elapsed, failed = run_parallel(commands, environment, captured, receipt=receipt, step=name)
+        # Both build in the root target. The parts importer follows the workspace tests, whose build
+        # leaves its examples current, instead of waiting beside them on Cargo's target lock.
+        chain = ({tuple(CARGO_TESTS[0]): [KICAD_PARTS_TEST]}
+                 if CARGO_TESTS[0] in commands and KICAD_PARTS_TEST in commands else None)
+        elapsed, failed = run_parallel(commands, environment, captured, receipt=receipt, step=name,
+                                       sequential_after=chain, continue_on_failure=True)
         for command in failed:
             print("check: command failed: " + shlex.join(command), file=sys.stderr)
         return elapsed, not failed
@@ -957,6 +962,12 @@ def run_commands(name: str, commands: list[Command], environment: dict[str, str]
     total = 0.0
     any_failed = False
     invocations = {}
+    # The packaged checks join the parallel batch that runs the page suite (and the crate launches
+    # before it): the drag smoke in one lane, the CAD browser check and then the harness checks in another.
+    lanes: list[Command] = []
+    if browser_step and check_jobs() > 1 and any(map(is_page_suite, commands)):
+        lanes = [command for command in commands if command in (DRAG_SMOKE, CAD_BROWSER, *HARNESS_CHECKS)]
+        commands = [command for command in commands if command not in lanes]
     index = 0
     while index < len(commands):
         command = commands[index]
@@ -1006,22 +1017,29 @@ def run_commands(name: str, commands: list[Command], environment: dict[str, str]
             any_failed |= bool(failed)
             index = end
             continue
-        if browser_step and check_jobs() > 1 and is_crate_launch(command):
+        if browser_step and check_jobs() > 1 and (is_crate_launch(command) or (lanes and is_page_suite(command))):
             end = index
             while end < len(commands) and is_crate_launch(commands[end]):
                 end += 1
             workers = check_jobs()
-            if (name == "browser" and end < len(commands)
-                    and "scripts/run-wasm-tests.py" in commands[end] and "--all" in commands[end]):
+            if end < len(commands) and is_page_suite(commands[end]):
                 page = commands[end]
-                # The full page selection has two depth-one filters.
-                page_workers = min(2, workers - 1)
+                page_workers = page_suite_jobs(workers)
                 invocations[tuple(page)] = (page, cwd, {"BOARDSTUDIO_CHECK_JOBS": str(page_workers)})
                 workers -= page_workers - 1
                 end += 1
+            batch, lanes = [*lanes, *commands[index:end]], []
+            heads = [command for command in batch if command in (DRAG_SMOKE, CAD_BROWSER)]
+            chained = [command for command in HARNESS_CHECKS if command in batch]
+            if chained and CAD_BROWSER not in batch:
+                heads.append(chained.pop(0))
+            # Each packaged lane drives one browser page, beside the crate and page-suite budget.
+            workers += len(heads)
             batch_outputs: list[tuple[Command, str]] = []
-            elapsed, failed = run_parallel(commands[index:end], environment, outputs=batch_outputs,
-                                           receipt=receipt, step=name, invocations=invocations, workers=workers)
+            elapsed, failed = run_parallel(batch, environment, outputs=batch_outputs,
+                                           receipt=receipt, step=name, invocations=invocations, workers=workers,
+                                           sequential_after={tuple(heads[-1]): chained} if chained else None,
+                                           continue_on_failure=keep_going)
             total += elapsed
             if failed:
                 output_by_cmd = {tuple(cmd): text for cmd, text in batch_outputs}
@@ -1154,7 +1172,7 @@ def run(names: list[str], update_native_baseline: bool = False,
         only_crates = parse_only_crates(only)
         plan: list[tuple[str, list[Command]]] = []
         if CSS_TEST_CRATES.intersection(only_crates):
-            plan.append(("test-css", [TEST_CSS]))
+            plan.append(("test-css", [test_css_command()]))
         plan.append((f"browser (only: {', '.join(only_crates)})",
                      with_crate_build(select_browser_crate_launches(only_crates))))
         return (run_plan(plan, update_native_baseline, keep_going=True)
@@ -1195,8 +1213,8 @@ def run(names: list[str], update_native_baseline: bool = False,
         if name in ("build", "release"):
             break  # The packaged build generates the stylesheet.
         if name in ("lint", "browser-wasm"):
-            if name != "lint" or OVERLAP_CSS not in os.environ:
-                plan.insert(index, ("test-css", [TEST_CSS]))
+            if name != "lint" or IN_OVERLAP_ENV not in os.environ:
+                plan.insert(index, ("test-css", [test_css_command()]))
             break
     return (run_plan(plan, update_native_baseline, keep_going=True)
             if keep_going else run_plan(plan, update_native_baseline))
@@ -1311,7 +1329,8 @@ def overlap_span(plan, receipt):
         group = plan[start:start + 3]
         if ({name for name, _ in group} == OVERLAP_STEPS
                 and all(commands == STEPS[name][1] for name, commands in group)):
-            return start, start + 3
+            # The overlapped steps share a stylesheet generated up front, which needs the standalone CLI.
+            return (start, start + 3) if tailwind_cli() is not None else None
     return None
 
 
@@ -1332,6 +1351,11 @@ def overlap_jobserver(directory, cpus):
 
 
 def run_overlapped_steps(group, update_native_baseline):
+    # The page build and WASM Clippy both read the stylesheet, so it is written once before either starts.
+    print("== test-css", flush=True)
+    css_elapsed, css_code, _, _ = run_serial(test_css_command(), os.environ.copy(), ROOT / "web")
+    if css_code:
+        return {"test-css": css_elapsed}, ["test-css"]
     batch: list[Command] = []
     timings: dict[tuple[str, ...], float] = {}
     with tempfile.TemporaryDirectory(prefix="check-compile-") as temporary:
@@ -1342,14 +1366,14 @@ def run_overlapped_steps(group, update_native_baseline):
                 command = [sys.executable, "scripts/check.py", name]
                 if name == "test" and update_native_baseline:
                     command.append("--update-native-baseline")
-                config = {"MAKEFLAGS": makeflags, OVERLAP_CSS: temporary}
+                config = {"MAKEFLAGS": makeflags, IN_OVERLAP_ENV: "1"}
                 if name == "lint":
                     config["CARGO_TARGET_DIR"] = str(ROOT / "target/lint")
                 batch.append(command)
                 invocations[tuple(command)] = (command, ROOT, config)
             _, failures = run_parallel(batch, os.environ.copy(), invocations=invocations,
                                        in_order=True, elapsed_by_command=timings)
-    return ({command[2]: timings[tuple(command)] for command in batch},
+    return ({"test-css": css_elapsed, **{command[2]: timings[tuple(command)] for command in batch}},
             [command[2] for command in failures])
 
 
@@ -1455,7 +1479,7 @@ def quick_plan(selection: "check_quick.Selection", packages: "dict[str, check_qu
     if selection.tooling:
         plan.append(("tooling", STEPS["tooling"][1]))
     if selection.rust:
-        plan += [("test-css", [TEST_CSS]), ("lint", LINT), ("typecheck", typecheck())]
+        plan += [("test-css", [test_css_command()]), ("lint", LINT), ("typecheck", typecheck())]
         if selection.full_rust:
             native = list(CARGO_TESTS)
         else:
