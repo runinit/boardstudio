@@ -613,6 +613,7 @@ mod mounted_step_tests {
     use crate::runtime::project_name_test_support as support;
     use boardstudio_application::Event;
     use boardstudio_core::model::{KeyBinding, ProjectDoc};
+    use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::test_role::by_role_name;
     use boardstudio_web_ui_shared::test_wait::settle_until;
     use wasm_bindgen::JsCast;
@@ -672,7 +673,7 @@ mod mounted_step_tests {
         }
     }
 
-    async fn mounted() -> (Probe, web_sys::Element) {
+    async fn mounted() -> (Probe, web_sys::Element, MountedFixture) {
         let runtime = support::new_runtime();
         let mut doc = ProjectDoc::empty("macro-steps", "Macro steps");
         doc.boards.push(
@@ -702,12 +703,9 @@ mod mounted_step_tests {
         document.body().unwrap().append_child(&root).unwrap();
         let dom = VirtualDom::new(host);
         dom.provide_root_context(probe.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let mounted = MountedFixture::new(root.clone(), dom);
         rendered().await;
-        (probe, root)
+        (probe, root, mounted)
     }
 
     async fn rendered() {
@@ -762,7 +760,7 @@ mod mounted_step_tests {
         submitted: &str,
         accepted: &str,
     ) {
-        let (probe, root) = mounted().await;
+        let (probe, root, _mounted) = mounted().await;
         let runtime = &probe.runtime;
         let (entered, release) = support::gate_next_core_reply(runtime);
         commit(&input(&root, "Original tapMs"), "31");
@@ -798,7 +796,7 @@ mod mounted_step_tests {
     }
 
     async fn newer_step_draft_survives_failure(label: &str, submitted: &str, newer: &str) {
-        let (probe, root) = mounted().await;
+        let (probe, root, _mounted) = mounted().await;
         let runtime = &probe.runtime;
         let (entered, release) = support::gate_next_core_reply(runtime);
         commit(&input(&root, "Original tapMs"), "31");
@@ -833,7 +831,7 @@ mod mounted_step_tests {
 
     #[wasm_bindgen_test]
     async fn the_latest_step_keycode_observation_preserves_both_undo_steps() {
-        let (probe, root) = mounted().await;
+        let (probe, root, _mounted) = mounted().await;
         let runtime = &probe.runtime;
         let (entered, release) = support::gate_next_core_reply(runtime);
         commit(&input(&root, "Keycode"), "B");
@@ -896,7 +894,7 @@ mod mounted_step_tests {
 
     #[wasm_bindgen_test]
     async fn a_departed_macro_generation_cannot_write_its_failure_into_the_same_step_field() {
-        let (probe, root) = mounted().await;
+        let (probe, root, _mounted) = mounted().await;
         let runtime = &probe.runtime;
         let (entered, release) = support::gate_next_core_reply(runtime);
         commit(&input(&root, "Original tapMs"), "31");
@@ -928,7 +926,7 @@ mod mounted_step_tests {
     }
 
     async fn held_raw_step_text_lands_as_accepted_text(label: &str, raw: &str, accepted: &str) {
-        let (probe, root) = mounted().await;
+        let (probe, root, _mounted) = mounted().await;
         let runtime = &probe.runtime;
         let (entered, release) = support::gate_next_core_reply(runtime);
         commit(&input(&root, label), raw);
@@ -998,7 +996,7 @@ mod mounted_step_tests {
         newer: &str,
         accepted: &str,
     ) {
-        let (probe, root) = mounted().await;
+        let (probe, root, _mounted) = mounted().await;
         let runtime = &probe.runtime;
         let (entered, release) = support::gate_next_core_reply(runtime);
         commit(&input(&root, label), raw);
@@ -1041,7 +1039,7 @@ mod mounted_step_tests {
     #[wasm_bindgen_test]
     async fn keymap_workspace_departure_retires_a_held_step_projection_without_cancelling_session()
     {
-        let (probe, root) = mounted().await;
+        let (probe, root, _mounted) = mounted().await;
         let runtime = &probe.runtime;
         let kind = || by_role_name(&root, "button", "Original step 1").unwrap();
         let (entered, release) = support::gate_next_core_reply(runtime);

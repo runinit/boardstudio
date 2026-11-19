@@ -1,6 +1,7 @@
 use super::*;
 use boardstudio_application::SessionEpoch;
 use boardstudio_core::model::{Contour, Vec2};
+use boardstudio_web_ui_shared::test_mount::MountedFixture;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
 use web_sys::{Element as DomElement, HtmlElement};
@@ -103,7 +104,7 @@ fn mounted_probe() -> Element {
 
 #[wasm_bindgen_test]
 async fn mounted_layout_marker_is_bound_to_focused_identity_and_accepted_owner() {
-    let root = mount_probe();
+    let (root, _mounted) = mount_probe();
     settle().await;
 
     let marker = focused_marker().unwrap();
@@ -162,7 +163,8 @@ async fn focused_finding_remains_visible_in_both_themes_and_appearances() {
         include_str!("../../../assets/tailwind.css")
     )));
     document.head().unwrap().append_child(&style).unwrap();
-    let root = mount_probe();
+    let (root, mut mounted) = mount_probe();
+    mounted.own_node(style.clone());
     settle().await;
     let polygon = root
         .query_selector("[data-finding-id='finding-a'] polygon")
@@ -202,16 +204,13 @@ async fn focused_finding_remains_visible_in_both_themes_and_appearances() {
     style.remove();
 }
 
-fn mount_probe() -> DomElement {
+fn mount_probe() -> (DomElement, MountedFixture) {
     let document = web_sys::window().unwrap().document().unwrap();
     let root = document.create_element("div").unwrap();
     root.set_id("keycaps-focused-marker-test-root");
     document.body().unwrap().append_child(&root).unwrap();
-    dioxus_web::launch::launch_virtual_dom(
-        VirtualDom::new(mounted_probe),
-        dioxus_web::Config::new().rootnode(root.clone().into()),
-    );
-    root
+    let mounted = MountedFixture::new(root.clone(), VirtualDom::new(mounted_probe));
+    (root, mounted)
 }
 
 fn focused_marker() -> Option<DomElement> {

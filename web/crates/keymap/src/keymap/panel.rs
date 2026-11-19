@@ -471,6 +471,7 @@ mod disclosure_mounted_tests {
     use super::super::view::{KeymapKey, KeymapLayerLabel};
     use super::*;
     use boardstudio_application::{Scope, SessionEpoch};
+    use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::test_role::by_role_name;
     use boardstudio_web_ui_shared::test_wait::wait_until;
     use std::{cell::RefCell, rc::Rc};
@@ -576,11 +577,11 @@ mod disclosure_mounted_tests {
         }
     }
 
-    fn mount() -> (Probe, WebElement) {
+    fn mount() -> (Probe, WebElement, MountedFixture) {
         mount_component(fixture)
     }
 
-    fn mount_component(component: fn() -> Element) -> (Probe, WebElement) {
+    fn mount_component(component: fn() -> Element) -> (Probe, WebElement, MountedFixture) {
         let probe = Probe {
             active_layer: Rc::new(RefCell::new("base".into())),
             render: Rc::new(RefCell::new(None)),
@@ -593,11 +594,8 @@ mod disclosure_mounted_tests {
         document.body().unwrap().append_child(&root).unwrap();
         let dom = VirtualDom::new(component);
         dom.provide_root_context(probe.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
-        (probe, root)
+        let mounted = MountedFixture::new(root.clone(), dom);
+        (probe, root, mounted)
     }
 
     async fn rendered() {
@@ -616,7 +614,7 @@ mod disclosure_mounted_tests {
 
     #[wasm_bindgen_test]
     async fn editor_bodies_keep_layout_and_nested_heading_rules_without_legacy_selectors() {
-        let (_, root) = mount();
+        let (_, root, _mounted) = mount();
         rendered().await;
         let key_input = by_role_name(&root, "searchbox", "Find a key").expect("key search");
         let key_body = key_input
@@ -677,7 +675,7 @@ mod disclosure_mounted_tests {
 
     #[wasm_bindgen_test]
     async fn layers_are_accessible_tabs_and_select_the_requested_layer() {
-        let (probe, root) = mount();
+        let (probe, root, _mounted) = mount();
         rendered().await;
         let main = by_role_name(&root, "tab", "Main").expect("Main layer tab");
         let function = by_role_name(&root, "tab", "Function").expect("Function layer tab");
@@ -761,7 +759,7 @@ mod disclosure_mounted_tests {
 
     #[wasm_bindgen_test]
     async fn editor_choice_roves_and_keeps_its_selection() {
-        let (_, root) = mount();
+        let (_, root, _mounted) = mount();
         rendered().await;
         let panel = root
             .query_selector("[aria-label='Keymap']")
@@ -855,7 +853,7 @@ mod disclosure_mounted_tests {
 
     #[wasm_bindgen_test]
     async fn key_picker_filters_and_selects_the_named_key() {
-        let (probe, root) = mount();
+        let (probe, root, _mounted) = mount();
         rendered().await;
         let picker = by_role_name(&root, "combobox", "Selected key").unwrap();
         picker.focus().unwrap();
@@ -906,7 +904,7 @@ mod disclosure_mounted_tests {
 
     #[wasm_bindgen_test]
     async fn navigation_keys_roving_focus_and_selection() {
-        let (probe, root) = mount_component(navigation_fixture);
+        let (probe, root, _mounted) = mount_component(navigation_fixture);
         rendered().await;
         let group = by_role_name(&root, "group", "Keys on active layer").unwrap();
         let navigation = group
@@ -981,7 +979,7 @@ mod disclosure_mounted_tests {
 
     #[wasm_bindgen_test]
     async fn layer_tabs_roving_focus_wraps_and_supports_home_and_end() {
-        let (_, root) = mount();
+        let (_, root, _mounted) = mount();
         rendered().await;
         let main = by_role_name(&root, "tab", "Main").unwrap();
         let function = by_role_name(&root, "tab", "Function").unwrap();
@@ -1022,7 +1020,7 @@ mod disclosure_mounted_tests {
 
     #[wasm_bindgen_test]
     async fn layer_name_keeps_its_length_limit_and_commits_on_blur() {
-        let (probe, root) = mount();
+        let (probe, root, _mounted) = mount();
         rendered().await;
         let input: HtmlInputElement = by_role_name(&root, "textbox", "Layer name")
             .expect("layer name")
@@ -1053,7 +1051,7 @@ mod disclosure_mounted_tests {
 
     #[wasm_bindgen_test]
     async fn layers_disclosure_is_open_accessible_persistent_and_view_only() {
-        let (probe, root) = mount();
+        let (probe, root, _mounted) = mount();
         rendered().await;
 
         let disclosure = by_role_name(&root, "button", "Keymap layers").expect("layers disclosure");

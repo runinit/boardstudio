@@ -1329,6 +1329,7 @@ mod mounted_tests {
     use super::*;
     use boardstudio_application::{Completion, Effect, OperationId, SaveResult, Session};
     use boardstudio_core::CoreEngine;
+    use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::test_role::{all_by_role_name, by_role_name};
     use boardstudio_web_ui_shared::test_wait::{
         WAIT_BOUND_MS, wait_for_step, wait_until, wait_until_step,
@@ -1444,10 +1445,7 @@ mod mounted_tests {
         let dom = VirtualDom::new(project_tools_host);
         dom.provide_root_context(runtime.clone());
         dom.provide_root_context(seed.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         let status = |name| by_role_name(&root, "status", name).map(|e| e.text_content().unwrap());
         let click = |name| by_role_name(&root, "button", name).unwrap().click();
         wait_until("header tools registered", || {
@@ -1627,7 +1625,7 @@ mod mounted_tests {
             .unwrap();
         let (session, core) = accepted(healthy.clone());
         crate::runtime::project_name_test_support::install(&runtime, session, core);
-        let root = mount_menu(runtime.clone(), "partial-list-mounted-regression");
+        let (root, _mounted) = mount_menu(runtime.clone(), "partial-list-mounted-regression");
         wait_until(
             "healthy card and raw recovery actions render together",
             || {
@@ -1740,7 +1738,8 @@ mod mounted_tests {
             .unwrap();
         let (session, core) = accepted(healthy.clone());
         crate::runtime::project_name_test_support::install(&runtime, session, core);
-        let root = mount_menu(runtime.clone(), "tokenless-unreadable-mounted-regression");
+        let (root, _mounted) =
+            mount_menu(runtime.clone(), "tokenless-unreadable-mounted-regression");
         wait_until(
             "tokenless unreadable record renders with a delete action",
             || by_role_name(&root, "button", "Delete unreadable keyboard…").is_some(),
@@ -1823,7 +1822,7 @@ mod mounted_tests {
         });
 
         let runtime = crate::runtime::project_name_test_support::new_runtime();
-        let root = mount_menu(runtime, "damaged-preview-fallback-mounted-regression");
+        let (root, _mounted) = mount_menu(runtime, "damaged-preview-fallback-mounted-regression");
         wait_for_project_cards(&root, 2).await;
 
         let damaged_card = by_role_name(&root, "button", "Open Damaged preview keyboard")
@@ -1869,7 +1868,7 @@ mod mounted_tests {
             ]);
         });
 
-        let root = mount_menu(runtime, "saved-project-list-retry-mounted-regression");
+        let (root, _mounted) = mount_menu(runtime, "saved-project-list-retry-mounted-regression");
         // The test-only hold on this listing keeps the Loading status on screen for 120 ms.
         wait_until("the initial loading status renders", || {
             root.query_selector("[role='status']")
@@ -2009,11 +2008,15 @@ mod mounted_tests {
         (session, core)
     }
 
-    fn mount_menu(runtime: Rc<Runtime>, root_id: &str) -> web_sys::Element {
+    fn mount_menu(runtime: Rc<Runtime>, root_id: &str) -> (web_sys::Element, MountedFixture) {
         mount_library(runtime, root_id, true)
     }
 
-    fn mount_library(runtime: Rc<Runtime>, root_id: &str, project_menu: bool) -> web_sys::Element {
+    fn mount_library(
+        runtime: Rc<Runtime>,
+        root_id: &str,
+        project_menu: bool,
+    ) -> (web_sys::Element, MountedFixture) {
         let seed = Rc::new(Seed {
             state: Rc::new(RefCell::new(None)),
             show_library: Rc::new(RefCell::new(None)),
@@ -2037,18 +2040,15 @@ mod mounted_tests {
         dom.provide_root_context(seed);
         dom.provide_root_context(LibraryTestMode(project_menu));
         dom.provide_root_context(runtime.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
-        root
+        let mounted = MountedFixture::new(root.clone(), dom);
+        (root, mounted)
     }
 
     #[wasm_bindgen_test]
     async fn import_waits_for_storage_initialization() {
         let runtime = crate::runtime::project_name_test_support::new_runtime();
         crate::runtime::project_name_test_support::set_storage_initializing(&runtime, true);
-        let root = mount_library(runtime.clone(), "import-readiness", false);
+        let (root, _mounted) = mount_library(runtime.clone(), "import-readiness", false);
         wait_until("import button renders", || {
             by_role_name(&root, "button", "Import project").is_some()
         })
@@ -2080,7 +2080,7 @@ mod mounted_tests {
         )
         .await;
         root.remove();
-        let menu = mount_menu(runtime, "import-readiness-menu");
+        let (menu, _menu_mounted) = mount_menu(runtime, "import-readiness-menu");
         wait_until("menu import renders disabled after storage failure", || {
             by_role_name(&menu, "button", "Open project…")
                 .is_some_and(|button| button.has_attribute("disabled"))
@@ -2107,7 +2107,7 @@ mod mounted_tests {
                 "Other keyboard",
             )]));
         });
-        let root = mount_library(runtime.clone(), "browser-selection-test-root", false);
+        let (root, _mounted) = mount_library(runtime.clone(), "browser-selection-test-root", false);
         wait_for_saved_cards(&root, 2).await;
         click(&root, "Preview Other keyboard");
         wait_until("selection reveals and focuses Open keyboard", || {
@@ -2196,7 +2196,7 @@ mod mounted_tests {
         ));
         let runtime = crate::runtime::project_name_test_support::new_runtime();
         crate::runtime::project_name_test_support::install(&runtime, session, core);
-        let root = mount_menu(runtime, "project-copy-mounted-regression");
+        let (root, _mounted) = mount_menu(runtime, "project-copy-mounted-regression");
         wait_until("the Project menu renders its copy action", || {
             by_role_name(&root, "button", "Save project copy…").is_some()
         })
@@ -2258,7 +2258,7 @@ mod mounted_tests {
             .await
             .unwrap();
         crate::runtime::project_name_test_support::install(&runtime, session, core);
-        let root = mount_library(runtime.clone(), "alert-safe-root", false);
+        let (root, _mounted) = mount_library(runtime.clone(), "alert-safe-root", false);
         wait_for_saved_cards(&root, 1).await;
         let opener = by_role_name(&root, "button", "Delete Safe project").unwrap();
         opener.focus().unwrap();
@@ -2319,7 +2319,7 @@ mod mounted_tests {
             .await
             .unwrap();
         crate::runtime::project_name_test_support::install(&runtime, session, core);
-        let root = mount_menu(runtime.clone(), "delete-current-mounted-regression");
+        let (root, _mounted) = mount_menu(runtime.clone(), "delete-current-mounted-regression");
         wait_for_saved_cards(&root, 1).await;
 
         let trigger = by_role_name(&root, "button", "Delete Current board").unwrap();
@@ -2409,7 +2409,7 @@ mod mounted_tests {
                 .unwrap();
         }
         crate::runtime::project_name_test_support::install(&runtime, session, core);
-        let root = mount_menu(runtime.clone(), "delete-current-sort-regression");
+        let (root, _mounted) = mount_menu(runtime.clone(), "delete-current-sort-regression");
         wait_for_saved_cards(&root, 3).await;
         click(&root, "Delete Current keyboard");
         wait_until("the delete dialog opens", || delete_dialog_open(&root)).await;
@@ -2474,7 +2474,7 @@ mod mounted_tests {
             &runtime,
             "replacement storage failed",
         );
-        let root = mount_menu(runtime.clone(), "delete-current-failure-regression");
+        let (root, _mounted) = mount_menu(runtime.clone(), "delete-current-failure-regression");
         wait_for_saved_cards(&root, 2).await;
         click(&root, "Delete Current board");
         wait_until("the delete dialog opens", || delete_dialog_open(&root)).await;
@@ -2718,10 +2718,7 @@ mod mounted_tests {
         let dom = VirtualDom::new(host);
         dom.provide_root_context(seed.clone());
         dom.provide_root_context(runtime.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         wait_for_saved_cards(&root, 4).await;
 
         let project_menu = root
@@ -3066,10 +3063,7 @@ mod mounted_tests {
         let dom = VirtualDom::new(host);
         dom.provide_root_context(seed.clone());
         dom.provide_root_context(runtime.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         wait_until("the mounted Library publishes its name action", || {
             PROJECT_NAME_ACTION_PROBE.with(|probe| probe.borrow().is_some())
                 && seed.show_library.borrow().is_some()
@@ -3139,10 +3133,7 @@ mod mounted_tests {
         let dom = VirtualDom::new(host);
         dom.provide_root_context(seed);
         dom.provide_root_context(runtime.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         wait_until("the Library mounts the name field", name_field_rendered).await;
 
         use crate::runtime::project_name_test_support as support;
@@ -3220,7 +3211,11 @@ mod mounted_tests {
 
     async fn mounted_name_field(
         project_id: &str,
-    ) -> (Rc<crate::runtime::Runtime>, web_sys::Element) {
+    ) -> (
+        Rc<crate::runtime::Runtime>,
+        web_sys::Element,
+        MountedFixture,
+    ) {
         let (session, core) = accepted(ProjectDoc::empty(project_id, "Original"));
         let runtime = crate::runtime::project_name_test_support::new_runtime();
         crate::runtime::project_name_test_support::install(&runtime, session, core);
@@ -3234,12 +3229,9 @@ mod mounted_tests {
         let dom = VirtualDom::new(host);
         dom.provide_root_context(seed);
         dom.provide_root_context(runtime.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let mounted = MountedFixture::new(root.clone(), dom);
         wait_until("the Library mounts the name field", name_field_rendered).await;
-        (runtime, root)
+        (runtime, root, mounted)
     }
 
     fn name_alert(root: &web_sys::Element) -> Option<String> {
@@ -3251,7 +3243,7 @@ mod mounted_tests {
     #[wasm_bindgen_test]
     async fn a_failed_unchanged_project_name_restores_the_accepted_name_with_an_inline_failure() {
         use crate::runtime::project_name_test_support as support;
-        let (runtime, root) = mounted_name_field("menu-name-unchanged-failure").await;
+        let (runtime, root, _mounted) = mounted_name_field("menu-name-unchanged-failure").await;
         support::fail_next_core_reply(&runtime, "name executor failed");
         type_value(&field(), "Rejected");
         let _ = field().blur();
@@ -3277,7 +3269,7 @@ mod mounted_tests {
     #[wasm_bindgen_test]
     async fn a_newer_project_name_draft_survives_an_older_failure_that_reports_inline() {
         use crate::runtime::project_name_test_support as support;
-        let (runtime, root) = mounted_name_field("menu-name-newer-failure").await;
+        let (runtime, root, _mounted) = mounted_name_field("menu-name-newer-failure").await;
         support::fail_next_core_reply(&runtime, "name executor failed");
         type_value(&field(), "Rejected");
         let _ = field().blur();
@@ -3308,7 +3300,7 @@ mod mounted_tests {
     #[wasm_bindgen_test]
     async fn two_project_name_commits_keep_the_latest_observation_and_both_undo_steps() {
         use crate::runtime::project_name_test_support as support;
-        let (runtime, root) = mounted_name_field("menu-name-latest-observation").await;
+        let (runtime, root, _mounted) = mounted_name_field("menu-name-latest-observation").await;
         let (mut first_entered, first_release) = support::gate_next_core_reply(&runtime);
         type_value(&field(), "First name");
         let _ = field().blur();
@@ -3411,10 +3403,7 @@ mod mounted_tests {
         let dom = VirtualDom::new(host);
         dom.provide_root_context(seed);
         dom.provide_root_context(runtime.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         wait_until("the Library mounts the name field", name_field_rendered).await;
 
         let (mut entered, release) =

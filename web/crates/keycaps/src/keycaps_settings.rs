@@ -2217,6 +2217,7 @@ mod queued_settings_tests {
     use super::*;
     use crate::runtime::project_name_test_support as support;
     use boardstudio_application::{Event, TerminalOutcome};
+    use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::test_role::by_role_name;
     use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_future, wait_until_step};
     use wasm_bindgen_test::*;
@@ -2391,10 +2392,7 @@ mod queued_settings_tests {
         document.body().unwrap().append_child(&root).unwrap();
         let dom = VirtualDom::new(host);
         dom.provide_root_context(probe.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         wait_until(
             "the keycap editor actions and width input are mounted",
             || {
@@ -2696,6 +2694,7 @@ mod queued_settings_tests {
         Probe,
         web_sys::Element,
         web_sys::HtmlInputElement,
+        MountedFixture,
     ) {
         use wasm_bindgen::JsCast;
         let runtime = support::new_runtime();
@@ -2723,10 +2722,7 @@ mod queued_settings_tests {
         document.body().unwrap().append_child(&root).unwrap();
         let dom = VirtualDom::new(host);
         dom.provide_root_context(probe.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let mounted = MountedFixture::new(root.clone(), dom);
         wait_until("the legend editor actions and input are mounted", || {
             probe.actions.borrow().is_some()
                 && by_role_name(&root, "textbox", "Legend for SW1").is_some()
@@ -2736,12 +2732,12 @@ mod queued_settings_tests {
             .unwrap()
             .dyn_into::<web_sys::HtmlInputElement>()
             .unwrap();
-        (runtime, probe, root, input)
+        (runtime, probe, root, input, mounted)
     }
 
     #[wasm_bindgen_test]
     async fn keycap_overrides_are_named_and_profile_picker_selects_by_keyboard() {
-        let (_runtime, _probe, root, _) = mounted_legend("keycaps-choice-floor").await;
+        let (_runtime, _probe, root, _, _mounted) = mounted_legend("keycaps-choice-floor").await;
         let disclosure =
             by_role_name(&root, "button", "Keycap overrides").expect("override disclosure");
         assert_eq!(
@@ -2800,7 +2796,7 @@ mod queued_settings_tests {
 
     #[wasm_bindgen_test]
     async fn a_newer_legend_draft_survives_an_older_failure_that_reports_inline() {
-        let (runtime, _probe, root, input) = mounted_legend("keycaps-newer-draft").await;
+        let (runtime, _probe, root, input, _mounted) = mounted_legend("keycaps-newer-draft").await;
         support::fail_next_core_reply(&runtime, "legend executor failed");
         type_legend(&input, "A");
         input.blur().unwrap();
@@ -2834,7 +2830,8 @@ mod queued_settings_tests {
 
     #[wasm_bindgen_test]
     async fn a_failed_unchanged_legend_restores_the_accepted_text_with_an_inline_failure() {
-        let (runtime, _probe, root, input) = mounted_legend("keycaps-unchanged-failure").await;
+        let (runtime, _probe, root, input, _mounted) =
+            mounted_legend("keycaps-unchanged-failure").await;
         support::fail_next_core_reply(&runtime, "legend executor failed");
         type_legend(&input, "A");
         input.blur().unwrap();
@@ -2866,7 +2863,8 @@ mod queued_settings_tests {
 
     #[wasm_bindgen_test]
     async fn a_second_legend_edit_replaces_the_observation_and_both_edits_undo() {
-        let (runtime, _probe, root, input) = mounted_legend("keycaps-latest-per-key").await;
+        let (runtime, _probe, root, input, _mounted) =
+            mounted_legend("keycaps-latest-per-key").await;
         let legend = |runtime: &Rc<Runtime>| {
             accepted_legend_text(&runtime.model().accepted.unwrap().document, "key")
         };
@@ -2912,7 +2910,7 @@ mod queued_settings_tests {
 
     #[wasm_bindgen_test]
     async fn leaving_the_keycaps_workspace_retires_a_pending_edit_silently() {
-        let (runtime, probe, root, input) = mounted_legend("keycaps-owner-departs").await;
+        let (runtime, probe, root, input, _mounted) = mounted_legend("keycaps-owner-departs").await;
         let actions = probe.actions.borrow().as_ref().unwrap().clone();
         let request_id = (actions.request_sequence)()
             .checked_add(1)
