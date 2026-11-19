@@ -14,7 +14,7 @@ import tempfile
 import unittest
 from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 SCRIPT = Path(__file__).with_name("run-wasm-tests.py")
 spec = importlib.util.spec_from_file_location("run_wasm_tests", SCRIPT)
@@ -127,6 +127,90 @@ class RunWasmTestsTests(unittest.TestCase):
             code = runner.main(["--root", str(self.dir), *argv])
         return code, out.getvalue(), err.getvalue()
 
+    def fake_pair(self, directory):
+        directory.mkdir(parents=True)
+        for name in ("wasm-bindgen", "wasm-bindgen-test-runner"):
+            tool = directory / name
+            tool.write_text(f'#!/bin/sh\necho "{name} 0.2.129"\n')
+            tool.chmod(0o755)
+
+    @contextlib.contextmanager
+    def local_pair_fixture(self, build):
+        (self.dir / "Cargo.lock").write_text('[[package]]\nname = "wasm-bindgen"\nversion = "0.2.129"\n')
+        key = "patched-wasm-bindgen-v1-" + "1" * 64
+        directory = self.dir / "boardstudio/wasm-bindgen-patched" / key
+        real_run = subprocess.run
+
+        def dispatch(command, **kwargs):
+            if command[1] != "scripts/build-patched-wasm-bindgen.py":
+                return real_run(command, **kwargs)
+            self.assertNotIn("RUSTC_WRAPPER", kwargs["env"])
+            if command[2] == "--cache-key":
+                return subprocess.CompletedProcess(command, 0, key + "\n", "")
+            self.assertEqual(command[2:4], ["--output", str(directory)])
+            self.assertEqual(kwargs["pass_fds"], (9,))
+            return build(directory, command)
+
+        with patch.dict(os.environ, {"PATH": "/bin", "XDG_CACHE_HOME": str(self.dir),
+                                     "RUSTC_WRAPPER": str(self.dir / "scripts/build-time/rustc-log.py")}, clear=True), \
+             patch.object(runner.wasm_bindgen_tools, "_pair_build_lock", return_value=contextlib.nullcontext(9)) as lock, \
+             patch.object(subprocess, "run", side_effect=dispatch):
+            yield directory, lock
+
+    def test_default_bindgen_pair_builds_offline_under_lock_then_reuses_cache(self):
+        def build(directory, command):
+            self.assertEqual(command[-1], "--offline")
+            self.fake_pair(directory)
+            return subprocess.CompletedProcess(command, 0, "", "")
+
+        with self.local_pair_fixture(Mock(side_effect=build)) as (directory, lock):
+            self.assertEqual(runner.wasm_bindgen_dir(self.dir), directory)
+            self.assertEqual(runner.wasm_bindgen_dir(self.dir), directory)
+            lock.assert_called_once()
+
+    def test_explicit_pair_bypasses_local_cache_and_build(self):
+        with self.local_pair_fixture(Mock(side_effect=AssertionError("unexpected build"))) as (directory, lock):
+            explicit = self.dir / "explicit"
+            self.fake_pair(directory)
+            self.fake_pair(explicit)
+            with patch.dict(os.environ, {"BOARDSTUDIO_WASM_BINDGEN_DIR": str(explicit)}):
+                self.assertEqual(runner.wasm_bindgen_dir(self.dir), explicit)
+            lock.assert_not_called()
+
+    def test_accepts_concurrent_install_from_a_builder_that_won_the_rename(self):
+        def build(directory, command):
+            self.fake_pair(directory)
+            return subprocess.CompletedProcess(command, 1, "", f"output already exists: {directory}")
+
+        with self.local_pair_fixture(Mock(side_effect=build)) as (directory, lock):
+            self.assertEqual(runner.wasm_bindgen_dir(self.dir), directory)
+            lock.assert_called_once()
+
+    def test_unavailable_offline_inputs_fall_back_once_with_recovery_command(self):
+        def build(directory, command):
+            message = ("offline crate archive not found: wasm-bindgen-cli-0.2.129"
+                       if "--offline" in command else "<urlopen error DNS lookup failed>")
+            return subprocess.CompletedProcess(command, 1, "", message)
+
+        attempted = Mock(side_effect=build)
+        with self.local_pair_fixture(attempted) as (directory, _):
+            cached = self.dir / ".wasm-pack/wasm-bindgen-test"
+            self.fake_pair(cached)
+            warning = io.StringIO()
+            with contextlib.redirect_stderr(warning):
+                self.assertEqual(runner.wasm_bindgen_dir(self.dir), cached)
+            self.assertEqual(attempted.call_count, 2)
+            self.assertEqual(warning.getvalue().count("warning:"), 1)
+            self.assertIn("270 seconds", warning.getvalue())
+            self.assertIn(f"scripts/build-patched-wasm-bindgen.py --output {directory}", warning.getvalue())
+
+    def test_unrelated_build_failure_does_not_use_stock(self):
+        failed = Mock(return_value=subprocess.CompletedProcess([], 1, "", "crate checksum mismatch"))
+        with self.local_pair_fixture(failed):
+            with self.assertRaisesRegex(runner.RunnerError, "crate checksum mismatch"):
+                runner.wasm_bindgen_dir(self.dir)
+            failed.assert_called_once()
+
     def test_explicit_bindgen_pair_reaches_page_and_direct_crate_launches(self):
         import check
         pair = self.dir / "pair"
@@ -162,7 +246,8 @@ class RunWasmTestsTests(unittest.TestCase):
             tool = cache / name
             tool.write_text(f'#!/bin/sh\necho "{name} {version}"\n')
             tool.chmod(0o755)
-        with patch.dict(os.environ, {"XDG_CACHE_HOME": str(self.dir), "PATH": "/bin"}, clear=True):
+        with patch.dict(os.environ, {"XDG_CACHE_HOME": str(self.dir), "PATH": "/bin"}, clear=True), \
+             patch.object(runner.wasm_bindgen_tools, "local_patched_pair", return_value=None):
             with self.assertRaisesRegex(runner.RunnerError, "locked version 0.2.129"):
                 runner.wasm_bindgen_dir(self.dir)
             (cache / "wasm-bindgen-test-runner").write_text('#!/bin/sh\necho "wasm-bindgen-test-runner 0.2.129"\n')

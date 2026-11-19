@@ -132,9 +132,11 @@ count, or `BOARDSTUDIO_CHECK_JOBS=1` for serial), with a two-minute timeout per
 launch (`WASM_BINDGEN_TEST_TIMEOUT`). Use `python3 scripts/check.py browser --only <crate>...` for a
 partial crate run without the packaged build or drag smoke. Add `--keep-going` to continue across
 independent browser launches and still exit nonzero on failure. CSS-dependent subsets generate
-the test stylesheet first. The crate suite uses a matching wasm-bindgen pair from wasm-pack's cache,
-`PATH`, or an explicit `BOARDSTUDIO_WASM_BINDGEN_DIR`. On a fresh machine, install
-`wasm-bindgen-cli` at the version in `Cargo.lock` or populate the cache with a manual wasm-pack run.
+the test stylesheet first. Preflight uses the patched pair in
+`~/.cache/boardstudio/wasm-bindgen-patched/` (under `XDG_CACHE_HOME` when set) and builds it
+on a cache miss. Set `BOARDSTUDIO_WASM_BINDGEN_DIR` to override both tools at the version in
+`Cargo.lock`. If the patched build inputs are unavailable, the runner warns before using a
+matching stock pair from `PATH` or wasm-pack's cache.
 For source-level debugging, run `wasm-pack test --headless --chrome web/crates/<crate> --lib` by hand
 with `CARGO_PROFILE_DEV_DEBUG` unset. Add `--features page` for `host`.
 The browser step opens the packaged page and runs a trusted mouse-drag smoke over

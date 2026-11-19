@@ -1058,9 +1058,10 @@ def run_commands(name: str, commands: list[Command], environment: dict[str, str]
                                for idx, token in enumerate(command) if token == "-p")
                 artifacts = crate_test_artifacts(serial_outputs[-1][1], cwd, () if code else crates)
                 if not code and launches:
-                    runner = importlib.import_module("run-wasm-tests")
                     pair = environment.get(wasm_bindgen_tools.DIRECTORY_ENV)
-                    directory = Path(pair) if pair else runner.wasm_bindgen_dir(cwd)
+                    if not pair:
+                        raise ValueError("browser preflight did not select a wasm-bindgen pair")
+                    directory = Path(pair)
                     for launch in launches:
                         crate = launch_crate(launch)
                         invocations[tuple(launch)] = (
@@ -1237,7 +1238,7 @@ def run_plan(plan: list[tuple[str, list[Command]]], update_native_baseline: bool
     if direct or page or crate_launches:
         wasm_runner = importlib.import_module("run-wasm-tests")
         try:
-            environment = wasm_runner.runner_environment(ROOT, browser_only=True)
+            environment = wasm_runner.runner_environment(ROOT)
             with ExitStack() as configs:
                 crate_configs = {}
                 for crate in browser_crates(crate_launches):
@@ -1342,11 +1343,12 @@ def _run_plan(plan, update_native_baseline=False, *, keep_going=False, partial=F
         if is_browser_step(name):
             if browser_environment is not None:
                 environment.update(browser_environment)
-            try:
-                environment = wasm_bindgen_tools.configure(environment, ROOT)
-            except ValueError as error:
-                print(f"check: {error}", file=sys.stderr)
-                return False
+            else:
+                try:
+                    environment = wasm_bindgen_tools.configure(environment, ROOT)
+                except ValueError as error:
+                    print(f"check: {error}", file=sys.stderr)
+                    return False
             # Match the page runner's bounded budget for browser crate batches.
             environment.setdefault("WASM_BINDGEN_TEST_TIMEOUT", "120")
             # Test wasm without DWARF is about a seventh of the size, which is most of a launch.

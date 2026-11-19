@@ -193,6 +193,7 @@ class CheckTests(unittest.TestCase):
         launch.assert_called_once()
 
     def test_selected_driver_reaches_actual_command_despite_path_conflict(self):
+        self.mock_wasm_dir()
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             selected = root / "selected"
@@ -209,6 +210,7 @@ class CheckTests(unittest.TestCase):
             actual = launch.call_args.args[1][0]
             self.assertEqual(actual[actual.index("--chromedriver") + 1], str(selected))
             self.assertEqual(launch.call_args.args[2]["CHROMEDRIVER"], str(selected))
+            self.assertEqual(launch.call_args.args[2]["BOARDSTUDIO_WASM_BINDGEN_DIR"], str(self.wasm_dir))
 
     def test_nonexecutable_driver_fails_before_build(self):
         with tempfile.TemporaryDirectory() as directory:

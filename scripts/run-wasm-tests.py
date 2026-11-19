@@ -9,9 +9,9 @@ run; a known failure that now passes is reported so the entry can be removed.
 
 wasm-bindgen-test-runner accepts a single FILTER, so each module filter is one runner invocation.
 Override the runner with BOARDSTUDIO_WASM_TEST_COMMAND (shell-split; the filter, if any, is appended).
-Set BOARDSTUDIO_WASM_BINDGEN_DIR to a directory containing both executable tools at the
-workspace Cargo.lock version. wasm-pack 0.15 selects the pair from PATH; paths with
-whitespace are unsupported by its Cargo runner setting. check.py browser uses it too.
+Local launches use the cached patched wasm-bindgen pair. Set BOARDSTUDIO_WASM_BINDGEN_DIR
+to override both tools at the workspace Cargo.lock version. wasm-pack 0.15 selects the pair
+from PATH; paths with whitespace are unsupported by its Cargo runner setting.
 """
 
 import argparse
@@ -169,10 +169,16 @@ def load_test_owners(path=None):
 
 def wasm_bindgen_dir(root=ROOT):
     try:
+        if wasm_bindgen_tools.DIRECTORY_ENV in os.environ:
+            env = wasm_bindgen_tools.configure(os.environ, root)
+            return Path(env[wasm_bindgen_tools.DIRECTORY_ENV])
         version = wasm_bindgen_tools.locked_version(root)
+        cache = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache")
+        if patched := wasm_bindgen_tools.local_patched_pair(cache, root, version):
+            return patched
     except (OSError, ValueError) as error:
         raise RunnerError(str(error)) from error
-    cache = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / ".wasm-pack"
+    cache /= ".wasm-pack"
     candidates = [path.parent for path in sorted(cache.glob(
         f"wasm-bindgen-*/{wasm_bindgen_tools.TEST_RUNNER}"))]
     if bindgen := shutil.which("wasm-bindgen"):
@@ -275,7 +281,10 @@ def runner_environment(root=ROOT, *, browser_only=False):
         except ValueError as error:
             raise RunnerError(str(error)) from error
     else:
-        env["PATH"] = f"{wasm_bindgen_dir(root)}{os.pathsep}{env['PATH']}"
+        directory = str(wasm_bindgen_dir(root))
+        env[wasm_bindgen_tools.DIRECTORY_ENV] = directory
+        env["PATH"] = directory + os.pathsep + env.get("PATH", "")
+        print(f"wasm-bindgen pair: {directory}", file=sys.stderr)
     print(f"run-wasm-tests: chrome {chrome}; chromedriver {driver}", file=sys.stderr)
     return env
 

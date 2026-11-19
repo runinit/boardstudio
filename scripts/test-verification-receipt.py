@@ -562,6 +562,8 @@ class NativeLaunchReconciliationTests(unittest.TestCase):
 
 class CheckCliTests(unittest.TestCase):
     def setUp(self):
+        runner = importlib.import_module("run-wasm-tests")
+        self.enterContext(mock.patch.object(runner, "wasm_bindgen_dir", return_value=Path("/fake/wasm-bindgen")))
         patcher = mock.patch.object(check, "_parallel_process",
                                     side_effect=lambda command, registry, **kwargs: check.subprocess.run(command, **kwargs))
         patcher.start()

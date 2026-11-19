@@ -38,7 +38,7 @@ Gains are estimates unless marked measured. "Old" means a ticket from `perf/cold
 | 9 | Tooling compiles a native driver | 29.7 s in the serial tooling step | Move the KiCad parts test into `test`, and build its driver with the workspace test features so it shares Core | Old 06.3 (`59542cea1`, `c8b0ef432`, `88db7ddbb`) | About −25 s |
 | 10 | The harness Clippy waits for the root Clippys | 34.1 s at the end of `lint` | Run it beside them | Old 06.1 (`183545277`) | Old branch measured −24 s on `lint` |
 | 11 | Core always compiles `wasm-bindgen` and `js-sys` | Unconditional in `core/Cargo.toml` | Make them wasm32-only | Old 11, redone on the split Core | About −4 s, −20 CPU-s |
-| 12 | A rare page-load stall costs up to 300 s | The runner waits for the page's `load` event with a timeout of `max(300 s, test timeout)`. The old branch hit about 300 s stalls under contention. | `pageLoadStrategy: "eager"` | Old 17 (`bf6ba7288`) | Guard only. Measured no change on an idle machine (16.6 to 16.9 s either way). |
+| 12 | The stock test runner's HTTP task pool can stall startup by about 270 s | In `tiny_http` 0.12.0 a queued startup-script connection can go unserved until Chrome flushes idle sockets. The stock-versus-patched trials and burst unit test are under `.evidence/cold-build-port/case-stall/`. | Use the existing patched pair in local preflight as well as CI. | K1, using `scripts/build-patched-wasm-bindgen.py` | Avoids the intermittent idle-socket delay. |
 | 13 | A fresh worktree compiles every registry crate once | About 1,700 CPU-s on the old branch's kit | Machine-wide `sccache` 0.19.0, approved on 2026-11-18 | Old 12 | About −290 s on a new worktree. Registry crates only: 0.19.0 still hashes the working directory and `CARGO_MANIFEST_DIR` for Rust, so worktree crates never hit across worktrees. |
 
 ## What today's measurements ruled out
@@ -110,7 +110,7 @@ Dry-run cherry-picks onto `dev` with `git merge-tree`. Many conflicts are only t
 - **Cargo's cross-workspace cache** is a 2026 goal, nightly first, with no build scripts or proc macros in its first milestone ([goal](https://rust-lang.github.io/rust-project-goals/2026/cargo-cross-workspace-cache.html)). It is not usable yet. It may replace `sccache` later.
 - **`sccache` basedirs** (`SCCACHE_BASEDIRS`) are documented in 0.15 ([Configuration.md](https://docs.rs/crate/sccache/0.15.0/source/docs/Configuration.md)). Rust support is not stated there, so caching path crates across worktrees is still unconfirmed. Registry crates are cacheable without it.
 - **A shared jobserver** across concurrent Cargo processes is the standard way to cap total parallelism ([GNU make job slots](https://www.gnu.org/s/hello/manual/make/Job-Slots.html), [Gentoo](https://blogs.gentoo.org/mgorny/?p=2439)). Tools outside the protocol are not counted: here that means `wasm-bindgen`, which is another reason for row 3, plus Chrome and the test binaries.
-- No upstream issue was found for the per-launch bindgen cost or the 300 s page-load stalls.
+- The per-launch bindgen cost is separate from the HTTP task-pool race diagnosed in K1.
 
 ## Implementation plan
 
@@ -973,3 +973,21 @@ Other HTTP fixtures bind ephemeral ports directly. The response-probe tests
 install their own SIGTERM handler to clean up the probe group. Check and CI
 self-tests use mocked commands, fake binaries or private lock files when
 exercising the scheduler and build wrappers.
+
+## K. Local browser runner
+
+### K1. Use the patched wasm-bindgen pair locally
+
+The stock 0.2.129 runner can leave requests for Dioxus startup scripts queued
+in `tiny_http` 0.12.0 until Chrome flushes its idle sockets about 270 seconds
+later. The existing CI patch wakes enough workers for the queued tasks. The
+retained trace and burst unit test are in `.evidence/cold-build-port/case-stall/`.
+
+Local browser preflight and direct page-test runs select the patched pair from
+`boardstudio/wasm-bindgen-patched/<builder cache key>` under the user's cache
+root. The existing builder runs offline first under the shared build lock and
+atomically publishes a validated pair. A concurrent valid install is reused.
+An explicit `BOARDSTUDIO_WASM_BINDGEN_DIR` takes precedence. If the build
+inputs cannot be fetched, selection warns once and uses a matching stock pair.
+The cold-run compiler logger does not affect the host tool's cache key. CI's
+explicit selection and workflow stay in place.
