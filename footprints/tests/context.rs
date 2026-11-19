@@ -1,8 +1,7 @@
 //! The render context against the real JavaScript context. A synthetic generator
 //! echoes every field and helper; the expected text was recorded from the
 //! JavaScript provider running the same body.
-mod common;
-
+use crate::common::{self, read_json};
 use boardstudio_footprints::context::RenderContext;
 use boardstudio_footprints::nets::{NetAllocator, NetIndexer, NoNets};
 use boardstudio_footprints::number::js_number;
@@ -11,7 +10,6 @@ use boardstudio_footprints::registry::{GeneratorSpec, License, Registry};
 use boardstudio_footprints::sexpr::serialize;
 use boardstudio_footprints::types::{GeneratorRef, PartKind, PartRef, ReservedNet, Side};
 use boardstudio_footprints::{GeneratorError, Result};
-use common::read_json;
 use serde_json::Value;
 
 static PARAMS: [ParamSpec; 12] = [

@@ -5,13 +5,12 @@
 //!
 //! Forms compare as parsed trees re-serialized (whitespace normalised, numbers
 //! as the exact text the generator printed).
-mod common;
-
 use std::collections::BTreeMap;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+use crate::common::{self, generator_fixtures, json_eq};
 use boardstudio_footprints::definition::DefinitionInput;
 use boardstudio_footprints::export::export_forms;
 use boardstudio_footprints::geometry::geometry;
@@ -21,7 +20,6 @@ use boardstudio_footprints::registry::Registry;
 use boardstudio_footprints::sexpr::{Expr, serialize};
 use boardstudio_footprints::types::{GeneratorRef, PartRef, ReservedNet, Side};
 use boardstudio_footprints::{GeneratorError, bundled};
-use common::{generator_fixtures, json_eq};
 use serde_json::{Value, json};
 
 const DIODE_SOD123_BASELINE_SOURCE: &str = "ceoloide/diode_tht_sod123";

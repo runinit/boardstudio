@@ -345,3 +345,397 @@ negative observation window for a late stale submission. The nine settlement
 helpers now share one bounded driver and preserve the Case suite's synchronous
 effect drain. The remaining short gesture waits and the launch-order stopping
 point need browser evidence at H.
+
+### I5. Link the footprints suites together
+
+The 12 named suites now run as modules of `footprints_integration`. The
+explicit target name keeps their native receipts separate from Core's
+`integration` target. The footprint library harness and three other
+integration binaries keep their target names. The suites remain in place so
+fixture paths are unchanged, and the manual capture tests keep their ignore
+attributes and environment requirements. The commit message lists every
+binary and test name mapping.
+
+### Section H commands after the VM is off
+
+Run H1, H2 and H4 from the implementation worktree using a shell outside the
+sandbox. Use the same shell for the lock and all commands it protects.
+
+```bash
+set -euo pipefail
+root=$(git rev-parse --show-toplevel)
+cd "$root"
+evidence="$root/.evidence/cold-build-port"
+reference=/home/chris/.t3/worktrees/ts-boardstudio2/t3-d04ee7db-eda77b8bc79b8ab2
+mkdir -p "$evidence"
+exec 9<~/.cache/tmp/boardstudio-build.lock
+flock 9
+export BOARDSTUDIO_BUILD_LOCK_FD=9
+```
+
+#### H1. Focused self-tests
+
+```bash
+for suite in scripts/test-{build-time,check,check-quick,run-wasm-tests,build-web,dev-web,browser-tools,ci-workflow,parallel-interrupt,verification-receipt,check-wasm-tests}.py \
+    scripts/security-audit.test.py cad/scripts/test-{cad-build,measure-cad}.py; do
+    env -u BOARDSTUDIO_BUILD_LOCK_FD python3 -B "$suite" \
+        > "$evidence/H1-I5-${suite##*/}.log" 2>&1
+done
+python3 -B scripts/test-import-kicad-parts.py > "$evidence/H1-I5-import-kicad.log" 2>&1
+```
+
+#### H2. Record deliberate name changes, then run the full gate
+
+```bash
+python3 scripts/check.py test --update-native-baseline > "$evidence/H2-I5-native-update.log" 2>&1
+git --no-pager diff -- scripts/check-native-tests-baseline.json | tee "$evidence/H2-I5-native-baseline.diff.log"
+python3 - <<'PY'
+import json
+from pathlib import Path
+import subprocess
+
+baseline = "scripts/check-native-tests-baseline.json"
+before = json.loads(subprocess.check_output(["git", "show", f"HEAD:{baseline}"]))
+after = json.loads(Path(baseline).read_text())
+i5 = subprocess.check_output(
+    ["git", "log", "-1", "--format=%B", "--grep=^I5 Link the selected footprints"], text=True)
+renames = dict(line.split(" -> ") for line in i5.splitlines()
+               if " -> footprints_integration::" in line)
+i2 = subprocess.check_output(["git", "show", "-s", "--format=%B", "ee3680cd0"], text=True)
+old_golden = "generators::bundled_generators_match_the_golden_baseline"
+golden = i2.split(old_golden + " ->\n", 1)[1].splitlines()
+replacements = {old_golden: [renames[name] for name in golden if name]}
+
+expected = set()
+for binary, names in before.items():
+    for name in names:
+        old = f"{binary}::{name}"
+        expected.update(replacements.get(old, [renames.get(old, old)]))
+actual = {f"{binary}::{name}" for binary, names in after.items() for name in names}
+assert not expected - actual, sorted(expected - actual)
+print(f"{len(expected)} expected native names retained or migrated. {len(actual)} names recorded.")
+PY
+python3 scripts/check.py > "$evidence/H2-I5-full.log" 2>&1
+rg '^check: (step times:|native tests:|all steps passed:)|^PASS drag browser smoke: 15 checks$' "$evidence/H2-I5-full.log"
+python3 - "$reference" "$root" "$evidence/H2-I5-full.log" <<'PY' | tee "$evidence/H2-I5-inventories.log"
+from collections import Counter
+import json
+from pathlib import Path
+import re
+import sys
+
+reference, root, full_log = map(Path, sys.argv[1:])
+wasm_launch = re.compile(r"/wasm-bindgen-test-runner \S*/boardstudio_web_(\w+?)-[0-9a-f]+\.wasm")
+wasm_test = re.compile(r"^test (\S+) \.\.\. ok$")
+
+def inventory(log):
+    crates, cad = Counter(), Counter()
+    launches = 0
+    crate = None
+    in_cad = False
+    for line in log.read_text().splitlines():
+        if line.startswith("$ "):
+            match = wasm_launch.search(line)
+            crate = match[1] if match else None
+            launches += bool(match)
+            in_cad = line == "$ python3 cad/scripts/test-cad-browser.py"
+        elif crate and (match := wasm_test.match(line)):
+            crates[crate, match[1]] += 1
+        elif in_cad and line.startswith("ok   "):
+            cad[line.removeprefix("ok   ")] += 1
+    return launches, crates, cad
+
+before_launches, before, before_cad = inventory(reference / ".evidence/shared-wasm-test-build/full.log")
+after_launches, after, after_cad = inventory(full_log)
+assert (before_launches, after_launches) == (14, 12)
+assert before.total() == 799 and before == after, (before - after, after - before)
+assert before_cad.total() == 364 and before_cad == after_cad, (before_cad - after_cad, after_cad - before_cad)
+results = Path("web/target/test-results/browser.json")
+page = json.loads((root / results).read_text())
+base_page = json.loads((reference / results).read_text())
+assert page["complete"] and page["passed_count"] == 126 and len(page["filters"]) == 2
+assert len(page["expected_tests"]) == len(page["listed_tests"]) == len(page["terminal_outcomes"]) == 126
+assert Counter(page["listed_tests"]) == Counter(base_page["listed_tests"])
+assert page["duplicate_terminal_outcomes"] == page["duplicate_listed_tests"] == page["problems"] == []
+assert all(item["status"] == "passed" for item in page["terminal_outcomes"])
+assert "PASS drag browser smoke: 15 checks" in full_log.read_text()
+print("799 crate test names across 12 launches, 126 page tests, 15 drag checks, and 364 CAD browser labels.")
+PY
+```
+
+Review the JSON diff with the user and record the generated baseline on the
+branch before H3. If H2 fails, run the failing step alone
+(`python3 scripts/check.py <step>`, adding `--only <owner>` where supported).
+Revert the corresponding I3 commit if its merged launch alone introduces an
+order-dependent failure. Compare crate tests by crate and name multiplicity
+after the revert, using the resulting number of launches. Review the
+layout crate launch duration against the next-longest crate launch before
+making further I4 changes.
+
+#### H3. Warm-cache and cache-bypassed cold runs
+
+Use a fresh, detached worktree at the revision with the reviewed baseline.
+Leave it in place. Run each cold command once machine load is below the kit's
+threshold.
+
+```bash
+verify="$(dirname "$root")/cold-build-port-i5-verification"
+git worktree add --detach "$verify" HEAD
+(
+    cd "$verify"
+    mkdir -p .evidence/cold-build-port
+    sccache_socket="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/boardstudio-sccache/server.sock"
+    test -S "$sccache_socket"
+    SCCACHE_SERVER_UDS="$sccache_socket" ~/.cargo/bin/sccache --show-stats \
+        > .evidence/cold-build-port/H3-I5-sccache-before.log
+    python3 scripts/build-time/cold.py H3-I5-warm
+    SCCACHE_SERVER_UDS="$sccache_socket" ~/.cargo/bin/sccache --show-stats \
+        > .evidence/cold-build-port/H3-I5-sccache-after.log
+    python3 scripts/build-time/cold.py H3-I5-bypass --without-cache
+    python3 scripts/build-time/report.py H3-I5-warm H3-I5-bypass --lanes \
+        | tee .evidence/cold-build-port/H3-I5-report.log
+    rg '^(check: step times:|cold: wall)' .evidence/cold-build-port/H3-I5-{warm,bypass}.log
+)
+```
+
+Use the before and after statistics deltas for the warm-run hit rate. Compare
+both runs with the 1,010.7 s baseline and report real CPU from the kit.
+
+#### H4. Compare artifacts and lockfiles
+
+```bash
+cd "$root"
+python3 - "$reference" <<'PY' > "$evidence/H4-I5-artifacts.log" 2>&1
+import os
+from pathlib import Path
+import subprocess
+import sys
+
+lock = int(os.environ["BOARDSTUDIO_BUILD_LOCK_FD"])
+page = Path("web/target/site/site-subpath/boardstudio/wasm/boardstudio-web_bg.wasm")
+build = [sys.executable, "scripts/build-web.py", "--fast"]
+
+def page_build(jobs):
+    subprocess.run(
+        ["cargo", "clean", "-p", "boardstudio-web", "--profile", "wasm-check",
+         "--target", "wasm32-unknown-unknown"],
+        check=True, pass_fds=(lock,))
+    subprocess.run(build, env=dict(os.environ, BOARDSTUDIO_CHECK_JOBS=str(jobs)),
+                   check=True, pass_fds=(lock,))
+    return page.read_bytes()
+
+overlapped = page_build(2)
+serial = page_build(1)
+assert overlapped == serial, (len(overlapped), len(serial))
+print(f"Page WASM byte-identical, {len(serial)} bytes")
+
+reference = Path(sys.argv[1])
+cad = Path("web/assets/cad/boardstudio_cad_wasm_bg.wasm")
+print(f"CAD WASM bytes before {(reference / cad).stat().st_size}, after {cad.stat().st_size}")
+for assets in (Path("web/assets/core-worker"), Path("web/assets/cad-worker")):
+    declarations = {path.name for path in assets.glob("*.d.ts")}
+    assert declarations and declarations == {p.name for p in (reference / assets).glob("*.d.ts")}
+    for name in sorted(declarations):
+        file = assets / name
+        assert file.read_bytes() == (reference / file).read_bytes(), str(file)
+        print(f"Unchanged declaration {file}")
+PY
+git diff 2ce123403 -- Cargo.lock '**/Cargo.lock' > "$evidence/H4-I5-lockfiles.log"
+git show --format=%B --no-patch 3fde0a3af \
+    > "$evidence/H4-I5-CAD-lock-commit.log"
+```
+
+### Exact native test name mappings
+
+I2 maps each grouped test to the case names on the lines immediately following
+it. Apply the I5 mapping to the resulting footprints names. CAD test names are
+listed without a binary prefix.
+
+```text
+model::source_validation_tests::pinned_vik_step_meshes_preserve_source_bounds_and_hashes ->
+model::source_validation_tests::vik_step_pers60_cirque_leds_pcb
+model::source_validation_tests::vik_step_kiwano
+model::source_validation_tests::vik_step_trackpad_mount
+model::source_validation_tests::vik_step_trackball_mount_semi
+model::source_validation_tests::vik_step_trackball_mount_low_profile
+model::source_validation_tests::vik_step_trackball_mount_full
+model::source_validation_tests::vik_step_knob_ribbed
+model::source_validation_tests::vik_step_knob_low_profile
+model::source_validation_tests::vik_step_knob_full
+model::source_validation_tests::vik_step_knob_base
+model::source_validation_tests::vik_step_crenshaw
+model::source_validation_tests::vik_step_fh12_30s_0_5sh
+model::source_validation_tests::vik_step_fh12_12s_0_5sh
+model::source_validation_tests::vik_step_vik_playground
+model::source_validation_tests::vik_step_2inch_0_8mm
+model::source_validation_tests::vik_step_lcd_lcd_ips
+model::source_validation_tests::vik_step_1_47inch
+model::source_validation_tests::vik_step_gc9a01
+model::source_validation_tests::vik_step_1_28inch_round
+model::source_validation_tests::vik_step_matrix_inator_rev2
+model::source_validation_tests::vik_step_peacock_low_case_v5
+model::source_validation_tests::vik_step_peacock_low_case_v5_5deg_tilt
+model::source_validation_tests::vik_step_vik_connector_horizontal
+model::source_validation_tests::vik_step_vik_connector_horizontal_mini
+model::source_validation_tests::vik_step_ili9341_4inch_housing
+model::source_validation_tests::vik_step_ili9341_4inch_cover
+model::source_validation_tests::vik_step_vikropad_choc_glp_xivik
+model::source_validation_tests::unlisted_vik_step_meshes_preserve_source_bounds_and_hashes
+
+model::keycaps::print_legend_tests::ordinary_legend_text_prints_as_one_closed_body ->
+model::keycaps::print_legend_tests::dcs_legend_a
+model::keycaps::print_legend_tests::dcs_legend_o
+model::keycaps::print_legend_tests::dcs_legend_t
+model::keycaps::print_legend_tests::dcs_legend_digit_1
+model::keycaps::print_legend_tests::dcs_legend_digit_4
+model::keycaps::print_legend_tests::dcs_legend_q
+model::keycaps::print_legend_tests::dcs_legend_enter
+model::keycaps::print_legend_tests::dcs_legend_backspace
+model::keycaps::print_legend_tests::dcs_legend_shift
+model::keycaps::print_legend_tests::dcs_legend_f12
+model::keycaps::print_legend_tests::dcs_legend_left_arrow
+model::keycaps::print_legend_tests::dcs_legend_right_arrow
+model::keycaps::print_legend_tests::dcs_legend_backtick
+model::keycaps::print_legend_tests::sa_legend_a
+model::keycaps::print_legend_tests::sa_legend_o
+model::keycaps::print_legend_tests::sa_legend_t
+model::keycaps::print_legend_tests::sa_legend_digit_1
+model::keycaps::print_legend_tests::sa_legend_digit_4
+model::keycaps::print_legend_tests::sa_legend_q
+model::keycaps::print_legend_tests::sa_legend_enter
+model::keycaps::print_legend_tests::sa_legend_backspace
+model::keycaps::print_legend_tests::sa_legend_shift
+model::keycaps::print_legend_tests::sa_legend_f12
+model::keycaps::print_legend_tests::sa_legend_left_arrow
+model::keycaps::print_legend_tests::sa_legend_right_arrow
+model::keycaps::print_legend_tests::sa_legend_backtick
+
+generators::bundled_generators_match_the_golden_baseline ->
+generators::golden_ceoloide_battery_connector_jst_ph_2
+generators::golden_ceoloide_battery_connector_molex_pico_ezmate_1x02
+generators::golden_ceoloide_diode_tht_sod123
+generators::golden_ceoloide_display_nice_view
+generators::golden_ceoloide_display_ssd1306
+generators::golden_ceoloide_led_sk6812mini_e
+generators::golden_ceoloide_mcu_nice_nano
+generators::golden_ceoloide_mcu_supermini_nrf52840
+generators::golden_ceoloide_mounting_hole_npth
+generators::golden_ceoloide_mounting_hole_plated
+generators::golden_ceoloide_power_switch_smd_side
+generators::golden_ceoloide_reset_switch_smd_side
+generators::golden_ceoloide_reset_switch_tht_top
+generators::golden_ceoloide_rotary_encoder_ec11_ec12
+generators::golden_ceoloide_switch_choc_v1_v2
+generators::golden_ceoloide_switch_gateron_ks27_ks33
+generators::golden_ceoloide_switch_mx
+generators::golden_ceoloide_trrs_pj320a
+generators::golden_ceoloide_utility_filled_zone
+generators::golden_ceoloide_utility_keepout_zone
+generators::golden_ceoloide_utility_logo
+generators::golden_ceoloide_utility_point_debugger
+generators::golden_ceoloide_utility_router
+generators::golden_ceoloide_utility_text
+generators::golden_infused_kim_conn_molex_pico_ezmate_1x02
+generators::golden_infused_kim_conn_molex_pico_ezmate_1x05
+generators::golden_infused_kim_icon_bat
+generators::golden_infused_kim_mounting_hole
+generators::golden_infused_kim_nice_view
+generators::golden_infused_kim_pads
+generators::golden_infused_kim_point_debugger
+generators::golden_infused_kim_smd_0805
+generators::golden_infused_kim_switch_power
+generators::golden_infused_kim_switch_reset
+generators::golden_infused_kim_text
+generators::golden_infused_kim_trackpoint_mount
+generators::unlisted_bundled_generators_match_the_golden_baseline
+```
+
+I5 uses `binary::test` on both sides of the arrow.
+
+```text
+choc_socket_qualification::configured_terminals_and_effective_pad_layers_are_exact_and_distinct -> footprints_integration::choc_socket_qualification::configured_terminals_and_effective_pad_layers_are_exact_and_distinct
+choc_socket_qualification::datasheet_drills_and_dimensioned_left_land_match_nominals_at_both_faces_and_angles -> footprints_integration::choc_socket_qualification::datasheet_drills_and_dimensioned_left_land_match_nominals_at_both_faces_and_angles
+context::the_context_matches_the_javascript_provider -> footprints_integration::context::the_context_matches_the_javascript_provider
+context::unknown_generators_and_versions_keep_their_baseline_text -> footprints_integration::context::unknown_generators_and_versions_keep_their_baseline_text
+diode_sod123_qualification::absent_null_false_and_malformed_side_keep_legacy_rendering -> footprints_integration::diode_sod123_qualification::absent_null_false_and_malformed_side_keep_legacy_rendering
+diode_sod123_qualification::model_binding_keeps_emitted_defaults_overrides_and_empty_omission -> footprints_integration::diode_sod123_qualification::model_binding_keeps_emitted_defaults_overrides_and_empty_omission
+diode_sod123_qualification::opt_in_lands_match_vishay_callouts_and_fixed_pose_oracles -> footprints_integration::diode_sod123_qualification::opt_in_lands_match_vishay_callouts_and_fixed_pose_oracles
+diode_sod123_qualification::opt_in_requires_a_front_or_back_nonreversible_smd_configuration -> footprints_integration::diode_sod123_qualification::opt_in_requires_a_front_or_back_nonreversible_smd_configuration
+diode_sod123_qualification::part_null_overrides_definition_true_with_the_declaration_default -> footprints_integration::diode_sod123_qualification::part_null_overrides_definition_true_with_the_declaration_default
+diode_sod123_qualification::schema_exposes_the_opt_in_as_a_default_false_boolean -> footprints_integration::diode_sod123_qualification::schema_exposes_the_opt_in_as_a_default_false_boolean
+encoder_ec11e15244g1_qualification::declared_parameters_are_explicitly_available_for_this_pattern -> footprints_integration::encoder_ec11e15244g1_qualification::declared_parameters_are_explicitly_available_for_this_pattern
+encoder_ec11e15244g1_qualification::front_pattern_geometry_roles_and_export_match_independent_nominals -> footprints_integration::encoder_ec11e15244g1_qualification::front_pattern_geometry_roles_and_export_match_independent_nominals
+encoder_ec11e15244g1_qualification::normalization_preserves_saved_pad_ids_and_nets_by_literal_index -> footprints_integration::encoder_ec11e15244g1_qualification::normalization_preserves_saved_pad_ids_and_nets_by_literal_index
+generators::diode_sod123_baseline_capture -> footprints_integration::generators::diode_sod123_baseline_capture
+generators::diode_sod123_baseline_matches_frozen_expected_bytes -> footprints_integration::generators::diode_sod123_baseline_matches_frozen_expected_bytes
+generators::diode_sod123_explicit_false_matches_frozen_outputs -> footprints_integration::generators::diode_sod123_explicit_false_matches_frozen_outputs
+generators::every_registered_generator_has_a_fixture -> footprints_integration::generators::every_registered_generator_has_a_fixture
+generators::golden_ceoloide_battery_connector_jst_ph_2 -> footprints_integration::generators::golden_ceoloide_battery_connector_jst_ph_2
+generators::golden_ceoloide_battery_connector_molex_pico_ezmate_1x02 -> footprints_integration::generators::golden_ceoloide_battery_connector_molex_pico_ezmate_1x02
+generators::golden_ceoloide_diode_tht_sod123 -> footprints_integration::generators::golden_ceoloide_diode_tht_sod123
+generators::golden_ceoloide_display_nice_view -> footprints_integration::generators::golden_ceoloide_display_nice_view
+generators::golden_ceoloide_display_ssd1306 -> footprints_integration::generators::golden_ceoloide_display_ssd1306
+generators::golden_ceoloide_led_sk6812mini_e -> footprints_integration::generators::golden_ceoloide_led_sk6812mini_e
+generators::golden_ceoloide_mcu_nice_nano -> footprints_integration::generators::golden_ceoloide_mcu_nice_nano
+generators::golden_ceoloide_mcu_supermini_nrf52840 -> footprints_integration::generators::golden_ceoloide_mcu_supermini_nrf52840
+generators::golden_ceoloide_mounting_hole_npth -> footprints_integration::generators::golden_ceoloide_mounting_hole_npth
+generators::golden_ceoloide_mounting_hole_plated -> footprints_integration::generators::golden_ceoloide_mounting_hole_plated
+generators::golden_ceoloide_power_switch_smd_side -> footprints_integration::generators::golden_ceoloide_power_switch_smd_side
+generators::golden_ceoloide_reset_switch_smd_side -> footprints_integration::generators::golden_ceoloide_reset_switch_smd_side
+generators::golden_ceoloide_reset_switch_tht_top -> footprints_integration::generators::golden_ceoloide_reset_switch_tht_top
+generators::golden_ceoloide_rotary_encoder_ec11_ec12 -> footprints_integration::generators::golden_ceoloide_rotary_encoder_ec11_ec12
+generators::golden_ceoloide_switch_choc_v1_v2 -> footprints_integration::generators::golden_ceoloide_switch_choc_v1_v2
+generators::golden_ceoloide_switch_gateron_ks27_ks33 -> footprints_integration::generators::golden_ceoloide_switch_gateron_ks27_ks33
+generators::golden_ceoloide_switch_mx -> footprints_integration::generators::golden_ceoloide_switch_mx
+generators::golden_ceoloide_trrs_pj320a -> footprints_integration::generators::golden_ceoloide_trrs_pj320a
+generators::golden_ceoloide_utility_filled_zone -> footprints_integration::generators::golden_ceoloide_utility_filled_zone
+generators::golden_ceoloide_utility_keepout_zone -> footprints_integration::generators::golden_ceoloide_utility_keepout_zone
+generators::golden_ceoloide_utility_logo -> footprints_integration::generators::golden_ceoloide_utility_logo
+generators::golden_ceoloide_utility_point_debugger -> footprints_integration::generators::golden_ceoloide_utility_point_debugger
+generators::golden_ceoloide_utility_router -> footprints_integration::generators::golden_ceoloide_utility_router
+generators::golden_ceoloide_utility_text -> footprints_integration::generators::golden_ceoloide_utility_text
+generators::golden_infused_kim_conn_molex_pico_ezmate_1x02 -> footprints_integration::generators::golden_infused_kim_conn_molex_pico_ezmate_1x02
+generators::golden_infused_kim_conn_molex_pico_ezmate_1x05 -> footprints_integration::generators::golden_infused_kim_conn_molex_pico_ezmate_1x05
+generators::golden_infused_kim_icon_bat -> footprints_integration::generators::golden_infused_kim_icon_bat
+generators::golden_infused_kim_mounting_hole -> footprints_integration::generators::golden_infused_kim_mounting_hole
+generators::golden_infused_kim_nice_view -> footprints_integration::generators::golden_infused_kim_nice_view
+generators::golden_infused_kim_pads -> footprints_integration::generators::golden_infused_kim_pads
+generators::golden_infused_kim_point_debugger -> footprints_integration::generators::golden_infused_kim_point_debugger
+generators::golden_infused_kim_smd_0805 -> footprints_integration::generators::golden_infused_kim_smd_0805
+generators::golden_infused_kim_switch_power -> footprints_integration::generators::golden_infused_kim_switch_power
+generators::golden_infused_kim_switch_reset -> footprints_integration::generators::golden_infused_kim_switch_reset
+generators::golden_infused_kim_text -> footprints_integration::generators::golden_infused_kim_text
+generators::golden_infused_kim_trackpoint_mount -> footprints_integration::generators::golden_infused_kim_trackpoint_mount
+generators::unlisted_bundled_generators_match_the_golden_baseline -> footprints_integration::generators::unlisted_bundled_generators_match_the_golden_baseline
+golden_forms::export_matches_apart_from_arcs_core_upgrades -> footprints_integration::golden_forms::export_matches_apart_from_arcs_core_upgrades
+golden_forms::geometry_matches_the_recorded_pads_and_courtyards -> footprints_integration::golden_forms::geometry_matches_the_recorded_pads_and_courtyards
+golden_forms::model_references_match -> footprints_integration::golden_forms::model_references_match
+golden_forms::parser_behaviour_matches_the_provider_fixture -> footprints_integration::golden_forms::parser_behaviour_matches_the_provider_fixture
+golden_forms::preview_paths_follow_the_recorded_rules -> footprints_integration::golden_forms::preview_paths_follow_the_recorded_rules
+golden_forms::recorded_forms_round_trip_through_the_parser -> footprints_integration::golden_forms::recorded_forms_round_trip_through_the_parser
+licenses::declared_licences_match_the_file_headers -> footprints_integration::licenses::declared_licences_match_the_file_headers
+mx_socket_qualification::recommended_land_sizes_match_drawing_reference_dimensions -> footprints_integration::mx_socket_qualification::recommended_land_sizes_match_drawing_reference_dimensions
+mx_socket_qualification::recommended_socket_hole_pair_spacing_survives_side_and_placement_rotation -> footprints_integration::mx_socket_qualification::recommended_socket_hole_pair_spacing_survives_side_and_placement_rotation
+mx_socket_qualification::selected_sofle_switch_pose_preserves_source_layout_hole_spacing -> footprints_integration::mx_socket_qualification::selected_sofle_switch_pose_preserves_source_layout_hole_spacing
+mx_socket_qualification::socket_terminals_keep_distinct_nets_and_effective_side_layers -> footprints_integration::mx_socket_qualification::socket_terminals_keep_distinct_nets_and_effective_side_layers
+numeric::hypot_matches_v8 -> footprints_integration::numeric::hypot_matches_v8
+numeric::number_to_string_matches_v8 -> footprints_integration::numeric::number_to_string_matches_v8
+numeric::string_to_number_matches_v8 -> footprints_integration::numeric::string_to_number_matches_v8
+numeric::to_fixed_matches_v8 -> footprints_integration::numeric::to_fixed_matches_v8
+numeric::trigonometry_is_bit_identical_to_v8 -> footprints_integration::numeric::trigonometry_is_bit_identical_to_v8
+numeric::uri_component_encoding_matches_v8 -> footprints_integration::numeric::uri_component_encoding_matches_v8
+parameter_check::an_undeclared_name_is_reported_and_null_is_absent -> footprints_integration::parameter_check::an_undeclared_name_is_reported_and_null_is_absent
+parameter_check::an_unknown_generator_is_an_error -> footprints_integration::parameter_check::an_unknown_generator_is_an_error
+parameter_check::every_bundled_default_passes_its_own_check -> footprints_integration::parameter_check::every_bundled_default_passes_its_own_check
+parameter_check::every_problem_is_reported_in_name_order -> footprints_integration::parameter_check::every_problem_is_reported_in_name_order
+parameter_check::non_empty_list_text_is_a_wrong_type_for_an_array_parameter -> footprints_integration::parameter_check::non_empty_list_text_is_a_wrong_type_for_an_array_parameter
+parameter_check::text_for_a_number_is_a_wrong_type_named_by_parameter -> footprints_integration::parameter_check::text_for_a_number_is_a_wrong_type_named_by_parameter
+reset_switch_smd_side_qualification::boss_model_default_and_explicit_model_transforms_are_preserved -> footprints_integration::reset_switch_smd_side_qualification::boss_model_default_and_explicit_model_transforms_are_preserved
+reset_switch_smd_side_qualification::land_pattern_contacts_layers_bosses_and_poses_match_independent_oracle -> footprints_integration::reset_switch_smd_side_qualification::land_pattern_contacts_layers_bosses_and_poses_match_independent_oracle
+text_literal_escaping::bare_references_stay_atoms_until_quoting_is_needed -> footprints_integration::text_literal_escaping::bare_references_stay_atoms_until_quoting_is_needed
+text_literal_escaping::both_text_generators_emit_the_literal_text_on_front_and_back -> footprints_integration::text_literal_escaping::both_text_generators_emit_the_literal_text_on_front_and_back
+text_literal_escaping::logo_layer_parameter_is_literal_on_both_sides -> footprints_integration::text_literal_escaping::logo_layer_parameter_is_literal_on_both_sides
+text_literal_escaping::pad_row_labels_and_reference_are_literal_on_front_and_back -> footprints_integration::text_literal_escaping::pad_row_labels_and_reference_are_literal_on_front_and_back
+text_literal_escaping::plain_text_controls_keep_their_existing_output -> footprints_integration::text_literal_escaping::plain_text_controls_keep_their_existing_output
+text_literal_escaping::smd_labels_and_reference_are_literal_on_front_and_back -> footprints_integration::text_literal_escaping::smd_labels_and_reference_are_literal_on_front_and_back
+```
