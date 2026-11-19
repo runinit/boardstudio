@@ -129,8 +129,9 @@ def test_css_command() -> list[str]:
     """The standalone Tailwind CLI's stylesheet build, or else the page build that also writes it."""
     if compiler := tailwind_cli():
         return [str(compiler), "-i", "tailwind.css", "-o", "assets/tailwind.css"]
-    return ["dx", "build", "--web", "--profile", "wasm-check", "--wasm-js-cfg", "false",
-            "--no-default-features", "--features", "page", "--cargo-args=--locked"]
+    return ["dx", "build", "--web", "--profile", "wasm-check", "--debug-symbols", "false",
+            "--wasm-js-cfg", "false", "--no-default-features", "--features", "page",
+            "--cargo-args=--locked"]
 
 
 # These browser-test targets include the generated Tailwind stylesheet at compile time.
@@ -332,7 +333,7 @@ def is_page_suite(command: Command) -> bool:
 
 def page_suite_jobs(workers: int) -> int:
     """Browser pages for the page suite within a parallel batch of `workers` lanes."""
-    return min(3, max(1, workers - 1)) if workers >= 4 else min(2, workers - 1)
+    return min(2, max(1, workers - 1))
 
 
 def crate_test_artifacts(output: str, cwd: Path, crates: Iterable[str], *, stream=None) -> dict[str, Path]:
@@ -1026,15 +1027,13 @@ def run_commands(name: str, commands: list[Command], environment: dict[str, str]
                 page = commands[end]
                 page_workers = page_suite_jobs(workers)
                 invocations[tuple(page)] = (page, cwd, {"BOARDSTUDIO_CHECK_JOBS": str(page_workers)})
-                workers -= page_workers - 1
+                workers = max(1, workers - (page_workers - 1))
                 end += 1
             batch, lanes = [*lanes, *commands[index:end]], []
             heads = [command for command in batch if command in (DRAG_SMOKE, CAD_BROWSER)]
             chained = [command for command in HARNESS_CHECKS if command in batch]
             if chained and CAD_BROWSER not in batch:
                 heads.append(chained.pop(0))
-            # Each packaged lane drives one browser page, beside the crate and page-suite budget.
-            workers += len(heads)
             batch_outputs: list[tuple[Command, str]] = []
             elapsed, failed = run_parallel(batch, environment, outputs=batch_outputs,
                                            receipt=receipt, step=name, invocations=invocations, workers=workers,

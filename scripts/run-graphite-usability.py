@@ -10,5 +10,6 @@ if os.environ.get("BOARDSTUDIO_GRAPHITE_IDENTITY") or os.environ.get("BOARDSTUDI
 from browser_tools import _build_harness, browser_env
 
 # Usability and feedback share the same acceptance workflow.
+os.environ.update(browser_env())
 binary = _build_harness("graphite-feedback")
-os.execve(str(binary), [str(binary)], browser_env())
+os.execv(str(binary), [str(binary)])

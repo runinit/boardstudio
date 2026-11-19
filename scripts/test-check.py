@@ -1261,9 +1261,9 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
     def browser_batch(self, commands, *, keep_going=False, fail=()):
         """Run `commands` as the `browser` step with six jobs; return the launch events and page config."""
         events, configs, lock = [], {}, threading.Lock()
-        # The packaged lanes, the page suite and the first heavy crates (up to six jobs) start together.
+        # With BOARDSTUDIO_CHECK_JOBS=6 and 2 page workers, five outer lanes start together.
         first_wave = {tuple(check.DRAG_SMOKE), tuple(check.CAD_BROWSER), tuple(check.PAGE_SUITE),
-                      *(tuple(check.crate_launch(crate)) for crate in ("case", "parts", "pcb"))
+                      *(tuple(check.crate_launch(crate)) for crate in ("case", "parts"))
                       }.intersection(map(tuple, commands))
         concurrent = threading.Barrier(len(first_wave), timeout=5)
 
@@ -1289,7 +1289,7 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
         passed, events, configs, output, _ = self.browser_batch(commands)
         self.assertTrue(passed)
         self.assertCountEqual([command for kind, command in events if kind == "start"], commands)
-        self.assertEqual(configs[tuple(check.PAGE_SUITE)]["BOARDSTUDIO_CHECK_JOBS"], "3")
+        self.assertEqual(configs[tuple(check.PAGE_SUITE)]["BOARDSTUDIO_CHECK_JOBS"], "2")
         # The CAD browser check heads one lane, and each harness check starts after the previous ends.
         lane = [check.CAD_BROWSER, *check.HARNESS_CHECKS]
         for before, after in zip(lane, lane[1:]):
@@ -1318,8 +1318,8 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
         tooling = check.STEPS["tooling"][1]
         serial = [index for index, command in enumerate(tooling) if check.SERIAL_TOOLING_SCRIPTS.intersection(command)]
         self.assertEqual(serial, [len(tooling) - 2, len(tooling) - 1])
-        self.assertEqual(check.page_suite_jobs(6), 3)
-        self.assertEqual([check.page_suite_jobs(jobs) for jobs in (2, 3, 4)], [1, 2, 3])
+        self.assertEqual(check.page_suite_jobs(6), 2)
+        self.assertEqual([check.page_suite_jobs(jobs) for jobs in (2, 3, 4)], [1, 2, 2])
 
     def test_parallel_heartbeat_tracks_started_and_completed_workers_before_blocked_first(self):
         first_started, second_started, third_started = (threading.Event() for _ in range(3))

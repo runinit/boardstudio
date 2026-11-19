@@ -9,5 +9,6 @@ if os.environ.get("BOARDSTUDIO_GRAPHITE_IDENTITY") or os.environ.get("BOARDSTUDI
     subprocess.run([sys.executable, str(Path(__file__).with_name("graphite-identity.py"))], check=True)
 from browser_tools import _build_harness, browser_env
 
+os.environ.update(browser_env())
 binary = _build_harness("graphite-feedback")
-os.execve(str(binary), [str(binary)], browser_env())
+os.execv(str(binary), [str(binary)])
