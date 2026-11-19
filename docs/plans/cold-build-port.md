@@ -747,3 +747,9 @@ text_literal_escaping::smd_labels_and_reference_are_literal_on_front_and_back ->
 Treat `run-wasm-tests.py --build-only` like the other prebuilds in a receipt.
 Its exit status determines success. Page suite launches still require a fresh
 result, and the receipt summary includes only those launches as page evidence.
+
+### J2. Guard Footprints test registration
+
+The repository registration gate checks both Core and Footprints. A top-level
+test file must be an explicit Cargo test target or a module of the integration
+target. Core keeps its existing diagnostics.

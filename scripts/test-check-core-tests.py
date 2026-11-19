@@ -36,6 +36,11 @@ class CoreTestRegistrationTests(unittest.TestCase):
         self.write("core/tests/integration.rs", '#[path = "matrix_companions.rs"]\nmod matrix_companions;\n')
         self.write("core/tests/matrix_companions.rs", "")
         self.write("core/tests/performance.rs", "")
+        self.write("footprints/Cargo.toml", CARGO.replace("boardstudio_core", "boardstudio-footprints"))
+        self.write("footprints/tests/integration.rs", '#[path = "golden_forms.rs"]\nmod renamed;\nmod common;\n')
+        self.write("footprints/tests/golden_forms.rs", "")
+        self.write("footprints/tests/common.rs", "")
+        self.write("footprints/tests/performance.rs", "")
 
     def write(self, name: str, text: str):
         path = self.root / name
@@ -51,6 +56,22 @@ class CoreTestRegistrationTests(unittest.TestCase):
         self.assertEqual(len(issues), 1)
         self.assertIn("core/tests/splay_companions.rs", issues[0])
         self.assertIn("integration.rs", issues[0])
+
+    def test_reports_unregistered_footprints_files_and_keeps_the_core_message(self):
+        self.write("core/tests/orphan.rs", "")
+        self.write("footprints/tests/orphan.rs", "")
+        self.assertEqual(check.unregistered_tests(self.root), [
+            'unregistered-core-test: core/tests/orphan.rs — never compiled; add '
+            '`#[path = "orphan.rs"] mod orphan;` to core/tests/integration.rs or a [[test]] target',
+            'unregistered-footprints-test: footprints/tests/orphan.rs — never compiled; add '
+            '`#[path = "orphan.rs"] mod orphan;` to footprints/tests/integration.rs or a [[test]] target',
+        ])
+
+    def test_footprints_accepts_explicit_targets_and_both_module_styles(self):
+        self.assertEqual(check.unregistered_tests(self.root), [])
+        self.write("footprints/tests/integration.rs", "mod common;\n")
+        self.assertEqual(len(check.unregistered_tests(self.root)), 1)
+        self.assertIn("footprints/tests/golden_forms.rs", check.unregistered_tests(self.root)[0])
 
     def test_ignores_support_directories_and_non_rust_files(self):
         self.write("core/tests/support/boundary.rs", "")
