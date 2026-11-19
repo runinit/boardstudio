@@ -12,11 +12,13 @@ import time
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
 import browser_tools
 from check import check_jobs, OVERLAP_CSS
+import wasm_bindgen_tools
 
 ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "web"
@@ -27,6 +29,34 @@ DEFAULT_ROUTES = ("subpath",)
 # .cargo/config.toml already passes dx's getrandom cfg to every wasm build; adding it twice would
 # give dx's units different flags from wasm-pack's and stop them being shared.
 DX_FLAGS = ("--wasm-js-cfg", "false")
+# The checked page built by plain Cargo, outside dx's rustc wrapper.
+PAGE_PUBLIC = WEB / "target/page/public"
+TAILWIND_ENV = "BOARDSTUDIO_TAILWINDCSS"
+DX_TOOLS = Path.home() / ".local/share/.dx/tools"
+PAGE_CARGO = ["cargo", "build", "--locked", "--target", "wasm32-unknown-unknown", "--profile", "wasm-check",
+              "-p", "boardstudio-web", "--bin", "boardstudio-web", "--no-default-features",
+              "--features", "page", "--message-format=json"]
+# Dioxus web auto-init, as `dx build` appends it to the wasm-bindgen `--target web` module.
+DX_FOOTER = """export {{ wasm as __wasm }}
+
+globalThis.__wasm_split_main_initSync = initSync;
+
+// Actually perform the load
+__wbg_init({{module_or_path: "{base_path}wasm/boardstudio-web_bg.wasm"}}).then((wasm) => {{
+    // assign this module to be accessible globally
+    globalThis.__dx_mainWasm = wasm;
+    globalThis.__dx_mainInit = __wbg_init;
+    globalThis.__dx_mainInitSync = initSync;
+    globalThis.__dx___wbg_get_imports = __wbg_get_imports;
+
+    if (wasm.__wbindgen_start == undefined) {{
+        wasm.main();
+    }}
+}});
+"""
+# The footer refers to these module-scope wasm-bindgen 0.2.129 `--target web` bindings.
+BINDGEN_BINDINGS = (r"^let [^;\n]*\bwasm\b[^;\n]*;", r"^function __wbg_get_imports\(",
+                    r"^function initSync\(", r"^async function __wbg_init\(")
 
 
 def dx_public(release: bool) -> Path:
@@ -55,16 +85,27 @@ def run(command: list[str], *, cwd: Path = ROOT, env: dict[str, str] | None = No
         raise
     if output is not None:
         output.write(result.stdout)
-    if command[:2] == ["dx", "build"] and (css_sync := os.environ.get(OVERLAP_CSS)):
-        css = cwd / "assets/tailwind.css"
+    if command[:2] == ["dx", "build"]:
+        signal_css_ready(cwd)
+
+
+def signal_css_ready(web: Path | None = None) -> None:
+    """Unblock check.py's WASM Clippy once the generated stylesheet exists."""
+    if css_sync := os.environ.get(OVERLAP_CSS):
+        css = (web or WEB) / "assets/tailwind.css"
         if css.is_file() and css.stat().st_size:
             (Path(css_sync) / "ready").touch()
 
 
-def run_lanes(lanes: list[list[tuple[list[str], Path]]]) -> None:
+def run_lanes(lanes: list[list]) -> None:
+    """Run each lane's steps in order. A step is `(command, cwd)` or a callable taking the lane output."""
     def run_lane(lane, output):
-        for command, cwd in lane:
-            run(command, cwd=cwd, output=output)
+        for step in lane:
+            if callable(step):
+                step(output)
+            else:
+                command, cwd = step
+                run(command, cwd=cwd, output=output)
 
     outputs = [io.StringIO() for _ in lanes]
     with ThreadPoolExecutor(max_workers=min(check_jobs(), len(lanes)), thread_name_prefix="web-build") as pool:
@@ -104,8 +145,11 @@ def provider_commands(fast: bool = False) -> list[tuple[list[str], Path]]:
           "--manifest", "web/target/providers/ergogen-models.json"], ROOT),
     ]
     if fast:
+        # Every checked wasm build, the page included, shares the `wasm-check` profile.
         for command, _ in commands:
             if command[:2] == ["wasm-pack", "build"]:
+                command[command.index("--release"):command.index("--release") + 1] = [
+                    "--profile", "wasm-check"]
                 command.insert(command.index("--locked"), "--no-opt")
     return commands
 
@@ -203,29 +247,163 @@ def dx_command(route: str, *, release: bool, fast: bool) -> tuple[list[str], Pat
         command.insert(3, "--release")
     elif fast:
         # The checked build shares the `wasm-check` profile with every wasm test build.
-        command[3:3] = ["--profile", "wasm-check"]
+        command[3:3] = ["--profile", "wasm-check", "--debug-symbols", "false"]
     return command, WEB
+
+
+def tailwind_cli() -> Path | None:
+    """A standalone Tailwind v4 CLI: $BOARDSTUDIO_TAILWINDCSS, PATH, then the newest dx-installed one."""
+    def is_v4(path: Path) -> bool:
+        try:
+            result = subprocess.run([str(path), "--help"], capture_output=True, text=True)
+        except OSError:
+            return False
+        return "tailwindcss v4." in result.stdout + result.stderr
+
+    if explicit := os.environ.get(TAILWIND_ENV):
+        if not is_v4(Path(explicit)):
+            raise ValueError(f"{TAILWIND_ENV}={explicit} is not a standalone Tailwind v4 CLI")
+        return Path(explicit)
+    candidates = [Path(found)] if (found := shutil.which("tailwindcss")) else []
+    installed = [path / "tailwindcss" if path.is_dir() else path for path in DX_TOOLS.glob("tailwindcss-*")]
+    candidates += sorted((path for path in installed if path.is_file() and os.access(path, os.X_OK)),
+                         key=lambda path: path.stat().st_mtime, reverse=True)
+    return next((path for path in candidates if is_v4(path)), None)
+
+
+def locked_wasm_bindgen() -> Path | None:
+    """The `wasm-bindgen` CLI at Cargo.lock's version, as `dx build` would select it."""
+    version = wasm_bindgen_tools.locked_version(ROOT)
+    candidates = []
+    if directory := os.environ.get(wasm_bindgen_tools.DIRECTORY_ENV):
+        candidates.append(Path(directory) / "wasm-bindgen")
+    if found := shutil.which("wasm-bindgen"):
+        candidates.append(Path(found))
+    candidates.append(DX_TOOLS / f"wasm-bindgen-{version}/wasm-bindgen")
+    cache = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache")
+    candidates += sorted(cache.glob(".wasm-pack/wasm-bindgen-*/wasm-bindgen"))
+    for path in candidates:
+        try:
+            result = subprocess.run([str(path), "--version"], capture_output=True, text=True)
+        except OSError:
+            continue
+        if result.stdout.strip() == f"wasm-bindgen {version}":
+            return path
+    return None
+
+
+def page_tools() -> tuple[Path, Path, str] | None:
+    """Tools for the plain-Cargo checked page, or None to fall back to `dx build`."""
+    tools = {"standalone tailwindcss": tailwind_cli(), "locked wasm-bindgen": locked_wasm_bindgen(),
+             "dx": shutil.which("dx")}
+    if missing := [name for name, path in tools.items() if not path]:
+        print(f"build-web: {', '.join(missing)} unavailable; building the checked page with dx",
+              file=sys.stderr, flush=True)
+        return None
+    tailwind, bindgen, dx = tools.values()
+    return tailwind, bindgen, dx
+
+
+def generate_css(tailwind: Path) -> None:
+    """Generate the stylesheet the page's `include_str!`s and WASM Clippy read, as dx would."""
+    run([str(tailwind), "-i", "tailwind.css", "-o", "assets/tailwind.css"], cwd=WEB)
+    signal_css_ready()
+
+
+def cargo_page_artifact(output=None) -> Path:
+    out = output or sys.stdout
+    print("$ " + " ".join(PAGE_CARGO), file=out, flush=True)
+    fd = browser_tools._inherited_build_lock()
+    result = subprocess.run(PAGE_CARGO, cwd=ROOT, text=True, capture_output=True,
+                            pass_fds=() if fd is None else (fd,))
+    artifacts = []
+    for line in result.stdout.splitlines():
+        try:
+            message = json.loads(line)
+        except json.JSONDecodeError:
+            print(line, file=out)
+            continue
+        if message.get("reason") == "compiler-message":
+            if rendered := message["message"].get("rendered"):
+                print(rendered, end="", file=out)
+        elif (message.get("reason") == "compiler-artifact" and message["target"]["kind"] == ["bin"]
+              and message["target"]["name"] == "boardstudio-web"
+              and Path(message["manifest_path"]) == WEB / "Cargo.toml"
+              and (executable := message.get("executable")) and executable.endswith(".wasm")):
+            artifacts.append(Path(executable))
+    out.write(result.stderr)
+    out.flush()
+    if result.returncode:
+        raise subprocess.CalledProcessError(result.returncode, PAGE_CARGO)
+    if len(artifacts) != 1 or not artifacts[0].is_file():
+        raise FileNotFoundError(f"expected one existing boardstudio-web wasm artifact from Cargo, got {artifacts}")
+    return artifacts[0]
+
+
+def index_html(base_path: str) -> str:
+    asset_root = base_path.strip("/")
+    # Dioxus resolves assets under `/<root>/assets/`; an empty root would give `//assets/`.
+    meta = f'\n        <meta name="DIOXUS_ASSET_ROOT" content="{asset_root}">' if asset_root else ""
+    return (
+        "<!DOCTYPE html>\n<html>\n    <head>\n        <title>BoardStudio</title>\n"
+        '        <meta content="text/html;charset=utf-8" http-equiv="Content-Type">\n'
+        '        <meta name="viewport" content="width=device-width, initial-scale=1">\n'
+        f'        <meta charset="UTF-8">{meta}\n    </head>\n    <body>\n        <div id="main"></div>\n'
+        f'        <script type="module" async src="{base_path}wasm/boardstudio-web.js"></script>\n'
+        "    </body>\n</html>\n"
+    )
+
+
+def plain_page(route: str, tools: tuple[Path, Path, str], public: Path = PAGE_PUBLIC, output=None) -> None:
+    """Build the checked page with plain Cargo, so no `dx` rustc wrapper splits its build units."""
+    _tailwind, bindgen, dx = tools
+    artifact = cargo_page_artifact(output)
+    public.mkdir(parents=True, exist_ok=True)
+    # `dx tools assets` writes the bundled asset paths into the module it reads, so leave Cargo's alone.
+    module = public.parent / "boardstudio-web.wasm"
+    shutil.copy2(artifact, module)
+    run([dx, "tools", "assets", str(module), str(public / "assets")], cwd=WEB, output=output)
+    # dx's checked page has no name section either; it would triple the module the browser loads.
+    run([str(bindgen), "--target", "web", "--no-typescript", "--remove-name-section",
+         "--out-dir", str(public / "wasm"), "--out-name", "boardstudio-web", str(module)],
+        env={**os.environ, "RAYON_NUM_THREADS": "1"}, output=output)
+    script = public / "wasm/boardstudio-web.js"
+    module_js = script.read_text()
+    if missing := [binding for binding in BINDGEN_BINDINGS if not re.search(binding, module_js, re.MULTILINE)]:
+        raise ValueError(f"{script} lacks the wasm-bindgen bindings the Dioxus loader uses: {missing}")
+    script.write_text(module_js.rstrip("\n") + "\n" + DX_FOOTER.format(base_path=ROUTES[route]))
+    (public / "index.html").write_text(index_html(ROUTES[route]))
 
 
 def build(output: Path, *, release: bool = True, prepare_providers: bool = True,
           routes: tuple[str, ...] = DEFAULT_ROUTES, fast: bool = False) -> Path:
     output = output.resolve()
     output.mkdir(parents=True, exist_ok=True)
-    public = dx_public(release)
+    tools = page_tools() if fast and not release else None
+    public = PAGE_PUBLIC if tools else dx_public(release)
     overlap = fast and not release and prepare_providers and len(routes) == 1 and check_jobs() > 1
     if overlap and public.exists():
         shutil.rmtree(public)
+    if tools:
+        generate_css(tools[0])
     if prepare_providers:
-        page_build = dx_command(routes[0], release=release, fast=fast) if overlap else None
+        page_build = None
+        if overlap and tools:
+            page_build = lambda lane_output: plain_page(routes[0], tools, public, lane_output)
+        elif overlap:
+            page_build = dx_command(routes[0], release=release, fast=fast)
         prepare_runtime_providers(fast, page_build=page_build)
     for route in routes:
         if not overlap:
             if public.exists():
                 shutil.rmtree(public)
-            command, cwd = dx_command(route, release=release, fast=fast)
-            run(command, cwd=cwd)
+            if tools:
+                plain_page(route, tools, public)
+            else:
+                command, cwd = dx_command(route, release=release, fast=fast)
+                run(command, cwd=cwd)
         if not public.is_dir():
-            raise FileNotFoundError(f"Dioxus did not produce its web public directory: {public}")
+            raise FileNotFoundError(f"the page build did not produce its web public directory: {public}")
         site = route_site(output, route)
         if site.exists():
             shutil.rmtree(site)
@@ -237,18 +415,19 @@ def build(output: Path, *, release: bool = True, prepare_providers: bool = True,
     return output
 
 
-def prepare_runtime_providers(fast: bool = False, *, page_build: tuple[list[str], Path] | None = None) -> None:
+def prepare_runtime_providers(fast: bool = False, *, page_build=None) -> None:
+    """Build the providers; `page_build`, a step for `run_lanes`, overlaps them with the CAD build."""
     commands = provider_commands(fast)
     if page_build is None:
         for command, cwd in commands:
             run(command, cwd=cwd)
     else:
-        # Prepare Ergogen before dx sees the asset directory. Keep the root release
-        # providers together because they share the same target/profile lock.
-        release_providers, cad, ergogen = commands[:-2], commands[-2], commands[-1]
+        # Prepare Ergogen before the page build sees the asset directory. The wasm-pack providers
+        # and the page share the `wasm-check` target directory lock, so they run in one lane.
+        wasm_packs, cad, ergogen = commands[:-2], commands[-2], commands[-1]
         command, cwd = ergogen
         run(command, cwd=cwd)
-        run_lanes([release_providers, [cad], [page_build]])
+        run_lanes([[*wasm_packs, page_build], [cad]])
     shutil.copy2(ROOT / "catalogue/modules/imported-modules.json",
                  WEB / "assets/imported-modules.json")
     stage_runtime_assets()
