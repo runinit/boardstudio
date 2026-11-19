@@ -764,3 +764,10 @@ production timeout still fails the test.
 
 Selecting tooling in a quick run also selects the importer suite in the test
 step. Changes to shared helpers retain the importer coverage they had before E1.
+
+### J5. Shorten idle HTTP server shutdowns
+
+The provider pages, face completeness, CAD-build fake driver, and three dev-web
+server sites poll for shutdown every 50 ms. The CAD deletion delay and timeout
+checks keep their original settings. The static-preview test terminates its
+server process directly.
