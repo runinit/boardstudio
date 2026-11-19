@@ -30,6 +30,54 @@ serde_json = { version = "=1.0.154", features = ["float_roundtrip"] }
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 wasm-bindgen-test = "=0.3.79"
 
+[profile.cad-test]
+inherits = "dev"
+opt-level = 1
+debug = false
+incremental = false
+
+[profile.cad-test.package.monstertruck-io]
+opt-level = 2
+
+[profile.cad-test.package.monstertruck-meshing]
+opt-level = 2
+
+[profile.cad-test.package.monstertruck-modeling]
+opt-level = 2
+
+[profile.cad-test.package.monstertruck-geometry]
+opt-level = 2
+
+[profile.cad-test.package.monstertruck-mesh]
+opt-level = 2
+
+[profile.cad-test.package.monstertruck-core]
+opt-level = 2
+
+[profile.cad-test.package.manifold-rust]
+opt-level = 2
+
+[profile.cad-test.package.parry3d-f64]
+opt-level = 2
+
+[profile.cad-test.package.cavalier_contours]
+opt-level = 2
+
+[profile.cad-test.package.spade]
+opt-level = 2
+
+[profile.cad-test.package.glam]
+opt-level = 2
+
+[profile.cad-test.package.wide]
+opt-level = 2
+
+[profile.cad-test.package.lyon_tessellation]
+opt-level = 2
+
+[profile.cad-test.package.i_overlay]
+opt-level = 2
+
 [patch.crates-io]
 Inflector = { path = "../monstertruck-qualification/vendor/inflector" }
 cgmath = { path = "../../renderer/vendor/cgmath-next-0.18.1" }

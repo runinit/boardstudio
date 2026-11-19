@@ -71,6 +71,7 @@ class CadBuildTests(unittest.TestCase):
         command = run.call_args.args[0]
         self.assertEqual(command[:2], ["wasm-pack", "build"])
         self.assertIn("boardstudio_cad_wasm", command)
+        self.assertIn("--release", command)
         self.assertLess(command.index("--no-opt"), command.index("--locked"))
         self.assertEqual(run.call_args.kwargs["env"]["CARGO_TARGET_DIR"], str(self.root / "wasm/target"))
 
@@ -135,10 +136,11 @@ class CadBuildTests(unittest.TestCase):
         commands = [call.args[0] for call in run.call_args_list]
         self.assertEqual(commands[0], ["cargo", "test", "--manifest-path", "monstertruck/Cargo.toml",
                                       "-p", "boardstudio-cad", "-p", "boardstudio-cad-wasm",
-                                      "--release", "--locked"])
+                                      "--profile", "cad-test", "--lib", "--tests", "--locked"])
         self.assertEqual(run.call_args_list[0].kwargs["env"]["CARGO_TARGET_DIR"],
                          str(self.root / "monstertruck/target"))
-        self.assertTrue(all("--locked" in command and "--release" in command for command in commands))
+        self.assertTrue(all("--locked" in command and command[-3:] == ["--profile", "cad-test", "--locked"]
+                            for command in commands[1:]))
         owner_commands = [command[4:] for command in commands[1:]]
         for selection in (
             ["-p", "monstertruck-io", "--test", "input", "repair_movement"],

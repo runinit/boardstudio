@@ -141,7 +141,8 @@ def build_wasm(*, no_opt=False):
 def _test_production_cad(output):
     library_target, _ = NATIVE_TEST_TARGETS
     command = ["cargo", "test", "--manifest-path", "monstertruck/Cargo.toml",
-               "-p", "boardstudio-cad", "-p", "boardstudio-cad-wasm", "--release", "--locked"]
+               "-p", "boardstudio-cad", "-p", "boardstudio-cad-wasm",
+               "--profile", "cad-test", "--lib", "--tests", "--locked"]
     _run_test(command, library_target, output)
 
 
@@ -150,7 +151,7 @@ def _test_cad_owners(output):
     # Filter legacy suites; external fixtures are read only by the tests that use them.
     for package, *selection in OWNER_TESTS:
         command = ["cargo", "test", "--manifest-path", "monstertruck-qualification/Cargo.toml",
-                   "-p", package, *selection, "--release", "--locked"]
+                   "-p", package, *selection, "--profile", "cad-test", "--locked"]
         result = _run_test(command, owner_target, output)
         if not re.search(r"^test result: ok\. [1-9][0-9]* passed;", result, re.M):
             raise RuntimeError(f"CAD owner selection has no executed tests: {package} {' '.join(selection)}")
