@@ -1059,7 +1059,11 @@ def run_commands(name: str, commands: list[Command], environment: dict[str, str]
         # The checked page build splits after its last Cargo invocation, so its file staging
         # overlaps the wasm test prebuilds below. The `dx` fallback, single-job and receipt
         # runs keep the exact serial scheduling.
+        tail = commands[1:]
+        tail_wasm = [cmd for cmd in tail if cmd in (BROWSER_CRATE_BUILD, PAGE_TEST_BUILD)]
+        splittable_build = tail == [*tail_wasm, HARNESS_BUILD]
         if (name == "build" and index == 0 and command == [PY, "scripts/build-web.py", "--fast"]
+                and splittable_build
                 and check_jobs() > 1 and receipt is None and plain_page_tools_available()):
             cargo_command = [PY, "scripts/build-web.py", "--fast", "--phase", "cargo"]
             elapsed, code, _, _ = run_serial(cargo_command, environment, cwd)

@@ -977,6 +977,21 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
             parallel.assert_not_called()
             self.assertEqual([call.args[0] for call in serial.call_args_list], commands)
 
+    def test_build_single_command_keeps_full_serial_build_without_phase_split(self):
+        commands = [[check.PY, "scripts/build-web.py", "--fast"]]
+
+        def serial_run(command, environment, cwd, captured, outputs, *args, **kwargs):
+            outputs.append((command, ""))
+            return 0.0, 0, "", ""
+
+        with mock.patch.object(check, "check_jobs", return_value=2), \
+             mock.patch.object(check, "plain_page_tools_available", return_value=True), \
+             mock.patch.object(check, "run_parallel") as parallel, \
+             mock.patch.object(check, "run_serial", side_effect=serial_run) as serial:
+            self.assertTrue(check.run_commands("build", commands, {})[1])
+        parallel.assert_not_called()
+        self.assertEqual([call.args[0] for call in serial.call_args_list], commands)
+
     def test_combined_wasm_prebuild_merges_crate_and_page_test_builds(self):
         combined = check.combined_wasm_prebuild(check.BROWSER_CRATE_BUILD)
         self.assertTrue(check.is_crate_build(combined))
