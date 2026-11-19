@@ -103,6 +103,16 @@ class CoreTestRegistrationTests(unittest.TestCase):
         self.write("core/tests/extra.rs", "")
         self.assertEqual(check.unregistered_tests(self.root), [])
 
+    def test_multiple_test_roots_each_register_their_submodules(self):
+        self.write("core/Cargo.toml", CARGO + '\n[[test]]\nname = "integration_matrix"\npath = "tests/integration_matrix.rs"\n')
+        self.write("core/tests/integration_matrix.rs", '#[path = "matrix_anchors.rs"]\nmod matrix_anchors;\n')
+        self.write("core/tests/matrix_anchors.rs", "")
+        self.assertEqual(check.unregistered_tests(self.root), [])
+        self.write("core/tests/stray.rs", "")
+        issues = check.unregistered_tests(self.root)
+        self.assertEqual(len(issues), 1)
+        self.assertIn("core/tests/stray.rs", issues[0])
+
     def test_a_dot_slash_target_path_is_normalised(self):
         self.write("core/Cargo.toml", CARGO.replace("tests/performance.rs", "./tests/performance.rs"))
         self.assertEqual(check.unregistered_tests(self.root), [])

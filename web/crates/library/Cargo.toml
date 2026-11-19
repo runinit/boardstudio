@@ -6,9 +6,6 @@ license = "MIT OR Apache-2.0"
 publish = false
 description = "BoardStudio Library page: projects, examples and the project menu's project actions."
 
-[features]
-test-support = ["boardstudio-web-ui-model/test-support", "boardstudio-web-ui-shared/test-support"]
-
 [dependencies]
 boardstudio-application = { path = "../../../application" }
 boardstudio_core = { path = "../../../core" }

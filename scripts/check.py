@@ -191,8 +191,6 @@ def with_crate_build(launches: list[Command]) -> list[Command]:
         return launches
     packages = [arg for crate in crates for arg in ("-p", f"boardstudio-web-{crate}")]
     features = ["boardstudio-web-host/page"] if "host" in crates else []
-    features.extend(f"boardstudio-web-{crate}/test-support"
-                    for crate in ("keymap", "layout", "library", "pcb") if crate in crates)
     flags = ["--features", ",".join(features)] if features else []
     return [[*WASM_CRATE_BUILD, *packages, *flags], *launches]
 

@@ -54,12 +54,13 @@ syn = { version = "=2.0.119", features = ["extra-traits", "full", "visit", "visi
 [dev-dependencies]
 boardstudio-web-runtime = { path = "crates/runtime", features = ["test-support"] }
 boardstudio-web-ui-model = { path = "crates/ui-model", features = ["test-support"] }
-boardstudio-web-layout = { path = "crates/layout", features = ["test-support"] }
-boardstudio-web-pcb = { path = "crates/pcb", features = ["test-support"] }
-boardstudio-web-parts = { path = "crates/parts", features = ["test-support"] }
+boardstudio-web-ui-shared = { path = "crates/ui-shared", features = ["test-support"] }
+boardstudio-web-layout = { path = "crates/layout" }
+boardstudio-web-pcb = { path = "crates/pcb" }
+boardstudio-web-parts = { path = "crates/parts" }
 boardstudio-web-case = { path = "crates/case", features = ["test-support"] }
-boardstudio-web-keymap = { path = "crates/keymap", features = ["test-support"] }
-boardstudio-web-library = { path = "crates/library", features = ["test-support"] }
+boardstudio-web-keymap = { path = "crates/keymap" }
+boardstudio-web-library = { path = "crates/library" }
 boardstudio-web-keycaps = { path = "crates/keycaps", features = ["test-support"] }
 tokio = { version = "=1.53.1", features = ["macros", "rt", "time"] }
 

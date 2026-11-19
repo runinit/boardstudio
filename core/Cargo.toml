@@ -31,6 +31,18 @@ name = "integration"
 path = "tests/integration.rs"
 
 [[test]]
+name = "integration_matrix"
+path = "tests/integration_matrix.rs"
+
+[[test]]
+name = "integration_mechanical"
+path = "tests/integration_mechanical.rs"
+
+[[test]]
+name = "integration_modules"
+path = "tests/integration_modules.rs"
+
+[[test]]
 name = "matrix_performance"
 path = "tests/matrix_performance.rs"
 

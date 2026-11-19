@@ -2,7 +2,7 @@
 """Fail when a Core or Footprints test file is not compiled by any test target.
 
 Both packages set `autotests = false`, so a file dropped into their tests directory runs only when
-a `[[test]]` target names it or `tests/integration.rs` declares it as a module, with
+a `[[test]]` target names it or one of the `[[test]]` roots declares it as a module, with
 `#[path = "..."]` or a plain `mod name;`. An unregistered file passes every check and never runs.
 
 Usage: check-core-tests.py [ROOT]
@@ -27,11 +27,13 @@ def test_files(package: Path) -> list[Path]:
 
 def registered(package: Path) -> set[Path]:
     manifest = tomllib.loads((package / "Cargo.toml").read_text(encoding="utf-8"))
-    paths = {Path(target.get("path", f"tests/{target['name']}.rs")) for target in manifest.get("test", [])}
-    integration = package / "tests" / "integration.rs"
-    if integration.is_file():
-        source = COMMENT.sub("", integration.read_text(encoding="utf-8"))
-        paths |= {Path("tests") / (path or f"{name}.rs") for path, name in MODULE.findall(source)}
+    targets = [Path(target.get("path", f"tests/{target['name']}.rs")) for target in manifest.get("test", [])]
+    paths = set(targets)
+    for target_path in targets:
+        root = package / target_path
+        if root.is_file():
+            source = COMMENT.sub("", root.read_text(encoding="utf-8"))
+            paths |= {target_path.parent / (path or f"{name}.rs") for path, name in MODULE.findall(source)}
     return {package / path for path in paths}
 
 

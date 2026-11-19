@@ -552,13 +552,10 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
         self.assertEqual([build[idx + 1] for idx, arg in enumerate(build) if arg == "-p"],
                          list(check.WEB_WASM_PACKAGES[1:]))
         self.assertEqual(build[-2], "--features")
-        self.assertEqual(build[-1].split(","), [
-            "boardstudio-web-host/page", "boardstudio-web-keymap/test-support",
-            "boardstudio-web-layout/test-support", "boardstudio-web-library/test-support",
-            "boardstudio-web-pcb/test-support",
-        ])
-        scoped, _ = check.with_crate_build([check.crate_launch("layout")])
-        self.assertEqual(scoped[-2:], ["--features", "boardstudio-web-layout/test-support"])
+        self.assertEqual(build[-1].split(","), ["boardstudio-web-host/page"])
+        scoped_build, scoped_launch = check.with_crate_build([check.crate_launch("layout")])
+        self.assertEqual(scoped_build, [*check.WASM_CRATE_BUILD, "-p", "boardstudio-web-layout"])
+        self.assertEqual(scoped_launch, check.crate_launch("layout"))
         self.assertEqual(len(launches), 12)
         self.assertTrue(all(check.is_crate_launch(cmd) for cmd in launches))
         self.assertIn("scripts/run-wasm-tests.py", packaged[-1])
