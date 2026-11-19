@@ -495,6 +495,7 @@ fn severity_label(severity: &Severity) -> &'static str {
 mod queued_script_tests {
     use super::*;
     use crate::runtime::project_name_test_support as support;
+    use crate::test_mount::MountedFixture;
     use boardstudio_core::model::{Board, EditCommand, EditPhase, ProjectDoc};
     use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
     use std::cell::{Cell, RefCell};
@@ -568,7 +569,7 @@ mod queued_script_tests {
         .await;
     }
 
-    async fn mount_editor(runtime: Rc<Runtime>) -> ScriptProbe {
+    async fn mount_editor(runtime: Rc<Runtime>) -> (ScriptProbe, MountedFixture) {
         let probe = ScriptProbe {
             runtime,
             version: Rc::new(Cell::new(0)),
@@ -583,12 +584,9 @@ mod queued_script_tests {
         document.body().unwrap().append_child(&root).unwrap();
         let dom = VirtualDom::new(editor_host);
         dom.provide_root_context(probe.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.into()),
-        );
+        let mounted = MountedFixture::new(root.clone(), dom);
         render_wait(&probe).await;
-        probe
+        (probe, mounted)
     }
 
     async fn flush(probe: &ScriptProbe) {
@@ -704,7 +702,7 @@ mod queued_script_tests {
             });
         }
         support::open_document(&runtime, document).await;
-        let probe = mount_editor(runtime).await;
+        let (probe, _mounted) = mount_editor(runtime).await;
         let root = web_sys::window()
             .unwrap()
             .document()
@@ -745,7 +743,7 @@ mod queued_script_tests {
             enabled: false,
         });
         support::open_document(&runtime, document).await;
-        let probe = mount_editor(runtime.clone()).await;
+        let (probe, _mounted) = mount_editor(runtime.clone()).await;
         let root = web_sys::window()
             .unwrap()
             .document()

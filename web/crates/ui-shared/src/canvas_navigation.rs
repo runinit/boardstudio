@@ -304,6 +304,7 @@ impl CanvasNavigationState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_mount::MountedFixture;
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::wasm_bindgen_test;
 
@@ -414,10 +415,7 @@ mod tests {
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(fixture),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), VirtualDom::new(fixture));
         gloo_timers::future::TimeoutFuture::new(20).await;
         let button = root
             .query_selector("#canvas-navigation-size")

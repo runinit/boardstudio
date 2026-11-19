@@ -195,6 +195,7 @@ pub fn GraphicElement(graphic: Graphic, hidden: bool) -> Element {
 mod graphic_style_tests {
     use super::*;
     use crate::footprint_forms::Point;
+    use crate::test_mount::MountedFixture;
     use crate::test_wait::wait_until;
     use wasm_bindgen_test::*;
 
@@ -241,10 +242,7 @@ mod graphic_style_tests {
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(error_fixture),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), VirtualDom::new(error_fixture));
         wait_until("graphics error renders", || {
             root.query_selector("[data-status=error]")
                 .unwrap()
@@ -277,10 +275,7 @@ mod graphic_style_tests {
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(fixture),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), VirtualDom::new(fixture));
         wait_until("graphics mount", || {
             root.query_selector("[data-layer=text]").unwrap().is_some()
         })

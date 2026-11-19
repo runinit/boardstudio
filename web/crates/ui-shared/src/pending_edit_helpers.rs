@@ -708,7 +708,7 @@ mod mounted_tests {
         let dom = VirtualDom::new(helper_host);
         dom.provide_root_context(probe.clone());
         let mounted = crate::test_mount::MountedFixture::new(root, dom);
-        // launch_virtual_dom renders in a background task; wait for the fixture DOM.
+        // MountedFixture renders in a background task; wait for the fixture DOM.
         rendered().await;
         rendered().await;
         MountedProbe {

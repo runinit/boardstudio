@@ -1,4 +1,16 @@
 //! Mounted ticket 008 regression tests. The exported fixture also supports trusted agent-browser keys.
+//! The ticket_008_fixture example reuses this file outside the lib test harness:
+//! it takes MountedFixture from the lib when test-support is unified in, and
+//! includes test_mount itself otherwise.
+#[cfg(all(not(test), not(feature = "test-support")))]
+use self::test_mount::MountedFixture;
+#[cfg(test)]
+use crate::test_mount::MountedFixture;
+#[cfg(all(not(test), feature = "test-support"))]
+use boardstudio_web_ui_shared::test_mount::MountedFixture;
+#[cfg(all(not(test), not(feature = "test-support")))]
+#[path = "test_mount.rs"]
+mod test_mount;
 use dioxus::prelude::*;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_test::*;
@@ -108,7 +120,9 @@ fn ToastTrigger() -> Element {
 
 #[wasm_bindgen]
 pub fn mount_ticket_008_fixture() {
-    mount();
+    // External drivers query #ticket-008-fixture after this returns; leak it on purpose.
+    let (_root, fixture) = mount();
+    std::mem::forget(fixture);
 }
 
 #[wasm_bindgen]
@@ -119,16 +133,13 @@ pub fn ticket_008_control(role: &str, name: &str) -> Option<web_sys::HtmlElement
     by_role_name(&root, role, name)
 }
 
-fn mount() -> web_sys::Element {
+fn mount() -> (web_sys::Element, MountedFixture) {
     let document = web_sys::window().unwrap().document().unwrap();
     let root = document.create_element("div").unwrap();
     root.set_id("ticket-008-fixture");
     document.body().unwrap().append_child(&root).unwrap();
-    dioxus_web::launch::launch_virtual_dom(
-        VirtualDom::new(fixture),
-        dioxus_web::Config::new().rootnode(root.clone().into()),
-    );
-    root
+    let mounted = MountedFixture::new(root.clone(), VirtualDom::new(fixture));
+    (root, mounted)
 }
 
 fn control(root: &web_sys::Element, role: &str, name: &str) -> web_sys::HtmlElement {
@@ -156,7 +167,7 @@ async fn ready(root: &web_sys::Element) {
 
 #[wasm_bindgen_test]
 async fn toolbar_has_one_tab_stop() {
-    let root = mount();
+    let (root, _mounted) = mount();
     ready(&root).await;
     let toolbar = control(&root, "toolbar", "History");
     assert_eq!(
@@ -173,7 +184,7 @@ async fn toolbar_has_one_tab_stop() {
 
 #[wasm_bindgen_test]
 async fn toolbar_end_reaches_last_item() {
-    let root = mount();
+    let (root, _mounted) = mount();
     ready(&root).await;
     let undo = control(&root, "button", "Undo");
     undo.focus().unwrap();
@@ -189,7 +200,7 @@ async fn toolbar_end_reaches_last_item() {
 
 #[wasm_bindgen_test]
 async fn toolbar_roves_across_an_embedded_toggle_group() {
-    let root = mount();
+    let (root, _mounted) = mount();
     ready(&root).await;
     let toolbar = control(&root, "toolbar", "Tool modes");
     assert_eq!(
@@ -256,7 +267,7 @@ fn changing_toolbar() -> Element {
 
 #[wasm_bindgen_test]
 async fn toolbar_preserves_caller_attributes_and_callbacks() {
-    let root = mount();
+    let (root, _mounted) = mount();
     ready(&root).await;
     let toolbar = control(&root, "toolbar", "Caller tools");
     assert_eq!(toolbar.id(), "caller-tools");
@@ -316,7 +327,7 @@ async fn toolbar_preserves_caller_attributes_and_callbacks() {
 
 #[wasm_bindgen_test]
 async fn slider_preserves_caller_key_handler() {
-    let root = mount();
+    let (root, _mounted) = mount();
     ready(&root).await;
     let slider = control(&root, "slider", "Caller zoom");
     key(&slider, "Home");
@@ -338,10 +349,7 @@ async fn toolbar_reassigns_the_entry_when_the_current_item_is_disabled() {
     let document = web_sys::window().unwrap().document().unwrap();
     let root = document.create_element("div").unwrap();
     document.body().unwrap().append_child(&root).unwrap();
-    dioxus_web::launch::launch_virtual_dom(
-        VirtualDom::new(changing_toolbar),
-        dioxus_web::Config::new().rootnode(root.clone().into()),
-    );
+    let _mounted = MountedFixture::new(root.clone(), VirtualDom::new(changing_toolbar));
     wait_until("changing toolbar mounted", || {
         by_role_name(&root, "toolbar", "Changing tools").is_some()
     })
@@ -360,10 +368,7 @@ async fn toolbar_releases_its_observer_when_unmounted() {
     let document = web_sys::window().unwrap().document().unwrap();
     let root = document.create_element("div").unwrap();
     document.body().unwrap().append_child(&root).unwrap();
-    dioxus_web::launch::launch_virtual_dom(
-        VirtualDom::new(changing_toolbar),
-        dioxus_web::Config::new().rootnode(root.clone().into()),
-    );
+    let _mounted = MountedFixture::new(root.clone(), VirtualDom::new(changing_toolbar));
     wait_until("changing toolbar mounted", || {
         by_role_name(&root, "toolbar", "Changing tools").is_some()
     })
@@ -394,10 +399,7 @@ async fn toolbar_keeps_a_tab_stop_when_the_current_item_is_removed() {
     let document = web_sys::window().unwrap().document().unwrap();
     let root = document.create_element("div").unwrap();
     document.body().unwrap().append_child(&root).unwrap();
-    dioxus_web::launch::launch_virtual_dom(
-        VirtualDom::new(changing_toolbar),
-        dioxus_web::Config::new().rootnode(root.clone().into()),
-    );
+    let _mounted = MountedFixture::new(root.clone(), VirtualDom::new(changing_toolbar));
     wait_until("changing toolbar mounted", || {
         by_role_name(&root, "button", "First changing action").is_some()
     })
@@ -416,7 +418,7 @@ async fn toolbar_keeps_a_tab_stop_when_the_current_item_is_removed() {
 
 #[wasm_bindgen_test]
 async fn toggle_group_has_named_group_role() {
-    let root = mount();
+    let (root, _mounted) = mount();
     ready(&root).await;
     control(&root, "group", "Alignment");
     assert_eq!(
@@ -430,7 +432,7 @@ async fn toggle_group_has_named_group_role() {
 
 #[wasm_bindgen_test]
 async fn slider_home_end_and_page_keys_notify_once() {
-    let root = mount();
+    let (root, _mounted) = mount();
     ready(&root).await;
     let slider = control(&root, "slider", "Zoom");
     for (key_name, expected) in [
@@ -455,7 +457,7 @@ async fn slider_home_end_and_page_keys_notify_once() {
 }
 
 async fn slider_key_reaches(key_name: &str, expected: &str) {
-    let root = mount();
+    let (root, _mounted) = mount();
     ready(&root).await;
     let slider = control(&root, "slider", "Zoom");
     key(&slider, key_name);
@@ -485,7 +487,7 @@ async fn slider_page_down_changes_value() {
 
 #[wasm_bindgen_test]
 async fn disabled_slider_is_not_a_tab_stop() {
-    let root = mount();
+    let (root, _mounted) = mount();
     ready(&root).await;
     let slider = control(&root, "slider", "Disabled zoom");
     assert!(slider.has_attribute("disabled"));
@@ -498,7 +500,7 @@ async fn disabled_slider_is_not_a_tab_stop() {
 
 #[wasm_bindgen_test]
 async fn toast_is_an_announcement_with_reachable_dismiss() {
-    let root = mount();
+    let (root, _mounted) = mount();
     ready(&root).await;
     control(&root, "button", "Notify").click();
     wait_until("toast mounted", || {

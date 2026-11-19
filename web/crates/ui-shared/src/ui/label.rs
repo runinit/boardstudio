@@ -31,6 +31,7 @@ pub fn Label(
 #[cfg(all(test, target_arch = "wasm32"))]
 mod association_tests {
     use super::*;
+    use crate::test_mount::MountedFixture;
     use crate::{test_role::by_role_name, test_wait::wait_until};
     use wasm_bindgen::JsCast;
 
@@ -48,10 +49,7 @@ mod association_tests {
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(fixture),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), VirtualDom::new(fixture));
         wait_until("Label association cases mount", || {
             by_role_name(&root, "textbox", "Empty target").is_some()
         })
