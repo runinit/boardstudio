@@ -326,3 +326,10 @@ ordinary UI shared launch.
 Keep the 980 px viewport assertion. Query controls and panel IDs under the
 guide test's own root, dispose both guide mounts, and restore the fixture's
 panel and guide preference keys.
+
+### I3c. Rejoin the Case workspace page filter
+
+Scope the two previously leaking tests to their roots and dispose the VDOMs
+and roots of all four Case workspace mounts. Keep the page runner's manual
+isolation option. The default and quick plans no longer request it, and the
+full launch reserves two page slots for its two depth-one filters.

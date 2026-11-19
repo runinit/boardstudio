@@ -94,7 +94,6 @@ WASM_PAGE = ["--no-default-features", "--features", "page"]
 # Every wasm test build shares the checked page build's profile, and so its units; see Cargo.toml.
 WASM_CRATE_BUILD = ["cargo", "test", "--no-run", "--lib", "--target", "wasm32-unknown-unknown",
                     "--profile", "wasm-check", "--locked", "--message-format=json"]
-ISOLATED = ("presentation::case_workspace::",)
 DRAG_SMOKE = [PY, "scripts/run-drag-browser.py"]
 PAGE_TEST_BUILD = [PY, "scripts/run-wasm-tests.py", "--build-only"]
 HARNESS_BUILD = [PY, "scripts/browser_tools.py"]
@@ -150,7 +149,7 @@ def browser() -> list[Command]:
             crate_launch("pcb"),
             crate_launch("layout"),
         ]),
-        [PY, "scripts/run-wasm-tests.py", "--all", "--depth", "1", *[f"--isolate={name}" for name in ISOLATED],
+        [PY, "scripts/run-wasm-tests.py", "--all", "--depth", "1",
          "--result-json", "web/target/test-results/browser.json"],
     ]
 
@@ -947,8 +946,8 @@ def run_commands(name: str, commands: list[Command], environment: dict[str, str]
             if (name == "browser" and end < len(commands)
                     and "scripts/run-wasm-tests.py" in commands[end] and "--all" in commands[end]):
                 page = commands[end]
-                # Reserve up to three slots for the page process and its filter pool.
-                page_workers = min(3, workers - 1)
+                # The full page selection has two depth-one filters.
+                page_workers = min(2, workers - 1)
                 invocations[tuple(page)] = (page, cwd, {"BOARDSTUDIO_CHECK_JOBS": str(page_workers)})
                 workers -= page_workers - 1
                 end += 1
@@ -1398,7 +1397,7 @@ def quick_plan(selection: "check_quick.Selection", packages: "dict[str, check_qu
             commands = with_crate_build(select_browser_crate_launches(crates, browser()))
             if selection.page_files:
                 commands.append([PY, "scripts/run-wasm-tests.py", "--files", *selection.page_files,
-                                 "--depth", "1", *[f"--isolate={name}" for name in ISOLATED],
+                                 "--depth", "1",
                                  "--result-json", "web/target/test-results/browser-quick.json"])
         if commands:
             plan.append(("browser", commands))

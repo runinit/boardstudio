@@ -126,9 +126,9 @@ builds the selected lib test binaries in one Cargo invocation, then runs them wi
 `test-support` for selected keymap, layout, library and PCB crates, and the separate page binary
 test build enables `boardstudio-web-host/test-support` so both full builds resolve the same shared
 features. Each launch starts its own `chromedriver` and Chrome.
-Layout uses a desktop viewport for the setup guide and the other layout tests. The page suite
-isolates the Case workspace fixtures. The check runs up to
-four crate launches at once (`BOARDSTUDIO_CHECK_JOBS`, `1` for serial), with a two-minute timeout per
+Layout uses a desktop viewport for the setup guide and the other layout tests. The page filters
+share the local browser job budget with the crate launches (up to six jobs by default, bounded by CPU
+count, or `BOARDSTUDIO_CHECK_JOBS=1` for serial), with a two-minute timeout per
 launch (`WASM_BINDGEN_TEST_TIMEOUT`). Use `python3 scripts/check.py browser --only <crate>...` for a
 partial crate run without the packaged build or drag smoke. Add `--keep-going` to continue across
 independent browser launches and still exit nonzero on failure. CSS-dependent subsets generate

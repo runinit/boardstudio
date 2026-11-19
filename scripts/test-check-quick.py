@@ -106,7 +106,8 @@ class QuickPlanTests(unittest.TestCase):
         self.assertTrue(launches)
         self.assertTrue(all("web/crates/keymap" in command for command in launches))
         self.assertEqual(plan["browser"], [
-            [*check.WASM_CRATE_BUILD, "-p", "boardstudio-web-keymap"], *launches,
+            [*check.WASM_CRATE_BUILD, "-p", "boardstudio-web-keymap",
+             "--features", "boardstudio-web-keymap/test-support"], *launches,
         ])
         self.assertEqual(plan["test"][0][:3], ["cargo", "test", "--locked"])
         self.assertIn("keymap", plan["test"][0])
@@ -137,8 +138,10 @@ class QuickPlanTests(unittest.TestCase):
         self.assertEqual(len(runner), 1)
         self.assertIn("--depth", runner[0])
         self.assertIn("1", runner[0])
-        for name in check.ISOLATED:
-            self.assertIn(f"--isolate={name}", runner[0])
+        full = next(command for command in check.STEPS["browser"][1]
+                    if "scripts/run-wasm-tests.py" in command)
+        for command in (runner[0], full):
+            self.assertFalse(any(arg.startswith("--isolate") for arg in command))
 
     def test_unfilterable_page_inputs_keep_full_consuming_test_coverage(self):
         for path in ("web/src/presentation/layout_layers_fixtures/paired-rejoin-preview.json",
