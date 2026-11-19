@@ -731,15 +731,59 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
                 self.assertIn(check.BROWSER_CRATE_BUILD, seen)
             return subprocess.CompletedProcess(command, 0, stdout=f"payload {commands.index(command)}\n")
 
+        def fake_artifacts(text, _cwd, _crates, *, stream=None):
+            print(text, end="", file=stream)
+            return {}
+
         with mock.patch.object(check, "check_jobs", return_value=2), \
              mock.patch.object(check, "run_serial", side_effect=serial), \
              mock.patch.object(check, "launch_command", side_effect=launch), \
-             mock.patch.object(check, "crate_test_artifacts", return_value={}), \
+             mock.patch.object(check, "crate_test_artifacts", side_effect=fake_artifacts), \
              contextlib.redirect_stdout(output):
             self.assertTrue(check.run_commands("build", commands, {})[1])
         self.assertEqual(seen[0], "css")
         self.assertEqual([line for line in output.getvalue().splitlines() if line.startswith("payload")],
                          ["payload 1", "payload 2", "payload 3"])
+
+    def test_build_overlap_renders_diagnostics_without_raw_artifact_json(self):
+        self.mock_wasm_dir()
+        commands = check.STEPS["build"][1]
+        artifact_json = self.fake_wasm_build(check.BROWSER_CRATE_BUILD).stdout
+        diag_json = json.dumps({
+            "reason": "compiler-message",
+            "message": {"rendered": "warning: unused variable\n"},
+        })
+
+        def run_case(code):
+            def launch(command, **kwargs):
+                if command == check.BROWSER_CRATE_BUILD:
+                    return subprocess.CompletedProcess(
+                        command, code,
+                        stdout=f"Compiling boardstudio-web-layout\n{diag_json}\n{artifact_json}\n",
+                    )
+                return subprocess.CompletedProcess(command, 0, stdout=f"ok {commands.index(command)}\n")
+
+            output = io.StringIO()
+            errors = io.StringIO()
+            with mock.patch.object(check, "check_jobs", return_value=2), \
+                 mock.patch.object(check, "run_serial", return_value=(0.0, 0, "", "")), \
+                 mock.patch.object(check, "launch_command", side_effect=launch), \
+                 contextlib.redirect_stdout(output), \
+                 contextlib.redirect_stderr(errors):
+                passed = check.run_commands("build", commands, {})[1]
+            return passed, output.getvalue(), errors.getvalue()
+
+        passed, out, err = run_case(0)
+        self.assertTrue(passed, err)
+        self.assertNotIn("compiler-artifact", out)
+        self.assertIn("Compiling boardstudio-web-layout\nwarning: unused variable\n", out)
+        self.assertLess(out.index("warning: unused variable"), out.index("ok 2"))
+
+        passed, out, err = run_case(101)
+        self.assertFalse(passed)
+        self.assertNotIn("compiler-artifact", out)
+        self.assertIn("Compiling boardstudio-web-layout\nwarning: unused variable\n", out)
+        self.assertIn("command failed", err)
 
     def test_build_overlap_reports_failure_and_skips_dependent_page(self):
         commands = check.STEPS["build"][1]

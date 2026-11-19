@@ -321,21 +321,23 @@ def is_wasm_pack_test(command: Command) -> bool:
     return command[:2] == ["wasm-pack", "test"]
 
 
-def crate_test_artifacts(output: str, cwd: Path, crates: Iterable[str]) -> dict[str, Path]:
+def crate_test_artifacts(output: str, cwd: Path, crates: Iterable[str], *, stream=None) -> dict[str, Path]:
+    out = stream if stream is not None else sys.stdout
+    flush = stream is None
     manifests = {cwd / "web/crates" / crate / "Cargo.toml": crate for crate in crates}
     artifacts: dict[str, Path] = {}
     for line in output.splitlines():
         try:
             message = json.loads(line)
         except json.JSONDecodeError:
-            print(line, flush=True)
+            print(line, file=out, flush=flush)
             continue
         if not isinstance(message, dict):
-            print(line, flush=True)
+            print(line, file=out, flush=flush)
             continue
         if message.get("reason") == "compiler-message":
             if rendered := message["message"].get("rendered"):
-                print(rendered, end="", flush=True)
+                print(rendered, end="", file=out, flush=flush)
         if (message.get("reason") != "compiler-artifact" or not message["profile"]["test"]
                 or "lib" not in message["target"]["kind"]):
             continue
@@ -703,12 +705,8 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
         if done is None:
             return None
         code, output = done.returncode, done.stdout
-        if code == 0 and validate_output is not None:
-            try:
-                validate_output(command, output)
-            except (ValueError, RuntimeError) as error:
-                code = 1
-                output = output_text(output) + f"\ncheck: {error}\n"
+        if validate_output is not None:
+            code, output = validate_output(command, code, output)
         ended_at = datetime.now(timezone.utc).isoformat()
         elapsed = time.monotonic() - started
         try:
@@ -973,11 +971,17 @@ def run_commands(name: str, commands: list[Command], environment: dict[str, str]
                 and prebuilds == [*wasm_prebuilds, HARNESS_BUILD] and wasm_prebuilds):
             child_env = environment.copy()
             child_env.setdefault("CARGO_PROFILE_DEV_DEBUG", "false")
-            def validate_prebuild(cmd, output):
-                if is_crate_build(cmd):
-                    crates = tuple(cmd[i + 1].removeprefix("boardstudio-web-")
-                                   for i, token in enumerate(cmd) if token == "-p")
-                    crate_test_artifacts(output, cwd, crates)
+            def validate_prebuild(cmd, code, output):
+                if not is_crate_build(cmd):
+                    return code, output
+                rendered = io.StringIO()
+                crates = tuple(cmd[i + 1].removeprefix("boardstudio-web-")
+                               for i, token in enumerate(cmd) if token == "-p")
+                try:
+                    crate_test_artifacts(output_text(output), cwd, () if code else crates, stream=rendered)
+                except (ValueError, RuntimeError) as error:
+                    return 1, rendered.getvalue() + f"check: {error}\n"
+                return code, rendered.getvalue()
 
             elapsed, failed = run_parallel(
                 prebuilds, child_env, captured, step=name, workers=2, in_order=True,
