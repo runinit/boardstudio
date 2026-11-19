@@ -242,7 +242,9 @@ The user unit `boardstudio-sccache.service` puts its Unix socket at
 compilation on cache misses runs in Cargo's process tree. The wrapper tries the
 service only for non-incremental Rust compilation. It calls `dx`, Clippy's
 driver, and other workspace wrappers directly. It also calls rustc directly
-if the socket is unavailable or a cache call returns an error. Set
+if the socket is unavailable or sccache itself fails, which it signals with exit
+status 2. Any other status is the compiler's own and is returned as is, so a
+failed compile is never run twice or its diagnostics repeated. Set
 `BOARDSTUDIO_SCCACHE_BYPASS=1` to bypass the wrapper's cache path for a run.
 
 The machine configuration files were absent before setup. Their prior-state
