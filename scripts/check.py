@@ -1326,8 +1326,11 @@ def overlap_span(plan, receipt):
         group = plan[start:start + 3]
         if ({name for name, _ in group} == OVERLAP_STEPS
                 and all(commands == STEPS[name][1] for name, commands in group)):
-            # The overlapped steps share a stylesheet generated up front, which needs the standalone CLI.
-            return (start, start + 3) if tailwind_cli() is not None else None
+            # The overlapped steps share a stylesheet generated up front. Every plain-page
+            # tool must exist: with only Tailwind, `build` would fall back to `dx build`,
+            # regenerating the stylesheet WASM Clippy is reading.
+            tools = importlib.import_module("build-web").page_tools(quiet=True)
+            return (start, start + 3) if tools is not None else None
     return None
 
 

@@ -31,6 +31,20 @@ class RunWasmTestsTests(unittest.TestCase):
             os.environ["WASM_BINDGEN_TEST_TIMEOUT"] = "37"
             self.assertEqual(runner.runner_environment()["WASM_BINDGEN_TEST_TIMEOUT"], "37")
 
+    def test_runner_environment_normalizes_deep_caller_tmpdir(self):
+        deep = "/tmp/" + "deep-" * 40
+        with patch.dict(os.environ, {"PATH": "/bin", "TMPDIR": deep}, clear=True), \
+             patch.object(runner.shutil, "which", return_value="/bin/test-tool"), \
+             patch.object(runner, "wasm_bindgen_dir", return_value=Path("/tmp/test-runner")):
+            env = runner.runner_environment()
+        self.assertEqual(env["TMPDIR"], str(runner.browser_tools.shallow_browser_tmpdir()))
+        self.assertLess(len(os.fsencode(env["TMPDIR"])), len(os.fsencode(deep)))
+        self.assertEqual(env["WASM_BINDGEN_TEST_TIMEOUT"], "120")
+        self.assertEqual(env["CARGO_PROFILE_DEV_DEBUG"], "false")
+        resolved = str(Path("/bin/test-tool").resolve())
+        self.assertEqual(env["CHROMEDRIVER"], resolved)
+        self.assertEqual(env["CHROME_BIN"], resolved)
+
     def test_selected_driver_is_explicit_for_listing_and_execution(self):
         env = {"CHROMEDRIVER": "/selected/driver", "PATH": "/conflict", runner.PAGE_ARTIFACT: "/page.wasm"}
         result = subprocess.CompletedProcess([], 0, stdout="sample::test: test\ntest sample::test ... ok\n", stderr="")

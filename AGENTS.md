@@ -14,8 +14,8 @@
 - **Chrome Unix socket limit:** Linux caps `SingletonSocket` at 108 bytes. Always launch Chrome via `browser_tools.shallow_browser_tmpdir()` / `browser_tools.browser_env()`, never raw sandbox/worktree `$TMPDIR`.
 - **Cargo sandbox & `PATH`:** Lift the sandbox unless `.claude/settings.json` (carried by `.worktreeinclude`) allowlists `readlink -f target`. Non-login shells may omit `~/.cargo/bin` (where `wasm-pack` lives) from `PATH`.
 - **Profiles & concurrency:** Let `.cargo/config.toml` (`jobs = 12`) and repo profiles (`dev`, `wasm-check`, `cad-test`) govern builds. Never pass `CARGO_BUILD_JOBS=2`, `CARGO_INCREMENTAL=0`, or `CARGO_PROFILE_DEV_DEBUG=2`, and never add a `rustc-wrapper` to repo `.cargo/config.toml`.
-- **Single build per target:** Never overlap manual `cargo` or `wasm-pack` runs against the same `target` directory or tight-poll background jobs. `scripts/check.py` owns bounded concurrency, strictly capped by `BOARDSTUDIO_CHECK_JOBS`. Keep `lint` overlapped in `target/lint`: Cargo hashes `build` and `clippy` dependency modes separately, so `clippy` cannot reuse external `.rlib`s from `build`/`test`.
-- **Manifest hygiene:** Leave zero Cargo warnings (`did not match any packages`, ignored workspace-member `resolver`). Never inspect or print `target/dx/.captured-args/*.json`.
+- **Single build per target:** Never overlap manual `cargo` or `wasm-pack` runs against the same `target` directory or tight-poll background jobs. `scripts/check.py` owns bounded concurrency: the `browser` batch and individual parallel pools are capped by `BOARDSTUDIO_CHECK_JOBS`, while overlapped `build`/`lint`/`test` coordinate via a shared GNU Make jobserver FIFO. Keep `lint` overlapped in `target/lint`: Cargo hashes `build` and `clippy` dependency modes separately, so `clippy` cannot reuse external `.rlib`s from `build`/`test`.
+- **Manifest hygiene:** Leave zero Cargo manifest warnings (`did not match any packages`, ignored workspace-member `resolver`). Never inspect or print `target/dx/.captured-args/*.json`.
 
 ## Editing & Verification
 

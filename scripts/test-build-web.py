@@ -202,6 +202,14 @@ class BuildWebTests(unittest.TestCase):
              patch.object(BUILD, "matching_dx", return_value="/t/dx"):
             self.assertEqual(BUILD.page_tools(), (Path("/t/tailwindcss"), Path("/t/wasm-bindgen"), "/t/dx"))
 
+    def test_page_tools_quiet_probe_reports_without_stderr(self):
+        with patch.object(BUILD, "tailwind_cli", return_value=Path("/t/tailwindcss")), \
+             patch.object(BUILD, "locked_wasm_bindgen", return_value=None), \
+             patch.object(BUILD, "matching_dx", return_value="/t/dx"), \
+             patch.object(BUILD.sys, "stderr", io.StringIO()) as stderr:
+            self.assertIsNone(BUILD.page_tools(quiet=True))
+            self.assertEqual(stderr.getvalue(), "")
+
     def test_matching_dx_requires_the_pinned_plain_page_version(self):
         with patch.object(BUILD.shutil, "which", return_value=None):
             self.assertIsNone(BUILD.matching_dx())

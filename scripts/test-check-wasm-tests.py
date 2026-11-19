@@ -133,6 +133,34 @@ class CheckLaunchVirtualDom(unittest.TestCase):
                    "let c = 'x';\n")
         self.assertEqual(self.violations(), [])
 
+    def test_stray_quote_in_comment_does_not_swallow_the_next_line(self):
+        self.write("web/crates/parts/src/stray.rs",
+                   '// stray quote "\n'
+                   'launch_virtual_dom(dom, cfg); let msg = "done";\n')
+        self.assertEqual(self.violations(), [("web/crates/parts/src/stray.rs", 2)])
+
+    def test_lifetimes_are_not_char_literals(self):
+        self.write("web/crates/parts/src/lifetimes.rs",
+                   "fn pair<'a>(first: &'a str) -> &'a str {\n"
+                   "    launch_virtual_dom(dom, cfg);\n"
+                   "    let _ = &'b str;\n"
+                   "}\n")
+        self.assertEqual(self.violations(), [("web/crates/parts/src/lifetimes.rs", 2)])
+
+    def test_nested_block_comment_does_not_flag(self):
+        self.write("web/crates/parts/src/nested.rs",
+                   "/* outer /* inner */ launch_virtual_dom(dom, cfg) */\n"
+                   "fn m() {}\n")
+        self.assertEqual(self.violations(), [])
+
+    def test_raw_strings_do_not_flag(self):
+        for prefix in ("r", "br", "cr"):
+            with self.subTest(prefix=prefix):
+                self.write("web/crates/parts/src/raw.rs",
+                           f'{prefix}#"launch_virtual_dom(dom, cfg)"#;\n'
+                           'let plain = r"launch_virtual_dom";\n')
+                self.assertEqual(self.violations(), [])
+
     def test_examples_and_page_shell_are_not_scanned(self):
         self.write("web/crates/layout/examples/demo.rs",
                    "dioxus_web::launch::launch_virtual_dom(a, b);\n")

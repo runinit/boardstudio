@@ -256,6 +256,114 @@ LAUNCH_ALLOWED = "web/crates/ui-shared/src/test_mount.rs"
 LAUNCH = re.compile(r"\blaunch_virtual_dom\b")
 
 
+def _raw_string_end(source, index):
+    """End offset past the raw string opened at `index`, else None."""
+    cursor = index
+    if source[cursor] in "bc":
+        cursor += 1
+    if cursor >= len(source) or source[cursor] != "r":
+        return None
+    cursor += 1
+    hashes = 0
+    while cursor < len(source) and source[cursor] == "#":
+        hashes += 1
+        cursor += 1
+    if cursor >= len(source) or source[cursor] != '"':
+        return None
+    end = source.find('"' + "#" * hashes, cursor + 1)
+    if end < 0:
+        return len(source)
+    return end + hashes + 1
+
+
+def _char_end(source, index):
+    """End offset past the char literal opened at `index`, else None (a lifetime)."""
+    cursor = index + (2 if source[index] == "b" else 1)
+    if cursor < len(source) and source[cursor] == "\\":
+        cursor += 1
+        if cursor < len(source) and source[cursor] == "x":
+            cursor += 3
+        elif cursor < len(source) and source[cursor] == "u" and source.startswith("{", cursor + 1):
+            end = source.find("}", cursor + 2)
+            cursor = len(source) if end < 0 else end + 1
+        else:
+            cursor += 1
+    else:
+        cursor += 1
+    if "\n" in source[index:cursor] or cursor >= len(source) or source[cursor] != "'":
+        return None
+    return cursor + 1
+
+
+def _blank_rust_code(source):
+    """Blank comments and literals, preserving newlines (one left-to-right pass).
+
+    Covers nested block comments, raw strings with any hash count, and byte/C
+    prefixes. A quote that opens no literal (notably lifetimes like `'static`)
+    is left alone so the code around it still scans.
+    """
+    chars = list(source)
+    size = len(source)
+    index = 0
+
+    def blank(start, end):
+        for offset in range(start, end):
+            if chars[offset] != "\n":
+                chars[offset] = " "
+
+    while index < size:
+        char = source[index]
+        if source.startswith("//", index):
+            end = source.find("\n", index)
+            end = size if end < 0 else end
+            blank(index, end)
+            index = end
+        elif source.startswith("/*", index):
+            depth = 0
+            cursor = index
+            while cursor < size:
+                if source.startswith("/*", cursor):
+                    depth += 1
+                    cursor += 2
+                elif source.startswith("*/", cursor):
+                    depth -= 1
+                    cursor += 2
+                    if not depth:
+                        break
+                else:
+                    cursor += 1
+            blank(index, cursor)
+            index = cursor
+        elif (end := _raw_string_end(source, index)) is not None:
+            blank(index, end)
+            index = end
+        elif char == '"' or (char in "bc" and source.startswith('"', index + 1)):
+            cursor = index + (2 if char in "bc" else 1)
+            while cursor < size:
+                if source[cursor] == "\\":
+                    cursor += 2
+                elif source[cursor] == '"':
+                    cursor += 1
+                    break
+                else:
+                    cursor += 1
+            blank(index, cursor)
+            index = cursor
+        elif char == "'" or (char == "b" and source.startswith("'", index + 1)):
+            end = _char_end(source, index)
+            if end is None:
+                cursor = index + 1
+                while cursor < size and (source[cursor].isalnum() or source[cursor] == "_"):
+                    cursor += 1
+                index = cursor if cursor > index + 1 else index + 1
+            else:
+                blank(index, end)
+                index = end
+        else:
+            index += 1
+    return "".join(chars)
+
+
 def find_launch_violations(root):
     """Repo-relative (path, line) for raw launch_virtual_dom calls in crate src trees.
 
@@ -266,18 +374,12 @@ def find_launch_violations(root):
     """
     root = Path(root).resolve()
     violations = []
-
-    def blank(match):
-        return re.sub(r"[^\n]", " ", match.group(0))
-
     for path in sorted((root / "web/crates").glob("*/src/**/*.rs")):
         relative = path.relative_to(root).as_posix()
         if relative == LAUNCH_ALLOWED:
             continue
-        raw = path.read_text(errors="replace")
-        scrubbed = STRING.sub(blank, raw)
-        scrubbed = CHAR.sub(blank, scrubbed)
-        for lineno, line in enumerate(clean(scrubbed).split("\n"), 1):
+        scrubbed = _blank_rust_code(path.read_text(errors="replace"))
+        for lineno, line in enumerate(scrubbed.split("\n"), 1):
             if LAUNCH.search(line):
                 violations.append((relative, lineno))
     return sorted(set(violations))

@@ -8,11 +8,13 @@ import json
 import os
 import re
 import shlex
+import signal
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import threading
+import time
 import unittest
 from unittest import mock
 
@@ -22,6 +24,7 @@ check = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(check)
 CARGO_TARGET = check.cargo_target
 import tailwind_tools  # noqa: E402  (check.py put the scripts directory on sys.path)
+build_web = importlib.import_module("build-web")
 TAILWIND = Path("/tools/tailwindcss")
 TAILWIND_CSS = [str(TAILWIND), "-i", "tailwind.css", "-o", "assets/tailwind.css"]
 
@@ -41,6 +44,16 @@ class CheckTests(unittest.TestCase):
         tailwind = mock.patch.object(check, "tailwind_cli", return_value=TAILWIND)
         self.tailwind = tailwind.start()
         self.addCleanup(tailwind.stop)
+        # overlap_span probes every plain-page tool through build-web.py; keep those off the machine too.
+        page_tailwind = mock.patch.object(build_web, "tailwind_cli", return_value=TAILWIND)
+        self.page_tailwind = page_tailwind.start()
+        self.addCleanup(page_tailwind.stop)
+        page_bindgen = mock.patch.object(build_web, "locked_wasm_bindgen", return_value=Path("/tools/wasm-bindgen"))
+        self.page_bindgen = page_bindgen.start()
+        self.addCleanup(page_bindgen.stop)
+        page_dx = mock.patch.object(build_web, "matching_dx", return_value="/tools/dx")
+        self.page_dx = page_dx.start()
+        self.addCleanup(page_dx.stop)
 
     def fake_wasm_build(self, command):
         if not check.is_crate_build(command):
@@ -1089,7 +1102,20 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
             with mock.patch.object(check.os, "cpu_count", return_value=7):
                 self.assertIsNone(check.overlap_span(plan, None))
             # Without the standalone CLI, `lint` generates the stylesheet after `build` instead.
-            self.tailwind.return_value = None
+            self.page_tailwind.return_value = None
+            self.assertIsNone(check.overlap_span(plan, None))
+
+    def test_overlap_requires_every_plain_page_tool_not_just_tailwind(self):
+        plan = [(name, check.STEPS[name][1]) for name in check.DEFAULT]
+        with mock.patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "2"}, clear=True), \
+             mock.patch.object(check.os, "cpu_count", return_value=8):
+            self.assertEqual(check.overlap_span(plan, None), (2, 5))
+            # Standalone Tailwind alone still falls back to `dx build`, which would
+            # regenerate the stylesheet WASM Clippy is reading.
+            self.page_bindgen.return_value = None
+            self.assertIsNone(check.overlap_span(plan, None))
+            self.page_bindgen.return_value = Path("/tools/wasm-bindgen")
+            self.page_dx.return_value = None
             self.assertIsNone(check.overlap_span(plan, None))
 
     def test_overlapped_steps_get_one_fifo_and_only_test_gets_the_baseline_flag(self):
@@ -1159,6 +1185,20 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
                     os.environ[check.IN_OVERLAP_ENV] = "1"
                 check.run_parallel([["one"]], {}, workers=1)
             self.assertEqual(sessions, [not inside])
+
+    def test_parallel_children_lead_their_own_group_outside_the_step_group(self):
+        # The CAD capture runner keeps cad-capture inside its group exactly then, so the
+        # scheduler's killpg reaches both; inside the step group it detaches instead.
+        probe = [sys.executable, "-c", "import os; print(os.getpgrp() == os.getpid())"]
+        for inside, expected in ((False, "True"), (True, "False")):
+            with self.subTest(inside=inside), mock.patch.dict(os.environ), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                os.environ.pop(check.IN_OVERLAP_ENV, None)
+                if inside:
+                    os.environ[check.IN_OVERLAP_ENV] = "1"
+                outputs = []
+                check.run_parallel([probe], {}, outputs=outputs, workers=1)
+            self.assertEqual([text.strip() for _, text in outputs], [expected])
 
     def test_build_is_fast_and_release_is_opt_in(self):
         self.assertIn("--fast", check.STEPS["build"][1][0])
@@ -1638,6 +1678,71 @@ driver status: signal: 9 (SIGKILL)
                 contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(error):
             self.assertEqual(check.main(["browser", "--only", "library"]), 1)
         self.assertIn("first failure [raw WASM trap]", error.getvalue())
+
+
+class CadCaptureControlsCleanupTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location(
+            "cad_capture_controls", ROOT / "cad/scripts/test-cad-capture-controls.py")
+        cls.controls = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.controls)
+
+    def test_sigterm_handler_exits_143(self):
+        with self.assertRaises(SystemExit) as exited:
+            self.controls._sigterm_exit(signal.SIGTERM, None)
+        self.assertEqual(exited.exception.code, 143)
+
+    def test_descendant_pids_finds_children_recursively(self):
+        parent = subprocess.Popen(
+            [sys.executable, "-c", "import subprocess, time; subprocess.Popen(['sleep', '120']); time.sleep(120)"])
+        grandchildren = set()
+        try:
+            for _ in range(200):
+                grandchildren = self.controls._descendant_pids(parent.pid)
+                if grandchildren:
+                    break
+                time.sleep(0.05)
+            self.assertEqual(len(grandchildren), 1)
+            mine = self.controls._descendant_pids(os.getpid())
+            self.assertIn(parent.pid, mine)
+            self.assertTrue(grandchildren <= mine)
+        finally:
+            for pid in {parent.pid, *grandchildren}:
+                try:
+                    os.kill(pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+            parent.wait()
+
+    def test_reap_capture_kills_a_shared_group_member_without_killpg(self):
+        # Under the scheduler the capture shares this runner's group; a killpg here
+        # would kill this test itself, so only the capture's tree may die.
+        parent = subprocess.Popen(
+            [sys.executable, "-c", "import subprocess, time; subprocess.Popen(['sleep', '120']); time.sleep(120)"])
+        grandchildren = set()
+        for _ in range(200):
+            grandchildren = self.controls._descendant_pids(parent.pid)
+            if grandchildren:
+                break
+            time.sleep(0.05)
+        self.assertEqual(len(grandchildren), 1)
+        self.controls._reap_capture(parent, detached=False)
+        self.assertEqual(parent.returncode, -signal.SIGKILL)
+        for pid in grandchildren:
+            for _ in range(200):
+                try:
+                    os.kill(pid, 0)
+                except ProcessLookupError:
+                    break
+                time.sleep(0.01)
+            else:
+                self.fail(f"capture descendant {pid} survived the reap")
+
+    def test_reap_capture_killpgs_a_detached_group(self):
+        parent = subprocess.Popen(["sleep", "120"], start_new_session=True)
+        self.controls._reap_capture(parent, detached=True)
+        self.assertEqual(parent.returncode, -signal.SIGKILL)
 
 
 if __name__ == "__main__":

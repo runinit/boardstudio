@@ -266,13 +266,18 @@ def matching_dx() -> str | None:
     return None
 
 
-def page_tools() -> tuple[Path, Path, str] | None:
-    """Tools for the plain-Cargo checked page, or None to fall back to `dx build`."""
+def page_tools(quiet: bool = False) -> tuple[Path, Path, str] | None:
+    """Tools for the plain-Cargo checked page, or None to fall back to `dx build`.
+
+    `quiet` skips the fallback notice; check.py probes this to decide whether the
+    overlapped steps may share one up-front stylesheet.
+    """
     tools = {"standalone tailwindcss": tailwind_cli(), "locked wasm-bindgen": locked_wasm_bindgen(),
              f"dx {PLAIN_PAGE_DX_VERSION}": matching_dx()}
     if missing := [name for name, path in tools.items() if not path]:
-        print(f"build-web: {', '.join(missing)} unavailable; building the checked page with dx",
-              file=sys.stderr, flush=True)
+        if not quiet:
+            print(f"build-web: {', '.join(missing)} unavailable; building the checked page with dx",
+                  file=sys.stderr, flush=True)
         return None
     tailwind, bindgen, dx = tools.values()
     return tailwind, bindgen, dx

@@ -39,6 +39,20 @@ struct Probe {
     navigated: Rc<RefCell<Vec<TreeContext>>>,
 }
 
+/// Removes the test host's document `keydown` listener when the fixture unmounts.
+struct DocumentKeydownGuard {
+    document: web_sys::Document,
+    callback: wasm_bindgen::closure::Closure<dyn FnMut(web_sys::KeyboardEvent)>,
+}
+
+impl Drop for DocumentKeydownGuard {
+    fn drop(&mut self) {
+        let _ = self
+            .document
+            .remove_event_listener_with_callback("keydown", self.callback.as_ref().unchecked_ref());
+    }
+}
+
 #[component]
 fn matrix_transform_host() -> Element {
     let probe = use_context::<Probe>();
@@ -71,14 +85,14 @@ fn matrix_transform_host() -> Element {
     let mut armed = use_signal(|| false);
     let mut esc_armed = armed;
     let esc_probe = probe.clone();
-    use_hook(move || {
-        let Some(document) = web_sys::window().and_then(|window| window.document()) else {
-            return;
-        };
+    // `use_hook` clones its state every render, so share the guard: the stored
+    // clone keeps the listener until unmount drops it.
+    let _keydown_guard: Option<Rc<DocumentKeydownGuard>> = use_hook(move || {
+        let document = web_sys::window().and_then(|window| window.document())?;
         let callback =
             wasm_bindgen::closure::Closure::wrap(Box::new(move |event: web_sys::KeyboardEvent| {
-                // The document listener outlives the fixture (forgotten on
-                // purpose); ignore keys once the VDOM dropped its signals.
+                // The guard removes this listener on unmount; ignore keys
+                // once the VDOM dropped its signals.
                 if event.key() != "Escape" {
                     return;
                 }
@@ -100,7 +114,7 @@ fn matrix_transform_host() -> Element {
                 as Box<dyn FnMut(web_sys::KeyboardEvent)>);
         let _ =
             document.add_event_listener_with_callback("keydown", callback.as_ref().unchecked_ref());
-        std::mem::forget(callback);
+        Some(Rc::new(DocumentKeydownGuard { document, callback }))
     });
     let mut canvas_tool = use_signal(|| Some(super::super::LayoutTransformTool::Stagger));
     let matrix_id = "matrix".to_owned();

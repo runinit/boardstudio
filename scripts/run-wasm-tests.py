@@ -274,7 +274,9 @@ def runner_environment(root=ROOT, *, browser_only=False):
         raise RunnerError("Chrome selection is missing or not executable")
     chrome = str(Path(chrome).resolve())
     env["CHROMEDRIVER"] = driver
-    env[CHROME_BIN_ENV] = chrome
+    # ChromeDriver and Chrome inherit TMPDIR for Unix sockets; a deep caller TMPDIR
+    # exceeds their path limits, so normalize it before any launch.
+    env = browser_tools.browser_env(env, chrome=chrome)
     if browser_only:
         return env
     if wasm_bindgen_tools.DIRECTORY_ENV in env:
