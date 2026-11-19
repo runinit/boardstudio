@@ -78,177 +78,219 @@ fn triple(value: &Value) -> [f64; 3] {
     ]
 }
 
-#[test]
-fn pinned_vik_step_meshes_preserve_source_bounds_and_hashes() {
-    let ledger = json("catalogue/modules/asset-ledger.json");
-    let catalogue = json("catalogue/modules/imported-modules.json");
-    let tight = json("cad/test/fixtures/vik-model-tight-bounds.json");
-    let step_assets: Vec<_> = ledger["models"]
+fn check_vik_step_mesh(asset: &Value, tight: &Value, catalogue: &Value) {
+    let file = asset["bundledFile"].as_str().unwrap();
+    let input = fs::read(root().join(file)).unwrap();
+    let model = read_step_model_data(input.clone())
+        .unwrap_or_else(|e| panic!("{file}: {e}"));
+    assert!(
+        model.mesh.positions.len() >= 9,
+        "{file}: nonempty triangle mesh"
+    );
+    assert_eq!(
+        model.mesh.positions.len(),
+        model.mesh.normals.len(),
+        "{file}: positions/normals align"
+    );
+    assert!(
+        model.mesh.normals.iter().all(|n| n.is_finite()),
+        "{file}: finite normals"
+    );
+    let (mesh_min, mesh_max) = positions_bounds(&model.mesh.positions);
+    assert_contains(model.min, model.max, mesh_min, mesh_max, 0.03, file);
+    let b = &asset["nativeBoundsMm"];
+    let source_min = [
+        b["XMin"].as_f64().unwrap(),
+        b["YMin"].as_f64().unwrap(),
+        b["ZMin"].as_f64().unwrap(),
+    ];
+    let source_max = [
+        b["XMax"].as_f64().unwrap(),
+        b["YMax"].as_f64().unwrap(),
+        b["ZMax"].as_f64().unwrap(),
+    ];
+    assert_contains(source_min, source_max, mesh_min, mesh_max, 0.03, file);
+    let measurement = tight["models"]
         .as_array()
         .unwrap()
         .iter()
-        .filter(|m| {
-            let p = m["path"].as_str().unwrap_or("").to_ascii_lowercase();
-            p.ends_with(".step") || p.ends_with(".stp")
-        })
-        .collect();
-    std::thread::scope(|scope| {
-        let handles: Vec<_> = step_assets
-            .into_iter()
-            .map(|asset| {
-                let tight = &tight;
-                let catalogue = &catalogue;
-                scope.spawn(move || {
-                    let file = asset["bundledFile"].as_str().unwrap();
-                    let input = fs::read(root().join(file)).unwrap();
-                    let model = read_step_model_data(input.clone())
-                        .unwrap_or_else(|e| panic!("{file}: {e}"));
-                    assert!(
-                        model.mesh.positions.len() >= 9,
-                        "{file}: nonempty triangle mesh"
-                    );
-                    assert_eq!(
-                        model.mesh.positions.len(),
-                        model.mesh.normals.len(),
-                        "{file}: positions/normals align"
-                    );
-                    assert!(
-                        model.mesh.normals.iter().all(|n| n.is_finite()),
-                        "{file}: finite normals"
-                    );
-                    let (mesh_min, mesh_max) = positions_bounds(&model.mesh.positions);
-                    assert_contains(model.min, model.max, mesh_min, mesh_max, 0.03, file);
-                    let b = &asset["nativeBoundsMm"];
-                    let source_min = [
-                        b["XMin"].as_f64().unwrap(),
-                        b["YMin"].as_f64().unwrap(),
-                        b["ZMin"].as_f64().unwrap(),
-                    ];
-                    let source_max = [
-                        b["XMax"].as_f64().unwrap(),
-                        b["YMax"].as_f64().unwrap(),
-                        b["ZMax"].as_f64().unwrap(),
-                    ];
-                    assert_contains(source_min, source_max, mesh_min, mesh_max, 0.03, file);
-                    let measurement = tight["models"]
-                        .as_array()
-                        .unwrap()
-                        .iter()
-                        .find(|m| m["assetId"] == asset["assetId"])
-                        .unwrap_or_else(|| {
-                            panic!("no independent tight bound for {}", asset["assetId"])
-                        });
-                    assert_eq!(
-                        sha256(&input),
-                        measurement["sha256"].as_str().unwrap(),
-                        "{file}: pinned source hash"
-                    );
-                    let tight_min = triple(&measurement["min"]);
-                    let tight_max = triple(&measurement["max"]);
-                    for axis in 0..3 {
-                        assert!(
-                            (mesh_min[axis] - tight_min[axis]).abs() <= 0.10001,
-                            "{file} tight min axis {axis}: {} vs {}",
-                            mesh_min[axis],
-                            tight_min[axis]
-                        );
-                        assert!(
-                            (mesh_max[axis] - tight_max[axis]).abs() <= 0.10001,
-                            "{file} tight max axis {axis}: {} vs {}",
-                            mesh_max[axis],
-                            tight_max[axis]
-                        );
-                    }
-                    // The VIK display adapter is the one asset whose board placement and
-                    // asymmetric H1/H2 rims the display transform must match; reuse this single
-                    // parse instead of importing the STEP a second time.
-                    if asset["path"] == "pcb/1.47inch/1.47inch.step" {
-                        let definition = catalogue["modules"]
-                            .as_array()
-                            .unwrap()
-                            .iter()
-                            .find(|e| {
-                                e["row"] == "vik-display-adapter"
-                                    && e["definition"]["variant"] == "pcb/1.47inch/pcb"
-                            })
-                            .unwrap()["definition"]
-                            .clone();
-                        let transform = &asset["boardToModelTransform"];
-                        assert_eq!(
-                            transform["rotation"],
-                            serde_json::json!({"x":0,"y":0,"z":0})
-                        );
-                        assert_eq!(transform["scale"], serde_json::json!({"x":1,"y":1,"z":1}));
-                        assert!(transform["evidence"]["asymmetricFeatures"]
-                            .as_str()
-                            .unwrap()
-                            .contains("H1/H2"));
-                        let offset = [
-                            transform["offset"]["x"].as_f64().unwrap(),
-                            transform["offset"]["y"].as_f64().unwrap(),
-                            transform["offset"]["z"].as_f64().unwrap(),
-                        ];
-                        let board_points = definition["board"]["contours"]
-                            .as_array()
-                            .unwrap()
-                            .iter()
-                            .flat_map(|c| c["points"].as_array().unwrap())
-                            .collect::<Vec<_>>();
-                        let board_min_x = board_points
-                            .iter()
-                            .map(|p| p["x"].as_f64().unwrap())
-                            .fold(f64::INFINITY, f64::min);
-                        let board_max_x = board_points
-                            .iter()
-                            .map(|p| p["x"].as_f64().unwrap())
-                            .fold(f64::NEG_INFINITY, f64::max);
-                        let board_min_y = board_points
-                            .iter()
-                            .map(|p| p["y"].as_f64().unwrap())
-                            .fold(f64::INFINITY, f64::min);
-                        let board_max_y = board_points
-                            .iter()
-                            .map(|p| p["y"].as_f64().unwrap())
-                            .fold(f64::NEG_INFINITY, f64::max);
-                        let source = &asset["boardNativeBoundsMm"];
-                        assert_eq!(source["XMin"].as_f64().unwrap() + offset[0], board_min_x);
-                        assert_eq!(source["XMax"].as_f64().unwrap() + offset[0], board_max_x);
-                        assert_eq!(source["YMin"].as_f64().unwrap() + offset[1], board_min_y);
-                        assert_eq!(source["YMax"].as_f64().unwrap() + offset[1], board_max_y);
-                        assert_eq!(source["ZMin"].as_f64().unwrap() + offset[2], -0.8);
-                        assert_eq!(source["ZMax"].as_f64().unwrap() + offset[2], 0.8);
-                        for mount in definition["mounts"].as_array().unwrap() {
-                            let mx = mount["at"]["x"].as_f64().unwrap();
-                            let my = mount["at"]["y"].as_f64().unwrap();
-                            let radius = mount["diameter"].as_f64().unwrap() / 2.0;
-                            let count = model
-                                .mesh
-                                .positions
-                                .as_chunks::<3>()
-                                .0
-                                .iter()
-                                .filter(|p| {
-                                    let x = f64::from(p[0]) + offset[0];
-                                    let y = f64::from(p[1]) + offset[1];
-                                    let z = f64::from(p[2]) + offset[2];
-                                    ((x - mx).hypot(y - my) - radius).abs() < 0.035
-                                        && (z.abs() - 0.8).abs() < 0.035
-                                })
-                                .count();
-                            assert!(
-                                count > 20,
-                                "{} source mount maps onto STEP rim ({count} vertices)",
-                                mount["sourceId"]
-                            );
-                        }
-                    }
-                })
+        .find(|m| m["assetId"] == asset["assetId"])
+        .unwrap_or_else(|| {
+            panic!("no independent tight bound for {}", asset["assetId"])
+        });
+    assert_eq!(
+        sha256(&input),
+        measurement["sha256"].as_str().unwrap(),
+        "{file}: pinned source hash"
+    );
+    let tight_min = triple(&measurement["min"]);
+    let tight_max = triple(&measurement["max"]);
+    for axis in 0..3 {
+        assert!(
+            (mesh_min[axis] - tight_min[axis]).abs() <= 0.10001,
+            "{file} tight min axis {axis}: {} vs {}",
+            mesh_min[axis],
+            tight_min[axis]
+        );
+        assert!(
+            (mesh_max[axis] - tight_max[axis]).abs() <= 0.10001,
+            "{file} tight max axis {axis}: {} vs {}",
+            mesh_max[axis],
+            tight_max[axis]
+        );
+    }
+    // The VIK display adapter is the one asset whose board placement and
+    // asymmetric H1/H2 rims the display transform must match; reuse this single
+    // parse instead of importing the STEP a second time.
+    if asset["path"] == "pcb/1.47inch/1.47inch.step" {
+        let definition = catalogue["modules"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|e| {
+                e["row"] == "vik-display-adapter"
+                    && e["definition"]["variant"] == "pcb/1.47inch/pcb"
             })
-            .collect();
-        for handle in handles {
-            handle.join().unwrap();
+            .unwrap()["definition"]
+            .clone();
+        let transform = &asset["boardToModelTransform"];
+        assert_eq!(
+            transform["rotation"],
+            serde_json::json!({"x":0,"y":0,"z":0})
+        );
+        assert_eq!(transform["scale"], serde_json::json!({"x":1,"y":1,"z":1}));
+        assert!(transform["evidence"]["asymmetricFeatures"]
+            .as_str()
+            .unwrap()
+            .contains("H1/H2"));
+        let offset = [
+            transform["offset"]["x"].as_f64().unwrap(),
+            transform["offset"]["y"].as_f64().unwrap(),
+            transform["offset"]["z"].as_f64().unwrap(),
+        ];
+        let board_points = definition["board"]["contours"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .flat_map(|c| c["points"].as_array().unwrap())
+            .collect::<Vec<_>>();
+        let board_min_x = board_points
+            .iter()
+            .map(|p| p["x"].as_f64().unwrap())
+            .fold(f64::INFINITY, f64::min);
+        let board_max_x = board_points
+            .iter()
+            .map(|p| p["x"].as_f64().unwrap())
+            .fold(f64::NEG_INFINITY, f64::max);
+        let board_min_y = board_points
+            .iter()
+            .map(|p| p["y"].as_f64().unwrap())
+            .fold(f64::INFINITY, f64::min);
+        let board_max_y = board_points
+            .iter()
+            .map(|p| p["y"].as_f64().unwrap())
+            .fold(f64::NEG_INFINITY, f64::max);
+        let source = &asset["boardNativeBoundsMm"];
+        assert_eq!(source["XMin"].as_f64().unwrap() + offset[0], board_min_x);
+        assert_eq!(source["XMax"].as_f64().unwrap() + offset[0], board_max_x);
+        assert_eq!(source["YMin"].as_f64().unwrap() + offset[1], board_min_y);
+        assert_eq!(source["YMax"].as_f64().unwrap() + offset[1], board_max_y);
+        assert_eq!(source["ZMin"].as_f64().unwrap() + offset[2], -0.8);
+        assert_eq!(source["ZMax"].as_f64().unwrap() + offset[2], 0.8);
+        for mount in definition["mounts"].as_array().unwrap() {
+            let mx = mount["at"]["x"].as_f64().unwrap();
+            let my = mount["at"]["y"].as_f64().unwrap();
+            let radius = mount["diameter"].as_f64().unwrap() / 2.0;
+            let count = model
+                .mesh
+                .positions
+                .as_chunks::<3>()
+                .0
+                .iter()
+                .filter(|p| {
+                    let x = f64::from(p[0]) + offset[0];
+                    let y = f64::from(p[1]) + offset[1];
+                    let z = f64::from(p[2]) + offset[2];
+                    ((x - mx).hypot(y - my) - radius).abs() < 0.035
+                        && (z.abs() - 0.8).abs() < 0.035
+                })
+                .count();
+            assert!(
+                count > 20,
+                "{} source mount maps onto STEP rim ({count} vertices)",
+                mount["sourceId"]
+            );
         }
-    });
+    }
+}
+
+fn vik_step_assets(ledger: &Value) -> impl Iterator<Item = &Value> {
+    ledger["models"].as_array().unwrap().iter().filter(|asset| {
+        let path = asset["path"].as_str().unwrap_or("").to_ascii_lowercase();
+        path.ends_with(".step") || path.ends_with(".stp")
+    })
+}
+
+macro_rules! vik_step_meshes {
+    ($($test:ident: $path:literal),+ $(,)?) => {
+        $(
+            #[test]
+            fn $test() {
+                let ledger = json("catalogue/modules/asset-ledger.json");
+                let mut matches = vik_step_assets(&ledger).filter(|asset| asset["path"] == $path);
+                let asset = matches.next().expect(concat!("missing STEP asset: ", $path));
+                assert!(matches.next().is_none(), concat!("duplicate STEP asset: ", $path));
+                check_vik_step_mesh(
+                    asset,
+                    &json("cad/test/fixtures/vik-model-tight-bounds.json"),
+                    &json("catalogue/modules/imported-modules.json"),
+                );
+            }
+        )+
+
+        #[test]
+        fn unlisted_vik_step_meshes_preserve_source_bounds_and_hashes() {
+            let listed = [$($path),+];
+            let ledger = json("catalogue/modules/asset-ledger.json");
+            let tight = json("cad/test/fixtures/vik-model-tight-bounds.json");
+            let catalogue = json("catalogue/modules/imported-modules.json");
+            for asset in vik_step_assets(&ledger) {
+                if !listed.contains(&asset["path"].as_str().unwrap()) {
+                    check_vik_step_mesh(asset, &tight, &catalogue);
+                }
+            }
+        }
+    };
+}
+
+vik_step_meshes! {
+    vik_step_pers60_cirque_leds_pcb: "pcb/per56-cirque-leds/pers60-cirque-leds-pcb.step",
+    vik_step_kiwano: "Showcase/Kiwano.step",
+    vik_step_trackpad_mount: "3DP/Trackpad Mount.step",
+    vik_step_trackball_mount_semi: "3DP/Trackball Mount Semi.step",
+    vik_step_trackball_mount_low_profile: "3DP/Trackball Mount Low Profile.step",
+    vik_step_trackball_mount_full: "3DP/Trackball Mount Full.step",
+    vik_step_knob_ribbed: "3DP/Knob Ribbed.step",
+    vik_step_knob_low_profile: "3DP/Knob Low Profile.step",
+    vik_step_knob_full: "3DP/Knob Full.step",
+    vik_step_knob_base: "3DP/Knob Base.step",
+    vik_step_crenshaw: "Showcase/Crenshaw.step",
+    vik_step_fh12_30s_0_5sh: "PCB/Crenshaw.pretty/3d/FH12-30S-0.5SH.step",
+    vik_step_fh12_12s_0_5sh: "PCB/Crenshaw.pretty/3d/FH12-12S-0.5SH.step",
+    vik_step_vik_playground: "pcb/vik-playground/vik-playground.step",
+    vik_step_2inch_0_8mm: "pcb/2inch-0.8mm/2inch-0.8mm.step",
+    vik_step_lcd_lcd_ips: "pcb/1.47inch/LCD_lcd_ips.stp",
+    vik_step_1_47inch: "pcb/1.47inch/1.47inch.step",
+    vik_step_gc9a01: "pcb/1.28inch-round/GC9A01.STEP",
+    vik_step_1_28inch_round: "pcb/1.28inch-round/1.28inch-round.step",
+    vik_step_matrix_inator_rev2: "matrix-inator-rev2.step",
+    vik_step_peacock_low_case_v5: "case/peacock-low-case-v5.step",
+    vik_step_peacock_low_case_v5_5deg_tilt: "case/peacock-low-case-v5-5deg-tilt.step",
+    vik_step_vik_connector_horizontal: "kicad/3dmodels/vik-connector-horizontal.stp",
+    vik_step_vik_connector_horizontal_mini: "kicad/3dmodels/vik-connector-horizontal-mini.step",
+    vik_step_ili9341_4inch_housing: "3d-models/display-housings/ili9341/ili9341-4inch-housing.step",
+    vik_step_ili9341_4inch_cover: "3d-models/display-housings/ili9341/ili9341-4inch-cover.step",
+    vik_step_vikropad_choc_glp_xivik: "keyboards/vikropad/cases/choc-glp/vikropad-choc-glp-xivik.step",
 }
 
 #[test]

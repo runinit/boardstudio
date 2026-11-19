@@ -1049,7 +1049,7 @@ fn check_catalogue(run: &mut Run) {
     }
 }
 
-fn run_generator(registry: &'static Registry, fixture: &Value) -> (usize, Vec<String>) {
+fn run_generator(registry: &'static Registry, fixture: &Value) -> Vec<String> {
     let source = fixture["source"].as_str().unwrap().to_owned();
     let mut run = Run {
         registry,
@@ -1063,40 +1063,84 @@ fn run_generator(registry: &'static Registry, fixture: &Value) -> (usize, Vec<St
     for case in cases {
         check_case(&mut run, case);
     }
-    (cases.len(), run.failures)
+    run.failures
 }
 
-#[test]
-fn bundled_generators_match_the_golden_baseline() {
-    let registry = bundled();
-    let mut checked = 0;
-    let mut cases = 0;
-    let mut failures = Vec::new();
-    let mut pending = Vec::new();
-    for fixture in generator_fixtures() {
-        let source = fixture["source"].as_str().unwrap();
-        if !registry.contains(source) {
-            pending.push(source.to_owned());
-            continue;
-        }
-        let (count, mut found) = run_generator(registry, &fixture);
-        checked += 1;
-        cases += count;
-        failures.append(&mut found);
-    }
-    println!(
-        "{checked} generators, {cases} cases checked; {} not ported yet: {pending:?}",
-        pending.len()
-    );
+fn assert_generator_matches_golden(registry: &'static Registry, fixture: &Value) {
+    let failures = run_generator(registry, fixture);
     if !failures.is_empty() {
-        let shown: Vec<String> = failures.iter().take(12).cloned().collect();
+        let shown: Vec<_> = failures.iter().take(12).cloned().collect();
         panic!(
-            "{} mismatches (showing {}):\n{}",
+            "{}: {} mismatches (showing {}):\n{}",
+            fixture["source"],
             failures.len(),
             shown.len(),
             shown.join("\n")
         );
     }
+}
+
+macro_rules! generator_goldens {
+    ($($test:ident: $file:literal),+ $(,)?) => {
+        $(
+            #[test]
+            fn $test() {
+                let fixture = common::read_json(concat!("generators/", $file));
+                assert_generator_matches_golden(bundled(), &fixture);
+            }
+        )+
+
+        #[test]
+        fn unlisted_bundled_generators_match_the_golden_baseline() {
+            let listed = [$(common::read_json(concat!("generators/", $file))),+];
+            let registry = bundled();
+            for fixture in generator_fixtures() {
+                let source = fixture["source"].as_str().unwrap();
+                if registry.contains(source) && !listed.contains(&fixture) {
+                    assert_generator_matches_golden(registry, &fixture);
+                }
+            }
+        }
+    };
+}
+
+generator_goldens! {
+    golden_ceoloide_battery_connector_jst_ph_2: "ceoloide__battery_connector_jst_ph_2.json",
+    golden_ceoloide_battery_connector_molex_pico_ezmate_1x02: "ceoloide__battery_connector_molex_pico_ezmate_1x02.json",
+    golden_ceoloide_diode_tht_sod123: "ceoloide__diode_tht_sod123.json",
+    golden_ceoloide_display_nice_view: "ceoloide__display_nice_view.json",
+    golden_ceoloide_display_ssd1306: "ceoloide__display_ssd1306.json",
+    golden_ceoloide_led_sk6812mini_e: "ceoloide__led_sk6812mini-e.json",
+    golden_ceoloide_mcu_nice_nano: "ceoloide__mcu_nice_nano.json",
+    golden_ceoloide_mcu_supermini_nrf52840: "ceoloide__mcu_supermini_nrf52840.json",
+    golden_ceoloide_mounting_hole_npth: "ceoloide__mounting_hole_npth.json",
+    golden_ceoloide_mounting_hole_plated: "ceoloide__mounting_hole_plated.json",
+    golden_ceoloide_power_switch_smd_side: "ceoloide__power_switch_smd_side.json",
+    golden_ceoloide_reset_switch_smd_side: "ceoloide__reset_switch_smd_side.json",
+    golden_ceoloide_reset_switch_tht_top: "ceoloide__reset_switch_tht_top.json",
+    golden_ceoloide_rotary_encoder_ec11_ec12: "ceoloide__rotary_encoder_ec11_ec12.json",
+    golden_ceoloide_switch_choc_v1_v2: "ceoloide__switch_choc_v1_v2.json",
+    golden_ceoloide_switch_gateron_ks27_ks33: "ceoloide__switch_gateron_ks27_ks33.json",
+    golden_ceoloide_switch_mx: "ceoloide__switch_mx.json",
+    golden_ceoloide_trrs_pj320a: "ceoloide__trrs_pj320a.json",
+    golden_ceoloide_utility_filled_zone: "ceoloide__utility_filled_zone.json",
+    golden_ceoloide_utility_keepout_zone: "ceoloide__utility_keepout_zone.json",
+    golden_ceoloide_utility_logo: "ceoloide__utility_logo.json",
+    golden_ceoloide_utility_point_debugger: "ceoloide__utility_point_debugger.json",
+    golden_ceoloide_utility_router: "ceoloide__utility_router.json",
+    golden_ceoloide_utility_text: "ceoloide__utility_text.json",
+    golden_infused_kim_conn_molex_pico_ezmate_1x02: "infused-kim__conn_molex_pico_ezmate_1x02.json",
+    golden_infused_kim_conn_molex_pico_ezmate_1x05: "infused-kim__conn_molex_pico_ezmate_1x05.json",
+    golden_infused_kim_icon_bat: "infused-kim__icon_bat.json",
+    golden_infused_kim_mounting_hole: "infused-kim__mounting_hole.json",
+    golden_infused_kim_nice_view: "infused-kim__nice_view.json",
+    golden_infused_kim_pads: "infused-kim__pads.json",
+    golden_infused_kim_point_debugger: "infused-kim__point_debugger.json",
+    golden_infused_kim_smd_0805: "infused-kim__smd_0805.json",
+    golden_infused_kim_switch_power: "infused-kim__switch_power.json",
+    golden_infused_kim_switch_reset: "infused-kim__switch_reset.json",
+    golden_infused_kim_text: "infused-kim__text.json",
+    golden_infused_kim_trackpoint_mount: "infused-kim__trackpoint_mount.json",
 }
 
 #[test]

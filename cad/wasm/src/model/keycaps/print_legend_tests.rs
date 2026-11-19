@@ -163,72 +163,58 @@ fn dcs_row_three_legend_print_keeps_roof_cavity_and_relief() {
 /// Text the product produces from bindings that the display legend's triangulated caps could not
 /// close (`T`, `1`, `4`, labels with straight strokes), or that printed disconnected (backtick and
 /// arrows). Each must now print as one closed body that gains legend material on both roofs.
-#[test]
-fn ordinary_legend_text_prints_as_one_closed_body() {
-    let legends = [
-        "A",
-        "O",
-        "T",
-        "1",
-        "4",
-        "Q",
-        "Enter",
-        "Backspace",
-        "Shift",
-        "F12",
-        "\u{2190}",
-        "\u{2192}",
-        "`",
-    ];
-    // Collect every refusal so one run names each failing legend and its reason. The cap bodies
-    // are independent, so every (roof, legend) pair prints on its own thread.
-    let roofs = [DCS_ROW_3, SA_ROW_5];
-    let bare = roofs.map(|roof| {
-        assert_closed_positive_body(&print_body(&cap(roof, "mx", "")).unwrap(), "bare")
-    });
-    let work: Vec<_> = roofs
-        .iter()
-        .enumerate()
-        .flat_map(|(roof_index, roof)| {
-            legends
-                .iter()
-                .map(move |legend| (roof_index, *roof, *legend))
-        })
-        .collect();
-    let mut refused: Vec<(usize, String)> = std::thread::scope(|scope| {
-        let handles: Vec<_> = work
-            .iter()
-            .enumerate()
-            .map(|(index, (roof_index, roof, legend))| {
-                scope.spawn(move || {
-                    let label = format!("{} '{legend}'", roof.0);
-                    match print_body(&cap(*roof, "mx", legend))
-                        .and_then(|mesh| closed_positive_volume(&mesh))
-                    {
-                        Err(error) => Some((index, format!("{label}: {error}"))),
-                        Ok(volume) if volume <= bare[*roof_index] + 0.005 => {
-                            Some((index, format!("{label}: legend material missing")))
-                        }
-                        Ok(_) => None,
-                    }
-                })
-            })
-            .collect();
-        handles
-            .into_iter()
-            .filter_map(|handle| handle.join().unwrap())
-            .collect()
-    });
-    refused.sort_by_key(|(index, _)| *index);
-    assert!(
-        refused.is_empty(),
-        "legends refused to print:\n{}",
-        refused
-            .into_iter()
-            .map(|(_, message)| message)
-            .collect::<Vec<_>>()
-            .join("\n")
-    );
+fn check_ordinary_legend(roof: (&str, f64, f64, f64, bool), bare: f64, legend: &str) {
+    let label = format!("{} '{legend}'", roof.0);
+    let volume = print_body(&cap(roof, "mx", legend))
+        .and_then(|mesh| closed_positive_volume(&mesh))
+        .unwrap_or_else(|error| panic!("{label}: {error}"));
+    assert!(volume > bare + 0.005, "{label}: legend material missing");
+}
+
+macro_rules! ordinary_legends {
+    ($($test:ident: $roof:ident, $bare:ident, $legend:literal),+ $(,)?) => {
+        $(
+            #[test]
+            fn $test() {
+                let bare = *$bare.get_or_init(|| {
+                    assert_closed_positive_body(&print_body(&cap($roof, "mx", "")).unwrap(), "bare")
+                });
+                check_ordinary_legend($roof, bare, $legend);
+            }
+        )+
+    };
+}
+
+static DCS_BARE: std::sync::OnceLock<f64> = std::sync::OnceLock::new();
+static SA_BARE: std::sync::OnceLock<f64> = std::sync::OnceLock::new();
+
+ordinary_legends! {
+    dcs_legend_a: DCS_ROW_3, DCS_BARE, "A",
+    dcs_legend_o: DCS_ROW_3, DCS_BARE, "O",
+    dcs_legend_t: DCS_ROW_3, DCS_BARE, "T",
+    dcs_legend_digit_1: DCS_ROW_3, DCS_BARE, "1",
+    dcs_legend_digit_4: DCS_ROW_3, DCS_BARE, "4",
+    dcs_legend_q: DCS_ROW_3, DCS_BARE, "Q",
+    dcs_legend_enter: DCS_ROW_3, DCS_BARE, "Enter",
+    dcs_legend_backspace: DCS_ROW_3, DCS_BARE, "Backspace",
+    dcs_legend_shift: DCS_ROW_3, DCS_BARE, "Shift",
+    dcs_legend_f12: DCS_ROW_3, DCS_BARE, "F12",
+    dcs_legend_left_arrow: DCS_ROW_3, DCS_BARE, "←",
+    dcs_legend_right_arrow: DCS_ROW_3, DCS_BARE, "→",
+    dcs_legend_backtick: DCS_ROW_3, DCS_BARE, "`",
+    sa_legend_a: SA_ROW_5, SA_BARE, "A",
+    sa_legend_o: SA_ROW_5, SA_BARE, "O",
+    sa_legend_t: SA_ROW_5, SA_BARE, "T",
+    sa_legend_digit_1: SA_ROW_5, SA_BARE, "1",
+    sa_legend_digit_4: SA_ROW_5, SA_BARE, "4",
+    sa_legend_q: SA_ROW_5, SA_BARE, "Q",
+    sa_legend_enter: SA_ROW_5, SA_BARE, "Enter",
+    sa_legend_backspace: SA_ROW_5, SA_BARE, "Backspace",
+    sa_legend_shift: SA_ROW_5, SA_BARE, "Shift",
+    sa_legend_f12: SA_ROW_5, SA_BARE, "F12",
+    sa_legend_left_arrow: SA_ROW_5, SA_BARE, "←",
+    sa_legend_right_arrow: SA_ROW_5, SA_BARE, "→",
+    sa_legend_backtick: SA_ROW_5, SA_BARE, "`",
 }
 
 /// A long stroke spans most of the dish. Its relief must follow the roof (about 0.03 mm above the

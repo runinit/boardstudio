@@ -303,3 +303,13 @@ package and feature rows after removing Cargo's repetition markers and blank
 lines. The page package is the only extra row. Runtime and Case already had
 `test-support` in both invocations. Host's added feature exposes the raw
 IndexedDB fixture writer and its private helper.
+
+### I2. Run independent native fixture cases through libtest
+
+Split the STEP, keycap legend and footprint golden checks by asset, roof and
+legend, and generator fixture respectively. The two CAD tests already spawned
+threads internally. Libtest now schedules those cases alongside other tests
+with its own thread budget. Fallback tests still cover newly added STEP and
+registered generator fixtures. The commit records every old and new name.
+Only the footprints names enter the current native baseline. The CAD tests
+run through their separate production lane.
