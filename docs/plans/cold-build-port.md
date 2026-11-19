@@ -991,3 +991,31 @@ An explicit `BOARDSTUDIO_WASM_BINDGEN_DIR` takes precedence. If the build
 inputs cannot be fetched, selection warns once and uses a matching stock pair.
 The cold-run compiler logger does not affect the host tool's cache key. CI's
 explicit selection and workflow stay in place.
+
+K1 passed at `97d6f0b2f`. The six self-test suites passed all 268 tests.
+The real build installed and validated both 0.2.129 tools. With the override
+unset, the browser gate and cold run both selected that same cache entry.
+
+```text
+check: step times: build 46.7s, browser 153.1s, total 199.7s
+check: step times: repo 2.1s, tooling 30.9s, build 502.4s, lint 436.6s, test 354.0s, browser 151.4s, total 686.8s
+cold: wall 687.2s, process tree CPU 5795.7s
+```
+
+The single cache-bypassed cold run started at load 4.17 in the existing
+`cold-build-port-verification` worktree. The kit measured 4,916 s of real
+compiler child CPU. The check total was 294.4 s (30.0%) below H3-bypass's
+981.2 s. The browser step fell by 242.3 s (393.7 s to 151.4 s). Build time
+also varied, so the entire wall-time difference cannot be attributed to K1.
+
+No Wasm browser launch had a 270 s gap. The cold Case launch took 25.3 s
+versus 294.8 s in H3-bypass. The longest cold crate launch was Layout at
+40.0 s, and the full page runner, including its listing and both filters,
+took 50.4 s. Both browser inventories matched 799 crate names, 126 page
+names, 15 drag checks, and 364 CAD browser labels. The cold gate also
+executed all 2,447 baselined native names.
+
+Logs are `.evidence/cold-build-port/K1-browser.log` and
+`K1-launch-comparison.log` in the implementation worktree, and
+`K1-bypass.log` and `K1-bypass-report.log` under the same evidence path
+in the verification worktree.
