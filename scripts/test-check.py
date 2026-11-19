@@ -766,6 +766,56 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
         self.assertIn("(2.0s)", text)
         self.assertIn("check: step times: repo 5.0s, total 5.0s", text)
 
+    def test_tooling_batches_keep_plan_order_failures_receipts_and_lock_scope(self):
+        first = [check.PY, "first.py"]
+        second = check.PAGE_TEST_BUILD
+        serial = [check.PY, "scripts/test-serve-web.py"]
+        trailing = [check.PY, "trailing.py"]
+        commands = [first, second, serial, trailing]
+        output, errors = io.StringIO(), io.StringIO()
+        with tempfile.TemporaryDirectory() as directory:
+            cwd = Path(directory)
+            env = {"BOARDSTUDIO_BUILD_LOCK_FD": "9"}
+            together = threading.Barrier(2)
+
+            def launch(command, *, registry=None, **kwargs):
+                self.assertEqual(kwargs["cwd"], cwd)
+                self.assertEqual(kwargs.get("pass_fds"), (9,) if command == second else None)
+                self.assertEqual(kwargs["env"].get("BOARDSTUDIO_BUILD_LOCK_FD"),
+                                 "9" if command == second else None)
+                self.assertEqual(registry is None, command == serial)
+                if command in (first, second):
+                    together.wait(timeout=5)
+                label = f"output for {command[1]}"
+                code = int(command != second)
+                if registry is None and "stdout" not in kwargs:
+                    print(label)
+                return subprocess.CompletedProcess(command, code, stdout=label + "\n")
+
+            collector = mock.Mock()
+            with mock.patch.object(check, "check_jobs", return_value=2), \
+                    mock.patch.object(check.browser_tools, "_inherited_build_lock", return_value=9), \
+                    mock.patch.object(check, "launch_command", side_effect=launch), \
+                    contextlib.redirect_stdout(output), contextlib.redirect_stderr(errors):
+                self.assertFalse(check.run_commands("tooling", commands, env, cwd, receipt=collector)[1])
+
+        self.assertEqual([call.args[1] for call in collector.observe.call_args_list], commands)
+        command_lines = [line for line in output.getvalue().splitlines() if line.startswith("$ ")]
+        self.assertEqual(command_lines, ["$ " + shlex.join(command) for command in commands])
+        payload_lines = [line for line in output.getvalue().splitlines() if line.startswith("output for ")]
+        self.assertEqual(payload_lines, [f"output for {command[1]}" for command in commands])
+        self.assertEqual(errors.getvalue().splitlines(),
+                         ["check: command failed: " + shlex.join(command) for command in (first, serial, trailing)])
+
+    def test_one_tooling_worker_runs_commands_serially(self):
+        commands = [[check.PY, "first.py"], [check.PY, "second.py"]]
+        with mock.patch.object(check, "check_jobs", return_value=1), \
+                mock.patch.object(check, "run_parallel") as parallel, \
+                mock.patch.object(check, "run_serial", return_value=(0.0, 0, "", "")) as serial:
+            self.assertTrue(check.run_commands("tooling", commands, {})[1])
+        parallel.assert_not_called()
+        self.assertEqual([call.args[0] for call in serial.call_args_list], commands)
+
     def test_browser_checks_build_test_wasm_without_debug_info_unless_overridden(self):
         probe = [sys.executable, "-c",
                  "import os, sys; sys.exit(0 if os.environ.get('CARGO_PROFILE_DEV_DEBUG') == sys.argv[1] else 17)"]

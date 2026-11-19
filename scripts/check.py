@@ -89,6 +89,10 @@ TOOLING_TESTS = (
     "scripts/test-chrome-for-testing.py", "scripts/test-bump-chrome-for-testing.py", "scripts/test-graphite-preflight.py", "tools/browser-harness/test-response-probe-cleanup.py",
     "scripts/test-ci-workflow.py", "scripts/test-build-time.py",
 )
+SERIAL_TOOLING_SCRIPTS = {
+    "scripts/test-serve-web.py",  # Releases its selected port before starting the preview process.
+    "scripts/test-parallel-interrupt.py",  # Owns detached signal-test groups outside the outer batch's cleanup.
+}
 KICAD_PARTS_TEST = [PY, "scripts/test-import-kicad-parts.py"]
 WASM_PAGE = ["--no-default-features", "--features", "page"]
 # Every wasm test build shares the checked page build's profile, and so its units; see Cargo.toml.
@@ -520,7 +524,8 @@ def launch_command(command, *, registry=None, **kwargs):
 def run_serial(command: Command, environment: dict[str, str], cwd: Path = ROOT,
                captured: list[tuple[Command, str]] | None = None,
                outputs: list[tuple[Command, str]] | None = None,
-               completed=None, build_capture=None, *, invocation=None, defer_output=False) -> tuple[float, int, str, str]:
+               completed=None, build_capture=None, *, invocation=None, defer_output=False,
+               tooling=False) -> tuple[float, int, str, str]:
     argv = command
     if invocation:
         argv, cwd, config = invocation
@@ -539,6 +544,8 @@ def run_serial(command: Command, environment: dict[str, str], cwd: Path = ROOT,
     if not any(script in command for script in BUILD_LOCK_SCRIPTS):
         environment = environment.copy()
         environment.pop("BOARDSTUDIO_BUILD_LOCK_FD", None)
+        if tooling:
+            lock_fd = None
     lock_args = {"pass_fds": (lock_fd,)} if lock_fd is not None else {}
     started = time.monotonic()
     started_at = datetime.now(timezone.utc).isoformat()
@@ -673,12 +680,15 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
         child_env = {**environment, **config}
         if receipt is not None:
             child_env.update(BOARDSTUDIO_RECEIPT_RUN_ID=receipt.run_id, BOARDSTUDIO_RECEIPT_ATTEMPT_ID=attempt)
+        child_lock_fd = lock_fd
         if not any(script in command for script in BUILD_LOCK_SCRIPTS):
             child_env.pop("BOARDSTUDIO_BUILD_LOCK_FD", None)
+            if step == "tooling":
+                child_lock_fd = None
         try:
             done = launch_command(argv, registry=registry, cwd=cwd, env=child_env, stdout=subprocess.PIPE,
                                   stderr=subprocess.STDOUT, text=True,
-                                  **({"pass_fds": (lock_fd,)} if lock_fd is not None else {}))
+                                  **({"pass_fds": (child_lock_fd,)} if child_lock_fd is not None else {}))
         finally:
             if argv[1:] == ["scripts/check.py", "build"] and (css_sync := config.get(OVERLAP_CSS)):
                 folder = Path(css_sync)
@@ -923,7 +933,8 @@ def run_commands(name: str, commands: list[Command], environment: dict[str, str]
                  receipt: verification_receipt.Collector | None = None,
                  crate_configs: dict[str, dict[str, str]] | None = None) -> tuple[float, bool]:
     """Runs a step's commands; consecutive crate launches in `browser`, and the independent
-    workspaces of `test`, run together. `captured` collects each `cargo test` command's output."""
+    workspaces of `test` and independent tooling self-tests, run together.
+    `captured` collects each `cargo test` command's output."""
     if name == "test" and check_jobs() > 1 and len(commands) > 1:
         elapsed, failed = run_parallel(commands, environment, captured, receipt=receipt, step=name)
         for command in failed:
@@ -932,12 +943,28 @@ def run_commands(name: str, commands: list[Command], environment: dict[str, str]
     if name == "lint" and check_jobs() > 1 and receipt is None and any(map(is_harness_clippy, commands)):
         return run_lint_overlap(commands, environment, cwd)
     browser_step = is_browser_step(name)
+    tooling_workers = check_jobs() if name == "tooling" else 1
     total = 0.0
     any_failed = False
     invocations = {}
     index = 0
     while index < len(commands):
         command = commands[index]
+        if tooling_workers > 1 and not SERIAL_TOOLING_SCRIPTS.intersection(command):
+            end = index + 1
+            while end < len(commands) and not SERIAL_TOOLING_SCRIPTS.intersection(commands[end]):
+                end += 1
+            batch = commands[index:end]
+            elapsed, failed = run_parallel(
+                batch, environment, receipt=receipt, step=name, workers=tooling_workers, in_order=True,
+                invocations={tuple(cmd): (cmd, cwd, {}) for cmd in batch},
+            )
+            total += elapsed
+            for failed_cmd in failed:
+                print("check: command failed: " + shlex.join(failed_cmd), file=sys.stderr)
+            any_failed |= bool(failed)
+            index = end
+            continue
         if browser_step and check_jobs() > 1 and is_crate_launch(command):
             end = index
             while end < len(commands) and is_crate_launch(commands[end]):
@@ -1007,6 +1034,8 @@ def run_commands(name: str, commands: list[Command], environment: dict[str, str]
                         verification_receipt.fresh_site(state.get("site"), site_after))
         if invocation := invocations.get(tuple(command)):
             elapsed, code, started_at, ended_at = run_serial(*args, completed, invocation=invocation)
+        elif name == "tooling":
+            elapsed, code, started_at, ended_at = run_serial(*args, completed, tooling=True)
         else:
             elapsed, code, started_at, ended_at = (run_serial(*args, completed, build_capture)
                                                     if build_capture else
@@ -1050,6 +1079,11 @@ def run_commands(name: str, commands: list[Command], environment: dict[str, str]
                 any_failed = True
                 continue
         if code:
+            if tooling_workers > 1:
+                print("check: command failed: " + shlex.join(command), file=sys.stderr)
+                any_failed = True
+                index += 1
+                continue
             text = serial_outputs[-1][1] if serial_outputs else ""
             if is_crate_launch(command):
                 _report_launch_failure(command, text)
