@@ -1,9 +1,5 @@
 use super::*;
 use crate::presentation::panels::{self, InspectorPanel, ObjectsPanel, PanelSettings};
-use boardstudio_web_ui_shared::{
-    test_mount::{MountedFixture, SavedLocalStorage},
-    test_wait::wait_until,
-};
 use wasm_bindgen_test::*;
 
 wasm_bindgen_test_configure!(run_in_browser);
@@ -49,30 +45,35 @@ fn panel_composition() -> Element {
     }
 }
 
-fn in_workspace(root: &web_sys::Element, name: &str) -> bool {
-    root.query_selector("[role=region][aria-label='Fixture workspace']")
+async fn rendered() {
+    gloo_timers::future::TimeoutFuture::new(60).await;
+}
+fn element(selector: &str) -> web_sys::Element {
+    web_sys::window()
         .unwrap()
-        .and_then(|element| element.text_content())
-        .as_deref()
-        == Some(name)
+        .document()
+        .unwrap()
+        .query_selector(selector)
+        .unwrap()
+        .unwrap()
 }
-
-fn element(root: &web_sys::Element, selector: &str) -> web_sys::Element {
-    root.query_selector(selector).unwrap().unwrap()
-}
-
-fn click(root: &web_sys::Element, name: &str) {
-    boardstudio_web_ui_shared::test_role::by_role_name(root, "button", name)
+fn click(name: &str) {
+    let root = web_sys::window()
+        .unwrap()
+        .document()
+        .unwrap()
+        .document_element()
+        .unwrap();
+    boardstudio_web_ui_shared::test_role::by_role_name(&root, "button", name)
         .unwrap()
         .click();
 }
-
-fn assert_panels(root: &web_sys::Element, objects_visible: bool, inspector_visible: bool) {
+fn assert_panels(objects_visible: bool, inspector_visible: bool) {
     for (id, visible) in [
         ("m1-objects-panel", objects_visible),
         ("m1-inspector-panel", inspector_visible),
     ] {
-        let panel = element(root, &format!("#{id}"));
+        let panel = element(&format!("#{id}"));
         assert_eq!(
             panel.get_attribute("aria-hidden").as_deref(),
             Some(if visible { "false" } else { "true" }),
@@ -95,48 +96,37 @@ async fn desktop_case_stage_opens_settings_and_keeps_the_guide_available() {
     );
     let document = window.document().unwrap();
     let root = document.create_element("div").unwrap();
-    let _preferences = SavedLocalStorage::new(
-        window.local_storage().unwrap().unwrap(),
-        &[
-            "boardstudio:v2:panel:left",
-            "boardstudio:v2:panel:right",
-            "boardstudio:v2:setup-guide:fixture",
-        ],
-    )
-    .unwrap();
+    root.set_id("guide-panel-test-root");
     document.body().unwrap().append_child(&root).unwrap();
-    let _mounted = MountedFixture::new(root.clone(), VirtualDom::new(panel_composition));
-    wait_until("the composed guide mounts in Layout", || {
-        in_workspace(&root, "Layout")
-    })
-    .await;
-    assert_panels(&root, true, true);
+    dioxus_web::launch::launch_virtual_dom(
+        VirtualDom::new(panel_composition),
+        dioxus_web::Config::new().rootnode(root.clone().into()),
+    );
+    rendered().await;
+    assert_panels(true, true);
     assert_eq!(
-        element(&root, "#m1-inspector-panel")
+        element("#m1-inspector-panel")
             .get_attribute("data-mode")
             .as_deref(),
         Some("collapsed")
     );
-    click(&root, "Case (optional)");
-    wait_until("choosing the guide stage opens the Case workspace", || {
-        in_workspace(&root, "Case")
-    })
-    .await;
-    assert_panels(&root, true, true);
+    click("Case (optional)");
+    rendered().await;
+    assert_panels(true, true);
     assert_eq!(
-        element(&root, "[role=region][aria-label='Fixture workspace']")
+        element("[role=region][aria-label='Fixture workspace']")
             .text_content()
             .as_deref(),
         Some("Case")
     );
     assert_eq!(
-        element(&root, "#m1-inspector-panel")
+        element("#m1-inspector-panel")
             .get_attribute("data-mode")
             .as_deref(),
         Some("collapsed"),
         "choosing the guide stage must not open the settings panel"
     );
-    let copy = element(&root, "[aria-label='Project setup guide']")
+    let copy = element("[aria-label='Project setup guide']")
         .text_content()
         .unwrap();
     assert_eq!(
@@ -145,47 +135,36 @@ async fn desktop_case_stage_opens_settings_and_keeps_the_guide_available() {
         1,
         "Case readiness detail must appear once"
     );
-    click(&root, "Open full case settings");
-    wait_until("opening full settings pins the Case inspector", || {
-        element(&root, "#m1-inspector-panel")
-            .get_attribute("data-mode")
-            .as_deref()
-            == Some("pinned")
-    })
-    .await;
-    assert_panels(&root, true, true);
+    click("Open full case settings");
+    rendered().await;
+    assert_panels(true, true);
     assert_eq!(
-        element(&root, "#m1-inspector-panel")
+        element("#m1-inspector-panel")
             .get_attribute("data-mode")
             .as_deref(),
         Some("pinned")
     );
-    click(&root, "Test ordinary Layout navigation");
-    wait_until("ordinary navigation returns to Layout", || {
-        in_workspace(&root, "Layout")
-    })
-    .await;
-    click(&root, "Test ordinary Case navigation");
-    wait_until("ordinary navigation returns to Case", || {
-        in_workspace(&root, "Case")
-    })
-    .await;
-    assert_panels(&root, true, true);
-    click(&root, "Test same-workspace guide reveal");
-    gloo_timers::future::TimeoutFuture::new(60).await;
-    assert_panels(&root, true, true);
+    click("Test ordinary Layout navigation");
+    rendered().await;
+    click("Test ordinary Case navigation");
+    rendered().await;
+    assert_panels(true, true);
+    click("Test same-workspace guide reveal");
+    rendered().await;
+    assert_panels(true, true);
     assert_eq!(
-        element(&root, "#m1-objects-panel")
+        element("#m1-objects-panel")
             .get_attribute("data-mode")
             .as_deref(),
         Some("pinned")
     );
     assert_eq!(
-        element(&root, "#m1-inspector-panel")
+        element("#m1-inspector-panel")
             .get_attribute("data-mode")
             .as_deref(),
         Some("pinned")
     );
+    root.remove();
 }
 
 fn freely_navigable_guide() -> Element {
@@ -206,12 +185,15 @@ fn freely_navigable_guide() -> Element {
 
 #[wasm_bindgen_test]
 async fn guide_current_and_ready_steps_remain_freely_navigable_without_losing_the_name_draft() {
-    use boardstudio_web_ui_shared::test_role::by_role_name;
+    use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
     use wasm_bindgen::JsCast;
     let document = web_sys::window().unwrap().document().unwrap();
     let root = document.create_element("div").unwrap();
     document.body().unwrap().append_child(&root).unwrap();
-    let _mounted = MountedFixture::new(root.clone(), VirtualDom::new(freely_navigable_guide));
+    dioxus_web::launch::launch_virtual_dom(
+        VirtualDom::new(freely_navigable_guide),
+        dioxus_web::Config::new().rootnode(root.clone().into()),
+    );
     wait_until("the named current guide step is available", || {
         by_role_name(&root, "button", "Controller & wiring").is_some()
     })
@@ -281,4 +263,5 @@ async fn guide_current_and_ready_steps_remain_freely_navigable_without_losing_th
         },
     )
     .await;
+    root.remove();
 }

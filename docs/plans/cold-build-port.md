@@ -333,6 +333,9 @@ Keep the 980 px viewport assertion. Query controls and panel IDs under the
 guide test's own root, dispose both guide mounts, and restore the fixture's
 panel and guide preference keys.
 
+H2 reverted I3b. The guide failed inside the Layout launch even with one
+scheduler worker, and both tests passed when launched separately.
+
 ### I3c. Rejoin the Case workspace page filter
 
 Scope the two previously leaking tests to their roots and dispose the VDOMs
@@ -469,7 +472,7 @@ def inventory(log):
 
 before_launches, before, before_cad = inventory(reference / ".evidence/shared-wasm-test-build/full.log")
 after_launches, after, after_cad = inventory(full_log)
-assert (before_launches, after_launches) == (14, 12)
+assert (before_launches, after_launches) == (14, 13)
 assert before.total() == 799 and before == after, (before - after, after - before)
 assert before_cad.total() == 364 and before_cad == after_cad, (before_cad - after_cad, after_cad - before_cad)
 results = Path("web/target/test-results/browser.json")
@@ -481,7 +484,7 @@ assert Counter(page["listed_tests"]) == Counter(base_page["listed_tests"])
 assert page["duplicate_terminal_outcomes"] == page["duplicate_listed_tests"] == page["problems"] == []
 assert all(item["status"] == "passed" for item in page["terminal_outcomes"])
 assert "PASS drag browser smoke: 15 checks" in full_log.read_text()
-print("799 crate test names across 12 launches, 126 page tests, 15 drag checks, and 364 CAD browser labels.")
+print("799 crate test names across 13 launches, 126 page tests, 15 drag checks, and 364 CAD browser labels.")
 PY
 ```
 

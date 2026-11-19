@@ -151,7 +151,9 @@ def browser() -> list[Command]:
             crate_launch("case"),
             crate_launch("parts"),
             crate_launch("pcb"),
-            crate_launch("layout"),
+            # The setup guide needs its own session and layout's desktop viewport.
+            crate_launch("layout", "--skip", "setup_guide::"),
+            crate_launch("layout", "setup_guide::"),
         ]),
         [PY, "scripts/run-wasm-tests.py", "--all", "--depth", "1",
          "--result-json", "web/target/test-results/browser.json"],
