@@ -17,6 +17,11 @@ Existing debt is ratcheted through scripts/check-wasm-tests-baseline.json
 offending line is listed); counts may only go down. Regenerate with
 --write-baseline only after deliberately accepting or fixing debt.
 
+It also fails on any raw launch_virtual_dom call under web/crates/*/src/
+outside web/crates/ui-shared/src/test_mount.rs (zero tolerance, no baseline):
+browser tests share one document, so every mount must go through MountedFixture.
+Examples and web/src/ are not scanned.
+
 Usage: check-wasm-tests.py [--root REPO_ROOT] [--baseline FILE] [--write-baseline]
 """
 
@@ -247,6 +252,37 @@ def load_baseline(path):
         return {}
 
 
+LAUNCH_ALLOWED = "web/crates/ui-shared/src/test_mount.rs"
+LAUNCH = re.compile(r"\blaunch_virtual_dom\b")
+
+
+def find_launch_violations(root):
+    """Repo-relative (path, line) for raw launch_virtual_dom calls in crate src trees.
+
+    Browser tests must mount through MountedFixture (test_mount.rs), which owns
+    the render task and root; raw launches leak VDOMs across tests that share one
+    document. Only web/crates/*/src/** is scanned: examples/ and web/src/ may
+    still launch directly. Comments and string/char literals never flag.
+    """
+    root = Path(root).resolve()
+    violations = []
+
+    def blank(match):
+        return re.sub(r"[^\n]", " ", match.group(0))
+
+    for path in sorted((root / "web/crates").glob("*/src/**/*.rs")):
+        relative = path.relative_to(root).as_posix()
+        if relative == LAUNCH_ALLOWED:
+            continue
+        raw = path.read_text(errors="replace")
+        scrubbed = STRING.sub(blank, raw)
+        scrubbed = CHAR.sub(blank, scrubbed)
+        for lineno, line in enumerate(clean(scrubbed).split("\n"), 1):
+            if LAUNCH.search(line):
+                violations.append((relative, lineno))
+    return sorted(set(violations))
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--root", default=Path(__file__).resolve().parents[1])
@@ -256,12 +292,20 @@ def main(argv=None):
     baseline_path = Path(args.baseline) if args.baseline else (
         Path(args.root) / "scripts/check-wasm-tests-baseline.json")
     violations = find_violations(args.root)
+    launch_violations = find_launch_violations(args.root)
     counts = {}
     for relative, _line in violations:
         counts[relative] = counts.get(relative, 0) + 1
     if args.write_baseline:
         baseline_path.write_text(json.dumps(dict(sorted(counts.items())), indent=2) + "\n")
         print(f"check-wasm-tests: wrote {len(counts)} file(s) to {baseline_path}")
+        if launch_violations:
+            for relative, line in launch_violations:
+                print(f"{relative}:{line}: raw launch_virtual_dom outside {LAUNCH_ALLOWED}; "
+                      "mount browser tests through MountedFixture")
+            print(f"check-wasm-tests: {len(launch_violations)} raw launch_virtual_dom call(s) "
+                  "leak VDOMs across browser tests", file=sys.stderr)
+            return 1
         return 0
     baseline = load_baseline(baseline_path)
     failed = 0
@@ -277,9 +321,16 @@ def main(argv=None):
         if counts.get(relative, 0) < known:
             print(f"check-wasm-tests: note: {relative} improved ({counts.get(relative, 0)} < baseline {known}); "
                   "lower the baseline with --write-baseline", file=sys.stderr)
+    for relative, line in launch_violations:
+        print(f"{relative}:{line}: raw launch_virtual_dom outside {LAUNCH_ALLOWED}; "
+              "mount browser tests through MountedFixture")
     if failed:
         print(f"check-wasm-tests: {failed} new plain #[test](s) would run zero times natively",
               file=sys.stderr)
+    if launch_violations:
+        print(f"check-wasm-tests: {len(launch_violations)} raw launch_virtual_dom call(s) "
+              "leak VDOMs across browser tests", file=sys.stderr)
+    if failed or launch_violations:
         return 1
     print(f"check-wasm-tests: no new wasm-only plain #[test]s ({sum(counts.values())} baselined)")
     return 0
