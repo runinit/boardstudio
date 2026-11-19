@@ -103,8 +103,7 @@ def select(files: list[str], packages: dict[str, Package]) -> Selection:
             selection.notes.append(f"{path}: shared build input, every Rust check applies")
         elif path.startswith(TOOLING):
             selection.tooling = True
-            if path in ("scripts/import-kicad-parts.py", "scripts/test-import-kicad-parts.py"):
-                selection.kicad_parts = True
+            selection.kicad_parts = True
             if path in ("cad/scripts/test-cad-capture-controls.py", "cad/scripts/test-cold-responses.py",
                         "cad/scripts/measure-cad-worker.cjs", "scripts/model-lookup.js",
                         "scripts/model-lookup-pilot.py", "scripts/model-lookup-pilot.mjs",

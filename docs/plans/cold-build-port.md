@@ -759,3 +759,8 @@ target. Core keeps its existing diagnostics.
 The expiry test returns as soon as the toast disappears. It uses the shared
 bounded polling helper with a 2,500 ms limit so a substantially longer
 production timeout still fails the test.
+
+### J4. Keep the KiCad importer in tooling-focused quick runs
+
+Selecting tooling in a quick run also selects the importer suite in the test
+step. Changes to shared helpers retain the importer coverage they had before E1.
