@@ -32,21 +32,51 @@ exclude = [
 [workspace.dependencies]
 # One web-sys feature list for every web crate. Cargo compiles web-sys, and everything built on it
 # such as dioxus-web, once per distinct feature set, so per-crate lists made each crate's
-# `wasm-pack test` build its own copy instead of reusing the page build's units.
+# `wasm-pack test` build its own copy instead of reusing the page build's units. The list is
+# everything the page and the renderer resolve on wasm32 (including what dioxus-web, dioxus-primitives
+# and three-d turn on), so the page, the workers and the renderer all build one web-sys.
 web-sys = { version = "=0.3.106", features = [
-  "Blob", "BlobPropertyBag", "Cache", "CacheStorage", "Client", "ClientQueryOptions", "ClientType",
-  "Clients", "CssStyleDeclaration", "DedicatedWorkerGlobalScope", "Document", "DomException",
-  "DomRect", "Element", "ErrorEvent", "Event", "EventInit", "EventTarget", "ExtendableEvent",
-  "ExtendableMessageEvent", "FetchEvent", "File", "FileList", "FocusOptions", "HtmlAnchorElement",
-  "HtmlCanvasElement", "HtmlDialogElement", "HtmlElement", "HtmlInputElement", "IdbDatabase",
-  "IdbFactory", "IdbObjectStore", "IdbObjectStoreParameters", "IdbOpenDbRequest", "IdbRequest",
-  "IdbTransaction", "IdbTransactionMode", "KeyboardEvent", "KeyboardEventInit", "Location",
-  "MediaQueryList", "MessageChannel", "MessageEvent", "MessagePort", "MutationObserver",
-  "MutationObserverInit", "Navigator", "Node", "NodeList", "PointerEvent", "PointerEventInit",
-  "RegistrationOptions", "Request", "RequestDestination", "ResizeObserver", "Response",
-  "ServiceWorker", "ServiceWorkerContainer", "ServiceWorkerGlobalScope",
-  "ServiceWorkerRegistration", "Storage", "SvgElement", "Url", "Window", "Worker",
-  "WorkerGlobalScope", "WorkerOptions", "WorkerType"
+  "AbortSignal", "AngleInstancedArrays", "AnimationEvent", "Blob", "BlobPropertyBag", "Cache",
+  "CacheStorage", "CharacterData", "Client", "ClientQueryOptions", "ClientType", "Clients",
+  "ClipboardEvent", "CloseEvent", "Comment", "CompositionEvent", "CssStyleDeclaration",
+  "CustomEvent", "DataTransfer", "DataTransferItem", "DataTransferItemList",
+  "DedicatedWorkerGlobalScope", "Document", "DomException", "DomRect", "DomRectReadOnly",
+  "DragEvent", "Element", "ErrorEvent", "Event", "EventInit", "EventTarget", "ExtBlendMinmax",
+  "ExtColorBufferFloat", "ExtColorBufferHalfFloat", "ExtDisjointTimerQuery", "ExtFragDepth",
+  "ExtSRgb", "ExtShaderTextureLod", "ExtTextureFilterAnisotropic", "ExtendableEvent",
+  "ExtendableMessageEvent", "FetchEvent", "File", "FileList", "FileReader", "FocusEvent",
+  "FocusOptions", "FormData", "Headers", "History", "HtmlAnchorElement", "HtmlCanvasElement",
+  "HtmlDialogElement", "HtmlElement", "HtmlFormElement", "HtmlHeadElement", "HtmlImageElement",
+  "HtmlInputElement", "HtmlMediaElement", "HtmlSelectElement", "HtmlTextAreaElement",
+  "HtmlVideoElement", "IdbDatabase", "IdbFactory", "IdbObjectStore", "IdbObjectStoreParameters",
+  "IdbOpenDbRequest", "IdbRequest", "IdbTransaction", "IdbTransactionMode", "ImageBitmap",
+  "ImageData", "InputEvent", "IntersectionObserverEntry", "KeyboardEvent", "KeyboardEventInit",
+  "Location", "MediaQueryList", "MessageChannel", "MessageEvent", "MessagePort", "MouseEvent",
+  "MutationObserver", "MutationObserverInit", "Navigator", "Node", "NodeList",
+  "OesElementIndexUint", "OesStandardDerivatives", "OesTextureFloat", "OesTextureFloatLinear",
+  "OesTextureHalfFloat", "OesTextureHalfFloatLinear", "OesVertexArrayObject", "OvrMultiview2",
+  "PointerEvent", "PointerEventInit", "QueuingStrategy", "ReadableByteStreamController",
+  "ReadableStream", "ReadableStreamByobReader", "ReadableStreamByobRequest",
+  "ReadableStreamDefaultController", "ReadableStreamDefaultReader",
+  "ReadableStreamGetReaderOptions", "ReadableStreamReadResult", "ReadableStreamReaderMode",
+  "ReadableStreamType", "ReadableWritablePair", "RegistrationOptions", "Request",
+  "RequestDestination", "RequestInit", "ResizeObserver", "ResizeObserverEntry",
+  "ResizeObserverSize", "Response", "ResponseType", "ScrollBehavior", "ScrollIntoViewOptions",
+  "ScrollLogicalPosition", "ScrollRestoration", "ScrollToOptions", "ServiceWorker",
+  "ServiceWorkerContainer", "ServiceWorkerGlobalScope", "ServiceWorkerRegistration", "Storage",
+  "StreamPipeOptions", "SvgElement", "Text", "Touch", "TouchEvent", "TouchList",
+  "TransformStream", "TransformStreamDefaultController", "Transformer", "TransitionEvent",
+  "UiEvent", "UnderlyingSink", "UnderlyingSource", "Url", "VideoFrame", "WebGl2RenderingContext",
+  "WebGlActiveInfo", "WebGlBuffer", "WebGlFramebuffer", "WebGlProgram", "WebGlQuery",
+  "WebGlRenderbuffer", "WebGlRenderingContext", "WebGlSampler", "WebGlShader",
+  "WebGlShaderPrecisionFormat", "WebGlSync", "WebGlTexture", "WebGlTransformFeedback",
+  "WebGlUniformLocation", "WebGlVertexArrayObject", "WebSocket", "WebglColorBufferFloat",
+  "WebglCompressedTextureAstc", "WebglCompressedTextureEtc", "WebglCompressedTextureEtc1",
+  "WebglCompressedTexturePvrtc", "WebglCompressedTextureS3tc", "WebglCompressedTextureS3tcSrgb",
+  "WebglDebugRendererInfo", "WebglDebugShaders", "WebglDepthTexture", "WebglDrawBuffers",
+  "WebglLoseContext", "WheelEvent", "Window", "Worker", "WorkerGlobalScope", "WorkerOptions",
+  "WorkerType", "WritableStream", "WritableStreamDefaultController",
+  "WritableStreamDefaultWriter", "console"
 ] }
 
 [patch.crates-io]
