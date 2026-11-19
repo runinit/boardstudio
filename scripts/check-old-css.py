@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Count the old-CSS names still used under web/: .board-* and .m1-* selectors and --wb-* variables.
 
-Counts distinct names in every text file under web/ (styles and Rust sources alike). The default run
+Counts distinct names in tracked and non-ignored text files under web/. The default run
 only reports; --strict exits nonzero while any remain, which gates the final merge (branch plan section 4).
 
 Usage: check-old-css.py [--strict] [ROOT]
@@ -10,8 +10,10 @@ Usage: check-old-css.py [--strict] [ROOT]
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
 import re
+import subprocess
 import sys
 
 SELECTOR = re.compile(r"(?<![\w-])\.(?:board|m1)-[\w-]+")
@@ -22,7 +24,13 @@ BUILD_OUTPUT = {"target", "node_modules", "pkg", "dist"}
 def names(root: Path) -> tuple[set[str], set[str]]:
     selectors: set[str] = set()
     variables: set[str] = set()
-    for path in (root / "web").rglob("*"):
+    try:
+        files = subprocess.run(["git", "ls-files", "-coz", "--exclude-standard", "--", "web"],
+                               cwd=root, capture_output=True, check=True).stdout
+        paths = (root / os.fsdecode(file) for file in files.split(b"\0") if file)
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        paths = (root / "web").rglob("*")
+    for path in paths:
         if not path.is_file() or BUILD_OUTPUT & set(path.relative_to(root).parts):
             continue
         try:

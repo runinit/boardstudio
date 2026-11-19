@@ -5,6 +5,7 @@ import contextlib
 import importlib.util
 import io
 from pathlib import Path
+import subprocess
 import tempfile
 import unittest
 
@@ -42,6 +43,15 @@ class OldCssTests(unittest.TestCase):
         self.write("web/pkg/glue.css", ".board-built {}")
         self.write("docs/note.css", ".m1-doc { --wb-doc: 1; }")
         self.assertEqual(check.names(self.root), (set(), set()))
+
+    def test_git_scan_includes_tracked_and_unignored_untracked_files(self):
+        subprocess.run(["git", "init", "-q"], cwd=self.root, check=True)
+        self.write(".gitignore", "/web/assets/*.json\n")
+        self.write("web/assets/generated.json", '".m1-ignored --wb-ignored"')
+        self.write("web/assets/tracked.json", '".m1-tracked --wb-tracked"')
+        self.write("web/src/new\nview.rs", 'let s = ".m1-new";')
+        subprocess.run(["git", "add", "-f", "web/assets/tracked.json"], cwd=self.root, check=True)
+        self.assertEqual(check.names(self.root), ({".m1-tracked", ".m1-new"}, {"--wb-tracked"}))
 
     def test_default_run_reports_counts_and_passes(self):
         self.write("web/assets/m1.css", ".m1-a { --wb-x: 1; }")

@@ -202,7 +202,8 @@ Each item is one commit. "Old" names the `perf/cold-build-lanes` commits to star
 2. **Full check:** the full `python3 scripts/check.py` in the implementation worktree must pass every gate, with the count floors:
    - the same crate-launch test names;
    - 126 page tests;
-   - every baselined native test;
+   - every baselined native test, plus all executed names in the retained H2 log
+     after applying the deliberate splits and renames, including CAD;
    - 15 drag checks;
    - the CAD browser checks.
 
@@ -471,6 +472,63 @@ order-dependent failure. Compare crate tests by crate and name multiplicity
 after the revert, using the resulting number of launches. Review the
 layout crate launch duration against the next-longest crate launch before
 making further I4 changes.
+
+Compare executed native names with the retained pre-I H2 log as well as the
+committed floor. Include the CAD production and owner lanes from the
+`test-cad.py` output. I2 and I5 supply the mappings below. Batch J leaves
+test names alone.
+
+```bash
+PYTHONPATH="$root/scripts" python3 -B - "$evidence/H2-full.log" "$evidence/H2-I5-full.log" <<'PY' \
+    | tee "$evidence/H2-J-native-names.log"
+from collections import defaultdict
+from pathlib import Path
+import re
+import sys
+
+from check_native_tests import collect
+
+def executed(log):
+    outputs = defaultdict(list)
+    for block in re.split(r"^\$ ", log.read_text(), flags=re.M)[1:]:
+        command, _, output = block.partition("\n")
+        if command.startswith("cargo test ") and "--no-run" not in command.split():
+            outputs["workspace"].append(output)
+        elif command == "python3 cad/scripts/test-cad.py":
+            outputs["CAD"].append(output)
+    assert len(outputs["workspace"]) == 2 and len(outputs["CAD"]) == 1, log
+    inventory = {}
+    for lane, blocks in outputs.items():
+        names = collect(blocks).executed
+        if lane == "CAD":
+            assert names.get("boardstudio_cad") and names.get("boardstudio_cad_wasm"), log
+        inventory[lane] = {f"{binary}::{name}" for binary, tests in names.items() for name in tests}
+    return inventory
+
+plan = Path("docs/plans/cold-build-port.md").read_text()
+mapping = plan.split("\n### Exact native test name mappings\n", 1)[1].split("\n## J.", 1)[0]
+i2, i5 = re.findall(r"```text\n(.*?)\n```", mapping, re.S)
+renames = dict(line.split(" -> ") for line in i5.strip().splitlines())
+splits = {}
+for group in i2.strip().split("\n\n"):
+    old, *names = group.splitlines()
+    old = old.removesuffix(" ->")
+    prefix = "boardstudio_cad_wasm::" if old.startswith("model::") else ""
+    splits[prefix + old] = {prefix + name for name in names}
+
+before, after = (executed(Path(path)) for path in sys.argv[1:])
+assert splits.keys() <= (before["workspace"] | before["CAD"]), "I2 mapping does not match the retained log"
+missing = False
+for lane, names in before.items():
+    expected = {renames.get(name, name) for old in names for name in splits.get(old, {old})}
+    absent = sorted(expected - after[lane])
+    print(f"{lane}: {len(names)} before, {len(expected)} expected after mappings, {len(after[lane])} executed")
+    for name in absent:
+        print(f"{lane}: missing {name}")
+    missing |= bool(absent)
+sys.exit(int(missing))
+PY
+```
 
 #### H3. Warm-cache and cache-bypassed cold runs
 
@@ -776,3 +834,9 @@ server process directly.
 
 Read the imported catalogue inside the STEP display-adapter assertion branch.
 The named cases and the fallback still check the same assets and bounds.
+
+### J7. Skip ignored old-CSS scan inputs
+
+Git supplies the tracked and non-ignored untracked paths under `web/`. The
+scanner still checks untracked sources, retains its build-directory exclusions,
+and walks the tree when Git cannot supply a file list.
