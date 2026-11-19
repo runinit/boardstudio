@@ -9,6 +9,9 @@ version = "0.1.0"
 edition = "2021"
 publish = false
 
+[profile.dev]
+debug = false
+
 [workspace]
 members = ["vendor/chromiumoxide"]
 

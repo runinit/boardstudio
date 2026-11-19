@@ -583,6 +583,12 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
                 self.assertEqual(check.run(["browser"], only=[crate]), 0)
                 self.assertEqual([name for name, _ in plans[0]], ["test-css", f"browser (only: {crate})"])
 
+    def test_root_clippy_uses_nonincremental_lint_profile(self):
+        for command in check.LINT[1:3]:
+            self.assertEqual(command[command.index("--profile") + 1], "lint")
+            self.assertEqual(command[-3:], ["--", "-D", "warnings"])
+        self.assertNotIn("--profile", check.LINT[4])
+
     def test_lint_runs_wasm_clippy_over_the_web_workspace_crates(self):
         # Native Clippy builds the non-WASM stubs, so the WASM-gated web crates
         # (and their browser tests) need an explicit WASM-target Clippy command.
@@ -699,10 +705,77 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
             outputs.append((command, ""))
             return 0.0, 7 if check.is_crate_build(command) else 0, "", ""
 
-        with mock.patch.object(check, "run_serial", side_effect=fail_second) as run, \
+        with mock.patch.object(check, "check_jobs", return_value=1), \
+             mock.patch.object(check, "run_serial", side_effect=fail_second) as run, \
              contextlib.redirect_stderr(io.StringIO()):
             self.assertFalse(check.run_commands("build", commands, {})[1])
         self.assertEqual([call.args[0] for call in run.call_args_list], commands[:2])
+
+    def test_build_prebuilds_overlap_in_two_ordered_lanes(self):
+        commands = check.STEPS["build"][1]
+        barrier = threading.Barrier(2, timeout=5)
+        seen = []
+        output = io.StringIO()
+
+        def serial(command, environment, *args, **kwargs):
+            self.assertEqual(command, commands[0])
+            seen.append("css")
+            return 0.0, 0, "", ""
+
+        def launch(command, **kwargs):
+            self.assertEqual(kwargs["env"]["CARGO_PROFILE_DEV_DEBUG"], "false")
+            seen.append(command)
+            if command in (check.BROWSER_CRATE_BUILD, check.HARNESS_BUILD):
+                barrier.wait()
+            if command == check.PAGE_TEST_BUILD:
+                self.assertIn(check.BROWSER_CRATE_BUILD, seen)
+            return subprocess.CompletedProcess(command, 0, stdout=f"payload {commands.index(command)}\n")
+
+        with mock.patch.object(check, "check_jobs", return_value=2), \
+             mock.patch.object(check, "run_serial", side_effect=serial), \
+             mock.patch.object(check, "launch_command", side_effect=launch), \
+             mock.patch.object(check, "crate_test_artifacts", return_value={}), \
+             contextlib.redirect_stdout(output):
+            self.assertTrue(check.run_commands("build", commands, {})[1])
+        self.assertEqual(seen[0], "css")
+        self.assertEqual([line for line in output.getvalue().splitlines() if line.startswith("payload")],
+                         ["payload 1", "payload 2", "payload 3"])
+
+    def test_build_overlap_reports_failure_and_skips_dependent_page(self):
+        commands = check.STEPS["build"][1]
+        seen = []
+
+        def launch(command, **kwargs):
+            seen.append(command)
+            return subprocess.CompletedProcess(command, 0, stdout="invalid artifacts")
+
+        with mock.patch.object(check, "check_jobs", return_value=2), \
+             mock.patch.object(check, "run_serial", return_value=(0.0, 0, "", "")), \
+             mock.patch.object(check, "launch_command", side_effect=launch), \
+             mock.patch.object(check, "crate_test_artifacts", side_effect=ValueError("missing artifacts")), \
+             contextlib.redirect_stdout(io.StringIO()) as output, \
+             contextlib.redirect_stderr(io.StringIO()) as errors:
+            self.assertFalse(check.run_commands("build", commands, {})[1])
+        self.assertIn(check.HARNESS_BUILD, seen)
+        self.assertNotIn(check.PAGE_TEST_BUILD, seen)
+        self.assertIn("missing artifacts", output.getvalue())
+        self.assertIn("command failed", errors.getvalue())
+
+    def test_build_overlap_disabled_for_receipt_or_one_worker(self):
+        commands = check.STEPS["build"][1]
+        def serial_run(command, environment, cwd, captured, outputs, *args, **kwargs):
+            outputs.append((command, ""))
+            return 0.0, 0, "", ""
+
+        for jobs, receipt in ((1, None), (2, mock.Mock())):
+            with self.subTest(jobs=jobs), \
+                 mock.patch.object(check, "check_jobs", return_value=jobs), \
+                 mock.patch.object(check, "run_parallel") as parallel, \
+                 mock.patch.object(check, "run_serial", side_effect=serial_run) as serial, \
+                 mock.patch.object(check, "crate_test_artifacts", return_value={}):
+                self.assertTrue(check.run_commands("build", commands, {}, receipt=receipt)[1])
+            parallel.assert_not_called()
+            self.assertEqual([call.args[0] for call in serial.call_args_list], commands)
 
     def test_missing_browser_tools_fail_before_any_command_or_build_is_launched(self):
         self.chrome.side_effect = check.browser_tools.MissingBrowserTool("missing browser tool")

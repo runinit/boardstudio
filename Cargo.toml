@@ -75,66 +75,62 @@ debug = false
 inherits = "dev"
 debug = "line-tables-only"
 
-# Dependencies compile once, so optimizing them is free after the first build, and tests that
-# hash, compress or parse (the demo-project acceptance test) run about 2.4x faster. The
-# workspace's own crates stay unoptimized so edit-and-test builds stay quick.
+# Optimize only runtime-hot dependencies; leave other dependencies and proc macros fast to build.
 [profile.dev.package]
-"*" = { opt-level = 2 }
-# Proc macros and the libraries only they use run inside the compiler, never in a test or the
-# page. "*" gave them opt-level 2 too, and their LLVM time sat on every cold build's critical
-# path: syn alone took 15 s, and Core could not start until 40 s in. At opt-level 0 the cold
-# wasm page build went from 85 s to 68 s and expansion got no slower (Core's type-check, which
-# expands every serde derive, took 15.4 s instead of 16.8 s). A named package overrides "*".
-async-stream-impl = { opt-level = 0 }
-async-trait = { opt-level = 0 }
-const-random-macro = { opt-level = 0 }
-const-serialize-macro = { opt-level = 0 }
-const_format_proc_macros = { opt-level = 0 }
-convert_case = { opt-level = 0 }
-darling = { opt-level = 0 }
-darling_core = { opt-level = 0 }
-darling_macro = { opt-level = 0 }
-derive_more-impl = { opt-level = 0 }
-dioxus-attributes = { opt-level = 0 }
-dioxus-config-macro = { opt-level = 0 }
-dioxus-core-macro = { opt-level = 0 }
-dioxus-fullstack-macro = { opt-level = 0 }
-dioxus-html-internal-macro = { opt-level = 0 }
-dioxus-rsx = { opt-level = 0 }
-dioxus-stores-macro = { opt-level = 0 }
-displaydoc = { opt-level = 0 }
-enumset_derive = { opt-level = 0 }
-futures-macro = { opt-level = 0 }
-heck = { opt-level = 0 }
-ident_case = { opt-level = 0 }
-macro-string = { opt-level = 0 }
-manganis-macro = { opt-level = 0 }
-multiversion_no_op = { opt-level = 0 }
-open-enum-derive = { opt-level = 0 }
-palette_derive = { opt-level = 0 }
-pin-project-internal = { opt-level = 0 }
-proc-macro2 = { opt-level = 0 }
-proc-macro2-diagnostics = { opt-level = 0 }
-quote = { opt-level = 0 }
-rhai_codegen = { opt-level = 0 }
-rustversion = { opt-level = 0 }
-serde_derive = { opt-level = 0 }
-sledgehammer_bindgen_macro = { opt-level = 0 }
-strum_macros = { opt-level = 0 }
-syn = { opt-level = 0 }
-synstructure = { opt-level = 0 }
-thiserror-impl = { opt-level = 0 }
-time-macros = { opt-level = 0 }
-tokio-macros = { opt-level = 0 }
-tracing-attributes = { opt-level = 0 }
-warnings-macro = { opt-level = 0 }
-wasm-bindgen-macro = { opt-level = 0 }
-wasm-bindgen-macro-support = { opt-level = 0 }
-wasm-bindgen-test-macro = { opt-level = 0 }
-yoke-derive = { opt-level = 0 }
-zerocopy-derive = { opt-level = 0 }
-zerofrom-derive = { opt-level = 0 }
-zerovec-derive = { opt-level = 0 }
+flate2 = { opt-level = 2 }
+zlib-rs = { opt-level = 2 }
+zip = { opt-level = 2 }
+crc32fast = { opt-level = 2 }
+sha2 = { opt-level = 2 }
+serde_json = { opt-level = 2 }
+three-d = { opt-level = 2 }
+three-d-asset = { opt-level = 2 }
+i_overlay = { opt-level = 2 }
+lyon_tessellation = { opt-level = 2 }
+lyon_path = { opt-level = 2 }
+lyon_geom = { opt-level = 2 }
+cgmath = { opt-level = 2 }
+num-bigint = { opt-level = 2 }
+num-rational = { opt-level = 2 }
+regex-automata = { opt-level = 1 }
+regex-syntax = { opt-level = 1 }
+aho-corasick = { opt-level = 1 }
+# Static builds avoid Dioxus hot-reload scaffolding; wasm-dev restores it for dx serve.
+boardstudio-web = { debug-assertions = false }
+boardstudio-web-ui-shared = { debug-assertions = false }
+boardstudio-web-keycaps = { debug-assertions = false }
+boardstudio-web-case = { debug-assertions = false }
+boardstudio-web-parts = { debug-assertions = false }
+boardstudio-web-layout = { debug-assertions = false }
+boardstudio-web-pcb = { debug-assertions = false }
+boardstudio-web-keymap = { debug-assertions = false }
+boardstudio-web-library = { debug-assertions = false }
+dioxus-web = { debug-assertions = false }
+
+[profile.wasm-dev.package.boardstudio-web]
+debug-assertions = true
+[profile.wasm-dev.package.boardstudio-web-ui-shared]
+debug-assertions = true
+[profile.wasm-dev.package.boardstudio-web-keycaps]
+debug-assertions = true
+[profile.wasm-dev.package.boardstudio-web-case]
+debug-assertions = true
+[profile.wasm-dev.package.boardstudio-web-parts]
+debug-assertions = true
+[profile.wasm-dev.package.boardstudio-web-layout]
+debug-assertions = true
+[profile.wasm-dev.package.boardstudio-web-pcb]
+debug-assertions = true
+[profile.wasm-dev.package.boardstudio-web-keymap]
+debug-assertions = true
+[profile.wasm-dev.package.boardstudio-web-library]
+debug-assertions = true
+[profile.wasm-dev.package.dioxus-web]
+debug-assertions = true
+
+[profile.lint]
+inherits = "dev"
+incremental = false
 
 # The profile for every wasm build `scripts/check.py` makes: the packaged page
 # (`build-web.py --fast`), the page tests and each crate's `wasm-pack test`. With the wasm rustflags
@@ -145,33 +141,3 @@ zerovec-derive = { opt-level = 0 }
 inherits = "dev"
 # A check compiles each crate once; incremental bookkeeping made those cold builds about a third slower.
 incremental = false
-
-# Dioxus 0.7 compiles hot-reload scaffolding into every `rsx!` template when debug assertions are on.
-# Only `dx serve` uses it. These crates have no `debug_assert!` or `cfg(debug_assertions)` of their
-# own, so here it only costs compile time.
-[profile.wasm-check.package.boardstudio-web]
-debug-assertions = false
-[profile.wasm-check.package.boardstudio-web-ui-shared]
-debug-assertions = false
-[profile.wasm-check.package.boardstudio-web-keycaps]
-debug-assertions = false
-[profile.wasm-check.package.boardstudio-web-case]
-debug-assertions = false
-[profile.wasm-check.package.boardstudio-web-parts]
-debug-assertions = false
-[profile.wasm-check.package.boardstudio-web-layout]
-debug-assertions = false
-[profile.wasm-check.package.boardstudio-web-pcb]
-debug-assertions = false
-[profile.wasm-check.package.boardstudio-web-keymap]
-debug-assertions = false
-[profile.wasm-check.package.boardstudio-web-library]
-debug-assertions = false
-
-# `dioxus-primitives` and `dioxus-sdk-time` unify `dioxus/default` -> `dioxus-web/devtools`,
-# which `dioxus-web` gates on `#[cfg(all(feature = "devtools", debug_assertions))]`.
-# `wasm-check` is static/test-only (`dx serve` keeps `wasm-dev` with `debug-assertions = true`,
-# and `release` already compiles `mod devtools` out), so disabling debug assertions here keeps
-# hot-reload WebSocket reconnect loops, `inline1.js`, and the devtools panic hook out of checks.
-[profile.wasm-check.package.dioxus-web]
-debug-assertions = false

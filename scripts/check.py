@@ -199,10 +199,10 @@ BROWSER_PREBUILDS = [BROWSER_CRATE_BUILD, PAGE_TEST_BUILD, HARNESS_BUILD]
 HARNESS_MANIFEST = "tools/browser-harness/Cargo.toml"
 LINT: list[list[str]] = [
     ["cargo", "fmt", "--all", "--check"],
-    ["cargo", "clippy", "--workspace", "--locked", "--all-targets", "--no-deps", "--", "-D", "warnings"],
+    ["cargo", "clippy", "--profile", "lint", "--workspace", "--locked", "--all-targets", "--no-deps", "--", "-D", "warnings"],
     # Native Clippy compiles non-WASM stubs for browser-gated modules and tests, so all
     # web workspace crates are also linted under an explicit WASM target.
-    ["cargo", "clippy", *[arg for pkg in WEB_WASM_PACKAGES for arg in ("--package", pkg)],
+    ["cargo", "clippy", "--profile", "lint", *[arg for pkg in WEB_WASM_PACKAGES for arg in ("--package", pkg)],
      "--target", "wasm32-unknown-unknown", "--all-targets", "--locked", "--no-deps", "--", "-D", "warnings"],
     # The browser harness lives outside the workspace with its own lockfile, so
     # it gets its own manifest-scoped format and lint commands.
@@ -648,7 +648,7 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
                  outputs: list[tuple[Command, str]] | None = None,
                  receipt: verification_receipt.Collector | None = None,
                  step: str = "", *, invocations=None, workers=None, in_order=False,
-                 elapsed_by_command=None) -> tuple[float, list[Command]]:
+                 elapsed_by_command=None, sequential_after=None, validate_output=None) -> tuple[float, list[Command]]:
     """Runs independent launches together, printing each completed launch's output whole."""
     lock_fd = browser_tools._inherited_build_lock()
     invocations = invocations or {}
@@ -665,7 +665,13 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
                 return None
             registry["workers"] += 1
         try:
-            return run_worker(command)
+            result = run_worker(command)
+            if result is not None and result[0] == 0:
+                for following in (sequential_after or {}).get(tuple(command), []):
+                    next_result = run_worker(following)
+                    if next_result is None or next_result[0] != 0:
+                        break
+            return result
         finally:
             with workers_changed:
                 registry["workers"] -= 1
@@ -697,6 +703,12 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
         if done is None:
             return None
         code, output = done.returncode, done.stdout
+        if code == 0 and validate_output is not None:
+            try:
+                validate_output(command, output)
+            except (ValueError, RuntimeError) as error:
+                code = 1
+                output = output_text(output) + f"\ncheck: {error}\n"
         ended_at = datetime.now(timezone.utc).isoformat()
         elapsed = time.monotonic() - started
         try:
@@ -761,8 +773,10 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
         if main_thread:
             signal.pthread_sigmask(signal.SIG_BLOCK, signals)
         try:
+            followers = {tuple(cmd) for lane in (sequential_after or {}).values() for cmd in lane}
             for command in ordered:
-                futures.append((command, pool.submit(launch, command)))
+                if tuple(command) not in followers:
+                    futures.append((command, pool.submit(launch, command)))
         finally:
             if main_thread:
                 signal.pthread_sigmask(signal.SIG_SETMASK, previous_mask)
@@ -950,6 +964,31 @@ def run_commands(name: str, commands: list[Command], environment: dict[str, str]
     index = 0
     while index < len(commands):
         command = commands[index]
+        # The page build must produce CSS first; afterward the two root-target
+        # prebuilds share one lane while the independent harness builds in another.
+        prebuilds = commands[index:]
+        wasm_prebuilds = [cmd for cmd in prebuilds if cmd in (BROWSER_CRATE_BUILD, PAGE_TEST_BUILD)]
+        if (name == "build" and check_jobs() > 1 and receipt is None
+                and index > 0 and commands[0] == [PY, "scripts/build-web.py", "--fast"]
+                and prebuilds == [*wasm_prebuilds, HARNESS_BUILD] and wasm_prebuilds):
+            child_env = environment.copy()
+            child_env.setdefault("CARGO_PROFILE_DEV_DEBUG", "false")
+            def validate_prebuild(cmd, output):
+                if is_crate_build(cmd):
+                    crates = tuple(cmd[i + 1].removeprefix("boardstudio-web-")
+                                   for i, token in enumerate(cmd) if token == "-p")
+                    crate_test_artifacts(output, cwd, crates)
+
+            elapsed, failed = run_parallel(
+                prebuilds, child_env, captured, step=name, workers=2, in_order=True,
+                invocations={tuple(cmd): (cmd, cwd, {}) for cmd in prebuilds},
+                sequential_after={tuple(wasm_prebuilds[0]): wasm_prebuilds[1:]},
+                validate_output=validate_prebuild,
+            )
+            total += elapsed
+            for failed_cmd in failed:
+                print("check: command failed: " + shlex.join(failed_cmd), file=sys.stderr)
+            return total, not failed
         if tooling_workers > 1 and not SERIAL_TOOLING_SCRIPTS.intersection(command):
             end = index + 1
             while end < len(commands) and not SERIAL_TOOLING_SCRIPTS.intersection(commands[end]):
