@@ -967,7 +967,10 @@ impl OrderScanner<'_> {
                 found.escape_ascii(),
                 self.pos
             )),
-            None => Err(format!("expected '{}' but found end of input", byte.escape_ascii())),
+            None => Err(format!(
+                "expected '{}' but found end of input",
+                byte.escape_ascii()
+            )),
         }
     }
 
@@ -1013,7 +1016,11 @@ impl OrderScanner<'_> {
                 Ok(())
             }
             Some(b'{') | Some(b'[') => {
-                let close = if self.bytes[self.pos] == b'{' { b'}' } else { b']' };
+                let close = if self.bytes[self.pos] == b'{' {
+                    b'}'
+                } else {
+                    b']'
+                };
                 let is_object = close == b'}';
                 self.pos += 1;
                 self.skip_whitespace();
@@ -1090,7 +1097,6 @@ fn parameter_key_order(fixture_raw: &str) -> Result<Vec<String>, String> {
             let mut keys = Vec::new();
             scan.skip_whitespace();
             if scan.bytes.get(scan.pos) == Some(&b'}') {
-                scan.pos += 1;
                 return Ok(keys);
             }
             loop {
@@ -1101,10 +1107,7 @@ fn parameter_key_order(fixture_raw: &str) -> Result<Vec<String>, String> {
                 scan.skip_whitespace();
                 match scan.bytes.get(scan.pos) {
                     Some(b',') => scan.pos += 1,
-                    Some(b'}') => {
-                        scan.pos += 1;
-                        break;
-                    }
+                    Some(b'}') => break,
                     Some(&found) => {
                         return Err(format!(
                             "expected ',' or '}}' but found '{}' at byte {}",
@@ -1121,10 +1124,7 @@ fn parameter_key_order(fixture_raw: &str) -> Result<Vec<String>, String> {
         scan.skip_whitespace();
         match scan.bytes.get(scan.pos) {
             Some(b',') => scan.pos += 1,
-            Some(b'}') => {
-                scan.pos += 1;
-                break;
-            }
+            Some(b'}') => break,
             Some(&found) => {
                 return Err(format!(
                     "expected ',' or '}}' but found '{}' at byte {}",
@@ -1403,9 +1403,7 @@ fn parameter_key_order_ignores_nested_keys_and_string_punctuation() {
 /// Escaped key names decode exactly as `serde_json` parses them.
 #[test]
 fn parameter_key_order_decodes_escaped_key_names() {
-    let raw = concat!(
-        r#"{"parameters": {"a\"b": 1, "c\\d": 2, "\"e\"": 3, "\u0041bc": 4}}"#
-    );
+    let raw = r#"{"parameters": {"a\"b": 1, "c\\d": 2, "\"e\"": 3, "\u0041bc": 4}}"#;
     assert_eq!(
         parameter_key_order(raw).unwrap(),
         vec![
@@ -1464,8 +1462,7 @@ fn parameter_key_order_detects_reordered_keys() {
 /// though every parameter name and value still matches the fixture.
 #[test]
 fn check_schema_rejects_reordered_parameters() {
-    let (fixture, fixture_raw) =
-        common::read_json_raw("generators/ceoloide__switch_mx.json");
+    let (fixture, fixture_raw) = common::read_json_raw("generators/ceoloide__switch_mx.json");
     let mut swapped = parameter_key_order(&fixture_raw).expect("parameter order");
     assert!(swapped.len() >= 2, "fixture needs at least two parameters");
     let last = swapped.len() - 1;
@@ -1485,7 +1482,9 @@ fn check_schema_rejects_reordered_parameters() {
     };
     check_schema(&mut run);
     assert!(
-        run.failures.iter().any(|failure| failure.contains("schema order")),
+        run.failures
+            .iter()
+            .any(|failure| failure.contains("schema order")),
         "swapped parameters must fail the order check, got: {run_failures:?}",
         run_failures = run.failures
     );
