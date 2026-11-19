@@ -7,7 +7,11 @@ import os
 from pathlib import Path
 import sys
 import threading
+from unittest.mock import patch
 from urllib.parse import urlsplit
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+import browser_tools  # noqa: E402
 
 CAD = Path(__file__).resolve().parents[1]
 ROOT = CAD.parent
@@ -187,7 +191,8 @@ def run(suites=None, driver=None):
     thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.05})
     thread.start()
     try:
-        result = probe.run_probe([str(binary), f'http://127.0.0.1:{server.server_port}/', *suites], timeout=900)
+        with patch.dict(os.environ, {"TMPDIR": str(browser_tools.shallow_browser_tmpdir())}):
+            result = probe.run_probe([str(binary), f'http://127.0.0.1:{server.server_port}/', *suites], timeout=900)
         if result.stderr:
             sys.stderr.write(result.stderr)
         if result.returncode:

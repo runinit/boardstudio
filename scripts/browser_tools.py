@@ -13,6 +13,26 @@ import shutil
 import subprocess
 
 
+MAX_BROWSER_TMPDIR_BYTES = 45
+
+
+def shallow_browser_tmpdir() -> Path:
+    """Choose a root short enough for nested Chrome Unix sockets."""
+    candidate = Path.home() / ".cache/tmp"
+    if len(os.fsencode(candidate)) > MAX_BROWSER_TMPDIR_BYTES:
+        candidate = Path("/tmp")
+    candidate.mkdir(parents=True, exist_ok=True)
+    return candidate
+
+
+def browser_env(base_env=None, *, chrome=None, **extra) -> dict[str, str]:
+    environment = dict(os.environ if base_env is None else base_env)
+    environment["TMPDIR"] = str(shallow_browser_tmpdir())
+    environment["CHROME_BIN"] = chrome if chrome is not None else locate_chrome()
+    environment.update({key: str(value) for key, value in extra.items()})
+    return environment
+
+
 class MissingBrowserTool(Exception):
     """A prerequisite of the real-page smoke is absent; the message says how to supply it."""
 

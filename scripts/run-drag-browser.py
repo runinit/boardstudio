@@ -108,8 +108,6 @@ def main() -> int:
     run_id = f"{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}-{uuid.uuid4().hex[:12]}"
     run_dir = RESULTS / run_id
     run_dir.mkdir(parents=True, exist_ok=False)
-    browser_tmp = Path.home() / ".cache/tmp"
-    browser_tmp.mkdir(parents=True, exist_ok=True)
     site_root = SITE / "site-subpath/boardstudio"
     build_files = [path for path in site_root.rglob("*") if path.is_file()]
     build_hash = digest_files(build_files, site_root)
@@ -121,11 +119,8 @@ def main() -> int:
     thread.start()
     serving_site, _ = verification_receipt.site_identity(SITE)
     url = f"http://127.0.0.1:{server.server_address[1]}/boardstudio/"
-    environment = os.environ.copy()
+    environment = browser_tools.browser_env(chrome=chrome)
     environment.update({
-        "CHROME_BIN": chrome,
-        # Keep Chromium's short-lived profile on disk at a shallow path; deep paths exceed Unix socket limits.
-        "TMPDIR": str(browser_tmp),
         "BOARDSTUDIO_PREVIEW_URL": url,
         "BOARDSTUDIO_DRAG_RECEIPT_PATH": str(run_dir / "receipt.json"),
         "BOARDSTUDIO_DRAG_SOURCE_HEAD": head,

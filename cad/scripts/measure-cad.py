@@ -725,7 +725,7 @@ def main():
                     log.write("Validation only; all observed values are diagnostic, not benchmark results.\n")
                     log.flush()
                     process = subprocess.Popen(command, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT,
-                                               env=dict(os.environ, CHROME_BIN=chrome), start_new_session=True)
+                                               env=browser_tools.browser_env(chrome=chrome), start_new_session=True)
                     try:
                         code = process.wait(timeout=600)
                     except subprocess.TimeoutExpired:
@@ -739,7 +739,7 @@ def main():
                         code = 124
                     log.write(f"\nvalidation_exit={code}; diagnostic-only, never a build/runtime benchmark receipt\n")
             else:
-                code, _ = capture(command, root, out, 5400, dict(os.environ, CHROME_BIN=chrome))
+                code, _ = capture(command, root, out, 5400, browser_tools.browser_env(chrome=chrome))
         finally:
             server.shutdown()
             server.server_close()

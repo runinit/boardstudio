@@ -132,6 +132,23 @@ impl IsolatedDirs {
             preserve: std::cell::Cell::new(false),
             identity,
         };
+        #[cfg(unix)]
+        {
+            let socket = dirs.profile_dir.join("SingletonSocket");
+            let socket_len = socket.as_os_str().as_encoded_bytes().len();
+            if socket_len >= 104 {
+                let message = format!(
+                    "TMPDIR produces browser profile '{}' with SingletonSocket path {} bytes (>= 104; Unix socket limit is 108 bytes)",
+                    dirs.profile_dir.display(), socket_len
+                );
+                return Err(match dirs.cleanup_after_termination() {
+                    Ok(()) => message,
+                    Err(cleanup) => {
+                        format!("{message}; cannot remove partial browser directory: {cleanup}")
+                    }
+                });
+            }
+        }
         for dir in [&dirs.profile_dir, &dirs.config_dir] {
             if let Err(error) = std::fs::create_dir(dir) {
                 let message = format!(
@@ -272,6 +289,26 @@ mod tests {
                 .unwrap_err();
         assert!(error.contains("identity failure"));
         assert!(!path.exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn deep_tmpdir_rejected_and_cleaned() {
+        let base = tempfile::tempdir().unwrap();
+        let current_len = base.path().as_os_str().as_encoded_bytes().len();
+        let deep = base
+            .path()
+            .join("x".repeat(80_usize.saturating_sub(current_len + 1).max(1)));
+        std::fs::create_dir(&deep).unwrap();
+        let error = match IsolatedDirs::create(&deep) {
+            Ok(_) => panic!("deep profile must be rejected"),
+            Err(error) => error,
+        };
+        assert!(
+            error.contains("TMPDIR") && error.contains("SingletonSocket"),
+            "{error}"
+        );
+        assert_eq!(std::fs::read_dir(&deep).unwrap().count(), 0);
     }
 
     #[test]

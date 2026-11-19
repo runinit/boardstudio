@@ -15,6 +15,9 @@ import time
 import urllib.error
 import urllib.request
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+import browser_tools  # noqa: E402
+
 CAD_ROOT = Path(__file__).resolve().parents[1]
 PAGE = ("cad/scripts/browser-smoke/occurrence-budget.html" if "--occurrence-budget" in sys.argv
         else "cad/scripts/browser-smoke/smoke.html")
@@ -94,7 +97,7 @@ def run_page(url, browser=None, timeout=180):
         except OSError:
             return False
 
-    with tempfile.TemporaryDirectory(prefix="cad-browser-") as owned_dir:
+    with tempfile.TemporaryDirectory(prefix="cad-browser-", dir=str(browser_tools.shallow_browser_tmpdir())) as owned_dir:
         profile = str(Path(owned_dir) / "chrome-profile")
         Path(profile).mkdir()
         log_path = Path(owned_dir) / "chromedriver.log"
@@ -103,7 +106,8 @@ def run_page(url, browser=None, timeout=180):
             port = listener.getsockname()[1]
         driver = subprocess.Popen(
             [chromedriver(), f"--port={port}", f"--log-path={log_path}"],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            env=browser_tools.browser_env(chrome=browser or chromium()))
         session_id = None
         primary_error = None
         try:

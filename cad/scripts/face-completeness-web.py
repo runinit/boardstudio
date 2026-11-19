@@ -9,6 +9,10 @@ from pathlib import Path
 import subprocess
 import sys
 import threading
+from unittest.mock import patch
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+import browser_tools  # noqa: E402
 
 import cad_build
 
@@ -158,7 +162,8 @@ def run():
     thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.05})
     thread.start()
     try:
-        result = probe.run_probe([binary, f"http://127.0.0.1:{server.server_port}/"], timeout=600)
+        with patch.dict(os.environ, {"TMPDIR": str(browser_tools.shallow_browser_tmpdir())}):
+            result = probe.run_probe([binary, f"http://127.0.0.1:{server.server_port}/"], timeout=600)
         if result.returncode:
             stdout = f"\nstdout: {result.stdout}" if result.stdout else ""
             raise RuntimeError(f"face completeness browser failed ({result.returncode}): {result.stderr}{stdout}")

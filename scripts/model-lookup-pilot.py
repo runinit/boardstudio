@@ -31,6 +31,7 @@ import os
 from pathlib import Path
 import sys
 import threading
+from unittest.mock import patch
 from urllib.parse import urlsplit
 
 import browser_tools
@@ -143,7 +144,8 @@ def run(source, driver, recipe=ROOT / 'docs/agents/model-lookup.md'):
     thread = threading.Thread(target=server.serve_forever)
     thread.start()
     try:
-        result = probe.run_probe([str(driver), f'http://127.0.0.1:{server.server_port}/', SUITE], timeout=TIMEOUT)
+        with patch.dict(os.environ, {"TMPDIR": str(browser_tools.shallow_browser_tmpdir())}):
+            result = probe.run_probe([str(driver), f'http://127.0.0.1:{server.server_port}/', SUITE], timeout=TIMEOUT)
         if result.stderr:
             sys.stderr.write(result.stderr)
         if result.returncode:

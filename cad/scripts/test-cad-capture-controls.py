@@ -142,7 +142,7 @@ def main():
             command = [str(binary), f"http://127.0.0.1:{server.server_port}", "monstertruck", "checked",
                        f"{fixture}:{operation}", str(directory), "1", sequence]
             if name == "preview-validation":
-                code, _ = measure_cad.capture(command, ROOT, directory, 240, dict(os.environ, CHROME_BIN=chrome))
+                code, _ = measure_cad.capture(command, ROOT, directory, 240, browser_tools.browser_env(chrome=chrome))
                 log = (directory / "command.log").read_text()
                 result = SimpleNamespace(returncode=code, stdout=log, stderr=log)
                 with (directory / "memory.csv").open() as memory:
@@ -152,7 +152,7 @@ def main():
                 assert any(row["scope"] == "controller" and row["status"] == "ok" for row in samples), samples
                 print("PASS memory.csv: real Rust browser and controller sampled", flush=True)
             else:
-                result = subprocess.run(command, cwd=ROOT, env=dict(os.environ, CHROME_BIN=chrome),
+                result = subprocess.run(command, cwd=ROOT, env=browser_tools.browser_env(chrome=chrome),
                                         capture_output=True, text=True, timeout=240)
             (directory / "process.log").write_text(f"exit={result.returncode}\n{result.stdout}\n{result.stderr}")
             (directory / "worker-observations.json").write_text(json.dumps(records, indent=2))
@@ -194,7 +194,7 @@ def main():
         directory.mkdir()
         command = [str(binary), f"http://127.0.0.1:{server.server_port}", "monstertruck", "checked",
                    "startup:cold", str(directory), "1", "validation"]
-        result = subprocess.run(command, cwd=ROOT, env=dict(os.environ, CHROME_BIN=chrome),
+        result = subprocess.run(command, cwd=ROOT, env=browser_tools.browser_env(chrome=chrome),
                                 capture_output=True, text=True, timeout=240)
         (directory / "process.log").write_text(f"exit={result.returncode}\n{result.stdout}\n{result.stderr}")
         events = [json.loads(line) for line in (directory / "events.log").read_text().splitlines()]
@@ -210,11 +210,11 @@ def main():
         records.clear()
         directory = output / "browser-close-failure"
         directory.mkdir()
-        profiles = Path(tempfile.mkdtemp(prefix="cad-close-", dir=os.environ.get("TMPDIR")))
+        profiles = Path(tempfile.mkdtemp(prefix="cad-close-", dir=str(browser_tools.shallow_browser_tmpdir())))
         command = [str(binary), f"http://127.0.0.1:{server.server_port}", "monstertruck", "checked",
                    "C1plate:preview", str(directory), "1", "validation"]
         with (directory / "process.log").open("w") as log:
-            process = subprocess.Popen(command, cwd=ROOT, env=dict(os.environ, CHROME_BIN=chrome, TMPDIR=str(profiles)),
+            process = subprocess.Popen(command, cwd=ROOT, env=browser_tools.browser_env(chrome=chrome, TMPDIR=str(profiles)),
                                        stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
             try:
                 events_file = directory / "events.log"
