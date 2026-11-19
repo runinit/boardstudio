@@ -554,6 +554,25 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
                 with mock.patch.object(tailwind_tools, "DX_TOOLS", root / "none"):
                     self.assertEqual(check.test_css_command()[:3], ["dx", "build", "--web"])
 
+    def test_pinned_tailwind_cli_trusts_an_explicit_executable_without_probing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            pinned = Path(directory) / "tailwindcss"
+            pinned.write_text("#!/bin/sh\nexit 3\n")
+            pinned.chmod(0o755)
+            with mock.patch.dict(os.environ, {"BOARDSTUDIO_TAILWINDCSS": str(pinned)}, clear=True):
+                self.assertEqual(tailwind_tools.tailwind_cli(), pinned)
+
+    def test_pinned_tailwind_cli_rejects_a_missing_or_unexecutable_pin(self):
+        with tempfile.TemporaryDirectory() as directory:
+            missing = Path(directory) / "absent"
+            plain = Path(directory) / "plain"
+            plain.write_text("not an executable\n")
+            plain.chmod(0o644)
+            for bad in (missing, plain):
+                with mock.patch.dict(os.environ, {"BOARDSTUDIO_TAILWINDCSS": str(bad)}, clear=True):
+                    with self.assertRaises(ValueError):
+                        tailwind_tools.tailwind_cli()
+
     def test_hosted_web_suites_partition_the_local_browser_commands(self):
         packaged = check.STEPS["browser-packaged"][1]
         wasm = check.STEPS["browser-wasm"][1]
@@ -1743,6 +1762,46 @@ class CadCaptureControlsCleanupTests(unittest.TestCase):
         parent = subprocess.Popen(["sleep", "120"], start_new_session=True)
         self.controls._reap_capture(parent, detached=True)
         self.assertEqual(parent.returncode, -signal.SIGKILL)
+
+
+class CadBrowserSessionCleanupTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location(
+            "cad_browser", ROOT / "cad/scripts/test-cad-browser.py")
+        cls.page = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.page)
+
+    def test_session_delete_timeout_warns_without_failing_a_green_page(self):
+        def timeout(*args, **kwargs):
+            raise TimeoutError("timed out")
+
+        errors = []
+        with contextlib.redirect_stderr(io.StringIO()) as warning:
+            self.page._delete_session(timeout, 9515, "session", None, errors)
+        self.assertEqual(errors, [])
+        self.assertIn("session deletion timed out", warning.getvalue())
+
+    def test_session_delete_timeout_annotates_a_page_failure(self):
+        def timeout(*args, **kwargs):
+            raise TimeoutError("timed out")
+
+        failed = RuntimeError("smoke page never finished")
+        with contextlib.redirect_stderr(io.StringIO()) as warning:
+            self.page._delete_session(timeout, 9515, "session", failed, [])
+        self.assertEqual(warning.getvalue(), "")
+        self.assertTrue(any("session deletion timed out" in note
+                            for note in getattr(failed, "__notes__", [])))
+
+    def test_session_delete_error_still_fails_a_green_page(self):
+        def refused(*args, **kwargs):
+            raise RuntimeError("ChromeDriver DELETE /session/session failed: gone")
+
+        errors = []
+        with contextlib.redirect_stderr(io.StringIO()):
+            self.page._delete_session(refused, 9515, "session", None, errors)
+        self.assertEqual(errors, ["session deletion failed: "
+                                  "ChromeDriver DELETE /session/session failed: gone"])
 
 
 if __name__ == "__main__":

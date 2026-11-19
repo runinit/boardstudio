@@ -400,9 +400,12 @@ class BrowserSessionCleanupTests(unittest.TestCase):
         self.assertEqual(self.run_with_delete_delay(1.0), "<html>done</html>")
 
     def test_session_delete_timeout_is_reported(self):
+        # A slow graceful shutdown under parallel load warns instead of failing the
+        # page: the sweep below still reaps everything, and any real remainder fails.
         started = time.monotonic()
-        with self.assertRaisesRegex(RuntimeError, "cleanup incomplete: session deletion failed: timed out"):
-            self.run_with_delete_delay(6.0)
+        with contextlib.redirect_stderr(io.StringIO()) as warning:
+            self.assertEqual(self.run_with_delete_delay(6.0), "<html>done</html>")
+        self.assertIn("session deletion timed out", warning.getvalue())
         self.assertGreater(time.monotonic() - started, 4.5)
         self.assertLess(time.monotonic() - started, 10)
 

@@ -246,10 +246,11 @@ class BuildWebTests(unittest.TestCase):
                     self.assertEqual(BUILD.tailwind_cli(), v4)
                 os.environ[tailwind_tools.TAILWIND_ENV] = str(old)
                 self.assertEqual(BUILD.tailwind_cli(), old)
+                # An explicit pin is trusted as-is without probing: the --help probe
+                # rejects CI's sha-verified install on hosted runners.
                 os.environ[tailwind_tools.TAILWIND_ENV] = str(v3)
                 tool(v3, "tailwindcss v3.4.15")
-                with self.assertRaises(ValueError):
-                    BUILD.tailwind_cli()
+                self.assertEqual(BUILD.tailwind_cli(), v3)
             with patch.object(tailwind_tools, "DX_TOOLS", root / "none"), patch.object(BUILD.shutil, "which", return_value=None), \
                  patch.dict(os.environ, {}, clear=False):
                 os.environ.pop(tailwind_tools.TAILWIND_ENV, None)

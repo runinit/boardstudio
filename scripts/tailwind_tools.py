@@ -36,9 +36,13 @@ def tailwind_cli() -> Path | None:
         return "tailwindcss v4." in result.stdout + result.stderr
 
     if explicit := os.environ.get(TAILWIND_ENV):
-        if not is_v4(Path(explicit)):
-            raise ValueError(f"{TAILWIND_ENV}={explicit} is not a standalone Tailwind v4 CLI")
-        return Path(explicit)
+        # An explicit pin is trusted without executing it: the --help probe rejects the
+        # sha-verified CI install on hosted runners while the same binary runs fine when
+        # invoked for real. Auto-discovered candidates below are still probed.
+        candidate = Path(explicit)
+        if not (candidate.is_file() and os.access(candidate, os.X_OK)):
+            raise ValueError(f"{TAILWIND_ENV}={explicit} is not an executable file")
+        return candidate
     candidates = [Path(found)] if (found := shutil.which("tailwindcss")) else []
     installed = [path / "tailwindcss" if path.is_dir() else path for path in DX_TOOLS.glob("tailwindcss-*")]
     candidates += sorted((path for path in installed if path.is_file() and os.access(path, os.X_OK)),

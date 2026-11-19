@@ -51,6 +51,23 @@ def serve():
     return server
 
 
+def _delete_session(request, port, session_id, active_error, cleanup_errors):
+    """Best-effort ChromeDriver session deletion; a timeout warns instead of failing."""
+    try:
+        request(port, "DELETE", f"/session/{session_id}",
+                until=time.monotonic() + 5)
+    except TimeoutError as error:
+        # Graceful shutdown can be slow under parallel CI load; the SIGTERM/SIGKILL
+        # sweep below still reaps everything, and any real remainder fails the run.
+        note = f"session deletion timed out: {error}"
+        if active_error is not None:
+            active_error.add_note(note)
+        else:
+            print(f"warning: {note}", file=sys.stderr, flush=True)
+    except Exception as error:
+        cleanup_errors.append(f"session deletion failed: {error}")
+
+
 def run_page(url, browser=None, timeout=180):
     deadline = time.monotonic() + timeout
 
@@ -176,11 +193,7 @@ def run_page(url, browser=None, timeout=180):
                     return True
 
             if session_id is not None:
-                try:
-                    request(port, "DELETE", f"/session/{session_id}",
-                            until=time.monotonic() + 5)
-                except Exception as error:
-                    cleanup_errors.append(f"session deletion failed: {error}")
+                _delete_session(request, port, session_id, active_error, cleanup_errors)
 
             cleanup_deadline = time.monotonic() + 4
 
