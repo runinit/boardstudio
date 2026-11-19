@@ -3,6 +3,7 @@
 from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import io
+import json
 import os
 from pathlib import Path
 import re
@@ -52,7 +53,8 @@ OWNER_TESTS = (
 
 def run(command, **kwargs):
     fd = browser_tools._inherited_build_lock()
-    return subprocess.run(command, cwd=CAD_ROOT, check=True,
+    kwargs.setdefault("cwd", CAD_ROOT)
+    return subprocess.run(command, check=True,
                           **({"pass_fds": (fd,)} if fd is not None else {}), **kwargs)
 
 
@@ -146,14 +148,66 @@ def _test_production_cad(output):
     _run_test(command, library_target, output)
 
 
+def _owner_binary_key(package, selection):
+    if selection[0] == "--lib":
+        return (package, "lib", package.replace("-", "_"))
+    return (package, "test", selection[1])
+
+
 def _test_cad_owners(output):
     _, owner_target = NATIVE_TEST_TARGETS
+    env = dict(os.environ, CARGO_TARGET_DIR=str(CAD_ROOT / owner_target))
+    command = ["cargo", "test", "--no-run", "--manifest-path", "monstertruck-qualification/Cargo.toml",
+               "-p", "monstertruck-io", "-p", "monstertruck-meshing", "--lib", "--test", "input",
+               "--test", "closed_trim_projection", "--profile", "cad-test", "--locked", "--message-format=json"]
+    expected = {_owner_binary_key(package, selection) for package, *selection in OWNER_TESTS}
+    binaries = {}
+    duplicates = set()
+    fd = browser_tools._inherited_build_lock()
+    with subprocess.Popen(command, cwd=CAD_ROOT, env=env, stdout=subprocess.PIPE,
+                          stderr=subprocess.STDOUT, text=True,
+                          **({"pass_fds": (fd,)} if fd is not None else {})) as process:
+        for line in process.stdout:
+            try:
+                message = json.loads(line)
+            except json.JSONDecodeError:
+                output.write(line)
+                continue
+            if message.get("reason") == "compiler-message":
+                output.write(message["message"].get("rendered") or "")
+            if message.get("reason") != "compiler-artifact" or not message.get("executable"):
+                continue
+            target = message["target"]
+            kind = "lib" if target["kind"] == ["lib"] else "test" if "test" in target["kind"] else None
+            package_id = message["package_id"]
+            fragment = package_id.rsplit("#", 1)[-1]
+            package = (fragment.split("@", 1)[0] if "@" in fragment
+                       else package_id.split("#", 1)[0].rstrip("/").rsplit("/", 1)[-1])
+            key = (package, kind, target["name"])
+            if key in expected:
+                if key in binaries:
+                    duplicates.add(key)
+                binaries[key] = message["executable"]
+        status = process.wait()
+    if status:
+        raise subprocess.CalledProcessError(status, command)
+    if duplicates:
+        raise RuntimeError(f"duplicate CAD owner test binaries: {sorted(duplicates)}")
+    if missing := expected - binaries.keys():
+        raise RuntimeError(f"missing CAD owner test binaries: {sorted(missing)}")
     # Filter legacy suites; external fixtures are read only by the tests that use them.
     for package, *selection in OWNER_TESTS:
-        command = ["cargo", "test", "--manifest-path", "monstertruck-qualification/Cargo.toml",
-                   "-p", package, *selection, "--profile", "cad-test", "--locked"]
-        result = _run_test(command, owner_target, output)
-        if not re.search(r"^test result: ok\. [1-9][0-9]* passed;", result, re.M):
+        key = _owner_binary_key(package, selection)
+        args = selection[1:] if selection[0] == "--lib" else selection[2:]
+        cwd = CAD_ROOT / "monstertruck-qualification/vendor" / package
+        try:
+            result = run([binaries[key], *args], cwd=cwd, env=dict(env, CARGO_MANIFEST_DIR=str(cwd)),
+                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        except subprocess.CalledProcessError as error:
+            output.write(error.stdout or "")
+            raise
+        output.write(result.stdout)
+        if not re.search(r"^test result: ok\. [1-9][0-9]* passed;", result.stdout, re.M):
             raise RuntimeError(f"CAD owner selection has no executed tests: {package} {' '.join(selection)}")
 
 

@@ -40,7 +40,6 @@ categories = [
 ]
 license = "Apache-2.0"
 repository = "https://github.com/virtualritz/monstertruck"
-resolver = "2"
 
 [features]
 cadmpeg = [

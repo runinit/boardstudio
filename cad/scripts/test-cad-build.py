@@ -16,7 +16,7 @@ import time
 import tomllib
 import unittest
 import urllib.request
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import cad_build as build
 
@@ -129,97 +129,132 @@ class CadBuildTests(unittest.TestCase):
         run.assert_not_called()
         self.assertIn("skipping the WASM build", printed.getvalue())
 
+    def owner_prebuild(self, *, omit=None, duplicate=None, status=0):
+        artifacts = []
+        keys = {build._owner_binary_key(package, selection) for package, *selection in build.OWNER_TESTS}
+        for package, kind, name in sorted(keys):
+            key = (package, kind, name)
+            if key == omit:
+                continue
+            artifact = json.dumps({"reason": "compiler-artifact", "package_id": f"path+file:///vendor/{package}#0.4.1",
+                                   "target": {"kind": [kind], "name": name},
+                                   "executable": f"/built/{package}/{name}"}) + "\n"
+            artifacts.append(artifact)
+            if key == duplicate:
+                artifacts.append(artifact)
+        process = MagicMock()
+        process.stdout = iter(['{"reason":"compiler-message","message":{"rendered":"diagnostic\\n"}}\n'] + artifacts)
+        process.wait.return_value = status
+        context = MagicMock()
+        context.__enter__.return_value = process
+        return context
+
     def test_native_tests_run_library_and_provider_and_propagate_failures(self):
-        with patch.object(build, "run", return_value=self.PASSED) as run, \
+        with patch.object(build.subprocess, "Popen", return_value=self.owner_prebuild()) as prebuild, \
+                patch.object(build, "run", return_value=self.PASSED) as run, \
                 contextlib.redirect_stdout(io.StringIO()):
             build.test_cad()
-        commands = [call.args[0] for call in run.call_args_list]
-        self.assertEqual(commands[0], ["cargo", "test", "--manifest-path", "monstertruck/Cargo.toml",
-                                      "-p", "boardstudio-cad", "-p", "boardstudio-cad-wasm",
-                                      "--profile", "cad-test", "--lib", "--tests", "--examples", "--locked"])
+        self.assertEqual(run.call_args_list[0].args[0], ["cargo", "test", "--manifest-path", "monstertruck/Cargo.toml",
+                         "-p", "boardstudio-cad", "-p", "boardstudio-cad-wasm",
+                         "--profile", "cad-test", "--lib", "--tests", "--examples", "--locked"])
         self.assertEqual(run.call_args_list[0].kwargs["env"]["CARGO_TARGET_DIR"],
                          str(self.root / "monstertruck/target"))
-        self.assertTrue(all("--locked" in command and command[-3:] == ["--profile", "cad-test", "--locked"]
-                            for command in commands[1:]))
-        owner_commands = [command[4:] for command in commands[1:]]
-        for selection in (
-            ["-p", "monstertruck-io", "--test", "input", "repair_movement"],
-            ["-p", "monstertruck-io", "--lib", "repair_movement_sink"],
-            ["-p", "monstertruck-io", "--test", "input", "source_pcurve_active_view"],
-            ["-p", "monstertruck-io", "--test", "input", "preview_tolerance"],
-            ["-p", "monstertruck-meshing", "--lib", "repair_"],
-            ["-p", "monstertruck-meshing", "--test", "closed_trim_projection"],
-            ["-p", "monstertruck-meshing", "--lib", "seam_branch_tests"],
-        ):
-            self.assertTrue(any(command[:len(selection)] == selection for command in owner_commands), selection)
-        self.assertTrue(all(command[3] == "monstertruck-qualification/Cargo.toml"
-                            for command in commands[1:]))
+        self.assertEqual(build.OWNER_TESTS, (
+            ("monstertruck-io", "--test", "input", "repair_movement"),
+            ("monstertruck-io", "--lib", "repair_movement_sink"),
+            ("monstertruck-io", "--test", "input", "source_pcurve_active_view"),
+            ("monstertruck-io", "--test", "input", "preview_tolerance"),
+            ("monstertruck-meshing", "--lib", "repair_"),
+            ("monstertruck-meshing", "--test", "closed_trim_projection"),
+            ("monstertruck-meshing", "--lib", "seam_branch_tests"),
+        ))
+        command = prebuild.call_args.args[0]
+        self.assertEqual(command, ["cargo", "test", "--no-run", "--manifest-path", "monstertruck-qualification/Cargo.toml",
+                                   "-p", "monstertruck-io", "-p", "monstertruck-meshing", "--lib", "--test", "input",
+                                   "--test", "closed_trim_projection", "--profile", "cad-test", "--locked", "--message-format=json"])
+        self.assertEqual(prebuild.call_args.kwargs["env"]["CARGO_TARGET_DIR"], str(self.root / "monstertruck-qualification/target"))
+        self.assertEqual(len(run.call_args_list), len(build.OWNER_TESTS) + 1)
+        for call, (package, *selection) in zip(run.call_args_list[1:], build.OWNER_TESTS):
+            key = build._owner_binary_key(package, selection)
+            args = selection[1:] if selection[0] == "--lib" else selection[2:]
+            self.assertEqual(call.args[0], [f"/built/{package}/{key[2]}", *args])
+            cwd = self.root / "monstertruck-qualification/vendor" / package
+            self.assertEqual(call.kwargs["cwd"], cwd)
+            self.assertEqual(call.kwargs["env"]["CARGO_MANIFEST_DIR"], str(cwd))
         with patch.object(build, "run", side_effect=subprocess.CalledProcessError(1, "cargo")):
             with self.assertRaises(subprocess.CalledProcessError):
                 build.test_cad()
 
+    def test_prebuild_failure_missing_and_duplicate_binaries(self):
+        key = build._owner_binary_key(build.OWNER_TESTS[0][0], build.OWNER_TESTS[0][1:])
+        for kwargs, error in (({"status": 7}, subprocess.CalledProcessError),
+                              ({"omit": key}, RuntimeError), ({"duplicate": key}, RuntimeError)):
+            with self.subTest(kwargs=kwargs), patch.object(build.subprocess, "Popen", return_value=self.owner_prebuild(**kwargs)), \
+                    patch.object(build, "run", return_value=self.PASSED) as run, contextlib.redirect_stdout(io.StringIO()) as output:
+                with self.assertRaises(error):
+                    build.test_cad()
+                self.assertEqual(run.call_count, 1)
+                self.assertIn("diagnostic", output.getvalue())
+
     def test_each_owner_failure_propagates_without_running_later_commands(self):
         for index in range(len(build.OWNER_TESTS)):
-            with self.subTest(index=index), patch.object(build, "run", side_effect=[
-                *([self.PASSED] * (index + 1)), subprocess.CalledProcessError(7, "cargo")
-            ]) as run, contextlib.redirect_stdout(io.StringIO()):
+            with self.subTest(index=index), patch.object(build.subprocess, "Popen", return_value=self.owner_prebuild()), \
+                    patch.object(build, "run", side_effect=[*([self.PASSED] * (index + 1)),
+                                                           subprocess.CalledProcessError(7, "binary", output="failure\n")]) as run, \
+                    contextlib.redirect_stdout(io.StringIO()) as output:
                 with self.assertRaises(subprocess.CalledProcessError):
                     build.test_cad()
                 self.assertEqual(run.call_count, index + 2)
-                targets = {call.kwargs["env"]["CARGO_TARGET_DIR"] for call in run.call_args_list[1:]}
-                self.assertEqual(targets, {str(self.root / "monstertruck-qualification/target")})
+                self.assertIn("failure", output.getvalue())
 
     def test_each_required_owner_selection_rejects_zero_or_all_ignored_tests(self):
-        passed = self.PASSED.stdout
-        empty = (
-            "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 100 filtered out;\n",
-            "test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 99 filtered out;\n",
-            "running 1 test\n",
-        )
+        empty = ("test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 100 filtered out;\n",
+                 "test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 99 filtered out;\n", "running 1 test\n")
         for index, (package, *selection) in enumerate(build.OWNER_TESTS):
             for output in empty:
-                results = [subprocess.CompletedProcess([], 0, stdout=output if step == index + 1 else passed)
+                results = [subprocess.CompletedProcess([], 0, stdout=output if step == index + 1 else self.PASSED.stdout)
                            for step in range(len(build.OWNER_TESTS) + 1)]
                 with self.subTest(package=package, selection=selection, output=output), \
-                        patch.object(build.subprocess, "run", side_effect=results) as run, \
-                        contextlib.redirect_stdout(io.StringIO()):
+                        patch.object(build.subprocess, "Popen", return_value=self.owner_prebuild()), \
+                        patch.object(build, "run", side_effect=results) as run, contextlib.redirect_stdout(io.StringIO()):
                     with self.assertRaisesRegex(RuntimeError, "no executed tests"):
                         build.test_cad()
                     self.assertEqual(run.call_count, index + 2)
 
     def test_required_owner_runs_retain_success_and_failure_output(self):
-        with patch.object(build.subprocess, "run", return_value=self.PASSED) as run, \
-                contextlib.redirect_stdout(io.StringIO()) as printed:
+        with patch.object(build.subprocess, "Popen", return_value=self.owner_prebuild()), \
+                patch.object(build.subprocess, "run", return_value=self.PASSED) as run, contextlib.redirect_stdout(io.StringIO()) as printed:
             build.test_cad()
-        self.assertEqual(printed.getvalue(), self.PASSED.stdout * (len(build.OWNER_TESTS) + 1))
+        self.assertEqual(printed.getvalue(), self.PASSED.stdout + "diagnostic\n" + self.PASSED.stdout * len(build.OWNER_TESTS))
         for call in run.call_args_list[1:]:
             self.assertEqual(call.kwargs["stdout"], subprocess.PIPE)
             self.assertEqual(call.kwargs["stderr"], subprocess.STDOUT)
             self.assertTrue(call.kwargs["text"])
             self.assertTrue(call.kwargs["check"])
-        failure = subprocess.CalledProcessError(7, "cargo", output="first real Cargo failure\n")
-        with patch.object(build.subprocess, "run", side_effect=[self.PASSED, failure]) as run, \
+        failure = subprocess.CalledProcessError(7, "binary", output="first owner failure\n")
+        with patch.object(build.subprocess, "Popen", return_value=self.owner_prebuild()), \
+                patch.object(build, "run", side_effect=[self.PASSED, failure]) as run, \
                 contextlib.redirect_stdout(io.StringIO()) as printed:
             with self.assertRaises(subprocess.CalledProcessError) as raised:
                 build.test_cad()
         self.assertIs(raised.exception, failure)
         self.assertEqual(run.call_count, 2)
-        self.assertEqual(printed.getvalue(), self.PASSED.stdout + failure.stdout)
+        self.assertEqual(printed.getvalue(), self.PASSED.stdout + "diagnostic\n" + failure.stdout)
 
     def test_parallel_lanes_print_both_failures_including_empty_owner_selection(self):
         barrier = threading.Barrier(2, timeout=5)
-
         def run(command, **kwargs):
             barrier.wait()
             if "boardstudio-cad-wasm" in command:
                 raise subprocess.CalledProcessError(7, command, output="production failure output\n")
             return subprocess.CompletedProcess(command, 0, stdout="owner output with no test results\n")
-
-        with patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "2"}), patch.object(build, "run", side_effect=run), \
+        with patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "2"}), \
+                patch.object(build.subprocess, "Popen", return_value=self.owner_prebuild()), \
+                patch.object(build, "run", side_effect=run), \
                 contextlib.redirect_stdout(io.StringIO()) as stdout, contextlib.redirect_stderr(io.StringIO()) as stderr:
             with self.assertRaises(subprocess.CalledProcessError):
                 build.test_cad()
-        self.assertEqual(stdout.getvalue(), "production failure output\nowner output with no test results\n")
+        self.assertEqual(stdout.getvalue(), "production failure output\ndiagnostic\nowner output with no test results\n")
         self.assertIn("CAD owner selection has no executed tests", stderr.getvalue())
 
     def test_provider_tests_are_registered_or_accounted_for(self):

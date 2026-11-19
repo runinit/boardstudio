@@ -5,6 +5,7 @@ edition = "2024"
 publish = false
 
 [workspace]
+resolver = "3"
 members = [
     "vendor/monstertruck-io",
     "vendor/monstertruck-meshing",
