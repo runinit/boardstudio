@@ -320,3 +320,9 @@ Restore the resize fixture's localStorage value and browser spies before
 asserting its observations. The scoped mount owns the Dioxus render loop
 and removes the root when it is disposed. The panel tests now run in the
 ordinary UI shared launch.
+
+### I3b. Rejoin the layout setup guide launch
+
+Keep the 980 px viewport assertion. Query controls and panel IDs under the
+guide test's own root, dispose both guide mounts, and restore the fixture's
+panel and guide preference keys.
