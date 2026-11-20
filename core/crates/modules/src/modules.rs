@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 mod host_connector;
 
 /// Allocate a unique component reference for an embedded circuit member.
-pub(crate) fn allocate_reference(source: &str, used: &mut BTreeSet<String>) -> String {
+pub fn allocate_reference(source: &str, used: &mut BTreeSet<String>) -> String {
     if !source.is_empty() && used.insert(source.to_owned()) {
         return source.to_owned();
     }
@@ -23,7 +23,7 @@ pub(crate) fn allocate_reference(source: &str, used: &mut BTreeSet<String>) -> S
 
 pub use boardstudio_model::modules::*;
 #[derive(Clone, Debug)]
-pub(crate) struct ResolvedModuleSupport {
+pub struct ResolvedModuleSupport {
     pub mount_id: String,
     pub at: Vec2,
     pub outer_diameter: f64,
@@ -36,17 +36,17 @@ mod circuit;
 mod electrical;
 mod occupancy;
 mod placement;
-pub(crate) use placement::placed;
+pub use placement::placed;
 mod preview;
-pub(crate) use circuit::{embed, embedded_findings, remove_circuit};
-pub(crate) use electrical::{connection_findings, connection_locks, host_requirements};
-pub(crate) use occupancy::case_findings;
-pub(crate) use occupancy::{attach_board_supports, attach_case_supports};
-pub(crate) use placement::finding_markers;
-pub(crate) use placement::resolve;
-pub(crate) use placement::resolved_mount_supports;
-pub(crate) use placement::{remove, set, set_definition};
-pub(crate) use preview::prepare_preview;
+pub use circuit::{embed, embedded_findings, remove_circuit};
+pub use electrical::{connection_findings, connection_locks, host_requirements};
+pub use occupancy::case_findings;
+pub use occupancy::{attach_board_supports, attach_case_supports};
+pub use placement::finding_markers;
+pub use placement::resolve;
+pub use placement::resolved_mount_supports;
+pub use placement::{remove, set, set_definition};
+pub use preview::prepare_preview;
 
 fn active_instances<'a>(
     doc: &'a ProjectDoc,

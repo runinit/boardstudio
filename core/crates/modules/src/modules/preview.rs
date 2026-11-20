@@ -1,7 +1,7 @@
 //! Presentation geometry uses the same resolved occupied solids as mechanical generation.
 use super::*;
 
-pub(crate) fn prepare_preview(
+pub fn prepare_preview(
     doc: &ProjectDoc,
     board_id: &str,
     result: &mut ModuleResolution,

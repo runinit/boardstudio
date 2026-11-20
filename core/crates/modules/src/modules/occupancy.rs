@@ -46,7 +46,7 @@ struct Solid {
 
 // Inspect the same prepared plate and shell contours consumed by exact CAD.
 // Slice at every aperture elevation so a shallow cut never clears deeper material.
-pub(crate) fn case_findings(
+pub fn case_findings(
     doc: &ProjectDoc,
     board_id: &str,
     modules: &[ResolvedModule],
@@ -268,7 +268,7 @@ pub(crate) fn case_findings(
 /// Adds designer-selected module supports to the matching generated case body.
 /// The configured support must bridge the body mount plane to the resolved module
 /// PCB face; no source dimensions are inferred here.
-pub(crate) fn attach_case_supports(
+pub fn attach_case_supports(
     doc: &ProjectDoc,
     board_id: &str,
     modules: &[ResolvedModule],
@@ -372,7 +372,7 @@ pub(crate) fn attach_case_supports(
 /// Adds designer-selected board-to-board standoffs and host PCB drill contours.
 /// The host annulus must remain in host material; partial daughter-board support
 /// is allowed with an explicit warning because the source mount can sit near an edge.
-pub(crate) fn attach_board_supports(
+pub fn attach_board_supports(
     doc: &ProjectDoc,
     board_id: &str,
     modules: &[ResolvedModule],

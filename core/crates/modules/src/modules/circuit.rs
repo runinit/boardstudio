@@ -1,7 +1,7 @@
 use super::*;
 use std::collections::BTreeSet;
 
-pub(crate) fn embed(
+pub fn embed(
     doc: &mut ProjectDoc,
     id: &str,
     definition: &ModuleDefinition,
@@ -226,7 +226,7 @@ pub(crate) fn embed(
     Ok(vec![id.into(), board_id.into()])
 }
 
-pub(crate) fn remove_circuit(doc: &mut ProjectDoc, id: &str) -> Result<Vec<String>, String> {
+pub fn remove_circuit(doc: &mut ProjectDoc, id: &str) -> Result<Vec<String>, String> {
     let index = doc
         .embedded_circuits
         .iter()
@@ -283,7 +283,7 @@ fn circuit_error(scope: Scope, id: String, message: &str, target_ids: Vec<String
     }
 }
 
-pub(crate) fn embedded_findings(doc: &ProjectDoc, board_id: &str) -> Vec<Finding> {
+pub fn embedded_findings(doc: &ProjectDoc, board_id: &str) -> Vec<Finding> {
     let mut findings = Vec::new();
     for circuit in doc
         .embedded_circuits

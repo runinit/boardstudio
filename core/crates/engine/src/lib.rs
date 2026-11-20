@@ -13,8 +13,8 @@ pub mod mechanical;
 mod mechanical_checks;
 pub mod migrate;
 mod mirrored_half;
+use boardstudio_core_modules::modules;
 pub use boardstudio_model::model;
-mod modules;
 mod outline_validation;
 mod validate;
 

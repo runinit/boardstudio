@@ -34,7 +34,7 @@ fn rail_matches(signal: VikSignal, name: &str) -> bool {
     }
 }
 
-pub(crate) fn connection_findings(doc: &ProjectDoc, board_id: &str) -> Vec<Finding> {
+pub fn connection_findings(doc: &ProjectDoc, board_id: &str) -> Vec<Finding> {
     let instances: Vec<_> = super::active_instances(doc, board_id).collect();
     if instances.is_empty()
         && !doc
@@ -558,10 +558,10 @@ pub(crate) fn connection_findings(doc: &ProjectDoc, board_id: &str) -> Vec<Findi
     findings
 }
 
-pub(crate) fn host_requirements(
+pub fn host_requirements(
     doc: &ProjectDoc,
     board_id: &str,
-) -> Vec<crate::electrical_peripherals::PeripheralRequirement> {
+) -> Vec<boardstudio_model::electrical_peripherals::PeripheralRequirement> {
     let mut connections: BTreeMap<String, (BTreeSet<VikSignal>, ModuleConnection)> =
         BTreeMap::new();
     for m in super::active_instances(doc, board_id) {
@@ -611,20 +611,22 @@ pub(crate) fn host_requirements(
                     ));
                 }
             }
-            Some(crate::electrical_peripherals::PeripheralRequirement {
-                part_id,
-                source: "vik-host".into(),
-                kind: "vik".into(),
-                gpio_terminals: gpio,
-                fixed_terminals: fixed,
-                rotary: None,
-                press_key_id: None,
-            })
+            Some(
+                boardstudio_model::electrical_peripherals::PeripheralRequirement {
+                    part_id,
+                    source: "vik-host".into(),
+                    kind: "vik".into(),
+                    gpio_terminals: gpio,
+                    fixed_terminals: fixed,
+                    rotary: None,
+                    press_key_id: None,
+                },
+            )
         })
         .collect()
 }
 
-pub(crate) fn connection_locks(doc: &ProjectDoc, board_id: &str) -> BTreeMap<String, String> {
+pub fn connection_locks(doc: &ProjectDoc, board_id: &str) -> BTreeMap<String, String> {
     super::active_instances(doc, board_id)
         .filter_map(|m| m.connection.as_ref())
         .flat_map(|c| {

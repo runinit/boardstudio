@@ -183,7 +183,7 @@ pub(super) fn vik_signals(role: VikRole) -> Vec<VikSignal> {
     signals
 }
 
-pub(crate) fn set_definition(
+pub fn set_definition(
     doc: &mut ProjectDoc,
     definition: &ModuleDefinition,
 ) -> Result<Vec<String>, String> {
@@ -249,7 +249,7 @@ pub(crate) fn set_definition(
     Ok(affected)
 }
 
-pub(crate) fn set(
+pub fn set(
     doc: &mut ProjectDoc,
     instance: &MountedModule,
     definition: Option<&ModuleDefinition>,
@@ -334,7 +334,7 @@ pub(crate) fn set(
     Ok(affected)
 }
 
-pub(crate) fn remove(doc: &mut ProjectDoc, id: &str) -> Result<Vec<String>, String> {
+pub fn remove(doc: &mut ProjectDoc, id: &str) -> Result<Vec<String>, String> {
     let index = doc
         .modules
         .iter()
@@ -344,7 +344,7 @@ pub(crate) fn remove(doc: &mut ProjectDoc, id: &str) -> Result<Vec<String>, Stri
     Ok(vec![removed.id, removed.host_board_id])
 }
 
-pub(crate) fn placed(mut board: ModuleBoard, placement: Pose2, flipped: bool) -> ModuleBoard {
+pub fn placed(mut board: ModuleBoard, placement: Pose2, flipped: bool) -> ModuleBoard {
     for contour in &mut board.contours {
         for p in &mut contour.points {
             *p = placed_point(placement, flipped, *p);
@@ -564,7 +564,8 @@ fn resolved_footprints(
                     .kicad_source
                     .as_ref()
                     .and_then(|source| {
-                        crate::artifact::preview_footprint_surfaces(&source.source).ok()
+                        boardstudio_core_kicad_source::preview::footprint_surfaces(&source.source)
+                            .ok()
                     })
                     .unwrap_or_default()
                     .into_iter()
@@ -614,7 +615,7 @@ fn volume(
     }
 }
 
-pub(crate) fn resolved_mount_supports(
+pub fn resolved_mount_supports(
     instance: &MountedModule,
     module: &ResolvedModule,
 ) -> Vec<ResolvedModuleSupport> {
@@ -666,7 +667,7 @@ fn issue(
     });
 }
 
-pub(crate) fn resolve(doc: &ProjectDoc, board_id: &str) -> ModuleResolution {
+pub fn resolve(doc: &ProjectDoc, board_id: &str) -> ModuleResolution {
     let mut result = ModuleResolution {
         revision: doc.revision,
         modules: vec![],
@@ -998,7 +999,7 @@ fn board_holes(def: &ModuleDefinition, instance: &MountedModule, flipped: bool) 
     holes
 }
 
-pub(crate) fn finding_markers(doc: &ProjectDoc, findings: &[Finding]) -> Vec<FindingMarker> {
+pub fn finding_markers(doc: &ProjectDoc, findings: &[Finding]) -> Vec<FindingMarker> {
     if doc.modules.is_empty() && doc.embedded_circuits.is_empty() {
         return Vec::new();
     }
