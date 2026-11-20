@@ -13,7 +13,7 @@ use crate::model::{Pose2, Vec2};
 #[derive(Debug, PartialEq)]
 pub struct Retuned {
     pub relation: ConstraintRelation,
-    pub(crate) target_authority: Pose2,
+    pub target_authority: Pose2,
 }
 
 /// Retunes `relation` so the target, seen through `target_frame`, lands on `requested`.

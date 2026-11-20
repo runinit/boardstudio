@@ -332,7 +332,7 @@ impl EndpointFrame {
         Ok(projected)
     }
 
-    pub(crate) fn unproject(
+    pub fn unproject(
         self,
         visible: Pose2,
         previous_authoritative: Pose2,

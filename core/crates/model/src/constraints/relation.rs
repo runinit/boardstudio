@@ -50,7 +50,7 @@ impl ConstraintRelation {
         }
     }
 
-    pub(crate) fn apply(&self, source: Pose2) -> Result<Pose2, String> {
+    pub fn apply(&self, source: Pose2) -> Result<Pose2, String> {
         self.validate()?;
         validate_pose(source)?;
 
@@ -106,8 +106,7 @@ impl ConstraintRelation {
         Ok(result)
     }
 
-    #[cfg_attr(not(test), expect(dead_code))]
-    pub(crate) fn inverse(&self, target: Pose2) -> Result<Pose2, String> {
+    pub fn inverse(&self, target: Pose2) -> Result<Pose2, String> {
         self.validate()?;
         validate_pose(target)?;
 
