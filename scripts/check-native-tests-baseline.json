@@ -169,16 +169,13 @@
   "constraints::framed_tests::a_local_part_drives_a_linked_companion_by_each_placement_rule",
   "constraints::framed_tests::a_local_part_drives_a_linked_key_through_the_key_projection",
   "constraints::framed_tests::a_local_source_drives_the_authority_of_a_linked_target_in_its_authored_direction",
-  "constraints::framed_tests::a_native_legacy_offset_to_a_linked_mirror_survives_open_reconciliation",
   "constraints::framed_tests::a_pair_whose_construction_source_is_its_second_member_uses_the_inverse_map",
   "constraints::framed_tests::a_persisted_framed_constraint_with_a_stale_binding_is_refused_atomically",
-  "constraints::framed_tests::a_repaired_companion_places_like_derives_fallback_not_the_pair_default",
   "constraints::framed_tests::a_slanted_axis_reflects_an_ordinary_part_to_the_literal_oracle",
   "constraints::framed_tests::a_stored_pair_on_one_authority_is_a_located_solver_conflict",
   "constraints::framed_tests::a_stored_record_and_a_framed_one_on_one_authority_are_refused_by_the_solver",
   "constraints::framed_tests::an_unrelated_part_is_left_alone",
   "constraints::framed_tests::bindings_that_do_not_match_a_live_correspondence_are_refused_atomically",
-  "constraints::framed_tests::companion_endpoint_rules_match_derive_for_every_rule_and_key_heading",
   "constraints::framed_tests::compile_legacy_preserves_a_stored_framed_binding_verbatim",
   "constraints::framed_tests::compiling_legacy_mirror_endpoints_retains_authored_views_and_literal_offset",
   "constraints::framed_tests::cycles_through_an_alias_are_refused",
@@ -232,7 +229,6 @@
   "matrix::projection_tests::actual_projection_uses_saved_poses_and_parametric_empty_cells",
   "matrix::projection_tests::column_basis_applies_splay_mirror_and_matrix_rotation",
   "matrix::projection_tests::draft_is_geometry_only_and_contains_row_major_disabled_cells",
-  "matrix::projection_tests::following_companion_preserves_materialized_pose_exactly_on_refresh_and_reopen",
   "matrix::projection_tests::ordinary_parts_match_saved_pose_and_member_id_fixtures_in_every_mirror_mode",
   "matrix::projection_tests::projection_enforces_geometry_validation_at_its_boundary",
   "matrix::projection_tests::projection_rejects_invalid_draft_geometry",
@@ -245,7 +241,6 @@
   "outline_edit::tests::an_outline_edit_serializes_inside_an_edit_operation"
  ],
  "boardstudio_core_kicad_source": [
-  "mechanical_extract::tests::artifact_request_returns_selectable_source_geometry_and_mapped_cutouts",
   "mechanical_extract::tests::drawing_guides_do_not_become_clearance_envelopes",
   "mechanical_extract::tests::explicit_marbastlib_switch_cut_mapping_builds_one_bounded_contour",
   "mechanical_extract::tests::maps_purpose_only_when_explicitly_selected_by_id_or_layer_and_kind",
@@ -270,9 +265,7 @@
   "mechanical::clearance::tests::key_rounding_matches_javascript_fixed_decimal_behavior",
   "mechanical::clearance::tests::positive_and_negative_zero_deduplicate_to_one_js_compatible_key",
   "mechanical::clearance::tests::projects_canonical_and_flipped_instance_union_and_preserves_other_parts",
-  "mechanical::clearance::tests::safe_mh_reference_and_output_count_boundaries_remain_allocatable",
   "mechanical::clearance::tests::screw_clearance_uses_hole_diameter_and_empty_mounts_remove_owned_projection",
-  "mechanical::clearance::tests::unsafe_or_exhausted_mh_references_fail_before_any_core_edit",
   "mechanical::default_tests::mechanical_defaults_have_their_reference_values",
   "mechanical::edit::identity_merge_tests::merging_an_already_exhausted_counter_is_a_no_op",
   "mechanical::edit::identity_merge_tests::reservation_merging_refuses_an_exhausted_floor",
@@ -280,7 +273,6 @@
   "mechanical::edit::tests::a_no_op_lifecycle_action_returns_an_empty_id_list",
   "mechanical::edit::tests::a_removed_opening_or_vertex_retires_a_later_queued_edit_without_redirecting_it",
   "mechanical::edit::tests::absent_closure_mounts_initialize_from_the_resolved_assembly",
-  "mechanical::edit::tests::an_end_to_end_link_commits_and_one_undo_restores_the_document",
   "mechanical::edit::tests::initialization_reports_only_generated_ids_and_the_owner",
   "mechanical::edit::tests::linking_a_pair_shares_construction_and_sets_both_ownerships",
   "mechanical::edit::tests::linking_an_already_paired_instance_errors_and_mutates_nothing",
@@ -1557,6 +1549,11 @@
   "text_literal_escaping::plain_text_controls_keep_their_existing_output",
   "text_literal_escaping::smd_labels_and_reference_are_literal_on_front_and_back"
  ],
+ "framed_constraints_through_engine": [
+  "a_native_legacy_offset_to_a_linked_mirror_survives_open_reconciliation",
+  "a_repaired_companion_places_like_derives_fallback_not_the_pair_default",
+  "companion_endpoint_rules_match_derive_for_every_rule_and_key_heading"
+ ],
  "framework": [
   "an_authored_courtyard_is_kept_and_a_missing_one_falls_back_to_pad_extents",
   "export_separates_objects_renames_modules_and_rejects_other_forms",
@@ -2498,12 +2495,18 @@
   "the_catalogue_lists_every_bundled_generator_with_shape",
   "trackpoint_extension_needs_a_large_enough_drill"
  ],
+ "matrix_through_engine": [
+  "following_companion_preserves_materialized_pose_exactly_on_refresh_and_reopen"
+ ],
  "mechanical_change": [
   "a_mechanical_edit_round_trips_through_its_wire_shape",
   "a_mechanical_edit_serializes_inside_an_edit_operation",
   "a_mounting_hole_definition_round_trips_when_present",
   "the_link_lifecycle_vocabulary_round_trips_through_its_wire_shape",
   "the_opening_vocabulary_addresses_durable_ids"
+ ],
+ "mechanical_extract_request": [
+  "artifact_request_returns_selectable_source_geometry_and_mapped_cutouts"
  ],
  "mechanical_pair": [
   "angle_maps_carry_the_design_convention_and_round_trip_through_the_pair_map",
@@ -2514,6 +2517,11 @@
   "reflect_opening_reverses_vertices_and_preserves_identity_z_and_height",
   "reflecting_twice_with_the_pair_and_its_inverse_restores_the_original_opening",
   "two_distinct_reflections_compose_to_a_non_identity_map_for_an_asymmetric_opening"
+ ],
+ "mechanical_through_engine": [
+  "an_end_to_end_link_commits_and_one_undo_restores_the_document",
+  "safe_mh_reference_and_output_count_boundaries_remain_allocatable",
+  "unsafe_or_exhausted_mh_references_fail_before_any_core_edit"
  ],
  "model_constraint": [
   "a_non_finite_number_in_any_kind_is_not_finite",
