@@ -4400,6 +4400,7 @@ enum BaselineKind {
 
 #[derive(Clone, Copy)]
 struct MembershipTransitionInput<'a> {
+    dispatch: super::EditDispatch,
     valid_before: &'a ProjectDoc,
     post_source: &'a ProjectDoc,
     context: &'a MembershipContext,
@@ -6362,7 +6363,7 @@ fn prepare_membership_transition_kernel(
                     .part_ids
                     .retain(|id| !retained_local_parts.contains(id));
             }
-            crate::apply_unscripted(
+            (input.dispatch.apply_unscripted)(
                 &mut draft,
                 &crate::model::EditOperation::RemoveMatrix {
                     id: matrix_pair.mirror_id.clone(),
@@ -6697,7 +6698,7 @@ fn prepare_membership_transition_kernel(
             matrix_pair.mirror_id.as_str(),
             removed_index,
             axis_row,
-            crate::apply_unscripted,
+            input.dispatch.apply_unscripted,
         )?;
     } else if is_trim && !matrix_detached_local && !mirror_absent {
         let old_mirror = matrix_by_id(&staged, matrix_pair.mirror_id.as_str())?;

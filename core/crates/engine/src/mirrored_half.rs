@@ -44,6 +44,31 @@ mod reconcile;
 pub(crate) use reconcile::prepare_transaction;
 pub(crate) use reconcile::{prepare_open_with_scripts, prepare_transaction_with_ledger};
 
+/// The engine edit dispatcher, consulted under the owning session's identity ledger.
+pub(crate) type ApplyWithLedger = fn(
+    &mut ProjectDoc,
+    &[crate::model::BoardContours],
+    &crate::model::EditOperation,
+    &crate::mechanical::edit::MechanicalIdentityLedger,
+    Option<crate::ScriptRunner>,
+) -> Result<Vec<String>, String>;
+
+/// The engine dispatch entry points mirrored-half preparation stages its sub-edits
+/// through, injected by the engine so this layer never calls back into it directly.
+#[derive(Clone, Copy)]
+pub(crate) struct EditDispatch {
+    pub(crate) apply_with_ledger: ApplyWithLedger,
+    pub(crate) apply_unscripted: crate::matrix::deletion::ApplyUnscripted,
+}
+
+#[cfg(test)]
+pub(crate) fn test_dispatch() -> EditDispatch {
+    EditDispatch {
+        apply_with_ledger: crate::apply_with_ledger,
+        apply_unscripted: crate::apply_unscripted,
+    }
+}
+
 /// Generated closure-clearance parts. They are regenerated from the pair, never copied.
 const GENERATED_CLOSURE_PREFIX: &str = "case-closure/";
 

@@ -1966,6 +1966,7 @@ fn commit_matrix_step(
         }
     }
     prepare_membership_transition(MembershipTransitionInput {
+        dispatch: crate::mirrored_half::test_dispatch(),
         valid_before: before,
         post_source,
         context,
@@ -2196,8 +2197,13 @@ fn independent_screen_local_omit_and_rejoin_commit_current_source() {
         TransitionState::Local,
     )
     .unwrap();
-    let local = super::prepare_lifecycle_transition(&before, &before, &local_context)
-        .expect("an independent screen can become Local without leaving the pair");
+    let local = super::prepare_lifecycle_transition(
+        &before,
+        &before,
+        &local_context,
+        crate::mirrored_half::test_dispatch(),
+    )
+    .expect("an independent screen can become Local without leaving the pair");
     let local_part = local
         .draft
         .parts
@@ -2211,7 +2217,13 @@ fn independent_screen_local_omit_and_rejoin_commit_current_source() {
         source.pose.at.x += 17.0;
         source.properties = Some(BTreeMap::from([("revision".into(), json!(2))]));
     }
-    let edited = super::prepare_lifecycle_transition(&local.draft, &post, &local.context).unwrap();
+    let edited = super::prepare_lifecycle_transition(
+        &local.draft,
+        &post,
+        &local.context,
+        crate::mirrored_half::test_dispatch(),
+    )
+    .unwrap();
     assert_eq!(
         edited.draft.parts.iter().find(|p| p.id == "mirror-screen"),
         Some(&local_part)
@@ -2238,9 +2250,13 @@ fn independent_screen_local_omit_and_rejoin_commit_current_source() {
         TransitionState::Omitted,
     )
     .unwrap();
-    let omitted =
-        super::prepare_lifecycle_transition(&edited.draft, &edited.draft, &omitted_context)
-            .unwrap();
+    let omitted = super::prepare_lifecycle_transition(
+        &edited.draft,
+        &edited.draft,
+        &omitted_context,
+        crate::mirrored_half::test_dispatch(),
+    )
+    .unwrap();
     assert!(omitted.draft.parts.iter().all(|p| p.id != "mirror-screen"));
     assert!(
         omitted
@@ -2252,8 +2268,13 @@ fn independent_screen_local_omit_and_rejoin_commit_current_source() {
     let decoded: ProjectDoc =
         serde_json::from_slice(&serde_json::to_vec(&omitted.draft).unwrap()).unwrap();
     crate::mechanical::halves::validate_document(&decoded).unwrap();
-    let repeated =
-        super::prepare_lifecycle_transition(&decoded, &decoded, &omitted.context).unwrap();
+    let repeated = super::prepare_lifecycle_transition(
+        &decoded,
+        &decoded,
+        &omitted.context,
+        crate::mirrored_half::test_dispatch(),
+    )
+    .unwrap();
     assert_eq!(repeated.draft, decoded);
     assert_eq!(repeated.context, omitted.context);
     assert!(repeated.changed_document_ids.is_empty());
@@ -2265,9 +2286,13 @@ fn independent_screen_local_omit_and_rejoin_commit_current_source() {
         TransitionState::Linked,
     )
     .unwrap();
-    let rejoined =
-        super::prepare_lifecycle_transition(&repeated.draft, &repeated.draft, &rejoin_context)
-            .unwrap();
+    let rejoined = super::prepare_lifecycle_transition(
+        &repeated.draft,
+        &repeated.draft,
+        &rejoin_context,
+        crate::mirrored_half::test_dispatch(),
+    )
+    .unwrap();
     let source = rejoined
         .draft
         .parts
@@ -2340,7 +2365,13 @@ fn independent_source_deletion_retires_only_exact_records_and_keeps_local_geomet
             state,
         )
         .unwrap();
-        let committed = super::prepare_lifecycle_transition(&before, &before, &prepared).unwrap();
+        let committed = super::prepare_lifecycle_transition(
+            &before,
+            &before,
+            &prepared,
+            crate::mirrored_half::test_dispatch(),
+        )
+        .unwrap();
         let local_part = committed
             .draft
             .parts
@@ -2360,9 +2391,13 @@ fn independent_source_deletion_retires_only_exact_records_and_keeps_local_geomet
             &mut post,
             &BTreeSet::from(["source-screen".into()]),
         );
-        let removed =
-            super::prepare_lifecycle_transition(&committed.draft, &post, &committed.context)
-                .expect("source deletion retires the exact association in every exception state");
+        let removed = super::prepare_lifecycle_transition(
+            &committed.draft,
+            &post,
+            &committed.context,
+            crate::mirrored_half::test_dispatch(),
+        )
+        .expect("source deletion retires the exact association in every exception state");
         assert_eq!(removed.context.pair_right.correspondences, unrelated);
         assert!(removed.context.pair_right.exceptions.is_empty());
         assert!(
@@ -2386,9 +2421,13 @@ fn independent_source_deletion_retires_only_exact_records_and_keeps_local_geomet
             }
         );
         crate::mechanical::halves::validate_document(&removed.draft).unwrap();
-        let repeat =
-            super::prepare_lifecycle_transition(&removed.draft, &removed.draft, &removed.context)
-                .unwrap();
+        let repeat = super::prepare_lifecycle_transition(
+            &removed.draft,
+            &removed.draft,
+            &removed.context,
+            crate::mirrored_half::test_dispatch(),
+        )
+        .unwrap();
         assert_eq!(repeat.draft, removed.draft);
         assert_eq!(repeat.context, removed.context);
         assert!(repeat.changed_document_ids.is_empty());
@@ -2415,8 +2454,13 @@ fn lifecycle_refuses_forged_independent_ownership_without_mutating_inputs() {
     encoder.parent_mirror_id = Some("mirror-screen".into());
     encoder.state = TransitionState::Local;
     let frozen = (before.clone(), pending.clone());
-    let error = super::prepare_lifecycle_transition(&before, &before, &pending)
-        .expect_err("an independent encoder is not owned by a screen");
+    let error = super::prepare_lifecycle_transition(
+        &before,
+        &before,
+        &pending,
+        crate::mirrored_half::test_dispatch(),
+    )
+    .expect_err("an independent encoder is not owned by a screen");
     assert!(error.contains("ownership"), "{error}");
     assert_eq!((before, pending), frozen);
 }
@@ -2442,7 +2486,13 @@ fn matrix_owner_lifecycle_commits_one_exception_and_preserves_explicit_child() {
         TransitionState::Local,
     )
     .unwrap();
-    let child = super::prepare_lifecycle_transition(&before, &before, &child_context).unwrap();
+    let child = super::prepare_lifecycle_transition(
+        &before,
+        &before,
+        &child_context,
+        crate::mirrored_half::test_dispatch(),
+    )
+    .unwrap();
     let explicit_part = child
         .draft
         .parts
@@ -2458,8 +2508,13 @@ fn matrix_owner_lifecycle_commits_one_exception_and_preserves_explicit_child() {
         TransitionState::Local,
     )
     .unwrap();
-    let local = super::prepare_lifecycle_transition(&child.draft, &child.draft, &owner_context)
-        .expect("a Matrix owner can become Local through the complete transaction");
+    let local = super::prepare_lifecycle_transition(
+        &child.draft,
+        &child.draft,
+        &owner_context,
+        crate::mirrored_half::test_dispatch(),
+    )
+    .expect("a Matrix owner can become Local through the complete transaction");
     let local_matrix = local
         .draft
         .matrices
@@ -2483,7 +2538,13 @@ fn matrix_owner_lifecycle_commits_one_exception_and_preserves_explicit_child() {
         .clone();
     source.origin.x += 12.0;
     crate::matrix::set_matrix(&mut post, &source).unwrap();
-    let edited = super::prepare_lifecycle_transition(&local.draft, &post, &local.context).unwrap();
+    let edited = super::prepare_lifecycle_transition(
+        &local.draft,
+        &post,
+        &local.context,
+        crate::mirrored_half::test_dispatch(),
+    )
+    .unwrap();
     assert_eq!(
         edited
             .draft
@@ -2510,9 +2571,13 @@ fn matrix_owner_lifecycle_commits_one_exception_and_preserves_explicit_child() {
         TransitionState::Omitted,
     )
     .unwrap();
-    let omitted =
-        super::prepare_lifecycle_transition(&edited.draft, &edited.draft, &omitted_context)
-            .unwrap();
+    let omitted = super::prepare_lifecycle_transition(
+        &edited.draft,
+        &edited.draft,
+        &omitted_context,
+        crate::mirrored_half::test_dispatch(),
+    )
+    .unwrap();
     assert!(
         omitted
             .draft
@@ -2528,7 +2593,13 @@ fn matrix_owner_lifecycle_commits_one_exception_and_preserves_explicit_child() {
     let decoded: ProjectDoc =
         serde_json::from_slice(&serde_json::to_vec(&omitted.draft).unwrap()).unwrap();
     crate::mechanical::halves::validate_document(&decoded).unwrap();
-    let repeat = super::prepare_lifecycle_transition(&decoded, &decoded, &omitted.context).unwrap();
+    let repeat = super::prepare_lifecycle_transition(
+        &decoded,
+        &decoded,
+        &omitted.context,
+        crate::mirrored_half::test_dispatch(),
+    )
+    .unwrap();
     assert_eq!(repeat.draft, decoded);
     assert_eq!(repeat.context, omitted.context);
     let rejoin_context = super::transition_exception_context(
@@ -2539,8 +2610,13 @@ fn matrix_owner_lifecycle_commits_one_exception_and_preserves_explicit_child() {
         TransitionState::Linked,
     )
     .unwrap();
-    let rejoined =
-        super::prepare_lifecycle_transition(&repeat.draft, &repeat.draft, &rejoin_context).unwrap();
+    let rejoined = super::prepare_lifecycle_transition(
+        &repeat.draft,
+        &repeat.draft,
+        &rejoin_context,
+        crate::mirrored_half::test_dispatch(),
+    )
+    .unwrap();
     assert_eq!(
         rejoined.draft.parts.iter().find(|p| p.id == child_mirror),
         Some(&explicit_part)
@@ -2552,9 +2628,13 @@ fn matrix_owner_lifecycle_commits_one_exception_and_preserves_explicit_child() {
     );
     assert!(rejoined.draft.parts.iter().any(|p| p.id == "mirror-screen"));
     crate::mechanical::halves::validate_document(&rejoined.draft).unwrap();
-    let repeat =
-        super::prepare_lifecycle_transition(&rejoined.draft, &rejoined.draft, &rejoined.context)
-            .unwrap();
+    let repeat = super::prepare_lifecycle_transition(
+        &rejoined.draft,
+        &rejoined.draft,
+        &rejoined.context,
+        crate::mirrored_half::test_dispatch(),
+    )
+    .unwrap();
     assert_eq!(repeat.draft, rejoined.draft);
     assert_eq!(repeat.context, rejoined.context);
     assert!(repeat.changed_document_ids.is_empty());
@@ -2849,7 +2929,13 @@ fn circuit_owner_lifecycle_preserves_explicit_child_connector_layout_and_joined_
         TransitionState::Local,
     )
     .unwrap();
-    let child = super::prepare_lifecycle_transition(&before, &before, &child_context).unwrap();
+    let child = super::prepare_lifecycle_transition(
+        &before,
+        &before,
+        &child_context,
+        crate::mirrored_half::test_dispatch(),
+    )
+    .unwrap();
     let retained = child
         .draft
         .parts
@@ -2880,8 +2966,13 @@ fn circuit_owner_lifecycle_preserves_explicit_child_connector_layout_and_joined_
         TransitionState::Local,
     )
     .unwrap();
-    let local =
-        super::prepare_lifecycle_transition(&child.draft, &child.draft, &owner_context).unwrap();
+    let local = super::prepare_lifecycle_transition(
+        &child.draft,
+        &child.draft,
+        &owner_context,
+        crate::mirrored_half::test_dispatch(),
+    )
+    .unwrap();
     let mut post = local.draft.clone();
     let source = post
         .parts
@@ -2890,7 +2981,13 @@ fn circuit_owner_lifecycle_preserves_explicit_child_connector_layout_and_joined_
         .unwrap();
     source.pose.at.x += 19.0;
     source.properties = Some(BTreeMap::from([("revision".into(), json!(3))]));
-    let edited = super::prepare_lifecycle_transition(&local.draft, &post, &local.context).unwrap();
+    let edited = super::prepare_lifecycle_transition(
+        &local.draft,
+        &post,
+        &local.context,
+        crate::mirrored_half::test_dispatch(),
+    )
+    .unwrap();
     assert_eq!(
         edited.draft.parts.iter().find(|p| p.id == inherited.id),
         Some(&inherited)
@@ -2903,10 +3000,13 @@ fn circuit_owner_lifecycle_preserves_explicit_child_connector_layout_and_joined_
         TransitionState::Omitted,
     )
     .unwrap();
-    let omitted =
-        super::prepare_lifecycle_transition(&edited.draft, &edited.draft, &omitted_context).expect(
-            "a circuit Omit removes its inherited closure through the existing domain deletion",
-        );
+    let omitted = super::prepare_lifecycle_transition(
+        &edited.draft,
+        &edited.draft,
+        &omitted_context,
+        crate::mirrored_half::test_dispatch(),
+    )
+    .expect("a circuit Omit removes its inherited closure through the existing domain deletion");
     assert!(
         omitted
             .draft
@@ -2950,7 +3050,13 @@ fn circuit_owner_lifecycle_preserves_explicit_child_connector_layout_and_joined_
     let decoded: ProjectDoc =
         serde_json::from_slice(&serde_json::to_vec(&omitted.draft).unwrap()).unwrap();
     crate::mechanical::halves::validate_document(&decoded).unwrap();
-    let repeat = super::prepare_lifecycle_transition(&decoded, &decoded, &omitted.context).unwrap();
+    let repeat = super::prepare_lifecycle_transition(
+        &decoded,
+        &decoded,
+        &omitted.context,
+        crate::mirrored_half::test_dispatch(),
+    )
+    .unwrap();
     assert_eq!(repeat.draft, decoded);
     assert_eq!(repeat.context, omitted.context);
     let rejoin_context = super::transition_exception_context(
@@ -2961,8 +3067,13 @@ fn circuit_owner_lifecycle_preserves_explicit_child_connector_layout_and_joined_
         TransitionState::Linked,
     )
     .unwrap();
-    let rejoined =
-        super::prepare_lifecycle_transition(&repeat.draft, &repeat.draft, &rejoin_context).unwrap();
+    let rejoined = super::prepare_lifecycle_transition(
+        &repeat.draft,
+        &repeat.draft,
+        &rejoin_context,
+        crate::mirrored_half::test_dispatch(),
+    )
+    .unwrap();
     assert_eq!(
         rejoined.draft.parts.iter().find(|p| p.id == retained.id),
         Some(&retained)
@@ -2992,9 +3103,13 @@ fn circuit_owner_lifecycle_preserves_explicit_child_connector_layout_and_joined_
             .any(|c| c.id == "mirror-circuit")
     );
     crate::mechanical::halves::validate_document(&rejoined.draft).unwrap();
-    let repeat =
-        super::prepare_lifecycle_transition(&rejoined.draft, &rejoined.draft, &rejoined.context)
-            .unwrap();
+    let repeat = super::prepare_lifecycle_transition(
+        &rejoined.draft,
+        &rejoined.draft,
+        &rejoined.context,
+        crate::mirrored_half::test_dispatch(),
+    )
+    .unwrap();
     assert_eq!(repeat.draft, rejoined.draft);
     assert_eq!(repeat.context, rejoined.context);
     assert!(repeat.changed_document_ids.is_empty());
@@ -3148,8 +3263,13 @@ fn explicit_companion_lifecycle_keeps_mode_tweak_and_omission_through_owner_rejo
             TransitionState::Local,
         )
         .unwrap();
-        let local = super::prepare_lifecycle_transition(&before, &before, &local_context)
-            .expect("a companion is selectively Local through the complete transaction");
+        let local = super::prepare_lifecycle_transition(
+            &before,
+            &before,
+            &local_context,
+            crate::mirrored_half::test_dispatch(),
+        )
+        .expect("a companion is selectively Local through the complete transaction");
         let retained = local
             .draft
             .parts
@@ -3173,8 +3293,13 @@ fn explicit_companion_lifecycle_keeps_mode_tweak_and_omission_through_owner_rejo
             .offset
             .x += 5.0;
         crate::matrix::set_matrix(&mut post, &source).unwrap();
-        let edited =
-            super::prepare_lifecycle_transition(&local.draft, &post, &local.context).unwrap();
+        let edited = super::prepare_lifecycle_transition(
+            &local.draft,
+            &post,
+            &local.context,
+            crate::mirrored_half::test_dispatch(),
+        )
+        .unwrap();
         assert_eq!(
             edited.draft.parts.iter().find(|p| p.id == mirror_id),
             Some(&retained)
@@ -3187,9 +3312,13 @@ fn explicit_companion_lifecycle_keeps_mode_tweak_and_omission_through_owner_rejo
             TransitionState::Omitted,
         )
         .unwrap();
-        let omitted =
-            super::prepare_lifecycle_transition(&edited.draft, &edited.draft, &omitted_context)
-                .unwrap();
+        let omitted = super::prepare_lifecycle_transition(
+            &edited.draft,
+            &edited.draft,
+            &omitted_context,
+            crate::mirrored_half::test_dispatch(),
+        )
+        .unwrap();
         assert!(omitted.draft.parts.iter().all(|p| p.id != mirror_id));
         let pair = &omitted.context.pair_right;
         let exception = pair
@@ -3207,9 +3336,13 @@ fn explicit_companion_lifecycle_keeps_mode_tweak_and_omission_through_owner_rejo
             Some(MirroredCompanionMode::LiteralMirrorWithTweak)
         );
         assert_eq!(correspondence.companion_tweak, Some(tweak));
-        let repeat =
-            super::prepare_lifecycle_transition(&omitted.draft, &omitted.draft, &omitted.context)
-                .unwrap();
+        let repeat = super::prepare_lifecycle_transition(
+            &omitted.draft,
+            &omitted.draft,
+            &omitted.context,
+            crate::mirrored_half::test_dispatch(),
+        )
+        .unwrap();
         assert_eq!(repeat.draft, omitted.draft);
         let parent_context = super::transition_exception_context(
             &repeat.context,
@@ -3219,9 +3352,13 @@ fn explicit_companion_lifecycle_keeps_mode_tweak_and_omission_through_owner_rejo
             TransitionState::Local,
         )
         .unwrap();
-        let parent_local =
-            super::prepare_lifecycle_transition(&repeat.draft, &repeat.draft, &parent_context)
-                .unwrap();
+        let parent_local = super::prepare_lifecycle_transition(
+            &repeat.draft,
+            &repeat.draft,
+            &parent_context,
+            crate::mirrored_half::test_dispatch(),
+        )
+        .unwrap();
         let rejoin_parent = super::transition_exception_context(
             &parent_local.context,
             MirroredItemKind::Part,
@@ -3234,6 +3371,7 @@ fn explicit_companion_lifecycle_keeps_mode_tweak_and_omission_through_owner_rejo
             &parent_local.draft,
             &parent_local.draft,
             &rejoin_parent,
+            crate::mirrored_half::test_dispatch(),
         )
         .unwrap();
         assert!(parent_linked.draft.parts.iter().all(|p| p.id != mirror_id));
@@ -3250,6 +3388,7 @@ fn explicit_companion_lifecycle_keeps_mode_tweak_and_omission_through_owner_rejo
             &parent_linked.draft,
             &parent_linked.draft,
             &rejoin,
+            crate::mirrored_half::test_dispatch(),
         )
         .unwrap();
         assert!(rejoined.draft.parts.iter().any(|p| p.id == mirror_id));
@@ -3269,6 +3408,7 @@ fn explicit_companion_lifecycle_keeps_mode_tweak_and_omission_through_owner_rejo
             &rejoined.draft,
             &rejoined.draft,
             &rejoined.context,
+            crate::mirrored_half::test_dispatch(),
         )
         .unwrap();
         assert_eq!(repeat.draft, rejoined.draft);
@@ -3296,8 +3436,13 @@ fn lifecycle_refuses_target_membership_that_disagrees_with_actual_circuit_owners
     )
     .unwrap();
     let frozen = (before.clone(), pending.clone());
-    let error = super::prepare_lifecycle_transition(&before, &before, &pending)
-        .expect_err("target namespace alone is not actual circuit ownership");
+    let error = super::prepare_lifecycle_transition(
+        &before,
+        &before,
+        &pending,
+        crate::mirrored_half::test_dispatch(),
+    )
+    .expect_err("target namespace alone is not actual circuit ownership");
     assert!(error.contains("ownership"), "{error}");
     assert_eq!((before, pending), frozen);
 }
@@ -3359,7 +3504,13 @@ fn pending_baseline_and_selection_tampering_refuse_atomically() {
         }
         let frozen = (before.clone(), tampered.clone());
         assert!(
-            super::prepare_lifecycle_transition(&before, &before, &tampered).is_err(),
+            super::prepare_lifecycle_transition(
+                &before,
+                &before,
+                &tampered,
+                crate::mirrored_half::test_dispatch()
+            )
+            .is_err(),
             "case {case}"
         );
         assert_eq!((before.clone(), tampered), frozen, "case {case}");
@@ -3399,7 +3550,13 @@ fn legacy_v5_local_parts_are_preserved_without_inventing_source_associations() {
     });
     document.hardware.as_mut().unwrap().pairs[0].halves = Some(context.pair_right.clone());
     assert_eq!(document.format_version, 5);
-    let output = super::prepare_lifecycle_transition(&document, &document, &context).unwrap();
+    let output = super::prepare_lifecycle_transition(
+        &document,
+        &document,
+        &context,
+        crate::mirrored_half::test_dispatch(),
+    )
+    .unwrap();
     let decoded: ProjectDoc =
         serde_json::from_slice(&serde_json::to_vec(&output.draft).unwrap()).unwrap();
     assert_eq!(decoded.format_version, 5);
@@ -3455,8 +3612,13 @@ fn owner_source_deletion_preserves_local_objects_and_retires_only_removed_source
             let pending =
                 super::transition_exception_context(&context, kind, source_id, mirror_id, state)
                     .unwrap();
-            let committed =
-                super::prepare_lifecycle_transition(&before, &before, &pending).unwrap();
+            let committed = super::prepare_lifecycle_transition(
+                &before,
+                &before,
+                &pending,
+                crate::mirrored_half::test_dispatch(),
+            )
+            .unwrap();
             let retained_parts: Vec<_> = if state == TransitionState::Local {
                 committed
                     .context
@@ -3506,9 +3668,13 @@ fn owner_source_deletion_preserves_local_objects_and_retires_only_removed_source
             } else {
                 crate::modules::remove_circuit(&mut post, source_id).unwrap();
             }
-            let removed =
-                super::prepare_lifecycle_transition(&committed.draft, &post, &committed.context)
-                    .unwrap_or_else(|error| panic!("{kind:?} {state:?}: {error}"));
+            let removed = super::prepare_lifecycle_transition(
+                &committed.draft,
+                &post,
+                &committed.context,
+                crate::mirrored_half::test_dispatch(),
+            )
+            .unwrap_or_else(|error| panic!("{kind:?} {state:?}: {error}"));
             assert_eq!(
                 removed.context.pair_right.correspondences, untouched,
                 "{kind:?} {state:?}"
@@ -3543,6 +3709,7 @@ fn owner_source_deletion_preserves_local_objects_and_retires_only_removed_source
                 &removed.draft,
                 &removed.draft,
                 &removed.context,
+                crate::mirrored_half::test_dispatch(),
             )
             .unwrap();
             assert_eq!(repeated.draft, removed.draft);
@@ -3559,6 +3726,7 @@ fn owner_source_deletion_preserves_local_objects_and_retires_only_removed_source
                 &repeated.draft,
                 &edited_source,
                 &repeated.context,
+                crate::mirrored_half::test_dispatch(),
             )
             .unwrap();
             assert_eq!(
@@ -3599,7 +3767,13 @@ fn matrix_owner_rejoin_projects_members_added_while_local() {
         TransitionState::Local,
     )
     .unwrap();
-    let local = super::prepare_lifecycle_transition(&before, &before, &pending).unwrap();
+    let local = super::prepare_lifecycle_transition(
+        &before,
+        &before,
+        &pending,
+        crate::mirrored_half::test_dispatch(),
+    )
+    .unwrap();
     let target = local
         .draft
         .matrices
@@ -3631,8 +3805,13 @@ fn matrix_owner_rejoin_projects_members_added_while_local() {
         .find(|p| p.id == "matrix/source-matrix/r0c4")
         .unwrap()
         .properties = Some(BTreeMap::from([("new-source".into(), json!(true))]));
-    let expanded =
-        super::prepare_lifecycle_transition(&local.draft, &post, &local.context).unwrap();
+    let expanded = super::prepare_lifecycle_transition(
+        &local.draft,
+        &post,
+        &local.context,
+        crate::mirrored_half::test_dispatch(),
+    )
+    .unwrap();
     assert_eq!(
         expanded
             .draft
@@ -3649,10 +3828,13 @@ fn matrix_owner_rejoin_projects_members_added_while_local() {
         TransitionState::Linked,
     )
     .unwrap();
-    let output = super::prepare_lifecycle_transition(&expanded.draft, &expanded.draft, &rejoin)
-        .expect(
-            "an explicit owner Rejoin projects the current source, including new owned members",
-        );
+    let output = super::prepare_lifecycle_transition(
+        &expanded.draft,
+        &expanded.draft,
+        &rejoin,
+        crate::mirrored_half::test_dispatch(),
+    )
+    .expect("an explicit owner Rejoin projects the current source, including new owned members");
     for row in 0..2 {
         for suffix in ["", "/diode"] {
             let source_id = format!("matrix/source-matrix/r{row}c4{suffix}");
@@ -3686,8 +3868,13 @@ fn matrix_owner_rejoin_projects_members_added_while_local() {
         }
     }
     crate::mechanical::halves::validate_document(&output.draft).unwrap();
-    let repeat =
-        super::prepare_lifecycle_transition(&output.draft, &output.draft, &output.context).unwrap();
+    let repeat = super::prepare_lifecycle_transition(
+        &output.draft,
+        &output.draft,
+        &output.context,
+        crate::mirrored_half::test_dispatch(),
+    )
+    .unwrap();
     assert_eq!(repeat.draft, output.draft);
     assert_eq!(repeat.context, output.context);
     assert!(repeat.changed_document_ids.is_empty());
@@ -3719,7 +3906,13 @@ fn child_exceptions_can_be_selected_while_the_matrix_owner_is_unlinked() {
             owner_state,
         )
         .unwrap();
-        let owner = super::prepare_lifecycle_transition(&before, &before, &pending).unwrap();
+        let owner = super::prepare_lifecycle_transition(
+            &before,
+            &before,
+            &pending,
+            crate::mirrored_half::test_dispatch(),
+        )
+        .unwrap();
         let visible = owner
             .draft
             .parts
@@ -3736,8 +3929,13 @@ fn child_exceptions_can_be_selected_while_the_matrix_owner_is_unlinked() {
         .expect(
             "a child selection authenticates its own durable row, separately from inherited state",
         );
-        let child =
-            super::prepare_lifecycle_transition(&owner.draft, &owner.draft, &selected).unwrap();
+        let child = super::prepare_lifecycle_transition(
+            &owner.draft,
+            &owner.draft,
+            &selected,
+            crate::mirrored_half::test_dispatch(),
+        )
+        .unwrap();
         assert_eq!(child.context.pair_right.exceptions.len(), 2);
         assert_eq!(
             child
@@ -3760,8 +3958,13 @@ fn child_exceptions_can_be_selected_while_the_matrix_owner_is_unlinked() {
             TransitionState::Linked,
         )
         .unwrap();
-        let rejoined =
-            super::prepare_lifecycle_transition(&child.draft, &child.draft, &pending).unwrap();
+        let rejoined = super::prepare_lifecycle_transition(
+            &child.draft,
+            &child.draft,
+            &pending,
+            crate::mirrored_half::test_dispatch(),
+        )
+        .unwrap();
         assert_eq!(rejoined.context.pair_right.exceptions.len(), 1);
         assert_eq!(
             rejoined.context.pair_right.exceptions[0].mirror_id,
@@ -3784,6 +3987,7 @@ fn child_exceptions_can_be_selected_while_the_matrix_owner_is_unlinked() {
             &rejoined.draft,
             &rejoined.draft,
             &rejoined.context,
+            crate::mirrored_half::test_dispatch(),
         )
         .unwrap();
         assert_eq!(repeat.draft, rejoined.draft);
@@ -3813,7 +4017,13 @@ fn child_rejoin_clears_only_its_exception_and_inherits_the_current_owner() {
             TransitionState::Local,
         )
         .unwrap();
-        let child = super::prepare_lifecycle_transition(&before, &before, &pending).unwrap();
+        let child = super::prepare_lifecycle_transition(
+            &before,
+            &before,
+            &pending,
+            crate::mirrored_half::test_dispatch(),
+        )
+        .unwrap();
         let visible = child
             .draft
             .parts
@@ -3829,8 +4039,13 @@ fn child_rejoin_clears_only_its_exception_and_inherits_the_current_owner() {
             owner_state,
         )
         .unwrap();
-        let owner =
-            super::prepare_lifecycle_transition(&child.draft, &child.draft, &pending).unwrap();
+        let owner = super::prepare_lifecycle_transition(
+            &child.draft,
+            &child.draft,
+            &pending,
+            crate::mirrored_half::test_dispatch(),
+        )
+        .unwrap();
         let pending = super::transition_exception_context(
             &owner.context,
             MirroredItemKind::Part,
@@ -3839,10 +4054,13 @@ fn child_rejoin_clears_only_its_exception_and_inherits_the_current_owner() {
             TransitionState::Linked,
         )
         .unwrap();
-        let inherited = super::prepare_lifecycle_transition(&owner.draft, &owner.draft, &pending)
-            .expect(
-                "clearing a child exception resumes inheritance even when the owner is unlinked",
-            );
+        let inherited = super::prepare_lifecycle_transition(
+            &owner.draft,
+            &owner.draft,
+            &pending,
+            crate::mirrored_half::test_dispatch(),
+        )
+        .expect("clearing a child exception resumes inheritance even when the owner is unlinked");
         assert_eq!(inherited.context.pair_right.exceptions.len(), 1);
         assert_eq!(
             inherited.context.pair_right.exceptions[0].mirror_id,
@@ -3868,6 +4086,7 @@ fn child_rejoin_clears_only_its_exception_and_inherits_the_current_owner() {
             &inherited.draft,
             &inherited.draft,
             &inherited.context,
+            crate::mirrored_half::test_dispatch(),
         )
         .unwrap();
         assert_eq!(repeat.draft, inherited.draft);
@@ -3886,8 +4105,13 @@ fn child_rejoin_clears_only_its_exception_and_inherits_the_current_owner() {
             TransitionState::Linked,
         )
         .unwrap();
-        let rejoined =
-            super::prepare_lifecycle_transition(&inherited.draft, &post, &pending).unwrap();
+        let rejoined = super::prepare_lifecycle_transition(
+            &inherited.draft,
+            &post,
+            &pending,
+            crate::mirrored_half::test_dispatch(),
+        )
+        .unwrap();
         assert!(rejoined.context.pair_right.exceptions.is_empty());
         assert_eq!(
             rejoined
@@ -3917,8 +4141,13 @@ fn independent_connector_exceptions_preserve_linked_modules_and_clean_only_their
         TransitionState::Local,
     )
     .unwrap();
-    let local = super::prepare_lifecycle_transition(&before, &before, &pending)
-        .expect("a Local connector remains a valid reference for a linked module");
+    let local = super::prepare_lifecycle_transition(
+        &before,
+        &before,
+        &pending,
+        crate::mirrored_half::test_dispatch(),
+    )
+    .expect("a Local connector remains a valid reference for a linked module");
     let connector = local
         .draft
         .parts
@@ -3946,7 +4175,13 @@ fn independent_connector_exceptions_preserve_linked_modules_and_clean_only_their
         .find(|m| m.id == "source-module")
         .unwrap()
         .gap += 1.0;
-    let edited = super::prepare_lifecycle_transition(&local.draft, &post, &local.context).unwrap();
+    let edited = super::prepare_lifecycle_transition(
+        &local.draft,
+        &post,
+        &local.context,
+        crate::mirrored_half::test_dispatch(),
+    )
+    .unwrap();
     assert_eq!(
         edited.draft.parts.iter().find(|p| p.id == "mirror-screen"),
         Some(&connector)
@@ -3974,8 +4209,13 @@ fn independent_connector_exceptions_preserve_linked_modules_and_clean_only_their
         TransitionState::Omitted,
     )
     .unwrap();
-    let omitted = super::prepare_lifecycle_transition(&edited.draft, &edited.draft, &pending)
-        .expect("Omit clears the selected connector reference without removing its module");
+    let omitted = super::prepare_lifecycle_transition(
+        &edited.draft,
+        &edited.draft,
+        &pending,
+        crate::mirrored_half::test_dispatch(),
+    )
+    .expect("Omit clears the selected connector reference without removing its module");
     let mut expected = edited_module.clone();
     expected.connection = None;
     assert_eq!(
@@ -3986,9 +4226,13 @@ fn independent_connector_exceptions_preserve_linked_modules_and_clean_only_their
             .find(|m| m.id == "mirror-module"),
         Some(&expected)
     );
-    let repeat =
-        super::prepare_lifecycle_transition(&omitted.draft, &omitted.draft, &omitted.context)
-            .unwrap();
+    let repeat = super::prepare_lifecycle_transition(
+        &omitted.draft,
+        &omitted.draft,
+        &omitted.context,
+        crate::mirrored_half::test_dispatch(),
+    )
+    .unwrap();
     assert_eq!(repeat.draft, omitted.draft);
     let pending = super::transition_exception_context(
         &omitted.context,
@@ -3998,8 +4242,13 @@ fn independent_connector_exceptions_preserve_linked_modules_and_clean_only_their
         TransitionState::Linked,
     )
     .unwrap();
-    let rejoined =
-        super::prepare_lifecycle_transition(&omitted.draft, &omitted.draft, &pending).unwrap();
+    let rejoined = super::prepare_lifecycle_transition(
+        &omitted.draft,
+        &omitted.draft,
+        &pending,
+        crate::mirrored_half::test_dispatch(),
+    )
+    .unwrap();
     assert_eq!(
         rejoined
             .draft
@@ -4273,7 +4522,13 @@ fn omit_screen(
         TransitionState::Omitted,
     )
     .unwrap();
-    super::prepare_lifecycle_transition(before, before, &pending).expect("Omit commits")
+    super::prepare_lifecycle_transition(
+        before,
+        before,
+        &pending,
+        crate::mirrored_half::test_dispatch(),
+    )
+    .expect("Omit commits")
 }
 
 fn rejoin_screen(
@@ -4289,7 +4544,13 @@ fn rejoin_screen(
         TransitionState::Linked,
     )
     .unwrap();
-    super::prepare_lifecycle_transition(draft, post, &pending).expect("Rejoin commits")
+    super::prepare_lifecycle_transition(
+        draft,
+        post,
+        &pending,
+        crate::mirrored_half::test_dispatch(),
+    )
+    .expect("Rejoin commits")
 }
 
 fn pin_values(config: &ElectricalBoardConfiguration) -> BTreeSet<String> {
@@ -4312,8 +4573,13 @@ fn local_controller_own_pin_keeps_a_private_net_through_omit_and_reopen() {
         TransitionState::Local,
     )
     .unwrap();
-    let localized = super::prepare_lifecycle_transition(&before, &before, &local_controller)
-        .expect("the controller can become Local");
+    let localized = super::prepare_lifecycle_transition(
+        &before,
+        &before,
+        &local_controller,
+        crate::mirrored_half::test_dispatch(),
+    )
+    .expect("the controller can become Local");
     assert!(localized.context.associations.iter().any(|association| {
         association.kind == MirroredItemKind::Part
             && association.mirror_id == "mirror-mcu"
@@ -4345,8 +4611,13 @@ fn local_controller_own_pin_keeps_a_private_net_through_omit_and_reopen() {
 
     let decoded: ProjectDoc =
         serde_json::from_slice(&serde_json::to_vec(&omitted.draft).unwrap()).unwrap();
-    let repeated =
-        super::prepare_lifecycle_transition(&decoded, &decoded, &omitted.context).unwrap();
+    let repeated = super::prepare_lifecycle_transition(
+        &decoded,
+        &decoded,
+        &omitted.context,
+        crate::mirrored_half::test_dispatch(),
+    )
+    .unwrap();
     assert_eq!(repeated.draft, decoded);
     let mut reopened = crate::CoreEngine::default();
     assert!(matches!(
@@ -4386,8 +4657,13 @@ fn malformed_local_controller_ownership_refuses_omit_atomically() {
         TransitionState::Local,
     )
     .unwrap();
-    let localized = super::prepare_lifecycle_transition(&before, &before, &local_controller)
-        .expect("the controller can become Local");
+    let localized = super::prepare_lifecycle_transition(
+        &before,
+        &before,
+        &local_controller,
+        crate::mirrored_half::test_dispatch(),
+    )
+    .expect("the controller can become Local");
     let mut malformed = localized.context.clone();
     let controller = malformed
         .associations
@@ -4408,8 +4684,12 @@ fn malformed_local_controller_ownership_refuses_omit_atomically() {
     let error = match pending {
         Ok(pending) => {
             let frozen = (localized.draft.clone(), malformed.clone(), pending.clone());
-            let result =
-                super::prepare_lifecycle_transition(&localized.draft, &localized.draft, &pending);
+            let result = super::prepare_lifecycle_transition(
+                &localized.draft,
+                &localized.draft,
+                &pending,
+                crate::mirrored_half::test_dispatch(),
+            );
             let Err(error) = result else {
                 panic!("duplicate controller ownership must refuse Omit");
             };
@@ -4567,7 +4847,13 @@ fn omit_removes_the_footprint_private_nets_and_only_the_copper_it_owned() {
     }
     let decoded: ProjectDoc = serde_json::from_slice(&serde_json::to_vec(draft).unwrap()).unwrap();
     crate::mechanical::halves::validate_document(&decoded).unwrap();
-    let repeat = super::prepare_lifecycle_transition(&decoded, &decoded, &omitted.context).unwrap();
+    let repeat = super::prepare_lifecycle_transition(
+        &decoded,
+        &decoded,
+        &omitted.context,
+        crate::mirrored_half::test_dispatch(),
+    )
+    .unwrap();
     assert_eq!(repeat.draft, decoded);
     assert_eq!(repeat.context, omitted.context);
 }
@@ -4674,8 +4960,13 @@ fn rejoin_reclaims_its_pins_and_releases_a_mirror_only_assignment_that_took_one(
             map.insert("replacement/mirror-oled/RST".into(), "GP7".into());
         }
     }
-    let stable =
-        super::prepare_lifecycle_transition(&replaced, &replaced, &omitted.context).unwrap();
+    let stable = super::prepare_lifecycle_transition(
+        &replaced,
+        &replaced,
+        &omitted.context,
+        crate::mirrored_half::test_dispatch(),
+    )
+    .unwrap();
     let held = mirror_electrical(&stable.draft);
     assert_eq!(
         held.assignments
@@ -4717,7 +5008,13 @@ fn a_local_controller_keeps_its_mapped_locks_and_assignments() {
         TransitionState::Local,
     )
     .unwrap();
-    let local = super::prepare_lifecycle_transition(&before, &before, &pending).unwrap();
+    let local = super::prepare_lifecycle_transition(
+        &before,
+        &before,
+        &pending,
+        crate::mirrored_half::test_dispatch(),
+    )
+    .unwrap();
     let config = mirror_electrical(&local.draft);
     assert_eq!(config.controller_part_id.as_deref(), Some("mirror-mcu"));
     assert_eq!(
@@ -4745,7 +5042,13 @@ fn a_local_controller_keeps_its_mapped_locks_and_assignments() {
         .unwrap()
         .assignments
         .insert("direct/source-encoder".into(), "GP5".into());
-    let edited = super::prepare_lifecycle_transition(&local.draft, &post, &local.context).unwrap();
+    let edited = super::prepare_lifecycle_transition(
+        &local.draft,
+        &post,
+        &local.context,
+        crate::mirrored_half::test_dispatch(),
+    )
+    .unwrap();
     let config = mirror_electrical(&edited.draft);
     assert_eq!(config.controller_part_id.as_deref(), Some("mirror-mcu"));
     assert_eq!(
@@ -4790,7 +5093,15 @@ fn saved_copper_that_collides_with_live_copper_refuses_the_rejoin_atomically() {
         TransitionState::Linked,
     )
     .unwrap();
-    assert!(super::prepare_lifecycle_transition(&occupied, &occupied, &pending).is_err());
+    assert!(
+        super::prepare_lifecycle_transition(
+            &occupied,
+            &occupied,
+            &pending,
+            crate::mirrored_half::test_dispatch()
+        )
+        .is_err()
+    );
     assert_eq!(frozen, (occupied, omitted.context));
 }
 
@@ -4944,9 +5255,13 @@ fn independent_part_exception_intents_keep_exact_matrix_owners_and_children() {
             .unwrap();
         source.pose.at.x += 23.0;
         source.properties = Some(BTreeMap::from([("revision".into(), json!(2))]));
-        let edited =
-            super::prepare_lifecycle_transition(&local.draft, &edited_source, &local.context)
-                .expect("unrelated linked Part follows its current source");
+        let edited = super::prepare_lifecycle_transition(
+            &local.draft,
+            &edited_source,
+            &local.context,
+            crate::mirrored_half::test_dispatch(),
+        )
+        .expect("unrelated linked Part follows its current source");
         let source = edited_source
             .parts
             .iter()
@@ -5136,8 +5451,13 @@ fn independent_none_context_validates_all_matrix_owners_without_claiming_one() {
     )
     .unwrap();
 
-    let output = super::prepare_lifecycle_transition(&before, &before, &pending)
-        .expect("independent selection validates each Matrix child against its own owner");
+    let output = super::prepare_lifecycle_transition(
+        &before,
+        &before,
+        &pending,
+        crate::mirrored_half::test_dispatch(),
+    )
+    .expect("independent selection validates each Matrix child against its own owner");
     assert_eq!(output.draft.matrices, matrices_before);
     assert!(
         output
@@ -5175,8 +5495,13 @@ fn exact_second_matrix_child_transitions_preserve_first_matrix_local_child() {
         TransitionState::Local,
     )
     .unwrap();
-    let first_local = super::prepare_lifecycle_transition(&before, &before, &first_pending)
-        .expect("first Matrix child can be independently made Local");
+    let first_local = super::prepare_lifecycle_transition(
+        &before,
+        &before,
+        &first_pending,
+        crate::mirrored_half::test_dispatch(),
+    )
+    .expect("first Matrix child can be independently made Local");
     let retained_first_child = first_local
         .draft
         .parts
@@ -5210,9 +5535,13 @@ fn exact_second_matrix_child_transitions_preserve_first_matrix_local_child() {
         TransitionState::Local,
     )
     .unwrap();
-    let local =
-        super::prepare_lifecycle_transition(&first_local.draft, &first_local.draft, &local_context)
-            .expect("the selected second-Matrix child uses its exact owner");
+    let local = super::prepare_lifecycle_transition(
+        &first_local.draft,
+        &first_local.draft,
+        &local_context,
+        crate::mirrored_half::test_dispatch(),
+    )
+    .expect("the selected second-Matrix child uses its exact owner");
     assert_eq!(
         local
             .draft
@@ -5238,8 +5567,13 @@ fn exact_second_matrix_child_transitions_preserve_first_matrix_local_child() {
         TransitionState::Omitted,
     )
     .unwrap();
-    let omitted = super::prepare_lifecycle_transition(&local.draft, &local.draft, &omit_context)
-        .expect("the exact second-Matrix child can be omitted");
+    let omitted = super::prepare_lifecycle_transition(
+        &local.draft,
+        &local.draft,
+        &omit_context,
+        crate::mirrored_half::test_dispatch(),
+    )
+    .expect("the exact second-Matrix child can be omitted");
     assert!(
         omitted
             .draft
@@ -5272,9 +5606,13 @@ fn exact_second_matrix_child_transitions_preserve_first_matrix_local_child() {
         TransitionState::Linked,
     )
     .unwrap();
-    let rejoined =
-        super::prepare_lifecycle_transition(&omitted.draft, &omitted.draft, &rejoin_context)
-            .expect("the exact second-Matrix child rejoins independently");
+    let rejoined = super::prepare_lifecycle_transition(
+        &omitted.draft,
+        &omitted.draft,
+        &rejoin_context,
+        crate::mirrored_half::test_dispatch(),
+    )
+    .expect("the exact second-Matrix child rejoins independently");
     assert_eq!(
         rejoined
             .draft
@@ -5434,8 +5772,13 @@ fn matrix_owned_exception_context_rejects_wrong_owner_and_membership_atomically(
         source_id: "source-matrix".into(),
         mirror_id: "mirror-matrix".into(),
     });
-    let wrong_owner_error = super::prepare_lifecycle_transition(&before, &before, &wrong_owner)
-        .expect_err("a selected child cannot borrow another Matrix's owner");
+    let wrong_owner_error = super::prepare_lifecycle_transition(
+        &before,
+        &before,
+        &wrong_owner,
+        crate::mirrored_half::test_dispatch(),
+    )
+    .expect_err("a selected child cannot borrow another Matrix's owner");
     assert!(
         wrong_owner_error.contains("ownership"),
         "{wrong_owner_error}"
@@ -5467,9 +5810,13 @@ fn matrix_owned_exception_context_rejects_wrong_owner_and_membership_atomically(
         TransitionState::Local,
     )
     .unwrap();
-    let membership_error =
-        super::prepare_lifecycle_transition(&wrong_membership, &wrong_membership, &pending)
-            .expect_err("actual Matrix target membership remains mandatory");
+    let membership_error = super::prepare_lifecycle_transition(
+        &wrong_membership,
+        &wrong_membership,
+        &pending,
+        crate::mirrored_half::test_dispatch(),
+    )
+    .expect_err("actual Matrix target membership remains mandatory");
     assert!(
         membership_error.contains("membership"),
         "{membership_error}"

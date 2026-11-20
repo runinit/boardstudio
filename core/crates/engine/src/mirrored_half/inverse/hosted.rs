@@ -84,6 +84,7 @@ pub(super) fn translate(
     links: &Links<'_>,
     operation: &EditOperation,
     canonical: &mut Canonical,
+    apply: crate::matrix::deletion::ApplyUnscripted,
 ) -> Result<(), String> {
     use EditOperation as Op;
     match operation {
@@ -122,6 +123,7 @@ pub(super) fn translate(
             side,
             joins,
             canonical,
+            apply,
         )?,
         Op::RemoveEmbeddedCircuit { id } => remove_circuit(links, id, canonical)?,
         Op::SetInputScanMode { part_id, mode } => {
@@ -662,6 +664,7 @@ fn embed_circuit(
     side: &Side,
     joins: &BTreeMap<String, String>,
     canonical: &mut Canonical,
+    apply: crate::matrix::deletion::ApplyUnscripted,
 ) -> Result<(), String> {
     // Hosted additions need a plan from either authoring half. A board may participate in
     // several pairs, so select one unambiguous pair before deriving any counterpart identity.
@@ -830,7 +833,7 @@ fn embed_circuit(
         joins: source_joins,
     };
     let mut staged_source = links.document.clone();
-    crate::apply_unscripted(&mut staged_source, &source_operation)?;
+    apply(&mut staged_source, &source_operation)?;
 
     let (source_prefix, mirror_prefix) = (
         format!("embedded/{source_id}/"),

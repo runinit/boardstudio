@@ -624,6 +624,7 @@ pub(crate) fn prepare_transaction(
         operation,
         &crate::mechanical::edit::MechanicalIdentityLedger::default(),
         boardstudio_script::apply_scripts,
+        crate::mirrored_half::test_dispatch(),
     )
 }
 
@@ -636,10 +637,11 @@ pub(crate) fn prepare_transaction_with_ledger(
     operation: &EditOperation,
     identities: &crate::mechanical::edit::MechanicalIdentityLedger,
     run_scripts: ScriptRunner,
+    dispatch: crate::mirrored_half::EditDispatch,
 ) -> Result<(ProjectDoc, Vec<String>), String> {
     crate::mechanical::halves::validate_document(accepted)?;
-    let mut canonical =
-        inverse::canonicalize(accepted, operation).map_err(|refusal| refusal.to_string())?;
+    let mut canonical = inverse::canonicalize_with_dispatch(accepted, operation, dispatch)
+        .map_err(|refusal| refusal.to_string())?;
     if let EditOperation::ReplaceDocument { document } = &mut canonical.operation {
         super::lifecycle::retire_replacement_records(accepted, document)?;
     }
@@ -651,6 +653,7 @@ pub(crate) fn prepare_transaction_with_ledger(
         &canonical,
         identities,
         run_scripts,
+        dispatch,
     )?;
 
     if let Some(keymap) = &draft.keymap {
@@ -667,7 +670,9 @@ pub(crate) fn prepare_transaction_with_ledger(
     )?);
     changed.extend(crate::matrix::layout::sync_components(&mut draft)?);
 
-    changed.extend(prepare_lifecycle_pairs(accepted, &mut draft, &canonical)?);
+    changed.extend(prepare_lifecycle_pairs(
+        accepted, &mut draft, &canonical, dispatch,
+    )?);
 
     for addition in &canonical.matrix_additions {
         let mirrored =
@@ -1018,6 +1023,7 @@ fn prepare_lifecycle_pairs(
     accepted: &ProjectDoc,
     document: &mut ProjectDoc,
     canonical: &Canonical,
+    dispatch: crate::mirrored_half::EditDispatch,
 ) -> Result<Vec<String>, String> {
     if matches!(
         canonical.operation,
@@ -1067,6 +1073,7 @@ fn prepare_lifecycle_pairs(
             document,
             &pair_id,
             &canonical.operation,
+            dispatch,
         )? {
             changed.extend(prepared.changed_document_ids);
             *document = prepared.draft;
@@ -1082,6 +1089,7 @@ fn apply_canonical(
     canonical: &Canonical,
     identities: &crate::mechanical::edit::MechanicalIdentityLedger,
     run_scripts: ScriptRunner,
+    dispatch: crate::mirrored_half::EditDispatch,
 ) -> Result<Vec<String>, String> {
     if let EditOperation::AddMirrorOnlyPart { board_id, part, .. } = &canonical.operation {
         if id_exists_outside_parts(accepted, &part.id) {
@@ -1147,7 +1155,7 @@ fn apply_canonical(
         let pair_id = pair_for_instance(accepted, instance_id)?;
         return crate::mechanical::halves::unlink_pair(draft, &pair_id);
     }
-    let mut changed = crate::apply_with_ledger(
+    let mut changed = (dispatch.apply_with_ledger)(
         draft,
         board_contours,
         &canonical.operation,

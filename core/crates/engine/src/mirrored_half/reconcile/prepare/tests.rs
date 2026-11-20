@@ -2205,6 +2205,7 @@ fn ambiguous_mirror_board_target_is_refused_before_prepared_addition() {
         &canonical,
         &Default::default(),
         boardstudio_script::apply_scripts,
+        crate::mirrored_half::test_dispatch(),
     )
     .expect_err("two pairs with this target board are ambiguous");
     assert!(refusal.contains("matched 2 pairs"), "{refusal}");

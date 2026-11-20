@@ -608,6 +608,7 @@ impl CoreEngine {
                 &command.operation,
                 &self.identity_ledger,
                 self.run_scripts,
+                edit_dispatch(),
             ) {
                 Ok((draft, prepared_changed)) => {
                     next = draft;
@@ -850,6 +851,7 @@ impl CoreEngine {
             &command.operation,
             &self.identity_ledger,
             self.run_scripts,
+            edit_dispatch(),
         ) {
             Ok(prepared) => prepared,
             Err(message) => return self.error(id, &message),
@@ -1725,6 +1727,13 @@ fn apply(
         &mechanical::edit::MechanicalIdentityLedger::default(),
         Some(boardstudio_script::apply_scripts),
     )
+}
+
+fn edit_dispatch() -> mirrored_half::EditDispatch {
+    mirrored_half::EditDispatch {
+        apply_with_ledger,
+        apply_unscripted,
+    }
 }
 
 // Recursive and staged edits dispatch known operations and cannot replace the document.

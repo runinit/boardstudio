@@ -7589,6 +7589,7 @@ fn membership_transition_accepts_a_valid_identity_operation_as_a_no_op() {
     let planned_additions = [];
 
     let result = prepare_membership_transition(MembershipTransitionInput {
+        dispatch: crate::mirrored_half::test_dispatch(),
         valid_before: &document,
         post_source: &document,
         context: &context,
@@ -7801,6 +7802,7 @@ fn membership_transition_removes_a_whole_paired_matrix_from_a_source_operation()
         explicit_removal_closure.iter().skip(1).cloned().collect();
     assert!(
         prepare_membership_transition_kernel(MembershipTransitionInput {
+            dispatch: crate::mirrored_half::test_dispatch(),
             valid_before: &before,
             post_source: &post_source,
             context: &context,
@@ -7821,6 +7823,7 @@ fn membership_transition_removes_a_whole_paired_matrix_from_a_source_operation()
     );
 
     let output = prepare_membership_transition_kernel(MembershipTransitionInput {
+        dispatch: crate::mirrored_half::test_dispatch(),
         valid_before: &before,
         post_source: &post_source,
         context: &context,
@@ -7974,6 +7977,7 @@ fn membership_transition_removes_a_whole_paired_matrix_from_a_source_operation()
         "the private retirement leaves persisted pair provenance byte-for-byte intact"
     );
     let repeated = prepare_membership_transition_kernel(MembershipTransitionInput {
+        dispatch: crate::mirrored_half::test_dispatch(),
         valid_before: &output.draft,
         post_source: &output.draft,
         context: &output.context,
@@ -8121,6 +8125,7 @@ fn membership_transition_retires_a_whole_pair_but_preserves_local_mirror_parts()
         .cloned()
         .collect();
     let output = prepare_membership_transition_kernel(MembershipTransitionInput {
+        dispatch: crate::mirrored_half::test_dispatch(),
         valid_before: &before,
         post_source: &post_source,
         context: &context,
@@ -8214,6 +8219,7 @@ fn membership_transition_retires_a_whole_pair_but_preserves_local_mirror_parts()
     assert!(!output.changed_document_ids.contains(&local_child_mirror_id));
 
     let repeated = prepare_membership_transition_kernel(MembershipTransitionInput {
+        dispatch: crate::mirrored_half::test_dispatch(),
         valid_before: &output.draft,
         post_source: &output.draft,
         context: &output.context,
@@ -8251,6 +8257,7 @@ fn membership_transition_rejects_incomplete_and_aliased_maps_before_staging() {
     let mut incomplete = source_map.clone();
     incomplete.pop_first();
     let error = prepare_membership_transition(MembershipTransitionInput {
+        dispatch: crate::mirrored_half::test_dispatch(),
         valid_before: &before,
         post_source: &post_source,
         context: &context,
@@ -8276,6 +8283,7 @@ fn membership_transition_rejects_incomplete_and_aliased_maps_before_staging() {
     let target = aliased[&first].clone();
     aliased.insert(second, target);
     let error = prepare_membership_transition(MembershipTransitionInput {
+        dispatch: crate::mirrored_half::test_dispatch(),
         valid_before: &before,
         post_source: &post_source,
         context: &context,
@@ -8303,6 +8311,7 @@ fn membership_transition_rejects_incomplete_and_aliased_maps_before_staging() {
     association.effective_mode = MirroredCompanionMode::LiteralMirrorWithTweak;
     association.effective_tweak = association.raw_tweak;
     let error = prepare_membership_transition(MembershipTransitionInput {
+        dispatch: crate::mirrored_half::test_dispatch(),
         valid_before: &before,
         post_source: &post_source,
         context: &non_finite_context,
@@ -8322,6 +8331,7 @@ fn membership_transition_rejects_incomplete_and_aliased_maps_before_staging() {
         .at
         .x += 1.0;
     let error = prepare_membership_transition(MembershipTransitionInput {
+        dispatch: crate::mirrored_half::test_dispatch(),
         valid_before: &stale_before,
         post_source: &post_source,
         context: &context,
@@ -8350,6 +8360,7 @@ fn membership_transition_rejects_incomplete_and_aliased_maps_before_staging() {
     let mut constrained_post_source = post_source.clone();
     constrained_post_source.constraints.push(constraint);
     let error = prepare_membership_transition(MembershipTransitionInput {
+        dispatch: crate::mirrored_half::test_dispatch(),
         valid_before: &constrained_before,
         post_source: &constrained_post_source,
         context: &context,
@@ -9018,6 +9029,7 @@ fn membership_transition_expands_with_planned_pair_identities_and_references() {
     }
 
     let output = prepare_membership_transition_kernel(MembershipTransitionInput {
+        dispatch: crate::mirrored_half::test_dispatch(),
         valid_before: &before,
         post_source: &post_source,
         context: &context,
@@ -9654,6 +9666,7 @@ fn membership_transition_chains_two_by_three_expansion_and_two_by_two_trim() {
     expanded_owners.insert(omitted_key_id.into(), FinalOwner::Absent);
     expanded_owners.insert(omitted_mirror_id.into(), FinalOwner::Absent);
     let expanded = prepare_membership_transition_kernel(MembershipTransitionInput {
+        dispatch: crate::mirrored_half::test_dispatch(),
         valid_before: &before,
         post_source: &expanded_source_document,
         context: &context,
@@ -9712,6 +9725,7 @@ fn membership_transition_chains_two_by_three_expansion_and_two_by_two_trim() {
         .map(|id| (id.clone(), Some(id.clone())))
         .collect();
     let repeated = prepare_membership_transition_kernel(MembershipTransitionInput {
+        dispatch: crate::mirrored_half::test_dispatch(),
         valid_before: &expanded.draft,
         post_source: &expanded.draft,
         context: &expanded.context,
@@ -9829,6 +9843,7 @@ fn membership_transition_chains_two_by_three_expansion_and_two_by_two_trim() {
         final_owners.entry(id.clone()).or_insert(FinalOwner::Absent);
     }
     let trimmed = prepare_membership_transition_kernel(MembershipTransitionInput {
+        dispatch: crate::mirrored_half::test_dispatch(),
         valid_before: &shrink_before,
         post_source: &trimmed_source,
         context: &expanded.context,
@@ -9982,6 +9997,7 @@ fn membership_transition_chains_two_by_three_expansion_and_two_by_two_trim() {
         .map(|id| (id.clone(), Some(id.clone())))
         .collect();
     let repeated = prepare_membership_transition_kernel(MembershipTransitionInput {
+        dispatch: crate::mirrored_half::test_dispatch(),
         valid_before: &trimmed.draft,
         post_source: &trimmed.draft,
         context: &trimmed.context,
@@ -10214,6 +10230,7 @@ fn membership_transition_trims_only_explicitly_removed_linked_closures() {
     }
 
     let output = prepare_membership_transition(MembershipTransitionInput {
+        dispatch: crate::mirrored_half::test_dispatch(),
         valid_before: &before,
         post_source: &post_source,
         context: &context,
@@ -10394,6 +10411,7 @@ fn membership_transition_trims_only_explicitly_removed_linked_closures() {
         .map(|id| (id.clone(), Some(id.clone())))
         .collect();
     let repeated = prepare_membership_transition(MembershipTransitionInput {
+        dispatch: crate::mirrored_half::test_dispatch(),
         valid_before: &round_tripped,
         post_source: &round_tripped,
         context: &output.context,
@@ -10439,6 +10457,7 @@ fn membership_transition_compacts_ids_and_carries_logical_payload_and_settings()
         .collect();
     let additions = [];
     let output = prepare_membership_transition_kernel(MembershipTransitionInput {
+        dispatch: crate::mirrored_half::test_dispatch(),
         valid_before: &before,
         post_source: &post_source,
         context: &context,
@@ -10795,6 +10814,7 @@ fn membership_transition_compacts_ids_and_carries_logical_payload_and_settings()
         .map(|id| (id.clone(), Some(id.clone())))
         .collect();
     let repeated = prepare_membership_transition_kernel(MembershipTransitionInput {
+        dispatch: crate::mirrored_half::test_dispatch(),
         valid_before: &output.draft,
         post_source: &output.draft,
         context: &remapped,
@@ -10830,6 +10850,7 @@ fn independent_transition_rejects_wrong_board_final_owner() {
     let id = "matrix/mirror-matrix/r1c1/diode";
     final_owners.insert(id.into(), FinalOwner::Board("source-board".into()));
     let result = prepare_membership_transition(MembershipTransitionInput {
+        dispatch: crate::mirrored_half::test_dispatch(),
         valid_before: &before,
         post_source: &post_source,
         context: &context,
@@ -10881,6 +10902,7 @@ fn independent_transition_rejects_inconsistent_raw_effective_settings() {
     child.effective_mode = MirroredCompanionMode::DuplicatePosition;
     child.effective_tweak = None;
     let result = prepare_membership_transition(MembershipTransitionInput {
+        dispatch: crate::mirrored_half::test_dispatch(),
         valid_before: &before,
         post_source: &post_source,
         context: &context,
@@ -10907,6 +10929,7 @@ fn membership_transition_rejects_missing_second_retained_child_owner_atomically(
     let post_source_snapshot = post_source.clone();
     let context_snapshot = context.clone();
     let result = prepare_membership_transition(MembershipTransitionInput {
+        dispatch: crate::mirrored_half::test_dispatch(),
         valid_before: &before,
         post_source: &post_source,
         context: &context,
@@ -11003,6 +11026,7 @@ fn repair_fresh_refuses_invalid_before_pad_identity() {
     let snapshot = before.clone();
     let context_snapshot = context.clone();
     let result = prepare_membership_transition(MembershipTransitionInput {
+        dispatch: crate::mirrored_half::test_dispatch(),
         valid_before: &before,
         post_source: &before,
         context: &context,
@@ -11036,6 +11060,7 @@ fn repair_fresh_refuses_chained_identity_ambiguous_actual_board_owner() {
         })
         .collect();
     let output = prepare_membership_transition(MembershipTransitionInput {
+        dispatch: crate::mirrored_half::test_dispatch(),
         valid_before: &before,
         post_source: &post,
         context: &context,
@@ -11085,6 +11110,7 @@ fn repair_fresh_refuses_chained_identity_ambiguous_actual_board_owner() {
     let snapshot = invalid.clone();
     let context_snapshot = output.context.clone();
     let result = prepare_membership_transition(MembershipTransitionInput {
+        dispatch: crate::mirrored_half::test_dispatch(),
         valid_before: &invalid,
         post_source: &invalid,
         context: &output.context,
@@ -11140,6 +11166,7 @@ fn repair_fresh_refuses_wrong_historical_owner_context() {
     let post_snapshot = post.clone();
     let context_snapshot = context.clone();
     let result = prepare_membership_transition(MembershipTransitionInput {
+        dispatch: crate::mirrored_half::test_dispatch(),
         valid_before: &before,
         post_source: &post,
         context: &context,
@@ -11207,6 +11234,7 @@ fn repair_fresh_omission_cleans_idless_dependencies() {
         closure.insert(id.into());
     }
     let output = prepare_membership_transition_kernel(MembershipTransitionInput {
+        dispatch: crate::mirrored_half::test_dispatch(),
         valid_before: &before,
         post_source: &post,
         context: &context,
@@ -11266,6 +11294,7 @@ fn repair_fresh_accepts_shifted_local_parent_with_explicit_omitted_child() {
     owners.insert("matrix/mirror-matrix/r1c1/diode".into(), FinalOwner::Absent);
     closure.insert(target_child.into());
     let result = prepare_membership_transition_kernel(MembershipTransitionInput {
+        dispatch: crate::mirrored_half::test_dispatch(),
         valid_before: &before,
         post_source: &post,
         context: &context,
@@ -11361,6 +11390,7 @@ fn repair_fresh_refuses_native_and_legacy_matrix_overlap() {
         .map(|id| (id.clone(), Some(id.clone())))
         .collect();
     let result = prepare_membership_transition(MembershipTransitionInput {
+        dispatch: crate::mirrored_half::test_dispatch(),
         valid_before: &before,
         post_source: &before,
         context: &context,
@@ -11520,6 +11550,7 @@ fn repair_fresh_refuses_unbound_planned_source_reference() {
     additions[0].source_reference = "SUPPLIED_BUT_NOT_ACTUAL_SOURCE_REFERENCE".into();
 
     let result = prepare_membership_transition(MembershipTransitionInput {
+        dispatch: crate::mirrored_half::test_dispatch(),
         valid_before: &before,
         post_source: &post_source,
         context: &context,
@@ -11552,6 +11583,7 @@ fn repair_fresh_refuses_missing_planned_child_parent() {
     additions[1].parent_mirror_id = Some("matrix/mirror-matrix/r0c99".into());
 
     let result = prepare_membership_transition(MembershipTransitionInput {
+        dispatch: crate::mirrored_half::test_dispatch(),
         valid_before: &before,
         post_source: &post_source,
         context: &context,
@@ -11583,6 +11615,7 @@ fn repair_fresh_refuses_duplicate_planned_mirror_references() {
     additions[2].mirror_reference = additions[0].mirror_reference.clone();
 
     let result = prepare_membership_transition(MembershipTransitionInput {
+        dispatch: crate::mirrored_half::test_dispatch(),
         valid_before: &before,
         post_source: &post_source,
         context: &context,
@@ -11668,6 +11701,7 @@ fn repair_fresh_final_addition_copies_nondefault_source_parameters() {
             .is_empty()
     );
     let output = prepare_membership_transition(MembershipTransitionInput {
+        dispatch: crate::mirrored_half::test_dispatch(),
         valid_before: &before,
         post_source: &post_source,
         context: &context,
@@ -11768,6 +11802,7 @@ fn consolidated_fresh_refuses_missing_historical_constraint_endpoint() {
     let snapshot = before.clone();
     let context_snapshot = context.clone();
     let result = prepare_membership_transition(MembershipTransitionInput {
+        dispatch: crate::mirrored_half::test_dispatch(),
         valid_before: &before,
         post_source: &before,
         context: &context,
@@ -11823,6 +11858,7 @@ fn consolidated_fresh_refuses_missing_actual_child_parent_context() {
     let snapshot = before.clone();
     let context_snapshot = context.clone();
     let result = prepare_membership_transition(MembershipTransitionInput {
+        dispatch: crate::mirrored_half::test_dispatch(),
         valid_before: &before,
         post_source: &before,
         context: &context,
@@ -11878,6 +11914,7 @@ fn consolidated_fresh_refuses_phantom_historical_association() {
     let snapshot = before.clone();
     let context_snapshot = context.clone();
     let result = prepare_membership_transition(MembershipTransitionInput {
+        dispatch: crate::mirrored_half::test_dispatch(),
         valid_before: &before,
         post_source: &before,
         context: &context,
@@ -11944,6 +11981,7 @@ fn consolidated_fresh_refuses_duplicate_same_board_registration() {
     let snapshot = before.clone();
     let context_snapshot = context.clone();
     let result = prepare_membership_transition(MembershipTransitionInput {
+        dispatch: crate::mirrored_half::test_dispatch(),
         valid_before: &before,
         post_source: &before,
         context: &context,
@@ -11991,6 +12029,7 @@ fn consolidated_fresh_refuses_nonfinite_historical_local_pose() {
     let snapshot = before.clone();
     let context_snapshot = context.clone();
     let result = prepare_membership_transition(MembershipTransitionInput {
+        dispatch: crate::mirrored_half::test_dispatch(),
         valid_before: &before,
         post_source: &before,
         context: &context,
@@ -12067,6 +12106,7 @@ fn consolidated_fresh_names_a_nonfinite_constraint_of_every_kind() {
                 .map(|id| (id.clone(), Some(id.clone())))
                 .collect();
             let message = prepare_membership_transition(MembershipTransitionInput {
+                dispatch: crate::mirrored_half::test_dispatch(),
                 valid_before: &before,
                 post_source: &before,
                 context: &context,
@@ -12108,6 +12148,7 @@ fn consolidated_fresh_refuses_local_mirror_deletion_on_identity() {
     let snapshot = before.clone();
     let context_snapshot = context.clone();
     let result = prepare_membership_transition(MembershipTransitionInput {
+        dispatch: crate::mirrored_half::test_dispatch(),
         valid_before: &before,
         post_source: &before,
         context: &context,
@@ -12145,6 +12186,7 @@ fn consolidated_fresh_refuses_materialized_omitted_child_on_chained_identity() {
         })
         .collect();
     let output = prepare_membership_transition(MembershipTransitionInput {
+        dispatch: crate::mirrored_half::test_dispatch(),
         valid_before: &before,
         post_source: &post,
         context: &context,
@@ -12196,6 +12238,7 @@ fn consolidated_fresh_refuses_materialized_omitted_child_on_chained_identity() {
     let snapshot = before.clone();
     let context_snapshot = context.clone();
     let result = prepare_membership_transition(MembershipTransitionInput {
+        dispatch: crate::mirrored_half::test_dispatch(),
         valid_before: &before,
         post_source: &before,
         context: &context,

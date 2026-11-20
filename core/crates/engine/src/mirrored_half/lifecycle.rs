@@ -601,6 +601,7 @@ fn project_lifecycle_matrix(
     draft: &mut crate::model::ProjectDoc,
     context: &MembershipContext,
     additions: &[super::TransitionAssociation],
+    dispatch: crate::mirrored_half::EditDispatch,
 ) -> Result<(), String> {
     use super::{FinalOwner, MembershipTransitionInput};
     use crate::model::MirroredItemKind;
@@ -865,6 +866,7 @@ fn project_lifecycle_matrix(
         .unwrap()
         .halves = Some(matrix_context.pair_right.clone());
     let output = super::prepare_membership_transition_kernel(MembershipTransitionInput {
+        dispatch,
         valid_before: &frame,
         post_source: &frame,
         context: &matrix_context,
@@ -1485,6 +1487,7 @@ pub(super) fn prepare_edit_transition(
     post_source: &crate::model::ProjectDoc,
     pair_id: &str,
     operation: &crate::model::EditOperation,
+    dispatch: crate::mirrored_half::EditDispatch,
 ) -> Result<Option<super::PreparedLifecycleDraft>, String> {
     use crate::model::EditOperation;
 
@@ -1548,7 +1551,7 @@ pub(super) fn prepare_edit_transition(
             mirror_id,
             requested_state,
         )?;
-        let output = prepare_lifecycle_transition(before, post_source, &pending)?;
+        let output = prepare_lifecycle_transition(before, post_source, &pending, dispatch)?;
         let mut effects = Vec::new();
         if prior_state != requested_state {
             match requested_state {
@@ -1634,7 +1637,7 @@ pub(super) fn prepare_edit_transition(
             local_matrix_id,
             TransitionState::Local,
         )?;
-        let output = prepare_lifecycle_transition(before, post_source, &pending)?;
+        let output = prepare_lifecycle_transition(before, post_source, &pending, dispatch)?;
         let mut prepared = prepare_lifecycle_output(
             before,
             output,
@@ -1743,7 +1746,8 @@ pub(super) fn prepare_edit_transition(
                     mirror_id: mirror_matrix_id.clone(),
                 }),
             )?;
-            let output = prepare_matrix_membership_edit(before, &draft, operation, &context)?;
+            let output =
+                prepare_matrix_membership_edit(before, &draft, operation, &context, dispatch)?;
             draft = output.draft.clone();
             outputs.push(output);
         }
@@ -1772,7 +1776,7 @@ pub(super) fn prepare_edit_transition(
             mirror_id,
         });
     let context = lifecycle_context(before, pair_id, matrix_pair)?;
-    let output = prepare_lifecycle_transition(before, post_source, &context)?;
+    let output = prepare_lifecycle_transition(before, post_source, &context, dispatch)?;
     let removed = removed_part_ids(before, &output.draft);
     prepare_lifecycle_output(
         before,
@@ -2308,7 +2312,8 @@ fn prepare_exception_intent(
     let matrix_pair = matrix_pair_for_association(before, halves, kind, source_id, mirror_id)?;
     let context = lifecycle_context(before, pair_id, matrix_pair)?;
     let pending = transition_exception_context(&context, kind, source_id, mirror_id, state)?;
-    prepare_lifecycle_transition(before, post_source, &pending).map(|output| vec![output])
+    prepare_lifecycle_transition(before, post_source, &pending, super::super::test_dispatch())
+        .map(|output| vec![output])
 }
 
 fn prepare_matrix_membership_edit(
@@ -2316,6 +2321,7 @@ fn prepare_matrix_membership_edit(
     source_operation: &crate::model::ProjectDoc,
     operation: &crate::model::EditOperation,
     selected: &MembershipContext,
+    dispatch: crate::mirrored_half::EditDispatch,
 ) -> Result<super::MembershipTransitionOutput, String> {
     use super::{
         BaselineKind, FinalOwner, MembershipTransitionInput, PlannedAddition, TransitionState,
@@ -2764,6 +2770,7 @@ fn prepare_matrix_membership_edit(
     }
 
     let mut output = prepare_membership_transition(MembershipTransitionInput {
+        dispatch,
         valid_before: before,
         post_source,
         context,
@@ -2990,6 +2997,7 @@ fn prepare_lifecycle_transition(
     before: &crate::model::ProjectDoc,
     post_source: &crate::model::ProjectDoc,
     context: &MembershipContext,
+    dispatch: crate::mirrored_half::EditDispatch,
 ) -> Result<super::MembershipTransitionOutput, String> {
     use super::{
         FinalOwner, MembershipContextDelta, MembershipTransitionInput, MembershipTransitionOutput,
@@ -3159,7 +3167,7 @@ fn prepare_lifecycle_transition(
                 .map(|a| a.mirror_id.as_str())
                 .collect();
             matrix.part_ids.retain(|id| !retained.contains(id.as_str()));
-            crate::apply_unscripted(
+            (dispatch.apply_unscripted)(
                 &mut draft,
                 &crate::model::EditOperation::RemoveMatrix {
                     id: matrix_pair.mirror_id.clone(),
@@ -3419,7 +3427,7 @@ fn prepare_lifecycle_transition(
             return Err("Omitted circuit ownership leaves an owned net in use; preserve that net explicitly first".into());
         }
     }
-    project_lifecycle_matrix(&mut draft, context, &additions)?;
+    project_lifecycle_matrix(&mut draft, context, &additions, dispatch)?;
     restore_rejoined_nets(&mut draft, post_source, context)?;
     for added in &additions {
         let source = post_source
@@ -3471,6 +3479,7 @@ fn prepare_lifecycle_transition(
     let empty_set = BTreeSet::new();
     apply_membership_context_delta(
         MembershipTransitionInput {
+            dispatch,
             valid_before: before,
             post_source,
             context,

@@ -149,10 +149,19 @@ const HALF_CREATION_DELEGATED: &str =
 const REPLACE_DOCUMENT_DELEGATED: &str =
     "ticket 116 owns source-authoritative Open and ReplaceDocument repair";
 
-/// Rewrites `operation` so that every linked mirror target names its authored source value.
+#[cfg(test)]
 pub(super) fn canonicalize(
     document: &ProjectDoc,
     operation: &EditOperation,
+) -> Result<Canonical, Refusal> {
+    canonicalize_with_dispatch(document, operation, super::test_dispatch())
+}
+
+/// Rewrites `operation` so that every linked mirror target names its authored source value.
+pub(super) fn canonicalize_with_dispatch(
+    document: &ProjectDoc,
+    operation: &EditOperation,
+    dispatch: super::EditDispatch,
 ) -> Result<Canonical, Refusal> {
     use EditOperation as Op;
     let links = Links::new(document);
@@ -404,7 +413,7 @@ pub(super) fn canonicalize(
         | Op::SetKeycapBoard { .. }
         | Op::SetMatrixKeycaps { .. }
         | Op::SetKeycapKey { .. } => {
-            hosted::translate(&links, operation, &mut canonical)?;
+            hosted::translate(&links, operation, &mut canonical, dispatch.apply_unscripted)?;
         }
         // Ticket 113: outline and reviewed geometry. Ticket 37 deleted the raw
         // outline family; ApplyOutlineEdit is the live translated outline edit.
