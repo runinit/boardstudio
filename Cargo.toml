@@ -173,6 +173,15 @@ debug-assertions = true
 inherits = "dev"
 incremental = false
 
+# One codegen unit per crate in shipped builds. The workspace is split into
+# many crates over one shared document vocabulary; with the default 16 units
+# per crate, each crate repeats the same generic instantiations over those
+# types (measured +21.7% on the core worker after the W3-4 split). A single
+# unit restores the sharing the monolithic crates had and measured smaller
+# than the pre-split baseline in aggregate (page -13.2%).
+[profile.release]
+codegen-units = 1
+
 # The profile for every wasm build `scripts/check.py` makes: the packaged page
 # (`build-web.py --fast`), the page tests and each crate's `wasm-pack test`. With the wasm rustflags
 # in .cargo/config.toml and dx run with `--wasm-js-cfg false`, those builds reuse each other's
