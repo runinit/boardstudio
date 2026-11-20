@@ -162,7 +162,7 @@ fn mesh_bounds(mesh: &crate::MeshBuffers) -> [[f64; 3]; 2] {
 #[test]
 fn concave_profile_is_winding_independent_and_uses_tray_height() {
     let value: Value = serde_json::from_str(include_str!(
-        "../../monstertruck-qualification/fixtures/profile-topology/rotated-concave.json"
+        "../tests/fixtures/profile-topology/rotated-concave.json"
     ))
     .unwrap();
     let mut outer = json_ring(&value["outer"]);
@@ -191,7 +191,7 @@ fn concave_profile_is_winding_independent_and_uses_tray_height() {
 #[test]
 fn multiple_holes_and_reversed_loops_keep_the_analytic_material() {
     let value: Value = serde_json::from_str(include_str!(
-        "../../monstertruck-qualification/fixtures/profile-topology/multi-hole-region.json"
+        "../tests/fixtures/profile-topology/multi-hole-region.json"
     ))
     .unwrap();
     let outer = json_ring(&value["outer"]);
@@ -224,7 +224,7 @@ fn multiple_holes_and_reversed_loops_keep_the_analytic_material() {
 #[test]
 fn separated_regions_remain_separate_exact_solids() {
     let value: Value = serde_json::from_str(include_str!(
-        "../../monstertruck-qualification/fixtures/profile-topology/split-regions.json"
+        "../tests/fixtures/profile-topology/split-regions.json"
     ))
     .unwrap();
     let regions = value["islands"]

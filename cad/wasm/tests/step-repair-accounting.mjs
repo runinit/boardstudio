@@ -129,7 +129,7 @@ const curved = await check(await fixture('cad/monstertruck/tests/fixtures/unsupp
 assert(curved.vendorStep.sourceFaces.some(face => face.supportKind !== 'PLANE'));
 // The same literal producer fixture exercises actual native spline restriction
 // and the concrete whole-domain certifier inside the rebuilt WASM importer.
-const partialBytes = await readBytes('cad/monstertruck-qualification/vendor/monstertruck-io/tests/input/partial_closed_spline/solid32377-source.step');
+const partialBytes = await readBytes('cad/monstertruck/tests/fixtures/solid32377-source.step');
 const partialDigest = await sha(partialBytes);
 const partialInput = new Uint8Array(partialBytes);
 const partial = cad.read_step_model(partialInput, {sourceSha256: partialDigest});

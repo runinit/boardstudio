@@ -356,7 +356,7 @@ mod tests {
     #[test]
     fn actual_partial_spline_mutations_have_exact_whole_domain_control_proofs() {
         let bytes = include_bytes!(
-            "../../../../monstertruck-qualification/vendor/monstertruck-io/tests/input/partial_closed_spline/solid32377-source.step"
+            "../../../tests/fixtures/solid32377-source.step"
         );
         let table = Table::from_step_bytes(bytes).unwrap();
         let original = StepRepairSource::from_step_bytes(bytes).unwrap();

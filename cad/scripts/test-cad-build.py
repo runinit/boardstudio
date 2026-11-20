@@ -55,7 +55,7 @@ class CadBuildTests(unittest.TestCase):
         (self.root / "Cargo.lock").write_text("version = 4\n")
         (self.root / "monstertruck/Cargo.toml").write_text('[package]\nname = "boardstudio-cad"\nversion = "0.1.0"\n')
         for crate in build.VENDOR_CRATES:
-            vendor_dir = self.root / "monstertruck-qualification/vendor" / crate / "src"
+            vendor_dir = self.root / "vendor" / crate / "src"
             vendor_dir.mkdir(parents=True)
             (vendor_dir / "lib.rs").write_text(f"// {crate}")
             (vendor_dir.parent / "Cargo.toml").write_text(f'[package]\nname = "{crate}"\nversion = "0.4.1"\n')
@@ -97,7 +97,7 @@ class CadBuildTests(unittest.TestCase):
                 self.root / "Cargo.lock",
                 self.root / "wasm/src/lib.rs",
                 self.root / "monstertruck/src/lib.rs",
-                self.root / "monstertruck-qualification/vendor/monstertruck-core/src/lib.rs",
+                self.root / "vendor/monstertruck-core/src/lib.rs",
                 self.project / "contracts/rust/src/lib.rs",
             ):
                 with self.subTest(path=path):
@@ -139,12 +139,9 @@ class CadBuildTests(unittest.TestCase):
             ("boardstudio-cad-wasm", "lib", "boardstudio_cad_wasm", self.root / "wasm"),
         ]
 
-    def owner_prebuild(self, *, omit=None, duplicate=None, status=0):
+    def production_prebuild(self, *, omit=None, duplicate=None, status=0):
         artifacts = []
-        keys = {
-            *((pkg, kind, name) for pkg, kind, name, _ in self.production_targets()),
-            *(build._owner_binary_key(package, selection) for package, *selection in build.OWNER_TESTS),
-        }
+        keys = {(pkg, kind, name) for pkg, kind, name, _ in self.production_targets()}
         for package, kind, name in sorted(keys):
             key = (package, kind, name)
             if key == omit:
@@ -167,9 +164,8 @@ class CadBuildTests(unittest.TestCase):
         return context
 
     def prebuilds(self, **kwargs):
-        # Production (cad-test) and owner (cad-owner-test) prebuilds run as two
-        # cargo invocations; each emits every artifact and records its subset.
-        return [self.owner_prebuild(**kwargs), self.owner_prebuild(**kwargs)]
+        # The production (cad-test) prebuild runs as a single cargo invocation.
+        return [self.production_prebuild(**kwargs)]
 
     def test_native_tests_run_library_and_provider_and_propagate_failures(self):
         prod = self.production_targets()
@@ -178,15 +174,6 @@ class CadBuildTests(unittest.TestCase):
                 patch.object(build, "run", return_value=self.PASSED) as run, \
                 contextlib.redirect_stdout(io.StringIO()):
             build.test_cad()
-        self.assertEqual(build.OWNER_TESTS, (
-            ("monstertruck-io", "--test", "input", "repair_movement"),
-            ("monstertruck-io", "--lib", "repair_movement_sink"),
-            ("monstertruck-io", "--test", "input", "source_pcurve_active_view"),
-            ("monstertruck-io", "--test", "input", "preview_tolerance"),
-            ("monstertruck-meshing", "--lib", "repair_"),
-            ("monstertruck-meshing", "--test", "closed_trim_projection"),
-            ("monstertruck-meshing", "--lib", "seam_branch_tests"),
-        ))
         self.assertEqual([call.args[0] for call in prebuild.call_args_list], [
             [
                 "cargo", "test", "--no-run", "--manifest-path", "Cargo.toml",
@@ -196,28 +183,14 @@ class CadBuildTests(unittest.TestCase):
                 "--example", "step_replay",
                 "--profile", "cad-test", "--locked", "--message-format=json",
             ],
-            [
-                "cargo", "test", "--no-run", "--manifest-path", "Cargo.toml",
-                "-p", "monstertruck-io", "-p", "monstertruck-meshing",
-                "--lib",
-                "--test", "closed_trim_projection", "--test", "input",
-                "--profile", "cad-owner-test", "--locked", "--message-format=json",
-            ],
         ])
         for call in prebuild.call_args_list:
             self.assertEqual(call.kwargs["env"]["CARGO_TARGET_DIR"], str(self.root / "target"))
-        self.assertEqual(len(run.call_args_list), len(prod) + len(build.OWNER_TESTS))
-        for call, (pkg, kind, name, pkg_dir) in zip(run.call_args_list[:len(prod)], prod):
+        self.assertEqual(len(run.call_args_list), len(prod))
+        for call, (pkg, kind, name, pkg_dir) in zip(run.call_args_list, prod):
             self.assertEqual(call.args[0], [f"/built/{pkg}/{name}"])
             self.assertEqual(call.kwargs["cwd"], pkg_dir)
             self.assertEqual(call.kwargs["env"]["CARGO_MANIFEST_DIR"], str(pkg_dir))
-        for call, (package, *selection) in zip(run.call_args_list[len(prod):], build.OWNER_TESTS):
-            key = build._owner_binary_key(package, selection)
-            args = selection[1:] if selection[0] == "--lib" else selection[2:]
-            self.assertEqual(call.args[0], [f"/built/{package}/{key[2]}", *args])
-            cwd = self.root / "monstertruck-qualification/vendor" / package
-            self.assertEqual(call.kwargs["cwd"], cwd)
-            self.assertEqual(call.kwargs["env"]["CARGO_MANIFEST_DIR"], str(cwd))
         with patch.object(build, "_production_targets", return_value=prod), \
                 patch.object(build.subprocess, "Popen", side_effect=self.prebuilds()), \
                 patch.object(build, "run", side_effect=subprocess.CalledProcessError(1, "cargo")), \
@@ -226,7 +199,7 @@ class CadBuildTests(unittest.TestCase):
                 build.test_cad()
 
     def test_prebuild_failure_missing_and_duplicate_binaries(self):
-        key = build._owner_binary_key(build.OWNER_TESTS[0][0], build.OWNER_TESTS[0][1:])
+        key = ("boardstudio-cad", "test", "step_import")
         for kwargs, error in (({"status": 7}, subprocess.CalledProcessError),
                               ({"omit": key}, RuntimeError), ({"duplicate": key}, RuntimeError)):
             with self.subTest(kwargs=kwargs), \
@@ -238,61 +211,44 @@ class CadBuildTests(unittest.TestCase):
                 self.assertEqual(run.call_count, 0)
                 self.assertIn("diagnostic", output.getvalue())
 
-    def test_each_owner_failure_propagates_without_running_later_commands(self):
+    def test_each_production_failure_propagates_without_running_later_commands(self):
         prod = self.production_targets()
-        for index in range(len(build.OWNER_TESTS)):
+        for index in range(len(prod)):
             with self.subTest(index=index), \
                     patch.object(build, "_production_targets", return_value=prod), \
                     patch.object(build.subprocess, "Popen", side_effect=self.prebuilds()), \
-                    patch.object(build, "run", side_effect=[*([self.PASSED] * (len(prod) + index)),
+                    patch.object(build, "run", side_effect=[*([self.PASSED] * index),
                                                            subprocess.CalledProcessError(7, "binary", output="failure\n")]) as run, \
                     contextlib.redirect_stdout(io.StringIO()) as output:
                 with self.assertRaises(subprocess.CalledProcessError):
                     build.test_cad()
-                self.assertEqual(run.call_count, len(prod) + index + 1)
+                self.assertEqual(run.call_count, index + 1)
                 self.assertIn("failure", output.getvalue())
 
-    def test_each_required_owner_selection_rejects_zero_or_all_ignored_tests(self):
+    def test_production_runs_retain_success_and_failure_output(self):
         prod = self.production_targets()
-        empty = ("test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 100 filtered out;\n",
-                 "test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 99 filtered out;\n", "running 1 test\n")
-        for index, (package, *selection) in enumerate(build.OWNER_TESTS):
-            for output in empty:
-                results = [subprocess.CompletedProcess([], 0, stdout=output if step == len(prod) + index else self.PASSED.stdout)
-                           for step in range(len(prod) + len(build.OWNER_TESTS))]
-                with self.subTest(package=package, selection=selection, output=output), \
-                        patch.object(build, "_production_targets", return_value=prod), \
-                        patch.object(build.subprocess, "Popen", side_effect=self.prebuilds()), \
-                        patch.object(build, "run", side_effect=results) as run, contextlib.redirect_stdout(io.StringIO()):
-                    with self.assertRaisesRegex(RuntimeError, "no executed tests"):
-                        build.test_cad()
-                    self.assertEqual(run.call_count, len(prod) + index + 1)
-
-    def test_required_owner_runs_retain_success_and_failure_output(self):
-        prod = self.production_targets()
-        total = len(prod) + len(build.OWNER_TESTS)
         with patch.object(build, "_production_targets", return_value=prod), \
                 patch.object(build.subprocess, "Popen", side_effect=self.prebuilds()), \
                 patch.object(build.subprocess, "run", return_value=self.PASSED) as run, contextlib.redirect_stdout(io.StringIO()) as printed:
             build.test_cad()
-        self.assertEqual(printed.getvalue(), "diagnostic\n" * 2 + self.PASSED.stdout * total)
+        self.assertEqual(printed.getvalue(), "diagnostic\n" + self.PASSED.stdout * len(prod))
         for call in run.call_args_list:
             self.assertEqual(call.kwargs["stdout"], subprocess.PIPE)
             self.assertEqual(call.kwargs["stderr"], subprocess.STDOUT)
             self.assertTrue(call.kwargs["text"])
             self.assertTrue(call.kwargs["check"])
-        failure = subprocess.CalledProcessError(7, "binary", output="first owner failure\n")
+        failure = subprocess.CalledProcessError(7, "binary", output="first production failure\n")
         with patch.object(build, "_production_targets", return_value=prod), \
                 patch.object(build.subprocess, "Popen", side_effect=self.prebuilds()), \
-                patch.object(build, "run", side_effect=[*([self.PASSED] * len(prod)), failure]) as run, \
+                patch.object(build, "run", side_effect=[self.PASSED, failure]) as run, \
                 contextlib.redirect_stdout(io.StringIO()) as printed:
             with self.assertRaises(subprocess.CalledProcessError) as raised:
                 build.test_cad()
         self.assertIs(raised.exception, failure)
-        self.assertEqual(run.call_count, len(prod) + 1)
-        self.assertEqual(printed.getvalue(), "diagnostic\n" * 2 + self.PASSED.stdout * len(prod) + failure.stdout)
+        self.assertEqual(run.call_count, 2)
+        self.assertEqual(printed.getvalue(), "diagnostic\n" + self.PASSED.stdout + failure.stdout)
 
-    def test_production_failure_stops_before_owner_runs(self):
+    def test_production_failure_propagates_immediately(self):
         prod = self.production_targets()
         failure = subprocess.CalledProcessError(7, "binary", output="production failure output\n")
         with patch.object(build, "_production_targets", return_value=prod), \
@@ -303,7 +259,7 @@ class CadBuildTests(unittest.TestCase):
                 build.test_cad()
         self.assertIs(raised.exception, failure)
         self.assertEqual(run.call_count, 1)
-        self.assertEqual(stdout.getvalue(), "diagnostic\n" * 2 + "production failure output\n")
+        self.assertEqual(stdout.getvalue(), "diagnostic\n" + "production failure output\n")
 
     def test_provider_tests_are_registered_or_accounted_for(self):
         scripts = {path.name for path in (REPO_ROOT / "cad/wasm/tests").glob("*.cjs")}
@@ -326,14 +282,8 @@ class CadWorkspaceTests(unittest.TestCase):
         self.assertEqual(root["workspace"]["members"], [
             "monstertruck",
             "wasm",
-            "monstertruck-qualification",
-            "monstertruck-qualification/vendor/monstertruck-io",
-            "monstertruck-qualification/vendor/monstertruck-meshing",
-            "monstertruck-qualification/vendor/monstertruck-mesh",
-            "monstertruck-qualification/vendor/monstertruck-traits",
-            "monstertruck-qualification/vendor/monstertruck-solid",
         ])
-        for crate in (*CAD_CRATES, "monstertruck-qualification"):
+        for crate in CAD_CRATES:
             manifest = tomllib.loads((build.CAD_ROOT / crate / "Cargo.toml").read_text())
             self.assertNotIn("workspace", manifest)
             self.assertNotIn("patch", manifest)
@@ -356,27 +306,21 @@ class CadWorkspaceTests(unittest.TestCase):
                                                f"exclude = {json.dumps(exclude)}\n")
             (nested / "cad").mkdir(parents=True)
             shutil.copy(build.CAD_ROOT / "Cargo.toml", nested / "cad/Cargo.toml")
-            for vendor_crate in (*build.VENDOR_CRATES, "monstertruck-solid"):
-                src_vendor = build.CAD_ROOT / "monstertruck-qualification/vendor" / vendor_crate
-                dst_vendor = nested / "cad/monstertruck-qualification/vendor" / vendor_crate
+            for vendor_crate in build.VENDOR_CRATES:
+                src_vendor = build.CAD_ROOT / "vendor" / vendor_crate
+                dst_vendor = nested / "cad/vendor" / vendor_crate
                 (dst_vendor / "src").mkdir(parents=True)
                 (dst_vendor / "src/lib.rs").write_text("")
                 shutil.copy(src_vendor / "Cargo.toml", dst_vendor / "Cargo.toml")
-            for crate in (*CAD_CRATES, "monstertruck-qualification"):
+            for crate in CAD_CRATES:
                 (nested / "cad" / crate / "src").mkdir(parents=True)
                 (nested / "cad" / crate / "src/lib.rs").write_text("")
                 shutil.copy(build.CAD_ROOT / crate / "Cargo.toml", nested / "cad" / crate / "Cargo.toml")
             expected_packages = {
                 "boardstudio-cad",
                 "boardstudio-cad-wasm",
-                "monstertruck-qualification",
-                "monstertruck-io",
-                "monstertruck-meshing",
-                "monstertruck-mesh",
-                "monstertruck-traits",
-                "monstertruck-solid",
             }
-            for crate in (*CAD_CRATES, "monstertruck-qualification"):
+            for crate in CAD_CRATES:
                 with self.subTest(crate=crate):
                     manifest = nested / "cad" / crate / "Cargo.toml"
                     done = subprocess.run(["cargo", "metadata", "--no-deps", "--format-version", "1",
