@@ -9,7 +9,7 @@ Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Parent: [PendingEdits
 
 Migrate Matrix preset, deletion and unlink observations onto the keyed Runtime module.
 Own the action regions and their tests in
-`web/crates/layout/src/objects/matrix_inspector_controller.rs`, with necessary action
+`web/crates/layout-objects/src/objects/matrix_inspector_controller.rs`, with necessary action
 presentation changes in `objects/matrix_inspector.rs`. Preserve catalogue preparation,
 resolver behavior, one-shot admission and exact post-landing selection.
 

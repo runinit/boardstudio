@@ -95,7 +95,7 @@ X: `Vec2 { x: 66.675, y: -40.0 }` vs the expected `(60.0, -40.0)`).
 The last step — deleting the interception mode — is blocked by users the ticket's grep
 (`web/src` only, taken before the web crate split) did not know about:
 
-- `web/crates/layout/src/objects/matrix_transform_inspector_tests.rs` (9 call sites),
+- `web/crates/layout-objects/src/objects/matrix_transform_inspector_tests.rs` (9 call sites),
 - `web/crates/layout/src/outline_lifecycle_browser_tests.rs` (12 call sites).
 
 Both mount inspector hosts over hand-built `ReadModel` fixtures and assert captured

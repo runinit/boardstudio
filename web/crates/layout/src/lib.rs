@@ -69,7 +69,7 @@ pub mod layout_findings_state;
 #[cfg(target_arch = "wasm32")]
 pub mod layout_viewer;
 #[cfg(target_arch = "wasm32")]
-pub mod objects;
+pub use boardstudio_web_layout_objects::objects;
 #[cfg(target_arch = "wasm32")]
 pub mod outline_lifecycle;
 #[cfg(target_arch = "wasm32")]
@@ -78,19 +78,6 @@ pub use boardstudio_web_layout_core::outline_snapping;
 pub mod part_placement;
 #[cfg(target_arch = "wasm32")]
 pub mod setup_guide;
-
-// Keycap resizing and alignment geometry are plain logic; compile them natively too so their
-// unit tests run under `cargo test`.
-#[cfg(not(target_arch = "wasm32"))]
-mod objects {
-    #[allow(dead_code)]
-    #[path = "keycap_resize.rs"]
-    mod keycap_resize;
-
-    #[cfg(test)]
-    #[path = "layout_align_geometry.rs"]
-    mod layout_align_geometry_tests;
-}
 
 #[cfg(all(test, target_arch = "wasm32"))]
 wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);

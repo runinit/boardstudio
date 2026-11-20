@@ -16,6 +16,7 @@ members = [
   "web/crates/ui-shared",
   "web/crates/layout",
   "web/crates/layout-core",
+  "web/crates/layout-objects",
   "web/crates/pcb",
   "web/crates/parts",
   "web/crates/case",
@@ -136,6 +137,8 @@ boardstudio-web-keycaps = { debug-assertions = false }
 boardstudio-web-case = { debug-assertions = false }
 boardstudio-web-parts = { debug-assertions = false }
 boardstudio-web-layout = { debug-assertions = false }
+boardstudio-web-layout-core = { debug-assertions = false }
+boardstudio-web-layout-objects = { debug-assertions = false }
 boardstudio-web-pcb = { debug-assertions = false }
 boardstudio-web-keymap = { debug-assertions = false }
 boardstudio-web-library = { debug-assertions = false }
@@ -152,6 +155,10 @@ debug-assertions = true
 [profile.wasm-dev.package.boardstudio-web-parts]
 debug-assertions = true
 [profile.wasm-dev.package.boardstudio-web-layout]
+debug-assertions = true
+[profile.wasm-dev.package.boardstudio-web-layout-core]
+debug-assertions = true
+[profile.wasm-dev.package.boardstudio-web-layout-objects]
 debug-assertions = true
 [profile.wasm-dev.package.boardstudio-web-pcb]
 debug-assertions = true

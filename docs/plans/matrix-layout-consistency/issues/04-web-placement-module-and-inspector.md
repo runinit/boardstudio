@@ -7,7 +7,7 @@ Spec: [spec.md](../spec.md#edits-in-the-web-layer) · Map: [map.md](../map.md)
 
 ## What to build
 
-Make `web/crates/layout/src/matrix_transform_operation.rs` the only web code that
+Make `web/crates/layout-core/src/matrix_transform_operation.rs` the only web code that
 builds a `SetMatrixPlacement`:
 
 - `fn placement_value(parameter, Set(value))` gives an Inspector value.

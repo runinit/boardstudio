@@ -38,7 +38,7 @@ navigation without document/history change, then take the next relation case.
 
 ## Checks
 
-Sources: `web/crates/layout/src/matrix_relations.rs`,
+Sources: `web/crates/layout-core/src/matrix_relations.rs`,
 `web/src/presentation/layout_matrix_relations.rs`, UI-model highlight state and
 `web/src/presentation/layout_relation_highlight_tests.rs`. Add real Core fact coverage
 and mounted panel/page pointer+focus lifecycle tests, with affected browser subsets

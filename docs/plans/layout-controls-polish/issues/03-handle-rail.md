@@ -12,7 +12,7 @@ Review: presentation only; RED/GREEN evidence and a diff read, no combined revie
 The canvas drag handles that ship today become labelled tokens in one rail above the selection.
 Each drag still edits the same field through the same op. The handles are rendered in
 `LayoutTransformToolOverlay`
-(`web/crates/layout/src/objects/layout_transform_toolbar.rs`, the `m1-transform-handle` /
+(`web/crates/layout-objects/src/objects/layout_transform_toolbar.rs`, the `m1-transform-handle` /
 `m1-spread-handle` / `m1-stagger-handle` / `m1-splay-*` / `m1-matrix-*-handle` nodes), and
 `transform_tools` (`web/src/presentation/layout_canvas.rs`) picks them.
 
@@ -72,7 +72,7 @@ Implemented on branch `docs/ergogen-layout-comparison` (prototype ref
 
 What changed (ticket-03 files only):
 
-- `web/crates/layout/src/handle_rail.rs` (new): the pure rail seam. Takes
+- `web/crates/layout-core/src/handle_rail.rs` (new): the pure rail seam. Takes
   the selection's screen geometry plus tool count and returns the rail
   rectangle plus one 18 px token rectangle per peer; `rail_world` is the
   world-units wrapper the overlay draws from. Constants match variant D
@@ -83,7 +83,7 @@ What changed (ticket-03 files only):
   renamed the native test paths, so `scripts/check-native-tests-baseline.json`
   carries the same six names under `matrix_transform_operation::handle_rail`
   (sorted position; deliberate rename, no other entries touched).
-- `web/crates/layout/src/objects/layout_transform_toolbar.rs`: every
+- `web/crates/layout-objects/src/objects/layout_transform_toolbar.rs`: every
   transform overlay registers its tool in a per-svg mount set (keyed by the
   shared svg handle, canonical peer order Spread/Stagger/Offset/Splay/
   Move/Rotate, Origin excluded) and draws its token from the shared layout:

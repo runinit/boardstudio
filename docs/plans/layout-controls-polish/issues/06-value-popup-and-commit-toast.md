@@ -61,7 +61,7 @@ What changed (ticket-06 files only):
   treats float dust as zero. The commit toast keeps value and delta as parts
   so the canvas renders the value bold; `CommitToast::text()` pins the exact
   line "Spread 19.00 mm (+1.00 mm) · 1 Undo step".
-- `web/crates/layout/src/objects/layout_transform_toolbar.rs`: the overlay
+- `web/crates/layout-objects/src/objects/layout_transform_toolbar.rs`: the overlay
   owns its `FeedbackState` plus the popup position (`None` docks 8 px above
   the rail, otherwise 18 px off the pointer like the prototype) and a toast
   generation the 1.8 s timer checks. Hover/focus dock the popup with the

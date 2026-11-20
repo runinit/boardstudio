@@ -313,8 +313,8 @@ step ([model types](../../core/crates/model/src/keymap.rs#L69-L83), [`migrate_va
 The exact end-to-end shrink/save/reopen/regrow workflow still lacks an executed observation here.
 
 The UI has real, different producers: [selected-key actions](../../web/src/presentation/layout_key_selection_actions.rs#L335-L356)
-submit structural selected-cell deletion versus enable/disable; [matrix delete resolver](../../web/crates/layout/src/objects/matrix_inspector_controller.rs#L178-L195)
-submits `RemoveMatrix`; [transform operation builder](../../web/crates/layout/src/matrix_transform_operation.rs#L208-L257)
+submit structural selected-cell deletion versus enable/disable; [matrix delete resolver](../../web/crates/layout-objects/src/objects/matrix_inspector_controller.rs#L178-L195)
+submits `RemoveMatrix`; [transform operation builder](../../web/crates/layout-core/src/matrix_transform_operation.rs#L208-L257)
 chooses row/column/cell deletion by selection. Therefore a future fix must name user operations,
 not assume every visible Delete action already traverses one shared cleanup function.
 
@@ -367,7 +367,7 @@ separately ([`next_matrix_id`](../../web/crates/catalogue/src/matrix_setup_opera
   keeps key bindings nonmirrored. Complete source-and-target shrink/regrow metadata outcomes,
   Local/Omitted combinations and same-board reuse remain pending, not resolved by this slice.
 - **A stale queued UI target is a different hazard from dormant persisted bindings.** The inspected
-  [`queued_key_resize_retires_when_row_delete_reuses_the_selected_id`](../../web/crates/layout/src/objects/keycap_size_tests.rs#L1073-L1139)
+  [`queued_key_resize_retires_when_row_delete_reuses_the_selected_id`](../../web/crates/layout-objects/src/objects/keycap_size_tests.rs#L1073-L1139)
   drives real Runtime/Core behind a held reply and expects a `Failed` settlement containing
   “matrix topology changed”; despite its name, its assertion is not silent `Retired`. Selected-key
   actions also capture topology. Neither is proof that all keymap controls guard every reused ID

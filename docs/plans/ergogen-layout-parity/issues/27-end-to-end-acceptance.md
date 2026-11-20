@@ -122,7 +122,7 @@ via `demo_rebuild_tests` in `web/crates/library/src/demo_projects.rs`.
   `eaa1b392f` +9 names) and [23](23-inspector-toolbar-and-handles.md)
   (resolved at `34b8045ec`, re-reviews PASSED, native baseline `47820fc85`
   +13 names); this ticket cites their evidence instead of duplicating it.
-  Concrete pins: `web/crates/layout/src/objects/layout_transform_toolbar.rs`
+  Concrete pins: `web/crates/layout-objects/src/objects/layout_transform_toolbar.rs`
   (`mounted_pointer_dispatch_is_synthetic_never_trusted`,
   `#[wasm_bindgen_test]`, landed in `23d22080c`;
   `direct_selection_choices_open_scope_panels_and_support_keyboard`,

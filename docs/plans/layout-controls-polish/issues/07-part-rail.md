@@ -60,7 +60,7 @@ keys and keep the key tools, and a Component context for them draws no part rail
 The strip is unchanged (Position only for parts); outlines were already
 accent/violet in CSS and are now pinned by a class test.
 
-- `web/crates/layout/src/part_rail.rs`: native `PartRailFacts` + `part_rail_tools`
+- `web/crates/layout-core/src/part_rail.rs`: native `PartRailFacts` + `part_rail_tools`
   (locked → none; detached → Move/Rotate; anchored → plus Spread/Stagger, minus
   Spread on anchor column 0).
 - `layout_transform_toolbar.rs`: `From<PartRailTool>`, `LayoutPartToolOverlay`

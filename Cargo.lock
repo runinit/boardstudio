@@ -530,6 +530,7 @@ dependencies = [
  "boardstudio-web-catalogue",
  "boardstudio-web-keycaps",
  "boardstudio-web-layout-core",
+ "boardstudio-web-layout-objects",
  "boardstudio-web-parts",
  "boardstudio-web-runtime",
  "boardstudio-web-ui-model",
@@ -557,6 +558,34 @@ dependencies = [
  "boardstudio-web-ui-model",
  "boardstudio_core",
  "serde_json",
+]
+
+[[package]]
+name = "boardstudio-web-layout-objects"
+version = "0.1.0"
+dependencies = [
+ "boardstudio-application",
+ "boardstudio-web-case",
+ "boardstudio-web-catalogue",
+ "boardstudio-web-keycaps",
+ "boardstudio-web-layout",
+ "boardstudio-web-layout-core",
+ "boardstudio-web-parts",
+ "boardstudio-web-runtime",
+ "boardstudio-web-ui-model",
+ "boardstudio-web-ui-shared",
+ "boardstudio_core",
+ "dioxus",
+ "dioxus-primitives",
+ "dioxus-web",
+ "futures-channel",
+ "gloo-timers",
+ "js-sys",
+ "serde_json",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "wasm-bindgen-test",
+ "web-sys",
 ]
 
 [[package]]

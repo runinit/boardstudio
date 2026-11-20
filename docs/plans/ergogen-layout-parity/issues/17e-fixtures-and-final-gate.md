@@ -208,24 +208,24 @@ web/crates/case/src/mechanical_settings_controller.rs
 web/crates/catalogue/src/matrix_setup_operation.rs
 web/crates/catalogue/src/physical_setup.rs
 web/crates/host/src/host/storage_lifetime_tests.rs
-web/crates/layout/src/matrix_relations.rs
-web/crates/layout/src/matrix_relations/tests.rs
-web/crates/layout/src/matrix_transform_lifecycle.rs
-web/crates/layout/src/matrix_transform_operation.rs
-web/crates/layout/src/mirrored_pair_geometry.rs
-web/crates/layout/src/objects.rs
-web/crates/layout/src/objects/existing_half.rs
-web/crates/layout/src/objects/keycap_resize.rs
-web/crates/layout/src/objects/keycap_size_tests.rs
-web/crates/layout/src/objects/layout_align.rs
-web/crates/layout/src/objects/layout_align_controller.rs
-web/crates/layout/src/objects/layout_align_geometry.rs
-web/crates/layout/src/objects/layout_transform_toolbar.rs
-web/crates/layout/src/objects/matrix_inspector_controller.rs
-web/crates/layout/src/objects/matrix_placement_controller.rs
-web/crates/layout/src/objects/matrix_setup_controller.rs
-web/crates/layout/src/objects/matrix_transform_controller.rs
-web/crates/layout/src/objects/matrix_transform_inspector_tests.rs
+web/crates/layout-core/src/matrix_relations.rs
+web/crates/layout-core/src/matrix_relations/tests.rs
+web/crates/layout-core/src/matrix_transform_lifecycle.rs
+web/crates/layout-core/src/matrix_transform_operation.rs
+web/crates/layout-core/src/mirrored_pair_geometry.rs
+web/crates/layout-objects/src/objects.rs
+web/crates/layout-objects/src/objects/existing_half.rs
+web/crates/layout-objects/src/objects/keycap_resize.rs
+web/crates/layout-objects/src/objects/keycap_size_tests.rs
+web/crates/layout-objects/src/objects/layout_align.rs
+web/crates/layout-objects/src/objects/layout_align_controller.rs
+web/crates/layout-objects/src/objects/layout_align_geometry.rs
+web/crates/layout-objects/src/objects/layout_transform_toolbar.rs
+web/crates/layout-objects/src/objects/matrix_inspector_controller.rs
+web/crates/layout-objects/src/objects/matrix_placement_controller.rs
+web/crates/layout-objects/src/objects/matrix_setup_controller.rs
+web/crates/layout-objects/src/objects/matrix_transform_controller.rs
+web/crates/layout-objects/src/objects/matrix_transform_inspector_tests.rs
 web/crates/layout/src/outline_lifecycle_browser_tests.rs
 web/crates/layout/src/outline_lifecycle_tests.rs
 web/crates/layout/src/part_placement.rs
@@ -1125,8 +1125,8 @@ Fresh gate pin: branch `docs/ergogen-layout-comparison`, source HEAD
 `47ce298020ef72903bab4032d5ee5980b7779215`, fixed base
 `a58a2bf187bd6d08b652dc739cd7c391709ff5c8`. The exact base-to-HEAD diff has
 119 existing paths: the prior 117 plus
-`web/crates/layout/src/objects/layout_canvas_controls.rs` and
-`web/crates/layout/src/objects/matrix_transform_inspector.rs`. All 119 exist and
+`web/crates/layout-objects/src/objects/layout_canvas_controls.rs` and
+`web/crates/layout-objects/src/objects/matrix_transform_inspector.rs`. All 119 exist and
 were passed to quick, including JSON, Core, web, tests, fixtures, baseline and
 docs. No exclusions or deletions; the baseline was already in scope. Tracked
 state was clean. The preexisting untracked

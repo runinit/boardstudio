@@ -55,11 +55,11 @@ recommendations are not approval for a new public interface or document format.
    selected column. Splay, mirror, rotation, and matrix origin then participate
    in the resolved transform. This is parametric structure, even without an
    explicit constraint record for each key.
-2. `web/crates/layout/src/matrix_transform_operation.rs::build_operation`
+2. `web/crates/layout-core/src/matrix_transform_operation.rs::build_operation`
    handles inspector `ColumnStagger` by setting one entry in
    `Matrix.column_staggers`. `ColumnOffsetX/Y` update the independent
    `Matrix.column_offsets` entry.
-3. In `web/crates/layout/src/objects/layout_transform_toolbar.rs`,
+3. In `web/crates/layout-objects/src/objects/layout_transform_toolbar.rs`,
    `stagger_by` updates `row_offsets` or `column_offsets`. Both
    `transform_nudge_resolver` and `transform_drag_resolver` use it. Preview
    sampling in `sample_transform` and extraction in `transform_drag_result`

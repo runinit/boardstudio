@@ -136,10 +136,10 @@ A standalone variant/refresh ADR becomes justified only if a broader ownership c
   a generator executable. `prepare_matrix` stores operation-specific switch/companion definitions.
 - [Assembly placement helpers](../../web/crates/parts/src/parts/assembly_presets.rs#L291-L301),
   `matrix_with_assembly`/`document_with_assembly`, separate recipe edits from existing placement
-  snapshots. [Explicit preset application](../../web/crates/layout/src/objects/matrix_inspector_controller.rs#L145-L176),
+  snapshots. [Explicit preset application](../../web/crates/layout-objects/src/objects/matrix_inspector_controller.rs#L145-L176),
   `matrix_preset_resolver`, resolves against the accepted matrix and refuses a changed size;
   `prepare_preset_matrix` refuses a different definition under an already occupied ID
-  ([preparation](../../web/crates/layout/src/objects/matrix_inspector_controller.rs#L1974-L2015)).
+  ([preparation](../../web/crates/layout-objects/src/objects/matrix_inspector_controller.rs#L1974-L2015)).
   Thus even an explicit refresh is not evidence of a general upstream-version upgrade system.
 - [Registry `render`](../../footprints/src/registry.rs#L157-L249) supports **one** version string,
   `bundled-1`, merges definition/part values and supplies current declared defaults for missing/null
@@ -226,7 +226,7 @@ keymap migration; that disclaimer does not describe every current cleanup path.
 `deleting_matrix_cells_propagates_tombstones_and_survives_reopen`, establish selected
 compaction/cleanup/serialization contracts. `matrix_shrink_discards_out_of_bounds_edits`
 ([same suite](../../core/tests/core.rs#L2649-L2699)) checks geometry, not binding reactivation.
-[`queued_key_resize_retires_when_row_delete_reuses_the_selected_id`](../../web/crates/layout/src/objects/keycap_size_tests.rs#L1073-L1139)
+[`queued_key_resize_retires_when_row_delete_reuses_the_selected_id`](../../web/crates/layout-objects/src/objects/keycap_size_tests.rs#L1073-L1139)
 uses real Runtime/Core with a held deletion and rejects a queued edit targeting reused
 coordinate identity. This is valuable evidence of the identity hazard and a bounded guard,
 not proof that all controls/bindings implement it.

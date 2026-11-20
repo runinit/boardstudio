@@ -163,7 +163,7 @@ linked/Local/Omitted case ([prior bounded trace](2026-10-20-compatibility-identi
 `matrix_shrink_discards_out_of_bounds_edits` asserts structural cleanup;
 `matrix_cells_preserve_survivors_and_companions` asserts disabled absence and
 surviving Part identity during growth, not disable→enable binding restoration.
-[core_disable_then_undo_restores_scoped_key_selection](../../web/crates/layout/src/matrix_transform_lifecycle.rs#L340-L469)
+[core_disable_then_undo_restores_scoped_key_selection](../../web/crates/layout-core/src/matrix_transform_lifecycle.rs#L340-L469)
 tests actual Undo and selection retention, not re-enable or saved bindings.
 Missing oracle: bind typed/legacy values → disable → serialize/fresh Open → enable
 → inspect emitted order/bindings, separately checking Part-owned data and a paired
@@ -244,16 +244,16 @@ can proceed without a universal provenance registry or reconstructing old histor
 
 ### Evidence set F: preserve established behavior first
 
-[MatrixSetup](../../web/crates/layout/src/objects/matrix_setup.rs#L164-L205) captures
+[MatrixSetup](../../web/crates/layout-objects/src/objects/matrix_setup.rs#L164-L205) captures
 the opener, focuses Rows on mount, and on Cancel restores the connected opener or
 guide heading. Both named
-[matrix_cancel focus tests](../../web/crates/layout/src/objects/matrix_setup_focus_tests.rs#L88-L160)
+[matrix_cancel focus tests](../../web/crates/layout-objects/src/objects/matrix_setup_focus_tests.rs#L88-L160)
 assert this using programmatic focus/click, not trusted keyboard traversal.
 Shared-control tests in `web/crates/ui-shared/src/controls.rs` at commit `32daa7475`
 (since removed) covered associated number errors and popover return-to-trigger versus
 preserving outside focus. These are not unresolved universal focus policies.
 
-The actual [setup settlement](../../web/crates/layout/src/objects/matrix_setup_controller.rs#L525-L581)
+The actual [setup settlement](../../web/crates/layout-objects/src/objects/matrix_setup_controller.rs#L525-L581)
 closes the form and selects the saved matrix; failure retains an error. It names
 no success focus destination. The native
 [current_saved_completion_selects_the_created_matrix_exactly_once](../../web/tests/support/matrix_setup_presentation.rs#L228-L277)

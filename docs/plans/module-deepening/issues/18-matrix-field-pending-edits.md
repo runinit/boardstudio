@@ -8,7 +8,7 @@ Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Parent: [PendingEdits
 ## What to build
 
 Complete the Matrix tracer using the merged Runtime collection and shared Signal
-helpers. Own `web/crates/layout/src/objects/matrix_inspector_controller.rs` and
+helpers. Own `web/crates/layout-objects/src/objects/matrix_inspector_controller.rs` and
 `objects/matrix_inspector.rs`, their field/mounted tests, and only minimal related
 module wiring needed to register genuine native interface tests.
 

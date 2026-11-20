@@ -1,6 +1,6 @@
 //! Browser coverage of the real form/guide mount boundary used by Editor.
 use super::*;
-use crate::presentation::setup_guide::{ProjectSetupGuide, SetupGuideStage};
+use boardstudio_web_layout::setup_guide::{ProjectSetupGuide, SetupGuideStage};
 use boardstudio_web_ui_shared::test_mount::MountedFixture;
 use boardstudio_web_ui_shared::test_role::by_role_name;
 use wasm_bindgen_test::*;

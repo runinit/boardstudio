@@ -25,7 +25,7 @@ Production (all previews today; line numbers at `a3b41ae8a`, orientation only):
 - old position Inspector, `submit_position` (`web/src/presentation/inspector.rs:199`);
 - outline perimeter live preview (`web/crates/layout/src/outline_lifecycle.rs:~1308`);
 - Layout transform toolbar, `submit_transform_edit`
-  (`web/crates/layout/src/objects/layout_transform_toolbar.rs:1364`).
+  (`web/crates/layout-objects/src/objects/layout_transform_toolbar.rs:1364`).
 
 Tests: 26 direct commits in 14 files, including the shared
 `project_name_test_support::replace_document` helper (`web/crates/runtime/src/runtime.rs`,

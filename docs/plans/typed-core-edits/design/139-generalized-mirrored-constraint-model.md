@@ -307,10 +307,10 @@ These are proposed leases, not granted leases. Root must assign exact files afte
 | core/tests/key_move_assemblies.rs and existing mirrored-half tests | Run affected checks; edit only if a specific regression needs them and root has cleared F138/106 overlap. |
 | web/src/presentation/layout_component_edits.rs | Stable-ID set/remove through driving lookup; mixed-source eligibility and stored-view payload, not a fabricated Offset. |
 | web/src/presentation/inspector/layout_component_inspector.rs | Exhaustive new-kind values/display, frame meaning and source/target editing; preserve accepted E12 corrective copy. |
-| web/crates/layout/src/matrix_relations.rs | Exhaustive new kind and shared driving-target query. |
-| web/crates/layout/src/objects/layout_align_controller.rs | Replace literal-only driven eligibility where native framed targets apply. |
-| web/crates/layout/src/objects/existing_half.rs | Preserve legacy link guards while acknowledging framed driving ownership. |
-| web/src/presentation/layout_component_inspector_tests.rs; web/src/presentation/layout_remainder_tests.rs; web/crates/layout/src/matrix_relations/tests.rs | Targeted synthetic adapter coverage and compilation. |
+| web/crates/layout-core/src/matrix_relations.rs | Exhaustive new kind and shared driving-target query. |
+| web/crates/layout-objects/src/objects/layout_align_controller.rs | Replace literal-only driven eligibility where native framed targets apply. |
+| web/crates/layout-objects/src/objects/existing_half.rs | Preserve legacy link guards while acknowledging framed driving ownership. |
+| web/src/presentation/layout_component_inspector_tests.rs; web/src/presentation/layout_remainder_tests.rs; web/crates/layout-core/src/matrix_relations/tests.rs | Targeted synthetic adapter coverage and compilation. |
 | core/tests/support/boundary.rs; web/crates/host/src/boundary_parity.rs | Shared synthetic Core/archive request transcript; final expected golden updates belong to root at activation. |
 
 Read-only/reuse boundaries unless a concrete regression proves a change: mechanical/pair.rs, features.rs, mechanical/edit.rs, matrix.rs literal deletion getters, archive/host decoder algorithm, scripts/check.py and crate/configuration files. Keeping visible getters avoids unrelated deletion rewrites. No source/ADR/map/CONTEXT edit is part of this cached design. Root owns ADR0010/addendum, wayfinder/ledger, goldens, index and integration.
@@ -364,9 +364,9 @@ These hash the source files used, not generated expectations or an unseen later 
 | core/src/archive.rs | 3ee94e9363144c4b549aae67bed7b6d42bb475a1f29f3a2c4a022824d67a3929 |
 | web/src/presentation/layout_component_edits.rs | d88e16032939dd330761c42ad0bf55a729414dcab9f47a91022e91fff156a7ce |
 | web/src/presentation/inspector/layout_component_inspector.rs | 6aabef4873cd3f4acc1db24028275b1fba2805db39e7f31bd92a0e91ca062ca7 |
-| web/crates/layout/src/matrix_relations.rs | f151744d7ed3ebc7dd6fcff830588dc267cd0a666927aa9f9af812a4b6914797 |
-| web/crates/layout/src/objects/layout_align_controller.rs | a957f6823a7862b425d8132dff43795a51e42c6d321b147f601d7e7f2b382c99 |
-| web/crates/layout/src/objects/existing_half.rs | 14bb615d93dd286b8b367c38255c515f1e6b0436e2b86efcb0a93c3f6a44604e |
+| web/crates/layout-core/src/matrix_relations.rs | f151744d7ed3ebc7dd6fcff830588dc267cd0a666927aa9f9af812a4b6914797 |
+| web/crates/layout-objects/src/objects/layout_align_controller.rs | a957f6823a7862b425d8132dff43795a51e42c6d321b147f601d7e7f2b382c99 |
+| web/crates/layout-objects/src/objects/existing_half.rs | 14bb615d93dd286b8b367c38255c515f1e6b0436e2b86efcb0a93c3f6a44604e |
 | web/crates/host/src/host/storage.rs | 4d9d5101e0ebcef217c5c6b497555a4dd36776126fb242f84e321ac35169df27 |
 | core/tests/support/boundary.rs | 1527fcb452a3a4b7dd068b6c65be7ca3edd127499f93764090b9db99fd04d861 |
 | web/crates/host/src/boundary_parity.rs | 02c4b4bf74198d63c7695d05520f20923203ba65bea274715bd4ff748e72cecc |

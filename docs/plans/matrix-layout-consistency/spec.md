@@ -199,7 +199,7 @@ control is disabled while it is pending.
 
 ### Relations
 
-Relations is a web projection (`web/crates/layout/src/matrix_relations.rs`) of the
+Relations is a web projection (`web/crates/layout-core/src/matrix_relations.rs`) of the
 accepted document and scene. It has no store of its own, and it takes companion
 modes from Core's scene instead of re-deriving them. It has two sections:
 **Structure** (inherited) and **Authored constraints** (explicit). Local

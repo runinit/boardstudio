@@ -7,7 +7,7 @@ Parent: [25](25-shipped-boards-review.md) · Spec: [spec.md](../spec.md)
 
 ## Decision and source evidence
 
-[Human decision 1](../audit/shipped-boards-review.md#human-decisions-2026-10-10) selects the repository default for new assemblies, an optional global pitch such as 19.00 mm, and a separate 1.0 mm keycap edge gap. Current creation uses 19.05 mm in [matrix_setup_operation.rs](../../../../web/crates/catalogue/src/matrix_setup_operation.rs) and [matrix_placement_controller.rs](../../../../web/crates/layout/src/objects/matrix_placement_controller.rs). The existing preference surface is [project_menu.rs](../../../../web/crates/ui-shared/src/project_menu.rs), with persistence/warning behavior in `web/crates/ui-shared/src/panels.rs`.
+[Human decision 1](../audit/shipped-boards-review.md#human-decisions-2026-10-10) selects the repository default for new assemblies, an optional global pitch such as 19.00 mm, and a separate 1.0 mm keycap edge gap. Current creation uses 19.05 mm in [matrix_setup_operation.rs](../../../../web/crates/catalogue/src/matrix_setup_operation.rs) and [matrix_placement_controller.rs](../../../../web/crates/layout-objects/src/objects/matrix_placement_controller.rs). The existing preference surface is [project_menu.rs](../../../../web/crates/ui-shared/src/project_menu.rs), with persistence/warning behavior in `web/crates/ui-shared/src/panels.rs`.
 
 ## One-hour slice and file ownership
 

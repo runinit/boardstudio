@@ -138,18 +138,18 @@ raw controls and `Board*` uses are replaced by the mapped components.
 | [ ] | `web/crates/layout/src/board_inspector.rs` | BoardInspector | 1 | 0 |
 | [ ] | `web/crates/layout/src/layout_findings.rs` | LayoutFindingsFooterButton, LayoutFindingsInspector, LayoutFinding | 2 | 1 |
 | [ ] | `web/crates/layout/src/layout_viewer.rs` | ⛔ LayoutCanonicalViewer | 0 | 2 |
-| [ ] | `web/crates/layout/src/objects.rs` | Objects, AddObjectEntry | 10 | 4 |
-| [ ] | `web/crates/layout/src/objects/existing_half.rs` | ExistingHalfSetup | 1 | 4 |
-| [ ] | `web/crates/layout/src/objects/keycap_size.rs` | KeySizeControls | 0 | 2 |
-| [ ] | `web/crates/layout/src/objects/layout_align.rs` | LayoutAlignToolbar | 0 | 4 |
-| [ ] | `web/crates/layout/src/objects/layout_canvas_controls.rs` | LayoutCanvasControls, ⛔ CanvasDimension | 0 | 0 |
-| [ ] | `web/crates/layout/src/objects/layout_toolbar.rs` | LayoutCommandMenuHeader, LayoutCommandPill, LayoutSelectionToolbar, LayoutSelectionIcon, LayoutSnapDock, LayoutSelectMenu, LayoutSnapMenu, LayoutSnapOptions | 4 | 9 |
-| [ ] | `web/crates/layout/src/objects/layout_transform_toolbar.rs` | LayoutTransformToolOverlay, LayoutContextActionToolbar, LayoutContextToolButton, LayoutTransformToolbar | 0 | 9 |
-| [ ] | `web/crates/layout/src/objects/matrix_inspector.rs` | MatrixInspector, MatrixFieldEditor | 4 | 7 |
-| [ ] | `web/crates/layout/src/objects/matrix_setup.rs` | MatrixSetup | 0 | 2 |
-| [ ] | `web/crates/layout/src/objects/matrix_transform_inspector.rs` | MatrixTransformInspector, SelectionDeleteControl, NumericTransformField, MirrorTransformField, OriginModeTransformField, EnabledTransformField, KeyAssemblyField, AttachedComponentsField, ResetTransformButton | 2 | 13 |
-| [ ] | `web/crates/layout/src/objects/mirrored_pair.rs` | MirroredPairForm | 6 | 2 |
-| [ ] | `web/crates/layout/src/objects/mirrored_pair/canvas_overlay.rs` | ⛔ MirroredPairCanvasOverlay | 0 | 0 |
+| [ ] | `web/crates/layout-objects/src/objects.rs` | Objects, AddObjectEntry | 10 | 4 |
+| [ ] | `web/crates/layout-objects/src/objects/existing_half.rs` | ExistingHalfSetup | 1 | 4 |
+| [ ] | `web/crates/layout-objects/src/objects/keycap_size.rs` | KeySizeControls | 0 | 2 |
+| [ ] | `web/crates/layout-objects/src/objects/layout_align.rs` | LayoutAlignToolbar | 0 | 4 |
+| [ ] | `web/crates/layout-objects/src/objects/layout_canvas_controls.rs` | LayoutCanvasControls, ⛔ CanvasDimension | 0 | 0 |
+| [ ] | `web/crates/layout-objects/src/objects/layout_toolbar.rs` | LayoutCommandMenuHeader, LayoutCommandPill, LayoutSelectionToolbar, LayoutSelectionIcon, LayoutSnapDock, LayoutSelectMenu, LayoutSnapMenu, LayoutSnapOptions | 4 | 9 |
+| [ ] | `web/crates/layout-objects/src/objects/layout_transform_toolbar.rs` | LayoutTransformToolOverlay, LayoutContextActionToolbar, LayoutContextToolButton, LayoutTransformToolbar | 0 | 9 |
+| [ ] | `web/crates/layout-objects/src/objects/matrix_inspector.rs` | MatrixInspector, MatrixFieldEditor | 4 | 7 |
+| [ ] | `web/crates/layout-objects/src/objects/matrix_setup.rs` | MatrixSetup | 0 | 2 |
+| [ ] | `web/crates/layout-objects/src/objects/matrix_transform_inspector.rs` | MatrixTransformInspector, SelectionDeleteControl, NumericTransformField, MirrorTransformField, OriginModeTransformField, EnabledTransformField, KeyAssemblyField, AttachedComponentsField, ResetTransformButton | 2 | 13 |
+| [ ] | `web/crates/layout-objects/src/objects/mirrored_pair.rs` | MirroredPairForm | 6 | 2 |
+| [ ] | `web/crates/layout-objects/src/objects/mirrored_pair/canvas_overlay.rs` | ⛔ MirroredPairCanvasOverlay | 0 | 0 |
 | [ ] | `web/crates/layout/src/outline/inspector.rs` | OutlineVersionInspector | 20 | 12 |
 | [ ] | `web/crates/layout/src/outline/overlays.rs` | ⛔ OutlinePointCanvasOverlay, ⛔ OutlineDraftCanvasOverlay, ⛔ OutlineDimension, ⛔ OutlineCoordinate | 2 | 0 |
 | [ ] | `web/crates/layout/src/setup_guide.rs` | ProjectSetupGuide, ⛔ SetupHardwarePreview | 2 | 6 |
