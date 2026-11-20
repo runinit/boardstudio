@@ -754,25 +754,6 @@
   "sexpr::tests::parses_nested_forms_and_keeps_quoting",
   "sexpr::tests::rejects_unbalanced_and_non_form_output"
  ],
- "boardstudio_model": [
-  "constraints::endpoints::tests::a_companion_rule_that_needs_its_key_refuses_to_run_without_one",
-  "constraints::endpoints::tests::a_mirrored_key_turns_its_heading_without_the_independent_half_turn",
-  "constraints::endpoints::tests::companion_rules_are_bit_pinned_to_the_arithmetic_that_was_reviewed",
-  "constraints::endpoints::tests::companion_rules_project_and_invert_to_the_design_oracles",
-  "constraints::endpoints::tests::inverse_linked_heading_chooses_the_equivalent_nearest_previous_heading",
-  "constraints::relation::tests::a_slanted_mirror_is_equal_to_its_literal_reflection_within_rounding",
-  "constraints::relation::tests::axis_aligned_mirrors_reproduce_the_stored_solver_bit_for_bit",
-  "constraints::relation::tests::legacy_records_compile_to_relations_with_literal_results",
-  "constraints::relation::tests::non_finite_relation_or_pose_is_rejected_before_projection",
-  "constraints::relation::tests::offset_relation_is_world_translation_and_full_heading_addition",
-  "constraints::relation::tests::part_offset_relation_serializes_with_its_own_kind",
-  "constraints::relation::tests::part_offset_turns_the_offset_by_the_source_heading_before_adding_it",
-  "constraints::relation::tests::persisted_slanted_reflection_keeps_the_reviewed_position_and_heading_bits",
-  "constraints::relation::tests::slanted_reflection_matches_independent_literal_oracle",
-  "constraints::relation::tests::transported_slanted_line_keeps_authored_values_and_commutes_with_pair_map",
-  "constraints::retune::tests::a_part_offset_drag_is_turned_back_into_the_source_frame",
-  "constraints::retune::tests::dragging_a_linked_target_to_a_visible_point_retunes_the_stored_offset"
- ],
  "boardstudio_renderer": [
   "geometry::clipping_regressions::clips_crossing_triangles_instead_of_erasing_visible_copper",
   "geometry::feature_edge_tests::coplanar_triangle_diagonals_are_not_cad_edges",
@@ -1385,16 +1366,35 @@
   "accepts_a_strictly_inside_near_collinear_hole"
  ],
  "constraints_endpoints": [
+  "a_companion_rule_that_needs_its_key_refuses_to_run_without_one",
+  "a_mirrored_key_turns_its_heading_without_the_independent_half_turn",
+  "companion_rules_are_bit_pinned_to_the_arithmetic_that_was_reviewed",
+  "companion_rules_project_and_invert_to_the_design_oracles",
   "frame_projection_rejects_non_finite_pair_or_pose_values",
   "framed_record_retains_global_id_and_source_to_target_direction",
   "identity_source_and_live_linked_target_solve_in_the_authored_direction",
+  "inverse_linked_heading_chooses_the_equivalent_nearest_previous_heading",
   "linked_mirror_address_keeps_visible_identity_separate_from_authority",
   "live_linked_source_drives_an_identity_local_target",
   "part_endpoint_uses_one_identity_for_visible_and_authoritative_address"
  ],
+ "constraints_relation": [
+  "a_slanted_mirror_is_equal_to_its_literal_reflection_within_rounding",
+  "axis_aligned_mirrors_reproduce_the_stored_solver_bit_for_bit",
+  "legacy_records_compile_to_relations_with_literal_results",
+  "non_finite_relation_or_pose_is_rejected_before_projection",
+  "offset_relation_is_world_translation_and_full_heading_addition",
+  "part_offset_relation_serializes_with_its_own_kind",
+  "part_offset_turns_the_offset_by_the_source_heading_before_adding_it",
+  "persisted_slanted_reflection_keeps_the_reviewed_position_and_heading_bits",
+  "slanted_reflection_matches_independent_literal_oracle",
+  "transported_slanted_line_keeps_authored_values_and_commutes_with_pair_map"
+ ],
  "constraints_retune": [
   "a_non_finite_request_is_refused",
-  "a_reflecting_relation_cannot_be_dragged"
+  "a_part_offset_drag_is_turned_back_into_the_source_frame",
+  "a_reflecting_relation_cannot_be_dragged",
+  "dragging_a_linked_target_to_a_visible_point_retunes_the_stored_offset"
  ],
  "drag_snap": [
   "an_eligible_geometry_target_wins_even_when_the_grid_is_closer",
