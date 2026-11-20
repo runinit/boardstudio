@@ -12,6 +12,7 @@ name = "dump_firmware"
 
 [dependencies]
 boardstudio-core-engine = { path = "crates/engine" }
+boardstudio-model = { path = "crates/model" }
 boardstudio-script = { path = "crates/script" }
 serde_json = "1"
 

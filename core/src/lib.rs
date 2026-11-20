@@ -78,10 +78,9 @@ pub fn archive_request(metadata: &str, buffers: js_sys::Array) -> js_sys::Array 
     let (reply, outputs) = match inputs {
         Ok(inputs) => archive::request(metadata, &inputs),
         Err(_) => (
-            serde_json::to_string(&ArchiveReply::Error {
+            boardstudio_model::wire::encode_archive_reply(&ArchiveReply::Error {
                 message: "Archive buffers must be Uint8Array values".into(),
-            })
-            .expect("archive error serializes"),
+            }),
             Vec::new(),
         ),
     };

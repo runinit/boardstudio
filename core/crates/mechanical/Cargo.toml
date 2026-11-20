@@ -12,7 +12,6 @@ boardstudio-core-kernel = { path = "../kernel" }
 boardstudio-core-kicad-source = { path = "../kicad-source" }
 boardstudio-core-modules = { path = "../modules" }
 boardstudio-contracts = { path = "../../../contracts/rust" }
-i_overlay = "9.0.0"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 

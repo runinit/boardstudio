@@ -14,6 +14,7 @@ pub mod mirrored_half;
 pub mod model;
 pub mod modules;
 pub mod outline_edit;
+pub mod wire;
 pub mod mechanical {
     pub mod change;
     pub mod features;

@@ -65,14 +65,13 @@ impl CoreEngine {
                 candidate.map_or(Ok(()), migrate::require_current_value)
             });
         if let Err(message) = preflight {
-            return serde_json::to_string(&CoreReply::Error {
+            return boardstudio_model::wire::encode_core_reply(&CoreReply::Error {
                 id: String::new(),
                 message,
                 revision: self.document.revision,
-            })
-            .expect("reply serializes");
+            });
         }
-        let reply = match serde_json::from_str::<CoreRequest>(json) {
+        let reply = match boardstudio_model::wire::decode_core_request(json) {
             Ok(request) => self.handle(request),
             Err(error) => CoreReply::Error {
                 id: String::new(),
@@ -80,7 +79,7 @@ impl CoreEngine {
                 revision: self.document.revision,
             },
         };
-        serde_json::to_string(&reply).expect("reply serializes")
+        boardstudio_model::wire::encode_core_reply(&reply)
     }
 }
 

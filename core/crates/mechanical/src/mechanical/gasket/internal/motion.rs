@@ -1,8 +1,12 @@
 //! Exact planar intersections over all stationary Z bands and vertically swept moving prisms.
 use super::*;
 
-fn combine(a: &[FloatPath], b: &[FloatPath], rule: OverlayRule) -> Vec<FloatPath> {
-    a.overlay(&b, rule, FillRule::EvenOdd)
+fn combine(
+    a: &Vec<FloatPath>,
+    b: &Vec<FloatPath>,
+    rule: crate::geometry::BooleanOverlayRule,
+) -> Vec<FloatPath> {
+    crate::geometry::overlay_contours(a, b, rule)
         .into_iter()
         .flatten()
         .collect()
@@ -109,9 +113,17 @@ pub(super) fn validate(
                             .iter()
                             .map(|p| p.iter().map(|v| [v.x, v.y]).collect())
                             .collect();
-                        region_paths = combine(&region_paths, &cavities, OverlayRule::Difference);
+                        region_paths = combine(
+                            &region_paths,
+                            &cavities,
+                            crate::geometry::BooleanOverlayRule::Difference,
+                        );
                     }
-                    material = combine(&material, &region_paths, OverlayRule::Union);
+                    material = combine(
+                        &material,
+                        &region_paths,
+                        crate::geometry::BooleanOverlayRule::Union,
+                    );
                 }
             }
             for feature in body.body.features.iter().flatten() {
@@ -123,8 +135,8 @@ pub(super) fn validate(
                 {
                     material = combine(
                         &material,
-                        &[points.iter().map(|p| [p.x, p.y]).collect()],
-                        OverlayRule::Union,
+                        &vec![points.iter().map(|p| [p.x, p.y]).collect()],
+                        crate::geometry::BooleanOverlayRule::Union,
                     );
                 }
             }
@@ -132,8 +144,8 @@ pub(super) fn validate(
                 if middle >= opening.z && middle < opening.z + opening.height {
                     material = combine(
                         &material,
-                        &[opening.points.iter().map(|p| [p.x, p.y]).collect()],
-                        OverlayRule::Difference,
+                        &vec![opening.points.iter().map(|p| [p.x, p.y]).collect()],
+                        crate::geometry::BooleanOverlayRule::Difference,
                     );
                 }
             }
@@ -142,7 +154,12 @@ pub(super) fn validate(
             for (id, footprint, low, high) in &moving {
                 if *high > band[0] + 1e-8
                     && *low < band[1] - 1e-8
-                    && !combine(&material, footprint, OverlayRule::Intersect).is_empty()
+                    && !combine(
+                        &material,
+                        footprint,
+                        crate::geometry::BooleanOverlayRule::Intersect,
+                    )
+                    .is_empty()
                 {
                     return Err(format!(
                         "Moving {id} contacts rigid {} within its vertical travel/tolerance envelope.",

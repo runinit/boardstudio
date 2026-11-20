@@ -9,11 +9,10 @@ pub mod features;
 mod gasket;
 pub mod halves;
 pub mod inputs;
+use crate::geometry::{self, BooleanOverlayRule};
 pub use boardstudio_model::mechanical::pair;
 pub use change::{MechanicalChange, MechanicalEdit, MechanicalTarget};
 pub use edit::{MechanicalEditDisposition, evaluate_edit};
-use i_overlay::core::{fill_rule::FillRule, overlay_rule::OverlayRule};
-use i_overlay::float::single::SingleFloatOverlay;
 pub use inputs::{MechanicalInputs, effective_inputs};
 
 type FloatPath = Vec<[f64; 2]>;
@@ -434,7 +433,7 @@ fn subtract_foam_exclusions(
         if shapes.is_empty() {
             *shapes = next;
         } else {
-            *shapes = shapes.overlay(&next, OverlayRule::Union, FillRule::EvenOdd);
+            *shapes = geometry::overlay_shapes(shapes, &next, BooleanOverlayRule::Union);
         }
     };
 
@@ -452,7 +451,7 @@ fn subtract_foam_exclusions(
     if cuts.is_empty() {
         return Ok(base.to_vec());
     }
-    let output = solids.overlay(&cuts, OverlayRule::Difference, FillRule::EvenOdd);
+    let output = geometry::overlay_shapes(&solids, &cuts, BooleanOverlayRule::Difference);
     if output.is_empty() {
         return Err("Foam clearances remove the complete sheet".into());
     }

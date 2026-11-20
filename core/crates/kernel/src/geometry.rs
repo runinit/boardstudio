@@ -5,6 +5,10 @@ use crate::model::{
 use i_overlay::core::fill_rule::FillRule;
 use i_overlay::core::overlay_rule::OverlayRule;
 use i_overlay::float::single::SingleFloatOverlay;
+use i_overlay::mesh::float::{
+    outline::offset::OutlineOffset,
+    style::{LineJoin, OutlineStyle},
+};
 use std::collections::BTreeMap;
 #[path = "outline.rs"]
 mod automatic;
@@ -17,6 +21,102 @@ const MAX_CHORD_ERROR_MM: f64 = 0.05;
 const MAX_ARC_SEGMENTS: usize = 1024;
 type Path = Vec<[f64; 2]>;
 type Shapes = Vec<Vec<Path>>;
+
+/// Boolean operations supported by the shared contour geometry operations.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BooleanOverlayRule {
+    Union,
+    Difference,
+    Intersect,
+}
+
+impl From<BooleanOverlayRule> for OverlayRule {
+    fn from(rule: BooleanOverlayRule) -> Self {
+        match rule {
+            BooleanOverlayRule::Union => OverlayRule::Union,
+            BooleanOverlayRule::Difference => OverlayRule::Difference,
+            BooleanOverlayRule::Intersect => OverlayRule::Intersect,
+        }
+    }
+}
+
+/// Even-odd boolean overlay of one contour against a contour collection.
+pub fn overlay_contour(
+    subject: &Vec<[f64; 2]>,
+    clip: &Vec<Vec<[f64; 2]>>,
+    rule: BooleanOverlayRule,
+) -> Vec<Vec<Vec<[f64; 2]>>> {
+    subject.overlay(clip, rule.into(), FillRule::EvenOdd)
+}
+
+/// Even-odd boolean overlay between two single contours.
+pub fn overlay_contour_pair(
+    subject: &Vec<[f64; 2]>,
+    clip: &Vec<[f64; 2]>,
+    rule: BooleanOverlayRule,
+) -> Vec<Vec<Vec<[f64; 2]>>> {
+    subject.overlay(clip, rule.into(), FillRule::EvenOdd)
+}
+
+/// Even-odd boolean overlay of a contour collection against one contour.
+pub fn overlay_contours_with_contour(
+    subject: &Vec<Vec<[f64; 2]>>,
+    clip: &Vec<[f64; 2]>,
+    rule: BooleanOverlayRule,
+) -> Vec<Vec<Vec<[f64; 2]>>> {
+    subject.overlay(clip, rule.into(), FillRule::EvenOdd)
+}
+
+/// Even-odd boolean overlay between two contour collections.
+pub fn overlay_contours(
+    subject: &Vec<Vec<[f64; 2]>>,
+    clip: &Vec<Vec<[f64; 2]>>,
+    rule: BooleanOverlayRule,
+) -> Vec<Vec<Vec<[f64; 2]>>> {
+    subject.overlay(clip, rule.into(), FillRule::EvenOdd)
+}
+
+/// Even-odd boolean overlay between two shape collections.
+pub fn overlay_shapes(
+    subject: &Vec<Vec<Vec<[f64; 2]>>>,
+    clip: &Vec<Vec<Vec<[f64; 2]>>>,
+    rule: BooleanOverlayRule,
+) -> Vec<Vec<Vec<[f64; 2]>>> {
+    subject.overlay(clip, rule.into(), FillRule::EvenOdd)
+}
+
+/// Even-odd boolean overlay of shapes against a contour collection.
+pub fn overlay_shapes_with_contours(
+    subject: &Vec<Vec<Vec<[f64; 2]>>>,
+    clip: &Vec<Vec<[f64; 2]>>,
+    rule: BooleanOverlayRule,
+) -> Vec<Vec<Vec<[f64; 2]>>> {
+    subject.overlay(clip, rule.into(), FillRule::EvenOdd)
+}
+
+/// Offset one path on the shared micrometre grid with the bounded miter policy
+/// used by outline validation.
+pub fn miter_offset_path(path: &[[f64; 2]], offset: f64) -> Option<Vec<Vec<Vec<[f64; 2]>>>> {
+    path.outline_fixed_scale(
+        &OutlineStyle::new(offset).line_join(LineJoin::Miter(0.1)),
+        SCALE,
+    )
+    .ok()
+}
+
+/// Offset shapes on the shared micrometre grid with the bounded miter policy
+/// used by outline validation. Input coordinates use the shared f64 path form.
+pub fn miter_offset_shapes(
+    shapes: &[Vec<Vec<[f64; 2]>>],
+    offset: f64,
+) -> Option<Vec<Vec<Vec<[f64; 2]>>>> {
+    shapes
+        .outline_fixed_scale(
+            &OutlineStyle::new(offset).line_join(LineJoin::Miter(0.1)),
+            SCALE,
+        )
+        .ok()
+}
 
 fn snap(value: f64) -> f64 {
     (value * SCALE).round() / SCALE

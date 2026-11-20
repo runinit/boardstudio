@@ -256,7 +256,6 @@ dependencies = [
  "boardstudio-core-modules",
  "boardstudio-model",
  "boardstudio-script",
- "i_overlay",
  "serde",
  "serde_json",
  "zip",
@@ -301,7 +300,6 @@ dependencies = [
  "boardstudio-core-modules",
  "boardstudio-model",
  "boardstudio-script",
- "i_overlay",
  "serde",
  "serde_json",
 ]
@@ -329,7 +327,6 @@ dependencies = [
  "boardstudio-core-kernel",
  "boardstudio-core-kicad-source",
  "boardstudio-model",
- "i_overlay",
  "serde_json",
 ]
 
@@ -737,6 +734,7 @@ version = "0.1.0"
 dependencies = [
  "boardstudio-core-engine",
  "boardstudio-footprints",
+ "boardstudio-model",
  "boardstudio-script",
  "js-sys",
  "regex",

@@ -69,7 +69,7 @@ fn overlaps(a: &[Vec2], b: &[Vec2]) -> bool {
     }
     let a = a.iter().map(|p| [p.x, p.y]).collect::<FloatPath>();
     let b = b.iter().map(|p| [p.x, p.y]).collect::<FloatPath>();
-    !a.overlay(&b, OverlayRule::Intersect, FillRule::EvenOdd)
+    !crate::geometry::overlay_contour_pair(&a, &b, crate::geometry::BooleanOverlayRule::Intersect)
         .is_empty()
 }
 fn union(contours: &[Contour], extras: &[Vec<Vec2>]) -> Vec<Contour> {
@@ -82,11 +82,14 @@ fn union(contours: &[Contour], extras: &[Vec<Vec2>]) -> Vec<Contour> {
     );
     for extra in extras {
         let p = extra.iter().map(|p| [p.x, p.y]).collect::<FloatPath>();
-        shapes = shapes
-            .overlay(&p, OverlayRule::Union, FillRule::EvenOdd)
-            .into_iter()
-            .flatten()
-            .collect();
+        shapes = crate::geometry::overlay_contours_with_contour(
+            &shapes,
+            &p,
+            crate::geometry::BooleanOverlayRule::Union,
+        )
+        .into_iter()
+        .flatten()
+        .collect();
     }
     shapes
         .into_iter()

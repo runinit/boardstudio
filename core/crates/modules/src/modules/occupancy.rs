@@ -1,8 +1,5 @@
 use super::*;
-use i_overlay::{
-    core::{fill_rule::FillRule, overlay_rule::OverlayRule},
-    float::single::SingleFloatOverlay,
-};
+use crate::geometry::{self, BooleanOverlayRule};
 
 fn intersect_contours(a: &[Contour], b: &[Contour]) -> Vec<Contour> {
     let paths = |contours: &[Contour]| {
@@ -17,8 +14,7 @@ fn intersect_contours(a: &[Contour], b: &[Contour]) -> Vec<Contour> {
             })
             .collect::<Vec<_>>()
     };
-    paths(a)
-        .overlay(&paths(b), OverlayRule::Intersect, FillRule::EvenOdd)
+    geometry::overlay_contours(&paths(a), &paths(b), BooleanOverlayRule::Intersect)
         .into_iter()
         .flat_map(|shape| {
             shape
@@ -671,8 +667,7 @@ fn subtract(contours: &[Contour], cutter: &[Vec2]) -> Vec<Contour> {
         })
         .collect::<Vec<_>>();
     let cutter = cutter.iter().map(|p| [p.x, p.y]).collect::<Vec<_>>();
-    paths
-        .overlay(&[cutter], OverlayRule::Difference, FillRule::EvenOdd)
+    geometry::overlay_contours(&paths, &vec![cutter], BooleanOverlayRule::Difference)
         .into_iter()
         .flat_map(|shape| {
             shape

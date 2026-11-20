@@ -14,9 +14,12 @@ const OFFSET_GRID_ALLOWANCE: f64 = 0.002;
 
 fn contained(points: &[Vec2], outline: &[Contour]) -> bool {
     let polygon: FloatPath = points.iter().map(|p| [p.x, p.y]).collect();
-    polygon
-        .overlay(&paths(outline), OverlayRule::Difference, FillRule::EvenOdd)
-        .is_empty()
+    crate::geometry::overlay_contour(
+        &polygon,
+        &paths(outline),
+        crate::geometry::BooleanOverlayRule::Difference,
+    )
+    .is_empty()
 }
 
 fn remaining_wall(pocket: &[Vec2], outer: &[Contour]) -> f64 {

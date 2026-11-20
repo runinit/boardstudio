@@ -1,14 +1,10 @@
 //! Fabrication checks consume only the active perimeter, independently per board.
-use crate::{geometry, model::*, outline_versions};
-use boardstudio_contracts::{path_contains, path_signed_area};
-use i_overlay::{
-    core::{fill_rule::FillRule, overlay_rule::OverlayRule},
-    float::single::SingleFloatOverlay,
-    mesh::float::{
-        outline::offset::OutlineOffset,
-        style::{LineJoin, OutlineStyle},
-    },
+use crate::{
+    geometry::{self, BooleanOverlayRule},
+    model::*,
+    outline_versions,
 };
+use boardstudio_contracts::{path_contains, path_signed_area};
 
 type Path = Vec<[f64; 2]>;
 
@@ -236,22 +232,22 @@ fn missing(path: &Path, material: &Material, clearance: f64) -> bool {
         return !material.contains(path[0]);
     }
     let required = if clearance > 0.0 {
-        match path.outline_fixed_scale(
-            &OutlineStyle::new(clearance).line_join(LineJoin::Miter(0.1)),
-            1000.0,
-        ) {
-            Ok(shapes) => shapes,
-            Err(_) => return true,
+        match geometry::miter_offset_path(path, clearance) {
+            Some(shapes) => shapes,
+            None => return true,
         }
     } else {
         vec![vec![path.clone()]]
     };
-    required
-        .overlay(&material.paths, OverlayRule::Difference, FillRule::EvenOdd)
-        .iter()
-        .flatten()
-        .map(|ring| path_signed_area(ring).abs())
-        .sum::<f64>()
+    geometry::overlay_shapes_with_contours(
+        &required,
+        &material.paths,
+        BooleanOverlayRule::Difference,
+    )
+    .iter()
+    .flatten()
+    .map(|ring| path_signed_area(ring).abs())
+    .sum::<f64>()
         > 0.000_001
 }
 
@@ -546,13 +542,14 @@ pub(crate) fn validate(
                     .filter(|contour| contour.hole)
                     .flat_map(|hole| paths(std::slice::from_ref(hole)))
                     .collect();
-                let region =
-                    outer_path.overlay(&local_holes, OverlayRule::Difference, FillRule::EvenOdd);
-                if let Ok(cores) = region.outline_fixed_scale(
-                    &OutlineStyle::new(-repair.minimum_connection_width / 2.0)
-                        .line_join(LineJoin::Miter(0.1)),
-                    1000.0,
-                ) {
+                let region = geometry::overlay_contours(
+                    &outer_path,
+                    &local_holes,
+                    BooleanOverlayRule::Difference,
+                );
+                if let Some(cores) =
+                    geometry::miter_offset_shapes(&region, -repair.minimum_connection_width / 2.0)
+                {
                     let substantial: Vec<_> = cores
                         .iter()
                         .filter(|shape| {

@@ -46,7 +46,7 @@ fn read_board_source(
 
 /// Handle a stateless artifact operation without touching CoreEngine history or the document.
 pub fn request(json: &str) -> String {
-    let reply = match serde_json::from_str::<ArtifactRequest>(json) {
+    let reply = match boardstudio_model::wire::decode_artifact_request(json) {
         Ok(request) => handle(request),
         Err(error) => {
             let id = serde_json::from_str::<serde_json::Value>(json)
@@ -74,7 +74,7 @@ pub fn request(json: &str) -> String {
             }
         }
     };
-    serde_json::to_string(&reply).expect("artifact reply serializes")
+    boardstudio_model::wire::encode_artifact_reply(&reply)
 }
 
 fn handle(request: ArtifactRequest) -> ArtifactReply {

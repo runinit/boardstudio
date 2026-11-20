@@ -464,6 +464,59 @@ fn offset_shapes(
         .collect())
 }
 
+/// Offset one opening on the same 0.001 mm grid and bounded miter policy as
+/// case preparation, but signed: positive enlarges a hole and negative reduces
+/// it without changing its nominal source. Used by mechanical process checks.
+pub fn offset_opening(points: &[Vec2], distance: f64) -> Option<Vec<Vec2>> {
+    const SCALE: f64 = 1000.0;
+    if points.len() < 3
+        || points.iter().any(|p| {
+            !p.x.is_finite()
+                || !p.y.is_finite()
+                || p.x.abs() > boardstudio_contracts::MAX_COORDINATE_MM
+                || p.y.abs() > boardstudio_contracts::MAX_COORDINATE_MM
+        })
+    {
+        return None;
+    }
+    let mut path: Vec<IntPoint<i64>> = points
+        .iter()
+        .map(|p| IntPoint::new((p.x * SCALE).round() as i64, (p.y * SCALE).round() as i64))
+        .collect();
+    let area: i128 = (0..path.len())
+        .map(|i| {
+            let a = path[i];
+            let b = path[(i + 1) % path.len()];
+            a.x as i128 * b.y as i128 - b.x as i128 * a.y as i128
+        })
+        .sum();
+    if area == 0 {
+        return None;
+    }
+    if area < 0 {
+        path.reverse();
+    }
+    let style = IntOutlineStyle::new((distance * SCALE).round() as i64)
+        .math(MathMode::Float)
+        .line_join(IntLineJoin::Miter(Angle::from_radians(
+            0.505_360_510_284_157_3,
+        )?))
+        .miter_min_turn(Angle::from_radians(5.0_f64.to_radians())?);
+    let shapes = path.outline(&style).ok()?;
+    if shapes.len() != 1 || shapes[0].len() != 1 || shapes[0][0].len() < 3 {
+        return None;
+    }
+    Some(
+        shapes[0][0]
+            .iter()
+            .map(|p| Vec2 {
+                x: p.x as f64 / SCALE,
+                y: p.y as f64 / SCALE,
+            })
+            .collect(),
+    )
+}
+
 fn offset_single(path: &[Vec2], distance: f64, id: &str) -> Result<Vec<Vec<Vec2>>, String> {
     if distance == 0.0 {
         return Ok(vec![path.to_vec()]);
