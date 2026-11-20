@@ -36,12 +36,14 @@ use crate::modules::{EmbeddedCircuit, MountedModule};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 
-mod derive;
-mod inverse;
-mod matrix_addition;
-mod reconcile;
-#[cfg(test)]
-pub use reconcile::prepare_transaction;
+#[doc(hidden)]
+pub mod derive;
+#[doc(hidden)]
+pub mod inverse;
+#[doc(hidden)]
+pub mod matrix_addition;
+#[doc(hidden)]
+pub mod reconcile;
 pub use reconcile::{prepare_open_with_scripts, prepare_transaction_with_ledger};
 
 /// The engine edit dispatcher, consulted under the owning session's identity ledger.
@@ -59,28 +61,6 @@ pub type ApplyWithLedger = fn(
 pub struct EditDispatch {
     pub apply_with_ledger: ApplyWithLedger,
     pub apply_unscripted: crate::matrix::deletion::ApplyUnscripted,
-}
-
-#[cfg(test)]
-pub fn test_dispatch() -> EditDispatch {
-    EditDispatch {
-        apply_with_ledger: boardstudio_core_engine::apply_with_ledger_for_test,
-        apply_unscripted: boardstudio_core_engine::apply_unscripted_for_test,
-    }
-}
-
-#[cfg(test)]
-pub fn apply_for_test(
-    doc: &mut ProjectDoc,
-    board_contours: &[crate::model::BoardContours],
-    op: &crate::model::EditOperation,
-) -> Result<Vec<String>, String> {
-    boardstudio_core_engine::apply_for_test(
-        doc,
-        board_contours,
-        op,
-        boardstudio_script::apply_scripts,
-    )
 }
 
 /// Generated closure-clearance parts. They are regenerated from the pair, never copied.

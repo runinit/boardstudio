@@ -1,13 +1,21 @@
-use super::super::{
+#[path = "support/base.rs"]
+pub mod base_fixtures;
+pub mod support;
+
+use crate::base_fixtures::fixture_document;
+use boardstudio_core_kernel::constraints::{
+    ConstraintEndpoint, ConstraintRelation, FramedConstraint,
+};
+use boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::{
+    ConstraintLifecycleEffect, lifecycle_context, matrix_pair_for_association,
+    prepare_constraint_lifecycle_delta, prepare_lifecycle_transition, retire_replacement_records,
+    transition_exception_context,
+};
+use boardstudio_core_mirrored_half::mirrored_half::reconcile::{
     BaselineKind, FinalOwner, MembershipContext, MembershipTransitionInput, PlannedAddition,
     TransitionAssociation, TransitionState, prepare_membership_transition,
 };
-use super::{
-    ConstraintLifecycleEffect, prepare_constraint_lifecycle_delta, retire_replacement_records,
-};
-use crate::constraints::{ConstraintEndpoint, ConstraintRelation, FramedConstraint};
-use crate::mirrored_half::reconcile::tests::fixture_document;
-use crate::model::*;
+use boardstudio_model::model::*;
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -207,7 +215,7 @@ fn rejoin_does_not_synthesize_constraints_retired_by_omit() {
 
     assert_eq!(
         prepare_constraint_lifecycle_delta(&[], &[effect]).unwrap(),
-        super::ConstraintLifecycleDelta::default(),
+        boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::ConstraintLifecycleDelta::default(),
         "Rejoin cannot synthesize a constraint that Omit already retired"
     );
 }
@@ -357,7 +365,7 @@ fn valid_omitted_document() -> ProjectDoc {
 fn valid_durable_omission_accepts_an_absent_mirror_part() {
     let document = valid_omitted_document();
     assert!(
-        crate::mechanical::halves::validate_document(&document).is_ok(),
+        boardstudio_core_mechanical::mechanical::halves::validate_document(&document).is_ok(),
         "a source-bound Omitted record remains valid after its target geometry is removed"
     );
 }
@@ -368,7 +376,7 @@ fn omitted_absence_and_source_identity_survive_document_round_trip() {
     let encoded = serde_json::to_vec(&document).unwrap();
     let decoded: ProjectDoc = serde_json::from_slice(&encoded).unwrap();
 
-    assert!(crate::mechanical::halves::validate_document(&decoded).is_ok());
+    assert!(boardstudio_core_mechanical::mechanical::halves::validate_document(&decoded).is_ok());
     assert!(decoded.parts.iter().all(|part| part.id != "mirror-part"));
     assert!(
         decoded
@@ -481,7 +489,11 @@ fn expected_closure_ids(board_id: &str) -> BTreeSet<String> {
 }
 
 fn unlink_diff_ids(before: &ProjectDoc, after: &ProjectDoc) -> BTreeSet<String> {
-    let (mut ids, fields) = super::super::changed_document_fields(before, after).unwrap();
+    let (mut ids, fields) =
+        boardstudio_core_mirrored_half::mirrored_half::reconcile::changed_document_fields(
+            before, after,
+        )
+        .unwrap();
     assert!(
         fields.iter().all(|path| {
             path == "$.hardware.pairs" || path.starts_with("$.hardware.instances[")
@@ -532,8 +544,8 @@ fn reuse_board_unlink_document() -> ProjectDoc {
     let hardware = document.hardware.as_mut().unwrap();
     hardware.instances[1].board_id = "source-board".into();
     let pair = &mut hardware.pairs[0];
-    pair.mapping = crate::model::Pose2 {
-        at: crate::model::Vec2::default(),
+    pair.mapping = boardstudio_model::model::Pose2 {
+        at: boardstudio_model::model::Vec2::default(),
         rotation: 0.0,
     };
     let halves = pair.halves.as_mut().unwrap();
@@ -544,15 +556,15 @@ fn reuse_board_unlink_document() -> ProjectDoc {
 #[test]
 fn unlink_uses_the_exact_pair_and_materializes_nonempty_owned_closures() {
     let mut document = nonempty_unlink_document();
-    crate::mechanical::halves::validate_document(&document).unwrap();
+    boardstudio_core_mechanical::mechanical::halves::validate_document(&document).unwrap();
     let before = document.clone();
     let before_effective: Vec<_> = ["source-instance", "mirror-instance"]
         .into_iter()
         .map(|instance_id| {
-            crate::mechanical::inputs::effective_inputs(
+            boardstudio_core_mechanical::mechanical::inputs::effective_inputs(
                 &before,
                 &[],
-                &crate::mechanical::MechanicalTarget::Instance {
+                &boardstudio_core_mechanical::mechanical::MechanicalTarget::Instance {
                     instance_id: instance_id.into(),
                 },
             )
@@ -575,7 +587,9 @@ fn unlink_uses_the_exact_pair_and_materializes_nonempty_owned_closures() {
             )
         })
         .collect();
-    let changed = crate::mechanical::halves::unlink_pair(&mut document, "unlink-pair").unwrap();
+    let changed =
+        boardstudio_core_mechanical::mechanical::halves::unlink_pair(&mut document, "unlink-pair")
+            .unwrap();
 
     assert!(document.hardware.as_ref().unwrap().pairs.is_empty());
     assert!(changed.contains(&"unlink-pair".to_owned()));
@@ -589,7 +603,7 @@ fn unlink_uses_the_exact_pair_and_materializes_nonempty_owned_closures() {
     {
         assert_eq!(
             instance.construction_ownership,
-            crate::model::MechanicalConstructionOwnership::Local
+            boardstudio_model::model::MechanicalConstructionOwnership::Local
         );
         let current = instance.mechanical.as_ref().unwrap();
         let mounts = current.closure_mounts.as_ref().unwrap();
@@ -597,10 +611,10 @@ fn unlink_uses_the_exact_pair_and_materializes_nonempty_owned_closures() {
         let actual: BTreeSet<_> = mounts.iter().map(|mount| mount.id.as_str()).collect();
         assert_eq!(actual.len(), 4);
         assert_eq!(current, &before_effective[index]);
-        let after_effective = crate::mechanical::inputs::effective_inputs(
+        let after_effective = boardstudio_core_mechanical::mechanical::inputs::effective_inputs(
             &document,
             &[],
-            &crate::mechanical::MechanicalTarget::Instance {
+            &boardstudio_core_mechanical::mechanical::MechanicalTarget::Instance {
                 instance_id: instance.id.clone(),
             },
         )
@@ -722,9 +736,10 @@ fn prepared_unlink_uses_the_normalized_mechanical_route_on_a_private_draft() {
     }))
     .expect("the public UnlinkMirrorPair wire shape parses");
     let mut expected = accepted.clone();
-    crate::mechanical::halves::unlink_pair(&mut expected, "unlink-pair").unwrap();
+    boardstudio_core_mechanical::mechanical::halves::unlink_pair(&mut expected, "unlink-pair")
+        .unwrap();
 
-    let (prepared, changed) = crate::mirrored_half::prepare_transaction(&accepted, &[], &operation)
+    let (prepared, changed) = crate::support::prepare_transaction(&accepted, &[], &operation)
         .expect("prepared Unlink derives the normalized context internally");
 
     assert_eq!(prepared, expected);
@@ -733,7 +748,7 @@ fn prepared_unlink_uses_the_normalized_mechanical_route_on_a_private_draft() {
         changed.into_iter().collect::<BTreeSet<_>>(),
         unlink_diff_ids(&accepted, &prepared)
     );
-    crate::mechanical::halves::validate_document(&prepared).unwrap();
+    boardstudio_core_mechanical::mechanical::halves::validate_document(&prepared).unwrap();
     assert_eq!(serde_json::to_vec(&accepted).unwrap(), accepted_bytes);
 }
 
@@ -742,11 +757,11 @@ fn prepared_unlink_publication_undo_redo_and_reopen_preserve_materialized_closur
     let mut engine =
         boardstudio_core_engine::CoreEngine::with_script_runner(boardstudio_script::apply_scripts);
     assert!(matches!(
-        engine.handle(crate::model::CoreRequest::Open {
+        engine.handle(boardstudio_model::model::CoreRequest::Open {
             id: "open-unlink".into(),
             document: nonempty_unlink_document(),
         }),
-        crate::model::CoreReply::Scene { .. }
+        boardstudio_model::model::CoreReply::Scene { .. }
     ));
     let accepted = engine.document_for_test().clone();
     let operation: EditOperation = serde_json::from_value(json!({
@@ -757,7 +772,7 @@ fn prepared_unlink_publication_undo_redo_and_reopen_preserve_materialized_closur
         }
     }))
     .expect("the public UnlinkMirrorPair wire shape parses");
-    let (prepared, changed) = crate::mirrored_half::prepare_transaction(&accepted, &[], &operation)
+    let (prepared, changed) = crate::support::prepare_transaction(&accepted, &[], &operation)
         .expect("the nonempty pair closure prepares for Unlink");
     let expected_closures: BTreeSet<_> = prepared
         .parts
@@ -776,7 +791,8 @@ fn prepared_unlink_publication_undo_redo_and_reopen_preserve_materialized_closur
     assert!(!expected_closures.is_empty());
     assert!(prepared.hardware.as_ref().unwrap().pairs.is_empty());
 
-    let (cache, contours, findings) = crate::geometry::outlines(&prepared, None, &changed);
+    let (cache, contours, findings) =
+        boardstudio_core_kernel::geometry::outlines(&prepared, None, &changed);
     let publication = engine.publish_prepared_for_test(
         "unlink-prepared".into(),
         "unlink-prepared".into(),
@@ -786,7 +802,10 @@ fn prepared_unlink_publication_undo_redo_and_reopen_preserve_materialized_closur
         contours,
         findings,
     );
-    assert!(matches!(publication, crate::model::CoreReply::Scene { .. }));
+    assert!(matches!(
+        publication,
+        boardstudio_model::model::CoreReply::Scene { .. }
+    ));
     assert_eq!(engine.undo_for_test().len(), 1);
     assert!(engine.redo_for_test().is_empty());
     assert!(
@@ -808,10 +827,10 @@ fn prepared_unlink_publication_undo_redo_and_reopen_preserve_materialized_closur
     assert_eq!(committed_closures, expected_closures);
 
     assert!(matches!(
-        engine.handle(crate::model::CoreRequest::Undo {
+        engine.handle(boardstudio_model::model::CoreRequest::Undo {
             id: "undo-unlink".into(),
         }),
-        crate::model::CoreReply::Scene { .. }
+        boardstudio_model::model::CoreReply::Scene { .. }
     ));
     assert_eq!(engine.undo_for_test().len(), 0);
     assert_eq!(engine.redo_for_test().len(), 1);
@@ -841,10 +860,10 @@ fn prepared_unlink_publication_undo_redo_and_reopen_preserve_materialized_closur
     );
 
     assert!(matches!(
-        engine.handle(crate::model::CoreRequest::Redo {
+        engine.handle(boardstudio_model::model::CoreRequest::Redo {
             id: "redo-unlink".into(),
         }),
-        crate::model::CoreReply::Scene { .. }
+        boardstudio_model::model::CoreReply::Scene { .. }
     ));
     assert_eq!(engine.undo_for_test().len(), 1);
     assert!(engine.redo_for_test().is_empty());
@@ -890,11 +909,11 @@ fn prepared_unlink_publication_undo_redo_and_reopen_preserve_materialized_closur
     let mut reopened =
         boardstudio_core_engine::CoreEngine::with_script_runner(boardstudio_script::apply_scripts);
     assert!(matches!(
-        reopened.handle(crate::model::CoreRequest::Open {
+        reopened.handle(boardstudio_model::model::CoreRequest::Open {
             id: "reopen-unlinked".into(),
             document: engine.document_for_test().clone(),
         }),
-        crate::model::CoreReply::Scene { .. }
+        boardstudio_model::model::CoreReply::Scene { .. }
     ));
     let reopened_closures: BTreeSet<_> = reopened
         .document_for_test()
@@ -934,10 +953,10 @@ fn unlink_reuse_board_keeps_one_nonempty_closure_set_and_flipped_geometry() {
     let before_effective: Vec<_> = ["source-instance", "mirror-instance"]
         .into_iter()
         .map(|instance_id| {
-            crate::mechanical::inputs::effective_inputs(
+            boardstudio_core_mechanical::mechanical::inputs::effective_inputs(
                 &before,
                 &[],
-                &crate::mechanical::MechanicalTarget::Instance {
+                &boardstudio_core_mechanical::mechanical::MechanicalTarget::Instance {
                     instance_id: instance_id.into(),
                 },
             )
@@ -945,7 +964,9 @@ fn unlink_reuse_board_keeps_one_nonempty_closure_set_and_flipped_geometry() {
             .configuration
         })
         .collect();
-    let changed = crate::mechanical::halves::unlink_pair(&mut document, "unlink-pair").unwrap();
+    let changed =
+        boardstudio_core_mechanical::mechanical::halves::unlink_pair(&mut document, "unlink-pair")
+            .unwrap();
 
     let holes: Vec<_> = document
         .parts
@@ -983,10 +1004,10 @@ fn unlink_reuse_board_keeps_one_nonempty_closure_set_and_flipped_geometry() {
             instance.mechanical.as_ref().unwrap(),
             &before_effective[index]
         );
-        let after_effective = crate::mechanical::inputs::effective_inputs(
+        let after_effective = boardstudio_core_mechanical::mechanical::inputs::effective_inputs(
             &document,
             &[],
-            &crate::mechanical::MechanicalTarget::Instance {
+            &boardstudio_core_mechanical::mechanical::MechanicalTarget::Instance {
                 instance_id: instance.id.clone(),
             },
         )
@@ -1006,7 +1027,9 @@ fn unlink_refuses_an_unrequested_pair_without_mutating_the_document() {
     let mut document = nonempty_unlink_document();
     let before = document.clone();
 
-    let error = crate::mechanical::halves::unlink_pair(&mut document, "another-pair").unwrap_err();
+    let error =
+        boardstudio_core_mechanical::mechanical::halves::unlink_pair(&mut document, "another-pair")
+            .unwrap_err();
 
     assert!(error.contains("another-pair"), "{error}");
     assert_eq!(document, before);
@@ -1019,7 +1042,9 @@ fn unlink_refuses_a_construction_source_on_the_wrong_board_atomically() {
         Some("mirror-instance".into());
     let before = document.clone();
 
-    let error = crate::mechanical::halves::unlink_pair(&mut document, "unlink-pair").unwrap_err();
+    let error =
+        boardstudio_core_mechanical::mechanical::halves::unlink_pair(&mut document, "unlink-pair")
+            .unwrap_err();
 
     assert!(
         error.contains("sourceBoardId") || error.contains("source board"),
@@ -1028,11 +1053,12 @@ fn unlink_refuses_a_construction_source_on_the_wrong_board_atomically() {
     assert_eq!(document, before);
 }
 
-fn exception_context() -> super::super::MembershipContext {
-    use super::super::{
+fn exception_context() -> boardstudio_core_mirrored_half::mirrored_half::reconcile::MembershipContext
+{
+    use boardstudio_core_mirrored_half::mirrored_half::reconcile::{
         FinalOwner, MatrixPairContext, MembershipContext, TransitionAssociation, TransitionState,
     };
-    use crate::model::{MirroredCompanionMode, Pose2, Vec2};
+    use boardstudio_model::model::{MirroredCompanionMode, Pose2, Vec2};
     use std::collections::BTreeMap;
 
     let pair_right: MirroredHalves = serde_json::from_value(json!({
@@ -1066,7 +1092,7 @@ fn exception_context() -> super::super::MembershipContext {
         pending_pair_baseline: None,
         associations: vec![
             TransitionAssociation {
-                kind: crate::model::MirroredItemKind::Matrix,
+                kind: boardstudio_model::model::MirroredItemKind::Matrix,
                 source_id: "source-matrix".into(),
                 mirror_id: "mirror-matrix".into(),
                 parent_source_id: None,
@@ -1079,7 +1105,7 @@ fn exception_context() -> super::super::MembershipContext {
                 effective_tweak: None,
             },
             TransitionAssociation {
-                kind: crate::model::MirroredItemKind::Part,
+                kind: boardstudio_model::model::MirroredItemKind::Part,
                 source_id: "source-part".into(),
                 mirror_id: "mirror-part".into(),
                 parent_source_id: Some("source-matrix".into()),
@@ -1087,20 +1113,20 @@ fn exception_context() -> super::super::MembershipContext {
                 state: TransitionState::Linked,
                 explicit_state: false,
                 raw_mode_override: Some(MirroredCompanionMode::LiteralMirrorWithTweak),
-                raw_tweak: Some(crate::model::MirroredCompanionTweak {
+                raw_tweak: Some(boardstudio_model::model::MirroredCompanionTweak {
                     x: 0.25,
                     y: -0.5,
                     rotation: 15.0,
                 }),
                 effective_mode: MirroredCompanionMode::LiteralMirrorWithTweak,
-                effective_tweak: Some(crate::model::MirroredCompanionTweak {
+                effective_tweak: Some(boardstudio_model::model::MirroredCompanionTweak {
                     x: 0.25,
                     y: -0.5,
                     rotation: 15.0,
                 }),
             },
             TransitionAssociation {
-                kind: crate::model::MirroredItemKind::Part,
+                kind: boardstudio_model::model::MirroredItemKind::Part,
                 source_id: "source-part/diode".into(),
                 mirror_id: "mirror-part/diode".into(),
                 parent_source_id: Some("source-part".into()),
@@ -1113,7 +1139,7 @@ fn exception_context() -> super::super::MembershipContext {
                 effective_tweak: None,
             },
             TransitionAssociation {
-                kind: crate::model::MirroredItemKind::Layout,
+                kind: boardstudio_model::model::MirroredItemKind::Layout,
                 source_id: "source-layout".into(),
                 mirror_id: "mirror-layout".into(),
                 parent_source_id: Some("source-matrix".into()),
@@ -1130,7 +1156,9 @@ fn exception_context() -> super::super::MembershipContext {
     }
 }
 
-fn root_exception_context(state: super::super::TransitionState) -> super::super::MembershipContext {
+fn root_exception_context(
+    state: boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState,
+) -> boardstudio_core_mirrored_half::mirrored_half::reconcile::MembershipContext {
     let mut context = exception_context();
     let root = &mut context.associations[0];
     root.state = state;
@@ -1142,50 +1170,54 @@ fn root_exception_context(state: super::super::TransitionState) -> super::super:
     context
         .pair_right
         .exceptions
-        .push(crate::model::MirroredException {
-            companion_mode: None,
-            companion_tweak: None,
-            kind: crate::model::MirroredItemKind::Matrix,
-            mirror_id: "mirror-matrix".into(),
-            state: match state {
-                super::super::TransitionState::Linked => {
-                    unreachable!("linked roots have no exception")
-                }
-                super::super::TransitionState::Local => crate::model::MirroredExceptionState::Local,
-                super::super::TransitionState::Omitted => {
-                    crate::model::MirroredExceptionState::Omitted
-                }
-            },
-            removed_copper: None,
-        });
+        .push(boardstudio_model::model::MirroredException {
+        companion_mode: None,
+        companion_tweak: None,
+        kind: boardstudio_model::model::MirroredItemKind::Matrix,
+        mirror_id: "mirror-matrix".into(),
+        state: match state {
+            boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Linked => {
+                unreachable!("linked roots have no exception")
+            }
+            boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Local => {
+                boardstudio_model::model::MirroredExceptionState::Local
+            }
+            boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Omitted => {
+                boardstudio_model::model::MirroredExceptionState::Omitted
+            }
+        },
+        removed_copper: None,
+    });
     context
 }
 
 #[test]
 fn owner_rejoin_clears_only_its_exception_and_keeps_explicit_child_state_and_modes() {
-    let context = root_exception_context(super::super::TransitionState::Omitted);
-    let rejoined = super::transition_exception_context(
+    let context = root_exception_context(
+        boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Omitted,
+    );
+    let rejoined = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
         &context,
-        crate::model::MirroredItemKind::Matrix,
+        boardstudio_model::model::MirroredItemKind::Matrix,
         "source-matrix",
         "mirror-matrix",
-        super::super::TransitionState::Linked,
+        boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Linked,
     )
     .expect("the exact owner can rejoin");
 
     assert_eq!(
         rejoined.associations[0].state,
-        super::super::TransitionState::Linked
+        boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Linked
     );
     assert!(!rejoined.associations[0].explicit_state);
     assert_eq!(
         rejoined.associations[1].state,
-        super::super::TransitionState::Linked
+        boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Linked
     );
     assert!(!rejoined.associations[1].explicit_state);
     assert_eq!(
         rejoined.associations[2].effective_mode,
-        crate::model::MirroredCompanionMode::DuplicatePosition
+        boardstudio_model::model::MirroredCompanionMode::DuplicatePosition
     );
     assert_eq!(
         rejoined.associations[1].effective_tweak.as_ref().unwrap().x,
@@ -1193,7 +1225,7 @@ fn owner_rejoin_clears_only_its_exception_and_keeps_explicit_child_state_and_mod
     );
     assert_eq!(
         rejoined.associations[3].state,
-        super::super::TransitionState::Omitted
+        boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Omitted
     );
     assert!(rejoined.associations[3].explicit_state);
     assert_eq!(rejoined.pair_right, context.pair_right);
@@ -1204,40 +1236,42 @@ fn owner_rejoin_clears_only_its_exception_and_keeps_explicit_child_state_and_mod
     );
     assert_eq!(
         rejoined.pending_pair_transitions.get("source-matrix"),
-        Some(&super::super::TransitionState::Omitted)
+        Some(&boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Omitted)
     );
 }
 
 #[test]
 fn owner_rejoin_from_local_restores_inherited_children_only() {
-    let context = root_exception_context(super::super::TransitionState::Local);
-    let rejoined = super::transition_exception_context(
+    let context = root_exception_context(
+        boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Local,
+    );
+    let rejoined = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
         &context,
-        crate::model::MirroredItemKind::Matrix,
+        boardstudio_model::model::MirroredItemKind::Matrix,
         "source-matrix",
         "mirror-matrix",
-        super::super::TransitionState::Linked,
+        boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Linked,
     )
     .expect("the exact Local owner can rejoin");
 
     assert_eq!(
         rejoined.associations[0].state,
-        super::super::TransitionState::Linked
+        boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Linked
     );
     assert!(!rejoined.associations[0].explicit_state);
     assert_eq!(
         rejoined.associations[1].state,
-        super::super::TransitionState::Linked
+        boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Linked
     );
     assert!(!rejoined.associations[1].explicit_state);
     assert_eq!(
         rejoined.associations[2].state,
-        super::super::TransitionState::Linked
+        boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Linked
     );
     assert!(!rejoined.associations[2].explicit_state);
     assert_eq!(
         rejoined.associations[3].state,
-        super::super::TransitionState::Omitted
+        boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Omitted
     );
     assert!(rejoined.associations[3].explicit_state);
     assert_eq!(rejoined.pair_right, context.pair_right);
@@ -1247,67 +1281,67 @@ fn owner_rejoin_from_local_restores_inherited_children_only() {
 #[test]
 fn owner_localization_protects_only_inherited_children_and_preserves_child_exceptions() {
     let context = exception_context();
-    let localized = super::transition_exception_context(
+    let localized = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
         &context,
-        crate::model::MirroredItemKind::Matrix,
+        boardstudio_model::model::MirroredItemKind::Matrix,
         "source-matrix",
         "mirror-matrix",
-        super::super::TransitionState::Local,
+        boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Local,
     )
     .expect("the exact linked owner can become local");
 
     assert_eq!(
         localized.associations[0].state,
-        super::super::TransitionState::Local
+        boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Local
     );
     assert!(localized.associations[0].explicit_state);
     assert_eq!(
         localized.associations[1].state,
-        super::super::TransitionState::Local
+        boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Local
     );
     assert!(!localized.associations[1].explicit_state);
     assert_eq!(
         localized.associations[2].state,
-        super::super::TransitionState::Local
+        boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Local
     );
     assert!(!localized.associations[2].explicit_state);
     assert_eq!(
         localized.associations[3].state,
-        super::super::TransitionState::Omitted
+        boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Omitted
     );
     assert!(localized.associations[3].explicit_state);
     assert_eq!(localized.pair_right, context.pair_right);
     assert_eq!(
         localized.pending_pair_transitions.get("source-matrix"),
-        Some(&super::super::TransitionState::Linked)
+        Some(&boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Linked)
     );
 }
 
 #[test]
 fn owner_omission_removes_only_inherited_children_and_keeps_explicit_child_state() {
     let context = exception_context();
-    let omitted = super::transition_exception_context(
+    let omitted = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
         &context,
-        crate::model::MirroredItemKind::Matrix,
+        boardstudio_model::model::MirroredItemKind::Matrix,
         "source-matrix",
         "mirror-matrix",
-        super::super::TransitionState::Omitted,
+        boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Omitted,
     )
     .expect("the exact linked owner can be omitted");
 
     assert_eq!(
         omitted.associations[0].state,
-        super::super::TransitionState::Omitted
+        boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Omitted
     );
     assert!(omitted.associations[0].explicit_state);
     assert_eq!(
         omitted.associations[1].state,
-        super::super::TransitionState::Omitted
+        boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Omitted
     );
     assert!(!omitted.associations[1].explicit_state);
     assert_eq!(
         omitted.associations[2].state,
-        super::super::TransitionState::Omitted
+        boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Omitted
     );
     assert!(!omitted.associations[2].explicit_state);
     assert_eq!(
@@ -1316,17 +1350,17 @@ fn owner_omission_removes_only_inherited_children_and_keeps_explicit_child_state
     );
     assert_eq!(
         omitted.associations[2].effective_mode,
-        crate::model::MirroredCompanionMode::DuplicatePosition
+        boardstudio_model::model::MirroredCompanionMode::DuplicatePosition
     );
     assert_eq!(
         omitted.associations[3].state,
-        super::super::TransitionState::Omitted
+        boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Omitted
     );
     assert!(omitted.associations[3].explicit_state);
     assert_eq!(omitted.pair_right, context.pair_right);
     assert_eq!(
         omitted.pending_pair_transitions.get("source-matrix"),
-        Some(&super::super::TransitionState::Linked)
+        Some(&boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Linked)
     );
 }
 
@@ -1336,12 +1370,12 @@ fn owner_transition_refuses_ambiguous_identity_without_changing_full_context() {
     context.associations.push(context.associations[0].clone());
     let before = context.clone();
 
-    let result = super::transition_exception_context(
+    let result = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
         &context,
-        crate::model::MirroredItemKind::Matrix,
+        boardstudio_model::model::MirroredItemKind::Matrix,
         "source-matrix",
         "mirror-matrix",
-        super::super::TransitionState::Local,
+        boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Local,
     );
 
     assert!(
@@ -1362,12 +1396,12 @@ fn owner_transition_refuses_missing_or_mismatched_association_atomically() {
     ] {
         let context = exception_context();
         let before = context.clone();
-        let result = super::transition_exception_context(
+        let result = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
             &context,
-            crate::model::MirroredItemKind::Matrix,
+            boardstudio_model::model::MirroredItemKind::Matrix,
             source_id,
             mirror_id,
-            super::super::TransitionState::Local,
+            boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Local,
         );
 
         assert!(
@@ -1390,17 +1424,20 @@ fn independent_part_exception_is_scoped_to_its_owned_companion() {
         ("mirror-part", "mirror-board"),
         ("mirror-part/diode", "mirror-board"),
     ] {
-        context
-            .owners
-            .insert(id.into(), super::super::FinalOwner::Board(owner.into()));
+        context.owners.insert(
+            id.into(),
+            boardstudio_core_mirrored_half::mirrored_half::reconcile::FinalOwner::Board(
+                owner.into(),
+            ),
+        );
     }
 
-    let localized = super::transition_exception_context(
+    let localized = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
         &context,
-        crate::model::MirroredItemKind::Part,
+        boardstudio_model::model::MirroredItemKind::Part,
         "source-part",
         "mirror-part",
-        super::super::TransitionState::Local,
+        boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Local,
     )
     .expect("the selected independent Part and its owned companion can become Local");
 
@@ -1419,63 +1456,73 @@ fn independent_part_exception_is_scoped_to_its_owned_companion() {
         .iter()
         .find(|association| association.source_id == "source-layout")
         .unwrap();
-    assert_eq!(selected.state, super::super::TransitionState::Local);
+    assert_eq!(
+        selected.state,
+        boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Local
+    );
     assert!(selected.explicit_state);
-    assert_eq!(companion.state, super::super::TransitionState::Local);
+    assert_eq!(
+        companion.state,
+        boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Local
+    );
     assert!(!companion.explicit_state);
     assert_eq!(
         companion.effective_mode,
-        crate::model::MirroredCompanionMode::DuplicatePosition
+        boardstudio_model::model::MirroredCompanionMode::DuplicatePosition
     );
     assert_eq!(companion.effective_tweak, None);
     assert_eq!(
         sibling_exception.state,
-        super::super::TransitionState::Omitted
+        boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Omitted
     );
     assert!(sibling_exception.explicit_state);
     assert_eq!(
         localized.owners["mirror-part"],
-        super::super::FinalOwner::Board("mirror-board".into())
+        boardstudio_core_mirrored_half::mirrored_half::reconcile::FinalOwner::Board(
+            "mirror-board".into()
+        )
     );
     assert_eq!(
         localized.owners["mirror-part/diode"],
-        super::super::FinalOwner::Board("mirror-board".into())
+        boardstudio_core_mirrored_half::mirrored_half::reconcile::FinalOwner::Board(
+            "mirror-board".into()
+        )
     );
     assert_eq!(localized.pair_right, context.pair_right);
     assert_eq!(
         localized.pending_pair_transitions.get("source-part"),
-        Some(&super::super::TransitionState::Linked)
+        Some(&boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Linked)
     );
 }
 
 #[test]
 fn embedded_circuit_owner_transitions_keep_explicit_child_and_unrelated_module_linked() {
-    use super::super::TransitionState;
+    use boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState;
 
     let mut context = exception_context();
     let mut circuit = context.associations[0].clone();
-    circuit.kind = crate::model::MirroredItemKind::EmbeddedCircuit;
+    circuit.kind = boardstudio_model::model::MirroredItemKind::EmbeddedCircuit;
     circuit.source_id = "source-circuit".into();
     circuit.mirror_id = "mirror-circuit".into();
     circuit.parent_source_id = None;
     circuit.parent_mirror_id = None;
 
     let mut member = context.associations[1].clone();
-    member.kind = crate::model::MirroredItemKind::Part;
+    member.kind = boardstudio_model::model::MirroredItemKind::Part;
     member.source_id = "embedded/source-circuit/U1".into();
     member.mirror_id = "embedded/mirror-circuit/U1".into();
     member.parent_source_id = Some("source-circuit".into());
     member.parent_mirror_id = Some("mirror-circuit".into());
 
     let mut net = context.associations[2].clone();
-    net.kind = crate::model::MirroredItemKind::Net;
+    net.kind = boardstudio_model::model::MirroredItemKind::Net;
     net.source_id = "embedded/source-circuit/N$1".into();
     net.mirror_id = "embedded/mirror-circuit/N$1".into();
     net.parent_source_id = Some("source-circuit".into());
     net.parent_mirror_id = Some("mirror-circuit".into());
 
     let mut explicit_net = context.associations[3].clone();
-    explicit_net.kind = crate::model::MirroredItemKind::Net;
+    explicit_net.kind = boardstudio_model::model::MirroredItemKind::Net;
     explicit_net.source_id = "embedded/source-circuit/N$LOCAL".into();
     explicit_net.mirror_id = "embedded/mirror-circuit/N$LOCAL".into();
     explicit_net.parent_source_id = Some("source-circuit".into());
@@ -1484,7 +1531,7 @@ fn embedded_circuit_owner_transitions_keep_explicit_child_and_unrelated_module_l
     explicit_net.explicit_state = true;
 
     let mut unrelated_module = context.associations[0].clone();
-    unrelated_module.kind = crate::model::MirroredItemKind::Module;
+    unrelated_module.kind = boardstudio_model::model::MirroredItemKind::Module;
     unrelated_module.source_id = "source-module".into();
     unrelated_module.mirror_id = "mirror-module".into();
     unrelated_module.parent_source_id = None;
@@ -1506,9 +1553,9 @@ fn embedded_circuit_owner_transitions_keep_explicit_child_and_unrelated_module_l
     }))
     .unwrap();
 
-    let localized = super::transition_exception_context(
+    let localized = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
         &context,
-        crate::model::MirroredItemKind::EmbeddedCircuit,
+        boardstudio_model::model::MirroredItemKind::EmbeddedCircuit,
         "source-circuit",
         "mirror-circuit",
         TransitionState::Local,
@@ -1520,9 +1567,9 @@ fn embedded_circuit_owner_transitions_keep_explicit_child_and_unrelated_module_l
     assert!(localized.associations[3].explicit_state);
     assert_eq!(localized.associations[4], context.associations[4]);
 
-    let rejoined = super::transition_exception_context(
+    let rejoined = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
         &localized,
-        crate::model::MirroredItemKind::EmbeddedCircuit,
+        boardstudio_model::model::MirroredItemKind::EmbeddedCircuit,
         "source-circuit",
         "mirror-circuit",
         TransitionState::Linked,
@@ -1581,7 +1628,7 @@ fn local_transition_fixture() -> Result<(ProjectDoc, MembershipContext), String>
     source_matrix.columns = 4;
     source_matrix.pitch = Vec2 { x: 10.0, y: 20.0 };
     source_matrix.cells = matrix_cells();
-    crate::matrix::set_matrix(&mut document, &source_matrix)?;
+    boardstudio_core_kernel::matrix::set_matrix(&mut document, &source_matrix)?;
 
     let mut mirror_matrix = document
         .matrices
@@ -1602,13 +1649,13 @@ fn local_transition_fixture() -> Result<(ProjectDoc, MembershipContext), String>
         .find(|record| record.kind == MirroredItemKind::Matrix)
         .unwrap()
         .clone();
-    mirror_matrix = super::super::project_matrix(
+    mirror_matrix = boardstudio_core_mirrored_half::mirrored_half::reconcile::project_matrix(
         &source_matrix,
         &mirror_matrix,
         &matrix_correspondence,
         document.hardware.as_ref().unwrap().pairs[0].mapping,
     )?;
-    crate::matrix::set_matrix(&mut document, &mirror_matrix)?;
+    boardstudio_core_kernel::matrix::set_matrix(&mut document, &mirror_matrix)?;
 
     let halves = document.hardware.as_mut().unwrap().pairs[0]
         .halves
@@ -1643,7 +1690,7 @@ fn local_transition_fixture() -> Result<(ProjectDoc, MembershipContext), String>
             });
         }
     }
-    crate::mechanical::halves::validate_document(&document)?;
+    boardstudio_core_mechanical::mechanical::halves::validate_document(&document)?;
 
     let pair = document.hardware.as_ref().unwrap().pairs[0].clone();
     let halves = pair.halves.as_ref().unwrap();
@@ -1687,10 +1734,12 @@ fn local_transition_fixture() -> Result<(ProjectDoc, MembershipContext), String>
             pair_id: pair.id.clone(),
             source_board_id: halves.source_board_id.clone(),
             mirror_board_id: halves.mirror_board_id.clone(),
-            matrix_pair: Some(super::super::MatrixPairContext {
-                source_id: "source-matrix".into(),
-                mirror_id: "mirror-matrix".into(),
-            }),
+            matrix_pair: Some(
+                boardstudio_core_mirrored_half::mirrored_half::reconcile::MatrixPairContext {
+                    source_id: "source-matrix".into(),
+                    mirror_id: "mirror-matrix".into(),
+                },
+            ),
             mapping: pair.mapping,
             pair_right: halves.clone(),
             associations,
@@ -1708,7 +1757,7 @@ fn parent_kernel_commits_local_source_edit_and_rejoin_through_real_lifecycle_con
         local_transition_fixture().expect("the linked matrix fixture is valid");
     let source_id = "matrix/source-matrix/r1c1";
     let mirror_id = "matrix/mirror-matrix/r1c1";
-    let local_context = super::transition_exception_context(
+    let local_context = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
         &linked_context,
         MirroredItemKind::Part,
         source_id,
@@ -1808,7 +1857,7 @@ fn parent_kernel_commits_local_source_edit_and_rejoin_through_real_lifecycle_con
         .find(|cell| cell.row == 1 && cell.column == 1)
         .unwrap()
         .offset = Some(Vec2 { x: 13.0, y: -6.0 });
-    crate::matrix::set_matrix(&mut post_source, &expanded)
+    boardstudio_core_kernel::matrix::set_matrix(&mut post_source, &expanded)
         .expect("the planned source additions materialize");
 
     let output = commit_matrix_step(&before, &post_source, &context)
@@ -1857,7 +1906,7 @@ fn parent_kernel_commits_local_source_edit_and_rejoin_through_real_lifecycle_con
         &output.context.pair_right
     );
 
-    let rejoined_context = super::transition_exception_context(
+    let rejoined_context = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
         &output.context,
         MirroredItemKind::Part,
         source_id,
@@ -1874,8 +1923,11 @@ fn parent_kernel_commits_local_source_edit_and_rejoin_through_real_lifecycle_con
         .find(|part| part.id == source_id)
         .unwrap();
     let expected_pose = Pose2 {
-        at: crate::mechanical::pair::forward(rejoined_context.mapping, current_source.pose.at),
-        rotation: crate::mechanical::pair::forward_angle(
+        at: boardstudio_core_mechanical::mechanical::pair::forward(
+            rejoined_context.mapping,
+            current_source.pose.at,
+        ),
+        rotation: boardstudio_core_mechanical::mechanical::pair::forward_angle(
             rejoined_context.mapping,
             current_source.pose.rotation,
         ),
@@ -1913,7 +1965,10 @@ fn commit_matrix_step(
     before: &ProjectDoc,
     post_source: &ProjectDoc,
     context: &MembershipContext,
-) -> Result<super::super::MembershipTransitionOutput, String> {
+) -> Result<
+    boardstudio_core_mirrored_half::mirrored_half::reconcile::MembershipTransitionOutput,
+    String,
+> {
     let source = before
         .matrices
         .iter()
@@ -2006,7 +2061,7 @@ fn commit_matrix_step(
         }
     }
     prepare_membership_transition(MembershipTransitionInput {
-        dispatch: crate::mirrored_half::test_dispatch(),
+        dispatch: crate::support::test_dispatch(),
         valid_before: before,
         post_source,
         context,
@@ -2019,11 +2074,13 @@ fn commit_matrix_step(
     })
 }
 
-fn assert_committed_repeat(output: &super::super::MembershipTransitionOutput) {
+fn assert_committed_repeat(
+    output: &boardstudio_core_mirrored_half::mirrored_half::reconcile::MembershipTransitionOutput,
+) {
     let decoded: ProjectDoc =
         serde_json::from_slice(&serde_json::to_vec(&output.draft).unwrap()).unwrap();
     assert_eq!(decoded, output.draft);
-    crate::mechanical::halves::validate_document(&decoded).unwrap();
+    boardstudio_core_mechanical::mechanical::halves::validate_document(&decoded).unwrap();
     assert_eq!(
         decoded.hardware.as_ref().unwrap().pairs[0].halves.as_ref(),
         Some(&output.context.pair_right)
@@ -2042,7 +2099,7 @@ fn matrix_key_omit_source_expansion_and_rejoin_commit_complete_documents() {
     let source_id = "matrix/source-matrix/r1c1";
     let mirror_id = "matrix/mirror-matrix/r1c1";
     let child_id = format!("{mirror_id}/diode");
-    let omitted_context = super::transition_exception_context(
+    let omitted_context = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
         &context,
         MirroredItemKind::Part,
         source_id,
@@ -2095,7 +2152,7 @@ fn matrix_key_omit_source_expansion_and_rejoin_commit_complete_documents() {
         .find(|c| c.row == 1 && c.column == 1)
         .unwrap()
         .offset = Some(Vec2 { x: 13.0, y: -6.0 });
-    crate::matrix::set_matrix(&mut post, &source).unwrap();
+    boardstudio_core_kernel::matrix::set_matrix(&mut post, &source).unwrap();
     post.parts
         .iter_mut()
         .find(|p| p.id == source_id)
@@ -2114,7 +2171,7 @@ fn matrix_key_omit_source_expansion_and_rejoin_commit_complete_documents() {
             .iter()
             .all(|p| p.id != mirror_id && p.id != child_id)
     );
-    let rejoin_context = super::transition_exception_context(
+    let rejoin_context = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
         &expanded.context,
         MirroredItemKind::Part,
         source_id,
@@ -2137,12 +2194,16 @@ fn matrix_key_omit_source_expansion_and_rejoin_commit_complete_documents() {
         .iter()
         .find(|p| p.id == mirror_id)
         .unwrap();
-    let expected_at = crate::mechanical::pair::forward(context.mapping, source.pose.at);
+    let expected_at =
+        boardstudio_core_mechanical::mechanical::pair::forward(context.mapping, source.pose.at);
     assert!((target.pose.at.x - expected_at.x).abs() < 1e-10);
     assert!((target.pose.at.y - expected_at.y).abs() < 1e-10);
     assert!(
         (target.pose.rotation
-            - crate::mechanical::pair::forward_angle(context.mapping, source.pose.rotation))
+            - boardstudio_core_mechanical::mechanical::pair::forward_angle(
+                context.mapping,
+                source.pose.rotation
+            ))
         .abs()
             < 1e-10
     );
@@ -2178,19 +2239,20 @@ fn independent_lifecycle_fixture() -> (ProjectDoc, MembershipContext) {
                 .owners
                 .insert(id, FinalOwner::Board(board_id.into()));
         }
-        let association = super::super::TransitionAssociation {
-            kind: MirroredItemKind::Part,
-            source_id: format!("source-{name}"),
-            mirror_id: format!("mirror-{name}"),
-            parent_source_id: None,
-            parent_mirror_id: None,
-            state: TransitionState::Linked,
-            explicit_state: false,
-            raw_mode_override: None,
-            raw_tweak: None,
-            effective_mode: context.pair_right.companion_mode,
-            effective_tweak: None,
-        };
+        let association =
+            boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionAssociation {
+                kind: MirroredItemKind::Part,
+                source_id: format!("source-{name}"),
+                mirror_id: format!("mirror-{name}"),
+                parent_source_id: None,
+                parent_mirror_id: None,
+                state: TransitionState::Linked,
+                explicit_state: false,
+                raw_mode_override: None,
+                raw_tweak: None,
+                effective_mode: context.pair_right.companion_mode,
+                effective_tweak: None,
+            };
         context
             .pair_right
             .correspondences
@@ -2204,7 +2266,7 @@ fn independent_lifecycle_fixture() -> (ProjectDoc, MembershipContext) {
         context.associations.push(association);
     }
     document.hardware.as_mut().unwrap().pairs[0].halves = Some(context.pair_right.clone());
-    crate::mechanical::halves::validate_document(&document).unwrap();
+    boardstudio_core_mechanical::mechanical::halves::validate_document(&document).unwrap();
     (document, context)
 }
 
@@ -2229,7 +2291,7 @@ fn independent_screen_local_omit_and_rejoin_commit_current_source() {
         "mirror-layout",
         None,
     );
-    let local_context = super::transition_exception_context(
+    let local_context = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
         &context,
         MirroredItemKind::Part,
         "source-screen",
@@ -2237,11 +2299,11 @@ fn independent_screen_local_omit_and_rejoin_commit_current_source() {
         TransitionState::Local,
     )
     .unwrap();
-    let local = super::prepare_lifecycle_transition(
+    let local = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         &before,
         &before,
         &local_context,
-        crate::mirrored_half::test_dispatch(),
+        crate::support::test_dispatch(),
     )
     .expect("an independent screen can become Local without leaving the pair");
     let local_part = local
@@ -2257,11 +2319,11 @@ fn independent_screen_local_omit_and_rejoin_commit_current_source() {
         source.pose.at.x += 17.0;
         source.properties = Some(BTreeMap::from([("revision".into(), json!(2))]));
     }
-    let edited = super::prepare_lifecycle_transition(
+    let edited = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         &local.draft,
         &post,
         &local.context,
-        crate::mirrored_half::test_dispatch(),
+        crate::support::test_dispatch(),
     )
     .unwrap();
     assert_eq!(
@@ -2282,7 +2344,7 @@ fn independent_screen_local_omit_and_rejoin_commit_current_source() {
             .unwrap()
             .properties
     );
-    let omitted_context = super::transition_exception_context(
+    let omitted_context = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
         &edited.context,
         MirroredItemKind::Part,
         "source-screen",
@@ -2290,11 +2352,11 @@ fn independent_screen_local_omit_and_rejoin_commit_current_source() {
         TransitionState::Omitted,
     )
     .unwrap();
-    let omitted = super::prepare_lifecycle_transition(
+    let omitted = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         &edited.draft,
         &edited.draft,
         &omitted_context,
-        crate::mirrored_half::test_dispatch(),
+        crate::support::test_dispatch(),
     )
     .unwrap();
     assert!(omitted.draft.parts.iter().all(|p| p.id != "mirror-screen"));
@@ -2307,18 +2369,18 @@ fn independent_screen_local_omit_and_rejoin_commit_current_source() {
     );
     let decoded: ProjectDoc =
         serde_json::from_slice(&serde_json::to_vec(&omitted.draft).unwrap()).unwrap();
-    crate::mechanical::halves::validate_document(&decoded).unwrap();
-    let repeated = super::prepare_lifecycle_transition(
+    boardstudio_core_mechanical::mechanical::halves::validate_document(&decoded).unwrap();
+    let repeated = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         &decoded,
         &decoded,
         &omitted.context,
-        crate::mirrored_half::test_dispatch(),
+        crate::support::test_dispatch(),
     )
     .unwrap();
     assert_eq!(repeated.draft, decoded);
     assert_eq!(repeated.context, omitted.context);
     assert!(repeated.changed_document_ids.is_empty());
-    let rejoin_context = super::transition_exception_context(
+    let rejoin_context = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
         &repeated.context,
         MirroredItemKind::Part,
         "source-screen",
@@ -2326,11 +2388,11 @@ fn independent_screen_local_omit_and_rejoin_commit_current_source() {
         TransitionState::Linked,
     )
     .unwrap();
-    let rejoined = super::prepare_lifecycle_transition(
+    let rejoined = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         &repeated.draft,
         &repeated.draft,
         &rejoin_context,
-        crate::mirrored_half::test_dispatch(),
+        crate::support::test_dispatch(),
     )
     .unwrap();
     let source = rejoined
@@ -2346,27 +2408,27 @@ fn independent_screen_local_omit_and_rejoin_commit_current_source() {
         .find(|p| p.id == "mirror-screen")
         .unwrap();
     assert_eq!(target.properties, source.properties);
-    let expected = crate::mirrored_half::derive::part(
+    let expected = boardstudio_core_mirrored_half::mirrored_half::derive::part(
         source,
         &target.id,
         &target.definition_id,
         &target.reference,
         context.mapping,
-        crate::mirrored_half::derive::is_controller(
+        boardstudio_core_mirrored_half::mirrored_half::derive::is_controller(
             &rejoined.draft.definitions,
             &source.definition_id,
         ),
     );
     assert_eq!(target, &expected);
     assert!(rejoined.context.pair_right.exceptions.is_empty());
-    crate::mechanical::halves::validate_document(&rejoined.draft).unwrap();
+    boardstudio_core_mechanical::mechanical::halves::validate_document(&rejoined.draft).unwrap();
 
     // The same matrixless part lifecycle is reachable straight through the private intent route.
     let (mut matrixless, _) = independent_lifecycle_fixture();
     remove_matrix_correspondence(&mut matrixless);
-    crate::mechanical::halves::validate_document(&matrixless).unwrap();
+    boardstudio_core_mechanical::mechanical::halves::validate_document(&matrixless).unwrap();
     let pair_id = matrixless.hardware.as_ref().unwrap().pairs[0].id.clone();
-    let mut prepared = super::prepare_exception_intent(
+    let mut prepared = prepare_exception_intent(
         &matrixless,
         &matrixless,
         &pair_id,
@@ -2397,7 +2459,7 @@ fn independent_source_deletion_retires_only_exact_records_and_keeps_local_geomet
         TransitionState::Omitted,
     ] {
         let (before, context) = independent_lifecycle_fixture();
-        let prepared = super::transition_exception_context(
+        let prepared = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
             &context,
             MirroredItemKind::Part,
             "source-screen",
@@ -2405,11 +2467,11 @@ fn independent_source_deletion_retires_only_exact_records_and_keeps_local_geomet
             state,
         )
         .unwrap();
-        let committed = super::prepare_lifecycle_transition(
+        let committed = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
             &before,
             &before,
             &prepared,
-            crate::mirrored_half::test_dispatch(),
+            crate::support::test_dispatch(),
         )
         .unwrap();
         let local_part = committed
@@ -2427,15 +2489,15 @@ fn independent_source_deletion_retires_only_exact_records_and_keeps_local_geomet
             .cloned()
             .collect();
         let mut post = committed.draft.clone();
-        crate::matrix::deletion::remove_parts_by_id(
+        boardstudio_core_kernel::matrix::deletion::remove_parts_by_id(
             &mut post,
             &BTreeSet::from(["source-screen".into()]),
         );
-        let removed = super::prepare_lifecycle_transition(
+        let removed = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
             &committed.draft,
             &post,
             &committed.context,
-            crate::mirrored_half::test_dispatch(),
+            crate::support::test_dispatch(),
         )
         .expect("source deletion retires the exact association in every exception state");
         assert_eq!(removed.context.pair_right.correspondences, unrelated);
@@ -2460,12 +2522,12 @@ fn independent_source_deletion_retires_only_exact_records_and_keeps_local_geomet
                 None
             }
         );
-        crate::mechanical::halves::validate_document(&removed.draft).unwrap();
-        let repeat = super::prepare_lifecycle_transition(
+        boardstudio_core_mechanical::mechanical::halves::validate_document(&removed.draft).unwrap();
+        let repeat = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
             &removed.draft,
             &removed.draft,
             &removed.context,
-            crate::mirrored_half::test_dispatch(),
+            crate::support::test_dispatch(),
         )
         .unwrap();
         assert_eq!(repeat.draft, removed.draft);
@@ -2477,7 +2539,7 @@ fn independent_source_deletion_retires_only_exact_records_and_keeps_local_geomet
 #[test]
 fn lifecycle_refuses_forged_independent_ownership_without_mutating_inputs() {
     let (before, context) = independent_lifecycle_fixture();
-    let mut pending = super::transition_exception_context(
+    let mut pending = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
         &context,
         MirroredItemKind::Part,
         "source-screen",
@@ -2494,11 +2556,11 @@ fn lifecycle_refuses_forged_independent_ownership_without_mutating_inputs() {
     encoder.parent_mirror_id = Some("mirror-screen".into());
     encoder.state = TransitionState::Local;
     let frozen = (before.clone(), pending.clone());
-    let error = super::prepare_lifecycle_transition(
+    let error = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         &before,
         &before,
         &pending,
-        crate::mirrored_half::test_dispatch(),
+        crate::support::test_dispatch(),
     )
     .expect_err("an independent encoder is not owned by a screen");
     assert!(error.contains("ownership"), "{error}");
@@ -2518,7 +2580,7 @@ fn matrix_owner_lifecycle_commits_one_exception_and_preserves_explicit_child() {
     }
     let child_source = "matrix/source-matrix/r0c0";
     let child_mirror = "matrix/mirror-matrix/r0c0";
-    let child_context = super::transition_exception_context(
+    let child_context = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
         &context,
         MirroredItemKind::Part,
         child_source,
@@ -2526,11 +2588,11 @@ fn matrix_owner_lifecycle_commits_one_exception_and_preserves_explicit_child() {
         TransitionState::Local,
     )
     .unwrap();
-    let child = super::prepare_lifecycle_transition(
+    let child = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         &before,
         &before,
         &child_context,
-        crate::mirrored_half::test_dispatch(),
+        crate::support::test_dispatch(),
     )
     .unwrap();
     let explicit_part = child
@@ -2540,7 +2602,7 @@ fn matrix_owner_lifecycle_commits_one_exception_and_preserves_explicit_child() {
         .find(|p| p.id == child_mirror)
         .unwrap()
         .clone();
-    let owner_context = super::transition_exception_context(
+    let owner_context = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
         &child.context,
         MirroredItemKind::Matrix,
         "source-matrix",
@@ -2548,11 +2610,11 @@ fn matrix_owner_lifecycle_commits_one_exception_and_preserves_explicit_child() {
         TransitionState::Local,
     )
     .unwrap();
-    let local = super::prepare_lifecycle_transition(
+    let local = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         &child.draft,
         &child.draft,
         &owner_context,
-        crate::mirrored_half::test_dispatch(),
+        crate::support::test_dispatch(),
     )
     .expect("a Matrix owner can become Local through the complete transaction");
     let local_matrix = local
@@ -2577,12 +2639,12 @@ fn matrix_owner_lifecycle_commits_one_exception_and_preserves_explicit_child() {
         .unwrap()
         .clone();
     source.origin.x += 12.0;
-    crate::matrix::set_matrix(&mut post, &source).unwrap();
-    let edited = super::prepare_lifecycle_transition(
+    boardstudio_core_kernel::matrix::set_matrix(&mut post, &source).unwrap();
+    let edited = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         &local.draft,
         &post,
         &local.context,
-        crate::mirrored_half::test_dispatch(),
+        crate::support::test_dispatch(),
     )
     .unwrap();
     assert_eq!(
@@ -2603,7 +2665,7 @@ fn matrix_owner_lifecycle_commits_one_exception_and_preserves_explicit_child() {
             .collect::<Vec<_>>(),
         local_parts
     );
-    let omitted_context = super::transition_exception_context(
+    let omitted_context = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
         &edited.context,
         MirroredItemKind::Matrix,
         "source-matrix",
@@ -2611,11 +2673,11 @@ fn matrix_owner_lifecycle_commits_one_exception_and_preserves_explicit_child() {
         TransitionState::Omitted,
     )
     .unwrap();
-    let omitted = super::prepare_lifecycle_transition(
+    let omitted = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         &edited.draft,
         &edited.draft,
         &omitted_context,
-        crate::mirrored_half::test_dispatch(),
+        crate::support::test_dispatch(),
     )
     .unwrap();
     assert!(
@@ -2632,17 +2694,17 @@ fn matrix_owner_lifecycle_commits_one_exception_and_preserves_explicit_child() {
     assert_eq!(omitted.context.pair_right.exceptions.len(), 2);
     let decoded: ProjectDoc =
         serde_json::from_slice(&serde_json::to_vec(&omitted.draft).unwrap()).unwrap();
-    crate::mechanical::halves::validate_document(&decoded).unwrap();
-    let repeat = super::prepare_lifecycle_transition(
+    boardstudio_core_mechanical::mechanical::halves::validate_document(&decoded).unwrap();
+    let repeat = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         &decoded,
         &decoded,
         &omitted.context,
-        crate::mirrored_half::test_dispatch(),
+        crate::support::test_dispatch(),
     )
     .unwrap();
     assert_eq!(repeat.draft, decoded);
     assert_eq!(repeat.context, omitted.context);
-    let rejoin_context = super::transition_exception_context(
+    let rejoin_context = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
         &repeat.context,
         MirroredItemKind::Matrix,
         "source-matrix",
@@ -2650,11 +2712,11 @@ fn matrix_owner_lifecycle_commits_one_exception_and_preserves_explicit_child() {
         TransitionState::Linked,
     )
     .unwrap();
-    let rejoined = super::prepare_lifecycle_transition(
+    let rejoined = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         &repeat.draft,
         &repeat.draft,
         &rejoin_context,
-        crate::mirrored_half::test_dispatch(),
+        crate::support::test_dispatch(),
     )
     .unwrap();
     assert_eq!(
@@ -2667,12 +2729,12 @@ fn matrix_owner_lifecycle_commits_one_exception_and_preserves_explicit_child() {
         child_mirror
     );
     assert!(rejoined.draft.parts.iter().any(|p| p.id == "mirror-screen"));
-    crate::mechanical::halves::validate_document(&rejoined.draft).unwrap();
-    let repeat = super::prepare_lifecycle_transition(
+    boardstudio_core_mechanical::mechanical::halves::validate_document(&rejoined.draft).unwrap();
+    let repeat = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         &rejoined.draft,
         &rejoined.draft,
         &rejoined.context,
-        crate::mirrored_half::test_dispatch(),
+        crate::support::test_dispatch(),
     )
     .unwrap();
     assert_eq!(repeat.draft, rejoined.draft);
@@ -2866,7 +2928,7 @@ fn circuit_lifecycle_fixture() -> (ProjectDoc, MembershipContext) {
         "mirror-module",
         None,
     );
-    crate::mechanical::halves::validate_document(&document).unwrap();
+    boardstudio_core_mechanical::mechanical::halves::validate_document(&document).unwrap();
     (document, context)
 }
 
@@ -2887,7 +2949,7 @@ fn matrixless_exception_refuses_stale_ambiguous_and_late_invalid_inputs_atomical
     remove_matrix_correspondence(&mut before);
     let baseline = before.clone();
 
-    let stale = super::prepare_exception_intent(
+    let stale = prepare_exception_intent(
         &before,
         &before,
         &pair_id,
@@ -2900,7 +2962,7 @@ fn matrixless_exception_refuses_stale_ambiguous_and_late_invalid_inputs_atomical
     assert!(stale.contains("exact private association"), "{stale}");
     assert_eq!(before, baseline);
 
-    let matrix_owned = super::prepare_exception_intent(
+    let matrix_owned = prepare_exception_intent(
         &before,
         &before,
         &pair_id,
@@ -2917,7 +2979,7 @@ fn matrixless_exception_refuses_stale_ambiguous_and_late_invalid_inputs_atomical
     let duplicate = ambiguous.hardware.as_ref().unwrap().pairs[0].clone();
     ambiguous.hardware.as_mut().unwrap().pairs.push(duplicate);
     let ambiguous_snapshot = ambiguous.clone();
-    let error = super::prepare_exception_intent(
+    let error = prepare_exception_intent(
         &ambiguous,
         &ambiguous,
         &pair_id,
@@ -2943,7 +3005,7 @@ fn matrixless_exception_refuses_stale_ambiguous_and_late_invalid_inputs_atomical
         .unwrap()
         .host_connector_part_id = "missing-source-connector".into();
     let post_snapshot = late_invalid.clone();
-    let error = super::prepare_exception_intent(
+    let error = prepare_exception_intent(
         &late_baseline,
         &late_invalid,
         &pair_id,
@@ -2961,7 +3023,7 @@ fn matrixless_exception_refuses_stale_ambiguous_and_late_invalid_inputs_atomical
 #[test]
 fn circuit_owner_lifecycle_preserves_explicit_child_connector_layout_and_joined_net() {
     let (before, context) = circuit_lifecycle_fixture();
-    let child_context = super::transition_exception_context(
+    let child_context = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
         &context,
         MirroredItemKind::Part,
         "embedded/source-circuit/U2",
@@ -2969,11 +3031,11 @@ fn circuit_owner_lifecycle_preserves_explicit_child_connector_layout_and_joined_
         TransitionState::Local,
     )
     .unwrap();
-    let child = super::prepare_lifecycle_transition(
+    let child = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         &before,
         &before,
         &child_context,
-        crate::mirrored_half::test_dispatch(),
+        crate::support::test_dispatch(),
     )
     .unwrap();
     let retained = child
@@ -2998,7 +3060,7 @@ fn circuit_owner_lifecycle_preserves_explicit_child_connector_layout_and_joined_
         .find(|p| p.id == "embedded/mirror-circuit/U1")
         .unwrap()
         .clone();
-    let owner_context = super::transition_exception_context(
+    let owner_context = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
         &child.context,
         MirroredItemKind::EmbeddedCircuit,
         "source-circuit",
@@ -3006,11 +3068,11 @@ fn circuit_owner_lifecycle_preserves_explicit_child_connector_layout_and_joined_
         TransitionState::Local,
     )
     .unwrap();
-    let local = super::prepare_lifecycle_transition(
+    let local = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         &child.draft,
         &child.draft,
         &owner_context,
-        crate::mirrored_half::test_dispatch(),
+        crate::support::test_dispatch(),
     )
     .unwrap();
     let mut post = local.draft.clone();
@@ -3021,18 +3083,18 @@ fn circuit_owner_lifecycle_preserves_explicit_child_connector_layout_and_joined_
         .unwrap();
     source.pose.at.x += 19.0;
     source.properties = Some(BTreeMap::from([("revision".into(), json!(3))]));
-    let edited = super::prepare_lifecycle_transition(
+    let edited = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         &local.draft,
         &post,
         &local.context,
-        crate::mirrored_half::test_dispatch(),
+        crate::support::test_dispatch(),
     )
     .unwrap();
     assert_eq!(
         edited.draft.parts.iter().find(|p| p.id == inherited.id),
         Some(&inherited)
     );
-    let omitted_context = super::transition_exception_context(
+    let omitted_context = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
         &edited.context,
         MirroredItemKind::EmbeddedCircuit,
         "source-circuit",
@@ -3040,11 +3102,11 @@ fn circuit_owner_lifecycle_preserves_explicit_child_connector_layout_and_joined_
         TransitionState::Omitted,
     )
     .unwrap();
-    let omitted = super::prepare_lifecycle_transition(
+    let omitted = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         &edited.draft,
         &edited.draft,
         &omitted_context,
-        crate::mirrored_half::test_dispatch(),
+        crate::support::test_dispatch(),
     )
     .expect("a circuit Omit removes its inherited closure through the existing domain deletion");
     assert!(
@@ -3089,17 +3151,17 @@ fn circuit_owner_lifecycle_preserves_explicit_child_connector_layout_and_joined_
     assert_eq!(omitted.context.pair_right.exceptions.len(), 2);
     let decoded: ProjectDoc =
         serde_json::from_slice(&serde_json::to_vec(&omitted.draft).unwrap()).unwrap();
-    crate::mechanical::halves::validate_document(&decoded).unwrap();
-    let repeat = super::prepare_lifecycle_transition(
+    boardstudio_core_mechanical::mechanical::halves::validate_document(&decoded).unwrap();
+    let repeat = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         &decoded,
         &decoded,
         &omitted.context,
-        crate::mirrored_half::test_dispatch(),
+        crate::support::test_dispatch(),
     )
     .unwrap();
     assert_eq!(repeat.draft, decoded);
     assert_eq!(repeat.context, omitted.context);
-    let rejoin_context = super::transition_exception_context(
+    let rejoin_context = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
         &repeat.context,
         MirroredItemKind::EmbeddedCircuit,
         "source-circuit",
@@ -3107,11 +3169,11 @@ fn circuit_owner_lifecycle_preserves_explicit_child_connector_layout_and_joined_
         TransitionState::Linked,
     )
     .unwrap();
-    let rejoined = super::prepare_lifecycle_transition(
+    let rejoined = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         &repeat.draft,
         &repeat.draft,
         &rejoin_context,
-        crate::mirrored_half::test_dispatch(),
+        crate::support::test_dispatch(),
     )
     .unwrap();
     assert_eq!(
@@ -3142,12 +3204,12 @@ fn circuit_owner_lifecycle_preserves_explicit_child_connector_layout_and_joined_
             .iter()
             .any(|c| c.id == "mirror-circuit")
     );
-    crate::mechanical::halves::validate_document(&rejoined.draft).unwrap();
-    let repeat = super::prepare_lifecycle_transition(
+    boardstudio_core_mechanical::mechanical::halves::validate_document(&rejoined.draft).unwrap();
+    let repeat = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         &rejoined.draft,
         &rejoined.draft,
         &rejoined.context,
-        crate::mirrored_half::test_dispatch(),
+        crate::support::test_dispatch(),
     )
     .unwrap();
     assert_eq!(repeat.draft, rejoined.draft);
@@ -3157,9 +3219,9 @@ fn circuit_owner_lifecycle_preserves_explicit_child_connector_layout_and_joined_
     // The same circuit lifecycle holds with no Matrix correspondences (ticket 150).
     let (mut matrixless, _) = circuit_lifecycle_fixture();
     remove_matrix_correspondence(&mut matrixless);
-    crate::mechanical::halves::validate_document(&matrixless).unwrap();
+    boardstudio_core_mechanical::mechanical::halves::validate_document(&matrixless).unwrap();
     let pair_id = matrixless.hardware.as_ref().unwrap().pairs[0].id.clone();
-    let child = super::prepare_exception_intent(
+    let child = prepare_exception_intent(
         &matrixless,
         &matrixless,
         &pair_id,
@@ -3178,7 +3240,7 @@ fn circuit_owner_lifecycle_preserves_explicit_child_connector_layout_and_joined_
         .find(|p| p.id == "embedded/mirror-circuit/U2")
         .unwrap()
         .clone();
-    let owner = super::prepare_exception_intent(
+    let owner = prepare_exception_intent(
         &child.draft,
         &child.draft,
         &pair_id,
@@ -3190,7 +3252,7 @@ fn circuit_owner_lifecycle_preserves_explicit_child_connector_layout_and_joined_
     .unwrap()
     .pop()
     .unwrap();
-    let rejoined = super::prepare_exception_intent(
+    let rejoined = prepare_exception_intent(
         &owner.draft,
         &owner.draft,
         &pair_id,
@@ -3212,7 +3274,7 @@ fn circuit_owner_lifecycle_preserves_explicit_child_connector_layout_and_joined_
         "matrixless Rejoin keeps the explicit child's Local geometry"
     );
     assert_eq!(rejoined.context.pair_right.exceptions.len(), 1);
-    crate::mechanical::halves::validate_document(&rejoined.draft).unwrap();
+    boardstudio_core_mechanical::mechanical::halves::validate_document(&rejoined.draft).unwrap();
 }
 
 fn named_companion_fixture(component: &str) -> (ProjectDoc, MembershipContext) {
@@ -3295,7 +3357,7 @@ fn explicit_companion_lifecycle_keeps_mode_tweak_and_omission_through_owner_rejo
         record.companion_mode = association.raw_mode_override;
         record.companion_tweak = association.raw_tweak;
         before.hardware.as_mut().unwrap().pairs[0].halves = Some(context.pair_right.clone());
-        let local_context = super::transition_exception_context(
+        let local_context = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
             &context,
             MirroredItemKind::Part,
             source_id,
@@ -3303,11 +3365,11 @@ fn explicit_companion_lifecycle_keeps_mode_tweak_and_omission_through_owner_rejo
             TransitionState::Local,
         )
         .unwrap();
-        let local = super::prepare_lifecycle_transition(
+        let local = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
             &before,
             &before,
             &local_context,
-            crate::mirrored_half::test_dispatch(),
+            crate::support::test_dispatch(),
         )
         .expect("a companion is selectively Local through the complete transaction");
         let retained = local
@@ -3332,19 +3394,19 @@ fn explicit_companion_lifecycle_keeps_mode_tweak_and_omission_through_owner_rejo
             .assemblies[0]
             .offset
             .x += 5.0;
-        crate::matrix::set_matrix(&mut post, &source).unwrap();
-        let edited = super::prepare_lifecycle_transition(
+        boardstudio_core_kernel::matrix::set_matrix(&mut post, &source).unwrap();
+        let edited = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
             &local.draft,
             &post,
             &local.context,
-            crate::mirrored_half::test_dispatch(),
+            crate::support::test_dispatch(),
         )
         .unwrap();
         assert_eq!(
             edited.draft.parts.iter().find(|p| p.id == mirror_id),
             Some(&retained)
         );
-        let omitted_context = super::transition_exception_context(
+        let omitted_context = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
             &edited.context,
             MirroredItemKind::Part,
             source_id,
@@ -3352,11 +3414,11 @@ fn explicit_companion_lifecycle_keeps_mode_tweak_and_omission_through_owner_rejo
             TransitionState::Omitted,
         )
         .unwrap();
-        let omitted = super::prepare_lifecycle_transition(
+        let omitted = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
             &edited.draft,
             &edited.draft,
             &omitted_context,
-            crate::mirrored_half::test_dispatch(),
+            crate::support::test_dispatch(),
         )
         .unwrap();
         assert!(omitted.draft.parts.iter().all(|p| p.id != mirror_id));
@@ -3376,15 +3438,15 @@ fn explicit_companion_lifecycle_keeps_mode_tweak_and_omission_through_owner_rejo
             Some(MirroredCompanionMode::LiteralMirrorWithTweak)
         );
         assert_eq!(correspondence.companion_tweak, Some(tweak));
-        let repeat = super::prepare_lifecycle_transition(
+        let repeat = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
             &omitted.draft,
             &omitted.draft,
             &omitted.context,
-            crate::mirrored_half::test_dispatch(),
+            crate::support::test_dispatch(),
         )
         .unwrap();
         assert_eq!(repeat.draft, omitted.draft);
-        let parent_context = super::transition_exception_context(
+        let parent_context = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
             &repeat.context,
             MirroredItemKind::Part,
             "matrix/source-matrix/r0c1",
@@ -3392,14 +3454,14 @@ fn explicit_companion_lifecycle_keeps_mode_tweak_and_omission_through_owner_rejo
             TransitionState::Local,
         )
         .unwrap();
-        let parent_local = super::prepare_lifecycle_transition(
+        let parent_local = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
             &repeat.draft,
             &repeat.draft,
             &parent_context,
-            crate::mirrored_half::test_dispatch(),
+            crate::support::test_dispatch(),
         )
         .unwrap();
-        let rejoin_parent = super::transition_exception_context(
+        let rejoin_parent = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
             &parent_local.context,
             MirroredItemKind::Part,
             "matrix/source-matrix/r0c1",
@@ -3407,16 +3469,16 @@ fn explicit_companion_lifecycle_keeps_mode_tweak_and_omission_through_owner_rejo
             TransitionState::Linked,
         )
         .unwrap();
-        let parent_linked = super::prepare_lifecycle_transition(
+        let parent_linked = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
             &parent_local.draft,
             &parent_local.draft,
             &rejoin_parent,
-            crate::mirrored_half::test_dispatch(),
+            crate::support::test_dispatch(),
         )
         .unwrap();
         assert!(parent_linked.draft.parts.iter().all(|p| p.id != mirror_id));
         assert_eq!(parent_linked.context.pair_right.exceptions.len(), 1);
-        let rejoin = super::transition_exception_context(
+        let rejoin = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
             &parent_linked.context,
             MirroredItemKind::Part,
             source_id,
@@ -3424,11 +3486,11 @@ fn explicit_companion_lifecycle_keeps_mode_tweak_and_omission_through_owner_rejo
             TransitionState::Linked,
         )
         .unwrap();
-        let rejoined = super::prepare_lifecycle_transition(
+        let rejoined = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
             &parent_linked.draft,
             &parent_linked.draft,
             &rejoin,
-            crate::mirrored_half::test_dispatch(),
+            crate::support::test_dispatch(),
         )
         .unwrap();
         assert!(rejoined.draft.parts.iter().any(|p| p.id == mirror_id));
@@ -3444,11 +3506,11 @@ fn explicit_companion_lifecycle_keeps_mode_tweak_and_omission_through_owner_rejo
             Some(MirroredCompanionMode::LiteralMirrorWithTweak)
         );
         assert_eq!(record.companion_tweak, Some(tweak));
-        let repeat = super::prepare_lifecycle_transition(
+        let repeat = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
             &rejoined.draft,
             &rejoined.draft,
             &rejoined.context,
-            crate::mirrored_half::test_dispatch(),
+            crate::support::test_dispatch(),
         )
         .unwrap();
         assert_eq!(repeat.draft, rejoined.draft);
@@ -3467,7 +3529,7 @@ fn lifecycle_refuses_target_membership_that_disagrees_with_actual_circuit_owners
         .unwrap()
         .part_ids
         .retain(|id| id != "embedded/mirror-circuit/U1");
-    let pending = super::transition_exception_context(
+    let pending = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
         &context,
         MirroredItemKind::EmbeddedCircuit,
         "source-circuit",
@@ -3476,11 +3538,11 @@ fn lifecycle_refuses_target_membership_that_disagrees_with_actual_circuit_owners
     )
     .unwrap();
     let frozen = (before.clone(), pending.clone());
-    let error = super::prepare_lifecycle_transition(
+    let error = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         &before,
         &before,
         &pending,
-        crate::mirrored_half::test_dispatch(),
+        crate::support::test_dispatch(),
     )
     .expect_err("target namespace alone is not actual circuit ownership");
     assert!(error.contains("ownership"), "{error}");
@@ -3495,7 +3557,7 @@ fn omitted_target_on_a_different_board_is_not_absent() {
         .boards
         .push(board("unrelated-board", &["mirror-part"]));
     assert!(
-        crate::mechanical::halves::validate_document(&document).is_err(),
+        boardstudio_core_mechanical::mechanical::halves::validate_document(&document).is_err(),
         "an Omitted target cannot alias live geometry on another board"
     );
 }
@@ -3503,7 +3565,7 @@ fn omitted_target_on_a_different_board_is_not_absent() {
 #[test]
 fn pending_baseline_and_selection_tampering_refuse_atomically() {
     let (before, context) = independent_lifecycle_fixture();
-    let pending = super::transition_exception_context(
+    let pending = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
         &context,
         MirroredItemKind::Part,
         "source-screen",
@@ -3544,11 +3606,11 @@ fn pending_baseline_and_selection_tampering_refuse_atomically() {
         }
         let frozen = (before.clone(), tampered.clone());
         assert!(
-            super::prepare_lifecycle_transition(
+            boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
                 &before,
                 &before,
                 &tampered,
-                crate::mirrored_half::test_dispatch()
+                crate::support::test_dispatch()
             )
             .is_err(),
             "case {case}"
@@ -3590,11 +3652,11 @@ fn legacy_v5_local_parts_are_preserved_without_inventing_source_associations() {
     });
     document.hardware.as_mut().unwrap().pairs[0].halves = Some(context.pair_right.clone());
     assert_eq!(document.format_version, 5);
-    let output = super::prepare_lifecycle_transition(
+    let output = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         &document,
         &document,
         &context,
-        crate::mirrored_half::test_dispatch(),
+        crate::support::test_dispatch(),
     )
     .unwrap();
     let decoded: ProjectDoc =
@@ -3615,7 +3677,7 @@ fn legacy_v5_local_parts_are_preserved_without_inventing_source_associations() {
     );
     let frozen = output.context.clone();
     assert!(
-        super::transition_exception_context(
+        boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
             &output.context,
             MirroredItemKind::Part,
             "source-screen",
@@ -3650,13 +3712,13 @@ fn owner_source_deletion_preserves_local_objects_and_retires_only_removed_source
                 ("source-circuit", "mirror-circuit")
             };
             let pending =
-                super::transition_exception_context(&context, kind, source_id, mirror_id, state)
+                boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(&context, kind, source_id, mirror_id, state)
                     .unwrap();
-            let committed = super::prepare_lifecycle_transition(
+            let committed = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
                 &before,
                 &before,
                 &pending,
-                crate::mirrored_half::test_dispatch(),
+                crate::support::test_dispatch(),
             )
             .unwrap();
             let retained_parts: Vec<_> = if state == TransitionState::Local {
@@ -3697,7 +3759,7 @@ fn owner_source_deletion_preserves_local_objects_and_retires_only_removed_source
                 .collect();
             let mut post = committed.draft.clone();
             if kind == MirroredItemKind::Matrix {
-                crate::mirrored_half::apply_for_test(
+                crate::support::apply_for_test(
                     &mut post,
                     &[],
                     &EditOperation::RemoveMatrix {
@@ -3706,13 +3768,13 @@ fn owner_source_deletion_preserves_local_objects_and_retires_only_removed_source
                 )
                 .unwrap();
             } else {
-                crate::modules::remove_circuit(&mut post, source_id).unwrap();
+                boardstudio_core_mechanical::modules::remove_circuit(&mut post, source_id).unwrap();
             }
-            let removed = super::prepare_lifecycle_transition(
+            let removed = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
                 &committed.draft,
                 &post,
                 &committed.context,
-                crate::mirrored_half::test_dispatch(),
+                crate::support::test_dispatch(),
             )
             .unwrap_or_else(|error| panic!("{kind:?} {state:?}: {error}"));
             assert_eq!(
@@ -3744,12 +3806,13 @@ fn owner_source_deletion_preserves_local_objects_and_retires_only_removed_source
                     .any(|m| m.id == "mirror-module")
             );
             assert!(removed.draft.nets.iter().any(|n| n.id == "mirror-host-net"));
-            crate::mechanical::halves::validate_document(&removed.draft).unwrap();
-            let repeated = super::prepare_lifecycle_transition(
+            boardstudio_core_mechanical::mechanical::halves::validate_document(&removed.draft)
+                .unwrap();
+            let repeated = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
                 &removed.draft,
                 &removed.draft,
                 &removed.context,
-                crate::mirrored_half::test_dispatch(),
+                crate::support::test_dispatch(),
             )
             .unwrap();
             assert_eq!(repeated.draft, removed.draft);
@@ -3762,11 +3825,11 @@ fn owner_source_deletion_preserves_local_objects_and_retires_only_removed_source
                 .find(|p| p.id == "source-encoder")
                 .unwrap()
                 .properties = Some(BTreeMap::from([("revision".into(), json!(92))]));
-            let edited = super::prepare_lifecycle_transition(
+            let edited = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
                 &repeated.draft,
                 &edited_source,
                 &repeated.context,
-                crate::mirrored_half::test_dispatch(),
+                crate::support::test_dispatch(),
             )
             .unwrap();
             assert_eq!(
@@ -3799,7 +3862,7 @@ fn matrix_owner_rejoin_projects_members_added_while_local() {
         a.parent_source_id = Some("source-matrix".into());
         a.parent_mirror_id = Some("mirror-matrix".into());
     }
-    let pending = super::transition_exception_context(
+    let pending = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
         &context,
         MirroredItemKind::Matrix,
         "source-matrix",
@@ -3807,11 +3870,11 @@ fn matrix_owner_rejoin_projects_members_added_while_local() {
         TransitionState::Local,
     )
     .unwrap();
-    let local = super::prepare_lifecycle_transition(
+    let local = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         &before,
         &before,
         &pending,
-        crate::mirrored_half::test_dispatch(),
+        crate::support::test_dispatch(),
     )
     .unwrap();
     let target = local
@@ -3839,17 +3902,17 @@ fn matrix_owner_rejoin_projects_members_added_while_local() {
         cell.column = 4;
         source.cells.push(cell);
     }
-    crate::matrix::set_matrix(&mut post, &source).unwrap();
+    boardstudio_core_kernel::matrix::set_matrix(&mut post, &source).unwrap();
     post.parts
         .iter_mut()
         .find(|p| p.id == "matrix/source-matrix/r0c4")
         .unwrap()
         .properties = Some(BTreeMap::from([("new-source".into(), json!(true))]));
-    let expanded = super::prepare_lifecycle_transition(
+    let expanded = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         &local.draft,
         &post,
         &local.context,
-        crate::mirrored_half::test_dispatch(),
+        crate::support::test_dispatch(),
     )
     .unwrap();
     assert_eq!(
@@ -3860,7 +3923,7 @@ fn matrix_owner_rejoin_projects_members_added_while_local() {
             .find(|m| m.id == "mirror-matrix"),
         Some(&target)
     );
-    let rejoin = super::transition_exception_context(
+    let rejoin = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
         &expanded.context,
         MirroredItemKind::Matrix,
         "source-matrix",
@@ -3868,11 +3931,11 @@ fn matrix_owner_rejoin_projects_members_added_while_local() {
         TransitionState::Linked,
     )
     .unwrap();
-    let output = super::prepare_lifecycle_transition(
+    let output = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         &expanded.draft,
         &expanded.draft,
         &rejoin,
-        crate::mirrored_half::test_dispatch(),
+        crate::support::test_dispatch(),
     )
     .expect("an explicit owner Rejoin projects the current source, including new owned members");
     for row in 0..2 {
@@ -3907,12 +3970,12 @@ fn matrix_owner_rejoin_projects_members_added_while_local() {
             );
         }
     }
-    crate::mechanical::halves::validate_document(&output.draft).unwrap();
-    let repeat = super::prepare_lifecycle_transition(
+    boardstudio_core_mechanical::mechanical::halves::validate_document(&output.draft).unwrap();
+    let repeat = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         &output.draft,
         &output.draft,
         &output.context,
-        crate::mirrored_half::test_dispatch(),
+        crate::support::test_dispatch(),
     )
     .unwrap();
     assert_eq!(repeat.draft, output.draft);
@@ -3938,7 +4001,7 @@ fn child_exceptions_can_be_selected_while_the_matrix_owner_is_unlinked() {
         }
         let source_id = "matrix/source-matrix/r0c0";
         let mirror_id = "matrix/mirror-matrix/r0c0";
-        let pending = super::transition_exception_context(
+        let pending = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
             &context,
             MirroredItemKind::Matrix,
             "source-matrix",
@@ -3946,11 +4009,11 @@ fn child_exceptions_can_be_selected_while_the_matrix_owner_is_unlinked() {
             owner_state,
         )
         .unwrap();
-        let owner = super::prepare_lifecycle_transition(
+        let owner = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
             &before,
             &before,
             &pending,
-            crate::mirrored_half::test_dispatch(),
+            crate::support::test_dispatch(),
         )
         .unwrap();
         let visible = owner
@@ -3959,7 +4022,7 @@ fn child_exceptions_can_be_selected_while_the_matrix_owner_is_unlinked() {
             .iter()
             .find(|p| p.id == mirror_id)
             .cloned();
-        let selected = super::transition_exception_context(
+        let selected = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
             &owner.context,
             MirroredItemKind::Part,
             source_id,
@@ -3969,11 +4032,11 @@ fn child_exceptions_can_be_selected_while_the_matrix_owner_is_unlinked() {
         .expect(
             "a child selection authenticates its own durable row, separately from inherited state",
         );
-        let child = super::prepare_lifecycle_transition(
+        let child = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
             &owner.draft,
             &owner.draft,
             &selected,
-            crate::mirrored_half::test_dispatch(),
+            crate::support::test_dispatch(),
         )
         .unwrap();
         assert_eq!(child.context.pair_right.exceptions.len(), 2);
@@ -3990,7 +4053,7 @@ fn child_exceptions_can_be_selected_while_the_matrix_owner_is_unlinked() {
                 None
             }
         );
-        let pending = super::transition_exception_context(
+        let pending = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
             &child.context,
             MirroredItemKind::Matrix,
             "source-matrix",
@@ -3998,11 +4061,11 @@ fn child_exceptions_can_be_selected_while_the_matrix_owner_is_unlinked() {
             TransitionState::Linked,
         )
         .unwrap();
-        let rejoined = super::prepare_lifecycle_transition(
+        let rejoined = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
             &child.draft,
             &child.draft,
             &pending,
-            crate::mirrored_half::test_dispatch(),
+            crate::support::test_dispatch(),
         )
         .unwrap();
         assert_eq!(rejoined.context.pair_right.exceptions.len(), 1);
@@ -4023,11 +4086,11 @@ fn child_exceptions_can_be_selected_while_the_matrix_owner_is_unlinked() {
                 None
             }
         );
-        let repeat = super::prepare_lifecycle_transition(
+        let repeat = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
             &rejoined.draft,
             &rejoined.draft,
             &rejoined.context,
-            crate::mirrored_half::test_dispatch(),
+            crate::support::test_dispatch(),
         )
         .unwrap();
         assert_eq!(repeat.draft, rejoined.draft);
@@ -4049,7 +4112,7 @@ fn child_rejoin_clears_only_its_exception_and_inherits_the_current_owner() {
         }
         let source_id = "matrix/source-matrix/r0c0";
         let mirror_id = "matrix/mirror-matrix/r0c0";
-        let pending = super::transition_exception_context(
+        let pending = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
             &context,
             MirroredItemKind::Part,
             source_id,
@@ -4057,11 +4120,11 @@ fn child_rejoin_clears_only_its_exception_and_inherits_the_current_owner() {
             TransitionState::Local,
         )
         .unwrap();
-        let child = super::prepare_lifecycle_transition(
+        let child = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
             &before,
             &before,
             &pending,
-            crate::mirrored_half::test_dispatch(),
+            crate::support::test_dispatch(),
         )
         .unwrap();
         let visible = child
@@ -4071,7 +4134,7 @@ fn child_rejoin_clears_only_its_exception_and_inherits_the_current_owner() {
             .find(|p| p.id == mirror_id)
             .unwrap()
             .clone();
-        let pending = super::transition_exception_context(
+        let pending = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
             &child.context,
             MirroredItemKind::Matrix,
             "source-matrix",
@@ -4079,14 +4142,14 @@ fn child_rejoin_clears_only_its_exception_and_inherits_the_current_owner() {
             owner_state,
         )
         .unwrap();
-        let owner = super::prepare_lifecycle_transition(
+        let owner = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
             &child.draft,
             &child.draft,
             &pending,
-            crate::mirrored_half::test_dispatch(),
+            crate::support::test_dispatch(),
         )
         .unwrap();
-        let pending = super::transition_exception_context(
+        let pending = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
             &owner.context,
             MirroredItemKind::Part,
             source_id,
@@ -4094,11 +4157,11 @@ fn child_rejoin_clears_only_its_exception_and_inherits_the_current_owner() {
             TransitionState::Linked,
         )
         .unwrap();
-        let inherited = super::prepare_lifecycle_transition(
+        let inherited = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
             &owner.draft,
             &owner.draft,
             &pending,
-            crate::mirrored_half::test_dispatch(),
+            crate::support::test_dispatch(),
         )
         .expect("clearing a child exception resumes inheritance even when the owner is unlinked");
         assert_eq!(inherited.context.pair_right.exceptions.len(), 1);
@@ -4122,11 +4185,11 @@ fn child_rejoin_clears_only_its_exception_and_inherits_the_current_owner() {
                 None
             }
         );
-        let repeat = super::prepare_lifecycle_transition(
+        let repeat = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
             &inherited.draft,
             &inherited.draft,
             &inherited.context,
-            crate::mirrored_half::test_dispatch(),
+            crate::support::test_dispatch(),
         )
         .unwrap();
         assert_eq!(repeat.draft, inherited.draft);
@@ -4137,7 +4200,7 @@ fn child_rejoin_clears_only_its_exception_and_inherits_the_current_owner() {
             .find(|p| p.id == source_id)
             .unwrap()
             .properties = Some(BTreeMap::from([("current".into(), json!(true))]));
-        let pending = super::transition_exception_context(
+        let pending = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
             &inherited.context,
             MirroredItemKind::Matrix,
             "source-matrix",
@@ -4145,11 +4208,11 @@ fn child_rejoin_clears_only_its_exception_and_inherits_the_current_owner() {
             TransitionState::Linked,
         )
         .unwrap();
-        let rejoined = super::prepare_lifecycle_transition(
+        let rejoined = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
             &inherited.draft,
             &post,
             &pending,
-            crate::mirrored_half::test_dispatch(),
+            crate::support::test_dispatch(),
         )
         .unwrap();
         assert!(rejoined.context.pair_right.exceptions.is_empty());
@@ -4173,7 +4236,7 @@ fn child_rejoin_clears_only_its_exception_and_inherits_the_current_owner() {
 #[test]
 fn independent_connector_exceptions_preserve_linked_modules_and_clean_only_their_reference() {
     let (before, context) = circuit_lifecycle_fixture();
-    let pending = super::transition_exception_context(
+    let pending = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
         &context,
         MirroredItemKind::Part,
         "source-screen",
@@ -4181,11 +4244,11 @@ fn independent_connector_exceptions_preserve_linked_modules_and_clean_only_their
         TransitionState::Local,
     )
     .unwrap();
-    let local = super::prepare_lifecycle_transition(
+    let local = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         &before,
         &before,
         &pending,
-        crate::mirrored_half::test_dispatch(),
+        crate::support::test_dispatch(),
     )
     .expect("a Local connector remains a valid reference for a linked module");
     let connector = local
@@ -4215,11 +4278,11 @@ fn independent_connector_exceptions_preserve_linked_modules_and_clean_only_their
         .find(|m| m.id == "source-module")
         .unwrap()
         .gap += 1.0;
-    let edited = super::prepare_lifecycle_transition(
+    let edited = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         &local.draft,
         &post,
         &local.context,
-        crate::mirrored_half::test_dispatch(),
+        crate::support::test_dispatch(),
     )
     .unwrap();
     assert_eq!(
@@ -4241,7 +4304,7 @@ fn independent_connector_exceptions_preserve_linked_modules_and_clean_only_their
             .host_connector_part_id,
         "mirror-screen"
     );
-    let pending = super::transition_exception_context(
+    let pending = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
         &edited.context,
         MirroredItemKind::Part,
         "source-screen",
@@ -4249,11 +4312,11 @@ fn independent_connector_exceptions_preserve_linked_modules_and_clean_only_their
         TransitionState::Omitted,
     )
     .unwrap();
-    let omitted = super::prepare_lifecycle_transition(
+    let omitted = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         &edited.draft,
         &edited.draft,
         &pending,
-        crate::mirrored_half::test_dispatch(),
+        crate::support::test_dispatch(),
     )
     .expect("Omit clears the selected connector reference without removing its module");
     let mut expected = edited_module.clone();
@@ -4266,15 +4329,15 @@ fn independent_connector_exceptions_preserve_linked_modules_and_clean_only_their
             .find(|m| m.id == "mirror-module"),
         Some(&expected)
     );
-    let repeat = super::prepare_lifecycle_transition(
+    let repeat = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         &omitted.draft,
         &omitted.draft,
         &omitted.context,
-        crate::mirrored_half::test_dispatch(),
+        crate::support::test_dispatch(),
     )
     .unwrap();
     assert_eq!(repeat.draft, omitted.draft);
-    let pending = super::transition_exception_context(
+    let pending = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
         &omitted.context,
         MirroredItemKind::Part,
         "source-screen",
@@ -4282,11 +4345,11 @@ fn independent_connector_exceptions_preserve_linked_modules_and_clean_only_their
         TransitionState::Linked,
     )
     .unwrap();
-    let rejoined = super::prepare_lifecycle_transition(
+    let rejoined = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         &omitted.draft,
         &omitted.draft,
         &pending,
-        crate::mirrored_half::test_dispatch(),
+        crate::support::test_dispatch(),
     )
     .unwrap();
     assert_eq!(
@@ -4297,7 +4360,7 @@ fn independent_connector_exceptions_preserve_linked_modules_and_clean_only_their
             .find(|m| m.id == "mirror-module"),
         Some(edited_module)
     );
-    crate::mechanical::halves::validate_document(&rejoined.draft).unwrap();
+    boardstudio_core_mechanical::mechanical::halves::validate_document(&rejoined.draft).unwrap();
 }
 
 fn electrical_definition(id: &str, pads: &[(&str, f64, f64)]) -> PartDefinition {
@@ -4320,8 +4383,8 @@ fn pad_world(document: &ProjectDoc, part_id: &str, pad_id: &str) -> Vec2 {
         .unwrap();
     let pad = definition.pads.iter().find(|p| p.id == pad_id).unwrap();
     // Ticket 12: pad world positions evaluate half-frame parts at board.
-    let pose = crate::matrix::layout::evaluated_part_pose(document, part);
-    crate::outline_controls::world(pad.at, &pose, part.side.clone())
+    let pose = boardstudio_core_kernel::matrix::layout::evaluated_part_pose(document, part);
+    boardstudio_core_kernel::outline_controls::world(pad.at, &pose, part.side.clone())
 }
 
 fn mirror_electrical(document: &ProjectDoc) -> &ElectricalBoardConfiguration {
@@ -4413,13 +4476,13 @@ fn electrical_copper_fixture() -> (ProjectDoc, MembershipContext) {
             .iter_mut()
             .find(|p| p.id == format!("mirror-{name}"))
             .unwrap();
-        *target = crate::mirrored_half::derive::part(
+        *target = boardstudio_core_mirrored_half::mirrored_half::derive::part(
             &source,
             &target.id,
             &target.definition_id,
             &target.reference,
             context.mapping,
-            crate::mirrored_half::derive::is_controller(
+            boardstudio_core_mirrored_half::mirrored_half::derive::is_controller(
                 &document.definitions,
                 &source.definition_id,
             ),
@@ -4546,15 +4609,15 @@ fn electrical_copper_fixture() -> (ProjectDoc, MembershipContext) {
         .unwrap();
     (board.traces, board.vias) = copper;
     document.hardware.as_mut().unwrap().pairs[0].halves = Some(context.pair_right.clone());
-    crate::mechanical::halves::validate_document(&document).unwrap();
+    boardstudio_core_mechanical::mechanical::halves::validate_document(&document).unwrap();
     (document, context)
 }
 
 fn omit_screen(
     before: &ProjectDoc,
     context: &MembershipContext,
-) -> super::super::MembershipTransitionOutput {
-    let pending = super::transition_exception_context(
+) -> boardstudio_core_mirrored_half::mirrored_half::reconcile::MembershipTransitionOutput {
+    let pending = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
         context,
         MirroredItemKind::Part,
         "source-screen",
@@ -4562,11 +4625,11 @@ fn omit_screen(
         TransitionState::Omitted,
     )
     .unwrap();
-    super::prepare_lifecycle_transition(
+    boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         before,
         before,
         &pending,
-        crate::mirrored_half::test_dispatch(),
+        crate::support::test_dispatch(),
     )
     .expect("Omit commits")
 }
@@ -4575,8 +4638,8 @@ fn rejoin_screen(
     draft: &ProjectDoc,
     post: &ProjectDoc,
     context: &MembershipContext,
-) -> super::super::MembershipTransitionOutput {
-    let pending = super::transition_exception_context(
+) -> boardstudio_core_mirrored_half::mirrored_half::reconcile::MembershipTransitionOutput {
+    let pending = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
         context,
         MirroredItemKind::Part,
         "source-screen",
@@ -4584,11 +4647,11 @@ fn rejoin_screen(
         TransitionState::Linked,
     )
     .unwrap();
-    super::prepare_lifecycle_transition(
+    boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         draft,
         post,
         &pending,
-        crate::mirrored_half::test_dispatch(),
+        crate::support::test_dispatch(),
     )
     .expect("Rejoin commits")
 }
@@ -4605,7 +4668,7 @@ fn pin_values(config: &ElectricalBoardConfiguration) -> BTreeSet<String> {
 #[test]
 fn local_controller_own_pin_keeps_a_private_net_through_omit_and_reopen() {
     let (before, context) = electrical_copper_fixture();
-    let local_controller = super::transition_exception_context(
+    let local_controller = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
         &context,
         MirroredItemKind::Part,
         "source-mcu",
@@ -4613,11 +4676,11 @@ fn local_controller_own_pin_keeps_a_private_net_through_omit_and_reopen() {
         TransitionState::Local,
     )
     .unwrap();
-    let localized = super::prepare_lifecycle_transition(
+    let localized = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         &before,
         &before,
         &local_controller,
-        crate::mirrored_half::test_dispatch(),
+        crate::support::test_dispatch(),
     )
     .expect("the controller can become Local");
     assert!(localized.context.associations.iter().any(|association| {
@@ -4647,26 +4710,26 @@ fn local_controller_own_pin_keeps_a_private_net_through_omit_and_reopen() {
         .find(|board| board.id == "mirror-board")
         .unwrap();
     assert!(mirror_board.net_ids.contains(&"mirror-sda".into()));
-    crate::mechanical::halves::validate_document(&omitted.draft).unwrap();
+    boardstudio_core_mechanical::mechanical::halves::validate_document(&omitted.draft).unwrap();
 
     let decoded: ProjectDoc =
         serde_json::from_slice(&serde_json::to_vec(&omitted.draft).unwrap()).unwrap();
-    let repeated = super::prepare_lifecycle_transition(
+    let repeated = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         &decoded,
         &decoded,
         &omitted.context,
-        crate::mirrored_half::test_dispatch(),
+        crate::support::test_dispatch(),
     )
     .unwrap();
     assert_eq!(repeated.draft, decoded);
     let mut reopened =
         boardstudio_core_engine::CoreEngine::with_script_runner(boardstudio_script::apply_scripts);
     assert!(matches!(
-        reopened.handle(crate::model::CoreRequest::Open {
+        reopened.handle(boardstudio_model::model::CoreRequest::Open {
             id: "reopen-local-controller-net".into(),
             document: repeated.draft,
         }),
-        crate::model::CoreReply::Scene { .. }
+        boardstudio_model::model::CoreReply::Scene { .. }
     ));
     assert!(
         reopened
@@ -4690,7 +4753,7 @@ fn local_controller_own_pin_keeps_a_private_net_through_omit_and_reopen() {
 #[test]
 fn malformed_local_controller_ownership_refuses_omit_atomically() {
     let (before, context) = electrical_copper_fixture();
-    let local_controller = super::transition_exception_context(
+    let local_controller = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
         &context,
         MirroredItemKind::Part,
         "source-mcu",
@@ -4698,11 +4761,11 @@ fn malformed_local_controller_ownership_refuses_omit_atomically() {
         TransitionState::Local,
     )
     .unwrap();
-    let localized = super::prepare_lifecycle_transition(
+    let localized = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         &before,
         &before,
         &local_controller,
-        crate::mirrored_half::test_dispatch(),
+        crate::support::test_dispatch(),
     )
     .expect("the controller can become Local");
     let mut malformed = localized.context.clone();
@@ -4715,7 +4778,7 @@ fn malformed_local_controller_ownership_refuses_omit_atomically() {
         .unwrap()
         .clone();
     malformed.associations.push(controller);
-    let pending = super::transition_exception_context(
+    let pending = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
         &malformed,
         MirroredItemKind::Part,
         "source-screen",
@@ -4725,11 +4788,11 @@ fn malformed_local_controller_ownership_refuses_omit_atomically() {
     let error = match pending {
         Ok(pending) => {
             let frozen = (localized.draft.clone(), malformed.clone(), pending.clone());
-            let result = super::prepare_lifecycle_transition(
+            let result = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
                 &localized.draft,
                 &localized.draft,
                 &pending,
-                crate::mirrored_half::test_dispatch(),
+                crate::support::test_dispatch(),
             );
             let Err(error) = result else {
                 panic!("duplicate controller ownership must refuse Omit");
@@ -4781,7 +4844,7 @@ fn omit_frees_the_items_pins_and_locks_every_mirrored_item_to_the_source() {
         source_electrical(&before),
         "the source half never changes"
     );
-    crate::mechanical::halves::validate_document(&omitted.draft).unwrap();
+    boardstudio_core_mechanical::mechanical::halves::validate_document(&omitted.draft).unwrap();
 
     let rejoined = rejoin_screen(&omitted.draft, &omitted.draft, &omitted.context);
     let mirror = mirror_electrical(&rejoined.draft);
@@ -4887,12 +4950,12 @@ fn omit_removes_the_footprint_private_nets_and_only_the_copper_it_owned() {
         );
     }
     let decoded: ProjectDoc = serde_json::from_slice(&serde_json::to_vec(draft).unwrap()).unwrap();
-    crate::mechanical::halves::validate_document(&decoded).unwrap();
-    let repeat = super::prepare_lifecycle_transition(
+    boardstudio_core_mechanical::mechanical::halves::validate_document(&decoded).unwrap();
+    let repeat = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         &decoded,
         &decoded,
         &omitted.context,
-        crate::mirrored_half::test_dispatch(),
+        crate::support::test_dispatch(),
     )
     .unwrap();
     assert_eq!(repeat.draft, decoded);
@@ -4941,7 +5004,7 @@ fn rejoin_restores_saved_copper_only_when_the_pads_are_where_they_were() {
         assert_eq!(pins(restored), pins(original));
         assert_eq!(restored.name, original.name);
     }
-    crate::mechanical::halves::validate_document(&rejoined.draft).unwrap();
+    boardstudio_core_mechanical::mechanical::halves::validate_document(&rejoined.draft).unwrap();
 
     // The source screen moved while the mirror was omitted: its pads no longer match.
     let mut post = omitted.draft.clone();
@@ -4978,7 +5041,7 @@ fn rejoin_restores_saved_copper_only_when_the_pads_are_where_they_were() {
         moved.draft.nets.iter().any(|n| n.id == "mirror-sda"),
         "the net itself is restored"
     );
-    crate::mechanical::halves::validate_document(&moved.draft).unwrap();
+    boardstudio_core_mechanical::mechanical::halves::validate_document(&moved.draft).unwrap();
 }
 
 #[test]
@@ -5001,11 +5064,11 @@ fn rejoin_reclaims_its_pins_and_releases_a_mirror_only_assignment_that_took_one(
             map.insert("replacement/mirror-oled/RST".into(), "GP7".into());
         }
     }
-    let stable = super::prepare_lifecycle_transition(
+    let stable = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         &replaced,
         &replaced,
         &omitted.context,
-        crate::mirrored_half::test_dispatch(),
+        crate::support::test_dispatch(),
     )
     .unwrap();
     let held = mirror_electrical(&stable.draft);
@@ -5041,7 +5104,7 @@ fn rejoin_reclaims_its_pins_and_releases_a_mirror_only_assignment_that_took_one(
 #[test]
 fn a_local_controller_keeps_its_mapped_locks_and_assignments() {
     let (before, context) = electrical_copper_fixture();
-    let pending = super::transition_exception_context(
+    let pending = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
         &context,
         MirroredItemKind::Part,
         "source-mcu",
@@ -5049,11 +5112,11 @@ fn a_local_controller_keeps_its_mapped_locks_and_assignments() {
         TransitionState::Local,
     )
     .unwrap();
-    let local = super::prepare_lifecycle_transition(
+    let local = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         &before,
         &before,
         &pending,
-        crate::mirrored_half::test_dispatch(),
+        crate::support::test_dispatch(),
     )
     .unwrap();
     let config = mirror_electrical(&local.draft);
@@ -5083,11 +5146,11 @@ fn a_local_controller_keeps_its_mapped_locks_and_assignments() {
         .unwrap()
         .assignments
         .insert("direct/source-encoder".into(), "GP5".into());
-    let edited = super::prepare_lifecycle_transition(
+    let edited = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         &local.draft,
         &post,
         &local.context,
-        crate::mirrored_half::test_dispatch(),
+        crate::support::test_dispatch(),
     )
     .unwrap();
     let config = mirror_electrical(&edited.draft);
@@ -5126,7 +5189,7 @@ fn saved_copper_that_collides_with_live_copper_refuses_the_rejoin_atomically() {
             net_id: None,
         });
     let frozen = (occupied.clone(), omitted.context.clone());
-    let pending = super::transition_exception_context(
+    let pending = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
         &omitted.context,
         MirroredItemKind::Part,
         "source-screen",
@@ -5135,11 +5198,11 @@ fn saved_copper_that_collides_with_live_copper_refuses_the_rejoin_atomically() {
     )
     .unwrap();
     assert!(
-        super::prepare_lifecycle_transition(
+        boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
             &occupied,
             &occupied,
             &pending,
-            crate::mirrored_half::test_dispatch()
+            crate::support::test_dispatch()
         )
         .is_err()
     );
@@ -5159,7 +5222,7 @@ fn add_second_matrix_pair(
     source.id = "source-matrix-2".into();
     source.name = Some("second source Matrix".into());
     source.part_ids.clear();
-    crate::matrix::set_matrix(document, &source)?;
+    boardstudio_core_kernel::matrix::set_matrix(document, &source)?;
 
     let mut mirror = document
         .matrices
@@ -5177,8 +5240,13 @@ fn add_second_matrix_pair(
         companion_mode: None,
         companion_tweak: None,
     };
-    mirror = super::super::project_matrix(&source, &mirror, &correspondence, context.mapping)?;
-    crate::matrix::set_matrix(document, &mirror)?;
+    mirror = boardstudio_core_mirrored_half::mirrored_half::reconcile::project_matrix(
+        &source,
+        &mirror,
+        &correspondence,
+        context.mapping,
+    )?;
+    boardstudio_core_kernel::matrix::set_matrix(document, &mirror)?;
 
     context
         .pair_right
@@ -5245,7 +5313,7 @@ fn add_second_matrix_pair(
         });
     }
     document.hardware.as_mut().unwrap().pairs[0].halves = Some(context.pair_right.clone());
-    crate::mechanical::halves::validate_document(document)?;
+    boardstudio_core_mechanical::mechanical::halves::validate_document(document)?;
     Ok(())
 }
 
@@ -5265,7 +5333,7 @@ fn independent_part_exception_intents_keep_exact_matrix_owners_and_children() {
             .cloned()
             .collect();
 
-        let local = super::prepare_exception_intent(
+        let local = prepare_exception_intent(
             &before,
             &before,
             &pair_id,
@@ -5296,11 +5364,11 @@ fn independent_part_exception_intents_keep_exact_matrix_owners_and_children() {
             .unwrap();
         source.pose.at.x += 23.0;
         source.properties = Some(BTreeMap::from([("revision".into(), json!(2))]));
-        let edited = super::prepare_lifecycle_transition(
+        let edited = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
             &local.draft,
             &edited_source,
             &local.context,
-            crate::mirrored_half::test_dispatch(),
+            crate::support::test_dispatch(),
         )
         .expect("unrelated linked Part follows its current source");
         let source = edited_source
@@ -5316,13 +5384,13 @@ fn independent_part_exception_intents_keep_exact_matrix_owners_and_children() {
             .unwrap();
         assert_eq!(
             mirror,
-            &crate::mirrored_half::derive::part(
+            &boardstudio_core_mirrored_half::mirrored_half::derive::part(
                 source,
                 &mirror.id,
                 &mirror.definition_id,
                 &mirror.reference,
                 fixture_context.mapping,
-                crate::mirrored_half::derive::is_controller(
+                boardstudio_core_mirrored_half::mirrored_half::derive::is_controller(
                     &edited_source.definitions,
                     &source.definition_id,
                 ),
@@ -5330,7 +5398,7 @@ fn independent_part_exception_intents_keep_exact_matrix_owners_and_children() {
         );
         assert_eq!(edited.draft.matrices, matrices_before);
 
-        let omitted = super::prepare_exception_intent(
+        let omitted = prepare_exception_intent(
             &edited.draft,
             &edited.draft,
             &pair_id,
@@ -5350,7 +5418,7 @@ fn independent_part_exception_intents_keep_exact_matrix_owners_and_children() {
                 .all(|part| part.id != "mirror-screen")
         );
         assert_eq!(omitted.draft.matrices, matrices_before);
-        let rejoined = super::prepare_exception_intent(
+        let rejoined = prepare_exception_intent(
             &omitted.draft,
             &omitted.draft,
             &pair_id,
@@ -5376,13 +5444,13 @@ fn independent_part_exception_intents_keep_exact_matrix_owners_and_children() {
             .unwrap();
         assert_eq!(
             mirror,
-            &crate::mirrored_half::derive::part(
+            &boardstudio_core_mirrored_half::mirrored_half::derive::part(
                 source,
                 &mirror.id,
                 &mirror.definition_id,
                 &mirror.reference,
                 fixture_context.mapping,
-                crate::mirrored_half::derive::is_controller(
+                boardstudio_core_mirrored_half::mirrored_half::derive::is_controller(
                     &rejoined.draft.definitions,
                     &source.definition_id,
                 ),
@@ -5406,7 +5474,7 @@ fn independent_circuit_exception_intents_work_beside_multiple_matrix_owners() {
         .cloned()
         .collect();
 
-    let local = super::prepare_exception_intent(
+    let local = prepare_exception_intent(
         &before,
         &before,
         &pair_id,
@@ -5418,7 +5486,7 @@ fn independent_circuit_exception_intents_work_beside_multiple_matrix_owners() {
     .unwrap_or_else(|error| panic!("circuit Local: {error}"))
     .pop()
     .unwrap();
-    let omitted = super::prepare_exception_intent(
+    let omitted = prepare_exception_intent(
         &local.draft,
         &local.draft,
         &pair_id,
@@ -5437,7 +5505,7 @@ fn independent_circuit_exception_intents_work_beside_multiple_matrix_owners() {
             .iter()
             .all(|circuit| circuit.id != "mirror-circuit")
     );
-    let rejoined = super::prepare_exception_intent(
+    let rejoined = prepare_exception_intent(
         &omitted.draft,
         &omitted.draft,
         &pair_id,
@@ -5482,8 +5550,12 @@ fn independent_none_context_validates_all_matrix_owners_without_claiming_one() {
     add_second_matrix_pair(&mut before, &mut context).unwrap();
     let pair_id = before.hardware.as_ref().unwrap().pairs[0].id.clone();
     let matrices_before = before.matrices.clone();
-    let independent = super::lifecycle_context(&before, &pair_id, None).unwrap();
-    let pending = super::transition_exception_context(
+    let independent =
+        boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::lifecycle_context(
+            &before, &pair_id, None,
+        )
+        .unwrap();
+    let pending = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
         &independent,
         MirroredItemKind::Part,
         "source-screen",
@@ -5492,11 +5564,11 @@ fn independent_none_context_validates_all_matrix_owners_without_claiming_one() {
     )
     .unwrap();
 
-    let output = super::prepare_lifecycle_transition(
+    let output = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         &before,
         &before,
         &pending,
-        crate::mirrored_half::test_dispatch(),
+        crate::support::test_dispatch(),
     )
     .expect("independent selection validates each Matrix child against its own owner");
     assert_eq!(output.draft.matrices, matrices_before);
@@ -5519,16 +5591,19 @@ fn exact_second_matrix_child_transitions_preserve_first_matrix_local_child() {
     let pair_id = before.hardware.as_ref().unwrap().pairs[0].id.clone();
     let first_source = "matrix/source-matrix/r0c1";
     let first_mirror = "matrix/mirror-matrix/r0c1";
-    let first_context = super::lifecycle_context(
-        &before,
-        &pair_id,
-        Some(super::super::MatrixPairContext {
-            source_id: "source-matrix".into(),
-            mirror_id: "mirror-matrix".into(),
-        }),
-    )
-    .unwrap();
-    let first_pending = super::transition_exception_context(
+    let first_context =
+        boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::lifecycle_context(
+            &before,
+            &pair_id,
+            Some(
+                boardstudio_core_mirrored_half::mirrored_half::reconcile::MatrixPairContext {
+                    source_id: "source-matrix".into(),
+                    mirror_id: "mirror-matrix".into(),
+                },
+            ),
+        )
+        .unwrap();
+    let first_pending = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
         &first_context,
         MirroredItemKind::Part,
         first_source,
@@ -5536,11 +5611,11 @@ fn exact_second_matrix_child_transitions_preserve_first_matrix_local_child() {
         TransitionState::Local,
     )
     .unwrap();
-    let first_local = super::prepare_lifecycle_transition(
+    let first_local = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         &before,
         &before,
         &first_pending,
-        crate::mirrored_half::test_dispatch(),
+        crate::support::test_dispatch(),
     )
     .expect("first Matrix child can be independently made Local");
     let retained_first_child = first_local
@@ -5559,16 +5634,19 @@ fn exact_second_matrix_child_transitions_preserve_first_matrix_local_child() {
         .clone();
     let second_source = "matrix/source-matrix-2/r0c0";
     let second_mirror = "matrix/mirror-matrix-2/r0c0";
-    let second_context = super::lifecycle_context(
-        &first_local.draft,
-        &pair_id,
-        Some(super::super::MatrixPairContext {
-            source_id: "source-matrix-2".into(),
-            mirror_id: "mirror-matrix-2".into(),
-        }),
-    )
-    .unwrap();
-    let local_context = super::transition_exception_context(
+    let second_context =
+        boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::lifecycle_context(
+            &first_local.draft,
+            &pair_id,
+            Some(
+                boardstudio_core_mirrored_half::mirrored_half::reconcile::MatrixPairContext {
+                    source_id: "source-matrix-2".into(),
+                    mirror_id: "mirror-matrix-2".into(),
+                },
+            ),
+        )
+        .unwrap();
+    let local_context = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
         &second_context,
         MirroredItemKind::Part,
         second_source,
@@ -5576,11 +5654,11 @@ fn exact_second_matrix_child_transitions_preserve_first_matrix_local_child() {
         TransitionState::Local,
     )
     .unwrap();
-    let local = super::prepare_lifecycle_transition(
+    let local = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         &first_local.draft,
         &first_local.draft,
         &local_context,
-        crate::mirrored_half::test_dispatch(),
+        crate::support::test_dispatch(),
     )
     .expect("the selected second-Matrix child uses its exact owner");
     assert_eq!(
@@ -5600,7 +5678,7 @@ fn exact_second_matrix_child_transitions_preserve_first_matrix_local_child() {
         Some(&retained_first_child)
     );
 
-    let omit_context = super::transition_exception_context(
+    let omit_context = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
         &local.context,
         MirroredItemKind::Part,
         second_source,
@@ -5608,11 +5686,11 @@ fn exact_second_matrix_child_transitions_preserve_first_matrix_local_child() {
         TransitionState::Omitted,
     )
     .unwrap();
-    let omitted = super::prepare_lifecycle_transition(
+    let omitted = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         &local.draft,
         &local.draft,
         &omit_context,
-        crate::mirrored_half::test_dispatch(),
+        crate::support::test_dispatch(),
     )
     .expect("the exact second-Matrix child can be omitted");
     assert!(
@@ -5639,7 +5717,7 @@ fn exact_second_matrix_child_transitions_preserve_first_matrix_local_child() {
         Some(&retained_first_child)
     );
 
-    let rejoin_context = super::transition_exception_context(
+    let rejoin_context = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
         &omitted.context,
         MirroredItemKind::Part,
         second_source,
@@ -5647,11 +5725,11 @@ fn exact_second_matrix_child_transitions_preserve_first_matrix_local_child() {
         TransitionState::Linked,
     )
     .unwrap();
-    let rejoined = super::prepare_lifecycle_transition(
+    let rejoined = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         &omitted.draft,
         &omitted.draft,
         &rejoin_context,
-        crate::mirrored_half::test_dispatch(),
+        crate::support::test_dispatch(),
     )
     .expect("the exact second-Matrix child rejoins independently");
     assert_eq!(
@@ -5738,7 +5816,7 @@ fn matrix_pair_resolution_refuses_duplicate_exact_durable_owner_atomically() {
         .as_ref()
         .unwrap();
 
-    let error = super::matrix_pair_for_association(
+    let error = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::matrix_pair_for_association(
         &document,
         halves,
         MirroredItemKind::Part,
@@ -5758,7 +5836,11 @@ fn matrix_pair_resolution_refuses_duplicate_exact_durable_owner_atomically() {
 fn lifecycle_context_refuses_missing_companion_membership_without_pending_selection() {
     let (document, _) = independent_lifecycle_fixture();
     let pair_id = document.hardware.as_ref().unwrap().pairs[0].id.clone();
-    let context = super::lifecycle_context(&document, &pair_id, None).unwrap();
+    let context =
+        boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::lifecycle_context(
+            &document, &pair_id, None,
+        )
+        .unwrap();
     assert!(context.pending_pair_transitions.is_empty());
     assert!(context.matrix_pair.is_none());
 
@@ -5773,7 +5855,7 @@ fn lifecycle_context_refuses_missing_companion_membership_without_pending_select
     let frozen_document = wrong_membership.clone();
     let frozen_context = context.clone();
 
-    let error = super::validate_lifecycle_context(&wrong_membership, &context)
+    let error = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::validate_lifecycle_context(&wrong_membership, &context)
         .expect_err("a companion must remain in its actual mirror Matrix membership");
 
     assert_eq!(
@@ -5789,19 +5871,22 @@ fn matrix_owned_exception_context_rejects_wrong_owner_and_membership_atomically(
     let (mut before, mut context) = independent_lifecycle_fixture();
     add_second_matrix_pair(&mut before, &mut context).unwrap();
     let pair_id = before.hardware.as_ref().unwrap().pairs[0].id.clone();
-    let first_owner = super::lifecycle_context(
-        &before,
-        &pair_id,
-        Some(super::super::MatrixPairContext {
-            source_id: "source-matrix".into(),
-            mirror_id: "mirror-matrix".into(),
-        }),
-    )
-    .unwrap();
+    let first_owner =
+        boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::lifecycle_context(
+            &before,
+            &pair_id,
+            Some(
+                boardstudio_core_mirrored_half::mirrored_half::reconcile::MatrixPairContext {
+                    source_id: "source-matrix".into(),
+                    mirror_id: "mirror-matrix".into(),
+                },
+            ),
+        )
+        .unwrap();
     let second_child = "matrix/source-matrix-2/r0c0";
     let second_mirror = "matrix/mirror-matrix-2/r0c0";
     let frozen = before.clone();
-    let mut wrong_owner = super::transition_exception_context(
+    let mut wrong_owner = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
         &first_owner,
         MirroredItemKind::Part,
         second_child,
@@ -5809,15 +5894,17 @@ fn matrix_owned_exception_context_rejects_wrong_owner_and_membership_atomically(
         TransitionState::Local,
     )
     .unwrap();
-    wrong_owner.matrix_pair = Some(super::super::MatrixPairContext {
-        source_id: "source-matrix".into(),
-        mirror_id: "mirror-matrix".into(),
-    });
-    let wrong_owner_error = super::prepare_lifecycle_transition(
+    wrong_owner.matrix_pair = Some(
+        boardstudio_core_mirrored_half::mirrored_half::reconcile::MatrixPairContext {
+            source_id: "source-matrix".into(),
+            mirror_id: "mirror-matrix".into(),
+        },
+    );
+    let wrong_owner_error = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         &before,
         &before,
         &wrong_owner,
-        crate::mirrored_half::test_dispatch(),
+        crate::support::test_dispatch(),
     )
     .expect_err("a selected child cannot borrow another Matrix's owner");
     assert!(
@@ -5834,16 +5921,19 @@ fn matrix_owned_exception_context_rejects_wrong_owner_and_membership_atomically(
         .unwrap()
         .part_ids
         .retain(|id| id != second_mirror);
-    let exact_second = super::lifecycle_context(
-        &before,
-        &pair_id,
-        Some(super::super::MatrixPairContext {
-            source_id: "source-matrix-2".into(),
-            mirror_id: "mirror-matrix-2".into(),
-        }),
-    )
-    .unwrap();
-    let pending = super::transition_exception_context(
+    let exact_second =
+        boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::lifecycle_context(
+            &before,
+            &pair_id,
+            Some(
+                boardstudio_core_mirrored_half::mirrored_half::reconcile::MatrixPairContext {
+                    source_id: "source-matrix-2".into(),
+                    mirror_id: "mirror-matrix-2".into(),
+                },
+            ),
+        )
+        .unwrap();
+    let pending = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
         &exact_second,
         MirroredItemKind::Part,
         second_child,
@@ -5851,11 +5941,11 @@ fn matrix_owned_exception_context_rejects_wrong_owner_and_membership_atomically(
         TransitionState::Local,
     )
     .unwrap();
-    let membership_error = super::prepare_lifecycle_transition(
+    let membership_error = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         &wrong_membership,
         &wrong_membership,
         &pending,
-        crate::mirrored_half::test_dispatch(),
+        crate::support::test_dispatch(),
     )
     .expect_err("actual Matrix target membership remains mandatory");
     assert!(
@@ -5906,7 +5996,7 @@ fn an_overlay_with_saved_copper_round_trips_and_a_legacy_exception_is_not_linked
     );
 }
 fn replacement_retirement_fixture() -> ProjectDoc {
-    use crate::model::MirroredItemKind as Kind;
+    use boardstudio_model::model::MirroredItemKind as Kind;
 
     let mut document = valid_omitted_document();
     let halves = document.hardware.as_mut().unwrap().pairs[0]
@@ -5998,7 +6088,7 @@ fn remove_replacement_retirement_sources(mut replacement: ProjectDoc) -> Project
 #[test]
 fn replacement_batch_retires_typed_part_matrix_layout_net_and_circuit_rows() {
     let accepted = replacement_retirement_fixture();
-    crate::mechanical::halves::validate_document(&accepted).unwrap();
+    boardstudio_core_mechanical::mechanical::halves::validate_document(&accepted).unwrap();
     let mut replacement = remove_replacement_retirement_sources(accepted.clone());
 
     retire_replacement_records(&accepted, &mut replacement).unwrap();
@@ -6009,7 +6099,9 @@ fn replacement_batch_retires_typed_part_matrix_layout_net_and_circuit_rows() {
         .unwrap();
     assert!(halves.correspondences.is_empty());
     assert!(halves.exceptions.is_empty());
-    assert!(crate::mechanical::halves::validate_document(&replacement).is_ok());
+    assert!(
+        boardstudio_core_mechanical::mechanical::halves::validate_document(&replacement).is_ok()
+    );
 }
 
 #[test]
@@ -6023,7 +6115,7 @@ fn replacement_batch_keeps_local_target_geometry_byte_for_byte() {
         .as_mut()
         .unwrap();
     halves.exceptions[0].state = MirroredExceptionState::Local;
-    assert!(crate::mechanical::halves::validate_document(&accepted).is_ok());
+    assert!(boardstudio_core_mechanical::mechanical::halves::validate_document(&accepted).is_ok());
     let mut replacement = accepted.clone();
     replacement.parts.retain(|part| part.id != "source-part");
     replacement.boards[0]
@@ -6121,7 +6213,7 @@ fn replacement_batch_refuses_incomplete_matrix_owned_part_closure_atomically() {
 
 #[test]
 fn replacement_batch_leaves_unowned_kind_to_existing_document_validation() {
-    use crate::model::MirroredItemKind;
+    use boardstudio_model::model::MirroredItemKind;
 
     let mut accepted = valid_omitted_document();
     let halves = accepted.hardware.as_mut().unwrap().pairs[0]
@@ -6141,7 +6233,7 @@ fn replacement_batch_leaves_unowned_kind_to_existing_document_validation() {
         }))
         .unwrap(),
     );
-    assert!(crate::mechanical::halves::validate_document(&accepted).is_ok());
+    assert!(boardstudio_core_mechanical::mechanical::halves::validate_document(&accepted).is_ok());
     let mut replacement = accepted.clone();
     replacement
         .outline
@@ -6168,4 +6260,43 @@ fn replacement_batch_leaves_unowned_kind_to_existing_document_validation() {
             .unwrap(),
         &halves_before
     );
+}
+
+fn prepare_exception_intent(
+    before: &boardstudio_model::model::ProjectDoc,
+    post_source: &boardstudio_model::model::ProjectDoc,
+    pair_id: &str,
+    kind: boardstudio_model::model::MirroredItemKind,
+    source_id: &str,
+    mirror_id: &str,
+    state: TransitionState,
+) -> Result<
+    Vec<boardstudio_core_mirrored_half::mirrored_half::reconcile::MembershipTransitionOutput>,
+    String,
+> {
+    let hardware = before
+        .hardware
+        .as_ref()
+        .ok_or("Lifecycle hardware is unavailable")?;
+    let mut pairs = hardware.pairs.iter().filter(|pair| pair.id == pair_id);
+    let pair = pairs
+        .next()
+        .ok_or("The exact lifecycle pair is unavailable")?;
+    if pairs.next().is_some() {
+        return Err("The exact lifecycle pair is ambiguous".into());
+    }
+    let halves = pair
+        .halves
+        .as_ref()
+        .ok_or("The exact lifecycle pair has no halves record")?;
+    let matrix_pair = matrix_pair_for_association(before, halves, kind, source_id, mirror_id)?;
+    let context = lifecycle_context(before, pair_id, matrix_pair)?;
+    let pending = transition_exception_context(&context, kind, source_id, mirror_id, state)?;
+    prepare_lifecycle_transition(
+        before,
+        post_source,
+        &pending,
+        crate::support::test_dispatch(),
+    )
+    .map(|output| vec![output])
 }

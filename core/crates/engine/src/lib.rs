@@ -1662,10 +1662,8 @@ fn edit_dispatch() -> mirrored_half::EditDispatch {
     }
 }
 
-/// The staged-edit dispatchers for sibling crates' tests. Exposed as plain
-/// functions (not the mirrored crate's `EditDispatch` struct) because a crate in a
-/// dev-dependency cycle compiles as two instances whose nominal types differ.
-#[cfg(feature = "test-support")]
+/// Staged-edit dispatch for the engine integration tests.
+#[doc(hidden)]
 #[allow(clippy::too_many_arguments)]
 pub fn apply_with_ledger_for_test(
     doc: &mut ProjectDoc,
@@ -1677,7 +1675,7 @@ pub fn apply_with_ledger_for_test(
     apply_with_ledger(doc, board_contours, op, identities, run_scripts)
 }
 
-#[cfg(feature = "test-support")]
+#[doc(hidden)]
 pub fn apply_unscripted_for_test(
     doc: &mut ProjectDoc,
     op: &EditOperation,
@@ -1686,7 +1684,7 @@ pub fn apply_unscripted_for_test(
 }
 
 /// Applies one operation under a fresh identity ledger for sibling crates' tests.
-#[cfg(feature = "test-support")]
+#[doc(hidden)]
 pub fn apply_for_test(
     doc: &mut ProjectDoc,
     board_contours: &[BoardContours],
@@ -1702,7 +1700,7 @@ pub fn apply_for_test(
     )
 }
 
-#[cfg(feature = "test-support")]
+#[doc(hidden)]
 impl CoreEngine {
     pub fn with_document_for_test(document: ProjectDoc, run_scripts: ScriptRunner) -> Self {
         Self {

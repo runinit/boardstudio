@@ -288,11 +288,9 @@ dependencies = [
 name = "boardstudio-core-mirrored-half"
 version = "0.1.0"
 dependencies = [
- "boardstudio-core-engine",
  "boardstudio-core-kernel",
  "boardstudio-core-mechanical",
  "boardstudio-model",
- "boardstudio-script",
  "serde",
  "serde_json",
 ]

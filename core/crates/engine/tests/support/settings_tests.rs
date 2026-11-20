@@ -4,10 +4,12 @@
 //! apply it (`canonicalize` the request, execute the source-equivalent operation), and the mirror
 //! is reconciled from its source.
 
-use super::{MatrixLink, PartProjection, Projection, reconcile};
-use crate::mirrored_half::inverse;
-use crate::mirrored_half::matrix_addition::tests::{create_from, halves, matrix, source_half};
-use crate::model::{
+use boardstudio_core_mirrored_half::mirrored_half::reconcile::{
+    MatrixLink, PartProjection, Projection, reconcile,
+};
+
+use crate::matrix_fixtures::{create_from, halves, matrix, source_half};
+use boardstudio_model::model::{
     EditOperation, KeycapBoardChange, KeycapKeyChange, KeycapMatrixChange, KeycapProfile,
     MirroredException, MirroredExceptionState, MirroredItemKind, Net, Pin, ProjectDoc,
 };
@@ -58,18 +60,18 @@ fn paired() -> ProjectDoc {
         ),
         net("left-solo", "LEFT_SOLO", vec![pin("left/J1", "pad-2")]),
     ];
-    let mut keycaps = crate::model::KeycapConfiguration::default();
+    let mut keycaps = boardstudio_model::model::KeycapConfiguration::default();
     keycaps.boards.insert("left".into(), Default::default());
     keycaps.keys.insert(
         "matrix/left-keys/r0c0".into(),
-        crate::model::KeycapKeySettings {
+        boardstudio_model::model::KeycapKeySettings {
             legend: Some("Q".into()),
             ..Default::default()
         },
     );
     keycaps.keys.insert(
         "left/J1".into(),
-        crate::model::KeycapKeySettings {
+        boardstudio_model::model::KeycapKeySettings {
             legend: Some("J".into()),
             ..Default::default()
         },
@@ -81,7 +83,8 @@ fn paired() -> ProjectDoc {
         "literal-mirror",
         None,
     );
-    crate::mechanical::halves::validate_document(&document).expect("the fixture is valid");
+    boardstudio_core_mechanical::mechanical::halves::validate_document(&document)
+        .expect("the fixture is valid");
     document
 }
 
@@ -140,17 +143,21 @@ fn reconciled(document: &ProjectDoc) -> ProjectDoc {
 /// Applies a source-side request as written.
 fn applied(document: &ProjectDoc, request: &EditOperation) -> ProjectDoc {
     let mut next = document.clone();
-    crate::mirrored_half::apply_for_test(&mut next, &[], request).expect("the request applies");
+    crate::support::apply_for_test(&mut next, &[], request).expect("the request applies");
     next
 }
 
 /// Applies a request the way 111 will: the canonical, source-equivalent operation executes.
 fn applied_canonical(document: &ProjectDoc, request: &EditOperation) -> ProjectDoc {
-    let canonical = inverse::canonicalize(document, request).unwrap_or_else(|r| panic!("{r}"));
+    let canonical =
+        crate::support::canonicalize(document, request).unwrap_or_else(|r| panic!("{r}"));
     applied(document, &canonical.operation)
 }
 
-fn key<'a>(document: &'a ProjectDoc, id: &str) -> Option<&'a crate::model::KeycapKeySettings> {
+fn key<'a>(
+    document: &'a ProjectDoc,
+    id: &str,
+) -> Option<&'a boardstudio_model::model::KeycapKeySettings> {
     document.keycaps.as_ref().and_then(|k| k.keys.get(id))
 }
 
@@ -276,7 +283,7 @@ fn a_mirror_key_setting_the_source_does_not_have_is_removed() {
     let mut document = paired();
     document.keycaps.as_mut().unwrap().keys.insert(
         "matrix/right-keys/r0c1".into(),
-        crate::model::KeycapKeySettings {
+        boardstudio_model::model::KeycapKeySettings {
             legend: Some("stray".into()),
             ..Default::default()
         },
@@ -374,7 +381,7 @@ fn a_net_that_exists_only_because_of_an_omitted_part_is_removed_not_left_empty()
         net_of(&document, "right-col0")
     );
     assert!(
-        crate::mechanical::halves::validate_document(&after).is_ok(),
+        boardstudio_core_mechanical::mechanical::halves::validate_document(&after).is_ok(),
         "the absence is the private-net rule"
     );
 }
@@ -461,7 +468,12 @@ fn a_pin_the_mirror_authored_on_its_own_part_keeps_an_otherwise_private_net() {
 /// The projection alone, on a document edited by hand: states `reconcile` itself would refuse.
 fn projected(document: &ProjectDoc) -> ProjectDoc {
     let mut staged = document.clone();
-    super::settings::project(document, &mut staged, halves(document)).unwrap();
+    boardstudio_core_mirrored_half::mirrored_half::reconcile::settings::project(
+        document,
+        &mut staged,
+        halves(document),
+    )
+    .unwrap();
     staged
 }
 

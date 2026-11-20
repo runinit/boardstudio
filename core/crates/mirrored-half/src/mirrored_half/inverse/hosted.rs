@@ -55,28 +55,38 @@ pub(in crate::mirrored_half) struct ModuleAddition {
 /// An embedded circuit added on a mirror board, planned with the maps the forward AddCircuit
 /// transition selects. Every map is keyed by the source identity.
 #[derive(Clone, Debug, PartialEq)]
-pub(in crate::mirrored_half) struct CircuitAddition {
-    pub(in crate::mirrored_half) source_id: String,
-    pub(in crate::mirrored_half) mirror_id: String,
+#[doc(hidden)]
+pub struct CircuitAddition {
+    #[doc(hidden)]
+    pub source_id: String,
+    #[doc(hidden)]
+    pub mirror_id: String,
     /// Source member id to mirror member id, `embedded/<id>/<member>` on both sides.
-    pub(in crate::mirrored_half) member_ids: BTreeMap<String, String>,
+    #[doc(hidden)]
+    pub member_ids: BTreeMap<String, String>,
     /// Source member id to the reference the mirror member takes on its board.
-    pub(in crate::mirrored_half) member_references: BTreeMap<String, String>,
+    #[doc(hidden)]
+    pub member_references: BTreeMap<String, String>,
     /// Source circuit definition id to mirror definition id.
-    pub(in crate::mirrored_half) definition_ids: BTreeMap<String, String>,
+    #[doc(hidden)]
+    pub definition_ids: BTreeMap<String, String>,
     /// Source circuit net id (a private net or a joined host net) to its mirror id.
-    pub(in crate::mirrored_half) net_ids: BTreeMap<String, String>,
+    #[doc(hidden)]
+    pub net_ids: BTreeMap<String, String>,
     /// Source member id to the world pose the source member takes after the source embed, so the
     /// forward rule lands the mirror member at its typed pose.
-    pub(in crate::mirrored_half) member_poses: BTreeMap<String, Pose2>,
+    #[doc(hidden)]
+    pub member_poses: BTreeMap<String, Pose2>,
 }
 
 /// The hosted additions one request plans. A host connector placed atomically with a module is a
 /// [`PartAddition`] in `Canonical::additions`.
 #[derive(Debug, Default)]
-pub(in crate::mirrored_half) struct Plan {
+#[doc(hidden)]
+pub struct Plan {
     pub(in crate::mirrored_half) modules: Vec<ModuleAddition>,
-    pub(in crate::mirrored_half) circuits: Vec<CircuitAddition>,
+    #[doc(hidden)]
+    pub circuits: Vec<CircuitAddition>,
 }
 
 /// Translates one hosted, electrical or keycap request into `canonical`.

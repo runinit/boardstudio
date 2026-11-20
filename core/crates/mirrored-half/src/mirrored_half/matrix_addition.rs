@@ -24,10 +24,6 @@
 //! - embedded circuits: their members and private nets live under `embedded/<id>/`, never on a
 //!   matrix member, so a circuit net that a member pin joins is refused by name (ticket 112).
 
-#[cfg(test)]
-#[path = "matrix_addition/tests.rs"]
-pub(super) mod tests;
-
 use super::inverse::MatrixAddition;
 use super::{
     GENERATED_CLOSURE_PREFIX, ModuleMirror, SYMMETRIC_DEFINITIONS, corresponds, derive, mint,
@@ -42,10 +38,13 @@ use crate::model::{
 use std::collections::{BTreeMap, BTreeSet};
 
 /// The document with the mirror matrix added, and every id the transition created or changed.
-pub(super) struct MirroredMatrix {
-    pub(super) draft: ProjectDoc,
+#[doc(hidden)]
+pub struct MirroredMatrix {
+    #[doc(hidden)]
+    pub draft: ProjectDoc,
     /// Sorted and unique.
-    pub(super) changed_ids: Vec<String>,
+    #[doc(hidden)]
+    pub changed_ids: Vec<String>,
 }
 
 /// What the pair says about the board pair, read once.
@@ -121,7 +120,8 @@ fn pair_facts(document: &ProjectDoc, addition: &MatrixAddition) -> Result<PairFa
 ///   longer matches the members the matrix generates;
 /// - a net a member pin joins belongs to an embedded circuit (ticket 112);
 /// - a layout part or module connector has no mirror to follow.
-pub(super) fn mirror_added_matrix(
+#[doc(hidden)]
+pub fn mirror_added_matrix(
     document: &ProjectDoc,
     addition: &MatrixAddition,
 ) -> Result<MirroredMatrix, String> {

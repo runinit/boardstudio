@@ -16,18 +16,6 @@ use crate::model::{
 use crate::{ScriptRunner, constraints::FramedConstraint};
 use std::collections::{BTreeMap, BTreeSet};
 
-#[cfg(test)]
-#[path = "prepare/tests.rs"]
-mod tests;
-
-#[cfg(test)]
-pub fn prepare_open(
-    accepted: &ProjectDoc,
-    board_contours: &[BoardContours],
-) -> Result<(ProjectDoc, Vec<Finding>), String> {
-    prepare_open_with_scripts(accepted, board_contours, boardstudio_script::apply_scripts)
-}
-
 /// Builds the source-authoritative document draft used by Open without publishing it.
 /// Open has its own route: it does not canonicalize an edit or use transaction preparation,
 /// whose ReplaceDocument behavior intentionally preserves replacement geometry.
@@ -611,23 +599,6 @@ fn set_companion_placement(
     Ok(changed)
 }
 
-/// Builds a complete document draft for one edit without changing the accepted document.
-#[cfg(test)]
-pub fn prepare_transaction(
-    accepted: &ProjectDoc,
-    board_contours: &[BoardContours],
-    operation: &EditOperation,
-) -> Result<(ProjectDoc, Vec<String>), String> {
-    prepare_transaction_with_ledger(
-        accepted,
-        board_contours,
-        operation,
-        &crate::mechanical::edit::MechanicalIdentityLedger::default(),
-        boardstudio_script::apply_scripts,
-        crate::mirrored_half::test_dispatch(),
-    )
-}
-
 /// Builds a complete document draft while consulting the owning session's identity
 /// reservations, so a later addition never reuses an identity hidden by Undo or a
 /// disabled configuration.
@@ -894,7 +865,8 @@ fn add_target_layout_memberships(
     Ok(changed)
 }
 
-fn validate_prepared_draft(
+#[doc(hidden)]
+pub fn validate_prepared_draft(
     accepted: &ProjectDoc,
     draft: &ProjectDoc,
     operation: &EditOperation,
@@ -1082,7 +1054,8 @@ fn prepare_lifecycle_pairs(
     Ok(changed)
 }
 
-fn apply_canonical(
+#[doc(hidden)]
+pub fn apply_canonical(
     draft: &mut ProjectDoc,
     accepted: &ProjectDoc,
     board_contours: &[BoardContours],

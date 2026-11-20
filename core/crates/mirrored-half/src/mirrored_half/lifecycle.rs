@@ -1,9 +1,5 @@
 //! Private lifecycle operations for durable mirrored-half exceptions and Unlink.
 
-#[cfg(test)]
-#[path = "lifecycle/tests.rs"]
-mod tests;
-
 use super::{MembershipContext, TransitionState};
 use crate::constraints::{ConstraintEndpoint, FramedConstraint};
 use crate::model::{
@@ -13,7 +9,8 @@ use crate::model::{
 use std::collections::BTreeSet;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-enum ConstraintLifecycleEffect {
+#[doc(hidden)]
+pub enum ConstraintLifecycleEffect {
     MakeLocal {
         pair_id: String,
         source_part_id: String,
@@ -33,15 +30,19 @@ enum ConstraintLifecycleEffect {
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
-struct ConstraintLifecycleDelta {
-    upserts: Vec<FramedConstraint>,
-    removals: Vec<String>,
+#[doc(hidden)]
+pub struct ConstraintLifecycleDelta {
+    #[doc(hidden)]
+    pub upserts: Vec<FramedConstraint>,
+    #[doc(hidden)]
+    pub removals: Vec<String>,
 }
 
 /// Prepares endpoint edits after the owning lifecycle kernel has validated the exact transition
 /// and removal closure. Records are compiled against the pre-transition document; removed IDs
 /// are visible Part IDs from that same validated closure, never canonical aliases.
-fn prepare_constraint_lifecycle_delta(
+#[doc(hidden)]
+pub fn prepare_constraint_lifecycle_delta(
     records: &[FramedConstraint],
     effects: &[ConstraintLifecycleEffect],
 ) -> Result<ConstraintLifecycleDelta, String> {
@@ -348,7 +349,8 @@ fn matrix_cell_child_has_exact_membership(
     matching_owners == 1
 }
 
-fn validate_lifecycle_context(
+#[doc(hidden)]
+pub fn validate_lifecycle_context(
     document: &crate::model::ProjectDoc,
     context: &MembershipContext,
 ) -> Result<(), String> {
@@ -1788,7 +1790,8 @@ pub(super) fn prepare_edit_transition(
 
 /// Retires only exact, carried lifecycle rows whose typed source object was removed by a
 /// replacement. The replacement payload remains the sole owner of geometry and target-local data.
-pub(super) fn retire_replacement_records(
+#[doc(hidden)]
+pub fn retire_replacement_records(
     accepted: &crate::model::ProjectDoc,
     replacement: &mut crate::model::ProjectDoc,
 ) -> Result<(), String> {
@@ -1981,7 +1984,8 @@ fn prepare_lifecycle_output(
     })
 }
 
-fn lifecycle_context(
+#[doc(hidden)]
+pub fn lifecycle_context(
     document: &crate::model::ProjectDoc,
     pair_id: &str,
     matrix_pair: Option<super::MatrixPairContext>,
@@ -2176,7 +2180,8 @@ fn lifecycle_context(
     Ok(context)
 }
 
-fn matrix_pair_for_association(
+#[doc(hidden)]
+pub fn matrix_pair_for_association(
     document: &crate::model::ProjectDoc,
     halves: &crate::model::MirroredHalves,
     kind: crate::model::MirroredItemKind,
@@ -2284,37 +2289,6 @@ fn matrix_pair_for_association(
 }
 
 // Ticket 150's intent-to-draft route for exception edits. Only lifecycle tests call it.
-#[cfg(test)]
-fn prepare_exception_intent(
-    before: &crate::model::ProjectDoc,
-    post_source: &crate::model::ProjectDoc,
-    pair_id: &str,
-    kind: crate::model::MirroredItemKind,
-    source_id: &str,
-    mirror_id: &str,
-    state: TransitionState,
-) -> Result<Vec<super::MembershipTransitionOutput>, String> {
-    let hardware = before
-        .hardware
-        .as_ref()
-        .ok_or("Lifecycle hardware is unavailable")?;
-    let mut pairs = hardware.pairs.iter().filter(|pair| pair.id == pair_id);
-    let pair = pairs
-        .next()
-        .ok_or("The exact lifecycle pair is unavailable")?;
-    if pairs.next().is_some() {
-        return Err("The exact lifecycle pair is ambiguous".into());
-    }
-    let halves = pair
-        .halves
-        .as_ref()
-        .ok_or("The exact lifecycle pair has no halves record")?;
-    let matrix_pair = matrix_pair_for_association(before, halves, kind, source_id, mirror_id)?;
-    let context = lifecycle_context(before, pair_id, matrix_pair)?;
-    let pending = transition_exception_context(&context, kind, source_id, mirror_id, state)?;
-    prepare_lifecycle_transition(before, post_source, &pending, super::super::test_dispatch())
-        .map(|output| vec![output])
-}
 
 fn prepare_matrix_membership_edit(
     valid_before: &crate::model::ProjectDoc,
@@ -2993,7 +2967,8 @@ fn classify_source_retirements(
     Ok(retired)
 }
 
-fn prepare_lifecycle_transition(
+#[doc(hidden)]
+pub fn prepare_lifecycle_transition(
     before: &crate::model::ProjectDoc,
     post_source: &crate::model::ProjectDoc,
     context: &MembershipContext,
@@ -3728,7 +3703,8 @@ pub(super) fn pending_visible_omission(context: &MembershipContext, mirror_id: &
 }
 
 /// Applies one already-validated lifecycle state to a source/mirror association.
-fn transition_exception_context(
+#[doc(hidden)]
+pub fn transition_exception_context(
     context: &MembershipContext,
     kind: crate::model::MirroredItemKind,
     source_id: &str,

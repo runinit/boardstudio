@@ -5,11 +5,6 @@ edition = "2024"
 publish = false
 license = "MIT OR Apache-2.0"
 
-[features]
-# Exposes test-only dispatch windows for boardstudio-core-mirrored-half's tests, the one
-# remaining dev-dependency cycle (its tests stage edits through the real engine dispatch).
-test-support = []
-
 [dependencies]
 boardstudio-model = { path = "../model" }
 boardstudio-core-kernel = { path = "../kernel" }

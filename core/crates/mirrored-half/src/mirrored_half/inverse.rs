@@ -69,7 +69,8 @@ pub(super) enum Coverage {
 
 /// Why a request was not canonicalised.
 #[derive(Debug)]
-pub(super) enum Refusal {
+#[doc(hidden)]
+pub enum Refusal {
     /// This request cannot be translated, with the reason.
     Request(String),
 }
@@ -104,13 +105,19 @@ pub(super) struct PartAddition {
 /// and the canonical source request; the forward transition that creates the mirror matrix, its
 /// members, modules and wiring, and records the correspondence, is ticket 145's.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct MatrixAddition {
-    pub(super) source_id: String,
-    pub(super) mirror_id: String,
-    pub(super) source_board_id: String,
-    pub(super) mirror_board_id: String,
+#[doc(hidden)]
+pub struct MatrixAddition {
+    #[doc(hidden)]
+    pub source_id: String,
+    #[doc(hidden)]
+    pub mirror_id: String,
+    #[doc(hidden)]
+    pub source_board_id: String,
+    #[doc(hidden)]
+    pub mirror_board_id: String,
     /// Each generated member (key or companion) as `(source id, mirror id)`.
-    pub(super) members: Vec<(String, String)>,
+    #[doc(hidden)]
+    pub members: Vec<(String, String)>,
 }
 
 /// The source matrix a mirror-side addition becomes, with its planned pair.
@@ -121,17 +128,21 @@ struct NewMatrix {
 
 /// The source-equivalent request.
 #[derive(Debug)]
-pub(super) struct Canonical {
+#[doc(hidden)]
+pub struct Canonical {
     /// The request to execute, apply and resolve; downstream resolution must see this value too.
-    pub(super) operation: EditOperation,
+    #[doc(hidden)]
+    pub operation: EditOperation,
     /// How the operation was handled; `Translated` unless the ledger says it runs as written.
     pub(super) coverage: Coverage,
     /// Mirror-side part additions, one per translated `AddPart`.
     pub(super) additions: Vec<PartAddition>,
     /// Matrices new to a paired board, one per `SetMatrix` that creates one.
-    pub(super) matrix_additions: Vec<MatrixAddition>,
+    #[doc(hidden)]
+    pub matrix_additions: Vec<MatrixAddition>,
     /// Modules and circuits new to a mirror board (ticket 112).
-    pub(super) hosted: hosted::Plan,
+    #[doc(hidden)]
+    pub hosted: hosted::Plan,
     /// Constraint edits compiled to their live endpoint views; ticket 115 threads this through
     /// apply and both resolutions.
     pub(super) prepared_constraints: Vec<constraints::PreparedConstraintEdit>,
@@ -154,11 +165,23 @@ pub(super) fn canonicalize(
     document: &ProjectDoc,
     operation: &EditOperation,
 ) -> Result<Canonical, Refusal> {
-    canonicalize_with_dispatch(document, operation, super::test_dispatch())
+    canonicalize_with_dispatch(
+        document,
+        operation,
+        super::EditDispatch {
+            apply_with_ledger: |_, _, _, _, _| {
+                panic!("engine-backed translation belongs in the engine integration tests")
+            },
+            apply_unscripted: |_, _| {
+                panic!("engine-backed translation belongs in the engine integration tests")
+            },
+        },
+    )
 }
 
 /// Rewrites `operation` so that every linked mirror target names its authored source value.
-pub(super) fn canonicalize_with_dispatch(
+#[doc(hidden)]
+pub fn canonicalize_with_dispatch(
     document: &ProjectDoc,
     operation: &EditOperation,
     dispatch: super::EditDispatch,

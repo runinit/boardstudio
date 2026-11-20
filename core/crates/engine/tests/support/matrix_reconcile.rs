@@ -4,20 +4,24 @@
 //! This module is a child of `reconcile` so it can build a `Projection`; the fixtures are the
 //! forward transition's own.
 
-use super::{MatrixLink, PartProjection, Projection, reconcile};
-use crate::mirrored_half::matrix_addition::tests::{
-    add_matrix, halves, matrix, new_matrix, op, pair_document,
+use crate::matrix_fixtures::{add_matrix, halves, matrix, new_matrix, op, pair_document};
+use boardstudio_core_mirrored_half::mirrored_half::reconcile::{
+    MatrixLink, PartProjection, Projection, reconcile,
 };
-use crate::model::{MirroredItemKind, ProjectDoc};
+use boardstudio_model::model::{MirroredItemKind, ProjectDoc};
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// The new source matrix, after its half's edit, with its mirror reconciled from it.
-fn reconciled(document: &ProjectDoc, edit: impl Fn(&mut crate::model::Matrix)) -> ProjectDoc {
+fn reconciled(
+    document: &ProjectDoc,
+    edit: impl Fn(&mut boardstudio_model::model::Matrix),
+) -> ProjectDoc {
     let mut document = document.clone();
     let mut source = matrix(&document, "left-thumbs").clone();
     edit(&mut source);
-    crate::matrix::set_matrix(&mut document, &source).expect("the source edit applies");
+    boardstudio_core_kernel::matrix::set_matrix(&mut document, &source)
+        .expect("the source edit applies");
 
     let pair = document.hardware.as_ref().unwrap().pairs[0].clone();
     let mirror = matrix(&document, "right-thumbs").clone();
@@ -70,12 +74,12 @@ fn reconciled(document: &ProjectDoc, edit: impl Fn(&mut crate::model::Matrix)) -
 }
 
 /// The edit as the creation path would see it: the same source matrix, mirrored at creation.
-fn reference(request: &Value, edit: impl Fn(&mut crate::model::Matrix)) -> ProjectDoc {
+fn reference(request: &Value, edit: impl Fn(&mut boardstudio_model::model::Matrix)) -> ProjectDoc {
     let mut document = pair_document_source_only();
-    crate::mirrored_half::apply_for_test(&mut document, &[], &op(request.clone())).unwrap();
+    crate::support::apply_for_test(&mut document, &[], &op(request.clone())).unwrap();
     let mut source = matrix(&document, "left-thumbs").clone();
     edit(&mut source);
-    crate::matrix::set_matrix(&mut document, &source).unwrap();
+    boardstudio_core_kernel::matrix::set_matrix(&mut document, &source).unwrap();
     let mut request = json!({
         "kind": "create-mirrored-half", "pairId": "pair", "sourceInstanceId": "left",
         "mode": {"kind": "new-board", "boardId": "right", "instanceId": "right"},
@@ -83,7 +87,7 @@ fn reference(request: &Value, edit: impl Fn(&mut crate::model::Matrix)) -> Proje
         "idRule": "board-prefix", "companionMode": "literal-mirror"});
     request["companionTweak"] = Value::Null;
     request.as_object_mut().unwrap().remove("companionTweak");
-    crate::mirrored_half::apply_for_test(&mut document, &[], &op(request)).unwrap();
+    crate::support::apply_for_test(&mut document, &[], &op(request)).unwrap();
     document
 }
 
@@ -131,11 +135,11 @@ fn a_source_edit_of_a_forward_mirrored_matrix_reaches_its_mirror() {
             .iter()
             .any(|item| item.kind == MirroredItemKind::Matrix && item.source_id == "left-thumbs")
     );
-    let edit = |matrix: &mut crate::model::Matrix| {
+    let edit = |matrix: &mut boardstudio_model::model::Matrix| {
         matrix.origin.x += 5.0;
         matrix.origin.y -= 7.5;
         matrix.rotation = Some(9.0);
-        matrix.cells[0].offset = Some(crate::model::Vec2 { x: 1.0, y: 2.0 });
+        matrix.cells[0].offset = Some(boardstudio_model::model::Vec2 { x: 1.0, y: 2.0 });
     };
     let after = reconciled(&document, edit);
     let expected = reference(&request, edit);

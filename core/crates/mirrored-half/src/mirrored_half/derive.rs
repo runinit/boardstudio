@@ -7,7 +7,8 @@ use crate::model::{
 };
 
 /// Whether a part definition makes its parts controllers, which keep the reflected heading.
-pub(super) fn is_controller(definitions: &[PartDefinition], definition_id: &str) -> bool {
+#[doc(hidden)]
+pub fn is_controller(definitions: &[PartDefinition], definition_id: &str) -> bool {
     definitions
         .iter()
         .any(|definition| definition.id == definition_id && definition.kind == PartKind::Controller)
@@ -26,7 +27,8 @@ pub(super) fn pose(mapping: Pose2, pose: Pose2, is_controller: bool) -> Pose2 {
 }
 
 /// Derive a part using identities already selected by the caller.
-pub(super) fn part(
+#[doc(hidden)]
+pub fn part(
     source: &Part,
     mirror_id: &str,
     definition_id: &str,
