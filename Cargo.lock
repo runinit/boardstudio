@@ -704,7 +704,10 @@ dependencies = [
 name = "boardstudio_core"
 version = "0.1.0"
 dependencies = [
+ "boardstudio-core-artifact",
  "boardstudio-core-engine",
+ "boardstudio-core-kernel",
+ "boardstudio-core-mechanical",
  "boardstudio-footprints",
  "boardstudio-model",
  "boardstudio-script",

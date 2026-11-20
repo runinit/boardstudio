@@ -1,12 +1,18 @@
 //! Rust and WebAssembly entry points for BoardStudio Core.
 
+pub use boardstudio_core_artifact::artifact;
 pub use boardstudio_core_engine::{
-    archive, artifact, authored_case_geometry_ready, case_preparation_ready,
-    companion_placement_disabled_reason, electrical, electrical_jumpers, electrical_peripherals,
-    electrical_profiles, evaluated_part_pose, firmware, generators, half_offset, hash,
-    is_matrix_key, layout_half_offset, layout_kernel, mechanical, migrate, model, outline_edit,
-    part_correspondence, proposed_creation_gap,
+    archive, authored_case_geometry_ready, case_preparation_ready,
+    companion_placement_disabled_reason, firmware, migrate,
 };
+pub use boardstudio_core_kernel::matrix::kernel as layout_kernel;
+pub use boardstudio_core_kernel::matrix::layout::{
+    evaluated_part_pose, half_offset, is_matrix_key, layout_half_offset, part_correspondence,
+    proposed_creation_gap,
+};
+pub use boardstudio_core_kernel::{generators, hash, outline_edit};
+pub use boardstudio_core_mechanical::{electrical, electrical_peripherals, mechanical};
+pub use boardstudio_model::{electrical_jumpers, electrical_profiles, model};
 
 #[cfg(target_arch = "wasm32")]
 use model::ArchiveReply;
