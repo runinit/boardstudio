@@ -44,7 +44,7 @@ pub mod inverse;
 pub mod matrix_addition;
 #[doc(hidden)]
 pub mod reconcile;
-pub use reconcile::{prepare_open_with_scripts, prepare_transaction_with_ledger};
+pub use reconcile::{prepare_open, prepare_transaction_with_ledger};
 
 /// The engine edit dispatcher, consulted under the owning session's identity ledger.
 pub type ApplyWithLedger = fn(
@@ -52,7 +52,6 @@ pub type ApplyWithLedger = fn(
     &[crate::model::BoardContours],
     &crate::model::EditOperation,
     &crate::mechanical::edit::MechanicalIdentityLedger,
-    Option<crate::ScriptRunner>,
 ) -> Result<Vec<String>, String>;
 
 /// The engine dispatch entry points mirrored-half preparation stages its sub-edits

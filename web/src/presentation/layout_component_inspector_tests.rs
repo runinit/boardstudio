@@ -3235,8 +3235,6 @@ mod matrix_relations_panel {
         let select_adapter = adapter.clone();
         rsx! {
             {layout_workspace::inspector(layout_workspace::InspectorInput {
-                geometry_scripts_open: false,
-                on_close_geometry_scripts: EventHandler::new(|()| {}),
                 context_title: None,
                 context_detail: None,
                 show_position_inspector: false,

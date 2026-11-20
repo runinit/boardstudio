@@ -76,7 +76,7 @@ fn following_companion_preserves_materialized_pose_exactly_on_refresh_and_reopen
         "refresh must preserve persisted pose exactly"
     );
     let saved = serde_json::to_string(&doc).unwrap();
-    let mut engine = CoreEngine::with_script_runner(boardstudio_script::apply_scripts);
+    let mut engine = CoreEngine::new();
     let reply = engine.handle(CoreRequest::Open {
         id: "reopen".into(),
         document: serde_json::from_str(&saved).unwrap(),

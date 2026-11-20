@@ -169,7 +169,7 @@ pub(super) fn canonicalize(
         document,
         operation,
         super::EditDispatch {
-            apply_with_ledger: |_, _, _, _, _| {
+            apply_with_ledger: |_, _, _, _| {
                 panic!("engine-backed translation belongs in the engine integration tests")
             },
             apply_unscripted: |_, _| {

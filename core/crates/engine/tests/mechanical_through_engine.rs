@@ -137,7 +137,7 @@ fn document_with_reference(reference: &str, mount_count: usize) -> ProjectDoc {
 }
 
 fn open_core_document(document: ProjectDoc) -> (CoreEngine, ProjectDoc) {
-    let mut engine = CoreEngine::with_script_runner(boardstudio_script::apply_scripts);
+    let mut engine = CoreEngine::new();
     match engine.handle(CoreRequest::Open {
         id: "open".into(),
         document,
@@ -261,7 +261,7 @@ fn link_edit(target: MechanicalTarget, pair_id: &str, source: &str) -> Mechanica
 
 #[test]
 fn an_end_to_end_link_commits_and_one_undo_restores_the_document() {
-    let mut engine = CoreEngine::with_script_runner(boardstudio_script::apply_scripts);
+    let mut engine = CoreEngine::new();
     let before = mirror_document();
     let CoreReply::Scene { document, .. } = engine.handle(CoreRequest::Open {
         id: "open".into(),

@@ -550,8 +550,6 @@ pub(super) fn keycaps_inspector_input(
 
 pub(super) struct LayoutInspectorArgs<'a> {
     pub layout_state: layout_workspace::LayoutWorkspaceState,
-    pub geometry_scripts_open: Signal<bool>,
-    pub setup_state: setup_workspace::SetupWorkspaceState,
     pub context_summary: &'a Option<context_summary::ContextSummary>,
     pub board_inspector_projection: Option<board_inspector::BoardInspectorProjection>,
     pub show_position_inspector: bool,
@@ -588,8 +586,6 @@ pub(super) fn layout_inspector_input(
 ) -> workspace_composition::WorkspaceInspectorInput {
     let LayoutInspectorArgs {
         layout_state,
-        geometry_scripts_open,
-        setup_state,
         context_summary,
         board_inspector_projection,
         show_position_inspector,
@@ -642,10 +638,6 @@ pub(super) fn layout_inspector_input(
         layout_state.companion_placement_controls();
     workspace_composition::WorkspaceInspectorInput::Layout(Box::new(
         layout_workspace::InspectorInput {
-            geometry_scripts_open: geometry_scripts_open(),
-            on_close_geometry_scripts: EventHandler::new(move |()| {
-                setup_state.set_geometry_scripts_open(false)
-            }),
             context_title: context_summary
                 .as_ref()
                 .map(|summary| summary.title.clone())

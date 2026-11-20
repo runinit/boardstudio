@@ -1,5 +1,5 @@
 use boardstudio_core_mirrored_half::mirrored_half::{
-    EditDispatch, prepare_open_with_scripts, prepare_transaction_with_ledger,
+    EditDispatch, prepare_transaction_with_ledger,
 };
 use boardstudio_model::model::{BoardContours, EditOperation, Finding, ProjectDoc};
 
@@ -15,19 +15,14 @@ pub fn apply_for_test(
     board_contours: &[boardstudio_model::model::BoardContours],
     op: &boardstudio_model::model::EditOperation,
 ) -> Result<Vec<String>, String> {
-    boardstudio_core_engine::apply_for_test(
-        doc,
-        board_contours,
-        op,
-        boardstudio_script::apply_scripts,
-    )
+    boardstudio_core_engine::apply_for_test(doc, board_contours, op)
 }
 
 pub fn prepare_open(
     accepted: &ProjectDoc,
     board_contours: &[BoardContours],
 ) -> Result<(ProjectDoc, Vec<Finding>), String> {
-    prepare_open_with_scripts(accepted, board_contours, boardstudio_script::apply_scripts)
+    boardstudio_core_mirrored_half::mirrored_half::prepare_open(accepted, board_contours)
 }
 
 /// Builds a complete document draft for one edit without changing the accepted document.
@@ -41,7 +36,6 @@ pub fn prepare_transaction(
         board_contours,
         operation,
         &boardstudio_core_mechanical::mechanical::edit::MechanicalIdentityLedger::default(),
-        boardstudio_script::apply_scripts,
         test_dispatch(),
     )
 }

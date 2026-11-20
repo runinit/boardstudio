@@ -19,7 +19,7 @@ fn host() -> Element {
         Objects {
             selected_context: selected,
             on_select: EventHandler::default(), on_navigate: EventHandler::default(),
-            on_nudge: EventHandler::default(), on_open_geometry_scripts: EventHandler::default(),
+            on_nudge: EventHandler::default(),
         }
     }
 }

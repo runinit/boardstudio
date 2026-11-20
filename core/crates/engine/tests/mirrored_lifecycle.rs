@@ -754,8 +754,7 @@ fn prepared_unlink_uses_the_normalized_mechanical_route_on_a_private_draft() {
 
 #[test]
 fn prepared_unlink_publication_undo_redo_and_reopen_preserve_materialized_closures() {
-    let mut engine =
-        boardstudio_core_engine::CoreEngine::with_script_runner(boardstudio_script::apply_scripts);
+    let mut engine = boardstudio_core_engine::CoreEngine::new();
     assert!(matches!(
         engine.handle(boardstudio_model::model::CoreRequest::Open {
             id: "open-unlink".into(),
@@ -906,8 +905,7 @@ fn prepared_unlink_publication_undo_redo_and_reopen_preserve_materialized_closur
                 == MechanicalConstructionOwnership::Local)
     );
 
-    let mut reopened =
-        boardstudio_core_engine::CoreEngine::with_script_runner(boardstudio_script::apply_scripts);
+    let mut reopened = boardstudio_core_engine::CoreEngine::new();
     assert!(matches!(
         reopened.handle(boardstudio_model::model::CoreRequest::Open {
             id: "reopen-unlinked".into(),
@@ -4722,8 +4720,7 @@ fn local_controller_own_pin_keeps_a_private_net_through_omit_and_reopen() {
     )
     .unwrap();
     assert_eq!(repeated.draft, decoded);
-    let mut reopened =
-        boardstudio_core_engine::CoreEngine::with_script_runner(boardstudio_script::apply_scripts);
+    let mut reopened = boardstudio_core_engine::CoreEngine::new();
     assert!(matches!(
         reopened.handle(boardstudio_model::model::CoreRequest::Open {
             id: "reopen-local-controller-net".into(),

@@ -11,6 +11,4 @@ pub(crate) use boardstudio_core_mechanical::mechanical;
 #[allow(unused_imports)]
 pub(crate) use boardstudio_core_mechanical::{electrical, electrical_peripherals, keymap, modules};
 #[allow(unused_imports)]
-pub(crate) use boardstudio_model::ScriptRunner;
-
 pub mod mirrored_half;

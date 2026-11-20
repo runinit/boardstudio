@@ -385,70 +385,23 @@ fn part_envelope_tracks_committed_move() {
 }
 
 #[test]
-fn scripts_emit_stable_ids_and_keep_visual_pose() {
+fn legacy_scripts_load_without_execution_or_reserialization() {
+    let mut json = serde_json::to_value(ProjectDoc::empty("p", "Project")).unwrap();
+    json["scripts"] = serde_json::json!([{ "id": "legacy", "name": "Legacy", "enabled": true, "source": "while true {}" }]);
+    let doc: ProjectDoc = serde_json::from_value(json).unwrap();
     let mut engine = CoreEngine::new();
-    let mut doc = ProjectDoc::empty("p", "Project");
-    doc.definitions.push(PartDefinition {
-        hardware_profile: None,
-        input_profile: None,
-        mechanical_profile: None,
-        id: "switch".into(),
-        name: "Switch".into(),
-        kind: PartKind::Switch,
-        courtyard: vec![],
-        pads: vec![],
-        models: None,
-        keycap: None,
-        envelope_source: None,
-        kicad_source: None,
-        terminals: Default::default(),
-        matrix_terminals: None,
-        envelope_notice: None,
-        generator: None,
-    });
-    doc.scripts.push(Script {
-        id: "layout".into(), name: "Layout".into(), enabled: true,
-        source: "part(\"main\", \"k1\", \"switch\", \"SW1\", 0.0, 0.0, 0.0); rect(\"main\", \"board\", 0.0, 0.0, 20.0, 10.0, 0.0, \"add\");".into(),
-    });
-    let (opened, doc) = scene(engine.handle(CoreRequest::Open {
+    let (_, opened) = scene(engine.handle(CoreRequest::Open {
         id: "open".into(),
         document: doc,
     }));
-    assert_eq!(doc.parts[0].id, "script/layout/main/k1");
-    assert_eq!(doc.outline[0].id(), "script/layout/main/board");
-    assert!(opened.readiness.outline);
-    let op = EditOperation::MoveParts {
-        positions: vec![Position {
-            id: "script/layout/main/k1".into(),
-            at: Vec2 { x: 7.0, y: 3.0 },
-        }],
-    };
-    let (_, edited) = scene(engine.handle(edit(0, EditPhase::Commit, op)));
-    let (reopened, persisted) = scene(engine.handle(CoreRequest::Open {
-        id: "reopen".into(),
-        document: edited,
-    }));
-    assert_eq!(persisted.parts.len(), 1);
-    assert_eq!(reopened.transforms[0].pose.at.x, 7.0);
-}
-
-#[test]
-fn bad_script_is_atomic_and_limited() {
-    let mut engine = CoreEngine::new();
-    let mut doc = ProjectDoc::empty("p", "Project");
-    doc.scripts.push(Script {
-        id: "bad".into(),
-        name: "Bad".into(),
-        enabled: true,
-        source: "while true {}".into(),
-    });
-    let reply = engine.handle(CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    });
-    assert!(matches!(reply, CoreReply::Error { revision: 0, .. }));
-    let (_, unchanged) = scene(engine.handle(CoreRequest::Snapshot { id: "snap".into() }));
-    assert_eq!(unchanged.id, "untitled");
+    assert!(opened.parts.is_empty());
+    assert_eq!(
+        serde_json::to_value(opened).unwrap()["scripts"],
+        serde_json::json!([])
+    );
+    let _: ProjectDoc =
+        serde_json::from_value(serde_json::to_value(ProjectDoc::empty("p", "Project")).unwrap())
+            .unwrap();
 }
 
 #[test]

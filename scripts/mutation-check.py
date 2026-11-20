@@ -40,7 +40,7 @@ import sys
 import time
 
 REPO = Path(__file__).resolve().parents[1]
-DEFAULT_COMMAND = "cargo test -p boardstudio-core-engine -p boardstudio-model -p boardstudio-script --locked --lib"
+DEFAULT_COMMAND = "cargo test -p boardstudio-core-engine -p boardstudio-model --locked --lib"
 KILLED = "killed"
 SURVIVED = "survived"
 COMPILE_FAILURE = "compile-failure (does not count)"

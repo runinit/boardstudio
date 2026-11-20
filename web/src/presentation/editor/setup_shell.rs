@@ -9,7 +9,6 @@ pub(super) struct WorkspaceShell {
     pub inspector_panel_settings: Signal<PanelSettings>,
     pub setup_state: setup_workspace::SetupWorkspaceState,
     pub guide_preferences: Signal<Option<setup_guide::SetupGuidePreferences>>,
-    pub geometry_scripts_open: Signal<bool>,
     pub guide_name_draft: Signal<Option<(String, String)>>,
     pub guide_name_failure: Signal<Option<String>>,
     pub guide_name_edit: SetupProjectNameEdit,
@@ -57,7 +56,6 @@ pub(super) fn use_workspace_shell() -> WorkspaceShell {
         inspector_panel_settings,
     );
     let guide_preferences = setup_state.guide_preferences();
-    let geometry_scripts_open = setup_state.geometry_scripts_open();
     let guide_name_edit = use_setup_project_name(runtime.clone());
     let guide_name_draft = guide_name_edit.draft;
     let guide_name_failure = guide_name_edit.failure;
@@ -99,7 +97,6 @@ pub(super) fn use_workspace_shell() -> WorkspaceShell {
         inspector_panel_settings,
         setup_state,
         guide_preferences,
-        geometry_scripts_open,
         guide_name_draft,
         guide_name_failure,
         guide_name_edit,
