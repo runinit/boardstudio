@@ -172,7 +172,7 @@ fn remove_text_render_caches(source: &str) -> Result<String, ArtifactError> {
     })
 }
 
-pub(crate) fn upgrade_legacy_arcs(source: &str) -> Result<String, ArtifactError> {
+pub fn upgrade_legacy_arcs(source: &str) -> Result<String, ArtifactError> {
     fn visit(node: &Node, edits: &mut Vec<(Span, String)>) -> Result<(), ArtifactError> {
         let Some(items) = sexpr::items(node) else {
             return Ok(());

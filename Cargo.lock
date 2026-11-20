@@ -217,6 +217,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "boardstudio-core-artifact"
+version = "0.1.0"
+dependencies = [
+ "boardstudio-contracts",
+ "boardstudio-core-kernel",
+ "boardstudio-core-kicad-source",
+ "boardstudio-core-mechanical",
+ "boardstudio-core-modules",
+ "boardstudio-footprints",
+ "boardstudio-model",
+ "kiutils_sexpr",
+ "serde_json",
+]
+
+[[package]]
 name = "boardstudio-core-electrical"
 version = "0.1.0"
 dependencies = [
@@ -232,17 +247,15 @@ name = "boardstudio-core-engine"
 version = "0.1.0"
 dependencies = [
  "boardstudio-contracts",
+ "boardstudio-core-artifact",
  "boardstudio-core-electrical",
  "boardstudio-core-kernel",
  "boardstudio-core-kicad-source",
  "boardstudio-core-mechanical",
  "boardstudio-core-modules",
- "boardstudio-footprints",
  "boardstudio-model",
  "boardstudio-script",
- "cavalier_contours",
  "i_overlay",
- "kiutils_sexpr",
  "serde",
  "serde_json",
  "zip",

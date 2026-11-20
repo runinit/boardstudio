@@ -1,7 +1,7 @@
 //! Document engine, edit dispatch and stateless Core operations.
 
 pub mod archive;
-pub mod artifact;
+pub use boardstudio_core_artifact::artifact;
 pub use boardstudio_core_electrical::{electrical, electrical_peripherals};
 pub use boardstudio_model::electrical_jumpers;
 pub use boardstudio_model::electrical_profiles;
