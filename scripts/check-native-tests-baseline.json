@@ -79,11 +79,6 @@
   "artifact::source_geometry::tests::root_rotation_normalizes_angles_and_keeps_child_positions_local",
   "artifact::source_geometry::tests::slotted_drill_and_mixed_layers_keep_shared_local_coordinates"
  ],
- "boardstudio_core_electrical": [
-  "electrical_peripherals::tests::battery_is_fixed_power_not_gpio",
-  "electrical_peripherals::tests::encoder_push_can_be_disabled",
-  "electrical_peripherals::tests::unknown_source_is_omitted_for_review"
- ],
  "boardstudio_core_engine": [
   "archive::tests::actual_read_limits_stop_at_the_first_excess_byte",
   "archive::tests::bounded_writer_discards_teardown_writes_without_growing_past_the_cap",
@@ -269,6 +264,9 @@
   "sexpr::tests::unchanged_source_spans_remain_byte_identical"
  ],
  "boardstudio_core_mechanical": [
+  "electrical_peripherals::tests::battery_is_fixed_power_not_gpio",
+  "electrical_peripherals::tests::encoder_push_can_be_disabled",
+  "electrical_peripherals::tests::unknown_source_is_omitted_for_review",
   "mechanical::clearance::tests::key_rounding_matches_javascript_fixed_decimal_behavior",
   "mechanical::clearance::tests::positive_and_negative_zero_deduplicate_to_one_js_compatible_key",
   "mechanical::clearance::tests::projects_canonical_and_flipped_instance_union_and_preserves_other_parts",
