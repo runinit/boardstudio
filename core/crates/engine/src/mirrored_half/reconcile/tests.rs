@@ -8648,7 +8648,13 @@ fn membership_compaction_fixture() -> Result<CompactionFixture, String> {
         identity_map.insert(id.clone(), next);
     }
     let mut post_source = before.clone();
-    crate::matrix::deletion::remove_axis(&mut post_source, "source-matrix", 1, false)?;
+    crate::matrix::deletion::remove_axis(
+        &mut post_source,
+        "source-matrix",
+        1,
+        false,
+        crate::apply_unscripted,
+    )?;
     let mut final_owners = BTreeMap::new();
     let mut identity_universe: BTreeSet<_> =
         before.parts.iter().map(|part| part.id.clone()).collect();
@@ -9072,10 +9078,22 @@ fn membership_transition_chains_two_by_three_expansion_and_two_by_two_trim() {
     };
     let (mut before, _, mut context, _, _, _) =
         membership_compaction_fixture().expect("the linked matrix fixture is valid");
-    crate::matrix::deletion::remove_axis(&mut before, "source-matrix", 3, false)
-        .expect("the source fixture narrows to three columns");
-    crate::matrix::deletion::remove_axis(&mut before, "mirror-matrix", 3, false)
-        .expect("the mirror fixture narrows to three columns");
+    crate::matrix::deletion::remove_axis(
+        &mut before,
+        "source-matrix",
+        3,
+        false,
+        crate::apply_unscripted,
+    )
+    .expect("the source fixture narrows to three columns");
+    crate::matrix::deletion::remove_axis(
+        &mut before,
+        "mirror-matrix",
+        3,
+        false,
+        crate::apply_unscripted,
+    )
+    .expect("the mirror fixture narrows to three columns");
     let mut initial_source = before
         .matrices
         .iter()
@@ -10399,8 +10417,14 @@ fn membership_transition_compacts_ids_and_carries_logical_payload_and_settings()
         membership_compaction_fixture().expect("the materialized compaction fixture is valid");
     add_membership_cleanup_sentinels(&mut before);
     let mut post_source = before.clone();
-    crate::matrix::deletion::remove_axis(&mut post_source, "source-matrix", 1, false)
-        .expect("the source operation remaps populated dependency sentinels");
+    crate::matrix::deletion::remove_axis(
+        &mut post_source,
+        "source-matrix",
+        1,
+        false,
+        crate::apply_unscripted,
+    )
+    .expect("the source operation remaps populated dependency sentinels");
     crate::mechanical::halves::validate_document(&before)
         .expect("populated before evidence remains canonical");
     let mirror_identity_map: BTreeMap<_, _> = identity_map
@@ -10925,7 +10949,13 @@ fn repair_fresh_coherent_compaction_fixture() -> Result<CompactionFixture, Strin
     *offset = Vec2 { x: 75.0, y: -47.0 };
     *rotation = 90.0;
     let mut post = before.clone();
-    crate::matrix::deletion::remove_axis(&mut post, "source-matrix", 1, false)?;
+    crate::matrix::deletion::remove_axis(
+        &mut post,
+        "source-matrix",
+        1,
+        false,
+        crate::apply_unscripted,
+    )?;
     Ok((before, post, context, source_map, owners, closure))
 }
 
@@ -11153,7 +11183,14 @@ fn repair_fresh_omission_cleans_idless_dependencies() {
     );
     before.keymap = Some(keymap);
     let mut post = before.clone();
-    crate::matrix::deletion::remove_axis(&mut post, "source-matrix", 1, false).unwrap();
+    crate::matrix::deletion::remove_axis(
+        &mut post,
+        "source-matrix",
+        1,
+        false,
+        crate::apply_unscripted,
+    )
+    .unwrap();
     let mut mirror_map: BTreeMap<_, _> = source_map
         .iter()
         .map(|(old, new)| {

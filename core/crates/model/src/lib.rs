@@ -20,3 +20,6 @@ pub mod mechanical {
     pub mod halves;
     pub mod pair;
 }
+
+/// Evaluates document scripts at the engine's Open and ReplaceDocument boundaries.
+pub type ScriptRunner = fn(&mut model::ProjectDoc) -> Result<(), String>;

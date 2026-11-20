@@ -5,6 +5,12 @@ use std::collections::{BTreeMap, BTreeSet};
 
 type PartChanges = BTreeMap<String, Option<String>>;
 
+/// Dispatches one edit operation without running document scripts; the engine's
+/// staged-edit entry point, injected so axis removal can re-dispatch `RemoveMatrix`
+/// when the last row or column goes away.
+pub(crate) type ApplyUnscripted =
+    fn(&mut ProjectDoc, &EditOperation) -> Result<Vec<String>, String>;
+
 fn remapped(id: &str, changes: &PartChanges) -> Option<String> {
     changes.get(id).cloned().unwrap_or_else(|| Some(id.into()))
 }
@@ -420,6 +426,7 @@ pub(crate) fn remove_axis(
     matrix_id: &str,
     index: u32,
     row_axis: bool,
+    apply: ApplyUnscripted,
 ) -> Result<Vec<String>, String> {
     let mut matrices = matrices(doc, matrix_id)?;
     let dimension = if row_axis {
@@ -446,10 +453,7 @@ pub(crate) fn remove_axis(
         let mut changed = changed_ids(&changes);
         changed.extend(pruned);
         for matrix in matrices {
-            changed.extend(crate::apply_unscripted(
-                doc,
-                &EditOperation::RemoveMatrix { id: matrix.id },
-            )?);
+            changed.extend(apply(doc, &EditOperation::RemoveMatrix { id: matrix.id })?);
         }
         return Ok(changed);
     }

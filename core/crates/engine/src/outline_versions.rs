@@ -1,5 +1,6 @@
 //! Board-owned fixed copies. Generated source features keep their legacy live behavior.
 use crate::{geometry, model::*};
+use std::collections::BTreeSet;
 
 pub(crate) fn active_snapshot<'a>(
     doc: &'a ProjectDoc,
@@ -429,6 +430,18 @@ pub(crate) fn generated_snapshot(
 /// another component. Fixed edited outlines keep their geometry; their clearance
 /// findings report the changed fit instead (ADR-0001).
 ///
+/// Linked outline versions drop the authored choices that required a component the edit
+/// removed, whichever operation removed it, inside that same accepted edit and Undo step.
+pub(crate) fn prune_removed_components(before: &[Part], after: &mut ProjectDoc) -> Vec<String> {
+    let present: BTreeSet<&str> = after.parts.iter().map(|part| part.id.as_str()).collect();
+    let removed: Vec<String> = before
+        .iter()
+        .filter(|part| !present.contains(part.id.as_str()))
+        .map(|part| part.id.clone())
+        .collect();
+    prune_removed_sources(after, &removed)
+}
+
 /// Returns the identities of the choices it removed.
 pub(crate) fn prune_removed_sources(doc: &mut ProjectDoc, removed: &[String]) -> Vec<String> {
     if removed.is_empty() {

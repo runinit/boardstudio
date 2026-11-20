@@ -6697,6 +6697,7 @@ fn prepare_membership_transition_kernel(
             matrix_pair.mirror_id.as_str(),
             removed_index,
             axis_row,
+            crate::apply_unscripted,
         )?;
     } else if is_trim && !matrix_detached_local && !mirror_absent {
         let old_mirror = matrix_by_id(&staged, matrix_pair.mirror_id.as_str())?;

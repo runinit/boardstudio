@@ -1,4 +1,5 @@
-use crate::{matrix, mechanical::pair, model::*};
+use crate::{matrix, model::*};
+use boardstudio_model::mechanical::pair;
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -2851,8 +2852,7 @@ pub(crate) fn set_detached_part_rotation(
             },
             rotation: 0.0,
         };
-        let source_rotation =
-            crate::mechanical::pair::mirrored_part_heading(is_controller, axis_mapping, rotation);
+        let source_rotation = pair::mirrored_part_heading(is_controller, axis_mapping, rotation);
         let source_board = evaluated_part_pose(
             doc,
             doc.parts

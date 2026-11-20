@@ -88,7 +88,7 @@ pub(crate) fn prepare_open_with_scripts(
         }
     }
     crate::outline_controls::detach_removed(&accepted.parts, &mut draft);
-    crate::prune_removed_components(&accepted.parts, &mut draft);
+    crate::outline_versions::prune_removed_components(&accepted.parts, &mut draft);
     crate::matrix::layout::validate(&draft)?;
     crate::mechanical::halves::validate_document(&draft)?;
 
@@ -712,7 +712,10 @@ pub(crate) fn prepare_transaction_with_ledger(
         &canonical.additions,
     )?);
     crate::outline_controls::detach_removed(&accepted.parts, &mut draft);
-    changed.extend(crate::prune_removed_components(&accepted.parts, &mut draft));
+    changed.extend(crate::outline_versions::prune_removed_components(
+        &accepted.parts,
+        &mut draft,
+    ));
 
     resolve_mirror_replacement_electrical(accepted, &mut draft, &canonical.operation)?;
 

@@ -171,8 +171,7 @@ pub fn case_preparation_ready(
         && (configured || authored_case_geometry_ready(document, scene, board_id))
 }
 
-/// Evaluates document scripts at the engine's Open and ReplaceDocument boundaries.
-pub type ScriptRunner = fn(&mut ProjectDoc) -> Result<(), String>;
+pub use boardstudio_model::ScriptRunner;
 
 #[cfg(test)]
 impl Default for CoreEngine {
@@ -671,7 +670,7 @@ impl CoreEngine {
                 Err(message) => return self.error(id, &message),
             }
             outline_controls::detach_removed(&self.document.parts, &mut raw_next);
-            raw_changed.extend(prune_removed_components(
+            raw_changed.extend(outline_versions::prune_removed_components(
                 &self.document.parts,
                 &mut raw_next,
             ));
@@ -912,7 +911,10 @@ impl CoreEngine {
             )?);
             changed.extend(layout::sync_components(&mut self.document)?);
             outline_controls::detach_removed(&attachments, &mut self.document);
-            changed.extend(prune_removed_components(&before_parts, &mut self.document));
+            changed.extend(outline_versions::prune_removed_components(
+                &before_parts,
+                &mut self.document,
+            ));
             changed.sort();
             changed.dedup();
             generators::introduced_error(&accepted, &self.document)?;
@@ -1559,18 +1561,6 @@ fn affects_outline(op: &EditOperation) -> bool {
     )
 }
 
-/// Linked outline versions drop the authored choices that required a component the edit
-/// removed, whichever operation removed it, inside that same accepted edit and Undo step.
-fn prune_removed_components(before: &[Part], after: &mut ProjectDoc) -> Vec<String> {
-    let present: BTreeSet<&str> = after.parts.iter().map(|part| part.id.as_str()).collect();
-    let removed: Vec<String> = before
-        .iter()
-        .filter(|part| !present.contains(part.id.as_str()))
-        .map(|part| part.id.clone())
-        .collect();
-    outline_versions::prune_removed_sources(after, &removed)
-}
-
 fn add_part_placement(
     document: &mut ProjectDoc,
     part: &Part,
@@ -2109,10 +2099,10 @@ fn apply_with_ledger(
             matrix::deletion::remove_cells(doc, matrix_id, cells)
         }
         EditOperation::RemoveMatrixRow { matrix_id, row } => {
-            matrix::deletion::remove_axis(doc, matrix_id, *row, true)
+            matrix::deletion::remove_axis(doc, matrix_id, *row, true, apply_unscripted)
         }
         EditOperation::RemoveMatrixColumn { matrix_id, column } => {
-            matrix::deletion::remove_axis(doc, matrix_id, *column, false)
+            matrix::deletion::remove_axis(doc, matrix_id, *column, false, apply_unscripted)
         }
         EditOperation::RemoveParts { ids } => {
             let affected: Vec<_> = doc
