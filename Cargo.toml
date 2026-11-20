@@ -8,6 +8,7 @@ members = [
   "footprints",
   "renderer",
   "web",
+  "web/crates/worker-host",
   "web/crates/host",
   "web/crates/runtime",
   "web/crates/ui-model",
@@ -30,11 +31,11 @@ exclude = [
 ]
 
 [workspace.dependencies]
-# One web-sys feature list for every web crate. Cargo compiles web-sys, and everything built on it
-# such as dioxus-web, once per distinct feature set, so per-crate lists made each crate's
-# `wasm-pack test` build its own copy instead of reusing the page build's units. The list is
-# everything the page and the renderer resolve on wasm32 (including what dioxus-web, dioxus-primitives
-# and three-d turn on), so the page, the workers and the renderer all build one web-sys.
+# One web-sys feature list lets the page, workers, renderer and wasm tests reuse the same build.
+# The W3-6 audit found 0 dead features among the 183 listed: 76 direct uses, 104 for transitive
+# unification and 3 implied by the dependency graph. The closure is 183, and Cargo resolves
+# 185 including `default` and `std`. WebSocket, Headers, RequestInit and ResponseType stay
+# pinned so dioxus-web, dioxus-asset-resolver and subsecond share one web-sys build hash.
 web-sys = { version = "=0.3.106", features = [
   "AbortSignal", "AngleInstancedArrays", "AnimationEvent", "Blob", "BlobPropertyBag", "Cache",
   "CacheStorage", "CharacterData", "Client", "ClientQueryOptions", "ClientType", "Clients",

@@ -303,10 +303,12 @@ dependencies = [
  "boardstudio-web-runtime",
  "boardstudio-web-ui-model",
  "boardstudio-web-ui-shared",
+ "boardstudio-web-worker-host",
  "boardstudio_core",
  "dioxus",
  "dioxus-web",
  "futures-channel",
+ "futures-core",
  "futures-sink",
  "futures-util",
  "gloo-timers",
@@ -368,6 +370,7 @@ name = "boardstudio-web-host"
 version = "0.1.0"
 dependencies = [
  "boardstudio-application",
+ "boardstudio-web-worker-host",
  "boardstudio_core",
  "futures-channel",
  "gloo-timers",
@@ -564,6 +567,23 @@ dependencies = [
  "serde_json",
  "strum",
  "tw_merge",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "wasm-bindgen-test",
+ "web-sys",
+]
+
+[[package]]
+name = "boardstudio-web-worker-host"
+version = "0.1.0"
+dependencies = [
+ "boardstudio_core",
+ "futures-channel",
+ "gloo-timers",
+ "js-sys",
+ "serde",
+ "serde-wasm-bindgen",
+ "serde_json",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "wasm-bindgen-test",

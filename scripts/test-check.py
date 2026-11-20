@@ -596,11 +596,16 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
         self.assertEqual([build[idx + 1] for idx, arg in enumerate(build) if arg == "-p"],
                          list(check.WEB_WASM_PACKAGES[1:]))
         self.assertEqual(build[-2], "--features")
-        self.assertEqual(build[-1].split(","), ["boardstudio-web-host/page"])
+        self.assertEqual(build[-1].split(","),
+                         ["boardstudio-web-host/page", "boardstudio-web-worker-host/cad"])
         scoped_build, scoped_launch = check.with_crate_build([check.crate_launch("layout")])
         self.assertEqual(scoped_build, [*check.WASM_CRATE_BUILD, "-p", "boardstudio-web-layout"])
         self.assertEqual(scoped_launch, check.crate_launch("layout"))
-        self.assertEqual(len(launches), 12)
+        worker_build, worker_launch = check.with_crate_build([check.crate_launch("worker-host")])
+        self.assertEqual(worker_build, [*check.WASM_CRATE_BUILD, "-p", "boardstudio-web-worker-host",
+                                        "--features", "boardstudio-web-worker-host/cad"])
+        self.assertEqual(worker_launch, check.crate_launch("worker-host"))
+        self.assertEqual(len(launches), 13)
         self.assertTrue(all(check.is_crate_launch(cmd) for cmd in launches))
         self.assertIn("scripts/run-wasm-tests.py", packaged[-1])
         self.assertFalse(any("--list" in cmd for cmd in packaged + wasm))
@@ -1007,7 +1012,8 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
         self.assertEqual(rest.count("--lib"), 0, "--lib lives in the shared prefix")
         self.assertIn("--no-default-features", rest)
         features = [rest[index + 1] for index, token in enumerate(rest[:-1]) if token == "--features"]
-        self.assertEqual(features, ["boardstudio-web-host/page,boardstudio-web/page,"
+        self.assertEqual(features, ["boardstudio-web-host/page,boardstudio-web-worker-host/cad,"
+                                    "boardstudio-web/page,"
                                     "boardstudio-web-host/test-support"])
         self.assertEqual(rest[-7:], ["-p", check.PAGE_PACKAGE, "--bin", check.PAGE_PACKAGE,
                                     "--no-default-features", "--features", features[0]])
@@ -1158,12 +1164,9 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
             self.assertEqual(check.main(["browser", "--only", "case"]), 0)
         self.chrome.assert_not_called()
 
-    def test_host_browser_gate_includes_cad_worker_tests_alongside_storage(self):
-        launches = check.select_browser_crate_launches(["host"])
-        self.assertEqual(len(launches), 1)
-        command = launches[0]
-        self.assertEqual(command[2:], [],
-                         "Host filtering must not exclude the CAD worker browser regressions")
+    def test_browser_gate_selects_page_and_worker_host_suites_without_test_filters(self):
+        launches = check.select_browser_crate_launches(["host", "worker-host"])
+        self.assertEqual(launches, [check.crate_launch("host"), check.crate_launch("worker-host")])
 
 
     def test_each_command_and_step_reports_its_wall_time(self):
@@ -1669,7 +1672,7 @@ runpy.run_path('scripts/run-parts-inspector-scroll.py', run_name='__main__')
     def test_browser_crates_are_derived_from_the_browser_plan_without_duplication(self):
         self.assertEqual(
             check.browser_crates(),
-            ("host", "runtime", "ui-model", "ui-shared", "keycaps", "library",
+            ("host", "worker-host", "runtime", "ui-model", "ui-shared", "keycaps", "library",
              "keymap", "catalogue", "case", "parts", "pcb", "layout"),
         )
         custom = [check.crate_launch("custom-crate")]

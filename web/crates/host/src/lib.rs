@@ -1,19 +1,26 @@
 #![forbid(unsafe_code)]
-//! Browser host services shared by the page (`boardstudio-web` bin) and its workers.
+//! Browser host services for the BoardStudio page.
 
 #[cfg(all(target_arch = "wasm32", feature = "page"))]
 pub mod host;
 
-#[cfg(any(feature = "page", feature = "cad-worker"))]
-pub mod cad_jobs;
+#[cfg(feature = "page")]
+mod captured_case;
 
-#[cfg(any(feature = "page", feature = "cad-worker"))]
-pub mod cad_qualification;
+#[cfg(feature = "page")]
+pub mod cad_jobs {
+    pub use crate::captured_case::*;
+    pub use boardstudio_web_worker_host::cad_jobs::*;
+}
 
-#[cfg(all(target_arch = "wasm32", any(feature = "page", feature = "cad-worker")))]
-pub mod cad_worker;
+#[cfg(feature = "page")]
+pub use boardstudio_web_worker_host::cad_qualification;
 
-pub mod offline;
+#[cfg(all(target_arch = "wasm32", feature = "page"))]
+pub use boardstudio_web_worker_host::cad_worker;
+
+#[cfg(feature = "page")]
+pub use boardstudio_web_worker_host::offline;
 
 #[cfg(all(test, target_arch = "wasm32", feature = "page"))]
 mod boundary_parity;
