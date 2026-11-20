@@ -470,4 +470,18 @@ security deny release` + `test` all pass):
   serializing unit, at higher total cold CPU — is the honest cost of this split
   and should be weighed before landing.
 
-
+**Follow-up: web consumers off the engine edge.** `boardstudio-application` no longer
+depends on `boardstudio_core`: `Session::new` takes Core's Open admission check as an
+`OpenValidator` function pointer (hosts pass `CoreEngine::validate_open`), the uncalled
+`handle_core` adapter is gone, and document types come from `boardstudio-model`.
+`ui-model` and `layout-objects` now depend on `boardstudio-model` / `boardstudio-core-kernel`
+directly (`boardstudio_core` only as a dev-dependency); `layout-core` keeps one normal
+`boardstudio_core` edge because `preview_anchor_poses` opens its probe through a scratch
+`CoreEngine`. The facade re-exports each item from its owning crate. The web graph still
+waits for the engine, though: `ui-model` needs `runtime::Runtime`, which owns the
+in-process `CoreEngine` executor plus archive, artifact and firmware entry points, and
+`runtime` depends on `host`, whose CAD capture calls the engine's
+`case_preparation_ready`; `case` (`link_preview`) and `layout-core` also open scratch
+engines in production. Lifting that gate means moving the engine-free readiness checks
+and `migrate_value` out of the engine and putting `Runtime`'s executor behind an injected
+trait — well beyond a contained slice.
