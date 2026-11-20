@@ -24,8 +24,8 @@ import browser_tools
 ROOT = Path(__file__).resolve().parent.parent.parent
 EVIDENCE = ROOT / ".evidence" / "cold-build-port"
 WIPE = [
-    "target", "web/target", "cad/wasm/target", "cad/monstertruck/target",
-    "cad/monstertruck-qualification/target", "tools/browser-harness/target",
+    "target", "web/target", "cad/wasm/target", "cad/target",
+    "tools/browser-harness/target",
     "cad/wasm/pkg", "renderer/pkg", "cad/.cache",
     "web/assets/cad", "web/assets/cad-worker", "web/assets/core-worker",
     # web/target also covers all three worker outputs, including the offline worker.

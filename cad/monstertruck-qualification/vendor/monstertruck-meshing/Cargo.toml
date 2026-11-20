@@ -44,7 +44,7 @@ tessellation = [
     "spade",
     "filters",
 ]
-vtk = ["vtkio"]
+vtk = []
 
 [lib]
 name = "monstertruck_meshing"
@@ -158,12 +158,6 @@ version = "1"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies.rayon]
 version = "1"
-
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies.vtkio]
-version = "0.6"
-features = ["xml"]
-optional = true
-default-features = false
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies.getrandom]
 version = "0.4"

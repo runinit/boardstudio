@@ -1368,7 +1368,7 @@ def build_preflight(*, cad: bool = False, cad_wasm: bool = False) -> bool:
         print(f"check: build target unknown: {error}", file=sys.stderr)
     cad_targets = []
     if cad:
-        cad_targets.extend(("cad/monstertruck/target", "cad/monstertruck-qualification/target"))
+        cad_targets.append("cad/target")
     if cad_wasm:
         cad_targets.append("cad/wasm/target")
     if cad_targets:
