@@ -21,8 +21,8 @@ use std::collections::{BTreeMap, BTreeSet};
 mod lifecycle;
 mod prepare;
 #[cfg(test)]
-pub(crate) use prepare::prepare_transaction;
-pub(crate) use prepare::{prepare_open_with_scripts, prepare_transaction_with_ledger};
+pub use prepare::prepare_transaction;
+pub use prepare::{prepare_open_with_scripts, prepare_transaction_with_ledger};
 mod outlines;
 mod settings;
 // Ticket 147: keycap settings and plain nets follow their source after creation.

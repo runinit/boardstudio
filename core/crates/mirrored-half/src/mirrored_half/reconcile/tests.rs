@@ -1578,7 +1578,7 @@ fn inherited_local_circuit_member_settings_and_host_net_pins_survive() {
     let canonical = crate::mirrored_half::inverse::canonicalize(&document, &request)
         .expect("a member of a Local circuit edits its keycap setting as written");
     assert_eq!(canonical.operation, request);
-    crate::apply(&mut document, &[], &canonical.operation)
+    crate::mirrored_half::apply_for_test(&mut document, &[], &canonical.operation)
         .expect("the mirror-side keycap edit applies");
 
     let mirror_definition = document
@@ -6221,7 +6221,7 @@ fn reconcile_projects_associated_independent_parts_and_preserves_fixed_layouts()
     );
     assert!(document.parts.iter().all(|part| part.reference != "J99"));
 
-    crate::apply(
+    crate::mirrored_half::apply_for_test(
         &mut document,
         &[],
         &crate::model::EditOperation::SetLayout {
@@ -6622,7 +6622,7 @@ fn reconcile_projects_associated_independent_parts_and_preserves_fixed_layouts()
     {
         part_ids.push("independent-mirror-added".into());
     }
-    crate::apply(
+    crate::mirrored_half::apply_for_test(
         &mut removal_source,
         &[],
         &crate::model::EditOperation::RemoveParts {
@@ -6869,7 +6869,7 @@ fn source_layout_removal_prunes_linked_projection_and_keeps_local_and_unpaired_m
         },
     };
     assert_eq!(canonical.operation, expected_source);
-    crate::apply(&mut document, &[], &canonical.operation)
+    crate::mirrored_half::apply_for_test(&mut document, &[], &canonical.operation)
         .expect("the translated source layout removes its linked member");
     reconcile(&mut document, "pair-source-mirror", &projection)
         .expect("the removal and retained target members reconcile");
@@ -7029,7 +7029,7 @@ fn mirror_layout_reorder_survives_source_apply_and_reconciliation() {
             },
         }
     );
-    crate::apply(&mut document, &[], &canonical.operation)
+    crate::mirrored_half::apply_for_test(&mut document, &[], &canonical.operation)
         .expect("the canonical source layout applies");
     reconcile(&mut document, "pair-source-mirror", &projection)
         .expect("the reordered source layout reconciles");
@@ -7127,7 +7127,7 @@ fn local_mirror_layout_edit_survives_source_reconciliation() {
         part_ids: vec!["geometry-probe".into()],
         ..document.layouts[1].clone()
     };
-    crate::apply(
+    crate::mirrored_half::apply_for_test(
         &mut document,
         &[],
         &EditOperation::SetLayout {
@@ -7192,7 +7192,7 @@ fn omitted_mirror_layout_stays_absent_after_source_edit_and_reconciliation() {
         part_ids: vec!["omitted-layout-source-part".into()],
         ..document.layouts[0].clone()
     };
-    crate::apply(
+    crate::mirrored_half::apply_for_test(
         &mut document,
         &[],
         &EditOperation::SetLayout {
@@ -7734,7 +7734,7 @@ fn membership_transition_removes_a_whole_paired_matrix_from_a_source_operation()
         .expect("the pre-edit pair is a valid materialized project");
 
     let mut post_source = before.clone();
-    let source_changed = crate::apply(
+    let source_changed = crate::mirrored_half::apply_for_test(
         &mut post_source,
         &[],
         &EditOperation::RemoveMatrix {
@@ -8074,7 +8074,7 @@ fn membership_transition_retires_a_whole_pair_but_preserves_local_mirror_parts()
         .expect("the retained Local dependency controls are valid before removal");
 
     let mut post_source = before.clone();
-    crate::apply(
+    crate::mirrored_half::apply_for_test(
         &mut post_source,
         &[],
         &EditOperation::RemoveMatrix {
@@ -8664,7 +8664,7 @@ fn membership_compaction_fixture() -> Result<CompactionFixture, String> {
         "source-matrix",
         1,
         false,
-        crate::apply_unscripted,
+        crate::mirrored_half::test_dispatch().apply_unscripted,
     )?;
     let mut final_owners = BTreeMap::new();
     let mut identity_universe: BTreeSet<_> =
@@ -9095,7 +9095,7 @@ fn membership_transition_chains_two_by_three_expansion_and_two_by_two_trim() {
         "source-matrix",
         3,
         false,
-        crate::apply_unscripted,
+        crate::mirrored_half::test_dispatch().apply_unscripted,
     )
     .expect("the source fixture narrows to three columns");
     crate::matrix::deletion::remove_axis(
@@ -9103,7 +9103,7 @@ fn membership_transition_chains_two_by_three_expansion_and_two_by_two_trim() {
         "mirror-matrix",
         3,
         false,
-        crate::apply_unscripted,
+        crate::mirrored_half::test_dispatch().apply_unscripted,
     )
     .expect("the mirror fixture narrows to three columns");
     let mut initial_source = before
@@ -10440,7 +10440,7 @@ fn membership_transition_compacts_ids_and_carries_logical_payload_and_settings()
         "source-matrix",
         1,
         false,
-        crate::apply_unscripted,
+        crate::mirrored_half::test_dispatch().apply_unscripted,
     )
     .expect("the source operation remaps populated dependency sentinels");
     crate::mechanical::halves::validate_document(&before)
@@ -10977,7 +10977,7 @@ fn repair_fresh_coherent_compaction_fixture() -> Result<CompactionFixture, Strin
         "source-matrix",
         1,
         false,
-        crate::apply_unscripted,
+        crate::mirrored_half::test_dispatch().apply_unscripted,
     )?;
     Ok((before, post, context, source_map, owners, closure))
 }
@@ -11215,7 +11215,7 @@ fn repair_fresh_omission_cleans_idless_dependencies() {
         "source-matrix",
         1,
         false,
-        crate::apply_unscripted,
+        crate::mirrored_half::test_dispatch().apply_unscripted,
     )
     .unwrap();
     let mut mirror_map: BTreeMap<_, _> = source_map

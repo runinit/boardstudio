@@ -10,7 +10,7 @@ mod keycaps;
 use boardstudio_core_electrical::keymap;
 pub use boardstudio_core_mechanical::mechanical;
 pub mod migrate;
-mod mirrored_half;
+use boardstudio_core_mirrored_half::mirrored_half;
 use boardstudio_core_modules::modules;
 pub use boardstudio_model::model;
 mod outline_validation;
@@ -1733,6 +1733,96 @@ fn edit_dispatch() -> mirrored_half::EditDispatch {
     mirrored_half::EditDispatch {
         apply_with_ledger,
         apply_unscripted,
+    }
+}
+
+/// The staged-edit dispatchers for sibling crates' tests. Exposed as plain
+/// functions (not the mirrored crate's `EditDispatch` struct) because a crate in a
+/// dev-dependency cycle compiles as two instances whose nominal types differ.
+#[cfg(feature = "test-support")]
+#[allow(clippy::too_many_arguments)]
+pub fn apply_with_ledger_for_test(
+    doc: &mut ProjectDoc,
+    board_contours: &[BoardContours],
+    op: &EditOperation,
+    identities: &mechanical::edit::MechanicalIdentityLedger,
+    run_scripts: Option<ScriptRunner>,
+) -> Result<Vec<String>, String> {
+    apply_with_ledger(doc, board_contours, op, identities, run_scripts)
+}
+
+#[cfg(feature = "test-support")]
+pub fn apply_unscripted_for_test(
+    doc: &mut ProjectDoc,
+    op: &EditOperation,
+) -> Result<Vec<String>, String> {
+    apply_unscripted(doc, op)
+}
+
+/// Applies one operation under a fresh identity ledger for sibling crates' tests.
+#[cfg(feature = "test-support")]
+pub fn apply_for_test(
+    doc: &mut ProjectDoc,
+    board_contours: &[BoardContours],
+    op: &EditOperation,
+    run_scripts: ScriptRunner,
+) -> Result<Vec<String>, String> {
+    apply_with_ledger(
+        doc,
+        board_contours,
+        op,
+        &mechanical::edit::MechanicalIdentityLedger::default(),
+        Some(run_scripts),
+    )
+}
+
+#[cfg(feature = "test-support")]
+impl CoreEngine {
+    pub fn with_document_for_test(document: ProjectDoc, run_scripts: ScriptRunner) -> Self {
+        Self {
+            document,
+            ..Self::with_script_runner(run_scripts)
+        }
+    }
+
+    pub fn document_for_test(&self) -> &ProjectDoc {
+        &self.document
+    }
+
+    pub fn undo_for_test(&self) -> &[ProjectDoc] {
+        &self.undo
+    }
+
+    pub fn redo_for_test(&self) -> &[ProjectDoc] {
+        &self.redo
+    }
+
+    pub fn outline_cache_for_test(&self) -> &OutlineCache {
+        &self.outline_cache
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn publish_prepared_for_test(
+        &mut self,
+        id: String,
+        transaction: String,
+        document: ProjectDoc,
+        changed: Vec<String>,
+        cache: OutlineCache,
+        contours: Vec<Contour>,
+        findings: Vec<Finding>,
+    ) -> CoreReply {
+        self.publish_prepared_edit(
+            id,
+            PreparedEdit {
+                transaction,
+                document,
+                changed,
+                cache,
+                contours,
+                findings,
+            },
+        )
     }
 }
 

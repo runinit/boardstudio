@@ -17,6 +17,7 @@ boardstudio-core-modules = { path = "../modules" }
 boardstudio-core-electrical = { path = "../electrical" }
 boardstudio-core-mechanical = { path = "../mechanical" }
 boardstudio-core-artifact = { path = "../artifact" }
+boardstudio-core-mirrored-half = { path = "../mirrored-half" }
 boardstudio-contracts = { path = "../../../contracts/rust" }
 i_overlay = "9.0.0"
 serde = { version = "1", features = ["derive"] }

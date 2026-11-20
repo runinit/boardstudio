@@ -21,7 +21,7 @@ use std::collections::{BTreeMap, BTreeSet};
 mod tests;
 
 #[cfg(test)]
-pub(crate) fn prepare_open(
+pub fn prepare_open(
     accepted: &ProjectDoc,
     board_contours: &[BoardContours],
 ) -> Result<(ProjectDoc, Vec<Finding>), String> {
@@ -31,7 +31,7 @@ pub(crate) fn prepare_open(
 /// Builds the source-authoritative document draft used by Open without publishing it.
 /// Open has its own route: it does not canonicalize an edit or use transaction preparation,
 /// whose ReplaceDocument behavior intentionally preserves replacement geometry.
-pub(crate) fn prepare_open_with_scripts(
+pub fn prepare_open_with_scripts(
     accepted: &ProjectDoc,
     _board_contours: &[BoardContours],
     run_scripts: ScriptRunner,
@@ -613,7 +613,7 @@ fn set_companion_placement(
 
 /// Builds a complete document draft for one edit without changing the accepted document.
 #[cfg(test)]
-pub(crate) fn prepare_transaction(
+pub fn prepare_transaction(
     accepted: &ProjectDoc,
     board_contours: &[BoardContours],
     operation: &EditOperation,
@@ -631,7 +631,7 @@ pub(crate) fn prepare_transaction(
 /// Builds a complete document draft while consulting the owning session's identity
 /// reservations, so a later addition never reuses an identity hidden by Undo or a
 /// disabled configuration.
-pub(crate) fn prepare_transaction_with_ledger(
+pub fn prepare_transaction_with_ledger(
     accepted: &ProjectDoc,
     board_contours: &[BoardContours],
     operation: &EditOperation,

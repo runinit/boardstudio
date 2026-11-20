@@ -41,11 +41,11 @@ mod inverse;
 mod matrix_addition;
 mod reconcile;
 #[cfg(test)]
-pub(crate) use reconcile::prepare_transaction;
-pub(crate) use reconcile::{prepare_open_with_scripts, prepare_transaction_with_ledger};
+pub use reconcile::prepare_transaction;
+pub use reconcile::{prepare_open_with_scripts, prepare_transaction_with_ledger};
 
 /// The engine edit dispatcher, consulted under the owning session's identity ledger.
-pub(crate) type ApplyWithLedger = fn(
+pub type ApplyWithLedger = fn(
     &mut ProjectDoc,
     &[crate::model::BoardContours],
     &crate::model::EditOperation,
@@ -56,17 +56,31 @@ pub(crate) type ApplyWithLedger = fn(
 /// The engine dispatch entry points mirrored-half preparation stages its sub-edits
 /// through, injected by the engine so this layer never calls back into it directly.
 #[derive(Clone, Copy)]
-pub(crate) struct EditDispatch {
-    pub(crate) apply_with_ledger: ApplyWithLedger,
-    pub(crate) apply_unscripted: crate::matrix::deletion::ApplyUnscripted,
+pub struct EditDispatch {
+    pub apply_with_ledger: ApplyWithLedger,
+    pub apply_unscripted: crate::matrix::deletion::ApplyUnscripted,
 }
 
 #[cfg(test)]
-pub(crate) fn test_dispatch() -> EditDispatch {
+pub fn test_dispatch() -> EditDispatch {
     EditDispatch {
-        apply_with_ledger: crate::apply_with_ledger,
-        apply_unscripted: crate::apply_unscripted,
+        apply_with_ledger: boardstudio_core_engine::apply_with_ledger_for_test,
+        apply_unscripted: boardstudio_core_engine::apply_unscripted_for_test,
     }
+}
+
+#[cfg(test)]
+pub fn apply_for_test(
+    doc: &mut ProjectDoc,
+    board_contours: &[crate::model::BoardContours],
+    op: &crate::model::EditOperation,
+) -> Result<Vec<String>, String> {
+    boardstudio_core_engine::apply_for_test(
+        doc,
+        board_contours,
+        op,
+        boardstudio_script::apply_scripts,
+    )
 }
 
 /// Generated closure-clearance parts. They are regenerated from the pair, never copied.
@@ -125,7 +139,7 @@ struct Request<'a> {
 
 /// Creates the second half and returns the changed ids, sorted.
 #[allow(clippy::too_many_arguments)] // Mirrors the typed operation fields at its single dispatch site.
-pub(crate) fn create(
+pub fn create(
     doc: &mut ProjectDoc,
     pair_id: &str,
     source_instance_id: &str,
@@ -178,7 +192,7 @@ pub(crate) fn create(
 /// Applies the web physical-setup values and the pair on one draft, so any refusal leaves the
 /// accepted document untouched.
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn create_with_physical_setup(
+pub fn create_with_physical_setup(
     doc: &mut ProjectDoc,
     pair_id: &str,
     source_instance_id: &str,
@@ -331,7 +345,7 @@ fn apply_label(
 
 /// The mirror id of a source id under the board-prefix rule: every whole `from` token becomes
 /// `to`, and an id with no such token is prefixed with `to/`.
-pub(crate) fn mirror_id(from: &str, to: &str, id: &str) -> String {
+pub fn mirror_id(from: &str, to: &str, id: &str) -> String {
     substitute_token(id, from, to).unwrap_or_else(|| format!("{to}/{id}"))
 }
 
@@ -396,9 +410,9 @@ const SYMMETRIC_FOOTPRINTS: [&str; 4] = [
     "ceoloide/mounting_hole_npth",
 ];
 
-pub(crate) use boardstudio_model::mirrored_half::SYMMETRIC_DEFINITIONS;
+pub use boardstudio_model::mirrored_half::SYMMETRIC_DEFINITIONS;
 
-pub(crate) fn companion_placement_disabled_reason(
+pub fn companion_placement_disabled_reason(
     document: &ProjectDoc,
     pair_id: &str,
     item_id: &str,
@@ -427,7 +441,7 @@ pub(crate) fn companion_placement_disabled_reason(
 /// The uncertain-heading finding (ADR-0010, heading rule). A mirrored part of a pair whose footprint
 /// is handed (any footprint in neither [`SYMMETRIC_FOOTPRINTS`] nor [`SYMMETRIC_DEFINITIONS`]) and whose heading is off the 90-degree
 /// grid is reported for a person to confirm. Core neither refuses it nor turns the part to guess.
-pub(crate) fn heading_findings(doc: &ProjectDoc) -> Vec<Finding> {
+pub fn heading_findings(doc: &ProjectDoc) -> Vec<Finding> {
     let Some(hardware) = doc.hardware.as_ref() else {
         return Vec::new();
     };
@@ -483,7 +497,7 @@ pub(crate) fn heading_findings(doc: &ProjectDoc) -> Vec<Finding> {
 /// symmetric about its heading axis. No module definition carries a symmetry mark, and the board
 /// outline alone cannot show one (components and connectors are not in it), so every mirrored module
 /// is reported as a Warning for a person to confirm. Core neither refuses it nor turns it.
-pub(crate) fn module_findings(doc: &ProjectDoc) -> Vec<Finding> {
+pub fn module_findings(doc: &ProjectDoc) -> Vec<Finding> {
     let Some(hardware) = doc.hardware.as_ref() else {
         return Vec::new();
     };
@@ -528,13 +542,13 @@ pub(crate) fn module_findings(doc: &ProjectDoc) -> Vec<Finding> {
 ///
 /// This is the module and generic-geometry rule. Part projection goes through [`derive::pose`],
 /// which keeps the reflected heading without the half turn for controllers.
-pub(crate) fn mirror_pose(mapping: Pose2, pose: Pose2) -> Pose2 {
+pub fn mirror_pose(mapping: Pose2, pose: Pose2) -> Pose2 {
     derive::pose(mapping, pose, false)
 }
 
 /// A test-only window onto `derive::companion_assembly`, the authority for companion placement,
-/// so the constraint endpoint rules can be pinned to it. No production caller.
-#[cfg(feature = "test-support")]
+/// so the constraint endpoint rules can be pinned to it. No production caller; always compiled
+/// (rather than feature-gated) so this crate never builds in two feature variants.
 #[allow(clippy::too_many_arguments)] // Mirrors derive's input record field for field.
 pub fn companion_placement(
     offset: crate::model::Vec2,

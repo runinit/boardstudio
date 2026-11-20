@@ -1,10 +1,10 @@
-use crate::migrate::CURRENT_VERSION;
 use crate::mirrored_half::matrix_addition::tests::pair_document;
 use crate::mirrored_half::prepare_transaction;
 use crate::model::{
     CaseBody, Constraint, ConstraintEndpoint, ConstraintRelation, CoreReply, CoreRequest,
     EditOperation, Position, ProjectDoc, Vec2,
 };
+use boardstudio_core_engine::migrate::CURRENT_VERSION;
 use serde_json::json;
 
 // The shared fixture also serves the integration target, which calls with_construction_features.
@@ -32,7 +32,7 @@ fn key_relative_pose(document: &ProjectDoc, key_id: &str, companion_id: &str) ->
 
 fn associated_local_circuit_document() -> ProjectDoc {
     let mut document = pair_document();
-    document.format_version = crate::migrate::CURRENT_VERSION;
+    document.format_version = boardstudio_core_engine::migrate::CURRENT_VERSION;
     document.module_definitions.push(
         serde_json::from_value(json!({
             "id": "local-circuit-module",
@@ -79,9 +79,10 @@ fn associated_local_circuit_document() -> ProjectDoc {
     document
 }
 
-fn open_pair_engine(mut document: ProjectDoc) -> crate::CoreEngine {
-    document.format_version = crate::migrate::CURRENT_VERSION;
-    let mut engine = crate::CoreEngine::default();
+fn open_pair_engine(mut document: ProjectDoc) -> boardstudio_core_engine::CoreEngine {
+    document.format_version = boardstudio_core_engine::migrate::CURRENT_VERSION;
+    let mut engine =
+        boardstudio_core_engine::CoreEngine::with_script_runner(boardstudio_script::apply_scripts);
     let reply = engine.handle(CoreRequest::Open {
         id: "open-pair".into(),
         document,
@@ -94,10 +95,10 @@ fn open_pair_engine(mut document: ProjectDoc) -> crate::CoreEngine {
 }
 
 fn prepare_preview(
-    engine: &crate::CoreEngine,
+    engine: &boardstudio_core_engine::CoreEngine,
     operation: &EditOperation,
 ) -> Result<(ProjectDoc, Vec<String>), String> {
-    prepare_transaction(&engine.document, &[], operation)
+    prepare_transaction(engine.document_for_test(), &[], operation)
 }
 
 #[test]
@@ -361,7 +362,7 @@ fn pair_document_with_unrelated_matrix() -> ProjectDoc {
             2,
         ),
     );
-    crate::apply(&mut document, &[], &unrelated)
+    crate::mirrored_half::apply_for_test(&mut document, &[], &unrelated)
         .expect("the unrelated mirror-board matrix materializes");
     document
 }
@@ -400,7 +401,8 @@ fn nonempty_closure_pair_document() -> ProjectDoc {
         "companionMode":"literal-mirror",
         "mountingHole":mounting_hole
     }));
-    crate::apply(&mut source, &[], &operation).expect("the half with a closure is created");
+    crate::mirrored_half::apply_for_test(&mut source, &[], &operation)
+        .expect("the half with a closure is created");
     source
 }
 
@@ -553,7 +555,7 @@ fn prepared_mirror_circuit_embed_reserves_staged_source_references() {
     let canonical = crate::mirrored_half::inverse::canonicalize(&accepted, &operation)
         .expect("the mirror embed has a canonical source operation");
     let mut source_oracle = accepted.clone();
-    crate::apply(&mut source_oracle, &[], &canonical.operation)
+    crate::mirrored_half::apply_for_test(&mut source_oracle, &[], &canonical.operation)
         .expect("the ordinary source embed succeeds");
 
     let (prepared, changed) = prepare_transaction(&accepted, &[], &operation)
@@ -761,7 +763,7 @@ fn apply_mechanical_unlink_remains_a_closure_lifecycle_control() {
 #[test]
 fn mirror_side_prepared_preview_uses_a_draft_without_publishing() {
     let engine = open_pair_engine(pair_document());
-    let accepted = engine.document.clone();
+    let accepted = engine.document_for_test().clone();
     let (prepared, changed) = prepare_preview(
         &engine,
         &EditOperation::MoveParts {
@@ -784,9 +786,9 @@ fn mirror_side_prepared_preview_uses_a_draft_without_publishing() {
         Vec2 { x: 216.0, y: 14.0 }
     );
     assert_eq!(prepared.revision, accepted.revision);
-    assert_eq!(engine.document, accepted);
-    assert!(engine.undo.is_empty());
-    assert!(engine.redo.is_empty());
+    assert_eq!(engine.document_for_test(), &accepted);
+    assert!(engine.undo_for_test().is_empty());
+    assert!(engine.redo_for_test().is_empty());
 }
 
 #[test]
@@ -807,9 +809,9 @@ fn mixed_preview_keeps_local_geometry_and_projects_linked_mirror_intent() {
             removed_copper: None,
         });
     let engine = open_pair_engine(accepted);
-    let accepted = engine.document.clone();
-    let original_local = part(&engine.document, "right/U1").pose.at;
-    let original_source = part(&engine.document, "left/U1").pose.at;
+    let accepted = engine.document_for_test().clone();
+    let original_local = part(engine.document_for_test(), "right/U1").pose.at;
+    let original_source = part(engine.document_for_test(), "left/U1").pose.at;
 
     let (prepared, changed) = prepare_preview(
         &engine,
@@ -836,16 +838,19 @@ fn mixed_preview_keeps_local_geometry_and_projects_linked_mirror_intent() {
         Vec2 { x: 260.0, y: 7.0 }
     );
     assert_eq!(part(&prepared, "left/U1").pose.at, original_source);
-    assert_eq!(part(&engine.document, "right/U1").pose.at, original_local);
-    assert_eq!(engine.document, accepted);
-    assert!(engine.undo.is_empty());
-    assert!(engine.redo.is_empty());
+    assert_eq!(
+        part(engine.document_for_test(), "right/U1").pose.at,
+        original_local
+    );
+    assert_eq!(engine.document_for_test(), &accepted);
+    assert!(engine.undo_for_test().is_empty());
+    assert!(engine.redo_for_test().is_empty());
 }
 
 #[test]
 fn no_op_and_refused_mirror_previews_do_not_publish_history() {
     let engine = open_pair_engine(pair_document());
-    let accepted = engine.document.clone();
+    let accepted = engine.document_for_test().clone();
     let same_pose = part(&accepted, "left/U1").pose.at;
 
     let (preview, changed) = prepare_preview(
@@ -858,11 +863,11 @@ fn no_op_and_refused_mirror_previews_do_not_publish_history() {
         },
     )
     .expect("the no-op preview draft is valid");
-    assert_eq!(engine.document, accepted);
+    assert_eq!(engine.document_for_test(), &accepted);
     assert_eq!(preview, accepted);
     assert!(changed.is_empty());
-    assert!(engine.undo.is_empty());
-    assert!(engine.redo.is_empty());
+    assert!(engine.undo_for_test().is_empty());
+    assert!(engine.redo_for_test().is_empty());
 
     let refused = prepare_preview(
         &engine,
@@ -874,9 +879,9 @@ fn no_op_and_refused_mirror_previews_do_not_publish_history() {
         },
     );
     assert!(refused.is_err());
-    assert_eq!(engine.document, accepted);
-    assert!(engine.undo.is_empty());
-    assert!(engine.redo.is_empty());
+    assert_eq!(engine.document_for_test(), &accepted);
+    assert!(engine.undo_for_test().is_empty());
+    assert!(engine.redo_for_test().is_empty());
 }
 
 #[test]
@@ -904,7 +909,7 @@ fn omitted_mirror_preview_refusal_preserves_document_and_history() {
             removed_copper: None,
         });
     let engine = open_pair_engine(accepted);
-    let accepted = engine.document.clone();
+    let accepted = engine.document_for_test().clone();
 
     let reply = prepare_preview(
         &engine,
@@ -917,9 +922,9 @@ fn omitted_mirror_preview_refusal_preserves_document_and_history() {
     );
 
     assert!(reply.is_err());
-    assert_eq!(engine.document, accepted);
-    assert!(engine.undo.is_empty());
-    assert!(engine.redo.is_empty());
+    assert_eq!(engine.document_for_test(), &accepted);
+    assert!(engine.undo_for_test().is_empty());
+    assert!(engine.redo_for_test().is_empty());
 }
 
 #[test]
@@ -937,7 +942,7 @@ fn retired_mirror_target_preview_refusal_preserves_document_and_history() {
     assert!(retired.parts.iter().all(|part| part.id != "right/RST"));
 
     let engine = open_pair_engine(retired);
-    let accepted = engine.document.clone();
+    let accepted = engine.document_for_test().clone();
     let reply = prepare_preview(
         &engine,
         &EditOperation::MoveParts {
@@ -949,9 +954,9 @@ fn retired_mirror_target_preview_refusal_preserves_document_and_history() {
     );
 
     assert!(reply.is_err());
-    assert_eq!(engine.document, accepted);
-    assert!(engine.undo.is_empty());
-    assert!(engine.redo.is_empty());
+    assert_eq!(engine.document_for_test(), &accepted);
+    assert!(engine.undo_for_test().is_empty());
+    assert!(engine.redo_for_test().is_empty());
 }
 
 #[test]
@@ -973,7 +978,7 @@ fn prepared_publication_and_history_restore_both_halves_and_local_exception_once
             removed_copper: None,
         });
     let mut engine = open_pair_engine(accepted);
-    let accepted = engine.document.clone();
+    let accepted = engine.document_for_test().clone();
     let operation = EditOperation::MoveParts {
         positions: vec![Position {
             id: "right/U1".into(),
@@ -983,66 +988,64 @@ fn prepared_publication_and_history_restore_both_halves_and_local_exception_once
     let (prepared, changed) = prepare_transaction(&accepted, &[], &operation)
         .expect("the paired edit prepares without publishing");
     let (cache, contours, findings) =
-        crate::geometry::outlines(&prepared, Some(&engine.outline_cache), &changed);
-    let reply = engine.publish_prepared_edit(
+        crate::geometry::outlines(&prepared, Some(engine.outline_cache_for_test()), &changed);
+    let reply = engine.publish_prepared_for_test(
         "commit-prepared".into(),
-        crate::PreparedEdit {
-            transaction: "commit-prepared".into(),
-            document: prepared,
-            changed,
-            cache,
-            contours,
-            findings,
-        },
+        "commit-prepared".into(),
+        prepared,
+        changed,
+        cache,
+        contours,
+        findings,
     );
     assert!(matches!(reply, CoreReply::Scene { .. }));
 
-    assert_eq!(engine.undo.len(), 1);
-    assert!(engine.redo.is_empty());
+    assert_eq!(engine.undo_for_test().len(), 1);
+    assert!(engine.redo_for_test().is_empty());
     assert_eq!(
-        part(&engine.document, "left/U1").pose.at,
+        part(engine.document_for_test(), "left/U1").pose.at,
         Vec2 { x: -16.0, y: 14.0 }
     );
     assert_eq!(
-        part(&engine.document, "right/U1").pose.at,
+        part(engine.document_for_test(), "right/U1").pose.at,
         Vec2 { x: 216.0, y: 14.0 }
     );
     assert_eq!(
-        part(&engine.document, "right/RST").pose.at,
+        part(engine.document_for_test(), "right/RST").pose.at,
         Vec2 { x: 260.0, y: 25.0 }
     );
-    assert!(crate::mechanical::halves::validate_document(&engine.document).is_ok());
+    assert!(crate::mechanical::halves::validate_document(engine.document_for_test()).is_ok());
 
     let undo = engine.handle(CoreRequest::Undo {
         id: "undo-prepared".into(),
     });
     assert!(matches!(undo, CoreReply::Scene { .. }));
-    assert_eq!(engine.undo.len(), 0);
-    assert_eq!(engine.redo.len(), 1);
+    assert_eq!(engine.undo_for_test().len(), 0);
+    assert_eq!(engine.redo_for_test().len(), 1);
     let mut expected_undo = accepted.clone();
-    expected_undo.revision = engine.document.revision;
-    assert_eq!(engine.document, expected_undo);
+    expected_undo.revision = engine.document_for_test().revision;
+    assert_eq!(engine.document_for_test(), &expected_undo);
 
     let redo = engine.handle(CoreRequest::Redo {
         id: "redo-prepared".into(),
     });
     assert!(matches!(redo, CoreReply::Scene { .. }));
-    assert_eq!(engine.undo.len(), 1);
-    assert!(engine.redo.is_empty());
+    assert_eq!(engine.undo_for_test().len(), 1);
+    assert!(engine.redo_for_test().is_empty());
     assert_eq!(
-        part(&engine.document, "left/U1").pose.at,
+        part(engine.document_for_test(), "left/U1").pose.at,
         Vec2 { x: -16.0, y: 14.0 }
     );
     assert_eq!(
-        part(&engine.document, "right/U1").pose.at,
+        part(engine.document_for_test(), "right/U1").pose.at,
         Vec2 { x: 216.0, y: 14.0 }
     );
     assert_eq!(
-        part(&engine.document, "right/RST").pose.at,
+        part(engine.document_for_test(), "right/RST").pose.at,
         Vec2 { x: 260.0, y: 25.0 }
     );
-    assert_eq!(engine.document.revision, accepted.revision + 3);
-    assert!(crate::mechanical::halves::validate_document(&engine.document).is_ok());
+    assert_eq!(engine.document_for_test().revision, accepted.revision + 3);
+    assert!(crate::mechanical::halves::validate_document(engine.document_for_test()).is_ok());
 }
 
 #[test]
@@ -1189,7 +1192,8 @@ fn modern_synthetic_half_private_open_and_preview_preserve_local_cells() {
         synthetic_half_fixture::create_mirrored_half_operation("pair-modern", "right"),
     )
     .unwrap();
-    crate::apply(&mut accepted, &[], &create).expect("the unchanged modern fixture pairs");
+    crate::mirrored_half::apply_for_test(&mut accepted, &[], &create)
+        .expect("the unchanged modern fixture pairs");
     let original_source_cells = accepted
         .matrices
         .iter()
@@ -1248,15 +1252,16 @@ fn modern_synthetic_half_private_open_and_preview_preserve_local_cells() {
             at: Vec2 { x: 216.0, y: 14.0 },
         }],
     };
-    let engine = crate::CoreEngine {
-        document: opened.clone(),
-        ..crate::CoreEngine::default()
-    };
-    let accepted_before_preview = engine.document.clone();
+    let engine = boardstudio_core_engine::CoreEngine::with_document_for_test(
+        opened.clone(),
+        boardstudio_script::apply_scripts,
+    );
+    let accepted_before_preview = engine.document_for_test().clone();
     let (preview, _) = prepare_preview(&engine, &operation)
         .expect("private preview preparation keeps modern local cells");
     assert_eq!(
-        engine.document, accepted_before_preview,
+        engine.document_for_test(),
+        &accepted_before_preview,
         "preview is isolated"
     );
     assert_eq!(
@@ -1375,7 +1380,8 @@ fn open_preparation_reports_repaired_linked_keycap_settings() {
             },
         },
     ] {
-        crate::apply(&mut accepted, &[], &operation).expect("the keycap edit applies");
+        crate::mirrored_half::apply_for_test(&mut accepted, &[], &operation)
+            .expect("the keycap edit applies");
     }
 
     let (prepared, findings) = super::prepare_open(&accepted, &[])

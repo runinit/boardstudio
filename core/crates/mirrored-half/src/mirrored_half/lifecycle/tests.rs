@@ -739,7 +739,8 @@ fn prepared_unlink_uses_the_normalized_mechanical_route_on_a_private_draft() {
 
 #[test]
 fn prepared_unlink_publication_undo_redo_and_reopen_preserve_materialized_closures() {
-    let mut engine = crate::CoreEngine::default();
+    let mut engine =
+        boardstudio_core_engine::CoreEngine::with_script_runner(boardstudio_script::apply_scripts);
     assert!(matches!(
         engine.handle(crate::model::CoreRequest::Open {
             id: "open-unlink".into(),
@@ -747,7 +748,7 @@ fn prepared_unlink_publication_undo_redo_and_reopen_preserve_materialized_closur
         }),
         crate::model::CoreReply::Scene { .. }
     ));
-    let accepted = engine.document.clone();
+    let accepted = engine.document_for_test().clone();
     let operation: EditOperation = serde_json::from_value(json!({
         "kind": "apply-mechanical-edit",
         "edit": {
@@ -776,23 +777,29 @@ fn prepared_unlink_publication_undo_redo_and_reopen_preserve_materialized_closur
     assert!(prepared.hardware.as_ref().unwrap().pairs.is_empty());
 
     let (cache, contours, findings) = crate::geometry::outlines(&prepared, None, &changed);
-    let publication = engine.publish_prepared_edit(
+    let publication = engine.publish_prepared_for_test(
         "unlink-prepared".into(),
-        crate::PreparedEdit {
-            transaction: "unlink-prepared".into(),
-            document: prepared,
-            changed,
-            cache,
-            contours,
-            findings,
-        },
+        "unlink-prepared".into(),
+        prepared,
+        changed,
+        cache,
+        contours,
+        findings,
     );
     assert!(matches!(publication, crate::model::CoreReply::Scene { .. }));
-    assert_eq!(engine.undo.len(), 1);
-    assert!(engine.redo.is_empty());
-    assert!(engine.document.hardware.as_ref().unwrap().pairs.is_empty());
+    assert_eq!(engine.undo_for_test().len(), 1);
+    assert!(engine.redo_for_test().is_empty());
+    assert!(
+        engine
+            .document_for_test()
+            .hardware
+            .as_ref()
+            .unwrap()
+            .pairs
+            .is_empty()
+    );
     let committed_closures: BTreeSet<_> = engine
-        .document
+        .document_for_test()
         .parts
         .iter()
         .filter(|part| part.id.starts_with("case-closure/"))
@@ -806,15 +813,30 @@ fn prepared_unlink_publication_undo_redo_and_reopen_preserve_materialized_closur
         }),
         crate::model::CoreReply::Scene { .. }
     ));
-    assert_eq!(engine.undo.len(), 0);
-    assert_eq!(engine.redo.len(), 1);
-    assert_eq!(engine.document.hardware.as_ref().unwrap().pairs.len(), 1);
+    assert_eq!(engine.undo_for_test().len(), 0);
+    assert_eq!(engine.redo_for_test().len(), 1);
     assert_eq!(
-        engine.document.hardware.as_ref().unwrap().pairs[0].id,
+        engine
+            .document_for_test()
+            .hardware
+            .as_ref()
+            .unwrap()
+            .pairs
+            .len(),
+        1
+    );
+    assert_eq!(
+        engine.document_for_test().hardware.as_ref().unwrap().pairs[0].id,
         "unlink-pair"
     );
     assert_eq!(
-        engine.document.hardware.as_ref().unwrap().instances[0].construction_ownership,
+        engine
+            .document_for_test()
+            .hardware
+            .as_ref()
+            .unwrap()
+            .instances[0]
+            .construction_ownership,
         MechanicalConstructionOwnership::Pair
     );
 
@@ -824,18 +846,26 @@ fn prepared_unlink_publication_undo_redo_and_reopen_preserve_materialized_closur
         }),
         crate::model::CoreReply::Scene { .. }
     ));
-    assert_eq!(engine.undo.len(), 1);
-    assert!(engine.redo.is_empty());
-    assert!(engine.document.hardware.as_ref().unwrap().pairs.is_empty());
+    assert_eq!(engine.undo_for_test().len(), 1);
+    assert!(engine.redo_for_test().is_empty());
+    assert!(
+        engine
+            .document_for_test()
+            .hardware
+            .as_ref()
+            .unwrap()
+            .pairs
+            .is_empty()
+    );
     let redone_closures: BTreeSet<_> = engine
-        .document
+        .document_for_test()
         .parts
         .iter()
         .filter(|part| part.id.starts_with("case-closure/"))
         .map(|part| part.id.clone())
         .collect();
     let redone_configurations: BTreeMap<_, _> = engine
-        .document
+        .document_for_test()
         .hardware
         .as_ref()
         .unwrap()
@@ -847,7 +877,7 @@ fn prepared_unlink_publication_undo_redo_and_reopen_preserve_materialized_closur
     assert_eq!(redone_configurations, expected_configurations);
     assert!(
         engine
-            .document
+            .document_for_test()
             .hardware
             .as_ref()
             .unwrap()
@@ -857,23 +887,24 @@ fn prepared_unlink_publication_undo_redo_and_reopen_preserve_materialized_closur
                 == MechanicalConstructionOwnership::Local)
     );
 
-    let mut reopened = crate::CoreEngine::default();
+    let mut reopened =
+        boardstudio_core_engine::CoreEngine::with_script_runner(boardstudio_script::apply_scripts);
     assert!(matches!(
         reopened.handle(crate::model::CoreRequest::Open {
             id: "reopen-unlinked".into(),
-            document: engine.document.clone(),
+            document: engine.document_for_test().clone(),
         }),
         crate::model::CoreReply::Scene { .. }
     ));
     let reopened_closures: BTreeSet<_> = reopened
-        .document
+        .document_for_test()
         .parts
         .iter()
         .filter(|part| part.id.starts_with("case-closure/"))
         .map(|part| part.id.clone())
         .collect();
     let reopened_configurations: BTreeMap<_, _> = reopened
-        .document
+        .document_for_test()
         .hardware
         .as_ref()
         .unwrap()
@@ -883,7 +914,16 @@ fn prepared_unlink_publication_undo_redo_and_reopen_preserve_materialized_closur
         .collect();
     assert_eq!(reopened_closures, expected_closures);
     assert_eq!(reopened_configurations, expected_configurations);
-    assert_eq!(reopened.document.hardware.as_ref().unwrap().pairs.len(), 0);
+    assert_eq!(
+        reopened
+            .document_for_test()
+            .hardware
+            .as_ref()
+            .unwrap()
+            .pairs
+            .len(),
+        0
+    );
 }
 
 #[test]
@@ -3657,7 +3697,7 @@ fn owner_source_deletion_preserves_local_objects_and_retires_only_removed_source
                 .collect();
             let mut post = committed.draft.clone();
             if kind == MirroredItemKind::Matrix {
-                crate::apply(
+                crate::mirrored_half::apply_for_test(
                     &mut post,
                     &[],
                     &EditOperation::RemoveMatrix {
@@ -4619,7 +4659,8 @@ fn local_controller_own_pin_keeps_a_private_net_through_omit_and_reopen() {
     )
     .unwrap();
     assert_eq!(repeated.draft, decoded);
-    let mut reopened = crate::CoreEngine::default();
+    let mut reopened =
+        boardstudio_core_engine::CoreEngine::with_script_runner(boardstudio_script::apply_scripts);
     assert!(matches!(
         reopened.handle(crate::model::CoreRequest::Open {
             id: "reopen-local-controller-net".into(),
@@ -4629,14 +4670,14 @@ fn local_controller_own_pin_keeps_a_private_net_through_omit_and_reopen() {
     ));
     assert!(
         reopened
-            .document
+            .document_for_test()
             .nets
             .iter()
             .any(|net| net.id == "mirror-sda")
     );
     assert!(
         reopened
-            .document
+            .document_for_test()
             .boards
             .iter()
             .find(|board| board.id == "mirror-board")

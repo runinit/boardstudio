@@ -72,7 +72,7 @@ fn reconciled(document: &ProjectDoc, edit: impl Fn(&mut crate::model::Matrix)) -
 /// The edit as the creation path would see it: the same source matrix, mirrored at creation.
 fn reference(request: &Value, edit: impl Fn(&mut crate::model::Matrix)) -> ProjectDoc {
     let mut document = pair_document_source_only();
-    crate::apply(&mut document, &[], &op(request.clone())).unwrap();
+    crate::mirrored_half::apply_for_test(&mut document, &[], &op(request.clone())).unwrap();
     let mut source = matrix(&document, "left-thumbs").clone();
     edit(&mut source);
     crate::matrix::set_matrix(&mut document, &source).unwrap();
@@ -83,7 +83,7 @@ fn reference(request: &Value, edit: impl Fn(&mut crate::model::Matrix)) -> Proje
         "idRule": "board-prefix", "companionMode": "literal-mirror"});
     request["companionTweak"] = Value::Null;
     request.as_object_mut().unwrap().remove("companionTweak");
-    crate::apply(&mut document, &[], &op(request)).unwrap();
+    crate::mirrored_half::apply_for_test(&mut document, &[], &op(request)).unwrap();
     document
 }
 

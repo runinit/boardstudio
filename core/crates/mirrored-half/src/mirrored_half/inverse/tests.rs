@@ -3144,7 +3144,8 @@ fn created(mapping: Value, companion_mode: &str, tweak: Option<Value>) -> Projec
     if let Some(tweak) = tweak {
         request["companionTweak"] = tweak;
     }
-    crate::apply(&mut document, &[], &op(request)).expect("the half is created");
+    crate::mirrored_half::apply_for_test(&mut document, &[], &op(request))
+        .expect("the half is created");
     document
 }
 

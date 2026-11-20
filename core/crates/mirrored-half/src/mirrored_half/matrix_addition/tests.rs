@@ -100,7 +100,8 @@ pub(in crate::mirrored_half) fn create_from(
     if let Some(tweak) = tweak {
         request["companionTweak"] = tweak;
     }
-    crate::apply(&mut document, &[], &op(request)).expect("the half is created");
+    crate::mirrored_half::apply_for_test(&mut document, &[], &op(request))
+        .expect("the half is created");
     document
 }
 
@@ -142,7 +143,8 @@ fn canonical_and_source(document: &ProjectDoc, request: &Value) -> (Canonical, P
     let canonical = inverse::canonicalize(document, &op(request.clone()))
         .unwrap_or_else(|refusal| panic!("{refusal}"));
     let mut next = document.clone();
-    crate::apply(&mut next, &[], &canonical.operation).expect("the source operation applies");
+    crate::mirrored_half::apply_for_test(&mut next, &[], &canonical.operation)
+        .expect("the source operation applies");
     (canonical, next)
 }
 
@@ -463,7 +465,8 @@ fn added_matrix_electrical_functions_follow_the_new_member_correspondences() {
     // Independent oracle: when this exact matrix and wiring exist before pair creation, the
     // established CreateMirroredHalf path maps these assignments and locks to the same functions.
     let mut source_before_creation = source_half();
-    crate::apply(&mut source_before_creation, &[], &op(matrix_request)).unwrap();
+    crate::mirrored_half::apply_for_test(&mut source_before_creation, &[], &op(matrix_request))
+        .unwrap();
     let source_config = source_before_creation
         .hardware
         .as_mut()
@@ -901,7 +904,7 @@ fn the_added_mirror_is_the_mirror_creation_derives_for_the_same_source() {
 
         // Reference: the matrix exists before the half is created.
         let mut before = source_half();
-        crate::apply(&mut before, &[], &op(request.clone())).unwrap();
+        crate::mirrored_half::apply_for_test(&mut before, &[], &op(request.clone())).unwrap();
         let reference = create_from(before, mapping.clone(), mode, tweak.clone());
         // Under test: the matrix is added to a pair that already exists.
         let pair = create_from(source_half(), mapping.clone(), mode, tweak.clone());

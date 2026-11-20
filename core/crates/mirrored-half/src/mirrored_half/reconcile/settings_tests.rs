@@ -140,7 +140,7 @@ fn reconciled(document: &ProjectDoc) -> ProjectDoc {
 /// Applies a source-side request as written.
 fn applied(document: &ProjectDoc, request: &EditOperation) -> ProjectDoc {
     let mut next = document.clone();
-    crate::apply(&mut next, &[], request).expect("the request applies");
+    crate::mirrored_half::apply_for_test(&mut next, &[], request).expect("the request applies");
     next
 }
 
