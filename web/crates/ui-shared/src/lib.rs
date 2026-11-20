@@ -11,11 +11,15 @@
 #[allow(unused_imports)]
 pub(crate) use crate as presentation;
 #[allow(unused_imports)]
-pub(crate) use boardstudio_web_runtime::{model_delivery, runtime};
+pub(crate) use boardstudio_web_runtime::model_delivery;
+#[cfg(any(target_arch = "wasm32", test, feature = "test-support"))]
+#[allow(unused_imports)]
+pub(crate) use boardstudio_web_runtime::runtime;
 #[allow(unused_imports)]
 pub(crate) use boardstudio_web_ui_model::state::*;
 
 pub mod footprint_forms;
+pub mod inspector_fields;
 pub mod layout_camera;
 pub mod owned_edits;
 pub mod pending_edit_helpers;
@@ -27,7 +31,6 @@ pub mod board_reference_effect;
 pub mod canvas_layers;
 #[cfg(target_arch = "wasm32")]
 pub mod canvas_navigation;
-#[cfg(target_arch = "wasm32")]
 pub mod choice_field;
 #[cfg(target_arch = "wasm32")]
 pub mod footprint_graphics;

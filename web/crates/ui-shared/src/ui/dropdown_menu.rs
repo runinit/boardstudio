@@ -21,7 +21,9 @@ use dioxus_primitives::dropdown_menu::{
 };
 use dioxus_primitives::{dioxus_attributes::attributes, merge_attributes, popover, use_controlled};
 use std::{cell::Cell, rc::Rc};
+#[cfg(target_arch = "wasm32")]
 use wasm_bindgen::JsCast;
+#[cfg(target_arch = "wasm32")]
 use web_sys::HtmlElement;
 
 #[derive(Clone, Copy)]
@@ -31,11 +33,14 @@ struct MenuContext {
     disabled: ReadSignal<bool>,
     roving_loop: ReadSignal<bool>,
     trigger_id: Signal<String>,
+    #[cfg(target_arch = "wasm32")]
     trigger: Signal<Option<HtmlElement>>,
+    #[cfg(target_arch = "wasm32")]
     content: Signal<Option<HtmlElement>>,
     search: Signal<(String, f64)>,
 }
 
+#[cfg(target_arch = "wasm32")]
 fn menu_items(content: &HtmlElement) -> Vec<HtmlElement> {
     let Ok(nodes) = content.query_selector_all("[role^=menuitem]:not([aria-disabled=true])") else {
         return Vec::new();
@@ -50,6 +55,7 @@ fn menu_items(content: &HtmlElement) -> Vec<HtmlElement> {
     items
 }
 
+#[cfg(target_arch = "wasm32")]
 fn focus_item(items: &[HtmlElement], index: usize) {
     for (position, item) in items.iter().enumerate() {
         item.set_tab_index(if position == index { 0 } else { -1 });
@@ -59,6 +65,7 @@ fn focus_item(items: &[HtmlElement], index: usize) {
     }
 }
 
+#[cfg(target_arch = "wasm32")]
 fn item_name(item: &HtmlElement) -> String {
     let name = item.get_attribute("aria-label").unwrap_or_else(|| {
         if let Some(ids) = item.get_attribute("aria-labelledby") {
@@ -78,13 +85,19 @@ fn item_name(item: &HtmlElement) -> String {
         .to_lowercase()
 }
 
-fn navigate(mut ctx: MenuContext, event: KeyboardEvent) {
+fn navigate(ctx: MenuContext, event: KeyboardEvent) {
     if event.key() == Key::Escape {
         event.prevent_default();
         event.stop_propagation();
         ctx.set_open.call(false);
-        return;
+    } else {
+        #[cfg(target_arch = "wasm32")]
+        navigate_dom(ctx, event);
     }
+}
+
+#[cfg(target_arch = "wasm32")]
+fn navigate_dom(mut ctx: MenuContext, event: KeyboardEvent) {
     let Some(content) = (ctx.content)() else {
         return;
     };
@@ -175,11 +188,17 @@ pub fn DropdownMenu(props: DropdownMenuProps) -> Element {
         disabled: props.disabled,
         roving_loop: props.roving_loop,
         trigger_id,
+        #[cfg(target_arch = "wasm32")]
         trigger: Signal::new(None),
+        #[cfg(target_arch = "wasm32")]
         content: Signal::new(None),
         search: Signal::new((String::new(), 0.0)),
     });
+    #[cfg(not(target_arch = "wasm32"))]
+    let _ = ctx;
+    #[cfg(target_arch = "wasm32")]
     let previous_open = use_hook(|| Rc::new(Cell::new(false)));
+    #[cfg(target_arch = "wasm32")]
     use_effect(move || {
         let was_open = previous_open.replace(open());
         if open() {
@@ -231,6 +250,7 @@ pub fn DropdownMenu(props: DropdownMenuProps) -> Element {
 
 #[component]
 pub fn DropdownMenuTrigger(props: DropdownMenuTriggerProps) -> Element {
+    #[allow(unused_mut)] // DOM mount handlers update the context on wasm.
     let mut ctx: MenuContext = use_context();
     let base = attributes!(button {
         class: "px-4 py-2 h-control inline-flex justify-center items-center text-sm font-medium whitespace-nowrap rounded-md transition-colors w-fit focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&_svg:not([class*='size-'])]:size-4 bg-secondary text-secondary-foreground hover:bg-accent hover:text-accent-foreground",
@@ -242,7 +262,12 @@ pub fn DropdownMenuTrigger(props: DropdownMenuTriggerProps) -> Element {
         disabled: (ctx.disabled)(),
         aria_haspopup: "menu",
         aria_expanded: (ctx.open)(),
-        aria_controls: if (ctx.open)() { (ctx.content)().map(|content| content.id()) } else { None },
+        aria_controls: {
+            #[cfg(target_arch = "wasm32")]
+            { if (ctx.open)() { (ctx.content)().map(|content| content.id()) } else { None } }
+            #[cfg(not(target_arch = "wasm32"))]
+            { None::<String> }
+        },
         onclick: move |_| {
             if !(ctx.disabled)() { ctx.set_open.call(!(ctx.open)()); }
         },
@@ -254,8 +279,9 @@ pub fn DropdownMenuTrigger(props: DropdownMenuTriggerProps) -> Element {
                 ctx.set_open.call(true);
             }
         },
-        onmounted: move |event: MountedEvent| {
-            ctx.trigger.set(event.data().downcast::<web_sys::Element>().and_then(|element| element.dyn_ref::<HtmlElement>()).cloned());
+        onmounted: move |_event: MountedEvent| {
+            #[cfg(target_arch = "wasm32")]
+            ctx.trigger.set(_event.data().downcast::<web_sys::Element>().and_then(|element| element.dyn_ref::<HtmlElement>()).cloned());
         },
     });
     let merged = merge_attributes(vec![base, props.attributes]);
@@ -268,6 +294,7 @@ pub fn DropdownMenuTrigger(props: DropdownMenuTriggerProps) -> Element {
 
 #[component]
 pub fn DropdownMenuContent(props: DropdownMenuContentProps) -> Element {
+    #[allow(unused_mut)] // DOM mount handlers update the context on wasm.
     let mut ctx: MenuContext = use_context();
     let base = attributes!(div {
         class: "absolute top-full left-0 mt-1 z-50 p-1 min-w-[180px] rounded-md bg-card shadow-md h-fit transition-all duration-200 data-[state=closed]:opacity-0 data-[state=closed]:scale-95 data-[state=closed]:pointer-events-none data-[state=open]:opacity-100 data-[state=open]:scale-100",
@@ -275,10 +302,16 @@ pub fn DropdownMenuContent(props: DropdownMenuContentProps) -> Element {
         role: "menu",
         // Dioxus 0.7 serializes inert=false as a present attribute, which still disables focus.
         inert: (!(ctx.open)()).then_some(""),
-        aria_labelledby: (ctx.trigger)().map(|trigger| trigger.id()),
+        aria_labelledby: {
+            #[cfg(target_arch = "wasm32")]
+            { (ctx.trigger)().map(|trigger| trigger.id()) }
+            #[cfg(not(target_arch = "wasm32"))]
+            { None::<String> }
+        },
         onkeydown: move |event: KeyboardEvent| navigate(ctx, event),
-        onmounted: move |event: MountedEvent| {
-            ctx.content.set(event.data().downcast::<web_sys::Element>().and_then(|element| element.dyn_ref::<HtmlElement>()).cloned());
+        onmounted: move |_event: MountedEvent| {
+            #[cfg(target_arch = "wasm32")]
+            ctx.content.set(_event.data().downcast::<web_sys::Element>().and_then(|element| element.dyn_ref::<HtmlElement>()).cloned());
         },
     });
     let merged = merge_attributes(vec![base, props.attributes.clone()]);
@@ -352,6 +385,6 @@ pub fn DropdownMenuSeparator(#[props(into, optional)] class: Option<String>) -> 
     rsx! { div { "data-slot": "dropdown-menu-separator", role: "separator", class: "{merged}" } }
 }
 
-#[cfg(test)]
+#[cfg(all(test, target_arch = "wasm32"))]
 #[path = "../action_menu_tests.rs"]
 mod action_menu_tests;

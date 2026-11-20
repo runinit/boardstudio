@@ -16,15 +16,19 @@
 use dioxus::{core::AttributeValue, prelude::*};
 use dioxus_primitives::toolbar::{self, ToolbarButtonProps, ToolbarProps, ToolbarSeparatorProps};
 use dioxus_primitives::{dioxus_attributes::attributes, merge_attributes};
+#[cfg(target_arch = "wasm32")]
 use dioxus_web::WebEventExt;
+#[cfg(target_arch = "wasm32")]
 use wasm_bindgen::{JsCast, closure::Closure};
 
+#[cfg(target_arch = "wasm32")]
 struct ToolbarObserver {
     observer: web_sys::MutationObserver,
     // The native observer must disconnect before its Rust callback is released.
     _callback: Closure<dyn FnMut()>,
 }
 
+#[cfg(target_arch = "wasm32")]
 impl Drop for ToolbarObserver {
     fn drop(&mut self) {
         self.observer.disconnect();
@@ -32,6 +36,7 @@ impl Drop for ToolbarObserver {
 }
 
 // The pinned primitive's collection is private; repair focus within this owned toolbar DOM only.
+#[cfg(target_arch = "wasm32")]
 fn buttons(root: &web_sys::Element) -> Vec<web_sys::HtmlElement> {
     let nodes = root
         .query_selector_all("[data-slot=toolbar-button], [data-slot=toggle-group-item]")
@@ -42,6 +47,7 @@ fn buttons(root: &web_sys::Element) -> Vec<web_sys::HtmlElement> {
         .collect()
 }
 
+#[cfg(target_arch = "wasm32")]
 fn sync_tab_stop(root: &web_sys::Element) {
     let items = buttons(root);
     let enabled: Vec<_> = items
@@ -68,8 +74,11 @@ fn sync_tab_stop(root: &web_sys::Element) {
 #[component]
 pub fn Toolbar(props: ToolbarProps) -> Element {
     let mut attributes = props.attributes;
+    #[cfg(target_arch = "wasm32")]
     let mut root = use_signal(|| None::<web_sys::Element>);
+    #[cfg(target_arch = "wasm32")]
     let mut observer = use_hook(|| CopyValue::new(None::<ToolbarObserver>));
+    #[cfg(target_arch = "wasm32")]
     use_effect(move || {
         let Some(element) = root() else {
             return;
@@ -96,12 +105,18 @@ pub fn Toolbar(props: ToolbarProps) -> Element {
         class: "flex items-center gap-1 p-1 rounded-md bg-background shadow-sm w-fit data-[orientation=vertical]:flex-col",
         "data-slot": "toolbar",
         onmounted: move |event: MountedEvent| {
+            #[cfg(target_arch = "wasm32")]
             root.set(event.data().try_as_web_event());
+            #[cfg(not(target_arch = "wasm32"))]
+            let _ = event;
         },
         onfocusin: move |_| {
+            #[cfg(target_arch = "wasm32")]
             if let Some(element) = root() { sync_tab_stop(&element); }
         },
         onkeydown: move |event: KeyboardEvent| {
+            #[cfg(target_arch = "wasm32")]
+            {
             if (props.disabled)() { return; }
             let Some(element) = root() else { return; };
             let items: Vec<_> = buttons(&element).into_iter().filter(|item| !item.has_attribute("disabled")).collect();
@@ -120,6 +135,9 @@ pub fn Toolbar(props: ToolbarProps) -> Element {
             event.prevent_default();
             let _ = items[next].focus();
             sync_tab_stop(&element);
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            let _ = event;
         },
     });
     // Attribute listeners consume raw platform data; compose before either typed event adapter runs.

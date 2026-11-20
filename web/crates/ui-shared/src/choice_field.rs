@@ -86,3 +86,23 @@ pub fn ChoiceField(
         }
     }
 }
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod tests {
+    use super::*;
+
+    fn fixture() -> Element {
+        rsx! {
+            ChoiceField {
+                label: "Choice", value: "a", options: vec![("a".into(), "A".into())],
+                on_value_change: |_| {},
+            }
+        }
+    }
+
+    #[test]
+    fn choice_field_renders_on_host() {
+        let mut dom = VirtualDom::new(fixture);
+        dom.rebuild_in_place();
+    }
+}

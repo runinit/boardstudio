@@ -93,7 +93,7 @@ pub fn use_commands(commands: Vec<Command>) {
     });
 }
 
-#[cfg(test)]
+#[cfg(all(test, target_arch = "wasm32"))]
 mod tests {
     use super::*;
     use crate::test_mount::MountedFixture;

@@ -1,7 +1,6 @@
 //! Components copied from rust-ui, one file per component; each file records its upstream path and commit.
 //!
-//! Presentational components compile on every target. Interactive ones are built on `dioxus-primitives`,
-//! which the crate only depends on for `wasm32`, so they are gated the same way.
+//! Components compile on every target; browser-specific behavior is gated locally.
 pub mod alert;
 pub mod badge;
 pub mod button;
@@ -22,39 +21,22 @@ pub mod spinner;
 pub mod stepper;
 pub mod table;
 
-#[cfg(target_arch = "wasm32")]
 pub mod accordion;
-#[cfg(target_arch = "wasm32")]
 pub mod alert_dialog;
-#[cfg(target_arch = "wasm32")]
 pub mod checkbox;
-#[cfg(target_arch = "wasm32")]
 pub mod collapsible;
-#[cfg(target_arch = "wasm32")]
 pub mod combobox;
-#[cfg(target_arch = "wasm32")]
 pub mod command;
-#[cfg(target_arch = "wasm32")]
 pub mod dialog;
-#[cfg(target_arch = "wasm32")]
 pub mod dropdown_menu;
-#[cfg(target_arch = "wasm32")]
 pub mod popover;
-#[cfg(target_arch = "wasm32")]
 pub mod select;
-#[cfg(target_arch = "wasm32")]
 pub mod sheet;
-#[cfg(target_arch = "wasm32")]
 pub mod slider;
-#[cfg(target_arch = "wasm32")]
 pub mod tabs;
-#[cfg(target_arch = "wasm32")]
 pub mod toast;
-#[cfg(target_arch = "wasm32")]
 pub mod toggle_group;
-#[cfg(target_arch = "wasm32")]
 pub mod toolbar;
-#[cfg(target_arch = "wasm32")]
 pub mod tooltip;
 
 #[cfg(test)]
