@@ -62,7 +62,7 @@ FIXTURE_NAMES = [
         'zero-repair-cuboid-offset-mm.step', 'source-pcurve-cube.step',
         'circular-segment-sliver-prism.step', 'tetra-and-finite-wires.step',
         'repair-projected-line.step', 'repair-planar-seam.step', 'touching-unit-boxes.step')),
-    'cad/monstertruck-qualification/vendor/monstertruck-io/tests/input/partial_closed_spline/solid32377-source.step',
+    'cad/monstertruck/tests/fixtures/solid32377-source.step',
     'ergogen/library/vendor/kicad/3d_models/Panasonic_EVQPUL_EVQPUC.step',
     'ergogen/library/vendor/infused-kim/3d_models/SMD_0805_Capacitor.step',
 ]

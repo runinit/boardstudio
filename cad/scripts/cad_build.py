@@ -5,7 +5,6 @@ from pathlib import Path
 import hashlib
 import json
 import os
-import re
 import subprocess
 import sys
 
@@ -40,16 +39,6 @@ LIBRARY_TEST_ONLY_SOURCES = frozenset({
     "src/layered/pcb_tests.rs",
 })
 PRODUCTION_PACKAGES = ("boardstudio-cad", "boardstudio-cad-wasm")
-OWNER_PACKAGES = ("monstertruck-io", "monstertruck-meshing")
-OWNER_TESTS = (
-    ("monstertruck-io", "--test", "input", "repair_movement"),
-    ("monstertruck-io", "--lib", "repair_movement_sink"),
-    ("monstertruck-io", "--test", "input", "source_pcurve_active_view"),
-    ("monstertruck-io", "--test", "input", "preview_tolerance"),
-    ("monstertruck-meshing", "--lib", "repair_"),
-    ("monstertruck-meshing", "--test", "closed_trim_projection"),
-    ("monstertruck-meshing", "--lib", "seam_branch_tests"),
-)
 
 
 def run(command, **kwargs):
@@ -77,7 +66,7 @@ def _iter_source_files(base: Path, names: tuple[str, ...]):
 def wasm_inputs_digest(*, no_opt=False):
     """Hash everything the pure-Rust WASM provider build reads."""
     contracts = CAD_ROOT.parent / "contracts/rust"
-    vendor_root = CAD_ROOT / "monstertruck-qualification/vendor"
+    vendor_root = CAD_ROOT / "vendor"
     profile = "release-no-opt" if no_opt else "release"
     digest = hashlib.sha256(f"{OUT_NAME}\n{profile}\n".encode())
     digest.update(Path(__file__).read_bytes())
@@ -140,12 +129,6 @@ def build_wasm(*, no_opt=False):
         env=env,
     )
     stamp.write_text(inputs + "\n")
-
-
-def _owner_binary_key(package, selection):
-    if selection[0] == "--lib":
-        return (package, "lib", package.replace("-", "_"))
-    return (package, "test", selection[1])
 
 
 def _artifact_kind(kinds):
@@ -215,55 +198,34 @@ def _test_cad_unified(output):
     env = dict(os.environ, CARGO_TARGET_DIR=str(CAD_ROOT / native_target))
     production_targets = _production_targets()
     production_tests = sorted({name for _, kind, name, _ in production_targets if kind == "test"})
-    owner_tests = sorted({selection[1] for _, *selection in OWNER_TESTS if selection[0] == "--test"})
     example_names = sorted({name for _, kind, name, _ in production_targets if kind == "example"})
     production_expected = {(pkg, kind, name) for pkg, kind, name, _ in production_targets}
-    owner_expected = {_owner_binary_key(package, selection) for package, *selection in OWNER_TESTS}
-    # Two profiles, one workspace: production suites need monstertruck-io/-meshing
-    # optimized at runtime (cad-test), while the owner suites' test binaries
-    # compile ~4-5x cheaper unoptimized (cad-owner-test; see cad/Cargo.toml).
-    invocations = [
-        ([
-            "cargo", "test", "--no-run", "--manifest-path", "Cargo.toml",
-            *(arg for pkg in PRODUCTION_PACKAGES for arg in ("-p", pkg)),
-            "--lib",
-            *(arg for name in production_tests for arg in ("--test", name)),
-            *(arg for name in example_names for arg in ("--example", name)),
-            "--profile", "cad-test", "--locked", "--message-format=json",
-        ], production_expected),
-        ([
-            "cargo", "test", "--no-run", "--manifest-path", "Cargo.toml",
-            *(arg for pkg in OWNER_PACKAGES for arg in ("-p", pkg)),
-            "--lib",
-            *(arg for name in owner_tests for arg in ("--test", name)),
-            "--profile", "cad-owner-test", "--locked", "--message-format=json",
-        ], owner_expected),
+    # Production suites need monstertruck-io/-meshing optimized at runtime
+    # (cad-test; see cad/Cargo.toml).
+    command = [
+        "cargo", "test", "--no-run", "--manifest-path", "Cargo.toml",
+        *(arg for pkg in PRODUCTION_PACKAGES for arg in ("-p", pkg)),
+        "--lib",
+        *(arg for name in production_tests for arg in ("--test", name)),
+        *(arg for name in example_names for arg in ("--example", name)),
+        "--profile", "cad-test", "--locked", "--message-format=json",
     ]
     binaries = {}
     duplicates = set()
-    for command, expected in invocations:
-        _prebuild(command, env, output, expected, binaries, duplicates)
+    _prebuild(command, env, output, production_expected, binaries, duplicates)
     if duplicates:
         raise RuntimeError(f"duplicate CAD test binaries: {sorted(duplicates)}")
-    if missing := (production_expected | owner_expected) - binaries.keys():
+    if missing := production_expected - binaries.keys():
         raise RuntimeError(f"missing CAD test binaries: {sorted(missing)}")
     runs = []
     for pkg, kind, name, pkg_dir in production_targets:
         key = (pkg, kind, name)
-        runs.append(([binaries[key]], pkg_dir, None))
-    # Filter legacy suites; external fixtures are read only by the tests that use them.
-    for package, *selection in OWNER_TESTS:
-        key = _owner_binary_key(package, selection)
-        args = selection[1:] if selection[0] == "--lib" else selection[2:]
-        cwd = CAD_ROOT / "monstertruck-qualification/vendor" / package
-        runs.append(([binaries[key], *args], cwd, f"{package} {' '.join(selection)}"))
+        runs.append(([binaries[key]], pkg_dir))
 
     def execute(item):
-        cmd, cwd, owner_label = item
+        cmd, cwd = item
         result = run(cmd, cwd=cwd, env=dict(env, CARGO_MANIFEST_DIR=str(cwd)),
                      stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-        if owner_label and not re.search(r"^test result: ok\. [1-9][0-9]* passed;", result.stdout, re.M):
-            raise RuntimeError(f"CAD owner selection has no executed tests: {owner_label}")
         return result.stdout
 
     try:
