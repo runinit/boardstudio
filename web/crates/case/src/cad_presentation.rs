@@ -331,9 +331,9 @@ mod mounted_tests {
         crate::presentation::use_empty_test_instance_selection();
         crate::presentation::use_test_case_generation_state();
         rsx! {
-            button { id: "case-live-refresh", onclick: move |_| runtime_version += 1, "Refresh" }
-            button { id: "case-live-unmount", onclick: move |_| mounted.set(false), "Leave Case" }
-            button { id: "case-live-remount", onclick: move |_| mounted.set(true), "Enter Case" }
+            Button { id: "case-live-refresh", onclick: move |_| runtime_version += 1, "Refresh" }
+            Button { id: "case-live-unmount", onclick: move |_| mounted.set(false), "Leave Case" }
+            Button { id: "case-live-remount", onclick: move |_| mounted.set(true), "Enter Case" }
             if mounted() { CasePanel { generation_ready: true } }
         }
     }
@@ -348,7 +348,7 @@ mod mounted_tests {
         let generation_ready =
             crate::test_contexts::use_case_generation_readiness_test_bridge(runtime);
         rsx! {
-            button { id: "case-export-refresh", onclick: move |_| runtime_version += 1, "Refresh" }
+            Button { id: "case-export-refresh", onclick: move |_| runtime_version += 1, "Refresh" }
             CasePanel { generation_ready }
         }
     }
