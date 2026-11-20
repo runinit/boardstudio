@@ -23,6 +23,7 @@
 use dioxus::prelude::*;
 use dioxus_primitives::select::{self, SelectGroupLabelProps, SelectOptionProps, SelectProps};
 use dioxus_primitives::{dioxus_attributes::attributes, merge_attributes};
+#[cfg(target_arch = "wasm32")]
 use dioxus_web::WebEventExt;
 
 pub use dioxus_primitives::select::SelectGroup;
@@ -55,6 +56,7 @@ pub fn Select<T: Clone + PartialEq + 'static>(props: SelectProps<T>) -> Element 
                 set_open.call(true);
                 event.prevent_default();
                 event.stop_propagation();
+                #[cfg(target_arch = "wasm32")]
                 if event.key() == Key::Character(" ".into())
                     && let Some(raw) = event.data().try_as_web_event()
                 {

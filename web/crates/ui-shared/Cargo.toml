@@ -17,6 +17,7 @@ boardstudio-web-host = { path = "../host", features = ["page"] }
 boardstudio-web-runtime = { path = "../runtime" }
 boardstudio-web-ui-model = { path = "../ui-model" }
 dioxus = { version = "=0.7.10", default-features = false, features = ["minimal"] }
+dioxus-primitives = { git = "https://github.com/DioxusLabs/dioxus-components", rev = "9a758255ea26e2b20c8cecf4c1c946feb9e71da7", package = "dioxus-primitives", default-features = false }
 serde_json = { version = "1", features = ["float_roundtrip"] }
 strum = { version = "0.28", features = ["derive"] }
 tw_merge = "0.1"

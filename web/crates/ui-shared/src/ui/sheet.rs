@@ -4,11 +4,13 @@
 //! listener respects a nested control's handled event and is removed on close/unmount.
 
 use dioxus::prelude::*;
+#[cfg(target_arch = "wasm32")]
+use std::cell::RefCell;
 use std::{
-    cell::RefCell,
     rc::Rc,
     sync::atomic::{AtomicUsize, Ordering},
 };
+#[cfg(target_arch = "wasm32")]
 use wasm_bindgen::{JsCast, closure::Closure};
 
 use super::button::{Button, ButtonVariant};
@@ -51,11 +53,13 @@ struct SheetContext {
     trigger: Signal<Option<Rc<MountedData>>>,
 }
 
+#[cfg(target_arch = "wasm32")]
 struct EscapeListener {
     window: web_sys::Window,
     callback: Closure<dyn FnMut(web_sys::KeyboardEvent)>,
 }
 
+#[cfg(target_arch = "wasm32")]
 impl Drop for EscapeListener {
     fn drop(&mut self) {
         let _ = self
@@ -67,7 +71,7 @@ impl Drop for EscapeListener {
 /// Controlled non-modal Sheet. Content can retain its owner when used as a persistent dock.
 #[component]
 pub fn Sheet(
-    mut open: Signal<bool>,
+    open: Signal<bool>,
     #[props(into, optional)] id: Option<String>,
     children: Element,
 ) -> Element {
@@ -76,10 +80,14 @@ pub fn Sheet(
     });
     let trigger = use_signal(|| None::<Rc<MountedData>>);
     use_context_provider(|| SheetContext { id, open, trigger });
+    #[cfg(target_arch = "wasm32")]
     let listener = use_hook(|| Rc::new(RefCell::new(None::<EscapeListener>)));
     let was_open = use_hook(|| Rc::new(std::cell::Cell::new(false)));
     use_effect({
+        #[cfg(target_arch = "wasm32")]
         let listener = listener.clone();
+        #[cfg(target_arch = "wasm32")]
+        let mut open = open;
         move || {
             let is_open = open();
             if was_open.replace(is_open)
@@ -90,7 +98,9 @@ pub fn Sheet(
                     let _ = trigger.set_focus(true).await;
                 });
             }
+            #[cfg(target_arch = "wasm32")]
             listener.borrow_mut().take();
+            #[cfg(target_arch = "wasm32")]
             if is_open && let Some(window) = web_sys::window() {
                 let callback = Closure::wrap(Box::new(move |event: web_sys::KeyboardEvent| {
                     if event.key() == "Escape" && !event.default_prevented() {
@@ -108,6 +118,7 @@ pub fn Sheet(
             }
         }
     });
+    #[cfg(target_arch = "wasm32")]
     use_drop(move || {
         listener.borrow_mut().take();
     });
