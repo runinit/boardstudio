@@ -33,13 +33,12 @@ exclude = [
 
 [workspace.dependencies]
 # One web-sys feature list lets the page, workers, renderer and wasm tests reuse the same build.
-# The W3-6 audit found 0 dead features among the 183 listed: 76 direct uses, 104 for transitive
-# unification and 3 implied by the dependency graph. The closure is 183, and Cargo resolves
-# 185 including `default` and `std`. WebSocket, Headers, RequestInit and ResponseType stay
-# pinned so dioxus-web, dioxus-asset-resolver and subsecond share one web-sys build hash.
+# The 181 pins resolve to 185 features including default and std. Text implies CharacterData
+# and HtmlVideoElement implies HtmlMediaElement. Keep the page and renderer feature union
+# on workers too so their builds reuse the same web-sys artifact.
 web-sys = { version = "=0.3.106", features = [
   "AbortSignal", "AngleInstancedArrays", "AnimationEvent", "Blob", "BlobPropertyBag", "Cache",
-  "CacheStorage", "CharacterData", "Client", "ClientQueryOptions", "ClientType", "Clients",
+  "CacheStorage", "Client", "ClientQueryOptions", "ClientType", "Clients",
   "ClipboardEvent", "CloseEvent", "Comment", "CompositionEvent", "CssStyleDeclaration",
   "CustomEvent", "DataTransfer", "DataTransferItem", "DataTransferItemList",
   "DedicatedWorkerGlobalScope", "Document", "DomException", "DomRect", "DomRectReadOnly",
@@ -49,7 +48,7 @@ web-sys = { version = "=0.3.106", features = [
   "ExtendableMessageEvent", "FetchEvent", "File", "FileList", "FileReader", "FocusEvent",
   "FocusOptions", "FormData", "Headers", "History", "HtmlAnchorElement", "HtmlCanvasElement",
   "HtmlDialogElement", "HtmlElement", "HtmlFormElement", "HtmlHeadElement", "HtmlImageElement",
-  "HtmlInputElement", "HtmlMediaElement", "HtmlSelectElement", "HtmlTextAreaElement",
+  "HtmlInputElement", "HtmlSelectElement", "HtmlTextAreaElement",
   "HtmlVideoElement", "IdbDatabase", "IdbFactory", "IdbObjectStore", "IdbObjectStoreParameters",
   "IdbOpenDbRequest", "IdbRequest", "IdbTransaction", "IdbTransactionMode", "ImageBitmap",
   "ImageData", "InputEvent", "IntersectionObserverEntry", "KeyboardEvent", "KeyboardEventInit",
