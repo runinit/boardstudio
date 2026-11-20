@@ -7,6 +7,6 @@ pub(crate) use boardstudio_core_kernel::{generators, hash, matrix};
 #[allow(unused_imports)]
 pub(crate) use boardstudio_core_mechanical::mechanical;
 #[allow(unused_imports)]
-pub(crate) use boardstudio_core_modules::modules;
+pub(crate) use boardstudio_core_mechanical::modules;
 
 pub mod artifact;

@@ -3,15 +3,14 @@
 pub use boardstudio_model::model;
 
 #[allow(unused_imports)]
-pub(crate) use boardstudio_core_electrical::{electrical, electrical_peripherals, keymap};
-#[allow(unused_imports)]
 pub(crate) use boardstudio_core_kernel::{
     constraints, generators, geometry, matrix, outline_controls, outline_edit, outline_versions,
 };
 #[allow(unused_imports)]
 pub(crate) use boardstudio_core_mechanical::mechanical;
 #[allow(unused_imports)]
-pub(crate) use boardstudio_core_modules::modules;
+pub(crate) use boardstudio_core_mechanical::{electrical, electrical_peripherals, keymap, modules};
+#[allow(unused_imports)]
 #[allow(unused_imports)]
 pub(crate) use boardstudio_model::ScriptRunner;
 

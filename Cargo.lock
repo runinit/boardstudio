@@ -224,21 +224,9 @@ dependencies = [
  "boardstudio-core-kernel",
  "boardstudio-core-kicad-source",
  "boardstudio-core-mechanical",
- "boardstudio-core-modules",
  "boardstudio-footprints",
  "boardstudio-model",
  "kiutils_sexpr",
- "serde_json",
-]
-
-[[package]]
-name = "boardstudio-core-electrical"
-version = "0.1.0"
-dependencies = [
- "boardstudio-core-kernel",
- "boardstudio-core-modules",
- "boardstudio-model",
- "serde",
  "serde_json",
 ]
 
@@ -248,12 +236,10 @@ version = "0.1.0"
 dependencies = [
  "boardstudio-contracts",
  "boardstudio-core-artifact",
- "boardstudio-core-electrical",
  "boardstudio-core-kernel",
  "boardstudio-core-kicad-source",
  "boardstudio-core-mechanical",
  "boardstudio-core-mirrored-half",
- "boardstudio-core-modules",
  "boardstudio-model",
  "boardstudio-script",
  "serde",
@@ -297,7 +283,6 @@ dependencies = [
  "boardstudio-core-engine",
  "boardstudio-core-kernel",
  "boardstudio-core-kicad-source",
- "boardstudio-core-modules",
  "boardstudio-model",
  "boardstudio-script",
  "serde",
@@ -308,25 +293,12 @@ dependencies = [
 name = "boardstudio-core-mirrored-half"
 version = "0.1.0"
 dependencies = [
- "boardstudio-core-electrical",
  "boardstudio-core-engine",
  "boardstudio-core-kernel",
  "boardstudio-core-mechanical",
- "boardstudio-core-modules",
  "boardstudio-model",
  "boardstudio-script",
  "serde",
- "serde_json",
-]
-
-[[package]]
-name = "boardstudio-core-modules"
-version = "0.1.0"
-dependencies = [
- "boardstudio-contracts",
- "boardstudio-core-kernel",
- "boardstudio-core-kicad-source",
- "boardstudio-model",
  "serde_json",
 ]
 

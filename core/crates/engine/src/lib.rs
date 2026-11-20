@@ -2,16 +2,16 @@
 
 pub mod archive;
 pub use boardstudio_core_artifact::artifact;
-pub use boardstudio_core_electrical::{electrical, electrical_peripherals};
+pub use boardstudio_core_mechanical::{electrical, electrical_peripherals};
 pub use boardstudio_model::electrical_jumpers;
 pub use boardstudio_model::electrical_profiles;
 pub mod firmware;
 mod keycaps;
-use boardstudio_core_electrical::keymap;
+use boardstudio_core_mechanical::keymap;
 pub use boardstudio_core_mechanical::mechanical;
 pub mod migrate;
+use boardstudio_core_mechanical::modules;
 use boardstudio_core_mirrored_half::mirrored_half;
-use boardstudio_core_modules::modules;
 pub use boardstudio_model::model;
 mod outline_validation;
 mod validate;
