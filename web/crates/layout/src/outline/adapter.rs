@@ -238,7 +238,7 @@ fn update(
 
 /// One typed Core outline edit for this presentation action, or `None` when the action
 /// cannot be expressed (including work that is not an edit at all, like focusing a gap).
-pub(crate) fn outline_edit(
+pub fn outline_edit(
     snapshot: &AcceptedSnapshot,
     action: &OutlineAction,
     seed: u64,
@@ -524,7 +524,7 @@ pub(crate) fn target_ids(action: &OutlineAction) -> Vec<String> {
 
 /// Why a retired outline edit is reported. Core decides retirement; the adapter owns the
 /// wording of the explanation the user sees.
-pub(crate) fn retire_reason(action: &OutlineAction) -> &'static str {
+pub fn retire_reason(action: &OutlineAction) -> &'static str {
     match action {
         OutlineAction::Activate {
             version_id: Some(_),
@@ -559,7 +559,7 @@ pub(crate) fn retire_reason(action: &OutlineAction) -> &'static str {
 /// `Changed` submits the one typed operation Core applies and reports its changed owners
 /// for; `Unchanged` lands without a revision step; a vanished or ineligible target
 /// retires with an explanation; malformed input surfaces Core's own error.
-pub(crate) fn settle(
+pub fn settle(
     accepted: &AcceptedSnapshot,
     edit: &OutlineEdit,
     action: &OutlineAction,
@@ -580,7 +580,7 @@ pub(crate) fn settle(
 }
 
 /// Admission at dispatch: whether the action is worth submitting a pending ticket for.
-pub(crate) fn admission(accepted: &AcceptedSnapshot, edit: &OutlineEdit) -> Admission {
+pub fn admission(accepted: &AcceptedSnapshot, edit: &OutlineEdit) -> Admission {
     match boardstudio_core::outline_edit::evaluate(accepted.document.as_ref(), edit) {
         Ok(OutlineEditDisposition::Changed) => Admission::Submit,
         Ok(OutlineEditDisposition::Unchanged) | Ok(OutlineEditDisposition::Retire) => {
@@ -591,7 +591,7 @@ pub(crate) fn admission(accepted: &AcceptedSnapshot, edit: &OutlineEdit) -> Admi
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Admission {
+pub enum Admission {
     /// The edit changes state; submit it as intent.
     Submit,
     /// The edit is equal to the accepted value or its target is gone: drop it silently.

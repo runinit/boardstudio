@@ -529,6 +529,7 @@ dependencies = [
  "boardstudio-web-case",
  "boardstudio-web-catalogue",
  "boardstudio-web-keycaps",
+ "boardstudio-web-layout-core",
  "boardstudio-web-parts",
  "boardstudio-web-runtime",
  "boardstudio-web-ui-model",
@@ -545,6 +546,17 @@ dependencies = [
  "wasm-bindgen-futures",
  "wasm-bindgen-test",
  "web-sys",
+]
+
+[[package]]
+name = "boardstudio-web-layout-core"
+version = "0.1.0"
+dependencies = [
+ "boardstudio-application",
+ "boardstudio-web-runtime",
+ "boardstudio-web-ui-model",
+ "boardstudio_core",
+ "serde_json",
 ]
 
 [[package]]

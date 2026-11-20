@@ -15,6 +15,7 @@ members = [
   "web/crates/catalogue",
   "web/crates/ui-shared",
   "web/crates/layout",
+  "web/crates/layout-core",
   "web/crates/pcb",
   "web/crates/parts",
   "web/crates/case",

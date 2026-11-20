@@ -1,7 +1,7 @@
 //! Pure geometry helpers and the presentation outline action vocabulary.
 //!
-//! Every action here is turned into one typed Core outline edit by
-//! [`super::adapter`]; no planning or replacement document happens in this module. The
+//! Every action here is turned into one typed Core outline edit by the layout
+//! crate's outline adapter; no planning or replacement document happens in this module. The
 //! unique-id helpers below feed the adapter for the version and connection ids it still
 //! chooses itself; Core validates them.
 
@@ -12,7 +12,7 @@ use boardstudio_core::model::{
 };
 use boardstudio_web_ui_model::tree::TreeContext;
 
-pub(super) fn unique_outline_entity_id(
+pub fn unique_outline_entity_id(
     prefix: &str,
     operation_id: u64,
     existing_ids: impl IntoIterator<Item = String>,
@@ -34,7 +34,7 @@ pub(super) fn unique_outline_entity_id(
     unreachable!("a finite saved ID set cannot exhaust the suffix sequence")
 }
 
-pub(super) fn unique_outline_version_id(
+pub fn unique_outline_version_id(
     operation_id: u64,
     existing_ids: impl IntoIterator<Item = String>,
 ) -> String {
@@ -167,22 +167,22 @@ pub enum OutlinePointTarget {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct EditablePerimeter {
-    pub(super) target: OutlinePointTarget,
-    pub(super) points: Vec<Vec2>,
-    pub(super) canvas_points: Vec<Vec2>,
-    pub(super) anchor: Option<PerimeterAnchor>,
+pub struct EditablePerimeter {
+    pub target: OutlinePointTarget,
+    pub points: Vec<Vec2>,
+    pub canvas_points: Vec<Vec2>,
+    pub anchor: Option<PerimeterAnchor>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) struct PerimeterAnchor {
-    pub(super) at: Vec2,
-    pub(super) rotation: f64,
-    pub(super) back: bool,
+pub struct PerimeterAnchor {
+    pub at: Vec2,
+    pub rotation: f64,
+    pub back: bool,
 }
 
 impl PerimeterAnchor {
-    pub(super) fn world(self, point: Vec2) -> Vec2 {
+    pub fn world(self, point: Vec2) -> Vec2 {
         let x = point.x * if self.back { -1.0 } else { 1.0 };
         let (sin, cos) = self.rotation.to_radians().sin_cos();
         Vec2 {
@@ -191,7 +191,7 @@ impl PerimeterAnchor {
         }
     }
 
-    pub(super) fn local(self, point: Vec2) -> Vec2 {
+    pub fn local(self, point: Vec2) -> Vec2 {
         let (sin, cos) = (-self.rotation).to_radians().sin_cos();
         let x = point.x - self.at.x;
         let y = point.y - self.at.y;
@@ -202,7 +202,7 @@ impl PerimeterAnchor {
     }
 }
 
-pub(super) fn outline_connection_control(at: Vec2, eligible: &[&Part]) -> OutlineControlPoint {
+pub fn outline_connection_control(at: Vec2, eligible: &[&Part]) -> OutlineControlPoint {
     let nearest = eligible.iter().copied().min_by(|left, right| {
         let distance = |part: &Part| (part.pose.at.x - at.x).hypot(part.pose.at.y - at.y);
         distance(left).total_cmp(&distance(right))
@@ -224,7 +224,7 @@ pub(super) fn outline_connection_control(at: Vec2, eligible: &[&Part]) -> Outlin
     }
 }
 
-pub(super) fn connection_point_world(point: &OutlineControlPoint, parts: &[Part]) -> Vec2 {
+pub fn connection_point_world(point: &OutlineControlPoint, parts: &[Part]) -> Vec2 {
     point
         .part_id
         .as_deref()
@@ -240,7 +240,7 @@ pub(super) fn connection_point_world(point: &OutlineControlPoint, parts: &[Part]
         .unwrap_or(point.at)
 }
 
-pub(super) fn move_connection_point(
+pub fn move_connection_point(
     feature: &OutlineFeature,
     connection_id: &str,
     point_index: usize,
@@ -271,7 +271,7 @@ pub(super) fn move_connection_point(
     next
 }
 
-pub(super) fn feature_anchor(part_id: Option<&str>, parts: &[Part]) -> Option<PerimeterAnchor> {
+pub fn feature_anchor(part_id: Option<&str>, parts: &[Part]) -> Option<PerimeterAnchor> {
     part_id
         .and_then(|id| parts.iter().find(|part| part.id == id))
         .map(|part| PerimeterAnchor {
@@ -281,7 +281,7 @@ pub(super) fn feature_anchor(part_id: Option<&str>, parts: &[Part]) -> Option<Pe
         })
 }
 
-pub(super) fn attach_connection_point(
+pub fn attach_connection_point(
     feature: &OutlineFeature,
     connection_id: &str,
     point_index: usize,
@@ -303,7 +303,7 @@ pub(super) fn attach_connection_point(
 }
 
 impl OutlineAction {
-    pub(super) fn envelope(
+    pub fn envelope(
         &self,
     ) -> (
         &Scope,
@@ -435,7 +435,3 @@ impl OutlineAction {
         })
     }
 }
-
-#[cfg(all(test, not(target_arch = "wasm32")))]
-#[path = "../outline_lifecycle_tests.rs"]
-mod lifecycle_tests;

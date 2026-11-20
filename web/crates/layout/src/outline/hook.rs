@@ -362,40 +362,42 @@ fn blocked_export_labels(snapshot: &AcceptedSnapshot, board_id: &str) -> Vec<Str
     labels
 }
 
-impl OutlineAction {
-    pub fn is_current(&self, runtime: &Runtime, generation: u64) -> bool {
-        let (scope, token, revision, captured_generation, board_id) = self.envelope();
-        let model = runtime.model();
-        let perimeter_edit = matches!(
-            self,
-            OutlineAction::EditPerimeter {
-                phase: EditPhase::Preview | EditPhase::Commit,
-                ..
-            }
-        );
-        let lifecycle_current = model.lifecycle == Lifecycle::Ready
-            || (perimeter_edit && model.lifecycle == Lifecycle::Applying);
-        generation == captured_generation
-            && runtime.scope().as_ref() == Some(scope)
-            && model.accepted.as_ref().is_some_and(|snapshot| {
-                snapshot.token == *token
-                    && snapshot.document.revision == revision
-                    && snapshot.document.id == scope.document_id
-                    && snapshot.session_epoch == scope.session_epoch
-            })
-            && scope.board_id == *board_id
-            && lifecycle_current
-            && model.durability == (Durability::Saved { revision })
-            && (model.display_preview.is_none()
-                || matches!(
-                    self,
-                    OutlineAction::EditPerimeter {
-                        phase: EditPhase::Preview | EditPhase::Commit,
-                        ..
-                    }
-                ))
-            && model.gesture.is_none()
-    }
+pub(crate) fn outline_action_is_current(
+    action: &OutlineAction,
+    runtime: &Runtime,
+    generation: u64,
+) -> bool {
+    let (scope, token, revision, captured_generation, board_id) = action.envelope();
+    let model = runtime.model();
+    let perimeter_edit = matches!(
+        action,
+        OutlineAction::EditPerimeter {
+            phase: EditPhase::Preview | EditPhase::Commit,
+            ..
+        }
+    );
+    let lifecycle_current = model.lifecycle == Lifecycle::Ready
+        || (perimeter_edit && model.lifecycle == Lifecycle::Applying);
+    generation == captured_generation
+        && runtime.scope().as_ref() == Some(scope)
+        && model.accepted.as_ref().is_some_and(|snapshot| {
+            snapshot.token == *token
+                && snapshot.document.revision == revision
+                && snapshot.document.id == scope.document_id
+                && snapshot.session_epoch == scope.session_epoch
+        })
+        && scope.board_id == *board_id
+        && lifecycle_current
+        && model.durability == (Durability::Saved { revision })
+        && (model.display_preview.is_none()
+            || matches!(
+                action,
+                OutlineAction::EditPerimeter {
+                    phase: EditPhase::Preview | EditPhase::Commit,
+                    ..
+                }
+            ))
+        && model.gesture.is_none()
 }
 
 pub fn use_outline_lifecycle(
@@ -1089,7 +1091,7 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
     if workspace() != "Layout" || scope_generation() != captured_generation {
         return;
     }
-    if !action.is_current(runtime, captured_generation) {
+    if !outline_action_is_current(&action, runtime, captured_generation) {
         return;
     }
     let (action_scope, _, _, _, board_id) = action.envelope();

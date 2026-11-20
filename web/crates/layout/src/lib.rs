@@ -53,19 +53,12 @@ pub(crate) use boardstudio_web_ui_shared::{
 #[allow(unused_imports)]
 pub(crate) use part_placement::{LayoutPlacementCancellation, layout_view_mode_handler};
 
-pub mod anchor_badge;
-pub mod anchor_pick;
-pub mod matrix_relations;
-pub mod matrix_transform_lifecycle;
-pub mod matrix_transform_operation;
-pub mod mirror_existing_half;
-pub mod mirrored_pair_geometry;
-pub mod mirrored_pair_lifecycle;
+pub use boardstudio_web_layout_core::{
+    anchor_badge, anchor_pick, matrix_relations, matrix_transform_lifecycle,
+    matrix_transform_operation, mirror_existing_half, mirrored_pair_geometry,
+    mirrored_pair_lifecycle, outline_settings, part_rail, screen_scale, setup_guide_state,
+};
 pub mod outline;
-pub mod outline_settings;
-pub mod part_rail;
-pub mod screen_scale;
-pub mod setup_guide_state;
 
 #[cfg(target_arch = "wasm32")]
 pub mod board_inspector;
@@ -80,17 +73,14 @@ pub mod objects;
 #[cfg(target_arch = "wasm32")]
 pub mod outline_lifecycle;
 #[cfg(target_arch = "wasm32")]
-pub mod outline_snapping;
+pub use boardstudio_web_layout_core::outline_snapping;
 #[cfg(target_arch = "wasm32")]
 pub mod part_placement;
 #[cfg(target_arch = "wasm32")]
 pub mod setup_guide;
 
-// Grid rounding, keycap resizing and alignment geometry are plain logic; compile them natively too so their
+// Keycap resizing and alignment geometry are plain logic; compile them natively too so their
 // unit tests run under `cargo test`.
-#[cfg(all(test, not(target_arch = "wasm32")))]
-#[path = "outline_grid_rounding.rs"]
-mod outline_grid_rounding_tests;
 #[cfg(not(target_arch = "wasm32"))]
 mod objects {
     #[allow(dead_code)]

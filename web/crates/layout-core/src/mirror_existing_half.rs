@@ -6,11 +6,11 @@
 use boardstudio_core::model::{Layout, LayoutMirrorLink, ProjectDoc};
 
 #[derive(Clone)]
-pub(crate) struct PreparedExistingHalf {
-    pub(crate) document: ProjectDoc,
+pub struct PreparedExistingHalf {
+    pub document: ProjectDoc,
 }
 
-pub(crate) fn prepare_existing_half(
+pub fn prepare_existing_half(
     document: &ProjectDoc,
     board_id: &str,
     matrix_ids: &[String],

@@ -532,7 +532,11 @@ async fn activation_rejects_stale_rendered_token() {
         .clone();
     replace_document(&probe, replacement).await;
     flush(&probe, &mut dom);
-    assert!(!old.is_current(&probe.runtime, probe.generation.get()));
+    assert!(!super::outline_action_is_current(
+        &old,
+        &probe.runtime,
+        probe.generation.get()
+    ));
     let before = probe.runtime.model().accepted.unwrap().document;
     probe.activation.borrow().as_ref().unwrap().call(old);
     accept(&probe).await;

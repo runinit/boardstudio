@@ -1,7 +1,7 @@
 //! Outline lifecycle planning and presentation.
 
 pub mod adapter;
-pub mod planner;
+pub use boardstudio_web_layout_core::outline::planner;
 
 #[cfg(target_arch = "wasm32")]
 pub(crate) mod hook;
@@ -82,3 +82,6 @@ use wasm_bindgen::JsCast;
 #[cfg(all(test, target_arch = "wasm32"))]
 #[path = "../outline_lifecycle_browser_tests.rs"]
 mod browser_tests;
+#[cfg(all(test, not(target_arch = "wasm32")))]
+#[path = "../outline_lifecycle_tests.rs"]
+mod lifecycle_tests;

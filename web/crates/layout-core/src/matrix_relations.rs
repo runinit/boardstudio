@@ -17,7 +17,7 @@ use boardstudio_web_ui_model::tree::TreeContext;
 
 /// "X, Y, rotation" for the Follow subset, or "none" when nothing follows.
 /// Free so the canvas anchor badge (ticket 17) reads the same words as the chain.
-pub(crate) fn follow_text(follow: &Follow) -> String {
+pub fn follow_text(follow: &Follow) -> String {
     let mut parts = Vec::new();
     if follow.x {
         parts.push("X");
@@ -38,7 +38,7 @@ pub(crate) fn follow_text(follow: &Follow) -> String {
 /// "Average of 2 keys" or "Intersection of 2 keys", from the Core-admitted
 /// aggregate method. `None` for single-key anchors. Free so the canvas anchor
 /// badge (ticket 17) reads the same words as the chain.
-pub(crate) fn aggregate_kind_text(anchor: &MatrixAnchor) -> Option<String> {
+pub fn aggregate_kind_text(anchor: &MatrixAnchor) -> Option<String> {
     let aggregate = anchor.aggregate.as_ref()?;
     let method = match aggregate.method {
         AggregateMethod::Average => "Average",

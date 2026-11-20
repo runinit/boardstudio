@@ -16,6 +16,7 @@ boardstudio-web-catalogue = { path = "../catalogue" }
 boardstudio-web-keycaps = { path = "../keycaps" }
 boardstudio-web-case = { path = "../case" }
 boardstudio-web-parts = { path = "../parts" }
+boardstudio-web-layout-core = { path = "../layout-core" }
 dioxus = { version = "=0.7.10", default-features = false, features = ["minimal"] }
 serde_json = { version = "1", features = ["float_roundtrip"] }
 

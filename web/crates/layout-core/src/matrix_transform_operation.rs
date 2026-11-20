@@ -142,7 +142,7 @@ pub enum MatrixTransformFields {
     },
 }
 
-pub(crate) fn column_angle(splay: f64, rotation: f64, affect: &MatrixSplayAffect) -> f64 {
+pub fn column_angle(splay: f64, rotation: f64, affect: &MatrixSplayAffect) -> f64 {
     match affect {
         MatrixSplayAffect::Column => rotation,
         MatrixSplayAffect::Following => splay,
@@ -3633,7 +3633,7 @@ mod key_omit_tests {
     };
     use std::sync::Arc;
 
-    pub(crate) fn pair_doc() -> ProjectDoc {
+    pub fn pair_doc() -> ProjectDoc {
         serde_json::from_value(serde_json::json!({
             "id": "omit", "name": "Omit", "format": "boardstudio/v2", "revision": 0,
             "parameters": {},

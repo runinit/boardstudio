@@ -191,7 +191,9 @@ pub fn Objects(
     board_setup: Option<BoardSetupMount>,
     matrix_setup: Option<MatrixSetupMount>,
     pair_created: Option<Signal<Option<MirroredPairCreated>>>,
-    on_place_component: Option<EventHandler<boardstudio_web_ui_model::state::ComponentPlacementAction>>,
+    on_place_component: Option<
+        EventHandler<boardstudio_web_ui_model::state::ComponentPlacementAction>,
+    >,
     layout_target: Option<Signal<Option<String>>>,
     parts_query: Option<super::parts::PartsQuery>,
     on_browse_parts: Option<EventHandler<()>>,
