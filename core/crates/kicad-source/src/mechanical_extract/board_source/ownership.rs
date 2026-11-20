@@ -8,7 +8,7 @@ use cavalier_contours::polyline::{
 // Match the exact PCB consumer's XY equality budget; this permits refusal, not repair.
 const POSITION_EPS_MM: f64 = 1e-10;
 
-pub(super) fn assign(contours: &mut [CasePcbSourceContour]) -> Result<(), ArtifactError> {
+pub fn assign(contours: &mut [CasePcbSourceContour]) -> Result<(), ArtifactError> {
     // Keep the existing ModuleBoard contour budget at the source boundary too.
     if contours.len() > 1000 {
         return Err(validation("PCB source exceeds the 1000-contour limit"));

@@ -21,7 +21,7 @@ use std::collections::{BTreeMap, BTreeSet};
 mod lifecycle;
 mod prepare;
 #[cfg(test)]
-pub(crate) use prepare::{prepare_open, prepare_transaction};
+pub(crate) use prepare::prepare_transaction;
 pub(crate) use prepare::{prepare_open_with_scripts, prepare_transaction_with_ledger};
 mod outlines;
 mod settings;

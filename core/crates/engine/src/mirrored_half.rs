@@ -509,7 +509,7 @@ pub(crate) fn mirror_pose(mapping: Pose2, pose: Pose2) -> Pose2 {
 
 /// A test-only window onto `derive::companion_assembly`, the authority for companion placement,
 /// so the constraint endpoint rules can be pinned to it. No production caller.
-#[cfg(any(test, feature = "test-support"))]
+#[cfg(feature = "test-support")]
 #[allow(clippy::too_many_arguments)] // Mirrors derive's input record field for field.
 pub fn companion_placement(
     offset: crate::model::Vec2,

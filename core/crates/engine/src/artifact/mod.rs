@@ -1,30 +1,19 @@
 pub mod compile;
 pub mod kicad;
-pub mod mechanical_extract;
 mod mechanical_plate;
 mod module_import;
 pub mod outline;
-mod parsed_board;
-mod preview;
-mod sexpr;
 mod source;
 mod source_geometry;
+
+pub use boardstudio_core_kicad_source::mechanical_extract;
+use boardstudio_core_kicad_source::{parsed_board, preview, sexpr};
 
 use crate::model::{
     ArtifactDiagnostic, ArtifactDiagnosticKind, ArtifactReply, ArtifactRequest, CompiledFootprint,
     FootprintCompileJob, PartDefinition, Vec2,
 };
 pub use crate::model::{ArtifactError, ArtifactErrorCode};
-
-// Legacy KiCad uses start=center and end=radius point, with a Y-down sweep.
-fn legacy_arc_parameters(start: Vec2, end: Vec2, degrees: f64) -> Option<(Vec2, f64, f64, f64)> {
-    let radius = (end.x - start.x).hypot(end.y - start.y);
-    if radius <= 0.0 {
-        return None;
-    }
-    let first = (end.y - start.y).atan2(end.x - start.x);
-    Some((start, first, -degrees.to_radians(), radius))
-}
 
 fn read_board_source(
     source: &str,

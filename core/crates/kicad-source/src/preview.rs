@@ -400,7 +400,7 @@ fn contours(mut edges: Vec<Vec<Vec2>>) -> Result<Vec<Contour>, ArtifactError> {
         })
         .collect())
 }
-pub(super) fn board(source: &str, revision: u64) -> Result<PcbPreview, ArtifactError> {
+pub fn board(source: &str, revision: u64) -> Result<PcbPreview, ArtifactError> {
     board_source(source, revision).map(|(preview, _)| preview)
 }
 
@@ -412,7 +412,7 @@ fn check_board_size(source: &str) -> Result<(), ArtifactError> {
 }
 
 /// The size limit is checked before the raw source is parsed.
-pub(super) fn parse_board(source: &str) -> Result<ParsedBoard<'_>, ArtifactError> {
+pub fn parse_board(source: &str) -> Result<ParsedBoard<'_>, ArtifactError> {
     check_board_size(source)?;
     ParsedBoard::parse(source).map_err(|failure| match failure {
         BoardParseError::Syntax(message) => error(message),
@@ -420,14 +420,14 @@ pub(super) fn parse_board(source: &str) -> Result<ParsedBoard<'_>, ArtifactError
     })
 }
 
-pub(super) fn board_source(
+pub fn board_source(
     source: &str,
     revision: u64,
 ) -> Result<(PcbPreview, Option<f64>), ArtifactError> {
     board_parsed(&parse_board(source)?, revision)
 }
 
-pub(super) fn board_parsed(
+pub fn board_parsed(
     board: &ParsedBoard,
     revision: u64,
 ) -> Result<(PcbPreview, Option<f64>), ArtifactError> {
@@ -546,7 +546,7 @@ pub(super) fn board_parsed(
 }
 
 /// Project only source-local front/back silkscreen and fabrication artwork from a footprint.
-pub(super) fn footprint_surfaces(source: &str) -> Result<Vec<PcbSurface>, ArtifactError> {
+pub fn footprint_surfaces(source: &str) -> Result<Vec<PcbSurface>, ArtifactError> {
     if source.len() > 4 * 1024 * 1024 {
         return Err(error("Footprint source exceeds the 4 MiB preview limit"));
     }

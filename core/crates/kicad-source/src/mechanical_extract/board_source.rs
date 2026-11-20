@@ -18,7 +18,7 @@ struct SourceEdge {
     primitive: CasePcbSourcePrimitive,
 }
 
-pub(in crate::artifact) fn extract_board_source(
+pub fn extract_board_source(
     board: &ParsedBoard,
     center: Vec2,
 ) -> Result<(CasePcbSource, Vec<Mount>), ArtifactError> {

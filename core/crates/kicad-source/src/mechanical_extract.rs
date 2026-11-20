@@ -13,7 +13,7 @@ pub use crate::model::{
 };
 use kiutils_sexpr::Node;
 mod board_source;
-pub(super) use board_source::extract_board_source;
+pub use board_source::extract_board_source;
 
 const CONTOUR_ENDPOINT_TOLERANCE_MM: f64 = 0.01;
 
@@ -763,7 +763,7 @@ mod tests {
 
     #[test]
     fn reviewed_marbastlib_switch_fixture_keeps_cut_layer_separate_from_npth_drills() {
-        let source = include_str!("../../../../tests/fixtures/mechanical/SW_MX_1u.kicad_mod");
+        let source = include_str!("../../../tests/fixtures/mechanical/SW_MX_1u.kicad_mod");
         let mapping = PurposeMapping {
             source_id: None,
             kind: Some(GeometryKind::Line),
@@ -811,7 +811,7 @@ mod tests {
 
     #[test]
     fn retains_source_hash_and_only_extracts_explicit_pcb_mounting_holes() {
-        let source = include_str!("../../../../tests/fixtures/mechanical/SW_MX_1u.kicad_mod");
+        let source = include_str!("../../../tests/fixtures/mechanical/SW_MX_1u.kicad_mod");
         let mappings = (0..3)
             .map(|index| PurposeMapping {
                 source_id: Some(format!("pad-{index}-drill")),
@@ -841,7 +841,7 @@ mod tests {
 
     #[test]
     fn explicit_marbastlib_switch_cut_mapping_builds_one_bounded_contour() {
-        let source = include_str!("../../../../tests/fixtures/mechanical/SW_MX_1u.kicad_mod");
+        let source = include_str!("../../../tests/fixtures/mechanical/SW_MX_1u.kicad_mod");
         let geometry = extract(
             source,
             &[
@@ -869,7 +869,7 @@ mod tests {
 
     #[test]
     fn artifact_request_returns_selectable_source_geometry_and_mapped_cutouts() {
-        let source = include_str!("../../../../tests/fixtures/mechanical/SW_MX_1u.kicad_mod");
+        let source = include_str!("../../../tests/fixtures/mechanical/SW_MX_1u.kicad_mod");
         let request = crate::model::ArtifactRequest::ExtractMechanical {
             id: "extract-test".into(),
             source: source.into(),
@@ -891,7 +891,7 @@ mod tests {
         };
         let json = serde_json::to_string(&request).unwrap();
         let response: crate::model::ArtifactReply =
-            serde_json::from_str(&super::super::request(&json)).unwrap();
+            serde_json::from_str(&boardstudio_core_engine::artifact::request(&json)).unwrap();
         let crate::model::ArtifactReply::ExtractMechanical { id, result } = response else {
             panic!("expected mechanical extraction reply");
         };

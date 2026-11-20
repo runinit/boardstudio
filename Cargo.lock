@@ -222,6 +222,7 @@ version = "0.1.0"
 dependencies = [
  "boardstudio-contracts",
  "boardstudio-core-kernel",
+ "boardstudio-core-kicad-source",
  "boardstudio-footprints",
  "boardstudio-model",
  "boardstudio-script",
@@ -246,6 +247,19 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+]
+
+[[package]]
+name = "boardstudio-core-kicad-source"
+version = "0.1.0"
+dependencies = [
+ "boardstudio-contracts",
+ "boardstudio-core-engine",
+ "boardstudio-core-kernel",
+ "boardstudio-model",
+ "cavalier_contours",
+ "kiutils_sexpr",
+ "serde_json",
 ]
 
 [[package]]

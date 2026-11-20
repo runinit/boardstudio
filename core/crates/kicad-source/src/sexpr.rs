@@ -5,20 +5,20 @@
 
 use kiutils_sexpr::{Atom, Node, Span};
 
-pub(super) fn items(node: &Node) -> Option<&[Node]> {
+pub fn items(node: &Node) -> Option<&[Node]> {
     match node {
         Node::List { items, .. } => Some(items),
         Node::Atom { .. } => None,
     }
 }
 
-pub(super) fn head(node: &Node) -> Option<&str> {
+pub fn head(node: &Node) -> Option<&str> {
     items(node)
         .and_then(|children| children.first())
         .and_then(atom)
 }
 
-pub(super) fn atom(node: &Node) -> Option<&str> {
+pub fn atom(node: &Node) -> Option<&str> {
     match node {
         Node::Atom {
             atom: Atom::Symbol(value) | Atom::Quoted(value),
@@ -28,18 +28,18 @@ pub(super) fn atom(node: &Node) -> Option<&str> {
     }
 }
 
-pub(super) fn children<'a>(node: &'a Node, name: &str) -> impl Iterator<Item = &'a Node> {
+pub fn children<'a>(node: &'a Node, name: &str) -> impl Iterator<Item = &'a Node> {
     items(node)
         .into_iter()
         .flatten()
         .filter(move |child| head(child) == Some(name))
 }
 
-pub(super) fn child<'a>(node: &'a Node, name: &str) -> Option<&'a Node> {
+pub fn child<'a>(node: &'a Node, name: &str) -> Option<&'a Node> {
     children(node, name).next()
 }
 
-pub(super) fn span(node: &Node) -> Span {
+pub fn span(node: &Node) -> Span {
     match node {
         Node::List { span, .. } | Node::Atom { span, .. } => *span,
     }
@@ -48,7 +48,7 @@ pub(super) fn span(node: &Node) -> Span {
 /// Decode the C-style escapes accepted by KiCad's DSN lexer. This deliberately
 /// operates on the raw source span because the generic CST decoder drops the
 /// slash from unknown escapes.
-pub(super) fn kicad_quoted(raw: &str, span: Span) -> Option<String> {
+pub fn kicad_quoted(raw: &str, span: Span) -> Option<String> {
     let token = raw.get(span.start..span.end)?;
     if !token.starts_with('"') || !token.ends_with('"') || token.len() < 2 {
         return None;
@@ -136,7 +136,7 @@ pub(super) fn kicad_quoted(raw: &str, span: Span) -> Option<String> {
     Some(out)
 }
 
-pub(super) fn quote(value: &str) -> String {
+pub fn quote(value: &str) -> String {
     let mut out = String::with_capacity(value.len() + 2);
     out.push('"');
     for ch in value.chars() {
@@ -159,7 +159,7 @@ pub(super) fn quote(value: &str) -> String {
     out
 }
 
-pub(super) fn replace_spans(source: &str, mut replacements: Vec<(Span, String)>) -> Option<String> {
+pub fn replace_spans(source: &str, mut replacements: Vec<(Span, String)>) -> Option<String> {
     replacements.sort_by_key(|(span, _)| span.start);
     let mut output = String::with_capacity(source.len());
     let mut cursor = 0;
