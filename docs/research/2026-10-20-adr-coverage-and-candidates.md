@@ -240,7 +240,7 @@ retention, and 0024 binds firmware to real assembly. None records why a manufact
 handoff's protection survives restoring an earlier document. This is not firmware
 repository-template delivery under 0030.
 
-**Current behavior and tests:** [electrical source](../../core/crates/electrical/src/electrical.rs),
+**Current behavior and tests:** [electrical source](../../core/crates/mechanical/src/electrical.rs),
 `preserve_handoff`, explicitly says a downloaded handoff is outside history;
 [Core](../../core/src/lib.rs), `history`, reapplies the prior protected baseline
 before publishing Undo/Redo. `handoff_assignments` protects fabricated signal

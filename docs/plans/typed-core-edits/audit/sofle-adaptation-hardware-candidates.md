@@ -78,7 +78,7 @@ The current recipes (`core/examples/demo_projects/recipes.rs`, retired) select n
 
 The RGB guide maps source MINI pins `1=DOUT, 2=GND, 3=DIN, 4=VCC`. PCB nets establish the bank order **D37 → D33 → D32 → D31 → D34 → D35 → D36**, then J5/per-key lighting. D37 receives controller data through J6 and matches the guide's single front indicator; the other six are rear drop lights. [Guide](https://github.com/josefadamcik/SofleKeyboard/blob/fb294f7c58d0f91c379a9ef339159d4d056643e9/docs/build_guide_rgb.md#L81), [PCB bank/J6](https://github.com/josefadamcik/SofleKeyboard/blob/fb294f7c58d0f91c379a9ef339159d4d056643e9/Sofle_RGB/PCB/SofleKeyboard.kicad_pcb#L319).
 
-Current recipes put all seven MINI-E candidates on the back with `reverse_mount:false`; matrix companions use `reverse_mount:true`. MINI-E mapping is `P1=VCC, P2=DOUT, P3=GND, P4=DIN`, as recorded in [Core peripheral mapping](../../../../core/crates/electrical/src/electrical_peripherals.rs). If the user-specified adaptation retains source lighting roles, propose a separately qualified D37 face/definition exception and explicit chain. Do not equate MINI and MINI-E or silently reproduce the source circuit.
+Current recipes put all seven MINI-E candidates on the back with `reverse_mount:false`; matrix companions use `reverse_mount:true`. MINI-E mapping is `P1=VCC, P2=DOUT, P3=GND, P4=DIN`, as recorded in [Core peripheral mapping](../../../../core/crates/mechanical/src/electrical_peripherals.rs). If the user-specified adaptation retains source lighting roles, propose a separately qualified D37 face/definition exception and explicit chain. Do not equate MINI and MINI-E or silently reproduce the source circuit.
 
 ## Existing native assembly seeds
 

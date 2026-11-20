@@ -147,7 +147,7 @@ For an **ordinary unpaired matrix**, inspected
   from a dormant Part archive; a new Part gets defaults. Deleted net-pin/constraint
   records are not automatically restored. Retained keycap-map values are different
   from `Part.keycap`.
-- [Electrical discovery](../../core/crates/electrical/src/electrical.rs#L206-L295) skips disabled cells
+- [Electrical discovery](../../core/crates/mechanical/src/electrical.rs#L206-L295) skips disabled cells
   and requires actual Board-owned Parts. [Firmware adaptation](../../web/crates/runtime/src/firmware_request_adapter.rs#L90-L171)
   emits current assignments/auxiliary inputs, not every retained binding-map entry.
   On re-enable, if planning succeeds, the reused ID can again retrieve its retained

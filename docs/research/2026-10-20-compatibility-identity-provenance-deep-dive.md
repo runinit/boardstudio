@@ -264,7 +264,7 @@ ownership boundary with meaningful reversal cost. No candidate count or implemen
 3. **Press versus rotation** is profile/scan-mode dependent. A matrix encoder's press ID is its Part ID;
    a direct standalone encoder/press uses `<part>/push`; rotation uses the Part ID in sensors
    ([`inputs::profile`/`scan_mode`](../../core/crates/kernel/src/inputs.rs#L50-L106),
-   [`electrical_peripherals::describe`](../../core/crates/electrical/src/electrical_peripherals.rs#L59-L130)).
+   [`electrical_peripherals::describe`](../../core/crates/mechanical/src/electrical_peripherals.rs#L59-L130)).
 4. **Firmware position/order** is supplied by the current electrical plan's assignment sequence,
    followed by auxiliary pushes; the keymap source looks up those IDs in that order. Missing base
    bindings fall back to supplied legacy text/`&none`, higher layers to `&trans`. Old map entries
@@ -349,7 +349,7 @@ separately ([`next_matrix_id`](../../web/crates/catalogue/src/matrix_setup_opera
   push or a direct press on an attached component needs a separate suffix scenario. This is a
   source-established coverage limit, not an executed report of a broken device
   ([remapping](../../core/crates/kernel/src/matrix/deletion.rs#L220-L248), [cell changes](../../core/crates/kernel/src/matrix/deletion.rs#L283-L302),
-  [press identity](../../core/crates/electrical/src/electrical_peripherals.rs#L73-L96)).
+  [press identity](../../core/crates/mechanical/src/electrical_peripherals.rs#L73-L96)).
 - **Legend/configuration is not one field.** `keycaps.keys[id]` overrides and typed/legacy-derived
   legends are looked up for current Parts; explicit blank legend differs from inheritance. Structural
   deletion remaps that map; generic removal does not. Separately, `Part.keycap` belongs to the removed
