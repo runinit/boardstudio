@@ -1293,6 +1293,7 @@ pub struct ProjectDoc {
     pub case_bodies: Vec<CaseBody>,
     pub materials: Vec<Material>,
     pub assets: Vec<Asset>,
+    #[serde(default)]
     pub scripts: Vec<Script>,
     #[serde(default)]
     pub constraints: Vec<Constraint>,

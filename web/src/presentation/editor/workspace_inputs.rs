@@ -4,10 +4,6 @@ pub(super) struct WorkspaceEventWiringInput {
     pub runtime: Rc<Runtime>,
     pub adapter: SelectionAdapter,
     pub workspace: Signal<&'static str>,
-    pub objects_open: Signal<bool>,
-    pub inspect_open: Signal<bool>,
-    pub inspector_panel_settings: Signal<PanelSettings>,
-    pub setup_state: setup_workspace::SetupWorkspaceState,
     pub layer_visibility: LayerVisibility,
     pub version: Signal<u64>,
 }
@@ -83,10 +79,6 @@ pub(super) fn use_workspace_event_wiring(
         runtime,
         adapter,
         workspace,
-        objects_open,
-        inspect_open,
-        inspector_panel_settings,
-        setup_state,
         layer_visibility,
         version,
     } = input;
@@ -121,19 +113,6 @@ pub(super) fn use_workspace_event_wiring(
         keyboard,
         wheel,
     } = handlers;
-    let open_geometry_scripts = {
-        let mut workspace = workspace;
-        let mut objects_open = objects_open;
-        let mut inspect_open = inspect_open;
-        let inspector_settings = inspector_panel_settings;
-        EventHandler::new(move |_| {
-            workspace.set("Layout");
-            objects_open.set(false);
-            inspect_open.set(true);
-            setup_state.set_geometry_scripts_open(true);
-            pin_inspector_on_desktop(inspector_settings);
-        })
-    };
     let toggle_footprints = EventHandler::new(move |_| {
         let mut footprints = layer_visibility.footprints;
         footprints.set(!footprints());
@@ -170,7 +149,6 @@ pub(super) fn use_workspace_event_wiring(
         on_select: workspace_routing.select_tree,
         on_navigate: workspace_routing.navigate,
         on_nudge: nudge_tree,
-        on_open_geometry_scripts: open_geometry_scripts,
         board_setup,
     };
     (
@@ -510,14 +488,6 @@ pub(super) fn objects_input<'a>(
                 layout_assembly_3d,
                 pcb_shared_objects.on_select,
             );
-            pcb_shared_objects.on_open_geometry_scripts = pcb_add_layout_open_handler(
-                runtime.clone(),
-                workspace,
-                adapter.clone(),
-                pcb_add_owner.clone(),
-                layout_assembly_3d,
-                pcb_shared_objects.on_open_geometry_scripts,
-            );
             let mut pcb_matrix_setup = matrix_setup.clone();
             pcb_matrix_setup.can_open = pcb_add_is_current
                 && pcb_matrix_setup.projection.is_none()
@@ -712,9 +682,6 @@ pub(super) fn use_workspace_wiring<'a, 'b>(
     let adapter = &setup_a.adapter;
     let workspace = setup_a.workspace;
     let objects_open = setup_a.objects_open;
-    let inspect_open = setup_a.inspect_open;
-    let inspector_panel_settings = setup_a.inspector_panel_settings;
-    let setup_state = setup_a.setup_state;
     let layer_visibility = setup_a.layer_visibility;
     let version = setup_a.version;
     let current_scope = &setup_a.current_scope;
@@ -777,10 +744,6 @@ pub(super) fn use_workspace_wiring<'a, 'b>(
             runtime: runtime.clone(),
             adapter: adapter.clone(),
             workspace,
-            objects_open,
-            inspect_open,
-            inspector_panel_settings,
-            setup_state,
             layer_visibility,
             version,
         },

@@ -187,7 +187,6 @@ pub fn Objects(
     on_select: EventHandler<TreeSelectRequest>,
     on_navigate: EventHandler<(Scope, String, Option<String>)>,
     on_nudge: EventHandler<TreeNudgeRequest>,
-    on_open_geometry_scripts: EventHandler<()>,
     board_setup: Option<BoardSetupMount>,
     matrix_setup: Option<MatrixSetupMount>,
     pair_created: Option<Signal<Option<MirroredPairCreated>>>,
@@ -415,7 +414,6 @@ pub fn Objects(
                             menu_open: add_menu_open,
                             show_trigger: !use_external_add_action,
                             on_select,
-                            on_open_geometry_scripts,
                             matrix_setup,
                             matrix_inspector,
                             existing_half,
@@ -723,7 +721,6 @@ fn AddObjectEntry(
     mut menu_open: Signal<bool>,
     show_trigger: bool,
     on_select: EventHandler<TreeSelectRequest>,
-    on_open_geometry_scripts: EventHandler<()>,
     matrix_setup: Option<MatrixSetupMount>,
     matrix_inspector: Option<MatrixInspectorMount>,
     existing_half: ExistingHalfMount,
@@ -982,19 +979,6 @@ fn AddObjectEntry(
     class: "w-full justify-start whitespace-normal h-auto min-h-control",
 
                                                 "Board outline…"
-
-                                             }
-                                        }
-                                        Item { class: "p-0",
-                                            Button { variant: ButtonVariant::Secondary,
-    button_type: "button",
-    onclick: move |_| {
-                                            menu_open.set(false);
-                                            on_open_geometry_scripts.call(());
-                                        },
-    class: "w-full justify-start whitespace-normal h-auto min-h-control",
-
-                                                "Geometry scripts…"
 
                                              }
                                         }

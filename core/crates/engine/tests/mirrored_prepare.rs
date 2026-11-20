@@ -85,8 +85,7 @@ fn associated_local_circuit_document() -> ProjectDoc {
 
 fn open_pair_engine(mut document: ProjectDoc) -> boardstudio_core_engine::CoreEngine {
     document.format_version = boardstudio_core_kernel::migrate::CURRENT_VERSION;
-    let mut engine =
-        boardstudio_core_engine::CoreEngine::with_script_runner(boardstudio_script::apply_scripts);
+    let mut engine = boardstudio_core_engine::CoreEngine::new();
     let reply = engine.handle(CoreRequest::Open {
         id: "open-pair".into(),
         document,
@@ -1288,10 +1287,7 @@ fn modern_synthetic_half_private_open_and_preview_preserve_local_cells() {
             at: Vec2 { x: 216.0, y: 14.0 },
         }],
     };
-    let engine = boardstudio_core_engine::CoreEngine::with_document_for_test(
-        opened.clone(),
-        boardstudio_script::apply_scripts,
-    );
+    let engine = boardstudio_core_engine::CoreEngine::with_document_for_test(opened.clone());
     let accepted_before_preview = engine.document_for_test().clone();
     let (preview, _) = prepare_preview(&engine, &operation)
         .expect("private preview preparation keeps modern local cells");
@@ -2253,7 +2249,6 @@ fn ambiguous_mirror_board_target_is_refused_before_prepared_addition() {
             &[],
             &canonical,
             &Default::default(),
-            boardstudio_script::apply_scripts,
             crate::support::test_dispatch(),
         )
         .expect_err("two pairs with this target board are ambiguous");

@@ -9,7 +9,6 @@ use std::{cell::RefCell, collections::BTreeSet, rc::Rc};
 pub(super) struct SetupWorkspaceState {
     guide_preferences: Signal<Option<setup_guide::SetupGuidePreferences>>,
     instance_preference: Signal<Option<instance_selection::Preference>>,
-    geometry_scripts_open: Signal<bool>,
 }
 
 pub(super) fn use_setup_workspace_state(
@@ -33,7 +32,6 @@ pub(super) fn use_setup_workspace_state(
         })
     });
     use_context_provider(|| InstanceSelection(instance_preference));
-    let geometry_scripts_open = use_signal(|| false);
     let created_request = created_request_signal();
     let accepted_project_id = runtime
         .model()
@@ -110,7 +108,6 @@ pub(super) fn use_setup_workspace_state(
     SetupWorkspaceState {
         guide_preferences,
         instance_preference,
-        geometry_scripts_open,
     }
 }
 
@@ -121,15 +118,6 @@ impl SetupWorkspaceState {
 
     pub(super) fn instance_preference(self) -> Signal<Option<instance_selection::Preference>> {
         self.instance_preference
-    }
-
-    pub(super) fn geometry_scripts_open(self) -> Signal<bool> {
-        self.geometry_scripts_open
-    }
-
-    pub(super) fn set_geometry_scripts_open(&self, open: bool) {
-        let mut geometry_scripts_open = self.geometry_scripts_open;
-        geometry_scripts_open.set(open);
     }
 
     pub(super) fn set_guide_preferences(
@@ -191,11 +179,9 @@ mod workspace_state_tests {
                 current_stage: setup_guide::SetupGuideStage::Project,
             })
         });
-        let geometry_scripts_open = use_signal(|| false);
         let instance_preference = use_signal(|| None::<instance_selection::Preference>);
         let state = SetupWorkspaceState {
             guide_preferences,
-            geometry_scripts_open,
             instance_preference,
         };
         let status = guide_preferences()

@@ -125,7 +125,7 @@ fn a_native_legacy_offset_to_a_linked_mirror_survives_open_reconciliation() {
         -2.0,
     ));
 
-    let mut engine = CoreEngine::with_script_runner(boardstudio_script::apply_scripts);
+    let mut engine = CoreEngine::new();
     let reply = engine.handle(CoreRequest::Open {
         id: "open".into(),
         document: doc,

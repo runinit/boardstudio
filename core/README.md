@@ -5,19 +5,6 @@ The browser runs Core inside the `web` crate's core-worker build
 from `contracts`. Preview replies contain projected scene geometry while
 `document` remains committed. Commit, undo, and redo each advance revision.
 
-Enabled Rhai scripts run atomically when opening or replacing a document. The
-only registered output functions are:
-
-```rhai
-part("main", "left-esc", "switch", "SW1", 0.0, 0.0, 0.0);
-rect("main", "edge", 0.0, 0.0, 80.0, 30.0, 3.0, "add");
-```
-
-Object IDs are `script/<script-id>/<group>/<local-id>`. Script, group, and
-local IDs use letters, digits, `_`, or `-`. A moved generated part keeps its
-visual pose when the document is reopened. Scripts have operation, call depth,
-source size, string, array, map, and emission limits. No file or network
-functions are registered.
 
 Native outline timings: `cargo test --release --manifest-path core/Cargo.toml
 --test performance -- --ignored --nocapture`. This measures Rust transactions,

@@ -39,7 +39,6 @@ pub struct CoreEngine {
     contours: Vec<Contour>,
     findings: Vec<Finding>,
     outline_cache: OutlineCache,
-    run_scripts: ScriptRunner,
     /// Session high-water marks; not part of any Undo snapshot or saved document.
     identity_ledger: mechanical::edit::MechanicalIdentityLedger,
 }
@@ -92,9 +91,6 @@ pub fn companion_placement_disabled_reason(
 
 pub use boardstudio_model::case_readiness::{authored_case_geometry_ready, case_preparation_ready};
 
-pub use boardstudio_model::ScriptRunner;
-
-#[cfg(test)]
 impl Default for CoreEngine {
     fn default() -> Self {
         Self::new()
@@ -102,14 +98,8 @@ impl Default for CoreEngine {
 }
 
 impl CoreEngine {
-    #[cfg(test)]
-    fn new() -> Self {
-        Self::with_script_runner(boardstudio_script::apply_scripts)
-    }
-
-    pub fn with_script_runner(run_scripts: ScriptRunner) -> Self {
+    pub fn new() -> Self {
         Self {
-            run_scripts,
             document: ProjectDoc::empty("untitled", "Untitled"),
             undo: vec![],
             redo: vec![],
@@ -123,14 +113,11 @@ impl CoreEngine {
 
 impl CoreEngine {
     /// Validate a typed Open candidate before retiring editor work, without changing Core.
-    pub fn validate_open(document: &ProjectDoc, run_scripts: ScriptRunner) -> Result<(), String> {
-        Self::prepare_open(document, run_scripts).map(|_| ())
+    pub fn validate_open(document: &ProjectDoc) -> Result<(), String> {
+        Self::prepare_open(document).map(|_| ())
     }
 
-    fn prepare_open(
-        document: &ProjectDoc,
-        run_scripts: ScriptRunner,
-    ) -> Result<(ProjectDoc, Vec<Finding>), String> {
+    fn prepare_open(document: &ProjectDoc) -> Result<(ProjectDoc, Vec<Finding>), String> {
         if document.format != "boardstudio/v2" {
             return Err("Unsupported document format".into());
         }
@@ -141,7 +128,7 @@ impl CoreEngine {
         if let Some(message) = validate::duplicate_top_level_identity(document) {
             return Err(message);
         }
-        let prepared = mirrored_half::prepare_open_with_scripts(document, &[], run_scripts)?;
+        let prepared = mirrored_half::prepare_open(document, &[])?;
         if let Some(message) = validate::duplicate_top_level_identity(&prepared.0) {
             return Err(message);
         }
@@ -185,11 +172,10 @@ impl CoreEngine {
                 Err(message) => self.error(id, &message),
             },
             CoreRequest::Open { id, document } => {
-                let (document, repaired_findings) =
-                    match Self::prepare_open(&document, self.run_scripts) {
-                        Ok(prepared) => prepared,
-                        Err(message) => return self.error(id, &message),
-                    };
+                let (document, repaired_findings) = match Self::prepare_open(&document) {
+                    Ok(prepared) => prepared,
+                    Err(message) => return self.error(id, &message),
+                };
                 // A successful explicit Open starts a new document session. Failed
                 // opens (above) leave the previous session's reservations intact.
                 self.identity_ledger =
@@ -461,7 +447,7 @@ impl CoreEngine {
         if command.base_revision != self.document.revision {
             return self.error(id, "Stale base revision");
         }
-        // A wholesale replacement is validated before scripts or layout can normalize
+        // A wholesale replacement is validated before layout can normalize
         // the incoming identities; publication validates its generated result again.
         if let EditOperation::ReplaceDocument { document } = &command.operation
             && let Some(message) = validate::duplicate_top_level_identity(document)
@@ -533,7 +519,6 @@ impl CoreEngine {
                 board_contours,
                 &command.operation,
                 &self.identity_ledger,
-                self.run_scripts,
                 edit_dispatch(),
             ) {
                 Ok((draft, prepared_changed)) => {
@@ -560,7 +545,6 @@ impl CoreEngine {
                 board_contours,
                 &command.operation,
                 &self.identity_ledger,
-                Some(self.run_scripts),
             ) {
                 Ok(changed) => changed,
                 Err(message) => return self.error(id, &message),
@@ -776,7 +760,6 @@ impl CoreEngine {
             board_contours,
             &command.operation,
             &self.identity_ledger,
-            self.run_scripts,
             edit_dispatch(),
         ) {
             Ok(prepared) => prepared,
@@ -815,7 +798,6 @@ impl CoreEngine {
             &[],
             &command.operation,
             &self.identity_ledger,
-            Some(self.run_scripts),
         )
         .and_then(|mut changed| {
             // Preview must materialize the same dependant poses the commit
@@ -1651,7 +1633,6 @@ fn apply(
         board_contours,
         op,
         &mechanical::edit::MechanicalIdentityLedger::default(),
-        Some(boardstudio_script::apply_scripts),
     )
 }
 
@@ -1670,9 +1651,8 @@ pub fn apply_with_ledger_for_test(
     board_contours: &[BoardContours],
     op: &EditOperation,
     identities: &mechanical::edit::MechanicalIdentityLedger,
-    run_scripts: Option<ScriptRunner>,
 ) -> Result<Vec<String>, String> {
-    apply_with_ledger(doc, board_contours, op, identities, run_scripts)
+    apply_with_ledger(doc, board_contours, op, identities)
 }
 
 #[doc(hidden)]
@@ -1689,23 +1669,21 @@ pub fn apply_for_test(
     doc: &mut ProjectDoc,
     board_contours: &[BoardContours],
     op: &EditOperation,
-    run_scripts: ScriptRunner,
 ) -> Result<Vec<String>, String> {
     apply_with_ledger(
         doc,
         board_contours,
         op,
         &mechanical::edit::MechanicalIdentityLedger::default(),
-        Some(run_scripts),
     )
 }
 
 #[doc(hidden)]
 impl CoreEngine {
-    pub fn with_document_for_test(document: ProjectDoc, run_scripts: ScriptRunner) -> Self {
+    pub fn with_document_for_test(document: ProjectDoc) -> Self {
         Self {
             document,
-            ..Self::with_script_runner(run_scripts)
+            ..Self::new()
         }
     }
 
@@ -1757,7 +1735,6 @@ fn apply_unscripted(doc: &mut ProjectDoc, op: &EditOperation) -> Result<Vec<Stri
         &[],
         op,
         &mechanical::edit::MechanicalIdentityLedger::default(),
-        None,
     )
 }
 
@@ -1766,7 +1743,6 @@ fn apply_with_ledger(
     board_contours: &[BoardContours],
     op: &EditOperation,
     identities: &mechanical::edit::MechanicalIdentityLedger,
-    run_scripts: Option<ScriptRunner>,
 ) -> Result<Vec<String>, String> {
     let mut changed = match op {
         EditOperation::SetModuleDefinition { definition } => {
@@ -2644,7 +2620,8 @@ fn apply_with_ledger(
             let accepted = doc.clone();
             let mut changed = changed_ids(doc, document);
             let mut prepared = document.as_ref().clone();
-            run_scripts.ok_or("Document replacement requires a script runner")?(&mut prepared)?;
+            // Replacements, like Open, discard legacy scripts without executing them.
+            prepared.scripts.clear();
             layout::resolve(&mut prepared)?;
             generators::document_error(&prepared)?;
             *doc = prepared;

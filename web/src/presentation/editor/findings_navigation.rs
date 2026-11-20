@@ -269,7 +269,6 @@ pub(super) struct LayoutFindingCallbacksInput {
     pub inspector_panel_settings: Signal<PanelSettings>,
     pub workspace: Signal<&'static str>,
     pub workspace_routing: WorkspaceRoutingSlots,
-    pub setup_state: setup_workspace::SetupWorkspaceState,
     pub keycaps_state: keycaps_workspace::KeycapsWorkspaceState,
     pub keycaps_navigation_alive: Rc<Cell<bool>>,
     pub case_selection: case_viewer::CaseSelection,
@@ -298,7 +297,6 @@ pub(super) fn use_layout_finding_callbacks(
         inspector_panel_settings,
         workspace,
         workspace_routing,
-        setup_state,
         keycaps_state,
         keycaps_navigation_alive,
         case_selection,
@@ -332,7 +330,6 @@ pub(super) fn use_layout_finding_callbacks(
                 return;
             }
             findings_open.set(false);
-            setup_state.set_geometry_scripts_open(false);
             if let Some(element) = web_sys::window()
                 .and_then(|window| window.document())
                 .and_then(|document| document.get_element_by_id("m1-layout-findings-trigger"))
@@ -886,7 +883,6 @@ pub(super) fn use_navigation_bundle(
         inspector_panel_settings,
         workspace,
         workspace_routing,
-        setup_state,
         keycaps_state: keycaps_state.clone(),
         keycaps_navigation_alive: keycaps_navigation_alive.clone(),
         case_selection,

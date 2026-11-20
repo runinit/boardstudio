@@ -39,9 +39,7 @@ impl CoreEngine {
 impl Default for CoreEngine {
     fn default() -> Self {
         Self {
-            engine: boardstudio_core_engine::CoreEngine::with_script_runner(
-                boardstudio_script::apply_scripts,
-            ),
+            engine: boardstudio_core_engine::CoreEngine::new(),
         }
     }
 }
@@ -49,10 +47,7 @@ impl Default for CoreEngine {
 impl CoreEngine {
     /// Validate a typed Open candidate before retiring editor work, without changing Core.
     pub fn validate_open(document: &ProjectDoc) -> Result<(), String> {
-        boardstudio_core_engine::CoreEngine::validate_open(
-            document,
-            boardstudio_script::apply_scripts,
-        )
+        boardstudio_core_engine::CoreEngine::validate_open(document)
     }
 
     pub fn handle(&mut self, request: CoreRequest) -> CoreReply {

@@ -48,7 +48,6 @@ fn fixture() -> Element {
             boardstudio_web_layout::objects::Objects {
                 selected_context: selected,
                 on_select: |_| {}, on_navigate: |_| {}, on_nudge: |_| {},
-                on_open_geometry_scripts: |_| {},
                 on_place_component: Some(EventHandler::default()),
                 layout_target: Some(layout_target), parts_query: Some(parts_query),
                 on_browse_parts: Some(EventHandler::default()),

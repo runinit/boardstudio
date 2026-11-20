@@ -32,7 +32,6 @@ pub mod choice_field;
 #[cfg(target_arch = "wasm32")]
 pub mod footprint_graphics;
 #[cfg(target_arch = "wasm32")]
-pub mod geometry_scripts;
 #[cfg(target_arch = "wasm32")]
 pub mod layer_dock;
 #[cfg(target_arch = "wasm32")]

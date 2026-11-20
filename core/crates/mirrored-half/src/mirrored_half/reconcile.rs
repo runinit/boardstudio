@@ -22,7 +22,7 @@ use std::collections::{BTreeMap, BTreeSet};
 pub mod lifecycle;
 #[doc(hidden)]
 pub mod prepare;
-pub use prepare::{prepare_open_with_scripts, prepare_transaction_with_ledger};
+pub use prepare::{prepare_open, prepare_transaction_with_ledger};
 mod outlines;
 #[doc(hidden)]
 pub mod settings;

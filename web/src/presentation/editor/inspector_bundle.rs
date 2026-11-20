@@ -84,8 +84,6 @@ pub(super) fn inspector_input_for(
     let keycaps_fit_state = &setup_b.keycaps_fit_state;
     let keycaps_finding = wir.wiring.keycaps_finding;
     let layout_state = setup_a.layout_state;
-    let geometry_scripts_open = setup_a.geometry_scripts_open;
-    let setup_state = setup_a.setup_state;
     let context_summary = &canvas.inspector.context_summary;
     let board_inspector_projection = &canvas.inspector.board_inspector_projection;
     let show_position_inspector = canvas.inspector.show_position_inspector;
@@ -198,8 +196,6 @@ pub(super) fn inspector_input_for(
         _ => super::canvas_inspector_inputs::layout_inspector_input(
             super::canvas_inspector_inputs::LayoutInspectorArgs {
                 layout_state,
-                geometry_scripts_open,
-                setup_state,
                 runtime: runtime.clone(),
                 context_summary,
                 board_inspector_projection: board_inspector_projection.clone(),

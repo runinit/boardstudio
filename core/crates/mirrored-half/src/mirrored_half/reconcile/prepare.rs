@@ -1,34 +1,34 @@
 //! Composition of inverse translation and the existing forward kernels (ticket 115).
 //!
 //! This module owns disposable drafts. It does not publish a revision or history entry; the edit
-//! lifecycle publishes drafts returned by `prepare_transaction_with_ledger` and `prepare_open_with_scripts`.
+//! lifecycle publishes drafts returned by `prepare_transaction_with_ledger` and `prepare_open`.
 
 use super::{
     HostedTransition, IndependentPartTransition, PartProjection, Projection,
     is_omitted_matrix_link, omitted_mirror_matrix, reconcile, unique_board_owner,
 };
+use crate::constraints::FramedConstraint;
 use crate::mirrored_half::inverse::{self, Canonical, PreparedConstraintEdit};
 use crate::model::{
     BoardContours, CompanionPlacementTarget, EditOperation, Finding, HalfExceptionState, Matrix,
     MirroredCompanionMode, MirroredCompanionTweak, MirroredExceptionState, MirroredItemKind, Pose2,
     Position, ProjectDoc, Scope, Severity,
 };
-use crate::{ScriptRunner, constraints::FramedConstraint};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// Builds the source-authoritative document draft used by Open without publishing it.
 /// Open has its own route: it does not canonicalize an edit or use transaction preparation,
 /// whose ReplaceDocument behavior intentionally preserves replacement geometry.
-pub fn prepare_open_with_scripts(
+pub fn prepare_open(
     accepted: &ProjectDoc,
     _board_contours: &[BoardContours],
-    run_scripts: ScriptRunner,
 ) -> Result<(ProjectDoc, Vec<Finding>), String> {
     let mut draft = accepted.clone();
+    // Legacy scripts are accepted for compatibility but never executed or retained.
+    draft.scripts.clear();
     if let Some(keymap) = &draft.keymap {
         crate::keymap::validate(keymap)?;
     }
-    run_scripts(&mut draft)?;
     crate::matrix::layout::resolve(&mut draft)?;
 
     // Repair only independently linked Parts that can be derived from an existing source before
@@ -607,7 +607,6 @@ pub fn prepare_transaction_with_ledger(
     board_contours: &[BoardContours],
     operation: &EditOperation,
     identities: &crate::mechanical::edit::MechanicalIdentityLedger,
-    run_scripts: ScriptRunner,
     dispatch: crate::mirrored_half::EditDispatch,
 ) -> Result<(ProjectDoc, Vec<String>), String> {
     crate::mechanical::halves::validate_document(accepted)?;
@@ -623,7 +622,6 @@ pub fn prepare_transaction_with_ledger(
         board_contours,
         &canonical,
         identities,
-        run_scripts,
         dispatch,
     )?;
 
@@ -1061,7 +1059,6 @@ pub fn apply_canonical(
     board_contours: &[BoardContours],
     canonical: &Canonical,
     identities: &crate::mechanical::edit::MechanicalIdentityLedger,
-    run_scripts: ScriptRunner,
     dispatch: crate::mirrored_half::EditDispatch,
 ) -> Result<Vec<String>, String> {
     if let EditOperation::AddMirrorOnlyPart { board_id, part, .. } = &canonical.operation {
@@ -1128,13 +1125,8 @@ pub fn apply_canonical(
         let pair_id = pair_for_instance(accepted, instance_id)?;
         return crate::mechanical::halves::unlink_pair(draft, &pair_id);
     }
-    let mut changed = (dispatch.apply_with_ledger)(
-        draft,
-        board_contours,
-        &canonical.operation,
-        identities,
-        Some(run_scripts),
-    )?;
+    let mut changed =
+        (dispatch.apply_with_ledger)(draft, board_contours, &canonical.operation, identities)?;
     // Ticket 29 B4: removing a halves-pair source over an Omitted mirror
     // orphans the mirror layout shell — its matrix is absent by design and
     // its source is gone, so layout validation could never resolve it. Drop

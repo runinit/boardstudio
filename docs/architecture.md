@@ -12,7 +12,7 @@ preparation and checks; the CAD provider is Rust/WASM.
 | `web/crates/runtime/` | Composition of session state and browser effects (`runtime.rs`), model delivery and presentation-independent operations; no Dioxus |
 | `web/crates/host/` | IndexedDB, Core and CAD worker clients, renderer host and offline policy |
 | `web/crates/ui-model/` | UI vocabulary shared by presentation code: tree contexts, selection, workspace and view state, canvas interaction ownership |
-| `web/crates/ui-shared/` | UI used by several workspaces: panels, canvas layers, layout camera, footprint graphics and model import; retained out-of-scope scripting UI is noted below |
+| `web/crates/ui-shared/` | UI used by several workspaces: panels, canvas layers, layout camera, footprint graphics and model import |
 | `web/crates/catalogue/` | Bundled component catalogue loading, generator normalization and physical setup proposals; no Dioxus |
 | `web/crates/keycaps/`, `library/`, `keymap/`, `case/`, `parts/`, `pcb/`, `layout/` | Workspace features: keycap fit, settings and scene; the Library page; the Keymap editor; the case viewer, mechanical-settings and closure-clearance adapters over Core's mechanical operation, and the shared 3D viewer; the Parts browser, definitions, generators and assemblies; PCB wiring, routed-board references, modules and physical setup; the Layout objects tree, outlines, part placement and setup guide. Workspace containers stay in the bin |
 | `web/src/lib.rs` | Worker entry points packaged by wasm-pack (Core, CAD and offline service worker) |
@@ -33,11 +33,9 @@ preparation, ports and presentation. Worker replies, saves and exports retain th
 captured project, board and revision identities so stale operations cannot replace
 the current scope. Manufacturing output comes from accepted inputs, not rendered meshes.
 
-The retained geometry-script editor and Core script engine are existing code, not
-an intended user feature. [ADR-0029's scope correction](adr/0029-constrain-geometry-scripts-and-apply-results-atomically.md#scope-correction-2026-10-20)
-excludes user-authored geometry scripting from product scope. Removing that code or
-stored scripts requires separately scoped compatibility work; its presence does not
-authorize new scripting workflows or removal of its current safety checks.
+[ADR-0029's scope correction](adr/0029-constrain-geometry-scripts-and-apply-results-atomically.md#scope-correction-2026-10-20)
+excludes user-authored geometry scripting from product scope. Legacy script fields
+are accepted on load but discarded without execution.
 
 Product commits submit accepted-state intents through `Event::ResolveEdit` and
 `EditTicket`. The direct Session edit event is `PreviewEdit`, which carries only a

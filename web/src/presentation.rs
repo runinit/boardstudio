@@ -20,7 +20,6 @@ mod empty_board_canvas;
 mod export_workspace;
 mod header;
 pub(crate) use boardstudio_web_pcb::firmware_positions;
-pub(crate) use boardstudio_web_ui_shared::geometry_scripts;
 mod inspector;
 pub(crate) use boardstudio_web_keycaps::keycaps_finding_marker;
 pub(crate) use boardstudio_web_keycaps::keycaps_fit;
