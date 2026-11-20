@@ -22,54 +22,6 @@ opt-level = 1
 debug = false
 incremental = false
 
-[profile.cad-test.package.clap]
-opt-level = 0
-
-[profile.cad-test.package.clap_builder]
-opt-level = 0
-
-[profile.cad-test.package.image]
-opt-level = 0
-
-[profile.cad-test.package.moxcms]
-opt-level = 0
-
-[profile.cad-test.package.pxfm]
-opt-level = 0
-
-[profile.cad-test.package.png]
-opt-level = 0
-
-[profile.cad-test.package.proptest]
-opt-level = 0
-
-[profile.cad-test.package.monstertruck-fillet]
-opt-level = 0
-
-[profile.cad-test.package.monstertruck-healing]
-opt-level = 0
-
-[profile.cad-test.package.flate2]
-opt-level = 0
-
-[profile.cad-test.package.zlib-rs]
-opt-level = 0
-
-[profile.cad-test.package.toml]
-opt-level = 0
-
-[profile.cad-test.package.regex-syntax]
-opt-level = 0
-
-[profile.cad-test.package.tempfile]
-opt-level = 0
-
-[profile.cad-test.package.miniz_oxide]
-opt-level = 0
-
-[profile.cad-test.package.fdeflate]
-opt-level = 0
-
 [profile.cad-test.package.monstertruck-modeling]
 opt-level = 2
 
