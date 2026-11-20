@@ -144,7 +144,7 @@ generation, preview, committed scene and assembly revisions. That unqualified
 when read as a disposable-view gate. [Architecture](../architecture.md) correctly
 separates preview currency from export ownership. [Core capabilities](../../core/src/lib.rs),
 `authored_case_geometry_ready` and `case_preparation_ready`, also distinguish authored
-Case preparation from blanket PCB readiness; [KiCad preparation](../../core/crates/engine/src/artifact/kicad/planning.rs),
+Case preparation from blanket PCB readiness; [KiCad preparation](../../core/crates/artifact/src/artifact/kicad/planning.rs),
 `require_mechanical_export_clearance`, gates PCB-scoped violations rather than all
 Case conflicts. These are examples of output-specific authority, not proof that every
 button currently implements it correctly.
@@ -240,7 +240,7 @@ retention, and 0024 binds firmware to real assembly. None records why a manufact
 handoff's protection survives restoring an earlier document. This is not firmware
 repository-template delivery under 0030.
 
-**Current behavior and tests:** [electrical source](../../core/crates/engine/src/electrical.rs),
+**Current behavior and tests:** [electrical source](../../core/crates/electrical/src/electrical.rs),
 `preserve_handoff`, explicitly says a downloaded handoff is outside history;
 [Core](../../core/src/lib.rs), `history`, reapplies the prior protected baseline
 before publishing Undo/Redo. `handoff_assignments` protects fabricated signal

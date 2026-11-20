@@ -284,7 +284,7 @@ authority. Keycaps are appearance/optional-print meshes, not exact keycap STEP.
   `prepare_physical_step_assembly`, shares complete physical PCB preparation between
   export and collision, retaining source contours/drills and rejecting mismatch.
   [CAD build_case](../../cad/monstertruck/src/lib.rs) calls
-  `layered::build_layered_case`; [Core case preparation](../../core/crates/engine/src/case.rs)
+  `layered::build_layered_case`; [Core case preparation](../../core/crates/kernel/src/case.rs)
   rejects mixed revisions.
 - **Named tests:** [layered/tests.rs](../../cad/monstertruck/src/layered/tests.rs),
   `original_round_seat_chain_matches_independent_volume_and_material`,

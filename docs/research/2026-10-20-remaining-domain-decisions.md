@@ -129,12 +129,12 @@ Editor 011 without changing its extraction scope silently.
 
 The real [selected-key actions](../../web/src/presentation/layout_key_selection_actions.rs#L335-L386)
 distinguish Enable/Disable (`SetMatrixCellsEnabled`) from Delete
-(`RemoveSelectedMatrixCells`). [edit_selected_cells](../../core/crates/engine/src/matrix/deletion.rs#L470-L544)
+(`RemoveSelectedMatrixCells`). [edit_selected_cells](../../core/crates/kernel/src/matrix/deletion.rs#L470-L544)
 refuses deleted cells, changes `enabled`, retains other cell fields and calls
 `set_matrix`; it does not set `deleted` for a temporary disable.
 
 For an **ordinary unpaired matrix**, inspected
-[set_matrix](../../core/crates/engine/src/matrix.rs#L714-L998) establishes:
+[set_matrix](../../core/crates/kernel/src/matrix.rs#L714-L998) establishes:
 
 - The cell's definition/variant/offset/rotation/assembly recipe remains. A disabled
   cell creates no Part or companions. Parts, Board membership, net pins, constraints
@@ -147,7 +147,7 @@ For an **ordinary unpaired matrix**, inspected
   from a dormant Part archive; a new Part gets defaults. Deleted net-pin/constraint
   records are not automatically restored. Retained keycap-map values are different
   from `Part.keycap`.
-- [Electrical discovery](../../core/crates/engine/src/electrical.rs#L206-L295) skips disabled cells
+- [Electrical discovery](../../core/crates/electrical/src/electrical.rs#L206-L295) skips disabled cells
   and requires actual Board-owned Parts. [Firmware adaptation](../../web/crates/runtime/src/firmware_request_adapter.rs#L90-L171)
   emits current assignments/auxiliary inputs, not every retained binding-map entry.
   On re-enable, if planning succeeds, the reused ID can again retrieve its retained
