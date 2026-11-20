@@ -362,7 +362,7 @@ fn blocked_export_labels(snapshot: &AcceptedSnapshot, board_id: &str) -> Vec<Str
     labels
 }
 
-pub(crate) fn outline_action_is_current(
+pub fn outline_action_is_current(
     action: &OutlineAction,
     runtime: &Runtime,
     generation: u64,
