@@ -6,7 +6,8 @@ publish = false
 license = "MIT OR Apache-2.0"
 
 [features]
-# Exposes test-only windows onto private mirrored-half helpers for sibling crates' tests.
+# Exposes test-only dispatch windows for boardstudio-core-mirrored-half's tests, the one
+# remaining dev-dependency cycle (its tests stage edits through the real engine dispatch).
 test-support = []
 
 [dependencies]

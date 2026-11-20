@@ -5780,44 +5780,6 @@ mod tests {
         );
         assert_eq!(doc, before);
     }
-
-    #[test]
-    fn an_end_to_end_link_commits_and_one_undo_restores_the_document() {
-        use crate::model::{CoreReply, CoreRequest, EditCommand, EditOperation, EditPhase};
-        let mut engine = boardstudio_core_engine::CoreEngine::with_script_runner(
-            boardstudio_script::apply_scripts,
-        );
-        let before = mirror_document();
-        let CoreReply::Scene { document, .. } = engine.handle(CoreRequest::Open {
-            id: "open".into(),
-            document: before.clone(),
-        }) else {
-            panic!("open must succeed");
-        };
-        let revision = document.revision;
-        let CoreReply::Scene { document, .. } = engine.handle(CoreRequest::Edit {
-            id: "link".into(),
-            command: EditCommand {
-                base_revision: revision,
-                transaction_id: "link".into(),
-                phase: EditPhase::Commit,
-                target_ids: vec![],
-                operation: EditOperation::ApplyMechanicalEdit {
-                    edit: Box::new(link_edit(board_target(), "pair-left-right", "left")),
-                },
-            },
-        }) else {
-            panic!("the link must commit");
-        };
-        assert_eq!(document.hardware.as_ref().unwrap().pairs.len(), 1);
-        let CoreReply::Scene { document, .. } =
-            engine.handle(CoreRequest::Undo { id: "undo".into() })
-        else {
-            panic!("undo must succeed");
-        };
-        assert_eq!(document.hardware, before.hardware);
-        assert_eq!(document.mechanical, before.mechanical);
-    }
 }
 
 #[cfg(test)]

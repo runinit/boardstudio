@@ -4,7 +4,7 @@
 //! t = (20, -7), so its independent position map is
 //! `F(x, y) = (20 - 0.8x - 0.6y, -7 - 0.6x + 0.8y)`.
 
-use super::endpoints::{ConstraintEndpoint, FramedConstraint, Side};
+use super::endpoints::{ConstraintEndpoint, FramedConstraint};
 use super::relation::ConstraintRelation;
 use super::resolve_prepared;
 use crate::model::{Constraint, Pose2, ProjectDoc, Vec2};
@@ -997,48 +997,6 @@ fn a_stored_pair_on_one_authority_is_a_located_solver_conflict() {
 }
 
 #[test]
-fn a_native_legacy_offset_to_a_linked_mirror_survives_open_reconciliation() {
-    let mut doc = document((20.0, -7.0));
-    doc.definitions = serde_json::from_value(json!([{
-        "id": "key", "name": "Key", "kind": "switch", "courtyard": [], "pads": []
-    }]))
-    .unwrap();
-    doc.boards = serde_json::from_value(json!([
-        {"id":"alpha", "name":"Alpha", "outlineIds":[], "partIds":["alpha/T","alpha/S"], "netIds":[], "thickness":1.6},
-        {"id":"beta", "name":"Beta", "outlineIds":[], "partIds":["beta/T","beta/S"], "netIds":[], "thickness":1.6}
-    ]))
-    .unwrap();
-    doc.constraints.push(legacy_offset(
-        "c/legacy-linked",
-        "alpha/S",
-        "beta/T",
-        5.0,
-        -2.0,
-    ));
-
-    let mut engine =
-        boardstudio_core_engine::CoreEngine::with_script_runner(boardstudio_script::apply_scripts);
-    let reply = engine.handle(crate::model::CoreRequest::Open {
-        id: "open".into(),
-        document: doc,
-    });
-    let crate::model::CoreReply::Scene {
-        document: opened, ..
-    } = reply
-    else {
-        panic!(
-            "the legacy relation compiles through ownership and survives mirror reconcile: {reply:?}"
-        );
-    };
-
-    let source = pose_of(&opened, "alpha/S");
-    let target = pose_of(&opened, "beta/T");
-    assert!((target.at.x - source.at.x - 5.0).abs() < TOLERANCE);
-    assert!((target.at.y - source.at.y + 2.0).abs() < TOLERANCE);
-    assert_eq!(target.rotation, source.rotation);
-}
-
-#[test]
 fn a_stored_record_and_a_framed_one_on_one_authority_are_refused_by_the_solver() {
     // The stored record names the visible mirror; the framed one names the source: one part.
     let mut doc = document((20.0, -7.0));
@@ -1058,157 +1016,6 @@ fn a_stored_record_and_a_framed_one_on_one_authority_are_refused_by_the_solver()
 }
 
 // ---- parity with the placement authority, and refusals of unproduced companions --------
-
-fn world_pose_by_derive(
-    doc: &ProjectDoc,
-    mode: crate::model::MirroredCompanionMode,
-    tweak: Option<crate::model::MirroredCompanionTweak>,
-    stabiliser: bool,
-    fallback: bool,
-) -> Pose2 {
-    let part = |id: &str| doc.parts.iter().find(|part| part.id == id).unwrap();
-    let (key, companion) = (part(KEY), part(COMPANION));
-    let mapping = doc.hardware.as_ref().unwrap().pairs[0].mapping;
-    // The source assembly in the key's frame, then the matrix reflection: x and heading flip.
-    let local = crate::matrix::splay::rotate(
-        Vec2 {
-            x: companion.pose.at.x - key.pose.at.x,
-            y: companion.pose.at.y - key.pose.at.y,
-        },
-        -key.pose.rotation,
-        Vec2::default(),
-    );
-    let (offset, rotation) = boardstudio_core_engine::companion_placement_for_test(
-        Vec2 {
-            x: -local.x,
-            y: local.y,
-        },
-        Some(-(companion.pose.rotation - key.pose.rotation)),
-        key,
-        companion,
-        mapping,
-        mode,
-        tweak,
-        stabiliser,
-        fallback,
-    )
-    .unwrap();
-    let mirrored_key = Pose2 {
-        at: boardstudio_model::mechanical::pair::forward(mapping, key.pose.at),
-        rotation: mapping.rotation - key.pose.rotation,
-    };
-    super::follow_pose(
-        mirrored_key,
-        Pose2 {
-            at: offset,
-            rotation: rotation.unwrap(),
-        },
-    )
-}
-
-fn world_pose_by_endpoint(doc: &ProjectDoc) -> Pose2 {
-    let endpoint = super::endpoints::resolve_endpoint(
-        doc,
-        "c",
-        Side::Source,
-        &linked(COMPANION, MIRROR_COMPANION),
-    )
-    .unwrap();
-    endpoint
-        .frame
-        .with_key(Some(pose_of(doc, KEY)))
-        .project(pose_of(doc, COMPANION))
-        .unwrap()
-}
-
-fn assert_same_world_pose(actual: Pose2, expected: Pose2, label: &str) {
-    let turn = (actual.rotation - expected.rotation).rem_euclid(360.0);
-    assert!(
-        (actual.at.x - expected.at.x).abs() < 1e-9
-            && (actual.at.y - expected.at.y).abs() < 1e-9
-            && turn.min(360.0 - turn) < 1e-9,
-        "{label}: endpoint {actual:?}, derive {expected:?}"
-    );
-}
-
-/// The endpoint rules are a second statement of `derive::companion_assembly`. They agree with
-/// it to 1e-9 mm and degrees: the two compose the same rotations in a different order, so they
-/// are not bit-equal, and nothing here is accumulated.
-#[test]
-fn companion_endpoint_rules_match_derive_for_every_rule_and_key_heading() {
-    use crate::model::{MirroredCompanionMode as Mode, MirroredCompanionTweak as Tweak};
-    let cases = [
-        (
-            "diode",
-            "literal-mirror",
-            None,
-            Mode::LiteralMirror,
-            None,
-            false,
-        ),
-        (
-            "diode",
-            "duplicate-position",
-            None,
-            Mode::DuplicatePosition,
-            None,
-            false,
-        ),
-        (
-            "diode",
-            "literal-mirror",
-            Some((1.0, -2.0, 7.0)),
-            Mode::LiteralMirrorWithTweak,
-            Some(Tweak {
-                x: 1.0,
-                y: -2.0,
-                rotation: 7.0,
-            }),
-            false,
-        ),
-        (
-            "kicad:marbastlib/STAB_MX_2u",
-            "duplicate-position",
-            None,
-            Mode::DuplicatePosition,
-            None,
-            true,
-        ),
-    ];
-    for (definition, pair_mode, tweak_spec, mode, tweak, stabiliser) in cases {
-        for key_heading in [0.0, 90.0, -37.5] {
-            let mut doc = matrix_document(definition, pair_mode, tweak_spec);
-            set_heading(&mut doc, KEY, key_heading);
-            assert_same_world_pose(
-                world_pose_by_endpoint(&doc),
-                world_pose_by_derive(&doc, mode, tweak, stabiliser, false),
-                &format!("{definition} {pair_mode} key heading {key_heading}"),
-            );
-        }
-    }
-}
-
-/// A repaired companion carries a persisted literal-mirror correspondence over the pair's
-/// duplicate default; derive's fallback path ignores the mode and keeps the literal rule.
-#[test]
-fn a_repaired_companion_places_like_derives_fallback_not_the_pair_default() {
-    use crate::model::MirroredCompanionMode as Mode;
-    let mut default_doc = matrix_document("diode", "duplicate-position", None);
-    set_heading(&mut default_doc, KEY, 90.0);
-    let mut repaired = default_doc.clone();
-    repaired.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap()
-        .correspondences[1]
-        .companion_mode = Some(Mode::LiteralMirror);
-
-    let fallback = world_pose_by_derive(&repaired, Mode::DuplicatePosition, None, false, true);
-    assert_same_world_pose(world_pose_by_endpoint(&repaired), fallback, "repaired");
-    // The pair default alone would have placed it by the duplicate rule, elsewhere.
-    let duplicate = world_pose_by_endpoint(&default_doc);
-    assert!((duplicate.at.x - fallback.at.x).abs() > 1.0);
-}
 
 #[test]
 fn a_companion_derive_would_never_produce_is_refused_not_projected_as_a_part() {

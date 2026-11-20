@@ -21,9 +21,6 @@ use boardstudio_core_kernel::{
 };
 pub use boardstudio_core_kernel::{generators, hash, outline_edit};
 
-#[cfg(feature = "test-support")]
-pub use mirrored_half::companion_placement as companion_placement_for_test;
-
 use geometry::{OutlineCache, outlines};
 pub use matrix::kernel as layout_kernel;
 use matrix::layout;

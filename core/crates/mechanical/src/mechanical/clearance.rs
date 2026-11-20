@@ -375,8 +375,6 @@ mod tests {
         Board, HardwareConfiguration, Layout, MechanicalConfiguration,
         MechanicalConstructionOwnership, Mount, PhysicalBoardInstance,
     };
-    use crate::model::{CoreReply, CoreRequest};
-    use boardstudio_core_engine::CoreEngine;
 
     fn configuration(
         board_id: &str,
@@ -417,64 +415,6 @@ mod tests {
             "envelopeNotice":"No closed courtyard is available; the outline uses physical graphics and pad extents.",
             "generator":{"source":"ceoloide/mounting_hole_npth", "version":"bundled-1", "parameters":{}}
         })).unwrap()
-    }
-
-    fn document_with_reference(reference: &str, mount_count: usize) -> ProjectDoc {
-        let mut document = ProjectDoc::empty("doc", "Doc");
-        document.boards.push(Board {
-            id: "board".into(),
-            name: "Board".into(),
-            outline_ids: vec![],
-            part_ids: vec!["authored".into()],
-            net_ids: vec![],
-            thickness: 1.6,
-            traces: vec![],
-            vias: vec![],
-        });
-        let definition = hole_template();
-        document.definitions.push(definition.clone());
-        document.parts.push(Part {
-            anchor: None,
-            id: "authored".into(),
-            definition_id: definition.id,
-            reference: reference.into(),
-            pose: Pose2 {
-                at: Vec2 { x: 0.0, y: 0.0 },
-                rotation: 0.0,
-            },
-            side: Side::Front,
-            outline: None,
-            keycap: None,
-            locked: None,
-            properties: None,
-            generator_parameters: None,
-        });
-        let mounts = (0..mount_count)
-            .map(|index| {
-                mount(
-                    Vec2 {
-                        x: index as f64 + 10.0,
-                        y: 20.0,
-                    },
-                    MountKind::Hole,
-                    2.2,
-                    None,
-                )
-            })
-            .collect();
-        document.mechanical = Some(configuration("board", mounts, 0.0));
-        document
-    }
-
-    fn open_core_document(document: ProjectDoc) -> (CoreEngine, ProjectDoc) {
-        let mut engine = CoreEngine::with_script_runner(boardstudio_script::apply_scripts);
-        match engine.handle(CoreRequest::Open {
-            id: "open".into(),
-            document,
-        }) {
-            CoreReply::Scene { document, .. } => (engine, *document),
-            reply => panic!("core rejected accepted-document fixture: {reply:?}"),
-        }
     }
 
     #[test]
@@ -755,47 +695,5 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(generated.len(), 1);
         assert_eq!(generated[0].id, "case-closure/board/0.00000/0.00000");
-    }
-
-    #[test]
-    fn unsafe_or_exhausted_mh_references_fail_before_any_core_edit() {
-        for (reference, mount_count) in [
-            ("MH9007199254740992", 1),
-            ("MH18446744073709551616", 1),
-            ("MH9007199254740990", 2),
-        ] {
-            let (mut core, accepted) =
-                open_core_document(document_with_reference(reference, mount_count));
-            let error = project_closure_clearance(&accepted, &hole_template()).unwrap_err();
-            assert!(error.to_ascii_lowercase().contains("reference"), "{error}");
-            assert_eq!(accepted.parts[0].reference, reference);
-            match core.handle(CoreRequest::Snapshot {
-                id: "snapshot".into(),
-            }) {
-                CoreReply::Scene { document, .. } => assert_eq!(*document, accepted),
-                reply => panic!("core snapshot failed after rejected planner result: {reply:?}"),
-            }
-        }
-    }
-
-    #[test]
-    fn safe_mh_reference_and_output_count_boundaries_remain_allocatable() {
-        let (mut core, accepted) =
-            open_core_document(document_with_reference("MH9007199254740989", 2));
-        let projected = project_closure_clearance(&accepted, &hole_template()).unwrap();
-        let generated = projected
-            .parts
-            .iter()
-            .filter(|part| part.id.starts_with(PART_PREFIX))
-            .collect::<Vec<_>>();
-        assert_eq!(generated.len(), 2);
-        assert_eq!(generated[0].reference, "MH9007199254740990");
-        assert_eq!(generated[1].reference, "MH9007199254740991");
-        match core.handle(CoreRequest::Snapshot {
-            id: "snapshot".into(),
-        }) {
-            CoreReply::Scene { document, .. } => assert_eq!(*document, accepted),
-            reply => panic!("core snapshot failed after pure projection: {reply:?}"),
-        }
     }
 }
