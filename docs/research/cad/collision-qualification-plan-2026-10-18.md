@@ -74,7 +74,7 @@ Its source conversion, normalization and tessellation have the following effects
 The vendored source linked here is the actual patched 0.4.1 code selected by
 [cad/wasm/Cargo.toml](../../../cad/wasm/Cargo.toml), not an upstream marketing claim.
 
-1. [Native edge parsing](../../../cad/monstertruck-qualification/vendor/monstertruck-io/src/step/load/step_types/topology.rs),
+1. [Native edge parsing](../../../cad/vendor/monstertruck-io/src/step/load/step_types/topology.rs),
    `parse_curve3d_with_connectivity` / `sub_parse_curve3d`: contextual LINEs
    project topological endpoints onto the authored line. The non-contextual path
    constructs `Line(p,q)`; preview allows a native direction not to be retained
@@ -87,7 +87,7 @@ The vendored source linked here is the actual patched 0.4.1 code selected by
 2. `try_normalized_edge_bspline` in that same file reparameterizes only a short,
    directly used, clamped, non-rational spline, then trims it. Knot normalization
    is set-preserving in real arithmetic under the stated full-domain conditions;
-   computed knot/evaluation error still needs a bound. [bounded_trim.rs](../../../cad/monstertruck-qualification/vendor/monstertruck-io/src/step/load/step_types/topology/bounded_trim.rs)
+   computed knot/evaluation error still needs a bound. [bounded_trim.rs](../../../cad/vendor/monstertruck-io/src/step/load/step_types/topology/bounded_trim.rs)
    restricts active curves and uses exact-parameter insertion instead of the
    generic tolerance-snapping cut. Neither should be labelled zero movement
    merely because its intended operation is a reparameterization.
@@ -98,25 +98,25 @@ The vendored source linked here is the actual patched 0.4.1 code selected by
    source meaning; occurrence placement is applied later. These are coordinate
    transformations, not a preview repair allowance. Their evaluation/rounding
    error is a separate contribution.
-4. [Edge sampling](../../../cad/monstertruck-qualification/vendor/monstertruck-meshing/src/tessellation/triangulation/edge_sampling.rs)
+4. [Edge sampling](../../../cad/vendor/monstertruck-meshing/src/tessellation/triangulation/edge_sampling.rs)
    produces chords. Its interior angular/deflection tests are sampled. In
-   [triangulation/mod.rs](../../../cad/monstertruck-qualification/vendor/monstertruck-meshing/src/tessellation/triangulation/mod.rs),
+   [triangulation/mod.rs](../../../cad/vendor/monstertruck-meshing/src/tessellation/triangulation/mod.rs),
    exact/lifted parameter boundaries can be simplified, resampled or used in
    place of a shared edge representation. These affect derived boundary coverage;
    sample count or endpoint agreement does not bound the whole active curve.
-5. [Boundary projection](../../../cad/monstertruck-qualification/vendor/monstertruck-meshing/src/tessellation/triangulation/boundary/projection.rs)
+5. [Boundary projection](../../../cad/vendor/monstertruck-meshing/src/tessellation/triangulation/boundary/projection.rs)
    projects/lifts UVs, pins seams and normalizes/clamps chart coordinates.
-   [Loop assembly](../../../cad/monstertruck-qualification/vendor/monstertruck-meshing/src/tessellation/triangulation/boundary/loops.rs)
+   [Loop assembly](../../../cad/vendor/monstertruck-meshing/src/tessellation/triangulation/boundary/loops.rs)
    changes repeated pole representatives and closes/compacts periodic loops.
    Several paths retain original XYZ while changing UV. That has zero immediate
    XYZ movement but can change which domain is triangulated. Recording only
    `distance(old_xyz,new_xyz)` would miss that failure mode.
-6. [Triangle emission](../../../cad/monstertruck-qualification/vendor/monstertruck-meshing/src/tessellation/triangulation/mesh.rs)
+6. [Triangle emission](../../../cad/vendor/monstertruck-meshing/src/tessellation/triangulation/mesh.rs)
    retains boundary-map XYZ, evaluates interior UVs, coalesces CDT handles,
    canonicalizes declared singular rows and filters triangles. Metric refinement
    flips unconstrained diagonals without moving source points. This changes
    interpolation error even when vertex movement is zero.
-7. [Preview fallback](../../../cad/monstertruck-qualification/vendor/monstertruck-meshing/src/tessellation/triangulation/fallback.rs)
+7. [Preview fallback](../../../cad/vendor/monstertruck-meshing/src/tessellation/triangulation/fallback.rs)
    merges nearby samples, cancels slits, bridges loops, triangulates by area,
    projects new refinement points and can finally emit a fan. In the importer,
    fallback triangles failing f32 rendering are removed, possibly leaving a
@@ -125,7 +125,7 @@ The vendored source linked here is the actual patched 0.4.1 code selected by
    class ineligible; preserve existing preview behavior and report unknown.
 
 `SnapCurveEndpoints` definitions alone are not evidence of a production repair:
-[curve_traits.rs](../../../cad/monstertruck-qualification/vendor/monstertruck-io/src/step/load/step_geometry/geom_impls/curve_traits.rs)
+[curve_traits.rs](../../../cad/vendor/monstertruck-io/src/step/load/step_geometry/geom_impls/curve_traits.rs)
 makes SURFACE_CURVE snapping a no-op and does not rewrite native lines/conics/
 splines. Likewise `sampled_residual_mm` in
 [bounds/support.rs](../../../cad/monstertruck/src/step/bounds/support.rs) measures
@@ -166,7 +166,7 @@ Choose one error decomposition in the contract:
 `e_operand = e_source + e_repair + e_mesh + e_evaluation`, with each term charged
 once. If a direct symmetric source-to-actual-mesh proof already includes repair,
 retain the movement diagnostic but do not add it again. The vendored
-[connectivity context](../../../cad/monstertruck-qualification/vendor/monstertruck-io/src/step/load/context/mod.rs)
+[connectivity context](../../../cad/vendor/monstertruck-io/src/step/load/context/mod.rs)
 explicitly treats declared precision as attachment uncertainty, independent of
 tessellation or manufacturing variation. Retain and conservatively account for
 that authenticated policy term; it does not prove an unknown mesh/repair term,
@@ -268,7 +268,7 @@ Unsupported trim shape keeps a null bound. This is post-meshing certification;
 001/002's mesher behavior and separate acceptance remain unchanged.
 
 Map the mesher's native UV coordinates to these variables explicitly. The actual
-[revolved-curve implementation](../../../cad/monstertruck-qualification/vendor/monstertruck-geometry/src/decorators/revolved_curve.rs)
+[revolved-curve implementation](../../../cad/vendor/monstertruck-geometry/src/decorators/revolved_curve.rs)
 uses generator parameter **u** and rotation angle **v**; `theta=v` (with the
 carrier's sense) and `z` is affine in `u` for a line generator. Enclose that map,
 including reversed generators and Processor transforms. Treating native `u` as
@@ -364,7 +364,7 @@ failure reasons. Do not reinterpret a local `Contact.dist` as global penetration
 ### Smallest finite verifier using existing dependencies
 
 There is already runtime outward-interval/exact-rational code in the vendored
-[collision analyzer](../../../cad/monstertruck-qualification/vendor/monstertruck-meshing/src/analyzers/collision.rs):
+[collision analyzer](../../../cad/vendor/monstertruck-meshing/src/analyzers/collision.rs):
 `Interval`, `certified_miss`, `exact_collide_seg_triangle`, exact squared-distance
 ordering and an inclusive sweep. `num-rational 0.4.2`, `num-bigint 0.4.8` and
 `num-traits 0.2.19` are already locked; `num-rational`/`num-traits` are runtime
@@ -457,7 +457,7 @@ qualification states so a scalar band never silently certifies a point.
 
 The present closed-edge flag, positive summed volume and a surface miss are
 insufficient. The vendored
-[in_out_judge.rs](../../../cad/monstertruck-qualification/vendor/monstertruck-meshing/src/analyzers/in_out_judge.rs)
+[in_out_judge.rs](../../../cad/vendor/monstertruck-meshing/src/analyzers/in_out_judge.rs)
 uses tolerance/inexact matrix inversion and strict interior ray hits; do not
 promote it to the certified path. As an external mathematical/API reference,
 [CGAL's side-of-mesh contract](https://doc.cgal.org/latest/Polygon_mesh_processing/classCGAL_1_1Side__of__triangle__mesh.html)
