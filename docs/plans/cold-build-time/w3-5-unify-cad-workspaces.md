@@ -124,3 +124,31 @@ host lane (all of it falls in the `test` step, i.e. `test-cad.py` compilation).
 3. **Test execution got slower (`+22 s` tail, both arms).** Compile spans shrank (bypass) or held (warm), but parallel binary execution under full-check overlap now costs more than the old sequential flow saved. Hypothesis is CPU contention with overlapping `build`/`lint` compiles; not root-caused further.
 4. **Full-check wall improved (`-31.9 s` bypass, `-70.8 s` warm cold-wall), but neither is a robust W3-5 claim.** Warm is confounded by (2); bypass is under the 60 s single-run threshold and plausibly comes from reduced overlap contention (fewer test-step compiles competing with `build`/`lint`) rather than less work.
 5. **Kept value is structural, not CPU:** one workspace, one lockfile, no `vtkio` CVEs, no duplicated dependency graph. A follow-up could recover the `+180 s` by scoping the qualification `--test` binaries (or their heaviest suites) back to `opt-level = 0` via per-package profile overrides.
+
+---
+
+## 5. Follow-Up: `cad-owner-test` Profile Split (Regression Fix)
+
+The per-package-override follow-up suggested above was measured and does **not** work:
+a `[profile.cad-test.package.*] opt-level` applies to a package's library and its test
+binaries alike, and the production suites execute `monstertruck-io`/`monstertruck-meshing`
+library code. Isolated clean `test-cad.py` runs (single run each, wiped `cad-test` artifacts):
+
+| Variant | Wall | Exec sum (`finished in`) | Verdict |
+|---|---:|---:|---|
+| Unified `cad-test` (`opt 1`, §4 state) | `86.0 s` | `81.6 s` | baseline |
+| `monstertruck-io` + `monstertruck-meshing` @ `opt 0` | `112.5 s` | `123.4 s` | exec blowup exceeds compile saving |
+| `monstertruck-meshing` @ `opt 0` only | `105.8 s` | `107.2 s` | same, smaller |
+| **Split profile (implemented)** | **`82.4 s`** | **`56.2 s`** | **no exec regression** |
+
+**Implemented:** keep one workspace and one `cad/Cargo.lock`, but compile the owner
+(qualification) suites under a new `[profile.cad-owner-test]` (`opt-level = 0`, hot
+geometry/math leaf crates at `opt-level = 2`, mirroring `cad-test`) in `cad/Cargo.toml`.
+`cad/scripts/cad_build.py` now runs two `cargo test --no-run` prebuilds — production
+packages under `cad-test`, owner packages under `cad-owner-test` — then executes the
+same 15 binaries as before. This restores the pre-unification opt split (production
+`opt 1`/`2`, qualification `opt 0`) without resurrecting the second workspace; the cost
+is recompiling the shared dependency subset once per profile at `opt 0` prices.
+Verified: `test-cad-build.py` 18/18, `test-cad.py` `566` passed / `15` blocks / `0` failed,
+`check.py security` exit `0`, `0` manifest warnings. Authoritative compiler-CPU recovery
+is measured by the merged-tree `cold.py` checkpoint (`cpu-opt3-*`).

@@ -166,10 +166,15 @@ class CadBuildTests(unittest.TestCase):
         context.__enter__.return_value = process
         return context
 
+    def prebuilds(self, **kwargs):
+        # Production (cad-test) and owner (cad-owner-test) prebuilds run as two
+        # cargo invocations; each emits every artifact and records its subset.
+        return [self.owner_prebuild(**kwargs), self.owner_prebuild(**kwargs)]
+
     def test_native_tests_run_library_and_provider_and_propagate_failures(self):
         prod = self.production_targets()
         with patch.object(build, "_production_targets", return_value=prod), \
-                patch.object(build.subprocess, "Popen", return_value=self.owner_prebuild()) as prebuild, \
+                patch.object(build.subprocess, "Popen", side_effect=self.prebuilds()) as prebuild, \
                 patch.object(build, "run", return_value=self.PASSED) as run, \
                 contextlib.redirect_stdout(io.StringIO()):
             build.test_cad()
@@ -182,17 +187,25 @@ class CadBuildTests(unittest.TestCase):
             ("monstertruck-meshing", "--test", "closed_trim_projection"),
             ("monstertruck-meshing", "--lib", "seam_branch_tests"),
         ))
-        command = prebuild.call_args.args[0]
-        self.assertEqual(command, [
-            "cargo", "test", "--no-run", "--manifest-path", "Cargo.toml",
-            "-p", "boardstudio-cad", "-p", "boardstudio-cad-wasm",
-            "-p", "monstertruck-io", "-p", "monstertruck-meshing",
-            "--lib",
-            "--test", "closed_trim_projection", "--test", "input", "--test", "step_import",
-            "--example", "step_replay",
-            "--profile", "cad-test", "--locked", "--message-format=json",
+        self.assertEqual([call.args[0] for call in prebuild.call_args_list], [
+            [
+                "cargo", "test", "--no-run", "--manifest-path", "Cargo.toml",
+                "-p", "boardstudio-cad", "-p", "boardstudio-cad-wasm",
+                "--lib",
+                "--test", "step_import",
+                "--example", "step_replay",
+                "--profile", "cad-test", "--locked", "--message-format=json",
+            ],
+            [
+                "cargo", "test", "--no-run", "--manifest-path", "Cargo.toml",
+                "-p", "monstertruck-io", "-p", "monstertruck-meshing",
+                "--lib",
+                "--test", "closed_trim_projection", "--test", "input",
+                "--profile", "cad-owner-test", "--locked", "--message-format=json",
+            ],
         ])
-        self.assertEqual(prebuild.call_args.kwargs["env"]["CARGO_TARGET_DIR"], str(self.root / "target"))
+        for call in prebuild.call_args_list:
+            self.assertEqual(call.kwargs["env"]["CARGO_TARGET_DIR"], str(self.root / "target"))
         self.assertEqual(len(run.call_args_list), len(prod) + len(build.OWNER_TESTS))
         for call, (pkg, kind, name, pkg_dir) in zip(run.call_args_list[:len(prod)], prod):
             self.assertEqual(call.args[0], [f"/built/{pkg}/{name}"])
@@ -206,7 +219,7 @@ class CadBuildTests(unittest.TestCase):
             self.assertEqual(call.kwargs["cwd"], cwd)
             self.assertEqual(call.kwargs["env"]["CARGO_MANIFEST_DIR"], str(cwd))
         with patch.object(build, "_production_targets", return_value=prod), \
-                patch.object(build.subprocess, "Popen", return_value=self.owner_prebuild()), \
+                patch.object(build.subprocess, "Popen", side_effect=self.prebuilds()), \
                 patch.object(build, "run", side_effect=subprocess.CalledProcessError(1, "cargo")), \
                 contextlib.redirect_stdout(io.StringIO()):
             with self.assertRaises(subprocess.CalledProcessError):
@@ -218,7 +231,7 @@ class CadBuildTests(unittest.TestCase):
                               ({"omit": key}, RuntimeError), ({"duplicate": key}, RuntimeError)):
             with self.subTest(kwargs=kwargs), \
                     patch.object(build, "_production_targets", return_value=self.production_targets()), \
-                    patch.object(build.subprocess, "Popen", return_value=self.owner_prebuild(**kwargs)), \
+                    patch.object(build.subprocess, "Popen", side_effect=self.prebuilds(**kwargs)), \
                     patch.object(build, "run", return_value=self.PASSED) as run, contextlib.redirect_stdout(io.StringIO()) as output:
                 with self.assertRaises(error):
                     build.test_cad()
@@ -230,7 +243,7 @@ class CadBuildTests(unittest.TestCase):
         for index in range(len(build.OWNER_TESTS)):
             with self.subTest(index=index), \
                     patch.object(build, "_production_targets", return_value=prod), \
-                    patch.object(build.subprocess, "Popen", return_value=self.owner_prebuild()), \
+                    patch.object(build.subprocess, "Popen", side_effect=self.prebuilds()), \
                     patch.object(build, "run", side_effect=[*([self.PASSED] * (len(prod) + index)),
                                                            subprocess.CalledProcessError(7, "binary", output="failure\n")]) as run, \
                     contextlib.redirect_stdout(io.StringIO()) as output:
@@ -249,7 +262,7 @@ class CadBuildTests(unittest.TestCase):
                            for step in range(len(prod) + len(build.OWNER_TESTS))]
                 with self.subTest(package=package, selection=selection, output=output), \
                         patch.object(build, "_production_targets", return_value=prod), \
-                        patch.object(build.subprocess, "Popen", return_value=self.owner_prebuild()), \
+                        patch.object(build.subprocess, "Popen", side_effect=self.prebuilds()), \
                         patch.object(build, "run", side_effect=results) as run, contextlib.redirect_stdout(io.StringIO()):
                     with self.assertRaisesRegex(RuntimeError, "no executed tests"):
                         build.test_cad()
@@ -259,10 +272,10 @@ class CadBuildTests(unittest.TestCase):
         prod = self.production_targets()
         total = len(prod) + len(build.OWNER_TESTS)
         with patch.object(build, "_production_targets", return_value=prod), \
-                patch.object(build.subprocess, "Popen", return_value=self.owner_prebuild()), \
+                patch.object(build.subprocess, "Popen", side_effect=self.prebuilds()), \
                 patch.object(build.subprocess, "run", return_value=self.PASSED) as run, contextlib.redirect_stdout(io.StringIO()) as printed:
             build.test_cad()
-        self.assertEqual(printed.getvalue(), "diagnostic\n" + self.PASSED.stdout * total)
+        self.assertEqual(printed.getvalue(), "diagnostic\n" * 2 + self.PASSED.stdout * total)
         for call in run.call_args_list:
             self.assertEqual(call.kwargs["stdout"], subprocess.PIPE)
             self.assertEqual(call.kwargs["stderr"], subprocess.STDOUT)
@@ -270,27 +283,27 @@ class CadBuildTests(unittest.TestCase):
             self.assertTrue(call.kwargs["check"])
         failure = subprocess.CalledProcessError(7, "binary", output="first owner failure\n")
         with patch.object(build, "_production_targets", return_value=prod), \
-                patch.object(build.subprocess, "Popen", return_value=self.owner_prebuild()), \
+                patch.object(build.subprocess, "Popen", side_effect=self.prebuilds()), \
                 patch.object(build, "run", side_effect=[*([self.PASSED] * len(prod)), failure]) as run, \
                 contextlib.redirect_stdout(io.StringIO()) as printed:
             with self.assertRaises(subprocess.CalledProcessError) as raised:
                 build.test_cad()
         self.assertIs(raised.exception, failure)
         self.assertEqual(run.call_count, len(prod) + 1)
-        self.assertEqual(printed.getvalue(), "diagnostic\n" + self.PASSED.stdout * len(prod) + failure.stdout)
+        self.assertEqual(printed.getvalue(), "diagnostic\n" * 2 + self.PASSED.stdout * len(prod) + failure.stdout)
 
     def test_production_failure_stops_before_owner_runs(self):
         prod = self.production_targets()
         failure = subprocess.CalledProcessError(7, "binary", output="production failure output\n")
         with patch.object(build, "_production_targets", return_value=prod), \
-                patch.object(build.subprocess, "Popen", return_value=self.owner_prebuild()), \
+                patch.object(build.subprocess, "Popen", side_effect=self.prebuilds()), \
                 patch.object(build, "run", side_effect=failure) as run, \
                 contextlib.redirect_stdout(io.StringIO()) as stdout:
             with self.assertRaises(subprocess.CalledProcessError) as raised:
                 build.test_cad()
         self.assertIs(raised.exception, failure)
         self.assertEqual(run.call_count, 1)
-        self.assertEqual(stdout.getvalue(), "diagnostic\nproduction failure output\n")
+        self.assertEqual(stdout.getvalue(), "diagnostic\n" * 2 + "production failure output\n")
 
     def test_provider_tests_are_registered_or_accounted_for(self):
         scripts = {path.name for path in (REPO_ROOT / "cad/wasm/tests").glob("*.cjs")}

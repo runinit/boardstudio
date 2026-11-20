@@ -177,29 +177,7 @@ def _production_targets():
     return targets
 
 
-def _test_cad_unified(output):
-    (native_target,) = NATIVE_TEST_TARGETS
-    env = dict(os.environ, CARGO_TARGET_DIR=str(CAD_ROOT / native_target))
-    production_targets = _production_targets()
-    test_names = sorted({
-        *(name for _, kind, name, _ in production_targets if kind == "test"),
-        *(selection[1] for _, *selection in OWNER_TESTS if selection[0] == "--test"),
-    })
-    example_names = sorted({name for _, kind, name, _ in production_targets if kind == "example"})
-    command = [
-        "cargo", "test", "--no-run", "--manifest-path", "Cargo.toml",
-        *(arg for pkg in (*PRODUCTION_PACKAGES, *OWNER_PACKAGES) for arg in ("-p", pkg)),
-        "--lib",
-        *(arg for name in test_names for arg in ("--test", name)),
-        *(arg for name in example_names for arg in ("--example", name)),
-        "--profile", "cad-test", "--locked", "--message-format=json",
-    ]
-    expected = {
-        *((pkg, kind, name) for pkg, kind, name, _ in production_targets),
-        *(_owner_binary_key(package, selection) for package, *selection in OWNER_TESTS),
-    }
-    binaries = {}
-    duplicates = set()
+def _prebuild(command, env, output, expected, binaries, duplicates):
     fd = browser_tools._inherited_build_lock()
     with subprocess.Popen(command, cwd=CAD_ROOT, env=env, stdout=subprocess.PIPE,
                           stderr=subprocess.STDOUT, text=True,
@@ -230,9 +208,44 @@ def _test_cad_unified(output):
         status = process.wait()
     if status:
         raise subprocess.CalledProcessError(status, command)
+
+
+def _test_cad_unified(output):
+    (native_target,) = NATIVE_TEST_TARGETS
+    env = dict(os.environ, CARGO_TARGET_DIR=str(CAD_ROOT / native_target))
+    production_targets = _production_targets()
+    production_tests = sorted({name for _, kind, name, _ in production_targets if kind == "test"})
+    owner_tests = sorted({selection[1] for _, *selection in OWNER_TESTS if selection[0] == "--test"})
+    example_names = sorted({name for _, kind, name, _ in production_targets if kind == "example"})
+    production_expected = {(pkg, kind, name) for pkg, kind, name, _ in production_targets}
+    owner_expected = {_owner_binary_key(package, selection) for package, *selection in OWNER_TESTS}
+    # Two profiles, one workspace: production suites need monstertruck-io/-meshing
+    # optimized at runtime (cad-test), while the owner suites' test binaries
+    # compile ~4-5x cheaper unoptimized (cad-owner-test; see cad/Cargo.toml).
+    invocations = [
+        ([
+            "cargo", "test", "--no-run", "--manifest-path", "Cargo.toml",
+            *(arg for pkg in PRODUCTION_PACKAGES for arg in ("-p", pkg)),
+            "--lib",
+            *(arg for name in production_tests for arg in ("--test", name)),
+            *(arg for name in example_names for arg in ("--example", name)),
+            "--profile", "cad-test", "--locked", "--message-format=json",
+        ], production_expected),
+        ([
+            "cargo", "test", "--no-run", "--manifest-path", "Cargo.toml",
+            *(arg for pkg in OWNER_PACKAGES for arg in ("-p", pkg)),
+            "--lib",
+            *(arg for name in owner_tests for arg in ("--test", name)),
+            "--profile", "cad-owner-test", "--locked", "--message-format=json",
+        ], owner_expected),
+    ]
+    binaries = {}
+    duplicates = set()
+    for command, expected in invocations:
+        _prebuild(command, env, output, expected, binaries, duplicates)
     if duplicates:
         raise RuntimeError(f"duplicate CAD test binaries: {sorted(duplicates)}")
-    if missing := expected - binaries.keys():
+    if missing := (production_expected | owner_expected) - binaries.keys():
         raise RuntimeError(f"missing CAD test binaries: {sorted(missing)}")
     runs = []
     for pkg, kind, name, pkg_dir in production_targets:

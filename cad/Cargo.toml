@@ -105,6 +105,49 @@ opt-level = 2
 [profile.cad-test.package.lyon_tessellation]
 opt-level = 2
 
+# Owner (qualification) test binaries for monstertruck-io/-meshing compile
+# ~4-5x cheaper at opt-level 0, while production tests need those libraries
+# optimized at runtime; a per-package override cannot split the two, so the
+# owner suites build under this separate profile (see cad/scripts/cad_build.py).
+[profile.cad-owner-test]
+inherits = "dev"
+opt-level = 0
+debug = false
+incremental = false
+
+[profile.cad-owner-test.package.monstertruck-modeling]
+opt-level = 2
+
+[profile.cad-owner-test.package.monstertruck-geometry]
+opt-level = 2
+
+[profile.cad-owner-test.package.monstertruck-mesh]
+opt-level = 2
+
+[profile.cad-owner-test.package.monstertruck-core]
+opt-level = 2
+
+[profile.cad-owner-test.package.manifold-rust]
+opt-level = 2
+
+[profile.cad-owner-test.package.parry3d-f64]
+opt-level = 2
+
+[profile.cad-owner-test.package.cavalier_contours]
+opt-level = 2
+
+[profile.cad-owner-test.package.spade]
+opt-level = 2
+
+[profile.cad-owner-test.package.glam]
+opt-level = 2
+
+[profile.cad-owner-test.package.wide]
+opt-level = 2
+
+[profile.cad-owner-test.package.lyon_tessellation]
+opt-level = 2
+
 [patch.crates-io]
 Inflector = { path = "monstertruck-qualification/vendor/inflector" }
 cgmath = { path = "../renderer/vendor/cgmath-next-0.18.1" }
