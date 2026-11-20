@@ -38,12 +38,12 @@ fn projection(
 }
 
 fn snapshot() -> boardstudio_application::AcceptedSnapshot {
-    let mut document = boardstudio_core::model::ProjectDoc::empty(
+    let mut document = boardstudio_model::model::ProjectDoc::empty(
         "mirror-overlay-fixture",
         "Mirror overlay fixture",
     );
     document.revision = 19;
-    document.boards.push(boardstudio_core::model::Board {
+    document.boards.push(boardstudio_model::model::Board {
         id: "board-current".into(),
         name: "Current board".into(),
         outline_ids: vec![],
@@ -57,7 +57,7 @@ fn snapshot() -> boardstudio_application::AcceptedSnapshot {
         token: boardstudio_application::SnapshotToken(17),
         session_epoch: boardstudio_application::SessionEpoch(13),
         document: std::sync::Arc::new(document),
-        scene: std::sync::Arc::new(boardstudio_core::model::SceneDelta {
+        scene: std::sync::Arc::new(boardstudio_model::model::SceneDelta {
             module_scenes: vec![],
             revision: 19,
             transaction_id: "mirror-overlay-test".into(),
@@ -70,7 +70,7 @@ fn snapshot() -> boardstudio_application::AcceptedSnapshot {
             board_outline_scenes: vec![],
             finding_markers: vec![],
             findings: vec![],
-            readiness: boardstudio_core::model::Readiness {
+            readiness: boardstudio_model::model::Readiness {
                 layout: false,
                 outline: false,
                 pcb: false,

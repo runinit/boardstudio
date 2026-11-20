@@ -8,7 +8,10 @@ description = "BoardStudio Layout pure state logic: matrix transforms and relati
 
 [dependencies]
 boardstudio-application = { path = "../../../application" }
+# `preview_anchor_poses` opens its probe through a scratch Core engine.
 boardstudio_core = { path = "../../../core" }
+boardstudio-core-kernel = { path = "../../../core/crates/kernel" }
+boardstudio-model = { path = "../../../core/crates/model" }
 boardstudio-web-ui-model = { path = "../ui-model" }
 
 [dev-dependencies]

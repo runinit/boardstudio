@@ -6,7 +6,7 @@ use super::matrix_setup_fields::{
 use crate::matrix_setup_operation::MatrixSetupPreset;
 use crate::mirrored_pair_geometry::MirroredPairProjection;
 use boardstudio_application::{Scope, SnapshotToken};
-use boardstudio_core::model::Vec2;
+use boardstudio_model::model::Vec2;
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
@@ -93,8 +93,8 @@ pub struct MirroredPairMount {
 pub struct MirroredPairPlacement {
     pub owner: MirroredPairOwner,
     pub pair: MirroredPairProjection,
-    pub left_scene: boardstudio_core::model::MatrixScene,
-    pub right_scene: boardstudio_core::model::MatrixScene,
+    pub left_scene: boardstudio_model::model::MatrixScene,
+    pub right_scene: boardstudio_model::model::MatrixScene,
 }
 
 #[derive(Clone, Debug, PartialEq)]

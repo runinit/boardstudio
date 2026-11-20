@@ -2,8 +2,8 @@
 //! for each selection kind, and clears when the selection clears.
 
 use super::*;
-use boardstudio_core::layout_kernel::ComposedFrame;
-use boardstudio_core::model::{MatrixSceneCell, Pose2};
+use boardstudio_core_kernel::matrix::kernel::ComposedFrame;
+use boardstudio_model::model::{MatrixSceneCell, Pose2};
 
 fn frame() -> ComposedFrame {
     ComposedFrame {
@@ -96,8 +96,8 @@ fn document() -> ProjectDoc {
     serde_json::from_value(document).unwrap()
 }
 
-fn basis(column: u32, x: f64, y: f64) -> boardstudio_core::model::MatrixColumnBasis {
-    boardstudio_core::model::MatrixColumnBasis {
+fn basis(column: u32, x: f64, y: f64) -> boardstudio_model::model::MatrixColumnBasis {
+    boardstudio_model::model::MatrixColumnBasis {
         column,
         base: Vec2 { x, y },
         rotation: 0.0,

@@ -7,7 +7,7 @@
 pub mod handle_rail;
 
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution};
-use boardstudio_core::model::{
+use boardstudio_model::model::{
     AggregateAnchor, AggregateMethod, AnchorPart, EditOperation, Follow, HalfExceptionState,
     Matrix, MatrixAnchor, MatrixCell, MatrixColumnBasis, MatrixPlacementChange, MatrixScene,
     MatrixSplayAffect, MatrixSplayChange, Mirror, MirroredExceptionState, MirroredItemKind,
@@ -1639,7 +1639,7 @@ pub fn key_half_exception_resolver(pair_id: String, mirror_id: String, omit: boo
 #[cfg(test)]
 mod tests {
     use super::*;
-    use boardstudio_core::model::{
+    use boardstudio_model::model::{
         EditOperation, KicadSource, MatrixAssembly, PartGenerator, PartKind,
     };
 
@@ -1884,27 +1884,27 @@ mod tests {
             edge_gap: None,
             diode_direction: None,
             row_layout: vec![
-                boardstudio_core::model::RowLayout {
+                boardstudio_model::model::RowLayout {
                     offset: Vec2 { x: 2.0, y: 3.0 },
                     ..Default::default()
                 },
-                boardstudio_core::model::RowLayout {
+                boardstudio_model::model::RowLayout {
                     offset: Vec2 { x: 4.0, y: 5.0 },
                     ..Default::default()
                 },
             ],
             column_layout: vec![
-                boardstudio_core::model::ColumnLayout {
+                boardstudio_model::model::ColumnLayout {
                     offset: Vec2 { x: 1.0, y: 2.0 },
                     stagger: 0.25,
                     ..Default::default()
                 },
-                boardstudio_core::model::ColumnLayout {
+                boardstudio_model::model::ColumnLayout {
                     stagger: 0.5,
                     splay: 4.0,
                     ..Default::default()
                 },
-                boardstudio_core::model::ColumnLayout {
+                boardstudio_model::model::ColumnLayout {
                     stagger: 0.75,
                     splay: 8.0,
                     ..Default::default()
@@ -3038,12 +3038,12 @@ mod tests {
     // --- Placement: one module builds every placement edit -----------------------------
 
     use boardstudio_core::CoreEngine;
-    use boardstudio_core::model::{CoreReply, CoreRequest, EditCommand, EditPhase, SceneDelta};
+    use boardstudio_model::model::{CoreReply, CoreRequest, EditCommand, EditPhase, SceneDelta};
 
     /// A rotated, mirrored, splayed (custom origin) matrix, opened in a real `CoreEngine`.
     fn transformed_scene() -> (MatrixScene, Matrix) {
         let mut document =
-            serde_json::to_value(boardstudio_core::model::ProjectDoc::empty("p", "P")).unwrap();
+            serde_json::to_value(boardstudio_model::model::ProjectDoc::empty("p", "P")).unwrap();
         document["definitions"] = serde_json::json!([{
             "id": "switch", "name": "switch", "kind": "switch",
             "courtyard": [{ "x": -7.0, "y": -7.0 }, { "x": 7.0, "y": -7.0 },
@@ -3628,7 +3628,7 @@ mod tests {
 mod key_omit_tests {
     use super::{key_half_exception_at_resolver, key_half_exception_resolver};
     use boardstudio_application::{AcceptedSnapshot, Resolution, SessionEpoch, SnapshotToken};
-    use boardstudio_core::model::{
+    use boardstudio_model::model::{
         EditOperation, HalfExceptionState, MirroredItemKind, ProjectDoc, SceneDelta,
     };
     use std::sync::Arc;
@@ -3637,7 +3637,7 @@ mod key_omit_tests {
         serde_json::from_value(serde_json::json!({
             "id": "omit", "name": "Omit", "format": "boardstudio/v2", "revision": 0,
             "parameters": {},
-            "formatVersion": boardstudio_core::migrate::CURRENT_VERSION,
+            "formatVersion": boardstudio_model::migrate::CURRENT_VERSION,
             "boards": [
                 {"id": "source-board", "name": "Source", "partIds": ["source-key"],
                  "outlineIds": [], "netIds": [], "thickness": 1.6},
@@ -3704,7 +3704,7 @@ mod key_omit_tests {
                 board_outline_scenes: vec![],
                 finding_markers: vec![],
                 findings: vec![],
-                readiness: boardstudio_core::model::Readiness {
+                readiness: boardstudio_model::model::Readiness {
                     layout: false,
                     outline: false,
                     pcb: false,

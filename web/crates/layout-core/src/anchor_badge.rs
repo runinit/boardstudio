@@ -7,11 +7,13 @@
 //! badge label. Ticket 13 covers independent parts too; matrix, column, row
 //! and key selections work on either half, dimmed or not.
 
-use boardstudio_core::model::{Matrix, MatrixScene, MatrixSceneCell, ProjectDoc, Vec2};
+use boardstudio_model::model::{Matrix, MatrixScene, MatrixSceneCell, ProjectDoc, Vec2};
 use boardstudio_web_ui_model::tree::TreeContext;
 
 use super::matrix_relations::{aggregate_kind_text, follow_text};
-use boardstudio_core::{evaluated_part_pose, half_offset, layout_half_offset};
+use boardstudio_core_kernel::matrix::layout::{
+    evaluated_part_pose, half_offset, layout_half_offset,
+};
 use boardstudio_web_ui_model::split_focus::{SplitHalf, part_half};
 
 /// What the selection is placed from, in world millimetres.

@@ -4,7 +4,7 @@ use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Resolution, Scope, SnapshotToken,
 };
-use boardstudio_core::model::{EditOperation, PartKind, ProjectDoc, Vec2};
+use boardstudio_model::model::{EditOperation, PartKind, ProjectDoc, Vec2};
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
@@ -411,19 +411,19 @@ fn default_axis_x(snapshot: &AcceptedSnapshot, board_id: &str) -> f64 {
             .and_then(|definition| part.keycap.or(definition.keycap));
         let corners = if let Some(cap) = cap {
             vec![
-                boardstudio_core::model::Vec2 {
+                boardstudio_model::model::Vec2 {
                     x: -cap.x / 2.0,
                     y: -cap.y / 2.0,
                 },
-                boardstudio_core::model::Vec2 {
+                boardstudio_model::model::Vec2 {
                     x: cap.x / 2.0,
                     y: -cap.y / 2.0,
                 },
-                boardstudio_core::model::Vec2 {
+                boardstudio_model::model::Vec2 {
                     x: cap.x / 2.0,
                     y: cap.y / 2.0,
                 },
-                boardstudio_core::model::Vec2 {
+                boardstudio_model::model::Vec2 {
                     x: -cap.x / 2.0,
                     y: cap.y / 2.0,
                 },

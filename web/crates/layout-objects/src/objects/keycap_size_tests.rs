@@ -6,8 +6,8 @@ use boardstudio_application::{
     SessionEpoch, SnapshotToken,
 };
 use boardstudio_core::CoreEngine;
-use boardstudio_core::model::Vec2;
-use boardstudio_core::model::{Part, Pose2, Side};
+use boardstudio_model::model::Vec2;
+use boardstudio_model::model::{Part, Pose2, Side};
 use boardstudio_web_ui_shared::test_mount::MountedFixture;
 use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
 use std::{cell::RefCell, rc::Rc};
@@ -373,11 +373,11 @@ fn overlap_filter_tracks_authoritative_add_and_toggle_selection() {
 
 #[wasm_bindgen_test]
 fn accepted_projection_uses_session_add_toggle_selection_across_hit_contexts() {
-    let mut document: boardstudio_core::model::ProjectDoc = serde_json::from_str(include_str!(
+    let mut document: boardstudio_model::model::ProjectDoc = serde_json::from_str(include_str!(
         "../../../../../core/tests/fixtures/synthetic-outline.json"
     ))
     .unwrap();
-    document.format_version = boardstudio_core::migrate::CURRENT_VERSION;
+    document.format_version = boardstudio_model::migrate::CURRENT_VERSION;
     let first_matrix_id = document.matrices[0].id.clone();
     let overlap_id = "matrix/matrix/r0c2".to_owned();
     let mut overlap_part = document
@@ -399,7 +399,7 @@ fn accepted_projection_uses_session_add_toggle_selection_across_hit_contexts() {
     let overlap_definition = document.matrices[0].definition_id.clone();
     document.matrices[0]
         .cells
-        .push(boardstudio_core::model::MatrixCell {
+        .push(boardstudio_model::model::MatrixCell {
             shift: None,
             bend: None,
             deleted: false,
@@ -695,7 +695,7 @@ fn mixed_size_draft_uses_react_visible_document_part_order() {
         id: id.into(),
         definition_id: "switch".into(),
         reference: reference.into(),
-        pose: boardstudio_core::model::Pose2 {
+        pose: boardstudio_model::model::Pose2 {
             at: Vec2 { x: 0.0, y: 0.0 },
             rotation: 0.0,
         },
@@ -835,16 +835,16 @@ async fn overlap_status_matches_react_selection_deduplication_and_truncation() {
 
 const KEY_ID: &str = "matrix/matrix-main/r0c0";
 
-fn key_fixture() -> boardstudio_core::model::ProjectDoc {
-    use boardstudio_core::model::{Board, OutlineFeature, OutlineSettings};
-    let mut document = boardstudio_core::model::ProjectDoc::empty("project", "Keyboard");
+fn key_fixture() -> boardstudio_model::model::ProjectDoc {
+    use boardstudio_model::model::{Board, OutlineFeature, OutlineSettings};
+    let mut document = boardstudio_model::model::ProjectDoc::empty("project", "Keyboard");
     document.outline.push(OutlineFeature::PartEnvelope {
         connections: vec![],
         settings: OutlineSettings::default(),
         id: "envelope-main".into(),
         part_ids: vec![],
         margin: 4.0,
-        operation: boardstudio_core::model::Operation::Add,
+        operation: boardstudio_model::model::Operation::Add,
     });
     document.boards.push(Board {
         id: "board-main".into(),
@@ -931,7 +931,7 @@ async fn undo(runtime: &Rc<crate::runtime::Runtime>) {
 #[wasm_bindgen_test]
 async fn rapid_key_size_then_an_unrelated_edit_both_survive_and_undo_removes_them_in_order() {
     use crate::runtime::project_name_test_support as support;
-    use boardstudio_core::model::EditOperation;
+    use boardstudio_model::model::EditOperation;
     use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 
     let runtime = support::new_runtime();
@@ -1183,7 +1183,7 @@ async fn size_selector_tracks_accepted_undo_redo_and_failed_edit_feedback() {
 #[wasm_bindgen_test]
 async fn queued_key_resize_retires_when_row_delete_reuses_the_selected_id() {
     use crate::runtime::project_name_test_support as support;
-    use boardstudio_core::model::EditOperation;
+    use boardstudio_model::model::EditOperation;
     use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 
     let runtime = support::new_runtime();
@@ -1253,7 +1253,7 @@ async fn queued_key_resize_retires_when_row_delete_reuses_the_selected_id() {
 #[wasm_bindgen_test]
 async fn resize_resolver_submits_a_typed_keycap_size_edit() {
     use crate::runtime::project_name_test_support as support;
-    use boardstudio_core::model::EditOperation;
+    use boardstudio_model::model::EditOperation;
 
     let runtime = support::new_runtime();
     support::open_document(&runtime, key_fixture()).await;

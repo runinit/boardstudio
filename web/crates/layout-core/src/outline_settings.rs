@@ -1,5 +1,5 @@
 //! The presentation outline settings intent vocabulary.
-use boardstudio_core::model::{Board, CornerStyle, OutlineFeature, OutlineSettings, ProjectDoc};
+use boardstudio_model::model::{Board, CornerStyle, OutlineFeature, OutlineSettings, ProjectDoc};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum OutlineEdit {

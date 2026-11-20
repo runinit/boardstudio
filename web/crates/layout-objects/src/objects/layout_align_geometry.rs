@@ -1,5 +1,5 @@
 //! Pure accepted-envelope and axis-alignment policy for Layout Align.
-use boardstudio_core::model::{Part, PartDefinition, PartKind, Vec2};
+use boardstudio_model::model::{Part, PartDefinition, PartKind, Vec2};
 
 pub fn reference_choice(
     current: Option<&str>,
@@ -261,7 +261,7 @@ pub fn alignment_delta(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use boardstudio_core::model::{Mirror, Pose2};
+    use boardstudio_model::model::{Mirror, Pose2};
 
     fn part(definition_id: &str, keycap: Option<Vec2>, rotation: f64) -> Part {
         Part {
@@ -274,7 +274,7 @@ mod tests {
                 at: Vec2 { x: 10.0, y: 20.0 },
                 rotation,
             },
-            side: boardstudio_core::model::Side::Front,
+            side: boardstudio_model::model::Side::Front,
             anchor: None,
             locked: None,
             properties: None,
@@ -336,7 +336,9 @@ mod tests {
 
     #[test]
     fn independent_moves_use_the_published_mirror_aware_key_frame() {
-        use boardstudio_core::layout_kernel::{self, ColumnLayout, LayoutInput, RawAnchorContext};
+        use boardstudio_core_kernel::matrix::kernel::{
+            self as layout_kernel, ColumnLayout, LayoutInput, RawAnchorContext,
+        };
         let input = LayoutInput {
             rows: 2,
             columns: 3,

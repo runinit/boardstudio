@@ -8,7 +8,7 @@
 //! decide precedence.
 
 use crate::matrix_transform_operation::MatrixTransformField;
-use boardstudio_core::model::{
+use boardstudio_model::model::{
     AggregateMethod, Constraint, ConstraintEndpoint, ConstraintRelation, Follow, Matrix,
     MatrixAnchor, MatrixCompanionMode, MatrixCompanionPlacement, MatrixScene, MatrixSplayAffect,
     Mirror, MirroredExceptionState, MirroredItemKind, Part, ProjectDoc, Vec2,
@@ -699,7 +699,7 @@ impl View<'_> {
         }
     }
 
-    fn partner(&self) -> Option<(&boardstudio_core::model::Layout, &Matrix)> {
+    fn partner(&self) -> Option<(&boardstudio_model::model::Layout, &Matrix)> {
         let owner = self
             .document
             .layouts

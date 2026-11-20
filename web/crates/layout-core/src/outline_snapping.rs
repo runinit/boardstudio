@@ -1,5 +1,5 @@
 //! Private port of the pinned React outline snap policy.
-use boardstudio_core::model::Vec2;
+use boardstudio_model::model::Vec2;
 #[path = "outline_grid_rounding.rs"]
 mod grid_rounding;
 use grid_rounding::{rounded, snap_to_grid};

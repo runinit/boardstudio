@@ -13,7 +13,7 @@ use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
 };
-use boardstudio_core::model::{
+use boardstudio_model::model::{
     AnchorPart, EditOperation, Matrix, MatrixSplayAffect, PartDefinition, ProjectDoc, Vec2,
     convert_offset_available,
 };
@@ -276,11 +276,11 @@ fn add_anchored_matrix_resolver(
                 vec![matrix_id.clone(), id.clone()],
                 EditOperation::AddAnchoredMatrix {
                     id,
-                    anchor: boardstudio_core::model::MatrixAnchor {
+                    anchor: boardstudio_model::model::MatrixAnchor {
                         matrix_id: matrix_id.clone(),
                         row,
                         column,
-                        follow: boardstudio_core::model::Follow::default(),
+                        follow: boardstudio_model::model::Follow::default(),
                         aggregate: None,
                     },
                 },
@@ -706,7 +706,7 @@ pub fn use_workspace_matrix_transform(
             pending.settle(false, |_| String::new());
         }
     });
-    let switch_catalog = use_signal(Vec::<boardstudio_core::model::PartDefinition>::new);
+    let switch_catalog = use_signal(Vec::<boardstudio_model::model::PartDefinition>::new);
     // The bundled catalogue is built per document reversibility (as in the Parts browser), so
     // it is requested once per accepted reversibility and tagged with the build it holds.
     let mut catalog_requested = use_signal(|| None::<bool>);
@@ -776,7 +776,7 @@ pub fn use_workspace_matrix_transform(
                 .fold(Vec::new(), |mut all, definition| {
                     if !all
                         .iter()
-                        .any(|existing: &boardstudio_core::model::PartDefinition| {
+                        .any(|existing: &boardstudio_model::model::PartDefinition| {
                             existing.id == definition.id
                         })
                     {

@@ -22,9 +22,9 @@ use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Resolution,
 };
-use boardstudio_core::evaluated_part_pose;
-use boardstudio_core::layout_half_offset;
-use boardstudio_core::model::{
+use boardstudio_core_kernel::matrix::layout::evaluated_part_pose;
+use boardstudio_core_kernel::matrix::layout::layout_half_offset;
+use boardstudio_model::model::{
     EditOperation, Matrix, MatrixPlacementChange, MatrixScene, MatrixSplayAffect,
     MatrixSplayChange, Mirror, PartAnchor, PartAnchorValueChange, Pose2, Position, ProjectDoc,
     Vec2,
@@ -4905,7 +4905,7 @@ fn accepted_basis<'a>(
     accepted: &'a AcceptedSnapshot,
     matrix_id: &str,
     column: u32,
-) -> Option<&'a boardstudio_core::model::MatrixColumnBasis> {
+) -> Option<&'a boardstudio_model::model::MatrixColumnBasis> {
     accepted
         .scene
         .matrix_scenes
@@ -5953,7 +5953,7 @@ fn sample_transform(
             let mut delta = angle.sin().atan2(angle.cos()).to_degrees();
             if matches!(
                 matrix.mirror,
-                Some(boardstudio_core::model::Mirror::X | boardstudio_core::model::Mirror::Y)
+                Some(boardstudio_model::model::Mirror::X | boardstudio_model::model::Mirror::Y)
             ) {
                 delta = -delta;
             }
@@ -7166,7 +7166,7 @@ mod nudge_tests {
     };
     use crate::presentation::objects::matrix_edit_test_support as fixture;
     use crate::runtime::project_name_test_support as support;
-    use boardstudio_core::model::Mirror;
+    use boardstudio_model::model::Mirror;
     use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
     use wasm_bindgen_test::wasm_bindgen_test;
 
@@ -9264,7 +9264,10 @@ mod tool_tests {
         (root, mounted)
     }
 
-    fn part_anchor_of(runtime: &Rc<Runtime>, part_id: &str) -> boardstudio_core::model::PartAnchor {
+    fn part_anchor_of(
+        runtime: &Rc<Runtime>,
+        part_id: &str,
+    ) -> boardstudio_model::model::PartAnchor {
         runtime
             .model()
             .accepted
@@ -9806,7 +9809,7 @@ mod tool_tests {
     async fn column_angle_pointer_preview_starts_at_rotation_and_preserves_mirror_direction() {
         for (mirror, expected) in [
             (None, 100.0),
-            (Some(boardstudio_core::model::Mirror::X), -80.0),
+            (Some(boardstudio_model::model::Mirror::X), -80.0),
         ] {
             let mut document = fixture::matrix_document();
             let matrix = &mut document.matrices[0];
@@ -10893,9 +10896,9 @@ mod tool_tests {
     /// A second 1x1 matrix anchored to the fixture matrix's first key, with a
     /// live key part, for the matrix Move and Rotate drags.
     fn anchored_drag_document(
-        follow: boardstudio_core::model::Follow,
-    ) -> boardstudio_core::model::ProjectDoc {
-        use boardstudio_core::model::*;
+        follow: boardstudio_model::model::Follow,
+    ) -> boardstudio_model::model::ProjectDoc {
+        use boardstudio_model::model::*;
         let mut document = fixture::matrix_document();
         document.layouts.push(Layout {
             id: "layout".into(),
@@ -10964,7 +10967,7 @@ mod tool_tests {
         document
     }
 
-    async fn open_anchored_drag_runtime(follow: boardstudio_core::model::Follow) -> Rc<Runtime> {
+    async fn open_anchored_drag_runtime(follow: boardstudio_model::model::Follow) -> Rc<Runtime> {
         let runtime = support::new_runtime();
         support::open_document(&runtime, anchored_drag_document(follow)).await;
         wait_until_editable(&runtime).await;
@@ -10975,7 +10978,7 @@ mod tool_tests {
     /// through the inverse of the anchor frame as one atomic edit.
     #[wasm_bindgen_test]
     async fn anchored_matrix_move_drag_writes_origin_through_anchor_inverse() {
-        use boardstudio_core::model::Follow;
+        use boardstudio_model::model::Follow;
         let runtime = open_anchored_drag_runtime(Follow {
             x: true,
             y: true,
@@ -11051,7 +11054,7 @@ mod tool_tests {
     /// directions, so an unfollowed component never moves the frame.
     #[wasm_bindgen_test]
     async fn anchored_matrix_move_drag_ignores_unfollowed_directions() {
-        use boardstudio_core::model::Follow;
+        use boardstudio_model::model::Follow;
         let runtime = open_anchored_drag_runtime(Follow {
             x: false,
             y: true,
@@ -11128,7 +11131,7 @@ mod tool_tests {
     /// copies fought over the gesture.
     #[wasm_bindgen_test]
     async fn matrix_tool_mounts_draw_only_their_own_handle() {
-        use boardstudio_core::model::Follow;
+        use boardstudio_model::model::Follow;
         let runtime = open_anchored_drag_runtime(Follow {
             x: true,
             y: true,
@@ -11176,7 +11179,7 @@ mod tool_tests {
     /// off.
     #[wasm_bindgen_test]
     async fn matrix_rotate_drag_turns_the_matrix() {
-        use boardstudio_core::model::Follow;
+        use boardstudio_model::model::Follow;
         let runtime = open_anchored_drag_runtime(Follow {
             x: true,
             y: true,
@@ -12436,7 +12439,8 @@ mod tool_tests {
                 .iter()
                 .find(|part| part.id == "mcu")
                 .unwrap();
-            boardstudio_core::evaluated_part_pose(&accepted.document, part).at
+            boardstudio_core_kernel::matrix::layout::evaluated_part_pose(&accepted.document, part)
+                .at
         };
         let revision = fixture_revision(&runtime);
         dispatch_pointer(
@@ -12690,7 +12694,7 @@ mod tool_tests {
     /// commits one Undo entry with the carried toast; Undo restores.
     #[wasm_bindgen_test]
     async fn matrix_pick_commits_one_undo_entry_with_the_carried_toast() {
-        use boardstudio_core::model::Follow;
+        use boardstudio_model::model::Follow;
         let runtime = open_anchored_drag_runtime(Follow {
             x: true,
             y: true,
@@ -12849,7 +12853,7 @@ mod tool_tests {
     /// ring: re-anchoring there would close a loop.
     #[wasm_bindgen_test]
     async fn matrix_pick_hides_loop_forming_targets() {
-        use boardstudio_core::model::*;
+        use boardstudio_model::model::*;
         let mut document = anchored_drag_document(Follow {
             x: true,
             y: true,
@@ -12975,7 +12979,7 @@ mod tool_tests {
     /// Ticket 08: Escape leaves pick mode with no revision and no toast.
     #[wasm_bindgen_test]
     async fn matrix_pick_escape_leaves_no_revision() {
-        use boardstudio_core::model::Follow;
+        use boardstudio_model::model::Follow;
         let runtime = open_anchored_drag_runtime(Follow {
             x: true,
             y: true,

@@ -7,7 +7,7 @@ use crate::matrix_relations::DepartureAction;
 use crate::matrix_transform_operation::{
     MatrixTransformField, MatrixTransformFields, MatrixTransformValue,
 };
-use boardstudio_core::model::Vec2;
+use boardstudio_model::model::Vec2;
 use dioxus::prelude::*;
 
 /// Whether a departure action can run now, and why not.

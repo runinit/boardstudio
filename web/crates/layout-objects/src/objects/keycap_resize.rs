@@ -1,5 +1,5 @@
 //! Private accepted-document planner for the Layout key-size interaction.
-use boardstudio_core::model::{
+use boardstudio_model::model::{
     KeycapCellOffset, Layout, Matrix, MatrixCell, MatrixScene, Position, ProjectDoc, Vec2,
 };
 use std::collections::{BTreeMap, BTreeSet};
@@ -655,7 +655,7 @@ fn set_cell_offset(matrix: &mut Matrix, row: u32, column: u32, offset: Vec2) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use boardstudio_core::model::{
+    use boardstudio_model::model::{
         Board, CoreReply, CoreRequest, EditCommand, EditOperation, EditPhase, MatrixCell,
         MatrixColumnBasis, MatrixSceneCell, Mirror, Part, Pose2, Side,
     };
@@ -1139,7 +1139,7 @@ mod tests {
         for cell in &mut matrix.cells {
             cell.assemblies = ["diode", "led"]
                 .into_iter()
-                .map(|id| boardstudio_core::model::MatrixAssembly {
+                .map(|id| boardstudio_model::model::MatrixAssembly {
                     id: id.into(),
                     definition_id: "switch".into(),
                     offset: point(3.0, 4.0),
@@ -1292,7 +1292,7 @@ mod tests {
                     assemblies_local: None,
                     assemblies: ["diode", "led"]
                         .into_iter()
-                        .map(|id| boardstudio_core::model::MatrixAssembly {
+                        .map(|id| boardstudio_model::model::MatrixAssembly {
                             id: id.into(),
                             definition_id: "switch".into(),
                             offset: point(3.0, 4.0),
@@ -1425,7 +1425,7 @@ mod tests {
         let right_matrix_id = document.layouts[right_index].matrix_ids[0].clone();
         document.layouts[right_index].board_id = left.board_id.clone();
         document.layouts[right_index].mirror_link =
-            Some(boardstudio_core::model::LayoutMirrorLink {
+            Some(boardstudio_model::model::LayoutMirrorLink {
                 correspondences: vec![],
                 exceptions: vec![],
                 source_id: left.id.clone(),

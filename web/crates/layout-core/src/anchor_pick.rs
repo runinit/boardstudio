@@ -16,8 +16,8 @@
 //! detached part or an unanchored matrix.
 
 use boardstudio_core::CoreEngine;
-use boardstudio_core::evaluated_part_pose;
-use boardstudio_core::model::{
+use boardstudio_core_kernel::matrix::layout::evaluated_part_pose;
+use boardstudio_model::model::{
     CoreReply, CoreRequest, EditOperation, Follow, MatrixAnchor, MatrixScene, PartAnchor, Pose2,
     ProjectDoc, Vec2,
 };
@@ -783,13 +783,13 @@ mod tests {
         .expect("a live key commits");
         assert_eq!(
             commit.operation,
-            boardstudio_core::model::EditOperation::SetMatrixAnchor {
+            boardstudio_model::model::EditOperation::SetMatrixAnchor {
                 matrix_id: "thumb".into(),
-                anchor: boardstudio_core::model::MatrixAnchor {
+                anchor: boardstudio_model::model::MatrixAnchor {
                     matrix_id: "main".into(),
                     row: 1,
                     column: 1,
-                    follow: boardstudio_core::model::Follow {
+                    follow: boardstudio_model::model::Follow {
                         x: true,
                         y: true,
                         rotation: true,
@@ -865,13 +865,13 @@ mod tests {
         .expect("a live key commits");
         assert_eq!(
             commit.operation,
-            boardstudio_core::model::EditOperation::SetPartAnchor {
+            boardstudio_model::model::EditOperation::SetPartAnchor {
                 part_id: "u1".into(),
-                anchor: boardstudio_core::model::PartAnchor {
+                anchor: boardstudio_model::model::PartAnchor {
                     matrix_id: "main".into(),
                     row: 1,
                     column: 2,
-                    follow: boardstudio_core::model::Follow {
+                    follow: boardstudio_model::model::Follow {
                         x: true,
                         y: true,
                         rotation: true,
@@ -879,7 +879,7 @@ mod tests {
                     spread: 0.0,
                     stagger: 0.0,
                     splay: 0.0,
-                    offset: boardstudio_core::model::Vec2 { x: 0.0, y: 0.0 },
+                    offset: boardstudio_model::model::Vec2 { x: 0.0, y: 0.0 },
                     rotation: 0.0,
                 },
             },
@@ -909,13 +909,14 @@ mod tests {
             },
         )
         .expect("a detached part can anchor");
-        let boardstudio_core::model::EditOperation::SetPartAnchor { anchor, .. } = commit.operation
+        let boardstudio_model::model::EditOperation::SetPartAnchor { anchor, .. } =
+            commit.operation
         else {
             panic!("a part pick commits SetPartAnchor");
         };
         assert_eq!(
             anchor.follow,
-            boardstudio_core::model::Follow {
+            boardstudio_model::model::Follow {
                 x: true,
                 y: true,
                 rotation: true,
@@ -956,7 +957,7 @@ mod tests {
     /// one board, one layout, a 1x2 main, a 1x1 thumb anchored to main R1C1,
     /// their member parts, and an anchored part u1.
     fn engine_doc() -> ProjectDoc {
-        use boardstudio_core::model::*;
+        use boardstudio_model::model::*;
         let switch: PartDefinition = serde_json::from_value(serde_json::json!(
             {"id":"switch","name":"Switch","kind":"switch","courtyard":[],"pads":[]}
         ))
@@ -1093,11 +1094,11 @@ mod tests {
         doc: ProjectDoc,
     ) -> (
         boardstudio_core::CoreEngine,
-        boardstudio_core::model::SceneDelta,
+        boardstudio_model::model::SceneDelta,
         ProjectDoc,
     ) {
         use boardstudio_core::CoreEngine;
-        use boardstudio_core::model::{CoreReply, CoreRequest};
+        use boardstudio_model::model::{CoreReply, CoreRequest};
         let mut engine = CoreEngine::new();
         let (scene, opened) = match engine.handle(CoreRequest::Open {
             id: "open".into(),
@@ -1114,9 +1115,9 @@ mod tests {
     fn edit_engine(
         engine: &mut boardstudio_core::CoreEngine,
         doc: &ProjectDoc,
-        operation: boardstudio_core::model::EditOperation,
+        operation: boardstudio_model::model::EditOperation,
     ) -> ProjectDoc {
-        use boardstudio_core::model::*;
+        use boardstudio_model::model::*;
         match engine.handle(CoreRequest::Edit {
             id: "edit".into(),
             command: EditCommand {
@@ -1134,7 +1135,7 @@ mod tests {
 
     #[test]
     fn part_preview_matches_the_post_commit_pose() {
-        use boardstudio_core::evaluated_part_pose;
+        use boardstudio_core_kernel::matrix::layout::evaluated_part_pose;
         let doc = engine_doc();
         let selection = TreeContext::Component {
             part_id: Some("u1".into()),
@@ -1184,7 +1185,7 @@ mod tests {
 
     #[test]
     fn matrix_preview_matches_the_post_commit_members() {
-        use boardstudio_core::evaluated_part_pose;
+        use boardstudio_core_kernel::matrix::layout::evaluated_part_pose;
         let doc = engine_doc();
         let selection = TreeContext::Matrix {
             matrix_id: "thumb".into(),
@@ -1198,7 +1199,7 @@ mod tests {
         let commit = pick_commit(&doc, &selection, &target).expect("a live key commits");
         let (mut engine, _, opened) = open_engine(doc);
         let edited = edit_engine(&mut engine, &opened, commit.operation);
-        let mut expected: Vec<(String, boardstudio_core::model::Pose2)> = edited
+        let mut expected: Vec<(String, boardstudio_model::model::Pose2)> = edited
             .parts
             .iter()
             .filter(|part| part.id.starts_with("matrix/thumb/"))

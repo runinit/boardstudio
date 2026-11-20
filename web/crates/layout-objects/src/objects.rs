@@ -162,7 +162,7 @@ fn matrix_id_for_context(context: &TreeContext) -> Option<&str> {
 }
 
 pub fn matrix_visible_on_board(
-    document: &boardstudio_core::model::ProjectDoc,
+    document: &boardstudio_model::model::ProjectDoc,
     board_id: &str,
     matrix_id: &str,
 ) -> bool {
@@ -1121,10 +1121,10 @@ fn grouped_part_tree(model: &ReadModel, expanded: &BTreeSet<String>) -> Vec<tree
         let category = definition.map_or("Other", |definition| {
             let name = format!("{} {}", definition.id, definition.name).to_lowercase();
             match definition.kind {
-                boardstudio_core::model::PartKind::Switch => "Switches",
-                boardstudio_core::model::PartKind::Controller => "MCUs",
-                boardstudio_core::model::PartKind::Encoder => "Encoders",
-                boardstudio_core::model::PartKind::Connector => "Connectors",
+                boardstudio_model::model::PartKind::Switch => "Switches",
+                boardstudio_model::model::PartKind::Controller => "MCUs",
+                boardstudio_model::model::PartKind::Encoder => "Encoders",
+                boardstudio_model::model::PartKind::Connector => "Connectors",
                 _ if name.contains("diode") => "Diodes",
                 _ if name.contains("led") => "LEDs",
                 _ => "Other",

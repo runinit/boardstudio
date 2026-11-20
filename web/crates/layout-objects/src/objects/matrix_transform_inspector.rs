@@ -3,7 +3,7 @@ use crate::matrix_transform_operation::{
     MatrixTransformField, MatrixTransformFields, MatrixTransformValue, column_angle,
 };
 use boardstudio_application::{Scope, SnapshotToken};
-use boardstudio_core::model::{
+use boardstudio_model::model::{
     AggregateAnchor, AggregateMethod, AnchorPart, Follow, MatrixAnchor, MatrixSplayAffect, Mirror,
     Vec2,
 };
@@ -1769,7 +1769,7 @@ struct AttachedComponentsFieldProps {
     snapshot_token: SnapshotToken,
     revision: u64,
     value: Vec<(String, String)>,
-    choices: Vec<boardstudio_core::model::PartDefinition>,
+    choices: Vec<boardstudio_model::model::PartDefinition>,
     mirror_target: bool,
     assemblies_local: bool,
     request_sequence: Signal<u64>,

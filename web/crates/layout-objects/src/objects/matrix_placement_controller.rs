@@ -12,7 +12,7 @@ use crate::{
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Resolution, Scope,
 };
-use boardstudio_core::model::{EditOperation, Matrix, PartDefinition};
+use boardstudio_model::model::{EditOperation, Matrix, PartDefinition};
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
@@ -343,7 +343,7 @@ pub fn use_matrix_placement(
                             (matrix, definitions)
                         }
                     };
-                    matrix.origin = boardstudio_core::model::Vec2::default();
+                    matrix.origin = boardstudio_model::model::Vec2::default();
                     let mut scenes = runtime
                         .project_matrices(accepted.document.revision, vec![matrix.clone()])
                         .await?;
@@ -539,8 +539,8 @@ fn assembly_matrix_seed(
     id: String,
     board_id: String,
     name: String,
-) -> boardstudio_core::model::Matrix {
-    use boardstudio_core::model::{Matrix, MatrixCell, Vec2};
+) -> boardstudio_model::model::Matrix {
+    use boardstudio_model::model::{Matrix, MatrixCell, Vec2};
     Matrix {
         id,
         name: Some(name),

@@ -2,7 +2,7 @@
 //! matrix, opened through the in-process Session and Core.
 #![cfg(all(test, target_arch = "wasm32"))]
 use crate::runtime::{Runtime, project_name_test_support as support};
-use boardstudio_core::model::{
+use boardstudio_model::model::{
     Board, Follow, Layout, LayoutMirrorLink, MirroredCorrespondence, MirroredItemKind,
     OutlineFeature, OutlineSettings, Part, PartAnchor, Pose2, ProjectDoc, Side, Vec2,
 };
@@ -24,7 +24,7 @@ pub fn matrix_document() -> ProjectDoc {
         id: "envelope-main".into(),
         part_ids: vec![],
         margin: 4.0,
-        operation: boardstudio_core::model::Operation::Add,
+        operation: boardstudio_model::model::Operation::Add,
     });
     document.boards.push(Board {
         id: BOARD_ID.into(),
@@ -277,7 +277,7 @@ pub async fn open_part_pair_runtime() -> Rc<Runtime> {
     runtime
 }
 
-pub fn accepted_matrix(runtime: &Runtime) -> boardstudio_core::model::Matrix {
+pub fn accepted_matrix(runtime: &Runtime) -> boardstudio_model::model::Matrix {
     runtime
         .model()
         .accepted

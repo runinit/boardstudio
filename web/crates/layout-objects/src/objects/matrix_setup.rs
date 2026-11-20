@@ -64,15 +64,15 @@ pub struct MatrixPlacementOwner {
 #[derive(Clone, Debug, PartialEq)]
 pub struct MatrixPlacementProjection {
     pub owner: MatrixPlacementOwner,
-    pub matrix: boardstudio_core::model::Matrix,
-    pub scene: boardstudio_core::model::MatrixScene,
-    pub definitions: Vec<boardstudio_core::model::PartDefinition>,
+    pub matrix: boardstudio_model::model::Matrix,
+    pub scene: boardstudio_model::model::MatrixScene,
+    pub definitions: Vec<boardstudio_model::model::PartDefinition>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct MatrixPlacementMove {
     pub owner: MatrixPlacementOwner,
-    pub center: boardstudio_core::model::Vec2,
+    pub center: boardstudio_model::model::Vec2,
 }
 
 #[derive(Clone, PartialEq)]

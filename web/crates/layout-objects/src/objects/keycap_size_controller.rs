@@ -7,7 +7,7 @@ use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope, SnapshotToken,
 };
-use boardstudio_core::model::{EditOperation, ProjectDoc, Vec2};
+use boardstudio_model::model::{EditOperation, ProjectDoc, Vec2};
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
@@ -648,7 +648,7 @@ mod tests;
 
 fn placements(
     document: &ProjectDoc,
-    scenes: &[boardstudio_core::model::MatrixScene],
+    scenes: &[boardstudio_model::model::MatrixScene],
     board_id: &str,
 ) -> Vec<KeycapPlacement> {
     let Some(board) = document.boards.iter().find(|board| board.id == board_id) else {
@@ -702,7 +702,7 @@ fn placements(
 }
 
 fn order_placements_by_document_parts(
-    parts: &[boardstudio_core::model::Part],
+    parts: &[boardstudio_model::model::Part],
     placements: &mut [KeycapPlacement],
 ) {
     let order: std::collections::HashMap<_, _> = parts
@@ -738,7 +738,7 @@ fn quarter(value: f64) -> f64 {
 }
 
 fn overlap_references(
-    parts: &[boardstudio_core::model::Part],
+    parts: &[boardstudio_model::model::Part],
     placements: &[KeycapPlacement],
     selected_ids: &BTreeSet<String>,
 ) -> Vec<String> {

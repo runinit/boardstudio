@@ -13,7 +13,7 @@ use crate::{
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
 };
-use boardstudio_core::model::{EditOperation, Layout};
+use boardstudio_model::model::{EditOperation, Layout};
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
@@ -41,9 +41,9 @@ fn mirrored_pair_resolver(
     board_id: String,
     left: Layout,
     right: Layout,
-    matrix: boardstudio_core::model::Matrix,
+    matrix: boardstudio_model::model::Matrix,
     right_matrix_id: String,
-    definitions: Vec<boardstudio_core::model::PartDefinition>,
+    definitions: Vec<boardstudio_model::model::PartDefinition>,
 ) -> EditResolver {
     EditResolver::new(
         "layout-mirrored-pair",
@@ -86,8 +86,8 @@ fn mirrored_pair_resolver(
 struct ActivePair {
     owner: MirroredPairOwner,
     request: MirroredPairRequest,
-    matrix: boardstudio_core::model::Matrix,
-    definitions: Vec<boardstudio_core::model::PartDefinition>,
+    matrix: boardstudio_model::model::Matrix,
+    definitions: Vec<boardstudio_model::model::PartDefinition>,
     ids: MirroredPairIds,
     placement: MirroredPairPlacement,
 }
@@ -554,7 +554,7 @@ pub fn use_mirrored_pair(
                     prepared.matrix.clone(),
                     &ids,
                     &geometry,
-                    boardstudio_core::model::Vec2::default(),
+                    boardstudio_model::model::Vec2::default(),
                 ) {
                     Ok(pair) => pair,
                     Err(message) => {
@@ -569,20 +569,21 @@ pub fn use_mirrored_pair(
                 // setup preview and the placed pair show the same adapted gap.
                 // The adapted value is translation-invariant, so one proposal
                 // covers every placement move and the commit stores it as-is.
-                let adapted_gap = match boardstudio_core::proposed_creation_gap(
-                    &accepted.document,
-                    &pair.matrix,
-                    pair.axis_x,
-                ) {
-                    Ok(gap) => gap,
-                    Err(message) => {
-                        preparing.set(None);
-                        form_state.write().stage = PairFormStage::Setup;
-                        error.set(Some(message));
-                        status.set(None);
-                        return;
-                    }
-                };
+                let adapted_gap =
+                    match boardstudio_core_kernel::matrix::layout::proposed_creation_gap(
+                        &accepted.document,
+                        &pair.matrix,
+                        pair.axis_x,
+                    ) {
+                        Ok(gap) => gap,
+                        Err(message) => {
+                            preparing.set(None);
+                            form_state.write().stage = PairFormStage::Setup;
+                            error.set(Some(message));
+                            status.set(None);
+                            return;
+                        }
+                    };
                 request_copy.gap_mm = adapted_gap;
                 let pair = if adapted_gap > geometry.gap_mm {
                     let geometry = MirroredPairGeometryInput {
@@ -594,7 +595,7 @@ pub fn use_mirrored_pair(
                         prepared.matrix.clone(),
                         &ids,
                         &geometry,
-                        boardstudio_core::model::Vec2::default(),
+                        boardstudio_model::model::Vec2::default(),
                     ) {
                         Ok(pair) => pair,
                         Err(message) => {

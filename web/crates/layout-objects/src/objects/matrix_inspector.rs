@@ -1,6 +1,6 @@
 //! Private form for the real selected-matrix name, size, and pitch fields.
 use boardstudio_application::{Scope, SnapshotToken};
-use boardstudio_core::model::DiodeDirection;
+use boardstudio_model::model::DiodeDirection;
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};

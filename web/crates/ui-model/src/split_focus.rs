@@ -5,7 +5,7 @@
 //! only on canvas clicks of the dimmed half, and never writes the document.
 
 use crate::tree::TreeContext;
-use boardstudio_core::model::ProjectDoc;
+use boardstudio_model::model::ProjectDoc;
 
 /// Which split half has editing focus. `Left` is the source half.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -147,7 +147,7 @@ pub fn context_half(document: &ProjectDoc, context: &TreeContext) -> Option<Spli
 #[cfg(test)]
 mod tests {
     use super::*;
-    use boardstudio_core::model::{
+    use boardstudio_model::model::{
         Board, Layout, LayoutMirrorLink, Matrix, MirroredCorrespondence, MirroredItemKind, Part,
         Pose2, Side, Vec2,
     };

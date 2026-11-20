@@ -8,7 +8,8 @@ description = "BoardStudio Layout objects tree and its matrix, mirrored-pair, ke
 
 [dependencies]
 boardstudio-application = { path = "../../../application" }
-boardstudio_core = { path = "../../../core" }
+boardstudio-core-kernel = { path = "../../../core/crates/kernel" }
+boardstudio-model = { path = "../../../core/crates/model" }
 boardstudio-web-runtime = { path = "../runtime" }
 boardstudio-web-ui-model = { path = "../ui-model" }
 boardstudio-web-ui-shared = { path = "../ui-shared" }
@@ -32,6 +33,7 @@ wasm-bindgen-futures = "=0.4.79"
 web-sys = { workspace = true }
 
 [dev-dependencies]
+boardstudio_core = { path = "../../../core" }
 boardstudio-web-layout = { path = "../layout" }
 boardstudio-web-runtime = { path = "../runtime", features = ["test-support"] }
 boardstudio-web-ui-model = { path = "../ui-model", features = ["test-support"] }

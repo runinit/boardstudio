@@ -6,7 +6,7 @@ use crate::presentation::objects::{
 use crate::runtime::Runtime;
 use crate::runtime::project_name_test_support as support;
 use boardstudio_application::{Event, SelectionMode};
-use boardstudio_core::model::{
+use boardstudio_model::model::{
     AggregateAnchor, AggregateMethod, AnchorPart, Board, Follow, Layout, LayoutMirrorLink, Matrix,
     MatrixAnchor, MatrixAssembly, MatrixCell, MirroredCorrespondence, MirroredException,
     MirroredExceptionState, MirroredItemKind, Part, PartDefinition, PartKind, Pose2, ProjectDoc,
@@ -69,7 +69,7 @@ fn matrix_transform_host() -> Element {
         anchor_scope,
         scope_generation,
     ));
-    let splay_affect = use_signal(|| boardstudio_core::model::MatrixSplayAffect::Column);
+    let splay_affect = use_signal(|| boardstudio_model::model::MatrixSplayAffect::Column);
     let mount = use_workspace_matrix_transform(
         probe.runtime.clone(),
         version,
@@ -599,7 +599,7 @@ fn linked_detach_fixture() -> (ProjectDoc, TreeContext) {
         .insert("layoutOverride".into(), serde_json::json!(1));
     let matrix = |id: &str,
                   key_id: &str,
-                  mirror: Option<boardstudio_core::model::Mirror>,
+                  mirror: Option<boardstudio_model::model::Mirror>,
                   origin: Vec2,
                   anchor_target: &str| Matrix {
         id: id.into(),
@@ -653,7 +653,7 @@ fn linked_detach_fixture() -> (ProjectDoc, TreeContext) {
     document.matrices.push(matrix(
         "main2",
         "matrix/main2/r0c0",
-        Some(boardstudio_core::model::Mirror::X),
+        Some(boardstudio_model::model::Mirror::X),
         Vec2 { x: 60.0, y: 0.0 },
         "main2",
     ));
@@ -667,7 +667,7 @@ fn linked_detach_fixture() -> (ProjectDoc, TreeContext) {
     document.matrices.push(matrix(
         "thumb2",
         "matrix/thumb2/r0c0",
-        Some(boardstudio_core::model::Mirror::X),
+        Some(boardstudio_model::model::Mirror::X),
         Vec2 { x: 60.0, y: -19.0 },
         "main2",
     ));
@@ -732,7 +732,7 @@ async fn mount_selection_probe_with_canvas(
     (probe, root, mounted)
 }
 
-fn accepted_cell(probe: &Probe, column: u32) -> boardstudio_core::model::MatrixCell {
+fn accepted_cell(probe: &Probe, column: u32) -> boardstudio_model::model::MatrixCell {
     probe
         .runtime
         .model()
@@ -1507,7 +1507,7 @@ async fn queued_key_edit_retires_after_column_deletion_instead_of_editing_reinde
         boardstudio_application::EditResolver::new("delete-column-test", |_| {
             boardstudio_application::Resolution::submit(
                 vec!["matrix".into()],
-                boardstudio_core::model::EditOperation::RemoveMatrixColumn {
+                boardstudio_model::model::EditOperation::RemoveMatrixColumn {
                     matrix_id: "matrix".into(),
                     column: 0,
                 },
@@ -1571,7 +1571,7 @@ async fn mixed_enabled_selection_displays_unchecked_and_enables_every_selected_c
             matrix.cells[1].enabled = false;
             boardstudio_application::Resolution::submit(
                 vec![matrix.id.clone()],
-                boardstudio_core::model::EditOperation::SetMatrix {
+                boardstudio_model::model::EditOperation::SetMatrix {
                     matrix,
                     definitions: None,
                 },
@@ -1684,7 +1684,7 @@ async fn column_angle_scope_switches_display_and_discards_the_other_fields_draft
     input.dispatch_event(&typed).unwrap();
     settle(&probe).await;
     let mut affect = probe.mount.borrow().as_ref().unwrap().splay_affect;
-    affect.set(boardstudio_core::model::MatrixSplayAffect::Following);
+    affect.set(boardstudio_model::model::MatrixSplayAffect::Following);
     settle(&probe).await;
     assert_eq!(
         input.value(),
@@ -1692,7 +1692,7 @@ async fn column_angle_scope_switches_display_and_discards_the_other_fields_draft
         "switching fields resets the dirty draft"
     );
     assert_eq!(probe.runtime.model().accepted.unwrap().document, before);
-    affect.set(boardstudio_core::model::MatrixSplayAffect::Column);
+    affect.set(boardstudio_model::model::MatrixSplayAffect::Column);
     settle(&probe).await;
     assert_eq!(input.value(), "10");
     set_numeric_field(&root, "Splay", "0");
@@ -1708,7 +1708,7 @@ async fn column_angle_scope_switches_display_and_discards_the_other_fields_draft
 async fn column_angle_equality_uses_the_requested_field_in_the_accepted_snapshot() {
     use super::super::matrix_transform_controller::transform_edit_resolver;
     use boardstudio_application::Resolution;
-    use boardstudio_core::model::MatrixSplayAffect;
+    use boardstudio_model::model::MatrixSplayAffect;
     let (mut document, _) = two_key_fixture(false);
     document.matrices[0]
         .column_layout
@@ -1998,7 +1998,7 @@ async fn convert_to_stagger_is_disabled_with_core_reason_on_a_splayed_column() {
         button.has_attribute("disabled"),
         "a splayed column cannot convert"
     );
-    let reason = boardstudio_core::model::convert_offset_available(
+    let reason = boardstudio_model::model::convert_offset_available(
         &probe.runtime.model().accepted.unwrap().document.matrices[0],
         0,
     )
@@ -3042,7 +3042,10 @@ async fn detach_proposal_confirms_the_named_local_exception_atomically() {
         .map(|part| {
             (
                 part.id.clone(),
-                boardstudio_core::evaluated_part_pose(&before.document, part),
+                boardstudio_core_kernel::matrix::layout::evaluated_part_pose(
+                    &before.document,
+                    part,
+                ),
             )
         })
         .collect();
@@ -3177,7 +3180,7 @@ async fn detach_proposal_confirms_the_named_local_exception_atomically() {
     );
     for (id, pose) in &poses_before {
         assert_eq!(
-            boardstudio_core::evaluated_part_pose(
+            boardstudio_core_kernel::matrix::layout::evaluated_part_pose(
                 &confirmed.document,
                 confirmed
                     .document

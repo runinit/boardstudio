@@ -2,8 +2,8 @@
 
 use super::*;
 use boardstudio_core::CoreEngine;
-use boardstudio_core::model::{ConstraintEndpoint, ConstraintRelation};
-use boardstudio_core::model::{CoreReply, CoreRequest, EditCommand, EditPhase, SceneDelta};
+use boardstudio_model::model::{ConstraintEndpoint, ConstraintRelation};
+use boardstudio_model::model::{CoreReply, CoreRequest, EditCommand, EditPhase, SceneDelta};
 use serde_json::json;
 
 const MATRIX: &str = "main";
@@ -1062,7 +1062,7 @@ fn a_context_naming_a_removed_or_foreign_object_projects_nothing() {
 /// below resolves the affected members (including mirrored keys) without
 /// writing the document; the canvas hint reads "Moves N keys (n per half)".
 use crate::matrix_transform_operation::MatrixTransformField;
-use boardstudio_core::model::MatrixSplayAffect;
+use boardstudio_model::model::MatrixSplayAffect;
 
 fn mirrored_grid(rows: u32, columns: u32) -> (World, World) {
     let mut engine = CoreEngine::new();

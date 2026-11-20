@@ -1,7 +1,7 @@
 //! Private Layout selection and snap controls plus their shared value adapters.
 use super::tree::{self, TreeContext};
 use boardstudio_application::ReadModel;
-use boardstudio_core::model::Vec2;
+use boardstudio_model::model::Vec2;
 pub use boardstudio_web_ui_model::state::{LayoutSnapSettings, TreeCellAnchor};
 use boardstudio_web_ui_shared::ui::{
     button::{Button, ButtonVariant},

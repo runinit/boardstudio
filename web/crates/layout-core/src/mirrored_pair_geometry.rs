@@ -1,5 +1,5 @@
 //! Private geometry for projecting a mirrored pair before Core commits the source matrix.
-use boardstudio_core::model::{
+use boardstudio_model::model::{
     Layout, LayoutMirrorLink, Matrix, MatrixScene, Mirror, MirroredCorrespondence,
     MirroredItemKind, Vec2,
 };
@@ -223,9 +223,9 @@ mod tests {
         }
     }
 
-    fn creation_document() -> boardstudio_core::model::ProjectDoc {
+    fn creation_document() -> boardstudio_model::model::ProjectDoc {
         let mut document =
-            boardstudio_core::model::ProjectDoc::empty("creation-proposal", "Creation proposal");
+            boardstudio_model::model::ProjectDoc::empty("creation-proposal", "Creation proposal");
         document.definitions = serde_json::from_value(serde_json::json!([
             {"id":"switch","name":"Switch","kind":"switch","courtyard":[],"pads":[]}
         ]))
@@ -268,15 +268,21 @@ mod tests {
         // seam, so the preview and the placed pair share the adapted gap.
         let document = creation_document();
         // A single key at the requested 40 mm stays on the default.
-        let kept =
-            boardstudio_core::proposed_creation_gap(&document, &creation_matrix(71.0, 1), 100.0)
-                .unwrap();
+        let kept = boardstudio_core_kernel::matrix::layout::proposed_creation_gap(
+            &document,
+            &creation_matrix(71.0, 1),
+            100.0,
+        )
+        .unwrap();
         assert!((kept - 40.0).abs() < 1e-9);
         // Three inner columns overlap at the requested 40 mm, so the proposal
         // rises to the 88 mm minimum, matching the Core commit path.
-        let adapted =
-            boardstudio_core::proposed_creation_gap(&document, &creation_matrix(71.0, 3), 100.0)
-                .unwrap();
+        let adapted = boardstudio_core_kernel::matrix::layout::proposed_creation_gap(
+            &document,
+            &creation_matrix(71.0, 3),
+            100.0,
+        )
+        .unwrap();
         assert!((adapted - 88.0).abs() < 1e-9);
     }
 
@@ -371,10 +377,10 @@ mod tests {
             .expect("the mirrored pair carries a link");
         assert_eq!(
             link.correspondences,
-            vec![boardstudio_core::model::MirroredCorrespondence {
+            vec![boardstudio_model::model::MirroredCorrespondence {
                 companion_mode: None,
                 companion_tweak: None,
-                kind: boardstudio_core::model::MirroredItemKind::Matrix,
+                kind: boardstudio_model::model::MirroredItemKind::Matrix,
                 source_id: "left-matrix".into(),
                 mirror_id: "right-matrix".into(),
             }],

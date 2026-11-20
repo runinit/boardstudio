@@ -11,7 +11,7 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Resolution, Scope, SnapshotToken,
     TerminalOutcome,
 };
-use boardstudio_core::model::{
+use boardstudio_model::model::{
     DiodeDirection, EditOperation, Matrix, MatrixAssembly, MatrixCell, PartDefinition, ProjectDoc,
     Side, Vec2,
 };
@@ -1240,7 +1240,7 @@ pub fn switch_choices(
         definitions.push(PartDefinition {
             id: current_id.into(),
             name: current_id.into(),
-            kind: boardstudio_core::model::PartKind::Switch,
+            kind: boardstudio_model::model::PartKind::Switch,
             hardware_profile: None,
             input_profile: None,
             keycap: None,
@@ -2701,21 +2701,21 @@ mod tests {
         matrix.cells[0].assemblies.push(MatrixAssembly {
             id: "diode".into(),
             definition_id: "fixture-diode".into(),
-            offset: boardstudio_core::model::Vec2 { x: 0.0, y: 0.0 },
+            offset: boardstudio_model::model::Vec2 { x: 0.0, y: 0.0 },
             rotation: None,
             side: None,
         });
         matrix.cells[0].assemblies.push(MatrixAssembly {
             id: "led".into(),
             definition_id: "fixture-led".into(),
-            offset: boardstudio_core::model::Vec2 { x: 2.0, y: -3.0 },
+            offset: boardstudio_model::model::Vec2 { x: 2.0, y: -3.0 },
             rotation: Some(27.0),
-            side: Some(boardstudio_core::model::Side::Back),
+            side: Some(boardstudio_model::model::Side::Back),
         });
         matrix.cells[0].assemblies.push(MatrixAssembly {
             id: "local-extra".into(),
             definition_id: "fixture-extra".into(),
-            offset: boardstudio_core::model::Vec2 { x: 9.0, y: 8.0 },
+            offset: boardstudio_model::model::Vec2 { x: 9.0, y: 8.0 },
             rotation: None,
             side: None,
         });
@@ -3048,7 +3048,7 @@ mod tests {
         async fn variant_snapshot_scope_departure_is_retired_before_recovery() {
             let runtime = support::new_runtime();
             let mut document = fixture::matrix_document();
-            document.boards.push(boardstudio_core::model::Board {
+            document.boards.push(boardstudio_model::model::Board {
                 id: "board-other".into(),
                 name: "Other".into(),
                 outline_ids: vec![],
@@ -3342,7 +3342,7 @@ mod tests {
                 .expect("accepted fixture document")
                 .document)
                 .clone();
-            replacement.layouts.push(boardstudio_core::model::Layout {
+            replacement.layouts.push(boardstudio_model::model::Layout {
                 id: "layout-main".into(),
                 name: "Canonical layout".into(),
                 board_id: fixture::BOARD_ID.into(),
@@ -3591,8 +3591,8 @@ mod tests {
             assert!(root.query_selector("[role='alert']").unwrap().is_none());
         }
 
-        fn linked_unlink_document() -> boardstudio_core::model::ProjectDoc {
-            use boardstudio_core::model::{
+        fn linked_unlink_document() -> boardstudio_model::model::ProjectDoc {
+            use boardstudio_model::model::{
                 Layout, LayoutMirrorLink, MirroredCorrespondence, MirroredItemKind,
             };
             let mut document = fixture::matrix_document();
@@ -3604,21 +3604,21 @@ mod tests {
             ];
             for (column, id) in mirror_keys.iter().enumerate() {
                 document.boards[0].part_ids.push((*id).into());
-                document.parts.push(boardstudio_core::model::Part {
+                document.parts.push(boardstudio_model::model::Part {
                     keycap: None,
                     outline: None,
                     anchor: None,
                     id: (*id).into(),
                     definition_id: "switch:base".into(),
                     reference: format!("SW-M{}", column + 1),
-                    pose: boardstudio_core::model::Pose2 {
-                        at: boardstudio_core::model::Vec2 {
+                    pose: boardstudio_model::model::Pose2 {
+                        at: boardstudio_model::model::Vec2 {
                             x: 100.0 + 19.05 * column as f64,
                             y: 0.0,
                         },
                         rotation: 0.0,
                     },
-                    side: boardstudio_core::model::Side::Front,
+                    side: boardstudio_model::model::Side::Front,
                     locked: None,
                     properties: None,
                     generator_parameters: None,
@@ -3681,7 +3681,7 @@ mod tests {
                 .expect("an accepted document")
                 .document
                 .revision;
-            let poses_before: Vec<(String, boardstudio_core::model::Pose2)> = runtime
+            let poses_before: Vec<(String, boardstudio_model::model::Pose2)> = runtime
                 .model()
                 .accepted
                 .expect("an accepted document")
@@ -3781,7 +3781,7 @@ mod tests {
                     .any(|layout| layout.matrix_ids == vec!["matrix-mirror".to_owned()]),
                 "the mirror half keeps its layout membership"
             );
-            let poses_after: Vec<(String, boardstudio_core::model::Pose2)> = after
+            let poses_after: Vec<(String, boardstudio_model::model::Pose2)> = after
                 .document
                 .parts
                 .iter()
@@ -3818,7 +3818,7 @@ mod tests {
                             .is_some_and(|link| link.source_id == "layout-left")),
                 "one Undo restores the linked pair"
             );
-            let poses_undone: Vec<(String, boardstudio_core::model::Pose2)> = undone
+            let poses_undone: Vec<(String, boardstudio_model::model::Pose2)> = undone
                 .document
                 .parts
                 .iter()

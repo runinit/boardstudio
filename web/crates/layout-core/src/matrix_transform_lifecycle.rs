@@ -160,7 +160,7 @@ mod selection_retention_tests {
     use boardstudio_application::{
         EditResolver, Event, OperationId, Resolution, Scope, SelectionMode,
     };
-    use boardstudio_core::model::*;
+    use boardstudio_model::model::*;
     use std::collections::BTreeMap;
 
     fn fixed_commit(operation_id: OperationId, resolution: Resolution) -> Event {

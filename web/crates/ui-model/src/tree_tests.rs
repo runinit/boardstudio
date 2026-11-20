@@ -1,6 +1,6 @@
 use super::{Grouping, TreeContext, TreeKind, build_tree};
 use boardstudio_application::ReadModel;
-use boardstudio_core::model::{BoardOutlineScene, OutlineBridge, ProjectDoc};
+use boardstudio_model::model::{BoardOutlineScene, OutlineBridge, ProjectDoc};
 use std::collections::BTreeSet;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen_test::wasm_bindgen_test;

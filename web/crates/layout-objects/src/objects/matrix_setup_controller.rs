@@ -10,7 +10,7 @@ use crate::{
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Resolution, Scope, SelectionMode,
 };
-use boardstudio_core::model::{EditOperation, Matrix, PartDefinition};
+use boardstudio_model::model::{EditOperation, Matrix, PartDefinition};
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
@@ -52,7 +52,7 @@ fn create_matrix_resolver(
             );
         }
         if document.hardware.as_ref().is_some_and(|hardware| {
-            hardware.topology == boardstudio_core::model::HardwareTopology::Split
+            hardware.topology == boardstudio_model::model::HardwareTopology::Split
         }) {
             let ids = crate::mirrored_pair_geometry::MirroredPairIds {
                 right_matrix_id: format!("{}-right", matrix.id),
@@ -584,7 +584,7 @@ fn settle_pending(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use boardstudio_core::model::*;
+    use boardstudio_model::model::*;
     use std::sync::Arc;
 
     #[wasm_bindgen_test::wasm_bindgen_test]

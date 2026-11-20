@@ -1,4 +1,4 @@
-use boardstudio_core::model::{
+use boardstudio_model::model::{
     Board, BoardOutlineScene, Layout, Matrix, MatrixScene, Part, ProjectDoc, SceneDelta,
 };
 use std::collections::{BTreeSet, HashMap, HashSet};
@@ -200,8 +200,8 @@ pub fn build_pcb_tree(
             .find(|definition| definition.id == part.definition_id)
             .map_or("Component", |definition| definition.name.as_str());
         let side = match part.side {
-            boardstudio_core::model::Side::Front => "front",
-            boardstudio_core::model::Side::Back => "back",
+            boardstudio_model::model::Side::Front => "front",
+            boardstudio_model::model::Side::Back => "back",
         };
         rows.push(TreeItem {
             id: format!("pcb:{}", part.id),

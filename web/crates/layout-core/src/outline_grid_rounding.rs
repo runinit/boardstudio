@@ -1,5 +1,5 @@
 //! Grid rounding follows the pinned React editor's `Math.round` tie policy.
-use boardstudio_core::model::Vec2;
+use boardstudio_model::model::Vec2;
 
 fn javascript_round(value: f64) -> f64 {
     let rounded = (value + 0.5).floor();
@@ -32,7 +32,7 @@ pub fn snap_to_grid(point: Vec2, grid: Vec2) -> Vec2 {
 #[cfg(test)]
 mod tests {
     use super::snap_to_grid;
-    use boardstudio_core::model::Vec2;
+    use boardstudio_model::model::Vec2;
 
     #[test]
     fn negative_half_grid_matches_javascript_math_round() {

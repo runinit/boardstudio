@@ -3,7 +3,7 @@
 //! The [`prepare_existing_half`] builder is shared with mirrored-pair creation:
 //! both emit one explicit [`MirroredCorrespondence`] per matrix pair in the link
 //! so Core never sees an empty correspondence list for a linked pair.
-use boardstudio_core::model::{Layout, LayoutMirrorLink, ProjectDoc};
+use boardstudio_model::model::{Layout, LayoutMirrorLink, ProjectDoc};
 
 #[derive(Clone)]
 pub struct PreparedExistingHalf {
@@ -40,7 +40,7 @@ pub fn prepare_existing_half(
         if source.board_id.as_deref() != Some(board_id) {
             return Err("The layout must belong to the active board.".into());
         }
-        if source.mirror == Some(boardstudio_core::model::Mirror::Y) {
+        if source.mirror == Some(boardstudio_model::model::Mirror::Y) {
             return Err(
                 "Y-mirrored layouts cannot be linked. Use an independent layout or an X-mirrored source."
                     .into(),
@@ -146,7 +146,7 @@ fn fresh_id(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use boardstudio_core::model::{Board, Matrix};
+    use boardstudio_model::model::{Board, Matrix};
 
     fn matrix_fixture() -> Matrix {
         serde_json::from_value(serde_json::json!({
@@ -231,10 +231,10 @@ mod tests {
             .expect("mirror-existing-half creates a linked half");
         assert_eq!(
             link.correspondences,
-            vec![boardstudio_core::model::MirroredCorrespondence {
+            vec![boardstudio_model::model::MirroredCorrespondence {
                 companion_mode: None,
                 companion_tweak: None,
-                kind: boardstudio_core::model::MirroredItemKind::Matrix,
+                kind: boardstudio_model::model::MirroredItemKind::Matrix,
                 source_id: "matrix-source".into(),
                 mirror_id: mirror_matrix_id(&prepared),
             }],
@@ -267,7 +267,7 @@ mod tests {
         let correspondence = &link.correspondences[0];
         assert_eq!(
             correspondence.kind,
-            boardstudio_core::model::MirroredItemKind::Matrix
+            boardstudio_model::model::MirroredItemKind::Matrix
         );
         assert_eq!(correspondence.source_id, "matrix-source");
         assert_eq!(correspondence.mirror_id, mirror_matrix_id(&prepared));

@@ -7,7 +7,7 @@
 
 use crate::outline_settings::OutlineEdit;
 use boardstudio_application::{AcceptedSnapshot, Scope};
-use boardstudio_core::model::{
+use boardstudio_model::model::{
     EditPhase, Operation, OutlineControlPoint, OutlineFeature, Part, Side, Vec2,
 };
 use boardstudio_web_ui_model::tree::TreeContext;

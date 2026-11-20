@@ -9,8 +9,8 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
 };
 #[cfg(test)]
-use boardstudio_core::model::{EditCommand, EditPhase};
-use boardstudio_core::model::{EditOperation, Part, ProjectDoc, Vec2};
+use boardstudio_model::model::{EditCommand, EditPhase};
+use boardstudio_model::model::{EditOperation, Part, ProjectDoc, Vec2};
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
 #[cfg(test)]
 use boardstudio_web_runtime::pending_edits::PendingEdits;
@@ -631,7 +631,7 @@ fn linked_selection(
     context: &TreeContext,
     moving_ids: &[String],
     document: &ProjectDoc,
-    scenes: &[boardstudio_core::model::MatrixScene],
+    scenes: &[boardstudio_model::model::MatrixScene],
     board_id: &str,
 ) -> bool {
     match context {
@@ -777,7 +777,7 @@ fn make_edit(
             Some((
                 EditOperation::SetMatrixPlacement {
                     matrix_id: matrix_id.clone(),
-                    change: boardstudio_core::model::MatrixPlacementChange::MatrixTranslation {
+                    change: boardstudio_model::model::MatrixPlacementChange::MatrixTranslation {
                         delta,
                     },
                 },
@@ -792,7 +792,7 @@ fn make_edit(
             Some((
                 EditOperation::SetMatrixPlacement {
                     matrix_id: matrix_id.clone(),
-                    change: boardstudio_core::model::MatrixPlacementChange::ColumnTranslation {
+                    change: boardstudio_model::model::MatrixPlacementChange::ColumnTranslation {
                         column: *column,
                         delta,
                     },
@@ -806,7 +806,7 @@ fn make_edit(
                 .iter()
                 .map(|id| {
                     let part = document.parts.iter().find(|part| part.id == *id)?;
-                    Some(boardstudio_core::model::Position {
+                    Some(boardstudio_model::model::Position {
                         id: id.clone(),
                         at: Vec2 {
                             x: part.pose.at.x + delta.x,
@@ -896,7 +896,7 @@ fn reference_label(model: &boardstudio_application::ReadModel, id: &str) -> Stri
 mod resolver_tests {
     use super::*;
     use crate::runtime::project_name_test_support as support;
-    use boardstudio_core::model::{
+    use boardstudio_model::model::{
         Board, Follow, Layout, Matrix, MatrixAnchor, MatrixCell, MatrixPlacementChange,
         OutlineFeature, OutlineSettings, Pose2, Side,
     };
@@ -931,7 +931,7 @@ mod resolver_tests {
             id: "envelope-main".into(),
             part_ids: vec![],
             margin: 4.0,
-            operation: boardstudio_core::model::Operation::Add,
+            operation: boardstudio_model::model::Operation::Add,
         });
         document.boards.push(Board {
             id: "board-main".into(),
@@ -1090,7 +1090,7 @@ mod resolver_tests {
             id: "envelope-main".into(),
             part_ids: vec![],
             margin: 4.0,
-            operation: boardstudio_core::model::Operation::Add,
+            operation: boardstudio_model::model::Operation::Add,
         });
         document.boards.push(Board {
             id: "board-main".into(),

@@ -18,7 +18,7 @@ struct ResizeIntent {
     owner: KeySizeOwner,
     snapshot_token: boardstudio_application::SnapshotToken,
     revision: u64,
-    units: boardstudio_core::model::Vec2,
+    units: boardstudio_model::model::Vec2,
     axis: Option<ResizeAxis>,
 }
 
@@ -257,9 +257,9 @@ pub fn KeySizeControls(props: KeySizeControlsProps) -> Element {
             generation.set(generation.get().wrapping_add(1));
             let rotated = draft().y > draft().x;
             let next = if rotated {
-                boardstudio_core::model::Vec2 { x: 1.0, y: size }
+                boardstudio_model::model::Vec2 { x: 1.0, y: size }
             } else {
-                boardstudio_core::model::Vec2 { x: size, y: 1.0 }
+                boardstudio_model::model::Vec2 { x: size, y: 1.0 }
             };
             draft_dirty.set(true);
             draft.set(next);
@@ -324,12 +324,12 @@ pub fn KeySizeControls(props: KeySizeControlsProps) -> Element {
                                     let long = current.x.max(current.y);
                                     let short = current.x.min(current.y);
                                     let next = if bool::from(checked) {
-                                        boardstudio_core::model::Vec2 {
+                                        boardstudio_model::model::Vec2 {
                                             x: short,
                                             y: long,
                                         }
                                     } else {
-                                        boardstudio_core::model::Vec2 {
+                                        boardstudio_model::model::Vec2 {
                                             x: long,
                                             y: short,
                                         }
