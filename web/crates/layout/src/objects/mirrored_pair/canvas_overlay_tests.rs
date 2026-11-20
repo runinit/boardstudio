@@ -1,5 +1,6 @@
 //! Browser coverage for the mounted canvas composition and form ownership.
 use super::*;
+use boardstudio_web_ui_shared::test_mount::MountedFixture;
 use boardstudio_web_ui_shared::test_role::by_role_name;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
@@ -198,10 +199,7 @@ async fn canvas_overlay_preserves_preview_values_and_routes_owner_cancel_escape(
     let root = document.create_element("div").unwrap();
     root.set_id("mirror-overlay-test-root");
     document.body().unwrap().append_child(&root).unwrap();
-    dioxus_web::launch::launch_virtual_dom(
-        VirtualDom::new(composition),
-        dioxus_web::Config::new().rootnode(root.clone().into()),
-    );
+    let _mounted = MountedFixture::new(root.clone(), VirtualDom::new(composition));
     rendered().await;
 
     let overlay = element("#mirror-overlay-workspace [aria-label='New mirrored pair']")

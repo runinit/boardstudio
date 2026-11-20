@@ -15,8 +15,19 @@ pub fn read_json(relative: &str) -> Value {
     serde_json::from_str(&text).unwrap_or_else(|error| panic!("{}: {error}", path.display()))
 }
 
-/// Every generator fixture file, in name order.
-pub fn generator_fixtures() -> Vec<Value> {
+/// Parse a golden JSON file, keeping the raw text so callers can recover
+/// details the parsed `Value` forgets (notably object key order, which
+/// `serde_json` only preserves with `preserve_order`).
+pub fn read_json_raw(relative: &str) -> (Value, String) {
+    let path = golden_dir().join(relative);
+    let text =
+        fs::read_to_string(&path).unwrap_or_else(|error| panic!("{}: {error}", path.display()));
+    let value: Value =
+        serde_json::from_str(&text).unwrap_or_else(|error| panic!("{}: {error}", path.display()));
+    (value, text)
+}
+
+fn generator_fixture_paths() -> Vec<PathBuf> {
     let mut paths: Vec<_> = fs::read_dir(golden_dir().join("generators"))
         .expect("golden generators directory")
         .map(|entry| entry.expect("directory entry").path())
@@ -27,8 +38,27 @@ pub fn generator_fixtures() -> Vec<Value> {
         .collect();
     paths.sort();
     paths
+}
+
+/// Every generator fixture file, in name order.
+pub fn generator_fixtures() -> Vec<Value> {
+    generator_fixture_paths()
         .iter()
         .map(|path| serde_json::from_str(&fs::read_to_string(path).unwrap()).unwrap())
+        .collect()
+}
+
+/// Every generator fixture with its raw text, in file name order.
+pub fn generator_fixture_raws() -> Vec<(Value, String)> {
+    generator_fixture_paths()
+        .iter()
+        .map(|path| {
+            let text = fs::read_to_string(path)
+                .unwrap_or_else(|error| panic!("{}: {error}", path.display()));
+            let value: Value = serde_json::from_str(&text)
+                .unwrap_or_else(|error| panic!("{}: {error}", path.display()));
+            (value, text)
+        })
         .collect()
 }
 

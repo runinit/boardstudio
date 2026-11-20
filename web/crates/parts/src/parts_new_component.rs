@@ -575,6 +575,7 @@ mod mounted_tests {
     use boardstudio_web_runtime::{
         runtime::Runtime, runtime::project_name_test_support as support,
     };
+    use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::test_role::by_role_name;
     use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_future, wait_until_step};
     use dioxus::prelude::*;
@@ -617,10 +618,7 @@ mod mounted_tests {
         let dom = VirtualDom::new(host);
         dom.provide_root_context(runtime.clone());
         dom.provide_root_context(probe.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         wait_until("new component action mounts", || {
             by_role_name(&root, "button", "New custom component").is_some()
         })

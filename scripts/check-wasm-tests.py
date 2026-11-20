@@ -17,6 +17,11 @@ Existing debt is ratcheted through scripts/check-wasm-tests-baseline.json
 offending line is listed); counts may only go down. Regenerate with
 --write-baseline only after deliberately accepting or fixing debt.
 
+It also fails on any raw launch_virtual_dom call under web/crates/*/src/
+outside web/crates/ui-shared/src/test_mount.rs (zero tolerance, no baseline):
+browser tests share one document, so every mount must go through MountedFixture.
+Examples and web/src/ are not scanned.
+
 Usage: check-wasm-tests.py [--root REPO_ROOT] [--baseline FILE] [--write-baseline]
 """
 
@@ -247,6 +252,139 @@ def load_baseline(path):
         return {}
 
 
+LAUNCH_ALLOWED = "web/crates/ui-shared/src/test_mount.rs"
+LAUNCH = re.compile(r"\blaunch_virtual_dom\b")
+
+
+def _raw_string_end(source, index):
+    """End offset past the raw string opened at `index`, else None."""
+    cursor = index
+    if source[cursor] in "bc":
+        cursor += 1
+    if cursor >= len(source) or source[cursor] != "r":
+        return None
+    cursor += 1
+    hashes = 0
+    while cursor < len(source) and source[cursor] == "#":
+        hashes += 1
+        cursor += 1
+    if cursor >= len(source) or source[cursor] != '"':
+        return None
+    end = source.find('"' + "#" * hashes, cursor + 1)
+    if end < 0:
+        return len(source)
+    return end + hashes + 1
+
+
+def _char_end(source, index):
+    """End offset past the char literal opened at `index`, else None (a lifetime)."""
+    cursor = index + (2 if source[index] == "b" else 1)
+    if cursor < len(source) and source[cursor] == "\\":
+        cursor += 1
+        if cursor < len(source) and source[cursor] == "x":
+            cursor += 3
+        elif cursor < len(source) and source[cursor] == "u" and source.startswith("{", cursor + 1):
+            end = source.find("}", cursor + 2)
+            cursor = len(source) if end < 0 else end + 1
+        else:
+            cursor += 1
+    else:
+        cursor += 1
+    if "\n" in source[index:cursor] or cursor >= len(source) or source[cursor] != "'":
+        return None
+    return cursor + 1
+
+
+def _blank_rust_code(source):
+    """Blank comments and literals, preserving newlines (one left-to-right pass).
+
+    Covers nested block comments, raw strings with any hash count, and byte/C
+    prefixes. A quote that opens no literal (notably lifetimes like `'static`)
+    is left alone so the code around it still scans.
+    """
+    chars = list(source)
+    size = len(source)
+    index = 0
+
+    def blank(start, end):
+        for offset in range(start, end):
+            if chars[offset] != "\n":
+                chars[offset] = " "
+
+    while index < size:
+        char = source[index]
+        if source.startswith("//", index):
+            end = source.find("\n", index)
+            end = size if end < 0 else end
+            blank(index, end)
+            index = end
+        elif source.startswith("/*", index):
+            depth = 0
+            cursor = index
+            while cursor < size:
+                if source.startswith("/*", cursor):
+                    depth += 1
+                    cursor += 2
+                elif source.startswith("*/", cursor):
+                    depth -= 1
+                    cursor += 2
+                    if not depth:
+                        break
+                else:
+                    cursor += 1
+            blank(index, cursor)
+            index = cursor
+        elif (end := _raw_string_end(source, index)) is not None:
+            blank(index, end)
+            index = end
+        elif char == '"' or (char in "bc" and source.startswith('"', index + 1)):
+            cursor = index + (2 if char in "bc" else 1)
+            while cursor < size:
+                if source[cursor] == "\\":
+                    cursor += 2
+                elif source[cursor] == '"':
+                    cursor += 1
+                    break
+                else:
+                    cursor += 1
+            blank(index, cursor)
+            index = cursor
+        elif char == "'" or (char == "b" and source.startswith("'", index + 1)):
+            end = _char_end(source, index)
+            if end is None:
+                cursor = index + 1
+                while cursor < size and (source[cursor].isalnum() or source[cursor] == "_"):
+                    cursor += 1
+                index = cursor if cursor > index + 1 else index + 1
+            else:
+                blank(index, end)
+                index = end
+        else:
+            index += 1
+    return "".join(chars)
+
+
+def find_launch_violations(root):
+    """Repo-relative (path, line) for raw launch_virtual_dom calls in crate src trees.
+
+    Browser tests must mount through MountedFixture (test_mount.rs), which owns
+    the render task and root; raw launches leak VDOMs across tests that share one
+    document. Only web/crates/*/src/** is scanned: examples/ and web/src/ may
+    still launch directly. Comments and string/char literals never flag.
+    """
+    root = Path(root).resolve()
+    violations = []
+    for path in sorted((root / "web/crates").glob("*/src/**/*.rs")):
+        relative = path.relative_to(root).as_posix()
+        if relative == LAUNCH_ALLOWED:
+            continue
+        scrubbed = _blank_rust_code(path.read_text(errors="replace"))
+        for lineno, line in enumerate(scrubbed.split("\n"), 1):
+            if LAUNCH.search(line):
+                violations.append((relative, lineno))
+    return sorted(set(violations))
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--root", default=Path(__file__).resolve().parents[1])
@@ -256,12 +394,20 @@ def main(argv=None):
     baseline_path = Path(args.baseline) if args.baseline else (
         Path(args.root) / "scripts/check-wasm-tests-baseline.json")
     violations = find_violations(args.root)
+    launch_violations = find_launch_violations(args.root)
     counts = {}
     for relative, _line in violations:
         counts[relative] = counts.get(relative, 0) + 1
     if args.write_baseline:
         baseline_path.write_text(json.dumps(dict(sorted(counts.items())), indent=2) + "\n")
         print(f"check-wasm-tests: wrote {len(counts)} file(s) to {baseline_path}")
+        if launch_violations:
+            for relative, line in launch_violations:
+                print(f"{relative}:{line}: raw launch_virtual_dom outside {LAUNCH_ALLOWED}; "
+                      "mount browser tests through MountedFixture")
+            print(f"check-wasm-tests: {len(launch_violations)} raw launch_virtual_dom call(s) "
+                  "leak VDOMs across browser tests", file=sys.stderr)
+            return 1
         return 0
     baseline = load_baseline(baseline_path)
     failed = 0
@@ -277,9 +423,16 @@ def main(argv=None):
         if counts.get(relative, 0) < known:
             print(f"check-wasm-tests: note: {relative} improved ({counts.get(relative, 0)} < baseline {known}); "
                   "lower the baseline with --write-baseline", file=sys.stderr)
+    for relative, line in launch_violations:
+        print(f"{relative}:{line}: raw launch_virtual_dom outside {LAUNCH_ALLOWED}; "
+              "mount browser tests through MountedFixture")
     if failed:
         print(f"check-wasm-tests: {failed} new plain #[test](s) would run zero times natively",
               file=sys.stderr)
+    if launch_violations:
+        print(f"check-wasm-tests: {len(launch_violations)} raw launch_virtual_dom call(s) "
+              "leak VDOMs across browser tests", file=sys.stderr)
+    if failed or launch_violations:
         return 1
     print(f"check-wasm-tests: no new wasm-only plain #[test]s ({sum(counts.values())} baselined)")
     return 0

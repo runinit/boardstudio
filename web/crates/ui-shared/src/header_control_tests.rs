@@ -1,5 +1,6 @@
 //! Ticket 010 adoption: caller-supplied Button state and real preference-menu outcomes.
 use super::*;
+use crate::test_mount::MountedFixture;
 use crate::{test_role::by_role_name, test_wait::wait_until, ui::button::Button};
 use wasm_bindgen_test::*;
 
@@ -24,10 +25,7 @@ async fn header_button_state_and_preference_radio_groups_follow_their_owners() {
     let document = web_sys::window().unwrap().document().unwrap();
     let root = document.create_element("div").unwrap();
     document.body().unwrap().append_child(&root).unwrap();
-    dioxus_web::launch::launch_virtual_dom(
-        VirtualDom::new(fixture),
-        dioxus_web::Config::new().rootnode(root.clone().into()),
-    );
+    let _mounted = MountedFixture::new(root.clone(), VirtualDom::new(fixture));
     wait_until("header controls render", || {
         by_role_name(&root, "button", "Settings").is_some()
     })

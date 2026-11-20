@@ -1029,6 +1029,7 @@ fn pin_lock_action(locked: bool) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use boardstudio_web_ui_shared::test_mount::MountedFixture;
     #[cfg(target_arch = "wasm32")]
     use wasm_bindgen_test::*;
 
@@ -1096,10 +1097,7 @@ mod tests {
         let capture = Rc::new(std::cell::RefCell::new(None));
         let dom = VirtualDom::new(mounted_pin_row);
         dom.provide_root_context(PinCapture(capture.clone()));
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         wait_until("pin picker mounts", || {
             by_role_name(&root, "combobox", "Pin for Row 1").is_some()
         })
@@ -1215,16 +1213,13 @@ mod tests {
     }
 
     #[cfg(target_arch = "wasm32")]
-    fn mount_pin_option_fixture() -> web_sys::Element {
+    fn mount_pin_option_fixture() -> (web_sys::Element, MountedFixture) {
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         root.set_id("pcb-wiring-pin-option-test-root");
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(pin_option_fixture),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
-        root
+        let mounted = MountedFixture::new(root.clone(), VirtualDom::new(pin_option_fixture));
+        (root, mounted)
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -1232,7 +1227,7 @@ mod tests {
     async fn wiring_pin_options_select_saved_values_and_only_unresolved_for_empty_rows() {
         use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
         use wasm_bindgen::JsCast;
-        let root = mount_pin_option_fixture();
+        let (root, _mounted) = mount_pin_option_fixture();
         wait_until("pin rows mount", || {
             by_role_name(&root, "combobox", "Pin for Row 1").is_some()
                 && by_role_name(&root, "combobox", "Pin for left/SW25/encoder-a").is_some()

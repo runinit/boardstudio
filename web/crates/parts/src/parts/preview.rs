@@ -1093,6 +1093,7 @@ mod tests {
     use crate::runtime::project_name_test_support as support;
     use boardstudio_application::{AcceptedSnapshot, Scope, SessionEpoch};
     use boardstudio_core::model::{Board, ProjectDoc};
+    use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use std::sync::Arc;
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::wasm_bindgen_test;
@@ -1276,10 +1277,7 @@ mod tests {
         document.body().unwrap().append_child(&root).unwrap();
         let dom = VirtualDom::new(preview_controls_host);
         dom.provide_root_context(support::new_runtime());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         wait_until("the actual Parts preview mode controls mount", || {
             by_role_name(&root, "button", "2D footprint").is_some()
         })
@@ -1341,10 +1339,7 @@ mod tests {
         let root = document.create_element("div").unwrap();
         root.set_id("parts-layers-escape-test");
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(parts_layers_host),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), VirtualDom::new(parts_layers_host));
         boardstudio_web_ui_shared::test_wait::wait_until("the Parts layers trigger mounts", || {
             boardstudio_web_ui_shared::test_role::by_role_name(&root, "button", "Preview layers")
                 .is_some()
@@ -1433,10 +1428,7 @@ mod tests {
             models: Vec::new(),
             diagnostics: Vec::new(),
         });
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
 
         wait_for_button(&root, "3D model").await;
         click_button(&root, "3D model");

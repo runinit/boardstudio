@@ -8,6 +8,7 @@ members = [
   "footprints",
   "renderer",
   "web",
+  "web/crates/worker-host",
   "web/crates/host",
   "web/crates/runtime",
   "web/crates/ui-model",
@@ -21,31 +22,61 @@ members = [
   "web/crates/library",
   "web/crates/keycaps",
 ]
-# cad/wasm keeps its own lockfile and patched Monstertruck dependency graph.
+# The CAD workspace owns the lockfile and patched Monstertruck dependency graph.
 exclude = [
-  "cad/wasm",
+  "cad",
   "renderer/vendor/cgmath-next-0.18.1",
   "web/vendor/dioxus-interpreter-js-0.7.10",
 ]
 
 [workspace.dependencies]
-# One web-sys feature list for every web crate. Cargo compiles web-sys, and everything built on it
-# such as dioxus-web, once per distinct feature set, so per-crate lists made each crate's
-# `wasm-pack test` build its own copy instead of reusing the page build's units.
+# One web-sys feature list lets the page, workers, renderer and wasm tests reuse the same build.
+# The W3-6 audit found 0 dead features among the 183 listed: 76 direct uses, 104 for transitive
+# unification and 3 implied by the dependency graph. The closure is 183, and Cargo resolves
+# 185 including `default` and `std`. WebSocket, Headers, RequestInit and ResponseType stay
+# pinned so dioxus-web, dioxus-asset-resolver and subsecond share one web-sys build hash.
 web-sys = { version = "=0.3.106", features = [
-  "Blob", "BlobPropertyBag", "Cache", "CacheStorage", "Client", "ClientQueryOptions", "ClientType",
-  "Clients", "CssStyleDeclaration", "DedicatedWorkerGlobalScope", "Document", "DomException",
-  "DomRect", "Element", "ErrorEvent", "Event", "EventInit", "EventTarget", "ExtendableEvent",
-  "ExtendableMessageEvent", "FetchEvent", "File", "FileList", "FocusOptions", "HtmlAnchorElement",
-  "HtmlCanvasElement", "HtmlDialogElement", "HtmlElement", "HtmlInputElement", "IdbDatabase",
-  "IdbFactory", "IdbObjectStore", "IdbObjectStoreParameters", "IdbOpenDbRequest", "IdbRequest",
-  "IdbTransaction", "IdbTransactionMode", "KeyboardEvent", "KeyboardEventInit", "Location",
-  "MediaQueryList", "MessageChannel", "MessageEvent", "MessagePort", "MutationObserver",
-  "MutationObserverInit", "Navigator", "Node", "NodeList", "PointerEvent", "PointerEventInit",
-  "RegistrationOptions", "Request", "RequestDestination", "ResizeObserver", "Response",
-  "ServiceWorker", "ServiceWorkerContainer", "ServiceWorkerGlobalScope",
-  "ServiceWorkerRegistration", "Storage", "SvgElement", "Url", "Window", "Worker",
-  "WorkerGlobalScope", "WorkerOptions", "WorkerType"
+  "AbortSignal", "AngleInstancedArrays", "AnimationEvent", "Blob", "BlobPropertyBag", "Cache",
+  "CacheStorage", "CharacterData", "Client", "ClientQueryOptions", "ClientType", "Clients",
+  "ClipboardEvent", "CloseEvent", "Comment", "CompositionEvent", "CssStyleDeclaration",
+  "CustomEvent", "DataTransfer", "DataTransferItem", "DataTransferItemList",
+  "DedicatedWorkerGlobalScope", "Document", "DomException", "DomRect", "DomRectReadOnly",
+  "DragEvent", "Element", "ErrorEvent", "Event", "EventInit", "EventTarget", "ExtBlendMinmax",
+  "ExtColorBufferFloat", "ExtColorBufferHalfFloat", "ExtDisjointTimerQuery", "ExtFragDepth",
+  "ExtSRgb", "ExtShaderTextureLod", "ExtTextureFilterAnisotropic", "ExtendableEvent",
+  "ExtendableMessageEvent", "FetchEvent", "File", "FileList", "FileReader", "FocusEvent",
+  "FocusOptions", "FormData", "Headers", "History", "HtmlAnchorElement", "HtmlCanvasElement",
+  "HtmlDialogElement", "HtmlElement", "HtmlFormElement", "HtmlHeadElement", "HtmlImageElement",
+  "HtmlInputElement", "HtmlMediaElement", "HtmlSelectElement", "HtmlTextAreaElement",
+  "HtmlVideoElement", "IdbDatabase", "IdbFactory", "IdbObjectStore", "IdbObjectStoreParameters",
+  "IdbOpenDbRequest", "IdbRequest", "IdbTransaction", "IdbTransactionMode", "ImageBitmap",
+  "ImageData", "InputEvent", "IntersectionObserverEntry", "KeyboardEvent", "KeyboardEventInit",
+  "Location", "MediaQueryList", "MessageChannel", "MessageEvent", "MessagePort", "MouseEvent",
+  "MutationObserver", "MutationObserverInit", "Navigator", "Node", "NodeList",
+  "OesElementIndexUint", "OesStandardDerivatives", "OesTextureFloat", "OesTextureFloatLinear",
+  "OesTextureHalfFloat", "OesTextureHalfFloatLinear", "OesVertexArrayObject", "OvrMultiview2",
+  "PointerEvent", "PointerEventInit", "QueuingStrategy", "ReadableByteStreamController",
+  "ReadableStream", "ReadableStreamByobReader", "ReadableStreamByobRequest",
+  "ReadableStreamDefaultController", "ReadableStreamDefaultReader",
+  "ReadableStreamGetReaderOptions", "ReadableStreamReadResult", "ReadableStreamReaderMode",
+  "ReadableStreamType", "ReadableWritablePair", "RegistrationOptions", "Request",
+  "RequestDestination", "RequestInit", "ResizeObserver", "ResizeObserverEntry",
+  "ResizeObserverSize", "Response", "ResponseType", "ScrollBehavior", "ScrollIntoViewOptions",
+  "ScrollLogicalPosition", "ScrollRestoration", "ScrollToOptions", "ServiceWorker",
+  "ServiceWorkerContainer", "ServiceWorkerGlobalScope", "ServiceWorkerRegistration", "Storage",
+  "StreamPipeOptions", "SvgElement", "Text", "Touch", "TouchEvent", "TouchList",
+  "TransformStream", "TransformStreamDefaultController", "Transformer", "TransitionEvent",
+  "UiEvent", "UnderlyingSink", "UnderlyingSource", "Url", "VideoFrame", "WebGl2RenderingContext",
+  "WebGlActiveInfo", "WebGlBuffer", "WebGlFramebuffer", "WebGlProgram", "WebGlQuery",
+  "WebGlRenderbuffer", "WebGlRenderingContext", "WebGlSampler", "WebGlShader",
+  "WebGlShaderPrecisionFormat", "WebGlSync", "WebGlTexture", "WebGlTransformFeedback",
+  "WebGlUniformLocation", "WebGlVertexArrayObject", "WebSocket", "WebglColorBufferFloat",
+  "WebglCompressedTextureAstc", "WebglCompressedTextureEtc", "WebglCompressedTextureEtc1",
+  "WebglCompressedTexturePvrtc", "WebglCompressedTextureS3tc", "WebglCompressedTextureS3tcSrgb",
+  "WebglDebugRendererInfo", "WebglDebugShaders", "WebglDepthTexture", "WebglDrawBuffers",
+  "WebglLoseContext", "WheelEvent", "Window", "Worker", "WorkerGlobalScope", "WorkerOptions",
+  "WorkerType", "WritableStream", "WritableStreamDefaultController",
+  "WritableStreamDefaultWriter", "console"
 ] }
 
 [patch.crates-io]
@@ -74,66 +105,65 @@ debug = false
 inherits = "dev"
 debug = "line-tables-only"
 
-# Dependencies compile once, so optimizing them is free after the first build, and tests that
-# hash, compress or parse (the demo-project acceptance test) run about 2.4x faster. The
-# workspace's own crates stay unoptimized so edit-and-test builds stay quick.
+# Optimize only runtime-hot dependencies; leave other dependencies and proc macros fast to build.
 [profile.dev.package]
-"*" = { opt-level = 2 }
-# Proc macros and the libraries only they use run inside the compiler, never in a test or the
-# page. "*" gave them opt-level 2 too, and their LLVM time sat on every cold build's critical
-# path: syn alone took 15 s, and Core could not start until 40 s in. At opt-level 0 the cold
-# wasm page build went from 85 s to 68 s and expansion got no slower (Core's type-check, which
-# expands every serde derive, took 15.4 s instead of 16.8 s). A named package overrides "*".
-async-stream-impl = { opt-level = 0 }
-async-trait = { opt-level = 0 }
-const-random-macro = { opt-level = 0 }
-const-serialize-macro = { opt-level = 0 }
-const_format_proc_macros = { opt-level = 0 }
-convert_case = { opt-level = 0 }
-darling = { opt-level = 0 }
-darling_core = { opt-level = 0 }
-darling_macro = { opt-level = 0 }
-derive_more-impl = { opt-level = 0 }
-dioxus-attributes = { opt-level = 0 }
-dioxus-config-macro = { opt-level = 0 }
-dioxus-core-macro = { opt-level = 0 }
-dioxus-fullstack-macro = { opt-level = 0 }
-dioxus-html-internal-macro = { opt-level = 0 }
-dioxus-rsx = { opt-level = 0 }
-dioxus-stores-macro = { opt-level = 0 }
-displaydoc = { opt-level = 0 }
-enumset_derive = { opt-level = 0 }
-futures-macro = { opt-level = 0 }
-heck = { opt-level = 0 }
-ident_case = { opt-level = 0 }
-macro-string = { opt-level = 0 }
-manganis-macro = { opt-level = 0 }
-multiversion_no_op = { opt-level = 0 }
-open-enum-derive = { opt-level = 0 }
-palette_derive = { opt-level = 0 }
-pin-project-internal = { opt-level = 0 }
-proc-macro2 = { opt-level = 0 }
-proc-macro2-diagnostics = { opt-level = 0 }
-quote = { opt-level = 0 }
-rhai_codegen = { opt-level = 0 }
-rustversion = { opt-level = 0 }
-serde_derive = { opt-level = 0 }
-sledgehammer_bindgen_macro = { opt-level = 0 }
-strum_macros = { opt-level = 0 }
-syn = { opt-level = 0 }
-synstructure = { opt-level = 0 }
-thiserror-impl = { opt-level = 0 }
-time-macros = { opt-level = 0 }
-tokio-macros = { opt-level = 0 }
-tracing-attributes = { opt-level = 0 }
-warnings-macro = { opt-level = 0 }
-wasm-bindgen-macro = { opt-level = 0 }
-wasm-bindgen-macro-support = { opt-level = 0 }
-wasm-bindgen-test-macro = { opt-level = 0 }
-yoke-derive = { opt-level = 0 }
-zerocopy-derive = { opt-level = 0 }
-zerofrom-derive = { opt-level = 0 }
-zerovec-derive = { opt-level = 0 }
+flate2 = { opt-level = 2 }
+zlib-rs = { opt-level = 2 }
+zip = { opt-level = 2 }
+crc32fast = { opt-level = 2 }
+sha2 = { opt-level = 2 }
+serde_json = { opt-level = 2 }
+three-d = { opt-level = 2 }
+three-d-asset = { opt-level = 2 }
+i_overlay = { opt-level = 2 }
+lyon_tessellation = { opt-level = 2 }
+lyon_path = { opt-level = 2 }
+lyon_geom = { opt-level = 2 }
+cgmath = { opt-level = 2 }
+num-bigint = { opt-level = 2 }
+num-rational = { opt-level = 2 }
+regex-automata = { opt-level = 1 }
+regex-syntax = { opt-level = 1 }
+aho-corasick = { opt-level = 1 }
+# Static builds avoid Dioxus hot-reload scaffolding; wasm-dev restores it for dx serve.
+# Do NOT add dioxus-cli-config (or "*") here: dioxus-cli-config reads
+# <meta name="DIOXUS_ASSET_ROOT"> at runtime only under cfg(debug_assertions), which
+# plain-Cargo subpath builds rely on.
+boardstudio-web = { debug-assertions = false }
+boardstudio-web-ui-shared = { debug-assertions = false }
+boardstudio-web-keycaps = { debug-assertions = false }
+boardstudio-web-case = { debug-assertions = false }
+boardstudio-web-parts = { debug-assertions = false }
+boardstudio-web-layout = { debug-assertions = false }
+boardstudio-web-pcb = { debug-assertions = false }
+boardstudio-web-keymap = { debug-assertions = false }
+boardstudio-web-library = { debug-assertions = false }
+dioxus-web = { debug-assertions = false }
+
+[profile.wasm-dev.package.boardstudio-web]
+debug-assertions = true
+[profile.wasm-dev.package.boardstudio-web-ui-shared]
+debug-assertions = true
+[profile.wasm-dev.package.boardstudio-web-keycaps]
+debug-assertions = true
+[profile.wasm-dev.package.boardstudio-web-case]
+debug-assertions = true
+[profile.wasm-dev.package.boardstudio-web-parts]
+debug-assertions = true
+[profile.wasm-dev.package.boardstudio-web-layout]
+debug-assertions = true
+[profile.wasm-dev.package.boardstudio-web-pcb]
+debug-assertions = true
+[profile.wasm-dev.package.boardstudio-web-keymap]
+debug-assertions = true
+[profile.wasm-dev.package.boardstudio-web-library]
+debug-assertions = true
+[profile.wasm-dev.package.dioxus-web]
+debug-assertions = true
+
+[profile.lint]
+inherits = "dev"
+incremental = false
 
 # The profile for every wasm build `scripts/check.py` makes: the packaged page
 # (`build-web.py --fast`), the page tests and each crate's `wasm-pack test`. With the wasm rustflags
@@ -144,25 +174,3 @@ zerovec-derive = { opt-level = 0 }
 inherits = "dev"
 # A check compiles each crate once; incremental bookkeeping made those cold builds about a third slower.
 incremental = false
-
-# Dioxus 0.7 compiles hot-reload scaffolding into every `rsx!` template when debug assertions are on.
-# Only `dx serve` uses it. These crates have no `debug_assert!` or `cfg(debug_assertions)` of their
-# own, so here it only costs compile time.
-[profile.wasm-check.package.boardstudio-web]
-debug-assertions = false
-[profile.wasm-check.package.boardstudio-web-ui-shared]
-debug-assertions = false
-[profile.wasm-check.package.boardstudio-web-keycaps]
-debug-assertions = false
-[profile.wasm-check.package.boardstudio-web-case]
-debug-assertions = false
-[profile.wasm-check.package.boardstudio-web-parts]
-debug-assertions = false
-[profile.wasm-check.package.boardstudio-web-layout]
-debug-assertions = false
-[profile.wasm-check.package.boardstudio-web-pcb]
-debug-assertions = false
-[profile.wasm-check.package.boardstudio-web-keymap]
-debug-assertions = false
-[profile.wasm-check.package.boardstudio-web-library]
-debug-assertions = false

@@ -256,12 +256,23 @@ dependencies = [
 name = "boardstudio-renderer"
 version = "0.1.0"
 dependencies = [
+ "euclid",
+ "futures-channel",
+ "futures-core",
+ "futures-sink",
+ "futures-util",
  "i_overlay",
  "js-sys",
  "lyon_path",
  "lyon_tessellation",
+ "num-traits",
+ "once_cell",
+ "proc-macro2",
  "serde",
  "serde-wasm-bindgen",
+ "slab",
+ "slotmap",
+ "syn 2.0.119",
  "three-d",
  "three-d-asset",
  "wasm-bindgen",
@@ -292,14 +303,24 @@ dependencies = [
  "boardstudio-web-runtime",
  "boardstudio-web-ui-model",
  "boardstudio-web-ui-shared",
+ "boardstudio-web-worker-host",
  "boardstudio_core",
  "dioxus",
  "dioxus-web",
+ "futures-channel",
+ "futures-core",
+ "futures-sink",
+ "futures-util",
  "gloo-timers",
  "js-sys",
+ "num-integer",
  "num-traits",
+ "once_cell",
+ "proc-macro2",
  "serde",
  "serde_json",
+ "slab",
+ "syn 2.0.119",
  "tokio",
  "wasm-bindgen",
  "wasm-bindgen-futures",
@@ -349,6 +370,7 @@ name = "boardstudio-web-host"
 version = "0.1.0"
 dependencies = [
  "boardstudio-application",
+ "boardstudio-web-worker-host",
  "boardstudio_core",
  "futures-channel",
  "gloo-timers",
@@ -545,6 +567,23 @@ dependencies = [
  "serde_json",
  "strum",
  "tw_merge",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "wasm-bindgen-test",
+ "web-sys",
+]
+
+[[package]]
+name = "boardstudio-web-worker-host"
+version = "0.1.0"
+dependencies = [
+ "boardstudio_core",
+ "futures-channel",
+ "gloo-timers",
+ "js-sys",
+ "serde",
+ "serde-wasm-bindgen",
+ "serde_json",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "wasm-bindgen-test",
@@ -1557,7 +1596,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -2945,7 +2984,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -3178,15 +3217,15 @@ dependencies = [
 
 [[package]]
 name = "rustix"
-version = "1.1.5"
+version = "1.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "891efababe418670775f199f0d233d84843c227a0949a883ce15b37c78d6629d"
+checksum = "e5e76742e5294153d4dde1207dbec5bdd81eef6fabdc0d2118babadabfd858aa"
 dependencies = [
  "bitflags",
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -3313,7 +3352,6 @@ version = "1.0.151"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c841b55ecdae098c80dcae9cf767f6f8a0c2cdb3416bbef72181df4d0fe73f14"
 dependencies = [
- "indexmap",
  "itoa",
  "memchr",
  "serde",
@@ -4259,7 +4297,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -4557,9 +4595,9 @@ dependencies = [
 
 [[package]]
 name = "zip"
-version = "9.0.1"
+version = "9.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e49ade69c4434c55dd651d36fe05f38e0578db948b773cbc01c48c4b5e560692"
+checksum = "6e04976da629d3b04204ba8105b396a193af8ad2583b2c79bfb3ab8af580a11e"
 dependencies = [
  "crc32fast",
  "flate2",

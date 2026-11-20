@@ -1482,6 +1482,7 @@ fn disabled_reason(
 mod tests {
     use super::*;
     use boardstudio_core::model::{Board, PartDefinition, PartGenerator, Pose2, Side};
+    use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use wasm_bindgen_test::wasm_bindgen_test;
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
@@ -1526,10 +1527,7 @@ mod tests {
         document.body().unwrap().append_child(&root).unwrap();
         let mut dom = VirtualDom::new(workspace_props_host);
         dom.insert_any_root_context(Box::new(runtime.clone()));
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         let props_visible = || {
             root.query_selector("#case-props")
                 .ok()

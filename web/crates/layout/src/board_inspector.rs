@@ -476,6 +476,7 @@ fn commit_draft(
 mod queued_board_name_tests {
     use super::*;
     use crate::runtime::project_name_test_support as support;
+    use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::*;
 
@@ -520,10 +521,8 @@ mod queued_board_name_tests {
         document.head().unwrap().append_child(&stylesheet).unwrap();
         let dom = VirtualDom::new(host);
         dom.provide_root_context(runtime.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let mut mounted = MountedFixture::new(root.clone(), dom);
+        mounted.own_node(stylesheet.clone());
         boardstudio_web_ui_shared::test_wait::wait_until("board inspector mounts", || {
             boardstudio_web_ui_shared::test_role::by_role_name(&root, "textbox", "Board name")
                 .is_some()
@@ -598,10 +597,7 @@ mod queued_board_name_tests {
         dom_document.body().unwrap().append_child(&root).unwrap();
         let dom = VirtualDom::new(host);
         dom.provide_root_context(runtime.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         gloo_timers::future::TimeoutFuture::new(5).await;
         let (entered, release) = support::gate_next_core_reply(&runtime);
         let change_layout = |thickness| {
@@ -711,10 +707,7 @@ mod queued_board_name_tests {
         dom_document.body().unwrap().append_child(&root).unwrap();
         let dom = VirtualDom::new(host);
         dom.provide_root_context(runtime.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         gloo_timers::future::TimeoutFuture::new(5).await;
         support::fail_next_persist(&runtime, "injected durable write failure");
         let input =
@@ -765,10 +758,7 @@ mod queued_board_name_tests {
         dom_document.body().unwrap().append_child(&root).unwrap();
         let dom = VirtualDom::new(host);
         dom.provide_root_context(runtime.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         gloo_timers::future::TimeoutFuture::new(5).await;
         let (entered, release) = support::gate_next_core_reply(&runtime);
         let input =

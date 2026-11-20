@@ -13,10 +13,9 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use boardstudio_browser_harness::cdp::{CdpError, EventExceptionThrown};
 use boardstudio_browser_harness::driver::{self, InvalidCounts, PageErrors};
 use boardstudio_browser_harness::{discover_chrome, Error, IsolatedDirs, Result};
-use chromiumoxide::cdp::js_protocol::runtime::EventExceptionThrown;
-use chromiumoxide::error::CdpError;
 use futures::StreamExt;
 
 #[path = "../shutdown.rs"]

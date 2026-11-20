@@ -510,6 +510,7 @@ mod mounted_tests {
         MechanicalGeometryKind, MechanicalPrimitive, MechanicalProfileSource, MechanicalShape,
         ProjectDoc, SceneDelta,
     };
+    use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::test_role::by_role_name;
     use futures_channel::oneshot;
     use std::{cell::RefCell, collections::VecDeque};
@@ -737,10 +738,7 @@ mod mounted_tests {
         let dom = VirtualDom::new(ManualProfileMountedHost);
         dom.provide_root_context(fixture.clone());
         dom.provide_root_context(handles.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         wait_for_text(&root, "Read KiCad layers").await;
         click_button(&root, "Read KiCad layers");
         let request = {

@@ -1,8 +1,10 @@
 """Pure-Rust Monstertruck CAD WASM build and native test orchestration."""
 
-import hashlib
-import os
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+import hashlib
+import json
+import os
 import re
 import subprocess
 import sys
@@ -12,7 +14,10 @@ import browser_tools
 
 CAD_ROOT = Path(__file__).resolve().parents[1]
 OUT_NAME = "boardstudio_cad_wasm"
+WASM_BUILD_TARGET = "wasm/target"
+NATIVE_TEST_TARGETS = ("target",)
 VENDOR_CRATES = (
+    "inflector",
     "monstertruck-core",
     "monstertruck-derive",
     "monstertruck-geometry",
@@ -34,6 +39,8 @@ LIBRARY_TEST_ONLY_SOURCES = frozenset({
     "src/layered/tests.rs",
     "src/layered/pcb_tests.rs",
 })
+PRODUCTION_PACKAGES = ("boardstudio-cad", "boardstudio-cad-wasm")
+OWNER_PACKAGES = ("monstertruck-io", "monstertruck-meshing")
 OWNER_TESTS = (
     ("monstertruck-io", "--test", "input", "repair_movement"),
     ("monstertruck-io", "--lib", "repair_movement_sink"),
@@ -47,7 +54,8 @@ OWNER_TESTS = (
 
 def run(command, **kwargs):
     fd = browser_tools._inherited_build_lock()
-    return subprocess.run(command, cwd=CAD_ROOT, check=True,
+    kwargs.setdefault("cwd", CAD_ROOT)
+    return subprocess.run(command, check=True,
                           **({"pass_fds": (fd,)} if fd is not None else {}), **kwargs)
 
 
@@ -75,7 +83,8 @@ def wasm_inputs_digest(*, no_opt=False):
     digest.update(Path(__file__).read_bytes())
     roots = [
         (CAD_ROOT.parent, ("Cargo.toml", "rust-toolchain.toml")),
-        (CAD_ROOT / "wasm", ("Cargo.toml", "Cargo.lock", "src", "assets")),
+        (CAD_ROOT, ("Cargo.toml", "Cargo.lock")),
+        (CAD_ROOT / "wasm", ("Cargo.toml", "src", "assets")),
         (CAD_ROOT / "monstertruck", ("Cargo.toml", "src")),
         (contracts, ("Cargo.toml", "src")),
         (CAD_ROOT.parent / "renderer/vendor/cgmath-next-0.18.1", ("Cargo.toml", "src")),
@@ -112,7 +121,7 @@ def build_wasm(*, no_opt=False):
             stale.unlink(missing_ok=True)
     stamp.parent.mkdir(parents=True, exist_ok=True)
     wasm_opt = ["--no-opt"] if no_opt else []
-    env = dict(os.environ, CARGO_TARGET_DIR=str(CAD_ROOT / "wasm/target"))
+    env = dict(os.environ, CARGO_TARGET_DIR=str(CAD_ROOT / WASM_BUILD_TARGET))
     run(
         [
             "wasm-pack",
@@ -133,41 +142,157 @@ def build_wasm(*, no_opt=False):
     stamp.write_text(inputs + "\n")
 
 
-def test_cad():
-    library_env = dict(os.environ, CARGO_TARGET_DIR=str(CAD_ROOT / "monstertruck/target"))
-    run(
-        [
-            "cargo",
-            "test",
-            "--manifest-path",
-            "monstertruck/Cargo.toml",
-            "--release",
-            "--locked",
-        ],
-        env=library_env,
+def _owner_binary_key(package, selection):
+    if selection[0] == "--lib":
+        return (package, "lib", package.replace("-", "_"))
+    return (package, "test", selection[1])
+
+
+def _artifact_kind(kinds):
+    if any(kind in ("lib", "rlib", "cdylib") for kind in kinds):
+        return "lib"
+    if "test" in kinds:
+        return "test"
+    if "example" in kinds:
+        return "example"
+    return None
+
+
+def _production_targets():
+    result = run(
+        ["cargo", "metadata", "--no-deps", "--format-version", "1", "--manifest-path", "Cargo.toml"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
     )
-    wasm_env = dict(os.environ, CARGO_TARGET_DIR=str(CAD_ROOT / "wasm/target"))
-    run(
-        [
-            "cargo",
-            "test",
-            "--manifest-path",
-            "wasm/Cargo.toml",
-            "--release",
-            "--locked",
-        ],
-        env=wasm_env,
-    )
-    owner_env = dict(os.environ, CARGO_TARGET_DIR=str(CAD_ROOT / "monstertruck-qualification/target"))
+    packages = {pkg["name"]: pkg for pkg in json.loads(result.stdout)["packages"]}
+    targets = []
+    for name in PRODUCTION_PACKAGES:
+        pkg = packages[name]
+        pkg_dir = Path(pkg["manifest_path"]).parent
+        for target in pkg["targets"]:
+            kind = _artifact_kind(target["kind"])
+            if kind == "example" or (kind is not None and target.get("test", False)):
+                targets.append((name, kind, target["name"], pkg_dir))
+    return targets
+
+
+def _prebuild(command, env, output, expected, binaries, duplicates):
+    fd = browser_tools._inherited_build_lock()
+    with subprocess.Popen(command, cwd=CAD_ROOT, env=env, stdout=subprocess.PIPE,
+                          stderr=subprocess.STDOUT, text=True,
+                          **({"pass_fds": (fd,)} if fd is not None else {})) as process:
+        for line in process.stdout:
+            try:
+                message = json.loads(line)
+            except json.JSONDecodeError:
+                output.write(line)
+                continue
+            if message.get("reason") == "compiler-message":
+                output.write(message["message"].get("rendered") or "")
+            if (message.get("reason") != "compiler-artifact"
+                    or not message.get("executable")
+                    or not message.get("profile", {}).get("test")):
+                continue
+            target = message["target"]
+            kind = _artifact_kind(target["kind"])
+            package_id = message["package_id"]
+            fragment = package_id.rsplit("#", 1)[-1]
+            package = (fragment.split("@", 1)[0] if "@" in fragment
+                       else package_id.split("#", 1)[0].rstrip("/").rsplit("/", 1)[-1])
+            key = (package, kind, target["name"])
+            if key in expected:
+                if key in binaries:
+                    duplicates.add(key)
+                binaries[key] = message["executable"]
+        status = process.wait()
+    if status:
+        raise subprocess.CalledProcessError(status, command)
+
+
+def _test_cad_unified(output):
+    (native_target,) = NATIVE_TEST_TARGETS
+    env = dict(os.environ, CARGO_TARGET_DIR=str(CAD_ROOT / native_target))
+    production_targets = _production_targets()
+    production_tests = sorted({name for _, kind, name, _ in production_targets if kind == "test"})
+    owner_tests = sorted({selection[1] for _, *selection in OWNER_TESTS if selection[0] == "--test"})
+    example_names = sorted({name for _, kind, name, _ in production_targets if kind == "example"})
+    production_expected = {(pkg, kind, name) for pkg, kind, name, _ in production_targets}
+    owner_expected = {_owner_binary_key(package, selection) for package, *selection in OWNER_TESTS}
+    # Two profiles, one workspace: production suites need monstertruck-io/-meshing
+    # optimized at runtime (cad-test), while the owner suites' test binaries
+    # compile ~4-5x cheaper unoptimized (cad-owner-test; see cad/Cargo.toml).
+    invocations = [
+        ([
+            "cargo", "test", "--no-run", "--manifest-path", "Cargo.toml",
+            *(arg for pkg in PRODUCTION_PACKAGES for arg in ("-p", pkg)),
+            "--lib",
+            *(arg for name in production_tests for arg in ("--test", name)),
+            *(arg for name in example_names for arg in ("--example", name)),
+            "--profile", "cad-test", "--locked", "--message-format=json",
+        ], production_expected),
+        ([
+            "cargo", "test", "--no-run", "--manifest-path", "Cargo.toml",
+            *(arg for pkg in OWNER_PACKAGES for arg in ("-p", pkg)),
+            "--lib",
+            *(arg for name in owner_tests for arg in ("--test", name)),
+            "--profile", "cad-owner-test", "--locked", "--message-format=json",
+        ], owner_expected),
+    ]
+    binaries = {}
+    duplicates = set()
+    for command, expected in invocations:
+        _prebuild(command, env, output, expected, binaries, duplicates)
+    if duplicates:
+        raise RuntimeError(f"duplicate CAD test binaries: {sorted(duplicates)}")
+    if missing := (production_expected | owner_expected) - binaries.keys():
+        raise RuntimeError(f"missing CAD test binaries: {sorted(missing)}")
+    runs = []
+    for pkg, kind, name, pkg_dir in production_targets:
+        key = (pkg, kind, name)
+        runs.append(([binaries[key]], pkg_dir, None))
     # Filter legacy suites; external fixtures are read only by the tests that use them.
     for package, *selection in OWNER_TESTS:
-        try:
-            result = run(["cargo", "test", "--manifest-path", "monstertruck-qualification/Cargo.toml",
-                          "-p", package, *selection, "--release", "--locked"], env=owner_env,
-                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-        except subprocess.CalledProcessError as error:
-            print(error.stdout or "", end="", flush=True)
-            raise
-        print(result.stdout, end="", flush=True)
-        if not re.search(r"^test result: ok\. [1-9][0-9]* passed;", result.stdout, re.M):
-            raise RuntimeError(f"CAD owner selection has no executed tests: {package} {' '.join(selection)}")
+        key = _owner_binary_key(package, selection)
+        args = selection[1:] if selection[0] == "--lib" else selection[2:]
+        cwd = CAD_ROOT / "monstertruck-qualification/vendor" / package
+        runs.append(([binaries[key], *args], cwd, f"{package} {' '.join(selection)}"))
+
+    def execute(item):
+        cmd, cwd, owner_label = item
+        result = run(cmd, cwd=cwd, env=dict(env, CARGO_MANIFEST_DIR=str(cwd)),
+                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        if owner_label and not re.search(r"^test result: ok\. [1-9][0-9]* passed;", result.stdout, re.M):
+            raise RuntimeError(f"CAD owner selection has no executed tests: {owner_label}")
+        return result.stdout
+
+    try:
+        jobs = int(os.environ.get("BOARDSTUDIO_CHECK_JOBS", "2"))
+    except ValueError:
+        jobs = 2
+    if jobs <= 1:
+        for item in runs:
+            try:
+                output.write(execute(item))
+            except subprocess.CalledProcessError as error:
+                output.write(error.stdout or "")
+                raise
+        return
+    with ThreadPoolExecutor(max_workers=min(4, jobs), thread_name_prefix="cad-run") as pool:
+        futures = [pool.submit(execute, item) for item in runs]
+    first_error = None
+    for future in futures:
+        error = future.exception()
+        if error is None:
+            output.write(future.result())
+        else:
+            if isinstance(error, subprocess.CalledProcessError):
+                output.write(error.stdout or "")
+            if first_error is None:
+                first_error = error
+    if first_error is not None:
+        raise first_error
+
+
+def test_cad():
+    _test_cad_unified(sys.stdout)

@@ -6,9 +6,6 @@ license = "MIT OR Apache-2.0"
 publish = false
 description = "BoardStudio PCB workspace features: wiring, board references, modules, physical setup, layers and the PCB scene."
 
-[features]
-test-support = ["boardstudio-web-ui-model/test-support", "boardstudio-web-ui-shared/test-support", "boardstudio-web-parts/test-support"]
-
 [dependencies]
 boardstudio-application = { path = "../../../application" }
 boardstudio_core = { path = "../../../core" }
@@ -35,7 +32,7 @@ web-sys = { workspace = true }
 boardstudio-web-runtime = { path = "../runtime", features = ["test-support"] }
 boardstudio-web-ui-model = { path = "../ui-model", features = ["test-support"] }
 boardstudio-web-ui-shared = { path = "../ui-shared", features = ["test-support"] }
-boardstudio-web-parts = { path = "../parts", features = ["test-support"] }
+boardstudio-web-parts = { path = "../parts" }
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 wasm-bindgen-test = "=0.3.79"

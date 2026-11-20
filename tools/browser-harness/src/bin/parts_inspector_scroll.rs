@@ -3,16 +3,11 @@
 mod shutdown;
 
 use boardstudio_browser_harness::{
+    cdp::{DispatchMouseEventType, Page},
     driver::{self, HandlerErrors, PageErrors},
     Error, IsolatedDirs, Result,
 };
-use chromiumoxide::{
-    cdp::browser_protocol::{
-        emulation::SetDeviceMetricsOverrideParams,
-        input::{DispatchMouseEventParams, DispatchMouseEventType},
-    },
-    Page,
-};
+use serde_json::json;
 use std::{path::Path, sync::Arc, time::Duration};
 
 const WAIT: Duration = Duration::from_secs(30);
@@ -40,9 +35,10 @@ async fn scenario(page: &Page, width: i64, height: i64, url: &str) -> Result<()>
     let root = driver::backend_of_wait(page, "#m1-objects-panel", WAIT).await?;
     driver::click_role(page, Some(root), "button", "New assembly").await?;
     driver::click_role(page, None, "option", "MX Hotswap").await?;
-    page.execute(SetDeviceMetricsOverrideParams::new(
-        width, height, 1.0, false,
-    ))
+    page.execute(
+        "Emulation.setDeviceMetricsOverride",
+        json!({"width": width, "height": height, "deviceScaleFactor": 1.0, "mobile": false}),
+    )
     .await
     .map_err(err)?;
     driver::wait_for(
@@ -63,14 +59,12 @@ async fn scenario(page: &Page, width: i64, height: i64, url: &str) -> Result<()>
         DispatchMouseEventType::MouseMoved,
         DispatchMouseEventType::MouseWheel,
     ] {
-        let mut event = DispatchMouseEventParams::builder()
-            .r#type(kind.clone())
-            .x(x)
-            .y(y);
+        let mut event = json!({"type": kind.as_str(), "x": x, "y": y});
         if matches!(kind, DispatchMouseEventType::MouseWheel) {
-            event = event.delta_x(0.0).delta_y(1000.0);
+            event["deltaX"] = json!(0.0);
+            event["deltaY"] = json!(1000.0);
         }
-        page.execute(event.build().map_err(err)?)
+        page.execute("Input.dispatchMouseEvent", event)
             .await
             .map_err(err)?;
     }

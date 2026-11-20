@@ -1,11 +1,12 @@
 # Monstertruck backend qualification
 
-This standalone crate records qualification of the CPU-only Rust dependency slice
+This crate records qualification of the CPU-only Rust dependency slice
 used by the CAD backend replacement. The committed production provider now uses
-Monstertruck, with full migration acceptance still open. Both
-[`cad/monstertruck`](../monstertruck/Cargo.toml) and
-[`cad/wasm`](../wasm/Cargo.toml) patch dependencies to this directory's `vendor/`
-trees: preserve them during cleanup. The
+Monstertruck, with full migration acceptance still open. The unified
+[`cad`](../Cargo.toml) workspace owns the shared lockfile and patches
+dependencies for [`cad/monstertruck`](../monstertruck/Cargo.toml),
+[`cad/wasm`](../wasm/Cargo.toml), and this qualification crate to this
+directory's `vendor/` trees: preserve them during cleanup. The
 [current acceptance reconciliation](../../docs/research/cad/migration-acceptance-2026-10-18.md)
 distinguishes production evidence from historical candidate results below.
 

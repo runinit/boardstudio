@@ -3,6 +3,7 @@ name = "boardstudio-footprints"
 version = "0.1.0"
 edition = "2024"
 publish = false
+autotests = false
 # Mixed: the framework is MIT OR Apache-2.0, the ported generators are MIT or
 # CC-BY-NC-SA-4.0 as marked per file. See NOTICE.md.
 license = "(MIT OR Apache-2.0) AND CC-BY-NC-SA-4.0"
@@ -20,8 +21,23 @@ serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["float_roundtrip"] }
 
 [dev-dependencies]
-# Fixtures are read with their key order so schema order can be checked.
-serde_json = { version = "1", features = ["float_roundtrip", "preserve_order"] }
+serde_json = { version = "1", features = ["float_roundtrip"] }
+
+[[test]]
+name = "footprints_integration"
+path = "tests/integration.rs"
+
+[[test]]
+name = "framework"
+path = "tests/framework.rs"
+
+[[test]]
+name = "library_assertions"
+path = "tests/library_assertions.rs"
+
+[[test]]
+name = "parameter_lint"
+path = "tests/parameter_lint.rs"
 
 [lints]
 workspace = true

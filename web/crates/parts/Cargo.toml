@@ -6,9 +6,6 @@ license = "MIT OR Apache-2.0"
 publish = false
 description = "BoardStudio Parts workspace: component browser, definitions, generator settings, assemblies and previews."
 
-[features]
-test-support = ["boardstudio-web-ui-model/test-support", "boardstudio-web-ui-shared/test-support", "boardstudio-web-case/test-support"]
-
 [dependencies]
 boardstudio-application = { path = "../../../application" }
 boardstudio_core = { path = "../../../core" }

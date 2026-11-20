@@ -1,5 +1,6 @@
 //! Exercise the actual Parts picker composition; the primitive owns its search draft.
 use super::*;
+use boardstudio_web_ui_shared::test_mount::MountedFixture;
 use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::wasm_bindgen_test;
@@ -39,10 +40,7 @@ async fn parts_picker_uses_select_through_twelve_then_keeps_the_combobox_owned_q
     let document = web_sys::window().unwrap().document().unwrap();
     let root = document.create_element("div").unwrap();
     document.body().unwrap().append_child(&root).unwrap();
-    dioxus_web::launch::launch_virtual_dom(
-        VirtualDom::new(picker_host),
-        dioxus_web::Config::new().rootnode(root.clone().into()),
-    );
+    let _mounted = MountedFixture::new(root.clone(), VirtualDom::new(picker_host));
     wait_until("twelve connectors use the actual Parts Select", || {
         by_role_name(&root, "button", "Module host connector").is_some()
     })

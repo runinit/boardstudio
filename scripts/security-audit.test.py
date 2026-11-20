@@ -40,7 +40,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
     def test_standalone_cad_registry_resolution_is_rejected(self):
         def metadata(command, **kwargs):
             manifest = audit.VENDOR / "Cargo.toml"
-            if command[-1] == "cad/monstertruck/Cargo.toml":
+            if command[-1] == "cad/Cargo.toml":
                 manifest = audit.ROOT / "registry/cgmath/Cargo.toml"
             return json.dumps({"packages": [{
                 "name": "cgmath",
@@ -51,17 +51,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
         with patch.object(audit.subprocess, "check_output", side_effect=metadata):
             with self.assertRaisesRegex(
-                    ValueError, "cad/monstertruck/Cargo.toml must resolve exclusively"):
+                    ValueError, "cad/Cargo.toml must resolve exclusively"):
                 audit.verify_vendor()
 
     def test_standalone_cad_audit_failure_is_propagated(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            for lock in ("Cargo.lock", "cad/wasm/Cargo.lock", "cad/monstertruck/Cargo.lock",
+            for lock in ("Cargo.lock", "cad/Cargo.lock",
                          "renderer/vendor/cgmath-next-0.18.1/Cargo.lock"):
                 path = root / lock
                 path.parent.mkdir(parents=True, exist_ok=True)
-                name = "standalone-cad" if lock == "cad/monstertruck/Cargo.lock" else "other"
+                name = "standalone-cad" if lock == "cad/Cargo.lock" else "other"
                 path.write_text(f'[[package]]\nname = "{name}"\nversion = "1.0.0"\n')
             metadata = {"packages": [{
                 "name": "cgmath",
@@ -86,7 +86,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
     def test_accepted_unsound_advisory_is_ignored(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            for lock in ("Cargo.lock", "cad/wasm/Cargo.lock", "cad/monstertruck/Cargo.lock",
+            for lock in ("Cargo.lock", "cad/Cargo.lock",
                          "renderer/vendor/cgmath-next-0.18.1/Cargo.lock"):
                 path = root / lock
                 path.parent.mkdir(parents=True, exist_ok=True)

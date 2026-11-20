@@ -8,8 +8,9 @@ use crate::layer_edit::KeymapLayerOperation;
 use crate::runtime::{Runtime, project_name_test_support as support};
 use boardstudio_application::{Event, SelectionMode};
 use boardstudio_core::model::{KeyBinding, MacroStep, ProjectDoc};
+use boardstudio_web_ui_shared::test_mount::MountedFixture;
 use boardstudio_web_ui_shared::test_role::by_role_name;
-use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_future, wait_until_step};
+use boardstudio_web_ui_shared::test_wait::{settle_until, wait_until, wait_until_future};
 use dioxus::prelude::*;
 use std::{
     cell::{Cell, RefCell},
@@ -137,13 +138,13 @@ fn document() -> ProjectDoc {
     document
 }
 
-async fn mounted() -> (Probe, web_sys::Element) {
+async fn mounted() -> (Probe, web_sys::Element, MountedFixture) {
     let runtime = support::new_runtime();
     support::open_document(&runtime, document()).await;
     mount_runtime(runtime).await
 }
 
-async fn mount_runtime(runtime: Rc<Runtime>) -> (Probe, web_sys::Element) {
+async fn mount_runtime(runtime: Rc<Runtime>) -> (Probe, web_sys::Element, MountedFixture) {
     let probe = Probe {
         runtime,
         bindings: Rc::new(RefCell::new(None)),
@@ -161,12 +162,9 @@ async fn mount_runtime(runtime: Rc<Runtime>) -> (Probe, web_sys::Element) {
     document.body().unwrap().append_child(&root).unwrap();
     let dom = VirtualDom::new(host);
     dom.provide_root_context(probe.clone());
-    dioxus_web::launch::launch_virtual_dom(
-        dom,
-        dioxus_web::Config::new().rootnode(root.clone().into()),
-    );
+    let mounted = MountedFixture::new(root.clone(), dom);
     rendered_after(&probe, 0).await;
-    (probe, root)
+    (probe, root, mounted)
 }
 
 /// The revision of the accepted document, if one is accepted.
@@ -228,15 +226,6 @@ async fn binding(probe: &Probe, key: &str, keycode: &str) {
     });
 }
 
-/// Drains held effects, then waits until `done` holds: the state the assertion after it needs.
-async fn settle_until(runtime: &Rc<Runtime>, what: &str, done: impl Fn() -> bool) {
-    wait_until_step(what, async || {
-        support::run_pending(runtime).await;
-        done()
-    })
-    .await;
-}
-
 /// The number of layers in the accepted keymap, once one is accepted.
 fn layer_count(runtime: &Runtime) -> Option<usize> {
     let accepted = runtime.model().accepted?;
@@ -262,7 +251,7 @@ fn key_binding(runtime: &Runtime, key: &str) -> Option<KeyBinding> {
 
 #[wasm_bindgen_test]
 async fn two_binding_fields_queue_and_undo_in_commit_order() {
-    let (probe, root) = mounted().await;
+    let (probe, root, _mounted) = mounted().await;
     let runtime = &probe.runtime;
     let (entered, release) = support::gate_next_core_reply(runtime);
     binding(&probe, "a", "A").await;
@@ -283,16 +272,21 @@ async fn two_binding_fields_queue_and_undo_in_commit_order() {
     binding(&probe, "b", "B").await;
     support::drive_pending(runtime);
     release.send(()).unwrap();
-    settle_until(runtime, "both binding edits are accepted", || {
-        key_binding(runtime, "a")
-            == Some(KeyBinding::KeyPress {
-                keycode: "A".into(),
-            })
-            && key_binding(runtime, "b")
+    settle_until(
+        runtime,
+        support::run_pending,
+        "both binding edits are accepted",
+        || {
+            key_binding(runtime, "a")
                 == Some(KeyBinding::KeyPress {
-                    keycode: "B".into(),
+                    keycode: "A".into(),
                 })
-    })
+                && key_binding(runtime, "b")
+                    == Some(KeyBinding::KeyPress {
+                        keycode: "B".into(),
+                    })
+        },
+    )
     .await;
     assert_eq!(
         key_binding(runtime, "a"),
@@ -311,6 +305,7 @@ async fn two_binding_fields_queue_and_undo_in_commit_order() {
     });
     settle_until(
         runtime,
+        support::run_pending,
         "the undo of the second binding is accepted",
         || {
             key_binding(runtime, "a")
@@ -336,6 +331,7 @@ async fn two_binding_fields_queue_and_undo_in_commit_order() {
     });
     settle_until(
         runtime,
+        support::run_pending,
         "the undo of the first binding removes the keymap",
         || runtime.model().accepted.unwrap().document.keymap.is_none(),
     )
@@ -346,8 +342,8 @@ async fn two_binding_fields_queue_and_undo_in_commit_order() {
 
 #[wasm_bindgen_test]
 async fn two_queued_layer_adds_get_distinct_ids() {
-    let (probe, root) = mounted().await;
-    let (second, second_root) = mount_runtime(probe.runtime.clone()).await;
+    let (probe, root, _mounted) = mounted().await;
+    let (second, second_root, _second_mounted) = mount_runtime(probe.runtime.clone()).await;
     let runtime = &probe.runtime;
     let (entered, release) = support::gate_next_core_reply(runtime);
     let on_operation = probe.layers.borrow().as_ref().unwrap().on_operation;
@@ -364,9 +360,12 @@ async fn two_queued_layer_adds_get_distinct_ids() {
         .on_operation
         .call(KeymapLayerOperation::Add);
     release.send(()).unwrap();
-    settle_until(runtime, "both layer adds are accepted", || {
-        layer_count(runtime) == Some(3)
-    })
+    settle_until(
+        runtime,
+        support::run_pending,
+        "both layer adds are accepted",
+        || layer_count(runtime) == Some(3),
+    )
     .await;
     let accepted = runtime.model().accepted.unwrap();
     let layers = &accepted.document.keymap.as_ref().unwrap().layers;
@@ -379,6 +378,7 @@ async fn two_queued_layer_adds_get_distinct_ids() {
     });
     settle_until(
         runtime,
+        support::run_pending,
         "the undo of the second layer add is accepted",
         || layer_count(runtime) == Some(2),
     )
@@ -409,7 +409,7 @@ async fn macro_fields_queue_and_undo_separately() {
         "macros": [{"id": "macro", "name": "Original", "tapMs": 30, "waitMs": 0, "steps": [{"kind": "tap", "binding": {"kind": "key-press", "keycode": "A"}}]}]
     })).unwrap());
     support::open_document(&runtime, doc).await;
-    let (probe, root) = mount_runtime(runtime.clone()).await;
+    let (probe, root, _mounted) = mount_runtime(runtime.clone()).await;
     let submit = |target, change| {
         let borrowed = probe.macros.borrow();
         let actions = borrowed.as_ref().unwrap();
@@ -448,19 +448,24 @@ async fn macro_fields_queue_and_undo_separately() {
         boardstudio_core::model::MacroChange::TapMs { value: 50 },
     );
     release.send(()).unwrap();
-    settle_until(&runtime, "the name and tap edits are accepted", || {
-        let keymap_macro = runtime
-            .model()
-            .accepted
-            .unwrap()
-            .document
-            .keymap
-            .as_ref()
-            .unwrap()
-            .macros[0]
-            .clone();
-        keymap_macro.name == "Renamed" && keymap_macro.tap_ms == 50
-    })
+    settle_until(
+        &runtime,
+        support::run_pending,
+        "the name and tap edits are accepted",
+        || {
+            let keymap_macro = runtime
+                .model()
+                .accepted
+                .unwrap()
+                .document
+                .keymap
+                .as_ref()
+                .unwrap()
+                .macros[0]
+                .clone();
+            keymap_macro.name == "Renamed" && keymap_macro.tap_ms == 50
+        },
+    )
     .await;
     let accepted = runtime.model().accepted.unwrap();
     let item = &accepted.document.keymap.as_ref().unwrap().macros[0];
@@ -469,19 +474,24 @@ async fn macro_fields_queue_and_undo_separately() {
     runtime.submit(Event::Undo {
         operation_id: runtime.operation(),
     });
-    settle_until(&runtime, "the undo of the tap edit is accepted", || {
-        runtime
-            .model()
-            .accepted
-            .unwrap()
-            .document
-            .keymap
-            .as_ref()
-            .unwrap()
-            .macros[0]
-            .tap_ms
-            == 30
-    })
+    settle_until(
+        &runtime,
+        support::run_pending,
+        "the undo of the tap edit is accepted",
+        || {
+            runtime
+                .model()
+                .accepted
+                .unwrap()
+                .document
+                .keymap
+                .as_ref()
+                .unwrap()
+                .macros[0]
+                .tap_ms
+                == 30
+        },
+    )
     .await;
     let accepted = runtime.model().accepted.unwrap();
     let item = &accepted.document.keymap.as_ref().unwrap().macros[0];
@@ -507,6 +517,7 @@ async fn macro_fields_queue_and_undo_separately() {
     release.send(()).unwrap();
     settle_until(
         &runtime,
+        support::run_pending,
         "the add is accepted and the add control re-enables",
         || {
             runtime
@@ -547,7 +558,7 @@ async fn rename_of_layer_removed_before_execution_retires_with_reason() {
     let mut doc = document();
     doc.keymap = Some(serde_json::from_value(serde_json::json!({"layers":[{"id":"base","name":"Base","bindings":{},"sensors":{}},{"id":"child","name":"Child","bindings":{},"sensors":{}}],"macros":[]})).unwrap());
     support::open_document(&runtime, doc).await;
-    let (probe, root) = mount_runtime(runtime.clone()).await;
+    let (probe, root, _mounted) = mount_runtime(runtime.clone()).await;
     let mark = probe.renders.get();
     probe.active_layer.borrow().unwrap().set("child".into());
     rendered_after(&probe, mark).await;
@@ -583,7 +594,7 @@ async fn rename_of_layer_removed_before_execution_retires_with_reason() {
             name: "Renamed".into(),
         });
     release.send(()).unwrap();
-    settle_until(&runtime, "the removal is accepted and the rename retires", || {
+    settle_until(&runtime, support::run_pending, "the removal is accepted and the rename retires", || {
         layer_count(&runtime) == Some(1)
             && matches!(&probe.layers.borrow().as_ref().unwrap().feedback, Some(crate::layer_edit::KeymapLayerFeedback::Failed(message)) if message.contains("no longer exists"))
     })
@@ -609,6 +620,7 @@ async fn rename_of_layer_removed_before_execution_retires_with_reason() {
     });
     settle_until(
         &runtime,
+        support::run_pending,
         "the undo of the removal restores the child layer",
         || {
             runtime
@@ -647,7 +659,7 @@ async fn macro_field_can_queue_a_return_to_the_preceding_accepted_value() {
     let mut doc = document();
     doc.keymap = Some(serde_json::from_value(serde_json::json!({"layers":[{"id":"base","name":"Base","bindings":{},"sensors":{}}],"macros":[{"id":"macro","name":"Original","tapMs":30,"waitMs":0,"steps":[{"kind":"tap","binding":{"kind":"key-press","keycode":"A"}}]}]})).unwrap());
     support::open_document(&runtime, doc).await;
-    let (probe, root) = mount_runtime(runtime.clone()).await;
+    let (probe, root, _mounted) = mount_runtime(runtime.clone()).await;
     let input = macro_input(&root, "Original tapMs");
     let commit = |value: &str| {
         input.focus().unwrap();
@@ -671,20 +683,25 @@ async fn macro_field_can_queue_a_return_to_the_preceding_accepted_value() {
     assert!(!input.disabled());
     commit("30");
     release.send(()).unwrap();
-    settle_until(&runtime, "the return to 30 is accepted", || {
-        runtime
-            .model()
-            .accepted
-            .unwrap()
-            .document
-            .keymap
-            .as_ref()
-            .unwrap()
-            .macros[0]
-            .tap_ms
-            == 30
-            && input.value() == "30"
-    })
+    settle_until(
+        &runtime,
+        support::run_pending,
+        "the return to 30 is accepted",
+        || {
+            runtime
+                .model()
+                .accepted
+                .unwrap()
+                .document
+                .keymap
+                .as_ref()
+                .unwrap()
+                .macros[0]
+                .tap_ms
+                == 30
+                && input.value() == "30"
+        },
+    )
     .await;
     assert_eq!(
         runtime
@@ -703,19 +720,24 @@ async fn macro_field_can_queue_a_return_to_the_preceding_accepted_value() {
     runtime.submit(Event::Undo {
         operation_id: runtime.operation(),
     });
-    settle_until(&runtime, "the undo of the 30 edit is accepted", || {
-        runtime
-            .model()
-            .accepted
-            .unwrap()
-            .document
-            .keymap
-            .as_ref()
-            .unwrap()
-            .macros[0]
-            .tap_ms
-            == 50
-    })
+    settle_until(
+        &runtime,
+        support::run_pending,
+        "the undo of the 30 edit is accepted",
+        || {
+            runtime
+                .model()
+                .accepted
+                .unwrap()
+                .document
+                .keymap
+                .as_ref()
+                .unwrap()
+                .macros[0]
+                .tap_ms
+                == 50
+        },
+    )
     .await;
     assert_eq!(
         runtime
@@ -736,11 +758,12 @@ async fn macro_field_can_queue_a_return_to_the_preceding_accepted_value() {
 #[wasm_bindgen_test]
 async fn failed_binding_restores_accepted_field_and_explains_failure() {
     use wasm_bindgen::JsCast;
-    let (probe, root) = mounted().await;
+    let (probe, root, _mounted) = mounted().await;
     let runtime = &probe.runtime;
     binding(&probe, "a", "A").await;
     settle_until(
         runtime,
+        support::run_pending,
         "the binding editor renders its keycode field",
         || by_role_name(&root, "combobox", "a keycode").is_some(),
     )
@@ -760,6 +783,7 @@ async fn failed_binding_restores_accepted_field_and_explains_failure() {
     input.blur().unwrap();
     settle_until(
         runtime,
+        support::run_pending,
         "the failed binding is restored and explained",
         || {
             key_binding(runtime, "a")
@@ -791,12 +815,15 @@ async fn failed_binding_restores_accepted_field_and_explains_failure() {
 #[wasm_bindgen_test]
 async fn keycode_combobox_commits_arbitrary_code_on_blur_and_keeps_it_displayed() {
     use wasm_bindgen::JsCast;
-    let (probe, root) = mounted().await;
+    let (probe, root, _mounted) = mounted().await;
     let runtime = &probe.runtime;
     binding(&probe, "a", "A").await;
-    settle_until(runtime, "the accepted binding is visible", || {
-        key_binding(runtime, "a").is_some()
-    })
+    settle_until(
+        runtime,
+        support::run_pending,
+        "the accepted binding is visible",
+        || key_binding(runtime, "a").is_some(),
+    )
     .await;
     let input: web_sys::HtmlInputElement = by_role_name(&root, "combobox", "a keycode")
         .expect("keycode combobox")
@@ -810,12 +837,17 @@ async fn keycode_combobox_commits_arbitrary_code_on_blur_and_keeps_it_displayed(
         .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
         .unwrap();
     input.blur().unwrap();
-    settle_until(runtime, "arbitrary keycode is accepted", || {
-        key_binding(runtime, "a")
-            == Some(KeyBinding::KeyPress {
-                keycode: "CUSTOM_CODE".into(),
-            })
-    })
+    settle_until(
+        runtime,
+        support::run_pending,
+        "arbitrary keycode is accepted",
+        || {
+            key_binding(runtime, "a")
+                == Some(KeyBinding::KeyPress {
+                    keycode: "CUSTOM_CODE".into(),
+                })
+        },
+    )
     .await;
     assert_eq!(input.value(), "CUSTOM_CODE");
     root.remove();
@@ -824,12 +856,15 @@ async fn keycode_combobox_commits_arbitrary_code_on_blur_and_keeps_it_displayed(
 #[wasm_bindgen_test]
 async fn keycode_combobox_filters_and_commits_a_suggestion_on_blur() {
     use wasm_bindgen::JsCast;
-    let (probe, root) = mounted().await;
+    let (probe, root, _mounted) = mounted().await;
     let runtime = &probe.runtime;
     binding(&probe, "a", "A").await;
-    settle_until(runtime, "the accepted binding is visible", || {
-        key_binding(runtime, "a").is_some()
-    })
+    settle_until(
+        runtime,
+        support::run_pending,
+        "the accepted binding is visible",
+        || key_binding(runtime, "a").is_some(),
+    )
     .await;
     let input: web_sys::HtmlInputElement = by_role_name(&root, "combobox", "a keycode")
         .unwrap()
@@ -867,12 +902,17 @@ async fn keycode_combobox_filters_and_commits_a_suggestion_on_blur() {
     .await;
     key("Enter");
     input.blur().unwrap();
-    settle_until(runtime, "the suggested code is accepted", || {
-        key_binding(runtime, "a")
-            == Some(KeyBinding::KeyPress {
-                keycode: "BSPC".into(),
-            })
-    })
+    settle_until(
+        runtime,
+        support::run_pending,
+        "the suggested code is accepted",
+        || {
+            key_binding(runtime, "a")
+                == Some(KeyBinding::KeyPress {
+                    keycode: "BSPC".into(),
+                })
+        },
+    )
     .await;
     assert_eq!(input.value(), "BSPC");
     root.remove();
@@ -891,7 +931,7 @@ async fn queued_macro_steps_preserve_eligible_positions_and_retire_shifted_targe
         let mut doc = document();
         doc.keymap = Some(serde_json::from_value(serde_json::json!({"layers":[{"id":"base","name":"Base","bindings":{},"sensors":{}}],"macros":[{"id":"macro","name":"Original","tapMs":30,"waitMs":0,"steps":[{"kind":"tap","binding":{"kind":"key-press","keycode":"A"}},{"kind":"wait","ms":10},{"kind":"wait","ms":20}]}]})).unwrap());
         support::open_document(&runtime, doc).await;
-        let (probe, root) = mount_runtime(runtime.clone()).await;
+        let (probe, root, _mounted) = mount_runtime(runtime.clone()).await;
         let submit = |target, change| {
             let borrowed = probe.macros.borrow();
             let actions = borrowed.as_ref().unwrap();
@@ -977,16 +1017,21 @@ async fn queued_macro_steps_preserve_eligible_positions_and_retire_shifted_targe
         };
         // The step field's failure renders after Core accepts the edits, so the wait includes it.
         let eligible = removed.is_none_or(|index| index > 1);
-        settle_until(&runtime, "the queued macro steps are accepted", || {
-            steps_are(&runtime, &expected)
-                && (eligible
-                    || root
-                        .query_selector("[role='alert']")
-                        .ok()
-                        .flatten()
-                        .and_then(|alert| alert.text_content())
-                        .is_some_and(|message| message.contains("macro step")))
-        })
+        settle_until(
+            &runtime,
+            support::run_pending,
+            "the queued macro steps are accepted",
+            || {
+                steps_are(&runtime, &expected)
+                    && (eligible
+                        || root
+                            .query_selector("[role='alert']")
+                            .ok()
+                            .flatten()
+                            .and_then(|alert| alert.text_content())
+                            .is_some_and(|message| message.contains("macro step")))
+            },
+        )
         .await;
         assert_eq!(
             runtime
@@ -1022,24 +1067,29 @@ async fn queued_macro_steps_preserve_eligible_positions_and_retire_shifted_targe
             MacroStep::Wait { ms: 10 },
             MacroStep::Wait { ms: 20 },
         ];
-        settle_until(&runtime, "the undo is accepted", || {
-            if eligible {
-                runtime
-                    .model()
-                    .accepted
-                    .unwrap()
-                    .document
-                    .keymap
-                    .as_ref()
-                    .unwrap()
-                    .macros[0]
-                    .steps
-                    .get(1)
-                    == Some(&MacroStep::Wait { ms: 10 })
-            } else {
-                steps_are(&runtime, &final_steps)
-            }
-        })
+        settle_until(
+            &runtime,
+            support::run_pending,
+            "the undo is accepted",
+            || {
+                if eligible {
+                    runtime
+                        .model()
+                        .accepted
+                        .unwrap()
+                        .document
+                        .keymap
+                        .as_ref()
+                        .unwrap()
+                        .macros[0]
+                        .steps
+                        .get(1)
+                        == Some(&MacroStep::Wait { ms: 10 })
+                } else {
+                    steps_are(&runtime, &final_steps)
+                }
+            },
+        )
         .await;
         if eligible {
             assert_eq!(
@@ -1058,9 +1108,12 @@ async fn queued_macro_steps_preserve_eligible_positions_and_retire_shifted_targe
             runtime.submit(Event::Undo {
                 operation_id: runtime.operation(),
             });
-            settle_until(&runtime, "the second undo restores the final steps", || {
-                steps_are(&runtime, &final_steps)
-            })
+            settle_until(
+                &runtime,
+                support::run_pending,
+                "the second undo restores the final steps",
+                || steps_are(&runtime, &final_steps),
+            )
             .await;
         }
         assert_eq!(
@@ -1099,7 +1152,7 @@ fn rename_base(probe: &Probe, name: &str) {
 
 #[wasm_bindgen_test]
 async fn a_newer_layer_name_survives_an_older_failure_that_reports_inline() {
-    let (probe, root) = mounted().await;
+    let (probe, root, _mounted) = mounted().await;
     let runtime = probe.runtime.clone();
     let (mut draft, failure) = probe.layer_name.borrow().unwrap();
     draft.set("A".into());
@@ -1107,9 +1160,12 @@ async fn a_newer_layer_name_survives_an_older_failure_that_reports_inline() {
     rename_base(&probe, "A");
     // The older rename has not settled when the user types the next draft.
     draft.set("AB".into());
-    settle_until(&runtime, "the older failure is reported inline", || {
-        failure().is_some_and(|message| message.contains("layer executor failed"))
-    })
+    settle_until(
+        &runtime,
+        support::run_pending,
+        "the older failure is reported inline",
+        || failure().is_some_and(|message| message.contains("layer executor failed")),
+    )
     .await;
     assert_eq!(draft(), "AB", "a newer draft is never overwritten");
     assert!(
@@ -1125,7 +1181,7 @@ async fn leaving_the_keymap_owner_retires_a_pending_layer_name_silently() {
     let mut doc = document();
     doc.keymap = Some(serde_json::from_value(serde_json::json!({"layers":[{"id":"base","name":"Base","bindings":{},"sensors":{}},{"id":"child","name":"Child","bindings":{},"sensors":{}}],"macros":[]})).unwrap());
     support::open_document(&runtime, doc).await;
-    let (probe, root) = mount_runtime(runtime.clone()).await;
+    let (probe, root, _mounted) = mount_runtime(runtime.clone()).await;
     let mark = probe.renders.get();
     probe.active_layer.borrow().unwrap().set("child".into());
     rendered_after(&probe, mark).await;
@@ -1162,9 +1218,12 @@ async fn leaving_the_keymap_owner_retires_a_pending_layer_name_silently() {
     generation.set(generation() + 1);
     rendered_after(&probe, mark).await;
     release.send(()).unwrap();
-    settle_until(&runtime, "the removal is accepted", || {
-        layer_count(&runtime) == Some(1)
-    })
+    settle_until(
+        &runtime,
+        support::run_pending,
+        "the removal is accepted",
+        || layer_count(&runtime) == Some(1),
+    )
     .await;
     assert_eq!(
         runtime
@@ -1202,7 +1261,7 @@ async fn an_unmounted_macro_field_does_not_break_its_held_edit_and_remounts_clea
         "macros": [{"id": "macro", "name": "Original", "tapMs": 30, "waitMs": 0, "steps": [{"kind": "tap", "binding": {"kind": "key-press", "keycode": "A"}}]}]
     })).unwrap());
     support::open_document(&runtime, doc).await;
-    let (probe, root) = mount_runtime(runtime.clone()).await;
+    let (probe, root, _mounted) = mount_runtime(runtime.clone()).await;
     let tap = || macro_input(&root, "Original tapMs");
     let (entered, release) = support::gate_next_core_reply(&runtime);
     let input = tap();
@@ -1230,19 +1289,24 @@ async fn an_unmounted_macro_field_does_not_break_its_held_edit_and_remounts_clea
         "the macro field is unmounted while its edit is held"
     );
     release.send(()).unwrap();
-    settle_until(&runtime, "the held macro edit is accepted", || {
-        runtime
-            .model()
-            .accepted
-            .unwrap()
-            .document
-            .keymap
-            .as_ref()
-            .unwrap()
-            .macros[0]
-            .tap_ms
-            == 55
-    })
+    settle_until(
+        &runtime,
+        support::run_pending,
+        "the held macro edit is accepted",
+        || {
+            runtime
+                .model()
+                .accepted
+                .unwrap()
+                .document
+                .keymap
+                .as_ref()
+                .unwrap()
+                .macros[0]
+                .tap_ms
+                == 55
+        },
+    )
     .await;
     assert_eq!(
         runtime
@@ -1317,7 +1381,7 @@ fn type_value(input: &web_sys::HtmlInputElement, value: &str) {
 async fn newer_macro_draft_with_older_failure(label: &str, first: &str, newer: &str) {
     let runtime = support::new_runtime();
     support::open_document(&runtime, macro_doc()).await;
-    let (probe, root) = mount_runtime(runtime.clone()).await;
+    let (probe, root, _mounted) = mount_runtime(runtime.clone()).await;
     let input = macro_input(&root, label);
     support::fail_next_core_reply(&runtime, "macro executor failed");
     let mark = probe.renders.get();
@@ -1329,6 +1393,7 @@ async fn newer_macro_draft_with_older_failure(label: &str, first: &str, newer: &
     type_value(&input, newer);
     settle_until(
         &runtime,
+        support::run_pending,
         "the newer draft and the older inline failure are shown",
         || {
             macro_input(&root, label).value() == newer
@@ -1369,7 +1434,7 @@ async fn a_newer_macro_field_draft_keeps_an_older_failure_inline_only() {
 async fn a_failed_unchanged_macro_number_restores_the_accepted_value_with_an_inline_failure() {
     let runtime = support::new_runtime();
     support::open_document(&runtime, macro_doc()).await;
-    let (_probe, root) = mount_runtime(runtime.clone()).await;
+    let (_probe, root, _mounted) = mount_runtime(runtime.clone()).await;
     support::fail_next_core_reply(&runtime, "macro executor failed");
     let input = macro_input(&root, "Original tapMs");
     input.focus().unwrap();
@@ -1377,6 +1442,7 @@ async fn a_failed_unchanged_macro_number_restores_the_accepted_value_with_an_inl
     input.blur().unwrap();
     settle_until(
         &runtime,
+        support::run_pending,
         "the unchanged macro number is restored with its failure",
         || {
             macro_input(&root, "Original tapMs").value() == "30"
@@ -1401,7 +1467,7 @@ async fn a_failed_unchanged_macro_number_restores_the_accepted_value_with_an_inl
 async fn a_second_macro_field_edit_replaces_the_observation_and_both_edits_undo() {
     let runtime = support::new_runtime();
     support::open_document(&runtime, macro_doc()).await;
-    let (_probe, root) = mount_runtime(runtime.clone()).await;
+    let (_probe, root, _mounted) = mount_runtime(runtime.clone()).await;
     let tap_ms = |runtime: &Rc<Runtime>| {
         runtime
             .model()
@@ -1430,6 +1496,7 @@ async fn a_second_macro_field_edit_replaces_the_observation_and_both_edits_undo(
     release.send(()).unwrap();
     settle_until(
         &runtime,
+        support::run_pending,
         "the second macro edit is accepted and shown",
         || tap_ms(&runtime) == 66 && macro_input(&root, "Original tapMs").value() == "66",
     )
@@ -1441,9 +1508,12 @@ async fn a_second_macro_field_edit_replaces_the_observation_and_both_edits_undo(
         runtime.submit(Event::Undo {
             operation_id: runtime.operation(),
         });
-        settle_until(&runtime, "the undo is accepted", || {
-            tap_ms(&runtime) == expected
-        })
+        settle_until(
+            &runtime,
+            support::run_pending,
+            "the undo is accepted",
+            || tap_ms(&runtime) == expected,
+        )
         .await;
         assert_eq!(tap_ms(&runtime), expected, "each edit has an Undo step");
     }
@@ -1452,7 +1522,7 @@ async fn a_second_macro_field_edit_replaces_the_observation_and_both_edits_undo(
 
 #[wasm_bindgen_test]
 async fn a_failed_unchanged_layer_name_restores_the_accepted_name_with_an_inline_failure() {
-    let (probe, root) = mounted().await;
+    let (probe, root, _mounted) = mounted().await;
     let runtime = probe.runtime.clone();
     let (mut draft, failure) = probe.layer_name.borrow().unwrap();
     draft.set("A".into());
@@ -1460,6 +1530,7 @@ async fn a_failed_unchanged_layer_name_restores_the_accepted_name_with_an_inline
     rename_base(&probe, "A");
     settle_until(
         &runtime,
+        support::run_pending,
         "the unchanged layer name is restored with its failure",
         || {
             draft() == "Base"

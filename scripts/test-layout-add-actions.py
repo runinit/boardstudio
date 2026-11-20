@@ -125,7 +125,7 @@ def main():
     env = os.environ.copy()
     env.setdefault("CARGO_PROFILE_DEV_DEBUG", "false")
     driver.run("cargo", "build", "--locked", "-p", "boardstudio-web-layout", "--example", "layout_add",
-               "--features", "test-support", "--target", "wasm32-unknown-unknown", env=env)
+               "--target", "wasm32-unknown-unknown", env=env)
     OUT.mkdir(parents=True, exist_ok=True)
     driver.run(str(driver.wasm_bindgen_dir(ROOT) / "wasm-bindgen"), "--target", "web", "--out-dir", str(OUT), str(TARGET / "wasm32-unknown-unknown/debug/examples/layout_add.wasm"))
     driver.run(str(Path.home() / ".local/share/.dx/tools/tailwindcss-v4.1.5/tailwindcss"), "-i", "web/tailwind.css", "-o", str(OUT / "tailwind.css"))

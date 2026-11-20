@@ -122,16 +122,21 @@ on purpose, with `BOARDSTUDIO_ALLOW_NO_KICAD=1`; the KiCad integration tests hav
 
 **Browser tests.** The page runner checks that every listed test executes. The presentation crate suite
 builds the selected lib test binaries in one Cargo invocation, then runs them with the locked
-`wasm-bindgen-test-runner` from each crate directory. Each launch starts its own `chromedriver` and Chrome.
-The panel and setup guide tests each get a separate browser session using the same binary as their
-crate's other tests. The page suite also isolates the Case workspace fixtures. The check runs up to
-four crate launches at once (`BOARDSTUDIO_CHECK_JOBS`, `1` for serial), with a two-minute timeout per
+`wasm-bindgen-test-runner` from each crate directory. The checked crate build enables
+`boardstudio-web-host/page` when testing `host`, and the separate page binary
+test build enables `boardstudio-web-host/test-support` so both full builds resolve the same shared
+features. Each launch starts its own `chromedriver` and Chrome.
+Layout uses a desktop viewport for the setup guide and the other layout tests. The page filters
+share the local browser job budget with the crate launches (up to six jobs by default, bounded by CPU
+count, or `BOARDSTUDIO_CHECK_JOBS=1` for serial), with a two-minute timeout per
 launch (`WASM_BINDGEN_TEST_TIMEOUT`). Use `python3 scripts/check.py browser --only <crate>...` for a
 partial crate run without the packaged build or drag smoke. Add `--keep-going` to continue across
 independent browser launches and still exit nonzero on failure. CSS-dependent subsets generate
-the test stylesheet first. The crate suite uses a matching wasm-bindgen pair from wasm-pack's cache,
-`PATH`, or an explicit `BOARDSTUDIO_WASM_BINDGEN_DIR`. On a fresh machine, install
-`wasm-bindgen-cli` at the version in `Cargo.lock` or populate the cache with a manual wasm-pack run.
+the test stylesheet first. Preflight uses the patched pair in
+`~/.cache/boardstudio/wasm-bindgen-patched/` (under `XDG_CACHE_HOME` when set) and builds it
+on a cache miss. Set `BOARDSTUDIO_WASM_BINDGEN_DIR` to override both tools at the version in
+`Cargo.lock`. If the patched build inputs are unavailable, the runner warns before using a
+matching stock pair from `PATH` or wasm-pack's cache.
 For source-level debugging, run `wasm-pack test --headless --chrome web/crates/<crate> --lib` by hand
 with `CARGO_PROFILE_DEV_DEBUG` unset. Add `--features page` for `host`.
 The browser step opens the packaged page and runs a trusted mouse-drag smoke over
@@ -168,9 +173,10 @@ the receipt) at review handoff.
 | `scripts/` | Build, content preparation and checks |
 
 The Rust crates share one Cargo workspace (root `Cargo.toml`, `Cargo.lock` and
-`target/`), so dependencies compile once per profile and target. `cad/wasm` stays
-outside it because it patches the vendored Monstertruck crates with its own lockfile. It declares an empty `[workspace]` so cargo treats it as its own
-root, which also lets it build from a worktree nested under another checkout.
+`target/`), so dependencies compile once per profile and target. The CAD workspace
+at `cad/monstertruck` contains the library and the `cad/wasm` member. It has a
+separate lockfile and patches the vendored Monstertruck crates. Native CAD tests
+use `cad/monstertruck/target`, and the wasm provider uses `cad/wasm/target`.
 
 The repository has no TypeScript or Node dependency; Python scripts handle build, content preparation and checks. Footprint generation runs in Rust inside Core and the page. User-supplied
 JavaScript generators are not executed. Bundled model export includes used assets;

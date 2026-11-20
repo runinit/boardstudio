@@ -16,7 +16,8 @@ use super::*;
 use crate::runtime::{Runtime, project_name_test_support as support};
 use boardstudio_application::Event;
 use boardstudio_web_catalogue::physical_setup::PreparedSetup;
-use boardstudio_web_ui_shared::test_wait::wait_until_step;
+use boardstudio_web_ui_shared::test_mount::MountedFixture;
+use boardstudio_web_ui_shared::test_wait::{settle_until, wait_until_step};
 use dioxus::prelude::*;
 use std::{
     cell::{Cell, RefCell},
@@ -145,7 +146,7 @@ fn fixture_document(id: &str, revision: u64) -> boardstudio_core::model::Project
     document
 }
 
-async fn mounted(id: &str) -> (Probe, web_sys::Element) {
+async fn mounted(id: &str) -> (Probe, web_sys::Element, MountedFixture) {
     let runtime = support::new_runtime();
     support::open_document(&runtime, fixture_document(id, 1)).await;
     let probe = Probe {
@@ -163,25 +164,13 @@ async fn mounted(id: &str) -> (Probe, web_sys::Element) {
     document.body().unwrap().append_child(&root).unwrap();
     let dom = VirtualDom::new(host);
     dom.provide_root_context(probe.clone());
-    dioxus_web::launch::launch_virtual_dom(
-        dom,
-        dioxus_web::Config::new().rootnode(root.clone().into()),
-    );
+    let mounted = MountedFixture::new(root.clone(), dom);
     rendered().await;
-    (probe, root)
+    (probe, root, mounted)
 }
 
 async fn rendered() {
     gloo_timers::future::TimeoutFuture::new(30).await;
-}
-
-/// Drains held effects, then waits until `done` holds: the state the assertion after it needs.
-async fn settle_until(runtime: &Rc<Runtime>, what: &str, done: impl Fn() -> bool) {
-    wait_until_step(what, async || {
-        support::run_pending(runtime).await;
-        done()
-    })
-    .await;
 }
 
 fn poke(probe: &Probe) {
@@ -246,7 +235,7 @@ async fn hold_in_flight(probe: &Probe) -> futures_channel::oneshot::Sender<()> {
 
 #[wasm_bindgen_test]
 async fn exact_accepted_proposal_lands_silently_without_leaking_to_another_context() {
-    let (probe, root) = mounted("setup-landing").await;
+    let (probe, root, _mounted) = mounted("setup-landing").await;
     let runtime = probe.runtime.clone();
     let release = hold_in_flight(&probe).await;
     assert!(
@@ -256,6 +245,7 @@ async fn exact_accepted_proposal_lands_silently_without_leaking_to_another_conte
     release.send(()).unwrap();
     settle_until(
         &runtime,
+        support::run_pending,
         "the accepted proposal clears busy and lands",
         || {
             !mount(&probe).projection.busy
@@ -283,15 +273,20 @@ async fn exact_accepted_proposal_lands_silently_without_leaking_to_another_conte
 
 #[wasm_bindgen_test]
 async fn hidden_success_settles_silently_for_its_exact_accepted_proposal() {
-    let (probe, root) = mounted("setup-hidden-success").await;
+    let (probe, root, _mounted) = mounted("setup-hidden-success").await;
     let runtime = probe.runtime.clone();
     let release = hold_in_flight(&probe).await;
     probe.active.set(false);
     release.send(()).unwrap();
-    settle_until(&runtime, "the hidden landing clears busy and lands", || {
-        !mount(&probe).projection.busy
-            && accepted_reversible(&runtime) == Some(serde_json::json!(true))
-    })
+    settle_until(
+        &runtime,
+        support::run_pending,
+        "the hidden landing clears busy and lands",
+        || {
+            !mount(&probe).projection.busy
+                && accepted_reversible(&runtime) == Some(serde_json::json!(true))
+        },
+    )
     .await;
     let projection = mount(&probe).projection;
     assert!(!projection.busy, "the hidden landing still clears busy");
@@ -316,7 +311,7 @@ async fn hidden_success_settles_silently_for_its_exact_accepted_proposal() {
 
 #[wasm_bindgen_test]
 async fn an_in_flight_setup_retires_silently_when_its_owner_departs() {
-    let (probe, root) = mounted("setup-retire").await;
+    let (probe, root, _mounted) = mounted("setup-retire").await;
     let release = hold_in_flight(&probe).await;
     probe.active.set(false);
     poke(&probe);
@@ -338,6 +333,7 @@ async fn an_in_flight_setup_retires_silently_when_its_owner_departs() {
     release.send(()).unwrap();
     settle_until(
         &probe.runtime,
+        support::run_pending,
         "retired setup drains without feedback",
         || {
             let projection = mount(&probe).projection;
@@ -353,7 +349,7 @@ async fn an_in_flight_setup_retires_silently_when_its_owner_departs() {
 
 #[wasm_bindgen_test]
 async fn a_stage_hidden_during_preparation_submits_no_edit() {
-    let (probe, root) = mounted("setup-hidden-preparation").await;
+    let (probe, root, _mounted) = mounted("setup-hidden-preparation").await;
     let runtime = probe.runtime.clone();
     mount(&probe).submit(PhysicalSetupIntent::ProjectReversibleLayout(true));
     rendered().await;
@@ -367,9 +363,12 @@ async fn a_stage_hidden_during_preparation_submits_no_edit() {
     );
     probe.active.set(false);
     queue_reply(&probe, admit());
-    settle_until(&runtime, "the hidden stage clears busy", || {
-        !mount(&probe).projection.busy
-    })
+    settle_until(
+        &runtime,
+        support::run_pending,
+        "the hidden stage clears busy",
+        || !mount(&probe).projection.busy,
+    )
     .await;
     let projection = mount(&probe).projection;
     assert!(
@@ -391,20 +390,25 @@ async fn a_stage_hidden_during_preparation_submits_no_edit() {
 
 #[wasm_bindgen_test]
 async fn retained_rendered_controls_cannot_retarget_another_project() {
-    let (probe, root) = mounted("setup-retarget").await;
+    let (probe, root, _mounted) = mounted("setup-retarget").await;
     let runtime = probe.runtime.clone();
     let stale = mount(&probe);
     runtime.submit(Event::Open {
         operation_id: runtime.operation(),
         document: fixture_document("setup-retarget-b", 1),
     });
-    settle_until(&runtime, "replacement project opens", || {
-        runtime
-            .model()
-            .accepted
-            .as_ref()
-            .is_some_and(|snapshot| snapshot.document.id == "setup-retarget-b")
-    })
+    settle_until(
+        &runtime,
+        support::run_pending,
+        "replacement project opens",
+        || {
+            runtime
+                .model()
+                .accepted
+                .as_ref()
+                .is_some_and(|snapshot| snapshot.document.id == "setup-retarget-b")
+        },
+    )
     .await;
     support::take_held_effects(&runtime);
     queue_reply(&probe, admit());
@@ -422,7 +426,7 @@ async fn retained_rendered_controls_cannot_retarget_another_project() {
 #[wasm_bindgen_test]
 async fn retained_rendered_controls_reject_replaced_token_and_generation() {
     // A replaced accepted revision leaves the rendered owner's token and revision stale.
-    let (probe, root) = mounted("setup-stale-revision").await;
+    let (probe, root, _mounted) = mounted("setup-stale-revision").await;
     let runtime = probe.runtime.clone();
     let stale = mount(&probe);
     runtime.submit(Event::Open {
@@ -430,13 +434,18 @@ async fn retained_rendered_controls_reject_replaced_token_and_generation() {
         document: fixture_document("setup-stale-revision", 2),
     });
     let previous_token = runtime.model().accepted.unwrap().token;
-    settle_until(&runtime, "replacement snapshot is accepted", || {
-        runtime
-            .model()
-            .accepted
-            .as_ref()
-            .is_some_and(|snapshot| snapshot.token != previous_token)
-    })
+    settle_until(
+        &runtime,
+        support::run_pending,
+        "replacement snapshot is accepted",
+        || {
+            runtime
+                .model()
+                .accepted
+                .as_ref()
+                .is_some_and(|snapshot| snapshot.token != previous_token)
+        },
+    )
     .await;
     support::take_held_effects(&runtime);
     queue_reply(&probe, admit());
@@ -449,7 +458,7 @@ async fn retained_rendered_controls_reject_replaced_token_and_generation() {
     root.remove();
 
     // An advanced generation leaves the rendered owner stale even with the same source.
-    let (probe, root) = mounted("setup-stale-generation").await;
+    let (probe, root, _mounted) = mounted("setup-stale-generation").await;
     let runtime = probe.runtime.clone();
     let stale = mount(&probe);
     probe.generation.set(1);
@@ -467,19 +476,24 @@ async fn retained_rendered_controls_reject_replaced_token_and_generation() {
 
 #[wasm_bindgen_test]
 async fn a_failed_save_reports_once_for_its_exact_owner() {
-    let (probe, root) = mounted("setup-failure").await;
+    let (probe, root, _mounted) = mounted("setup-failure").await;
     let runtime = probe.runtime.clone();
     support::fail_next_persist(&runtime, "disk");
     queue_reply(&probe, admit());
     mount(&probe).submit(PhysicalSetupIntent::ProjectReversibleLayout(true));
-    settle_until(&runtime, "the failed save clears busy and reports", || {
-        !mount(&probe).projection.busy
-            && mount(&probe)
-                .projection
-                .project_feedback
-                .as_deref()
-                .is_some_and(|message| message.contains("disk"))
-    })
+    settle_until(
+        &runtime,
+        support::run_pending,
+        "the failed save clears busy and reports",
+        || {
+            !mount(&probe).projection.busy
+                && mount(&probe)
+                    .projection
+                    .project_feedback
+                    .as_deref()
+                    .is_some_and(|message| message.contains("disk"))
+        },
+    )
     .await;
     let projection = mount(&probe).projection;
     assert!(
@@ -523,7 +537,7 @@ fn mounting_hole_template() -> boardstudio_core::model::PartDefinition {
 
 #[wasm_bindgen_test]
 async fn a_reversible_split_establishes_its_mirror_pair_and_undoes_in_one_step() {
-    let (probe, root) = mounted("setup-pair").await;
+    let (probe, root, _mounted) = mounted("setup-pair").await;
     let runtime = probe.runtime.clone();
     // The reversible layout first: it is what makes the split's second half flipped
     // and therefore an eligible mechanical mirror pair.
@@ -531,6 +545,7 @@ async fn a_reversible_split_establishes_its_mirror_pair_and_undoes_in_one_step()
     mount(&probe).submit(PhysicalSetupIntent::ProjectReversibleLayout(true));
     settle_until(
         &runtime,
+        support::run_pending,
         "reversible layout is accepted and rendered",
         || {
             accepted_reversible(&runtime) == Some(serde_json::json!(true))
@@ -545,19 +560,25 @@ async fn a_reversible_split_establishes_its_mirror_pair_and_undoes_in_one_step()
 
     queue_reply(&probe, mounting_hole_reply());
     mount(&probe).submit(PhysicalSetupIntent::ProjectTopology(true));
-    settle_until(&runtime, "split topology is accepted and rendered", || {
-        let accepted_split = runtime
-            .model()
-            .accepted
-            .as_ref()
-            .and_then(|snapshot| snapshot.document.hardware.as_ref())
-            .is_some_and(|hardware| {
-                hardware.topology == boardstudio_core::model::HardwareTopology::Split
-            });
-        accepted_split
-            && mount(&probe).projection.topology == boardstudio_core::model::HardwareTopology::Split
-            && !mount(&probe).projection.busy
-    })
+    settle_until(
+        &runtime,
+        support::run_pending,
+        "split topology is accepted and rendered",
+        || {
+            let accepted_split = runtime
+                .model()
+                .accepted
+                .as_ref()
+                .and_then(|snapshot| snapshot.document.hardware.as_ref())
+                .is_some_and(|hardware| {
+                    hardware.topology == boardstudio_core::model::HardwareTopology::Split
+                });
+            accepted_split
+                && mount(&probe).projection.topology
+                    == boardstudio_core::model::HardwareTopology::Split
+                && !mount(&probe).projection.busy
+        },
+    )
     .await;
 
     let accepted = runtime.model().accepted.unwrap();
@@ -602,6 +623,7 @@ async fn a_reversible_split_establishes_its_mirror_pair_and_undoes_in_one_step()
     });
     settle_until(
         &runtime,
+        support::run_pending,
         "Undo restores and renders pre-split hardware",
         || {
             let restored = runtime

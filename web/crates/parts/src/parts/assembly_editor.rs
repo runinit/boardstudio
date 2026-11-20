@@ -2235,6 +2235,7 @@ fn member_id(assembly: &AssemblyDefinition) -> Option<String> {
 #[cfg(all(test, target_arch = "wasm32"))]
 mod assembly_selector_tests {
     use super::*;
+    use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use std::{cell::RefCell, rc::Rc};
     use wasm_bindgen::JsValue;
     use wasm_bindgen_test::*;
@@ -2351,10 +2352,7 @@ mod assembly_selector_tests {
         document.body().unwrap().append_child(&root).unwrap();
         let dom = VirtualDom::new(persisted_assembly_fixture);
         dom.provide_root_context(probe.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         gloo_timers::future::TimeoutFuture::new(40).await;
 
         let mut component_signal = probe.component_signal.borrow().as_ref().copied().unwrap();
@@ -2394,6 +2392,7 @@ mod resolution_tests {
     use super::*;
     use boardstudio_web_runtime::pending_edits::PendingEdits;
     use boardstudio_web_runtime::runtime::project_name_test_support as support;
+    use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::test_role::by_role_name;
     use wasm_bindgen_test::*;
 
@@ -2462,10 +2461,7 @@ mod resolution_tests {
         dom_document.body().unwrap().append_child(&root).unwrap();
         let dom = VirtualDom::new(mounted_host);
         dom.provide_root_context(runtime.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         gloo_timers::future::TimeoutFuture::new(40).await;
         let button = |label: &str| {
             by_role_name(&root, "button", label)

@@ -41,7 +41,7 @@ def run(missing, binary, output, chrome):
         directory.mkdir()
         result = subprocess.run([str(binary), f"http://127.0.0.1:{server.server_port}",
                                  "monstertruck", "checked", "startup:cold", str(directory), "1", "validation"],
-                                cwd=ROOT, env=dict(os.environ, CHROME_BIN=chrome), capture_output=True, text=True, timeout=240)
+                                cwd=ROOT, env=browser_tools.browser_env(chrome=chrome), capture_output=True, text=True, timeout=240)
         (directory / "process.log").write_text(f"exit={result.returncode}\n{result.stdout}\n{result.stderr}")
         events = [json.loads(line) for line in (directory / "events.log").read_text().splitlines()]
         if missing == "cad":

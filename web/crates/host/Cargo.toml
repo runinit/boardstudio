@@ -4,18 +4,17 @@ version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 publish = false
-description = "Browser host services shared by the BoardStudio page and its workers: storage, Core and CAD worker clients, renderer host and offline policy."
+description = "Browser host services for the BoardStudio page: storage, Core and CAD worker clients, renderer host and CAD job capture."
 
 [features]
 # The page's host services (storage, Core client, renderer host, CAD job capture).
-page = ["dep:boardstudio-application", "dep:boardstudio_core", "dep:serde_json"]
-# The CAD worker's job protocol.
-cad-worker = ["dep:boardstudio_core", "dep:serde_json"]
-test-harness = []
+page = ["boardstudio-web-worker-host/cad", "dep:boardstudio-application", "dep:boardstudio_core", "dep:serde_json"]
+test-harness = ["boardstudio-web-worker-host?/test-harness"]
 # Test-only storage hooks the page's own tests drive (raw record fixtures).
 test-support = []
 
 [dependencies]
+boardstudio-web-worker-host = { path = "../worker-host", optional = true }
 boardstudio-application = { path = "../../../application", optional = true }
 boardstudio_core = { path = "../../../core", optional = true }
 serde = { version = "1", features = ["derive"] }

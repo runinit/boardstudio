@@ -490,4 +490,22 @@ mod tests {
             "no partial script output may be accepted"
         );
     }
+
+    #[test]
+    fn script_functions_can_read_top_level_consts_via_global() {
+        let source = r#"
+            const PITCH = 19.05;
+            fn place(col) {
+                part("main", "a", "switch", "SW1", col * global::PITCH, 0.0, 0.0);
+            }
+            place(2.0);
+        "#;
+        let emissions =
+            collect(source).expect("global:: constant access in functions must parse and run");
+        assert_eq!(emissions.len(), 1);
+        match &emissions[0] {
+            Emission::Part { x, .. } => assert!((*x - 38.1).abs() < 1e-9),
+            _ => panic!("expected part emission"),
+        }
+    }
 }

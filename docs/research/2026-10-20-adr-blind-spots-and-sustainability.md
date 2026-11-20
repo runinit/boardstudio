@@ -270,7 +270,7 @@ accepted under 0022 and explained by `8d481b7a8743ed7c8b62f47253e6d00b3096bca6`.
 
 [Core bootstrap](../../web/src/core_worker.rs#L29-L42) reports a fixed ready string;
 [Core client](../../web/crates/host/src/host/core_client.rs#L379-L464) checks request ID,
-executor epoch, kind and decoded reply identity. [CAD `WireRequest`/`WireReply`](../../web/crates/host/src/cad_worker.rs#L47-L81)
+executor epoch, kind and decoded reply identity. [CAD `WireRequest`/`WireReply`](../../web/crates/worker-host/src/cad_worker.rs#L47-L81)
 carry job/operation/snapshot identity, not a release digest. Its ready path and strict
 receiver/payload validation protect current request contracts. These are not proof that
 two software releases can interoperate merely because the document format is unchanged.
@@ -283,7 +283,7 @@ that a mixed release has actually been served or that adding a handshake is nece
 `test_offline_worker_bootstrap_passes_route_manifest` checks generated packaging. None runs
 an old editor through a real deployment. [Core framing test](../../web/crates/host/src/core_protocol.rs),
 `text_frame_preserves_full_u64_revision_without_a_js_number_round_trip`, protects numeric
-identity, not release matching. [CAD receiver regression](../../web/crates/host/src/cad_worker.rs#L3317-L3473),
+identity, not release matching. [CAD receiver regression](../../web/crates/worker-host/src/cad_worker.rs#L3317-L3473),
 `raw_worker_preview_without_prepared_or_keycap_input_fails_cleanly_and_worker_recovers`,
 uses a controlled provider and postMessage target; it is not a two-release rollout test.
 
@@ -373,7 +373,7 @@ reference and 0015/0023; the new work is tracing their less obvious combined con
 **Newly traced flow:** [`import_routed_board`](../../web/crates/pcb/src/pcb_board_reference.rs)
 stores original hashed bytes and a `BoardReference`, not imported host nets/copper.
 [`LayoutSourceCapture::capture`/`artifact_request`](../../web/crates/runtime/src/layout_viewer_source.rs#L306-L400)
-select the enabled accepted asset for visual projection. [`captured_pcb_source`](../../web/crates/host/src/cad_jobs.rs#L1162-L1248)
+select the enabled accepted asset for visual projection. [`captured_pcb_source`](../../web/crates/host/src/captured_case.rs)
 captures the same raw reference before physical view projection and composes instance
 reflection once. [`prepare_physical_step_assembly`](../../web/crates/runtime/src/runtime.rs#L5267-L5424)
 then reads source curves/drills, rejects mismatched declared thickness or a modified nominal
@@ -399,7 +399,7 @@ separates retained electrical source from assigned plate geometry. The earlier
 [KiCad investigation](2026-10-19-kicad-board-projection-deepening.md#duplicated-rules-versus-legitimate-differences)
 already establishes distinct preview/exact/import admission and is not newly discovered here.
 `pcb_source_capture_keeps_original_reference_and_composes_physical_reflection_once` in
-[Host tests](../../web/crates/host/src/cad_jobs.rs#L1676-L1783) checks capture/nonmutation and
+[Host tests](../../web/crates/host/src/captured_case.rs) checks capture/nonmutation and
 ambiguous/missing/stale input. [KiCad integration test body](../../core/tests/kicad_integration.rs#L774-L831),
 `native_board_export_preserves_untouched_source_spans_and_kicad_10_parses_and_plots_both_sides`,
 asserts retained rich source, transforms, UUID references and actual plotting when run.

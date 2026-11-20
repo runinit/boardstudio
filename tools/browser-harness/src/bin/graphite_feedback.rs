@@ -3,20 +3,11 @@
 mod shutdown;
 
 use boardstudio_browser_harness::{
+    cdp::{DispatchKeyEventType, DispatchMouseEventType, MouseButton, Page},
     driver::{self, HandlerErrors, PageErrors},
     Error, IsolatedDirs, Result,
 };
-use chromiumoxide::{
-    cdp::browser_protocol::{
-        emulation::{MediaFeature, SetDeviceMetricsOverrideParams, SetEmulatedMediaParams},
-        input::{
-            DispatchKeyEventParams, DispatchKeyEventType, DispatchMouseEventParams,
-            DispatchMouseEventType, MouseButton,
-        },
-    },
-    Page,
-};
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::{path::Path, sync::Arc, time::Duration};
 
 const WAIT: Duration = Duration::from_secs(30);
@@ -97,15 +88,19 @@ async fn set(p: &Page, label: &str, value: &str) -> Result<()> {
 }
 async fn press_key(p: &Page, key: &str, code: &str, virtual_key: i64, text: &str) -> Result<()> {
     for kind in [DispatchKeyEventType::KeyDown, DispatchKeyEventType::KeyUp] {
-        let mut event = DispatchKeyEventParams::builder()
-            .r#type(kind.clone())
-            .key(key)
-            .code(code)
-            .windows_virtual_key_code(virtual_key);
+        let mut event = json!({
+            "type": kind.as_str(),
+            "key": key,
+            "code": code,
+            "windowsVirtualKeyCode": virtual_key,
+        });
         if matches!(kind, DispatchKeyEventType::KeyDown) {
-            event = event.text(text).unmodified_text(text);
+            event["text"] = json!(text);
+            event["unmodifiedText"] = json!(text);
         }
-        p.execute(event.build().map_err(err)?).await.map_err(err)?;
+        p.execute("Input.dispatchKeyEvent", event)
+            .await
+            .map_err(err)?;
     }
     Ok(())
 }
@@ -144,24 +139,27 @@ async fn drag_offset(
             }))
     {
         let pressed = matches!(kind, DispatchMouseEventType::MousePressed);
-        let mut params = DispatchMouseEventParams::builder()
-            .r#type(kind)
-            .x(x + dx)
-            .y(y + dy)
-            .modifiers(2)
-            .buttons(buttons)
-            .button(if buttons == 0 {
-                MouseButton::None
+        let mut params = json!({
+            "type": kind.as_str(),
+            "x": x + dx,
+            "y": y + dy,
+            "modifiers": 2,
+            "buttons": buttons,
+            "button": if buttons == 0 {
+                MouseButton::None.as_str()
             } else {
-                MouseButton::Left
-            });
+                MouseButton::Left.as_str()
+            },
+        });
         if buttons != 0 {
-            params = params.force(0.5);
+            params["force"] = json!(0.5);
         }
         if pressed {
-            params = params.click_count(1);
+            params["clickCount"] = json!(1);
         }
-        p.execute(params.build().map_err(err)?).await.map_err(err)?;
+        p.execute("Input.dispatchMouseEvent", params)
+            .await
+            .map_err(err)?;
     }
     if cancel {
         if observe_preview {
@@ -178,14 +176,14 @@ async fn drag_offset(
             DispatchKeyEventType::KeyUp,
         ] {
             p.execute(
-                DispatchKeyEventParams::builder()
-                    .r#type(kind)
-                    .key("Escape")
-                    .code("Escape")
-                    .windows_virtual_key_code(27)
-                    .modifiers(2)
-                    .build()
-                    .map_err(err)?,
+                "Input.dispatchKeyEvent",
+                json!({
+                    "type": kind.as_str(),
+                    "key": "Escape",
+                    "code": "Escape",
+                    "windowsVirtualKeyCode": 27,
+                    "modifiers": 2,
+                }),
             )
             .await
             .map_err(err)?;
@@ -197,16 +195,16 @@ async fn drag_offset(
         Some(eval(p, "({ down: window.__graphiteFinalDown, captured: [...document.querySelectorAll('svg.m1-canvas,.m1-transform-handle')].some(e => e.hasPointerCapture(window.__graphiteFinalDown?.id)) })").await?)
     };
     p.execute(
-        DispatchMouseEventParams::builder()
-            .r#type(DispatchMouseEventType::MouseReleased)
-            .x(x + 30.0)
-            .y(y + dy)
-            .modifiers(2)
-            .buttons(0)
-            .button(MouseButton::Left)
-            .click_count(1)
-            .build()
-            .map_err(err)?,
+        "Input.dispatchMouseEvent",
+        json!({
+            "type": DispatchMouseEventType::MouseReleased.as_str(),
+            "x": x + 30.0,
+            "y": y + dy,
+            "modifiers": 2,
+            "buttons": 0,
+            "button": MouseButton::Left.as_str(),
+            "clickCount": 1,
+        }),
     )
     .await
     .map_err(err)?;
@@ -214,9 +212,10 @@ async fn drag_offset(
 }
 async fn viewport(p: &Page, width: i64) -> Result<()> {
     let height = if width == 390 { 844 } else { 1043 };
-    p.execute(SetDeviceMetricsOverrideParams::new(
-        width, height, 1.0, false,
-    ))
+    p.execute(
+        "Emulation.setDeviceMetricsOverride",
+        json!({"width": width, "height": height, "deviceScaleFactor": 1.0, "mobile": false}),
+    )
     .await
     .map_err(err)?;
     wait(
@@ -543,12 +542,9 @@ async fn run(p: &Page, shots: Option<&str>) -> Result<()> {
             )
             .await?;
             if let Some(dir) = shots {
-                p.save_screenshot(
-                    chromiumoxide::page::ScreenshotParams::builder().build(),
-                    Path::new(dir).join(format!("{workspace}-{width}.png")),
-                )
-                .await
-                .map_err(err)?;
+                p.save_screenshot(Path::new(dir).join(format!("{workspace}-{width}.png")))
+                    .await
+                    .map_err(err)?;
             }
         }
         viewport(p, 1513).await?;
@@ -591,9 +587,8 @@ async fn main_run() -> Result<()> {
         .map_err(err)??;
         let result = async {
             page.execute(
-                SetEmulatedMediaParams::builder()
-                    .features(vec![MediaFeature::new("prefers-color-scheme", "dark")])
-                    .build(),
+                "Emulation.setEmulatedMedia",
+                json!({"features": [{"name": "prefers-color-scheme", "value": "dark"}]}),
             )
             .await
             .map_err(err)?;

@@ -287,8 +287,9 @@ mod mounted_tests {
     use crate::runtime::project_name_test_support as support;
     use boardstudio_application::TerminalOutcome;
     use boardstudio_core::model::{Board, ProjectDoc};
+    use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::test_role::by_role_name;
-    use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_future, wait_until_step};
+    use boardstudio_web_ui_shared::test_wait::{settle_until, wait_until, wait_until_future};
     use std::cell::RefCell;
     use wasm_bindgen_test::wasm_bindgen_test;
     use web_sys::{Element as DomElement, HtmlElement};
@@ -355,7 +356,7 @@ mod mounted_tests {
         }
     }
 
-    async fn mount() -> (Rc<Runtime>, DomElement, Fixture) {
+    async fn mount() -> (Rc<Runtime>, DomElement, Fixture, MountedFixture) {
         let definition: PartDefinition = serde_json::from_value(serde_json::json!({
             "id": "mechanical-one-shot-part", "name": "Mechanical test part",
             "kind": "custom", "courtyard": [], "pads": []
@@ -385,17 +386,14 @@ mod mounted_tests {
         let dom = VirtualDom::new(mounted_profile_host);
         dom.provide_root_context(runtime.clone());
         dom.provide_root_context(fixture.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let mounted = MountedFixture::new(root.clone(), dom);
         wait_until("mechanical profile entry mounts", || {
             by_role_name(&root, "button", "Define profile")
                 .or_else(|| by_role_name(&root, "button", "Edit profile"))
                 .is_some()
         })
         .await;
-        (runtime, root, fixture)
+        (runtime, root, fixture, mounted)
     }
 
     fn entry(root: &DomElement) -> HtmlElement {
@@ -420,17 +418,9 @@ mod mounted_tests {
         by_role_name(root, "button", "Save fit profile").expect("save fit profile action")
     }
 
-    async fn settle_until(runtime: &Rc<Runtime>, what: &str, done: impl Fn() -> bool) {
-        wait_until_step(what, async || {
-            support::run_pending(runtime).await;
-            done()
-        })
-        .await;
-    }
-
     #[wasm_bindgen_test]
     async fn mechanical_profile_save_disables_entry_silently_and_rejects_retained_duplicate() {
-        let (runtime, root, _) = mount().await;
+        let (runtime, root, _, _mounted) = mount().await;
         let save = open_editor(&root).await;
         let (entered, release) = support::gate_next_core_reply(&runtime);
         let first = support::observe_next(&runtime);
@@ -456,13 +446,18 @@ mod mounted_tests {
             "one-shot saves have no pending message"
         );
         release.send(()).unwrap();
-        settle_until(&runtime, "mechanical profile save lands", || {
-            matches!(*first.borrow(), Some(TerminalOutcome::Completed))
-                && runtime.model().accepted.unwrap().document.definitions[0]
-                    .mechanical_profile
-                    .is_some()
-                && !entry(&root).has_attribute("disabled")
-        })
+        settle_until(
+            &runtime,
+            support::run_pending,
+            "mechanical profile save lands",
+            || {
+                matches!(*first.borrow(), Some(TerminalOutcome::Completed))
+                    && runtime.model().accepted.unwrap().document.definitions[0]
+                        .mechanical_profile
+                        .is_some()
+                    && !entry(&root).has_attribute("disabled")
+            },
+        )
         .await;
         assert!(matches!(*first.borrow(), Some(TerminalOutcome::Completed)));
         assert!(
@@ -483,7 +478,7 @@ mod mounted_tests {
 
     #[wasm_bindgen_test]
     async fn mechanical_profile_save_failure_reenables_entry_with_inline_error() {
-        let (runtime, root, _) = mount().await;
+        let (runtime, root, _, _mounted) = mount().await;
         let save = open_editor(&root).await;
         let (entered, release) = support::gate_next_core_reply(&runtime);
         support::fail_next_persist(&runtime, "mechanical profile disk failure");
@@ -494,9 +489,12 @@ mod mounted_tests {
             .unwrap();
         assert!(entry(&root).has_attribute("disabled"));
         release.send(()).unwrap();
-        settle_until(&runtime, "mechanical profile save error appears", || {
-            !entry(&root).has_attribute("disabled") && panel_alert(&root).is_some()
-        })
+        settle_until(
+            &runtime,
+            support::run_pending,
+            "mechanical profile save error appears",
+            || !entry(&root).has_attribute("disabled") && panel_alert(&root).is_some(),
+        )
         .await;
         let alert = panel_alert(&root).expect("mechanical profile save error");
         assert!(
@@ -511,7 +509,7 @@ mod mounted_tests {
 
     #[wasm_bindgen_test]
     async fn mechanical_profile_save_owner_retirement_reenables_entry_silently() {
-        let (runtime, root, fixture) = mount().await;
+        let (runtime, root, fixture, _mounted) = mount().await;
         let save = open_editor(&root).await;
         let (entered, release) = support::gate_next_core_reply(&runtime);
         support::fail_next_persist(&runtime, "departed mechanical profile disk failure");
@@ -532,12 +530,17 @@ mod mounted_tests {
             "retiring the observation re-enables the live parent control"
         );
         release.send(()).unwrap();
-        settle_until(&runtime, "retired mechanical profile save settles", || {
-            matches!(
-                runtime.model().durability,
-                boardstudio_application::Durability::Failed { .. }
-            ) && panel_alert(&root).is_none()
-        })
+        settle_until(
+            &runtime,
+            support::run_pending,
+            "retired mechanical profile save settles",
+            || {
+                matches!(
+                    runtime.model().durability,
+                    boardstudio_application::Durability::Failed { .. }
+                ) && panel_alert(&root).is_none()
+            },
+        )
         .await;
         assert!(panel_alert(&root).is_none());
         let text = root.text_content().unwrap();

@@ -15,6 +15,9 @@ import time
 import urllib.error
 import urllib.request
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+import browser_tools  # noqa: E402
+
 CAD_ROOT = Path(__file__).resolve().parents[1]
 PAGE = ("cad/scripts/browser-smoke/occurrence-budget.html" if "--occurrence-budget" in sys.argv
         else "cad/scripts/browser-smoke/smoke.html")
@@ -46,6 +49,23 @@ def serve():
         ("127.0.0.1", 0), functools.partial(Quiet, directory=str(CAD_ROOT.parent)))
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return server
+
+
+def _delete_session(request, port, session_id, active_error, cleanup_errors):
+    """Best-effort ChromeDriver session deletion; a timeout warns instead of failing."""
+    try:
+        request(port, "DELETE", f"/session/{session_id}",
+                until=time.monotonic() + 5)
+    except TimeoutError as error:
+        # Graceful shutdown can be slow under parallel CI load; the SIGTERM/SIGKILL
+        # sweep below still reaps everything, and any real remainder fails the run.
+        note = f"session deletion timed out: {error}"
+        if active_error is not None:
+            active_error.add_note(note)
+        else:
+            print(f"warning: {note}", file=sys.stderr, flush=True)
+    except Exception as error:
+        cleanup_errors.append(f"session deletion failed: {error}")
 
 
 def run_page(url, browser=None, timeout=180):
@@ -94,7 +114,7 @@ def run_page(url, browser=None, timeout=180):
         except OSError:
             return False
 
-    with tempfile.TemporaryDirectory(prefix="cad-browser-") as owned_dir:
+    with tempfile.TemporaryDirectory(prefix="cad-browser-", dir=str(browser_tools.shallow_browser_tmpdir())) as owned_dir:
         profile = str(Path(owned_dir) / "chrome-profile")
         Path(profile).mkdir()
         log_path = Path(owned_dir) / "chromedriver.log"
@@ -103,7 +123,8 @@ def run_page(url, browser=None, timeout=180):
             port = listener.getsockname()[1]
         driver = subprocess.Popen(
             [chromedriver(), f"--port={port}", f"--log-path={log_path}"],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            env=browser_tools.browser_env(chrome=browser or chromium()))
         session_id = None
         primary_error = None
         try:
@@ -172,11 +193,7 @@ def run_page(url, browser=None, timeout=180):
                     return True
 
             if session_id is not None:
-                try:
-                    request(port, "DELETE", f"/session/{session_id}",
-                            until=time.monotonic() + 5)
-                except Exception as error:
-                    cleanup_errors.append(f"session deletion failed: {error}")
+                _delete_session(request, port, session_id, active_error, cleanup_errors)
 
             cleanup_deadline = time.monotonic() + 4
 

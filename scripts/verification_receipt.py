@@ -87,7 +87,7 @@ def scope_of(command: list[str]) -> str:
     if crate_launch_key(command) is not None:
         return WASM_CRATE
     name = script_name(command)
-    if name == "run-wasm-tests.py":
+    if name == "run-wasm-tests.py" and "--build-only" not in command:
         return PAGE_SUITE
     if name in SMOKE_SCRIPTS:
         return SMOKE

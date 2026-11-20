@@ -63,13 +63,24 @@ class QuickSelectionTests(unittest.TestCase):
         self.assertTrue(selection.tooling)
         self.assertFalse(selection.rust)
 
-    def test_measurement_protocol_edits_keep_the_tooling_only_quick_selection(self):
+    def test_tooling_changes_also_select_the_moved_kicad_parts_suite(self):
+        for path in ("scripts/import-kicad-parts.py", "scripts/test-import-kicad-parts.py",
+                     "scripts/artifact_driver.py", "scripts/browser_tools.py"):
+            with self.subTest(path=path):
+                selection = quick.select([path], PACKAGES)
+                self.assertEqual(check.quick_plan(selection, PACKAGES),
+                                 [("repo", check.STEPS["repo"][1]),
+                                  ("tooling", check.STEPS["tooling"][1]),
+                                  ("test", [check.KICAD_PARTS_TEST])])
+
+    def test_measurement_protocol_edits_select_tooling_and_the_importer(self):
         for path in ("cad/scripts/test-measure-cad.py", "cad/scripts/measure-cad-worker.cjs"):
             with self.subTest(path=path):
                 selection = quick.select([path], PACKAGES)
                 self.assertEqual(check.quick_plan(selection, PACKAGES),
                                  [("repo", check.STEPS["repo"][1]),
-                                  ("tooling", check.STEPS["tooling"][1])])
+                                  ("tooling", check.STEPS["tooling"][1]),
+                                  ("test", [check.KICAD_PARTS_TEST])])
                 self.assertFalse(selection.rust)
         # The worker protocol runs in the browser provider gate, which a quick run does not cover.
         selection = quick.select(["cad/scripts/measure-cad-worker.cjs"], PACKAGES)
@@ -90,6 +101,14 @@ class QuickPlanTests(unittest.TestCase):
         self.assertEqual(names.count("test-css"), 1)
         self.assertLess(names.index("test-css"), names.index("lint"))
 
+    def test_core_and_footprints_use_one_workspace_test_command(self):
+        self.assertEqual(check.CARGO_TESTS, [["cargo", "test", "--workspace", "--locked"]])
+        plan = self.plan(["core/src/lib.rs", "catalogue/footprints/a.rs"])
+        self.assertEqual(len(plan["test"]), 1)
+        self.assertEqual(plan["test"][0][:3], ["cargo", "test", "--locked"])
+        self.assertIn("boardstudio-footprints", plan["test"][0])
+        self.assertIn("core", plan["test"][0])
+
     def test_a_web_crate_edit_runs_its_launches_without_full_web_build(self):
         plan = self.plan(["web/crates/keymap/src/lib.rs"])
         self.assertNotIn("build", plan)
@@ -104,11 +123,12 @@ class QuickPlanTests(unittest.TestCase):
         self.assertIn("web", plan["test"][0])
 
     def test_quick_layout_runs_prepare_css_before_browser(self):
-        plan = check.quick_plan(quick.select(["web/crates/layout/src/lib.rs"], PACKAGES), PACKAGES)
+        with mock.patch.object(check, "tailwind_cli", return_value=Path("/tools/tailwindcss")):
+            plan = check.quick_plan(quick.select(["web/crates/layout/src/lib.rs"], PACKAGES), PACKAGES)
         names = [name for name, _ in plan]
         self.assertLess(names.index("test-css"), names.index("browser"))
         command = dict(plan)["test-css"][0]
-        self.assertEqual(command, check.TEST_CSS)
+        self.assertEqual(command, ["/tools/tailwindcss", "-i", "tailwind.css", "-o", "assets/tailwind.css"])
         self.assertIn("browser", names)
         self.assertNotIn("layout-test-css", names)
 
@@ -128,8 +148,10 @@ class QuickPlanTests(unittest.TestCase):
         self.assertEqual(len(runner), 1)
         self.assertIn("--depth", runner[0])
         self.assertIn("1", runner[0])
-        for name in check.ISOLATED:
-            self.assertIn(f"--isolate={name}", runner[0])
+        full = next(command for command in check.STEPS["browser"][1]
+                    if "scripts/run-wasm-tests.py" in command)
+        for command in (runner[0], full):
+            self.assertFalse(any(arg.startswith("--isolate") for arg in command))
 
     def test_unfilterable_page_inputs_keep_full_consuming_test_coverage(self):
         for path in ("web/src/presentation/layout_layers_fixtures/paired-rejoin-preview.json",
@@ -179,6 +201,24 @@ class QuickPlanTests(unittest.TestCase):
             return mock.Mock(returncode=0, stdout=outputs[args[1]])
         with mock.patch.object(quick.subprocess, "run", side_effect=fake):
             self.assertEqual(quick.changed_files(ROOT), ["a.rs", "b.rs", "c.rs"])
+
+    def test_quick_plans_never_emit_split_or_combined_build_commands(self):
+        selections = (
+            ["Cargo.lock"],
+            ["web/crates/keymap/src/lib.rs"],
+            ["web/src/presentation/a.rs"],
+            ["core/src/lib.rs"],
+        )
+        for files in selections:
+            with self.subTest(files=files):
+                plan = check.quick_plan(quick.select(files, PACKAGES), PACKAGES)
+                for name, commands in plan:
+                    self.assertNotEqual(name, "build")
+                    for command in commands:
+                        self.assertNotIn("--phase", command)
+                        if check.is_crate_build(command):
+                            self.assertNotIn("--bin", command)
+                            self.assertNotIn(check.PAGE_PACKAGE, command)
 
 
 if __name__ == "__main__":

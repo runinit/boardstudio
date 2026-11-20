@@ -210,9 +210,7 @@ impl ImportedStep {
 
         // 5. Triangle-face consistency: one face index per triangle.
         let triangle_count = self.mesh.positions.len() / 9;
-        if !self.triangle_faces.is_empty()
-            && self.triangle_faces.len() != triangle_count
-        {
+        if !self.triangle_faces.is_empty() && self.triangle_faces.len() != triangle_count {
             failures.push(format!(
                 "triangle_faces count ({}) != triangle count ({})",
                 self.triangle_faces.len(),

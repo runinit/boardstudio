@@ -1,6 +1,7 @@
 //! Mounts a few primitives-backed copies to check the wiring: the primitive supplies the role and state, the copy
 //! adds its rust-ui classes and `data-slot`. The accessibility floor rows are tickets 006 to 008.
 
+use crate::test_mount::MountedFixture;
 use dioxus::prelude::*;
 use wasm_bindgen_test::*;
 
@@ -61,10 +62,7 @@ async fn primitives_backed_copies_carry_role_slot_and_classes() {
     let document = web_sys::window().unwrap().document().unwrap();
     let root = document.create_element("div").unwrap();
     document.body().unwrap().append_child(&root).unwrap();
-    dioxus_web::launch::launch_virtual_dom(
-        VirtualDom::new(fixture),
-        dioxus_web::Config::new().rootnode(root.clone().into()),
-    );
+    let _mounted = MountedFixture::new(root.clone(), VirtualDom::new(fixture));
     wait_until("the copies render", || {
         by_role_name(&root, "checkbox", "Snap to grid").is_some()
     })
@@ -184,19 +182,16 @@ fn picker_fixture() -> Element {
     }
 }
 
-async fn mount_picker() -> web_sys::Element {
+async fn mount_picker() -> (web_sys::Element, MountedFixture) {
     let document = web_sys::window().unwrap().document().unwrap();
     let root = document.create_element("div").unwrap();
     document.body().unwrap().append_child(&root).unwrap();
-    dioxus_web::launch::launch_virtual_dom(
-        VirtualDom::new(picker_fixture),
-        dioxus_web::Config::new().rootnode(root.clone().into()),
-    );
+    let mounted = MountedFixture::new(root.clone(), VirtualDom::new(picker_fixture));
     wait_until("pickers render", || {
         by_role_name(&root, "combobox", "Search fruit").is_some()
     })
     .await;
-    root
+    (root, mounted)
 }
 
 fn key(element: &HtmlElement, value: &str) {
@@ -225,7 +220,7 @@ async fn focus_option(root: &web_sys::Element, name: &str) -> HtmlElement {
 
 #[wasm_bindgen_test]
 async fn select_floor_label_navigation_selection_and_focus_return() {
-    let root = mount_picker().await;
+    let (root, _mounted) = mount_picker().await;
     let trigger =
         by_role_name(&root, "button", "Fruit").expect("Select trigger is named by the Field label");
     assert_eq!(trigger.id(), "fruit-trigger");
@@ -351,10 +346,7 @@ async fn select_opening_space_isolates_raw_event_without_changing_enter_or_calle
     let document = window.document().unwrap();
     let root = document.create_element("div").unwrap();
     document.body().unwrap().append_child(&root).unwrap();
-    dioxus_web::launch::launch_virtual_dom(
-        VirtualDom::new(select_event_fixture),
-        dioxus_web::Config::new().rootnode(root.clone().into()),
-    );
+    let _mounted = MountedFixture::new(root.clone(), VirtualDom::new(select_event_fixture));
     wait_until("event fixture mounts", || {
         by_role_name(&root, "button", "Composed choice").is_some()
     })
@@ -419,7 +411,7 @@ async fn select_opening_space_isolates_raw_event_without_changing_enter_or_calle
 
 #[wasm_bindgen_test]
 async fn combobox_floor_filter_active_descendant_selection_and_escape() {
-    let root = mount_picker().await;
+    let (root, _mounted) = mount_picker().await;
     let input = by_role_name(&root, "combobox", "Search fruit").unwrap();
     assert_eq!(
         input.get_attribute("aria-haspopup").as_deref(),
@@ -562,9 +554,9 @@ async fn select_close_requests_are_not_duplicated_while_popup_is_retained() {
             }
             let root = document.create_element("div").unwrap();
             document.body().unwrap().append_child(&root).unwrap();
-            dioxus_web::launch::launch_virtual_dom(
+            let _mounted = MountedFixture::new(
+                root.clone(),
                 VirtualDom::new_with_props(CloseTracePicker, CloseTracePickerProps { controlled }),
-                dioxus_web::Config::new().rootnode(root.clone().into()),
             );
             wait_until("trace picker mounts", || {
                 by_role_name(&root, "button", "Select an option").is_some()

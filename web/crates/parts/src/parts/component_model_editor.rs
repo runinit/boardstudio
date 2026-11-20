@@ -899,8 +899,11 @@ mod settlement_tests {
     use boardstudio_core::model::ProjectDoc;
     use boardstudio_web_runtime::pending_edits::PendingEdits;
     use boardstudio_web_runtime::runtime::project_name_test_support as support;
+    use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::test_role::by_role_name;
-    use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_future, wait_until_step};
+    use boardstudio_web_ui_shared::test_wait::{
+        settle_until, wait_until, wait_until_future, wait_until_step,
+    };
     use wasm_bindgen_test::*;
 
     fn definition() -> PartDefinition {
@@ -959,14 +962,6 @@ mod settlement_tests {
         } }
     }
 
-    async fn settle_until(runtime: &Rc<Runtime>, what: &str, done: impl Fn() -> bool) {
-        wait_until_step(what, async || {
-            support::run_pending(runtime).await;
-            done()
-        })
-        .await;
-    }
-
     type UploadEventProbe = Rc<std::cell::RefCell<Option<FormEvent>>>;
 
     fn upload_host() -> Element {
@@ -1023,10 +1018,7 @@ mod settlement_tests {
         dom.provide_root_context(runtime.clone());
         dom.provide_root_context(handler_probe.clone());
         dom.provide_root_context(event_probe.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         wait_until("model upload control mounts", || {
             root.query_selector("input[type=file]").unwrap().is_some()
                 && handler_probe.borrow().is_some()
@@ -1081,19 +1073,24 @@ mod settlement_tests {
             retained.call(event.clone());
         }
         release.send(()).unwrap();
-        settle_until(&runtime, "uploaded model lands once", || {
-            runtime
-                .model()
-                .accepted
-                .unwrap()
-                .document
-                .assets
-                .iter()
-                .filter(|asset| asset.name == "retained-model.stl")
-                .count()
-                == 1
-                && !input.disabled()
-        })
+        settle_until(
+            &runtime,
+            support::run_pending,
+            "uploaded model lands once",
+            || {
+                runtime
+                    .model()
+                    .accepted
+                    .unwrap()
+                    .document
+                    .assets
+                    .iter()
+                    .filter(|asset| asset.name == "retained-model.stl")
+                    .count()
+                    == 1
+                    && !input.disabled()
+            },
+        )
         .await;
         assert_eq!(
             runtime
@@ -1140,23 +1137,25 @@ mod settlement_tests {
         document.body().unwrap().append_child(&root).unwrap();
         let dom = VirtualDom::new(host);
         dom.provide_root_context(runtime.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         wait_until("model offset input mounts", || {
             by_role_name(&root, "spinbutton", "Offset X mm").is_some()
         })
         .await;
         let x = input(&root, "X");
         commit(&x, "4").await;
-        settle_until(&runtime, "first model axis edit lands", || {
-            initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
-                .unwrap()
-                .offset
-                .x
-                == 4.0
-        })
+        settle_until(
+            &runtime,
+            support::run_pending,
+            "first model axis edit lands",
+            || {
+                initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
+                    .unwrap()
+                    .offset
+                    .x
+                    == 4.0
+            },
+        )
         .await;
         assert_eq!(
             initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
@@ -1169,25 +1168,35 @@ mod settlement_tests {
         runtime.submit(boardstudio_application::Event::Undo {
             operation_id: runtime.operation(),
         });
-        settle_until(&runtime, "model axis Undo renders", || {
-            initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
-                .unwrap()
-                .offset
-                .x
-                == 0.0
-                && x.value() == "0"
-        })
+        settle_until(
+            &runtime,
+            support::run_pending,
+            "model axis Undo renders",
+            || {
+                initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
+                    .unwrap()
+                    .offset
+                    .x
+                    == 0.0
+                    && x.value() == "0"
+            },
+        )
         .await;
         assert_eq!(x.value(), "0", "Undo restores the accepted axis value");
 
         commit(&x, "4").await;
-        settle_until(&runtime, "same model axis edit lands again", || {
-            initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
-                .unwrap()
-                .offset
-                .x
-                == 4.0
-        })
+        settle_until(
+            &runtime,
+            support::run_pending,
+            "same model axis edit lands again",
+            || {
+                initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
+                    .unwrap()
+                    .offset
+                    .x
+                    == 4.0
+            },
+        )
         .await;
         assert_eq!(
             initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
@@ -1209,10 +1218,7 @@ mod settlement_tests {
         document.body().unwrap().append_child(&root).unwrap();
         let dom = VirtualDom::new(host);
         dom.provide_root_context(runtime.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         wait_until("model offset input mounts", || {
             by_role_name(&root, "spinbutton", "Offset X mm").is_some()
         })
@@ -1227,14 +1233,19 @@ mod settlement_tests {
         x.focus().unwrap();
         type_value(&x, "0");
         release.send(()).unwrap();
-        settle_until(&runtime, "older model axis edit lands", || {
-            initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
-                .unwrap()
-                .offset
-                .x
-                == 4.0
-                && x.value() == "0"
-        })
+        settle_until(
+            &runtime,
+            support::run_pending,
+            "older model axis edit lands",
+            || {
+                initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
+                    .unwrap()
+                    .offset
+                    .x
+                    == 4.0
+                    && x.value() == "0"
+            },
+        )
         .await;
         assert_eq!(
             initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
@@ -1251,13 +1262,18 @@ mod settlement_tests {
         );
 
         x.blur().unwrap();
-        settle_until(&runtime, "preserved baseline draft commits", || {
-            initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
-                .unwrap()
-                .offset
-                .x
-                == 0.0
-        })
+        settle_until(
+            &runtime,
+            support::run_pending,
+            "preserved baseline draft commits",
+            || {
+                initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
+                    .unwrap()
+                    .offset
+                    .x
+                    == 0.0
+            },
+        )
         .await;
         assert_eq!(
             initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
@@ -1270,27 +1286,37 @@ mod settlement_tests {
         runtime.submit(boardstudio_application::Event::Undo {
             operation_id: runtime.operation(),
         });
-        settle_until(&runtime, "clean axis draft follows Undo", || {
-            initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
-                .unwrap()
-                .offset
-                .x
-                == 4.0
-                && x.value() == "4"
-        })
+        settle_until(
+            &runtime,
+            support::run_pending,
+            "clean axis draft follows Undo",
+            || {
+                initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
+                    .unwrap()
+                    .offset
+                    .x
+                    == 4.0
+                    && x.value() == "4"
+            },
+        )
         .await;
         assert_eq!(x.value(), "4", "the clean axis follows Undo");
         runtime.submit(boardstudio_application::Event::Redo {
             operation_id: runtime.operation(),
         });
-        settle_until(&runtime, "clean axis draft follows Redo", || {
-            initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
-                .unwrap()
-                .offset
-                .x
-                == 0.0
-                && x.value() == "0"
-        })
+        settle_until(
+            &runtime,
+            support::run_pending,
+            "clean axis draft follows Redo",
+            || {
+                initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
+                    .unwrap()
+                    .offset
+                    .x
+                    == 0.0
+                    && x.value() == "0"
+            },
+        )
         .await;
         assert_eq!(x.value(), "0", "the clean axis follows Redo");
         runtime.unsubscribe();
@@ -1305,10 +1331,7 @@ mod settlement_tests {
         document.body().unwrap().append_child(&root).unwrap();
         let dom = VirtualDom::new(host);
         dom.provide_root_context(runtime.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         wait_until("model offset inputs mount", || {
             by_role_name(&root, "spinbutton", "Offset X mm").is_some()
                 && by_role_name(&root, "spinbutton", "Offset Y mm").is_some()
@@ -1325,12 +1348,18 @@ mod settlement_tests {
         commit(&y, "7").await;
         type_value(&y, "9");
         release.send(()).unwrap();
-        settle_until(&runtime, "queued model axes land", || {
-            let offset = initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
-                .unwrap()
-                .offset;
-            offset.x == 4.0 && offset.y == 7.0 && x.value() == "4" && y.value() == "9"
-        })
+        settle_until(
+            &runtime,
+            support::run_pending,
+            "queued model axes land",
+            || {
+                let offset =
+                    initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
+                        .unwrap()
+                        .offset;
+                offset.x == 4.0 && offset.y == 7.0 && x.value() == "4" && y.value() == "9"
+            },
+        )
         .await;
         let accepted = runtime.model().accepted.unwrap();
         assert_eq!(
@@ -1348,16 +1377,21 @@ mod settlement_tests {
         runtime.submit(boardstudio_application::Event::Undo {
             operation_id: runtime.operation(),
         });
-        settle_until(&runtime, "first model axis Undo settles", || {
-            initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
-                .unwrap()
-                .offset
-                == Vec3 {
-                    x: 4.0,
-                    y: 0.0,
-                    z: 0.0,
-                }
-        })
+        settle_until(
+            &runtime,
+            support::run_pending,
+            "first model axis Undo settles",
+            || {
+                initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
+                    .unwrap()
+                    .offset
+                    == Vec3 {
+                        x: 4.0,
+                        y: 0.0,
+                        z: 0.0,
+                    }
+            },
+        )
         .await;
         assert_eq!(
             initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
@@ -1372,12 +1406,17 @@ mod settlement_tests {
         runtime.submit(boardstudio_application::Event::Undo {
             operation_id: runtime.operation(),
         });
-        settle_until(&runtime, "second model axis Undo settles", || {
-            initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
-                .unwrap()
-                .offset
-                == Vec3::default()
-        })
+        settle_until(
+            &runtime,
+            support::run_pending,
+            "second model axis Undo settles",
+            || {
+                initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
+                    .unwrap()
+                    .offset
+                    == Vec3::default()
+            },
+        )
         .await;
         assert_eq!(
             initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
@@ -1406,6 +1445,7 @@ mod settlement_tests {
         release.send(()).unwrap();
         settle_until(
             &runtime,
+            support::run_pending,
             "Escape cancels the newer model axis draft",
             || {
                 initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
@@ -1428,19 +1468,25 @@ mod settlement_tests {
         runtime.submit(boardstudio_application::Event::Undo {
             operation_id: runtime.operation(),
         });
-        settle_until(&runtime, "model axis Undo restores the prior X", || {
-            initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
-                .unwrap()
-                .offset
-                .x
-                == 0.0
-                && x.value() == "0"
-        })
+        settle_until(
+            &runtime,
+            support::run_pending,
+            "model axis Undo restores the prior X",
+            || {
+                initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
+                    .unwrap()
+                    .offset
+                    .x
+                    == 0.0
+                    && x.value() == "0"
+            },
+        )
         .await;
         support::fail_next_core_reply(&runtime, "controlled model failure");
         commit(&x, "12").await;
         settle_until(
             &runtime,
+            support::run_pending,
             "failed model edit restores its accepted value",
             || x.value() == "0",
         )

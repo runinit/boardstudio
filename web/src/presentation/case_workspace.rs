@@ -1345,7 +1345,9 @@ mod mounted_live_scene_tests {
     use boardstudio_core::model::{
         Board, Finding, MechanicalAssembly, Scope as FindingScope, Severity,
     };
-    use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
+    use boardstudio_web_ui_shared::{
+        test_mount::MountedFixture, test_role::by_role_name, test_wait::wait_until,
+    };
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::wasm_bindgen_test;
 
@@ -1587,44 +1589,39 @@ mod mounted_live_scene_tests {
         document.body().unwrap().append_child(&root).unwrap();
         let dom = VirtualDom::new(navigation_host);
         dom.provide_root_context(runtime);
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         settle().await;
         for _ in 0..2 {
-            document
-                .get_element_by_id("case-navigation-enter")
+            root.query_selector("#case-navigation-enter")
+                .unwrap()
                 .unwrap()
                 .dyn_into::<web_sys::HtmlElement>()
                 .unwrap()
                 .click();
             settle().await;
             assert!(
-                document
-                    .query_selector("#case-navigation-content [aria-label='Case Inspector']")
+                root.query_selector("#case-navigation-content [aria-label='Case Inspector']")
                     .unwrap()
                     .is_some()
             );
             assert!(
-                document
-                    .query_selector(
-                        "#case-navigation-content [aria-label='Mechanical stack settings']"
-                    )
-                    .unwrap()
-                    .is_some(),
+                root.query_selector(
+                    "#case-navigation-content [aria-label='Mechanical stack settings']"
+                )
+                .unwrap()
+                .is_some(),
                 "entering Case mounts its real mechanical Inspector"
             );
-            document
-                .get_element_by_id("case-navigation-leave")
+            root.query_selector("#case-navigation-leave")
+                .unwrap()
                 .unwrap()
                 .dyn_into::<web_sys::HtmlElement>()
                 .unwrap()
                 .click();
             settle().await;
             assert!(
-                document
-                    .get_element_by_id("case-navigation-content")
+                root.query_selector("#case-navigation-content")
+                    .unwrap()
                     .unwrap()
                     .text_content()
                     .unwrap()
@@ -1632,8 +1629,8 @@ mod mounted_live_scene_tests {
                 "leaving Case restores the previous workspace"
             );
             assert_eq!(
-                document
-                    .get_element_by_id("case-navigation-owner")
+                root.query_selector("#case-navigation-owner")
+                    .unwrap()
                     .unwrap()
                     .text_content()
                     .unwrap(),
@@ -1646,15 +1643,13 @@ mod mounted_live_scene_tests {
         gloo_timers::future::TimeoutFuture::new(10).await;
     }
 
-    async fn wait_for_current_resolution_inspector_text(document: &web_sys::Document) -> String {
+    async fn wait_for_current_resolution_inspector_text(root: &web_sys::Element) -> String {
         let current_resolution_finding =
             "Case body 'mechanical-frame-outline' requires at least one outer contour";
         let mut last_text = String::new();
         for _ in 0..50 {
-            if let Some(inspector) = document
-                .query_selector(
-                    "#case11-workspace-evidence-root [aria-label='Mechanical stack settings']",
-                )
+            if let Some(inspector) = root
+                .query_selector("[aria-label='Mechanical stack settings']")
                 .unwrap()
             {
                 last_text = inspector.text_content().unwrap_or_default();
@@ -1689,10 +1684,7 @@ mod mounted_live_scene_tests {
             .unwrap();
         let dom = VirtualDom::new(host);
         dom.provide_root_context(runtime.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         settle().await;
 
         let mut edited = original.document.as_ref().clone();
@@ -1704,11 +1696,8 @@ mod mounted_live_scene_tests {
             edited,
         )
         .await;
-        web_sys::window()
+        root.query_selector("#case11-accepted-transition")
             .unwrap()
-            .document()
-            .unwrap()
-            .get_element_by_id("case11-accepted-transition")
             .unwrap()
             .dyn_into::<web_sys::HtmlElement>()
             .unwrap()
@@ -1717,15 +1706,11 @@ mod mounted_live_scene_tests {
         // present before the accepted-owner render lands; let that render finish first.
         settle().await;
 
-        let document = web_sys::window().unwrap().document().unwrap();
-        let text = wait_for_current_resolution_inspector_text(&document).await;
-        let root_text = document
-            .get_element_by_id("case11-workspace-evidence-root")
+        let text = wait_for_current_resolution_inspector_text(&root).await;
+        let root_text = root.text_content().unwrap_or_default();
+        let plate = root
+            .query_selector("[id='m1-object-tree-case-generated:plate']")
             .unwrap()
-            .text_content()
-            .unwrap_or_default();
-        let plate = document
-            .get_element_by_id("m1-object-tree-case-generated:plate")
             .unwrap_or_else(|| {
                 panic!("same-scope layer missing from production Objects tree: {root_text}")
             });
@@ -1747,8 +1732,8 @@ mod mounted_live_scene_tests {
         assert!(text.contains("Plate thickness"));
         assert!(!text.contains("Stale diagnostic from previous geometry"));
         assert_eq!(
-            document
-                .get_element_by_id("case11-shown-finding")
+            root.query_selector("#case11-shown-finding")
+                .unwrap()
                 .unwrap()
                 .text_content()
                 .as_deref(),
@@ -1781,17 +1766,15 @@ mod mounted_live_scene_tests {
             "current-case-finding",
             "Current diagnostic for accepted geometry",
         )));
-        document
-            .get_element_by_id("case11-accepted-transition")
+        root.query_selector("#case11-accepted-transition")
+            .unwrap()
             .unwrap()
             .dyn_into::<web_sys::HtmlElement>()
             .unwrap()
             .click();
         settle().await;
-        let inspector = document
-            .query_selector(
-                "#case11-workspace-evidence-root [aria-label='Mechanical stack settings']",
-            )
+        let inspector = root
+            .query_selector("[aria-label='Mechanical stack settings']")
             .unwrap()
             .unwrap();
         let text = inspector.text_content().unwrap_or_default();
@@ -1807,8 +1790,8 @@ mod mounted_live_scene_tests {
         .click();
         settle().await;
         assert_eq!(
-            document
-                .get_element_by_id("case11-shown-finding")
+            root.query_selector("#case11-shown-finding")
+                .unwrap()
                 .unwrap()
                 .text_content()
                 .as_deref(),
@@ -1853,22 +1836,20 @@ mod mounted_live_scene_tests {
             Some("other-board".to_owned())
         );
         runtime.set_cad_scene_test(previous_board_scene);
-        document
-            .get_element_by_id("case11-accepted-transition")
+        root.query_selector("#case11-accepted-transition")
+            .unwrap()
             .unwrap()
             .dyn_into::<web_sys::HtmlElement>()
             .unwrap()
             .click();
         settle().await;
         assert!(
-            document
-                .get_element_by_id("m1-object-tree-case-generated:plate")
+            root.query_selector("[id='m1-object-tree-case-generated:plate']")
+                .unwrap()
                 .is_none()
         );
-        let inspector = document
-            .query_selector(
-                "#case11-workspace-evidence-root [aria-label='Mechanical stack settings']",
-            )
+        let inspector = root
+            .query_selector("[aria-label='Mechanical stack settings']")
             .unwrap()
             .unwrap();
         let text = inspector.text_content().unwrap_or_default();
@@ -1937,10 +1918,7 @@ mod mounted_live_scene_tests {
         document.body().unwrap().append_child(&root).unwrap();
         let dom = VirtualDom::new(tree_host);
         dom.provide_root_context(runtime);
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         let label = "Main board case assembly";
         wait_until("the case tree mounts", || {
             by_role_name(&root, "button", &format!("Collapse {label}")).is_some()
@@ -1995,7 +1973,6 @@ mod mounted_live_scene_tests {
                 == "select-assembly"
         })
         .await;
-        root.remove();
     }
 
     async fn split_hardware_fixture() -> Rc<Runtime> {
@@ -2075,10 +2052,7 @@ mod mounted_live_scene_tests {
         document.body().unwrap().append_child(&root).unwrap();
         let dom = VirtualDom::new(physical_host);
         dom.provide_root_context(runtime);
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         wait_until("assembly setup mounts", || {
             root.text_content()
                 .unwrap_or_default()
@@ -2131,6 +2105,5 @@ mod mounted_live_scene_tests {
         })
         .await;
         assert!(by_role_name(&root, "checkbox", "Turn PCB over for this half").is_some());
-        root.remove();
     }
 }

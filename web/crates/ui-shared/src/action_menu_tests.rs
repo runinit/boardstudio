@@ -1,4 +1,5 @@
 //! Ticket 007: exercise the copied menu, not a test implementation of its behaviour.
+use crate::test_mount::MountedFixture;
 use dioxus::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
@@ -133,10 +134,7 @@ async fn action_menu_keyboard_roles_focus_and_action_outcomes() {
     let document = web_sys::window().unwrap().document().unwrap();
     let root = document.create_element("div").unwrap();
     document.body().unwrap().append_child(&root).unwrap();
-    dioxus_web::launch::launch_virtual_dom(
-        VirtualDom::new(fixture),
-        dioxus_web::Config::new().rootnode(root.clone().into()),
-    );
+    let _mounted = MountedFixture::new(root.clone(), VirtualDom::new(fixture));
     wait_until("representative menus render", || {
         by_role_name(&root, "button", "Project").is_some()
     })
@@ -291,10 +289,7 @@ async fn action_menu_respects_control_disabled_custom_trigger_and_nonlooping_ord
     let document = web_sys::window().unwrap().document().unwrap();
     let root = document.create_element("div").unwrap();
     document.body().unwrap().append_child(&root).unwrap();
-    dioxus_web::launch::launch_virtual_dom(
-        VirtualDom::new(bounded_fixture),
-        dioxus_web::Config::new().rootnode(root.clone().into()),
-    );
+    let _mounted = MountedFixture::new(root.clone(), VirtualDom::new(bounded_fixture));
     wait_until("bounded menu fixtures render", || {
         by_role_name(&root, "button", "Settings").is_some()
     })
@@ -384,9 +379,9 @@ async fn action_menu_animated_closes_preserve_focus_and_emit_one_request() {
             }
             let root = document.create_element("div").unwrap();
             document.body().unwrap().append_child(&root).unwrap();
-            dioxus_web::launch::launch_virtual_dom(
+            let _mounted = MountedFixture::new(
+                root.clone(),
                 VirtualDom::new_with_props(RetainedMenu, RetainedMenuProps { controlled }),
-                dioxus_web::Config::new().rootnode(root.clone().into()),
             );
             wait_until("animated menu mounts", || {
                 by_role_name(&root, "button", "Animated actions").is_some()

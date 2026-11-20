@@ -40,7 +40,6 @@ categories = [
 ]
 license = "Apache-2.0"
 repository = "https://github.com/virtualritz/monstertruck"
-resolver = "2"
 
 [features]
 cadmpeg = [
@@ -214,6 +213,8 @@ features = ["derive"]
 
 [dev-dependencies.image]
 version = "0.25"
+default-features = false
+features = ["png"]
 
 [dev-dependencies.itertools]
 version = "0.14"
@@ -223,7 +224,6 @@ version = "0.4.1"
 
 [dev-dependencies.monstertruck-meshing]
 version = "0.4.1"
-features = ["vtk"]
 
 [dev-dependencies.monstertruck-modeling]
 version = "0.4.1"
@@ -234,8 +234,3 @@ version = "1"
 
 [dev-dependencies.serde_json]
 version = "1"
-
-[dev-dependencies.vtkio]
-version = "0.6"
-features = ["xml"]
-default-features = false

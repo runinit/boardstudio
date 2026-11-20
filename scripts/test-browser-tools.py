@@ -16,6 +16,37 @@ def which(*available):
 
 
 class BrowserToolsTests(unittest.TestCase):
+    def test_shallow_browser_tmpdir_uses_short_home_and_falls_back_for_deep_home(self):
+        with mock.patch.object(browser_tools.Path, "home", return_value=Path("/tmp/bs-home")), \
+                mock.patch.object(browser_tools.Path, "mkdir") as mkdir:
+            self.assertEqual(browser_tools.shallow_browser_tmpdir(), Path("/tmp/bs-home/.cache/tmp"))
+            mkdir.assert_called_once_with(parents=True, exist_ok=True)
+        with mock.patch.object(browser_tools.Path, "home", return_value=Path("/tmp") / ("x" * 80)), \
+                mock.patch.object(browser_tools.Path, "mkdir") as mkdir:
+            self.assertEqual(browser_tools.shallow_browser_tmpdir(), Path("/tmp"))
+            mkdir.assert_called_once_with(parents=True, exist_ok=True)
+
+    def test_shallow_tmpdir_checks_encoded_byte_boundary(self):
+        # '/tmp/' + 29 ASCII bytes + '/.cache/tmp' = 45 bytes.
+        for home, expected in ((Path('/tmp') / ('x' * 29), True),
+                               (Path('/tmp') / ('x' * 30), False),
+                               (Path('/tmp') / ('é' * 15), False)):
+            with self.subTest(home=home), mock.patch.object(browser_tools.Path, 'home', return_value=home), \
+                    mock.patch.object(browser_tools.Path, 'mkdir'):
+                self.assertEqual(browser_tools.shallow_browser_tmpdir(), home / '.cache/tmp' if expected else Path('/tmp'))
+
+    def test_browser_env_overrides_tmpdir_and_preserves_base(self):
+        base = {"TMPDIR": "/deep", "KEEP": "yes", "CHROME_BIN": "old"}
+        with mock.patch.object(browser_tools, "shallow_browser_tmpdir", return_value=Path("/tmp")), \
+                mock.patch.object(browser_tools, "locate_chrome", return_value="/chrome"):
+            env = browser_tools.browser_env(base, EXTRA=42)
+        self.assertEqual(env, {"TMPDIR": "/tmp", "KEEP": "yes", "CHROME_BIN": "/chrome", "EXTRA": "42"})
+        self.assertEqual(base["TMPDIR"], "/deep")
+        with mock.patch.object(browser_tools, "shallow_browser_tmpdir", return_value=Path("/tmp")):
+            env = browser_tools.browser_env(base, chrome="/chosen", TMPDIR="/tmp/nested")
+            self.assertEqual(env["TMPDIR"], "/tmp/nested")
+            self.assertEqual(env["CHROME_BIN"], "/chosen")
+
     def test_missing_cargo_is_reported_before_launch_with_or_without_inherited_lock(self):
         for inherited in (None, 9):
             with self.subTest(inherited=inherited), \
@@ -96,7 +127,7 @@ class BrowserToolsTests(unittest.TestCase):
                             "grandchild": "import check; check.run_serial(['cargo'], dict(os.environ))",
                             "web": "import importlib; m=importlib.import_module('build-web'); m.run(['cargo'])",
                             "cad": "sys.path.insert(0, os.environ['CAD']); import cad_build; cad_build.run(['cargo'])",
-                            "wasm": "import importlib; m=importlib.import_module('run-wasm-tests'); m.run_filter(None, dict(os.environ))",
+                            "wasm": "import importlib; m=importlib.import_module('run-wasm-tests'); m.build_page_test(m.ROOT, dict(os.environ))",
                         }
                         # Standalone uses flock's own process; the others inherit a validated descriptor.
                         source = ("import os, sys\n" if mode == "standalone" else setup) + calls[mode]
@@ -225,6 +256,7 @@ class BrowserToolsTests(unittest.TestCase):
                     "target": {"name": "drag-smoke", "kind": ["bin"]}, "executable": "/fake/drag-smoke"}) + "))\n")
             cargo.chmod(0o755)
             env = dict(os.environ, HOME=temp, LOCK=str(lock), PATH=f"{temp}:{os.environ['PATH']}", PYTHONPATH=str(root / "scripts"))
+            env.pop("BOARDSTUDIO_BUILD_LOCK_FD", None)
             direct = "import browser_tools; print(browser_tools.build_drag_harness())"
             standalone = subprocess.run([sys.executable, "-c", direct], cwd=root / "scripts", env=env,
                                         capture_output=True, text=True, timeout=5)

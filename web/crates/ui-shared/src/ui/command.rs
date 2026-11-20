@@ -96,6 +96,7 @@ pub fn use_commands(commands: Vec<Command>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_mount::MountedFixture;
     use crate::ui::{
         accordion::{Accordion, AccordionContent, AccordionItem, AccordionTrigger},
         collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
@@ -180,10 +181,7 @@ mod tests {
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(Fixture),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), VirtualDom::new(Fixture));
         wait_until("registry fixture mounted", || {
             by_role_name(&root, "status", "Registry").is_some()
         })
@@ -301,14 +299,14 @@ mod tests {
         let root = document.create_element("div").unwrap();
         document.body().unwrap().append_child(&root).unwrap();
         let calls = Rc::new(RefCell::new(Vec::new()));
-        dioxus_web::launch::launch_virtual_dom(
+        let _mounted = MountedFixture::new(
+            root.clone(),
             VirtualDom::new_with_props(
                 DisclosureKeyboardFixture,
                 DisclosureKeyboardFixtureProps {
                     calls: calls.clone(),
                 },
             ),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         wait_until("keyboard disclosure fixture mounted", || {
             by_role_name(&root, "button", "Uncontrolled keyboard section").is_some()
@@ -360,10 +358,7 @@ mod tests {
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(DisclosureFixture),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), VirtualDom::new(DisclosureFixture));
         wait_until("both disclosure triggers", || {
             by_role_name(&root, "button", "Uncontrolled section").is_some()
         })

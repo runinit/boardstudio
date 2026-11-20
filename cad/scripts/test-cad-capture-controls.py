@@ -49,6 +49,57 @@ self.postMessage({kind:'ready'});
 '''
 
 
+def _sigterm_exit(_signum, _frame):
+    raise SystemExit(143)
+
+
+def _descendant_pids(pid):
+    """Every live descendant PID of `pid`, through /proc children files."""
+    seen = set()
+    stack = [pid]
+    while stack:
+        try:
+            tasks = Path(f"/proc/{stack.pop()}/task").iterdir()
+        except FileNotFoundError:
+            continue
+        for task in tasks:
+            try:
+                children = (task / "children").read_text().split()
+            except FileNotFoundError:
+                continue
+            for child in children:
+                child = int(child)
+                if child not in seen:
+                    seen.add(child)
+                    stack.append(child)
+    return seen
+
+
+def _reap_capture(process, *, detached):
+    """SIGKILL a capture that outlived its test, then reap it.
+
+    Standalone runs detach the capture into its own process group, so one
+    killpg reaches cad-capture and Chrome. Under the scheduler the capture
+    stays in the runner's group instead; killing that group would kill this
+    runner, so SIGKILL the capture's descendants first, then the capture.
+    """
+    if process.poll() is not None:
+        return
+    if detached:
+        os.killpg(process.pid, signal.SIGKILL)
+    else:
+        for pid in _descendant_pids(process.pid):
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        try:
+            os.kill(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+    process.wait()
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("output", type=Path, nargs="?", help="new output directory for capture logs and controlled observations")
@@ -127,6 +178,8 @@ def main():
 
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
+    # Let SIGTERM run the finally blocks (reaping cad-capture and Chrome) instead of killing this runner.
+    previous_sigterm = signal.signal(signal.SIGTERM, _sigterm_exit)
     thread.start()
     try:
         for name, fixture, operation, sequence, bad in (
@@ -142,7 +195,7 @@ def main():
             command = [str(binary), f"http://127.0.0.1:{server.server_port}", "monstertruck", "checked",
                        f"{fixture}:{operation}", str(directory), "1", sequence]
             if name == "preview-validation":
-                code, _ = measure_cad.capture(command, ROOT, directory, 240, dict(os.environ, CHROME_BIN=chrome))
+                code, _ = measure_cad.capture(command, ROOT, directory, 240, browser_tools.browser_env(chrome=chrome))
                 log = (directory / "command.log").read_text()
                 result = SimpleNamespace(returncode=code, stdout=log, stderr=log)
                 with (directory / "memory.csv").open() as memory:
@@ -152,7 +205,7 @@ def main():
                 assert any(row["scope"] == "controller" and row["status"] == "ok" for row in samples), samples
                 print("PASS memory.csv: real Rust browser and controller sampled", flush=True)
             else:
-                result = subprocess.run(command, cwd=ROOT, env=dict(os.environ, CHROME_BIN=chrome),
+                result = subprocess.run(command, cwd=ROOT, env=browser_tools.browser_env(chrome=chrome),
                                         capture_output=True, text=True, timeout=240)
             (directory / "process.log").write_text(f"exit={result.returncode}\n{result.stdout}\n{result.stderr}")
             (directory / "worker-observations.json").write_text(json.dumps(records, indent=2))
@@ -194,7 +247,7 @@ def main():
         directory.mkdir()
         command = [str(binary), f"http://127.0.0.1:{server.server_port}", "monstertruck", "checked",
                    "startup:cold", str(directory), "1", "validation"]
-        result = subprocess.run(command, cwd=ROOT, env=dict(os.environ, CHROME_BIN=chrome),
+        result = subprocess.run(command, cwd=ROOT, env=browser_tools.browser_env(chrome=chrome),
                                 capture_output=True, text=True, timeout=240)
         (directory / "process.log").write_text(f"exit={result.returncode}\n{result.stdout}\n{result.stderr}")
         events = [json.loads(line) for line in (directory / "events.log").read_text().splitlines()]
@@ -210,12 +263,16 @@ def main():
         records.clear()
         directory = output / "browser-close-failure"
         directory.mkdir()
-        profiles = Path(tempfile.mkdtemp(prefix="cad-close-", dir=os.environ.get("TMPDIR")))
+        profiles = Path(tempfile.mkdtemp(prefix="cad-close-", dir=str(browser_tools.shallow_browser_tmpdir())))
         command = [str(binary), f"http://127.0.0.1:{server.server_port}", "monstertruck", "checked",
                    "C1plate:preview", str(directory), "1", "validation"]
+        # Under the scheduler this runner already leads its own process group, so the capture
+        # stays inside it and dies with the group's SIGTERM/SIGKILL; standalone runs detach
+        # the capture into a group the finally block kills instead.
+        in_own_group = os.getpgrp() == os.getpid()
         with (directory / "process.log").open("w") as log:
-            process = subprocess.Popen(command, cwd=ROOT, env=dict(os.environ, CHROME_BIN=chrome, TMPDIR=str(profiles)),
-                                       stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+            process = subprocess.Popen(command, cwd=ROOT, env=browser_tools.browser_env(chrome=chrome, TMPDIR=str(profiles)),
+                                       stdout=log, stderr=subprocess.STDOUT, start_new_session=not in_own_group)
             try:
                 events_file = directory / "events.log"
                 for _ in range(600):
@@ -272,9 +329,7 @@ def main():
                 process.wait(timeout=90)
             finally:
                 barrier_release.set()
-                if process.poll() is None:
-                    os.killpg(process.pid, signal.SIGKILL)
-                    process.wait()
+                _reap_capture(process, detached=not in_own_group)
         events = [json.loads(line) for line in events_file.read_text().splitlines()]
         assert process.returncode != 0, "browser close failure must fail the capture"
         assert any(event["name"] == "reply-retained" for event in events), events
@@ -286,6 +341,7 @@ def main():
             print(f"browser profile retained at {profiles}", flush=True)
         print("PASS browser-close-failure: retained reply cannot hide browser shutdown failure", flush=True)
     finally:
+        signal.signal(signal.SIGTERM, previous_sigterm)
         barrier_release.set()
         server.shutdown()
         server.server_close()

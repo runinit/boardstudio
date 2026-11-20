@@ -13,6 +13,26 @@ import shutil
 import subprocess
 
 
+MAX_BROWSER_TMPDIR_BYTES = 45
+
+
+def shallow_browser_tmpdir() -> Path:
+    """Choose a root short enough for nested Chrome Unix sockets."""
+    candidate = Path.home() / ".cache/tmp"
+    if len(os.fsencode(candidate)) > MAX_BROWSER_TMPDIR_BYTES:
+        candidate = Path("/tmp")
+    candidate.mkdir(parents=True, exist_ok=True)
+    return candidate
+
+
+def browser_env(base_env=None, *, chrome=None, **extra) -> dict[str, str]:
+    environment = dict(os.environ if base_env is None else base_env)
+    environment["TMPDIR"] = str(shallow_browser_tmpdir())
+    environment["CHROME_BIN"] = chrome if chrome is not None else locate_chrome()
+    environment.update({key: str(value) for key, value in extra.items()})
+    return environment
+
+
 class MissingBrowserTool(Exception):
     """A prerequisite of the real-page smoke is absent; the message says how to supply it."""
 
@@ -62,7 +82,14 @@ def build_drag_harness() -> Path:
 
 
 def _build_harness(binary: str) -> Path:
-    """Build the requested harness under the shared lock."""
+    return _build_harness_bins((binary,))[binary]
+
+
+CHECK_HARNESS_BINS = ("drag-smoke", "cad-capture", "cad-provider-pages", "face-completeness-web")
+
+
+def _build_harness_bins(binaries: tuple[str, ...]) -> dict[str, Path]:
+    """Build the selected harness binaries under the shared lock."""
     root = Path(__file__).resolve().parents[1]
     lock = Path.home() / ".cache/tmp/boardstudio-build.lock"
     lock.parent.mkdir(parents=True, exist_ok=True)
@@ -75,13 +102,15 @@ def _build_harness(binary: str) -> Path:
         result = subprocess.run(
             [*(["flock", str(lock)] if inherited is None else []), "cargo", "build", "--locked", "--message-format=json",
              "--manifest-path", str(root / "tools/browser-harness/Cargo.toml"),
-             "--package", "boardstudio-browser-harness", "--bin", binary],
+             "--package", "boardstudio-browser-harness",
+             *[arg for binary in binaries for arg in ("--bin", binary)]],
             cwd=root, capture_output=True, text=True, **({"pass_fds": (inherited,)} if inherited is not None else {}),
         )
     except FileNotFoundError as error:
         if error.filename == ("flock" if inherited is None else "cargo"):
             raise MissingBrowserTool(f"browser harness cannot find {error.filename}; install it and add it to PATH") from error
         raise
+    label = ", ".join(binaries)
     if result.returncode:
         diagnostic = result.stderr
         for line in result.stdout.splitlines():
@@ -101,16 +130,30 @@ def _build_harness(binary: str) -> Path:
                               r"[\w-]*[\"']?\s*[=:]|\bBearer\s+", diagnostic)
         if sensitive:
             diagnostic = diagnostic[:sensitive.start()] + "<sensitive diagnostic withheld>\n"
-        raise SystemExit(f"{binary} cannot build the Rust harness:\n{diagnostic}")
+        raise SystemExit(f"{label} cannot build the Rust harness:\n{diagnostic}")
+    package = f"path+{(root / 'tools/browser-harness').as_uri()}#"
+    artifacts: dict[str, Path] = {}
     try:
-        artifacts = [message["executable"] for line in result.stdout.splitlines()
-                     if (message := json.loads(line)).get("reason") == "compiler-artifact"
-                     and message.get("package_id", "").startswith(
-                         f"path+{(root / 'tools/browser-harness').as_uri()}#")
-                     and message.get("target", {}).get("name") == binary
-                     and "bin" in message["target"].get("kind", []) and message.get("executable")]
+        for line in result.stdout.splitlines():
+            message = json.loads(line)
+            if message.get("reason") != "compiler-artifact" or not message.get("package_id", "").startswith(package):
+                continue
+            target = message["target"]
+            binary = target.get("name")
+            if binary in binaries and "bin" in target.get("kind", []) and message.get("executable"):
+                if binary in artifacts:
+                    raise SystemExit(f"{binary} cannot identify a unique executable in Cargo build output")
+                artifacts[binary] = Path(message["executable"])
     except (ValueError, KeyError, TypeError) as error:
-        raise SystemExit(f"{binary} cannot read Cargo build output: {error}") from error
-    if len(artifacts) != 1:
-        raise SystemExit(f"{binary} cannot identify its executable in Cargo build output")
-    return Path(artifacts[0])
+        raise SystemExit(f"{label} cannot read Cargo build output: {error}") from error
+    if missing := set(binaries) - artifacts.keys():
+        raise SystemExit(f"{', '.join(sorted(missing))} cannot identify its executable in Cargo build output")
+    return artifacts
+
+
+if __name__ == "__main__":
+    try:
+        for executable in _build_harness_bins(CHECK_HARNESS_BINS).values():
+            print(executable)
+    except MissingBrowserTool as error:
+        raise SystemExit(str(error)) from error

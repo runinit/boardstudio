@@ -14,7 +14,7 @@ import tempfile
 import unittest
 from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 SCRIPT = Path(__file__).with_name("run-wasm-tests.py")
 spec = importlib.util.spec_from_file_location("run_wasm_tests", SCRIPT)
@@ -31,8 +31,22 @@ class RunWasmTestsTests(unittest.TestCase):
             os.environ["WASM_BINDGEN_TEST_TIMEOUT"] = "37"
             self.assertEqual(runner.runner_environment()["WASM_BINDGEN_TEST_TIMEOUT"], "37")
 
+    def test_runner_environment_normalizes_deep_caller_tmpdir(self):
+        deep = "/tmp/" + "deep-" * 40
+        with patch.dict(os.environ, {"PATH": "/bin", "TMPDIR": deep}, clear=True), \
+             patch.object(runner.shutil, "which", return_value="/bin/test-tool"), \
+             patch.object(runner, "wasm_bindgen_dir", return_value=Path("/tmp/test-runner")):
+            env = runner.runner_environment()
+        self.assertEqual(env["TMPDIR"], str(runner.browser_tools.shallow_browser_tmpdir()))
+        self.assertLess(len(os.fsencode(env["TMPDIR"])), len(os.fsencode(deep)))
+        self.assertEqual(env["WASM_BINDGEN_TEST_TIMEOUT"], "120")
+        self.assertEqual(env["CARGO_PROFILE_DEV_DEBUG"], "false")
+        resolved = str(Path("/bin/test-tool").resolve())
+        self.assertEqual(env["CHROMEDRIVER"], resolved)
+        self.assertEqual(env["CHROME_BIN"], resolved)
+
     def test_selected_driver_is_explicit_for_listing_and_execution(self):
-        env = {"CHROMEDRIVER": "/selected/driver", "PATH": "/conflict"}
+        env = {"CHROMEDRIVER": "/selected/driver", "PATH": "/conflict", runner.PAGE_ARTIFACT: "/page.wasm"}
         result = subprocess.CompletedProcess([], 0, stdout="sample::test: test\ntest sample::test ... ok\n", stderr="")
         with patch.dict(os.environ, {"CHROMEDRIVER": "/conflicting/driver"}, clear=True), \
              patch.object(runner.subprocess, "run", return_value=result) as call:
@@ -40,8 +54,52 @@ class RunWasmTestsTests(unittest.TestCase):
             runner.run_filter("sample", env)
         for invocation in call.call_args_list:
             command = invocation.args[0]
-            self.assertEqual(command[command.index("--chromedriver") + 1], "/selected/driver")
-            self.assertLess(command.index("--chromedriver"), command.index("--"))
+            self.assertEqual(command[:2], ["wasm-bindgen-test-runner", "/page.wasm"])
+            self.assertEqual(invocation.kwargs["cwd"], runner.ROOT / "web")
+            self.assertEqual(invocation.kwargs["env"]["CHROMEDRIVER"], "/selected/driver")
+            self.assertEqual(invocation.kwargs["env"]["RAYON_NUM_THREADS"], "1")
+        self.assertNotIn("RAYON_NUM_THREADS", env)
+        self.assertEqual(call.call_args_list[0].args[0][-1], "--list")
+        self.assertEqual(call.call_args_list[1].args[0][-1], "sample")
+
+    def test_page_build_requires_one_current_cargo_artifact(self):
+        wasm = self.dir / "page.wasm"
+        wasm.touch()
+        artifact = json.dumps({
+            "reason": "compiler-artifact", "profile": {"test": True},
+            "target": {"kind": ["bin"], "name": "boardstudio-web"},
+            "manifest_path": str(self.dir / "web/Cargo.toml"), "executable": str(wasm),
+        })
+        with patch.object(runner.subprocess, "run") as compile_page:
+            compile_page.return_value = subprocess.CompletedProcess([], 0, stdout=artifact)
+            self.assertEqual(runner.build_page_test(self.dir, {}), wasm)
+            command = compile_page.call_args.args[0]
+            self.assertEqual(command, runner.PAGE_BUILD)
+            self.assertEqual(command[command.index("--features") + 1], "page,boardstudio-web-host/test-support")
+            self.assertEqual(command[command.index("--bin") + 1], "boardstudio-web")
+            self.assertNotIn("--lib", command)
+            compile_page.return_value = subprocess.CompletedProcess([], 1, stdout=artifact)
+            with self.assertRaisesRegex(runner.RunnerError, "exited 1"):
+                runner.build_page_test(self.dir, {})
+            compile_page.return_value = subprocess.CompletedProcess([], 0, stdout=f"{artifact}\n{artifact}")
+            with self.assertRaisesRegex(runner.RunnerError, "expected one"):
+                runner.build_page_test(self.dir, {})
+
+    def test_page_build_reuses_a_preset_artifact_without_cargo(self):
+        wasm = self.dir / "combined-page.wasm"
+        wasm.touch()
+        with patch.object(runner.subprocess, "run", side_effect=AssertionError("cargo ran")):
+            self.assertEqual(runner.build_page_test(self.dir, {runner.PAGE_ARTIFACT: str(wasm)}), wasm)
+        artifact = json.dumps({
+            "reason": "compiler-artifact", "profile": {"test": True},
+            "target": {"kind": ["bin"], "name": "boardstudio-web"},
+            "manifest_path": str(self.dir / "web/Cargo.toml"), "executable": str(wasm),
+        })
+        with patch.object(runner.subprocess, "run",
+                          return_value=subprocess.CompletedProcess([], 0, stdout=artifact)) as compile_page:
+            self.assertEqual(
+                runner.build_page_test(self.dir, {runner.PAGE_ARTIFACT: str(self.dir / "missing.wasm")}), wasm)
+            compile_page.assert_called_once()
 
     def test_caller_config_conflicting_browser_is_rejected(self):
         config = self.dir / "caller.json"
@@ -99,6 +157,90 @@ class RunWasmTestsTests(unittest.TestCase):
             code = runner.main(["--root", str(self.dir), *argv])
         return code, out.getvalue(), err.getvalue()
 
+    def fake_pair(self, directory):
+        directory.mkdir(parents=True)
+        for name in ("wasm-bindgen", "wasm-bindgen-test-runner"):
+            tool = directory / name
+            tool.write_text(f'#!/bin/sh\necho "{name} 0.2.129"\n')
+            tool.chmod(0o755)
+
+    @contextlib.contextmanager
+    def local_pair_fixture(self, build):
+        (self.dir / "Cargo.lock").write_text('[[package]]\nname = "wasm-bindgen"\nversion = "0.2.129"\n')
+        key = "patched-wasm-bindgen-v1-" + "1" * 64
+        directory = self.dir / "boardstudio/wasm-bindgen-patched" / key
+        real_run = subprocess.run
+
+        def dispatch(command, **kwargs):
+            if command[1] != "scripts/build-patched-wasm-bindgen.py":
+                return real_run(command, **kwargs)
+            self.assertNotIn("RUSTC_WRAPPER", kwargs["env"])
+            if command[2] == "--cache-key":
+                return subprocess.CompletedProcess(command, 0, key + "\n", "")
+            self.assertEqual(command[2:4], ["--output", str(directory)])
+            self.assertEqual(kwargs["pass_fds"], (9,))
+            return build(directory, command)
+
+        with patch.dict(os.environ, {"PATH": "/bin", "XDG_CACHE_HOME": str(self.dir),
+                                     "RUSTC_WRAPPER": str(self.dir / "scripts/build-time/rustc-log.py")}, clear=True), \
+             patch.object(runner.wasm_bindgen_tools, "_pair_build_lock", return_value=contextlib.nullcontext(9)) as lock, \
+             patch.object(subprocess, "run", side_effect=dispatch):
+            yield directory, lock
+
+    def test_default_bindgen_pair_builds_offline_under_lock_then_reuses_cache(self):
+        def build(directory, command):
+            self.assertEqual(command[-1], "--offline")
+            self.fake_pair(directory)
+            return subprocess.CompletedProcess(command, 0, "", "")
+
+        with self.local_pair_fixture(Mock(side_effect=build)) as (directory, lock):
+            self.assertEqual(runner.wasm_bindgen_dir(self.dir), directory)
+            self.assertEqual(runner.wasm_bindgen_dir(self.dir), directory)
+            lock.assert_called_once()
+
+    def test_explicit_pair_bypasses_local_cache_and_build(self):
+        with self.local_pair_fixture(Mock(side_effect=AssertionError("unexpected build"))) as (directory, lock):
+            explicit = self.dir / "explicit"
+            self.fake_pair(directory)
+            self.fake_pair(explicit)
+            with patch.dict(os.environ, {"BOARDSTUDIO_WASM_BINDGEN_DIR": str(explicit)}):
+                self.assertEqual(runner.wasm_bindgen_dir(self.dir), explicit)
+            lock.assert_not_called()
+
+    def test_accepts_concurrent_install_from_a_builder_that_won_the_rename(self):
+        def build(directory, command):
+            self.fake_pair(directory)
+            return subprocess.CompletedProcess(command, 1, "", f"output already exists: {directory}")
+
+        with self.local_pair_fixture(Mock(side_effect=build)) as (directory, lock):
+            self.assertEqual(runner.wasm_bindgen_dir(self.dir), directory)
+            lock.assert_called_once()
+
+    def test_unavailable_offline_inputs_fall_back_once_with_recovery_command(self):
+        def build(directory, command):
+            message = ("offline crate archive not found: wasm-bindgen-cli-0.2.129"
+                       if "--offline" in command else "<urlopen error DNS lookup failed>")
+            return subprocess.CompletedProcess(command, 1, "", message)
+
+        attempted = Mock(side_effect=build)
+        with self.local_pair_fixture(attempted) as (directory, _):
+            cached = self.dir / ".wasm-pack/wasm-bindgen-test"
+            self.fake_pair(cached)
+            warning = io.StringIO()
+            with contextlib.redirect_stderr(warning):
+                self.assertEqual(runner.wasm_bindgen_dir(self.dir), cached)
+            self.assertEqual(attempted.call_count, 2)
+            self.assertEqual(warning.getvalue().count("warning:"), 1)
+            self.assertIn("270 seconds", warning.getvalue())
+            self.assertIn(f"scripts/build-patched-wasm-bindgen.py --output {directory}", warning.getvalue())
+
+    def test_unrelated_build_failure_does_not_use_stock(self):
+        failed = Mock(return_value=subprocess.CompletedProcess([], 1, "", "crate checksum mismatch"))
+        with self.local_pair_fixture(failed):
+            with self.assertRaisesRegex(runner.RunnerError, "crate checksum mismatch"):
+                runner.wasm_bindgen_dir(self.dir)
+            failed.assert_called_once()
+
     def test_explicit_bindgen_pair_reaches_page_and_direct_crate_launches(self):
         import check
         pair = self.dir / "pair"
@@ -115,7 +257,7 @@ class RunWasmTestsTests(unittest.TestCase):
         pack.chmod(0o755)
         command = ["wasm-pack", "test", "--headless", "--chrome", "web/crates/layout", "--lib"]
         config = self.dir / "caller.json"
-        config.write_text('{"goog:chromeOptions":{"binary":"/usr/bin/true"}}')
+        config.write_text('{"pageLoadStrategy":"normal","goog:chromeOptions":{"binary":"/usr/bin/true"}}')
         with patch.dict(os.environ, {"BOARDSTUDIO_WASM_BINDGEN_DIR": str(pair),
                                      "WASM_BINDGEN_TEST_WEBDRIVER_JSON": str(config), "CHROMEDRIVER": "/bin/true", "CHROME_BIN": "/bin/true",
                                      "PATH": f"{self.dir}:/bin", "BOARDSTUDIO_CHECK_JOBS": "1"}, clear=True), \
@@ -134,7 +276,8 @@ class RunWasmTestsTests(unittest.TestCase):
             tool = cache / name
             tool.write_text(f'#!/bin/sh\necho "{name} {version}"\n')
             tool.chmod(0o755)
-        with patch.dict(os.environ, {"XDG_CACHE_HOME": str(self.dir), "PATH": "/bin"}, clear=True):
+        with patch.dict(os.environ, {"XDG_CACHE_HOME": str(self.dir), "PATH": "/bin"}, clear=True), \
+             patch.object(runner.wasm_bindgen_tools, "local_patched_pair", return_value=None):
             with self.assertRaisesRegex(runner.RunnerError, "locked version 0.2.129"):
                 runner.wasm_bindgen_dir(self.dir)
             (cache / "wasm-bindgen-test-runner").write_text('#!/bin/sh\necho "wasm-bindgen-test-runner 0.2.129"\n')
@@ -148,6 +291,7 @@ class RunWasmTestsTests(unittest.TestCase):
             config = Path(env[runner.WEBDRIVER_CONFIG_ENV])
             self.assertEqual(json.loads(config.read_text()), {
                 "goog:chromeOptions": {"args": ["--window-size=1440,900"], "binary": "/selected/chrome"},
+                "pageLoadStrategy": "eager",
             })
         self.assertFalse(config.exists())
 
@@ -196,24 +340,25 @@ class RunWasmTestsTests(unittest.TestCase):
         pair = self.dir / "pair"
         pair.mkdir()
         (self.dir / "Cargo.lock").write_text('[[package]]\nname = "wasm-bindgen"\nversion = "0.2.129"\n')
-        for name in ("wasm-bindgen", "wasm-bindgen-test-runner"):
-            tool = pair / name
-            tool.write_text(f'#!/bin/sh\nif [ "$1" = --version ]; then echo "{name} 0.2.129"; '
-                            f'else echo "{name}" >> "{self.log}"; fi\n')
-            tool.chmod(0o755)
-        pack = self.dir / "wasm-pack"
-        pack.write_text('#!/bin/sh\nwasm-bindgen use\nwasm-bindgen-test-runner use\n'
-                        'case " $* " in *" --list "*) echo "a::b::t: test";; '
-                        '*) echo "test a::b::t ... ok";; esac\n')
-        pack.chmod(0o755)
+        bindgen = pair / "wasm-bindgen"
+        bindgen.write_text('#!/bin/sh\necho "wasm-bindgen 0.2.129"\n')
+        bindgen.chmod(0o755)
+        test_runner = pair / "wasm-bindgen-test-runner"
+        test_runner.write_text(
+            '#!/bin/sh\nif [ "$1" = --version ]; then echo "wasm-bindgen-test-runner 0.2.129"; exit; fi\n'
+            f'echo "$*" >> "{self.log}"\n'
+            'case "$2" in --list) echo "a::b::t: test";; *) echo "test a::b::t ... ok";; esac\n')
+        test_runner.chmod(0o755)
+        wasm = self.dir / "page.wasm"
         with patch.dict(os.environ, {"PATH": f"{self.dir}:/bin", "CHROME_BIN": "/bin/true",
                                      "CHROMEDRIVER": "/bin/true",
                                      "BOARDSTUDIO_WASM_BINDGEN_DIR": str(pair)}, clear=True), \
-             patch.object(runner, "wasm_bindgen_dir", side_effect=AssertionError("cache used")):
+             patch.object(runner, "wasm_bindgen_dir", side_effect=AssertionError("cache used")), \
+             patch.object(runner, "build_page_test", return_value=wasm) as build:
             code, out, err = self.main("--all")
         self.assertEqual(code, 0, out + err)
-        self.assertEqual(self.log.read_text().splitlines(),
-                         ["wasm-bindgen", "wasm-bindgen-test-runner"] * 2)
+        build.assert_called_once()
+        self.assertEqual(self.log.read_text().splitlines(), [f"{wasm} --list", f"{wasm} a::b::"])
 
     def test_file_to_module_filter_mapping(self):
         f = runner.module_filter
@@ -288,8 +433,9 @@ class RunWasmTestsTests(unittest.TestCase):
         self.assertEqual(code, 0, err)
         self.assertIn("executed 2, failed 0", out)
         calls = self.log.read_text().splitlines()
-        self.assertEqual(calls, [
-            "--list",
+        # Filters launch concurrently, so only the listing's position is fixed.
+        self.assertEqual(calls[0], "--list")
+        self.assertCountEqual(calls[1:], [
             "presentation::mechanical_settings::contextual_layer_tests::",
             "presentation::panels::scroll_tests::",
         ])
@@ -497,6 +643,88 @@ class RunWasmTestsTests(unittest.TestCase):
                         runner.RunnerError, "positive integer"):
                     runner.all_module_selection({}, self.dir, depth=depth)
             list_tests.assert_not_called()
+
+    def test_max_group_tests_requires_all_and_depth_and_a_positive_limit(self):
+        for argv, message in ((["--all", "--max-group-tests", "5"], "requires --depth"),
+                              (["--all", "--depth", "1", "--max-group-tests", "0"], "positive integer"),
+                              (["--files", "web/src/presentation/x.rs", "--depth", "1", "--max-group-tests", "5"],
+                               "applies to --all")):
+            with self.subTest(argv=argv), self.assertRaises(SystemExit) as raised:
+                self.main(*argv)
+            self.assertEqual(raised.exception.code, 2)
+        with patch.object(runner, "list_wasm_tests") as list_tests:
+            for depth, limit, message in ((None, 5, "requires --depth"), (1, 0, "positive integer"),
+                                          (1, -2, "positive integer")):
+                with self.subTest(depth=depth, limit=limit), self.assertRaisesRegex(runner.RunnerError, message):
+                    runner.all_module_selection({}, self.dir, depth=depth, max_group_tests=limit)
+            list_tests.assert_not_called()
+
+    def test_max_group_tests_peels_largest_children_and_covers_every_test_once(self):
+        sizes = {"big": 9, "mid": 5, "small": 3, "pair": 2, "one": 1}
+        names = [f"presentation::{child}::tests::t{index}" for child, count in sizes.items() for index in range(count)]
+        names += ["presentation::direct_test", "model_tests::t0", "solo::only::t0", "solo::only::t1",
+                  "solo::only::t2", "cad_presentation::big::tests::t0"]
+        with patch.object(runner, "list_wasm_tests", return_value=names):
+            filters, expected = runner.all_module_selection(
+                {}, self.dir, depth=1, isolated=["presentation::one::"], max_group_tests=6)
+        self.assertEqual(filters, [
+            "cad_presentation::", "model_tests::", "presentation::", "presentation::big::",
+            "presentation::mid::", "presentation::one::", "solo::",
+        ])
+        self.assertEqual(sorted(expected["presentation::"]), sorted(
+            [*(name for name in names if name.startswith(("presentation::small::", "presentation::pair::"))),
+             "presentation::direct_test"]))
+        # A group whose tests share one child cannot shrink without leaving its own filter empty.
+        self.assertEqual(len(expected["solo::"]), 3)
+        flattened = [name for group in expected.values() for name in group]
+        self.assertCountEqual(flattened, names, "every listed test runs exactly once")
+        self.assertTrue(all(expected[group] for group in filters), "no filter is left without tests")
+        with patch.object(runner, "list_wasm_tests", return_value=names):
+            self.assertEqual(runner.all_module_selection({}, self.dir, depth=1, max_group_tests=100),
+                             runner.all_module_selection({}, self.dir, depth=1))
+
+    def test_max_group_tests_runs_split_groups_with_collision_free_skips(self):
+        names = [*(f"presentation::inspector::t{index}" for index in range(3)),
+                 *(f"presentation::canvas::t{index}" for index in range(2)), "presentation::panel::t0",
+                 "cad_presentation::inspector::t9"]
+        listing = " ".join(f'"{name}: test"' for name in names)
+        groups = {"cad_presentation::": names[-1:], "presentation::inspector::": names[:3], "presentation::": names[3:6]}
+        cases = " ".join(f'{prefix}) {"; ".join(f"echo \'test {name} ... ok\'" for name in group)};;'
+                         for prefix, group in groups.items())
+        self.fake(f'if [ "$1" = --list ]; then printf "%s\\n" {listing}; exit 0; fi\ncase "$1" in {cases} esac')
+        report = self.dir / "report.json"
+        with patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "1"}):
+            code, out, err = self.main("--all", "--depth", "1", "--max-group-tests", "3", "--result-json", str(report))
+        self.assertEqual(code, 0, out + err)
+        calls = self.log.read_text().splitlines()[1:]
+        self.assertIn("presentation:: --skip cad_presentation::inspector::t9 --skip presentation::inspector::t0 "
+                      "--skip presentation::inspector::t1 --skip presentation::inspector::t2", calls)
+        self.assertIn("presentation::inspector:: --skip cad_presentation::inspector::t9", calls)
+        self.assertIn("executed 7", out)
+        data = json.loads(report.read_text())
+        self.assertEqual(data["selection"]["max_group_tests"], 3)
+        self.assertEqual([item["filter"] for item in data["filters"]],
+                         ["cad_presentation::", "presentation::", "presentation::inspector::"])
+
+    def test_parallel_filters_start_largest_first_and_report_in_filter_order(self):
+        started, lock = [], __import__("threading").Lock()
+
+        def fake_run_filter(filter_, env, root, skip_filters=()):
+            with lock:
+                started.append(filter_)
+            tests = {name: "ok" for name in expected[filter_]}
+            return 0, tests, "".join(f"test {name} ... ok\n" for name in tests)
+
+        expected = {"a::": ["a::m::t0"], "b::": [f"b::m::t{index}" for index in range(3)],
+                    "c::": [f"c::m::t{index}" for index in range(2)]}
+        err = io.StringIO()
+        with patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "2"}), \
+                patch.object(runner, "run_filter", side_effect=fake_run_filter), contextlib.redirect_stderr(err):
+            executed, failed, _, problems, _ = runner.run(list(expected), {}, self.dir, expected, env={})
+        self.assertEqual((executed, failed, problems), (6, [], []))
+        self.assertEqual(set(started[:2]), {"b::", "c::"})
+        self.assertEqual(started[2], "a::")
+        self.assertEqual(re.findall(r"\[\d/3\] (\S+)", err.getvalue()), ["a::", "b::", "c::"])
 
     def test_result_json_distinguishes_complete_known_failure_from_success(self):
         self.fake("echo 'test presentation::x::tests::known_broken ... FAIL'; exit 1")
@@ -731,18 +959,26 @@ class RunWasmTestsTests(unittest.TestCase):
             with runner.desktop_webdriver_config({}) as env:
                 config_path = Path(env[runner.WEBDRIVER_CONFIG_ENV])
                 self.assertEqual(json.loads(config_path.read_text()), {
-                    "goog:chromeOptions": {"args": ["--window-size=1280,900"]}
+                    "goog:chromeOptions": {"args": ["--window-size=1280,900"]}, "pageLoadStrategy": "eager",
                 })
             self.assertFalse(config_path.exists())
             supplied = self.dir / "caller-webdriver.json"
-            supplied.write_text('{"goog:chromeOptions":{"args":["--window-size=1440,1000"]}}')
+            supplied.write_text('{"pageLoadStrategy":"normal","goog:chromeOptions":{"args":["--window-size=1440,1000"]}}')
             with runner.desktop_webdriver_config({runner.WEBDRIVER_CONFIG_ENV: str(supplied)}) as env:
                 self.assertEqual(env[runner.WEBDRIVER_CONFIG_ENV], str(supplied))
             crate_config = self.dir / "web/webdriver.json"
             crate_config.parent.mkdir(parents=True, exist_ok=True)
             crate_config.write_text('{"goog:chromeOptions":{"args":["--window-size=1360,900"]}}')
             with runner.desktop_webdriver_config({}, self.dir) as env:
-                self.assertEqual(env[runner.WEBDRIVER_CONFIG_ENV], str(crate_config.resolve()))
+                config = json.loads(Path(env[runner.WEBDRIVER_CONFIG_ENV]).read_text())
+                self.assertEqual(config["pageLoadStrategy"], "eager")
+                self.assertEqual(config["goog:chromeOptions"]["args"], ["--window-size=1360,900"])
+            with runner.desktop_webdriver_config({
+                runner.WEBDRIVER_CONFIG_ENV: str(supplied), "CHROME_BIN": "/selected/chrome",
+            }) as env:
+                config = json.loads(Path(env[runner.WEBDRIVER_CONFIG_ENV]).read_text())
+                self.assertEqual(config["pageLoadStrategy"], "normal")
+                self.assertEqual(config["goog:chromeOptions"]["binary"], "/selected/chrome")
 
     def test_first_failure_summary_surfaces_raw_wasm_trap_before_harness_timeout(self):
         test_name = "presentation::x::tests::traps_in_wasm"

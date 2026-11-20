@@ -294,6 +294,7 @@ mod mounted_layer_tests {
         Board, BoardContours, Contour, Pad, Part, PartDefinition, PartKind, Pose2, ProjectDoc,
         Readiness, SceneDelta,
     };
+    use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::test_role::by_role_name;
     use std::{collections::BTreeMap, sync::Arc};
     use wasm_bindgen_test::wasm_bindgen_test;
@@ -554,10 +555,7 @@ mod mounted_layer_tests {
         let root = document.create_element("div").unwrap();
         root.set_id("pcb-layer-test-root");
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(mounted_scene),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), VirtualDom::new(mounted_scene));
         settle().await;
 
         let scene = root
@@ -676,10 +674,7 @@ mod mounted_layer_tests {
         let root = document.create_element("div").unwrap();
         root.set_id("pcb-layer-test-root");
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(mounted_board_switch),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), VirtualDom::new(mounted_board_switch));
         settle().await;
         if by_role_name(&root, "button", "PCB layers")
             .unwrap()
@@ -724,10 +719,7 @@ mod mounted_layer_tests {
         let root = document.create_element("div").unwrap();
         root.set_id("pcb-finding-marker-test-root");
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(mounted_finding_marker),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), VirtualDom::new(mounted_finding_marker));
         settle().await;
 
         let marker = document

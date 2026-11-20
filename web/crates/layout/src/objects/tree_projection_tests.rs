@@ -1,5 +1,6 @@
 use super::*;
 use crate::runtime::project_name_test_support as support;
+use boardstudio_web_ui_shared::test_mount::MountedFixture;
 use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
 use wasm_bindgen_test::wasm_bindgen_test;
 
@@ -33,10 +34,7 @@ async fn tree_projection_skips_runtime_updates_and_tracks_disclosures_grouping_a
     let mut dom = VirtualDom::new(host);
     dom.insert_any_root_context(Box::new(runtime.clone()));
     TREE_BUILDS.set(0);
-    dioxus_web::launch::launch_virtual_dom(
-        dom,
-        dioxus_web::Config::new().rootnode(root.clone().into()),
-    );
+    let _mounted = MountedFixture::new(root.clone(), dom);
     wait_until("Objects tree mounts", || {
         root.query_selector("[role=treeitem]").unwrap().is_some()
     })

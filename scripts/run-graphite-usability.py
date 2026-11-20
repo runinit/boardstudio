@@ -7,8 +7,9 @@ from pathlib import Path
 
 if os.environ.get("BOARDSTUDIO_GRAPHITE_IDENTITY") or os.environ.get("BOARDSTUDIO_GRAPHITE_BUILD_RUN"):
     subprocess.run([sys.executable, str(Path(__file__).with_name("graphite-identity.py"))], check=True)
-from browser_tools import _build_harness
+from browser_tools import _build_harness, browser_env
 
 # Usability and feedback share the same acceptance workflow.
+os.environ.update(browser_env())
 binary = _build_harness("graphite-feedback")
 os.execv(str(binary), [str(binary)])

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Fail when a Core test file is not compiled by any test target.
+"""Fail when a Core or Footprints test file is not compiled by any test target.
 
-`core/Cargo.toml` sets `autotests = false`, so a file dropped into `core/tests/` runs only when
-a `[[test]]` target names it or `core/tests/integration.rs` declares it as a module, with
+Both packages set `autotests = false`, so a file dropped into their tests directory runs only when
+a `[[test]]` target names it or one of the `[[test]]` roots declares it as a module, with
 `#[path = "..."]` or a plain `mod name;`. An unregistered file passes every check and never runs.
 
 Usage: check-core-tests.py [ROOT]
@@ -15,35 +15,41 @@ import re
 import sys
 import tomllib
 
-CORE = Path("core")
-TESTS = CORE / "tests"
+PACKAGES = ("core", "footprints")
 # An optional `#[path = "..."]` directly before a `mod name;` declaration.
 MODULE = re.compile(r'(?:#\[path\s*=\s*"([^"]+)"\s*\]\s*)?(?:pub\s+)?mod\s+(\w+)\s*;')
 COMMENT = re.compile(r"//[^\n]*|/\*.*?\*/", re.DOTALL)
 
 
-def test_files(root: Path) -> list[Path]:
-    return sorted((root / TESTS).glob("*.rs"))
+def test_files(package: Path) -> list[Path]:
+    return sorted((package / "tests").glob("*.rs"))
 
 
-def registered(root: Path) -> set[Path]:
-    manifest = tomllib.loads((root / CORE / "Cargo.toml").read_text(encoding="utf-8"))
-    paths = {Path(target.get("path", f"tests/{target['name']}.rs")) for target in manifest.get("test", [])}
-    integration = root / TESTS / "integration.rs"
-    if integration.is_file():
-        source = COMMENT.sub("", integration.read_text(encoding="utf-8"))
-        paths |= {Path("tests") / (path or f"{name}.rs") for path, name in MODULE.findall(source)}
-    return {root / CORE / path for path in paths}
+def registered(package: Path) -> set[Path]:
+    manifest = tomllib.loads((package / "Cargo.toml").read_text(encoding="utf-8"))
+    targets = [Path(target.get("path", f"tests/{target['name']}.rs")) for target in manifest.get("test", [])]
+    paths = set(targets)
+    for target_path in targets:
+        root = package / target_path
+        if root.is_file():
+            source = COMMENT.sub("", root.read_text(encoding="utf-8"))
+            paths |= {target_path.parent / (path or f"{name}.rs") for path, name in MODULE.findall(source)}
+    return {package / path for path in paths}
+
+
+def unregistered_in_package(package: Path) -> list[str]:
+    tests = f"{package.name}/tests"
+    known = registered(package)
+    return [
+        f"unregistered-{package.name}-test: {tests}/{file.name} — never compiled; add "
+        f'`#[path = "{file.name}"] mod {file.stem};` to {tests}/integration.rs or a [[test]] target'
+        for file in test_files(package)
+        if file not in known
+    ]
 
 
 def unregistered_tests(root: Path) -> list[str]:
-    known = registered(root)
-    return [
-        f"unregistered-core-test: {TESTS.as_posix()}/{file.name} — never compiled; add "
-        f'`#[path = "{file.name}"] mod {file.stem};` to {TESTS.as_posix()}/integration.rs or a [[test]] target'
-        for file in test_files(root)
-        if file not in known
-    ]
+    return [message for package in PACKAGES for message in unregistered_in_package(root / package)]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -54,7 +60,8 @@ def main(argv: list[str] | None = None) -> int:
         print(message, file=sys.stderr)
     if messages:
         return 1
-    print(f"Core test registration check passed: {len(test_files(root))} files.")
+    for package in PACKAGES:
+        print(f"{package.capitalize()} test registration check passed: {len(test_files(root / package))} files.")
     return 0
 
 

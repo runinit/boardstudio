@@ -42,7 +42,7 @@ class DevWebTests(unittest.TestCase):
             server = ThreadingHTTPServer(
                 ("127.0.0.1", 0), DEV.dev_handler(0, assets, model_root=vendor))
             server.daemon_threads = True
-            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True)
             thread.start()
             base = f"http://127.0.0.1:{server.server_port}/assets/"
             try:
@@ -87,12 +87,12 @@ class DevWebTests(unittest.TestCase):
 
             app_server = ThreadingHTTPServer(("127.0.0.1", 0), AppHandler)
             app_server.daemon_threads = True
-            app_thread = threading.Thread(target=app_server.serve_forever, daemon=True)
+            app_thread = threading.Thread(target=app_server.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True)
             app_thread.start()
             server = ThreadingHTTPServer(("127.0.0.1", 0),
                                          DEV.dev_handler(app_server.server_port, root))
             server.daemon_threads = True
-            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True)
             thread.start()
             try:
                 for relative, (expected, mime) in samples.items():

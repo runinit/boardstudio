@@ -1,8 +1,6 @@
 //! JavaScript number semantics against vectors recorded from V8.
-mod common;
-
+use crate::common::read_json;
 use boardstudio_footprints::number::*;
-use common::read_json;
 
 #[test]
 fn number_to_string_matches_v8() {

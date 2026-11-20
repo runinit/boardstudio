@@ -706,6 +706,7 @@ mod mounted_accessible_name_tests {
     use super::*;
     use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
     use boardstudio_core::model::{KeyBinding, KeymapConfiguration, KeymapLayer, KeymapMacro};
+    use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::test_role::by_role_name;
     use boardstudio_web_ui_shared::test_wait::wait_until;
     use std::cell::RefCell;
@@ -779,7 +780,7 @@ mod mounted_accessible_name_tests {
 
     #[wasm_bindgen_test]
     async fn mounted_macro_editor_uses_display_and_visible_field_names() {
-        let (root, _) = mount();
+        let (root, _, _mounted) = mount();
         settle().await;
 
         let step = by_role_name(&root, "button", "Macro 1 step 1").unwrap();
@@ -839,7 +840,7 @@ mod mounted_accessible_name_tests {
 
     #[wasm_bindgen_test]
     async fn unchanged_valid_step_keycode_blur_does_not_submit_a_macro_edit() {
-        let (root, requests) = mount();
+        let (root, requests, _mounted) = mount();
         settle().await;
 
         let input: HtmlInputElement = by_role_name(&root, "textbox", "Keycode")
@@ -856,7 +857,7 @@ mod mounted_accessible_name_tests {
 
     #[wasm_bindgen_test]
     async fn step_kind_select_supports_typeahead_selection_and_escape() {
-        let (root, requests) = mount();
+        let (root, requests, _mounted) = mount();
         settle().await;
         let trigger = by_role_name(&root, "button", "Macro 1 step 1").unwrap();
         let key = |target: &web_sys::HtmlElement, value: &str| {
@@ -915,7 +916,11 @@ mod mounted_accessible_name_tests {
         root.remove();
     }
 
-    fn mount() -> (DomElement, Rc<RefCell<Vec<MacroEditRequest>>>) {
+    fn mount() -> (
+        DomElement,
+        Rc<RefCell<Vec<MacroEditRequest>>>,
+        MountedFixture,
+    ) {
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         root.set_id("keymap-macro-label-test-root");
@@ -925,11 +930,8 @@ mod mounted_accessible_name_tests {
         virtual_dom.provide_root_context(Probe {
             requests: requests.clone(),
         });
-        dioxus_web::launch::launch_virtual_dom(
-            virtual_dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
-        (root, requests)
+        let mounted = MountedFixture::new(root.clone(), virtual_dom);
+        (root, requests, mounted)
     }
 
     async fn settle() {

@@ -4,6 +4,7 @@ use super::super::mirrored_pair::{
 };
 use super::*;
 use crate::objects::matrix_setup::{MatrixSetupOwner, MatrixSetupProjection};
+use boardstudio_web_ui_shared::test_mount::MountedFixture;
 use boardstudio_web_ui_shared::test_role::by_role_name;
 use wasm_bindgen_test::*;
 
@@ -145,21 +146,19 @@ fn mode_pressed(scope: &str, label: &str) -> Option<String> {
     by_role_name(&group, "button", label)?.get_attribute("aria-pressed")
 }
 
-async fn mount_root(id: &str, make: fn() -> Element) {
+async fn mount_root(id: &str, make: fn() -> Element) -> MountedFixture {
     let document = web_sys::window().unwrap().document().unwrap();
     let root = document.create_element("div").unwrap();
     root.set_id(id);
     document.body().unwrap().append_child(&root).unwrap();
-    dioxus_web::launch::launch_virtual_dom(
-        VirtualDom::new(make),
-        dioxus_web::Config::new().rootnode(root.clone().into()),
-    );
+    let mounted = MountedFixture::new(root.clone(), VirtualDom::new(make));
     rendered().await;
+    mounted
 }
 
 #[wasm_bindgen_test]
 async fn shared_add_matrix_surface_pair_mode_shows_shared_sliders_and_preview() {
-    mount_root("add-matrix-surface-pair-root", pair_composition).await;
+    let _mounted = mount_root("add-matrix-surface-pair-root", pair_composition).await;
 
     let mode_group =
         mounted("#add-matrix-surface-pair-root [role='group'][aria-label='Add matrix mode']");
@@ -208,7 +207,7 @@ async fn shared_add_matrix_surface_pair_mode_shows_shared_sliders_and_preview() 
 
 #[wasm_bindgen_test]
 async fn shared_add_matrix_surface_single_mode_marks_toggle_and_shares_sliders() {
-    mount_root("add-matrix-surface-single-root", single_composition).await;
+    let _mounted = mount_root("add-matrix-surface-single-root", single_composition).await;
 
     let single_pressed = mode_pressed("#add-matrix-surface-single-root", "Single");
     let pair_toggle = mode_pressed("#add-matrix-surface-single-root", "Mirrored pair");

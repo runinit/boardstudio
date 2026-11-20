@@ -181,6 +181,7 @@ mod mounted_tests {
     use crate::keymap::binding_editor::EncoderInputIdentity;
     use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
     use boardstudio_core::model::KeyBinding;
+    use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::test_role::by_role_name;
     use wasm_bindgen_test::*;
 
@@ -247,10 +248,7 @@ mod mounted_tests {
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(empty_fixture),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), VirtualDom::new(empty_fixture));
         gloo_timers::future::TimeoutFuture::new(50).await;
         let guidance = by_role_name(&root, "status", "Add a rotary encoder in Layout. Configure its GPIOs in PCB, then assign rotation here.")
             .expect("encoder guidance");
@@ -310,10 +308,7 @@ mod mounted_tests {
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(fixture),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), VirtualDom::new(fixture));
         gloo_timers::future::TimeoutFuture::new(50).await;
         let behavior = by_role_name(&root, "button", "Encoder 1 clockwise behavior")
             .expect("clockwise behavior");

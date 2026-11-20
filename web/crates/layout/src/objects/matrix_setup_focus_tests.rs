@@ -1,6 +1,7 @@
 //! Browser coverage of the real form/guide mount boundary used by Editor.
 use super::*;
 use crate::presentation::setup_guide::{ProjectSetupGuide, SetupGuideStage};
+use boardstudio_web_ui_shared::test_mount::MountedFixture;
 use boardstudio_web_ui_shared::test_role::by_role_name;
 use wasm_bindgen_test::*;
 
@@ -79,10 +80,7 @@ async fn matrix_cancel_restores_guide_focus_and_new_form_focuses_rows() {
     let root = document.create_element("div").unwrap();
     root.set_id("matrix-focus-test-root");
     document.body().unwrap().append_child(&root).unwrap();
-    dioxus_web::launch::launch_virtual_dom(
-        VirtualDom::new(composition),
-        dioxus_web::Config::new().rootnode(root.clone().into()),
-    );
+    let _mounted = MountedFixture::new(root.clone(), VirtualDom::new(composition));
     rendered().await;
     let initial_heading = focused().tag_name() == "H2";
     let add_matrix = by_role_name(&root, "button", "Set up key matrix").unwrap();
@@ -127,10 +125,7 @@ async fn matrix_cancel_restores_the_canvas_opener_without_a_guide() {
     let root = document.create_element("div").unwrap();
     root.set_id("matrix-focus-test-root");
     document.body().unwrap().append_child(&root).unwrap();
-    dioxus_web::launch::launch_virtual_dom(
-        VirtualDom::new(canvas_opener_composition),
-        dioxus_web::Config::new().rootnode(root.clone().into()),
-    );
+    let _mounted = MountedFixture::new(root.clone(), VirtualDom::new(canvas_opener_composition));
     rendered().await;
     let opener = by_role_name(&root, "button", "Add key matrix").unwrap();
     opener.focus().unwrap();

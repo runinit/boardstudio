@@ -12,7 +12,7 @@ Start with the existing [rectangular internal-gasket request](../../../core/test
 
 [Core regressions](../../../core/tests/gasket_features.rs), `adoption_reachability_case`:281, replay `open` → public `edit/set-mechanical` → the literal `resolve-mechanical` request → existing `prepare`/`CoreRequest::PrepareCase`. They require the accepted document to equal the literal request, no error findings, `generationBlocked:false`, and exact equality of the emitted target body with its committed fixture. These are actual Core source inputs, not manual prepared shapes. This is the established whole-configuration operation used by [mechanical_workflow.rs](../../../core/tests/mechanical_workflow.rs):28; it does not claim an Inspector/browser interaction test.
 
-Runtime's existing [captured preparation](../../../web/crates/host/src/cad_jobs.rs):1166 follows resolve, error/generation gates, then `PrepareCase`. That helper is `wasm32`/`page` gated; it was inspected, not copied, widened or invoked natively. The native check reuses Core's existing request example and gasket preparation helpers. The existing Runtime physical-source replacement is unrelated to these four case bodies and remains untouched.
+Runtime's existing [captured preparation](../../../web/crates/host/src/captured_case.rs) follows resolve, error/generation gates, then `PrepareCase`. That helper is `wasm32`/`page` gated; it was inspected, not copied, widened or invoked natively. The native check reuses Core's existing request example and gasket preparation helpers. The existing Runtime physical-source replacement is unrelated to these four case bodies and remains untouched.
 
 ## Four finite dispositions
 

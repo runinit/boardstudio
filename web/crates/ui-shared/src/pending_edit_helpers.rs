@@ -554,6 +554,19 @@ mod mounted_tests {
         EditResolver::new("helper-test", |_accepted| Resolution::Unchanged)
     }
 
+    struct MountedProbe<T> {
+        probe: T,
+        _mounted: crate::test_mount::MountedFixture,
+    }
+
+    impl<T> std::ops::Deref for MountedProbe<T> {
+        type Target = T;
+
+        fn deref(&self) -> &Self::Target {
+            &self.probe
+        }
+    }
+
     #[derive(Clone, Default)]
     struct Probe {
         runtime: Rc<RefCell<Option<TestRuntime>>>,
@@ -678,7 +691,7 @@ mod mounted_tests {
         "pending-edit-helper-root"
     }
 
-    async fn mount_fixture(runtime: TestRuntime) -> Probe {
+    async fn mount_fixture(runtime: TestRuntime) -> MountedProbe<Probe> {
         let probe = Probe {
             runtime: Rc::new(RefCell::new(Some(runtime))),
             results: Default::default(),
@@ -694,14 +707,14 @@ mod mounted_tests {
         dom_document.body().unwrap().append_child(&root).unwrap();
         let dom = VirtualDom::new(helper_host);
         dom.provide_root_context(probe.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
-        // launch_virtual_dom renders in a background task; wait for the fixture DOM.
+        let mounted = crate::test_mount::MountedFixture::new(root, dom);
+        // MountedFixture renders in a background task; wait for the fixture DOM.
         rendered().await;
         rendered().await;
-        probe
+        MountedProbe {
+            probe,
+            _mounted: mounted,
+        }
     }
 
     fn element(selector: &str) -> web_sys::Element {
@@ -758,14 +771,6 @@ mod mounted_tests {
         std::mem::take(&mut *probe.results.borrow_mut())
     }
 
-    async fn settle_until(runtime: &TestRuntime, what: &str, condition: impl Fn() -> bool) {
-        crate::test_wait::wait_until_step(what, async || {
-            support::run_pending(runtime).await;
-            condition()
-        })
-        .await;
-    }
-
     async fn rendered() {
         let document = web_sys::window().unwrap().document().unwrap();
         crate::test_wait::wait_until("pending-edit helper host renders", || {
@@ -814,8 +819,9 @@ mod mounted_tests {
         assert!(failure_message().is_none());
 
         release.send(()).unwrap();
-        settle_until(
+        crate::test_wait::settle_until(
             &runtime,
+            support::run_pending,
             "the rename edit reaches a terminal outcome",
             || outcome.borrow().is_some(),
         )
@@ -854,9 +860,12 @@ mod mounted_tests {
         support::drive_pending(&runtime);
         entered.await.expect("the field action reached Core");
         release.send(()).unwrap();
-        settle_until(&runtime, "the bound field action lands", || {
-            outcome.borrow().is_some()
-        })
+        crate::test_wait::settle_until(
+            &runtime,
+            support::run_pending,
+            "the bound field action lands",
+            || outcome.borrow().is_some(),
+        )
         .await;
         click("#settle");
         rendered().await;
@@ -881,8 +890,9 @@ mod mounted_tests {
         support::fail_next_core_reply(&runtime, "engine died");
         let outcome = support::observe_next(&runtime);
         click("#begin-failing-field");
-        settle_until(
+        crate::test_wait::settle_until(
             &runtime,
+            support::run_pending,
             "the failing field action reports its outcome",
             || outcome.borrow().is_some(),
         )
@@ -921,8 +931,9 @@ mod mounted_tests {
         type_draft("Zephyr v2");
         rendered().await;
         release.send(()).unwrap();
-        settle_until(
+        crate::test_wait::settle_until(
             &runtime,
+            support::run_pending,
             "the older rename reaches its terminal outcome",
             || outcome.borrow().is_some(),
         )
@@ -941,8 +952,9 @@ mod mounted_tests {
         support::fail_next_core_reply(&failing, "engine died");
         let outcome = support::observe_next(&failing);
         click("#begin-failing-field");
-        settle_until(
+        crate::test_wait::settle_until(
             &failing,
+            support::run_pending,
             "the failing rename reaches its terminal outcome",
             || outcome.borrow().is_some(),
         )
@@ -980,9 +992,12 @@ mod mounted_tests {
             document: document("second-scope", "Second scope"),
         });
         release.send(()).unwrap();
-        settle_until(&runtime, "the retired scope edit reaches Core", || {
-            outcome.borrow().is_some()
-        })
+        crate::test_wait::settle_until(
+            &runtime,
+            support::run_pending,
+            "the retired scope edit reaches Core",
+            || outcome.borrow().is_some(),
+        )
         .await;
         click("#settle");
         rendered().await;
@@ -1028,8 +1043,9 @@ mod mounted_tests {
             "the control disables while its edit is pending"
         );
         release.send(()).unwrap();
-        settle_until(
+        crate::test_wait::settle_until(
             &runtime,
+            support::run_pending,
             "the one-shot edit reaches a terminal outcome",
             || outcome.borrow().is_some(),
         )
@@ -1056,9 +1072,12 @@ mod mounted_tests {
         let probe = mount_fixture(runtime.clone()).await;
         let outcome = support::observe_next(&runtime);
         click("#begin-unchanged-field");
-        settle_until(&runtime, "the unchanged edit is reported as landed", || {
-            outcome.borrow().is_some()
-        })
+        crate::test_wait::settle_until(
+            &runtime,
+            support::run_pending,
+            "the unchanged edit is reported as landed",
+            || outcome.borrow().is_some(),
+        )
         .await;
         click("#settle");
         rendered().await;
@@ -1089,8 +1108,9 @@ mod mounted_tests {
         click("#begin-field");
         support::drive_pending(&runtime);
         release.send(()).unwrap();
-        settle_until(
+        crate::test_wait::settle_until(
             &runtime,
+            support::run_pending,
             "both rename operations reach terminal outcomes",
             || first_outcome.borrow().is_some() && second_outcome.borrow().is_some(),
         )
@@ -1172,7 +1192,7 @@ mod mounted_tests {
     async fn mount_retention_fixture(
         runtime: TestRuntime,
         initial: RetainedDraft,
-    ) -> RetentionProbe {
+    ) -> MountedProbe<RetentionProbe> {
         let probe = RetentionProbe {
             runtime,
             initial: Rc::new(RefCell::new(Some(initial))),
@@ -1187,13 +1207,13 @@ mod mounted_tests {
         document.body().unwrap().append_child(&root).unwrap();
         let dom = VirtualDom::new(retention_host);
         dom.provide_root_context(probe.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.into()),
-        );
+        let mounted = crate::test_mount::MountedFixture::new(root, dom);
         rendered().await;
         rendered().await;
-        probe
+        MountedProbe {
+            probe,
+            _mounted: mounted,
+        }
     }
 
     #[wasm_bindgen_test]
@@ -1225,8 +1245,9 @@ mod mounted_tests {
             "the pending draft remains live"
         );
         release.send(()).unwrap();
-        settle_until(
+        crate::test_wait::settle_until(
             &runtime,
+            support::run_pending,
             "the retained draft edit reaches a terminal",
             || outcome.borrow().is_some(),
         )
@@ -1364,7 +1385,7 @@ mod mounted_tests {
         }
     }
 
-    async fn mount_unbind_fixture(runtime: TestRuntime) -> UnbindProbe {
+    async fn mount_unbind_fixture(runtime: TestRuntime) -> MountedProbe<UnbindProbe> {
         let probe = UnbindProbe {
             runtime: Rc::new(RefCell::new(Some(runtime))),
             helpers: Rc::new(RefCell::new(Some(PendingEditSignals::new()))),
@@ -1380,13 +1401,13 @@ mod mounted_tests {
         dom_document.body().unwrap().append_child(&root).unwrap();
         let dom = VirtualDom::new(unbind_host);
         dom.provide_root_context(probe.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let mounted = crate::test_mount::MountedFixture::new(root, dom);
         rendered().await;
         rendered().await;
-        probe
+        MountedProbe {
+            probe,
+            _mounted: mounted,
+        }
     }
 
     fn exists(selector: &str) -> bool {
@@ -1420,9 +1441,12 @@ mod mounted_tests {
         rendered().await;
         assert!(!exists("#child-draft"), "the field component is gone");
         release.send(()).unwrap();
-        settle_until(&runtime, "the unmounted field edit reaches Core", || {
-            outcome.borrow().is_some()
-        })
+        crate::test_wait::settle_until(
+            &runtime,
+            support::run_pending,
+            "the unmounted field edit reaches Core",
+            || outcome.borrow().is_some(),
+        )
         .await;
         click("#settle-unbind");
         rendered().await;
@@ -1463,9 +1487,12 @@ mod mounted_tests {
         rendered().await;
         assert_eq!(child_draft(), "Fresh");
         release.send(()).unwrap();
-        settle_until(&runtime, "both field outcomes reach the caller", || {
-            first_outcome.borrow().is_some() && rejected_outcome.borrow().is_some()
-        })
+        crate::test_wait::settle_until(
+            &runtime,
+            support::run_pending,
+            "both field outcomes reach the caller",
+            || first_outcome.borrow().is_some() && rejected_outcome.borrow().is_some(),
+        )
         .await;
         click("#settle-unbind");
         rendered().await;
@@ -1505,8 +1532,9 @@ mod mounted_tests {
             "the control is gone and not remounted"
         );
         release.send(()).unwrap();
-        settle_until(
+        crate::test_wait::settle_until(
             &runtime,
+            support::run_pending,
             "the unmounted one-shot reaches the caller",
             || outcome.borrow().is_some(),
         )
@@ -1550,9 +1578,12 @@ mod mounted_tests {
             "the replacement is disabled for reasons of its own"
         );
         release.send(()).unwrap();
-        settle_until(&runtime, "the old one-shot reaches the caller", || {
-            outcome.borrow().is_some()
-        })
+        crate::test_wait::settle_until(
+            &runtime,
+            support::run_pending,
+            "the old one-shot reaches the caller",
+            || outcome.borrow().is_some(),
+        )
         .await;
         click("#settle-unbind");
         rendered().await;

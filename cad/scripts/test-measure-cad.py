@@ -567,7 +567,7 @@ class PerformancePreparationTests(unittest.TestCase):
                 (site / "assets/cad-worker/m1_cad_worker.js").write_bytes(b"different-artifact!")
                 with self.assertRaisesRegex(ValueError, "artifact differs"):
                     PERF.existing_artifacts(root, receipt, "checked")
-            with patch.object(PERF, "git", return_value="web/crates/host/src/cad_worker.rs"):
+            with patch.object(PERF, "git", return_value="web/crates/worker-host/src/cad_worker.rs"):
                 with self.assertRaisesRegex(ValueError, "production changes"):
                     PERF.existing_artifacts(root, receipt, "checked")
 

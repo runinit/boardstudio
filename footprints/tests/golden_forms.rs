@@ -1,15 +1,13 @@
 //! Geometry, model references and export, checked against the golden fixtures by
 //! feeding the recorded render text through the Rust pipeline. No generator is
 //! involved, so this verifies the framework independently of any port.
-mod common;
-
 use std::collections::BTreeMap;
 
+use crate::common::{assert_json_eq, generator_fixtures, read_json};
 use boardstudio_footprints::export::export_forms;
 use boardstudio_footprints::geometry::geometry;
 use boardstudio_footprints::models::{model_asset_ids, model_bindings, preview_model_paths};
 use boardstudio_footprints::sexpr::{Expr, parse_forms, serialize};
-use common::{assert_json_eq, generator_fixtures, read_json};
 use serde_json::Value;
 
 struct Recorded {

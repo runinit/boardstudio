@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_mount::{MountedFixture, SavedLocalStorage};
 use wasm_bindgen::JsValue;
 use wasm_bindgen_test::*;
 
@@ -29,29 +30,29 @@ fn composition() -> Element {
     }
 }
 
-fn element(selector: &str) -> HtmlElement {
-    web_sys::window()
-        .unwrap()
-        .document()
-        .unwrap()
-        .query_selector(&format!("#panel-resize-test-root {selector}"))
-        .unwrap()
-        .unwrap()
-        .dyn_into()
-        .unwrap()
-}
-
-fn dispatch_pointer(target: &HtmlElement, kind: &str, pointer_id: i32, client_x: f64) {
+fn dispatch_pointer(
+    target: &HtmlElement,
+    kind: &str,
+    pointer_id: i32,
+    client_x: f64,
+) -> Result<(), JsValue> {
     let event = js_sys::eval(&format!(
         "new PointerEvent('{kind}', {{bubbles:true, pointerId:{pointer_id}, clientX:{client_x}, clientY:200, button:0}})"
-    ))
-    .unwrap()
-    .dyn_into::<web_sys::Event>()
-    .unwrap();
-    target.dispatch_event(&event).unwrap();
+    ))?
+    .dyn_into::<web_sys::Event>()?;
+    target.dispatch_event(&event)?;
+    Ok(())
 }
 
-fn install_browser_spies() {
+struct BrowserSpies;
+
+impl Drop for BrowserSpies {
+    fn drop(&mut self) {
+        restore_browser_spies();
+    }
+}
+
+fn install_browser_spies() -> BrowserSpies {
     js_sys::eval(
         "(() => {\
           const element = Element.prototype;\
@@ -71,6 +72,7 @@ fn install_browser_spies() {
         })()",
     )
     .unwrap();
+    BrowserSpies
 }
 
 fn restore_browser_spies() {
@@ -92,60 +94,58 @@ fn restore_browser_spies() {
     .unwrap();
 }
 
-fn panel_resize_write_count() -> u32 {
-    js_sys::Reflect::get(
-        web_sys::window().unwrap().as_ref(),
-        &JsValue::from_str("__panelResizeWrites"),
-    )
-    .unwrap()
-    .as_f64()
-    .unwrap() as u32
+fn panel_resize_write_count(window: &web_sys::Window) -> Result<u32, JsValue> {
+    js_sys::Reflect::get(window.as_ref(), &JsValue::from_str("__panelResizeWrites"))?
+        .as_f64()
+        .map(|count| count as u32)
+        .ok_or_else(|| JsValue::from_str("missing panel resize write count"))
 }
 
 #[wasm_bindgen_test]
 async fn panel_drag_persists_only_its_final_width_on_pointer_cancel() {
     let window = web_sys::window().unwrap();
+    const KEY: &str = "boardstudio:v2:panel:left";
     let storage = window.local_storage().unwrap().unwrap();
-    storage.remove_item("boardstudio:v2:panel:left").unwrap();
+    let saved = SavedLocalStorage::new(storage.clone(), &[KEY]).unwrap();
+    storage.remove_item(KEY).unwrap();
     let document = window.document().unwrap();
     let root = document.create_element("div").unwrap();
-    root.set_id("panel-resize-test-root");
     root.set_attribute("style", "width:1200px;height:700px")
         .unwrap();
     document.body().unwrap().append_child(&root).unwrap();
-    dioxus_web::launch::launch_virtual_dom(
-        VirtualDom::new(composition),
-        dioxus_web::Config::new().rootnode(root.clone().into()),
-    );
+    let mounted = MountedFixture::new(root.clone(), VirtualDom::new(composition));
     gloo_timers::future::TimeoutFuture::new(80).await;
-    install_browser_spies();
 
-    let root_element = document
-        .get_element_by_id("panel-resize-test-root")
-        .unwrap();
-    let handle =
-        crate::test_role::by_role_name(&root_element, "separator", "Resize Objects").unwrap();
-    let frame = element(".dock-desk");
-    let frame_left = frame.get_bounding_client_rect().left();
-    dispatch_pointer(&handle, "pointerdown", 17, frame_left + 260.0);
-    for width in [290.0, 310.0, 330.0, 350.0] {
-        dispatch_pointer(&handle, "pointermove", 17, frame_left + width);
+    // Capture DOM and JS failures as values so cleanup precedes assertions even on an aborting wasm panic.
+    let observed = async {
+        let handle = crate::test_role::by_role_name(&root, "separator", "Resize Objects")
+            .ok_or_else(|| JsValue::from_str("missing Objects resize handle"))?;
+        let frame = root
+            .query_selector(".dock-desk")?
+            .ok_or_else(|| JsValue::from_str("missing desktop dock"))?;
+        let frame_left = frame.get_bounding_client_rect().left();
+        let _spies = install_browser_spies();
+        dispatch_pointer(&handle, "pointerdown", 17, frame_left + 260.0)?;
+        for width in [290.0, 310.0, 330.0, 350.0] {
+            dispatch_pointer(&handle, "pointermove", 17, frame_left + width)?;
+        }
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        let preview_width = handle.get_attribute("aria-valuenow");
+        let writes_during_drag = panel_resize_write_count(&window)?;
+        dispatch_pointer(&handle, "pointercancel", 17, frame_left + 350.0)?;
+        gloo_timers::future::TimeoutFuture::new(80).await;
+        Ok::<_, JsValue>((
+            preview_width,
+            writes_during_drag,
+            panel_resize_write_count(&window)?,
+            storage.get_item(KEY)?.unwrap_or_default(),
+        ))
     }
-    gloo_timers::future::TimeoutFuture::new(40).await;
-    let preview_width = handle.get_attribute("aria-valuenow").unwrap();
-    let writes_during_drag = panel_resize_write_count();
-    dispatch_pointer(&handle, "pointercancel", 17, frame_left + 350.0);
-    gloo_timers::future::TimeoutFuture::new(80).await;
-
-    let writes_after_cancel = panel_resize_write_count();
-    let stored = storage
-        .get_item("boardstudio:v2:panel:left")
-        .unwrap()
-        .unwrap_or_default();
-    restore_browser_spies();
-    root.remove();
-
-    assert_eq!(preview_width, "350");
+    .await;
+    drop(mounted);
+    drop(saved);
+    let (preview_width, writes_during_drag, writes_after_cancel, stored) = observed.unwrap();
+    assert_eq!(preview_width.unwrap(), "350");
     assert_eq!(writes_during_drag, 0);
     assert_eq!(writes_after_cancel, 1);
     assert!(

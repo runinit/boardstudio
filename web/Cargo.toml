@@ -21,14 +21,15 @@ required-features = ["page"]
 default = ["page", "core-worker"]
 page = ["boardstudio-web-host/page", "dep:boardstudio-web-runtime", "dep:boardstudio-web-ui-model", "dep:boardstudio-web-ui-shared", "dep:boardstudio-web-layout", "dep:boardstudio-web-pcb", "dep:boardstudio-web-parts", "dep:boardstudio-web-case", "dep:boardstudio-web-keymap", "dep:boardstudio-web-library", "dep:boardstudio-web-keycaps", "dep:boardstudio-application", "dep:boardstudio_core", "dep:dioxus", "dep:dioxus-web", "dep:gloo-timers", "dep:serde_json"]
 core-worker = ["dep:boardstudio_core", "dep:serde_json"]
-cad-worker = ["boardstudio-web-host/cad-worker", "dep:boardstudio_core", "dep:serde_json"]
-service-worker = []
-test-harness = ["boardstudio-web-host/test-harness"]
+cad-worker = ["boardstudio-web-worker-host/cad", "dep:boardstudio_core", "dep:serde_json"]
+service-worker = ["dep:boardstudio-web-worker-host"]
+test-harness = ["boardstudio-web-host?/test-harness", "boardstudio-web-worker-host?/test-harness"]
 
 [dependencies]
 boardstudio-application = { path = "../application", optional = true }
 boardstudio_core = { path = "../core", optional = true }
-boardstudio-web-host = { path = "crates/host" }
+boardstudio-web-host = { path = "crates/host", optional = true }
+boardstudio-web-worker-host = { path = "crates/worker-host", optional = true }
 boardstudio-web-runtime = { path = "crates/runtime", optional = true }
 boardstudio-web-ui-model = { path = "crates/ui-model", optional = true }
 boardstudio-web-ui-shared = { path = "crates/ui-shared", optional = true }
@@ -44,23 +45,42 @@ serde = { version = "1", features = ["derive"] }
 # serde_json identically and share every unit built on it.
 serde_json = { version = "1", features = ["float_roundtrip", "alloc"], optional = true }
 
+# No build script uses these. Cargo resolves build dependencies with the proc macros, so this turns on
+# the `syn` and `proc-macro2` features the page's Dioxus macros need in every wasm build too, and
+# serde_derive, wasm-bindgen's macros and everything built with them stay shared.
+[build-dependencies]
+proc-macro2 = { version = "=1.0.107", features = ["span-locations"] }
+syn = { version = "=2.0.119", features = ["extra-traits", "full", "visit", "visit-mut"] }
+
 [dev-dependencies]
 boardstudio-web-runtime = { path = "crates/runtime", features = ["test-support"] }
 boardstudio-web-ui-model = { path = "crates/ui-model", features = ["test-support"] }
-boardstudio-web-layout = { path = "crates/layout", features = ["test-support"] }
-boardstudio-web-pcb = { path = "crates/pcb", features = ["test-support"] }
-boardstudio-web-parts = { path = "crates/parts", features = ["test-support"] }
+boardstudio-web-ui-shared = { path = "crates/ui-shared", features = ["test-support"] }
+boardstudio-web-layout = { path = "crates/layout" }
+boardstudio-web-pcb = { path = "crates/pcb" }
+boardstudio-web-parts = { path = "crates/parts" }
 boardstudio-web-case = { path = "crates/case", features = ["test-support"] }
-boardstudio-web-keymap = { path = "crates/keymap", features = ["test-support"] }
-boardstudio-web-library = { path = "crates/library", features = ["test-support"] }
+boardstudio-web-keymap = { path = "crates/keymap" }
+boardstudio-web-library = { path = "crates/library" }
 boardstudio-web-keycaps = { path = "crates/keycaps", features = ["test-support"] }
-dioxus = { version = "=0.7.10", default-features = false, features = ["minimal"] }
 tokio = { version = "=1.53.1", features = ["macros", "rt", "time"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-# wasm-bindgen-test enables `libm`; enabling it here too keeps num-traits, and Core above it, shared
-# between the page build and the page tests.
-num-traits = { version = "=0.2.19", default-features = false, features = ["libm"] }
+# The page, the Core, CAD and offline workers and the renderer (`renderer/Cargo.toml`) are separate
+# wasm builds that share one target directory. Cargo builds a crate, and everything above it such as
+# Core, once per distinct feature set, so these pins turn on the union of what the page and the
+# renderer resolve for each leaf crate, in every wasm build. wasm-bindgen-test enables `libm`, so
+# the page tests share the same units too.
+futures-channel = { version = "=0.3.34", features = ["sink"] }
+# Keep the Core worker on the same futures-core unit that gloo-timers enables for the page and CAD worker.
+futures-core = "=0.3.34"
+futures-sink = { version = "=0.3.34", default-features = false, features = ["std"] }
+futures-util = { version = "=0.3.34", features = ["channel", "io", "sink"] }
+num-integer = { version = "=0.1.47", features = ["i128"] }
+num-traits = { version = "=0.2.19", features = ["i128", "libm"] }
+once_cell = { version = "=1.21.4", features = ["portable-atomic"] }
+serde = { version = "=1.0.229", features = ["alloc"] }
+slab = "=0.4.12"
 dioxus = { version = "=0.7.10", default-features = false, features = ["minimal", "web", "mounted"], optional = true }
 dioxus-web = { version = "=0.7.10", default-features = false, features = ["mounted"], optional = true }
 gloo-timers = { version = "=0.3.0", features = ["futures"], optional = true }
@@ -68,10 +88,6 @@ wasm-bindgen = "=0.2.129"
 wasm-bindgen-futures = "=0.4.79"
 js-sys = "=0.3.106"
 web-sys = { workspace = true }
-
-[target.wasm32-unknown-unknown.dev-dependencies]
-wasm-bindgen-test = "0.3.79"
-
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 dioxus = { version = "=0.7.10", default-features = false, features = ["minimal"] }

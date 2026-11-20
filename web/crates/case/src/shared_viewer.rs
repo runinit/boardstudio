@@ -3437,6 +3437,7 @@ fn run_host(
 mod tests {
     use super::*;
     use boardstudio_application::SessionEpoch;
+    use boardstudio_web_ui_shared::test_mount::MountedFixture;
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
@@ -4471,10 +4472,7 @@ mod tests {
         let dom = VirtualDom::new(feedback_layout_fixture);
         dom.provide_root_context(probe.clone());
         dom.provide_root_context(crate::runtime::project_name_test_support::new_runtime());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         for _ in 0..50 {
             if root.query_selector("canvas").unwrap().is_some() {
                 break;

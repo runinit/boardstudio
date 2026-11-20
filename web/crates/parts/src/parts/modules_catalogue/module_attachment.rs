@@ -568,8 +568,9 @@ mod mounted_settlement_tests {
     use super::*;
     use boardstudio_core::model::{Board, ProjectDoc};
     use boardstudio_web_runtime::runtime::project_name_test_support as support;
+    use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::test_role::by_role_name;
-    use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_future, wait_until_step};
+    use boardstudio_web_ui_shared::test_wait::{settle_until, wait_until, wait_until_future};
     use std::cell::RefCell;
     use wasm_bindgen_test::*;
 
@@ -620,14 +621,6 @@ mod mounted_settlement_tests {
         }
     }
 
-    async fn settle_until(runtime: &Rc<Runtime>, what: &str, done: impl Fn() -> bool) {
-        wait_until_step(what, async || {
-            support::run_pending(runtime).await;
-            done()
-        })
-        .await;
-    }
-
     #[wasm_bindgen_test]
     async fn mounted_attachment_drains_landing_failure_and_silent_retirement() {
         let runtime = support::new_runtime();
@@ -660,10 +653,7 @@ mod mounted_settlement_tests {
         document.body().unwrap().append_child(&root).unwrap();
         let dom = VirtualDom::new(host);
         dom.provide_root_context(probe.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         wait_until("module attachment control mounts", || {
             by_role_name(&root, "button", "Attach module to Board").is_some()
         })
@@ -685,11 +675,16 @@ mod mounted_settlement_tests {
             "navigation waits for landing"
         );
         release.send(()).unwrap();
-        settle_until(&runtime, "module attachment lands and navigates", || {
-            runtime.model().accepted.unwrap().document.modules.len() == 1
-                && probe.navigations.borrow().len() == 1
-                && !attach.has_attribute("disabled")
-        })
+        settle_until(
+            &runtime,
+            support::run_pending,
+            "module attachment lands and navigates",
+            || {
+                runtime.model().accepted.unwrap().document.modules.len() == 1
+                    && probe.navigations.borrow().len() == 1
+                    && !attach.has_attribute("disabled")
+            },
+        )
         .await;
         let accepted = runtime.model().accepted.unwrap();
         assert_eq!(accepted.document.modules.len(), 1);
@@ -733,6 +728,7 @@ mod mounted_settlement_tests {
         release.send(()).unwrap();
         settle_until(
             &runtime,
+            support::run_pending,
             "departed module attachment settles silently",
             || {
                 runtime.model().accepted.unwrap().document.modules.len() == 2
@@ -766,12 +762,17 @@ mod mounted_settlement_tests {
         .await;
         support::fail_next_core_reply(&runtime, "controlled attachment failure");
         attach.click();
-        settle_until(&runtime, "module attachment failure is shown", || {
-            root.text_content()
-                .unwrap()
-                .contains("controlled attachment failure")
-                && !attach.has_attribute("disabled")
-        })
+        settle_until(
+            &runtime,
+            support::run_pending,
+            "module attachment failure is shown",
+            || {
+                root.text_content()
+                    .unwrap()
+                    .contains("controlled attachment failure")
+                    && !attach.has_attribute("disabled")
+            },
+        )
         .await;
         assert!(
             root.text_content()

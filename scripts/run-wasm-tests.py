@@ -9,13 +9,14 @@ run; a known failure that now passes is reported so the entry can be removed.
 
 wasm-bindgen-test-runner accepts a single FILTER, so each module filter is one runner invocation.
 Override the runner with BOARDSTUDIO_WASM_TEST_COMMAND (shell-split; the filter, if any, is appended).
-Set BOARDSTUDIO_WASM_BINDGEN_DIR to a directory containing both executable tools at the
-workspace Cargo.lock version. wasm-pack 0.15 selects the pair from PATH; paths with
-whitespace are unsupported by its Cargo runner setting. check.py browser uses it too.
+Local launches use the cached patched wasm-bindgen pair. Set BOARDSTUDIO_WASM_BINDGEN_DIR
+to override both tools at the workspace Cargo.lock version. wasm-pack 0.15 selects the pair
+from PATH; paths with whitespace are unsupported by its Cargo runner setting.
 """
 
 import argparse
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager, nullcontext
 import hashlib
 import importlib.util
@@ -34,13 +35,17 @@ from tempfile import TemporaryDirectory
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import cargo_json  # noqa: E402
 from check import format_wasm_failure_summary, summarize_wasm_failure  # noqa: E402
+from tailwind_tools import check_jobs  # noqa: E402
 KNOWN_FAILURES = Path(__file__).with_name("wasm-known-failures.json")
 TEST_OWNERS = Path(__file__).with_name("wasm-test-owners.json")
 RUNNER_ENV = "BOARDSTUDIO_WASM_TEST_COMMAND"
 # `wasm-check` is the profile the checked page build uses, so the page tests reuse its units.
-WASM_PACK = ["wasm-pack", "test", "--headless", "--chrome", "--mode", "no-install", "web", "--locked",
-             "--profile", "wasm-check", "--no-default-features", "--features", "page", "--bin", "boardstudio-web", "--"]
+PAGE_BUILD = ["cargo", "test", "--no-run", "--target", "wasm32-unknown-unknown", "--locked",
+              "--profile", "wasm-check", "--no-default-features", "--features", "page,boardstudio-web-host/test-support",
+              "-p", "boardstudio-web", "--bin", "boardstudio-web", "--message-format=json"]
+PAGE_ARTIFACT = "BOARDSTUDIO_PAGE_TEST_ARTIFACT"
 CHROME_BINARIES = ("google-chrome-stable", "google-chrome", "chromium", "chromium-browser", "chrome")
 CHROME_BIN_ENV = "CHROME_BIN"
 CFT_DIR_ENV = "BOARDSTUDIO_CFT_DIR"
@@ -166,10 +171,16 @@ def load_test_owners(path=None):
 
 def wasm_bindgen_dir(root=ROOT):
     try:
+        if wasm_bindgen_tools.DIRECTORY_ENV in os.environ:
+            env = wasm_bindgen_tools.configure(os.environ, root)
+            return Path(env[wasm_bindgen_tools.DIRECTORY_ENV])
         version = wasm_bindgen_tools.locked_version(root)
+        cache = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache")
+        if patched := wasm_bindgen_tools.local_patched_pair(cache, root, version):
+            return patched
     except (OSError, ValueError) as error:
         raise RunnerError(str(error)) from error
-    cache = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / ".wasm-pack"
+    cache /= ".wasm-pack"
     candidates = [path.parent for path in sorted(cache.glob(
         f"wasm-bindgen-*/{wasm_bindgen_tools.TEST_RUNNER}"))]
     if bindgen := shutil.which("wasm-bindgen"):
@@ -263,34 +274,69 @@ def runner_environment(root=ROOT, *, browser_only=False):
         raise RunnerError("Chrome selection is missing or not executable")
     chrome = str(Path(chrome).resolve())
     env["CHROMEDRIVER"] = driver
-    env[CHROME_BIN_ENV] = chrome
+    # ChromeDriver and Chrome inherit TMPDIR for Unix sockets; a deep caller TMPDIR
+    # exceeds their path limits, so normalize it before any launch.
+    env = browser_tools.browser_env(env, chrome=chrome)
     if browser_only:
         return env
-    if not shutil.which("wasm-pack"):
-        raise RunnerError("wasm-pack not found on PATH; install it with `cargo install wasm-pack`")
-    env["CHROMEDRIVER"] = driver
-    env[CHROME_BIN_ENV] = chrome
     if wasm_bindgen_tools.DIRECTORY_ENV in env:
         try:
             env = wasm_bindgen_tools.configure(env, root)
         except ValueError as error:
             raise RunnerError(str(error)) from error
     else:
-        env["PATH"] = f"{wasm_bindgen_dir(root)}{os.pathsep}{env['PATH']}"
+        directory = str(wasm_bindgen_dir(root))
+        env[wasm_bindgen_tools.DIRECTORY_ENV] = directory
+        env["PATH"] = directory + os.pathsep + env.get("PATH", "")
+        print(f"wasm-bindgen pair: {directory}", file=sys.stderr)
     print(f"run-wasm-tests: chrome {chrome}; chromedriver {driver}", file=sys.stderr)
     return env
 
 
-def run_filter(filter_, env, root=ROOT, skip_filters=()):
-    override = os.environ.get(RUNNER_ENV)
-    command = shlex.split(override) if override else [*WASM_PACK[:4], "--chromedriver", env["CHROMEDRIVER"], *WASM_PACK[4:]]
-    if filter_:
-        command.append(filter_)
-    for skip_filter in skip_filters:
-        command.extend(["--skip", skip_filter])
+def build_page_test(root, env):
+    # check.py sets this after a just-completed combined prebuild in the same process, so the
+    # browser step reuses that artifact instead of re-invoking Cargo; a missing file (or an
+    # ordinary run without the prebuild) falls through to the build below.
+    if (preset := env.get(PAGE_ARTIFACT)) and Path(preset).is_file():
+        return Path(preset)
     fd = browser_tools._inherited_build_lock()
-    result = subprocess.run(command, cwd=root, env=env, text=True, capture_output=True,
-                            **({"pass_fds": (fd,)} if fd is not None else {}))
+    build_env = dict(env)
+    build_env.setdefault("CARGO_PROFILE_DEV_DEBUG", "false")
+    try:
+        result = subprocess.run(PAGE_BUILD, cwd=root, env=build_env, text=True,
+                                stdout=subprocess.PIPE, pass_fds=() if fd is None else (fd,))
+    except OSError as error:
+        raise RunnerError(f"could not build the page test: {error}") from error
+    artifacts = [root / executable for message in cargo_json.messages(result.stdout, sys.stderr)
+                 if (executable := cargo_json.wasm_executable(message, kind="bin", name="boardstudio-web", test=True))
+                 and Path(message["manifest_path"]) == root / "web/Cargo.toml"]
+    if result.returncode:
+        raise RunnerError(f"page test build exited {result.returncode}")
+    if len(artifacts) != 1 or not artifacts[0].is_file():
+        raise RunnerError("expected one existing page test wasm artifact from Cargo")
+    return artifacts[0]
+
+
+def run_page_runner(args, env, root):
+    override = os.environ.get(RUNNER_ENV)
+    if override:
+        command = shlex.split(override)
+        cwd = root
+    else:
+        command = [wasm_bindgen_tools.TEST_RUNNER, env[PAGE_ARTIFACT]]
+        # wasm-pack launched from the page package. The runner serves its relative assets here.
+        cwd = Path(root) / "web"
+        env = dict(env, RAYON_NUM_THREADS="1")
+    fd = browser_tools._inherited_build_lock()
+    return subprocess.run([*command, *args], cwd=cwd, env=env, text=True, capture_output=True,
+                          pass_fds=() if fd is None else (fd,))
+
+
+def run_filter(filter_, env, root=ROOT, skip_filters=()):
+    args = [filter_] if filter_ else []
+    for skip_filter in skip_filters:
+        args.extend(["--skip", skip_filter])
+    result = run_page_runner(args, env, root)
     output = result.stdout + "\n" + result.stderr
     outcomes = {}
     for name, status in TEST_LINE.findall(output):
@@ -306,12 +352,7 @@ LIST_LINE = re.compile(r"^(\S+): test$", re.M)
 
 
 def list_wasm_tests(env, root=ROOT):
-    override = os.environ.get(RUNNER_ENV)
-    command = (shlex.split(override) if override else
-               [*WASM_PACK[:4], "--chromedriver", env["CHROMEDRIVER"], *WASM_PACK[4:]]) + ["--list"]
-    fd = browser_tools._inherited_build_lock()
-    result = subprocess.run(command, cwd=root, env=env, text=True, capture_output=True,
-                            **({"pass_fds": (fd,)} if fd is not None else {}))
+    result = run_page_runner(["--list"], env, root)
     names = LIST_LINE.findall(result.stdout + "\n" + result.stderr)
     if result.returncode or not names:
         detail = f" (runner exit {result.returncode})" if result.returncode else ""
@@ -455,11 +496,39 @@ def filters_for_listed_files(files, env, root=ROOT):
     return filters, expected, unmatched
 
 
-def all_module_selection(env, root=ROOT, depth=None, isolated=()):
+def split_large_groups(names, groups, isolated, depth, limit):
+    """Isolate the largest `depth + 1` child modules of each group over `limit` tests.
+
+    A group keeps at least one test of its own, so a group whose remaining tests share one
+    child (or sit directly in the group module) is left whole."""
+    isolated = list(isolated)
+    for group in groups:
+        while True:
+            remaining = [name for name in names if name.startswith(group)
+                         and not any(name.startswith(prefix) for prefix in isolated)]
+            if len(remaining) <= limit:
+                break
+            sizes = Counter(test_module_filter(name, depth + 1) for name in remaining)
+            children = [child for child in sizes if child != group and child.endswith("::")
+                        and not any(child.startswith(prefix) or prefix.startswith(child) for prefix in isolated)]
+            if len(sizes) < 2 or not children:
+                break
+            isolated.append(min(children, key=lambda child: (-sizes[child], child)))
+    return isolated
+
+
+def all_module_selection(env, root=ROOT, depth=None, isolated=(), max_group_tests=None):
     """One filter per test module (or per `depth` leading path segments): a single unfiltered run
-    shares one page, so a crash or leaked state in one module masks or breaks the rest."""
+    shares one page, so a crash or leaked state in one module masks or breaks the rest.
+
+    `max_group_tests` splits a depth group over that many tests into its largest child modules."""
     if depth is not None and depth <= 0:
         raise RunnerError("--depth must be a positive integer")
+    if max_group_tests is not None:
+        if depth is None:
+            raise RunnerError("--max-group-tests requires --depth")
+        if max_group_tests <= 0:
+            raise RunnerError("--max-group-tests must be a positive integer")
     names = list_wasm_tests(env, root)
     modules = sorted({test_module_filter(name, depth) for name in names})
     filters = [m for m in modules if not any(o != m and m.startswith(o) for o in modules)]
@@ -478,6 +547,8 @@ def all_module_selection(env, root=ROOT, depth=None, isolated=()):
         parent = next((module for module in filters if prefix.startswith(module) and prefix != module), None)
         if parent is None:
             raise RunnerError(f"isolated module is not a strict descendant of a depth group: {prefix}")
+    if max_group_tests is not None:
+        isolated = sorted(split_large_groups(names, filters, isolated, depth, max_group_tests))
     expected = {
         module: [name for name in names if name.startswith(module)
                  and not any(name.startswith(prefix) for prefix in isolated)]
@@ -491,16 +562,12 @@ def all_module_selection(env, root=ROOT, depth=None, isolated=()):
 
 @contextmanager
 def desktop_webdriver_config(env, root=ROOT):
-    """Set a deterministic desktop Chrome viewport unless the caller supplied capabilities.
-
-    A caller-supplied WASM_BINDGEN_TEST_WEBDRIVER_JSON is honored as-is. The
-    crate webdriver.json path and the generated temp config both get the
-    resolved chrome binary merged into goog:chromeOptions as "binary".
-    """
+    """Set desktop capabilities while preserving caller-supplied values."""
     env = dict(env)
     if env.get(WEBDRIVER_CONFIG_ENV):
+        path = Path(env[WEBDRIVER_CONFIG_ENV]).resolve()
         try:
-            supplied = json.loads(Path(env[WEBDRIVER_CONFIG_ENV]).read_text())
+            supplied = json.loads(path.read_text())
             options = supplied.get("goog:chromeOptions", {})
             binary = options.get("binary") if isinstance(options, dict) else None
         except (OSError, ValueError, AttributeError) as error:
@@ -508,26 +575,24 @@ def desktop_webdriver_config(env, root=ROOT):
         chrome = env.get(CHROME_BIN_ENV)
         if binary and chrome and Path(binary).resolve() != Path(chrome).resolve():
             raise RunnerError("caller WebDriver browser conflicts with selected Chrome")
+        if "pageLoadStrategy" in supplied and (binary or not chrome):
+            env[WEBDRIVER_CONFIG_ENV] = str(path)
+            yield env
+            return
+        supplied.setdefault("pageLoadStrategy", "eager")
         if chrome and not binary:
             if not isinstance(options, dict):
                 raise RunnerError("invalid caller WebDriver chrome options")
             supplied["goog:chromeOptions"] = {**options, "binary": chrome}
-            with TemporaryDirectory(prefix="boardstudio-wasm-webdriver-") as temporary:
-                config = Path(temporary) / "webdriver.json"
-                config.write_text(json.dumps(supplied))
-                env[WEBDRIVER_CONFIG_ENV] = str(config)
-                yield env
-            return
-        env[WEBDRIVER_CONFIG_ENV] = str(Path(env[WEBDRIVER_CONFIG_ENV]).resolve())
-        yield env
+        with TemporaryDirectory(prefix="boardstudio-wasm-webdriver-") as temporary:
+            config = Path(temporary) / "webdriver.json"
+            config.write_text(json.dumps(supplied))
+            env[WEBDRIVER_CONFIG_ENV] = str(config)
+            yield env
         return
     chrome = resolve_chrome_binary(env)
     existing = next((path for path in (Path(root) / "web/webdriver.json", Path(root) / "webdriver.json")
                      if path.is_file()), None)
-    if existing and chrome is None:
-        env[WEBDRIVER_CONFIG_ENV] = str(existing.resolve())
-        yield env
-        return
     try:
         base = json.loads(existing.read_text()) if existing else {}
     except (OSError, ValueError):
@@ -546,6 +611,8 @@ def desktop_webdriver_config(env, root=ROOT):
         args.append("--window-size=1280,900")
     if chrome is not None:
         options["binary"] = chrome
+    # Navigation otherwise waits up to 300s for load before the runner reads test output.
+    base.setdefault("pageLoadStrategy", "eager")
     with TemporaryDirectory(prefix="boardstudio-wasm-webdriver-") as temporary:
         config = Path(temporary) / "webdriver.json"
         config.write_text(json.dumps(base))
@@ -556,39 +623,69 @@ def desktop_webdriver_config(env, root=ROOT):
 def run(filters, known, root=ROOT, expected_tests=None, env=None, unmatched_filters=None,
         listed_tests=None, selection=None, result_json_path=None):
     """Return execution summary and logs; optionally write a structured result report."""
-    env = env if env is not None else (os.environ.copy() if os.environ.get(RUNNER_ENV) else runner_environment(root))
+    if env is None:
+        if os.environ.get(RUNNER_ENV):
+            env = os.environ.copy()
+        else:
+            env = runner_environment(root)
+            env[PAGE_ARTIFACT] = str(build_page_test(Path(root).resolve(), env))
+            env["WASM_BINDGEN_TEST_ONLY_WEB"] = "1"
+            with desktop_webdriver_config(env, root) as configured:
+                return run(filters, known, root, expected_tests, configured, unmatched_filters,
+                           listed_tests, selection, result_json_path)
     outcomes, problems, logs = {}, [], []
     if not filters and not unmatched_filters:
         problems.append("no wasm tests selected; refusing an empty passing run")
     for filter_ in unmatched_filters or []:
         problems.append(f"zero tests executed for filter {filter_ or '<all tests>'}; "
                         "no matching module appeared in the wasm test list")
+    selections = []
+    for filter_ in filters:
+        expected_for_filter = set((expected_tests or {}).get(filter_, []))
+        skips = sorted(name for name in (listed_tests or [])
+                       if filter_ in name and name not in expected_for_filter)
+        unsafe = [skip for skip in skips if any(skip in name for name in expected_for_filter)]
+        selections.append((filter_, skips, unsafe))
+
+    def invoke(filter_, skips):
+        started = time.monotonic()
+        code, found, output = run_filter(filter_, env, root, skip_filters=skips)
+        actual = filter_
+        if (not found and (expected_tests is None or filter_ not in expected_tests)
+                and filter_.count("::") > 2 and (parent := parent_filter(filter_))):
+            code, found, output = run_filter(parent, env, root)
+            actual = parent
+        return code, found, output, actual, time.monotonic() - started
+
+    def results():
+        workers = min(check_jobs(), len(selections))
+        if workers <= 1:
+            for filter_, skips, unsafe in selections:
+                yield None if unsafe else invoke(filter_, skips)
+        else:
+            with ThreadPoolExecutor(max_workers=workers) as executor:
+                # The largest filters start first; results are still reported in filter order.
+                futures = [None] * len(selections)
+                for index in sorted(range(len(selections)),
+                                    key=lambda index: -len((expected_tests or {}).get(selections[index][0], ()))):
+                    filter_, skips, unsafe = selections[index]
+                    if not unsafe:
+                        futures[index] = executor.submit(invoke, filter_, skips)
+                for future in futures:
+                    yield None if future is None else future.result()
+
     filter_reports, observed_terminal_outcomes = [], []
-    for index, filter_ in enumerate(filters, 1):
+    for index, ((filter_, _, unsafe_skips), result) in enumerate(zip(selections, results()), 1):
         label = filter_ or "<all tests>"
         print(f"run-wasm-tests: [{index}/{len(filters)}] {label}", file=sys.stderr)
-        started = time.monotonic()
-        expected_for_filter = set((expected_tests or {}).get(filter_, []))
-        skip_filters = sorted(name for name in (listed_tests or [])
-                              if filter_ in name and name not in expected_for_filter)
-        unsafe_skips = [skip for skip in skip_filters
-                        if any(skip in name for name in expected_for_filter)]
         if unsafe_skips:
             problems.append(f"cannot safely exclude substring collision for filter {label}: "
                             + ", ".join(unsafe_skips))
             continue
-        if skip_filters:
-            code, found, output = run_filter(filter_, env, root, skip_filters=skip_filters)
-        else:
-            code, found, output = run_filter(filter_, env, root)
-        runner_filter = filter_
-        if (not found and (expected_tests is None or filter_ not in expected_tests)
-                and filter_.count("::") > 2 and parent_filter(filter_)):
-            parent = parent_filter(filter_)
-            print(f"run-wasm-tests: no tests under {label}; widening to {parent}", file=sys.stderr)
-            code, found, output = run_filter(parent, env, root)
-            runner_filter = parent
-            label = f"{label} (via {parent})"
+        code, found, output, runner_filter, duration = result
+        if runner_filter != filter_:
+            print(f"run-wasm-tests: no tests under {label}; widening to {runner_filter}", file=sys.stderr)
+            label = f"{label} (via {runner_filter})"
         observations = terminal_observations(output)
         observed_terminal_outcomes.extend(observations)
         first_failure = summarize_wasm_failure(output)
@@ -597,7 +694,7 @@ def run(filters, known, root=ROOT, expected_tests=None, env=None, unmatched_filt
             "runner_filter": runner_filter,
             "expected_tests": sorted((expected_tests or {}).get(filter_, [])),
             "terminal_outcomes": observations,
-            "duration_ms": round((time.monotonic() - started) * 1000),
+            "duration_ms": round(duration * 1000),
         }
         if first_failure is not None:
             filter_report["first_failure"] = first_failure
@@ -697,18 +794,32 @@ def main(argv=None):
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--files", nargs="+", metavar="FILE")
     group.add_argument("--all", action="store_true")
+    group.add_argument("--build-only", action="store_true", help="compile the page test wasm without launching it")
     parser.add_argument("--depth", type=int, default=None, metavar="N",
                         help="with --all or --files: group tests by their first N module segments instead of "
                              "one run per module (fewer, faster runs; less isolation)")
     parser.add_argument("--isolate", action="append", default=[], metavar="MODULE",
                         help="with --depth: run this module prefix separately, e.g. presentation::setup_guide:: "
                              "(--files ignores isolates outside its selection)")
+    parser.add_argument("--max-group-tests", type=int, default=None, metavar="N",
+                        help="with --all and --depth: run the largest child modules of a group over N "
+                             "tests separately, so no one browser page runs most of the suite")
     parser.add_argument("--root", default=str(ROOT))
     parser.add_argument("--result-json", metavar="PATH",
                         help="write the exact listed, selected and terminal outcomes as JSON")
     args = parser.parse_args(argv)
+    if args.max_group_tests is not None:
+        if not args.all:
+            parser.error("--max-group-tests applies to --all")
+        if args.depth is None:
+            parser.error("--max-group-tests requires --depth")
+        if args.max_group_tests <= 0:
+            parser.error("--max-group-tests must be a positive integer")
     root = Path(args.root).resolve()
     try:
+        if args.build_only:
+            print(build_page_test(root, os.environ))
+            return 0
         known = load_known_failures()
         custom_runner = bool(os.environ.get(RUNNER_ENV))
         env = os.environ.copy() if custom_runner else runner_environment(root)
@@ -717,8 +828,10 @@ def main(argv=None):
                 env = wasm_bindgen_tools.configure(env, root)
             except ValueError as error:
                 raise RunnerError(str(error)) from error
-        browser_setup = not custom_runner
-        with (desktop_webdriver_config(env, root) if browser_setup else nullcontext(env)) as env:
+        else:
+            env[PAGE_ARTIFACT] = str(build_page_test(root, env))
+            env["WASM_BINDGEN_TEST_ONLY_WEB"] = "1"
+        with (nullcontext(env) if custom_runner else desktop_webdriver_config(env, root)) as env:
             if args.files:
                 filters, expected_tests, unmatched_filters, listed_tests, diagnostics = \
                     selection_for_listed_files(args.files, env, root, depth=args.depth,
@@ -727,11 +840,13 @@ def main(argv=None):
                              "depth": args.depth, "isolated": args.isolate,
                              "resolved_filters": filters, "diagnostics": diagnostics}
             else:
-                filters, expected_tests = all_module_selection(env, root, args.depth, args.isolate)
+                filters, expected_tests = all_module_selection(env, root, args.depth, args.isolate,
+                                                               args.max_group_tests)
                 listed_tests = sorted({name for names in expected_tests.values() for name in names})
                 unmatched_filters = []
                 diagnostics = [f"--all -> {filter_ or '<all tests>'}" for filter_ in filters]
                 selection = {"mode": "all", "depth": args.depth, "isolated": args.isolate,
+                             "max_group_tests": args.max_group_tests,
                              "resolved_filters": filters, "diagnostics": diagnostics}
             for diagnostic in diagnostics:
                 print(f"run-wasm-tests: selection: {diagnostic}", file=sys.stderr)

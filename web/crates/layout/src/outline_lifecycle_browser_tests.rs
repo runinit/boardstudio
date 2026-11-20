@@ -4,6 +4,7 @@ use boardstudio_core::model::{
     Board, BoardOutline, OutlineConnection, OutlineControlPoint, OutlineFeature, OutlineProvenance,
     OutlineSnapshot, OutlineVersion, Part, PartDefinition, PartKind, Pose2, ProjectDoc, Side, Vec2,
 };
+use boardstudio_web_ui_shared::test_mount::MountedFixture;
 use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 use wasm_bindgen::JsCast;
@@ -97,10 +98,7 @@ async fn coordinate_undo_restores_accepted_value_without_reviving_a_submitted_dr
     let root = document.create_element("div").unwrap();
     root.set_id("coordinate-history-mount");
     document.body().unwrap().append_child(&root).unwrap();
-    dioxus_web::launch::launch_virtual_dom(
-        VirtualDom::new(coordinate_history_host),
-        dioxus_web::Config::new().rootnode(root.clone().into()),
-    );
+    let _mounted = MountedFixture::new(root.clone(), VirtualDom::new(coordinate_history_host));
     wait_until("the coordinate inputs mount", || {
         by_role_name(&root, "spinbutton", "Point 1 X mm").is_some()
     })
@@ -153,7 +151,7 @@ async fn coordinate_undo_restores_accepted_value_without_reviving_a_submitted_dr
     root.remove();
 }
 
-fn mount_dimension() -> (DimensionProbe, web_sys::Element) {
+fn mount_dimension() -> (DimensionProbe, web_sys::Element, MountedFixture) {
     let probe = DimensionProbe {
         committed: Rc::default(),
     };
@@ -163,11 +161,8 @@ fn mount_dimension() -> (DimensionProbe, web_sys::Element) {
     document.body().unwrap().append_child(&root).unwrap();
     let dom = VirtualDom::new(mounted_dimension_host);
     dom.provide_root_context(probe.clone());
-    dioxus_web::launch::launch_virtual_dom(
-        dom,
-        dioxus_web::Config::new().rootnode(root.clone().into()),
-    );
-    (probe, root)
+    let mounted = MountedFixture::new(root.clone(), dom);
+    (probe, root, mounted)
 }
 
 /// Drive the in-process Session and Core until every queued edit has settled.
@@ -252,7 +247,7 @@ fn send_key(input: &web_sys::HtmlInputElement, key: &str) {
 
 #[wasm_bindgen_test]
 async fn outline_dimension_enter_commits_and_escape_restores_accepted_value() {
-    let (probe, root) = mount_dimension();
+    let (probe, root, _mounted) = mount_dimension();
     wait_until("the outline margin input mounts", || {
         web_sys::window()
             .unwrap()
@@ -430,10 +425,7 @@ async fn connected_mirrored_outline_gap_controls_edit_distinct_regions() {
         document.body().unwrap().append_child(&root).unwrap();
         let dom = VirtualDom::new(mounted_outline_inspector_host);
         dom.provide_root_context(probe.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         wait_until("the connected outline Inspector mounts", || {
             probe.connection_action.borrow().is_some()
         })
@@ -674,13 +666,13 @@ fn mounted_outline_inspector_host() -> Element {
     }
 }
 
-async fn mounted_outline_inspector() -> (InspectorProbe, web_sys::Element) {
+async fn mounted_outline_inspector() -> (InspectorProbe, web_sys::Element, MountedFixture) {
     mounted_outline_inspector_with_version(None).await
 }
 
 #[wasm_bindgen_test]
 async fn outline_actions_keep_their_layout_without_legacy_classes() {
-    let (_probe, root) = mounted_outline_inspector().await;
+    let (_probe, root, mut mounted) = mounted_outline_inspector().await;
     wait_until("outline actions mount", || {
         by_role_name(&root, "button", "Copy outline").is_some()
     })
@@ -689,6 +681,7 @@ async fn outline_actions_keep_their_layout_without_legacy_classes() {
     let stylesheet = document.create_element("style").unwrap();
     stylesheet.set_text_content(Some(include_str!("../../../assets/tailwind.css")));
     document.head().unwrap().append_child(&stylesheet).unwrap();
+    mounted.own_node(stylesheet.clone());
     let action = by_role_name(&root, "button", "Copy outline").unwrap();
     let row = action.parent_element().unwrap();
     let classes = row.get_attribute("class").unwrap_or_default();
@@ -747,7 +740,7 @@ async fn outline_actions_keep_their_layout_without_legacy_classes() {
 
 async fn mounted_outline_inspector_with_version(
     version: Option<boardstudio_core::model::OutlineVersion>,
-) -> (InspectorProbe, web_sys::Element) {
+) -> (InspectorProbe, web_sys::Element, MountedFixture) {
     let board_id = "outline-board".to_string();
     let mut document = ProjectDoc::empty("outline-inspector-doc", "Outline fixture");
     document.revision = 9;
@@ -789,16 +782,13 @@ async fn mounted_outline_inspector_with_version(
     document.body().unwrap().append_child(&root).unwrap();
     let dom = VirtualDom::new(mounted_outline_inspector_host);
     dom.provide_root_context(probe.clone());
-    dioxus_web::launch::launch_virtual_dom(
-        dom,
-        dioxus_web::Config::new().rootnode(root.clone().into()),
-    );
-    (probe, root)
+    let mounted = MountedFixture::new(root.clone(), dom);
+    (probe, root, mounted)
 }
 
 #[wasm_bindgen_test]
 async fn mounted_outline_perimeter_escape_returns_to_board_inspector() {
-    let (probe, root) = mounted_polygon_outline_inspector(true).await;
+    let (probe, root, _mounted) = mounted_polygon_outline_inspector(true).await;
     wait_until("the mounted Outline publishes its selected context", || {
         probe.selected_context.borrow().is_some()
     })
@@ -922,7 +912,7 @@ async fn mounted_outline_perimeter_escape_returns_to_board_inspector() {
 
 #[wasm_bindgen_test]
 async fn mounted_fixed_outline_canvas_point_escape_returns_to_board_without_editing() {
-    let (probe, root) = mounted_polygon_outline_inspector(true).await;
+    let (probe, root, _mounted) = mounted_polygon_outline_inspector(true).await;
     wait_until("the mounted Outline publishes its selected context", || {
         probe.selected_context.borrow().is_some()
     })
@@ -1069,7 +1059,7 @@ async fn mounted_fixed_outline_point_click_and_escape_preserve_fractional_geomet
         Vec2 { x: 13.0, y: -13.0 },
         Vec2 { x: 13.0, y: 13.0 },
     ];
-    let (probe, root) = mounted_polygon_outline_inspector_with_points(true, points).await;
+    let (probe, root, _mounted) = mounted_polygon_outline_inspector_with_points(true, points).await;
     wait_until("the fixed outline exposes Edit perimeter points", || {
         by_role_name(
             &web_sys::window()
@@ -1280,14 +1270,16 @@ fn dispatch_test_pointer_at(
     target.dispatch_event(&event).unwrap();
 }
 
-async fn mounted_polygon_outline_inspector(fixed: bool) -> (InspectorProbe, web_sys::Element) {
+async fn mounted_polygon_outline_inspector(
+    fixed: bool,
+) -> (InspectorProbe, web_sys::Element, MountedFixture) {
     mounted_polygon_outline_inspector_with_connections(fixed, vec![]).await
 }
 
 async fn mounted_polygon_outline_inspector_with_connections(
     fixed: bool,
     connections: Vec<OutlineConnection>,
-) -> (InspectorProbe, web_sys::Element) {
+) -> (InspectorProbe, web_sys::Element, MountedFixture) {
     let points = vec![
         boardstudio_core::model::Vec2 { x: 0.0, y: 0.0 },
         boardstudio_core::model::Vec2 { x: 20.0, y: 0.0 },
@@ -1300,7 +1292,7 @@ async fn mounted_polygon_outline_inspector_with_connections(
 async fn mounted_polygon_outline_inspector_with_points(
     fixed: bool,
     points: Vec<Vec2>,
-) -> (InspectorProbe, web_sys::Element) {
+) -> (InspectorProbe, web_sys::Element, MountedFixture) {
     mounted_polygon_outline_inspector_with_points_and_connections(fixed, points, vec![]).await
 }
 
@@ -1308,7 +1300,7 @@ async fn mounted_polygon_outline_inspector_with_points_and_connections(
     fixed: bool,
     points: Vec<Vec2>,
     connections: Vec<OutlineConnection>,
-) -> (InspectorProbe, web_sys::Element) {
+) -> (InspectorProbe, web_sys::Element, MountedFixture) {
     let board_id = "outline-points-board".to_string();
     let mut document = ProjectDoc::empty("outline-points-doc", "Outline points fixture");
     document.revision = 11;
@@ -1429,11 +1421,8 @@ async fn mounted_polygon_outline_inspector_with_points_and_connections(
     document.body().unwrap().append_child(&root).unwrap();
     let dom = VirtualDom::new(mounted_outline_inspector_host);
     dom.provide_root_context(probe.clone());
-    dioxus_web::launch::launch_virtual_dom(
-        dom,
-        dioxus_web::Config::new().rootnode(root.clone().into()),
-    );
-    (probe, root)
+    let mounted = MountedFixture::new(root.clone(), dom);
+    (probe, root, mounted)
 }
 
 #[wasm_bindgen_test]
@@ -1452,7 +1441,7 @@ async fn mounted_generated_connection_after_reopen_preserves_unique_ids_and_vali
             },
         ],
     };
-    let (probe, root) =
+    let (probe, root, _mounted) =
         mounted_polygon_outline_inspector_with_connections(false, vec![existing]).await;
     settle_dimension().await;
     probe.add_connection(vec![Vec2 { x: -6.0, y: 0.0 }, Vec2 { x: -16.0, y: 0.0 }]);
@@ -1547,7 +1536,7 @@ async fn mounted_generated_connection_after_reopen_preserves_unique_ids_and_vali
 
 #[wasm_bindgen_test]
 async fn fixed_perimeter_finds_the_first_polygon_after_primitive_features() {
-    let (probe, root) = mounted_polygon_outline_inspector(true).await;
+    let (probe, root, _mounted) = mounted_polygon_outline_inspector(true).await;
     let mut snapshot = probe.runtime.model().accepted.unwrap();
     let document = Arc::make_mut(&mut snapshot.document);
     let features = &mut document.board_outlines[0].versions[0].geometry.features;
@@ -1615,7 +1604,7 @@ async fn mounted_reopened_fixed_outline_selects_its_saved_version() {
     use boardstudio_core::model::{
         CornerStyle, OutlineProvenance, OutlineSettings, OutlineSnapshot, OutlineVersion,
     };
-    let (_probe, root) = mounted_outline_inspector_with_version(Some(OutlineVersion {
+    let (_probe, root, _mounted) = mounted_outline_inspector_with_version(Some(OutlineVersion {
         id: "saved-outline".into(),
         name: "QA Outline".into(),
         source: OutlineProvenance {
@@ -1656,7 +1645,7 @@ async fn mounted_reopened_fixed_outline_selects_its_saved_version() {
 
 #[wasm_bindgen_test]
 async fn mounted_outline_inspector_generates_through_the_production_owner() {
-    let (probe, root) = mounted_outline_inspector().await;
+    let (probe, root, _mounted) = mounted_outline_inspector().await;
     wait_until("the Generate action mounts", || {
         by_role_name(
             &web_sys::window()
@@ -1758,7 +1747,7 @@ async fn mounted_outline_inspector_generates_through_the_production_owner() {
 
 #[wasm_bindgen_test]
 async fn mounted_generated_perimeter_insert_creates_one_fixed_copy_with_edited_points() {
-    let (probe, root) = mounted_polygon_outline_inspector(false).await;
+    let (probe, root, _mounted) = mounted_polygon_outline_inspector(false).await;
     wait_until(
         "the generated perimeter exposes its point editor action",
         || {
@@ -1864,7 +1853,7 @@ async fn mounted_generated_perimeter_insert_creates_one_fixed_copy_with_edited_p
 
 #[wasm_bindgen_test]
 async fn mounted_fixed_perimeter_coordinate_enter_updates_only_the_active_feature() {
-    let (probe, root) = mounted_polygon_outline_inspector(true).await;
+    let (probe, root, _mounted) = mounted_polygon_outline_inspector(true).await;
     wait_until(
         "the fixed perimeter exposes its point editor action",
         || {
@@ -1968,6 +1957,7 @@ async fn mounted_fixed_perimeter_coordinate_enter_updates_only_the_active_featur
 mod ownership_presentation {
     use super::*;
     use boardstudio_core::model::{OutlineOwnership, OutlineSettings};
+    use boardstudio_web_ui_shared::test_mount::MountedFixture;
 
     const BOARD: &str = "ownership-board";
 
@@ -2020,7 +2010,7 @@ mod ownership_presentation {
     async fn mounted(
         versions: Vec<OutlineVersion>,
         active: &str,
-    ) -> (InspectorProbe, web_sys::Element) {
+    ) -> (InspectorProbe, web_sys::Element, MountedFixture) {
         let mut document = ProjectDoc::empty("ownership-doc", "Ownership fixture");
         document.revision = 5;
         document.boards.push(Board {
@@ -2055,11 +2045,8 @@ mod ownership_presentation {
         document.body().unwrap().append_child(&root).unwrap();
         let dom = VirtualDom::new(mounted_outline_inspector_host);
         dom.provide_root_context(probe.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
-        (probe, root)
+        let mounted = MountedFixture::new(root.clone(), dom);
+        (probe, root, mounted)
     }
 
     async fn option_labels(root: &web_sys::Element) -> Vec<String> {
@@ -2092,7 +2079,7 @@ mod ownership_presentation {
 
     #[wasm_bindgen_test]
     async fn mounted_linked_and_legacy_fixed_versions_are_distinct_ownership_choices() {
-        let (_probe, root) = mounted(
+        let (_probe, root, _mounted) = mounted(
             vec![
                 version(
                     "linked-v1",
@@ -2155,7 +2142,7 @@ mod ownership_presentation {
             margin,
             operation: boardstudio_core::model::Operation::Add,
         };
-        let (_probe, root) = mounted(
+        let (_probe, root, _mounted) = mounted(
             vec![
                 version(
                     "linked-v1",
@@ -2202,7 +2189,7 @@ mod ownership_presentation {
         root.remove();
 
         // A fixed edited copy has no envelope, so those controls are not offered.
-        let (_probe, root) = mounted(
+        let (_probe, root, _mounted) = mounted(
             vec![version(
                 "fixed-v1",
                 "Edited outline 1",
@@ -2238,7 +2225,7 @@ mod ownership_presentation {
 
     #[wasm_bindgen_test]
     async fn mounted_freeze_creates_one_fixed_copy_retaining_the_link_and_one_undo_restores_both() {
-        let (probe, root) = mounted(
+        let (probe, root, _mounted) = mounted(
             vec![version(
                 "linked-v1",
                 "Linked 1",
@@ -2327,7 +2314,7 @@ mod ownership_presentation {
     async fn mounted_linked_refinement_that_cannot_resolve_shows_its_located_finding() {
         // The selected refinement owns a generated envelope whose included components are
         // gone, so it cannot resolve and Core keeps its last valid shape.
-        let (_probe, root) = mounted(
+        let (_probe, root, _mounted) = mounted(
             vec![version(
                 "linked-v1",
                 "Linked 1",
@@ -2440,7 +2427,7 @@ mod product_context {
 
     #[wasm_bindgen_test]
     async fn mounted_refine_outline_creates_a_linked_refinement_with_one_undo() {
-        let (probe, root) = mounted_polygon_outline_inspector(false).await;
+        let (probe, root, _mounted) = mounted_polygon_outline_inspector(false).await;
         settle_dimension().await;
         assert!(
             click_by_text(&root, "Refine outline"),
@@ -2508,7 +2495,7 @@ mod product_context {
 
     #[wasm_bindgen_test]
     async fn mounted_copy_outline_on_a_generated_outline_creates_one_version() {
-        let (probe, root) = mounted_polygon_outline_inspector(false).await;
+        let (probe, root, _mounted) = mounted_polygon_outline_inspector(false).await;
         settle_dimension().await;
         assert!(
             click_by_text(&root, "Copy outline"),

@@ -880,6 +880,7 @@ mod mounted_tests {
     use crate::test_contexts::use_case_viewer_test_contexts;
     use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
     use boardstudio_core::model::Mount;
+    use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
     use wasm_bindgen_test::wasm_bindgen_test;
 
@@ -970,15 +971,12 @@ mod mounted_tests {
         host(vec![plate_body(), tray_body()])
     }
 
-    fn mounted(host: fn() -> Element) -> web_sys::Element {
+    fn mounted(host: fn() -> Element) -> (web_sys::Element, MountedFixture) {
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(host),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
-        root
+        let mounted = MountedFixture::new(root.clone(), VirtualDom::new(host));
+        (root, mounted)
     }
 
     fn last_request(root: &web_sys::Element) -> String {
@@ -991,7 +989,7 @@ mod mounted_tests {
 
     #[wasm_bindgen_test]
     async fn body_type_select_uses_custom_trigger_and_commits_kind() {
-        let root = mounted(single_host);
+        let (root, _mounted) = mounted(single_host);
         wait_until("case bodies mount", || {
             by_role_name(&root, "button", "+ New case body").is_some()
         })
@@ -1036,7 +1034,7 @@ mod mounted_tests {
 
     #[wasm_bindgen_test]
     async fn mounting_section_uses_disclosure_trigger() {
-        let root = mounted(single_host);
+        let (root, _mounted) = mounted(single_host);
         wait_until("case bodies mount", || {
             by_role_name(&root, "button", "+ New case body").is_some()
         })
@@ -1059,7 +1057,7 @@ mod mounted_tests {
 
     #[wasm_bindgen_test]
     async fn new_body_button_emits_add_request() {
-        let root = mounted(single_host);
+        let (root, _mounted) = mounted(single_host);
         wait_until("case bodies mount", || {
             by_role_name(&root, "button", "+ New case body").is_some()
         })
@@ -1074,7 +1072,7 @@ mod mounted_tests {
     #[wasm_bindgen_test]
     async fn thickness_rejects_invalid_draft_with_described_error() {
         use wasm_bindgen::JsCast;
-        let root = mounted(single_host);
+        let (root, _mounted) = mounted(single_host);
         wait_until("thickness field mounts", || {
             by_role_name(&root, "spinbutton", "Thickness").is_some()
         })
@@ -1116,7 +1114,7 @@ mod mounted_tests {
 
     #[wasm_bindgen_test]
     async fn body_tabs_switch_the_active_editor() {
-        let root = mounted(pair_host);
+        let (root, _mounted) = mounted(pair_host);
         wait_until("case bodies mount", || {
             by_role_name(&root, "button", "+ New case body").is_some()
         })

@@ -191,6 +191,7 @@ mod tests {
 
     #[wasm_bindgen_test]
     async fn alignment_popover_exposes_reference_and_restores_focus_on_escape() {
+        use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         document.body().unwrap().append_child(&root).unwrap();
@@ -198,8 +199,10 @@ mod tests {
             align_host,
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        gloo_timers::future::TimeoutFuture::new(80).await;
-        use boardstudio_web_ui_shared::test_role::by_role_name;
+        wait_until("alignment dialog appears", || {
+            by_role_name(&root, "dialog", "Align").is_some()
+        })
+        .await;
         let menu = by_role_name(&root, "dialog", "Align").unwrap();
         assert_eq!(menu.get_attribute("role").as_deref(), Some("dialog"));
         assert!(by_role_name(&menu, "button", "Alignment reference").is_some());
@@ -215,14 +218,26 @@ mod tests {
             &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &event).unwrap(),
         )
         .unwrap();
-        gloo_timers::future::TimeoutFuture::new(80).await;
+        wait_until(
+            "Escape closes Align and returns focus to its trigger",
+            || {
+                by_role_name(&root, "dialog", "Align").is_none()
+                    && document
+                        .active_element()
+                        .is_some_and(|element| element.id() == "m1-layout-align-trigger")
+            },
+        )
+        .await;
         assert!(by_role_name(&root, "dialog", "Align").is_none());
         assert_eq!(
             document.active_element().unwrap().id(),
             "m1-layout-align-trigger"
         );
         by_role_name(&root, "button", "Align").unwrap().click();
-        gloo_timers::future::TimeoutFuture::new(80).await;
+        wait_until("the trigger reopens the alignment dialog", || {
+            by_role_name(&root, "dialog", "Align").is_some()
+        })
+        .await;
         assert!(by_role_name(&root, "dialog", "Align").is_some());
         root.remove();
     }

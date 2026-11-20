@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import argparse
 import hashlib
 import importlib.util
 import json
@@ -24,6 +25,29 @@ import verification_receipt  # noqa: E402
 ROOT = Path(__file__).resolve().parents[1]
 SITE = ROOT / "web/target/site"
 RESULTS = ROOT / "web/target/test-results/drag-browser"
+
+# The exact receipt check names per suite. `drag` and `collision` partition
+# the 15 `all` checks, so two concurrent suite runs cover the full smoke with
+# zero overlap and zero dropped assertions.
+DRAG_SUITE_CHECKS = frozenset({
+    "Part drag", "Part drag undo",
+    "Column body drag", "Column body drag undo",
+    "Stagger cancel",
+    "Stagger handle", "Stagger handle undo",
+    "Ctrl Offset handle", "Ctrl Offset handle undo",
+    "Matrix move", "Matrix move undo",
+})
+COLLISION_SUITE_CHECKS = frozenset({
+    "Default collision PCB pair",
+    "Case viewer with overflowing collision findings",
+    "Qualified collision product fixture",
+    "Unavailable physical PCB stays uncertain",
+})
+SUITE_CHECKS = {
+    "all": DRAG_SUITE_CHECKS | COLLISION_SUITE_CHECKS,
+    "drag": DRAG_SUITE_CHECKS,
+    "collision": COLLISION_SUITE_CHECKS,
+}
 
 
 def module_at(path: Path, name: str):
@@ -64,7 +88,22 @@ def source_identity() -> tuple[str, str]:
     return head, digest.hexdigest()
 
 
-def verify_receipt(path: Path, run_id: str, head: str, source_hash: str, build_hash: str) -> None:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Run the real-page drag smoke against the checked site build.")
+    parser.add_argument("--suite", default=os.environ.get("BOARDSTUDIO_DRAG_SUITE") or "all",
+                        help="check suite to run: all (default), drag, or collision")
+    args = parser.parse_args(argv)
+    if args.suite not in SUITE_CHECKS:
+        parser.error(f"--suite must be one of {', '.join(sorted(SUITE_CHECKS))} (got {args.suite!r})")
+    return args
+
+
+def verify_receipt(path: Path, run_id: str, head: str, source_hash: str, build_hash: str,
+                   suite: str = "all") -> None:
+    try:
+        expected = SUITE_CHECKS[suite]
+    except KeyError:
+        raise ValueError(f"unknown drag browser suite: {suite!r}") from None
     raw = path.read_bytes()
     match = re.fullmatch(rb'(.*),"receipt_sha256":"([0-9a-f]{64})"}\n?', raw, re.DOTALL)
     if not match:
@@ -78,11 +117,9 @@ def verify_receipt(path: Path, run_id: str, head: str, source_hash: str, build_h
             or receipt.get("build_sha256") != build_hash):
         raise ValueError("drag browser receipt does not match this successful run")
     names = {check.get("name") for check in receipt.get("checks", [])}
-    expected = {"Part drag", "Column body drag", "Stagger cancel", "Stagger handle", "Ctrl Offset handle",
-                "Default collision PCB pair", "Case viewer with overflowing collision findings",
-                "Qualified collision product fixture", "Unavailable physical PCB stays uncertain"}
-    if not expected.issubset(names):
-        raise ValueError(f"drag browser receipt is missing checks: {sorted(expected - names)}")
+    if names != expected:
+        raise ValueError(f"drag browser receipt for suite {suite!r} is missing checks "
+                         f"{sorted(expected - names)} and has unexpected checks {sorted(names - expected)}")
     for check in receipt["checks"]:
         if "pointerDownToUpMs" in check and (
                 not isinstance(check["pointerDownToUpMs"], int)
@@ -91,7 +128,8 @@ def verify_receipt(path: Path, run_id: str, head: str, source_hash: str, build_h
             raise ValueError(f"drag browser receipt has invalid timings: {check.get('name')}")
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    suite = parse_args(argv).suite
     try:
         browser_tools.validate_drag_driver()
     except browser_tools.MissingBrowserTool as error:
@@ -105,11 +143,11 @@ def main() -> int:
     except browser_tools.MissingBrowserTool as error:
         raise SystemExit(str(error))
 
-    run_id = f"{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}-{uuid.uuid4().hex[:12]}"
+    # The suite prefix keeps concurrent `--suite drag` / `--suite collision`
+    # runs in distinct, self-describing receipt directories.
+    run_id = f"{suite}-{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}-{uuid.uuid4().hex[:12]}"
     run_dir = RESULTS / run_id
     run_dir.mkdir(parents=True, exist_ok=False)
-    browser_tmp = Path.home() / ".cache/tmp"
-    browser_tmp.mkdir(parents=True, exist_ok=True)
     site_root = SITE / "site-subpath/boardstudio"
     build_files = [path for path in site_root.rglob("*") if path.is_file()]
     build_hash = digest_files(build_files, site_root)
@@ -121,12 +159,10 @@ def main() -> int:
     thread.start()
     serving_site, _ = verification_receipt.site_identity(SITE)
     url = f"http://127.0.0.1:{server.server_address[1]}/boardstudio/"
-    environment = os.environ.copy()
+    environment = browser_tools.browser_env(chrome=chrome)
     environment.update({
-        "CHROME_BIN": chrome,
-        # Keep Chromium's short-lived profile on disk at a shallow path; deep paths exceed Unix socket limits.
-        "TMPDIR": str(browser_tmp),
         "BOARDSTUDIO_PREVIEW_URL": url,
+        "BOARDSTUDIO_DRAG_SUITE": suite,
         "BOARDSTUDIO_DRAG_RECEIPT_PATH": str(run_dir / "receipt.json"),
         "BOARDSTUDIO_DRAG_SOURCE_HEAD": head,
         "BOARDSTUDIO_DRAG_SOURCE_SHA256": source_hash,
@@ -151,10 +187,11 @@ def main() -> int:
             return_code = process.wait()
         if return_code == 0:
             try:
-                verify_receipt(run_dir / "receipt.json", run_id, head, source_hash, build_hash)
+                verify_receipt(run_dir / "receipt.json", run_id, head, source_hash, build_hash, suite)
                 print("BOARDSTUDIO_DRAG_BINDING " + json.dumps({
                     "run_id": os.environ.get("BOARDSTUDIO_RECEIPT_RUN_ID"),
                     "attempt_id": os.environ.get("BOARDSTUDIO_RECEIPT_ATTEMPT_ID"),
+                    "suite": suite,
                     "receipt_path": str(run_dir / "receipt.json"), "site": serving_site}))
             except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as error:
                 message = f"Invalid drag browser receipt: {error}\n"

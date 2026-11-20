@@ -153,6 +153,7 @@ pub fn ComboboxOption<T: Clone + PartialEq + 'static>(props: ComboboxOptionProps
 #[cfg(all(test, target_arch = "wasm32"))]
 mod identity_tests {
     use super::*;
+    use crate::test_mount::MountedFixture;
     use crate::{test_role::by_role_name, test_wait::wait_until, ui::field::FieldLabel};
     use wasm_bindgen::JsCast;
 
@@ -212,10 +213,7 @@ mod identity_tests {
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(validation_fixture),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), VirtualDom::new(validation_fixture));
         wait_until("actual validation Comboboxes mount", || {
             by_role_name(&root, "combobox", "Validated choice 1").is_some()
         })
@@ -338,10 +336,7 @@ mod identity_tests {
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(fixture),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), VirtualDom::new(fixture));
         wait_until("actual labeled Comboboxes mount", || {
             by_role_name(&root, "combobox", "Second part").is_some()
         })

@@ -5,13 +5,12 @@
 //!
 //! Forms compare as parsed trees re-serialized (whitespace normalised, numbers
 //! as the exact text the generator printed).
-mod common;
-
 use std::collections::BTreeMap;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+use crate::common::{self, generator_fixtures, json_eq};
 use boardstudio_footprints::definition::DefinitionInput;
 use boardstudio_footprints::export::export_forms;
 use boardstudio_footprints::geometry::geometry;
@@ -21,7 +20,6 @@ use boardstudio_footprints::registry::Registry;
 use boardstudio_footprints::sexpr::{Expr, serialize};
 use boardstudio_footprints::types::{GeneratorRef, PartRef, ReservedNet, Side};
 use boardstudio_footprints::{GeneratorError, bundled};
-use common::{generator_fixtures, json_eq};
 use serde_json::{Value, json};
 
 const DIODE_SOD123_BASELINE_SOURCE: &str = "ceoloide/diode_tht_sod123";
@@ -109,6 +107,11 @@ struct Run<'a> {
     registry: &'static Registry,
     source: &'a str,
     fixture: &'a Value,
+    /// Top-level key names of the fixture's `"parameters"` object in file
+    /// order (see [`parameter_key_order`]). `None` when the order was never
+    /// extracted; [`check_schema`] then records an order failure instead of
+    /// comparing against the parsed map, whose key order is unspecified.
+    parameter_order: Option<Vec<String>>,
     failures: Vec<String>,
 }
 
@@ -409,6 +412,7 @@ fn diode_sod123_baseline_records(fixture: &Value) -> Vec<u8> {
         registry,
         source,
         fixture,
+        parameter_order: None,
         failures: Vec::new(),
     };
     let mut records = Vec::with_capacity(cases.len() * 4096);
@@ -619,6 +623,7 @@ fn diode_sod123_explicit_false_matches_frozen_outputs() {
         registry,
         source: DIODE_SOD123_BASELINE_SOURCE,
         fixture: &fixture,
+        parameter_order: None,
         failures: Vec::new(),
     };
     for (index, (case, expected)) in cases.iter().zip(&expected_records).enumerate() {
@@ -933,6 +938,206 @@ fn check_case(run: &mut Run, case: &Value) {
     }
 }
 
+/// Byte scanner over raw fixture JSON: just enough of a lexer to find one
+/// object and list its top-level keys without parsing whole values.
+struct OrderScanner<'a> {
+    bytes: &'a [u8],
+    pos: usize,
+}
+
+impl OrderScanner<'_> {
+    fn skip_whitespace(&mut self) {
+        while self.pos < self.bytes.len()
+            && matches!(self.bytes[self.pos], b' ' | b'\t' | b'\n' | b'\r')
+        {
+            self.pos += 1;
+        }
+    }
+
+    fn expect(&mut self, byte: u8) -> Result<(), String> {
+        self.skip_whitespace();
+        match self.bytes.get(self.pos) {
+            Some(&found) if found == byte => {
+                self.pos += 1;
+                Ok(())
+            }
+            Some(&found) => Err(format!(
+                "expected '{}' but found '{}' at byte {}",
+                byte.escape_ascii(),
+                found.escape_ascii(),
+                self.pos
+            )),
+            None => Err(format!(
+                "expected '{}' but found end of input",
+                byte.escape_ascii()
+            )),
+        }
+    }
+
+    /// Parse one JSON string literal and decode it exactly as `serde_json`
+    /// would, so escaped key names (`\"`, `\\`, `\uXXXX`, …) decode
+    /// identically to the parsed fixture `Value`.
+    fn parse_string(&mut self) -> Result<String, String> {
+        self.skip_whitespace();
+        if self.bytes.get(self.pos) != Some(&b'"') {
+            return Err(format!("expected string at byte {}", self.pos));
+        }
+        let start = self.pos;
+        self.pos += 1;
+        let mut end = None;
+        while self.pos < self.bytes.len() {
+            match self.bytes[self.pos] {
+                // Skip the escaped character; validity is checked by
+                // `serde_json` below. `\uXXXX` digits cannot contain `"`
+                // or `\`, so landing inside the escape is harmless.
+                b'\\' => self.pos += 2,
+                b'"' => {
+                    self.pos += 1;
+                    end = Some(self.pos);
+                    break;
+                }
+                _ => self.pos += 1,
+            }
+        }
+        let end = end.ok_or_else(|| "unterminated string literal".to_owned())?;
+        let literal = std::str::from_utf8(&self.bytes[start..end])
+            .map_err(|error| format!("invalid UTF-8 in string literal: {error}"))?;
+        serde_json::from_str::<String>(literal)
+            .map_err(|error| format!("invalid string literal {literal:?}: {error}"))
+    }
+
+    /// Skip one JSON value of any shape, so nested `{ ... }` objects and
+    /// `[ ... ]` arrays inside values never leak their inner keys.
+    fn skip_value(&mut self) -> Result<(), String> {
+        self.skip_whitespace();
+        match self.bytes.get(self.pos) {
+            Some(b'"') => {
+                self.parse_string().map(|_| ())?;
+                Ok(())
+            }
+            Some(b'{') | Some(b'[') => {
+                let close = if self.bytes[self.pos] == b'{' {
+                    b'}'
+                } else {
+                    b']'
+                };
+                let is_object = close == b'}';
+                self.pos += 1;
+                self.skip_whitespace();
+                if self.bytes.get(self.pos) == Some(&close) {
+                    self.pos += 1;
+                    return Ok(());
+                }
+                loop {
+                    if is_object {
+                        self.parse_string()?;
+                        self.expect(b':')?;
+                    }
+                    self.skip_value()?;
+                    self.skip_whitespace();
+                    match self.bytes.get(self.pos) {
+                        Some(b',') => self.pos += 1,
+                        Some(&found) if found == close => {
+                            self.pos += 1;
+                            break;
+                        }
+                        Some(&found) => {
+                            return Err(format!(
+                                "expected ',' or '{}' but found '{}' at byte {}",
+                                close.escape_ascii(),
+                                found.escape_ascii(),
+                                self.pos
+                            ));
+                        }
+                        None => return Err("unexpected end of input".to_owned()),
+                    }
+                }
+                Ok(())
+            }
+            Some(_) => {
+                // `true` / `false` / `null` / number: run to the delimiter.
+                while self.pos < self.bytes.len()
+                    && !matches!(
+                        self.bytes[self.pos],
+                        b',' | b'}' | b']' | b' ' | b'\t' | b'\n' | b'\r'
+                    )
+                {
+                    self.pos += 1;
+                }
+                Ok(())
+            }
+            None => Err("unexpected end of input".to_owned()),
+        }
+    }
+}
+
+/// Top-level key names of the fixture's `"parameters"` object, in file order.
+///
+/// The parsed fixture `Value` intentionally forgets object key order (without
+/// `serde_json/preserve_order` the map is sorted), so the schema-order check
+/// reads the order straight from the raw fixture text instead. Duplicate keys
+/// inside `"parameters"` are reported twice (failing the order check), and a
+/// duplicate top-level `"parameters"` key returns the first object rather than
+/// `serde_json`'s last-one-wins.
+fn parameter_key_order(fixture_raw: &str) -> Result<Vec<String>, String> {
+    let mut scan = OrderScanner {
+        bytes: fixture_raw.as_bytes(),
+        pos: 0,
+    };
+    scan.expect(b'{')?;
+    scan.skip_whitespace();
+    if scan.bytes.get(scan.pos) == Some(&b'}') {
+        return Err("fixture has no \"parameters\" object".to_owned());
+    }
+    loop {
+        let key = scan.parse_string()?;
+        scan.expect(b':')?;
+        if key == "parameters" {
+            scan.expect(b'{')?;
+            let mut keys = Vec::new();
+            scan.skip_whitespace();
+            if scan.bytes.get(scan.pos) == Some(&b'}') {
+                return Ok(keys);
+            }
+            loop {
+                let name = scan.parse_string()?;
+                scan.expect(b':')?;
+                scan.skip_value()?;
+                keys.push(name);
+                scan.skip_whitespace();
+                match scan.bytes.get(scan.pos) {
+                    Some(b',') => scan.pos += 1,
+                    Some(b'}') => break,
+                    Some(&found) => {
+                        return Err(format!(
+                            "expected ',' or '}}' but found '{}' at byte {}",
+                            found.escape_ascii(),
+                            scan.pos
+                        ));
+                    }
+                    None => return Err("unexpected end of input".to_owned()),
+                }
+            }
+            return Ok(keys);
+        }
+        scan.skip_value()?;
+        scan.skip_whitespace();
+        match scan.bytes.get(scan.pos) {
+            Some(b',') => scan.pos += 1,
+            Some(b'}') => break,
+            Some(&found) => {
+                return Err(format!(
+                    "expected ',' or '}}' but found '{}' at byte {}",
+                    found.escape_ascii(),
+                    scan.pos
+                ));
+            }
+            None => return Err("unexpected end of input".to_owned()),
+        }
+    }
+    Err("fixture has no \"parameters\" object".to_owned())
+}
+
 /// Deviations in the parameter schema (plan: Deviations).
 fn check_schema(run: &mut Run) {
     let actual = run.registry.parameters(run.source).unwrap();
@@ -974,13 +1179,20 @@ fn check_schema(run: &mut Run) {
             .map(|p| p.name.as_str())
             .filter(|n| *n != "side")
             .collect();
-        let wanted: Vec<&str> = expected
-            .keys()
-            .map(String::as_str)
-            .filter(|n| *n != "side")
-            .collect();
-        if order != wanted {
-            run.fail("schema", "order", format!("{order:?} vs {wanted:?}"));
+        match &run.parameter_order {
+            // File order from the raw fixture text: the parsed `Value` map
+            // no longer preserves insertion order.
+            Some(recorded) => {
+                let wanted: Vec<&str> = recorded
+                    .iter()
+                    .map(String::as_str)
+                    .filter(|n| *n != "side")
+                    .collect();
+                if order != wanted {
+                    run.fail("schema", "order", format!("{order:?} vs {wanted:?}"));
+                }
+            }
+            None => run.fail("schema", "order", "parameter file order unavailable".into()),
         }
     }
     for parameter in &actual {
@@ -1049,54 +1261,233 @@ fn check_catalogue(run: &mut Run) {
     }
 }
 
-fn run_generator(registry: &'static Registry, fixture: &Value) -> (usize, Vec<String>) {
+fn run_generator(registry: &'static Registry, fixture: &Value, fixture_raw: &str) -> Vec<String> {
     let source = fixture["source"].as_str().unwrap().to_owned();
     let mut run = Run {
         registry,
         source: &source,
         fixture,
+        parameter_order: None,
         failures: Vec::new(),
     };
+    match parameter_key_order(fixture_raw) {
+        Ok(order) => run.parameter_order = Some(order),
+        Err(error) => run.fail("schema", "order", error),
+    }
     check_schema(&mut run);
     check_catalogue(&mut run);
     let cases = fixture["cases"].as_array().unwrap();
     for case in cases {
         check_case(&mut run, case);
     }
-    (cases.len(), run.failures)
+    run.failures
 }
 
-#[test]
-fn bundled_generators_match_the_golden_baseline() {
-    let registry = bundled();
-    let mut checked = 0;
-    let mut cases = 0;
-    let mut failures = Vec::new();
-    let mut pending = Vec::new();
-    for fixture in generator_fixtures() {
-        let source = fixture["source"].as_str().unwrap();
-        if !registry.contains(source) {
-            pending.push(source.to_owned());
-            continue;
-        }
-        let (count, mut found) = run_generator(registry, &fixture);
-        checked += 1;
-        cases += count;
-        failures.append(&mut found);
-    }
-    println!(
-        "{checked} generators, {cases} cases checked; {} not ported yet: {pending:?}",
-        pending.len()
-    );
+fn assert_generator_matches_golden(
+    registry: &'static Registry,
+    fixture: &Value,
+    fixture_raw: &str,
+) {
+    let failures = run_generator(registry, fixture, fixture_raw);
     if !failures.is_empty() {
-        let shown: Vec<String> = failures.iter().take(12).cloned().collect();
+        let shown: Vec<_> = failures.iter().take(12).cloned().collect();
         panic!(
-            "{} mismatches (showing {}):\n{}",
+            "{}: {} mismatches (showing {}):\n{}",
+            fixture["source"],
             failures.len(),
             shown.len(),
             shown.join("\n")
         );
     }
+}
+
+macro_rules! generator_goldens {
+    ($($test:ident: $file:literal),+ $(,)?) => {
+        $(
+            #[test]
+            fn $test() {
+                let (fixture, fixture_raw) = common::read_json_raw(concat!("generators/", $file));
+                assert_generator_matches_golden(bundled(), &fixture, &fixture_raw);
+            }
+        )+
+
+        #[test]
+        fn unlisted_bundled_generators_match_the_golden_baseline() {
+            let listed = [$(common::read_json(concat!("generators/", $file))),+];
+            let registry = bundled();
+            for (fixture, fixture_raw) in common::generator_fixture_raws() {
+                let source = fixture["source"].as_str().unwrap();
+                if registry.contains(source) && !listed.contains(&fixture) {
+                    assert_generator_matches_golden(registry, &fixture, &fixture_raw);
+                }
+            }
+        }
+    };
+}
+
+generator_goldens! {
+    golden_ceoloide_battery_connector_jst_ph_2: "ceoloide__battery_connector_jst_ph_2.json",
+    golden_ceoloide_battery_connector_molex_pico_ezmate_1x02: "ceoloide__battery_connector_molex_pico_ezmate_1x02.json",
+    golden_ceoloide_diode_tht_sod123: "ceoloide__diode_tht_sod123.json",
+    golden_ceoloide_display_nice_view: "ceoloide__display_nice_view.json",
+    golden_ceoloide_display_ssd1306: "ceoloide__display_ssd1306.json",
+    golden_ceoloide_led_sk6812mini_e: "ceoloide__led_sk6812mini-e.json",
+    golden_ceoloide_mcu_nice_nano: "ceoloide__mcu_nice_nano.json",
+    golden_ceoloide_mcu_supermini_nrf52840: "ceoloide__mcu_supermini_nrf52840.json",
+    golden_ceoloide_mounting_hole_npth: "ceoloide__mounting_hole_npth.json",
+    golden_ceoloide_mounting_hole_plated: "ceoloide__mounting_hole_plated.json",
+    golden_ceoloide_power_switch_smd_side: "ceoloide__power_switch_smd_side.json",
+    golden_ceoloide_reset_switch_smd_side: "ceoloide__reset_switch_smd_side.json",
+    golden_ceoloide_reset_switch_tht_top: "ceoloide__reset_switch_tht_top.json",
+    golden_ceoloide_rotary_encoder_ec11_ec12: "ceoloide__rotary_encoder_ec11_ec12.json",
+    golden_ceoloide_switch_choc_v1_v2: "ceoloide__switch_choc_v1_v2.json",
+    golden_ceoloide_switch_gateron_ks27_ks33: "ceoloide__switch_gateron_ks27_ks33.json",
+    golden_ceoloide_switch_mx: "ceoloide__switch_mx.json",
+    golden_ceoloide_trrs_pj320a: "ceoloide__trrs_pj320a.json",
+    golden_ceoloide_utility_filled_zone: "ceoloide__utility_filled_zone.json",
+    golden_ceoloide_utility_keepout_zone: "ceoloide__utility_keepout_zone.json",
+    golden_ceoloide_utility_logo: "ceoloide__utility_logo.json",
+    golden_ceoloide_utility_point_debugger: "ceoloide__utility_point_debugger.json",
+    golden_ceoloide_utility_router: "ceoloide__utility_router.json",
+    golden_ceoloide_utility_text: "ceoloide__utility_text.json",
+    golden_infused_kim_conn_molex_pico_ezmate_1x02: "infused-kim__conn_molex_pico_ezmate_1x02.json",
+    golden_infused_kim_conn_molex_pico_ezmate_1x05: "infused-kim__conn_molex_pico_ezmate_1x05.json",
+    golden_infused_kim_icon_bat: "infused-kim__icon_bat.json",
+    golden_infused_kim_mounting_hole: "infused-kim__mounting_hole.json",
+    golden_infused_kim_nice_view: "infused-kim__nice_view.json",
+    golden_infused_kim_pads: "infused-kim__pads.json",
+    golden_infused_kim_point_debugger: "infused-kim__point_debugger.json",
+    golden_infused_kim_smd_0805: "infused-kim__smd_0805.json",
+    golden_infused_kim_switch_power: "infused-kim__switch_power.json",
+    golden_infused_kim_switch_reset: "infused-kim__switch_reset.json",
+    golden_infused_kim_text: "infused-kim__text.json",
+    golden_infused_kim_trackpoint_mount: "infused-kim__trackpoint_mount.json",
+}
+
+/// `parameter_key_order` reads the exact key sequence, not sorted order.
+#[test]
+fn parameter_key_order_reads_file_order() {
+    let raw = r#"{"source": "x", "parameters": {"zeta": 1, "alpha": 2, "mid": 3}}"#;
+    assert_eq!(
+        parameter_key_order(raw).unwrap(),
+        vec!["zeta".to_owned(), "alpha".to_owned(), "mid".to_owned()]
+    );
+}
+
+/// Inner keys of nested objects and arrays of objects must not leak out, and
+/// braces, quotes, commas, or colons inside string values must not confuse
+/// the scanner.
+#[test]
+fn parameter_key_order_ignores_nested_keys_and_string_punctuation() {
+    let raw = r#"{
+        "source": "x",
+        "parameters": {
+            "first": {"inner": 1, "list": [{"deep": true}, 2]},
+            "second": "} \", : , { not json",
+            "third": [1, {"nope": []}],
+            "fourth": null
+        },
+        "cases": []
+    }"#;
+    assert_eq!(
+        parameter_key_order(raw).unwrap(),
+        vec![
+            "first".to_owned(),
+            "second".to_owned(),
+            "third".to_owned(),
+            "fourth".to_owned()
+        ]
+    );
+}
+
+/// Escaped key names decode exactly as `serde_json` parses them.
+#[test]
+fn parameter_key_order_decodes_escaped_key_names() {
+    let raw = r#"{"parameters": {"a\"b": 1, "c\\d": 2, "\"e\"": 3, "\u0041bc": 4}}"#;
+    assert_eq!(
+        parameter_key_order(raw).unwrap(),
+        vec![
+            "a\"b".to_owned(),
+            "c\\d".to_owned(),
+            "\"e\"".to_owned(),
+            "Abc".to_owned()
+        ]
+    );
+    // The decoded names match what the parsed `Value` map holds.
+    let parsed: Value = serde_json::from_str(raw).unwrap();
+    let mut from_map: Vec<String> = parsed["parameters"]
+        .as_object()
+        .unwrap()
+        .keys()
+        .cloned()
+        .collect();
+    from_map.sort();
+    let mut from_raw = parameter_key_order(raw).unwrap();
+    from_raw.sort();
+    assert_eq!(from_raw, from_map);
+}
+
+/// Whitespace around tokens and an empty `"parameters"` object are fine,
+/// while a missing or non-object `"parameters"` is an error.
+#[test]
+fn parameter_key_order_handles_whitespace_and_reports_missing() {
+    let raw = "{ \n \"parameters\" \t : { } , \"cases\" : [ ] }";
+    assert_eq!(parameter_key_order(raw).unwrap(), Vec::<String>::new());
+    assert!(parameter_key_order(r#"{"source": "x"}"#).is_err());
+    assert!(parameter_key_order(r#"{"parameters": []}"#).is_err());
+    assert!(parameter_key_order(r#"{"parameters": {"a": 1"#).is_err());
+}
+
+/// Swapping two keys in the raw text changes the reported order, so
+/// `check_schema` still detects reordered `"parameters"` keys.
+#[test]
+fn parameter_key_order_detects_reordered_keys() {
+    let raw = r#"{"parameters": {"one": 1, "two": 2, "three": 3}}"#;
+    let swapped = r#"{"parameters": {"three": 3, "two": 2, "one": 1}}"#;
+    assert_eq!(
+        parameter_key_order(raw).unwrap(),
+        vec!["one".to_owned(), "two".to_owned(), "three".to_owned()]
+    );
+    assert_eq!(
+        parameter_key_order(swapped).unwrap(),
+        vec!["three".to_owned(), "two".to_owned(), "one".to_owned()]
+    );
+    assert_ne!(
+        parameter_key_order(raw).unwrap(),
+        parameter_key_order(swapped).unwrap()
+    );
+}
+
+/// RED: `check_schema` fails when the recorded file order is swapped, even
+/// though every parameter name and value still matches the fixture.
+#[test]
+fn check_schema_rejects_reordered_parameters() {
+    let (fixture, fixture_raw) = common::read_json_raw("generators/ceoloide__switch_mx.json");
+    let mut swapped = parameter_key_order(&fixture_raw).expect("parameter order");
+    assert!(swapped.len() >= 2, "fixture needs at least two parameters");
+    let last = swapped.len() - 1;
+    swapped.swap(0, last);
+    assert_ne!(
+        swapped,
+        parameter_key_order(&fixture_raw).expect("parameter order")
+    );
+    let registry = bundled();
+    let source = fixture["source"].as_str().unwrap().to_owned();
+    let mut run = Run {
+        registry,
+        source: &source,
+        fixture: &fixture,
+        parameter_order: Some(swapped),
+        failures: Vec::new(),
+    };
+    check_schema(&mut run);
+    assert!(
+        run.failures
+            .iter()
+            .any(|failure| failure.contains("schema order")),
+        "swapped parameters must fail the order check, got: {run_failures:?}",
+        run_failures = run.failures
+    );
 }
 
 #[test]

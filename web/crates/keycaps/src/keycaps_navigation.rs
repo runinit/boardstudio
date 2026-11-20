@@ -566,6 +566,7 @@ mod tests {
     use boardstudio_core::model::{
         Contour, Finding, FindingMarker, Scope as FindingScope, Severity, Vec2,
     };
+    use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use std::{
         cell::RefCell,
         task::{Context, Waker},
@@ -1145,7 +1146,7 @@ mod tests {
     #[wasm_bindgen_test]
     async fn mounted_accepted_route_publishes_layout_marker_then_retires_it_on_workspace_change() {
         let probe = make_mounted_probe(owner_fixture());
-        let root = mount_navigation_probe(probe.clone());
+        let (root, _mounted) = mount_navigation_probe(probe.clone());
         settle_navigation_probe().await;
 
         click_probe("schedule-navigation");
@@ -1186,18 +1187,15 @@ mod tests {
         root.remove();
     }
 
-    fn mount_navigation_probe(probe: MountedProbe) -> DomElement {
+    fn mount_navigation_probe(probe: MountedProbe) -> (DomElement, MountedFixture) {
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         root.set_id("keycaps-navigation-marker-test-root");
         document.body().unwrap().append_child(&root).unwrap();
         let dom = VirtualDom::new(mounted_owner_host);
         dom.provide_root_context(probe);
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
-        root
+        let mounted = MountedFixture::new(root.clone(), dom);
+        (root, mounted)
     }
 
     fn navigation_marker() -> Option<DomElement> {

@@ -1,14 +1,8 @@
-use boardstudio_browser_harness::{driver, Error, Result};
-use chromiumoxide::cdp::browser_protocol::{
-    browser::{
-        BrowserContextId, DownloadProgressState, EventDownloadProgress, EventDownloadWillBegin,
-        SetDownloadBehaviorBehavior, SetDownloadBehaviorParams,
-    },
-    dom::SetFileInputFilesParams,
-    emulation::{MediaFeature, SetEmulatedMediaParams, SetTouchEmulationEnabledParams},
-    page::AddScriptToEvaluateOnNewDocumentParams,
+use boardstudio_browser_harness::cdp::{
+    Browser, BrowserContextId, DownloadProgressState, EventDownloadProgress,
+    EventDownloadWillBegin, Page,
 };
-use chromiumoxide::{Browser, Page};
+use boardstudio_browser_harness::{driver, Error, Result};
 use futures::StreamExt;
 use serde_json::{json, Value};
 use std::{
@@ -150,23 +144,23 @@ pub(super) async fn run(
             .and_then(|(_, s)| s.split_once("\n  });\n  const saved"))
             .map(|(s, _)| format!("(() => {{\n{s}\n}})()"))
             .ok_or_else(|| Error("U1 instrumentation not found".into()))?;
-        page.execute(AddScriptToEvaluateOnNewDocumentParams::new(instrument))
+        page.execute("Page.addScriptToEvaluateOnNewDocument", json!({"source": instrument}))
             .await
             .map_err(|e| Error(e.to_string()))?;
         browser
             .execute(
-                SetDownloadBehaviorParams::builder()
-                    .behavior(SetDownloadBehaviorBehavior::AllowAndName)
-                    .browser_context_id(context.clone())
-                    .download_path(out.to_string_lossy().to_string())
-                    .events_enabled(true)
-                    .build()
-                    .map_err(Error)?,
+                "Browser.setDownloadBehavior",
+                json!({
+                    "behavior": "allowAndName",
+                    "browserContextId": context.inner(),
+                    "downloadPath": out.to_string_lossy().to_string(),
+                    "eventsEnabled": true,
+                }),
             )
             .await
             .map_err(|e| Error(e.to_string()))?;
-        page.execute(SetEmulatedMediaParams::builder().features(vec![MediaFeature::new("prefers-color-scheme", "light")]).build()).await.map_err(|e| Error(e.to_string()))?;
-        page.execute(SetTouchEmulationEnabledParams::new(false)).await.map_err(|e| Error(e.to_string()))?;
+        page.execute("Emulation.setEmulatedMedia", json!({"features": [{"name": "prefers-color-scheme", "value": "light"}]})).await.map_err(|e| Error(e.to_string()))?;
+        page.execute("Emulation.setTouchEmulationEnabled", json!({"enabled": false})).await.map_err(|e| Error(e.to_string()))?;
         mark(&mut phases, "navigation", start)?;
         page.goto(format!("{origin}/boardstudio/")).await.map_err(|e| Error(e.to_string()))?;
         if operation == "freeze" {
@@ -210,7 +204,7 @@ pub(super) async fn run(
             mark(&mut phases, "frozen-project-import", start)?;
             wait(page, "!!document.querySelector('input.m1-project-file-input:not(:disabled)')", "enabled project import").await?;
             let id = driver::backend_of_wait(page, "input.m1-project-file-input:not(:disabled)", WAIT).await?;
-            page.execute(SetFileInputFilesParams::builder().file(archive.to_owned()).backend_node_id(id).build().map_err(Error)?).await.map_err(|e| Error(e.to_string()))?;
+            page.execute("DOM.setFileInputFiles", json!({"files": [archive], "backendNodeId": id})).await.map_err(|e| Error(e.to_string()))?;
             wait(page, "!!document.querySelector('[aria-label=\"Open Case workspace\"]')", "accepted editor").await?;
             saved(page).await?;
             mark(&mut phases, "accepted-editor-ready", start)?; mark(&mut phases, "enter-Case", start)?;
@@ -234,7 +228,7 @@ pub(super) async fn run(
         mark(&mut phases, "accepted-Case-frame-after-camera-and-WebGL-finish", start)?;
         write_json(&out.join("page-layout.json"), &driver::eval(page, include_str!("../../../cad/scripts/u1-layout.js")).await?)?;
         let viewer = driver::eval(page, r#"(() => { const e = document.querySelector('[role=img][aria-label^="Interactive 3D Case preview"]'); if (!e) throw Error('missing viewer'); const r=e.getBoundingClientRect(); if (r.width<=0 || r.height<=0) throw Error('empty viewer'); return {x:r.x,y:r.y,width:r.width,height:r.height}; })()"#).await?;
-        page.save_screenshot(chromiumoxide::page::ScreenshotParams::builder().build(), out.join("case-rendered.png")).await.map_err(|e| Error(e.to_string()))?;
+        page.save_screenshot(out.join("case-rendered.png")).await.map_err(|e| Error(e.to_string()))?;
         let rendering = driver::eval(page, "({drawCalls:window.__u1.drawCalls, completion:'WebGL2.finish after draw following Fit', glVersion:window.__u1Gl.getParameter(window.__u1Gl.VERSION), selection:[...document.querySelectorAll('[aria-selected=true]')].map(n=>n.getAttribute('aria-label')||n.textContent)})").await?;
         driver::click_css(page, "#m1-tab-Export").await?;
         wait(page, "!!document.querySelector('.m1-export-workspace')", "export workspace").await?;

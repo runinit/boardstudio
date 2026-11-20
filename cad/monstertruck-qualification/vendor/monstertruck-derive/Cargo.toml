@@ -32,8 +32,8 @@ name = "monstertruck_derive"
 path = "src/lib.rs"
 proc-macro = true
 
-[dependencies.proc-macro-error]
-version = "1"
+[dependencies.proc-macro-error2]
+version = "2"
 
 [dependencies.proc-macro2]
 version = "1"

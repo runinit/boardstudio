@@ -32,6 +32,7 @@ pub enum ButtonVariant {
 #[cfg(all(test, target_arch = "wasm32"))]
 mod forwarding_tests {
     use super::*;
+    use crate::test_mount::MountedFixture;
     use crate::{test_role::by_role_name, test_wait::wait_until};
 
     fn identity_fixture() -> Element {
@@ -71,10 +72,7 @@ mod forwarding_tests {
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(identity_fixture),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), VirtualDom::new(identity_fixture));
         wait_until("identity fixture mounts", || {
             by_role_name(&root, "link", "Identity link").is_some()
         })
@@ -174,10 +172,7 @@ mod forwarding_tests {
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(listener_update_fixture),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), VirtualDom::new(listener_update_fixture));
         wait_until("listener fixture mounts", || {
             by_role_name(&root, "link", "Updating link").is_some()
         })
@@ -329,10 +324,7 @@ mod forwarding_tests {
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(tooltip_fixture),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), VirtualDom::new(tooltip_fixture));
         wait_until("composed Button description settles", || {
             by_role_name(&root, "button", "Composed native").is_some_and(|action| {
                 action
@@ -496,10 +488,7 @@ mod forwarding_tests {
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(fixture),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), VirtualDom::new(fixture));
         wait_until("owner callback controls mount", || {
             by_role_name(&root, "link", "Link contract").is_some()
         })
@@ -551,10 +540,7 @@ mod forwarding_tests {
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(fixture),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), VirtualDom::new(fixture));
         wait_until("Button contracts mount", || {
             by_role_name(&root, "link", "Default link").is_some()
         })

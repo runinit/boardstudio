@@ -13,9 +13,6 @@ mod shutdown;
 
 use boardstudio_browser_harness::driver::{self, HandlerErrors, PageErrors};
 use boardstudio_browser_harness::{Error, IsolatedDirs, Result};
-use chromiumoxide::cdp::browser_protocol::{
-    network::SetCacheDisabledParams, page::AddScriptToEvaluateOnNewDocumentParams,
-};
 use serde_json::{json, Value};
 use std::fs::{File, OpenOptions};
 use std::io::Write;
@@ -191,9 +188,9 @@ async fn capture_browser(args: &[String], capture: &mut Capture) -> Result<()> {
         let (context, page) = driver::new_isolated_page(&browser, "about:blank", &page_errors).await?;
         let result = async {
             if !warm {
-                page.execute(AddScriptToEvaluateOnNewDocumentParams::new("if (navigator.serviceWorker) navigator.serviceWorker.register = async () => { console.warn('Service Worker registration blocked by Playwright'); };")) .await.map_err(|e| Error(e.to_string()))?;
+                page.execute("Page.addScriptToEvaluateOnNewDocument", json!({"source": "if (navigator.serviceWorker) navigator.serviceWorker.register = async () => { console.warn('Service Worker registration blocked by Playwright'); };"})) .await.map_err(|e| Error(e.to_string()))?;
             }
-            page.execute(SetCacheDisabledParams::new(!warm)).await.map_err(|e| Error(e.to_string()))?;
+            page.execute("Network.setCacheDisabled", json!({"cacheDisabled": !warm})).await.map_err(|e| Error(e.to_string()))?;
             let listener = cad_handler_responses::start(&page).await?;
             let work = async {
                 if let Some(operation) = args[3].strip_prefix("U1:") {

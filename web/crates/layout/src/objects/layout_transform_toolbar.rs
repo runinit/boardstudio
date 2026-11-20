@@ -212,6 +212,17 @@ const GLYPH_BEND: &str = "M-4 5C-4 0-1-4 4-4M1.5-6 4-4 1.5-2";
 /// Ticket 06: the commit toast lingers for 1.8 s, matching the prototype.
 const TOAST_TIMEOUT_MS: u32 = 1800;
 
+#[cfg(test)]
+struct ToastExpiryProbe {
+    release: futures_channel::oneshot::Receiver<()>,
+    finished: futures_channel::oneshot::Sender<()>,
+}
+
+#[cfg(test)]
+thread_local! {
+    static NEXT_TOAST_EXPIRY_PROBE: RefCell<Option<ToastExpiryProbe>> = const { RefCell::new(None) };
+}
+
 /// Arm one commit-toast expiry timer. The overlay remounts on every scope and
 /// selection change, so the timer can outlive its component: it only touches
 /// its signals while they are still alive and stays silent otherwise.
@@ -220,14 +231,30 @@ fn arm_commit_toast_expiry(
     generation: Signal<u64>,
     seen: u64,
 ) {
+    let timeout_ms = TOAST_TIMEOUT_MS;
+    #[cfg(test)]
+    let mut probe = NEXT_TOAST_EXPIRY_PROBE.with(|next| next.borrow_mut().take());
+    #[cfg(test)]
+    let timeout_ms = if probe.is_some() { 1 } else { timeout_ms };
     spawn_local(async move {
-        gloo_timers::future::TimeoutFuture::new(TOAST_TIMEOUT_MS).await;
+        gloo_timers::future::TimeoutFuture::new(timeout_ms).await;
+        #[cfg(test)]
+        if let Some(probe) = probe.as_mut() {
+            // The test releases the short timer after observing the overlay unmount.
+            if (&mut probe.release).await.is_err() {
+                return;
+            }
+        }
         let live = generation
             .try_peek()
             .map(|current| *current == seen)
             .unwrap_or(false);
         if live && let Ok(mut state) = feedback.try_write() {
             *state = advance_feedback(&state, FeedbackEvent::Expire);
+        }
+        #[cfg(test)]
+        if let Some(probe) = probe {
+            let _ = probe.finished.send(());
         }
     });
 }
@@ -6661,6 +6688,7 @@ pub fn LayoutTransformToolbar(
 #[cfg(test)]
 mod shortcut_tests {
     use super::*;
+    use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::*;
 
@@ -6805,23 +6833,37 @@ mod shortcut_tests {
             .expect("the dock names the Canvas handles toggle")
     }
 
+    fn reports_state(root: &web_sys::Element, selector: &str, expected: &str) -> bool {
+        root.query_selector(selector)
+            .unwrap()
+            .and_then(|element| element.text_content())
+            .as_deref()
+            == Some(expected)
+    }
+
     #[wasm_bindgen_test]
     async fn handles_toggle_reports_intent_and_flips_view_only() {
+        use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(snap_dock_host),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
-        gloo_timers::future::TimeoutFuture::new(40).await;
+        let _mounted = MountedFixture::new(root.clone(), VirtualDom::new(snap_dock_host));
+        wait_until("snap dock trigger is mounted", || {
+            root.query_selector("#m1-layout-snap-trigger")
+                .unwrap()
+                .is_some()
+        })
+        .await;
         root.query_selector("#m1-layout-snap-trigger")
             .unwrap()
             .expect("the snap dock trigger is mounted")
             .dyn_into::<web_sys::HtmlElement>()
             .unwrap()
             .click();
-        gloo_timers::future::TimeoutFuture::new(40).await;
+        wait_until("the snap dock exposes the Canvas handles checkbox", || {
+            by_role_name(&root, "checkbox", "Canvas handles").is_some()
+        })
+        .await;
         assert_eq!(
             handles_checkbox(&root)
                 .get_attribute("aria-checked")
@@ -6830,7 +6872,14 @@ mod shortcut_tests {
             "handles start visible"
         );
         handles_checkbox(&root).click();
-        gloo_timers::future::TimeoutFuture::new(40).await;
+        wait_until("hiding handles reports the intent", || {
+            reports_state(&root, "#snap-dock-toggled", "Some(false)")
+                && handles_checkbox(&root)
+                    .get_attribute("aria-checked")
+                    .as_deref()
+                    == Some("false")
+        })
+        .await;
         assert_eq!(
             root.query_selector("#snap-dock-toggled")
                 .unwrap()
@@ -6848,7 +6897,10 @@ mod shortcut_tests {
             "the checkbox follows view state"
         );
         handles_checkbox(&root).click();
-        gloo_timers::future::TimeoutFuture::new(40).await;
+        wait_until("restoring handles reports the intent", || {
+            reports_state(&root, "#snap-dock-toggled", "Some(true)")
+        })
+        .await;
         assert_eq!(
             root.query_selector("#snap-dock-toggled")
                 .unwrap()
@@ -6864,7 +6916,7 @@ mod shortcut_tests {
     async fn mount_context_actions(
         selection_kind: LayoutSelectionKind,
         pointer_tools_visible: bool,
-    ) -> web_sys::Element {
+    ) -> (web_sys::Element, MountedFixture) {
         mount_context_actions_with_availability(selection_kind, pointer_tools_visible, true).await
     }
 
@@ -6872,11 +6924,13 @@ mod shortcut_tests {
         selection_kind: LayoutSelectionKind,
         pointer_tools_visible: bool,
         pointer_tools_available: bool,
-    ) -> web_sys::Element {
+    ) -> (web_sys::Element, MountedFixture) {
+        use boardstudio_web_ui_shared::test_wait::wait_until;
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
+        let mounted = MountedFixture::new(
+            root.clone(),
             VirtualDom::new_with_props(
                 context_test_host,
                 ContextHostProps {
@@ -6885,16 +6939,23 @@ mod shortcut_tests {
                     pointer_tools_available,
                 },
             ),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        gloo_timers::future::TimeoutFuture::new(40).await;
-        root
+        wait_until(
+            "contextual action fixture has rendered its selection",
+            || {
+                root.query_selector("#context-action-state")
+                    .unwrap()
+                    .is_some()
+            },
+        )
+        .await;
+        (root, mounted)
     }
 
     #[wasm_bindgen_test]
     async fn contextual_toolbar_has_one_tab_stop_and_end_reaches_last_action() {
-        use boardstudio_web_ui_shared::test_role::by_role_name;
-        let root = mount_context_actions(LayoutSelectionKind::Column, true).await;
+        use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
+        let (root, _mounted) = mount_context_actions(LayoutSelectionKind::Column, true).await;
         let toolbar = by_role_name(&root, "toolbar", "Actions for Column").unwrap();
         assert_eq!(
             toolbar
@@ -6920,7 +6981,13 @@ mod shortcut_tests {
                     .unwrap(),
             )
             .unwrap();
-        gloo_timers::future::TimeoutFuture::new(40).await;
+        let splay =
+            by_role_name(&toolbar, "button", "Activate Splay for the selected column").unwrap();
+        let document = web_sys::window().unwrap().document().unwrap();
+        wait_until("End focuses the Splay action", || {
+            document.active_element() == Some(splay.clone().into())
+        })
+        .await;
         assert_eq!(
             web_sys::window()
                 .unwrap()
@@ -6938,8 +7005,8 @@ mod shortcut_tests {
 
     #[wasm_bindgen_test]
     async fn contextual_tools_show_for_layout_selection_and_follow_existing_activation_scope() {
-        let root = mount_context_actions(LayoutSelectionKind::Row, true).await;
-        use boardstudio_web_ui_shared::test_role::by_role_name;
+        let (root, _mounted) = mount_context_actions(LayoutSelectionKind::Row, true).await;
+        use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
         let toolbar = by_role_name(&root, "toolbar", "Actions for Row").unwrap();
         let names = [
             "Open Row offsets properties for Row",
@@ -6954,7 +7021,11 @@ mod shortcut_tests {
         });
         assert_eq!(labels, ["Row offsets", "Offset", "Stagger"]);
         by_role_name(&toolbar, "button", names[2]).unwrap().click();
-        gloo_timers::future::TimeoutFuture::new(40).await;
+        wait_until(
+            "Stagger activates and changes the selection to Column",
+            || reports_state(&root, "#context-action-state", "Column:Stagger"),
+        )
+        .await;
         assert_eq!(
             root.query_selector("#context-action-state")
                 .unwrap()
@@ -6982,7 +7053,18 @@ mod shortcut_tests {
                     .unwrap(),
             )
             .unwrap();
-        gloo_timers::future::TimeoutFuture::new(40).await;
+        let document = web_sys::window().unwrap().document().unwrap();
+        wait_until(
+            "ArrowRight focuses Offset for the new column selection",
+            || {
+                document
+                    .active_element()
+                    .and_then(|element| element.get_attribute("aria-label"))
+                    .as_deref()
+                    == Some("Activate Offset for the selected column")
+            },
+        )
+        .await;
         assert_eq!(
             web_sys::window()
                 .unwrap()
@@ -6997,7 +7079,7 @@ mod shortcut_tests {
         );
         root.remove();
 
-        let pcb = mount_context_actions(LayoutSelectionKind::Matrix, false).await;
+        let (pcb, _mounted) = mount_context_actions(LayoutSelectionKind::Matrix, false).await;
         assert!(
             by_role_name(&pcb, "toolbar", "Actions for Matrix").is_none(),
             "PCB must not inherit Layout-only contextual quick actions"
@@ -7011,10 +7093,7 @@ mod shortcut_tests {
         let root = document.create_element("div").unwrap();
         document.body().unwrap().append_child(&root).unwrap();
         let dom = VirtualDom::new(shortcut_test_host);
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), dom);
         gloo_timers::future::TimeoutFuture::new(40).await;
 
         for (label, expected) in [
@@ -7052,7 +7131,7 @@ mod shortcut_tests {
     /// tools, like production (the anchor pick arrives with ticket 08).
     #[wasm_bindgen_test]
     async fn part_selection_keeps_the_position_strip_without_canvas_tools() {
-        let root =
+        let (root, _mounted) =
             mount_context_actions_with_availability(LayoutSelectionKind::Part, true, false).await;
         let toolbar = boardstudio_web_ui_shared::test_role::by_role_name(
             &root,
@@ -8131,6 +8210,10 @@ mod tool_tests {
     use crate::presentation::objects::matrix_edit_test_support as fixture;
     use crate::runtime::project_name_test_support as support;
     use boardstudio_application::Scope;
+    use boardstudio_web_ui_shared::test_mount::MountedFixture;
+    use boardstudio_web_ui_shared::test_wait::{
+        settle_until, wait_for, wait_until, wait_until_future,
+    };
     use wasm_bindgen_test::wasm_bindgen_test;
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
@@ -8260,16 +8343,19 @@ mod tool_tests {
         }
     }
 
-    async fn mount_menu(available: bool) -> web_sys::Element {
+    async fn mount_menu(available: bool) -> (web_sys::Element, MountedFixture) {
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
+        let mounted = MountedFixture::new(
+            root.clone(),
             VirtualDom::new_with_props(menu_host, MenuHostProps { available }),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        gloo_timers::future::TimeoutFuture::new(40).await;
-        root
+        wait_until("the transform menu renders", || {
+            root.first_element_child().is_some()
+        })
+        .await;
+        (root, mounted)
     }
 
     #[component]
@@ -8300,21 +8386,24 @@ mod tool_tests {
         }
     }
 
-    async fn mount_context_menu(available: bool) -> web_sys::Element {
+    async fn mount_context_menu(available: bool) -> (web_sys::Element, MountedFixture) {
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
+        let mounted = MountedFixture::new(
+            root.clone(),
             VirtualDom::new_with_props(context_menu_host, MenuHostProps { available }),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        gloo_timers::future::TimeoutFuture::new(40).await;
-        root
+        wait_until("the transform menu renders", || {
+            root.first_element_child().is_some()
+        })
+        .await;
+        (root, mounted)
     }
 
     #[wasm_bindgen_test]
     async fn transform_popover_preserves_escape_and_outside_focus() {
-        let root = mount_menu(true).await;
+        let (root, _mounted) = mount_menu(true).await;
         let document = web_sys::window().unwrap().document().unwrap();
         use boardstudio_web_ui_shared::test_role::by_role_name;
         let trigger = by_role_name(&root, "button", "Transform").unwrap();
@@ -8333,7 +8422,13 @@ mod tool_tests {
                     .unwrap(),
             )
             .unwrap();
-        gloo_timers::future::TimeoutFuture::new(80).await;
+        wait_until("Escape closes the menu and restores trigger focus", || {
+            trigger.get_attribute("aria-expanded").as_deref() == Some("false")
+                && document
+                    .active_element()
+                    .is_some_and(|element| element.id() == trigger.id())
+        })
+        .await;
         assert_eq!(
             trigger.get_attribute("aria-expanded").as_deref(),
             Some("false")
@@ -8341,7 +8436,10 @@ mod tool_tests {
         assert_eq!(document.active_element().unwrap().id(), trigger.id());
 
         trigger.click();
-        gloo_timers::future::TimeoutFuture::new(40).await;
+        wait_until("the transform menu reopens", || {
+            trigger.get_attribute("aria-expanded").as_deref() == Some("true")
+        })
+        .await;
         assert_eq!(
             trigger.get_attribute("aria-expanded").as_deref(),
             Some("true")
@@ -8354,7 +8452,13 @@ mod tool_tests {
             .unwrap()
             .focus()
             .unwrap();
-        gloo_timers::future::TimeoutFuture::new(80).await;
+        wait_until("outside focus closes the menu and stays outside", || {
+            trigger.get_attribute("aria-expanded").as_deref() == Some("false")
+                && document
+                    .active_element()
+                    .is_some_and(|element| element.id() == "transform-outside-target")
+        })
+        .await;
         assert_eq!(
             trigger.get_attribute("aria-expanded").as_deref(),
             Some("false")
@@ -8402,7 +8506,7 @@ mod tool_tests {
     #[wasm_bindgen_test]
     async fn the_menu_lists_stagger_offset_splay_origin_and_follows_availability() {
         for available in [true, false] {
-            let root = mount_menu(available).await;
+            let (root, _mounted) = mount_menu(available).await;
             use boardstudio_web_ui_shared::test_role::by_role_name;
             let tools = ["Stagger", "Offset", "Splay", "Origin"].map(|name| {
                 by_role_name(&root, "menuitemradio", name)
@@ -8453,11 +8557,17 @@ mod tool_tests {
             let document = web_sys::window().unwrap().document().unwrap();
             let root = document.create_element("div").unwrap();
             document.body().unwrap().append_child(&root).unwrap();
-            dioxus_web::launch::launch_virtual_dom(
+            let _mounted = MountedFixture::new(
+                root.clone(),
                 VirtualDom::new_with_props(matrix_menu_host, MatrixMenuHostProps { followed }),
-                dioxus_web::Config::new().rootnode(root.clone().into()),
             );
-            gloo_timers::future::TimeoutFuture::new(40).await;
+            wait_until("the Matrix menu renders its Rotate action", || {
+                let buttons = root.query_selector_all("button").unwrap();
+                (0..buttons.length())
+                    .filter_map(|index| buttons.item(index))
+                    .any(|button| button.text_content().as_deref() == Some("Rotate"))
+            })
+            .await;
             let buttons = root.query_selector_all("button").unwrap();
             let labels = (0..buttons.length())
                 .filter_map(|index| buttons.item(index))
@@ -8495,7 +8605,7 @@ mod tool_tests {
     /// the contextual toolbar omits unavailable tools instead of disabling them.
     #[wasm_bindgen_test]
     async fn contextual_column_tools_follow_availability_and_dispatch() {
-        let root = mount_context_menu(true).await;
+        let (root, _mounted) = mount_context_menu(true).await;
         let buttons = root.query_selector_all("button").unwrap();
         let tools = (0..buttons.length())
             .filter_map(|index| buttons.item(index))
@@ -8545,7 +8655,7 @@ mod tool_tests {
         );
         root.remove();
 
-        let root = mount_context_menu(false).await;
+        let (root, _mounted) = mount_context_menu(false).await;
         let buttons = root.query_selector_all("button").unwrap();
         let labels = (0..buttons.length())
             .filter_map(|index| buttons.item(index))
@@ -8615,7 +8725,7 @@ mod tool_tests {
     async fn mount_overlay(
         runtime: &Rc<Runtime>,
         tool: LayoutTransformTool,
-    ) -> (web_sys::Element, web_sys::Element) {
+    ) -> (web_sys::Element, web_sys::Element, MountedFixture) {
         let context = TreeContext::Column {
             matrix_id: fixture::MATRIX_ID.into(),
             column: 1,
@@ -8629,7 +8739,7 @@ mod tool_tests {
         runtime: &Rc<Runtime>,
         tool: LayoutTransformTool,
         context: TreeContext,
-    ) -> (web_sys::Element, web_sys::Element) {
+    ) -> (web_sys::Element, web_sys::Element, MountedFixture) {
         let model = runtime.model();
         let accepted = model.accepted.as_ref().expect("an accepted document");
         let matrix = fixture::accepted_matrix(runtime);
@@ -8661,11 +8771,14 @@ mod tool_tests {
             tool,
             context,
         };
-        dioxus_web::launch::launch_virtual_dom(
+        let mounted = MountedFixture::new(
+            root.clone(),
             VirtualDom::new_with_props(overlay_host, props),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        gloo_timers::future::TimeoutFuture::new(60).await;
+        wait_until("the overlay-host-svg fixture SVG mounts", || {
+            root.query_selector("#overlay-host-svg").unwrap().is_some()
+        })
+        .await;
         *svg.0.borrow_mut() = root
             .query_selector("#overlay-host-svg")
             .unwrap()
@@ -8685,7 +8798,7 @@ mod tool_tests {
         ] {
             js_sys::Reflect::set(handle.as_ref(), &method.into(), stub.as_ref()).unwrap();
         }
-        (root, handle)
+        (root, handle, mounted)
     }
 
     /// Mount the overlay for a named matrix with a Matrix selection, for the
@@ -8694,7 +8807,7 @@ mod tool_tests {
         runtime: &Rc<Runtime>,
         tool: LayoutTransformTool,
         matrix_id: &str,
-    ) -> (web_sys::Element, web_sys::Element) {
+    ) -> (web_sys::Element, web_sys::Element, MountedFixture) {
         let model = runtime.model();
         let accepted = model.accepted.as_ref().expect("an accepted document");
         let matrix = accepted
@@ -8735,11 +8848,14 @@ mod tool_tests {
             tool,
             context,
         };
-        dioxus_web::launch::launch_virtual_dom(
+        let mounted = MountedFixture::new(
+            root.clone(),
             VirtualDom::new_with_props(overlay_host, props),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        gloo_timers::future::TimeoutFuture::new(60).await;
+        wait_until("the overlay-host-svg fixture SVG mounts", || {
+            root.query_selector("#overlay-host-svg").unwrap().is_some()
+        })
+        .await;
         *svg.0.borrow_mut() = root
             .query_selector("#overlay-host-svg")
             .unwrap()
@@ -8763,7 +8879,7 @@ mod tool_tests {
             .query_selector("[data-transform-handle]")
             .unwrap()
             .expect("the tool draws a handle");
-        (root, handle)
+        (root, handle, mounted)
     }
 
     #[derive(Props, Clone)]
@@ -8806,7 +8922,12 @@ mod tool_tests {
         runtime: &Rc<Runtime>,
         tool: LayoutTransformTool,
         context: TreeContext,
-    ) -> (web_sys::Element, web_sys::Element, Signal<bool>) {
+    ) -> (
+        web_sys::Element,
+        web_sys::Element,
+        Signal<bool>,
+        MountedFixture,
+    ) {
         let model = runtime.model();
         let accepted = model.accepted.as_ref().expect("an accepted document");
         let matrix = fixture::accepted_matrix(runtime);
@@ -8842,11 +8963,12 @@ mod tool_tests {
             },
             show_slot: show_slot.clone(),
         };
-        dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new_with_props(toggle_host, props),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
-        gloo_timers::future::TimeoutFuture::new(60).await;
+        let mounted =
+            MountedFixture::new(root.clone(), VirtualDom::new_with_props(toggle_host, props));
+        wait_until("the overlay-host-svg fixture SVG mounts", || {
+            root.query_selector("#overlay-host-svg").unwrap().is_some()
+        })
+        .await;
         *svg.0.borrow_mut() = root
             .query_selector("#overlay-host-svg")
             .unwrap()
@@ -8869,7 +8991,7 @@ mod tool_tests {
         let show = show_slot
             .borrow()
             .expect("the toggle host shares its visibility signal");
-        (root, handle, show)
+        (root, handle, show, mounted)
     }
 
     /// Ticket 07: one part rail token, mounted like the production mount
@@ -9021,7 +9143,12 @@ mod tool_tests {
         runtime: &Rc<Runtime>,
         part_id: &str,
         tool: LayoutTransformTool,
-    ) -> (web_sys::Element, Option<web_sys::Element>, Rc<RefCell<u32>>) {
+    ) -> (
+        web_sys::Element,
+        Option<web_sys::Element>,
+        Rc<RefCell<u32>>,
+        MountedFixture,
+    ) {
         mount_part_overlay_with_snap(runtime, part_id, tool, part_snap()).await
     }
 
@@ -9030,7 +9157,12 @@ mod tool_tests {
         part_id: &str,
         tool: LayoutTransformTool,
         snap: GestureSnapInputs,
-    ) -> (web_sys::Element, Option<web_sys::Element>, Rc<RefCell<u32>>) {
+    ) -> (
+        web_sys::Element,
+        Option<web_sys::Element>,
+        Rc<RefCell<u32>>,
+        MountedFixture,
+    ) {
         let owner = part_owner(runtime);
         let svg = LayoutTransformSvg(Rc::new(RefCell::new(None)));
         let document = web_sys::window().unwrap().document().unwrap();
@@ -9047,18 +9179,21 @@ mod tool_tests {
             snap,
             focus_half: focus_half.clone(),
         };
-        dioxus_web::launch::launch_virtual_dom(
+        let mounted = MountedFixture::new(
+            root.clone(),
             VirtualDom::new_with_props(part_overlay_host, props),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        gloo_timers::future::TimeoutFuture::new(60).await;
+        wait_until("the overlay-host-svg fixture SVG mounts", || {
+            root.query_selector("#overlay-host-svg").unwrap().is_some()
+        })
+        .await;
         *svg.0.borrow_mut() = root
             .query_selector("#overlay-host-svg")
             .unwrap()
             .and_then(|element| element.dyn_into::<SvgElement>().ok());
         stub_part_capture(&root);
         let handle = root.query_selector("[data-transform-handle]").unwrap();
-        (root, handle, focus_half)
+        (root, handle, focus_half, mounted)
     }
 
     /// Mount one part tool overlay that must draw a token, for the drag and
@@ -9067,10 +9202,15 @@ mod tool_tests {
         runtime: &Rc<Runtime>,
         part_id: &str,
         tool: LayoutTransformTool,
-    ) -> (web_sys::Element, web_sys::Element, Rc<RefCell<u32>>) {
-        let (root, handle, focus_half) = mount_part_overlay(runtime, part_id, tool).await;
+    ) -> (
+        web_sys::Element,
+        web_sys::Element,
+        Rc<RefCell<u32>>,
+        MountedFixture,
+    ) {
+        let (root, handle, focus_half, mounted) = mount_part_overlay(runtime, part_id, tool).await;
         let handle = handle.expect("the tool draws a handle");
-        (root, handle, focus_half)
+        (root, handle, focus_half, mounted)
     }
 
     fn stub_part_capture(root: &web_sys::Element) {
@@ -9093,7 +9233,7 @@ mod tool_tests {
         runtime: &Rc<Runtime>,
         part_id: &str,
         tools: Vec<LayoutTransformTool>,
-    ) -> web_sys::Element {
+    ) -> (web_sys::Element, MountedFixture) {
         let owner = part_owner(runtime);
         let svg = LayoutTransformSvg(Rc::new(RefCell::new(None)));
         let document = web_sys::window().unwrap().document().unwrap();
@@ -9108,17 +9248,20 @@ mod tool_tests {
             tools,
             snap: part_snap(),
         };
-        dioxus_web::launch::launch_virtual_dom(
+        let mounted = MountedFixture::new(
+            root.clone(),
             VirtualDom::new_with_props(part_rail_host, props),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        gloo_timers::future::TimeoutFuture::new(60).await;
+        wait_until("the overlay-host-svg fixture SVG mounts", || {
+            root.query_selector("#overlay-host-svg").unwrap().is_some()
+        })
+        .await;
         *svg.0.borrow_mut() = root
             .query_selector("#overlay-host-svg")
             .unwrap()
             .and_then(|element| element.dyn_into::<SvgElement>().ok());
         stub_part_capture(&root);
-        root
+        (root, mounted)
     }
 
     fn part_anchor_of(runtime: &Rc<Runtime>, part_id: &str) -> boardstudio_core::model::PartAnchor {
@@ -9299,7 +9442,7 @@ mod tool_tests {
     async fn mount_rail_pair(
         runtime: &Rc<Runtime>,
         tools: Vec<LayoutTransformTool>,
-    ) -> (web_sys::Element, RailProbe) {
+    ) -> (web_sys::Element, RailProbe, MountedFixture) {
         let context = TreeContext::Column {
             matrix_id: fixture::MATRIX_ID.into(),
             column: 1,
@@ -9313,7 +9456,7 @@ mod tool_tests {
         runtime: &Rc<Runtime>,
         tools: Vec<LayoutTransformTool>,
         context: TreeContext,
-    ) -> (web_sys::Element, RailProbe) {
+    ) -> (web_sys::Element, RailProbe, MountedFixture) {
         let model = runtime.model();
         let accepted = model.accepted.as_ref().expect("an accepted document");
         let matrix = fixture::accepted_matrix(runtime);
@@ -9349,11 +9492,14 @@ mod tool_tests {
             tools,
             probe: probe.clone(),
         };
-        dioxus_web::launch::launch_virtual_dom(
+        let mounted = MountedFixture::new(
+            root.clone(),
             VirtualDom::new_with_props(rail_pair_host, props),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        gloo_timers::future::TimeoutFuture::new(60).await;
+        wait_until("the rail-pair-svg fixture SVG mounts", || {
+            root.query_selector("#rail-pair-svg").unwrap().is_some()
+        })
+        .await;
         *svg.0.borrow_mut() = root
             .query_selector("#rail-pair-svg")
             .unwrap()
@@ -9373,7 +9519,7 @@ mod tool_tests {
                 js_sys::Reflect::set(handle.as_ref(), &method.into(), stub.as_ref()).unwrap();
             }
         }
-        (root, probe)
+        (root, probe, mounted)
     }
 
     fn token_rect_style(root: &web_sys::Element, label: &str) -> String {
@@ -9413,7 +9559,7 @@ mod tool_tests {
         let runtime = fixture::open_matrix_runtime().await;
         wait_until_editable(&runtime).await;
         let before = fixture_revision(&runtime);
-        let (root, probe) = mount_rail_pair(
+        let (root, probe, _mounted) = mount_rail_pair(
             &runtime,
             vec![LayoutTransformTool::Stagger, LayoutTransformTool::Splay],
         )
@@ -9502,7 +9648,19 @@ mod tool_tests {
         // Hover previews the movers in amber on a selection-surface token
         // and leaves with no document revision.
         dispatch_pointer(&stagger, "pointerenter", false, false, 0, (100, 100));
-        gloo_timers::future::TimeoutFuture::new(60).await;
+        wait_until(
+            "stagger hover highlights the token and previews its movers",
+            || {
+                token_rect_style(&root, "Drag to stagger").contains("var(--selected)")
+                    && probe.preview.borrow().as_ref().is_some_and(|signal| {
+                        signal
+                            .read()
+                            .as_ref()
+                            .is_some_and(|state| !state.parts.is_empty())
+                    })
+            },
+        )
+        .await;
         assert!(
             token_rect_style(&root, "Drag to stagger").contains("var(--selected)"),
             "hover fills the token with the selection surface"
@@ -9519,7 +9677,18 @@ mod tool_tests {
             "hover previews the keys the drag would move, got {preview:?}"
         );
         dispatch_pointer(&stagger, "pointerleave", false, false, 0, (100, 100));
-        gloo_timers::future::TimeoutFuture::new(60).await;
+        wait_until(
+            "stagger leave clears the preview and restores the muted token",
+            || {
+                !token_rect_style(&root, "Drag to stagger").contains("var(--selected)")
+                    && probe
+                        .preview
+                        .borrow()
+                        .as_ref()
+                        .is_none_or(|signal| signal.read().is_none())
+            },
+        )
+        .await;
         assert!(
             probe
                 .preview
@@ -9648,7 +9817,7 @@ mod tool_tests {
             let runtime = support::new_runtime();
             support::open_document(&runtime, document).await;
             let before = fixture_revision(&runtime);
-            let (root, _) = mount_overlay(&runtime, LayoutTransformTool::Splay).await;
+            let (root, _, _mounted) = mount_overlay(&runtime, LayoutTransformTool::Splay).await;
             let handle = root
                 .query_selector("[aria-label='Drag to splay']")
                 .unwrap()
@@ -9771,7 +9940,7 @@ mod tool_tests {
 
         // Shift at pointer-down: a free 2-D column offset with the offset glyph, though Shift
         // is released before the first move. The grid step is 4.7625 mm; 4 px is 1 mm.
-        let (root, handle) = mount_overlay(&runtime, LayoutTransformTool::Stagger).await;
+        let (root, handle, _mounted) = mount_overlay(&runtime, LayoutTransformTool::Stagger).await;
         assert_eq!(
             handle.get_attribute("data-quick-offset").as_deref(),
             Some("false")
@@ -9816,7 +9985,7 @@ mod tool_tests {
         wait_until_editable(&runtime).await;
 
         // No Shift: the same gesture is a one-dimensional stagger.
-        let (root, handle) = mount_overlay(&runtime, LayoutTransformTool::Stagger).await;
+        let (root, handle, _mounted) = mount_overlay(&runtime, LayoutTransformTool::Stagger).await;
         let (down, moved) = drag_handle(&runtime, &handle, false, (140, 60)).await;
         assert_eq!(
             (down.as_deref(), moved.as_deref()),
@@ -9843,7 +10012,7 @@ mod tool_tests {
     async fn spread_handle_drag_commits_an_explicit_spread_with_one_undo() {
         let runtime = fixture::open_matrix_runtime().await;
         wait_until_editable(&runtime).await;
-        let (root, handle) = mount_overlay(&runtime, LayoutTransformTool::Spread).await;
+        let (root, handle, _mounted) = mount_overlay(&runtime, LayoutTransformTool::Spread).await;
         assert_eq!(
             handle.get_attribute("aria-label").as_deref(),
             Some("Drag to spread"),
@@ -9992,7 +10161,12 @@ mod tool_tests {
         runtime: &Rc<Runtime>,
         tool: LayoutTransformTool,
         context: TreeContext,
-    ) -> (web_sys::Element, web_sys::Element, Signal<bool>) {
+    ) -> (
+        web_sys::Element,
+        web_sys::Element,
+        Signal<bool>,
+        MountedFixture,
+    ) {
         let model = runtime.model();
         let accepted = model.accepted.as_ref().expect("an accepted document");
         let matrix = fixture::accepted_matrix(runtime);
@@ -10026,11 +10200,14 @@ mod tool_tests {
             context,
             slot: slot.clone(),
         };
-        dioxus_web::launch::launch_virtual_dom(
+        let mounted = MountedFixture::new(
+            root.clone(),
             VirtualDom::new_with_props(unmount_host, props),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        gloo_timers::future::TimeoutFuture::new(60).await;
+        wait_until("the overlay-host-svg fixture SVG mounts", || {
+            root.query_selector("#overlay-host-svg").unwrap().is_some()
+        })
+        .await;
         *svg.0.borrow_mut() = root
             .query_selector("#overlay-host-svg")
             .unwrap()
@@ -10051,7 +10228,22 @@ mod tool_tests {
             .0
             .borrow()
             .expect("the host publishes its visibility signal");
-        (root, handle, show)
+        (root, handle, show, mounted)
+    }
+
+    fn observe_next_toast_expiry() -> (
+        futures_channel::oneshot::Sender<()>,
+        futures_channel::oneshot::Receiver<()>,
+    ) {
+        let (release, released) = futures_channel::oneshot::channel();
+        let (finished, expired) = futures_channel::oneshot::channel();
+        NEXT_TOAST_EXPIRY_PROBE.with(|next| {
+            next.replace(Some(ToastExpiryProbe {
+                release: released,
+                finished,
+            }));
+        });
+        (release, expired)
     }
 
     #[wasm_bindgen_test]
@@ -10070,9 +10262,10 @@ mod tool_tests {
             matrix_id: fixture::MATRIX_ID.into(),
             column: 1,
         };
-        let (root, handle, mut show) =
+        let (root, handle, mut show, _mounted) =
             mount_unmountable_overlay(&runtime, LayoutTransformTool::Stagger, context).await;
-        // A real pointer drag commits a stagger, arming the 1.8 s toast timer.
+        // A real pointer drag commits a stagger and arms the observed timer.
+        let (release_expiry, expired) = observe_next_toast_expiry();
         let revision = fixture_revision(&runtime);
         dispatch_pointer(&handle, "pointerdown", false, false, 1, (100, 100));
         gloo_timers::future::TimeoutFuture::new(40).await;
@@ -10083,17 +10276,17 @@ mod tool_tests {
         // is already armed, and the commit below does not need the overlay
         // alive. Triggering on the toast (not the revision bump) keeps the
         // unmount ahead of the expiry no matter how slow the commit is.
-        for _ in 0..100 {
-            support::run_pending(&runtime).await;
-            if root
-                .query_selector("[data-feedback-toast]")
-                .unwrap()
-                .is_some()
-            {
-                break;
-            }
-            gloo_timers::future::TimeoutFuture::new(50).await;
-        }
+        settle_until(
+            &runtime,
+            support::run_pending,
+            "stagger toast has armed its expiry",
+            || {
+                root.query_selector("[data-feedback-toast]")
+                    .unwrap()
+                    .is_some()
+            },
+        )
+        .await;
         assert!(
             root.query_selector("[data-feedback-toast]")
                 .unwrap()
@@ -10101,17 +10294,17 @@ mod tool_tests {
             "the stagger commit raised its toast, arming the expiry timer"
         );
         show.set(false);
-        for _ in 0..100 {
-            support::run_pending(&runtime).await;
-            if root
-                .query_selector("[data-transform-handle]")
-                .unwrap()
-                .is_none()
-            {
-                break;
-            }
-            gloo_timers::future::TimeoutFuture::new(10).await;
-        }
+        settle_until(
+            &runtime,
+            support::run_pending,
+            "stagger overlay unmounts",
+            || {
+                root.query_selector("[data-transform-handle]")
+                    .unwrap()
+                    .is_none()
+            },
+        )
+        .await;
         assert!(
             root.query_selector("[data-transform-handle]")
                 .unwrap()
@@ -10120,21 +10313,23 @@ mod tool_tests {
         );
         // The commit lands without the overlay; the timer must then read
         // nothing instead of trapping on its dropped signals.
-        for _ in 0..500 {
-            support::run_pending(&runtime).await;
-            if fixture_revision(&runtime) > revision {
-                break;
-            }
-            gloo_timers::future::TimeoutFuture::new(10).await;
-        }
+        settle_until(
+            &runtime,
+            support::run_pending,
+            "stagger revision lands",
+            || fixture_revision(&runtime) > revision,
+        )
+        .await;
         assert!(
             fixture_revision(&runtime) > revision,
             "the stagger drag committed"
         );
-        // Headless Chrome throttles timers, so the 1.8 s toast can fire
-        // late: leave a wide window so the armed timer always runs while
-        // the overlay is gone.
-        gloo_timers::future::TimeoutFuture::new(4000).await;
+        release_expiry
+            .send(())
+            .expect("stagger toast armed the timer");
+        wait_until_future("stagger expiry callback finishes after unmount", expired)
+            .await
+            .expect("stagger expiry callback did not finish");
         drop(_restore);
         let panics = TOAST_UNMOUNT_PANICS.lock().expect("panic log");
         assert!(
@@ -10172,7 +10367,7 @@ mod tool_tests {
             matrix_id: fixture::MATRIX_ID.into(),
             row: 1,
         };
-        let (root, handle) =
+        let (root, handle, _mounted) =
             mount_context_overlay(&runtime, LayoutTransformTool::Bend, context).await;
         assert_eq!(
             handle.get_attribute("aria-label").as_deref(),
@@ -10237,7 +10432,7 @@ mod tool_tests {
             row: 0,
             column: 1,
         };
-        let (root, handle) =
+        let (root, handle, _mounted) =
             mount_context_overlay(&runtime, LayoutTransformTool::Shift, context).await;
         assert_eq!(
             handle.get_attribute("aria-label").as_deref(),
@@ -10318,14 +10513,19 @@ mod tool_tests {
             matrix_id: fixture::MATRIX_ID.into(),
             column: 1,
         };
-        let (root, _) =
+        let (root, _, _mounted) =
             mount_context_overlay(&runtime, LayoutTransformTool::Stagger, context).await;
         let handle = root
             .query_selector("[aria-label='Drag to stagger']")
             .unwrap()
             .expect("the stagger token draws");
         dispatch_pointer(&handle, "pointerenter", false, false, 0, (100, 100));
-        gloo_timers::future::TimeoutFuture::new(60).await;
+        wait_until("stagger hover opens the value popup", || {
+            root.query_selector("[data-feedback-popup]")
+                .unwrap()
+                .is_some()
+        })
+        .await;
         let popup = root
             .query_selector("[data-feedback-popup]")
             .unwrap()
@@ -10351,7 +10551,22 @@ mod tool_tests {
                 .unwrap(),
         );
         dispatch_pointer(&handle, "pointermove", false, false, 1, (100, 40));
-        gloo_timers::future::TimeoutFuture::new(60).await;
+        wait_until(
+            "stagger popup follows the drag and shows its live delta",
+            || {
+                root.query_selector("[data-feedback-popup]")
+                    .unwrap()
+                    .is_some_and(|popup| {
+                        let (_, y) = translate_of(&popup);
+                        (y - following_start - 15.0).abs() < 1.5
+                            && popup
+                                .text_content()
+                                .unwrap_or_default()
+                                .contains("+14.29 mm")
+                    })
+            },
+        )
+        .await;
         let popup = root
             .query_selector("[data-feedback-popup]")
             .unwrap()
@@ -10396,13 +10611,22 @@ mod tool_tests {
             toast.text_content().unwrap_or_default(),
             "Stagger 14.29 mm (+14.29 mm) · 1 Undo step"
         );
-        gloo_timers::future::TimeoutFuture::new(300).await;
-        assert_eq!(
-            fixture_revision(&runtime),
-            revision + 1,
-            "the toast writes no extra revision"
-        );
-        gloo_timers::future::TimeoutFuture::new(2200).await;
+        wait_for(
+            "commit toast expires without an extra revision",
+            2_500.0,
+            || {
+                assert_eq!(
+                    fixture_revision(&runtime),
+                    revision + 1,
+                    "the toast writes no extra revision"
+                );
+                root.query_selector("[data-feedback-toast]")
+                    .unwrap()
+                    .is_none()
+            },
+        )
+        .await
+        .unwrap();
         assert!(
             root.query_selector("[data-feedback-toast]")
                 .unwrap()
@@ -10446,8 +10670,9 @@ mod tool_tests {
             matrix_id: fixture::MATRIX_ID.into(),
             column: 1,
         };
-        let (root, handle, mut show) =
+        let (root, handle, mut show, _mounted) =
             mount_toggle_overlay(&runtime, LayoutTransformTool::Stagger, context).await;
+        let (release_expiry, expired) = observe_next_toast_expiry();
         let revision = fixture_revision(&runtime);
         dispatch_pointer(&handle, "pointerdown", false, false, 1, (100, 100));
         gloo_timers::future::TimeoutFuture::new(60).await;
@@ -10475,14 +10700,24 @@ mod tool_tests {
         // A production scope switch unmounts the overlay while the timer is
         // still pending; the timer must not touch the dropped signals.
         show.set(false);
-        gloo_timers::future::TimeoutFuture::new(120).await;
+        wait_until("the toast's overlay unmounts", || {
+            root.query_selector("[data-transform-handle]")
+                .unwrap()
+                .is_none()
+        })
+        .await;
         assert!(
             root.query_selector("[data-transform-handle]")
                 .unwrap()
                 .is_none(),
             "the toggle unmounted the overlay"
         );
-        gloo_timers::future::TimeoutFuture::new(2200).await;
+        release_expiry
+            .send(())
+            .expect("commit toast armed the timer");
+        wait_until_future("commit expiry callback finishes after unmount", expired)
+            .await
+            .expect("commit expiry callback did not finish");
         // Restore the previous hook before asserting, so a failure here never
         // masks its own message behind a re-entrant hook error.
         drop(_guard);
@@ -10508,7 +10743,7 @@ mod tool_tests {
             matrix_id: fixture::MATRIX_ID.into(),
             row: 0,
         };
-        let (root, probe) = mount_context_rail_pair(
+        let (root, probe, _mounted) = mount_context_rail_pair(
             &runtime,
             vec![
                 LayoutTransformTool::Offset,
@@ -10528,12 +10763,6 @@ mod tool_tests {
                 .unwrap()
                 .unwrap_or_else(|| panic!("the {label} token draws"));
             dispatch_pointer(&token, "pointerenter", false, false, 0, (100, 100));
-            gloo_timers::future::TimeoutFuture::new(60).await;
-            let preview = probe
-                .preview
-                .borrow()
-                .as_ref()
-                .and_then(|signal| signal.read().clone());
             let accepted = runtime.model().accepted.expect("an accepted document");
             let expected = matrix_relations::field_preview(
                 &accepted.document,
@@ -10543,6 +10772,20 @@ mod tool_tests {
                 MatrixSplayAffect::Column,
             )
             .expect("the Inspector field previews its movers");
+            wait_until(&format!("{label} previews the Inspector's movers"), || {
+                probe.preview.borrow().as_ref().is_some_and(|signal| {
+                    signal
+                        .read()
+                        .as_ref()
+                        .is_some_and(|state| state.parts == expected.parts)
+                })
+            })
+            .await;
+            let preview = probe
+                .preview
+                .borrow()
+                .as_ref()
+                .and_then(|signal| signal.read().clone());
             assert_eq!(
                 preview.as_ref().map(|state| &state.parts),
                 Some(&expected.parts),
@@ -10553,7 +10796,14 @@ mod tool_tests {
                 "{label} previews a non-empty mover set"
             );
             dispatch_pointer(&token, "pointerleave", false, false, 0, (100, 100));
-            gloo_timers::future::TimeoutFuture::new(60).await;
+            wait_until(&format!("{label} clears the preview"), || {
+                probe
+                    .preview
+                    .borrow()
+                    .as_ref()
+                    .is_none_or(|signal| signal.read().is_none())
+            })
+            .await;
             assert!(
                 probe
                     .preview
@@ -10572,7 +10822,7 @@ mod tool_tests {
             row: 0,
             column: 1,
         };
-        let (root, probe) = mount_context_rail_pair(
+        let (root, probe, _mounted) = mount_context_rail_pair(
             &runtime,
             vec![LayoutTransformTool::Shift, LayoutTransformTool::Bend],
             context.clone(),
@@ -10587,12 +10837,6 @@ mod tool_tests {
                 .unwrap()
                 .unwrap_or_else(|| panic!("the {label} token draws"));
             dispatch_pointer(&token, "pointerenter", false, false, 0, (100, 100));
-            gloo_timers::future::TimeoutFuture::new(60).await;
-            let preview = probe
-                .preview
-                .borrow()
-                .as_ref()
-                .and_then(|signal| signal.read().clone());
             let accepted = runtime.model().accepted.expect("an accepted document");
             let expected = matrix_relations::field_preview(
                 &accepted.document,
@@ -10602,6 +10846,20 @@ mod tool_tests {
                 MatrixSplayAffect::Column,
             )
             .expect("the Inspector field previews its movers");
+            wait_until(&format!("{label} previews the Inspector's movers"), || {
+                probe.preview.borrow().as_ref().is_some_and(|signal| {
+                    signal
+                        .read()
+                        .as_ref()
+                        .is_some_and(|state| state.parts == expected.parts)
+                })
+            })
+            .await;
+            let preview = probe
+                .preview
+                .borrow()
+                .as_ref()
+                .and_then(|signal| signal.read().clone());
             assert_eq!(
                 preview.as_ref().map(|state| &state.parts),
                 Some(&expected.parts),
@@ -10612,7 +10870,14 @@ mod tool_tests {
                 "{label} previews a non-empty mover set"
             );
             dispatch_pointer(&token, "pointerleave", false, false, 0, (100, 100));
-            gloo_timers::future::TimeoutFuture::new(60).await;
+            wait_until(&format!("{label} clears the preview"), || {
+                probe
+                    .preview
+                    .borrow()
+                    .as_ref()
+                    .is_none_or(|signal| signal.read().is_none())
+            })
+            .await;
             assert!(
                 probe
                     .preview
@@ -10717,7 +10982,8 @@ mod tool_tests {
             rotation: true,
         })
         .await;
-        let (root, handle) = mount_matrix_overlay(&runtime, LayoutTransformTool::Move, "dep").await;
+        let (root, handle, _mounted) =
+            mount_matrix_overlay(&runtime, LayoutTransformTool::Move, "dep").await;
         assert_eq!(
             handle.get_attribute("aria-label").as_deref(),
             Some("Drag to move matrix"),
@@ -10792,7 +11058,8 @@ mod tool_tests {
             rotation: true,
         })
         .await;
-        let (root, handle) = mount_matrix_overlay(&runtime, LayoutTransformTool::Move, "dep").await;
+        let (root, handle, _mounted) =
+            mount_matrix_overlay(&runtime, LayoutTransformTool::Move, "dep").await;
         let revision = fixture_revision(&runtime);
         dispatch_pointer(&handle, "pointerdown", false, false, 1, (100, 100));
         gloo_timers::future::TimeoutFuture::new(40).await;
@@ -10868,7 +11135,8 @@ mod tool_tests {
             rotation: true,
         })
         .await;
-        let (move_root, _) = mount_matrix_overlay(&runtime, LayoutTransformTool::Move, "dep").await;
+        let (move_root, _, _mounted) =
+            mount_matrix_overlay(&runtime, LayoutTransformTool::Move, "dep").await;
         assert!(
             move_root
                 .query_selector("[aria-label='Drag to move matrix']")
@@ -10884,7 +11152,7 @@ mod tool_tests {
             "the Move mount draws no rotate handle"
         );
         move_root.remove();
-        let (rotate_root, _) =
+        let (rotate_root, _, _mounted) =
             mount_matrix_overlay(&runtime, LayoutTransformTool::Rotate, "dep").await;
         assert!(
             rotate_root
@@ -10915,7 +11183,8 @@ mod tool_tests {
             rotation: true,
         })
         .await;
-        let (root, _) = mount_matrix_overlay(&runtime, LayoutTransformTool::Rotate, "dep").await;
+        let (root, _, _mounted) =
+            mount_matrix_overlay(&runtime, LayoutTransformTool::Rotate, "dep").await;
         let rotate = root
             .query_selector("[aria-label='Drag to rotate matrix']")
             .unwrap()
@@ -11008,7 +11277,7 @@ mod tool_tests {
     async fn spread_handle_hover_keeps_its_svg_target() {
         let runtime = fixture::open_matrix_runtime().await;
         wait_until_editable(&runtime).await;
-        let (root, handle) = mount_overlay(&runtime, LayoutTransformTool::Spread).await;
+        let (root, handle, _mounted) = mount_overlay(&runtime, LayoutTransformTool::Spread).await;
         dispatch_pointer(&handle, "pointerover", false, false, 0, (100, 100));
         gloo_timers::future::TimeoutFuture::new(40).await;
         let live = root
@@ -11094,7 +11363,7 @@ mod tool_tests {
         let runtime = support::new_runtime();
         support::open_document(&runtime, document).await;
         wait_until_editable(&runtime).await;
-        let (root, handle) = mount_overlay(&runtime, LayoutTransformTool::Stagger).await;
+        let (root, handle, _mounted) = mount_overlay(&runtime, LayoutTransformTool::Stagger).await;
         let revision = fixture_revision(&runtime);
         dispatch_pointer(&handle, "pointerdown", false, false, 1, (100, 100));
         gloo_timers::future::TimeoutFuture::new(40).await;
@@ -11152,7 +11421,7 @@ mod tool_tests {
         let runtime = support::new_runtime();
         support::open_document(&runtime, document).await;
         wait_until_editable(&runtime).await;
-        let (root, handle) = mount_overlay(&runtime, LayoutTransformTool::Stagger).await;
+        let (root, handle, _mounted) = mount_overlay(&runtime, LayoutTransformTool::Stagger).await;
         let revision = fixture_revision(&runtime);
         dispatch_pointer(&handle, "pointerdown", false, false, 1, (100, 100));
         gloo_timers::future::TimeoutFuture::new(40).await;
@@ -11237,7 +11506,7 @@ mod tool_tests {
             .matrix_scenes[0]
             .columns[1]
             .splay_origin;
-        let (root, _) = mount_overlay(&runtime, LayoutTransformTool::Splay).await;
+        let (root, _, _mounted) = mount_overlay(&runtime, LayoutTransformTool::Splay).await;
         let handle = root
             .query_selector("[aria-label='Drag to splay']")
             .unwrap()
@@ -11365,7 +11634,7 @@ mod tool_tests {
         assert_eq!(basis.base, Vec2 { x: 22.0, y: 0.0 });
         assert_eq!(basis.splay_origin, Vec2 { x: 27.0, y: 0.0 });
         let before = fixture_revision(&runtime);
-        let (root, handle) = mount_overlay(&runtime, LayoutTransformTool::Origin).await;
+        let (root, handle, _mounted) = mount_overlay(&runtime, LayoutTransformTool::Origin).await;
         assert_eq!(
             handle.get_attribute("aria-label").as_deref(),
             Some("Move splay origin")
@@ -11421,7 +11690,7 @@ mod tool_tests {
         // the recovered drag still commits. The overlay remounts because the
         // commit moved the owner revision on.
         root.remove();
-        let (root, handle) = mount_overlay(&runtime, LayoutTransformTool::Origin).await;
+        let (root, handle, _mounted) = mount_overlay(&runtime, LayoutTransformTool::Origin).await;
         let rect = root
             .query_selector("svg")
             .unwrap()
@@ -11466,7 +11735,8 @@ mod tool_tests {
         use LayoutTransformTool::{Move, Rotate, Spread, Stagger};
         let runtime = fixture::open_part_runtime((19.0, 0.0)).await;
         wait_until_editable(&runtime).await;
-        let root = mount_part_rail(&runtime, "mcu", vec![Stagger, Move, Spread, Rotate]).await;
+        let (root, _mounted) =
+            mount_part_rail(&runtime, "mcu", vec![Stagger, Move, Spread, Rotate]).await;
         let handles = root.query_selector_all("[data-transform-handle]").unwrap();
         assert_eq!(handles.length(), 4, "the anchored rail draws four tokens");
         let mut placed: Vec<(f64, String)> = Vec::new();
@@ -11522,7 +11792,7 @@ mod tool_tests {
     async fn part_stagger_drag_commits_carried_stagger_with_offset_unchanged() {
         let runtime = fixture::open_part_runtime((19.0, 0.0)).await;
         wait_until_editable(&runtime).await;
-        let (root, handle, _) =
+        let (root, handle, _, _mounted) =
             mount_part_overlay_expect(&runtime, "mcu", LayoutTransformTool::Stagger).await;
         let rect = root
             .query_selector("svg")
@@ -11594,7 +11864,7 @@ mod tool_tests {
     async fn part_move_drag_commits_local_offset() {
         let runtime = fixture::open_part_runtime((19.0, 0.0)).await;
         wait_until_editable(&runtime).await;
-        let (root, handle, _) =
+        let (root, handle, _, _mounted) =
             mount_part_overlay_expect(&runtime, "mcu", LayoutTransformTool::Move).await;
         let rect = root
             .query_selector("svg")
@@ -11657,7 +11927,7 @@ mod tool_tests {
     async fn part_rotate_drag_commits_local_rotation() {
         let runtime = fixture::open_part_runtime((19.0, 0.0)).await;
         wait_until_editable(&runtime).await;
-        let (root, handle, _) =
+        let (root, handle, _, _mounted) =
             mount_part_overlay_expect(&runtime, "mcu", LayoutTransformTool::Rotate).await;
         let rect = root
             .query_selector("svg")
@@ -11738,17 +12008,17 @@ mod tool_tests {
         let runtime = fixture::open_detached_part_runtime().await;
         wait_until_editable(&runtime).await;
         for tool in [LayoutTransformTool::Move, LayoutTransformTool::Rotate] {
-            let (root, handle, _) = mount_part_overlay(&runtime, "mcu", tool).await;
+            let (root, handle, _, _mounted) = mount_part_overlay(&runtime, "mcu", tool).await;
             assert!(handle.is_some(), "{tool:?} draws on a detached part");
             root.remove();
         }
-        let (root, handle, _) =
+        let (root, handle, _, _mounted) =
             mount_part_overlay(&runtime, "mcu", LayoutTransformTool::Spread).await;
         assert!(handle.is_none(), "Spread never draws without an anchor");
         root.remove();
         let matrix_runtime = fixture::open_matrix_runtime().await;
         wait_until_editable(&matrix_runtime).await;
-        let (root, handle, _) = mount_part_overlay(
+        let (root, handle, _, _mounted) = mount_part_overlay(
             &matrix_runtime,
             "matrix/matrix/r0c1",
             LayoutTransformTool::Move,
@@ -11780,7 +12050,7 @@ mod tool_tests {
             .expect("the mcu part")
             .pose
             .at;
-        let (root, handle, _) =
+        let (root, handle, _, _mounted) =
             mount_part_overlay_expect(&runtime, "mcu", LayoutTransformTool::Move).await;
         let rect = root
             .query_selector("svg")
@@ -11924,7 +12194,7 @@ mod tool_tests {
             geometry_snap: false,
             gap: None,
         };
-        let (root, handle, _) =
+        let (root, handle, _, _mounted) =
             mount_part_overlay_with_snap(&runtime, "mcu", LayoutTransformTool::Move, snap).await;
         let handle = handle.expect("Move draws a handle");
         let svg = root.query_selector("svg").unwrap().unwrap();
@@ -12036,7 +12306,7 @@ mod tool_tests {
     async fn detached_rotate_drag_commits_exact_rotation() {
         let runtime = fixture::open_detached_part_runtime().await;
         wait_until_editable(&runtime).await;
-        let (root, handle, _) =
+        let (root, handle, _, _mounted) =
             mount_part_overlay_expect(&runtime, "mcu", LayoutTransformTool::Rotate).await;
         dispatch_pointer(&handle, "pointerenter", false, false, 0, (100, 100));
         gloo_timers::future::TimeoutFuture::new(60).await;
@@ -12143,7 +12413,7 @@ mod tool_tests {
     async fn part_stagger_drag_on_one_half_updates_both_halves() {
         let runtime = fixture::open_part_pair_runtime().await;
         wait_until_editable(&runtime).await;
-        let (root, handle, _) =
+        let (root, handle, _, _mounted) =
             mount_part_overlay_expect(&runtime, "mcu", LayoutTransformTool::Stagger).await;
         let rect = root
             .query_selector("svg")
@@ -12233,7 +12503,7 @@ mod tool_tests {
     async fn part_token_press_focuses_the_parts_half() {
         let runtime = fixture::open_part_runtime((19.0, 0.0)).await;
         wait_until_editable(&runtime).await;
-        let (root, handle, focus_half) =
+        let (root, handle, focus_half, _mounted) =
             mount_part_overlay_expect(&runtime, "mcu", LayoutTransformTool::Stagger).await;
         dispatch_pointer(&handle, "pointerdown", false, false, 1, (100, 100));
         gloo_timers::future::TimeoutFuture::new(60).await;
@@ -12264,7 +12534,7 @@ mod tool_tests {
             LayoutTransformTool::Spread,
             LayoutTransformTool::Stagger,
         ] {
-            let (root, handle, _) = mount_part_overlay(&runtime, "mcu", tool).await;
+            let (root, handle, _, _mounted) = mount_part_overlay(&runtime, "mcu", tool).await;
             assert!(handle.is_none(), "{tool:?} hides on a locked part");
             root.remove();
         }
@@ -12327,7 +12597,7 @@ mod tool_tests {
         runtime: &Rc<Runtime>,
         pick_owner: AnchorPickOwner,
         context: TreeContext,
-    ) -> web_sys::Element {
+    ) -> (web_sys::Element, MountedFixture) {
         let model = runtime.model();
         let accepted = model.accepted.as_ref().expect("an accepted document");
         let owner = LayoutOwnerIdentity {
@@ -12349,16 +12619,17 @@ mod tool_tests {
             pick_owner,
             context,
         };
-        dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new_with_props(pick_host, props),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
-        gloo_timers::future::TimeoutFuture::new(60).await;
+        let mounted =
+            MountedFixture::new(root.clone(), VirtualDom::new_with_props(pick_host, props));
+        wait_until("the pick-host-svg fixture SVG mounts", || {
+            root.query_selector("#pick-host-svg").unwrap().is_some()
+        })
+        .await;
         *svg.0.borrow_mut() = root
             .query_selector("#pick-host-svg")
             .unwrap()
             .and_then(|element| element.dyn_into::<SvgElement>().ok());
-        root
+        (root, mounted)
     }
 
     fn pick_token(root: &web_sys::Element) -> Option<web_sys::Element> {
@@ -12444,7 +12715,7 @@ mod tool_tests {
         let context = TreeContext::Matrix {
             matrix_id: "dep".into(),
         };
-        let root = mount_pick_overlay(
+        let (root, _mounted) = mount_pick_overlay(
             &runtime,
             AnchorPickOwner::Matrix {
                 matrix: Rc::new(matrix),
@@ -12492,7 +12763,18 @@ mod tool_tests {
         // Hovering previews the Core-evaluated post-commit pose in amber.
         let target = pick_ring(&root, "matrix:0:2");
         dispatch_pointer(&target, "pointerenter", false, false, 0, (60, 60));
-        gloo_timers::future::TimeoutFuture::new(120).await;
+        wait_until(
+            "hover shows the enlarged anchor ring and amber preview",
+            || {
+                ring_circle_radii(&pick_ring(&root, "matrix:0:2"))[1] == "3"
+                    && root
+                        .query_selector_all("[data-anchor-pick-preview]")
+                        .unwrap()
+                        .length()
+                        > 0
+            },
+        )
+        .await;
         assert_eq!(
             ring_circle_radii(&pick_ring(&root, "matrix:0:2"))[1],
             "3",
@@ -12661,7 +12943,7 @@ mod tool_tests {
         let context = TreeContext::Matrix {
             matrix_id: "dep".into(),
         };
-        let root = mount_pick_overlay(
+        let (root, _mounted) = mount_pick_overlay(
             &runtime,
             AnchorPickOwner::Matrix {
                 matrix: Rc::new(matrix),
@@ -12718,7 +13000,7 @@ mod tool_tests {
         let context = TreeContext::Matrix {
             matrix_id: "dep".into(),
         };
-        let root = mount_pick_overlay(
+        let (root, _mounted) = mount_pick_overlay(
             &runtime,
             AnchorPickOwner::Matrix {
                 matrix: Rc::new(matrix),
@@ -12773,7 +13055,7 @@ mod tool_tests {
             column: None,
             assembly_id: None,
         };
-        let root = mount_pick_overlay(
+        let (root, _mounted) = mount_pick_overlay(
             &runtime,
             AnchorPickOwner::Part {
                 part_id: "mcu".into(),
@@ -12802,7 +13084,13 @@ mod tool_tests {
         );
         let target = pick_ring(&root, "matrix:0:0");
         dispatch_pointer(&target, "pointerenter", false, false, 0, (60, 60));
-        gloo_timers::future::TimeoutFuture::new(120).await;
+        wait_until("hover shows the part anchor preview", || {
+            root.query_selector_all("[data-anchor-pick-preview]")
+                .unwrap()
+                .length()
+                > 0
+        })
+        .await;
         assert!(
             root.query_selector_all("[data-anchor-pick-preview]")
                 .unwrap()
@@ -12865,7 +13153,7 @@ mod tool_tests {
             column: None,
             assembly_id: None,
         };
-        let root = mount_pick_overlay(
+        let (root, _mounted) = mount_pick_overlay(
             &runtime,
             AnchorPickOwner::Part {
                 part_id: "mcu".into(),
@@ -12905,6 +13193,9 @@ mod tool_tests {
             ("matrix", 0, 0),
             "the detached part anchors"
         );
+        // Drain the anchor-commit task before unmount: it writes the toast
+        // feedback after the revision lands, and must finish while mounted.
+        let _toast = wait_for_pick_toast(&runtime, &root).await;
         root.remove();
     }
 
@@ -12932,7 +13223,7 @@ mod tool_tests {
         let context = TreeContext::Matrix {
             matrix_id: fixture::MATRIX_ID.into(),
         };
-        let root = mount_pick_overlay(
+        let (root, _mounted) = mount_pick_overlay(
             &runtime,
             AnchorPickOwner::Matrix {
                 matrix: Rc::new(matrix),

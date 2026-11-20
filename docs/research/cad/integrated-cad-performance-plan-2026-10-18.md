@@ -359,7 +359,7 @@ Dioxus and packages `/boardstudio/`. The
 release CAD compilation and an unoptimized page. The independent CAD manifest
 patches the vendored Monstertruck crates. The packaged worker entry imports
 `assets/cad/boardstudio_cad_wasm.js`. The Rust
-[worker](../../../web/crates/host/src/cad_worker.rs) initializes lazily, validates
+[worker](../../../web/crates/worker-host/src/cad_worker.rs) initializes lazily, validates
 requests/transfers/revisions and selects preview, exact, STEP, vendor or keycap
 operations. STEP-only export avoids mesh allocation and uses its own worker.
 `model/metrics.rs` stage hooks are no-ops; they are not usable internal timings.

@@ -5383,6 +5383,7 @@ mod contextual_layer_tests {
     use super::*;
     use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
     use boardstudio_core::model::{MechanicalFeatureKind, MechanicalOpeningVertex, Vec2, Vec3};
+    use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::{
         test_role::{all_by_role_name, by_role_name},
         test_wait::wait_until,
@@ -5630,7 +5631,8 @@ mod contextual_layer_tests {
 
     #[wasm_bindgen_test]
     async fn pending_action_disables_only_its_control() {
-        mount_battery_test_page("case-pending-action-root", pending_action_test_page);
+        let _mounted =
+            mount_battery_test_page("case-pending-action-root", pending_action_test_page);
         rendered().await;
         let root = element("#case-pending-action-root");
         by_role_name(&root, "button", "Assembly settings")
@@ -5812,10 +5814,7 @@ mod contextual_layer_tests {
         let root = document.create_element("div").unwrap();
         root.set_id("case-custom-profile-test-host");
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
-            test_page_dom(custom_profile_test_page),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), test_page_dom(custom_profile_test_page));
         rendered().await;
         let element = |selector: &str| {
             root.query_selector(selector)
@@ -5985,10 +5984,7 @@ mod contextual_layer_tests {
         let root = document.create_element("div").unwrap();
         root.set_id("case-profile-volume-draft-test-host");
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
-            test_page_dom(custom_profile_test_page),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), test_page_dom(custom_profile_test_page));
         rendered().await;
         let custom_profile =
             by_role_name(&root, "group", "Fit profile Custom tactile switch").unwrap();
@@ -6104,10 +6100,7 @@ mod contextual_layer_tests {
         let root = document.create_element("div").unwrap();
         root.set_id("case-profile-clearance-test-host");
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
-            test_page_dom(custom_profile_test_page),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), test_page_dom(custom_profile_test_page));
         rendered().await;
         let custom_profile =
             by_role_name(&root, "group", "Fit profile Custom tactile switch").unwrap();
@@ -6192,7 +6185,8 @@ mod contextual_layer_tests {
 
     #[wasm_bindgen_test]
     async fn multiline_text_draft_is_named_and_describes_its_error() {
-        mount_battery_test_page("case-text-multiline-root", text_multiline_test_page);
+        let _mounted =
+            mount_battery_test_page("case-text-multiline-root", text_multiline_test_page);
         rendered().await;
         let root = element("#case-text-multiline-root");
         let area = by_role_name(&root, "textbox", "Screw lengths")
@@ -6253,7 +6247,7 @@ mod contextual_layer_tests {
 
     #[wasm_bindgen_test]
     async fn text_escape_discards_and_new_drafts_queue_before_acknowledgment() {
-        mount_battery_test_page("case-text-commit-root", text_commit_test_page);
+        let _mounted = mount_battery_test_page("case-text-commit-root", text_commit_test_page);
         rendered().await;
         let root = element("#case-text-commit-root");
         let input = by_role_name(&root, "textbox", "Thread")
@@ -6456,15 +6450,12 @@ mod contextual_layer_tests {
         }
     }
 
-    fn mount_battery_test_page(root_id: &'static str, page: fn() -> Element) {
+    fn mount_battery_test_page(root_id: &'static str, page: fn() -> Element) -> MountedFixture {
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         root.set_id(root_id);
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
-            test_page_dom(page),
-            dioxus_web::Config::new().rootnode(root.into()),
-        );
+        MountedFixture::new(root.clone(), test_page_dom(page))
     }
 
     #[wasm_bindgen_test]
@@ -6476,10 +6467,8 @@ mod contextual_layer_tests {
         let root = document.create_element("div").unwrap();
         root.set_id("case-contextual-mechanical-settings-test-root");
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
-            test_page_dom(test_page),
-            dioxus_web::Config::new().rootnode(root.into()),
-        );
+        let mut mounted = MountedFixture::new(root.clone(), test_page_dom(test_page));
+        mounted.own_node(stylesheet.clone());
         rendered().await;
 
         let scope = element("#case-contextual-mechanical-settings-test-root");
@@ -6626,7 +6615,7 @@ mod contextual_layer_tests {
 
     #[wasm_bindgen_test]
     async fn unassigned_profile_guidance_shows_saved_plate_to_pcb_gap() {
-        mount_battery_test_page(
+        let _mounted = mount_battery_test_page(
             "case-empty-profile-guidance-test-root",
             empty_profile_guidance_test_page,
         );
@@ -6642,7 +6631,8 @@ mod contextual_layer_tests {
 
     #[wasm_bindgen_test]
     async fn previous_generated_layer_context_stays_visible_and_is_labeled() {
-        mount_battery_test_page("case-previous-settings-test-root", previous_test_page);
+        let _mounted =
+            mount_battery_test_page("case-previous-settings-test-root", previous_test_page);
         rendered().await;
         let scope = element("#case-previous-settings-test-root");
         let text = scope.text_content().unwrap_or_default();
@@ -6662,7 +6652,7 @@ mod contextual_layer_tests {
 
     #[wasm_bindgen_test]
     async fn battery_controls_match_wired_and_wireless_modes_and_dispatch_toggle() {
-        mount_battery_test_page("case-battery-settings-test-root", BatteryTestPage);
+        let _mounted = mount_battery_test_page("case-battery-settings-test-root", BatteryTestPage);
         rendered().await;
 
         let document = web_sys::window().unwrap().document().unwrap();
@@ -6823,10 +6813,7 @@ mod contextual_layer_tests {
         let root = document.create_element("div").unwrap();
         root.set_id("case-pair-feature-test-host");
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
-            test_page_dom(PairFeatureTestPage),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), test_page_dom(PairFeatureTestPage));
         rendered().await;
 
         // The panel renders the accepted pair state for every covered kind.
@@ -7088,10 +7075,7 @@ mod contextual_layer_tests {
         let root = document.create_element("div").unwrap();
         root.set_id("case-legacy-construction-test-host");
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
-            test_page_dom(LegacyConstructionTestPage),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), test_page_dom(LegacyConstructionTestPage));
         rendered().await;
 
         // Reachable only for a legacy half, and it submits nothing on its own.
@@ -7181,10 +7165,7 @@ mod contextual_layer_tests {
         let root = document.create_element("div").unwrap();
         root.set_id("case-paired-removal-test-host");
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
-            test_page_dom(PairedRemovalTestPage),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), test_page_dom(PairedRemovalTestPage));
         rendered().await;
 
         // The control exists for a linked half and nothing is submitted on its own.
@@ -7286,7 +7267,7 @@ mod contextual_layer_tests {
 
     #[wasm_bindgen_test]
     async fn mount_collection_names_its_disclosure_and_submits_typed_mount_changes() {
-        mount_battery_test_page("case-mount-test-root", mount_collection_test_page);
+        let _mounted = mount_battery_test_page("case-mount-test-root", mount_collection_test_page);
         rendered().await;
         let root = element("#case-mount-test-root");
         by_role_name(&root, "button", "Suspension mounts · 1")
@@ -7371,7 +7352,8 @@ mod contextual_layer_tests {
 
     #[wasm_bindgen_test]
     async fn opening_controls_name_their_disclosure_and_submit_typed_opening_changes() {
-        mount_battery_test_page("case-opening-test-root", opening_controls_test_page);
+        let _mounted =
+            mount_battery_test_page("case-opening-test-root", opening_controls_test_page);
         rendered().await;
         let root = element("#case-opening-test-root");
         by_role_name(&root, "button", "Case openings · 2")
@@ -7474,7 +7456,8 @@ mod contextual_layer_tests {
 
     #[wasm_bindgen_test]
     async fn closure_controls_name_their_disclosures_and_submit_typed_closure_changes() {
-        mount_battery_test_page("case-closure-test-root", closure_controls_test_page);
+        let _mounted =
+            mount_battery_test_page("case-closure-test-root", closure_controls_test_page);
         rendered().await;
         let root = element("#case-closure-test-root");
         assert!(
@@ -7583,7 +7566,8 @@ mod contextual_layer_tests {
 
     #[wasm_bindgen_test]
     async fn critical_fit_controls_name_their_disclosure_and_submit_typed_fit_changes() {
-        mount_battery_test_page("case-fits-test-root", critical_fit_controls_test_page);
+        let _mounted =
+            mount_battery_test_page("case-fits-test-root", critical_fit_controls_test_page);
         rendered().await;
         let root = element("#case-fits-test-root");
         assert!(
@@ -7717,7 +7701,7 @@ mod contextual_layer_tests {
 
     #[wasm_bindgen_test]
     async fn manufacturing_controls_submit_typed_process_and_stabilizer_changes() {
-        mount_battery_test_page(
+        let _mounted = mount_battery_test_page(
             "case-manufacturing-test-root",
             manufacturing_controls_test_page,
         );
@@ -7816,7 +7800,7 @@ mod contextual_layer_tests {
 
     #[wasm_bindgen_test]
     async fn diagnostics_name_each_finding_and_show_the_chosen_one() {
-        mount_battery_test_page("case-diagnostics-test-root", diagnostics_test_page);
+        let _mounted = mount_battery_test_page("case-diagnostics-test-root", diagnostics_test_page);
         rendered().await;
         let root = element("#case-diagnostics-test-root");
         let text = root.text_content().unwrap_or_default();
@@ -7883,7 +7867,7 @@ mod contextual_layer_tests {
 
     #[wasm_bindgen_test]
     async fn gasket_context_names_its_return_and_fields() {
-        mount_battery_test_page("case-gasket-test-root", gasket_context_test_page);
+        let _mounted = mount_battery_test_page("case-gasket-test-root", gasket_context_test_page);
         rendered().await;
         let root = element("#case-gasket-test-root");
         let text = root.text_content().unwrap_or_default();
@@ -7960,7 +7944,8 @@ mod contextual_layer_tests {
 
     #[wasm_bindgen_test]
     async fn setup_basics_submit_typed_mount_battery_and_process_changes() {
-        mount_battery_test_page("case-setup-basics-test-root", setup_basics_test_page);
+        let _mounted =
+            mount_battery_test_page("case-setup-basics-test-root", setup_basics_test_page);
         rendered().await;
         let root = element("#case-setup-basics-test-root");
         by_role_name(&root, "button", "Case mounting style")
@@ -8016,10 +8001,7 @@ mod contextual_layer_tests {
         let root = document.create_element("div").unwrap();
         root.set_id("case-paired-disable-test-host");
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
-            test_page_dom(PairedDisableTestPage),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), test_page_dom(PairedDisableTestPage));
         rendered().await;
 
         let explanation = root.text_content().unwrap();
@@ -8209,10 +8191,7 @@ mod contextual_layer_tests {
         let root = document.create_element("div").unwrap();
         root.set_id("case-pair-link-test-host");
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
-            test_page_dom(PairLinkTestPage),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let _mounted = MountedFixture::new(root.clone(), test_page_dom(PairLinkTestPage));
         rendered().await;
 
         // The review shows the map the link will use and the durable matches before
@@ -8376,9 +8355,10 @@ mod mounted_settlement_tests {
     use boardstudio_core::model::{
         GasketConstructionVersion, InternalGasketConfiguration, PartDefinition, ProjectDoc,
     };
+    use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::{
         test_role::by_role_name,
-        test_wait::{wait_until, wait_until_future},
+        test_wait::{settle_until, wait_until, wait_until_future},
     };
     use futures_channel::oneshot;
     use std::{cell::RefCell, collections::VecDeque};
@@ -8561,14 +8541,14 @@ mod mounted_settlement_tests {
         }
     }
 
-    async fn mounted_fields(project_id: &str) -> (Rc<Runtime>, web_sys::Element) {
+    async fn mounted_fields(project_id: &str) -> (Rc<Runtime>, web_sys::Element, MountedFixture) {
         mounted_fields_with_catalogue(project_id, TestCatalogue::default()).await
     }
 
     async fn mounted_fields_with_catalogue(
         project_id: &str,
         catalogue: TestCatalogue,
-    ) -> (Rc<Runtime>, web_sys::Element) {
+    ) -> (Rc<Runtime>, web_sys::Element, MountedFixture) {
         let runtime = support::new_runtime();
         let mut document = ProjectDoc::empty(project_id, "Mechanical field settlement");
         document.boards.push(
@@ -8632,28 +8612,17 @@ mod mounted_settlement_tests {
         let dom = VirtualDom::new(host);
         dom.provide_root_context(runtime.clone());
         dom.provide_root_context(catalogue);
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
+        let mounted = MountedFixture::new(root.clone(), dom);
         wait_until("the mounted mechanical fields render", || {
             has(&root, ".test-mechanical-dimension input")
                 && has(&root, ".test-mechanical-text input")
         })
         .await;
-        (runtime, root)
+        (runtime, root, mounted)
     }
 
     async fn rendered() {
         gloo_timers::future::TimeoutFuture::new(40).await;
-    }
-
-    async fn settle_until(runtime: &Rc<Runtime>, what: &str, done: impl Fn() -> bool) {
-        wait_until(what, || {
-            support::drive_pending(runtime);
-            done()
-        })
-        .await;
     }
 
     fn wall_thickness(runtime: &Runtime) -> f64 {
@@ -8742,7 +8711,7 @@ mod mounted_settlement_tests {
     async fn a_newer_original_mechanical_draft_survives_an_older_held_landing() {
         for (field, submitted, original) in [("dimension", "3", "2"), ("text", "M3", "M2")] {
             let project_id = format!("mechanical-original-{field}");
-            let (runtime, root) = mounted_fields(&project_id).await;
+            let (runtime, root, _mounted) = mounted_fields(&project_id).await;
             let (entered, release) = support::gate_next_core_reply(&runtime);
             let input = input(&root, field);
             type_value(&input, submitted);
@@ -8757,6 +8726,7 @@ mod mounted_settlement_tests {
             release.send(()).unwrap();
             settle_until(
                 &runtime,
+                async |runtime| support::drive_pending(runtime),
                 "the held landing is accepted and the newer original draft stays",
                 || {
                     accepted_revision(&runtime) > landed
@@ -8778,7 +8748,7 @@ mod mounted_settlement_tests {
     #[wasm_bindgen_test]
     async fn mounted_mechanical_latest_commit_keeps_both_edits_and_undo_steps() {
         let project_id = "mechanical-mounted-latest";
-        let (runtime, root) = mounted_fields(project_id).await;
+        let (runtime, root, _mounted) = mounted_fields(project_id).await;
         let (entered, release) = support::gate_next_core_reply(&runtime);
         let input = input(&root, "dimension");
         type_value(&input, "3");
@@ -8793,9 +8763,12 @@ mod mounted_settlement_tests {
         rendered().await;
         support::drive_pending(&runtime);
         release.send(()).unwrap();
-        settle_until(&runtime, "the latest mechanical commit is accepted", || {
-            wall_thickness(&runtime) == 4.0 && input.value() == "4"
-        })
+        settle_until(
+            &runtime,
+            async |runtime| support::drive_pending(runtime),
+            "the latest mechanical commit is accepted",
+            || wall_thickness(&runtime) == 4.0 && input.value() == "4",
+        )
         .await;
         assert_eq!(
             runtime
@@ -8816,6 +8789,7 @@ mod mounted_settlement_tests {
             });
             settle_until(
                 &runtime,
+                async |runtime| support::drive_pending(runtime),
                 "the undo restores the earlier accepted step",
                 || wall_thickness(&runtime) == accepted && input.value() == expected_text,
             )
@@ -8850,7 +8824,8 @@ mod mounted_settlement_tests {
             let catalogue = TestCatalogue::default();
             catalogue.0.borrow_mut().push_back(reply);
             let project_id = format!("mechanical-catalogue-{field}-{expected}");
-            let (runtime, root) = mounted_fields_with_catalogue(&project_id, catalogue).await;
+            let (runtime, root, _mounted) =
+                mounted_fields_with_catalogue(&project_id, catalogue).await;
             let input = input(&root, field);
             type_value(&input, submitted);
             input.blur().unwrap();
@@ -8861,6 +8836,7 @@ mod mounted_settlement_tests {
             release.send(Err("catalogue unavailable".into())).unwrap();
             settle_until(
                 &runtime,
+                async |runtime| support::drive_pending(runtime),
                 "the catalogue failure restores or keeps the draft",
                 || {
                     input.value() == expected
@@ -8897,7 +8873,7 @@ mod mounted_settlement_tests {
         let catalogue = TestCatalogue::default();
         catalogue.0.borrow_mut().push_back(reply);
         let project_id = "mechanical-preparation-remount";
-        let (runtime, root) = mounted_fields_with_catalogue(project_id, catalogue).await;
+        let (runtime, root, _mounted) = mounted_fields_with_catalogue(project_id, catalogue).await;
         support::fail_next_core_reply(&runtime, "old preparation failed");
         let old_input = input(&root, "dimension");
         type_value(&old_input, "3");
@@ -8970,7 +8946,7 @@ mod mounted_settlement_tests {
     #[wasm_bindgen_test]
     async fn profile_volume_siblings_bind_distinct_fields_for_the_same_domain_request() {
         let project_id = "mechanical-profile-siblings";
-        let (runtime, root) = mounted_fields(project_id).await;
+        let (runtime, root, _mounted) = mounted_fields(project_id).await;
         support::fail_next_core_reply(&runtime, "profile volume failed");
         let bottom = profile_input(&root, "Bottom Z");
         let height = profile_input(&root, "Height");
@@ -8980,6 +8956,7 @@ mod mounted_settlement_tests {
         type_value(&height, "15");
         settle_until(
             &runtime,
+            async |runtime| support::drive_pending(runtime),
             "the profile volume failure restores its field",
             || {
                 bottom.value() == "0"
@@ -9011,7 +8988,7 @@ mod mounted_settlement_tests {
         let catalogue = TestCatalogue::default();
         catalogue.0.borrow_mut().extend([reply_a, reply_b]);
         let project_id = "mechanical-catalogue-latest-error";
-        let (runtime, root) = mounted_fields_with_catalogue(project_id, catalogue).await;
+        let (runtime, root, _mounted) = mounted_fields_with_catalogue(project_id, catalogue).await;
         let input = input(&root, "dimension");
         for _ in 0..2 {
             type_value(&input, "3");
@@ -9021,11 +8998,16 @@ mod mounted_settlement_tests {
         release_b
             .send(Err("newer catalogue failure".into()))
             .unwrap();
-        settle_until(&runtime, "the newer catalogue failure is reported", || {
-            input.value() == "2"
-                && inline_failure(&root, "dimension")
-                    .is_some_and(|message| message.contains("newer catalogue failure"))
-        })
+        settle_until(
+            &runtime,
+            async |runtime| support::drive_pending(runtime),
+            "the newer catalogue failure is reported",
+            || {
+                input.value() == "2"
+                    && inline_failure(&root, "dimension")
+                        .is_some_and(|message| message.contains("newer catalogue failure"))
+            },
+        )
         .await;
         assert_eq!(input.value(), "2");
         assert!(
@@ -9048,7 +9030,7 @@ mod mounted_settlement_tests {
     #[wasm_bindgen_test]
     async fn presentation_departure_retires_field_observation_without_canceling_session_edit() {
         let project_id = "mechanical-presentation-return";
-        let (runtime, root) = mounted_fields(project_id).await;
+        let (runtime, root, _mounted) = mounted_fields(project_id).await;
         let (entered, release) = support::gate_next_core_reply(&runtime);
         let first_input = input(&root, "dimension");
         type_value(&first_input, "3");
@@ -9084,6 +9066,7 @@ mod mounted_settlement_tests {
         release.send(()).unwrap();
         settle_until(
             &runtime,
+            async |runtime| support::drive_pending(runtime),
             "the held Session edit lands and the returned field shows it",
             || wall_thickness(&runtime) == 3.0 && returned.value() == "3",
         )
@@ -9114,7 +9097,8 @@ mod mounted_settlement_tests {
             let catalogue = TestCatalogue::default();
             catalogue.0.borrow_mut().extend([reply_a, reply_b]);
             let project_id = format!("mechanical-mixed-phase-{newer}");
-            let (runtime, root) = mounted_fields_with_catalogue(&project_id, catalogue).await;
+            let (runtime, root, _mounted) =
+                mounted_fields_with_catalogue(&project_id, catalogue).await;
             let (entered, release_a) = support::gate_next_core_reply(&runtime);
             let input = input(&root, "dimension");
             type_value(&input, "3");
@@ -9133,6 +9117,7 @@ mod mounted_settlement_tests {
                 .unwrap();
             settle_until(
                 &runtime,
+                async |runtime| support::drive_pending(runtime),
                 "the newer preparation failure is reported",
                 || {
                     input.value() == newer
@@ -9155,6 +9140,7 @@ mod mounted_settlement_tests {
             release_a.send(()).unwrap();
             settle_until(
                 &runtime,
+                async |runtime| support::drive_pending(runtime),
                 "the held Session edit lands beside the newer draft",
                 || {
                     wall_thickness(&runtime) == 3.0
