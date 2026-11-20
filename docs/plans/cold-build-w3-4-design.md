@@ -485,3 +485,41 @@ in-process `CoreEngine` executor plus archive, artifact and firmware entry point
 engines in production. Lifting that gate means moving the engine-free readiness checks
 and `migrate_value` out of the engine and putting `Runtime`'s executor behind an injected
 trait — well beyond a contained slice.
+
+
+### Test-only dev-dependency cycles removed
+
+Follow-up on §3.1 item 8 and §7 (`refactor/core/remove-test-cycles`). The kernel,
+kicad-source and mechanical test binaries could not start compiling until the whole
+engine graph was built (warm cold run: kernel tests started at 75.3 s although the kernel
+library was ready near 60 s; mechanical at 100.4 s; kicad-source at 102.5 s). Their
+dev-dependencies on `boardstudio-core-engine` (and `boardstudio-script`) are gone. The
+eight tests that actually drove `CoreEngine` or the artifact request moved one layer up and
+use public items only; every non-engine test stayed where it was:
+
+- `core/crates/engine/tests/matrix_through_engine.rs`: kernel `matrix::tests` companion
+  pose across refresh and `Open`.
+- `core/crates/engine/tests/framed_constraints_through_engine.rs`: kernel
+  `constraints::framed_tests` legacy-offset `Open` reconciliation and the two
+  endpoint-versus-derive companion parity tests (these call
+  `mirrored_half::companion_placement` directly, so the engine's
+  `companion_placement_for_test` window is deleted).
+- `core/crates/engine/tests/mechanical_through_engine.rs`: mechanical `clearance::tests`
+  MH-reference boundary tests and `edit::tests` link-then-undo.
+- `core/crates/artifact/tests/mechanical_extract_request.rs`: kicad-source
+  `mechanical_extract::tests` artifact request (artifact already depends on kicad-source).
+
+The mirrored-half cycle remains, deliberately. Its tests are not a few engine users that can
+be lifted out: `EditDispatch` (`test_dispatch()`) is passed to private entry points
+(`lifecycle::prepare_lifecycle_transition`, `prepare_exception_intent`,
+`transition_exception_context`, `lifecycle_context`, `reconcile` and the prepare helpers) from
+about 230 call sites across `lifecycle/tests.rs`, `reconcile/tests.rs`,
+`reconcile/prepare/tests.rs`, `matrix_addition/*tests.rs`, `settings_tests.rs` and
+`inverse/tests.rs`, and those modules share fixtures (`reconcile::tests::fixture_document`,
+`matrix_addition::tests::pair_document`) and `use super::*` private types with the 100+ tests
+that never touch the engine. Moving them to `engine/tests/` would need a `test-support`
+feature on mirrored-half re-exporting dozens of `pub(super)`/private functions, types and
+fields plus the fixture modules compiled into the library, which is broad widening in exchange
+for the sharding that §7 already records as optional. The test binary remains the largest unit
+(about 44 s) but is no longer on the critical path of kernel, kicad-source or mechanical tests.
+The engine `test-support` feature stays for it, as do the `*_for_test` windows it uses.
