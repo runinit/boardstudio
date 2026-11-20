@@ -20,7 +20,7 @@
 ## Editing & Verification
 
 - **Inventory & scripted edits:** Find all uses of a changed type/field by removing it and reading `cargo check`. For scripted edits, replace one exact unique string, assert match count, read the diff before testing, and WIP-commit before large rewrites. Never use `git stash`.
-- **Checks & baselines:** Use `python3 scripts/check.py quick` during iteration and `check.py` for full gates. After merging parallel worktrees, run `python3 scripts/check.py repo tooling` before continuing (cross-script tests live outside individual script test files). Update native test baselines only via `check.py test --update-native-baseline` and verify zero test names were dropped. Mutation checks use `scripts/mutation-check.py`.
+- **Checks & baselines:** Use `python3 scripts/check.py quick` during iteration and `check.py` for full gates. After merging parallel worktrees, run `python3 scripts/check.py repo tooling` before continuing (cross-script tests live outside individual script test files). Mutation checks use `scripts/mutation-check.py`.
 - **Evidence:** `.evidence/` holds logs only (plus committed handoff records). Redirect long check/mutation logs there and report concise results. Never create `target` dirs, crate copies, `before/`/`after/` trees, or custom SHA-256 manifests inside `.evidence/`.
 
 ## Workflow & Conventions

@@ -78,7 +78,7 @@ Every claimed cycle-breaker below was read at its call site, not just counted.
 ## 3. W3-4a — `boardstudio-core-engine` findings
 
 Top modules (LOC includes inline and file tests; native tests from
-[check-native-tests-baseline.json](../../scripts/check-native-tests-baseline.json),
+`scripts/check-native-tests-baseline.json`,
 `boardstudio_core_engine: 717`):
 
 | Top module | LOC | Native tests | Production `crate::` out-edges (excl. `model`) |

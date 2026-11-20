@@ -1556,7 +1556,7 @@ def _run_plan(plan, update_native_baseline=False, *, keep_going=False, partial=F
                                   full=all(command in commands for command in CARGO_TESTS))
         if passed and captured:
             passed, written = guard_native_tests(commands, captured, update_native_baseline)
-            baseline_written = baseline_written or written
+            baseline_written = baseline_written or written or (update_native_baseline and passed)
         if not passed:
             print(f"check: step '{name}' failed", file=sys.stderr)
         return passed

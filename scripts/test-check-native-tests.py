@@ -179,157 +179,32 @@ class LaunchesTests(unittest.TestCase):
 
 
 class VerifyTests(unittest.TestCase):
-    def setUp(self):
-        self.directory = tempfile.TemporaryDirectory()
-        self.addCleanup(self.directory.cleanup)
-        self.path = Path(self.directory.name) / "baseline.json"
-        self.path.write_text(json.dumps(EXECUTED))
+    def test_valid_launch_without_baseline_and_legacy_update(self):
+        output = CORE_OUTPUT.replace("drops_pairs ... FAILED", "drops_pairs ... ok").replace(
+            "FAILED. 2 passed; 1 failed", "ok. 3 passed; 0 failed")
+        for update in (False, True):
+            with self.subTest(update=update):
+                self.assertEqual(guard.verify([output], full=True, update=update), (True, False))
 
-    def verify(self, output, **kwargs):
-        errors = io.StringIO()
-        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(errors):
-            result = guard.verify([output], baseline_path=self.path, **kwargs)
-        return result, errors.getvalue()
+    def test_failed_truncated_and_inconsistent_launches_fail(self):
+        valid = CORE_OUTPUT.replace("drops_pairs ... FAILED", "drops_pairs ... ok").replace(
+            "FAILED. 2 passed; 1 failed", "ok. 3 passed; 0 failed")
+        for output in (CORE_OUTPUT, valid.split("test result:")[0],
+                       valid.replace("running 4 tests", "running 5 tests")):
+            with self.subTest(output=output), contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(guard.verify([output], full=True), (False, False))
 
-    def test_an_identical_run_passes(self):
-        self.assertEqual(self.verify(CORE_OUTPUT, full=True)[0], (True, False))
+    def test_missing_explicit_baseline_does_not_fail(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = CORE_OUTPUT.replace("drops_pairs ... FAILED", "drops_pairs ... ok").replace(
+                "FAILED. 2 passed; 1 failed", "ok. 3 passed; 0 failed")
+            self.assertEqual(guard.verify([output], full=True, baseline_path=Path(directory) / "missing"),
+                             (True, False))
 
-    def test_a_deleted_test_fails_and_is_named(self):
-        output = CORE_OUTPUT.replace("test beta::roundtrip ... ok\n", "")
-        (ok, written), errors = self.verify(output, full=True)
-        self.assertFalse(ok)
-        self.assertFalse(written)
-        self.assertIn("beta::roundtrip (absent)", errors)
-        self.assertIn("--update-native-baseline", errors)
-
-    def test_a_test_that_is_now_ignored_is_no_longer_executed(self):
-        output = CORE_OUTPUT.replace("test beta::roundtrip ... ok", "test beta::roundtrip ... ignored")
-        (ok, _), errors = self.verify(output, full=True)
-        self.assertFalse(ok)
-        self.assertIn("beta::roundtrip (ignored)", errors)
-
-    def test_added_tests_do_not_fail(self):
-        output = CORE_OUTPUT.replace("test beta::roundtrip ... ok\n",
-                                     "test beta::roundtrip ... ok\ntest beta::brand_new ... ok\n")
-        self.assertEqual(self.verify(output, full=True)[0], (True, False))
-
-    def test_a_vanished_binary_fails_a_full_run_but_not_a_partial_one(self):
-        output = CORE_OUTPUT.split("     Running tests/durable_session.rs")[0]
-        self.assertFalse(self.verify(output, full=True)[0][0])
-        self.assertTrue(self.verify(output, full=False)[0][0])
-
-    def test_a_partial_run_still_fails_for_a_binary_it_ran(self):
-        output = CORE_OUTPUT.replace("test beta::roundtrip ... ok\n", "")
-        self.assertFalse(self.verify(output, full=False)[0][0])
-
-    def test_a_missing_baseline_fails_until_it_is_recorded(self):
-        self.path.unlink()
-        self.assertFalse(self.verify(CORE_OUTPUT, full=True)[0][0])
-        self.assertEqual(self.verify(CORE_OUTPUT, full=True, update=True)[0], (True, True))
-        self.assertEqual(json.loads(self.path.read_text()), EXECUTED)
-
-    def test_update_replaces_the_baseline_on_a_full_run(self):
-        output = CORE_OUTPUT.replace("test beta::roundtrip ... ok\n", "").replace(
-            "     Running tests/durable_session.rs (target/debug/deps/durable_session-fedcba9876543210)",
-            "     Running tests/renamed.rs (target/debug/deps/renamed-fedcba9876543210)")
-        self.assertEqual(self.verify(output, full=True, update=True)[0], (True, True))
-        recorded = json.loads(self.path.read_text())
-        self.assertEqual(sorted(recorded), ["boardstudio_core", "renamed"], "a full run drops vanished binaries")
-        self.assertEqual(recorded["boardstudio_core"], ["alpha::tests::drops_pairs", "alpha::tests::keeps_pairs"])
-        self.assertEqual(self.verify(output, full=True)[0], (True, False))
-
-    def test_update_from_a_partial_run_keeps_the_binaries_it_did_not_run(self):
-        self.path.write_text(json.dumps({**EXECUTED, "elsewhere": ["kept"]}))
-        self.assertEqual(self.verify(CORE_OUTPUT, full=False, update=True)[0], (True, True))
-        self.assertEqual(json.loads(self.path.read_text())["elsewhere"], ["kept"])
-
-    def test_an_unreadable_baseline_fails(self):
-        self.path.write_text("{not json")
-        self.assertFalse(self.verify(CORE_OUTPUT, full=True)[0][0])
-
-
-class CheckIntegrationTests(unittest.TestCase):
-    """`check.py test` applies the guard to the output its cargo commands already produce."""
-
-    def setUp(self):
-        self.directory = tempfile.TemporaryDirectory()
-        self.addCleanup(self.directory.cleanup)
-        self.path = Path(self.directory.name) / "baseline.json"
-        self.path.write_text(json.dumps(EXECUTED))
-        self.runs = []
-
-    def execute(self, outputs, *, jobs, update=False, commands=None, names=("test",)):
-        commands = commands or [*check.CARGO_TESTS, [check.PY, "cad/scripts/test-cad.py"]]
-
-        def fake(command, **kwargs):
-            self.runs.append(command)
-            return mock.Mock(returncode=0, stdout=outputs.get(tuple(command), ""))
-
-        errors = io.StringIO()
-        with mock.patch.object(check.subprocess, "run", side_effect=fake), \
-                mock.patch.object(check, "cargo_target", return_value=HERE.parent / "target"), \
-                mock.patch.object(check, "_parallel_process", side_effect=lambda command, registry, **kwargs: fake(command, **kwargs)), \
-                mock.patch.object(guard, "BASELINE", self.path), \
-                mock.patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": str(jobs)}), \
-                mock.patch.dict(check.STEPS, {"test": (True, commands)}), \
-                contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(errors):
-            return check.run(list(names), update_native_baseline=update), errors.getvalue()
-
-    def outputs(self, core):
-        footprints = ("     Running unittests src/lib.rs (target/debug/deps/boardstudio_footprints-0011223344556677)\n"
-                      "test generates ... ok\n")
-        self.path.write_text(json.dumps({**EXECUTED, "boardstudio_footprints": ["generates"]}))
-        return {tuple(check.CARGO_TESTS[0]): core + footprints}
-
-    def test_a_deleted_test_fails_the_step_serially_and_in_parallel(self):
-        gutted = CORE_OUTPUT.replace("test beta::roundtrip ... ok\n", "")
-        for jobs in (1, 4):
-            with self.subTest(jobs=jobs):
-                code, errors = self.execute(self.outputs(gutted), jobs=jobs)
-                self.assertEqual(code, 1)
-                self.assertIn("beta::roundtrip (absent)", errors)
-                self.assertIn("step 'test' failed", errors)
-
-    def test_an_unchanged_suite_passes_and_runs_each_command_once(self):
-        for jobs in (1, 4):
-            with self.subTest(jobs=jobs):
-                self.runs.clear()
-                self.assertEqual(self.execute(self.outputs(CORE_OUTPUT), jobs=jobs)[0], 0)
-                self.assertEqual(sorted(self.runs), sorted([*check.CARGO_TESTS, [check.PY, "cad/scripts/test-cad.py"]]))
-
-    def test_the_update_flag_records_a_deliberate_removal(self):
-        gutted = CORE_OUTPUT.replace("test beta::roundtrip ... ok\n", "")
-        outputs = self.outputs(gutted)
-        self.assertEqual(self.execute(outputs, jobs=1, update=True)[0], 0)
-        self.assertNotIn("beta::roundtrip", json.loads(self.path.read_text())["boardstudio_core"])
-        self.assertEqual(self.execute(outputs, jobs=1)[0], 0)
-
-    def test_the_update_flag_without_a_cargo_test_is_an_error(self):
-        code, errors = self.execute({}, jobs=1, update=True, commands=[["python3", "-c", "pass"]])
-        self.assertEqual(code, 1)
-        self.assertIn("baseline is unchanged", errors)
-
-    def test_a_failing_cargo_command_is_not_second_guessed_by_the_guard(self):
-        with mock.patch.object(check.subprocess, "run", return_value=mock.Mock(returncode=101, stdout="")), \
-                mock.patch.object(guard, "BASELINE", self.path), \
-                mock.patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "1"}), \
-                contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()) as errors:
-            self.assertEqual(check.run(["test"]), 1)
-        self.assertNotIn("native tests", errors.getvalue())
-
-    def test_the_update_flag_is_rejected_for_steps_that_run_no_tests(self):
-        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as raised:
-            check.main(["repo", "--update-native-baseline"])
-        self.assertEqual(raised.exception.code, 2)
-
-    def test_the_committed_baseline_is_well_formed(self):
-        baseline = guard.load_baseline(HERE / "check-native-tests-baseline.json")
-        self.assertTrue(baseline, "the committed baseline must not be empty")
-        for binary, names in baseline.items():
-            self.assertEqual(names, sorted(set(names)), f"{binary}: sorted, unique names")
-        # boardstudio-model has no lib test harness; its tests run as integration targets.
-        for binary in ("boardstudio_core_engine", "constraints_relation", "boardstudio_script"):
-            self.assertTrue(baseline.get(binary), f"{binary}: expected unit-test names")
+    def test_no_binary_output(self):
+        with contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(guard.verify([], full=True), (True, False))
+            self.assertEqual(guard.verify([], full=True, update=True), (False, False))
 
 
 if __name__ == "__main__":

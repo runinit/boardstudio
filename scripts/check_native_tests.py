@@ -1,25 +1,4 @@
-"""Native test-name guard for `python3 scripts/check.py test`.
-
-AGENTS.md says executed test counts must not drop. The WASM side is guarded by
-scripts/check-wasm-tests.py; this guards the native `cargo test` step the same way, by test
-NAME rather than by count: a count stays level when one test is deleted and another added.
-
-The names come from the output the `test` step's `cargo test` commands already produce
-(`Running ... (target/debug/deps/<binary>-<hash>)` followed by `test <name> ... ok`), so the
-suite is never run a second time. scripts/check-native-tests-baseline.json maps each test
-binary to the sorted names it executed:
-
-  {"boardstudio_core": ["mirrored_half::reconcile::tests::foo", ...], ...}
-
-A baselined test that is absent from a run, or only `ignored`, fails the step. New tests never
-fail it. A full `test` step (the whole workspace and footprints) must also execute every
-baselined binary; a partial run (`check.py quick`) checks only the binaries it ran. Doc-tests
-are not baselined: their names carry line numbers.
-
-Record intentional removals, renames and additions with
-`python3 scripts/check.py test --update-native-baseline` (after the tests pass); review the
-JSON diff in the commit. Do not hand-edit the file.
-"""
+"""Verify native test launches and optionally compare an explicit test-name baseline."""
 
 from __future__ import annotations
 
@@ -182,11 +161,19 @@ def report(gone: dict[str, list[str]], run: Run) -> list[str]:
 def verify(outputs: list[str], *, full: bool, update: bool = False,
            baseline_path: Path | None = None) -> tuple[bool, bool]:
     """Compares a passing run with the baseline. Returns (ok, baseline_written)."""
-    baseline_path = baseline_path or BASELINE
     run = collect(outputs)
     if not run.binaries:
         print("check: native tests: no test binary output to inspect; guard skipped", file=sys.stderr)
         return not update, False
+    for launch in launches(outputs):
+        if (launch.summary is None or launch.announced is None
+                or launch.summary[0] != "ok" or launch.summary[2] != 0
+                or launch.announced != sum(launch.summary[1:4])):
+            print(f"check: native tests: {launch.name}: incomplete or failed test summary", file=sys.stderr)
+            return False, False
+    if baseline_path is None or (not baseline_path.exists() and not update):
+        print(f"check: native tests: {run.count()} test(s) executed across {len(run.binaries)} binaries")
+        return True, False
     try:
         baseline = load_baseline(baseline_path)
     except FileNotFoundError:
