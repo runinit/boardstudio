@@ -2,7 +2,7 @@
 use crate::model::{Part, PartDefinition, ProjectDoc};
 pub use boardstudio_model::inputs::*;
 
-pub(crate) fn matrix_member(doc: &ProjectDoc, part: &Part) -> bool {
+pub fn matrix_member(doc: &ProjectDoc, part: &Part) -> bool {
     doc.matrices.iter().any(|matrix| {
         matrix.part_ids.contains(&part.id)
             && part
@@ -12,7 +12,7 @@ pub(crate) fn matrix_member(doc: &ProjectDoc, part: &Part) -> bool {
     })
 }
 
-pub(crate) fn profile(def: &PartDefinition) -> InputProfile {
+pub fn profile(def: &PartDefinition) -> InputProfile {
     if let Some(profile) = &def.input_profile {
         return profile.clone();
     }
@@ -46,7 +46,7 @@ pub(crate) fn profile(def: &PartDefinition) -> InputProfile {
     InputProfile { press, rotary }
 }
 
-pub(crate) fn scan_mode(doc: &ProjectDoc, part: &Part) -> PressScanMode {
+pub fn scan_mode(doc: &ProjectDoc, part: &Part) -> PressScanMode {
     part.properties
         .as_ref()
         .and_then(|p| p.get("pressScanMode"))
@@ -70,7 +70,7 @@ fn pads_for(def: &PartDefinition, terminal: &str) -> Vec<String> {
     })
 }
 
-pub(crate) fn validate_matrix_input(def: &PartDefinition) -> Result<(), String> {
+pub fn validate_matrix_input(def: &PartDefinition) -> Result<(), String> {
     let profile = profile(def);
     let press = profile
         .press
@@ -102,7 +102,7 @@ pub(crate) fn validate_matrix_input(def: &PartDefinition) -> Result<(), String> 
     Ok(())
 }
 
-pub(crate) fn set_scan_mode(
+pub fn set_scan_mode(
     doc: &mut ProjectDoc,
     id: &str,
     mode: PressScanMode,
@@ -218,7 +218,7 @@ pub(crate) fn set_scan_mode(
     Ok(vec![id.into()])
 }
 
-pub(crate) fn finding_markers(
+pub fn finding_markers(
     doc: &ProjectDoc,
     findings: &[crate::model::Finding],
 ) -> Vec<crate::model::FindingMarker> {

@@ -121,7 +121,7 @@ pub fn evaluate(
 
 /// Whether the edit changes resolved outline geometry, so dependent outlines and
 /// findings must be recomputed. Metadata-only naming does not.
-pub(crate) fn affects_outline(change: &OutlineChange) -> bool {
+pub fn affects_outline(change: &OutlineChange) -> bool {
     !matches!(change, OutlineChange::Rename { .. })
 }
 
@@ -258,7 +258,7 @@ fn belongs_to_generated(doc: &ProjectDoc, board_id: &str, id: &str) -> bool {
 }
 
 /// Every persisted outline identity: the single-namespace collision set.
-pub(crate) fn persisted_identities(doc: &ProjectDoc) -> Vec<String> {
+pub fn persisted_identities(doc: &ProjectDoc) -> Vec<String> {
     let mut ids: Vec<String> = doc
         .outline
         .iter()

@@ -2,32 +2,29 @@
 
 pub mod archive;
 pub mod artifact;
-mod case;
-mod constraints;
 pub mod electrical;
 pub use boardstudio_model::electrical_jumpers;
 pub mod electrical_peripherals;
 pub use boardstudio_model::electrical_profiles;
 pub mod firmware;
-pub mod generators;
-mod geometry;
-mod hardware;
-pub mod hash;
-mod inputs;
 mod keycaps;
 mod keymap;
-mod matrix;
 pub mod mechanical;
 mod mechanical_checks;
 pub mod migrate;
 mod mirrored_half;
 pub use boardstudio_model::model;
 mod modules;
-mod outline_controls;
-pub mod outline_edit;
 mod outline_validation;
-mod outline_versions;
 mod validate;
+
+use boardstudio_core_kernel::{
+    case, constraints, geometry, hardware, inputs, matrix, outline_controls, outline_versions,
+};
+pub use boardstudio_core_kernel::{generators, hash, outline_edit};
+
+#[cfg(feature = "test-support")]
+pub use mirrored_half::companion_placement as companion_placement_for_test;
 
 use geometry::{OutlineCache, outlines};
 pub use matrix::kernel as layout_kernel;

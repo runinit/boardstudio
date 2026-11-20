@@ -2,7 +2,7 @@
 pub use boardstudio_model::hardware::*;
 /// Nominal occupied bounds are useful for early fit review even before hardware
 /// qualification. They do not establish swept or service clearances.
-pub(crate) fn nominal_fit(
+pub fn nominal_fit(
     document: &crate::model::ProjectDoc,
 ) -> (Vec<crate::model::Finding>, Vec<crate::model::FindingMarker>) {
     use crate::model::{CaseOpening, Contour, Finding, FindingMarker, Scope, Severity, Side, Vec2};

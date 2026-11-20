@@ -5,7 +5,7 @@ use std::borrow::Cow;
 use std::collections::BTreeSet;
 
 /// Omitted owners have a live logical matrix, but never recreate persisted parts.
-pub(crate) fn logical_matrix<'a>(id: &str, doc: &'a ProjectDoc) -> Result<Cow<'a, Matrix>, String> {
+pub fn logical_matrix<'a>(id: &str, doc: &'a ProjectDoc) -> Result<Cow<'a, Matrix>, String> {
     if let Some(matrix) = doc.matrices.iter().find(|matrix| matrix.id == id) {
         return Ok(Cow::Borrowed(matrix));
     }
@@ -79,7 +79,7 @@ pub(crate) fn logical_matrix<'a>(id: &str, doc: &'a ProjectDoc) -> Result<Cow<'a
     Err(format!("Logical matrix {id} is missing"))
 }
 
-pub(crate) fn order(doc: &ProjectDoc) -> Result<Vec<usize>, String> {
+pub fn order(doc: &ProjectDoc) -> Result<Vec<usize>, String> {
     fn visit(
         index: usize,
         doc: &ProjectDoc,
@@ -122,7 +122,7 @@ pub(crate) fn order(doc: &ProjectDoc) -> Result<Vec<usize>, String> {
     Ok(result)
 }
 
-pub(crate) fn input(matrix: &Matrix) -> LayoutInput {
+pub fn input(matrix: &Matrix) -> LayoutInput {
     LayoutInput {
         column_layout: matrix.column_layout.clone(),
         row_layout: matrix.row_layout.clone(),
@@ -150,7 +150,7 @@ pub(crate) fn input(matrix: &Matrix) -> LayoutInput {
     }
 }
 
-pub(crate) fn evaluate(matrix: &Matrix, doc: &ProjectDoc) -> Result<MatrixLayout, String> {
+pub fn evaluate(matrix: &Matrix, doc: &ProjectDoc) -> Result<MatrixLayout, String> {
     resolve(matrix, doc, &mut BTreeSet::new())
 }
 
@@ -291,11 +291,11 @@ fn follow_basis(matrix: &Matrix, doc: &ProjectDoc) -> FollowBasis {
     FollowBasis::World
 }
 
-pub(crate) fn inverse_offset(frame: &kernel::ComposedFrame, delta: Vec2) -> Vec2 {
+pub fn inverse_offset(frame: &kernel::ComposedFrame, delta: Vec2) -> Vec2 {
     frame.inverse_vector(delta)
 }
 
-pub(crate) fn origin_delta(matrix: &Matrix, doc: &ProjectDoc, delta: Vec2) -> Result<Vec2, String> {
+pub fn origin_delta(matrix: &Matrix, doc: &ProjectDoc, delta: Vec2) -> Result<Vec2, String> {
     if !delta.x.is_finite() || !delta.y.is_finite() {
         return Err("Matrix translation must be finite".into());
     }
@@ -344,7 +344,7 @@ pub(crate) fn origin_delta(matrix: &Matrix, doc: &ProjectDoc, delta: Vec2) -> Re
     Ok(result)
 }
 
-pub(crate) fn cell_pose(layout: &MatrixLayout, row: u32, column: u32) -> Result<Pose2, String> {
+pub fn cell_pose(layout: &MatrixLayout, row: u32, column: u32) -> Result<Pose2, String> {
     layout
         .cells
         .iter()

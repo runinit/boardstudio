@@ -126,7 +126,7 @@ fn filtered(anchor: &PartAnchor, key: Pose2) -> Pose2 {
 /// The derived board-space pose of an anchored part, or `None` when detached
 /// (or unresolvable). Members and companions never derive: their poses belong
 /// to the matrix refresh.
-pub(crate) fn evaluate(doc: &ProjectDoc, part: &Part) -> Option<Pose2> {
+pub fn evaluate(doc: &ProjectDoc, part: &Part) -> Option<Pose2> {
     let anchor = part.anchor.as_ref()?;
     if layout::is_member_or_companion(doc, &part.id) {
         return None;
@@ -205,7 +205,7 @@ fn finite_anchor(anchor: &PartAnchor) -> bool {
 /// drives. The part need not be in the document yet, so drops validate their
 /// preset anchor before insertion. Returns the part's layout id and the
 /// anchor key's board-space pose.
-pub(crate) fn validate_target(
+pub fn validate_target(
     doc: &ProjectDoc,
     part: &Part,
     anchor: &PartAnchor,
@@ -270,7 +270,7 @@ pub(crate) fn validate_target(
 /// Refresh the stored pose from the evaluated board pose so storage-level
 /// readers (clamp sides, mirror reflection, legacy sync) keep working while
 /// the anchor owns the placement.
-pub(crate) fn refresh_stored_pose(doc: &mut ProjectDoc, part_id: &str) {
+pub fn refresh_stored_pose(doc: &mut ProjectDoc, part_id: &str) {
     let Some(index) = doc.parts.iter().position(|part| part.id == part_id) else {
         return;
     };
@@ -300,7 +300,7 @@ fn mirror_values(values: &PartAnchor, is_controller: bool) -> PartAnchor {
     }
 }
 
-pub(crate) fn is_controller_for(doc: &ProjectDoc, part: &Part) -> bool {
+pub fn is_controller_for(doc: &ProjectDoc, part: &Part) -> bool {
     doc.definitions.iter().any(|definition| {
         definition.id == part.definition_id && definition.kind == crate::model::PartKind::Controller
     })
@@ -309,7 +309,7 @@ pub(crate) fn is_controller_for(doc: &ProjectDoc, part: &Part) -> bool {
 /// The counterpart of `matrix_id` in `target_layout_id` through the pair's
 /// Matrix correspondences: the mirror record when the target is the mirror
 /// side, the source record when it is the source side.
-pub(crate) fn counterpart_matrix_id(
+pub fn counterpart_matrix_id(
     doc: &ProjectDoc,
     matrix_id: &str,
     target_layout_id: &str,
@@ -336,7 +336,7 @@ pub(crate) fn counterpart_matrix_id(
 /// Map an authority (source-layout) anchor onto the partner layout: the
 /// target becomes the counterpart matrix and the values mirror. `None` when
 /// the anchor matrix has no counterpart there.
-pub(crate) fn map_anchor_for_mirror(
+pub fn map_anchor_for_mirror(
     doc: &ProjectDoc,
     anchor: &PartAnchor,
     partner_layout_id: &str,
@@ -401,7 +401,7 @@ fn anchor_owner(doc: &ProjectDoc, part_id: &str) -> Result<Part, String> {
 /// carried and local values so the part moves to the fresh placement from
 /// the new anchor. A part with no anchor yet stores the incoming values as
 /// given. One Undo entry.
-pub(crate) fn set_anchor(
+pub fn set_anchor(
     doc: &mut ProjectDoc,
     part_id: &str,
     anchor: &PartAnchor,
@@ -424,7 +424,7 @@ pub(crate) fn set_anchor(
 
 /// Change the Follow subset, re-solving the carried and local values so the
 /// evaluated pose is unchanged. One Undo entry.
-pub(crate) fn set_follow(
+pub fn set_follow(
     doc: &mut ProjectDoc,
     part_id: &str,
     follow: &Follow,
@@ -465,7 +465,7 @@ pub(crate) fn set_follow(
 
 /// Detach: clear the anchor, keeping the evaluated pose from the half origin.
 /// One Undo entry.
-pub(crate) fn detach(doc: &mut ProjectDoc, part_id: &str) -> Result<Vec<String>, String> {
+pub fn detach(doc: &mut ProjectDoc, part_id: &str) -> Result<Vec<String>, String> {
     let part = anchor_owner(doc, part_id)?;
     if part.anchor.is_none() {
         return Err(format!("Part {part_id} has no anchor"));
@@ -486,7 +486,7 @@ pub(crate) fn detach(doc: &mut ProjectDoc, part_id: &str) -> Result<Vec<String>,
 /// Edit one carried or local value. Spread/Stagger moves come from drags and
 /// the Inspector alike; Splay turns about the carried base, Offset/ Rotation
 /// apply for the part alone. One Undo entry.
-pub(crate) fn set_value(
+pub fn set_value(
     doc: &mut ProjectDoc,
     part_id: &str,
     change: &PartAnchorValueChange,
@@ -613,7 +613,7 @@ fn mirror_axis_for(doc: &ProjectDoc, part_id: &str) -> Option<f64> {
 /// the dragged copy's anchor frame (rotation is untouched by drags), then the
 /// mirror fan-out keeps both copies on the same values. A legacy
 /// property-linked partner follows through the component sync.
-pub(crate) fn move_anchored(
+pub fn move_anchored(
     doc: &mut ProjectDoc,
     part_id: &str,
     board_at: Vec2,
@@ -686,7 +686,7 @@ pub(crate) fn move_anchored(
 /// frame with zero Splay, Offset and a counter-rotation. `None` when the
 /// layout names no live key. Members, companions and driven parts never
 /// auto-anchor; callers check.
-pub(crate) fn drop_anchor(doc: &ProjectDoc, layout_id: &str, board: Pose2) -> Option<PartAnchor> {
+pub fn drop_anchor(doc: &ProjectDoc, layout_id: &str, board: Pose2) -> Option<PartAnchor> {
     let layout = doc.layouts.iter().find(|layout| layout.id == layout_id)?;
     let mut best: Option<(PartAnchor, f64)> = None;
     for matrix_id in &layout.matrix_ids {

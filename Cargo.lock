@@ -221,6 +221,7 @@ name = "boardstudio-core-engine"
 version = "0.1.0"
 dependencies = [
  "boardstudio-contracts",
+ "boardstudio-core-kernel",
  "boardstudio-footprints",
  "boardstudio-model",
  "boardstudio-script",
@@ -229,8 +230,22 @@ dependencies = [
  "kiutils_sexpr",
  "serde",
  "serde_json",
- "sha2",
  "zip",
+]
+
+[[package]]
+name = "boardstudio-core-kernel"
+version = "0.1.0"
+dependencies = [
+ "boardstudio-contracts",
+ "boardstudio-core-engine",
+ "boardstudio-footprints",
+ "boardstudio-model",
+ "boardstudio-script",
+ "i_overlay",
+ "serde",
+ "serde_json",
+ "sha2",
 ]
 
 [[package]]

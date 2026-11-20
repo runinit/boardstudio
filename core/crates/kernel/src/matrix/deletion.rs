@@ -8,8 +8,7 @@ type PartChanges = BTreeMap<String, Option<String>>;
 /// Dispatches one edit operation without running document scripts; the engine's
 /// staged-edit entry point, injected so axis removal can re-dispatch `RemoveMatrix`
 /// when the last row or column goes away.
-pub(crate) type ApplyUnscripted =
-    fn(&mut ProjectDoc, &EditOperation) -> Result<Vec<String>, String>;
+pub type ApplyUnscripted = fn(&mut ProjectDoc, &EditOperation) -> Result<Vec<String>, String>;
 
 fn remapped(id: &str, changes: &PartChanges) -> Option<String> {
     changes.get(id).cloned().unwrap_or_else(|| Some(id.into()))
@@ -354,14 +353,11 @@ fn changed_ids(changes: &PartChanges) -> Vec<String> {
 }
 
 /// Remove exactly the supplied part identities and remap their project dependencies.
-pub(crate) fn remove_parts_by_id(
-    doc: &mut ProjectDoc,
-    removed_ids: &BTreeSet<String>,
-) -> Vec<String> {
+pub fn remove_parts_by_id(doc: &mut ProjectDoc, removed_ids: &BTreeSet<String>) -> Vec<String> {
     let changes: PartChanges = removed_ids.iter().cloned().map(|id| (id, None)).collect();
     remap_parts(doc, &changes)
 }
-pub(crate) fn remove_cells(
+pub fn remove_cells(
     doc: &mut ProjectDoc,
     matrix_id: &str,
     cells: &[(u32, u32)],
@@ -421,7 +417,7 @@ fn remove_index<T>(values: &mut Vec<T>, index: u32) {
     }
 }
 
-pub(crate) fn remove_axis(
+pub fn remove_axis(
     doc: &mut ProjectDoc,
     matrix_id: &str,
     index: u32,
@@ -523,7 +519,7 @@ pub(crate) fn remove_axis(
 
 /// Resolve linked halves to one geometry source and union their coordinates, so
 /// a grouped selection cannot execute the same mirrored action twice.
-pub(crate) fn edit_selected_cells(
+pub fn edit_selected_cells(
     doc: &mut ProjectDoc,
     selected: &BTreeMap<String, Vec<(u32, u32)>>,
     enabled: Option<bool>,

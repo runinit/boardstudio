@@ -2,7 +2,7 @@
 use crate::model::*;
 use std::collections::{BTreeMap, BTreeSet};
 
-pub(crate) fn world(at: Vec2, pose: &Pose2, side: Side) -> Vec2 {
+pub fn world(at: Vec2, pose: &Pose2, side: Side) -> Vec2 {
     let x = if side == Side::Back { -at.x } else { at.x };
     let (sin, cos) = pose.rotation.to_radians().sin_cos();
     Vec2 {
@@ -28,7 +28,7 @@ fn world_before(after: &ProjectDoc, part: &Part) -> Pose2 {
     }
 }
 
-pub(crate) fn point(doc: &ProjectDoc, point: &OutlineControlPoint) -> Result<Vec2, String> {
+pub fn point(doc: &ProjectDoc, point: &OutlineControlPoint) -> Result<Vec2, String> {
     if !point.at.x.is_finite() || !point.at.y.is_finite() {
         return Err("Outline control coordinates must be finite".into());
     }
@@ -50,7 +50,7 @@ pub(crate) fn point(doc: &ProjectDoc, point: &OutlineControlPoint) -> Result<Vec
     }
 }
 
-pub(crate) fn dependencies(feature: &OutlineFeature) -> Vec<&str> {
+pub fn dependencies(feature: &OutlineFeature) -> Vec<&str> {
     match feature {
         OutlineFeature::PartEnvelope {
             part_ids,
@@ -82,7 +82,7 @@ pub(crate) fn dependencies(feature: &OutlineFeature) -> Vec<&str> {
     }
 }
 
-pub(crate) fn validate(doc: &ProjectDoc, feature: &OutlineFeature) -> Result<(), String> {
+pub fn validate(doc: &ProjectDoc, feature: &OutlineFeature) -> Result<(), String> {
     if let OutlineFeature::PartEnvelope { connections, .. } = feature {
         let mut ids = BTreeSet::new();
         for connection in connections {
@@ -135,7 +135,7 @@ pub(crate) fn validate(doc: &ProjectDoc, feature: &OutlineFeature) -> Result<(),
     Ok(())
 }
 
-pub(crate) fn attached_parts(doc: &ProjectDoc) -> Vec<Part> {
+pub fn attached_parts(doc: &ProjectDoc) -> Vec<Part> {
     let ids: BTreeSet<_> = doc
         .outline
         .iter()
@@ -164,7 +164,7 @@ pub(crate) fn attached_parts(doc: &ProjectDoc) -> Vec<Part> {
 
 /// Deleting a component preserves the authored shape at its last world pose.
 /// Rectangles retain their dimensions, corner radius and world rotation.
-pub(crate) fn detach_removed(before: &[Part], after: &mut ProjectDoc) {
+pub fn detach_removed(before: &[Part], after: &mut ProjectDoc) {
     let present: BTreeSet<_> = after.parts.iter().map(|part| part.id.as_str()).collect();
     // Snapshot every removed part's last world pose before mutating the
     // outline: the shared borrow of the layouts ends here.

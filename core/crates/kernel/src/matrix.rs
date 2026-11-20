@@ -17,23 +17,23 @@
 //! - Key moves and linked halves: `layout::move_keys`, `layout::sync`, `set_component_pose`.
 //! - Tests: `core/tests/matrix_companions.rs`, `matrix_placement.rs`, `splay_companions.rs`.
 
-pub(crate) mod anchors;
-pub(crate) mod deletion;
-pub(crate) mod evaluation;
+pub mod anchors;
+pub mod deletion;
+pub mod evaluation;
 pub mod kernel;
 use crate::model::{
     Matrix, MatrixCell, MatrixColumnBasis, MatrixScene, MatrixSceneCell, OutlineFeature, Part, Pin,
     Pose2, ProjectDoc, Side, Vec2,
 };
 use serde_json::json;
-pub(crate) mod layout;
-pub(crate) mod part_anchors;
-pub(crate) mod placement;
-pub(crate) mod splay;
+pub mod layout;
+pub mod part_anchors;
+pub mod placement;
+pub mod splay;
 use std::collections::{BTreeMap, BTreeSet};
 
-pub(crate) const MAX_MATRIX_PARTS: u32 = 4096;
-pub(crate) const OVERRIDE: &str = "layoutOverride";
+pub const MAX_MATRIX_PARTS: u32 = 4096;
+pub const OVERRIDE: &str = "layoutOverride";
 const DEFAULT_EDGE_GAP_MM: f64 = 1.0;
 const SWITCH_ROW_PAD: &str = "one";
 const SWITCH_COLUMN_PAD: &str = "two";
@@ -78,7 +78,7 @@ fn matrix_terminal_pad_ids(definition: &crate::model::PartDefinition, row: bool)
         .collect()
 }
 
-pub(crate) use boardstudio_model::matrix::{companion_id, member_id};
+pub use boardstudio_model::matrix::{companion_id, member_id};
 
 fn companion_pose(key: Pose2, assembly: &crate::model::MatrixAssembly) -> Pose2 {
     let (sin, cos) = key.rotation.to_radians().sin_cos();
@@ -115,7 +115,7 @@ fn cell_members(matrix: &Matrix) -> BTreeMap<(u32, u32), String> {
 }
 
 // Record deletions in the parametric source before cleaning up generated parts.
-pub(crate) fn removed_members(doc: &mut ProjectDoc, requested: &[String]) -> Vec<String> {
+pub fn removed_members(doc: &mut ProjectDoc, requested: &[String]) -> Vec<String> {
     let mut removed: BTreeSet<String> = requested.iter().cloned().collect();
     for matrix in &mut doc.matrices {
         let members = cell_members(matrix);
@@ -175,7 +175,7 @@ pub(crate) fn removed_members(doc: &mut ProjectDoc, requested: &[String]) -> Vec
     removed.into_iter().collect()
 }
 
-pub(crate) fn valid_matrix(matrix: &Matrix, doc: &ProjectDoc) -> Result<(), String> {
+pub fn valid_matrix(matrix: &Matrix, doc: &ProjectDoc) -> Result<(), String> {
     if matrix.id.is_empty()
         || !matrix
             .id
@@ -279,18 +279,18 @@ pub(crate) fn valid_matrix(matrix: &Matrix, doc: &ProjectDoc) -> Result<(), Stri
     Ok(())
 }
 
-pub(crate) fn evaluated(matrix: &Matrix, doc: &ProjectDoc) -> Result<kernel::MatrixLayout, String> {
+pub fn evaluated(matrix: &Matrix, doc: &ProjectDoc) -> Result<kernel::MatrixLayout, String> {
     evaluation::evaluate(matrix, doc)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum ProjectionMode {
+pub enum ProjectionMode {
     Actual,
     Draft,
 }
 
 /// Must run before any work proportional to rows or columns.
-pub(crate) fn valid_dimensions(matrix: &Matrix) -> Result<(), String> {
+pub fn valid_dimensions(matrix: &Matrix) -> Result<(), String> {
     if matrix.rows == 0
         || matrix.columns == 0
         || matrix
@@ -303,7 +303,7 @@ pub(crate) fn valid_dimensions(matrix: &Matrix) -> Result<(), String> {
     Ok(())
 }
 
-pub(crate) fn valid_projection_matrix(matrix: &Matrix) -> Result<(), String> {
+pub fn valid_projection_matrix(matrix: &Matrix) -> Result<(), String> {
     valid_dimensions(matrix)?;
     let gap = matrix.edge_gap.unwrap_or(Vec2 {
         x: DEFAULT_EDGE_GAP_MM,
@@ -323,7 +323,7 @@ pub(crate) fn valid_projection_matrix(matrix: &Matrix) -> Result<(), String> {
         .map_err(str::to_owned)
 }
 
-pub(crate) fn project_matrix(
+pub fn project_matrix(
     matrix: &Matrix,
     doc: &ProjectDoc,
     mode: ProjectionMode,
@@ -425,7 +425,7 @@ pub(crate) fn project_matrix(
 
 /// The companions this matrix generates, with the placement mode Core uses for
 /// each. Only enabled, non-deleted cells whose companion part exists are listed.
-pub(crate) fn scene_companions(
+pub fn scene_companions(
     matrix: &Matrix,
     doc: &ProjectDoc,
 ) -> Vec<crate::model::MatrixCompanionPlacement> {
@@ -980,7 +980,9 @@ mod projection_tests {
             "refresh must preserve persisted pose exactly"
         );
         let saved = serde_json::to_string(&doc).unwrap();
-        let mut engine = crate::CoreEngine::new();
+        let mut engine = boardstudio_core_engine::CoreEngine::with_script_runner(
+            boardstudio_script::apply_scripts,
+        );
         let reply = engine.handle(crate::model::CoreRequest::Open {
             id: "reopen".into(),
             document: serde_json::from_str(&saved).unwrap(),

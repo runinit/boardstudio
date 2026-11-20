@@ -286,7 +286,7 @@ pub struct OutlineCache {
 /// shows its last valid projection, and a located finding names the board, version and
 /// cause. It is not manufactured into a valid current result, so it blocks the
 /// affected exports while saving and further editing remain available.
-pub(crate) struct LinkedProblem {
+pub struct LinkedProblem {
     pub version_id: String,
     pub version_name: String,
     pub message: String,
@@ -481,7 +481,7 @@ fn depends_on(feature: &OutlineFeature, moved: &[String]) -> bool {
         .any(|id| moved.iter().any(|moved| moved == id))
 }
 
-pub(crate) struct ComposedOutline {
+pub struct ComposedOutline {
     pub source: Vec<Contour>,
     pub contours: Vec<Contour>,
     pub findings: Vec<Finding>,
@@ -644,7 +644,7 @@ fn contours(shapes: &Shapes) -> Vec<Contour> {
 
 /// Keep a complete authored rounded opening analytic when it survives composition.
 /// Intersected/combined openings retain their resolved polygon instead.
-pub(crate) fn retained_cutout(
+pub fn retained_cutout(
     doc: &ProjectDoc,
     cache: &OutlineCache,
     board: &crate::model::Board,
@@ -710,7 +710,7 @@ pub(crate) fn retained_cutout(
     None
 }
 
-pub(crate) fn generated_source(
+pub fn generated_source(
     doc: &ProjectDoc,
     cache: &OutlineCache,
     board: &crate::model::Board,
@@ -731,7 +731,7 @@ pub(crate) fn generated_source(
 /// Used by settlement to compare a reviewed projection with the current one: the
 /// composition is the same one the board path uses, so a reviewed shape and its later
 /// recomputation are comparable without exposing the private cache.
-pub(crate) fn feature_source_contours(
+pub fn feature_source_contours(
     doc: &ProjectDoc,
     cache: &OutlineCache,
     features: &[OutlineFeature],
@@ -745,17 +745,14 @@ pub(crate) fn feature_source_contours(
     }
     compose(features.iter(), &local, None).source
 }
-pub(crate) fn valid_polygon(points: &[Vec2]) -> bool {
+pub fn valid_polygon(points: &[Vec2]) -> bool {
     if automatic::check_persisted_path_size(points.len()).is_err() {
         return false;
     }
     automatic::persisted_simple(&points.iter().copied().map(point).collect()).unwrap_or(false)
 }
 
-pub(crate) fn board_outline_scenes(
-    doc: &ProjectDoc,
-    cache: &OutlineCache,
-) -> Vec<BoardOutlineScene> {
+pub fn board_outline_scenes(doc: &ProjectDoc, cache: &OutlineCache) -> Vec<BoardOutlineScene> {
     doc.boards
         .iter()
         .map(|board| {

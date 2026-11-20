@@ -6,7 +6,7 @@ use crate::model::{
     Constraint, EditOperation, MatrixCompanionMode, OffsetAxes, Part, Pose2, Position, ProjectDoc,
     Vec2,
 };
-pub(crate) use boardstudio_model::constraints::driving_constraint;
+pub use boardstudio_model::constraints::driving_constraint;
 use boardstudio_model::constraints::{follow_pose, multiple_constraints};
 use endpoints::{EndpointFrame, Side};
 use std::collections::{BTreeMap, BTreeSet};
@@ -19,9 +19,9 @@ use boardstudio_model::constraints::retune;
 
 // The mirrored-half preparation seam carries only these private compiler records across the
 // crate; no public document or operation API is widened.
-pub(crate) use endpoints::ConstraintEndpoint;
-pub(crate) use endpoints::{FramedConstraint, compile_legacy};
-pub(crate) use relation::ConstraintRelation;
+pub use endpoints::ConstraintEndpoint;
+pub use endpoints::{FramedConstraint, compile_legacy};
+pub use relation::ConstraintRelation;
 
 /// Conservative bound on concurrently active constraint dependencies.
 ///
@@ -33,18 +33,18 @@ const MAX_DEPENDENCY_DEPTH: usize = 256;
 
 /// Outcome for the mirrored edit preparer when a moved target has an owner-dependent view.
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) enum PreparedTargetRetune {
+pub enum PreparedTargetRetune {
     Retuned(FramedConstraint),
     Deferred(DeferredTargetRetune),
 }
 
 /// Target drag intent that must wait for live endpoint owners to resolve (usually a key).
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct DeferredTargetRetune {
-    pub(crate) record: FramedConstraint,
-    pub(crate) requested: Position,
-    pub(crate) source_owner: Option<String>,
-    pub(crate) target_owner: Option<String>,
+pub struct DeferredTargetRetune {
+    pub record: FramedConstraint,
+    pub requested: Position,
+    pub source_owner: Option<String>,
+    pub target_owner: Option<String>,
 }
 
 /// Retunes an already compiled record through its authored endpoint views.
@@ -52,7 +52,7 @@ pub(crate) struct DeferredTargetRetune {
 /// `requested` is in authoritative part coordinates. Position edits have no requested heading,
 /// so the existing relation turn is preserved exactly. Owner poses are supplied by a caller
 /// that has resolved the MoveParts batch; missing owner poses return an explicit deferred intent.
-pub(crate) fn prepare_target_retune(
+pub fn prepare_target_retune(
     document: &ProjectDoc,
     record: &FramedConstraint,
     source_authority: Pose2,
@@ -113,7 +113,7 @@ pub fn resolve(doc: &mut ProjectDoc) -> Result<Vec<String>, String> {
     resolve_with_positions(doc, &[])
 }
 
-pub(crate) fn resolve_edit(
+pub fn resolve_edit(
     doc: &mut ProjectDoc,
     operation: &EditOperation,
 ) -> Result<Vec<String>, String> {
@@ -196,7 +196,7 @@ fn claim_target<'a>(
 
 /// Resolves stored and prepared relations in one source-first graph. Prepared records replace
 /// stored records with the same ID for this solve only.
-pub(crate) fn resolve_prepared(
+pub fn resolve_prepared(
     doc: &mut ProjectDoc,
     positions: &[Position],
     framed: &[FramedConstraint],
@@ -302,7 +302,7 @@ pub(crate) fn resolve_prepared(
 }
 
 /// The pose of the part a constraint is measured from.
-pub(crate) fn source_pose(parts: &[Part], constraint: &Constraint) -> Result<Pose2, String> {
+pub fn source_pose(parts: &[Part], constraint: &Constraint) -> Result<Pose2, String> {
     parts
         .iter()
         .find(|part| part.id == constraint.source())
@@ -312,14 +312,14 @@ pub(crate) fn source_pose(parts: &[Part], constraint: &Constraint) -> Result<Pos
 
 /// What `retune_offset` did.
 #[derive(Debug, PartialEq, Eq)]
-pub(crate) enum Retune {
+pub enum Retune {
     Applied,
     /// The constraint is a mirror, which reflects rather than offsets. Nothing changed.
     Mirror,
 }
 
 /// Why a part driven by a mirror constraint cannot be dragged.
-pub(crate) fn mirror_drag_refusal(part_id: &str) -> String {
+pub fn mirror_drag_refusal(part_id: &str) -> String {
     format!("Part {part_id} is controlled by a mirror constraint and cannot be dragged")
 }
 
@@ -330,7 +330,7 @@ pub(crate) fn mirror_drag_refusal(part_id: &str) -> String {
 /// in `core/tests/part_offset_constraint.rs` pins it. An `offset` stores board-axis numbers,
 /// so the drag is added as it is. A `part-offset` stores source-axis numbers, so the drag is
 /// first turned back into the source's frame, measured from the source's pose in `parts`.
-pub(crate) fn retune_offset(
+pub fn retune_offset(
     parts: &[Part],
     constraint: &mut Constraint,
     delta: Vec2,
@@ -373,7 +373,7 @@ pub(crate) fn retune_offset(
 /// Re-expresses an offset constraint's numbers in `to`'s axes, measured from the source's
 /// current pose, so the target does not move. The id and endpoints are kept. Every check
 /// runs before the constraint is replaced, so a refusal changes nothing.
-pub(crate) fn convert_offset(
+pub fn convert_offset(
     doc: &mut ProjectDoc,
     constraint_id: &str,
     to: OffsetAxes,

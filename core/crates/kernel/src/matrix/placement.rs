@@ -21,7 +21,7 @@ fn finite(value: Vec2) -> bool {
 
 /// Apply one named placement change, changing only the entry it names. Existing
 /// vectors are padded with zeros so an index beyond the stored length is valid.
-pub(crate) fn update(
+pub fn update(
     matrix: &Matrix,
     change: &MatrixPlacementChange,
     doc: &ProjectDoc,
@@ -334,7 +334,7 @@ fn rigid_translation_available(
 }
 
 /// Constraints remain solver-owned; check the exact promise after that solver settles.
-pub(crate) fn validate_translation(
+pub fn validate_translation(
     before: &[Part],
     after: &ProjectDoc,
     operation: &EditOperation,
@@ -417,7 +417,7 @@ fn translate_frame(matrix: &mut Matrix, delta: Vec2, doc: &ProjectDoc) -> Result
 
 /// Which parts an edit that carries companions reports as changed.
 #[derive(Clone, Copy)]
-pub(crate) enum Reported {
+pub enum Reported {
     /// Preserve the edit closure's ID list. `SetMatrix`'s matrix and generated-member
     /// report is pinned by `core/tests/fixtures/boundary/transcript.json`.
     PreserveEditReport,
@@ -429,7 +429,7 @@ pub(crate) enum Reported {
 }
 
 /// Run a matrix edit and carry authored companions with their keys.
-pub(crate) fn carrying_authored_companions(
+pub fn carrying_authored_companions(
     doc: &mut ProjectDoc,
     reported: Reported,
     edit: impl FnOnce(&mut ProjectDoc) -> Result<Vec<String>, String>,

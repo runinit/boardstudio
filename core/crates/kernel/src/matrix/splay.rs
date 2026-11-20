@@ -1,7 +1,7 @@
 use super::{evaluated, valid_projection_matrix};
 use crate::model::{Matrix, MatrixSplayAffect, MatrixSplayChange, ProjectDoc, Vec2};
 
-pub(crate) use boardstudio_model::matrix::splay::rotate;
+pub use boardstudio_model::matrix::splay::rotate;
 
 fn with_origin(
     matrix: &Matrix,
@@ -64,7 +64,7 @@ fn with_origin(
     Ok(after)
 }
 
-pub(crate) fn update(
+pub fn update(
     matrix: &Matrix,
     column: u32,
     change: &MatrixSplayChange,

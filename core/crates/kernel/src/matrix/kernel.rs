@@ -114,7 +114,7 @@ pub struct CellContributions {
 
 pub struct ColumnFrame {
     /// Column 0 still needs its incoming X axis for origin edits, although it has no Spread.
-    pub(crate) incoming_axis_x: Vec2,
+    pub incoming_axis_x: Vec2,
     /// Base after preceding Splays, before this column's own turns.
     pub base: Vec2,
     pub splay_origin: Vec2,

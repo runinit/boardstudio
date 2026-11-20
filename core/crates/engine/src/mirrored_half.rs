@@ -41,7 +41,7 @@ mod inverse;
 mod matrix_addition;
 mod reconcile;
 #[cfg(test)]
-pub(crate) use reconcile::{prepare_open, prepare_transaction};
+pub(crate) use reconcile::prepare_transaction;
 pub(crate) use reconcile::{prepare_open_with_scripts, prepare_transaction_with_ledger};
 
 /// Generated closure-clearance parts. They are regenerated from the pair, never copied.
@@ -509,9 +509,9 @@ pub(crate) fn mirror_pose(mapping: Pose2, pose: Pose2) -> Pose2 {
 
 /// A test-only window onto `derive::companion_assembly`, the authority for companion placement,
 /// so the constraint endpoint rules can be pinned to it. No production caller.
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 #[allow(clippy::too_many_arguments)] // Mirrors derive's input record field for field.
-pub(crate) fn companion_placement(
+pub fn companion_placement(
     offset: crate::model::Vec2,
     rotation: Option<f64>,
     key: &crate::model::Part,

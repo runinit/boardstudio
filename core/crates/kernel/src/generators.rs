@@ -21,7 +21,7 @@ use crate::model::{Finding, Part, PartDefinition, PartModel, ProjectDoc, Scope, 
 
 /// Move a value between this crate's document types and the footprints crate's
 /// wire types, which share their serialized form.
-pub(crate) fn convert<T: Serialize, U: DeserializeOwned>(value: &T) -> Result<U, String> {
+pub fn convert<T: Serialize, U: DeserializeOwned>(value: &T) -> Result<U, String> {
     serde_json::from_value(serde_json::to_value(value).map_err(|error| error.to_string())?)
         .map_err(|error| error.to_string())
 }

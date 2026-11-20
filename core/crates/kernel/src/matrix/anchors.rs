@@ -246,11 +246,7 @@ fn counterpart_in_layout(
 
 /// Create a 1x3 matrix in the anchor target's Layout and board at relative
 /// Origin (0, -pitch.y) with every Follow component, then materialize it.
-pub(crate) fn add(
-    doc: &mut ProjectDoc,
-    id: &str,
-    anchor: &MatrixAnchor,
-) -> Result<Vec<String>, String> {
+pub fn add(doc: &mut ProjectDoc, id: &str, anchor: &MatrixAnchor) -> Result<Vec<String>, String> {
     if id.is_empty()
         || !id
             .bytes()
@@ -489,7 +485,7 @@ pub(crate) fn add(
 }
 
 /// Re-target one matrix's anchor and Follow subset atomically.
-pub(crate) fn set_anchor(
+pub fn set_anchor(
     doc: &mut ProjectDoc,
     matrix_id: &str,
     anchor: &MatrixAnchor,
@@ -556,7 +552,7 @@ fn write_detached_frame(doc: &mut ProjectDoc, matrix_id: &str) -> Result<Vec<Str
 /// partner, an excepted partner, an absent partner, or a symmetric group.
 /// The check replays the production detach on a clone, so it cannot drift
 /// from the behavior it guards.
-pub(crate) fn linked_detach_needs_local(
+pub fn linked_detach_needs_local(
     doc: &ProjectDoc,
     matrix_id: &str,
 ) -> Result<Option<String>, String> {
@@ -602,7 +598,7 @@ pub(crate) fn linked_detach_needs_local(
 /// through the normal pair sync in the same edit; a detach that would move
 /// the partner is refused and names the Local exception instead of silently
 /// changing one side.
-pub(crate) fn detach(doc: &mut ProjectDoc, matrix_id: &str) -> Result<Vec<String>, String> {
+pub fn detach(doc: &mut ProjectDoc, matrix_id: &str) -> Result<Vec<String>, String> {
     if let Some(needed) = linked_detach_needs_local(doc, matrix_id)? {
         return Err(format!(
             "Detaching {matrix_id} would move its linked partner {needed}; make {needed} Local to keep its pose and confirm the detach"
@@ -627,7 +623,7 @@ fn detach_inner(doc: &mut ProjectDoc, matrix_id: &str) -> Result<Vec<String>, St
 /// the named Local exception in the same edit. The named matrix must be the
 /// linked partner that still needs the exception; anything else refuses as a
 /// stale confirmation and changes nothing.
-pub(crate) fn detach_confirmed(
+pub fn detach_confirmed(
     doc: &mut ProjectDoc,
     matrix_id: &str,
     local_matrix_id: &str,
@@ -660,10 +656,7 @@ pub(crate) fn detach_confirmed(
 
 /// Detach every matrix anchored to `target_id`, keeping each current world
 /// frame. Call before the target matrix disappears.
-pub(crate) fn detach_dependants(
-    doc: &mut ProjectDoc,
-    target_id: &str,
-) -> Result<Vec<String>, String> {
+pub fn detach_dependants(doc: &mut ProjectDoc, target_id: &str) -> Result<Vec<String>, String> {
     let mut changed = vec![];
     for (id, _) in dependants(doc, target_id) {
         changed.extend(detach(doc, &id)?);
@@ -675,7 +668,7 @@ pub(crate) fn detach_dependants(
 /// range, or any aggregate part. Parts naming other matrices keep their own
 /// grid, so only parts on the shrunk matrix count. A wholesale replacement
 /// never retargets an anchor onto a new key at an old coordinate.
-pub(crate) fn detach_out_of_range(
+pub fn detach_out_of_range(
     doc: &mut ProjectDoc,
     matrix_id: &str,
     rows: u32,
@@ -698,7 +691,7 @@ pub(crate) fn detach_out_of_range(
 /// slot follow their surviving physical key in `shift_compacted`. Only the
 /// `==`-slot detaches, never `>=`: parts past the slot remap, per research
 /// §1.4.5. Only parts on the compacted matrix count.
-pub(crate) fn remap_compacted(
+pub fn remap_compacted(
     doc: &mut ProjectDoc,
     matrix_ids: &[String],
     index: u32,
@@ -723,7 +716,7 @@ pub(crate) fn remap_compacted(
 /// refresh their poses. Every part past the slot on a compacted matrix
 /// follows its physical key down by one; parts before the slot stay. Call
 /// after the axis removal is stored.
-pub(crate) fn shift_compacted(
+pub fn shift_compacted(
     doc: &mut ProjectDoc,
     matrix_ids: &[String],
     index: u32,
@@ -783,7 +776,7 @@ pub(crate) fn shift_compacted(
 }
 
 /// Refuse a constraint that would drive a key a matrix anchors to.
-pub(crate) fn constraining_refusal(doc: &ProjectDoc, constraint: &Constraint) -> Option<String> {
+pub fn constraining_refusal(doc: &ProjectDoc, constraint: &Constraint) -> Option<String> {
     let target = constraint.target();
     for matrix in &doc.matrices {
         if let Some(anchor) = &matrix.anchor
@@ -804,7 +797,7 @@ pub(crate) fn constraining_refusal(doc: &ProjectDoc, constraint: &Constraint) ->
 /// Refuse a stored Origin/Rotation change on an anchored matrix that its Follow
 /// subset cannot express. The evaluated frame would be identical, so accepting
 /// would silently keep geometry while recording a new value.
-pub(crate) fn check_anchored_frame_change(
+pub fn check_anchored_frame_change(
     doc: &ProjectDoc,
     previous: &Matrix,
     incoming: &Matrix,

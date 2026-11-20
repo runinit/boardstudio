@@ -2,10 +2,7 @@
 use crate::{geometry, model::*};
 use std::collections::BTreeSet;
 
-pub(crate) fn active_snapshot<'a>(
-    doc: &'a ProjectDoc,
-    board_id: &str,
-) -> Option<&'a OutlineSnapshot> {
+pub fn active_snapshot<'a>(doc: &'a ProjectDoc, board_id: &str) -> Option<&'a OutlineSnapshot> {
     let state = doc
         .board_outlines
         .iter()
@@ -23,7 +20,7 @@ pub(crate) fn active_snapshot<'a>(
     }
 }
 
-pub(crate) fn protection_problem(doc: &ProjectDoc, board_id: &str) -> Option<(String, String)> {
+pub fn protection_problem(doc: &ProjectDoc, board_id: &str) -> Option<(String, String)> {
     let board = doc.boards.iter().find(|board| board.id == board_id)?;
     for feature in &doc.outline {
         if !board.outline_ids.iter().any(|id| id == feature.id()) {
@@ -53,10 +50,7 @@ pub(crate) fn protection_problem(doc: &ProjectDoc, board_id: &str) -> Option<(St
     None
 }
 
-pub(crate) fn active_version<'a>(
-    doc: &'a ProjectDoc,
-    board_id: &str,
-) -> Option<&'a OutlineVersion> {
+pub fn active_version<'a>(doc: &'a ProjectDoc, board_id: &str) -> Option<&'a OutlineVersion> {
     let state = doc
         .board_outlines
         .iter()
@@ -71,7 +65,7 @@ pub(crate) fn active_version<'a>(
 /// that are not excluded from the outline and are not utility parts. A linked
 /// refinement resolves from this live set, so additions, removals and inclusion
 /// changes follow without rewriting the version's persisted choices.
-pub(crate) fn included_parts(doc: &ProjectDoc, board_id: &str) -> Vec<String> {
+pub fn included_parts(doc: &ProjectDoc, board_id: &str) -> Vec<String> {
     let Some(board) = doc.boards.iter().find(|board| board.id == board_id) else {
         return vec![];
     };
@@ -100,7 +94,7 @@ pub(crate) fn included_parts(doc: &ProjectDoc, board_id: &str) -> Vec<String> {
 /// envelope input from the board's current included components while keeping the
 /// version's settings, authored connections and authored cutouts; its persisted
 /// feature list is the last resolved projection, not another recipe Core follows.
-pub(crate) fn resolved_features(
+pub fn resolved_features(
     doc: &ProjectDoc,
     board_id: &str,
     version: &OutlineVersion,
@@ -144,7 +138,7 @@ pub(crate) fn resolved_features(
 /// before its board split must not inherit the older count and block its own valid
 /// geometry, and the fallback display of a failed resolution uses the same derived
 /// count so it never adds a second, false blocker.
-pub(crate) fn expected_regions(doc: &ProjectDoc, board_id: &str) -> usize {
+pub fn expected_regions(doc: &ProjectDoc, board_id: &str) -> usize {
     if let Some(version) = active_version(doc, board_id) {
         if version.ownership.is_fixed() {
             return version.geometry.expected_regions as usize;
@@ -163,7 +157,7 @@ pub(crate) fn expected_regions(doc: &ProjectDoc, board_id: &str) -> usize {
     }
 }
 
-pub(crate) fn features(doc: &ProjectDoc, board: &Board) -> Vec<OutlineFeature> {
+pub fn features(doc: &ProjectDoc, board: &Board) -> Vec<OutlineFeature> {
     if let Some(version) = active_version(doc, &board.id) {
         return resolved_features(doc, &board.id, version);
     }
@@ -184,7 +178,7 @@ pub(crate) fn features(doc: &ProjectDoc, board: &Board) -> Vec<OutlineFeature> {
         .collect()
 }
 
-pub(crate) fn settings<'a>(doc: &'a ProjectDoc, board_id: &str) -> Option<&'a OutlineSettings> {
+pub fn settings<'a>(doc: &'a ProjectDoc, board_id: &str) -> Option<&'a OutlineSettings> {
     active_snapshot(doc, board_id).map(|snapshot| &snapshot.settings)
 }
 
@@ -211,7 +205,7 @@ fn state_mut<'a>(doc: &'a mut ProjectDoc, board_id: &str) -> Result<&'a mut Boar
     Ok(&mut doc.board_outlines[index])
 }
 
-pub(crate) fn name(value: &str) -> Result<String, String> {
+pub fn name(value: &str) -> Result<String, String> {
     let value = value.trim();
     if value.is_empty() || value.len() > 120 {
         return Err("Outline name must contain 1 to 120 characters".into());
@@ -226,7 +220,7 @@ pub(crate) fn name(value: &str) -> Result<String, String> {
 /// authored connections and bridges are addressed by ID inside their version. A new
 /// version identity that reused one of those names would address the wrong entity, so
 /// Core refuses it and names the namespace it found.
-pub(crate) fn identity_namespace(doc: &ProjectDoc, identity: &str) -> Option<String> {
+pub fn identity_namespace(doc: &ProjectDoc, identity: &str) -> Option<String> {
     if doc.outline.iter().any(|feature| feature.id() == identity) {
         return Some("a top-level outline feature".into());
     }
@@ -283,7 +277,7 @@ pub(crate) fn identity_namespace(doc: &ProjectDoc, identity: &str) -> Option<Str
 /// version, must not reuse a retired one (never reissued, so a pending edit that names
 /// a removed version can never land on its replacement), and must not collide with any
 /// other persisted outline namespace.
-pub(crate) fn version_identity_problem(doc: &ProjectDoc, version_id: &str) -> Option<String> {
+pub fn version_identity_problem(doc: &ProjectDoc, version_id: &str) -> Option<String> {
     if version_id.trim().is_empty() || version_id == "generated" {
         return Some("A fixed outline needs a unique version ID".into());
     }
@@ -309,11 +303,7 @@ pub(crate) fn version_identity_problem(doc: &ProjectDoc, version_id: &str) -> Op
         .map(|namespace| format!("Outline version {version_id} would collide with {namespace}"))
 }
 
-pub(crate) fn snapshot(
-    doc: &ProjectDoc,
-    board_id: &str,
-    prefix: &str,
-) -> Result<OutlineSnapshot, String> {
+pub fn snapshot(doc: &ProjectDoc, board_id: &str, prefix: &str) -> Result<OutlineSnapshot, String> {
     let board = doc
         .boards
         .iter()
@@ -336,7 +326,7 @@ pub(crate) fn snapshot(
     generated_snapshot(doc, &cache, board, prefix)
 }
 
-pub(crate) fn generated_snapshot(
+pub fn generated_snapshot(
     doc: &ProjectDoc,
     cache: &geometry::OutlineCache,
     board: &Board,
@@ -432,7 +422,7 @@ pub(crate) fn generated_snapshot(
 ///
 /// Linked outline versions drop the authored choices that required a component the edit
 /// removed, whichever operation removed it, inside that same accepted edit and Undo step.
-pub(crate) fn prune_removed_components(before: &[Part], after: &mut ProjectDoc) -> Vec<String> {
+pub fn prune_removed_components(before: &[Part], after: &mut ProjectDoc) -> Vec<String> {
     let present: BTreeSet<&str> = after.parts.iter().map(|part| part.id.as_str()).collect();
     let removed: Vec<String> = before
         .iter()
@@ -443,7 +433,7 @@ pub(crate) fn prune_removed_components(before: &[Part], after: &mut ProjectDoc) 
 }
 
 /// Returns the identities of the choices it removed.
-pub(crate) fn prune_removed_sources(doc: &mut ProjectDoc, removed: &[String]) -> Vec<String> {
+pub fn prune_removed_sources(doc: &mut ProjectDoc, removed: &[String]) -> Vec<String> {
     if removed.is_empty() {
         return vec![];
     }
@@ -534,14 +524,14 @@ pub(crate) fn prune_removed_sources(doc: &mut ProjectDoc, removed: &[String]) ->
 ///
 /// Blocking is decided per owner: a failure of an inactive alternative is visible but
 /// cannot block output from the selected outline or another board (ADR-0001/0002).
-pub(crate) fn finding_version(id: &str) -> Option<(String, String)> {
+pub fn finding_version(id: &str) -> Option<(String, String)> {
     let rest = id.strip_prefix("board:")?;
     let (board_id, rest) = rest.split_once(":outline:linked:")?;
     Some((board_id.to_owned(), rest.to_owned()))
 }
 
 /// Whether a finding belongs to an outline version the board has not selected.
-pub(crate) fn is_inactive_version_finding(doc: &ProjectDoc, id: &str) -> bool {
+pub fn is_inactive_version_finding(doc: &ProjectDoc, id: &str) -> bool {
     let Some((board_id, version_id)) = finding_version(id) else {
         return false;
     };
@@ -551,7 +541,7 @@ pub(crate) fn is_inactive_version_finding(doc: &ProjectDoc, id: &str) -> bool {
         .is_none_or(|state| state.active_version_id.as_deref() != Some(version_id.as_str()))
 }
 
-pub(crate) fn refresh_recovery(doc: &mut ProjectDoc, cache: &geometry::OutlineCache) {
+pub fn refresh_recovery(doc: &mut ProjectDoc, cache: &geometry::OutlineCache) {
     for board in doc.boards.clone() {
         let has_protection = board.outline_ids.iter().filter_map(|id| doc.outline.iter().find(|feature| feature.id() == id))
             .any(|feature| matches!(feature, OutlineFeature::PartEnvelope { settings, .. } if settings.repair.as_ref().is_some_and(|repair| !repair.keep_gaps.is_empty())));

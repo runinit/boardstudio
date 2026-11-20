@@ -1016,8 +1016,20 @@ fn a_native_legacy_offset_to_a_linked_mirror_survives_open_reconciliation() {
         -2.0,
     ));
 
-    let (opened, _) = crate::mirrored_half::prepare_open(&doc, &[])
-        .expect("the legacy relation compiles through ownership and survives mirror reconcile");
+    let mut engine =
+        boardstudio_core_engine::CoreEngine::with_script_runner(boardstudio_script::apply_scripts);
+    let reply = engine.handle(crate::model::CoreRequest::Open {
+        id: "open".into(),
+        document: doc,
+    });
+    let crate::model::CoreReply::Scene {
+        document: opened, ..
+    } = reply
+    else {
+        panic!(
+            "the legacy relation compiles through ownership and survives mirror reconcile: {reply:?}"
+        );
+    };
 
     let source = pose_of(&opened, "alpha/S");
     let target = pose_of(&opened, "beta/T");
@@ -1066,7 +1078,7 @@ fn world_pose_by_derive(
         -key.pose.rotation,
         Vec2::default(),
     );
-    let (offset, rotation) = crate::mirrored_half::companion_placement(
+    let (offset, rotation) = boardstudio_core_engine::companion_placement_for_test(
         Vec2 {
             x: -local.x,
             y: local.y,
@@ -1082,7 +1094,7 @@ fn world_pose_by_derive(
     )
     .unwrap();
     let mirrored_key = Pose2 {
-        at: crate::mechanical::pair::forward(mapping, key.pose.at),
+        at: boardstudio_model::mechanical::pair::forward(mapping, key.pose.at),
         rotation: mapping.rotation - key.pose.rotation,
     };
     super::follow_pose(

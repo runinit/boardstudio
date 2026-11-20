@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 const MIRRORED_COMPONENT_SOURCE: &str = "boardstudio.mirroredComponentSource";
 const MIRRORED_COMPONENT_SUBSTITUTE: &str = "boardstudio.mirroredComponentSubstitute";
 
-pub(crate) fn validate(doc: &ProjectDoc) -> Result<(), String> {
+pub fn validate(doc: &ProjectDoc) -> Result<(), String> {
     // Bound every matrix before any walk over its rows and columns below.
     for matrix in &doc.matrices {
         matrix::valid_dimensions(matrix)?;
@@ -176,7 +176,7 @@ fn validate_link(
 
 /// The slots both halves still own, paired by slot. A mirror without a physical matrix (an
 /// omitted group) pairs by the source shape.
-pub(crate) fn member_pairs(
+pub fn member_pairs(
     source: &Matrix,
     mirror_id: &str,
     mirror: Option<&Matrix>,
@@ -197,7 +197,7 @@ pub(crate) fn member_pairs(
 }
 
 /// Part correspondences for explicit member pairs.
-pub(crate) fn part_correspondences(
+pub fn part_correspondences(
     pairs: impl IntoIterator<Item = (String, String)>,
 ) -> impl Iterator<Item = MirroredCorrespondence> {
     pairs
@@ -218,7 +218,7 @@ fn is_excepted(exceptions: &[MirroredException], mirror_id: &str) -> bool {
     })
 }
 
-pub(crate) fn populate_new_link(doc: &ProjectDoc, target: &mut Layout) -> Result<(), String> {
+pub fn populate_new_link(doc: &ProjectDoc, target: &mut Layout) -> Result<(), String> {
     let Some(link) = &mut target.mirror_link else {
         return Ok(());
     };
@@ -253,7 +253,7 @@ pub(crate) fn populate_new_link(doc: &ProjectDoc, target: &mut Layout) -> Result
 }
 
 /// Membership edits maintain explicit identities; admission never repairs them.
-pub(crate) fn sync_member_pairs(doc: &mut ProjectDoc, matrix_id: &str) -> Result<(), String> {
+pub fn sync_member_pairs(doc: &mut ProjectDoc, matrix_id: &str) -> Result<(), String> {
     for index in 0..doc.layouts.len() {
         let Some(link) = doc.layouts[index].mirror_link.as_ref() else {
             continue;
@@ -320,7 +320,7 @@ pub(crate) fn sync_member_pairs(doc: &mut ProjectDoc, matrix_id: &str) -> Result
 }
 
 /// The relationship is stored once, but geometry can be edited from either half.
-pub(crate) fn has_link(doc: &ProjectDoc, matrix_id: &str) -> bool {
+pub fn has_link(doc: &ProjectDoc, matrix_id: &str) -> bool {
     doc.layouts
         .iter()
         .filter(|layout| layout.matrix_ids.iter().any(|id| id == matrix_id))
@@ -335,7 +335,7 @@ pub(crate) fn has_link(doc: &ProjectDoc, matrix_id: &str) -> bool {
         })
 }
 
-pub(crate) fn partner(doc: &ProjectDoc, matrix_id: &str) -> Option<(String, f64)> {
+pub fn partner(doc: &ProjectDoc, matrix_id: &str) -> Option<(String, f64)> {
     doc.layouts
         .iter()
         .filter_map(|layout| layout.mirror_link.as_ref())
@@ -356,7 +356,7 @@ pub(crate) fn partner(doc: &ProjectDoc, matrix_id: &str) -> Option<(String, f64)
 }
 
 /// The pair map of a vertical mirror line at `axis_x`: the reflection `x' = 2 * axis_x - x`.
-pub(crate) fn axis_mapping(axis_x: f64) -> Pose2 {
+pub fn axis_mapping(axis_x: f64) -> Pose2 {
     Pose2 {
         at: Vec2 {
             x: 2.0 * axis_x,
@@ -369,7 +369,7 @@ pub(crate) fn axis_mapping(axis_x: f64) -> Pose2 {
 /// Key-edge to key-edge distance implied by board-coordinate geometry, measured
 /// at the half-origin column: the source origin's key edge to its reflection.
 /// This is the stored Split gap a legacy pair adopts on its first edit.
-pub(crate) fn implied_gap(axis_x: f64, matrix: &Matrix) -> f64 {
+pub fn implied_gap(axis_x: f64, matrix: &Matrix) -> f64 {
     gap_from_origin(axis_x, matrix.origin.x, matrix.pitch.x, matrix.edge_gap)
 }
 
@@ -415,7 +415,7 @@ fn pair_frame(doc: &ProjectDoc, matrix_id: &str) -> Option<(f64, Option<f64>, Op
 }
 
 /// The stored Split gap of the pair a matrix belongs to, if the pair has one.
-pub(crate) fn pair_gap(doc: &ProjectDoc, matrix_id: &str) -> Option<f64> {
+pub fn pair_gap(doc: &ProjectDoc, matrix_id: &str) -> Option<f64> {
     pair_frame(doc, matrix_id).and_then(|(_, gap, _, _)| gap)
 }
 
@@ -445,7 +445,7 @@ pub fn half_offset(doc: &ProjectDoc, matrix_id: &str) -> Option<Vec2> {
 /// World origins as half-frame values. Every evaluated world pose is
 /// preserved, so adoption moves nothing. Fully anchored pairs stay legacy;
 /// spacing owns their envelopes (ticket 10).
-pub(crate) fn adopt_half_frames(doc: &mut ProjectDoc) -> Result<Vec<String>, String> {
+pub fn adopt_half_frames(doc: &mut ProjectDoc) -> Result<Vec<String>, String> {
     let targets: Vec<String> = doc
         .layouts
         .iter()
@@ -657,7 +657,7 @@ fn unrecorded_mirror_pairs(
 /// design: every layout entry point (AddPart, SetLayout, gap adoption) already
 /// stores half-frame poses, so converting here would double-convert. Rotations
 /// are frame-free throughout.
-pub(crate) fn adopt_unrecorded_mirrors(
+pub fn adopt_unrecorded_mirrors(
     doc: &mut ProjectDoc,
     source_id: &str,
     target_id: &str,
@@ -701,7 +701,7 @@ fn strip_substitute_flag(doc: &mut ProjectDoc, part_id: &str) {
 /// Restore board-coordinate origins for a stored-gap pair (unlink or gap
 /// removal), preserving every evaluated world pose. Refuses when a sibling
 /// gapped mirror still positions the same source half.
-pub(crate) fn unadopt_pair(doc: &mut ProjectDoc, layout_id: &str) -> Result<Vec<String>, String> {
+pub fn unadopt_pair(doc: &mut ProjectDoc, layout_id: &str) -> Result<Vec<String>, String> {
     let (source_id, axis_x, gap) = {
         let layout = doc
             .layouts
@@ -801,7 +801,7 @@ pub(crate) fn unadopt_pair(doc: &mut ProjectDoc, layout_id: &str) -> Result<Vec<
 
 /// Set the stored Split gap on every link of the pair a layout belongs to:
 /// the carrier's own link, or every mirror link pointing at a source layout.
-pub(crate) fn set_pair_gap(
+pub fn set_pair_gap(
     doc: &mut ProjectDoc,
     layout_id: &str,
     gap: f64,
@@ -840,7 +840,7 @@ pub(crate) fn set_pair_gap(
 /// pass). `None` for ungrouped parts, parts on unlinked layouts, matrix
 /// members/companions (whose world poses the refresh owns), and legacy pairs
 /// without a stored gap, whose parts stay board-coordinate.
-pub(crate) fn part_half_offset(doc: &ProjectDoc, part_id: &str) -> Option<Vec2> {
+pub fn part_half_offset(doc: &ProjectDoc, part_id: &str) -> Option<Vec2> {
     if is_member_or_companion(doc, part_id) {
         return None;
     }
@@ -861,7 +861,7 @@ pub fn layout_half_offset(doc: &ProjectDoc, layout_id: &str) -> Option<Vec2> {
 
 /// Whether `part_id` is a matrix member or a generated companion: their world
 /// poses belong to the matrix refresh, never to the half frame.
-pub(crate) fn is_member_or_companion(doc: &ProjectDoc, part_id: &str) -> bool {
+pub fn is_member_or_companion(doc: &ProjectDoc, part_id: &str) -> bool {
     for matrix in &doc.matrices {
         let members = matrix::cell_members(matrix);
         if members.values().any(|member| member == part_id) {
@@ -904,7 +904,7 @@ pub fn evaluated_part_pose(doc: &ProjectDoc, part: &Part) -> Pose2 {
 /// Ticket 12: borrow a part viewed at its evaluated board pose. Readers that
 /// need the whole [`Part`] (not just its pose) take this instead of cloning:
 /// the owned shadow only materializes while a half-frame offset applies.
-pub(crate) fn evaluated_part<'a>(doc: &ProjectDoc, part: &'a Part) -> Cow<'a, Part> {
+pub fn evaluated_part<'a>(doc: &ProjectDoc, part: &'a Part) -> Cow<'a, Part> {
     let evaluated = evaluated_part_pose(doc, part);
     if evaluated == part.pose {
         Cow::Borrowed(part)
@@ -919,12 +919,12 @@ pub(crate) fn evaluated_part<'a>(doc: &ProjectDoc, part: &'a Part) -> Cow<'a, Pa
 /// Ticket 10: outline margin (mm) used for the adaptive minimum when the
 /// pair's board carries no PartEnvelope outline feature. Matches the
 /// prototype's clearance feel; recorded in ADR-0036.
-pub(crate) const DEFAULT_SPACING_MARGIN_MM: f64 = 3.0;
+pub const DEFAULT_SPACING_MARGIN_MM: f64 = 3.0;
 /// Ticket 11: default Split gap (mm) proposed at mirrored-pair creation. The
 /// stored gap is `max(requested, default, minimum)`: an explicit wider
 /// placement is kept, anything below the default or the ticket-10 minimum is
 /// raised so the placed pair already shows the adapted gap.
-pub(crate) const DEFAULT_CREATION_GAP_MM: f64 = 40.0;
+pub const DEFAULT_CREATION_GAP_MM: f64 = 40.0;
 /// Deficits at or below this (mm) count as clear.
 const SPACING_EPSILON: f64 = 1e-9;
 /// Backstop for the minimum search; the rigid-halves case converges in one step.
@@ -940,10 +940,7 @@ const MAX_SPACING_PASSES: usize = 50;
 /// unanchored matrix there is no implied gap to adopt. `accepted` is the
 /// pre-edit document: only pairs already gapped there follow the full rule.
 /// Returns the ids whose spacing changed.
-pub(crate) fn adapt_spacing(
-    doc: &mut ProjectDoc,
-    accepted: &ProjectDoc,
-) -> Result<Vec<String>, String> {
+pub fn adapt_spacing(doc: &mut ProjectDoc, accepted: &ProjectDoc) -> Result<Vec<String>, String> {
     let pre_gapped: BTreeSet<String> = accepted
         .layouts
         .iter()
@@ -1347,7 +1344,7 @@ fn envelope_deficit(
 
 /// Board-space x extents of one independent part at its evaluated pose: its
 /// courtyard, or its keycap size, or its bare pose when neither is available.
-pub(crate) fn part_extents_at(
+pub fn part_extents_at(
     pose: &Pose2,
     side: Side,
     keycap: Option<Vec2>,
@@ -1384,7 +1381,7 @@ pub(crate) fn part_extents_at(
 
 /// Relative x extents of one independent part about its own center, for the
 /// split clamp: the evaluated shape shifted so the stored center sits at zero.
-pub(crate) fn part_extent_offsets(
+pub fn part_extent_offsets(
     pose: &Pose2,
     side: Side,
     keycap: Option<Vec2>,
@@ -1475,7 +1472,7 @@ fn reflected_companion(mut assembly: MatrixAssembly) -> MatrixAssembly {
 /// With `half_frame`, both origins are already half-local: the mirror keeps the
 /// negated half-frame Origin/Rotation instead of a board-space reflection, so a
 /// later Split gap change moves the evaluated halves without rewriting storage.
-pub(crate) fn reflected(
+pub fn reflected(
     source: &Matrix,
     target: &Matrix,
     mapping: Pose2,
@@ -1690,7 +1687,7 @@ fn remap_anchor_target(
         })
 }
 
-pub(crate) fn sync(doc: &mut ProjectDoc, matrix_id: &str) -> Result<Vec<String>, String> {
+pub fn sync(doc: &mut ProjectDoc, matrix_id: &str) -> Result<Vec<String>, String> {
     let Some((target_id, axis_x)) = partner(doc, matrix_id) else {
         return Ok(vec![]);
     };
@@ -1931,7 +1928,7 @@ pub(crate) fn sync(doc: &mut ProjectDoc, matrix_id: &str) -> Result<Vec<String>,
     Ok(changed)
 }
 
-pub(crate) fn resolve(doc: &mut ProjectDoc) -> Result<(), String> {
+pub fn resolve(doc: &mut ProjectDoc) -> Result<(), String> {
     validate(doc)?;
     for matrix in &doc.matrices {
         matrix::valid_projection_matrix(matrix)?;
@@ -1956,7 +1953,7 @@ pub(crate) fn resolve(doc: &mut ProjectDoc) -> Result<(), String> {
     Ok(())
 }
 
-pub(crate) fn refresh_existing(doc: &mut ProjectDoc) -> Result<Vec<String>, String> {
+pub fn refresh_existing(doc: &mut ProjectDoc) -> Result<Vec<String>, String> {
     matrix::placement::carrying_authored_companions(
         doc,
         matrix::placement::Reported::PreserveEditReport,
@@ -2000,7 +1997,7 @@ pub(crate) fn refresh_existing(doc: &mut ProjectDoc) -> Result<Vec<String>, Stri
     )
 }
 
-pub(crate) fn exception_state(
+pub fn exception_state(
     doc: &ProjectDoc,
     kind: MirroredItemKind,
     id: &str,
@@ -2020,7 +2017,7 @@ pub(crate) fn exception_state(
         .map(|exception| exception.state)
 }
 
-pub(crate) fn omitted(doc: &ProjectDoc, matrix_id: &str, key_id: &str) -> bool {
+pub fn omitted(doc: &ProjectDoc, matrix_id: &str, key_id: &str) -> bool {
     // Native reconciliation owns its staged membership plan; filter same-board overlays here.
     let state = |kind, id: &str| {
         doc.layouts
@@ -2098,7 +2095,7 @@ fn is_controller_definition(doc: &ProjectDoc, definition_id: &str) -> bool {
 /// Ticket 12: reflect a half-frame part pose across the split axis. Stored x
 /// negates (both halves' frames grow from the axis); the heading follows the
 /// shared mirrored-part rule. An involution: reflecting twice restores the pose.
-pub(crate) fn reflect_half_part(doc: &ProjectDoc, part_id: &str, pose: Pose2) -> Pose2 {
+pub fn reflect_half_part(doc: &ProjectDoc, part_id: &str, pose: Pose2) -> Pose2 {
     let is_controller = doc
         .parts
         .iter()
@@ -2145,7 +2142,7 @@ fn carrier_offset(doc: &ProjectDoc, layout: &Layout) -> Option<Vec2> {
 /// incoming half; leaving parts convert back to board-space. The unlink
 /// transition skips leaving parts: unadopt already restored them. Matrix
 /// members and companions never reframe: the matrix refresh owns them.
-pub(crate) fn reframe_moved_parts(
+pub fn reframe_moved_parts(
     doc: &mut ProjectDoc,
     previous: &Layout,
     incoming: &Layout,
@@ -2221,7 +2218,7 @@ pub(crate) fn reframe_moved_parts(
 /// Ticket 12: store a board-space pose in the half frame: independent parts on
 /// a stored-gap half keep within-half values while the canvas, constraints
 /// and spacing all work board-space. Frame-free rotation passes through.
-pub(crate) fn stored_part_pose(doc: &ProjectDoc, part_id: &str, board: Pose2) -> Pose2 {
+pub fn stored_part_pose(doc: &ProjectDoc, part_id: &str, board: Pose2) -> Pose2 {
     match part_half_offset(doc, part_id) {
         Some(offset) => Pose2 {
             at: Vec2 {
@@ -2238,7 +2235,7 @@ pub(crate) fn stored_part_pose(doc: &ProjectDoc, part_id: &str, board: Pose2) ->
 /// extent stays on its own side of the split axis: a part cannot cross to the
 /// other half. Non-pair parts and poses already clear pass through unchanged;
 /// the side follows the part's current evaluated center, never the request.
-pub(crate) fn clamp_part_to_half(doc: &ProjectDoc, part_id: &str, at: Vec2) -> Vec2 {
+pub fn clamp_part_to_half(doc: &ProjectDoc, part_id: &str, at: Vec2) -> Vec2 {
     let Some(part) = doc.parts.iter().find(|part| part.id == part_id) else {
         return at;
     };
@@ -2306,10 +2303,7 @@ pub(crate) fn clamp_part_to_half(doc: &ProjectDoc, part_id: &str, at: Vec2) -> V
 /// Missing partners materialize, so undo and replacement converge. Returns
 /// the changed ids. Parts without a correspondence on a stored-gap link, and
 /// legacy pairs without a stored gap, resolve through the legacy sync instead.
-pub(crate) fn ensure_part_mirror(
-    doc: &mut ProjectDoc,
-    part_id: &str,
-) -> Result<Vec<String>, String> {
+pub fn ensure_part_mirror(doc: &mut ProjectDoc, part_id: &str) -> Result<Vec<String>, String> {
     let Some((carrier_id, record)) = part_correspondence(doc, part_id) else {
         return Ok(vec![]);
     };
@@ -2499,10 +2493,7 @@ pub(crate) fn ensure_part_mirror(
 /// correspondence in the same edit. The drop point arrives board-space and is
 /// already half-local; the partner materializes at the reflected pose.
 /// Legacy pairs and ungrouped parts resolve through the existing sync.
-pub(crate) fn mirror_new_pair_part(
-    doc: &mut ProjectDoc,
-    part_id: &str,
-) -> Result<Vec<String>, String> {
+pub fn mirror_new_pair_part(doc: &mut ProjectDoc, part_id: &str) -> Result<Vec<String>, String> {
     let layout_id = doc
         .layouts
         .iter()
@@ -2558,7 +2549,7 @@ pub(crate) fn mirror_new_pair_part(
 /// stored-gap pair: clamp the request to its half, write it, and reflect it
 /// onto the partner so either copy edits both. Returns `None` for parts the
 /// legacy component sync owns.
-pub(crate) fn move_pair_part(
+pub fn move_pair_part(
     doc: &mut ProjectDoc,
     part_id: &str,
     at: Vec2,
@@ -2664,7 +2655,7 @@ pub(crate) fn move_pair_part(
 /// authority: the partner takes the reflected half-frame heading per the
 /// shared mirrored-part rule. Locked, member/companion, anchored and
 /// constraint-driven parts refuse; the caller checks finiteness.
-pub(crate) fn set_detached_part_rotation(
+pub fn set_detached_part_rotation(
     doc: &mut ProjectDoc,
     part_id: &str,
     rotation: f64,
@@ -2932,7 +2923,7 @@ pub(crate) fn set_detached_part_rotation(
 
 /// Ticket 12: drop Part correspondences naming any removed part, so removal
 /// of a mirrored copy (or its source) never leaves a dangling record behind.
-pub(crate) fn retire_part_correspondences(doc: &mut ProjectDoc, ids: &[String]) {
+pub fn retire_part_correspondences(doc: &mut ProjectDoc, ids: &[String]) {
     for layout in &mut doc.layouts {
         if let Some(link) = layout.mirror_link.as_mut() {
             link.correspondences.retain(|record| {
@@ -2947,7 +2938,7 @@ pub(crate) fn retire_part_correspondences(doc: &mut ProjectDoc, ids: &[String]) 
 /// false` removes the partner and drops the correspondence, keeping the named
 /// copy local; `mirrored = true` re-materializes the partner at the reflected
 /// pose. Each direction lands in one Undo entry; already-there is a no-op.
-pub(crate) fn set_part_mirrored(
+pub fn set_part_mirrored(
     doc: &mut ProjectDoc,
     part_id: &str,
     mirrored: bool,
@@ -3210,7 +3201,7 @@ fn cleanup_orphaned_components(
     Ok(changed)
 }
 
-pub(crate) fn sync_components(doc: &mut ProjectDoc) -> Result<Vec<String>, String> {
+pub fn sync_components(doc: &mut ProjectDoc) -> Result<Vec<String>, String> {
     let pairs: Vec<_> = doc
         .layouts
         .iter()
@@ -3488,7 +3479,7 @@ pub(crate) fn sync_components(doc: &mut ProjectDoc) -> Result<Vec<String>, Strin
     Ok(changed)
 }
 
-pub(crate) fn move_linked_component(
+pub fn move_linked_component(
     doc: &mut ProjectDoc,
     id: &str,
     at: Vec2,
@@ -3657,7 +3648,7 @@ fn adopt_unassigned_components(
 /// offset with it. A mirror-constraint refusal stops the drag. `None` leaves
 /// a stored rotation bit-for-bit, like a direct drag. Returns whether a
 /// constraint was retuned.
-pub(crate) fn retune_driven_constraint(
+pub fn retune_driven_constraint(
     doc: &mut ProjectDoc,
     id: &str,
     board: crate::model::Pose2,
@@ -3744,7 +3735,7 @@ fn clear_component_link(part: &mut Part) {
     }
 }
 
-pub(crate) fn unlink_components(doc: &mut ProjectDoc, layout_id: &str) -> Vec<String> {
+pub fn unlink_components(doc: &mut ProjectDoc, layout_id: &str) -> Vec<String> {
     let Some((part_ids, matrix_ids)) = doc
         .layouts
         .iter()
@@ -3798,7 +3789,7 @@ fn remove_component(doc: &mut ProjectDoc, id: &str) {
     }
 }
 
-pub(crate) fn mirrored_component_ids(doc: &ProjectDoc, requested: &[String]) -> Vec<String> {
+pub fn mirrored_component_ids(doc: &ProjectDoc, requested: &[String]) -> Vec<String> {
     let mut ids: BTreeSet<_> = requested.iter().cloned().collect();
     for target in &doc.parts {
         let Some(source_id) = target
@@ -3817,7 +3808,7 @@ pub(crate) fn mirrored_component_ids(doc: &ProjectDoc, requested: &[String]) -> 
     ids.into_iter().collect()
 }
 
-pub(crate) fn remove_matrix(doc: &mut ProjectDoc, matrix_id: &str) {
+pub fn remove_matrix(doc: &mut ProjectDoc, matrix_id: &str) {
     let removed: BTreeSet<_> = doc
         .layouts
         .iter()
@@ -3876,7 +3867,7 @@ fn primary_member<'a>(doc: &'a ProjectDoc, id: &str) -> Option<(&'a Matrix, u32,
     None
 }
 
-pub(crate) fn has_linked_positions(doc: &ProjectDoc, positions: &[Position]) -> bool {
+pub fn has_linked_positions(doc: &ProjectDoc, positions: &[Position]) -> bool {
     let mut affected: BTreeSet<_> = positions
         .iter()
         .map(|position| position.id.as_str())
@@ -3921,7 +3912,7 @@ pub(crate) fn has_linked_positions(doc: &ProjectDoc, positions: &[Position]) -> 
 
 /// Numeric moves and keyboard nudges must update the same parametric geometry
 /// as pointer edits; absolute part overrides would break the next linked edit.
-pub(crate) fn move_keys(
+pub fn move_keys(
     doc: &mut ProjectDoc,
     positions: &[Position],
 ) -> Result<(Vec<String>, BTreeSet<String>), String> {
@@ -4073,18 +4064,18 @@ pub(crate) fn move_keys(
     Ok((changed, handled))
 }
 
-pub(crate) struct AssemblyPlacement {
-    pub(crate) parent_id: String,
-    pub(crate) local_pose: Pose2,
-    pub(crate) authored_pose: Option<Pose2>,
-    pub(crate) mode: MatrixCompanionMode,
+pub struct AssemblyPlacement {
+    pub parent_id: String,
+    pub local_pose: Pose2,
+    pub authored_pose: Option<Pose2>,
+    pub mode: MatrixCompanionMode,
 }
 
 /// Classify a generated companion the same way the solver places it: an explicit
 /// constraint wins, then an authored pose, otherwise the companion follows its
 /// key. The placement solver and the scene projection both read this mode, so the
 /// precedence rule has one source.
-pub(crate) fn companion_mode(doc: &ProjectDoc, companion_id: &str) -> MatrixCompanionMode {
+pub fn companion_mode(doc: &ProjectDoc, companion_id: &str) -> MatrixCompanionMode {
     if let Some(constraint) = doc.constraint_driving_part(companion_id).ok().flatten() {
         return MatrixCompanionMode::Constrained {
             constraint_id: constraint.id().to_string(),
@@ -4107,7 +4098,7 @@ pub(crate) fn companion_mode(doc: &ProjectDoc, companion_id: &str) -> MatrixComp
     }
 }
 
-pub(crate) fn assembly_placements(
+pub fn assembly_placements(
     doc: &ProjectDoc,
     explicit: &[Position],
 ) -> BTreeMap<String, AssemblyPlacement> {
@@ -4168,7 +4159,7 @@ pub(crate) fn assembly_placements(
     placements
 }
 
-pub(crate) fn reconcile_constraint_keys(
+pub fn reconcile_constraint_keys(
     doc: &mut ProjectDoc,
     moves: &BTreeMap<String, (Pose2, Pose2)>,
     solved: &BTreeMap<String, Pose2>,
@@ -4258,7 +4249,7 @@ pub(crate) fn reconcile_constraint_keys(
 /// keys returning to a shared state reset their independent offset and
 /// rotation to the followed cell. Explicit child exceptions are otherwise
 /// preserved untouched.
-pub(crate) fn apply_exception_transitions(
+pub fn apply_exception_transitions(
     doc: &mut ProjectDoc,
     previous: &Layout,
     incoming: &Layout,
@@ -4399,7 +4390,7 @@ pub(crate) fn apply_exception_transitions(
 /// Follow-deleted mirror matrices and their member parts for one removal,
 /// plus retired absent (Omitted) records that leave no parts behind.
 #[derive(Default)]
-pub(crate) struct LinkedRemovalFollow {
+pub struct LinkedRemovalFollow {
     pub matrices: Vec<String>,
     pub part_ids: Vec<String>,
     pub retired: Vec<String>,
@@ -4412,7 +4403,7 @@ pub(crate) struct LinkedRemovalFollow {
 /// retired records detach keeping their frame (an asymmetric detach still
 /// refuses naming its Local exception). Unrelated pairs, surviving
 /// ownership and anchors are preserved; no replacement is joined.
-pub(crate) fn plan_linked_matrix_removal(
+pub fn plan_linked_matrix_removal(
     doc: &mut ProjectDoc,
     matrix_id: &str,
     detached: &mut Vec<String>,
@@ -4524,10 +4515,7 @@ fn retire_pair_records(
 /// Ticket 21: record a Local matrix exception for a confirmed linked
 /// detach. Refuses when the matrix is not a linked mirror member or the
 /// overlay already exists, so stale confirmations change nothing.
-pub(crate) fn add_local_matrix_exception(
-    doc: &mut ProjectDoc,
-    mirror_id: &str,
-) -> Result<(), String> {
+pub fn add_local_matrix_exception(doc: &mut ProjectDoc, mirror_id: &str) -> Result<(), String> {
     let layout = doc
         .layouts
         .iter_mut()
@@ -4558,7 +4546,7 @@ pub(crate) fn add_local_matrix_exception(
 /// follows its source live and rejoins to adopt it. Refuse direct storage
 /// edits naming it (or its absent members) instead of silently diverging
 /// the live record or discarding the edit on the next sync.
-pub(crate) fn refuse_omitted_storage_edit(
+pub fn refuse_omitted_storage_edit(
     doc: &ProjectDoc,
     matrix_id: &str,
     cells: &[(u32, u32)],
@@ -4584,7 +4572,7 @@ pub(crate) fn refuse_omitted_storage_edit(
 /// Whether a matrix edits alone: an independent (Local) or absent (Omitted)
 /// matrix neither joins a grouped storage edit nor is joined by one. Its
 /// partner follows through `sync` (live for Omitted, skipped for Local).
-pub(crate) fn edits_alone(doc: &ProjectDoc, matrix_id: &str) -> bool {
+pub fn edits_alone(doc: &ProjectDoc, matrix_id: &str) -> bool {
     if matches!(
         exception_state(doc, MirroredItemKind::Matrix, matrix_id),
         Some(MirroredExceptionState::Local | MirroredExceptionState::Omitted)
