@@ -1,6 +1,6 @@
 # W3-4 Crate Decomposition — Phase 0 Dependency-Graph Design
 
-**Status:** Implemented on `perf/w3-4-split-core-engine-and-web-layout` (see §8); cold checkpoint pending
+**Status:** Implemented and verified on `perf/w3-4-split-core-engine-and-web-layout` (see §8)
 **Baseline:** `aba05d895` (`perf/cold-build-cpu`, `cpu-opt3`: 310.1 s warm / 416.2 s bypass)
 **Branch:** `perf/w3-4-split-core-engine-and-web-layout`
 **Spec:** Section W3-4 of [cold-build-wave3-handoff.md](cold-build-wave3-handoff.md)
@@ -453,6 +453,18 @@ security deny release` + `test` all pass):
   shrinkages exceed it downward. Remaining worker delta is the BTree/Vec/Clone
   long tail (~1.5 MB at object level) that is inherent to by-value document drafts
   crossing crate boundaries.
-- Cold checkpoint: recorded below once `w3-4-seed` → `w3-4-warm`/`w3-4-bypass` land.
+- Cold checkpoint (`w3-4-seed` → `w3-4-warm` → `w3-4-bypass --without-cache`,
+  logs in `.evidence/cold-build-port/`): warm **380.6 s** wall / 1,930 s compiler
+  CPU (882/882 sccache hits), bypass **470.5 s** / 3,039 s, vs the `cpu-opt3`
+  baseline of 310.1 s / 1,763 s and 416.2 s / 2,809 s. The targeted single-unit
+  outcome is met with margin: the former 90.3 s warm / 121.7 s bypass
+  `boardstudio_core_engine` test unit is now 18.0 s / 19.5 s for the remnant
+  engine, and the largest descendant unit (mirrored-half test) is 44.5 s / 42.0 s.
+  Total cold wall and compiler CPU nevertheless regress (~+23% / +9% warm):
+  the split's extra generic-instantiation and unit overhead outweighs the
+  critical-path win at whole-workspace scale, where CAD, the page, and `web_sys`
+  dominate. That trade — much faster localized edit/test cycles and no single
+  serializing unit, at higher total cold CPU — is the honest cost of this split
+  and should be weighed before landing.
 
 
