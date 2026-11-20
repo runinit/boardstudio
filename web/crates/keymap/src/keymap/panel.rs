@@ -506,13 +506,13 @@ mod disclosure_mounted_tests {
                 .map(|(id, reference, binding)| KeymapKey {
                     id: Rc::from(id),
                     reference: Rc::from(reference),
-                    pose: boardstudio_core::model::Pose2 {
-                        at: boardstudio_core::model::Vec2 { x: 0.0, y: 0.0 },
+                    pose: boardstudio_model::model::Pose2 {
+                        at: boardstudio_model::model::Vec2 { x: 0.0, y: 0.0 },
                         rotation: 0.0,
                     },
                     binding_title: Rc::from(binding),
                     color: Rc::from("#fff"),
-                    size: boardstudio_core::model::Vec2 { x: 1.0, y: 1.0 },
+                    size: boardstudio_model::model::Vec2 { x: 1.0, y: 1.0 },
                     search_index: format!("{reference} {binding}").to_lowercase(),
                 })
                 .collect(),

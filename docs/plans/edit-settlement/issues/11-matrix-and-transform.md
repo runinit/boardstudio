@@ -97,7 +97,7 @@ line numbers at `3368825`, orientation only):
 - #20's drag sends previews while moving and a preview then a commit at drag end.
   Previews stay; only the commit becomes an intent. The commit's resolver applies
   the drag's net transform to the accepted matrix.
-- `web/crates/layout/src/matrix_transform_lifecycle.rs` holds the transform
+- `web/crates/layout-core/src/matrix_transform_lifecycle.rs` holds the transform
   settlement helpers and their native tests. Delete what the edit ticket replaces;
   keep admission (`AcceptedIdentity::admits` for stale callbacks) if dispatch still
   needs it.

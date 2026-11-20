@@ -11,11 +11,11 @@ use crate::ui::{
 use boardstudio_application::{
     AcceptedSnapshot, EditResolver, Lifecycle, Resolution, SessionEpoch,
 };
-use boardstudio_core::model::{EditOperation, Finding, Script, Severity};
+use boardstudio_model::model::{EditOperation, Finding, Script, Severity};
 use dioxus::prelude::*;
 use std::rc::Rc;
 
-fn script_commit(document: boardstudio_core::model::ProjectDoc, script_id: &str) -> Resolution {
+fn script_commit(document: boardstudio_model::model::ProjectDoc, script_id: &str) -> Resolution {
     Resolution::submit(
         vec![script_id.to_owned()],
         EditOperation::ReplaceDocument {
@@ -496,7 +496,7 @@ mod queued_script_tests {
     use super::*;
     use crate::runtime::project_name_test_support as support;
     use crate::test_mount::MountedFixture;
-    use boardstudio_core::model::{Board, EditCommand, EditPhase, ProjectDoc};
+    use boardstudio_model::model::{Board, EditCommand, EditPhase, ProjectDoc};
     use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
     use std::cell::{Cell, RefCell};
     use wasm_bindgen::JsCast;

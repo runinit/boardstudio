@@ -1,5 +1,5 @@
 use super::catalogue::CatalogEntry;
-use boardstudio_core::model::{
+use boardstudio_model::model::{
     AssemblyDefinition, Asset, Matrix, MatrixAssembly, MatrixCell, Part, PartDefinition, PartKind,
     PartOutline, ProjectDoc, Side, Vec2,
 };
@@ -399,7 +399,7 @@ pub fn matrix_with_assembly(
         }
         if matches!(
             &member.model_mode,
-            Some(boardstudio_core::model::AssemblyModelMode::Custom)
+            Some(boardstudio_model::model::AssemblyModelMode::Custom)
         ) || (member.model_mode.is_none() && !member.models.is_empty())
         {
             definition.models = Some(member.models.clone());
@@ -598,7 +598,7 @@ pub fn document_with_assembly(
         if !member.models.is_empty()
             || matches!(
                 &member.model_mode,
-                Some(boardstudio_core::model::AssemblyModelMode::Custom)
+                Some(boardstudio_model::model::AssemblyModelMode::Custom)
             )
         {
             definition.models = Some(member.models.clone());
@@ -650,7 +650,7 @@ pub fn document_with_assembly(
             id: part_id.clone(),
             definition_id: definition.id,
             reference,
-            pose: boardstudio_core::model::Pose2 {
+            pose: boardstudio_model::model::Pose2 {
                 at: Vec2 {
                     x: origin.x + member.pose.at.x,
                     y: origin.y + member.pose.at.y,

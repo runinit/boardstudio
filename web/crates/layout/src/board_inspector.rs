@@ -5,7 +5,7 @@ use boardstudio_application::Event;
 use boardstudio_application::{
     AcceptedSnapshot, EditResolver, Lifecycle, Resolution, Scope, SnapshotToken,
 };
-use boardstudio_core::model::EditOperation;
+use boardstudio_model::model::EditOperation;
 use boardstudio_web_ui_shared::ui::field::FieldError;
 use boardstudio_web_ui_shared::ui::field::{Field, FieldLabel};
 use boardstudio_web_ui_shared::ui::input_group::{InputGroup, InputGroupInput};
@@ -508,7 +508,7 @@ mod queued_board_name_tests {
     #[wasm_bindgen_test]
     async fn board_inspector_measurements_keep_layout_without_legacy_classes() {
         let runtime = support::new_runtime();
-        let mut project = boardstudio_core::model::ProjectDoc::empty("board-measure", "Project");
+        let mut project = boardstudio_model::model::ProjectDoc::empty("board-measure", "Project");
         project.boards.push(serde_json::from_value(serde_json::json!({
             "id": "board", "name": "Board", "outlineIds": [], "partIds": [], "netIds": [], "thickness": 1.6, "traces": [], "vias": []
         })).unwrap());
@@ -587,7 +587,7 @@ mod queued_board_name_tests {
     #[wasm_bindgen_test]
     async fn mounted_board_rename_queues_with_layout_edits_and_undo_keeps_them() {
         let runtime = support::new_runtime();
-        let mut document = boardstudio_core::model::ProjectDoc::empty("board-rename", "Project");
+        let mut document = boardstudio_model::model::ProjectDoc::empty("board-rename", "Project");
         document.boards.push(serde_json::from_value(serde_json::json!({
             "id": "board", "name": "Board", "outlineIds": [], "partIds": [], "netIds": [], "thickness": 1.6, "traces": [], "vias": []
         })).unwrap());
@@ -697,7 +697,7 @@ mod queued_board_name_tests {
     #[wasm_bindgen_test]
     async fn mounted_spaced_board_name_failure_restores_accepted_name() {
         let runtime = support::new_runtime();
-        let mut document = boardstudio_core::model::ProjectDoc::empty("board-spaces", "Project");
+        let mut document = boardstudio_model::model::ProjectDoc::empty("board-spaces", "Project");
         document.boards.push(serde_json::from_value(serde_json::json!({
             "id": "board", "name": "Board", "outlineIds": [], "partIds": [], "netIds": [], "thickness": 1.6, "traces": [], "vias": []
         })).unwrap());
@@ -748,7 +748,7 @@ mod queued_board_name_tests {
     async fn mounted_accepted_name_draft_queues_behind_an_earlier_rename() {
         let runtime = support::new_runtime();
         let mut document =
-            boardstudio_core::model::ProjectDoc::empty("board-queued-reset", "Project");
+            boardstudio_model::model::ProjectDoc::empty("board-queued-reset", "Project");
         document.boards.push(serde_json::from_value(serde_json::json!({
             "id": "board", "name": "Board", "outlineIds": [], "partIds": [], "netIds": [], "thickness": 1.6, "traces": [], "vias": []
         })).unwrap());

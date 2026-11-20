@@ -15,6 +15,8 @@ members = [
   "web/crates/catalogue",
   "web/crates/ui-shared",
   "web/crates/layout",
+  "web/crates/layout-core",
+  "web/crates/layout-objects",
   "web/crates/pcb",
   "web/crates/parts",
   "web/crates/case",
@@ -135,6 +137,8 @@ boardstudio-web-keycaps = { debug-assertions = false }
 boardstudio-web-case = { debug-assertions = false }
 boardstudio-web-parts = { debug-assertions = false }
 boardstudio-web-layout = { debug-assertions = false }
+boardstudio-web-layout-core = { debug-assertions = false }
+boardstudio-web-layout-objects = { debug-assertions = false }
 boardstudio-web-pcb = { debug-assertions = false }
 boardstudio-web-keymap = { debug-assertions = false }
 boardstudio-web-library = { debug-assertions = false }
@@ -152,6 +156,10 @@ debug-assertions = true
 debug-assertions = true
 [profile.wasm-dev.package.boardstudio-web-layout]
 debug-assertions = true
+[profile.wasm-dev.package.boardstudio-web-layout-core]
+debug-assertions = true
+[profile.wasm-dev.package.boardstudio-web-layout-objects]
+debug-assertions = true
 [profile.wasm-dev.package.boardstudio-web-pcb]
 debug-assertions = true
 [profile.wasm-dev.package.boardstudio-web-keymap]
@@ -164,6 +172,19 @@ debug-assertions = true
 [profile.lint]
 inherits = "dev"
 incremental = false
+
+# One codegen unit per crate in shipped builds. The workspace is split into
+# many crates over one shared document vocabulary; with the default 16 units
+# per crate, each crate repeats the same generic instantiations over those
+# types (measured +21.7% on the core worker after the W3-4 split). A single
+# unit restores the sharing the monolithic crates had and measured smaller
+# than the pre-split baseline in aggregate (page -13.2%). opt-level 2 (the
+# level dev already uses for runtime-hot dependencies) keeps the single-unit
+# inliner from inflating the large serde visitors back past the baseline;
+# measured core-worker -1.5% and cad-worker -0.8% vs the pre-split record.
+[profile.release]
+codegen-units = 1
+opt-level = 2
 
 # The profile for every wasm build `scripts/check.py` makes: the packaged page
 # (`build-web.py --fast`), the page tests and each crate's `wasm-pack test`. With the wasm rustflags

@@ -1,5 +1,5 @@
 use crate::core_protocol::encode_core_request;
-use boardstudio_core::model::{ArtifactReply, ArtifactRequest, CoreReply, CoreRequest};
+use boardstudio_model::model::{ArtifactReply, ArtifactRequest, CoreReply, CoreRequest};
 use futures_channel::oneshot;
 use js_sys::{Array, Object, Reflect, Uint8Array};
 use serde_json::Value;

@@ -10,7 +10,7 @@ use super::{
 };
 use crate::runtime::Runtime;
 use boardstudio_application::SelectionMode;
-use boardstudio_core::model::{Finding, ProjectDoc};
+use boardstudio_model::model::{Finding, ProjectDoc};
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertDescription, AlertVariant},
     button::{Button, ButtonVariant},
@@ -633,7 +633,8 @@ mod mounted_keycaps_preview_tests {
     async fn mounted_preview_failure_retries_and_ignores_a_late_old_owner_reply() {
         let first_fit = super::super::keycaps_fit::cad_preview_fixture("left", 7, 11);
         let newer_fit = super::super::keycaps_fit::cad_preview_fixture("right", 8, 12);
-        let runtime = Runtime::new().expect("browser runtime fixture initializes");
+        let runtime = Runtime::new(boardstudio_web_runtime::core_services::CoreServices::engine())
+            .expect("browser runtime fixture initializes");
         let requests = Rc::new(RefCell::new(VecDeque::new()));
         let probe = PreviewProbe {
             runtime,

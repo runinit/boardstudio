@@ -1,6 +1,6 @@
 //! Tickets 017/018 mount the actual Case settings. Only accepted values and callbacks live here.
 #[cfg(target_arch = "wasm32")]
-use boardstudio_core::model::*;
+use boardstudio_model::model::*;
 #[cfg(target_arch = "wasm32")]
 use boardstudio_web_case::mechanical_settings::*;
 #[cfg(target_arch = "wasm32")]
@@ -195,9 +195,11 @@ fn fixture() -> Element {
             source: r#"(footprint "Custom" (fp_rect (start -9.5 9.5) (end 9.5 -9.5) (stroke (width 0.1) (type solid)) (fill none) (layer "Dwgs.User")))"#.into(),
             mappings, max_deviation_mm: 0.005,
         };
-            match serde_json::from_str::<ArtifactReply>(&boardstudio_core::artifact_request(
-                &serde_json::to_string(&request).unwrap(),
-            ))
+            match serde_json::from_str::<ArtifactReply>(
+                &boardstudio_core_artifact::artifact::request(
+                    &serde_json::to_string(&request).unwrap(),
+                ),
+            )
             .unwrap()
             {
                 ArtifactReply::ExtractMechanical { result, .. } => Ok(result),

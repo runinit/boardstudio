@@ -1,5 +1,5 @@
 //! Presentation projection of a generator's KiCad forms, in Y-up units.
-use boardstudio_core::generators::Expr;
+use boardstudio_core_kernel::generators::Expr;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Point(pub f64, pub f64);
@@ -21,7 +21,7 @@ pub struct Graphic {
 }
 
 fn child<'a>(form: &'a [Expr], name: &str) -> Option<&'a [Expr]> {
-    boardstudio_core::generators::child(form, name)
+    boardstudio_core_kernel::generators::child(form, name)
 }
 
 fn scalar(form: &[Expr], index: usize) -> Option<&str> {
@@ -143,7 +143,7 @@ pub fn project(forms: &[Expr]) -> Vec<Graphic> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use boardstudio_core::generators::parse_forms;
+    use boardstudio_core_kernel::generators::parse_forms;
 
     fn forms(source: &str) -> Vec<Expr> {
         parse_forms(source).expect("forms parse")

@@ -12,7 +12,7 @@ use super::planner::{OutlinePointTarget, PerimeterAnchor};
 use crate::canvas_interaction::{CanvasInteractionArbiter, CanvasInteractionOwner};
 use crate::runtime::Runtime;
 use boardstudio_application::Event;
-use boardstudio_core::model::{EditPhase, Operation, OutlineFeature, Vec2, polygon_signed_area};
+use boardstudio_model::model::{EditPhase, Operation, OutlineFeature, Vec2, polygon_signed_area};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use std::cell::RefCell;

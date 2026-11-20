@@ -2,7 +2,7 @@
 //! drive the real Session and Core through the native Runtime; the Keymap panel binds
 //! the resolver to its macro controls.
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution, Scope, SnapshotToken};
-use boardstudio_core::model::{EditOperation, KeymapChange, KeymapMacro, MacroChange, MacroStep};
+use boardstudio_model::model::{EditOperation, KeymapChange, KeymapMacro, MacroChange, MacroStep};
 use std::rc::Rc;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -235,7 +235,7 @@ pub(crate) fn macro_resolver(
 mod tests {
     use super::*;
     use boardstudio_application::Event;
-    use boardstudio_core::model::{KeyBinding, ProjectDoc};
+    use boardstudio_model::model::{KeyBinding, ProjectDoc};
     use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
     use boardstudio_web_runtime::runtime::Runtime;
 

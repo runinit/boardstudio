@@ -2,7 +2,7 @@ use super::super::OutlineVersionInspector;
 use super::super::objects::{ScopedTreeContext, TreeContext};
 use super::*;
 use boardstudio_application::{Event, TerminalOutcome};
-use boardstudio_core::model::{
+use boardstudio_model::model::{
     Board, BoardOutline, OutlineProvenance, OutlineSettings, OutlineSnapshot, OutlineVersion,
     ProjectDoc,
 };
@@ -153,7 +153,7 @@ fn install_version(document: &mut ProjectDoc, id: &str) {
                 bridges: vec![],
                 protected_gaps: vec![],
             },
-            ownership: boardstudio_core::model::OutlineOwnership::Fixed,
+            ownership: boardstudio_model::model::OutlineOwnership::Fixed,
         }],
     }];
 }
@@ -532,7 +532,11 @@ async fn activation_rejects_stale_rendered_token() {
         .clone();
     replace_document(&probe, replacement).await;
     flush(&probe, &mut dom);
-    assert!(!old.is_current(&probe.runtime, probe.generation.get()));
+    assert!(!super::outline_action_is_current(
+        &old,
+        &probe.runtime,
+        probe.generation.get()
+    ));
     let before = probe.runtime.model().accepted.unwrap().document;
     probe.activation.borrow().as_ref().unwrap().call(old);
     accept(&probe).await;

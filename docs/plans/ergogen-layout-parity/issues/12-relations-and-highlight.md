@@ -7,7 +7,7 @@ Map: [map.md](../map.md) · Decision: [ADR-0036](../../../adr/0036-matrices-foll
 
 ## Question
 
-Relations (`web/crates/layout/src/matrix_relations.rs`, `web/src/presentation/layout_matrix_relations.rs`)
+Relations (`web/crates/layout-core/src/matrix_relations.rs`, `web/src/presentation/layout_matrix_relations.rs`)
 and the canvas highlight currently explain cumulative stagger, splay, pitch, gap and companion
 modes for one matrix. Decide how they explain:
 

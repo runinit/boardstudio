@@ -6,7 +6,7 @@ use crate::parts_mechanical_profile::{
     standard_profile_request_is_current, standard_profile_source_and_gap,
 };
 use boardstudio_application::{AcceptedSnapshot, Scope};
-use boardstudio_core::model::{
+use boardstudio_model::model::{
     MechanicalExtraction, MechanicalGeometry, MechanicalPartProfile, MechanicalPurpose,
     MechanicalPurposeMapping, MechanicalSwitchFamily, PartDefinition, Vec2,
 };
@@ -135,9 +135,9 @@ pub fn ManualProfileEditor(
     });
     let profile = draft.read().clone();
     let family_details = profile.switch_family.map(|family| match family {
-        boardstudio_core::model::MechanicalSwitchFamily::Mx
-        | boardstudio_core::model::MechanicalSwitchFamily::ChocV2 => 1.5,
-        boardstudio_core::model::MechanicalSwitchFamily::ChocV1 => 1.3,
+        boardstudio_model::model::MechanicalSwitchFamily::Mx
+        | boardstudio_model::model::MechanicalSwitchFamily::ChocV2 => 1.5,
+        boardstudio_model::model::MechanicalSwitchFamily::ChocV1 => 1.3,
     });
     let gap_label = displayed_mounting_gap(&profile).unwrap_or_default();
     let (show_family_selector, show_standard_action) =
@@ -506,7 +506,7 @@ mod mounted_tests {
     use super::*;
     use crate::parts_mechanical_profile::ProfileDefinitionSource;
     use boardstudio_application::{OperationId, SessionEpoch, SnapshotToken};
-    use boardstudio_core::model::{
+    use boardstudio_model::model::{
         MechanicalGeometryKind, MechanicalPrimitive, MechanicalProfileSource, MechanicalShape,
         ProjectDoc, SceneDelta,
     };
@@ -791,14 +791,14 @@ mod mounted_tests {
     }
 }
 
-fn primitive_kind(kind: boardstudio_core::model::MechanicalGeometryKind) -> &'static str {
+fn primitive_kind(kind: boardstudio_model::model::MechanicalGeometryKind) -> &'static str {
     match kind {
-        boardstudio_core::model::MechanicalGeometryKind::Line => "Line",
-        boardstudio_core::model::MechanicalGeometryKind::Arc => "Arc",
-        boardstudio_core::model::MechanicalGeometryKind::Circle => "Circle",
-        boardstudio_core::model::MechanicalGeometryKind::Rectangle => "Rectangle",
-        boardstudio_core::model::MechanicalGeometryKind::Polygon => "Polygon",
-        boardstudio_core::model::MechanicalGeometryKind::Drill => "Drill",
+        boardstudio_model::model::MechanicalGeometryKind::Line => "Line",
+        boardstudio_model::model::MechanicalGeometryKind::Arc => "Arc",
+        boardstudio_model::model::MechanicalGeometryKind::Circle => "Circle",
+        boardstudio_model::model::MechanicalGeometryKind::Rectangle => "Rectangle",
+        boardstudio_model::model::MechanicalGeometryKind::Polygon => "Polygon",
+        boardstudio_model::model::MechanicalGeometryKind::Drill => "Drill",
     }
 }
 

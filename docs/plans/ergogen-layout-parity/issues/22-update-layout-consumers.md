@@ -38,7 +38,7 @@ offsets; then add an anchored/Follow refusal case with unchanged document/histor
 ## Checks
 
 Current sources include `web/crates/catalogue/src/matrix_setup_operation.rs`,
-`web/crates/layout/src/objects/layout_align_controller.rs`, `web/crates/layout/src/part_placement.rs`,
+`web/crates/layout-objects/src/objects/layout_align_controller.rs`, `web/crates/layout/src/part_placement.rs`,
 UI-model tree/selection and keycaps/pair geometry consumers. Run focused native
 consumer/Core contracts and `check.py quick --files <changed-paths>`, plus affected
 browser subsets (`layout keycaps parts catalogue ui-model` as applicable). Report
@@ -82,7 +82,7 @@ Verification performed so far (all green):
   `ok. 815 passed; 0 failed` (matches the ticket-21 baseline).
 - `python3 scripts/check.py quick --files
   web/crates/layout/src/part_placement.rs
-  web/crates/layout/src/objects/layout_align_controller.rs
+  web/crates/layout-objects/src/objects/layout_align_controller.rs
   web/src/presentation.rs` (`TMPDIR=/home/chris/.cache/tmp`,
   `NODE_PATH` at the sanctioned web-tools modules, `CHROME_BIN=/usr/bin/chromium`):
   `check: all steps passed: repo, lint, typecheck, test, layout-test-css,

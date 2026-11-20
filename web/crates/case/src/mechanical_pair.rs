@@ -7,19 +7,19 @@
 //! the value the result is derived from, plus the pair's shared construction when a
 //! link consolidates it - so unrelated edits and revision changes leave a review valid
 //! while a relevant input change retires it.
-use boardstudio_core::CoreEngine;
-use boardstudio_core::mechanical::MechanicalTarget;
-use boardstudio_core::mechanical::change::{
+use boardstudio_core_mechanical::mechanical::MechanicalTarget;
+use boardstudio_core_mechanical::mechanical::change::{
     MechanicalChange, MechanicalEdit, MechanicalFeatureCorrespondence,
 };
-use boardstudio_core::mechanical::features;
-use boardstudio_core::mechanical::inputs::effective_inputs;
-use boardstudio_core::model::{
+use boardstudio_core_mechanical::mechanical::features;
+use boardstudio_core_mechanical::mechanical::inputs::effective_inputs;
+use boardstudio_model::model::{
     BoardContours, CoreReply, CoreRequest, EditCommand, EditOperation, EditPhase,
     MechanicalConfiguration, MechanicalFeature, MechanicalFeatureKind, MechanicalFeatureMember,
     MechanicalFeatureState, MechanicalFeatureValue, MechanicalMirrorPair, PartDefinition, Pose2,
     ProjectDoc, Vec2,
 };
+use boardstudio_web_runtime::core_services::OpenScratchCore;
 use std::rc::Rc;
 
 /// One linked feature of the selected half's pair, as the accepted document stores it.
@@ -165,6 +165,7 @@ pub fn pair_link_options(
     board_contours: &[BoardContours],
     instance_id: &str,
     mounting_hole: Option<&PartDefinition>,
+    open_scratch: OpenScratchCore,
 ) -> Vec<MechanicalPairLinkOption> {
     let Some(hardware) = document.hardware.as_ref() else {
         return Vec::new();
@@ -246,7 +247,13 @@ pub fn pair_link_options(
                         construction_source: review.construction_source.clone(),
                         correspondences: reviewed_correspondences.clone(),
                     };
-                    match link_preview(document, board_contours, &reviewed, mounting_hole) {
+                    match link_preview(
+                        document,
+                        board_contours,
+                        &reviewed,
+                        mounting_hole,
+                        open_scratch,
+                    ) {
                         Ok(preview) => (Some(preview), None),
                         Err(reason) => (None, Some(reason)),
                     }
@@ -324,12 +331,13 @@ pub fn link_preview(
     board_contours: &[BoardContours],
     change: &MechanicalChange,
     mounting_hole: Option<&PartDefinition>,
+    open_scratch: OpenScratchCore,
 ) -> Result<MechanicalLinkPreview, String> {
     let MechanicalChange::LinkMirrorPair { members, .. } = change else {
         return Err("Only a reviewed link has a two-half preview.".into());
     };
-    let mut engine = CoreEngine::new();
-    match engine.handle(CoreRequest::Open {
+    let mut core = open_scratch();
+    match core(CoreRequest::Open {
         id: "pair-review-open".into(),
         document: document.clone(),
     }) {
@@ -353,7 +361,7 @@ pub fn link_preview(
             edit: Box::new(edit),
         },
     };
-    let (projected, _scene) = match engine.handle(CoreRequest::Edit {
+    let (projected, _scene) = match core(CoreRequest::Edit {
         id: "pair-review-link".into(),
         command,
     }) {
@@ -710,7 +718,7 @@ fn link_fingerprint(
     board_contours: &[BoardContours],
     pair_id: &str,
     members: &[String; 2],
-    correspondences: &[boardstudio_core::mechanical::change::MechanicalFeatureCorrespondence],
+    correspondences: &[boardstudio_core_mechanical::mechanical::change::MechanicalFeatureCorrespondence],
 ) -> Result<String, String> {
     let hardware = document
         .hardware
@@ -873,12 +881,13 @@ fn pose(mapping: &Pose2) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use boardstudio_core::model::{
+    use boardstudio_model::model::{
         Board, BoardContours, Contour, GasketPlacement, HardwareConfiguration, HardwareTopology,
         HardwareTransport, MechanicalConstructionOwnership, MechanicalFeatureValue,
         MechanicalGasketAnchor, MechanicalGasketLayout, MechanicalMirrorPair, Mount, MountKind,
         PhysicalBoardInstance, Vec2,
     };
+    use boardstudio_web_runtime::core_services::CoreServices;
     use serde_json::json;
 
     fn configuration(board_id: &str) -> MechanicalConfiguration {
@@ -1018,7 +1027,7 @@ mod tests {
                     "opening-1",
                     MechanicalFeatureKind::Opening,
                     MechanicalFeatureValue::Opening {
-                        opening: boardstudio_core::model::MechanicalOpening {
+                        opening: boardstudio_model::model::MechanicalOpening {
                             id: "opening-1".into(),
                             vertices: vec![],
                             z: 1.0,
@@ -1245,9 +1254,9 @@ mod tests {
         }
         let gasket = |board_id: &str| {
             let mut configuration = configuration(board_id);
-            configuration.mount = boardstudio_core::model::MechanicalMount::Gasket;
+            configuration.mount = boardstudio_model::model::MechanicalMount::Gasket;
             configuration.gasket_layout =
-                Some(boardstudio_core::mechanical::default_gasket_layout());
+                Some(boardstudio_core_mechanical::mechanical::default_gasket_layout());
             configuration
         };
         let instance = |id: &str, board_id: &str| PhysicalBoardInstance {
@@ -1308,7 +1317,7 @@ mod tests {
     fn resolved_author_support(
         document: &ProjectDoc,
         accepted: &[BoardContours],
-    ) -> boardstudio_core::model::MechanicalGasketSupport {
+    ) -> boardstudio_model::model::MechanicalGasketSupport {
         let mut author_document = document.clone();
         author_document.physical_instance_id = Some("left".into());
         author_document.mechanical = Some(
@@ -1330,7 +1339,8 @@ mod tests {
             .expect("the wide board")
             .contours
             .clone();
-        let assembly = boardstudio_core::mechanical::resolve(&author_document, &contours);
+        let assembly =
+            boardstudio_core_mechanical::mechanical::resolve(&author_document, &contours);
         assert!(
             !assembly.generation_blocked,
             "the author's assembly resolves: {:?}",
@@ -1394,6 +1404,7 @@ mod tests {
             &accepted,
             &change,
             Some(&mounting_hole_template()),
+            CoreServices::engine().open_scratch,
         )
         .expect("the reviewed link projects");
 
@@ -1445,7 +1456,7 @@ mod tests {
 
         // The other half shows the exact reflection of the author's resolved support,
         // and the board that cannot receive it reports the located fit error instead.
-        let expected = boardstudio_core::mechanical::features::mirror_support(
+        let expected = boardstudio_core_mechanical::mechanical::features::mirror_support(
             Pose2 {
                 at: Vec2::default(),
                 rotation: 0.0,
@@ -1474,7 +1485,8 @@ mod tests {
 
         // Without the normalized template the projection cannot produce the generated
         // clearance, so the review must say so instead of showing a partial result.
-        let without = pair_link_options(&doc, &[], "left", None);
+        let without =
+            pair_link_options(&doc, &[], "left", None, CoreServices::engine().open_scratch);
         assert_eq!(without.len(), 1, "the candidate is still reviewable");
         assert!(
             without[0].preview.is_none(),
@@ -1490,7 +1502,13 @@ mod tests {
 
         // With the template the same candidate shows its complete proposed result.
         let template = mounting_hole_template();
-        let with_template = pair_link_options(&doc, &[], "left", Some(&template));
+        let with_template = pair_link_options(
+            &doc,
+            &[],
+            "left",
+            Some(&template),
+            CoreServices::engine().open_scratch,
+        );
         assert_eq!(with_template.len(), 1);
         let preview = with_template[0]
             .preview
@@ -1531,8 +1549,14 @@ mod tests {
         };
         let accepted = doc.clone();
 
-        let preview = link_preview(&doc, &[], &change, None)
-            .expect("the reviewed link projects through the disposable engine");
+        let preview = link_preview(
+            &doc,
+            &[],
+            &change,
+            None,
+            CoreServices::engine().open_scratch,
+        )
+        .expect("the reviewed link projects through the disposable engine");
 
         assert_eq!(
             doc, accepted,
@@ -1576,10 +1600,11 @@ mod tests {
     #[test]
     fn the_reviewed_choices_become_the_link_payload_the_review_shows() {
         let doc = linkable_halves();
-        let option = pair_link_options(&doc, &[], "left", None)
-            .into_iter()
-            .next()
-            .expect("one candidate");
+        let option =
+            pair_link_options(&doc, &[], "left", None, CoreServices::engine().open_scratch)
+                .into_iter()
+                .next()
+                .expect("one candidate");
         let mut sources = std::collections::BTreeMap::new();
 
         // No map, no payload: a translated frame must supply one.
@@ -1645,7 +1670,8 @@ mod tests {
     #[test]
     fn link_options_offer_each_other_half_with_its_map_and_durable_matches() {
         let doc = independent_halves();
-        let options = pair_link_options(&doc, &[], "left", None);
+        let options =
+            pair_link_options(&doc, &[], "left", None, CoreServices::engine().open_scratch);
         assert_eq!(options.len(), 1, "the other half is the one candidate");
         let option = &options[0];
         assert_eq!(option.instance_id, "left");
@@ -1695,14 +1721,24 @@ mod tests {
             Some("left"),
             "the reviewed payload names a source per feature explicitly"
         );
-        assert!(pair_link_options(&doc, &[], "missing", None).is_empty());
+        assert!(
+            pair_link_options(
+                &doc,
+                &[],
+                "missing",
+                None,
+                CoreServices::engine().open_scratch
+            )
+            .is_empty()
+        );
     }
 
     #[test]
     fn link_options_need_an_explicit_map_for_translated_frames_and_are_absent_when_paired() {
         let mut doc = independent_halves();
         doc.hardware.as_mut().unwrap().instances[1].flipped = false;
-        let options = pair_link_options(&doc, &[], "left", None);
+        let options =
+            pair_link_options(&doc, &[], "left", None, CoreServices::engine().open_scratch);
         assert_eq!(
             options[0].derived_mapping, None,
             "equal declared transforms need the review to supply the map"
@@ -1727,10 +1763,26 @@ mod tests {
             features: vec![],
         }];
         assert!(
-            pair_link_options(&paired, &[], "left", None).is_empty(),
+            pair_link_options(
+                &paired,
+                &[],
+                "left",
+                None,
+                CoreServices::engine().open_scratch
+            )
+            .is_empty(),
             "a paired half is linked through its pair actions instead"
         );
-        assert!(pair_link_options(&paired, &[], "right", None).is_empty());
+        assert!(
+            pair_link_options(
+                &paired,
+                &[],
+                "right",
+                None,
+                CoreServices::engine().open_scratch
+            )
+            .is_empty()
+        );
     }
 
     fn rejoin(instance_id: &str, feature_id: &str, source: &str) -> MechanicalChange {
@@ -1822,9 +1874,9 @@ mod tests {
     }
 
     fn correspondences()
-    -> Vec<boardstudio_core::mechanical::change::MechanicalFeatureCorrespondence> {
+    -> Vec<boardstudio_core_mechanical::mechanical::change::MechanicalFeatureCorrespondence> {
         vec![
-            boardstudio_core::mechanical::change::MechanicalFeatureCorrespondence {
+            boardstudio_core_mechanical::mechanical::change::MechanicalFeatureCorrespondence {
                 kind: MechanicalFeatureKind::Mount,
                 first_feature_id: "mount-1-left".into(),
                 second_feature_id: "mount-1-right".into(),

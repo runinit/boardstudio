@@ -1,5 +1,3 @@
-#[cfg(test)]
-use crate::model::MirrorAxis;
 use crate::model::{Constraint, Pose2, ProjectDoc, Vec2};
 use endpoints::Side;
 pub mod endpoints;
@@ -50,49 +48,5 @@ pub fn follow_pose(source: Pose2, local: Pose2) -> Pose2 {
             y: source.at.y + local.at.x * sin + local.at.y * cos,
         },
         rotation: source.rotation + local.rotation,
-    }
-}
-
-/// The pre-Framed arithmetic retained as the exact oracle for stored legacy documents.
-#[cfg(test)]
-fn constraint_pose(constraint: &Constraint, source: Pose2) -> Pose2 {
-    match constraint {
-        Constraint::Offset {
-            offset, rotation, ..
-        } => Pose2 {
-            at: Vec2 {
-                x: source.at.x + offset.x,
-                y: source.at.y + offset.y,
-            },
-            rotation: source.rotation + rotation,
-        },
-        Constraint::PartOffset {
-            offset, rotation, ..
-        } => follow_pose(
-            source,
-            Pose2 {
-                at: *offset,
-                rotation: *rotation,
-            },
-        ),
-        Constraint::Mirror {
-            axis, coordinate, ..
-        } => Pose2 {
-            at: match axis {
-                MirrorAxis::Vertical => Vec2 {
-                    x: 2.0 * coordinate - source.at.x,
-                    y: source.at.y,
-                },
-                MirrorAxis::Horizontal => Vec2 {
-                    x: source.at.x,
-                    y: 2.0 * coordinate - source.at.y,
-                },
-            },
-            rotation: match axis {
-                MirrorAxis::Vertical => 180.0 - source.rotation,
-                MirrorAxis::Horizontal => -source.rotation,
-            },
-        },
-        Constraint::Framed { .. } => unreachable!("the oracle only accepts legacy records"),
     }
 }

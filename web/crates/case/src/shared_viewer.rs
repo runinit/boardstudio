@@ -1141,7 +1141,7 @@ fn project_layout_preview(
 
 fn layout_module_model_bodies(
     rows: Option<&ModelDeliveryRows>,
-    document: &boardstudio_core::model::ProjectDoc,
+    document: &boardstudio_model::model::ProjectDoc,
 ) -> Vec<serde_json::Value> {
     rows.into_iter()
         .flat_map(|rows| rows.delivered.iter())
@@ -1254,8 +1254,8 @@ fn transformed_module_mesh(
 }
 
 fn layout_module_bodies(
-    modules: &[boardstudio_core::model::ResolvedModule],
-    document: &boardstudio_core::model::ProjectDoc,
+    modules: &[boardstudio_model::model::ResolvedModule],
+    document: &boardstudio_model::model::ProjectDoc,
     board_id: &str,
     pcb_top_z: f64,
 ) -> Vec<serde_json::Value> {
@@ -1307,14 +1307,14 @@ fn layout_module_bodies(
                     "contours": [contour(&volume.geometry.points, false)],
                 })
             }));
-            if instance.attachment == boardstudio_core::model::ModuleAttachment::Board {
+            if instance.attachment == boardstudio_model::model::ModuleAttachment::Board {
                 for support in &module.mount_supports {
                     let ring = |diameter: f64, clockwise: bool| {
                         (0..48)
                             .map(|index| {
                                 let direction = if clockwise { -1.0 } else { 1.0 };
                                 let angle = std::f64::consts::TAU * index as f64 / 48.0;
-                                boardstudio_core::model::Vec2 {
+                                boardstudio_model::model::Vec2 {
                                     x: support.at.x + diameter / 2.0 * (direction * angle).cos(),
                                     y: support.at.y + diameter / 2.0 * (direction * angle).sin(),
                                 }
@@ -3459,7 +3459,7 @@ mod tests {
 
     #[wasm_bindgen_test::wasm_bindgen_test]
     fn generic_layout_module_projection_preserves_board_holes_and_omits_opening_voids() {
-        use boardstudio_core::model::{
+        use boardstudio_model::model::{
             CaseOpening, ModuleAttachment, ModuleSupportGeometry, MountedModule, ProjectDoc,
             ResolvedModule, Side, Vec2,
         };
@@ -3503,7 +3503,7 @@ mod tests {
             }],
             pcb_source: None,
             round_drills: vec![],
-            board_holes: vec![boardstudio_core::model::Contour {
+            board_holes: vec![boardstudio_model::model::Contour {
                 points: vec![
                     Vec2 { x: 0.5, y: 0.5 },
                     Vec2 { x: 0.5, y: 1.5 },
@@ -3512,7 +3512,7 @@ mod tests {
                 ],
                 hole: true,
             }],
-            volumes: vec![boardstudio_core::model::ModuleVolume {
+            volumes: vec![boardstudio_model::model::ModuleVolume {
                 id: "volume-1".into(),
                 geometry: CaseOpening {
                     points: polygon,
@@ -3523,7 +3523,7 @@ mod tests {
                 source: "fixture".into(),
                 qualified: true,
             }],
-            openings: vec![boardstudio_core::model::ModuleVolume {
+            openings: vec![boardstudio_model::model::ModuleVolume {
                 id: "clearance-void".into(),
                 geometry: CaseOpening {
                     points: vec![
@@ -3575,9 +3575,9 @@ mod tests {
     }
 
     fn imported_preview_fixture(
-        reference: boardstudio_core::model::BoardReference,
+        reference: boardstudio_model::model::BoardReference,
     ) -> (boardstudio_application::AcceptedSnapshot, ViewerIdentity) {
-        use boardstudio_core::model::{
+        use boardstudio_model::model::{
             Asset, Board, BoardContours, ProjectDoc, Readiness, SceneDelta,
         };
         use std::sync::Arc;
@@ -3604,8 +3604,8 @@ mod tests {
             source: None,
         });
         document.board_references.push(reference);
-        document.hardware = Some(boardstudio_core::model::HardwareConfiguration {
-            instances: vec![boardstudio_core::model::PhysicalBoardInstance {
+        document.hardware = Some(boardstudio_model::model::HardwareConfiguration {
+            instances: vec![boardstudio_model::model::PhysicalBoardInstance {
                 id: "case-instance-1".into(),
                 name: "Case instance".into(),
                 board_id: "board-1".into(),
@@ -3615,7 +3615,7 @@ mod tests {
                 controller_part_id: None,
                 mechanical: None,
                 construction_ownership:
-                    boardstudio_core::model::MechanicalConstructionOwnership::Local,
+                    boardstudio_model::model::MechanicalConstructionOwnership::Local,
                 mechanical_identity_reservation: None,
             }],
             ..Default::default()
@@ -3652,10 +3652,10 @@ mod tests {
     }
 
     fn imported_layout_projection(
-        reference: boardstudio_core::model::BoardReference,
+        reference: boardstudio_model::model::BoardReference,
         model_rows: Option<ModelDeliveryRows>,
     ) -> RendererSceneProjection {
-        use boardstudio_core::model::PcbPreview;
+        use boardstudio_model::model::PcbPreview;
         use std::collections::BTreeMap;
         let (accepted, viewer) = imported_preview_fixture(reference);
         let capture = super::super::layout_viewer_source::LayoutSourceCapture::capture(
@@ -3682,7 +3682,7 @@ mod tests {
 
     #[wasm_bindgen_test::wasm_bindgen_test]
     fn imported_layout_projection_preserves_nonidentity_board_reference_pose_and_elevation() {
-        use boardstudio_core::model::{BoardReference, Pose2, Vec2};
+        use boardstudio_model::model::{BoardReference, Pose2, Vec2};
         use std::collections::BTreeMap;
 
         let projection = imported_layout_projection(
@@ -3720,7 +3720,7 @@ mod tests {
 
     #[wasm_bindgen_test::wasm_bindgen_test]
     fn imported_case_projection_keeps_routed_contours_and_pose_in_pcb_and_case_scene_packets() {
-        use boardstudio_core::model::{
+        use boardstudio_model::model::{
             BoardReference, Contour, PcbPreview, Pose2, PreparedCaseAssemblyIR, Vec2,
         };
         let reference = BoardReference {
@@ -3809,7 +3809,7 @@ mod tests {
     #[wasm_bindgen_test::wasm_bindgen_test]
     fn layout_packet_includes_module_model_mesh_at_core_stable_id_and_transform() {
         use super::super::model_delivery::{DeliveredModel, ModelDeliveryRows, ValidatedMesh};
-        use boardstudio_core::model::{BoardReference, Pose2, Vec2};
+        use boardstudio_model::model::{BoardReference, Pose2, Vec2};
         use std::collections::BTreeMap;
 
         let placement_id = "module-model/placement-a/0".to_owned();
@@ -3861,7 +3861,7 @@ mod tests {
     #[wasm_bindgen_test::wasm_bindgen_test]
     fn vendor_step_sibling_lines_attach_to_pcb_and_module_models_with_single_row_transform() {
         use super::super::model_delivery::{DeliveredModel, ModelDeliveryRows, ValidatedMesh};
-        use boardstudio_core::model::{BoardReference, Pose2, Vec2};
+        use boardstudio_model::model::{BoardReference, Pose2, Vec2};
         use boardstudio_web_host::cad_jobs::CadVendorStep;
         use std::collections::BTreeMap;
 
@@ -4042,7 +4042,7 @@ mod tests {
     }
 
     fn gesture_scene(identity: &ViewerIdentity) -> Rc<CadScene> {
-        use boardstudio_core::model::{PreparedCaseAssemblyIR, ProjectDoc, Readiness, SceneDelta};
+        use boardstudio_model::model::{PreparedCaseAssemblyIR, ProjectDoc, Readiness, SceneDelta};
         use std::sync::Arc;
         let mut document = ProjectDoc::empty(&identity.scope.document_id, "Gesture source");
         document.revision = identity.revision;

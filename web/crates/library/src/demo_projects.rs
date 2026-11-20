@@ -1,10 +1,10 @@
-use boardstudio_core::CoreEngine;
-use boardstudio_core::model::{
+use boardstudio_model::model::{
     Board, ColumnLayout, CoreReply, CoreRequest, EditCommand, EditOperation, EditPhase, Follow,
     Layout, LayoutMirrorLink, Material, Matrix, MatrixAnchor, Mirror, MirroredCorrespondence,
     MirroredItemKind, Operation, OutlineFeature, OutlineSettings, PartDefinition, PartKind,
     ProjectDoc, RowLayout, Vec2,
 };
+use boardstudio_web_runtime::core_services::{OpenScratchCore, ScratchCore};
 
 #[derive(Clone, Copy)]
 pub(crate) struct DemoProject {
@@ -42,14 +42,14 @@ pub(crate) const DEMO_PROJECTS: [DemoProject; 3] = [
 /// every switch pose is Core-generated matrix materialization (decision 14),
 /// never a baked part pose.
 struct DemoBuilder {
-    engine: CoreEngine,
+    engine: ScratchCore,
     revision: u64,
 }
 
 impl DemoBuilder {
-    fn open(document: ProjectDoc) -> Result<Self, String> {
-        let mut engine = CoreEngine::new();
-        let revision = match engine.handle(CoreRequest::Open {
+    fn open(document: ProjectDoc, open_scratch: OpenScratchCore) -> Result<Self, String> {
+        let mut engine = open_scratch();
+        let revision = match engine(CoreRequest::Open {
             id: "demo-open".into(),
             document,
         }) {
@@ -62,7 +62,7 @@ impl DemoBuilder {
 
     fn commit(&mut self, operation: EditOperation) -> Result<ProjectDoc, String> {
         let revision = self.revision;
-        let reply = self.engine.handle(CoreRequest::Edit {
+        let reply = (self.engine)(CoreRequest::Edit {
             id: "demo-edit".into(),
             command: EditCommand {
                 base_revision: revision,
@@ -91,7 +91,7 @@ impl DemoBuilder {
     }
 
     fn snapshot(&mut self) -> Result<ProjectDoc, String> {
-        match self.engine.handle(CoreRequest::Snapshot {
+        match (self.engine)(CoreRequest::Snapshot {
             id: "demo-snapshot".into(),
         }) {
             CoreReply::Scene { document, .. } => Ok(*document),
@@ -156,8 +156,9 @@ fn single_matrix_document(
     rows: u32,
     columns: u32,
     origin: Vec2,
+    open_scratch: OpenScratchCore,
 ) -> Result<ProjectDoc, String> {
-    let mut builder = DemoBuilder::open(demo_shell(name))?;
+    let mut builder = DemoBuilder::open(demo_shell(name), open_scratch)?;
     builder.commit(EditOperation::SetMatrix {
         matrix: Matrix {
             id: "main".into(),
@@ -212,7 +213,7 @@ fn single_matrix_document(
     Ok(document)
 }
 
-fn studio60_document(name: &str) -> ProjectDoc {
+fn studio60_document(name: &str, open_scratch: OpenScratchCore) -> ProjectDoc {
     single_matrix_document(
         name,
         5,
@@ -221,11 +222,12 @@ fn studio60_document(name: &str) -> ProjectDoc {
             x: -104.775,
             y: -38.1,
         },
+        open_scratch,
     )
     .expect("Studio 60 demo builds through Core")
 }
 
-fn macro12_document(name: &str) -> ProjectDoc {
+fn macro12_document(name: &str, open_scratch: OpenScratchCore) -> ProjectDoc {
     single_matrix_document(
         name,
         3,
@@ -234,6 +236,7 @@ fn macro12_document(name: &str) -> ProjectDoc {
             x: -28.575,
             y: -19.05,
         },
+        open_scratch,
     )
     .expect("Macro 12 demo builds through Core")
 }
@@ -266,12 +269,12 @@ fn demo_matrix(id: &str, rows: u32, columns: u32) -> Matrix {
     }
 }
 
-fn split42_document(name: &str) -> ProjectDoc {
-    split42_build(name).expect("Split 42 demo builds through Core")
+fn split42_document(name: &str, open_scratch: OpenScratchCore) -> ProjectDoc {
+    split42_build(name, open_scratch).expect("Split 42 demo builds through Core")
 }
 
-fn split42_build(name: &str) -> Result<ProjectDoc, String> {
-    let mut builder = DemoBuilder::open(demo_shell(name))?;
+fn split42_build(name: &str, open_scratch: OpenScratchCore) -> Result<ProjectDoc, String> {
+    let mut builder = DemoBuilder::open(demo_shell(name), open_scratch)?;
     // Left main group: the authored source. Its local X mirror turns the
     // negative row Shifts into the legacy positive world-X progression.
     let mut left_main = demo_matrix("left-main", 3, 6);
@@ -416,11 +419,11 @@ fn split42_build(name: &str) -> Result<ProjectDoc, String> {
 }
 
 impl DemoProject {
-    pub(crate) fn document(self) -> ProjectDoc {
+    pub(crate) fn document(self, open_scratch: OpenScratchCore) -> ProjectDoc {
         match self.layout {
-            DemoLayout::Studio60 => studio60_document(self.name),
-            DemoLayout::Macro12 => macro12_document(self.name),
-            DemoLayout::Split42 => split42_document(self.name),
+            DemoLayout::Studio60 => studio60_document(self.name, open_scratch),
+            DemoLayout::Macro12 => macro12_document(self.name, open_scratch),
+            DemoLayout::Split42 => split42_document(self.name, open_scratch),
         }
     }
 }
@@ -428,14 +431,16 @@ impl DemoProject {
 #[cfg(test)]
 mod demo_rebuild_tests {
     use super::*;
-    use boardstudio_core::migrate::CURRENT_VERSION;
+    use boardstudio_core::CoreEngine;
+    use boardstudio_core_kernel::migrate::CURRENT_VERSION;
+    use boardstudio_web_runtime::core_services::CoreServices;
 
     fn studio60() -> ProjectDoc {
         DEMO_PROJECTS
             .iter()
             .find(|demo| demo.name == "Studio 60")
             .expect("Studio 60 entry")
-            .document()
+            .document(CoreServices::engine().open_scratch)
     }
 
     fn legacy_grid(rows: usize, columns: usize, pitch: f64) -> Vec<Vec2> {
@@ -549,7 +554,14 @@ mod demo_rebuild_tests {
         );
         let counts: Vec<_> = DEMO_PROJECTS
             .iter()
-            .map(|demo| (demo.name, demo.document().parts.len()))
+            .map(|demo| {
+                (
+                    demo.name,
+                    demo.document(CoreServices::engine().open_scratch)
+                        .parts
+                        .len(),
+                )
+            })
             .collect();
         assert_eq!(
             counts,
@@ -562,7 +574,7 @@ mod demo_rebuild_tests {
             .iter()
             .find(|demo| demo.name == "Macro 12")
             .expect("Macro 12 entry")
-            .document()
+            .document(CoreServices::engine().open_scratch)
     }
 
     #[test]
@@ -617,7 +629,7 @@ mod demo_rebuild_tests {
                 .iter()
                 .find(|demo| demo.name == name)
                 .expect("demo entry")
-                .document();
+                .document(CoreServices::engine().open_scratch);
             for matrix in &document.matrices {
                 assert_eq!(matrix.pitch, Vec2 { x: 19.05, y: 19.05 }, "{name} pitch");
                 assert_eq!(
@@ -662,7 +674,7 @@ mod demo_rebuild_tests {
                 .outline
                 .iter()
                 .filter_map(|feature| match feature {
-                    boardstudio_core::model::OutlineFeature::PartEnvelope {
+                    boardstudio_model::model::OutlineFeature::PartEnvelope {
                         id,
                         part_ids,
                         margin,
@@ -690,12 +702,12 @@ mod demo_rebuild_tests {
             .iter()
             .find(|demo| demo.name == "Split 42")
             .expect("Split 42 entry")
-            .document()
+            .document(CoreServices::engine().open_scratch)
     }
 
     #[test]
     fn split42_has_two_linked_layouts_with_four_matrices() {
-        use boardstudio_core::model::MirroredItemKind;
+        use boardstudio_model::model::MirroredItemKind;
         let document = split42();
         assert_eq!(document.format_version, CURRENT_VERSION);
         assert_eq!(document.layouts.len(), 2, "two linked Layouts");
@@ -889,7 +901,7 @@ mod demo_rebuild_tests {
         );
     }
 
-    use boardstudio_core::model::Position;
+    use boardstudio_model::model::Position;
 
     struct Session {
         engine: CoreEngine,

@@ -10,7 +10,7 @@ wasm_bindgen_test_configure!(run_in_browser);
 #[derive(Clone)]
 struct Probe {
     action: Rc<RefCell<Option<super::super::part_placement::ComponentPlacementAction>>>,
-    definition: boardstudio_core::model::PartDefinition,
+    definition: boardstudio_model::model::PartDefinition,
     apply_to_key: bool,
 }
 
@@ -56,7 +56,7 @@ fn add_object_host() -> Element {
     }
 }
 
-fn definition(id: &str, kind: &str) -> boardstudio_core::model::PartDefinition {
+fn definition(id: &str, kind: &str) -> boardstudio_model::model::PartDefinition {
     serde_json::from_value(serde_json::json!({
         "id": id,
         "name": kind,
@@ -69,7 +69,7 @@ fn definition(id: &str, kind: &str) -> boardstudio_core::model::PartDefinition {
 
 async fn mounted_action(
     root_id: &str,
-    definition: boardstudio_core::model::PartDefinition,
+    definition: boardstudio_model::model::PartDefinition,
     apply_to_key: bool,
 ) -> (
     Rc<RefCell<Option<super::super::part_placement::ComponentPlacementAction>>>,
@@ -103,9 +103,9 @@ async fn mounted_action(
 }
 
 fn add_object_snapshot() -> AcceptedSnapshot {
-    let mut document = boardstudio_core::model::ProjectDoc::empty("placement-ui", "Placement UI");
+    let mut document = boardstudio_model::model::ProjectDoc::empty("placement-ui", "Placement UI");
     for (id, name) in [("board-main", "Main"), ("board-mirror", "Mirror")] {
-        document.boards.push(boardstudio_core::model::Board {
+        document.boards.push(boardstudio_model::model::Board {
             id: id.into(),
             name: name.into(),
             outline_ids: vec![],
@@ -115,7 +115,7 @@ fn add_object_snapshot() -> AcceptedSnapshot {
             traces: vec![],
             vias: vec![],
         });
-        document.layouts.push(boardstudio_core::model::Layout {
+        document.layouts.push(boardstudio_model::model::Layout {
             id: format!("layout-{id}"),
             name: format!("{name} layout"),
             board_id: id.into(),
@@ -253,11 +253,11 @@ async fn mounted_add_object_chooser_keeps_default_and_exposes_mirror_only_only_o
         vec![
             super::super::part_placement::ComponentPlacementAction::AddObject {
                 definition_id: "catalog:ui-part".into(),
-                kind: boardstudio_core::model::PartKind::Passive,
+                kind: boardstudio_model::model::PartKind::Passive,
             },
             super::super::part_placement::ComponentPlacementAction::AddMirrorOnlyObject {
                 definition_id: "catalog:ui-part".into(),
-                kind: boardstudio_core::model::PartKind::Passive,
+                kind: boardstudio_model::model::PartKind::Passive,
             },
         ]
     );
@@ -407,7 +407,7 @@ async fn inspector_click_routes_a_switch_to_the_selected_key_action() {
         Some(
             &super::super::part_placement::ComponentPlacementAction::PartsInspector {
                 definition_id: "generator:switch".into(),
-                kind: boardstudio_core::model::PartKind::Switch,
+                kind: boardstudio_model::model::PartKind::Switch,
             }
         )
     );
@@ -425,13 +425,13 @@ async fn inspector_disables_a_switch_without_independent_press_contacts() {
     assert!(action.borrow().is_none());
 }
 
-fn input_pad(id: &str, number: &str) -> boardstudio_core::model::Pad {
-    boardstudio_core::model::Pad {
+fn input_pad(id: &str, number: &str) -> boardstudio_model::model::Pad {
+    boardstudio_model::model::Pad {
         id: id.into(),
         number: number.into(),
-        at: boardstudio_core::model::Vec2::default(),
-        size: boardstudio_core::model::Vec2 { x: 1.0, y: 1.0 },
-        shape: boardstudio_core::model::PadShape::Rect,
+        at: boardstudio_model::model::Vec2::default(),
+        size: boardstudio_model::model::Vec2 { x: 1.0, y: 1.0 },
+        shape: boardstudio_model::model::PadShape::Rect,
         drill: None,
         plated: None,
         side: None,

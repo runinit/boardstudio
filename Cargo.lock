@@ -203,6 +203,7 @@ dependencies = [
 name = "boardstudio-application"
 version = "0.1.0"
 dependencies = [
+ "boardstudio-model",
  "boardstudio_core",
  "serde_json",
 ]
@@ -217,20 +218,83 @@ dependencies = [
 ]
 
 [[package]]
+name = "boardstudio-core-artifact"
+version = "0.1.0"
+dependencies = [
+ "boardstudio-contracts",
+ "boardstudio-core-kernel",
+ "boardstudio-core-kicad-source",
+ "boardstudio-core-mechanical",
+ "boardstudio-footprints",
+ "boardstudio-model",
+ "kiutils_sexpr",
+ "serde_json",
+]
+
+[[package]]
 name = "boardstudio-core-engine"
+version = "0.1.0"
+dependencies = [
+ "boardstudio-contracts",
+ "boardstudio-core-artifact",
+ "boardstudio-core-kernel",
+ "boardstudio-core-kicad-source",
+ "boardstudio-core-mechanical",
+ "boardstudio-core-mirrored-half",
+ "boardstudio-model",
+ "boardstudio-script",
+ "serde",
+ "serde_json",
+ "zip",
+]
+
+[[package]]
+name = "boardstudio-core-kernel"
 version = "0.1.0"
 dependencies = [
  "boardstudio-contracts",
  "boardstudio-footprints",
  "boardstudio-model",
- "boardstudio-script",
- "cavalier_contours",
  "i_overlay",
- "kiutils_sexpr",
  "serde",
  "serde_json",
  "sha2",
- "zip",
+]
+
+[[package]]
+name = "boardstudio-core-kicad-source"
+version = "0.1.0"
+dependencies = [
+ "boardstudio-contracts",
+ "boardstudio-core-kernel",
+ "boardstudio-model",
+ "cavalier_contours",
+ "kiutils_sexpr",
+]
+
+[[package]]
+name = "boardstudio-core-mechanical"
+version = "0.1.0"
+dependencies = [
+ "boardstudio-contracts",
+ "boardstudio-core-kernel",
+ "boardstudio-core-kicad-source",
+ "boardstudio-model",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "boardstudio-core-mirrored-half"
+version = "0.1.0"
+dependencies = [
+ "boardstudio-core-engine",
+ "boardstudio-core-kernel",
+ "boardstudio-core-mechanical",
+ "boardstudio-model",
+ "boardstudio-script",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -333,6 +397,9 @@ name = "boardstudio-web-case"
 version = "0.1.0"
 dependencies = [
  "boardstudio-application",
+ "boardstudio-core-artifact",
+ "boardstudio-core-mechanical",
+ "boardstudio-model",
  "boardstudio-web-catalogue",
  "boardstudio-web-host",
  "boardstudio-web-keycaps",
@@ -358,6 +425,9 @@ dependencies = [
 name = "boardstudio-web-catalogue"
 version = "0.1.0"
 dependencies = [
+ "boardstudio-core-kernel",
+ "boardstudio-core-mechanical",
+ "boardstudio-model",
  "boardstudio-web-host",
  "boardstudio_core",
  "serde",
@@ -370,6 +440,9 @@ name = "boardstudio-web-host"
 version = "0.1.0"
 dependencies = [
  "boardstudio-application",
+ "boardstudio-core-kernel",
+ "boardstudio-core-mechanical",
+ "boardstudio-model",
  "boardstudio-web-worker-host",
  "boardstudio_core",
  "futures-channel",
@@ -389,10 +462,10 @@ name = "boardstudio-web-keycaps"
 version = "0.1.0"
 dependencies = [
  "boardstudio-application",
+ "boardstudio-model",
  "boardstudio-web-runtime",
  "boardstudio-web-ui-model",
  "boardstudio-web-ui-shared",
- "boardstudio_core",
  "dioxus",
  "dioxus-web",
  "gloo-timers",
@@ -408,10 +481,11 @@ name = "boardstudio-web-keymap"
 version = "0.1.0"
 dependencies = [
  "boardstudio-application",
+ "boardstudio-core-mechanical",
+ "boardstudio-model",
  "boardstudio-web-runtime",
  "boardstudio-web-ui-model",
  "boardstudio-web-ui-shared",
- "boardstudio_core",
  "dioxus",
  "dioxus-web",
  "gloo-timers",
@@ -426,9 +500,57 @@ name = "boardstudio-web-layout"
 version = "0.1.0"
 dependencies = [
  "boardstudio-application",
+ "boardstudio-core-kernel",
+ "boardstudio-core-mechanical",
+ "boardstudio-model",
  "boardstudio-web-case",
  "boardstudio-web-catalogue",
  "boardstudio-web-keycaps",
+ "boardstudio-web-layout-core",
+ "boardstudio-web-layout-objects",
+ "boardstudio-web-parts",
+ "boardstudio-web-runtime",
+ "boardstudio-web-ui-model",
+ "boardstudio-web-ui-shared",
+ "boardstudio_core",
+ "dioxus",
+ "dioxus-primitives",
+ "dioxus-web",
+ "futures-channel",
+ "gloo-timers",
+ "js-sys",
+ "serde_json",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "wasm-bindgen-test",
+ "web-sys",
+]
+
+[[package]]
+name = "boardstudio-web-layout-core"
+version = "0.1.0"
+dependencies = [
+ "boardstudio-application",
+ "boardstudio-core-kernel",
+ "boardstudio-model",
+ "boardstudio-web-runtime",
+ "boardstudio-web-ui-model",
+ "boardstudio_core",
+ "serde_json",
+]
+
+[[package]]
+name = "boardstudio-web-layout-objects"
+version = "0.1.0"
+dependencies = [
+ "boardstudio-application",
+ "boardstudio-core-kernel",
+ "boardstudio-model",
+ "boardstudio-web-case",
+ "boardstudio-web-catalogue",
+ "boardstudio-web-keycaps",
+ "boardstudio-web-layout",
+ "boardstudio-web-layout-core",
  "boardstudio-web-parts",
  "boardstudio-web-runtime",
  "boardstudio-web-ui-model",
@@ -452,6 +574,8 @@ name = "boardstudio-web-library"
 version = "0.1.0"
 dependencies = [
  "boardstudio-application",
+ "boardstudio-core-kernel",
+ "boardstudio-model",
  "boardstudio-web-host",
  "boardstudio-web-runtime",
  "boardstudio-web-ui-model",
@@ -473,12 +597,14 @@ name = "boardstudio-web-parts"
 version = "0.1.0"
 dependencies = [
  "boardstudio-application",
+ "boardstudio-core-kernel",
+ "boardstudio-core-mechanical",
+ "boardstudio-model",
  "boardstudio-web-case",
  "boardstudio-web-catalogue",
  "boardstudio-web-runtime",
  "boardstudio-web-ui-model",
  "boardstudio-web-ui-shared",
- "boardstudio_core",
  "dioxus",
  "dioxus-web",
  "futures-channel",
@@ -498,6 +624,9 @@ name = "boardstudio-web-pcb"
 version = "0.1.0"
 dependencies = [
  "boardstudio-application",
+ "boardstudio-core-kernel",
+ "boardstudio-core-mechanical",
+ "boardstudio-model",
  "boardstudio-web-catalogue",
  "boardstudio-web-host",
  "boardstudio-web-parts",
@@ -522,6 +651,9 @@ name = "boardstudio-web-runtime"
 version = "0.1.0"
 dependencies = [
  "boardstudio-application",
+ "boardstudio-core-kernel",
+ "boardstudio-core-mechanical",
+ "boardstudio-model",
  "boardstudio-web-host",
  "boardstudio_core",
  "futures-channel",
@@ -541,6 +673,7 @@ name = "boardstudio-web-ui-model"
 version = "0.1.0"
 dependencies = [
  "boardstudio-application",
+ "boardstudio-model",
  "boardstudio-web-runtime",
  "boardstudio_core",
  "dioxus",
@@ -555,10 +688,11 @@ name = "boardstudio-web-ui-shared"
 version = "0.1.0"
 dependencies = [
  "boardstudio-application",
+ "boardstudio-core-kernel",
+ "boardstudio-model",
  "boardstudio-web-host",
  "boardstudio-web-runtime",
  "boardstudio-web-ui-model",
- "boardstudio_core",
  "dioxus",
  "dioxus-primitives",
  "dioxus-web",
@@ -577,7 +711,8 @@ dependencies = [
 name = "boardstudio-web-worker-host"
 version = "0.1.0"
 dependencies = [
- "boardstudio_core",
+ "boardstudio-core-kernel",
+ "boardstudio-model",
  "futures-channel",
  "gloo-timers",
  "js-sys",
@@ -594,8 +729,12 @@ dependencies = [
 name = "boardstudio_core"
 version = "0.1.0"
 dependencies = [
+ "boardstudio-core-artifact",
  "boardstudio-core-engine",
+ "boardstudio-core-kernel",
+ "boardstudio-core-mechanical",
  "boardstudio-footprints",
+ "boardstudio-model",
  "boardstudio-script",
  "js-sys",
  "regex",

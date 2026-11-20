@@ -4,7 +4,7 @@ use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, Lifecycle, Resolution, Scope, SnapshotToken,
 };
-use boardstudio_core::model::{EditCommand, EditOperation, KeymapChange};
+use boardstudio_model::model::{EditCommand, EditOperation, KeymapChange};
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
 use boardstudio_web_ui_shared::owned_edits::OwnedEdits;
 use dioxus::prelude::*;
@@ -328,7 +328,7 @@ fn current_source(
 }
 
 fn resolve_display_layer_id<'a>(
-    map: Option<&'a boardstudio_core::model::KeymapConfiguration>,
+    map: Option<&'a boardstudio_model::model::KeymapConfiguration>,
     requested: &str,
 ) -> Option<&'a str> {
     let Some(map) = map.filter(|map| !map.layers.is_empty()) else {

@@ -11,10 +11,10 @@ use boardstudio_application::{
     Durability, EditResolver, Event, OperationId, Resolution, Scope, SessionEpoch, SnapshotToken,
     TerminalOutcome,
 };
-use boardstudio_core::{
-    electrical::{ElectricalDiagnostic, ElectricalMode, ElectricalPlan, ElectricalPlanRequest},
-    model::*,
+use boardstudio_core_mechanical::electrical::{
+    ElectricalDiagnostic, ElectricalMode, ElectricalPlan, ElectricalPlanRequest,
 };
+use boardstudio_model::model::*;
 use boardstudio_web_runtime::operation_outcomes::OutcomeSlot;
 use dioxus::prelude::*;
 use std::{
@@ -137,7 +137,7 @@ fn resolved_plan(document: &ProjectDoc) -> Rc<ElectricalPlan> {
 }
 
 fn resolved_plan_with_mode(document: &ProjectDoc, mode: ElectricalMode) -> Rc<ElectricalPlan> {
-    Rc::new(boardstudio_core::electrical::resolve(
+    Rc::new(boardstudio_core_mechanical::electrical::resolve(
         ElectricalPlanRequest {
             instance_id: None,
             document: document.clone(),

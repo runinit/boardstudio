@@ -65,8 +65,8 @@ scripts/test-command-palette.py
 scripts/test-header.py
 web/assets/command-palette.css
 web/crates/case/src/cad_presentation.rs
-web/crates/layout/src/objects/layout_toolbar.rs
-web/crates/layout/src/objects/layout_transform_toolbar.rs
+web/crates/layout-objects/src/objects/layout_toolbar.rs
+web/crates/layout-objects/src/objects/layout_transform_toolbar.rs
 web/crates/library/src/library.rs
 web/crates/library/src/library/header_actions.rs
 web/crates/ui-shared/src/controls.rs

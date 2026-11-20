@@ -4,7 +4,7 @@ use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope, SnapshotToken,
 };
-use boardstudio_core::model::{
+use boardstudio_model::model::{
     EditOperation, KeycapBoardChange, KeycapBoardSettings, KeycapKeyChange, KeycapKeySettings,
     KeycapMatrixChange, KeycapMatrixSettings, KeycapMount, KeycapProfile, ProjectDoc, Vec2,
 };
@@ -1329,7 +1329,7 @@ pub fn project_selected_key(
         .as_ref()
         .and_then(|keycaps| keycaps.boards.get(view.board_id.as_ref()))
         .map_or_else(
-            || boardstudio_core::model::KeycapBoardSettings::default().color,
+            || boardstudio_model::model::KeycapBoardSettings::default().color,
             |settings| settings.color.clone(),
         );
     Some(SelectedKeySettings {
@@ -1978,7 +1978,7 @@ mod tests {
     fn width_and_depth_intents_merge_with_the_latest_accepted_sibling() {
         let scope = test_scope();
         let document = ProjectDoc {
-            keycaps: Some(boardstudio_core::model::KeycapConfiguration {
+            keycaps: Some(boardstudio_model::model::KeycapConfiguration {
                 keys: [(
                     "sw1".into(),
                     KeycapKeySettings {
@@ -1987,7 +1987,7 @@ mod tests {
                     },
                 )]
                 .into(),
-                ..boardstudio_core::model::KeycapConfiguration::default()
+                ..boardstudio_model::model::KeycapConfiguration::default()
             }),
             ..ProjectDoc::empty("keycaps-settings-test", "Keycaps settings test")
         };
@@ -2037,7 +2037,7 @@ mod tests {
     fn setting_noop_preserves_null_and_blank_legend() {
         let scope = test_scope();
         let document = ProjectDoc {
-            keycaps: Some(boardstudio_core::model::KeycapConfiguration {
+            keycaps: Some(boardstudio_model::model::KeycapConfiguration {
                 keys: [(
                     "sw1".into(),
                     KeycapKeySettings {
@@ -2046,7 +2046,7 @@ mod tests {
                     },
                 )]
                 .into(),
-                ..boardstudio_core::model::KeycapConfiguration::default()
+                ..boardstudio_model::model::KeycapConfiguration::default()
             }),
             ..ProjectDoc::empty("keycaps-settings-test", "Keycaps settings test")
         };

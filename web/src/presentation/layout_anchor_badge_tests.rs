@@ -233,7 +233,11 @@ fn host() -> Element {
 /// Create the matrix through the Session and Core, then mount the real Layout editor.
 async fn mount(root_id: &'static str) -> Probe {
     let runtime = support::new_runtime();
-    support::install(&runtime, Session::new(), CoreEngine::new());
+    support::install(
+        &runtime,
+        Session::new(CoreEngine::validate_open),
+        CoreEngine::new(),
+    );
     support::install_memory_persistence(&runtime);
     runtime.submit(Event::Open {
         operation_id: runtime.operation(),
@@ -405,7 +409,11 @@ async fn key_selection_badges_the_key_below_it() {
 /// so the right half dims.
 async fn mount_split(root_id: &'static str) -> Probe {
     let runtime = support::new_runtime();
-    support::install(&runtime, Session::new(), CoreEngine::new());
+    support::install(
+        &runtime,
+        Session::new(CoreEngine::validate_open),
+        CoreEngine::new(),
+    );
     support::install_memory_persistence(&runtime);
     runtime.submit(Event::Open {
         operation_id: runtime.operation(),

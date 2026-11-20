@@ -1,5 +1,5 @@
 use super::view::KeymapView;
-use boardstudio_core::model::Vec2;
+use boardstudio_model::model::Vec2;
 use std::collections::BTreeSet;
 
 #[derive(Clone, Copy, Debug, PartialEq)]

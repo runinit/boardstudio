@@ -50,7 +50,7 @@ fn wasm_constraint_depth_boundary_is_conservative() {
     // Mirrors Core's private budget; this pinned WASM boundary fails if it drifts.
     const MAX_DEPENDENCY_DEPTH: usize = 256;
     fn chain(count: usize) -> Value {
-        let mut document = serde_json::to_value(boardstudio_core::model::ProjectDoc::empty(
+        let mut document = serde_json::to_value(boardstudio_model::model::ProjectDoc::empty(
             "wasm-depth",
             "WASM depth",
         ))

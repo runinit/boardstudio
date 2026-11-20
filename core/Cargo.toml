@@ -11,7 +11,11 @@ autotests = false
 name = "dump_firmware"
 
 [dependencies]
+boardstudio-core-artifact = { path = "crates/artifact" }
 boardstudio-core-engine = { path = "crates/engine" }
+boardstudio-core-kernel = { path = "crates/kernel" }
+boardstudio-core-mechanical = { path = "crates/mechanical" }
+boardstudio-model = { path = "crates/model" }
 boardstudio-script = { path = "crates/script" }
 serde_json = "1"
 

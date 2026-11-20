@@ -327,7 +327,8 @@ class CheckIntegrationTests(unittest.TestCase):
         self.assertTrue(baseline, "the committed baseline must not be empty")
         for binary, names in baseline.items():
             self.assertEqual(names, sorted(set(names)), f"{binary}: sorted, unique names")
-        for binary in ("boardstudio_core_engine", "boardstudio_model", "boardstudio_script"):
+        # boardstudio-model has no lib test harness; its tests run as integration targets.
+        for binary in ("boardstudio_core_engine", "constraints_relation", "boardstudio_script"):
             self.assertTrue(baseline.get(binary), f"{binary}: expected unit-test names")
 
 

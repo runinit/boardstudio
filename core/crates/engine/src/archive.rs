@@ -17,8 +17,7 @@ struct Limits {
 }
 
 const MIB: usize = 1024 * 1024;
-/// Maximum compressed project archive accepted by Core and browser file admission.
-pub const MAX_PROJECT_ARCHIVE_BYTES: usize = 128 * MIB;
+pub use crate::model::MAX_PROJECT_ARCHIVE_BYTES;
 const LIMITS: Limits = Limits {
     compressed: MAX_PROJECT_ARCHIVE_BYTES,
     project: 8 * MIB,
@@ -30,13 +29,13 @@ const SIZE_ERROR: &str = "Project archive exceeds size limit";
 type ArchiveResult = Result<(ArchiveReply, Vec<Vec<u8>>), String>;
 
 pub fn request(metadata: &str, buffers: &[Vec<u8>]) -> (String, Vec<Vec<u8>>) {
-    let result = serde_json::from_str(metadata)
+    let result = boardstudio_model::wire::decode_archive_request(metadata)
         .map_err(|error| error.to_string())
         .and_then(|request| dispatch(request, buffers, LIMITS));
     let (reply, buffers) =
         result.unwrap_or_else(|message| (ArchiveReply::Error { message }, vec![]));
     (
-        serde_json::to_string(&reply).expect("archive reply serializes"),
+        boardstudio_model::wire::encode_archive_reply(&reply),
         buffers,
     )
 }

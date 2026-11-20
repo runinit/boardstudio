@@ -107,10 +107,9 @@ pub fn CasePanel(
             scene.mechanical.as_ref().is_some_and(|assembly| {
                 assembly.revision == snapshot.document.revision
                     && !assembly.generation_blocked
-                    && !assembly
-                        .diagnostics
-                        .iter()
-                        .any(|finding| finding.severity == boardstudio_core::model::Severity::Error)
+                    && !assembly.diagnostics.iter().any(|finding| {
+                        finding.severity == boardstudio_model::model::Severity::Error
+                    })
             })
         });
     use_effect(use_reactive(
@@ -314,7 +313,7 @@ mod mounted_tests {
     use boardstudio_application::{
         Completion, Effect, Event as AppEvent, GenerationStatus, JobId, Scope,
     };
-    use boardstudio_core::model::{
+    use boardstudio_model::model::{
         Board, EditOperation, MechanicalAssembly, Operation, OutlineFeature, ProjectDoc, Vec2,
     };
     use boardstudio_web_ui_shared::test_mount::MountedFixture;
@@ -508,7 +507,7 @@ mod mounted_tests {
                 revision: accepted.document.revision,
                 ..Default::default()
             },
-            prepared: boardstudio_core::model::PreparedCaseAssemblyIR {
+            prepared: boardstudio_model::model::PreparedCaseAssemblyIR {
                 revision: accepted.document.revision,
                 bodies: Vec::new(),
             },

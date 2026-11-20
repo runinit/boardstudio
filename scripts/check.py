@@ -172,6 +172,7 @@ def browser() -> list[Command]:
             crate_launch("parts"),
             crate_launch("pcb"),
             crate_launch("layout"),
+            crate_launch("layout-objects"),
         ]),
         PAGE_SUITE,
     ]

@@ -7,7 +7,7 @@ use super::macro_editor::{MacroEditChange, MacroEditRequest, MacroEditTarget};
 use crate::layer_edit::KeymapLayerOperation;
 use crate::runtime::{Runtime, project_name_test_support as support};
 use boardstudio_application::{Event, SelectionMode};
-use boardstudio_core::model::{KeyBinding, MacroStep, ProjectDoc};
+use boardstudio_model::model::{KeyBinding, MacroStep, ProjectDoc};
 use boardstudio_web_ui_shared::test_mount::MountedFixture;
 use boardstudio_web_ui_shared::test_role::by_role_name;
 use boardstudio_web_ui_shared::test_wait::{settle_until, wait_until, wait_until_future};
@@ -434,7 +434,7 @@ async fn macro_fields_queue_and_undo_separately() {
     let mark = probe.renders.get();
     submit(
         MacroEditTarget::Name,
-        boardstudio_core::model::MacroChange::Name {
+        boardstudio_model::model::MacroChange::Name {
             value: "Renamed".into(),
         },
     );
@@ -445,7 +445,7 @@ async fn macro_fields_queue_and_undo_separately() {
     rendered_after(&probe, mark).await;
     submit(
         MacroEditTarget::TapMs,
-        boardstudio_core::model::MacroChange::TapMs { value: 50 },
+        boardstudio_model::model::MacroChange::TapMs { value: 50 },
     );
     release.send(()).unwrap();
     settle_until(
@@ -920,7 +920,7 @@ async fn keycode_combobox_filters_and_commits_a_suggestion_on_blur() {
 
 #[wasm_bindgen_test]
 async fn queued_macro_steps_preserve_eligible_positions_and_retire_shifted_targets() {
-    use boardstudio_core::model::{MacroChange, MacroStep};
+    use boardstudio_model::model::{MacroChange, MacroStep};
     let tap = || MacroStep::Tap {
         binding: KeyBinding::KeyPress {
             keycode: "A".into(),

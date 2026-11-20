@@ -5,7 +5,7 @@ use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
 };
-use boardstudio_core::model::{
+use boardstudio_model::model::{
     EditOperation, ModuleAttachment, ModuleConnection, ModuleSupport, MountedModule,
     PartDefinition, Side, VikRole, VikSignal,
 };
@@ -122,7 +122,7 @@ fn PcbMountedModuleInspector(
     // Typed placement and bounded action kinds share submitted-value restoration,
     // inline failures, one-shot disabling and binding lifetime in one helper.
     let edits =
-        use_hook(PendingEditSignals::<ModuleEditKey, boardstudio_core::model::MountedModule>::new);
+        use_hook(PendingEditSignals::<ModuleEditKey, boardstudio_model::model::MountedModule>::new);
     let placement_failure = use_signal(|| None::<String>);
     let remove_disabled = use_signal(|| false);
     let embed_disabled = use_signal(|| false);
@@ -134,7 +134,7 @@ fn PcbMountedModuleInspector(
     let latest = use_signal(|| None::<ModuleEditKey>);
     let save_queue = use_hook(|| {
         Rc::new(RefCell::new(VecDeque::<(
-            boardstudio_core::model::MountedModule,
+            boardstudio_model::model::MountedModule,
             bool,
         )>::new()))
     });
@@ -521,7 +521,7 @@ fn PcbMountedModuleInspector(
                     id,
                     definition: embed_source.clone(),
                     host_board_id: placement.host_board_id,
-                    pose: boardstudio_core::model::Pose2 {
+                    pose: boardstudio_model::model::Pose2 {
                         at: placement.at,
                         rotation: placement.rotation,
                     },
@@ -994,7 +994,7 @@ fn connector_admission(
 }
 
 fn host_connector_is_on_board(
-    document: &boardstudio_core::model::ProjectDoc,
+    document: &boardstudio_model::model::ProjectDoc,
     board_id: &str,
     connector_id: &str,
 ) -> bool {
@@ -1184,7 +1184,8 @@ mod mounted_save_replacement_tests {
     use boardstudio_application::{
         Completion, Effect, OperationId, SaveResult, Scope as AppScope, Session,
     };
-    use boardstudio_core::{CoreEngine, model::*};
+    use boardstudio_core::CoreEngine;
+    use boardstudio_model::model::*;
     use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::test_role::by_role_name;
     use boardstudio_web_ui_shared::test_wait::wait_until_step;
@@ -1317,7 +1318,7 @@ mod mounted_save_replacement_tests {
     }
 
     fn accepted(document: ProjectDoc) -> (Session, CoreEngine) {
-        let mut session = Session::new();
+        let mut session = Session::new(boardstudio_core::CoreEngine::validate_open);
         let mut core = CoreEngine::new();
         let effects = session.submit(boardstudio_application::Event::Open {
             operation_id: OperationId(1),

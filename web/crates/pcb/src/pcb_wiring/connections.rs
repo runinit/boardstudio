@@ -1,8 +1,6 @@
 //! Review and release only manual net assignments that conflict with a current plan.
-use boardstudio_core::{
-    electrical::ElectricalPlan,
-    model::{Pin, ProjectDoc},
-};
+use boardstudio_core_mechanical::electrical::ElectricalPlan;
+use boardstudio_model::model::{Pin, ProjectDoc};
 use std::collections::BTreeSet;
 
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -44,6 +44,9 @@ pub struct ArchiveAssetBuffer {
     pub buffer_index: u32,
 }
 
+/// Maximum compressed project archive accepted by Core and browser file admission.
+pub const MAX_PROJECT_ARCHIVE_BYTES: usize = 128 * 1024 * 1024;
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum ArchiveRequest {
@@ -1225,7 +1228,7 @@ impl LayoutMirrorLink {
         })
     }
 }
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct ProjectDoc {
     /// View-only physical context used by Rust assembly preparation; canonical edits omit it.
     #[serde(
@@ -1296,6 +1299,47 @@ pub struct ProjectDoc {
 }
 fn legacy_format_version() -> u32 {
     crate::migrate::LEGACY_VERSION
+}
+
+// Field-wise clone identical to the former derive, kept out of line: every core
+// crate clones whole documents for drafts, and an inlined derived clone was
+// instantiated once per calling crate (and once per codegen unit) in release
+// wasm. One shared body here is measurably smaller with the split graph.
+impl Clone for ProjectDoc {
+    #[inline(never)]
+    fn clone(&self) -> Self {
+        Self {
+            physical_instance_id: self.physical_instance_id.clone(),
+            module_definitions: self.module_definitions.clone(),
+            modules: self.modules.clone(),
+            embedded_circuits: self.embedded_circuits.clone(),
+            keymap: self.keymap.clone(),
+            keycaps: self.keycaps.clone(),
+            hardware: self.hardware.clone(),
+            mechanical: self.mechanical.clone(),
+            board_references: self.board_references.clone(),
+            assemblies: self.assemblies.clone(),
+            format: self.format.clone(),
+            format_version: self.format_version,
+            id: self.id.clone(),
+            name: self.name.clone(),
+            revision: self.revision,
+            parameters: self.parameters.clone(),
+            definitions: self.definitions.clone(),
+            parts: self.parts.clone(),
+            matrices: self.matrices.clone(),
+            layouts: self.layouts.clone(),
+            nets: self.nets.clone(),
+            outline: self.outline.clone(),
+            board_outlines: self.board_outlines.clone(),
+            boards: self.boards.clone(),
+            case_bodies: self.case_bodies.clone(),
+            materials: self.materials.clone(),
+            assets: self.assets.clone(),
+            scripts: self.scripts.clone(),
+            constraints: self.constraints.clone(),
+        }
+    }
 }
 
 impl ProjectDoc {
@@ -3267,7 +3311,7 @@ pub struct MechanicalGasketTrack {
     pub end_anchor: f64,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MechanicalConfiguration {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -3336,6 +3380,49 @@ pub struct MechanicalConfiguration {
     pub wall_thickness: f64,
     pub clearance: f64,
     pub profiles: Vec<MechanicalPartProfile>,
+}
+
+// Field-wise clone identical to the former derive, kept out of line for the
+// same reason as ProjectDoc: configurations are cloned in every core crate.
+impl Clone for MechanicalConfiguration {
+    #[inline(never)]
+    fn clone(&self) -> Self {
+        Self {
+            internal_gasket: self.internal_gasket.clone(),
+            gasket_layout: self.gasket_layout.clone(),
+            hardware: self.hardware.clone(),
+            critical_fits: self.critical_fits.clone(),
+            bottom_style: self.bottom_style.clone(),
+            middle_frame: self.middle_frame,
+            gasket_travel: self.gasket_travel,
+            openings: self.openings.clone(),
+            opening_allowance: self.opening_allowance,
+            stabilizers: self.stabilizers.clone(),
+            part_processes: self.part_processes.clone(),
+            gasket: self.gasket.clone(),
+            closure_mounts: self.closure_mounts.clone(),
+            board_id: self.board_id.clone(),
+            next_opening_identity: self.next_opening_identity,
+            next_critical_fit_identity: self.next_critical_fit_identity,
+            next_hardware_identity: self.next_hardware_identity,
+            next_mount_identity: self.next_mount_identity,
+            integrated_plate_frame: self.integrated_plate_frame,
+            battery: self.battery.clone(),
+            mounts: self.mounts.clone(),
+            method: self.method.clone(),
+            mount: self.mount.clone(),
+            plate_thickness: self.plate_thickness,
+            plate_foam_thickness: self.plate_foam_thickness,
+            pcb_thickness: self.pcb_thickness,
+            bottom_foam_thickness: self.bottom_foam_thickness,
+            battery_height: self.battery_height,
+            bottom_thickness: self.bottom_thickness,
+            plate_to_pcb: self.plate_to_pcb,
+            wall_thickness: self.wall_thickness,
+            clearance: self.clearance,
+            profiles: self.profiles.clone(),
+        }
+    }
 }
 
 /// Serde helper: omit an unset identity reservation so existing documents keep their shape.
@@ -3701,88 +3788,4 @@ pub enum KeycapKeyChange {
     Color { value: Option<String> },
     Row { value: Option<u8> },
     Units { value: Option<Vec2> },
-}
-
-#[cfg(test)]
-mod constraint_tests {
-    use super::*;
-
-    fn held(axes: Option<OffsetAxes>, x: f64, rotation: f64) -> Constraint {
-        let (id, source_part_id, target_part_id) = ("c".to_owned(), "a".to_owned(), "b".to_owned());
-        match axes {
-            Some(axes) => Constraint::offset(
-                axes,
-                id,
-                source_part_id,
-                target_part_id,
-                Vec2 { x, y: -4.0 },
-                rotation,
-            ),
-            None => Constraint::Mirror {
-                id,
-                source_part_id,
-                target_part_id,
-                axis: MirrorAxis::Vertical,
-                coordinate: x,
-            },
-        }
-    }
-
-    #[test]
-    fn offset_builds_the_kind_its_axes_name_and_carries_every_field() {
-        let offset = Vec2 { x: 3.0, y: -4.0 };
-        let build =
-            |axes| Constraint::offset(axes, "c".into(), "a".into(), "b".into(), offset, 5.0);
-        assert_eq!(
-            build(OffsetAxes::Board),
-            Constraint::Offset {
-                id: "c".into(),
-                source_part_id: "a".into(),
-                target_part_id: "b".into(),
-                offset,
-                rotation: 5.0,
-            }
-        );
-        assert_eq!(
-            build(OffsetAxes::Part),
-            Constraint::PartOffset {
-                id: "c".into(),
-                source_part_id: "a".into(),
-                target_part_id: "b".into(),
-                offset,
-                rotation: 5.0,
-            }
-        );
-    }
-
-    #[test]
-    fn offset_axes_and_numbers_read_both_offset_kinds_and_nothing_for_a_mirror() {
-        let numbers = Some((Vec2 { x: 1.0, y: -4.0 }, 5.0));
-        let board = held(Some(OffsetAxes::Board), 1.0, 5.0);
-        let part = held(Some(OffsetAxes::Part), 1.0, 5.0);
-        let mirror = held(None, 1.0, 5.0);
-        assert_eq!(board.offset_axes(), Some(OffsetAxes::Board));
-        assert_eq!(part.offset_axes(), Some(OffsetAxes::Part));
-        assert_eq!(mirror.offset_axes(), None);
-        assert_eq!(board.offset_numbers(), numbers);
-        assert_eq!(part.offset_numbers(), numbers);
-        assert_eq!(mirror.offset_numbers(), None);
-        assert!(!board.is_mirror() && !part.is_mirror() && mirror.is_mirror());
-    }
-
-    #[test]
-    fn a_non_finite_number_in_any_kind_is_not_finite() {
-        for axes in [Some(OffsetAxes::Board), Some(OffsetAxes::Part), None] {
-            assert!(held(axes, 1.0, 5.0).is_finite(), "{axes:?} finite");
-            for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
-                assert!(!held(axes, bad, 5.0).is_finite(), "{axes:?} x {bad}");
-            }
-        }
-        for axes in [OffsetAxes::Board, OffsetAxes::Part] {
-            assert!(
-                !held(Some(axes), 1.0, f64::NAN).is_finite(),
-                "{axes:?} rotation"
-            );
-        }
-    }
 }

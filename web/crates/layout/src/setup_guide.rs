@@ -1,7 +1,5 @@
-use boardstudio_core::{
-    electrical::ElectricalPlan,
-    model::{PartKind, ProjectDoc, SceneDelta, Severity},
-};
+use boardstudio_core_mechanical::electrical::ElectricalPlan;
+use boardstudio_model::model::{PartKind, ProjectDoc, SceneDelta, Severity};
 pub use boardstudio_web_ui_model::state::{PendingNewKeyboard, SetupGuideRequest};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::field::{Field, FieldLabel};
@@ -540,7 +538,7 @@ pub fn stage_detail(stage: SetupGuideStage, document: &ProjectDoc, board_id: &st
                 let topology = document.hardware.as_ref().is_some_and(|hardware| {
                     matches!(
                         hardware.topology,
-                        boardstudio_core::model::HardwareTopology::Split
+                        boardstudio_model::model::HardwareTopology::Split
                     )
                 });
                 format!(

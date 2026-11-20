@@ -98,7 +98,8 @@ fn host() -> Element {
     let prepare = {
         let probe = probe.clone();
         Rc::new(
-            move |_: boardstudio_core::model::ProjectDoc, _: crate::physical_setup::SetupIntent| {
+            move |_: boardstudio_model::model::ProjectDoc,
+                  _: crate::physical_setup::SetupIntent| {
                 let probe = probe.clone();
                 // A channel so a reply queued after the task parks still wakes it; a
                 // poll_fn alone would leave the parked task waiting forever.
@@ -135,12 +136,12 @@ fn host() -> Element {
     rsx! {}
 }
 
-fn fixture_document(id: &str, revision: u64) -> boardstudio_core::model::ProjectDoc {
-    let mut document: boardstudio_core::model::ProjectDoc = serde_json::from_str(include_str!(
+fn fixture_document(id: &str, revision: u64) -> boardstudio_model::model::ProjectDoc {
+    let mut document: boardstudio_model::model::ProjectDoc = serde_json::from_str(include_str!(
         "../../../../../core/tests/fixtures/synthetic-outline.json"
     ))
     .expect("synthetic outline fixture is a valid saved project");
-    document.format_version = boardstudio_core::migrate::CURRENT_VERSION;
+    document.format_version = boardstudio_core_kernel::migrate::CURRENT_VERSION;
     document.id = id.into();
     document.revision = revision;
     document
@@ -522,7 +523,7 @@ fn mounting_hole_reply() -> ProposalReply {
     })
 }
 
-fn mounting_hole_template() -> boardstudio_core::model::PartDefinition {
+fn mounting_hole_template() -> boardstudio_model::model::PartDefinition {
     serde_json::from_value(serde_json::json!({
         "id":"generator:ceoloide/mounting_hole_npth", "name":"mounting hole npth",
         "kind":"custom", "pads":[{"id":"pad-0", "number":"", "at":{"x":0,"y":0},
@@ -571,11 +572,11 @@ async fn a_reversible_split_establishes_its_mirror_pair_and_undoes_in_one_step()
                 .as_ref()
                 .and_then(|snapshot| snapshot.document.hardware.as_ref())
                 .is_some_and(|hardware| {
-                    hardware.topology == boardstudio_core::model::HardwareTopology::Split
+                    hardware.topology == boardstudio_model::model::HardwareTopology::Split
                 });
             accepted_split
                 && mount(&probe).projection.topology
-                    == boardstudio_core::model::HardwareTopology::Split
+                    == boardstudio_model::model::HardwareTopology::Split
                 && !mount(&probe).projection.busy
         },
     )
@@ -589,7 +590,7 @@ async fn a_reversible_split_establishes_its_mirror_pair_and_undoes_in_one_step()
         .expect("the split creates physical hardware");
     assert_eq!(
         hardware.topology,
-        boardstudio_core::model::HardwareTopology::Split
+        boardstudio_model::model::HardwareTopology::Split
     );
     assert_eq!(hardware.instances.len(), 2, "the split creates both halves");
     assert_eq!(
@@ -612,7 +613,7 @@ async fn a_reversible_split_establishes_its_mirror_pair_and_undoes_in_one_step()
     for instance in &hardware.instances {
         assert_eq!(
             instance.construction_ownership,
-            boardstudio_core::model::MechanicalConstructionOwnership::Pair,
+            boardstudio_model::model::MechanicalConstructionOwnership::Pair,
             "both halves become pair-owned in the same accepted edit"
         );
     }

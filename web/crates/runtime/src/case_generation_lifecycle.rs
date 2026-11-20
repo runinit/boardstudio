@@ -5,7 +5,7 @@
 //! request after status notifications.
 use boardstudio_application::AcceptedSnapshot;
 use boardstudio_application::{GenerationStatus, Scope, SnapshotToken};
-use boardstudio_core::model::{ProjectDoc, SceneDelta};
+use boardstudio_model::model::{ProjectDoc, SceneDelta};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
@@ -298,7 +298,7 @@ pub fn case_generation_title(
 mod tests {
     use super::*;
     use boardstudio_application::SessionEpoch;
-    use boardstudio_core::model::{Board, BoardContours, BoardReadiness, Readiness};
+    use boardstudio_model::model::{Board, BoardContours, BoardReadiness, Readiness};
 
     fn owner(token: u64, revision: u64) -> CaseGenerationOwner {
         CaseGenerationOwner {

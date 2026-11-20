@@ -6,7 +6,7 @@ use super::{
 use crate::pcb_wiring_mode_operation::{BoardWiringModeFeedbackTarget, BoardWiringModeIdentity};
 use crate::runtime::Runtime;
 use boardstudio_application::{Durability, Event, Lifecycle, TerminalOutcome};
-use boardstudio_core::model::ProjectDoc;
+use boardstudio_model::model::ProjectDoc;
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -225,7 +225,7 @@ pub fn use_protected_remap_review(
 
 fn protected_handoff(
     source: &PcbWiringSource,
-) -> Option<boardstudio_core::model::ElectricalHandoffBaseline> {
+) -> Option<boardstudio_model::model::ElectricalHandoffBaseline> {
     source
         .document
         .hardware

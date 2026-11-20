@@ -40,7 +40,7 @@ It draws on the selected half, including a dimmed one. Parts are added in 13.
 
 ## Answer
 
-- `anchor_badge` projection (`web/crates/layout/src/anchor_badge.rs`) plus
+- `anchor_badge` projection (`web/crates/layout-core/src/anchor_badge.rs`) plus
   canvas render (`layout_canvas.rs` `Scene`), violet target via the existing
   `is-relation-highlight` on key rects and part outlines, prototype-B badge
   glyph/label/tie with fresh `m1-*` classes. First column of an anchored frame

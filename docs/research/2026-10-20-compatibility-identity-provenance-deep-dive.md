@@ -101,12 +101,12 @@ vendor previews and honest collision uncertainty remain governed by
 | Boundary | Current behavior and compatibility consequence | Primary evidence |
 | --- | --- | --- |
 | Catalogue → project | Project definitions win by ID. Matrix setup clones a definition, changes its ID and extends selected parameters; it does not materialize every default or capture generator code. | [`merge_project_overrides`](../../web/crates/catalogue/src/catalogue.rs#L167-L191); [`snapshot_definition`](../../web/crates/catalogue/src/matrix_setup_operation.rs#L338-L355), diode overrides at L218–228. |
-| Load migration → Open | Migration orders schema/ID repairs; current-version JSON is returned unchanged. Open prepares layout/mirror relationships and validates parameter values, then retains the prepared document. It does **not** call `normalize_definition` for every saved generator. | [`migrate_json`](../../core/crates/engine/src/migrate.rs#L51-L61); [`CoreEngine::handle`, Open](../../core/src/lib.rs#L241-L283); [`prepare_open`](../../core/crates/engine/src/mirrored_half/reconcile/prepare.rs#L26-L102). |
-| Explicit normalization | Re-renders current generator geometry; retains saved pad ID/net **at the same index**, regenerates terminal membership, and preserves valid explicitly authored courtyard/keycap envelopes. This is not geometric freezing. | [`Registry::normalize`](../../footprints/src/definition.rs#L82-L169); [`normalize_definition`](../../core/crates/engine/src/generators.rs#L62-L76). |
+| Load migration → Open | Migration orders schema/ID repairs; current-version JSON is returned unchanged. Open prepares layout/mirror relationships and validates parameter values, then retains the prepared document. It does **not** call `normalize_definition` for every saved generator. | [`migrate_json`](../../core/crates/kernel/src/migrate.rs#L51-L61); [`CoreEngine::handle`, Open](../../core/src/lib.rs#L241-L283); [`prepare_open`](../../core/crates/mirrored-half/src/mirrored_half/reconcile/prepare.rs#L26-L102). |
+| Explicit normalization | Re-renders current generator geometry; retains saved pad ID/net **at the same index**, regenerates terminal membership, and preserves valid explicitly authored courtyard/keycap envelopes. This is not geometric freezing. | [`Registry::normalize`](../../footprints/src/definition.rs#L82-L169); [`normalize_definition`](../../core/crates/kernel/src/generators.rs#L62-L76). |
 | Definition + placed-part parameters | Part map overwrites definition map. Missing/null after merge selects the current declared default. Thus a **part-level null masks an explicit definition value**, rather than falling back to that definition value. Current compiled body is called. | [`Registry::render`](../../footprints/src/registry.rs#L163-L249); inspected `part_null_overrides_definition_true_with_the_declaration_default` in [diode tests](../../footprints/tests/diode_sod123_qualification.rs#L345-L360). |
-| Export terminal mapping | Captured saved terminal→pad associations are used to derive generator net parameters, with conflict checks. The job then renders current Rust code; stable saved IDs do not prove unchanged terminal semantics. | [`terminal_parameters`](../../core/crates/engine/src/artifact/kicad/planning.rs#L157-L243); [`render_jobs`](../../core/crates/engine/src/artifact/kicad/generation.rs#L23-L59). |
+| Export terminal mapping | Captured saved terminal→pad associations are used to derive generator net parameters, with conflict checks. The job then renders current Rust code; stable saved IDs do not prove unchanged terminal semantics. | [`terminal_parameters`](../../core/crates/artifact/src/artifact/kicad/planning.rs#L157-L243); [`render_jobs`](../../core/crates/artifact/src/artifact/kicad/generation.rs#L23-L59). |
 | Model selection → bytes | Generator output determines model ID and datum; explicit filenames/transforms can override it, including empty filename omission. A document-owned asset wins over a bundled provider entry. An unembedded bundled ID resolves through the current build's catalogue/digest. | [`model_bindings`](../../footprints/src/models.rs#L101-L150); [`BundledModel`](../../web/crates/runtime/src/bundled_models.rs#L1-L15); [`load_model_files`](../../web/crates/runtime/src/pcb_handoff.rs#L220-L275); [portable round-trip test](../../web/crates/runtime/src/portable_archive.rs#L464-L503). |
-| Manufacturing generation | Captured project data and revision guards protect a job's ownership, but `render_jobs` invokes today's registry. There is one supported version string, `bundled-1`, not a selection of historical bodies. | [`GENERATOR_VERSION`](../../footprints/src/registry.rs#L13-L14), `render` above; [`generation::export`](../../core/crates/engine/src/artifact/kicad/generation.rs#L69-L74). |
+| Manufacturing generation | Captured project data and revision guards protect a job's ownership, but `render_jobs` invokes today's registry. There is one supported version string, `bundled-1`, not a selection of historical bodies. | [`GENERATOR_VERSION`](../../footprints/src/registry.rs#L13-L14), `render` above; [`generation::export`](../../core/crates/artifact/src/artifact/kicad/generation.rs#L69-L74). |
 
 **Important limit:** this establishes that changed defaults/body/model-provider contents *can*
 change a subsequent render without a document-format bump. It does not show that any sampled
@@ -159,12 +159,12 @@ default `F` means that a back-side part alone no longer supplies the omitted `si
 The [recorded deviation](../investigations/footprint-generators-rust.md#deviations) explicitly
 describes this change; these source objects, not the prose alone, were inspected.
 
-The concrete saved examples in [`migrate::tests::version_1`](../../core/crates/engine/src/migrate.rs#L392-L429)
+The concrete saved examples in [`migrate::tests::version_1`](../../core/crates/kernel/src/migrate.rs#L392-L429)
 cover omitted side on a back part, explicit `side:"F"` on a back part, a definition already
-saving side, and an assembly member. [`state_back_sides`](../../core/crates/engine/src/migrate.rs#L193-L240)
+saving side, and an assembly member. [`state_back_sides`](../../core/crates/kernel/src/migrate.rs#L193-L240)
 writes `B` only where the old omitted-side behavior needs preserving; explicit saved side wins.
-[`migrates_a_version_1_document`](../../core/crates/engine/src/migrate.rs#L433-L492) asserts each distinction.
-[`the_version_1_step_states_the_back_side_and_leaves_text_for_version_4`](../../core/crates/engine/src/migrate.rs#L820-L837)
+[`migrates_a_version_1_document`](../../core/crates/kernel/src/migrate.rs#L433-L492) asserts each distinction.
+[`the_version_1_step_states_the_back_side_and_leaves_text_for_version_4`](../../core/crates/kernel/src/migrate.rs#L820-L837)
 and `version_3_to_4_keeps_unknown_names_and_unconvertible_values` distinguish this from later
 numeric-text migration. These are inspected assertions, not fresh two-version export results.
 
@@ -185,15 +185,15 @@ and [onboarding](../hardware/component-onboarding.md#generator-parameters) alrea
 | No generator, retained `kicadSource` | Normalization returns unchanged. Export uses source import/patching, not a current generator body. Source format version must be 1; placement/net/UUID/model adjustments still mean exported text is not simply the untouched original file. |
 
 Evidence: [`Registry::render`](../../footprints/src/registry.rs#L163-L175),
-[`generator_of`/parameter walk](../../core/crates/engine/src/generators.rs#L78-L94),
-[`parameter_problems`](../../core/crates/engine/src/generators.rs#L125-L147),
-[`is_generated`/`is_imported`](../../core/crates/engine/src/artifact/kicad.rs#L449-L457),
-[`planning::prepare`](../../core/crates/engine/src/artifact/kicad/planning.rs#L39-L137),
-[`compile_authored`](../../core/crates/engine/src/artifact/compile.rs#L4-L20),
-[`validate_source_version`](../../core/crates/engine/src/artifact/mod.rs#L227-L240),
-[`patch_footprint`](../../core/crates/engine/src/artifact/source.rs#L123-L147).
+[`generator_of`/parameter walk](../../core/crates/kernel/src/generators.rs#L78-L94),
+[`parameter_problems`](../../core/crates/kernel/src/generators.rs#L125-L147),
+[`is_generated`/`is_imported`](../../core/crates/artifact/src/artifact/kicad.rs#L449-L457),
+[`planning::prepare`](../../core/crates/artifact/src/artifact/kicad/planning.rs#L39-L137),
+[`compile_authored`](../../core/crates/artifact/src/artifact/compile.rs#L4-L20),
+[`validate_source_version`](../../core/crates/artifact/src/artifact/mod.rs#L227-L240),
+[`patch_footprint`](../../core/crates/artifact/src/artifact/source.rs#L123-L147).
 Inspected tests: [`normalization_leaves_non_generator_definitions_alone_and_rejects_unknown_ones`](../../footprints/tests/framework.rs#L289-L308),
-[`retired_generators_cannot_fall_back_to_saved_pad_geometry`](../../core/crates/engine/src/artifact/compile.rs#L237-L250).
+[`retired_generators_cannot_fall_back_to_saved_pad_geometry`](../../core/crates/artifact/src/artifact/compile.rs#L237-L250).
 
 ### A5. Verification seams, pending A/B and policy alternatives
 
@@ -204,7 +204,7 @@ Existing coverage is substantial but not a universal release guarantee:
   [Golden provenance](../../footprints/tests/golden/README.md) pins the JavaScript recording revision
   and lists intentional deviations. It is not an untouched oracle for every later product release.
 - [`saved_pad_ids_and_nets_follow_index_and_extra_pads_get_fresh_ids`](../../footprints/tests/framework.rs#L344-L363)
-  and [`normalization_regenerates_pads_and_keeps_saved_ids`](../../core/crates/engine/src/generators.rs#L440-L457)
+  and [`normalization_regenerates_pads_and_keeps_saved_ids`](../../core/crates/kernel/src/generators.rs#L440-L457)
   assert positional identity preservation, not safety of an arbitrary reordering.
 - The manual `diode_sod123_baseline_capture`, `diode_sod123_baseline_matches_frozen_expected_bytes`
   and `diode_sod123_explicit_false_matches_frozen_outputs` tests at
@@ -229,7 +229,7 @@ and is the next bounded check, not a prerequisite for establishing the literal l
 
 For the side transition, old/new direct rendering without migration should distinguish omitted
 back-side input; migration followed by rendering should restore B, while explicit F stays F.
-Current [migration tests](../../core/crates/engine/src/migrate.rs#L433-L492) are the nearest public-data oracle.
+Current [migration tests](../../core/crates/kernel/src/migrate.rs#L433-L492) are the nearest public-data oracle.
 **Neither two-build comparison was executed.** No prebuilt executable's source provenance was
 established, and builds/worktrees/source copies were prohibited here. A current protected PCB
 baseline must not be treated as a geometry fingerprint: [0031](../adr/0031-preserve-pcb-handoff-protection-across-undo.md)
@@ -256,15 +256,15 @@ ownership boundary with meaningful reversal cost. No candidate count or implemen
 1. **Physical placement** is a pose, matrix row/column and physical instance/face. Moving it need
    not change the input ID. Matrix member IDs are coordinate-derived `matrix/{matrix}/r{row}c{column}`;
    structural compaction can rename a survivor to a formerly occupied string
-   ([`member_id`](../../core/crates/engine/src/matrix.rs#L77-L104), [`remove_axis`](../../core/crates/engine/src/matrix/deletion.rs#L378-L465)).
+   ([`member_id`](../../core/crates/kernel/src/matrix.rs#L77-L104), [`remove_axis`](../../core/crates/kernel/src/matrix/deletion.rs#L378-L465)).
 2. **Typed logical bindings** are document-level layer maps keyed by input ID, and sensor maps keyed
    by encoder ID. **Legacy bindings** are separate Board electrical `key_bindings`. The legacy edit
    also updates the typed base layer when a typed map already exists; neither makes layers instance-scoped
    ([types](../../core/crates/model/src/keymap.rs#L64-L95), [`SetKeyBinding`](../../core/crates/engine/src/keycaps/edits.rs#L5-L60)).
 3. **Press versus rotation** is profile/scan-mode dependent. A matrix encoder's press ID is its Part ID;
    a direct standalone encoder/press uses `<part>/push`; rotation uses the Part ID in sensors
-   ([`inputs::profile`/`scan_mode`](../../core/crates/engine/src/inputs.rs#L50-L106),
-   [`electrical_peripherals::describe`](../../core/crates/engine/src/electrical_peripherals.rs#L59-L130)).
+   ([`inputs::profile`/`scan_mode`](../../core/crates/kernel/src/inputs.rs#L50-L106),
+   [`electrical_peripherals::describe`](../../core/crates/mechanical/src/electrical_peripherals.rs#L59-L130)).
 4. **Firmware position/order** is supplied by the current electrical plan's assignment sequence,
    followed by auxiliary pushes; the keymap source looks up those IDs in that order. Missing base
    bindings fall back to supplied legacy text/`&none`, higher layers to `&trans`. Old map entries
@@ -287,34 +287,34 @@ For **unpaired, nonscripted ordinary matrix data**, the public Core flow is:
 - `SetMatrix` → authored-companion placement wrapper → `matrix::set_matrix` → legacy link sync.
   Shrink drops out-of-bounds cell overrides, parts, net pins and constraints, but does not visit
   typed bindings/sensors, keycap configuration maps or electrical binding maps
-  ([dispatch](../../core/src/lib.rs#L1943-L1970), [`set_matrix`](../../core/crates/engine/src/matrix.rs#L714-L998)).
+  ([dispatch](../../core/src/lib.rs#L1943-L1970), [`set_matrix`](../../core/crates/kernel/src/matrix.rs#L714-L998)).
 - `SetMatrixCellsEnabled` → `edit_selected_cells(Some(enabled))` → the same setter.
   A disabled cell remains a cell, but has no actual Part; `deleted` cells are refused by that
-  public enable route ([deletion module](../../core/crates/engine/src/matrix/deletion.rs#L470-L544)).
+  public enable route ([deletion module](../../core/crates/kernel/src/matrix/deletion.rs#L470-L544)).
 - `RemoveParts` marks matrix cells deleted, removes physical/dependency membership and syncs
   legacy companions; it does not call the richer `remap_parts`. `RemoveMatrix` delegates to
   `RemoveParts` and deletes the matrix/empty owned nets
-  ([dispatch](../../core/src/lib.rs#L1805-L1885), [`removed_members`](../../core/crates/engine/src/matrix.rs#L108-L164)).
+  ([dispatch](../../core/src/lib.rs#L1805-L1885), [`removed_members`](../../core/crates/kernel/src/matrix.rs#L108-L164)).
 - `RemoveMatrixRow`/`Column`/`Cells` instead call `remap_parts`, which explicitly transforms typed
   binding and sensor maps, keycaps, nets, constraints, board/layout membership and legacy electrical
   bindings; row/column survivor renaming is simultaneous, not iterative overwrite
-  ([`remap_parts`](../../core/crates/engine/src/matrix/deletion.rs#L119-L262), [`remove_cells`](../../core/crates/engine/src/matrix/deletion.rs#L321-L369)).
+  ([`remap_parts`](../../core/crates/kernel/src/matrix/deletion.rs#L119-L262), [`remove_cells`](../../core/crates/kernel/src/matrix/deletion.rs#L321-L369)).
 - After dispatch, `CoreEngine::edit` validates map **values**, resolves constraints and legacy
   links, then calls `prune_removed_components`. That common function only delegates to outline
   source pruning. Scene/recompute do not create a general binding-pruning pass. Open validates
   the typed map and prepares relationships but does not reject or prune every binding key absent
   from `parts` ([edit](../../core/src/lib.rs#L598-L664),
   [`prune_removed_components`](../../core/src/lib.rs#L1473-L1483),
-  [`keymap::validate`](../../core/crates/model/src/keymap.rs#L226-L292), [`prepare_open`](../../core/crates/engine/src/mirrored_half/reconcile/prepare.rs#L26-L102)).
+  [`keymap::validate`](../../core/crates/model/src/keymap.rs#L226-L292), [`prepare_open`](../../core/crates/mirrored-half/src/mirrored_half/reconcile/prepare.rs#L26-L102)).
 
 This supports a **bounded retained-state/reactivation outcome**, not just “one function lacks
 cleanup.” Save serialization preserves these map fields; migration has no input-binding retirement
-step ([model types](../../core/crates/model/src/keymap.rs#L69-L83), [`migrate_value`](../../core/crates/engine/src/migrate.rs#L18-L49)).
+step ([model types](../../core/crates/model/src/keymap.rs#L69-L83), [`migrate_value`](../../core/crates/kernel/src/migrate.rs#L18-L49)).
 The exact end-to-end shrink/save/reopen/regrow workflow still lacks an executed observation here.
 
 The UI has real, different producers: [selected-key actions](../../web/src/presentation/layout_key_selection_actions.rs#L335-L356)
-submit structural selected-cell deletion versus enable/disable; [matrix delete resolver](../../web/crates/layout/src/objects/matrix_inspector_controller.rs#L178-L195)
-submits `RemoveMatrix`; [transform operation builder](../../web/crates/layout/src/matrix_transform_operation.rs#L208-L257)
+submit structural selected-cell deletion versus enable/disable; [matrix delete resolver](../../web/crates/layout-objects/src/objects/matrix_inspector_controller.rs#L178-L195)
+submits `RemoveMatrix`; [transform operation builder](../../web/crates/layout-core/src/matrix_transform_operation.rs#L208-L257)
 chooses row/column/cell deletion by selection. Therefore a future fix must name user operations,
 not assume every visible Delete action already traverses one shared cleanup function.
 
@@ -348,8 +348,8 @@ separately ([`next_matrix_id`](../../web/crates/catalogue/src/matrix_setup_opera
   expanded. A matrix encoder's own press uses the bare Part ID and does benefit. A standalone/direct
   push or a direct press on an attached component needs a separate suffix scenario. This is a
   source-established coverage limit, not an executed report of a broken device
-  ([remapping](../../core/crates/engine/src/matrix/deletion.rs#L220-L248), [cell changes](../../core/crates/engine/src/matrix/deletion.rs#L283-L302),
-  [press identity](../../core/crates/engine/src/electrical_peripherals.rs#L73-L96)).
+  ([remapping](../../core/crates/kernel/src/matrix/deletion.rs#L220-L248), [cell changes](../../core/crates/kernel/src/matrix/deletion.rs#L283-L302),
+  [press identity](../../core/crates/mechanical/src/electrical_peripherals.rs#L73-L96)).
 - **Legend/configuration is not one field.** `keycaps.keys[id]` overrides and typed/legacy-derived
   legends are looked up for current Parts; explicit blank legend differs from inheritance. Structural
   deletion remaps that map; generic removal does not. Separately, `Part.keycap` belongs to the removed
@@ -357,17 +357,17 @@ separately ([`next_matrix_id`](../../web/crates/catalogue/src/matrix_setup_opera
   [`matrix_and_key_edits_merge_fields_and_distinguish_blank_from_inherited`](../../core/tests/keymap_edits.rs#L87-L129)).
 - **No compensating universal mirrored cleanup was inferred.** Native distinct-board pairs use
   [`uses_prepared_transaction`](../../core/src/lib.rs#L1412-L1433) and
-  [`prepare_transaction_with_ledger`](../../core/crates/engine/src/mirrored_half/reconcile/prepare.rs#L619-L710).
+  [`prepare_transaction_with_ledger`](../../core/crates/mirrored-half/src/mirrored_half/reconcile/prepare.rs#L619-L710).
   Their membership kernel expressly runs target-side `remove_axis`/`remove_cells` and
   `remove_parts_by_id`, with Local detachment/omission handling
-  ([kernel](../../core/crates/engine/src/mirrored_half/reconcile.rs#L6413-L6489), [target cleanup](../../core/crates/engine/src/mirrored_half/reconcile.rs#L6736-L6768)).
+  ([kernel](../../core/crates/mirrored-half/src/mirrored_half/reconcile.rs#L6413-L6489), [target cleanup](../../core/crates/mirrored-half/src/mirrored_half/reconcile.rs#L6736-L6768)).
   Thus the unpaired retention result cannot be called a universal bug. Electrical reconciliation
   deliberately restores the mirror Board's local bindings/protection rather than copying source
-  bindings ([L3563–3651](../../core/crates/engine/src/mirrored_half/reconcile.rs#L3563-L3651)); [0010](../adr/0010-mirrored-half-is-a-core-maintained-reflection.md)
+  bindings ([L3563–3651](../../core/crates/mirrored-half/src/mirrored_half/reconcile.rs#L3563-L3651)); [0010](../adr/0010-mirrored-half-is-a-core-maintained-reflection.md)
   keeps key bindings nonmirrored. Complete source-and-target shrink/regrow metadata outcomes,
   Local/Omitted combinations and same-board reuse remain pending, not resolved by this slice.
 - **A stale queued UI target is a different hazard from dormant persisted bindings.** The inspected
-  [`queued_key_resize_retires_when_row_delete_reuses_the_selected_id`](../../web/crates/layout/src/objects/keycap_size_tests.rs#L1073-L1139)
+  [`queued_key_resize_retires_when_row_delete_reuses_the_selected_id`](../../web/crates/layout-objects/src/objects/keycap_size_tests.rs#L1073-L1139)
   drives real Runtime/Core behind a held reply and expects a `Failed` settlement containing
   “matrix topology changed”; despite its name, its assertion is not silent `Retired`. Selected-key
   actions also capture topology. Neither is proof that all keymap controls guard every reused ID

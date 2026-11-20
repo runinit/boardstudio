@@ -1,5 +1,5 @@
 //! Accepted-document transformations for the contextual PCB part connection editor.
-use boardstudio_core::model::{PartKind, ProjectDoc};
+use boardstudio_model::model::{PartKind, ProjectDoc};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PartNetIntent {
@@ -88,7 +88,7 @@ pub fn propose(
                     .retain(|pin| pin.part_id != part_id || !targets.contains(&pin.pad_id));
                 if Some(net.id.as_str()) == net_id.as_deref() {
                     net.pins
-                        .extend(pad_ids.iter().map(|pad_id| boardstudio_core::model::Pin {
+                        .extend(pad_ids.iter().map(|pad_id| boardstudio_model::model::Pin {
                             part_id: part_id.to_owned(),
                             pad_id: pad_id.clone(),
                         }));
@@ -105,7 +105,7 @@ pub fn propose(
                 return Err("The new net identity is already in use.".into());
             }
             let mut proposal = document.clone();
-            proposal.nets.push(boardstudio_core::model::Net {
+            proposal.nets.push(boardstudio_model::model::Net {
                 id: net_id.clone(),
                 name: name.to_owned(),
                 pins: Vec::new(),
@@ -126,7 +126,7 @@ pub fn propose(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use boardstudio_core::model::ProjectDoc;
+    use boardstudio_model::model::ProjectDoc;
     use serde_json::json;
     use wasm_bindgen_test::wasm_bindgen_test;
 

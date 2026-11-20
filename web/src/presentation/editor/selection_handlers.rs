@@ -31,11 +31,9 @@ pub(super) fn select_tree_handler(
         outline_activation,
     } = input;
     move |request: objects::TreeSelectRequest| {
-        if request
-            .outline_action
-            .as_ref()
-            .is_some_and(|action| !action.is_current(&runtime, generation))
-            || (adapter.generation)() != generation
+        if request.outline_action.as_ref().is_some_and(|action| {
+            !outline_lifecycle::outline_action_is_current(action, &runtime, generation)
+        }) || (adapter.generation)() != generation
             || runtime.scope().as_ref() != Some(&request.scope)
             || !selection::context_is_current(&runtime.model(), &request.scope, &request.context)
         {

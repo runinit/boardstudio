@@ -14,7 +14,7 @@ No builds or integration runs were done because another refactor is active.
 Run an isolated proof of concept for **routing only**. BoardStudio already
 generates the PCB in Rust: Core renders generator jobs, allocates nets and
 assembles KiCad artifacts in-process ([BoardStudio architecture](../architecture.md),
-[KiCad generation](../../core/crates/engine/src/artifact/kicad/generation.rs)). CodeYourPCB's
+[KiCad generation](../../core/crates/artifact/src/artifact/kicad/generation.rs)). CodeYourPCB's
 unique near-term value is its in-house autorouter and perhaps its Rust DRC
 rules. Replacing the generator with CodeYourPCB would also mean replacing or
 adapting BoardStudio's keyboard matrix and circuit planning, module embedding,
@@ -100,8 +100,8 @@ uses footprint generators and `NetAllocator` before assembling KiCad output.
 Electrical planning separately resolves keyboard matrix rows/columns, direct
 GPIO assignments, controller pins and peripheral nets. Those product decisions
 should remain BoardStudio-owned if experimenting with a router
-([Core generation](../../core/crates/engine/src/artifact/kicad/generation.rs),
-[electrical plan](../../core/crates/engine/src/electrical.rs),
+([Core generation](../../core/crates/artifact/src/artifact/kicad/generation.rs),
+[electrical plan](../../core/crates/mechanical/src/electrical.rs),
 [architecture and ownership](../architecture.md)).
 
 The likely adapter cost is manageable enough to test but not free. The public
@@ -121,7 +121,7 @@ paths, identities and unrelated KiCad data. CodeYourPCB has a KiCad parser and
 route command, but its CLI routes by importing into `BoardWorld`; the current
 BoardStudio implementation emits complete KiCad files from accepted export
 inputs ([CodeYourPCB parser and route CLI](https://github.com/szymontex/codeyourpcb/blob/12018cb0c6d0d927e50f863ce744e985de6553f2/crates/cypcb-cli/src/commands/route.rs),
-[BoardStudio artifact generation](../../core/crates/engine/src/artifact/kicad/generation.rs)).
+[BoardStudio artifact generation](../../core/crates/artifact/src/artifact/kicad/generation.rs)).
 If that seam proves worthwhile, a later experiment can compare a direct
 BoardStudio-to-`BoardWorld` adapter against parse-and-patch.
 
@@ -200,4 +200,4 @@ CodeYourPCB should own BoardStudio board generation, nor KiCad-equivalent DRC.
 - [`cypcb-render` WASM bridge](https://github.com/szymontex/codeyourpcb/blob/12018cb0c6d0d927e50f863ce744e985de6553f2/crates/cypcb-render/src/lib.rs)
 - [`cypcb-router` FreeRouting bridge](https://github.com/szymontex/codeyourpcb/blob/12018cb0c6d0d927e50f863ce744e985de6553f2/crates/cypcb-router/src/freerouting.rs)
 - [`cypcb-kicad` parser](https://github.com/szymontex/codeyourpcb/blob/12018cb0c6d0d927e50f863ce744e985de6553f2/crates/cypcb-kicad/src/pcb_parser.rs)
-- [BoardStudio architecture](../architecture.md), [Core KiCad generation](../../core/crates/engine/src/artifact/kicad/generation.rs), [Core electrical planner](../../core/crates/engine/src/electrical.rs), and [prior dependency/DRC assessment](dependency-and-cad-options-2026-10-08.md)
+- [BoardStudio architecture](../architecture.md), [Core KiCad generation](../../core/crates/artifact/src/artifact/kicad/generation.rs), [Core electrical planner](../../core/crates/mechanical/src/electrical.rs), and [prior dependency/DRC assessment](dependency-and-cad-options-2026-10-08.md)

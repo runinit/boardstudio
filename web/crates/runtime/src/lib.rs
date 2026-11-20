@@ -13,6 +13,7 @@ pub mod bundled_models;
 pub mod case_generation_lifecycle;
 pub mod case_model_lifecycle;
 pub mod case_preview;
+pub mod core_services;
 pub mod edit_ticket;
 pub(crate) mod export_lease;
 pub mod firmware_position_projection;

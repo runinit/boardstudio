@@ -231,7 +231,7 @@ mod runtime_port {
 mod tests {
     use super::*;
     use boardstudio_application::{EditResolver, Event, Landing, Resolution, SnapshotToken};
-    use boardstudio_core::model::{
+    use boardstudio_model::model::{
         Board, EditOperation, EditPhase, Part, PartDefinition, PartKind, Pose2, ProjectDoc, Side,
         Vec2,
     };

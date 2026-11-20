@@ -8,7 +8,7 @@
 //! live in the page shell; the math here stays pure so native tests pin it.
 
 use crate::tree::ScopedTreeContext;
-use boardstudio_core::model::{ProjectDoc, SceneDelta};
+use boardstudio_model::model::{ProjectDoc, SceneDelta};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -230,7 +230,7 @@ pub fn spacing_note(delta_mm: f64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use boardstudio_core::model::{Layout, LayoutMirrorLink};
+    use boardstudio_model::model::{Layout, LayoutMirrorLink};
 
     fn link(axis_x: f64, split_gap: Option<f64>, spacing: Option<f64>) -> Layout {
         Layout {

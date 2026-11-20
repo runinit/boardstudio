@@ -9,11 +9,11 @@
 use super::planner::{OutlineAction, OutlinePointTarget};
 use crate::outline_settings::{OutlineEdit as OutlineSettingEdit, generated_feature};
 use boardstudio_application::{AcceptedSnapshot, Resolution};
-use boardstudio_core::model::{
-    Board, Contour, EditOperation, OutlineConnection, OutlineFeature, ProjectDoc,
-};
-use boardstudio_core::outline_edit::{
+use boardstudio_core_kernel::outline_edit::{
     OutlineChange, OutlineEdit, OutlineEditDisposition, OutlineEditTarget,
+};
+use boardstudio_model::model::{
+    Board, Contour, EditOperation, OutlineConnection, OutlineFeature, ProjectDoc,
 };
 use boardstudio_web_ui_model::tree::TreeContext;
 
@@ -45,7 +45,7 @@ fn all_version_ids(document: &ProjectDoc) -> Vec<String> {
 }
 
 /// The next non-duplicating `Edited outline N` name on this board.
-fn next_edited_outline_name(state: Option<&boardstudio_core::model::BoardOutline>) -> String {
+fn next_edited_outline_name(state: Option<&boardstudio_model::model::BoardOutline>) -> String {
     let next_number = state
         .into_iter()
         .flat_map(|state| &state.versions)
@@ -238,7 +238,7 @@ fn update(
 
 /// One typed Core outline edit for this presentation action, or `None` when the action
 /// cannot be expressed (including work that is not an edit at all, like focusing a gap).
-pub(crate) fn outline_edit(
+pub fn outline_edit(
     snapshot: &AcceptedSnapshot,
     action: &OutlineAction,
     seed: u64,
@@ -411,7 +411,7 @@ pub(crate) fn outline_edit(
                         if index == 0 || index + 1 == points.len() {
                             super::planner::outline_connection_control(*point, &eligible)
                         } else {
-                            boardstudio_core::model::OutlineControlPoint {
+                            boardstudio_model::model::OutlineControlPoint {
                                 at: *point,
                                 part_id: None,
                             }
@@ -524,7 +524,7 @@ pub(crate) fn target_ids(action: &OutlineAction) -> Vec<String> {
 
 /// Why a retired outline edit is reported. Core decides retirement; the adapter owns the
 /// wording of the explanation the user sees.
-pub(crate) fn retire_reason(action: &OutlineAction) -> &'static str {
+pub fn retire_reason(action: &OutlineAction) -> &'static str {
     match action {
         OutlineAction::Activate {
             version_id: Some(_),
@@ -559,13 +559,13 @@ pub(crate) fn retire_reason(action: &OutlineAction) -> &'static str {
 /// `Changed` submits the one typed operation Core applies and reports its changed owners
 /// for; `Unchanged` lands without a revision step; a vanished or ineligible target
 /// retires with an explanation; malformed input surfaces Core's own error.
-pub(crate) fn settle(
+pub fn settle(
     accepted: &AcceptedSnapshot,
     edit: &OutlineEdit,
     action: &OutlineAction,
     transaction_id: String,
 ) -> Resolution {
-    match boardstudio_core::outline_edit::evaluate(accepted.document.as_ref(), edit) {
+    match boardstudio_core_kernel::outline_edit::evaluate(accepted.document.as_ref(), edit) {
         Ok(OutlineEditDisposition::Changed) => Resolution::submit_with_transaction_id(
             target_ids(action),
             transaction_id,
@@ -580,8 +580,8 @@ pub(crate) fn settle(
 }
 
 /// Admission at dispatch: whether the action is worth submitting a pending ticket for.
-pub(crate) fn admission(accepted: &AcceptedSnapshot, edit: &OutlineEdit) -> Admission {
-    match boardstudio_core::outline_edit::evaluate(accepted.document.as_ref(), edit) {
+pub fn admission(accepted: &AcceptedSnapshot, edit: &OutlineEdit) -> Admission {
+    match boardstudio_core_kernel::outline_edit::evaluate(accepted.document.as_ref(), edit) {
         Ok(OutlineEditDisposition::Changed) => Admission::Submit,
         Ok(OutlineEditDisposition::Unchanged) | Ok(OutlineEditDisposition::Retire) => {
             Admission::Ignore
@@ -591,7 +591,7 @@ pub(crate) fn admission(accepted: &AcceptedSnapshot, edit: &OutlineEdit) -> Admi
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Admission {
+pub enum Admission {
     /// The edit changes state; submit it as intent.
     Submit,
     /// The edit is equal to the accepted value or its target is gone: drop it silently.

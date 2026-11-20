@@ -7,11 +7,11 @@ Parent: [25](25-shipped-boards-review.md) · Spec: [spec.md](../spec.md)
 
 ## Source evidence
 
-`PITCH_MM` and `prepare_matrix` in [matrix_setup_operation.rs](../../../../web/crates/catalogue/src/matrix_setup_operation.rs) currently seed 19.05 mm and edgeGap 1.0 mm. [matrix_placement_controller.rs](../../../../web/crates/layout/src/objects/matrix_placement_controller.rs) also contains a matrix seed. The Parts assembly route uses [assembly_presets.rs](../../../../web/crates/parts/src/parts/assembly_presets.rs); identify whether it consumes spacing before changing it. Graph evidence must be refreshed/bound at execution; the planning lane index was unavailable.
+`PITCH_MM` and `prepare_matrix` in [matrix_setup_operation.rs](../../../../web/crates/catalogue/src/matrix_setup_operation.rs) currently seed 19.05 mm and edgeGap 1.0 mm. [matrix_placement_controller.rs](../../../../web/crates/layout-objects/src/objects/matrix_placement_controller.rs) also contains a matrix seed. The Parts assembly route uses [assembly_presets.rs](../../../../web/crates/parts/src/parts/assembly_presets.rs); identify whether it consumes spacing before changing it. Graph evidence must be refreshed/bound at execution; the planning lane index was unavailable.
 
 ## One-hour slice and ownership
 
-One creation-route implementer owns the spacing input to `web/crates/catalogue/src/matrix_setup_operation.rs`, its caller in `web/crates/layout/src/objects/matrix_setup_controller.rs`, and the matrix seed in `matrix_placement_controller.rs`. Read other callers before any shared signature change. Consume ticket 42's preference only when creating a new matrix/assembly without explicit spacing. Keep normal native assembly behavior, explicit per-board choices, loaded matrices and a matrix's own edgeGap independent. Parts placement already expressing explicit keycap/spacing data must keep it; file any separate missing route rather than expand this slice.
+One creation-route implementer owns the spacing input to `web/crates/catalogue/src/matrix_setup_operation.rs`, its caller in `web/crates/layout-objects/src/objects/matrix_setup_controller.rs`, and the matrix seed in `matrix_placement_controller.rs`. Read other callers before any shared signature change. Consume ticket 42's preference only when creating a new matrix/assembly without explicit spacing. Keep normal native assembly behavior, explicit per-board choices, loaded matrices and a matrix's own edgeGap independent. Parts placement already expressing explicit keycap/spacing data must keep it; file any separate missing route rather than expand this slice.
 
 ## Acceptance and regression
 

@@ -1,6 +1,6 @@
 use super::*;
 use crate::runtime::project_name_test_support as support;
-use boardstudio_core::model::{Asset, BoardReference, Pose2, Vec2};
+use boardstudio_model::model::{Asset, BoardReference, Pose2, Vec2};
 use wasm_bindgen_test::wasm_bindgen_test;
 
 #[wasm_bindgen_test]
@@ -138,7 +138,7 @@ async fn mechanical_export_refuses_unverified_or_incomplete_pcb_sources_without_
             .unwrap()
             .contours
             .clone();
-        let assembly = boardstudio_core::mechanical::resolve(&accepted.document, &contours);
+        let assembly = boardstudio_core_mechanical::mechanical::resolve(&accepted.document, &contours);
         assert!(!assembly.generation_blocked, "{:?}", assembly.diagnostics);
         // Set only the unrelated CAD-ready precondition; failures must happen before CAD starts.
         let cad_scene = Rc::new(CadScene {
@@ -146,7 +146,7 @@ async fn mechanical_export_refuses_unverified_or_incomplete_pcb_sources_without_
             token: accepted.token,
             snapshot: accepted.clone(),
             result: CadResult::default(),
-            prepared: boardstudio_core::model::PreparedCaseAssemblyIR {
+            prepared: boardstudio_model::model::PreparedCaseAssemblyIR {
                 revision: accepted.document.revision,
                 bodies: vec![],
             },

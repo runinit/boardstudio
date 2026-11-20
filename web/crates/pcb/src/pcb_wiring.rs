@@ -4,10 +4,8 @@
 //! cheap accepted-document handle, board scope, active selection, and guarded edit actions.
 use crate::pcb_controls::{PcbChoice, PcbInput, PcbSection};
 use boardstudio_application::Scope;
-use boardstudio_core::{
-    electrical::{ElectricalMode, ElectricalPlan},
-    model::{Net, PartDefinition, PartKind, ProjectDoc},
-};
+use boardstudio_core_mechanical::electrical::{ElectricalMode, ElectricalPlan};
+use boardstudio_model::model::{Net, PartDefinition, PartKind, ProjectDoc};
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::input::InputType;
@@ -1071,8 +1069,8 @@ mod tests {
             value: Some("P5".into()),
             locked: false,
         };
-        let mut plan = boardstudio_core::electrical::resolve(
-            boardstudio_core::electrical::ElectricalPlanRequest {
+        let mut plan = boardstudio_core_mechanical::electrical::resolve(
+            boardstudio_core_mechanical::electrical::ElectricalPlanRequest {
                 document: ProjectDoc::empty("project", "Fixture"),
                 instance_id: None,
                 mode: ElectricalMode::Matrix,
@@ -1197,8 +1195,8 @@ mod tests {
             failure: None,
             on_change: EventHandler::new(|_| {}),
         };
-        let mut plan = boardstudio_core::electrical::resolve(
-            boardstudio_core::electrical::ElectricalPlanRequest {
+        let mut plan = boardstudio_core_mechanical::electrical::resolve(
+            boardstudio_core_mechanical::electrical::ElectricalPlanRequest {
                 document: ProjectDoc::empty("project", "Fixture"),
                 instance_id: None,
                 mode: ElectricalMode::Matrix,

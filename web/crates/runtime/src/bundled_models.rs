@@ -21,13 +21,13 @@ pub fn preview_model_paths() -> impl Iterator<Item = (&'static str, &'static str
 }
 
 pub async fn is_generator_source(source: &str) -> Result<bool, String> {
-    Ok(boardstudio_core::generators::is_generator(source))
+    Ok(boardstudio_core_kernel::generators::is_generator(source))
 }
 
 fn standalone_part(
-    definition: &boardstudio_core::model::PartDefinition,
-) -> boardstudio_core::model::Part {
-    use boardstudio_core::model::{Part, Pose2, Side, Vec2};
+    definition: &boardstudio_model::model::PartDefinition,
+) -> boardstudio_model::model::Part {
+    use boardstudio_model::model::{Part, Pose2, Side, Vec2};
 
     Part {
         id: format!("definition:{}", definition.id),
@@ -53,19 +53,18 @@ fn standalone_part(
     }
 }
 
-fn supported_generator(definition: &boardstudio_core::model::PartDefinition) -> bool {
-    definition
-        .generator
-        .as_ref()
-        .is_some_and(|generator| boardstudio_core::generators::is_generator(&generator.source))
+fn supported_generator(definition: &boardstudio_model::model::PartDefinition) -> bool {
+    definition.generator.as_ref().is_some_and(|generator| {
+        boardstudio_core_kernel::generators::is_generator(&generator.source)
+    })
 }
 
 /// Model assets rendered by every generator-backed part and assembly member of a document.
 pub async fn generated_model_ids(
-    document: &boardstudio_core::model::ProjectDoc,
+    document: &boardstudio_model::model::ProjectDoc,
 ) -> Result<Vec<String>, String> {
-    use boardstudio_core::generators::model_asset_ids;
-    use boardstudio_core::model::{AssemblyMember, Part, PartDefinition};
+    use boardstudio_core_kernel::generators::model_asset_ids;
+    use boardstudio_model::model::{AssemblyMember, Part, PartDefinition};
 
     fn assembly_model_part(member: &AssemblyMember, definition: &PartDefinition) -> Part {
         Part {
@@ -129,9 +128,9 @@ pub async fn generated_model_ids(
 /// `modelFiles`, an unused definition is resolved with a default standalone part, while
 /// definitions with instances resolve once per part.
 pub async fn footprint_export_model_ids(
-    document: &boardstudio_core::model::ProjectDoc,
+    document: &boardstudio_model::model::ProjectDoc,
 ) -> Result<Vec<String>, String> {
-    use boardstudio_core::generators::model_asset_ids;
+    use boardstudio_core_kernel::generators::model_asset_ids;
     use std::collections::HashSet;
 
     let mut seen = HashSet::new();
@@ -179,21 +178,19 @@ pub async fn footprint_export_model_ids(
 /// Resolve the generator-authored model bindings. Assembly authoring calls this when a
 /// designer chooses to edit model defaults for a generated component.
 pub async fn model_bindings(
-    definition: &boardstudio_core::model::PartDefinition,
-    part: &boardstudio_core::model::Part,
-) -> Result<Vec<boardstudio_core::model::PartModel>, String> {
+    definition: &boardstudio_model::model::PartDefinition,
+    part: &boardstudio_model::model::Part,
+) -> Result<Vec<boardstudio_model::model::PartModel>, String> {
     if !supported_generator(definition) {
         return Ok(definition.models.clone().unwrap_or_default());
     }
-    boardstudio_core::generators::model_bindings(definition, Some(part))
+    boardstudio_core_kernel::generators::model_bindings(definition, Some(part))
 }
 
 pub async fn generated_model_asset_ids_for_paths(
     paths: &[String],
 ) -> Result<Vec<Option<String>>, String> {
-    Ok(boardstudio_core::generators::model_asset_ids_for_paths(
-        paths,
-    ))
+    Ok(boardstudio_core_kernel::generators::model_asset_ids_for_paths(paths))
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -331,12 +328,12 @@ mod tests {
 #[cfg(test)]
 mod generator_tests {
     use super::*;
-    use boardstudio_core::model::ProjectDoc;
+    use boardstudio_model::model::ProjectDoc;
     use serde_json::json;
 
     #[test]
     fn generated_models_use_generator_part_overrides() {
-        let definition = boardstudio_core::generators::catalogue()
+        let definition = boardstudio_core_kernel::generators::catalogue()
             .unwrap()
             .into_iter()
             .find(|definition| {

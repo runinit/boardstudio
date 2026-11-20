@@ -1,13 +1,13 @@
 # boardstudio-application
 
-`boardstudio-application` is the headless, consumer-owned owner of editor session ordering. It depends on the existing `boardstudio_core` provider and leaves document/wire types unchanged. The crate owns no Dioxus signal, browser handle, worker, IndexedDB transaction, CAD object, renderer object, URL, or file handle.
+`boardstudio-application` is the headless, consumer-owned owner of editor session ordering. It depends on `boardstudio-model` for document/wire types, not on the Core engine: the host passes Core's Open admission check (`boardstudio_core::CoreEngine::validate_open`) to `Session::new`. The crate owns no Dioxus signal, browser handle, worker, IndexedDB transaction, CAD object, renderer object, URL, or file handle.
 
 ## Host loop
 
 Create one `Session` for the application lifetime, read `core_executor_epoch()` when constructing the core worker, and feed user events through `submit`. Execute each returned effect, then return its identified completion through `complete`. The host should publish `read_model()` after each transition. A panel subscription may stop observing without dropping the session.
 
 ```rust,ignore
-let mut session = Session::new();
+let mut session = Session::new(boardstudio_core::CoreEngine::validate_open);
 let core_epoch = session.core_executor_epoch();
 let effects = session.submit(Event::Open { operation_id, document });
 // For Effect::Core, move `*request` into the typed worker request call.

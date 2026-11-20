@@ -1,7 +1,7 @@
 //! CAD job protocol and identity guards.
-use boardstudio_core::hash::sha256_hex;
-use boardstudio_core::model::*;
-pub use boardstudio_core::model::{
+use boardstudio_core_kernel::hash::sha256_hex;
+use boardstudio_model::model::*;
+pub use boardstudio_model::model::{
     CadStepImportOptions, is_sha256_hex, validate_affine_row_transform,
 };
 use serde::{Deserialize, Serialize};

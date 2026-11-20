@@ -1,6 +1,6 @@
 //! Private read-only projection and typed view for saved Keymap macros.
 use boardstudio_application::{Scope, SnapshotToken};
-use boardstudio_core::model::{KeymapMacro, MacroChange, MacroStep, ProjectDoc};
+use boardstudio_model::model::{KeymapMacro, MacroChange, MacroStep, ProjectDoc};
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
@@ -417,7 +417,7 @@ fn StepEditor(props: StepEditorProps) -> Element {
         MacroStep::Tap { binding }
         | MacroStep::Press { binding }
         | MacroStep::Release { binding } => match binding {
-            boardstudio_core::model::KeyBinding::KeyPress { keycode } => keycode.clone(),
+            boardstudio_model::model::KeyBinding::KeyPress { keycode } => keycode.clone(),
             _ => String::new(),
         },
         MacroStep::Wait { .. } => String::new(),
@@ -475,9 +475,9 @@ fn StepEditor(props: StepEditorProps) -> Element {
                     commit_if_unchanged: step_keycode_requires_normalization(&accepted_step),
                     on_commit: { let context = request_context.clone(); let accepted = accepted_step.clone(); let macro_id = macro_id.clone(); let sequence = sequence.clone(); EventHandler::new(move |keycode: String| {
                         let value = match accepted {
-                            MacroStep::Tap { .. } => MacroStep::Tap { binding: boardstudio_core::model::KeyBinding::KeyPress { keycode } },
-                            MacroStep::Press { .. } => MacroStep::Press { binding: boardstudio_core::model::KeyBinding::KeyPress { keycode } },
-                            MacroStep::Release { .. } => MacroStep::Release { binding: boardstudio_core::model::KeyBinding::KeyPress { keycode } },
+                            MacroStep::Tap { .. } => MacroStep::Tap { binding: boardstudio_model::model::KeyBinding::KeyPress { keycode } },
+                            MacroStep::Press { .. } => MacroStep::Press { binding: boardstudio_model::model::KeyBinding::KeyPress { keycode } },
+                            MacroStep::Release { .. } => MacroStep::Release { binding: boardstudio_model::model::KeyBinding::KeyPress { keycode } },
                             MacroStep::Wait { .. } => return,
                         };
                         request(&context, MacroEditTarget::StepKeycode { index }, Some(macro_id.clone()), Some(sequence.clone()),
@@ -670,32 +670,32 @@ fn step_keycode_requires_normalization(step: &MacroStep) -> bool {
     !matches!(
         step,
         MacroStep::Tap {
-            binding: boardstudio_core::model::KeyBinding::KeyPress { .. }
+            binding: boardstudio_model::model::KeyBinding::KeyPress { .. }
         } | MacroStep::Press {
-            binding: boardstudio_core::model::KeyBinding::KeyPress { .. }
+            binding: boardstudio_model::model::KeyBinding::KeyPress { .. }
         } | MacroStep::Release {
-            binding: boardstudio_core::model::KeyBinding::KeyPress { .. }
+            binding: boardstudio_model::model::KeyBinding::KeyPress { .. }
         }
     )
 }
 
 fn tap_a() -> MacroStep {
     MacroStep::Tap {
-        binding: boardstudio_core::model::KeyBinding::KeyPress {
+        binding: boardstudio_model::model::KeyBinding::KeyPress {
             keycode: "A".into(),
         },
     }
 }
 fn press_a() -> MacroStep {
     MacroStep::Press {
-        binding: boardstudio_core::model::KeyBinding::KeyPress {
+        binding: boardstudio_model::model::KeyBinding::KeyPress {
             keycode: "A".into(),
         },
     }
 }
 fn release_a() -> MacroStep {
     MacroStep::Release {
-        binding: boardstudio_core::model::KeyBinding::KeyPress {
+        binding: boardstudio_model::model::KeyBinding::KeyPress {
             keycode: "A".into(),
         },
     }
@@ -705,7 +705,7 @@ fn release_a() -> MacroStep {
 mod mounted_accessible_name_tests {
     use super::*;
     use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
-    use boardstudio_core::model::{KeyBinding, KeymapConfiguration, KeymapLayer, KeymapMacro};
+    use boardstudio_model::model::{KeyBinding, KeymapConfiguration, KeymapLayer, KeymapMacro};
     use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::test_role::by_role_name;
     use boardstudio_web_ui_shared::test_wait::wait_until;

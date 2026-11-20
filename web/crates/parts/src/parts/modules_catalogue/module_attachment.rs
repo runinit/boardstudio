@@ -2,7 +2,7 @@ use super::{ModuleEntry, load_horizontal_host_connector_definition};
 use crate::parts_custom_definition::replacement_commit;
 use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution, Scope, SnapshotToken};
-use boardstudio_core::model::{
+use boardstudio_model::model::{
     EditOperation, ModuleAttachment as AttachmentKind, ModuleConnection, ModuleDefinition,
     MountedModule, PartDefinition, Side, Vec2, VikRole,
 };
@@ -546,7 +546,7 @@ fn eligible_host_connectors(snapshot: &AcceptedSnapshot, board_id: &str) -> Vec<
         .collect()
 }
 
-fn fresh_module_id(document: &boardstudio_core::model::ProjectDoc) -> Option<String> {
+fn fresh_module_id(document: &boardstudio_model::model::ProjectDoc) -> Option<String> {
     for _ in 0..8 {
         let uuid = crate::runtime::new_project_id().ok()?;
         let module_id = format!("module/{uuid}");
@@ -566,7 +566,7 @@ fn fresh_module_id(document: &boardstudio_core::model::ProjectDoc) -> Option<Str
 #[cfg(test)]
 mod mounted_settlement_tests {
     use super::*;
-    use boardstudio_core::model::{Board, ProjectDoc};
+    use boardstudio_model::model::{Board, ProjectDoc};
     use boardstudio_web_runtime::runtime::project_name_test_support as support;
     use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::test_role::by_role_name;

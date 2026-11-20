@@ -60,7 +60,7 @@ for those named checks ([README](../../README.md)).
 Store each case's original Ergogen config beside the BoardStudio matrix input and its oracle
 poses. The current Rust fixture already groups `matrix` and `expected` cells by case, and its
 expected entries carry row, column, enabled state, member ID and pose ([existing fixture](../../core/tests/fixtures/matrix-projections.json),
-[Rust projection assertion](../../core/crates/engine/src/matrix.rs)). Add explicit provenance and upstream
+[Rust projection assertion](../../core/crates/kernel/src/matrix.rs)). Add explicit provenance and upstream
 names so a maintainer can trace a mirrored point without reverse-engineering a generated key
 ID. One case could be represented as:
 
@@ -93,7 +93,7 @@ rotation as separate absolute differences `< 1e-9` (mm and degrees); do not matc
 order or pretend Ergogen's point name is a BoardStudio member ID. The existing projection test
 uses `< 1e-9` for all three pose values, while the supplied comparator validates 54 legacy
 cells with maximum error `7.11e-15` and has an explicit mirrored-key mapping
-([assertion](../../core/crates/engine/src/matrix.rs), [comparison report](2026-10-22-ergogen-layout-engine-comparison.md)).
+([assertion](../../core/crates/kernel/src/matrix.rs), [comparison report](2026-10-22-ergogen-layout-engine-comparison.md)).
 Keep `matrix-projections.json` as a BoardStudio-only regression: it also covers captured legacy
 poses/saved-pose cases and the dependency inventory identifies it as an existing formula
 oracle; new Ergogen fixtures should add independent parity evidence rather than erase that

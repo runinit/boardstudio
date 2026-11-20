@@ -23,8 +23,8 @@ other visibility change is authorized.
   operation, then calls `resolve_with_positions`; that helper always passes `&[]` as the
   framed records. Thus the existing callable seam cannot carry the private prepared
   records. `resolve_prepared` accepts the document, positions, and framed records, but is
-  private. ([`constraints.rs`](../../../../core/crates/engine/src/constraints.rs#L135),
-  [`resolve_prepared`](../../../../core/crates/engine/src/constraints.rs#L220))
+  private. ([`constraints.rs`](../../../../core/crates/kernel/src/constraints.rs#L135),
+  [`resolve_prepared`](../../../../core/crates/kernel/src/constraints.rs#L220))
 - A repository search finds one `resolve_edit` definition and exactly four calls: two
   consecutive passes in committed `CoreEngine::edit` and two in `preview_edit`. The edit
   calls are at `lib.rs:544` and `:552`; the preview calls are at `:651` and `:656`.
@@ -34,13 +34,13 @@ other visibility change is authorized.
   [ticket 115 ownership](../issues/115-prepare-mirrored-edit-transaction.md#file-ownership))
 - The prepared solver combines stored and framed constraints in one source-first graph,
   includes assembly placements, and writes resolved poses only after graph resolution.
-  This is the shared behavior that 139's design says to retain. ([`constraints.rs`](../../../../core/crates/engine/src/constraints.rs#L220),
+  This is the shared behavior that 139's design says to retain. ([`constraints.rs`](../../../../core/crates/kernel/src/constraints.rs#L220),
   [139 accepted design: resolver seam](139-generalized-mirrored-constraint-model.md#source-grounded-seams-and-impact))
 - The compiler record `FramedConstraint` is already re-exported `pub(crate)`, while
   `lib.rs` declares `constraints` as `mod constraints;`. Making one function
   `pub(crate)` would permit sibling crate modules to call it without making the module or
-  function externally public. ([`constraints.rs`](../../../../core/crates/engine/src/constraints.rs#L10),
-  [`constraints.rs` crate-private records](../../../../core/crates/engine/src/constraints.rs#L16),
+  function externally public. ([`constraints.rs`](../../../../core/crates/kernel/src/constraints.rs#L10),
+  [`constraints.rs` crate-private records](../../../../core/crates/kernel/src/constraints.rs#L16),
   [`lib.rs`](../../../../core/src/lib.rs#L1))
 - Accepted design 139 says the prepared solver is the one engine and that 115 supplies
   the transaction half; its seam inventory also requires the same canonical operation

@@ -1,7 +1,7 @@
 //! Outline lifecycle planning and presentation.
 
 pub mod adapter;
-pub mod planner;
+pub use boardstudio_web_layout_core::outline::planner;
 
 #[cfg(target_arch = "wasm32")]
 pub(crate) mod hook;
@@ -13,7 +13,7 @@ pub(crate) mod overlays;
 #[cfg(target_arch = "wasm32")]
 pub use hook::{
     OutlineDrawTool, OutlineFeedback, OutlineInspectorProjection, OutlineVersionChoice,
-    OutlineVersionOwnership, use_outline_lifecycle,
+    OutlineVersionOwnership, outline_action_is_current, use_outline_lifecycle,
 };
 #[cfg(target_arch = "wasm32")]
 pub use inspector::OutlineVersionInspector;
@@ -55,7 +55,7 @@ use boardstudio_application::{
 };
 #[cfg(all(test, target_arch = "wasm32"))]
 #[allow(unused_imports)] // The included browser suite imports these through `super::*`.
-use boardstudio_core::model::{
+use boardstudio_model::model::{
     Contour, CornerStyle, EditCommand, EditOperation, EditPhase, Operation, OutlineConnection,
     OutlineContourEdit, OutlineControlPoint, OutlineFeature, OutlineGap, OutlineRepairSettings,
     OutlineSettings, Part, Side, Vec2,
@@ -82,3 +82,6 @@ use wasm_bindgen::JsCast;
 #[cfg(all(test, target_arch = "wasm32"))]
 #[path = "../outline_lifecycle_browser_tests.rs"]
 mod browser_tests;
+#[cfg(all(test, not(target_arch = "wasm32")))]
+#[path = "../outline_lifecycle_tests.rs"]
+mod lifecycle_tests;

@@ -20,7 +20,7 @@ their keys, the way a column splay and a placement edit already do.
   nothing. Generated companions follow through `set_matrix`; a part with `layoutOverride == 1`
   keeps its pose.
 - The web matrix transform maps these fields to `SetMatrix`
-  (`web/crates/layout/src/matrix_transform_operation.rs`): matrix origin X and Y, matrix
+  (`web/crates/layout-core/src/matrix_transform_operation.rs`): matrix origin X and Y, matrix
   rotation and matrix mirror. Key-level fields use the same operation too.
 - Read from the code, not run: no test yet moves an authored companion through `SetMatrix`.
 

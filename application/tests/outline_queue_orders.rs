@@ -314,7 +314,7 @@ fn settle_one(session: &mut Session, engine: &mut CoreEngine, effects: Vec<Effec
 
 /// Queues the actions in the given order and asserts the whole queue contract.
 fn run(order: [Action; 3]) {
-    let mut session = Session::new();
+    let mut session = Session::new(CoreEngine::validate_open);
     let mut engine = CoreEngine::new();
     let effects = session.submit(Event::Open {
         operation_id: OperationId(1),
@@ -511,7 +511,7 @@ fn version_json(accepted: &AcceptedSnapshot, id: &str) -> serde_json::Value {
 /// the two switches sit 19 mm apart (x -9..28), and the 4.5 mm column stagger lifts the
 /// grid to y = 4.5, so the boundary spans y -4.5..13.5.
 fn run_linked(order: [bool; 2]) {
-    let mut session = Session::new();
+    let mut session = Session::new(CoreEngine::validate_open);
     let mut engine = CoreEngine::new();
     let effects = session.submit(Event::Open {
         operation_id: OperationId(1),

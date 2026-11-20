@@ -9,7 +9,7 @@ use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
 };
-use boardstudio_core::model::{EditOperation, EncoderDirection, KeyBinding, KeymapChange};
+use boardstudio_model::model::{EditOperation, EncoderDirection, KeyBinding, KeymapChange};
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
 use boardstudio_web_ui_shared::owned_edits::OwnedEdits;
 use dioxus::prelude::*;
@@ -483,7 +483,7 @@ fn binding_for_key_id(
     snapshot: &AcceptedSnapshot,
     board_id: &str,
     key_id: &str,
-    layer: Option<&boardstudio_core::model::KeymapLayer>,
+    layer: Option<&boardstudio_model::model::KeymapLayer>,
     layer_index: usize,
 ) -> KeyBinding {
     layer
@@ -1068,7 +1068,7 @@ fn binding_resolver(request: BindingEditRequest) -> EditResolver {
                 encoder_id,
                 direction,
             } => {
-                if !boardstudio_core::electrical_peripherals::describe(
+                if !boardstudio_core_mechanical::electrical_peripherals::describe(
                     &accepted.document,
                     &request.scope.board_id,
                 )
@@ -1085,7 +1085,7 @@ fn binding_resolver(request: BindingEditRequest) -> EditResolver {
                     })
             }
             BindingTarget::EncoderPush { encoder_id, key_id } => {
-                if !boardstudio_core::electrical_peripherals::describe(
+                if !boardstudio_core_mechanical::electrical_peripherals::describe(
                     &accepted.document,
                     &request.scope.board_id,
                 )

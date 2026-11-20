@@ -3,7 +3,7 @@
 use crate::case_generation_lifecycle::AutomaticCaseGeneration;
 use crate::instance_selection;
 use boardstudio_application::{Scope, SnapshotToken};
-use boardstudio_core::model::{Position, Vec2};
+use boardstudio_model::model::{Position, Vec2};
 use boardstudio_web_runtime::operation_outcomes::OutcomeSlot;
 use dioxus::prelude::*;
 use std::collections::BTreeSet;
@@ -87,8 +87,8 @@ impl FieldPreview {
 /// the document to every number field.
 #[derive(Clone)]
 pub struct FieldPreviewSource {
-    pub document: std::sync::Arc<boardstudio_core::model::ProjectDoc>,
-    pub scene: std::sync::Arc<boardstudio_core::model::SceneDelta>,
+    pub document: std::sync::Arc<boardstudio_model::model::ProjectDoc>,
+    pub scene: std::sync::Arc<boardstudio_model::model::SceneDelta>,
 }
 
 /// Transient Relations highlight: the part IDs a hovered or focused Relations reference marks
@@ -255,18 +255,18 @@ pub struct PendingNewKeyboard {
 pub enum ComponentPlacementAction {
     AddObject {
         definition_id: String,
-        kind: boardstudio_core::model::PartKind,
+        kind: boardstudio_model::model::PartKind,
     },
     AddMirrorOnlyObject {
         definition_id: String,
-        kind: boardstudio_core::model::PartKind,
+        kind: boardstudio_model::model::PartKind,
     },
     AddSourceObject {
         module_definition_id: String,
-        definition: boardstudio_core::model::PartDefinition,
+        definition: boardstudio_model::model::PartDefinition,
     },
     PartsInspector {
         definition_id: String,
-        kind: boardstudio_core::model::PartKind,
+        kind: boardstudio_model::model::PartKind,
     },
 }

@@ -8,8 +8,8 @@ use super::layout_viewer_source::{LayoutPreviewSnapshot, LayoutSourceLease};
 use crate::case_preview::CasePreviewOwnerLease;
 use crate::parts_preview::PartsPreviewOwnerLease;
 use boardstudio_application::{Scope, SnapshotToken};
-use boardstudio_core::hash::sha256_hex;
-use boardstudio_core::model::{
+use boardstudio_core_kernel::hash::sha256_hex;
+use boardstudio_model::model::{
     Asset, BoardReference, ModuleModelPlacement, PcbModel, Pose2, ProjectDoc, Side, Vec2, Vec3,
 };
 use std::{
@@ -2130,7 +2130,7 @@ pub fn native_model_path_assets(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use boardstudio_core::model::{Pose2, Side, Vec2, Vec3};
+    use boardstudio_model::model::{Pose2, Side, Vec2, Vec3};
 
     struct InactiveTestLease;
 
@@ -2947,7 +2947,7 @@ mod tests {
             "../../../../cad/wasm/tests/fixtures/generated-analysis-contract.json"
         ))
         .unwrap();
-        let body: boardstudio_core::model::PreparedCaseIR =
+        let body: boardstudio_model::model::PreparedCaseIR =
             serde_json::from_value(fixture["preparedBody"].clone()).unwrap();
         let mut payload = fixture["directPayload"].clone();
         payload["geometryIdentity"] = generated_geometry_identity(&body).unwrap().into();

@@ -4,7 +4,7 @@
 //! only viewer display preferences; it does not request previews or models.
 
 use super::{case_display::CaseDisplay, model_delivery::ModelDeliveryRows};
-use boardstudio_core::model::PcbModel;
+use boardstudio_model::model::PcbModel;
 use boardstudio_web_ui_shared::ui::{
     collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
     icons::ChevronDown,
@@ -406,7 +406,7 @@ mod tests {
     use wasm_bindgen_test::wasm_bindgen_test;
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
-    use boardstudio_core::model::{PcbModel, Pose2, Side, Vec2, Vec3};
+    use boardstudio_model::model::{PcbModel, Pose2, Side, Vec2, Vec3};
 
     fn model(id: &str, reference: &str, path: &str) -> PcbModel {
         PcbModel {

@@ -2,14 +2,14 @@
 
 #[cfg(test)]
 use boardstudio_core::CoreEngine;
-use boardstudio_core::mechanical::MechanicalTarget;
-use boardstudio_core::mechanical::change::MechanicalFeatureCorrespondence;
-use boardstudio_core::mechanical::inputs::effective_inputs;
+use boardstudio_core_mechanical::mechanical::MechanicalTarget;
+use boardstudio_core_mechanical::mechanical::change::MechanicalFeatureCorrespondence;
+use boardstudio_core_mechanical::mechanical::inputs::effective_inputs;
 #[cfg(test)]
-use boardstudio_core::mechanical::pair;
+use boardstudio_core_mechanical::mechanical::pair;
 #[cfg(test)]
-use boardstudio_core::model::{CoreReply, CoreRequest, EditCommand, EditPhase};
-use boardstudio_core::model::{
+use boardstudio_model::model::{CoreReply, CoreRequest, EditCommand, EditPhase};
+use boardstudio_model::model::{
     EditOperation, HardwareTopology, HardwareTransport, MechanicalConfiguration,
     MechanicalConstructionOwnership, MechanicalFeatureKind, MirroredHalfLabel, MirroredHalfLabels,
     MirroredHalfMode, MirroredHalfPhysicalSetup, MirroredIdRule, PartDefinition,
@@ -926,8 +926,8 @@ fn make_instance(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use boardstudio_core::mechanical::change::MechanicalFeatureCorrespondence;
-    use boardstudio_core::model::{
+    use boardstudio_core_mechanical::mechanical::change::MechanicalFeatureCorrespondence;
+    use boardstudio_model::model::{
         Board, ElectricalBoardConfiguration, HardwareConfiguration, HardwareTopology,
         HardwareTransport, Layout, LayoutMirrorLink, MechanicalConfiguration, MechanicalMirrorPair,
         MechanicalOpening, MechanicalOpeningVertex, Mount, MountKind, PartDefinition,
@@ -1363,7 +1363,10 @@ mod tests {
         let mut doc = document();
         doc.definitions = vec![definition("supported", "ceoloide/switch_mx")];
         doc.parts = vec![part("explicit", "supported", json!({"reversible": false}))];
-        assert_eq!(boardstudio_core::generators::parameter_problems(&doc), []);
+        assert_eq!(
+            boardstudio_core_kernel::generators::parameter_problems(&doc),
+            []
+        );
         let result = propose(
             &doc,
             SetupIntent::ReversibleLayout(true),
@@ -1371,7 +1374,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            boardstudio_core::generators::parameter_problems(&result),
+            boardstudio_core_kernel::generators::parameter_problems(&result),
             []
         );
         assert_eq!(
@@ -1388,7 +1391,7 @@ mod tests {
         .unwrap()
     }
 
-    fn part(id: &str, definition_id: &str, params: Value) -> boardstudio_core::model::Part {
+    fn part(id: &str, definition_id: &str, params: Value) -> boardstudio_model::model::Part {
         serde_json::from_value(json!({
             "id":id,"definitionId":definition_id,"reference":id,
             "pose":{"at":{"x":0,"y":0},"rotation":0},"side":"front",
@@ -1982,7 +1985,9 @@ mod tests {
         );
         assert_eq!(
             pair.construction,
-            boardstudio_core::mechanical::features::shared_construction(&mechanical(&doc, 4.2)),
+            boardstudio_core_mechanical::mechanical::features::shared_construction(&mechanical(
+                &doc, 4.2
+            )),
             "Core derives the pair's shared construction from the reviewed source"
         );
         assert!(
@@ -2014,11 +2019,11 @@ mod tests {
         assert_eq!(feature.author, "left-new");
         assert_eq!(
             feature.value,
-            boardstudio_core::model::MechanicalFeatureValue::Mount {
+            boardstudio_model::model::MechanicalFeatureValue::Mount {
                 mount: mount("mount-1", 12.0, 3.0),
             }
         );
-        let right = boardstudio_core::mechanical::effective_inputs(
+        let right = boardstudio_core_mechanical::mechanical::effective_inputs(
             &document,
             &[],
             &MechanicalTarget::Instance {
@@ -2109,9 +2114,9 @@ mod tests {
                 at: Vec2::default(),
                 rotation: 0.0,
             },
-            construction: boardstudio_core::mechanical::features::shared_construction(&mechanical(
-                doc, 4.2,
-            )),
+            construction: boardstudio_core_mechanical::mechanical::features::shared_construction(
+                &mechanical(doc, 4.2),
+            ),
             construction_source: None,
             halves: None,
             features: vec![],
@@ -2351,7 +2356,7 @@ mod tests {
     /// Side B: the Core `CreateMirroredHalf` ReuseBoard operation on the same starting document,
     /// with the flip map, physical setup's labels and pair id, and the same mounting-hole template.
     fn reuse_board_half(start: &ProjectDoc) -> ProjectDoc {
-        use boardstudio_core::model::{
+        use boardstudio_model::model::{
             MirroredHalfLabel, MirroredHalfLabels, MirroredHalfMode, MirroredHalfPhysicalSetup,
             MirroredIdRule,
         };

@@ -1,4 +1,4 @@
-use boardstudio_core::model::Vec2;
+use boardstudio_model::model::Vec2;
 
 /// 2D canvas zoom limits shared by wheel and Zoom buttons. These are the pinned
 /// TypeScript Workbench limits (`Math.min(4, Math.max(0.25, ...))`).
@@ -156,7 +156,7 @@ pub fn bridge_camera_offset(viewport_bounds: (f64, f64, f64, f64), target: Vec2)
 #[cfg(all(test, target_arch = "wasm32"))]
 mod tests {
     use super::{MAX_ZOOM, MIN_ZOOM, bridge_camera_offset, step_zoom, wheel_zoom};
-    use boardstudio_core::model::Vec2;
+    use boardstudio_model::model::Vec2;
     use wasm_bindgen_test::wasm_bindgen_test;
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
@@ -216,7 +216,7 @@ mod tests {
 #[cfg(test)]
 mod wheel_coalescing_tests {
     use super::{WheelAnchor, WheelZoomCoalescer, wheel_zoom, zoom_center_for_anchor};
-    use boardstudio_core::model::Vec2;
+    use boardstudio_model::model::Vec2;
 
     const BOUNDS: (f64, f64, f64, f64) = (-100.0, 100.0, -80.0, 80.0);
     const RATIO: f64 = 1.0;

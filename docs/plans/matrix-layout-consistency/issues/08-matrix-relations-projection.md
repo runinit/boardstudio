@@ -7,7 +7,7 @@ Spec: [spec.md](../spec.md#relations) · Map: [map.md](../map.md)
 
 ## What to build
 
-A pure projection in `web/crates/layout/src/matrix_relations.rs`. Its inputs are the
+A pure projection in `web/crates/layout-core/src/matrix_relations.rs`. Its inputs are the
 accepted `ProjectDoc`, its `MatrixScene` (including ticket 03's `companions`) and a
 `TreeContext`. It returns a view model, not markup:
 
@@ -50,7 +50,7 @@ parallel with 04–07.
 
 ## Outcome
 
-Resolved 2026-10-09. `web/crates/layout/src/matrix_relations.rs` is a pure projection
+Resolved 2026-10-09. `web/crates/layout-core/src/matrix_relations.rs` is a pure projection
 (`matrix_relations(document, scene, context) -> Option<MatrixRelations>`), registered in `lib.rs`. It
 returns Structure items (label, value, navigation target, highlight part IDs), Departures (parameter,
 value, target, highlight, Reset and Convert actions) and Constraints (kind, source and target

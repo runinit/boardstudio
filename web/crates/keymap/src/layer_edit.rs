@@ -2,7 +2,7 @@
 //! drive the real Session and Core through the native Runtime; the Keymap panel binds
 //! the resolver to its layer controls.
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution, Scope};
-use boardstudio_core::model::{EditOperation, KeymapChange};
+use boardstudio_model::model::{EditOperation, KeymapChange};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum KeymapLayerOperation {
@@ -93,7 +93,7 @@ pub(crate) fn layer_resolver(
 mod tests {
     use super::*;
     use boardstudio_application::Event;
-    use boardstudio_core::model::ProjectDoc;
+    use boardstudio_model::model::ProjectDoc;
     use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
     use boardstudio_web_runtime::runtime::Runtime;
     use std::rc::Rc;

@@ -21,7 +21,7 @@ document state do not change.
   [17](../../split-board-editing/issues/17-canvas-anchor-badge.md) becomes a 7 px violet
   (`accent-secondary`) ring at the anchor point, keeping the tie. Its label moves out of the
   canvas into a "Placed from <anchor>" readout at the canvas's bottom left, in 11 px mono violet.
-  The badge projection (`web/crates/layout/src/anchor_badge.rs`) stays the source of truth.
+  The badge projection (`web/crates/layout-core/src/anchor_badge.rs`) stays the source of truth.
 - **Colour roles.** Violet is used only for anchoring: the ring, the tie, the readout and part
   outlines. Amber is used only for keys that move (the existing field and drag previews) and the
   spacing note. Key hover is a 1.5 px accent stroke over a 60% selection fill, and solid muted
@@ -60,7 +60,7 @@ Implemented on branch `docs/ergogen-layout-comparison` (prototype ref
 
 What changed (ticket-02 files only):
 
-- `web/crates/layout/src/screen_scale.rs` (new): pure `px_to_world`
+- `web/crates/layout-core/src/screen_scale.rs` (new): pure `px_to_world`
   helper mapping screen pixels to canvas units for the current view scale,
   with 3 native tests (11 px mapping, zoom halving, degenerate inputs).
 - `web/src/presentation/layout_canvas.rs`: `Scene` takes the view scale

@@ -1,6 +1,6 @@
 mod startup;
 use crate::persistence_contract::{sha256_bytes, validate_exact_json_integers};
-use boardstudio_core::model::ProjectDoc;
+use boardstudio_model::model::ProjectDoc;
 use futures_channel::oneshot;
 use js_sys::{Array, Reflect, Uint8Array};
 use serde::Serialize;
@@ -793,7 +793,8 @@ fn decode_document(value: JsValue) -> Result<(ProjectDoc, bool), PersistError> {
     };
     let value: serde_json::Value =
         serde_wasm_bindgen::from_value(value).map_err(|error| invalid(error.to_string()))?;
-    let (value, migrated) = boardstudio_core::migrate::migrate_value(value).map_err(invalid)?;
+    let (value, migrated) =
+        boardstudio_core_kernel::migrate::migrate_value(value).map_err(invalid)?;
     let document = serde_json::from_value(value).map_err(|error| invalid(error.to_string()))?;
     Ok((document, migrated))
 }

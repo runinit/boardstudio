@@ -15,7 +15,7 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Resolution, Scope, SelectionMode,
     SnapshotToken,
 };
-use boardstudio_core::model::{
+use boardstudio_model::model::{
     EditOperation, MatrixAssembly, MatrixCell, OutlineFeature, Part, PartDefinition, PartKind,
     Pose2, ProjectDoc, Side, Vec2,
 };
@@ -1713,7 +1713,7 @@ fn unique_native_pair_for_board<'a>(
     document: &'a ProjectDoc,
     board_id: &str,
     mirror_only: bool,
-) -> Result<Option<&'a boardstudio_core::model::MechanicalMirrorPair>, String> {
+) -> Result<Option<&'a boardstudio_model::model::MechanicalMirrorPair>, String> {
     let Some(hardware) = document.hardware.as_ref() else {
         return Ok(None);
     };
@@ -2004,7 +2004,7 @@ mod tests {
 
     use super::*;
     use boardstudio_application::{SessionEpoch, SnapshotToken, TerminalOutcome};
-    use boardstudio_core::model::{Board, EditCommand, EditPhase, OutlineSettings};
+    use boardstudio_model::model::{Board, EditCommand, EditPhase, OutlineSettings};
     use std::{
         cell::{Cell, RefCell},
         sync::Arc,
@@ -2052,7 +2052,7 @@ mod tests {
             id: "envelope-main".into(),
             part_ids: vec![],
             margin: 4.0,
-            operation: boardstudio_core::model::Operation::Add,
+            operation: boardstudio_model::model::Operation::Add,
         });
         document.boards.push(Board {
             id: "board-main".into(),
@@ -2129,7 +2129,7 @@ mod tests {
         document
     }
 
-    fn matrix_fixture() -> boardstudio_core::model::Matrix {
+    fn matrix_fixture() -> boardstudio_model::model::Matrix {
         serde_json::from_value(serde_json::json!({
             "id": "matrix-main",
             "rows": 2,
@@ -2150,7 +2150,7 @@ mod tests {
             token: SnapshotToken(token),
             session_epoch: SessionEpoch(7),
             document: Arc::new(document),
-            scene: Arc::new(boardstudio_core::model::SceneDelta {
+            scene: Arc::new(boardstudio_model::model::SceneDelta {
                 module_scenes: vec![],
                 revision,
                 transaction_id: "controller-placement-test".into(),
@@ -2163,7 +2163,7 @@ mod tests {
                 board_outline_scenes: vec![],
                 finding_markers: vec![],
                 findings: vec![],
-                readiness: boardstudio_core::model::Readiness {
+                readiness: boardstudio_model::model::Readiness {
                     layout: false,
                     outline: false,
                     pcb: false,
@@ -2581,7 +2581,7 @@ mod tests {
             .correspondences
             .iter()
             .find(|association| {
-                association.kind == boardstudio_core::model::MirroredItemKind::Part
+                association.kind == boardstudio_model::model::MirroredItemKind::Part
                     && association.source_id == source_part.id
             })
             .expect("the ordinary Add Object action creates one correspondence");
@@ -3272,7 +3272,7 @@ mod tests {
                     id: "envelope-other".into(),
                     part_ids: vec![],
                     margin: 4.0,
-                    operation: boardstudio_core::model::Operation::Add,
+                    operation: boardstudio_model::model::Operation::Add,
                 });
                 replace_accepted_document(&probe, document).await;
                 flush_hook(&mut dom);
@@ -3383,7 +3383,7 @@ mod tests {
             id: "envelope-other".into(),
             part_ids: vec![],
             margin: 4.0,
-            operation: boardstudio_core::model::Operation::Add,
+            operation: boardstudio_model::model::Operation::Add,
         });
         replace_accepted_document(&probe, replacement).await;
         flush_hook(&mut dom);
@@ -3504,7 +3504,7 @@ mod tests {
     fn standalone_placement_accepts_a_non_controller_and_updates_memberships_atomically() {
         let mut accepted = fixture();
         accepted.layouts = vec![
-            boardstudio_core::model::Layout {
+            boardstudio_model::model::Layout {
                 id: "layout-main".into(),
                 name: "Main".into(),
                 board_id: "board-main".into(),
@@ -3512,7 +3512,7 @@ mod tests {
                 part_ids: vec![],
                 mirror_link: None,
             },
-            boardstudio_core::model::Layout {
+            boardstudio_model::model::Layout {
                 id: "layout-other".into(),
                 name: "Other".into(),
                 board_id: "board-main".into(),
@@ -3555,7 +3555,7 @@ mod tests {
     fn catalogue_placement_emits_typed_linked_and_mirror_only_operations_only_for_pair_intents() {
         let mut accepted = mirrored_fixture();
         accepted.layouts = vec![
-            boardstudio_core::model::Layout {
+            boardstudio_model::model::Layout {
                 id: "layout-main".into(),
                 name: "Main".into(),
                 board_id: "board-main".into(),
@@ -3563,7 +3563,7 @@ mod tests {
                 part_ids: vec![],
                 mirror_link: None,
             },
-            boardstudio_core::model::Layout {
+            boardstudio_model::model::Layout {
                 id: "layout-mirror".into(),
                 name: "Mirror".into(),
                 board_id: "board-mirror".into(),
@@ -3674,7 +3674,7 @@ mod tests {
     #[wasm_bindgen_test::wasm_bindgen_test]
     fn selected_key_application_uses_set_matrix_and_preserves_other_cell_fields() {
         let mut accepted = fixture();
-        accepted.matrices.push(boardstudio_core::model::Matrix {
+        accepted.matrices.push(boardstudio_model::model::Matrix {
             id: "matrix-main".into(),
             name: None,
             rows: 2,
@@ -3789,7 +3789,7 @@ mod tests {
         target.id = "matrix-target".into();
         document.matrices = vec![source, target];
         document.layouts = vec![
-            boardstudio_core::model::Layout {
+            boardstudio_model::model::Layout {
                 id: "layout-source".into(),
                 name: "Left".into(),
                 board_id: "board-main".into(),
@@ -3797,17 +3797,17 @@ mod tests {
                 part_ids: Vec::new(),
                 mirror_link: None,
             },
-            boardstudio_core::model::Layout {
+            boardstudio_model::model::Layout {
                 id: "layout-target".into(),
                 name: "Right".into(),
                 board_id: "board-main".into(),
                 matrix_ids: vec!["matrix-target".into()],
                 part_ids: Vec::new(),
-                mirror_link: Some(boardstudio_core::model::LayoutMirrorLink {
-                    correspondences: vec![boardstudio_core::model::MirroredCorrespondence {
+                mirror_link: Some(boardstudio_model::model::LayoutMirrorLink {
+                    correspondences: vec![boardstudio_model::model::MirroredCorrespondence {
                         companion_mode: None,
                         companion_tweak: None,
-                        kind: boardstudio_core::model::MirroredItemKind::Matrix,
+                        kind: boardstudio_model::model::MirroredItemKind::Matrix,
                         source_id: "matrix-source".into(),
                         mirror_id: "matrix-target".into(),
                     }],
@@ -3820,11 +3820,11 @@ mod tests {
             },
         ];
         let mut engine = boardstudio_core::CoreEngine::new();
-        let opened = engine.handle(boardstudio_core::model::CoreRequest::Open {
+        let opened = engine.handle(boardstudio_model::model::CoreRequest::Open {
             id: "open-linked".into(),
             document,
         });
-        let boardstudio_core::model::CoreReply::Scene {
+        let boardstudio_model::model::CoreReply::Scene {
             document: opened_document,
             ..
         } = opened
@@ -3874,7 +3874,7 @@ mod tests {
             matrix.cells[0].definition_id.as_deref(),
             Some("switch:replacement")
         );
-        let replacement = engine.handle(boardstudio_core::model::CoreRequest::Edit {
+        let replacement = engine.handle(boardstudio_model::model::CoreRequest::Edit {
             id: "replace-linked-key".into(),
             command: EditCommand {
                 base_revision: accepted.revision,
@@ -3887,7 +3887,7 @@ mod tests {
                 },
             },
         });
-        let boardstudio_core::model::CoreReply::Scene {
+        let boardstudio_model::model::CoreReply::Scene {
             document: replaced_document,
             ..
         } = replacement
@@ -3906,10 +3906,10 @@ mod tests {
         );
         assert_eq!(target_after.cells[0].assemblies_local, Some(true));
 
-        let undone = engine.handle(boardstudio_core::model::CoreRequest::Undo {
+        let undone = engine.handle(boardstudio_model::model::CoreRequest::Undo {
             id: "undo-linked-key".into(),
         });
-        let boardstudio_core::model::CoreReply::Scene {
+        let boardstudio_model::model::CoreReply::Scene {
             document: undone_document,
             ..
         } = undone
@@ -3927,10 +3927,10 @@ mod tests {
         );
         assert_eq!(undone_target.cells[0].assemblies_local, None);
 
-        let redone = engine.handle(boardstudio_core::model::CoreRequest::Redo {
+        let redone = engine.handle(boardstudio_model::model::CoreRequest::Redo {
             id: "redo-linked-key".into(),
         });
-        let boardstudio_core::model::CoreReply::Scene {
+        let boardstudio_model::model::CoreReply::Scene {
             document: redone_document,
             ..
         } = redone

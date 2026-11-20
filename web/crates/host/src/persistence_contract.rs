@@ -1,4 +1,4 @@
-use boardstudio_core::hash::sha256_hex;
+use boardstudio_core_kernel::hash::sha256_hex;
 
 pub const MAX_SAFE_INTEGER: u64 = 9_007_199_254_740_991;
 

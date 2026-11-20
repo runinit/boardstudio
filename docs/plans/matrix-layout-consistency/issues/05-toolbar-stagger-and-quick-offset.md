@@ -7,7 +7,7 @@ Spec: [spec.md](../spec.md#edits-in-the-web-layer) · Map: [map.md](../map.md)
 
 ## What to build
 
-In `web/crates/layout/src/objects/layout_transform_toolbar.rs`, move every Stagger
+In `web/crates/layout-objects/src/objects/layout_transform_toolbar.rs`, move every Stagger
 route onto ticket 04's module:
 
 - `sample_transform` for the preview;

@@ -245,7 +245,7 @@ mod layout_finding_return_regression_tests {
     use super::ReturnTarget as LayoutFindingReturnTarget;
     use super::*;
     use boardstudio_application::{AcceptedSnapshot, Scope, SessionEpoch, SnapshotToken};
-    use boardstudio_core::model::{
+    use boardstudio_model::model::{
         Board, Part, PartDefinition, PartKind, Pose2, ProjectDoc, Readiness, SceneDelta, Side, Vec2,
     };
     use std::sync::Arc;

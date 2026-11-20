@@ -1,0 +1,22 @@
+[package]
+name = "boardstudio-web-layout-core"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+description = "BoardStudio Layout pure state logic: matrix transforms and relations, mirrored-pair geometry, anchors, outline planning and snapping."
+
+[dependencies]
+boardstudio-application = { path = "../../../application" }
+boardstudio-core-kernel = { path = "../../../core/crates/kernel" }
+boardstudio-model = { path = "../../../core/crates/model" }
+boardstudio-web-runtime = { path = "../runtime" }
+boardstudio-web-ui-model = { path = "../ui-model" }
+
+[dev-dependencies]
+boardstudio_core = { path = "../../../core" }
+boardstudio-web-runtime = { path = "../runtime", features = ["test-support"] }
+serde_json = { version = "1", features = ["float_roundtrip"] }
+
+[lints]
+workspace = true

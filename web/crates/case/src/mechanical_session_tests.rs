@@ -8,9 +8,13 @@
 #![cfg(all(test, not(target_arch = "wasm32")))]
 
 use boardstudio_application::{EditResolver, Event, Resolution, Scope};
-use boardstudio_core::mechanical::change::{MechanicalChange, MechanicalDimension, MechanicalEdit};
-use boardstudio_core::mechanical::{MechanicalEditDisposition, MechanicalTarget, evaluate_edit};
-use boardstudio_core::model::{EditOperation, MatrixPlacementChange, PartDefinition, ProjectDoc};
+use boardstudio_core_mechanical::mechanical::change::{
+    MechanicalChange, MechanicalDimension, MechanicalEdit,
+};
+use boardstudio_core_mechanical::mechanical::{
+    MechanicalEditDisposition, MechanicalTarget, evaluate_edit,
+};
+use boardstudio_model::model::{EditOperation, MatrixPlacementChange, PartDefinition, ProjectDoc};
 use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
 use boardstudio_web_runtime::runtime::Runtime;
 use serde_json::json;
@@ -188,8 +192,8 @@ fn matrix_resolver(
 /// Reservations are bookkeeping that must persist and may advance when an operation
 /// reserves an identity; they never move geometry or change a setting.
 fn without_reservations(
-    mut configuration: boardstudio_core::model::MechanicalConfiguration,
-) -> boardstudio_core::model::MechanicalConfiguration {
+    mut configuration: boardstudio_model::model::MechanicalConfiguration,
+) -> boardstudio_model::model::MechanicalConfiguration {
     configuration.next_opening_identity = 0;
     if let Some(openings) = configuration.openings.as_mut() {
         for opening in openings.iter_mut() {
@@ -707,7 +711,7 @@ fn a_pairs_identity_states_and_geometry_survive_save_and_reopen() {
     // the half-local exception is still local.
     let geometry = |runtime: &Runtime, instance_id: &str| {
         let accepted = runtime.model().accepted.expect("accepted");
-        boardstudio_core::mechanical::effective_inputs(
+        boardstudio_core_mechanical::mechanical::effective_inputs(
             &accepted.document,
             &accepted.scene.board_contours,
             &MechanicalTarget::Instance {
@@ -721,7 +725,7 @@ fn a_pairs_identity_states_and_geometry_survive_save_and_reopen() {
     assert_eq!(geometry(&reopened, "right"), geometry(&runtime, "right"));
     assert_eq!(
         pair(&after).features[0].members[0].state,
-        boardstudio_core::model::MechanicalFeatureState::Local,
+        boardstudio_model::model::MechanicalFeatureState::Local,
         "the local exception survives the round trip"
     );
 }
@@ -737,13 +741,13 @@ fn reopening_a_project_without_pairs_infers_no_links_and_keeps_legacy_settings()
         hardware.instances.truncate(2);
         for instance in &mut hardware.instances {
             instance.construction_ownership =
-                boardstudio_core::model::MechanicalConstructionOwnership::Legacy;
+                boardstudio_model::model::MechanicalConstructionOwnership::Legacy;
             instance.mechanical = None;
         }
     }
     let legacy = {
         let hardware = document.hardware.as_ref().unwrap();
-        boardstudio_core::mechanical::effective_inputs(
+        boardstudio_core_mechanical::mechanical::effective_inputs(
             &document,
             &[],
             &MechanicalTarget::Instance {
@@ -766,7 +770,7 @@ fn reopening_a_project_without_pairs_infers_no_links_and_keeps_legacy_settings()
             .is_empty(),
         "opening an existing project infers no mechanical links"
     );
-    let reopened_legacy = boardstudio_core::mechanical::effective_inputs(
+    let reopened_legacy = boardstudio_core_mechanical::mechanical::effective_inputs(
         &accepted.document,
         &accepted.scene.board_contours,
         &MechanicalTarget::Instance {
@@ -818,7 +822,7 @@ fn disabling_a_paired_half_unlinks_it_and_keeps_the_survivor_whole() {
     let accepted = || runtime.model().accepted.expect("accepted");
     let configuration = |instance_id: &str| {
         let accepted = accepted();
-        boardstudio_core::mechanical::effective_inputs(
+        boardstudio_core_mechanical::mechanical::effective_inputs(
             &accepted.document,
             &accepted.scene.board_contours,
             &MechanicalTarget::Instance {
@@ -943,7 +947,7 @@ fn removing_a_paired_member_materializes_the_survivor_and_undo_restores_everythi
     let accepted = || runtime.model().accepted.expect("accepted");
     let visible = |instance_id: &str| {
         let accepted = accepted();
-        boardstudio_core::mechanical::effective_inputs(
+        boardstudio_core_mechanical::mechanical::effective_inputs(
             &accepted.document,
             &accepted.scene.board_contours,
             &MechanicalTarget::Instance {
@@ -1013,7 +1017,7 @@ fn removing_a_paired_member_materializes_the_survivor_and_undo_restores_everythi
         .expect("the survivor stays");
     assert_eq!(
         survivor.construction_ownership,
-        boardstudio_core::model::MechanicalConstructionOwnership::Local,
+        boardstudio_model::model::MechanicalConstructionOwnership::Local,
         "the survivor owns its materialized construction"
     );
     assert_eq!(
@@ -1078,7 +1082,7 @@ fn removing_a_paired_member_materializes_the_survivor_and_undo_restores_everythi
 /// counterpart's geometry.
 #[test]
 fn a_rejoin_can_take_the_selected_halves_own_local_geometry_as_the_source() {
-    use boardstudio_core::model::{MechanicalFeatureState, Mount, MountKind, Vec2};
+    use boardstudio_model::model::{MechanicalFeatureState, Mount, MountKind, Vec2};
     let mut document = paired_document();
     {
         let hardware = document.hardware.as_mut().expect("hardware");
@@ -1141,7 +1145,7 @@ fn a_rejoin_can_take_the_selected_halves_own_local_geometry_as_the_source() {
         "the selected half now authors the shared value"
     );
     match &feature.value {
-        boardstudio_core::model::MechanicalFeatureValue::Mount { mount } => {
+        boardstudio_model::model::MechanicalFeatureValue::Mount { mount } => {
             assert_eq!(
                 mount.at,
                 Vec2 { x: 7.0, y: 1.0 },
@@ -1157,7 +1161,7 @@ fn a_rejoin_can_take_the_selected_halves_own_local_geometry_as_the_source() {
             .all(|member| member.state == MechanicalFeatureState::Linked),
         "the exception is cleared on the rejoined half"
     );
-    let left_visible = boardstudio_core::mechanical::effective_inputs(
+    let left_visible = boardstudio_core_mechanical::mechanical::effective_inputs(
         &accepted.document,
         &accepted.scene.board_contours,
         &MechanicalTarget::Instance {
@@ -1181,7 +1185,7 @@ fn a_rejoin_can_take_the_selected_halves_own_local_geometry_as_the_source() {
 /// converted still lands.
 #[test]
 fn converting_a_legacy_halves_construction_materializes_it_without_moving_anything() {
-    use boardstudio_core::model::MechanicalConstructionOwnership;
+    use boardstudio_model::model::MechanicalConstructionOwnership;
     let mut document = paired_document();
     {
         let hardware = document.hardware.as_mut().expect("hardware");
@@ -1219,7 +1223,7 @@ fn converting_a_legacy_halves_construction_materializes_it_without_moving_anythi
     let accepted = || runtime.model().accepted.expect("accepted");
     let visible = |instance_id: &str| {
         let accepted = accepted();
-        boardstudio_core::mechanical::effective_inputs(
+        boardstudio_core_mechanical::mechanical::effective_inputs(
             &accepted.document,
             &accepted.scene.board_contours,
             &MechanicalTarget::Instance {

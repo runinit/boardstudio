@@ -3,7 +3,7 @@ use super::binding_controller::EncoderEditorProjection;
 use super::binding_editor::{
     BindingEditFeedback, BindingEditRequest, BindingEditor, BindingTarget,
 };
-use boardstudio_core::model::EncoderDirection;
+use boardstudio_model::model::EncoderDirection;
 use boardstudio_web_ui_shared::ui::collapsible::{
     Collapsible, CollapsibleContent, CollapsibleTrigger,
 };
@@ -180,7 +180,7 @@ mod mounted_tests {
     use crate::keymap::binding_controller::EncoderBindingRow;
     use crate::keymap::binding_editor::EncoderInputIdentity;
     use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
-    use boardstudio_core::model::KeyBinding;
+    use boardstudio_model::model::KeyBinding;
     use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::test_role::by_role_name;
     use wasm_bindgen_test::*;

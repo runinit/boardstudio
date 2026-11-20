@@ -4,10 +4,8 @@ use super::{PcbWiringResolution, PcbWiringSource, WiringPlanIdentity};
 use crate::pcb_wiring_mode_operation::BoardWiringModeIdentity;
 use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution};
-use boardstudio_core::{
-    electrical::{self, ElectricalPlan},
-    model::{EditOperation, ProjectDoc},
-};
+use boardstudio_core_mechanical::electrical::{self, ElectricalPlan};
+use boardstudio_model::model::{EditOperation, ProjectDoc};
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
@@ -280,7 +278,7 @@ fn current_review_plan(
 fn board_mode(
     document: &ProjectDoc,
     board_id: &str,
-) -> boardstudio_core::electrical::ElectricalMode {
+) -> boardstudio_core_mechanical::electrical::ElectricalMode {
     document
         .hardware
         .as_ref()
@@ -291,7 +289,7 @@ fn board_mode(
                 .find(|configuration| configuration.board_id == board_id)
         })
         .map_or(
-            boardstudio_core::electrical::ElectricalMode::Matrix,
+            boardstudio_core_mechanical::electrical::ElectricalMode::Matrix,
             |configuration| configuration.mode,
         )
 }

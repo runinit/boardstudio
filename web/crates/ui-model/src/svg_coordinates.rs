@@ -1,5 +1,5 @@
 //! Maps pointer positions on a letterboxed SVG canvas to model coordinates.
-use boardstudio_core::model::Vec2;
+use boardstudio_model::model::Vec2;
 use std::{cell::RefCell, rc::Rc};
 use web_sys::SvgElement;
 

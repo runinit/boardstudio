@@ -1,6 +1,6 @@
 //! Dioxus owns drawing; the Rust footprint generators own generator execution.
 use crate::footprint_forms::{self as forms, Graphic, Shape};
-use boardstudio_core::model::{PartDefinition, Side};
+use boardstudio_model::model::{PartDefinition, Side};
 use dioxus::prelude::*;
 use std::{
     cell::RefCell,
@@ -27,10 +27,10 @@ thread_local! {
 pub async fn generator_preview_defaults(
     source: &str,
 ) -> Result<Option<GeneratorPreviewDefaults>, String> {
-    if !boardstudio_core::generators::is_generator(source) {
+    if !boardstudio_core_kernel::generators::is_generator(source) {
         return Ok(None);
     }
-    let parameters = boardstudio_core::generators::parameter_schema(source)?;
+    let parameters = boardstudio_core_kernel::generators::parameter_schema(source)?;
     Ok(Some(generator_preview_defaults_from_parameters(
         &serde_json::to_value(parameters).map_err(|error| error.to_string())?,
     )))
@@ -99,10 +99,10 @@ pub async fn generator_drawings(
     }) {
         return Ok(Some(result));
     }
-    if !boardstudio_core::generators::is_generator(&source) {
+    if !boardstudio_core_kernel::generators::is_generator(&source) {
         return Ok(None);
     }
-    let rendered = boardstudio_core::generators::render_forms(&definition, None)?;
+    let rendered = boardstudio_core_kernel::generators::render_forms(&definition, None)?;
     let result = Rc::new(forms::project(&rendered));
     CACHE.with(|cache| {
         let mut cache = cache.borrow_mut();

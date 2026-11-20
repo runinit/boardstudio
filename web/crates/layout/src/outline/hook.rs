@@ -10,7 +10,7 @@ use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Scope,
 };
-use boardstudio_core::model::{
+use boardstudio_model::model::{
     Contour, EditOperation, EditPhase, Operation, OutlineConnection, OutlineFeature, OutlineGap,
     OutlineRepairSettings, OutlineSettings, Part, Side, Vec2,
 };
@@ -362,40 +362,42 @@ fn blocked_export_labels(snapshot: &AcceptedSnapshot, board_id: &str) -> Vec<Str
     labels
 }
 
-impl OutlineAction {
-    pub fn is_current(&self, runtime: &Runtime, generation: u64) -> bool {
-        let (scope, token, revision, captured_generation, board_id) = self.envelope();
-        let model = runtime.model();
-        let perimeter_edit = matches!(
-            self,
-            OutlineAction::EditPerimeter {
-                phase: EditPhase::Preview | EditPhase::Commit,
-                ..
-            }
-        );
-        let lifecycle_current = model.lifecycle == Lifecycle::Ready
-            || (perimeter_edit && model.lifecycle == Lifecycle::Applying);
-        generation == captured_generation
-            && runtime.scope().as_ref() == Some(scope)
-            && model.accepted.as_ref().is_some_and(|snapshot| {
-                snapshot.token == *token
-                    && snapshot.document.revision == revision
-                    && snapshot.document.id == scope.document_id
-                    && snapshot.session_epoch == scope.session_epoch
-            })
-            && scope.board_id == *board_id
-            && lifecycle_current
-            && model.durability == (Durability::Saved { revision })
-            && (model.display_preview.is_none()
-                || matches!(
-                    self,
-                    OutlineAction::EditPerimeter {
-                        phase: EditPhase::Preview | EditPhase::Commit,
-                        ..
-                    }
-                ))
-            && model.gesture.is_none()
-    }
+pub fn outline_action_is_current(
+    action: &OutlineAction,
+    runtime: &Runtime,
+    generation: u64,
+) -> bool {
+    let (scope, token, revision, captured_generation, board_id) = action.envelope();
+    let model = runtime.model();
+    let perimeter_edit = matches!(
+        action,
+        OutlineAction::EditPerimeter {
+            phase: EditPhase::Preview | EditPhase::Commit,
+            ..
+        }
+    );
+    let lifecycle_current = model.lifecycle == Lifecycle::Ready
+        || (perimeter_edit && model.lifecycle == Lifecycle::Applying);
+    generation == captured_generation
+        && runtime.scope().as_ref() == Some(scope)
+        && model.accepted.as_ref().is_some_and(|snapshot| {
+            snapshot.token == *token
+                && snapshot.document.revision == revision
+                && snapshot.document.id == scope.document_id
+                && snapshot.session_epoch == scope.session_epoch
+        })
+        && scope.board_id == *board_id
+        && lifecycle_current
+        && model.durability == (Durability::Saved { revision })
+        && (model.display_preview.is_none()
+            || matches!(
+                action,
+                OutlineAction::EditPerimeter {
+                    phase: EditPhase::Preview | EditPhase::Commit,
+                    ..
+                }
+            ))
+        && model.gesture.is_none()
 }
 
 pub fn use_outline_lifecycle(
@@ -1089,7 +1091,7 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
     if workspace() != "Layout" || scope_generation() != captured_generation {
         return;
     }
-    if !action.is_current(runtime, captured_generation) {
+    if !outline_action_is_current(&action, runtime, captured_generation) {
         return;
     }
     let (action_scope, _, _, _, board_id) = action.envelope();
@@ -1199,11 +1201,13 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
     if admission == adapter::Admission::Malformed {
         // Core owns the message; surface it rather than queueing a ticket that can only
         // fail. A malformed edit leaves the accepted document untouched.
-        let message =
-            match boardstudio_core::outline_edit::evaluate(snapshot.document.as_ref(), &edit) {
-                Err(message) => message,
-                Ok(_) => unreachable!("a malformed admission evaluates to an error"),
-            };
+        let message = match boardstudio_core_kernel::outline_edit::evaluate(
+            snapshot.document.as_ref(),
+            &edit,
+        ) {
+            Err(message) => message,
+            Ok(_) => unreachable!("a malformed admission evaluates to an error"),
+        };
         if is_version_name {
             version_name_failure.set(Some(message));
         } else {
@@ -1420,7 +1424,7 @@ fn connection_edit_field(
 
 /// Resolve one captured typed outline edit against the accepted document at execution.
 pub(super) fn action_resolver(
-    edit: boardstudio_core::outline_edit::OutlineEdit,
+    edit: boardstudio_core_kernel::outline_edit::OutlineEdit,
     action: OutlineAction,
     transaction_id: String,
 ) -> EditResolver {

@@ -1,5 +1,5 @@
 //! Pure conversion from a resolved Parts recipe into an editable assembly draft.
-use boardstudio_core::model::{AssemblyDefinition, AssemblyMember, AssemblyModelMode, Pose2};
+use boardstudio_model::model::{AssemblyDefinition, AssemblyMember, AssemblyModelMode, Pose2};
 
 pub fn from_recipe(
     id: String,
@@ -30,7 +30,7 @@ pub fn from_recipe(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use boardstudio_core::model::{
+    use boardstudio_model::model::{
         AssemblyMember, AssemblyModelMode, PartDefinition, PartGenerator, PartKind, PartModel,
         Pose2, Side, Vec2, Vec3,
     };

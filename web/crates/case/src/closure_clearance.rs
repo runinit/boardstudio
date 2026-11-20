@@ -4,4 +4,4 @@
 //! mounting-hole catalogue definition; geometry resolution, validation and edit
 //! admission remain with their existing owners.
 
-pub use boardstudio_core::mechanical::clearance::project_owned_closure_clearance;
+pub use boardstudio_core_mechanical::mechanical::clearance::project_owned_closure_clearance;

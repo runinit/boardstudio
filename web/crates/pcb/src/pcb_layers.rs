@@ -2,7 +2,7 @@
 use super::canvas_layers::{CanvasLayer, CanvasLayerGroup, CanvasLayers};
 use super::footprint_graphics::{generator_drawings, resolve_board_layer};
 use boardstudio_application::{AcceptedSnapshot, Scope};
-use boardstudio_core::model::{Pad, Part, PartDefinition, ProjectDoc, Side};
+use boardstudio_model::model::{Pad, Part, PartDefinition, ProjectDoc, Side};
 use dioxus::prelude::*;
 use std::collections::{BTreeSet, HashSet};
 
@@ -142,8 +142,8 @@ fn extend_generator_layers(
 
 pub fn layer_groups_for_scene(
     document: &ProjectDoc,
-    board_contours: &[boardstudio_core::model::BoardContours],
-    scene_contours: &[boardstudio_core::model::Contour],
+    board_contours: &[boardstudio_model::model::BoardContours],
+    scene_contours: &[boardstudio_model::model::Contour],
     scope: &Scope,
     mut layers: BTreeSet<String>,
 ) -> Vec<CanvasLayerGroup> {
@@ -299,7 +299,7 @@ mod tests {
     use super::*;
     use crate::footprint_forms::{Graphic, Point, Shape};
     use boardstudio_application::SessionEpoch;
-    use boardstudio_core::model::{PadShape, PartGenerator, PartKind, Vec2};
+    use boardstudio_model::model::{PadShape, PartGenerator, PartKind, Vec2};
     use std::rc::Rc;
     use wasm_bindgen_test::wasm_bindgen_test;
 

@@ -1,6 +1,6 @@
 //! Defaults for supported mechanical presets.
-use boardstudio_core::mechanical::{MechanicalTarget, effective_inputs};
-use boardstudio_core::model::{MechanicalConfiguration, ProjectDoc};
+use boardstudio_core_mechanical::mechanical::{MechanicalTarget, effective_inputs};
+use boardstudio_model::model::{MechanicalConfiguration, ProjectDoc};
 
 /// The board's mechanical configuration: its stored canonical settings, or Core's
 /// reference defaults when the board has none.
@@ -52,7 +52,7 @@ pub fn update_bottom_thickness(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use boardstudio_core::model::{Board, PlateMethod};
+    use boardstudio_model::model::{Board, PlateMethod};
 
     fn board(id: &str, thickness: f64) -> Board {
         Board {
@@ -81,7 +81,7 @@ mod tests {
         assert_eq!(settings.method, PlateMethod::Printed);
         assert_eq!(
             settings.mount,
-            boardstudio_core::model::MechanicalMount::Tray
+            boardstudio_model::model::MechanicalMount::Tray
         );
         assert!(!settings.integrated_plate_frame);
         assert_eq!(settings.plate_thickness, 1.5);
@@ -94,7 +94,7 @@ mod tests {
         assert_eq!(settings.clearance, 0.3);
         assert_eq!(
             settings.bottom_style,
-            Some(boardstudio_core::model::MechanicalBottomStyle::Shell)
+            Some(boardstudio_model::model::MechanicalBottomStyle::Shell)
         );
         assert_eq!(settings.middle_frame, Some(false));
         assert!(settings.mounts.is_empty());
@@ -131,10 +131,10 @@ mod tests {
         let mut stored = initial_settings(&doc, "board").unwrap();
         stored.wall_thickness = 2.9;
         stored.plate_thickness = 1.9;
-        stored.mounts = vec![boardstudio_core::model::Mount {
+        stored.mounts = vec![boardstudio_model::model::Mount {
             id: "mount-1".into(),
-            at: boardstudio_core::model::Vec2 { x: 1.0, y: 2.0 },
-            kind: boardstudio_core::model::MountKind::Hole,
+            at: boardstudio_model::model::Vec2 { x: 1.0, y: 2.0 },
+            kind: boardstudio_model::model::MountKind::Hole,
             hole_diameter: 2.2,
             boss_diameter: None,
             height: None,

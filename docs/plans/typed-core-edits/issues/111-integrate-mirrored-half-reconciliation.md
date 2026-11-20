@@ -224,11 +224,11 @@ Root assigns `web/src/presentation/layout_component_edits.rs`,
 `web/src/presentation/inspector/layout_component_inspector.rs`,
 `web/src/presentation/layout_matrix_relations.rs` for relation-kind rendering,
 `web/src/presentation.rs`,
-`web/crates/layout/src/matrix_relations.rs`, `web/crates/layout/src/objects/layout_align_controller.rs`,
-and `web/crates/layout/src/objects/existing_half.rs`, plus their established tests in
+`web/crates/layout-core/src/matrix_relations.rs`, `web/crates/layout-objects/src/objects/layout_align_controller.rs`,
+and `web/crates/layout-objects/src/objects/existing_half.rs`, plus their established tests in
 `web/src/presentation/layout_component_inspector_tests.rs`,
 `web/src/presentation/layout_remainder_tests.rs`, and
-`web/crates/layout/src/matrix_relations/tests.rs`. Reuse the approved read-only document facade
+`web/crates/layout-core/src/matrix_relations/tests.rs`. Reuse the approved read-only document facade
 and serialized endpoint/relation types; keep ownership compilation private in Core. Preserve
 stable constraint IDs, visible endpoint labels, legacy form behavior, and the existing inspector
 design. No extra public helper, schema, UI redesign, or visibility grant is included. Regression,

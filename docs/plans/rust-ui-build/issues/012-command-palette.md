@@ -527,7 +527,7 @@ The coordinator explicitly authorized the lane-protocol local fast-forward to
 
 015 integration handoff (no unlanded 015 source copied): preserve the additive
 `LayoutCommandPill` command registration/callback block in
-`web/crates/layout/src/objects/layout_toolbar.rs:645`, the synchronous Snap-only
+`web/crates/layout-objects/src/objects/layout_toolbar.rs:645`, the synchronous Snap-only
 canonical handoff at line 658, and the canonical `m1-layout-snap-trigger` predicate
 in the single root key handler at line 771. Compose 015's approved broader native
 button Space guard there without preventing default or duplicating callbacks.

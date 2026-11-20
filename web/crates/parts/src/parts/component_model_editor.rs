@@ -8,7 +8,7 @@ use crate::{
     runtime::Runtime,
 };
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution, Scope, SessionEpoch};
-use boardstudio_core::model::{Asset, EditOperation, PartDefinition, PartModel, Vec3};
+use boardstudio_model::model::{Asset, EditOperation, PartDefinition, PartModel, Vec3};
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use boardstudio_web_ui_shared::ui::{
@@ -112,7 +112,10 @@ fn current_snapshot(
 fn model_resolver(
     original: PartDefinition,
     project_owned_at_start: bool,
-    update: impl Fn(&mut PartDefinition, &mut boardstudio_core::model::ProjectDoc) -> Result<(), String>
+    update: impl Fn(
+        &mut PartDefinition,
+        &mut boardstudio_model::model::ProjectDoc,
+    ) -> Result<(), String>
     + 'static,
 ) -> EditResolver {
     EditResolver::new(
@@ -896,7 +899,7 @@ fn ModelVectorEditor(
 #[cfg(test)]
 mod settlement_tests {
     use super::*;
-    use boardstudio_core::model::ProjectDoc;
+    use boardstudio_model::model::ProjectDoc;
     use boardstudio_web_runtime::pending_edits::PendingEdits;
     use boardstudio_web_runtime::runtime::project_name_test_support as support;
     use boardstudio_web_ui_shared::test_mount::MountedFixture;

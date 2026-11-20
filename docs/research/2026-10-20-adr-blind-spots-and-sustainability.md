@@ -136,18 +136,18 @@ A standalone variant/refresh ADR becomes justified only if a broader ownership c
   a generator executable. `prepare_matrix` stores operation-specific switch/companion definitions.
 - [Assembly placement helpers](../../web/crates/parts/src/parts/assembly_presets.rs#L291-L301),
   `matrix_with_assembly`/`document_with_assembly`, separate recipe edits from existing placement
-  snapshots. [Explicit preset application](../../web/crates/layout/src/objects/matrix_inspector_controller.rs#L145-L176),
+  snapshots. [Explicit preset application](../../web/crates/layout-objects/src/objects/matrix_inspector_controller.rs#L145-L176),
   `matrix_preset_resolver`, resolves against the accepted matrix and refuses a changed size;
   `prepare_preset_matrix` refuses a different definition under an already occupied ID
-  ([preparation](../../web/crates/layout/src/objects/matrix_inspector_controller.rs#L1974-L2015)).
+  ([preparation](../../web/crates/layout-objects/src/objects/matrix_inspector_controller.rs#L1974-L2015)).
   Thus even an explicit refresh is not evidence of a general upstream-version upgrade system.
 - [Registry `render`](../../footprints/src/registry.rs#L157-L249) supports **one** version string,
   `bundled-1`, merges definition/part values and supplies current declared defaults for missing/null
-  values. It runs the currently compiled body. [Core export `render_jobs`](../../core/crates/engine/src/artifact/kicad/generation.rs#L23-L59)
+  values. It runs the currently compiled body. [Core export `render_jobs`](../../core/crates/artifact/src/artifact/kicad/generation.rs#L23-L59)
   invokes that registry from captured data; saving data does not pin historical code or defaults.
 - [Normalizer](../../footprints/src/definition.rs#L82-L110) preserves saved pad IDs/nets **by index**
   and explicitly says pad count/order must not change without migration. This is recovered
-  compatibility guidance, not a newly invented precaution. [Core normalization regression](../../core/crates/engine/src/generators.rs#L440-L457),
+  compatibility guidance, not a newly invented precaution. [Core normalization regression](../../core/crates/kernel/src/generators.rs#L440-L457),
   `normalization_regenerates_pads_and_keeps_saved_ids`, checks the index-preservation behavior.
 - `normalization_leaves_non_generator_definitions_alone_and_rejects_unknown_ones` in
   [framework tests](../../footprints/tests/framework.rs#L289-L308) rejects an unsupported version;
@@ -190,12 +190,12 @@ keymap migration; that disclaimer does not describe every current cleanup path.
 
 **Newly traced lifecycle:**
 
-- [`member_id`, `removed_members`, `set_matrix`](../../core/crates/engine/src/matrix.rs) derive key IDs as
+- [`member_id`, `removed_members`, `set_matrix`](../../core/crates/kernel/src/matrix.rs) derive key IDs as
   `matrix/{matrix}/r{row}c{column}`. A surviving key moved without changing its coordinate keeps
   that ID. Shrinking drops out-of-bounds cells/parts and net/constraint membership; regrowth
   computes the same coordinate IDs. The `set_matrix` cleanup shown here does not itself clear
   typed keymap/legacy binding maps.
-- [`matrix::deletion::remove_axis` → `remap_parts`](../../core/crates/engine/src/matrix/deletion.rs#L119-L262)
+- [`matrix::deletion::remove_axis` → `remap_parts`](../../core/crates/kernel/src/matrix/deletion.rs#L119-L262)
   simultaneously renames survivors and remaps typed bindings, sensors, keycaps, net pins,
   constraints, board/layout membership and electrical key bindings/assignments. It intentionally
   leaves protected handoff baselines immutable. The comment explicitly prevents a removed slot
@@ -226,7 +226,7 @@ keymap migration; that disclaimer does not describe every current cleanup path.
 `deleting_matrix_cells_propagates_tombstones_and_survives_reopen`, establish selected
 compaction/cleanup/serialization contracts. `matrix_shrink_discards_out_of_bounds_edits`
 ([same suite](../../core/tests/core.rs#L2649-L2699)) checks geometry, not binding reactivation.
-[`queued_key_resize_retires_when_row_delete_reuses_the_selected_id`](../../web/crates/layout/src/objects/keycap_size_tests.rs#L1073-L1139)
+[`queued_key_resize_retires_when_row_delete_reuses_the_selected_id`](../../web/crates/layout-objects/src/objects/keycap_size_tests.rs#L1073-L1139)
 uses real Runtime/Core with a held deletion and rejects a queued edit targeting reused
 coordinate identity. This is valuable evidence of the identity hazard and a bounded guard,
 not proof that all controls/bindings implement it.
@@ -384,12 +384,12 @@ uses that preparation and labels source-backed versus nominal unpopulated PCB wi
 ID/hash/thickness in `assembly.json`; component solids are not claimed included.
 
 Conversely, [`build_handoff`](../../web/crates/runtime/src/pcb_handoff.rs#L83-L160) calls
-`ArtifactRequest::ExportPcb` with the accepted document/Board contours. [Planning](../../core/crates/engine/src/artifact/kicad/planning.rs)
-selects generated/imported/authored **footprint** handling; [finalization](../../core/crates/engine/src/artifact/kicad/output.rs#L537-L877)
+`ArtifactRequest::ExportPcb` with the accepted document/Board contours. [Planning](../../core/crates/artifact/src/artifact/kicad/planning.rs)
+selects generated/imported/authored **footprint** handling; [finalization](../../core/crates/artifact/src/artifact/kicad/output.rs#L537-L877)
 writes accepted Board traces/vias and generated objects. An imported source-backed footprint
 is a different ownership mode from an imported routed Board. Its original spans are patched
-for placement, nets and identity via [`patch_footprint`](../../core/crates/engine/src/artifact/source.rs#L123-L147),
-not rebuilt from an incomplete preview. [`compile_authored`](../../core/crates/engine/src/artifact/compile.rs#L4-L20)
+for placement, nets and identity via [`patch_footprint`](../../core/crates/artifact/src/artifact/source.rs#L123-L147),
+not rebuilt from an incomplete preview. [`compile_authored`](../../core/crates/artifact/src/artifact/compile.rs#L4-L20)
 explicitly refuses both authoritative KiCad source and generator-backed fallback.
 
 **Existing evidence:** [assembly reference](../features/assembly-preview.md#preview-limits)

@@ -1,11 +1,8 @@
 //! The narrow accepted-document proposal for changing a PCB board's wiring mode.
 use crate::firmware_position_projection::FirmwarePlanIdentity;
 use boardstudio_application::Scope;
-use boardstudio_core::{
-    electrical::ElectricalMode,
-    electrical::ElectricalPlanRequest,
-    model::{CoreRequest, ProjectDoc},
-};
+use boardstudio_core_mechanical::{electrical::ElectricalMode, electrical::ElectricalPlanRequest};
+use boardstudio_model::model::{CoreRequest, ProjectDoc};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BoardWiringModeIdentity {
@@ -115,7 +112,7 @@ impl BoardWiringModeFeedbackTarget {
 mod tests {
     use super::*;
     use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
-    use boardstudio_core::model::{Board, ElectricalBoardConfiguration};
+    use boardstudio_model::model::{Board, ElectricalBoardConfiguration};
 
     fn doc() -> ProjectDoc {
         let mut document = ProjectDoc::empty("project", "Test");

@@ -1,7 +1,7 @@
 //! The accepted wiring source and plan resolution that the PCB wiring owner projects and the
 //! keymap and firmware export read.
 use boardstudio_application::{AcceptedSnapshot, Scope};
-use boardstudio_core::{electrical::ElectricalPlan, model::ProjectDoc};
+use boardstudio_model::{electrical::ElectricalPlan, model::ProjectDoc};
 pub use boardstudio_web_runtime::firmware_position_projection::FirmwarePlanIdentity as WiringPlanIdentity;
 use std::{rc::Rc, sync::Arc};
 

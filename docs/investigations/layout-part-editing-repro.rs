@@ -112,7 +112,7 @@ fn main() {
         properties: None,
         generator_parameters: None,
     });
-    let mut session = Session::new();
+    let mut session = Session::new(CoreEngine::validate_open);
     let mut engine = CoreEngine::new();
     let effects = session.submit(Event::Open {
         operation_id: OperationId(1),

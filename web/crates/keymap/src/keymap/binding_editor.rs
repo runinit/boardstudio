@@ -1,6 +1,6 @@
 //! Private, typed editor for one accepted Keymap binding.
 use boardstudio_application::{Scope, SnapshotToken};
-use boardstudio_core::model::{EncoderDirection, KeyBinding};
+use boardstudio_model::model::{EncoderDirection, KeyBinding};
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
 use boardstudio_web_ui_shared::ui::combobox::{Combobox, ComboboxOption};
 use boardstudio_web_ui_shared::ui::field::{Field, FieldError, FieldLabel};

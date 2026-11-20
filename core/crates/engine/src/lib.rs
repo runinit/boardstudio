@@ -1,33 +1,25 @@
 //! Document engine, edit dispatch and stateless Core operations.
 
 pub mod archive;
-pub mod artifact;
-mod case;
-mod constraints;
-pub mod electrical;
+pub use boardstudio_core_artifact::artifact;
+pub use boardstudio_core_mechanical::{electrical, electrical_peripherals};
 pub use boardstudio_model::electrical_jumpers;
-pub mod electrical_peripherals;
 pub use boardstudio_model::electrical_profiles;
 pub mod firmware;
-pub mod generators;
-mod geometry;
-mod hardware;
-pub mod hash;
-mod inputs;
 mod keycaps;
-mod keymap;
-mod matrix;
-pub mod mechanical;
-mod mechanical_checks;
-pub mod migrate;
-mod mirrored_half;
+pub use boardstudio_core_kernel::migrate;
+use boardstudio_core_mechanical::keymap;
+pub use boardstudio_core_mechanical::mechanical;
+use boardstudio_core_mechanical::modules;
+use boardstudio_core_mirrored_half::mirrored_half;
 pub use boardstudio_model::model;
-mod modules;
-mod outline_controls;
-pub mod outline_edit;
 mod outline_validation;
-mod outline_versions;
 mod validate;
+
+use boardstudio_core_kernel::{
+    case, constraints, geometry, hardware, inputs, matrix, outline_controls, outline_versions,
+};
+pub use boardstudio_core_kernel::{generators, hash, outline_edit};
 
 use geometry::{OutlineCache, outlines};
 pub use matrix::kernel as layout_kernel;
@@ -70,14 +62,13 @@ impl CoreEngine {
                 candidate.map_or(Ok(()), migrate::require_current_value)
             });
         if let Err(message) = preflight {
-            return serde_json::to_string(&CoreReply::Error {
+            return boardstudio_model::wire::encode_core_reply(&CoreReply::Error {
                 id: String::new(),
                 message,
                 revision: self.document.revision,
-            })
-            .expect("reply serializes");
+            });
         }
-        let reply = match serde_json::from_str::<CoreRequest>(json) {
+        let reply = match boardstudio_model::wire::decode_core_request(json) {
             Ok(request) => self.handle(request),
             Err(error) => CoreReply::Error {
                 id: String::new(),
@@ -85,64 +76,8 @@ impl CoreEngine {
                 revision: self.document.revision,
             },
         };
-        serde_json::to_string(&reply).expect("reply serializes")
+        boardstudio_model::wire::encode_core_reply(&reply)
     }
-}
-
-/// Whether saved Case geometry for a board is current and usable as a Case
-/// input with a current outer board contour, independently of PCB-coupled
-/// `BoardReadiness::case_ready`.
-///
-/// This is a derived capability, not part of the serialized readiness
-/// contract: authored Case geometry can be prepared/exported without claiming
-/// that the board's PCB is ready.
-pub fn authored_case_geometry_ready(
-    document: &ProjectDoc,
-    scene: &SceneDelta,
-    board_id: &str,
-) -> bool {
-    if scene.revision != document.revision
-        || !document.boards.iter().any(|board| board.id == board_id)
-    {
-        return false;
-    }
-    let Some(readiness) = scene
-        .board_readiness
-        .iter()
-        .find(|readiness| readiness.board_id == board_id)
-    else {
-        return false;
-    };
-    if !readiness.outline
-        || !scene
-            .board_contours
-            .iter()
-            .find(|contours| contours.board_id == board_id)
-            .is_some_and(|entry| entry.contours.iter().any(|contour| !contour.hole))
-    {
-        return false;
-    }
-    if !document
-        .case_bodies
-        .iter()
-        .any(|body| body.board_id == board_id)
-    {
-        return false;
-    }
-    !scene.findings.iter().any(|finding| {
-        finding.severity == Severity::Error
-            && finding.scope == Scope::Case
-            // Material references affect BOM metadata, not prepared solid
-            // geometry; Core's case preparer intentionally accepts them.
-            && !validate::is_case_material_finding_id(&finding.id)
-            && (finding.target_ids.is_empty()
-                || finding.target_ids.iter().any(|target| {
-                    target == board_id
-                        || document.case_bodies.iter().any(|body| {
-                            body.board_id == board_id && body.id.as_str() == target.as_str()
-                        })
-                }))
-    })
 }
 
 /// Returns Core's reason when a linked item cannot change companion placement.
@@ -155,24 +90,9 @@ pub fn companion_placement_disabled_reason(
     mirrored_half::companion_placement_disabled_reason(document, pair_id, item_id)
 }
 
-/// Whether Case preparation may run for a selected board. A resolved
-/// mechanical configuration remains sufficient; otherwise saved authored
-/// Case geometry is admitted by its own capability above.
-pub fn case_preparation_ready(
-    document: &ProjectDoc,
-    scene: &SceneDelta,
-    board_id: &str,
-    configured: bool,
-) -> bool {
-    scene
-        .board_readiness
-        .iter()
-        .any(|readiness| readiness.board_id == board_id)
-        && (configured || authored_case_geometry_ready(document, scene, board_id))
-}
+pub use boardstudio_model::case_readiness::{authored_case_geometry_ready, case_preparation_ready};
 
-/// Evaluates document scripts at the engine's Open and ReplaceDocument boundaries.
-pub type ScriptRunner = fn(&mut ProjectDoc) -> Result<(), String>;
+pub use boardstudio_model::ScriptRunner;
 
 #[cfg(test)]
 impl Default for CoreEngine {
@@ -614,6 +534,7 @@ impl CoreEngine {
                 &command.operation,
                 &self.identity_ledger,
                 self.run_scripts,
+                edit_dispatch(),
             ) {
                 Ok((draft, prepared_changed)) => {
                     next = draft;
@@ -671,7 +592,7 @@ impl CoreEngine {
                 Err(message) => return self.error(id, &message),
             }
             outline_controls::detach_removed(&self.document.parts, &mut raw_next);
-            raw_changed.extend(prune_removed_components(
+            raw_changed.extend(outline_versions::prune_removed_components(
                 &self.document.parts,
                 &mut raw_next,
             ));
@@ -856,6 +777,7 @@ impl CoreEngine {
             &command.operation,
             &self.identity_ledger,
             self.run_scripts,
+            edit_dispatch(),
         ) {
             Ok(prepared) => prepared,
             Err(message) => return self.error(id, &message),
@@ -912,7 +834,10 @@ impl CoreEngine {
             )?);
             changed.extend(layout::sync_components(&mut self.document)?);
             outline_controls::detach_removed(&attachments, &mut self.document);
-            changed.extend(prune_removed_components(&before_parts, &mut self.document));
+            changed.extend(outline_versions::prune_removed_components(
+                &before_parts,
+                &mut self.document,
+            ));
             changed.sort();
             changed.dedup();
             generators::introduced_error(&accepted, &self.document)?;
@@ -1559,18 +1484,6 @@ fn affects_outline(op: &EditOperation) -> bool {
     )
 }
 
-/// Linked outline versions drop the authored choices that required a component the edit
-/// removed, whichever operation removed it, inside that same accepted edit and Undo step.
-fn prune_removed_components(before: &[Part], after: &mut ProjectDoc) -> Vec<String> {
-    let present: BTreeSet<&str> = after.parts.iter().map(|part| part.id.as_str()).collect();
-    let removed: Vec<String> = before
-        .iter()
-        .filter(|part| !present.contains(part.id.as_str()))
-        .map(|part| part.id.clone())
-        .collect();
-    outline_versions::prune_removed_sources(after, &removed)
-}
-
 fn add_part_placement(
     document: &mut ProjectDoc,
     part: &Part,
@@ -1740,6 +1653,103 @@ fn apply(
         &mechanical::edit::MechanicalIdentityLedger::default(),
         Some(boardstudio_script::apply_scripts),
     )
+}
+
+fn edit_dispatch() -> mirrored_half::EditDispatch {
+    mirrored_half::EditDispatch {
+        apply_with_ledger,
+        apply_unscripted,
+    }
+}
+
+/// The staged-edit dispatchers for sibling crates' tests. Exposed as plain
+/// functions (not the mirrored crate's `EditDispatch` struct) because a crate in a
+/// dev-dependency cycle compiles as two instances whose nominal types differ.
+#[cfg(feature = "test-support")]
+#[allow(clippy::too_many_arguments)]
+pub fn apply_with_ledger_for_test(
+    doc: &mut ProjectDoc,
+    board_contours: &[BoardContours],
+    op: &EditOperation,
+    identities: &mechanical::edit::MechanicalIdentityLedger,
+    run_scripts: Option<ScriptRunner>,
+) -> Result<Vec<String>, String> {
+    apply_with_ledger(doc, board_contours, op, identities, run_scripts)
+}
+
+#[cfg(feature = "test-support")]
+pub fn apply_unscripted_for_test(
+    doc: &mut ProjectDoc,
+    op: &EditOperation,
+) -> Result<Vec<String>, String> {
+    apply_unscripted(doc, op)
+}
+
+/// Applies one operation under a fresh identity ledger for sibling crates' tests.
+#[cfg(feature = "test-support")]
+pub fn apply_for_test(
+    doc: &mut ProjectDoc,
+    board_contours: &[BoardContours],
+    op: &EditOperation,
+    run_scripts: ScriptRunner,
+) -> Result<Vec<String>, String> {
+    apply_with_ledger(
+        doc,
+        board_contours,
+        op,
+        &mechanical::edit::MechanicalIdentityLedger::default(),
+        Some(run_scripts),
+    )
+}
+
+#[cfg(feature = "test-support")]
+impl CoreEngine {
+    pub fn with_document_for_test(document: ProjectDoc, run_scripts: ScriptRunner) -> Self {
+        Self {
+            document,
+            ..Self::with_script_runner(run_scripts)
+        }
+    }
+
+    pub fn document_for_test(&self) -> &ProjectDoc {
+        &self.document
+    }
+
+    pub fn undo_for_test(&self) -> &[ProjectDoc] {
+        &self.undo
+    }
+
+    pub fn redo_for_test(&self) -> &[ProjectDoc] {
+        &self.redo
+    }
+
+    pub fn outline_cache_for_test(&self) -> &OutlineCache {
+        &self.outline_cache
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn publish_prepared_for_test(
+        &mut self,
+        id: String,
+        transaction: String,
+        document: ProjectDoc,
+        changed: Vec<String>,
+        cache: OutlineCache,
+        contours: Vec<Contour>,
+        findings: Vec<Finding>,
+    ) -> CoreReply {
+        self.publish_prepared_edit(
+            id,
+            PreparedEdit {
+                transaction,
+                document,
+                changed,
+                cache,
+                contours,
+                findings,
+            },
+        )
+    }
 }
 
 // Recursive and staged edits dispatch known operations and cannot replace the document.
@@ -2109,10 +2119,10 @@ fn apply_with_ledger(
             matrix::deletion::remove_cells(doc, matrix_id, cells)
         }
         EditOperation::RemoveMatrixRow { matrix_id, row } => {
-            matrix::deletion::remove_axis(doc, matrix_id, *row, true)
+            matrix::deletion::remove_axis(doc, matrix_id, *row, true, apply_unscripted)
         }
         EditOperation::RemoveMatrixColumn { matrix_id, column } => {
-            matrix::deletion::remove_axis(doc, matrix_id, *column, false)
+            matrix::deletion::remove_axis(doc, matrix_id, *column, false, apply_unscripted)
         }
         EditOperation::RemoveParts { ids } => {
             let affected: Vec<_> = doc

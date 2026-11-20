@@ -8,7 +8,9 @@ description = "BoardStudio Layout workspace features: the objects tree and matri
 
 [dependencies]
 boardstudio-application = { path = "../../../application" }
-boardstudio_core = { path = "../../../core" }
+boardstudio-core-kernel = { path = "../../../core/crates/kernel" }
+boardstudio-core-mechanical = { path = "../../../core/crates/mechanical" }
+boardstudio-model = { path = "../../../core/crates/model" }
 boardstudio-web-runtime = { path = "../runtime" }
 boardstudio-web-ui-model = { path = "../ui-model" }
 boardstudio-web-ui-shared = { path = "../ui-shared" }
@@ -16,6 +18,8 @@ boardstudio-web-catalogue = { path = "../catalogue" }
 boardstudio-web-keycaps = { path = "../keycaps" }
 boardstudio-web-case = { path = "../case" }
 boardstudio-web-parts = { path = "../parts" }
+boardstudio-web-layout-core = { path = "../layout-core" }
+boardstudio-web-layout-objects = { path = "../layout-objects" }
 dioxus = { version = "=0.7.10", default-features = false, features = ["minimal"] }
 serde_json = { version = "1", features = ["float_roundtrip"] }
 
@@ -31,6 +35,7 @@ wasm-bindgen-futures = "=0.4.79"
 web-sys = { workspace = true }
 
 [dev-dependencies]
+boardstudio_core = { path = "../../../core" }
 boardstudio-web-runtime = { path = "../runtime", features = ["test-support"] }
 boardstudio-web-ui-model = { path = "../ui-model", features = ["test-support"] }
 boardstudio-web-ui-shared = { path = "../ui-shared", features = ["test-support"] }

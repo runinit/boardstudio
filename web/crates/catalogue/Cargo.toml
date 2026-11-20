@@ -7,10 +7,15 @@ publish = false
 description = "BoardStudio bundled component catalogue: loading, generator normalization and physical setup proposals."
 
 [dependencies]
-boardstudio_core = { path = "../../../core" }
+boardstudio-core-kernel = { path = "../../../core/crates/kernel" }
+boardstudio-core-mechanical = { path = "../../../core/crates/mechanical" }
+boardstudio-model = { path = "../../../core/crates/model" }
 boardstudio-web-host = { path = "../host", features = ["page"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["float_roundtrip"] }
+
+[dev-dependencies]
+boardstudio_core = { path = "../../../core" }
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 wasm-bindgen-test = "=0.3.79"

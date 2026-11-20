@@ -1,4 +1,4 @@
-use boardstudio_core::model::{Matrix, MatrixAssembly, MatrixCell, PartDefinition, Side, Vec2};
+use boardstudio_model::model::{Matrix, MatrixAssembly, MatrixCell, PartDefinition, Side, Vec2};
 use serde_json::Value;
 use std::collections::BTreeMap;
 
@@ -107,7 +107,7 @@ pub struct PreparedMatrix {
 pub fn next_matrix_id(
     matrices: &[Matrix],
     definitions: &[PartDefinition],
-    parts: &[boardstudio_core::model::Part],
+    parts: &[boardstudio_model::model::Part],
     preset: &str,
     reversible: bool,
 ) -> String {

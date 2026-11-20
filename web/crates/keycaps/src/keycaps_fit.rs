@@ -1,7 +1,7 @@
 //! Accepted-snapshot keycap-fit request lifecycle and contextual findings presentation.
 use crate::runtime::Runtime;
 use boardstudio_application::{Scope, SnapshotToken};
-use boardstudio_core::model::{
+use boardstudio_model::model::{
     Contour, Finding, KeycapResolution, Matrix, Part, Pose2, ProjectDoc, SceneDelta,
     Scope as FindingScope, Severity, Side, Vec2,
 };
@@ -891,7 +891,7 @@ pub fn layout_canvas_bounds(
         include_point(&mut bounds, pose.at);
         let definition = definitions.get(part.definition_id.as_str()).copied();
         let keycap = (definition.is_some_and(|definition| {
-            matches!(&definition.kind, boardstudio_core::model::PartKind::Switch)
+            matches!(&definition.kind, boardstudio_model::model::PartKind::Switch)
         }))
         .then(|| {
             matrix_keycaps
@@ -1154,7 +1154,7 @@ pub fn target_board_id(target: &FindingNavigationTarget) -> &str {
 #[cfg(test)]
 pub fn browser_navigation_fixture() -> (FindingNavigationRequest, KeycapsFitState, ProjectDoc) {
     use boardstudio_application::SessionEpoch;
-    use boardstudio_core::model::{Board, KeycapResolution};
+    use boardstudio_model::model::{Board, KeycapResolution};
 
     let scope = Scope {
         session_epoch: SessionEpoch(2),
@@ -1206,7 +1206,7 @@ pub fn browser_navigation_fixture() -> (FindingNavigationRequest, KeycapsFitStat
 #[cfg(any(test, feature = "test-support"))]
 pub fn cad_preview_fixture(board_id: &str, token: u64, revision: u64) -> KeycapsFitState {
     use boardstudio_application::SessionEpoch;
-    use boardstudio_core::model::{KeycapMount, KeycapProfile, KeycapResolution, KeycapSpec};
+    use boardstudio_model::model::{KeycapMount, KeycapProfile, KeycapResolution, KeycapSpec};
 
     let source = KeycapsFitSource {
         scope: Scope {
@@ -1255,7 +1255,7 @@ pub fn cad_preview_fixture(board_id: &str, token: u64, revision: u64) -> Keycaps
 mod tests {
     use super::*;
     use boardstudio_application::{SessionEpoch, SnapshotToken};
-    use boardstudio_core::model::{
+    use boardstudio_model::model::{
         Board, BoardContours, Contour, FindingMarker, KeycapResolution, Part, Pose2, Readiness,
         SceneDelta, Side, Transform, Vec2,
     };
@@ -1358,7 +1358,7 @@ mod tests {
     /// member-less cells here keep the bounds on the keys alone.
     #[wasm_bindgen_test]
     fn layout_bounds_follow_spacing_widening_and_narrowing() {
-        use boardstudio_core::model::{MatrixScene, MatrixSceneCell};
+        use boardstudio_model::model::{MatrixScene, MatrixSceneCell};
         let mut document = ProjectDoc::empty("doc", "Project");
         document.boards.push(Board {
             id: "board".into(),

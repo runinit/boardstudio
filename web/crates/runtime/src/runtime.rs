@@ -1,5 +1,6 @@
 //! Browser composition runs identified effects; the headless session remains authoritative.
 use crate::archive_export::{ArchiveExportOptions, ArchiveWorkFuture, archive_filename};
+pub use crate::core_services::CoreServices;
 use crate::export_lease::{ExportKind, ExportLease, ExportLeases};
 use crate::mechanical_package::{
     critical_fit_drawing, mechanical_fabrication_notes, mechanical_filename_component,
@@ -10,17 +11,16 @@ use boardstudio_application::{
     AcceptedSnapshot, Completion, Durability, Effect, Event, JobId, Lifecycle, OperationId,
     ReadModel, SaveResult, Scope, Session, SnapshotToken, TerminalOutcome,
 };
-use boardstudio_core::{
-    electrical::{ElectricalMode, ElectricalPlan, ElectricalPlanRequest},
-    hash::sha256_hex,
-    model::{
-        ArchiveEntry, ArchiveReply, ArchiveRequest, ArtifactReply, ArtifactRequest, Board,
-        CaseAssemblyIR, CaseIR, CompiledFootprint, CoreReply, CoreRequest, HardwareTopology,
-        KeycapSpec, Material, MechanicalAssembly, MechanicalBuiltinProfile,
-        MechanicalConfiguration, MechanicalExtraction, MechanicalPartProfile,
-        MechanicalPurposeMapping, MechanicalSwitchFamily, Operation, OutlineFeature,
-        OutlineSettings, PcbPreview, PrepareExportRequest, ProjectDoc,
-    },
+use boardstudio_core_kernel::hash::sha256_hex;
+use boardstudio_core_mechanical::electrical::{
+    ElectricalMode, ElectricalPlan, ElectricalPlanRequest,
+};
+use boardstudio_model::model::{
+    ArchiveEntry, ArchiveReply, ArchiveRequest, ArtifactReply, ArtifactRequest, Board,
+    CaseAssemblyIR, CaseIR, CompiledFootprint, CoreReply, CoreRequest, HardwareTopology,
+    KeycapSpec, Material, MechanicalAssembly, MechanicalBuiltinProfile, MechanicalConfiguration,
+    MechanicalExtraction, MechanicalPartProfile, MechanicalPurposeMapping, MechanicalSwitchFamily,
+    Operation, OutlineFeature, OutlineSettings, PcbPreview, PrepareExportRequest, ProjectDoc,
 };
 pub use boardstudio_web_host::host::CoreExecutor;
 
@@ -71,11 +71,11 @@ pub struct CadScene {
     pub token: SnapshotToken,
     pub snapshot: AcceptedSnapshot,
     pub result: CadResult,
-    pub prepared: boardstudio_core::model::PreparedCaseAssemblyIR,
+    pub prepared: boardstudio_model::model::PreparedCaseAssemblyIR,
     pub physical_fingerprint: Option<[u8; 32]>,
-    pub mechanical: Option<boardstudio_core::model::MechanicalAssembly>,
+    pub mechanical: Option<boardstudio_model::model::MechanicalAssembly>,
     pub exact: bool,
-    pub contours: Vec<boardstudio_core::model::Contour>,
+    pub contours: Vec<boardstudio_model::model::Contour>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -323,6 +323,7 @@ fn generated_analysis_cache_key(
 
 pub struct Runtime {
     session: RefCell<Session>,
+    core_services: CoreServices,
     operation_outcomes: crate::operation_outcomes::OperationOutcomes,
     core: RefCell<Rc<dyn CoreExecutor>>,
     core_executor_factory: RefCell<Rc<CoreExecutorFactory>>,
@@ -374,7 +375,7 @@ pub struct Runtime {
     generated_analysis_cache:
         RefCell<BTreeMap<String, Rc<boardstudio_web_host::cad_jobs::CadGeneratedAnalysis>>>,
     generated_analysis_prepared:
-        RefCell<BTreeMap<String, boardstudio_core::model::PreparedCaseAssemblyIR>>,
+        RefCell<BTreeMap<String, boardstudio_model::model::PreparedCaseAssemblyIR>>,
     generated_analysis_pending: RefCell<BTreeMap<String, PendingGeneratedAnalysis>>,
     collision_batch: Cell<u64>,
     collision_alive: RefCell<Rc<Cell<bool>>>,
@@ -404,11 +405,14 @@ impl Drop for ProjectDeletionLease {
 }
 
 impl Runtime {
-    pub fn new() -> Result<Rc<Self>, String> {
-        Self::new_with_restoration(true)
+    pub fn new(core_services: CoreServices) -> Result<Rc<Self>, String> {
+        Self::new_with_restoration(true, core_services)
     }
 
-    fn new_with_restoration(restore_active_project: bool) -> Result<Rc<Self>, String> {
+    fn new_with_restoration(
+        restore_active_project: bool,
+        core_services: CoreServices,
+    ) -> Result<Rc<Self>, String> {
         let prefix = deployment_prefix()?;
         let store = if restore_active_project {
             BrowserStore::scoped(if prefix == "/" { "root" } else { "boardstudio" })
@@ -416,12 +420,13 @@ impl Runtime {
             BrowserStore::new(format!("boardstudio-test-{}", browser_uuid()?))
         }
         .map_err(|e| e.to_string())?;
-        Self::new_with_store(restore_active_project, store)
+        Self::new_with_store(restore_active_project, store, core_services)
     }
 
     fn new_with_store(
         restore_active_project: bool,
         store: BrowserStore,
+        core_services: CoreServices,
     ) -> Result<Rc<Self>, String> {
         #[cfg(not(any(test, feature = "test-support")))]
         let prefix = deployment_prefix()?;
@@ -431,7 +436,8 @@ impl Runtime {
                 .map(|worker| Rc::new(worker) as Rc<dyn CoreExecutor>)
         });
         let runtime = Rc::new(Self {
-            session: RefCell::new(Session::new()),
+            session: RefCell::new(Session::new(core_services.validate_open)),
+            core_services,
             operation_outcomes: crate::operation_outcomes::OperationOutcomes::default(),
             core: RefCell::new(core_executor_factory.clone()()?),
             core_executor_factory: RefCell::new(core_executor_factory),
@@ -561,6 +567,10 @@ impl Runtime {
     }
     pub fn electrical_preview_executor_epoch(&self) -> u64 {
         self.session.borrow().core_executor_epoch().0
+    }
+    /// The Core entry points the page injected (Open admission and scratch probes).
+    pub fn core_services(&self) -> CoreServices {
+        self.core_services
     }
     pub fn model(&self) -> ReadModel {
         self.session.borrow().read_model().clone()
@@ -743,8 +753,8 @@ impl Runtime {
     pub async fn project_matrices(
         &self,
         base_revision: u64,
-        matrices: Vec<boardstudio_core::model::Matrix>,
-    ) -> Result<Vec<boardstudio_core::model::MatrixScene>, String> {
+        matrices: Vec<boardstudio_model::model::Matrix>,
+    ) -> Result<Vec<boardstudio_model::model::MatrixScene>, String> {
         let executor_epoch = self.session.borrow().core_executor_epoch();
         let core = self.core.borrow().clone();
         let request_id = format!("matrix-projection-{}", self.operation().0);
@@ -1482,7 +1492,7 @@ impl Runtime {
         scope: Scope,
         token: SnapshotToken,
         revision: u64,
-    ) -> Result<boardstudio_core::model::KeycapResolution, String> {
+    ) -> Result<boardstudio_model::model::KeycapResolution, String> {
         self.resolve_keycaps_preview_source(scope, token, revision, false)
             .await
     }
@@ -1493,7 +1503,7 @@ impl Runtime {
         scope: Scope,
         token: SnapshotToken,
         revision: u64,
-    ) -> Result<boardstudio_core::model::KeycapResolution, String> {
+    ) -> Result<boardstudio_model::model::KeycapResolution, String> {
         self.resolve_keycaps_preview_source(scope, token, revision, true)
             .await
     }
@@ -1504,7 +1514,7 @@ impl Runtime {
         token: SnapshotToken,
         revision: u64,
         physical_case: bool,
-    ) -> Result<boardstudio_core::model::KeycapResolution, String> {
+    ) -> Result<boardstudio_model::model::KeycapResolution, String> {
         let accepted = self
             .model()
             .accepted
@@ -3140,7 +3150,7 @@ impl Runtime {
     async fn run_imported_layout_preview(
         &self,
         capture: &crate::layout_viewer_source::LayoutSourceCapture,
-        asset: &boardstudio_core::model::Asset,
+        asset: &boardstudio_model::model::Asset,
         operation: u64,
         is_current: Rc<dyn Fn() -> bool>,
     ) -> Result<PcbPreview, String> {
@@ -3155,7 +3165,7 @@ impl Runtime {
     /// The caller retains its request construction and source-liveness checks.
     async fn run_imported_board_preview(
         &self,
-        asset: &boardstudio_core::model::Asset,
+        asset: &boardstudio_model::model::Asset,
         request_id: String,
         is_current: Rc<dyn Fn() -> bool>,
         make_request: impl FnOnce(String) -> Result<ArtifactRequest, String>,
@@ -3244,7 +3254,7 @@ impl Runtime {
 
     async fn load_preview_document_asset(
         &self,
-        asset: &boardstudio_core::model::Asset,
+        asset: &boardstudio_model::model::Asset,
         is_current: Rc<dyn Fn() -> bool>,
     ) -> Result<Vec<u8>, String> {
         if asset.sha256.is_empty() || !is_current() {
@@ -4143,7 +4153,7 @@ impl Runtime {
     async fn analyze_prepared_generated_body(
         &self,
         scene: &CadScene,
-        prepared: &boardstudio_core::model::PreparedCaseAssemblyIR,
+        prepared: &boardstudio_model::model::PreparedCaseAssemblyIR,
         body_id: &str,
         target_deflection_mm: Option<f64>,
         is_current: Rc<dyn Fn() -> bool>,
@@ -4316,7 +4326,7 @@ impl Runtime {
         }
         self.generated_analysis_prepared.borrow_mut().insert(
             analysis.geometry_identity.clone(),
-            boardstudio_core::model::PreparedCaseAssemblyIR {
+            boardstudio_model::model::PreparedCaseAssemblyIR {
                 revision,
                 bodies: vec![body.clone()],
             },
@@ -4873,7 +4883,7 @@ impl Runtime {
         }
         if request.expected_revision != request.document.revision
             || request.target
-                != (boardstudio_core::model::ExportTarget::Board {
+                != (boardstudio_model::model::ExportTarget::Board {
                     board_id: scope.board_id.clone(),
                 })
         {
@@ -4896,7 +4906,7 @@ impl Runtime {
 
         let epoch = core_epoch.to_string();
         let preview_id = format!("board-preview-{operation}");
-        let preview_request = boardstudio_core::model::ArtifactRequest::PreviewPcb {
+        let preview_request = boardstudio_model::model::ArtifactRequest::PreviewPcb {
             id: preview_id.clone(),
             request: request.clone(),
         };
@@ -4947,7 +4957,7 @@ impl Runtime {
                 document.mechanical.as_ref().is_some_and(|configuration| {
                     configuration.board_id == scope.board_id
                         && configuration.closure_mounts.is_none()
-                        && configuration.mount != boardstudio_core::model::MechanicalMount::Gasket
+                        && configuration.mount != boardstudio_model::model::MechanicalMount::Gasket
                 })
             },
         )
@@ -4979,7 +4989,7 @@ impl Runtime {
                 .case_bodies
                 .iter()
                 .any(|body| body.board_id == scope.board_id)
-            || !boardstudio_core::authored_case_geometry_ready(
+            || !boardstudio_model::case_readiness::authored_case_geometry_ready(
                 &snapshot.document,
                 &snapshot.scene,
                 &scope.board_id,
@@ -5098,7 +5108,7 @@ impl Runtime {
                     assembly.revision == snapshot.document.revision
                         && !assembly.generation_blocked
                         && !assembly.diagnostics.iter().any(|finding| {
-                            finding.severity == boardstudio_core::model::Severity::Error
+                            finding.severity == boardstudio_model::model::Severity::Error
                         })
                 })
         });
@@ -5506,7 +5516,7 @@ impl Runtime {
                 board
                     .holes
                     .into_iter()
-                    .map(|points| boardstudio_core::model::Contour { points, hole: true }),
+                    .map(|points| boardstudio_model::model::Contour { points, hole: true }),
             );
             let source_ir = CaseIR {
                 revision: prepared.identity.revision,
@@ -5657,7 +5667,7 @@ impl Runtime {
         let errors = assembly
             .diagnostics
             .iter()
-            .filter(|finding| finding.severity == boardstudio_core::model::Severity::Error)
+            .filter(|finding| finding.severity == boardstudio_model::model::Severity::Error)
             .map(|finding| finding.message.clone())
             .collect::<Vec<_>>();
         if !errors.is_empty() {
@@ -5672,7 +5682,7 @@ impl Runtime {
             .and_then(|processes| processes.iter().find(|process| process.part_id == "plate"))
             .map(|process| &process.method)
             .unwrap_or(&configuration.method);
-        if matches!(plate_method, boardstudio_core::model::PlateMethod::PcbFr4) {
+        if matches!(plate_method, boardstudio_model::model::PlateMethod::PcbFr4) {
             let request_id = format!("mechanical-plate-{}", operation_id.0);
             let request = ArtifactRequest::ExportMechanicalPlate {
                 id: request_id.clone(),
@@ -5755,7 +5765,7 @@ impl Runtime {
                     operation_id,
                     &format!("part-{index}"),
                     &prepared.identity,
-                    boardstudio_core::model::PreparedCaseAssemblyIR {
+                    boardstudio_model::model::PreparedCaseAssemblyIR {
                         revision: prepared.identity.revision,
                         bodies: vec![prepared_body],
                     },
@@ -5781,12 +5791,12 @@ impl Runtime {
 
                 let mut outline_contours = source.contours.clone();
                 for mount in source.body.mounts.iter().flatten() {
-                    outline_contours.push(boardstudio_core::model::Contour {
+                    outline_contours.push(boardstudio_model::model::Contour {
                         hole: true,
                         points: (0..96)
                             .map(|point| {
                                 let angle = point as f64 * std::f64::consts::TAU / 96.0;
-                                boardstudio_core::model::Vec2 {
+                                boardstudio_model::model::Vec2 {
                                     x: mount.at.x + mount.hole_diameter / 2.0 * angle.cos(),
                                     y: mount.at.y + mount.hole_diameter / 2.0 * angle.sin(),
                                 }
@@ -5803,15 +5813,15 @@ impl Runtime {
                 export_board.traces.clear();
                 export_board.vias.clear();
                 for (extension, format) in [
-                    ("dxf", boardstudio_core::model::OutlineExportFormat::Dxf),
-                    ("svg", boardstudio_core::model::OutlineExportFormat::Svg),
+                    ("dxf", boardstudio_model::model::OutlineExportFormat::Dxf),
+                    ("svg", boardstudio_model::model::OutlineExportFormat::Svg),
                 ] {
                     let filename = format!("{part_name}.{extension}");
                     let request_id =
                         format!("mechanical-outline-{}-{index}-{extension}", operation_id.0);
                     let request = ArtifactRequest::ExportOutline {
                         id: request_id.clone(),
-                        request: boardstudio_core::model::OutlineExportRequest {
+                        request: boardstudio_model::model::OutlineExportRequest {
                             filename: filename.clone(),
                             board: export_board.clone(),
                             contours: outline_contours.clone(),
@@ -6132,7 +6142,7 @@ impl Runtime {
 
     pub fn export_board_outline(
         self: &Rc<Self>,
-        format: boardstudio_core::model::OutlineExportFormat,
+        format: boardstudio_model::model::OutlineExportFormat,
     ) {
         let Some(scope) = self.scope() else {
             self.apply_report(RuntimeReport::alert(
@@ -6174,7 +6184,7 @@ impl Runtime {
         self.begin_export_lease(
             operation_id,
             ExportKind::BoardOutline {
-                dxf: matches!(format, boardstudio_core::model::OutlineExportFormat::Dxf),
+                dxf: matches!(format, boardstudio_model::model::OutlineExportFormat::Dxf),
             },
             &snapshot,
             &scope,
@@ -6219,15 +6229,15 @@ impl Runtime {
             .map(|entry| entry.contours.clone())
             .ok_or_else(|| "The selected board has no resolved outline.".to_owned())?;
         let format = if dxf {
-            boardstudio_core::model::OutlineExportFormat::Dxf
+            boardstudio_model::model::OutlineExportFormat::Dxf
         } else {
-            boardstudio_core::model::OutlineExportFormat::Svg
+            boardstudio_model::model::OutlineExportFormat::Svg
         };
         let format_name = if dxf { "dxf" } else { "svg" };
         let request_id = format!("export-outline-{}", operation_id.0);
         let request = ArtifactRequest::ExportOutline {
             id: request_id.clone(),
-            request: boardstudio_core::model::OutlineExportRequest {
+            request: boardstudio_model::model::OutlineExportRequest {
                 filename: format!("{}.{}", snapshot.document.name, format_name),
                 board,
                 contours,
@@ -6651,7 +6661,7 @@ impl Runtime {
         let errors = resolution
             .findings
             .iter()
-            .filter(|finding| finding.severity == boardstudio_core::model::Severity::Error)
+            .filter(|finding| finding.severity == boardstudio_model::model::Severity::Error)
             .map(|finding| finding.message.as_str())
             .collect::<Vec<_>>();
         if !errors.is_empty() {
@@ -7015,7 +7025,7 @@ impl Runtime {
         Ok(sequence)
     }
     pub fn import_file(self: &Rc<Self>, file: web_sys::File) {
-        if file.size() > boardstudio_core::archive::MAX_PROJECT_ARCHIVE_BYTES as f64 {
+        if file.size() > boardstudio_model::model::MAX_PROJECT_ARCHIVE_BYTES as f64 {
             self.apply_report(
                 RuntimeReport::status("Project archive exceeds the 128 MiB size limit.")
                     .transient_error(),
@@ -7314,7 +7324,7 @@ impl Runtime {
     }
 
     fn confirm_project_replacement(&self, document: &ProjectDoc) -> Result<(), String> {
-        boardstudio_core::CoreEngine::validate_open(document)?;
+        (self.core_services.validate_open)(document)?;
         let model = self.model();
         let pending = self.has_pending_edits();
         if model.accepted.is_none() && !pending {
@@ -7580,13 +7590,13 @@ mod case_preview_source_tests {
         });
         document
             .board_references
-            .push(boardstudio_core::model::BoardReference {
+            .push(boardstudio_model::model::BoardReference {
                 id: "missing-routed-source".into(),
                 board_id: document.boards[0].id.clone(),
                 asset_id: "missing-asset".into(),
                 enabled: true,
-                pose: boardstudio_core::model::Pose2 {
-                    at: boardstudio_core::model::Vec2 { x: 0.0, y: 0.0 },
+                pose: boardstudio_model::model::Pose2 {
+                    at: boardstudio_model::model::Vec2 { x: 0.0, y: 0.0 },
                     rotation: 0.0,
                 },
                 elevation: 0.0,
@@ -7663,7 +7673,8 @@ pub mod firmware_export_test_support {
     use crate::runtime::in_process_support::{DeliveredArtifact, InProcessCore};
     use crate::runtime::project_name_test_support as support;
     use boardstudio_application::Scope;
-    use boardstudio_core::{firmware::FirmwarePackage, model::*};
+    use boardstudio_model::firmware::FirmwarePackage;
+    use boardstudio_model::model::*;
     use futures_channel::oneshot;
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -7998,7 +8009,7 @@ async fn request_exact_cad(
     operation_id: OperationId,
     name: &str,
     identity: &CadSnapshotIdentity,
-    prepared: boardstudio_core::model::PreparedCaseAssemblyIR,
+    prepared: boardstudio_model::model::PreparedCaseAssemblyIR,
 ) -> Result<CadResult, String> {
     let request_id = format!("mechanical-exact-{}-{name}", operation_id.0);
     let request = CadRequest {
@@ -8120,7 +8131,8 @@ pub mod project_name_test_support {
     use boardstudio_application::{EditResolver, Resolution};
 
     pub fn new_runtime() -> Rc<Runtime> {
-        Runtime::new_with_restoration(false).expect("browser runtime fixture initializes")
+        Runtime::new_with_restoration(false, CoreServices::engine())
+            .expect("browser runtime fixture initializes")
     }
 
     pub fn set_storage_initializing(runtime: &Runtime, initializing: bool) {
@@ -8164,7 +8176,11 @@ pub mod project_name_test_support {
     /// Session and Core, leaving it accepted, saved and ready. Browser tests that need an
     /// opened project start here instead of giving Runtime a fabricated read model.
     pub async fn open_document(runtime: &Rc<Runtime>, document: ProjectDoc) {
-        install(runtime, Session::new(), boardstudio_core::CoreEngine::new());
+        install(
+            runtime,
+            Session::new(boardstudio_core::CoreEngine::validate_open),
+            boardstudio_core::CoreEngine::new(),
+        );
         install_memory_persistence(runtime);
         runtime.submit(Event::Open {
             operation_id: runtime.operation(),
@@ -8189,12 +8205,12 @@ pub mod project_name_test_support {
             .revision;
         submit_fixed_command(
             runtime,
-            boardstudio_core::model::EditCommand {
+            boardstudio_model::model::EditCommand {
                 base_revision,
                 transaction_id: transaction_id.to_owned(),
-                phase: boardstudio_core::model::EditPhase::Commit,
+                phase: boardstudio_model::model::EditPhase::Commit,
                 target_ids: vec![target_id.to_owned()],
-                operation: boardstudio_core::model::EditOperation::ReplaceDocument {
+                operation: boardstudio_model::model::EditOperation::ReplaceDocument {
                     document: Box::new(document),
                 },
             },
@@ -8209,7 +8225,7 @@ pub mod project_name_test_support {
     /// Submit a fixed command through the same resolver route as a production commit.
     pub fn submit_fixed_command(
         runtime: &Rc<Runtime>,
-        command: boardstudio_core::model::EditCommand,
+        command: boardstudio_model::model::EditCommand,
     ) {
         runtime.submit(fixed_command_event(runtime.operation(), command));
     }
@@ -8217,9 +8233,9 @@ pub mod project_name_test_support {
     /// Build a resolver event for tests that need to submit through their own observer.
     pub fn fixed_command_event(
         operation_id: OperationId,
-        command: boardstudio_core::model::EditCommand,
+        command: boardstudio_model::model::EditCommand,
     ) -> Event {
-        let boardstudio_core::model::EditCommand {
+        let boardstudio_model::model::EditCommand {
             transaction_id,
             target_ids,
             operation,
@@ -8949,7 +8965,7 @@ mod cad_scene_rebind_tests {
                 revision: accepted.document.revision,
                 ..CadResult::default()
             },
-            prepared: boardstudio_core::model::PreparedCaseAssemblyIR {
+            prepared: boardstudio_model::model::PreparedCaseAssemblyIR {
                 revision: accepted.document.revision,
                 bodies: Vec::new(),
             },
@@ -9092,7 +9108,11 @@ mod project_open_supersession_tests {
     #[wasm_bindgen_test]
     async fn unknown_outcome_recovery_still_confirms_discard_before_new() {
         let runtime = test_support::new_runtime();
-        test_support::install(&runtime, Session::new(), CoreEngine::new());
+        test_support::install(
+            &runtime,
+            Session::new(CoreEngine::validate_open),
+            CoreEngine::new(),
+        );
         let current = ProjectDoc::empty("unknown-current", "Current");
         runtime.submit(Event::Open {
             operation_id: runtime.operation(),
@@ -9131,7 +9151,11 @@ mod project_open_supersession_tests {
     #[wasm_bindgen_test]
     async fn new_project_cancel_keeps_drafts_and_publication_waits_for_persistence() {
         let runtime = test_support::new_runtime();
-        test_support::install(&runtime, Session::new(), CoreEngine::new());
+        test_support::install(
+            &runtime,
+            Session::new(CoreEngine::validate_open),
+            CoreEngine::new(),
+        );
         let current = ProjectDoc::empty("new-keeps-current", "Current");
         runtime.submit(Event::Open {
             operation_id: runtime.operation(),
@@ -9153,7 +9177,7 @@ mod project_open_supersession_tests {
             target_ids: Vec::new(),
             transaction_id: "retained-draft".into(),
             start: Vec::new(),
-            pitch: boardstudio_core::model::Vec2 { x: 19.05, y: 19.05 },
+            pitch: boardstudio_model::model::Vec2 { x: 19.05, y: 19.05 },
             snap_fraction: 0.0,
             geometry_snap: false,
             gap: None,
@@ -9222,7 +9246,11 @@ mod project_open_supersession_tests {
     #[wasm_bindgen_test]
     async fn unsupported_saved_target_is_validated_before_discard_confirmation() {
         let runtime = test_support::new_runtime();
-        test_support::install(&runtime, Session::new(), CoreEngine::new());
+        test_support::install(
+            &runtime,
+            Session::new(CoreEngine::validate_open),
+            CoreEngine::new(),
+        );
         let current = ProjectDoc::empty("recover-pending", "Current");
         runtime.submit(Event::Open {
             operation_id: runtime.operation(),
@@ -9274,7 +9302,11 @@ mod project_open_supersession_tests {
     #[wasm_bindgen_test]
     async fn unsupported_saved_open_preserves_current_work_storage_and_undo() {
         let runtime = test_support::new_runtime();
-        test_support::install(&runtime, Session::new(), CoreEngine::new());
+        test_support::install(
+            &runtime,
+            Session::new(CoreEngine::validate_open),
+            CoreEngine::new(),
+        );
         let current = ProjectDoc::empty("recovery-current", "Before edit");
         runtime.submit(Event::Open {
             operation_id: runtime.operation(),
@@ -9291,7 +9323,7 @@ mod project_open_supersession_tests {
         older.format_version = 6;
         let payload = b"preserved unsupported-project payload".to_vec();
         let hash = sha256_hex(&payload);
-        older.assets.push(boardstudio_core::model::Asset {
+        older.assets.push(boardstudio_model::model::Asset {
             id: "older-asset".into(),
             name: "retained.bin".into(),
             media_type: "application/octet-stream".into(),
@@ -9615,7 +9647,7 @@ mod in_process_adapter_tests {
     use super::*;
     use crate::runtime::project_name_test_support as test_support;
     use boardstudio_application::RequestId;
-    use boardstudio_core::model::{EditCommand, EditOperation, EditPhase};
+    use boardstudio_model::model::{EditCommand, EditOperation, EditPhase};
     use wasm_bindgen_test::wasm_bindgen_test;
 
     /// A runtime whose Core requests run through a fresh in-process engine and whose saves
@@ -9624,7 +9656,7 @@ mod in_process_adapter_tests {
         let runtime = test_support::new_runtime();
         test_support::install(
             &runtime,
-            Session::new(),
+            Session::new(boardstudio_core::CoreEngine::validate_open),
             boardstudio_core::CoreEngine::new(),
         );
         test_support::install_memory_persistence(&runtime);
@@ -9829,7 +9861,7 @@ mod in_process_adapter_tests {
 #[cfg(all(test, target_arch = "wasm32"))]
 mod offline_safety_tests {
     use super::*;
-    use boardstudio_core::model::{EditCommand, EditOperation, EditPhase};
+    use boardstudio_model::model::{EditCommand, EditOperation, EditPhase};
     use wasm_bindgen_test::wasm_bindgen_test;
 
     #[wasm_bindgen_test]
@@ -9837,7 +9869,7 @@ mod offline_safety_tests {
         let first = project_name_test_support::new_runtime();
         project_name_test_support::install(
             &first,
-            Session::new(),
+            Session::new(boardstudio_core::CoreEngine::validate_open),
             boardstudio_core::CoreEngine::new(),
         );
         let mut document = in_process_support::board_document();
@@ -9848,10 +9880,11 @@ mod offline_safety_tests {
             document: document.clone(),
         });
         project_name_test_support::run_pending(&first).await;
-        let second = Runtime::new_with_store(false, first.store.clone()).unwrap();
+        let second =
+            Runtime::new_with_store(false, first.store.clone(), CoreServices::engine()).unwrap();
         project_name_test_support::install(
             &second,
-            Session::new(),
+            Session::new(boardstudio_core::CoreEngine::validate_open),
             boardstudio_core::CoreEngine::new(),
         );
         let done = project_name_test_support::track_open_saved(&second);
@@ -10096,7 +10129,11 @@ mod quota_recovery_deletion_tests {
 
     async fn quota_latched_runtime(active_name: &str) -> Rc<Runtime> {
         let runtime = test_support::new_runtime();
-        test_support::install(&runtime, Session::new(), CoreEngine::new());
+        test_support::install(
+            &runtime,
+            Session::new(CoreEngine::validate_open),
+            CoreEngine::new(),
+        );
         let active = ProjectDoc::empty("quota-delete-active", active_name);
         runtime.submit(Event::Open {
             operation_id: runtime.operation(),

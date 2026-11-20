@@ -1,5 +1,5 @@
 use boardstudio_application::{AcceptedSnapshot, Scope};
-use boardstudio_core::model::{
+use boardstudio_model::model::{
     KeyBinding, KeycapBoardSettings, KeycapKeySettings, KeymapLayer, KeymapMacro, Part, PartKind,
     Pose2, ProjectDoc, Vec2,
 };
@@ -147,7 +147,7 @@ fn is_supported_key(document: &ProjectDoc, part: &Part) -> bool {
 
 fn keycap_size(
     part: &Part,
-    definition: Option<&boardstudio_core::model::PartDefinition>,
+    definition: Option<&boardstudio_model::model::PartDefinition>,
     settings: Option<&KeycapKeySettings>,
 ) -> Vec2 {
     settings.and_then(|settings| settings.units).map_or_else(

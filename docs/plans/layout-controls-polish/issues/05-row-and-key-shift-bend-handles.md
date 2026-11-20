@@ -54,13 +54,13 @@ What changed (ticket-05 files only):
   `[Offset, Shift, Bend]` for a Row and `[Shift, Bend]` for a Key, keeping the
   shipped Offset first per the carried decision. Hidden-handles mode keeps only
   the active tool per context (Row+Shift/Bend, Key+Shift/Bend added).
-- `web/crates/layout/src/matrix_transform_operation.rs`: `gesture_value` gains
+- `web/crates/layout-core/src/matrix_transform_operation.rs`: `gesture_value` gains
   the Bend arm — horizontal world travel turns the running frame at the
   prototype's rate (0.5°/mm, snapped to 0.5°, Alt keeps the raw angle; the grid
   step never reaches a bend). New `BEND_DRAG_DEGREES_PER_MM` /
   `BEND_DRAG_SNAP_DEGREES` consts. The stale "Bend has no drag gesture" comments
   now name Padding only.
-- `web/crates/layout/src/objects/layout_transform_toolbar.rs`: new
+- `web/crates/layout-objects/src/objects/layout_transform_toolbar.rs`: new
   `LayoutTransformTool::Shift` / `::Bend` (rail order Offset, Shift, Bend);
   `TransformGesture::Bend`; `PlacementDelta::Bend`; Shift drags reuse the
   Offset gesture's shift axes, Bend drags flow through the standard
@@ -119,6 +119,6 @@ both targets.
 ## Carried point
 
 - Row Offset (`PlacementParameter::RowOffset`) and Row Shift (`RowShift`) are separate fields
-  (`web/crates/layout/src/matrix_transform_operation.rs`). Variant D's row rail shows only Shift
+  (`web/crates/layout-core/src/matrix_transform_operation.rs`). Variant D's row rail shows only Shift
   and Bend. Whether to drop the shipped Offset token is undecided. By default the row rail is
   Offset, Shift, Bend; ask before removing a shipped tool.

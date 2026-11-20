@@ -1,7 +1,7 @@
 //! Projection of the focused Keycaps fit finding onto its accepted Layout scene.
 
 use boardstudio_application::{Scope, SnapshotToken};
-use boardstudio_core::model::{FindingMarker, Vec2};
+use boardstudio_model::model::{FindingMarker, Vec2};
 use dioxus::prelude::*;
 use std::rc::Rc;
 

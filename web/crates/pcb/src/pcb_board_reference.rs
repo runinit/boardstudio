@@ -1,7 +1,7 @@
 //! Scoped controls and file-backed editing for routed-board references.
 use crate::pcb_controls::{PcbCheck, PcbChoice, PcbFile, PcbInput, PcbSection};
-use boardstudio_core::hash::sha256_hex;
-use boardstudio_core::model::{Asset, BoardReference};
+use boardstudio_core_kernel::hash::sha256_hex;
+use boardstudio_model::model::{Asset, BoardReference};
 use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
@@ -147,7 +147,7 @@ async fn read_kicad_file(file: &File) -> Result<(Vec<u8>, String), String> {
     Ok((bytes, source))
 }
 
-fn preview_paths(models: &[boardstudio_core::model::PcbModel]) -> Vec<String> {
+fn preview_paths(models: &[boardstudio_model::model::PcbModel]) -> Vec<String> {
     let mut seen = BTreeSet::new();
     models
         .iter()
@@ -363,8 +363,8 @@ async fn import_routed_board(
             board_id: scope.board_id.clone(),
             asset_id,
             enabled: true,
-            pose: boardstudio_core::model::Pose2 {
-                at: boardstudio_core::model::Vec2 { x: 0.0, y: 0.0 },
+            pose: boardstudio_model::model::Pose2 {
+                at: boardstudio_model::model::Vec2 { x: 0.0, y: 0.0 },
                 rotation: 0.0,
             },
             elevation: 0.0,
@@ -1077,7 +1077,7 @@ mod mounted_async_tests {
     use super::*;
     use crate::runtime::{in_process_support, project_name_test_support as support};
     use boardstudio_application::{AcceptedSnapshot, Event, Scope};
-    use boardstudio_core::model::{Asset, Board, BoardReference, Pose2, Vec2};
+    use boardstudio_model::model::{Asset, Board, BoardReference, Pose2, Vec2};
     use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::test_role::by_role_name;
     use js_sys::{Array, Uint8Array};

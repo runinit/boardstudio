@@ -113,7 +113,7 @@ pub(super) fn controlled_provider(unqualified: bool) -> JsValue {
 }
 
 fn preparation(id: &str) -> WireRequest {
-    let body: boardstudio_core::model::PreparedCaseIR =
+    let body: boardstudio_model::model::PreparedCaseIR =
         serde_json::from_value(fixture()["preparedBody"].clone()).unwrap();
     WireRequest {
         request_id: id.into(),
@@ -132,7 +132,7 @@ fn preparation(id: &str) -> WireRequest {
             geometry_identity: generated_geometry_identity(&body).unwrap(),
             target_deflection_mm: None,
         }),
-        prepared: Some(boardstudio_core::model::PreparedCaseAssemblyIR {
+        prepared: Some(boardstudio_model::model::PreparedCaseAssemblyIR {
             revision: body.revision,
             bodies: vec![body],
         }),

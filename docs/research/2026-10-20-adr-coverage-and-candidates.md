@@ -124,7 +124,7 @@ merely to match an obsolete feature page. Complete keycap provider correctness w
 version 6 adds” optional mechanical reservation counters and then “No migration step
 or version bump was needed.” It does not explain the framed-constraint transition.
 [0010's framed-constraint amendment](../adr/0010-mirrored-half-is-a-core-maintained-reflection.md#amendment-selective-exceptions-and-framed-constraints-2026-10-11)
-does. [Migration source](../../core/crates/engine/src/migrate.rs), `CURRENT_VERSION`, `migrate_value`
+does. [Migration source](../../core/crates/kernel/src/migrate.rs), `CURRENT_VERSION`, `migrate_value`
 and `version_5_migration_only_stamps_the_format_version`, establishes current version
 6 and an ordered 5→6 step. `version_4_document_migrates_without_changing_its_payload`
 explicitly identifies framed constraints as the version-6 addition. H4 shows the
@@ -144,7 +144,7 @@ generation, preview, committed scene and assembly revisions. That unqualified
 when read as a disposable-view gate. [Architecture](../architecture.md) correctly
 separates preview currency from export ownership. [Core capabilities](../../core/src/lib.rs),
 `authored_case_geometry_ready` and `case_preparation_ready`, also distinguish authored
-Case preparation from blanket PCB readiness; [KiCad preparation](../../core/crates/engine/src/artifact/kicad/planning.rs),
+Case preparation from blanket PCB readiness; [KiCad preparation](../../core/crates/artifact/src/artifact/kicad/planning.rs),
 `require_mechanical_export_clearance`, gates PCB-scoped violations rather than all
 Case conflicts. These are examples of output-specific authority, not proof that every
 button currently implements it correctly.
@@ -240,7 +240,7 @@ retention, and 0024 binds firmware to real assembly. None records why a manufact
 handoff's protection survives restoring an earlier document. This is not firmware
 repository-template delivery under 0030.
 
-**Current behavior and tests:** [electrical source](../../core/crates/engine/src/electrical.rs),
+**Current behavior and tests:** [electrical source](../../core/crates/mechanical/src/electrical.rs),
 `preserve_handoff`, explicitly says a downloaded handoff is outside history;
 [Core](../../core/src/lib.rs), `history`, reapplies the prior protected baseline
 before publishing Undo/Redo. `handoff_assignments` protects fabricated signal

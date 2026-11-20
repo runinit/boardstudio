@@ -1,6 +1,6 @@
 //! Reference UI preference; Session remains the authority for effective scope.
 use boardstudio_application::{Durability, Lifecycle, ReadModel, SessionEpoch};
-use boardstudio_core::model::ProjectDoc;
+use boardstudio_model::model::ProjectDoc;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Preference {
@@ -60,7 +60,7 @@ mod tests {
     use super::*;
     use boardstudio_application::{Completion, Effect, Event, OperationId, SaveResult, Session};
     use boardstudio_core::CoreEngine;
-    use boardstudio_core::model::{HardwareConfiguration, PhysicalBoardInstance};
+    use boardstudio_model::model::{HardwareConfiguration, PhysicalBoardInstance};
 
     fn document() -> ProjectDoc {
         let mut document = ProjectDoc::empty("same-document", "Instance policy");
@@ -77,7 +77,7 @@ mod tests {
                     controller_part_id: None,
                     mechanical: None,
                     construction_ownership:
-                        boardstudio_core::model::MechanicalConstructionOwnership::Local,
+                        boardstudio_model::model::MechanicalConstructionOwnership::Local,
                     mechanical_identity_reservation: None,
                 })
                 .collect(),
@@ -150,7 +150,7 @@ mod tests {
 
     #[test]
     fn automatic_navigation_waits_for_real_session_open_and_save() {
-        let mut session = Session::new();
+        let mut session = Session::new(CoreEngine::validate_open);
         let mut core = CoreEngine::new();
         assert!(!can_reconcile(session.read_model()));
         let effects = session.submit(Event::Open {
