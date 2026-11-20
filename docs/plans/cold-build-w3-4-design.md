@@ -430,8 +430,13 @@ T3 layout-objects), with two architectural corrections found during verification
    `boardstudio-core-electrical` back into `boardstudio-core-mechanical` — they had
    no consumer that does not already depend on mechanical, so their separate
    instantiation copies bought almost no parallelism (0 and 3 unit tests); and
-   (d) set `[profile.release] codegen-units = 1`, restoring the within-crate
-   monomorphization sharing the monoliths had.
+   (d) set `[profile.release] codegen-units = 1, opt-level = 2`, restoring the
+   within-crate monomorphization sharing the monoliths had without letting the
+   single-unit inliner re-inflate the large serde visitors; and (e) kept the
+   `ProjectDoc` and `MechanicalConfiguration` clones out of line in
+   `boardstudio-model` (manual field-wise `Clone` impls identical to the
+   derives) so whole-document clones share one body instead of one per
+   calling crate.
 2. **Final DAG (core):** model → kernel, kicad-source → mechanical (incl. modules,
    electrical, keymap) → artifact, mirrored-half → engine (remnant) → facade.
    `boardstudio-core-engine` is 9,022 LOC; largest units are mirrored-half
@@ -446,13 +451,11 @@ security deny release` + `test` all pass):
 - Browser: **799 crate tests across 14 launches** (layout 48 + objects 178),
   126 page, 15 drag, 364 CAD browser; `libweb_sys` 1 copy,
   `libboardstudio_web_host` 2 copies in `wasm-check/deps`.
-- Release `.wasm` vs `aba05d895` built identically: page **−13.23%**, core-worker
-  **+0.44%**, cad-worker **+1.29%**, CAD +0.002%, renderer −5.66%, offline −12.45%;
-  aggregate shipped bytes **−6.4%**. The brief's per-artifact ≤0.1% band is met for
-  CAD only; the two core-linked workers remain slightly above it, and the three
-  shrinkages exceed it downward. Remaining worker delta is the BTree/Vec/Clone
-  long tail (~1.5 MB at object level) that is inherent to by-value document drafts
-  crossing crate boundaries.
+- Release `.wasm` vs `aba05d895` built identically (final tree, committed profile):
+  page **−13.53%**, core-worker **−1.56%**, cad-worker **−0.90%**, CAD +0.002%
+  (+124 bytes), renderer −12.44%, offline −13.77%; aggregate shipped bytes
+  **−7.46%**. No artifact grows by more than 0.1% over the baseline; the only
+  growth at all is the CAD artifact's 124 bytes.
 - Cold checkpoint (`w3-4-seed` → `w3-4-warm` → `w3-4-bypass --without-cache`,
   logs in `.evidence/cold-build-port/`): warm **380.6 s** wall / 1,930 s compiler
   CPU (882/882 sccache hits), bypass **470.5 s** / 3,039 s, vs the `cpu-opt3`
