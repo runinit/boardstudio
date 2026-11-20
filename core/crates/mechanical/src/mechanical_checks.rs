@@ -19,7 +19,7 @@ const JLC_SLOT_MIN: f64 = 1.0;
 const RECOMMENDED_WEB: f64 = 1.0;
 const EPSILON: f64 = 1e-7;
 
-pub(crate) fn propose_mounts(config: &MechanicalConfiguration, contours: &[Contour]) -> Vec<Mount> {
+pub fn propose_mounts(config: &MechanicalConfiguration, contours: &[Contour]) -> Vec<Mount> {
     let mut proposals = vec![];
     let radius = 3.0;
     let margin = radius + config.clearance.max(0.2);
@@ -103,7 +103,7 @@ pub(crate) fn propose_mounts(config: &MechanicalConfiguration, contours: &[Conto
     selected
 }
 
-pub(crate) fn apply_allowance(config: &MechanicalConfiguration, assembly: &mut MechanicalAssembly) {
+pub fn apply_allowance(config: &MechanicalConfiguration, assembly: &mut MechanicalAssembly) {
     assembly.nominal_plate_contours = assembly.plate_contours.clone();
     let allowance = config.opening_allowance.unwrap_or(0.0);
     if allowance == 0.0 {
@@ -200,7 +200,7 @@ fn offset_opening(points: &[Vec2], distance: f64) -> Option<Vec<Vec2>> {
     )
 }
 
-pub(crate) fn check(config: &MechanicalConfiguration, contours: &[Contour]) -> Vec<Finding> {
+pub fn check(config: &MechanicalConfiguration, contours: &[Contour]) -> Vec<Finding> {
     let mut findings = vec![];
     let mut add = |id: String, severity, message: String| {
         findings.push(Finding {
@@ -506,7 +506,7 @@ fn contour_distance(a: &[Vec2], b: &[Vec2]) -> f64 {
     min
 }
 
-pub(crate) fn check_specifications(
+pub fn check_specifications(
     config: &MechanicalConfiguration,
     assembly: &crate::model::CaseAssemblyIR,
 ) -> Vec<Finding> {

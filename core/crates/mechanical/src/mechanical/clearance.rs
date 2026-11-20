@@ -46,7 +46,7 @@ pub fn project_owned_closure_clearance(
 /// created or updated; only a non-empty hole set requires the normalized entry.
 /// The public [`project_owned_closure_clearance`] keeps its template argument so
 /// existing adapters are unchanged.
-pub(crate) fn project_owned_closure_clearance_with_optional_template(
+pub fn project_owned_closure_clearance_with_optional_template(
     document: ProjectDoc,
     mounting_hole: Option<&PartDefinition>,
 ) -> Result<ProjectDoc, String> {
@@ -375,10 +375,8 @@ mod tests {
         Board, HardwareConfiguration, Layout, MechanicalConfiguration,
         MechanicalConstructionOwnership, Mount, PhysicalBoardInstance,
     };
-    use crate::{
-        CoreEngine,
-        model::{CoreReply, CoreRequest},
-    };
+    use crate::model::{CoreReply, CoreRequest};
+    use boardstudio_core_engine::CoreEngine;
 
     fn configuration(
         board_id: &str,
@@ -469,7 +467,7 @@ mod tests {
     }
 
     fn open_core_document(document: ProjectDoc) -> (CoreEngine, ProjectDoc) {
-        let mut engine = CoreEngine::new();
+        let mut engine = CoreEngine::with_script_runner(boardstudio_script::apply_scripts);
         match engine.handle(CoreRequest::Open {
             id: "open".into(),
             document,

@@ -175,7 +175,7 @@ fn effective_inputs_inner(
 /// reflected placement is then associated with this half's own accepted outline: when the
 /// destination contour cannot receive it, `fit_error` records that instead of snapping or
 /// moving the geometry.
-pub(crate) fn resolved_pair_gasket_supports(
+pub fn resolved_pair_gasket_supports(
     document: &ProjectDoc,
     board_contours: &[BoardContours],
     target: &MechanicalTarget,
@@ -355,7 +355,7 @@ fn effective_parts(document: &ProjectDoc, board_id: &str, flipped: bool) -> Vec<
 /// A part's `x` and rotation negate and its side swaps; its generator's `side`
 /// parameter follows, so the resolver reads the same physical placement the accepted
 /// scene carried. Parts owned by other boards are untouched.
-pub(crate) fn mirror_parts(parts: &mut [Part], document: &ProjectDoc, board_id: &str) {
+pub fn mirror_parts(parts: &mut [Part], document: &ProjectDoc, board_id: &str) {
     let selected = document
         .boards
         .iter()
@@ -455,10 +455,7 @@ fn scoped_pair_findings(
 /// the user can find it. A linked closure mount outside its board is a fabricated-drill
 /// violation (`Pcb`), so it also blocks that board's manufacturing export; a
 /// Case-only clash leaves every board's PCB export alone.
-pub(crate) fn pair_findings(
-    document: &ProjectDoc,
-    board_contours: &[BoardContours],
-) -> Vec<Finding> {
+pub fn pair_findings(document: &ProjectDoc, board_contours: &[BoardContours]) -> Vec<Finding> {
     let Some(hardware) = document.hardware.as_ref() else {
         return Vec::new();
     };
@@ -661,7 +658,7 @@ fn local_conflict(
 }
 
 /// Mirrors accepted board contours into a flipped physical half's Case frame.
-pub(crate) fn mirror_contours(mut contours: Vec<Contour>) -> Vec<Contour> {
+pub fn mirror_contours(mut contours: Vec<Contour>) -> Vec<Contour> {
     for contour in &mut contours {
         for point in &mut contour.points {
             point.x = -point.x;
@@ -678,7 +675,7 @@ pub(crate) fn mirror_contours(mut contours: Vec<Contour>) -> Vec<Contour> {
 /// `Linked` feature is never also a second writable copy in the member's ordinary
 /// configuration. A `Local` half keeps its own geometry (already in its ordinary
 /// configuration) and an `Omitted` half shows none.
-pub(crate) fn project_linked_features(
+pub fn project_linked_features(
     hardware: &HardwareConfiguration,
     instance: &PhysicalBoardInstance,
     mut configuration: MechanicalConfiguration,

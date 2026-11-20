@@ -2232,7 +2232,7 @@ pub fn resolve(document: &ProjectDoc, contours: &[Contour]) -> MechanicalAssembl
     result
 }
 
-pub(crate) fn expanded_outline(
+pub fn expanded_outline(
     contours: &[Contour],
     amount: f64,
     revision: u64,
@@ -2324,7 +2324,7 @@ fn same_ring(a: &Contour, b: &Contour) -> bool {
     })
 }
 
-pub(crate) fn inside_outline(point: Vec2, contours: &[Contour]) -> bool {
+pub fn inside_outline(point: Vec2, contours: &[Contour]) -> bool {
     let contains = |ring: &Contour| polygon_contains(&ring.points, point);
     contours.iter().any(|c| !c.hole && contains(c))
         && !contours.iter().any(|c| c.hole && contains(c))
@@ -2336,7 +2336,7 @@ pub fn builtin_profile(
     source: MechanicalBuiltinProfile,
     plate_to_pcb: f64,
 ) -> Result<MechanicalPartProfile, String> {
-    use crate::artifact::mechanical_extract::{
+    use boardstudio_core_kicad_source::mechanical_extract::{
         MechanicalPurpose, PurposeMapping, extract, pcb_mounting_holes, plate_cutout_contours,
         profile_source,
     };

@@ -12,7 +12,7 @@ use crate::model::{
 /// A mirror net that is absent by rule, with nothing stored: every pin of its source net that is
 /// not on the controller belongs to an Omitted (absent) mirror part. A net with no such pin is not
 /// private to anything.
-pub(crate) fn private_net_is_absent(
+pub fn private_net_is_absent(
     document: &ProjectDoc,
     halves: &MirroredHalves,
     source_net_id: &str,
@@ -29,7 +29,7 @@ pub(crate) fn private_net_is_absent(
 /// The same rule, reading the source net from `source_document` and the mirror parts from
 /// `mirror_document`, with `also_absent` mirror parts counted as absent. Omit uses this to find
 /// the nets it is about to leave private, before it removes the parts.
-pub(crate) fn private_net_is_absent_with(
+pub fn private_net_is_absent_with(
     source_document: &ProjectDoc,
     mirror_document: &ProjectDoc,
     halves: &MirroredHalves,
@@ -84,7 +84,7 @@ pub(crate) fn private_net_is_absent_with(
 /// lifecycle, discovering its normalized clearance template only when Unlink is requested.
 /// The source member and pair are resolved before dispatch so a malformed or ambiguous record
 /// cannot redirect the operation to another pair.
-pub(crate) fn unlink_pair(document: &mut ProjectDoc, pair_id: &str) -> Result<Vec<String>, String> {
+pub fn unlink_pair(document: &mut ProjectDoc, pair_id: &str) -> Result<Vec<String>, String> {
     validate_document(document)?;
     let hardware = document
         .hardware
@@ -171,7 +171,7 @@ pub(crate) fn unlink_pair(document: &mut ProjectDoc, pair_id: &str) -> Result<Ve
 }
 
 /// Shared validation for the creation request and each item's effective placement settings.
-pub(crate) fn validate_companion(
+pub fn validate_companion(
     mode: MirroredCompanionMode,
     tweak: Option<MirroredCompanionTweak>,
 ) -> Result<(), String> {

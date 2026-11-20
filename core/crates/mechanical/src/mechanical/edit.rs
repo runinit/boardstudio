@@ -48,7 +48,7 @@ pub fn apply(
 
 /// Applies one mechanical edit with the owning Core session's identity high-water
 /// marks. The public [`apply`] path supplies an empty ledger for standalone callers.
-pub(crate) fn apply_with_ledger(
+pub fn apply_with_ledger(
     doc: &mut ProjectDoc,
     board_contours: &[BoardContours],
     edit: &MechanicalEdit,
@@ -667,7 +667,7 @@ fn dedup_changed(changed: &mut Vec<String>) {
 }
 
 /// Resolves an edit target to its board id and optional physical instance.
-pub(crate) fn resolve_target<'a>(
+pub fn resolve_target<'a>(
     doc: &'a ProjectDoc,
     target: &MechanicalTarget,
 ) -> Result<(String, Option<&'a PhysicalBoardInstance>), String> {
@@ -1475,7 +1475,7 @@ fn pair_membership(doc: &ProjectDoc, instance_id: &str) -> Result<(usize, String
 /// accepted effective configuration locally. An instance still marked pair-owned
 /// without a pair becomes local, so a topology change can never leave dangling
 /// ownership or lose visible geometry. The remaining pairs are validated.
-pub(crate) fn reconcile_physical_topology(
+pub fn reconcile_physical_topology(
     doc: &mut ProjectDoc,
     before: &ProjectDoc,
 ) -> Result<Vec<String>, String> {
@@ -2104,7 +2104,7 @@ fn find_feature_value(
 /// Installs visible geometry under the destination member's durable identity.
 /// The pair's authored value can carry a different member's id; vertex and anchor
 /// associations remain part of the value and are preserved.
-pub(crate) fn install_feature(
+pub fn install_feature(
     configuration: &mut MechanicalConfiguration,
     kind: MechanicalFeatureKind,
     feature_id: &str,
@@ -2168,7 +2168,7 @@ fn replace_mount(mounts: &mut Vec<Mount>, id: &str, mut mount: Mount) {
     }
 }
 
-pub(crate) fn remove_feature(
+pub fn remove_feature(
     configuration: &mut MechanicalConfiguration,
     kind: MechanicalFeatureKind,
     feature_id: &str,
@@ -2219,7 +2219,7 @@ fn instance_configuration_mut<'a>(
 /// Ports the adapter's `case_settings::initial_settings` family selection, plate
 /// and foam derivation, board thickness and standard process overrides onto the
 /// Core-owned default helpers.
-pub(crate) fn default_configuration(
+pub fn default_configuration(
     document: &ProjectDoc,
     board_id: &str,
 ) -> Result<MechanicalConfiguration, String> {
@@ -3707,7 +3707,7 @@ fn validate_openings(openings: &[MechanicalOpening]) -> Result<(), String> {
 
 /// The reserved high-water marks an edit's allocation must not hand out again.
 #[derive(Clone, Copy, Default)]
-pub(crate) struct IdentityFloor {
+pub struct IdentityFloor {
     opening: u64,
     vertex: u64,
     critical_fit: u64,
@@ -3978,21 +3978,21 @@ impl IdentityCounters {
 /// failed opens, previews, failed edits, undo/redo, panel remounts and disable/re-enable
 /// keep it.
 #[derive(Clone, Debug, Default)]
-pub(crate) struct MechanicalIdentityLedger {
+pub struct MechanicalIdentityLedger {
     configs: BTreeMap<IdentityConfigOwner, IdentityCounters>,
     vertices: BTreeMap<IdentityVertexOwner, IdentityCounter>,
 }
 
 impl MechanicalIdentityLedger {
     /// A ledger seeded from every live identity and stored counter in `document`.
-    pub(crate) fn seeded(document: &ProjectDoc) -> Self {
+    pub fn seeded(document: &ProjectDoc) -> Self {
         let mut ledger = Self::default();
         ledger.capture(document);
         ledger
     }
 
     /// Raises the ledger to cover every identity and counter currently in `document`.
-    pub(crate) fn capture(&mut self, document: &ProjectDoc) {
+    pub fn capture(&mut self, document: &ProjectDoc) {
         if let Some(configuration) = &document.mechanical {
             self.capture_config(
                 IdentityConfigOwner::Board(configuration.board_id.clone()),
@@ -4141,7 +4141,7 @@ impl MechanicalIdentityLedger {
     /// Allocation merges these with the document's live identities and persisted
     /// counters, so Undo, a disabled configuration or a temporarily absent owner
     /// cannot make a removed identity available again.
-    pub(crate) fn floors(&self, target: &MechanicalTarget) -> IdentityFloor {
+    pub fn floors(&self, target: &MechanicalTarget) -> IdentityFloor {
         let owner = match target {
             MechanicalTarget::Board { board_id } => IdentityConfigOwner::Board(board_id.clone()),
             MechanicalTarget::Instance { instance_id } => {
@@ -5783,9 +5783,10 @@ mod tests {
 
     #[test]
     fn an_end_to_end_link_commits_and_one_undo_restores_the_document() {
-        use crate::CoreEngine;
         use crate::model::{CoreReply, CoreRequest, EditCommand, EditOperation, EditPhase};
-        let mut engine = CoreEngine::new();
+        let mut engine = boardstudio_core_engine::CoreEngine::with_script_runner(
+            boardstudio_script::apply_scripts,
+        );
         let before = mirror_document();
         let CoreReply::Scene { document, .. } = engine.handle(CoreRequest::Open {
             id: "open".into(),
