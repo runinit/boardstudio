@@ -433,7 +433,7 @@ fn accepted_projection_uses_session_add_toggle_selection_across_hit_contexts() {
             y: 1000.0,
         });
     }
-    let mut session = Session::new();
+    let mut session = Session::new(CoreEngine::validate_open);
     let mut engine = CoreEngine::new();
     let effects = session.submit(SessionEvent::Open {
         operation_id: OperationId(900),

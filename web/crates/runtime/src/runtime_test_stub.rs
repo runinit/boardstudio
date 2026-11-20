@@ -65,7 +65,7 @@ impl EventLog {
 impl Runtime {
     pub fn new() -> Rc<Self> {
         Rc::new(Self {
-            session: RefCell::new(Session::new()),
+            session: RefCell::new(Session::new(boardstudio_core::CoreEngine::validate_open)),
             engine: RefCell::new(CoreEngine::new()),
             outcomes: Default::default(),
             next_operation: Cell::new(1),

@@ -2476,7 +2476,11 @@ mod screen_chrome_render_tests {
     async fn mount_chrome_editor(root_id: &'static str) -> ChromeProbe {
         let (document, _) = chrome_fixture();
         let runtime = support::new_runtime();
-        support::install(&runtime, Session::new(), CoreEngine::new());
+        support::install(
+            &runtime,
+            Session::new(CoreEngine::validate_open),
+            CoreEngine::new(),
+        );
         support::install_memory_persistence(&runtime);
         runtime.submit(Event::Open {
             operation_id: runtime.operation(),

@@ -53,7 +53,7 @@ async fn pending_store_save_keeps_its_target_while_future_saves_switch_to_memory
     let runtime = support::new_runtime();
     support::install(
         &runtime,
-        Session::new(),
+        Session::new(boardstudio_core::CoreEngine::validate_open),
         boardstudio_core::CoreEngine::new(),
     );
     let stored_id = new_project_id().unwrap();

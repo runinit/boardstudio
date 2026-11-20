@@ -556,7 +556,7 @@ pub fn board_document() -> ProjectDoc {
 }
 
 pub fn opened_session() -> (Session, AcceptedSnapshot, Scope) {
-    let mut session = Session::new();
+    let mut session = Session::new(boardstudio_core::CoreEngine::validate_open);
     let mut core = boardstudio_core::CoreEngine::new();
     let mut effects = session.submit(Event::Open {
         operation_id: OperationId(1),

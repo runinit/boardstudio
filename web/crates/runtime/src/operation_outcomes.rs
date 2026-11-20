@@ -88,7 +88,7 @@ mod tests {
     #[test]
     fn identical_session_rejections_settle_their_own_operations() {
         let outcomes = OperationOutcomes::default();
-        let mut session = Session::new();
+        let mut session = Session::new(boardstudio_core::CoreEngine::validate_open);
         let first = outcomes.observe(OperationId(1));
         let second = outcomes.observe(OperationId(2));
         for operation_id in [OperationId(1), OperationId(2)] {

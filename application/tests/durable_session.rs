@@ -246,7 +246,7 @@ fn settle_core_and_save(
 
 #[test]
 fn protected_handoff_review_uses_core_operation_after_normal_edits_preserve_it() {
-    let mut session = Session::new();
+    let mut session = Session::new(CoreEngine::validate_open);
     let mut engine = CoreEngine::new();
     let effects = session.submit(Event::Open {
         operation_id: OperationId(1),
@@ -334,7 +334,7 @@ fn protected_handoff_review_uses_core_operation_after_normal_edits_preserve_it()
 
 #[test]
 fn protected_handoff_review_rejects_a_stale_fingerprint_without_saving() {
-    let mut session = Session::new();
+    let mut session = Session::new(CoreEngine::validate_open);
     let mut engine = CoreEngine::new();
     let opened = session.submit(Event::Open {
         operation_id: OperationId(10),
@@ -403,7 +403,7 @@ fn protected_handoff_review_rejects_a_stale_fingerprint_without_saving() {
 
 #[test]
 fn retry_persists_retained_commit_without_replaying_engine_edit() {
-    let mut session = Session::new();
+    let mut session = Session::new(CoreEngine::validate_open);
     let mut engine = CoreEngine::new();
 
     let effects = session.submit(Event::Open {
@@ -614,7 +614,7 @@ fn open_ready(session: &mut Session, engine: &mut CoreEngine) {
 #[test]
 fn owned_gesture_commit_finishes_before_project_open() {
     for preview_first in [true, false] {
-        let mut session = Session::new();
+        let mut session = Session::new(CoreEngine::validate_open);
         let mut engine = CoreEngine::new();
         open_ready(&mut session, &mut engine);
         session.submit(Event::GestureBegin {
@@ -726,7 +726,7 @@ fn owned_gesture_commit_finishes_before_project_open() {
 
 #[test]
 fn invalid_open_preserves_the_current_gesture_and_accepted_session() {
-    let mut session = Session::new();
+    let mut session = Session::new(CoreEngine::validate_open);
     let mut engine = CoreEngine::new();
     open_ready(&mut session, &mut engine);
     session.submit(Event::GestureBegin {
@@ -785,7 +785,7 @@ fn invalid_open_preserves_the_current_gesture_and_accepted_session() {
 
 #[test]
 fn group_position_edit_moves_selected_parts_together_and_undo_restores_both() {
-    let mut session = Session::new();
+    let mut session = Session::new(CoreEngine::validate_open);
     let mut engine = CoreEngine::new();
     let mut document = fixture();
     let mut second = document.parts[0].clone();
@@ -834,7 +834,7 @@ fn group_position_edit_moves_selected_parts_together_and_undo_restores_both() {
 
 #[test]
 fn undo_save_completing_after_a_superseded_drag_save_keeps_the_restored_document() {
-    let mut session = Session::new();
+    let mut session = Session::new(CoreEngine::validate_open);
     let mut engine = CoreEngine::new();
     let effects = session.submit(Event::Open {
         operation_id: OperationId(1),
@@ -923,7 +923,7 @@ fn undo_save_completing_after_a_superseded_drag_save_keeps_the_restored_document
 
 #[test]
 fn preview_edit_displays_without_changing_the_accepted_document_or_history() {
-    let mut session = Session::new();
+    let mut session = Session::new(CoreEngine::validate_open);
     let mut engine = CoreEngine::new();
     open_ready(&mut session, &mut engine);
     let accepted = session
@@ -1042,7 +1042,7 @@ fn preview_edit_displays_without_changing_the_accepted_document_or_history() {
 
 #[test]
 fn part_drag_uses_gap_geometry_snap_at_the_two_millimeter_tolerance() {
-    let mut session = Session::new();
+    let mut session = Session::new(CoreEngine::validate_open);
     let mut engine = CoreEngine::new();
     let mut document = fixture();
     let mut moving = document.parts[0].clone();
@@ -1100,7 +1100,7 @@ fn part_drag_uses_gap_geometry_snap_at_the_two_millimeter_tolerance() {
 
 #[test]
 fn geometry_snap_ignores_parts_owned_by_another_board() {
-    let mut session = Session::new();
+    let mut session = Session::new(CoreEngine::validate_open);
     let mut engine = CoreEngine::new();
     let mut document = fixture();
     let mut moving = document.parts[0].clone();
@@ -1194,7 +1194,7 @@ fn geometry_snap_ignores_parts_owned_by_another_board() {
 
 #[test]
 fn drag_preview_acknowledges_latest_and_coalesces_inflight_samples() {
-    let mut session = Session::new();
+    let mut session = Session::new(CoreEngine::validate_open);
     let mut engine = CoreEngine::new();
     open_ready(&mut session, &mut engine);
     let position = |x| {
@@ -1265,7 +1265,7 @@ fn drag_preview_acknowledges_latest_and_coalesces_inflight_samples() {
 
 #[test]
 fn drag_coalesces_previews_and_commits_the_pointerup_sample_once() {
-    let mut session = Session::new();
+    let mut session = Session::new(CoreEngine::validate_open);
     let mut engine = CoreEngine::new();
     open_ready(&mut session, &mut engine);
     session.submit(Event::GestureBegin {
@@ -1385,7 +1385,7 @@ fn drag_coalesces_previews_and_commits_the_pointerup_sample_once() {
 
 #[test]
 fn uncertain_worker_outcome_is_never_replayed_and_requires_explicit_reopen() {
-    let mut session = Session::new();
+    let mut session = Session::new(CoreEngine::validate_open);
     let mut engine = CoreEngine::new();
     open_ready(&mut session, &mut engine);
     let accepted = session
@@ -1485,7 +1485,7 @@ fn uncertain_worker_outcome_is_never_replayed_and_requires_explicit_reopen() {
 
 #[test]
 fn failed_replacement_retries_the_exact_candidate_without_core_or_early_publication() {
-    let mut session = Session::new();
+    let mut session = Session::new(CoreEngine::validate_open);
     let mut engine = CoreEngine::new();
     open_ready(&mut session, &mut engine);
     let effects = session.submit(move_edit(70, 0, 4.0));
@@ -1546,7 +1546,7 @@ fn failed_replacement_retries_the_exact_candidate_without_core_or_early_publicat
 
 #[test]
 fn invalid_recovery_keeps_the_exact_failed_result_for_storage_only_retry() {
-    let mut session = Session::new();
+    let mut session = Session::new(CoreEngine::validate_open);
     let mut engine = CoreEngine::new();
     open_ready(&mut session, &mut engine);
     let effects = session.submit(move_edit(70, 0, 4.0));
@@ -1600,7 +1600,7 @@ fn invalid_recovery_keeps_the_exact_failed_result_for_storage_only_retry() {
 
 #[test]
 fn recovery_reopen_discards_failed_save_and_ignores_stale_executor_restart() {
-    let mut session = Session::new();
+    let mut session = Session::new(CoreEngine::validate_open);
     let mut engine = CoreEngine::new();
     open_ready(&mut session, &mut engine);
     let accepted = session
@@ -1682,7 +1682,7 @@ fn recovery_reopen_discards_failed_save_and_ignores_stale_executor_restart() {
 // The Runtime create-new/delete recovery flows rely on this Session contract.
 #[test]
 fn quota_escape_recover_discards_oversized_candidate_and_retry_stays_explicit() {
-    let mut session = Session::new();
+    let mut session = Session::new(CoreEngine::validate_open);
     let mut engine = CoreEngine::new();
     open_ready(&mut session, &mut engine);
     let effects = session.submit(move_edit(70, 0, 4.0));
@@ -1761,7 +1761,7 @@ fn quota_escape_recover_discards_oversized_candidate_and_retry_stays_explicit() 
 
 #[test]
 fn selection_navigation_and_camera_updates_are_session_only() {
-    let mut session = Session::new();
+    let mut session = Session::new(CoreEngine::validate_open);
     let mut engine = CoreEngine::new();
     let mut document = fixture();
     let mut second = document.parts[0].clone();
@@ -1874,7 +1874,7 @@ fn selection_navigation_and_camera_updates_are_session_only() {
 
 #[test]
 fn preview_queued_behind_a_commit_is_discarded_after_its_revision_changes() {
-    let mut session = Session::new();
+    let mut session = Session::new(CoreEngine::validate_open);
     let mut engine = CoreEngine::new();
     open_ready(&mut session, &mut engine);
 
@@ -1936,7 +1936,7 @@ fn preview_queued_behind_a_commit_is_discarded_after_its_revision_changes() {
 
 #[test]
 fn matrix_range_selects_rectangle_of_live_primary_members_and_keeps_anchor() {
-    let mut session = Session::new();
+    let mut session = Session::new(CoreEngine::validate_open);
     let mut engine = CoreEngine::new();
     let (document, matrix_scope_ids) = matrix_range_fixture();
     let effects = session.submit(Event::Open {
@@ -2012,7 +2012,7 @@ fn matrix_range_selects_rectangle_of_live_primary_members_and_keeps_anchor() {
 
 #[test]
 fn cancelled_pointer_makes_late_preview_inert_and_releases_capture() {
-    let mut session = Session::new();
+    let mut session = Session::new(CoreEngine::validate_open);
     let mut engine = CoreEngine::new();
     open_ready(&mut session, &mut engine);
     let effects = session.submit(Event::PreviewEdit {
@@ -2183,7 +2183,7 @@ fn cancelled_pointer_makes_late_preview_inert_and_releases_capture() {
 
 #[test]
 fn same_id_revision_reopen_invalidates_generation_and_export_tokens() {
-    let mut session = Session::new();
+    let mut session = Session::new(CoreEngine::validate_open);
     let mut engine = CoreEngine::new();
     open_ready(&mut session, &mut engine);
     let scope = session.scope().unwrap();
@@ -2282,7 +2282,7 @@ fn same_id_revision_reopen_invalidates_generation_and_export_tokens() {
 
 #[test]
 fn instance_navigation_updates_scope_and_cancels_in_flight_case_work() {
-    let mut session = Session::new();
+    let mut session = Session::new(CoreEngine::validate_open);
     let mut engine = CoreEngine::new();
     let mut document = fixture();
     document.boards.push(Board {
@@ -2425,7 +2425,7 @@ fn instance_navigation_updates_scope_and_cancels_in_flight_case_work() {
 
 #[test]
 fn failed_export_is_removed_and_not_cancelled_again_after_reopen() {
-    let mut session = Session::new();
+    let mut session = Session::new(CoreEngine::validate_open);
     let mut engine = CoreEngine::new();
     open_ready(&mut session, &mut engine);
     let scope = session.scope().unwrap();
@@ -2469,7 +2469,7 @@ fn failed_export_is_removed_and_not_cancelled_again_after_reopen() {
 
 #[test]
 fn generation_block_is_typed_and_stale_block_completion_is_ignored() {
-    let mut session = Session::new();
+    let mut session = Session::new(CoreEngine::validate_open);
     let mut engine = CoreEngine::new();
     open_ready(&mut session, &mut engine);
     let scope = session.scope().unwrap();
@@ -2552,7 +2552,7 @@ fn settled_landing(
 
 #[test]
 fn document_completions_carry_the_landing_of_the_installed_snapshot() {
-    let mut session = Session::new();
+    let mut session = Session::new(CoreEngine::validate_open);
     let mut engine = CoreEngine::new();
     let effects = session.submit(Event::Open {
         operation_id: OperationId(1),
@@ -2619,7 +2619,7 @@ fn document_completions_carry_the_landing_of_the_installed_snapshot() {
 
 #[test]
 fn rejections_and_closing_carry_no_landing() {
-    let mut session = Session::new();
+    let mut session = Session::new(CoreEngine::validate_open);
     let mut engine = CoreEngine::new();
     let effects = session.submit(Event::Open {
         operation_id: OperationId(1),
@@ -2704,7 +2704,7 @@ fn has_core_request(effects: &[Effect]) -> bool {
 
 #[test]
 fn queued_position_edits_resolve_against_the_accepted_document() {
-    let mut session = Session::new();
+    let mut session = Session::new(CoreEngine::validate_open);
     let mut engine = CoreEngine::new();
     let effects = session.submit(Event::Open {
         operation_id: OperationId(1),
@@ -2808,7 +2808,7 @@ fn queued_position_edits_resolve_against_the_accepted_document() {
 
 #[test]
 fn a_vanished_target_retires_with_the_resolvers_reason() {
-    let mut session = Session::new();
+    let mut session = Session::new(CoreEngine::validate_open);
     let mut engine = CoreEngine::new();
     let effects = session.submit(Event::Open {
         operation_id: OperationId(1),
@@ -2837,7 +2837,7 @@ fn a_vanished_target_retires_with_the_resolvers_reason() {
 
 #[test]
 fn an_unchanged_resolution_lands_at_the_current_snapshot_and_keeps_draining() {
-    let mut session = Session::new();
+    let mut session = Session::new(CoreEngine::validate_open);
     let mut engine = CoreEngine::new();
     let effects = session.submit(Event::Open {
         operation_id: OperationId(1),
@@ -2903,7 +2903,7 @@ fn an_unchanged_resolution_lands_at_the_current_snapshot_and_keeps_draining() {
 
 #[test]
 fn a_resolved_command_core_rejects_settles_rejected_with_cores_message() {
-    let mut session = Session::new();
+    let mut session = Session::new(CoreEngine::validate_open);
     let mut engine = CoreEngine::new();
     let effects = session.submit(Event::Open {
         operation_id: OperationId(1),
@@ -2949,7 +2949,7 @@ fn a_resolved_command_core_rejects_settles_rejected_with_cores_message() {
 
 #[test]
 fn recovery_and_closing_refuse_resolvers_without_calling_them() {
-    let mut session = Session::new();
+    let mut session = Session::new(CoreEngine::validate_open);
     let mut engine = CoreEngine::new();
     let effects = session.submit(Event::Open {
         operation_id: OperationId(1),
@@ -3041,7 +3041,7 @@ fn recovery_and_closing_refuse_resolvers_without_calling_them() {
 
 #[test]
 fn a_reopen_rejects_queued_resolvers_without_calling_them() {
-    let mut session = Session::new();
+    let mut session = Session::new(CoreEngine::validate_open);
     let mut engine = CoreEngine::new();
     let effects = session.submit(Event::Open {
         operation_id: OperationId(1),
@@ -3099,7 +3099,7 @@ fn a_reopen_rejects_queued_resolvers_without_calling_them() {
 
 #[test]
 fn a_gesture_commit_ahead_is_not_disturbed_and_the_intent_behind_resolves_on_its_result() {
-    let mut session = Session::new();
+    let mut session = Session::new(CoreEngine::validate_open);
     let mut engine = CoreEngine::new();
     let effects = session.submit(Event::Open {
         operation_id: OperationId(1),
@@ -3338,7 +3338,7 @@ fn fit_labels(document: &ProjectDoc) -> Vec<(String, String)> {
 
 #[test]
 fn queued_stale_fit_setter_retires_after_remove_add_first_gap_reuse() {
-    let mut session = Session::new();
+    let mut session = Session::new(CoreEngine::validate_open);
     let mut engine = CoreEngine::new();
     let effects = session.submit(Event::Open {
         operation_id: OperationId(1),
@@ -3397,7 +3397,7 @@ fn queued_stale_fit_setter_retires_after_remove_add_first_gap_reuse() {
 
 #[test]
 fn queued_stale_fit_setter_retires_after_undo_then_add() {
-    let mut session = Session::new();
+    let mut session = Session::new(CoreEngine::validate_open);
     let mut engine = CoreEngine::new();
     let effects = session.submit(Event::Open {
         operation_id: OperationId(1),
@@ -3457,7 +3457,7 @@ fn queued_stale_fit_setter_retires_after_undo_then_add() {
 
 #[test]
 fn carried_shift_preview_cancel_commit_and_history_use_the_accepted_matrix() {
-    let mut session = Session::new();
+    let mut session = Session::new(CoreEngine::validate_open);
     let mut engine = CoreEngine::new();
     let (document, _) = matrix_range_fixture();
     let effects = session.submit(Event::Open {
@@ -3570,7 +3570,7 @@ fn carried_shift_preview_cancel_commit_and_history_use_the_accepted_matrix() {
 
 #[test]
 fn unrelated_rejection_does_not_cancel_active_gesture() {
-    let mut session = Session::new();
+    let mut session = Session::new(CoreEngine::validate_open);
     let mut engine = CoreEngine::new();
     open_ready(&mut session, &mut engine);
     session.submit(Event::GestureBegin {
@@ -3631,7 +3631,7 @@ fn unrelated_rejection_does_not_cancel_active_gesture() {
 
 #[test]
 fn ending_gesture_at_origin_preserves_other_transaction_preview() {
-    let mut session = Session::new();
+    let mut session = Session::new(CoreEngine::validate_open);
     let mut engine = CoreEngine::new();
     open_ready(&mut session, &mut engine);
     let effects = session.submit(Event::PreviewEdit {

@@ -1317,7 +1317,7 @@ mod mounted_save_replacement_tests {
     }
 
     fn accepted(document: ProjectDoc) -> (Session, CoreEngine) {
-        let mut session = Session::new();
+        let mut session = Session::new(boardstudio_core::CoreEngine::validate_open);
         let mut core = CoreEngine::new();
         let effects = session.submit(boardstudio_application::Event::Open {
             operation_id: OperationId(1),

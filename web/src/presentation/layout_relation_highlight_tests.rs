@@ -425,7 +425,11 @@ async fn mount(root_id: &'static str) -> Probe {
 
 async fn mount_with(root_id: &'static str, matrix: serde_json::Value) -> Probe {
     let runtime = support::new_runtime();
-    support::install(&runtime, Session::new(), CoreEngine::new());
+    support::install(
+        &runtime,
+        Session::new(CoreEngine::validate_open),
+        CoreEngine::new(),
+    );
     support::install_memory_persistence(&runtime);
     runtime.submit(Event::Open {
         operation_id: runtime.operation(),

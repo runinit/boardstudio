@@ -1,5 +1,5 @@
 //! Application-owned part interaction geometry copied from the accepted editor policy.
-use boardstudio_core::model::{Part, PartDefinition, PartKind, ProjectDoc, Vec2};
+use boardstudio_model::model::{Part, PartDefinition, PartKind, ProjectDoc, Vec2};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct SnapGuide {
@@ -390,7 +390,7 @@ fn snap_part_candidates<'a>(
     if let (Some(best_snap), Some(moving_bounds), Some(gap)) = (best.as_mut(), moving_bounds, gap) {
         if best_snap.label.contains("envelope gap") {
             let moved = Part {
-                pose: boardstudio_core::model::Pose2 {
+                pose: boardstudio_model::model::Pose2 {
                     at: best_snap.at,
                     ..moving.pose
                 },
@@ -479,10 +479,10 @@ pub struct DragSnapOptions<'a> {
 /// Apply Layout's drag-relative grid and magnetic geometry snapping to a pointer sample.
 pub fn normalize_drag(
     document: &ProjectDoc,
-    start: &[boardstudio_core::model::Position],
-    raw: Vec<boardstudio_core::model::Position>,
+    start: &[boardstudio_model::model::Position],
+    raw: Vec<boardstudio_model::model::Position>,
     options: DragSnapOptions<'_>,
-) -> (Vec<boardstudio_core::model::Position>, Option<SnapGuide>) {
+) -> (Vec<boardstudio_model::model::Position>, Option<SnapGuide>) {
     if options.alt {
         options.state.clear();
         return (raw, None);
@@ -552,7 +552,7 @@ pub fn normalize_drag(
             .find(|part| part.id == selected_position.id)
             .and_then(|original| {
                 let moving = Part {
-                    pose: boardstudio_core::model::Pose2 {
+                    pose: boardstudio_model::model::Pose2 {
                         at: selected_position.at,
                         ..original.pose
                     },
@@ -592,10 +592,10 @@ pub fn normalize_drag(
 
 fn normalize_drag_stepped(
     document: &ProjectDoc,
-    start: &[boardstudio_core::model::Position],
-    raw: Vec<boardstudio_core::model::Position>,
+    start: &[boardstudio_model::model::Position],
+    raw: Vec<boardstudio_model::model::Position>,
     options: DragSnapOptions<'_>,
-) -> (Vec<boardstudio_core::model::Position>, Option<SnapGuide>) {
+) -> (Vec<boardstudio_model::model::Position>, Option<SnapGuide>) {
     let DragSnapOptions {
         board_id,
         pitch,
@@ -638,7 +638,7 @@ fn normalize_drag_stepped(
         && let Some(original) = document.parts.iter().find(|part| part.id == position.id)
     {
         let moving = Part {
-            pose: boardstudio_core::model::Pose2 {
+            pose: boardstudio_model::model::Pose2 {
                 at: position.at,
                 ..original.pose
             },

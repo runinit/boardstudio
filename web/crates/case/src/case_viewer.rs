@@ -1997,7 +1997,11 @@ mod keycap_consumer_tests {
     #[wasm_bindgen_test]
     async fn mounted_case_keycaps_reach_both_packets_and_reject_late_physical_owner() {
         let runtime = support::new_runtime();
-        support::install(&runtime, Session::new(), CoreEngine::new());
+        support::install(
+            &runtime,
+            Session::new(CoreEngine::validate_open),
+            CoreEngine::new(),
+        );
         runtime
             .store
             .save_asset(boardstudio_web_host::host::AssetBytes {
@@ -2324,7 +2328,7 @@ mod gesture_cancellation_tests {
         let runtime = crate::runtime::project_name_test_support::new_runtime();
         crate::runtime::project_name_test_support::install(
             &runtime,
-            Session::new(),
+            Session::new(boardstudio_core::CoreEngine::validate_open),
             CoreEngine::new(),
         );
         runtime.submit(Event::Open {

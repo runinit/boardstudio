@@ -150,7 +150,7 @@ mod tests {
 
     #[test]
     fn automatic_navigation_waits_for_real_session_open_and_save() {
-        let mut session = Session::new();
+        let mut session = Session::new(CoreEngine::validate_open);
         let mut core = CoreEngine::new();
         assert!(!can_reconcile(session.read_model()));
         let effects = session.submit(Event::Open {

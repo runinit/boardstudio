@@ -4,7 +4,7 @@
 //! returns its completion through [`Session::complete`].
 
 use crate::interactions::{DragSnapOptions, MagneticSnapState, SnapGuide, normalize_drag};
-use boardstudio_core::{CoreEngine, model::*};
+use boardstudio_model::model::*;
 use std::collections::{HashSet, VecDeque};
 use std::fmt;
 use std::rc::Rc;
@@ -401,11 +401,11 @@ pub enum Event {
 #[derive(Clone, Debug, PartialEq)]
 pub enum ExportCommitRequest {
     ApplyElectrical {
-        plan: boardstudio_core::electrical::ElectricalPlan,
+        plan: boardstudio_model::electrical::ElectricalPlan,
         draft: bool,
     },
     ProtectElectricalHandoff {
-        plan: boardstudio_core::electrical::ElectricalPlan,
+        plan: boardstudio_model::electrical::ElectricalPlan,
     },
 }
 
@@ -640,14 +640,16 @@ pub struct Session {
     settled: HashSet<OperationId>,
     close_operation: Option<OperationId>,
     gesture: Option<Gesture>,
+    validate_open: OpenValidator,
 }
-impl Default for Session {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+
+/// Core's side-effect-free admission check for an Open candidate. The host that owns the
+/// engine passes `boardstudio_core::CoreEngine::validate_open`, so this crate builds without
+/// the engine (the same injection the engine uses for its `ScriptRunner`).
+pub type OpenValidator = fn(&ProjectDoc) -> Result<(), String>;
+
 impl Session {
-    pub fn new() -> Self {
+    pub fn new(validate_open: OpenValidator) -> Self {
         Self {
             model: ReadModel::default(),
             queue: VecDeque::new(),
@@ -665,6 +667,7 @@ impl Session {
             settled: HashSet::new(),
             close_operation: None,
             gesture: None,
+            validate_open,
         }
     }
     pub fn read_model(&self) -> &ReadModel {
@@ -734,7 +737,7 @@ impl Session {
                         TerminalOutcome::Rejected("session is not awaiting recovery".into()),
                         &mut effects,
                     );
-                } else if let Err(reason) = CoreEngine::validate_open(&document) {
+                } else if let Err(reason) = (self.validate_open)(&document) {
                     self.settle(
                         operation_id,
                         TerminalOutcome::Rejected(reason),
@@ -1394,7 +1397,7 @@ impl Session {
         document: ProjectDoc,
         effects: &mut Vec<Effect>,
     ) {
-        if let Err(reason) = CoreEngine::validate_open(&document) {
+        if let Err(reason) = (self.validate_open)(&document) {
             self.settle(operation_id, TerminalOutcome::Rejected(reason), effects);
             return;
         }
@@ -2632,10 +2635,4 @@ fn reply_id(reply: &CoreReply) -> String {
         | CoreReply::Error { id, .. }
         | CoreReply::CasePrepared { id, .. } => id.clone(),
     }
-}
-
-/// Synchronous adapter used by native callers that want to exercise the actual engine.
-/// Browser hosts should execute effects asynchronously and call [`Session::complete`].
-pub fn handle_core(engine: &mut CoreEngine, request: CoreRequest) -> CoreReply {
-    engine.handle(request)
 }

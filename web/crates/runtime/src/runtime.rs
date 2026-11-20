@@ -431,7 +431,7 @@ impl Runtime {
                 .map(|worker| Rc::new(worker) as Rc<dyn CoreExecutor>)
         });
         let runtime = Rc::new(Self {
-            session: RefCell::new(Session::new()),
+            session: RefCell::new(Session::new(boardstudio_core::CoreEngine::validate_open)),
             operation_outcomes: crate::operation_outcomes::OperationOutcomes::default(),
             core: RefCell::new(core_executor_factory.clone()()?),
             core_executor_factory: RefCell::new(core_executor_factory),
@@ -8164,7 +8164,11 @@ pub mod project_name_test_support {
     /// Session and Core, leaving it accepted, saved and ready. Browser tests that need an
     /// opened project start here instead of giving Runtime a fabricated read model.
     pub async fn open_document(runtime: &Rc<Runtime>, document: ProjectDoc) {
-        install(runtime, Session::new(), boardstudio_core::CoreEngine::new());
+        install(
+            runtime,
+            Session::new(boardstudio_core::CoreEngine::validate_open),
+            boardstudio_core::CoreEngine::new(),
+        );
         install_memory_persistence(runtime);
         runtime.submit(Event::Open {
             operation_id: runtime.operation(),
@@ -9092,7 +9096,11 @@ mod project_open_supersession_tests {
     #[wasm_bindgen_test]
     async fn unknown_outcome_recovery_still_confirms_discard_before_new() {
         let runtime = test_support::new_runtime();
-        test_support::install(&runtime, Session::new(), CoreEngine::new());
+        test_support::install(
+            &runtime,
+            Session::new(CoreEngine::validate_open),
+            CoreEngine::new(),
+        );
         let current = ProjectDoc::empty("unknown-current", "Current");
         runtime.submit(Event::Open {
             operation_id: runtime.operation(),
@@ -9131,7 +9139,11 @@ mod project_open_supersession_tests {
     #[wasm_bindgen_test]
     async fn new_project_cancel_keeps_drafts_and_publication_waits_for_persistence() {
         let runtime = test_support::new_runtime();
-        test_support::install(&runtime, Session::new(), CoreEngine::new());
+        test_support::install(
+            &runtime,
+            Session::new(CoreEngine::validate_open),
+            CoreEngine::new(),
+        );
         let current = ProjectDoc::empty("new-keeps-current", "Current");
         runtime.submit(Event::Open {
             operation_id: runtime.operation(),
@@ -9222,7 +9234,11 @@ mod project_open_supersession_tests {
     #[wasm_bindgen_test]
     async fn unsupported_saved_target_is_validated_before_discard_confirmation() {
         let runtime = test_support::new_runtime();
-        test_support::install(&runtime, Session::new(), CoreEngine::new());
+        test_support::install(
+            &runtime,
+            Session::new(CoreEngine::validate_open),
+            CoreEngine::new(),
+        );
         let current = ProjectDoc::empty("recover-pending", "Current");
         runtime.submit(Event::Open {
             operation_id: runtime.operation(),
@@ -9274,7 +9290,11 @@ mod project_open_supersession_tests {
     #[wasm_bindgen_test]
     async fn unsupported_saved_open_preserves_current_work_storage_and_undo() {
         let runtime = test_support::new_runtime();
-        test_support::install(&runtime, Session::new(), CoreEngine::new());
+        test_support::install(
+            &runtime,
+            Session::new(CoreEngine::validate_open),
+            CoreEngine::new(),
+        );
         let current = ProjectDoc::empty("recovery-current", "Before edit");
         runtime.submit(Event::Open {
             operation_id: runtime.operation(),
@@ -9624,7 +9644,7 @@ mod in_process_adapter_tests {
         let runtime = test_support::new_runtime();
         test_support::install(
             &runtime,
-            Session::new(),
+            Session::new(boardstudio_core::CoreEngine::validate_open),
             boardstudio_core::CoreEngine::new(),
         );
         test_support::install_memory_persistence(&runtime);
@@ -9837,7 +9857,7 @@ mod offline_safety_tests {
         let first = project_name_test_support::new_runtime();
         project_name_test_support::install(
             &first,
-            Session::new(),
+            Session::new(boardstudio_core::CoreEngine::validate_open),
             boardstudio_core::CoreEngine::new(),
         );
         let mut document = in_process_support::board_document();
@@ -9851,7 +9871,7 @@ mod offline_safety_tests {
         let second = Runtime::new_with_store(false, first.store.clone()).unwrap();
         project_name_test_support::install(
             &second,
-            Session::new(),
+            Session::new(boardstudio_core::CoreEngine::validate_open),
             boardstudio_core::CoreEngine::new(),
         );
         let done = project_name_test_support::track_open_saved(&second);
@@ -10096,7 +10116,11 @@ mod quota_recovery_deletion_tests {
 
     async fn quota_latched_runtime(active_name: &str) -> Rc<Runtime> {
         let runtime = test_support::new_runtime();
-        test_support::install(&runtime, Session::new(), CoreEngine::new());
+        test_support::install(
+            &runtime,
+            Session::new(CoreEngine::validate_open),
+            CoreEngine::new(),
+        );
         let active = ProjectDoc::empty("quota-delete-active", active_name);
         runtime.submit(Event::Open {
             operation_id: runtime.operation(),

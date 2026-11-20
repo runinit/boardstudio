@@ -6,7 +6,7 @@ publish = false
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-boardstudio_core = { path = "../core" }
+boardstudio-model = { path = "../core/crates/model" }
 
 [dev-dependencies]
 boardstudio_core = { path = "../core" }

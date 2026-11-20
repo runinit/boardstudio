@@ -203,6 +203,7 @@ dependencies = [
 name = "boardstudio-application"
 version = "0.1.0"
 dependencies = [
+ "boardstudio-model",
  "boardstudio_core",
  "serde_json",
 ]

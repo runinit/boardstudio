@@ -1254,7 +1254,7 @@ async fn mounted_runtime_probe(
     let runtime = crate::runtime::project_name_test_support::new_runtime();
     crate::runtime::project_name_test_support::install(
         &runtime,
-        boardstudio_application::Session::new(),
+        boardstudio_application::Session::new(boardstudio_core::CoreEngine::validate_open),
         boardstudio_core::CoreEngine::new(),
     );
     crate::runtime::project_name_test_support::install_memory_persistence(&runtime);
@@ -3335,7 +3335,7 @@ mod matrix_relations_panel {
         let support = crate::runtime::project_name_test_support::new_runtime();
         crate::runtime::project_name_test_support::install(
             &support,
-            Session::new(),
+            Session::new(boardstudio_core::CoreEngine::validate_open),
             CoreEngine::new(),
         );
         crate::runtime::project_name_test_support::install_memory_persistence(&support);
@@ -3830,7 +3830,7 @@ async fn companion_placement_mounted_edit_undo_and_core_refusal() {
     let runtime = crate::runtime::project_name_test_support::new_runtime();
     crate::runtime::project_name_test_support::install(
         &runtime,
-        boardstudio_application::Session::new(),
+        boardstudio_application::Session::new(boardstudio_core::CoreEngine::validate_open),
         boardstudio_core::CoreEngine::new(),
     );
     crate::runtime::project_name_test_support::install_memory_persistence(&runtime);

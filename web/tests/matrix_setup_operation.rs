@@ -430,7 +430,7 @@ fn generated_matrix_identity_skips_existing_matrix_definition_and_member_ids() {
 
 #[test]
 fn matrix_setup_uses_saved_session_history_selection_and_reopen() {
-    let mut session = Session::new();
+    let mut session = Session::new(boardstudio_core::CoreEngine::validate_open);
     let mut engine = CoreEngine::new();
     open_session_saved(&mut session, &mut engine, session_document(), 1);
 
@@ -565,7 +565,7 @@ fn matrix_setup_uses_saved_session_history_selection_and_reopen() {
     assert_eq!(redone.document.revision, 3);
 
     let durable_document = (*redone.document).clone();
-    let mut reopened_session = Session::new();
+    let mut reopened_session = Session::new(boardstudio_core::CoreEngine::validate_open);
     let mut reopened_engine = CoreEngine::new();
     open_session_saved(
         &mut reopened_session,
