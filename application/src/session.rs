@@ -645,7 +645,7 @@ pub struct Session {
 
 /// Core's side-effect-free admission check for an Open candidate. The host that owns the
 /// engine passes `boardstudio_core::CoreEngine::validate_open`, so this crate builds without
-/// the engine (the same injection the engine uses for its `ScriptRunner`).
+/// the engine.
 pub type OpenValidator = fn(&ProjectDoc) -> Result<(), String>;
 
 impl Session {

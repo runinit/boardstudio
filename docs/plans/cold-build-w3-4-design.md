@@ -30,7 +30,7 @@ new crates so every existing path (`boardstudio_core::mechanical::…`,
 
 Conventions followed, matching the earlier `refactor/split-core-crate` split that produced
 [core/crates/model](../../core/crates/model/Cargo.toml) and
-[core/crates/script](../../core/crates/script/Cargo.toml):
+`core/crates/script`:
 
 - New core crates live in `core/crates/*` (already globbed by the root
   [Cargo.toml](../../Cargo.toml) workspace `members`), named `boardstudio-core-*` as the
