@@ -6,7 +6,7 @@
 //! the project.
 
 use boardstudio_application::{AcceptedSnapshot, Scope, SnapshotToken};
-use boardstudio_core::model::{
+use boardstudio_model::model::{
     Asset, Board, Contour, ExportTarget, Part, PartDefinition, Pose2, PrepareExportRequest,
     ProjectDoc, Side, Vec2,
 };
@@ -80,7 +80,7 @@ pub struct PartsPreviewSnapshot {
     pub lease: Rc<PartsPreviewOwnerLease>,
     pub sample_document: ProjectDoc,
     pub contours: Vec<Contour>,
-    pub preview: boardstudio_core::model::PcbPreview,
+    pub preview: boardstudio_model::model::PcbPreview,
     pub model_rows: Option<crate::model_delivery::ModelDeliveryRows>,
 }
 
@@ -279,7 +279,7 @@ impl PartsPreviewCapture {
 
     pub fn accept_preview(
         self,
-        preview: boardstudio_core::model::PcbPreview,
+        preview: boardstudio_model::model::PcbPreview,
         model_rows: Option<crate::model_delivery::ModelDeliveryRows>,
     ) -> Result<PartsPreviewSnapshot, String> {
         if preview.revision != self.owner.accepted_revision

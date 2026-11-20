@@ -3,7 +3,7 @@
 use boardstudio_application::{AcceptedSnapshot, Scope};
 #[cfg(test)]
 use boardstudio_core::CoreEngine;
-use boardstudio_core::model::*;
+use boardstudio_model::model::*;
 use boardstudio_web_worker_host::cad_jobs::CadJobError;
 #[cfg(any(target_arch = "wasm32", test))]
 use boardstudio_web_worker_host::cad_jobs::{
@@ -378,15 +378,15 @@ fn effective_case_inputs(
     // target board's mirrored contours. The host keeps only the scene transform and
     // target-contour mirroring that are not part of the document projection.
     let target = match &scope.instance_id {
-        Some(instance_id) => boardstudio_core::mechanical::MechanicalTarget::Instance {
+        Some(instance_id) => boardstudio_core_mechanical::mechanical::MechanicalTarget::Instance {
             instance_id: instance_id.clone(),
         },
-        None => boardstudio_core::mechanical::MechanicalTarget::Board {
+        None => boardstudio_core_mechanical::mechanical::MechanicalTarget::Board {
             board_id: scope.board_id.clone(),
         },
     };
     let (effective, _target_contours) =
-        boardstudio_core::mechanical::inputs::effective_document(document, &target)
+        boardstudio_core_mechanical::mechanical::inputs::effective_document(document, &target)
             .map_err(CadJobError::Blocked)?;
 
     let mut effective_scene = scene.clone();
@@ -430,14 +430,18 @@ fn target_case_findings_are_clear(
     scope: &Scope,
 ) -> bool {
     let target = match &scope.instance_id {
-        Some(instance_id) => boardstudio_core::mechanical::MechanicalTarget::Instance {
+        Some(instance_id) => boardstudio_core_mechanical::mechanical::MechanicalTarget::Instance {
             instance_id: instance_id.clone(),
         },
-        None => boardstudio_core::mechanical::MechanicalTarget::Board {
+        None => boardstudio_core_mechanical::mechanical::MechanicalTarget::Board {
             board_id: scope.board_id.clone(),
         },
     };
-    match boardstudio_core::mechanical::effective_inputs(document, &scene.board_contours, &target) {
+    match boardstudio_core_mechanical::mechanical::effective_inputs(
+        document,
+        &scene.board_contours,
+        &target,
+    ) {
         // Core owns the rule; the adapter only selects the target.
         Ok(inputs) => inputs.case_findings_are_clear(),
         // An unresolvable target is decided by the shared board-level admission.
@@ -485,7 +489,7 @@ fn preparation_request(
     // authority for this half's Case problems. A conflict that names a sibling half of
     // the same PCB is not this target's problem, while this target's own conflict blocks
     // its case generation even though the board-level admission cannot see the half.
-    if !boardstudio_core::case_preparation_ready(
+    if !boardstudio_model::case_readiness::case_preparation_ready(
         &effective_document,
         &effective_scene,
         &scope.board_id,
@@ -545,7 +549,7 @@ fn preparation_request(
 mod tests {
     use super::*;
     use boardstudio_application::{SessionEpoch, SnapshotToken};
-    use boardstudio_core::model::{
+    use boardstudio_model::model::{
         Board, BoardContours, BoardReadiness, CaseBody, CaseKind, SceneDelta,
     };
 
@@ -719,7 +723,7 @@ mod tests {
                 controller_part_id: None,
                 mechanical: None,
                 construction_ownership:
-                    boardstudio_core::model::MechanicalConstructionOwnership::Legacy,
+                    boardstudio_model::model::MechanicalConstructionOwnership::Legacy,
                 mechanical_identity_reservation: None,
             }],
             ..HardwareConfiguration::default()
@@ -877,7 +881,7 @@ mod tests {
             findings: vec![Finding {
                 id: "case:plate:material".into(),
                 severity: Severity::Error,
-                scope: boardstudio_core::model::Scope::Case,
+                scope: boardstudio_model::model::Scope::Case,
                 message: "Case material is missing".into(),
                 target_ids: vec!["plate".into(), "pla".into()],
             }],
@@ -969,7 +973,7 @@ mod tests {
     #[cfg(feature = "page")]
     #[test]
     fn case_admission_is_scoped_to_the_selected_half_of_a_shared_pcb() {
-        use boardstudio_core::model::{
+        use boardstudio_model::model::{
             HardwareConfiguration, HardwareTopology, HardwareTransport, MechanicalConfiguration,
             MechanicalConstructionOwnership, MechanicalFeature, MechanicalFeatureMember,
             MechanicalFeatureState, MechanicalFeatureValue, MechanicalMirrorPair, Mount, MountKind,
@@ -1062,7 +1066,7 @@ mod tests {
                 mount("mount-encoder", -2.0, 3.0),
             ],
         );
-        let construction = boardstudio_core::mechanical::features::shared_construction(
+        let construction = boardstudio_core_mechanical::mechanical::features::shared_construction(
             left.mechanical.as_ref().unwrap(),
         );
         document.hardware = Some(HardwareConfiguration {

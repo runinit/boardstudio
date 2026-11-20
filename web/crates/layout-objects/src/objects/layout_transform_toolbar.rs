@@ -4446,6 +4446,7 @@ pub fn LayoutAnchorPickOverlay(
     let hover_ring = {
         let document = document.clone();
         let context = context.clone();
+        let open_scratch = runtime.0.core_services().open_scratch;
         let current_label = current_label.clone();
         let item_label = item_label.clone();
         Rc::new(move |target: Option<PickTarget>| {
@@ -4455,7 +4456,12 @@ pub fn LayoutAnchorPickOverlay(
             hovered_target.set(target.clone());
             match target {
                 Some(target) => {
-                    preview.set(preview_anchor_poses(&document, &context, &target));
+                    preview.set(preview_anchor_poses(
+                        &document,
+                        &context,
+                        &target,
+                        open_scratch,
+                    ));
                     feedback.set(advance_feedback(
                         &feedback(),
                         FeedbackEvent::Choose {

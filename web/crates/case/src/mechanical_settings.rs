@@ -5,11 +5,11 @@ pub use crate::mechanical_feedback::{
 };
 use crate::mechanical_pair::{MechanicalPairFeatureRow, MechanicalPairLinkOption, feature_label};
 use crate::mechanical_settings_controller::use_bound_mechanical_field;
-pub use boardstudio_core::mechanical::change::{
+pub use boardstudio_core_mechanical::mechanical::change::{
     MechanicalChange as MechanicalSettingsPatch, MechanicalCriticalFitTextField,
     MechanicalDimension, MechanicalHardwareTextField, MechanicalMountCollection,
 };
-use boardstudio_core::model::{
+use boardstudio_model::model::{
     CaseOpening, GasketPlacement, HardwareTransport, InsertInstallation, InternalClosureHardware,
     MAX_COORDINATE_MM, MechanicalBattery, MechanicalBottomStyle, MechanicalBuiltinProfile,
     MechanicalCriticalFit, MechanicalExtraction, MechanicalFeatureState, MechanicalGasketAnchor,
@@ -5382,7 +5382,7 @@ mod migration_tests;
 mod contextual_layer_tests {
     use super::*;
     use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
-    use boardstudio_core::model::{MechanicalFeatureKind, MechanicalOpeningVertex, Vec2, Vec3};
+    use boardstudio_model::model::{MechanicalFeatureKind, MechanicalOpeningVertex, Vec2, Vec3};
     use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::{
         test_role::{all_by_role_name, by_role_name},
@@ -5744,23 +5744,23 @@ mod contextual_layer_tests {
                 let mut extracted_definition_ids = extracted_definition_ids;
                 extracted_definition_ids.with_mut(|ids| ids.push(definition_id.clone()));
                 Box::pin(async move {
-                    let request = boardstudio_core::model::ArtifactRequest::ExtractMechanical {
+                    let request = boardstudio_model::model::ArtifactRequest::ExtractMechanical {
                         id: "profile-extraction-test".to_owned(),
                         source: CUSTOM_PROFILE_FOOTPRINT.to_owned(),
                         mappings,
                         max_deviation_mm: 0.005,
                     };
-                    let reply = boardstudio_core::artifact_request(
+                    let reply = boardstudio_core_artifact::artifact::request(
                         &serde_json::to_string(&request).unwrap(),
                     );
-                    match serde_json::from_str::<boardstudio_core::model::ArtifactReply>(&reply)
+                    match serde_json::from_str::<boardstudio_model::model::ArtifactReply>(&reply)
                         .unwrap()
                     {
-                        boardstudio_core::model::ArtifactReply::ExtractMechanical {
+                        boardstudio_model::model::ArtifactReply::ExtractMechanical {
                             result,
                             ..
                         } => Ok(result),
-                        boardstudio_core::model::ArtifactReply::Error { error, .. } => {
+                        boardstudio_model::model::ArtifactReply::Error { error, .. } => {
                             Err(error.message)
                         }
                         reply => panic!("unexpected mechanical extraction reply: {reply:?}"),
@@ -5866,9 +5866,9 @@ mod contextual_layer_tests {
                 .unwrap()
                 .is_connected()
         );
-        let geometry = boardstudio_core::artifact_request(
+        let geometry = boardstudio_core_artifact::artifact::request(
             &serde_json::to_string(
-                &boardstudio_core::model::ArtifactRequest::ExtractMechanical {
+                &boardstudio_model::model::ArtifactRequest::ExtractMechanical {
                     id: "ids".into(),
                     source: CUSTOM_PROFILE_FOOTPRINT.into(),
                     mappings: vec![],
@@ -5877,7 +5877,7 @@ mod contextual_layer_tests {
             )
             .unwrap(),
         );
-        let boardstudio_core::model::ArtifactReply::ExtractMechanical { result, .. } =
+        let boardstudio_model::model::ArtifactReply::ExtractMechanical { result, .. } =
             serde_json::from_str(&geometry).unwrap()
         else {
             panic!("geometry")
@@ -8046,7 +8046,7 @@ mod contextual_layer_tests {
                 }),
                 construction_source: "left".into(),
                 correspondences: vec![
-                    boardstudio_core::mechanical::change::MechanicalFeatureCorrespondence {
+                    boardstudio_core_mechanical::mechanical::change::MechanicalFeatureCorrespondence {
                         kind: MechanicalFeatureKind::Mount,
                         first_feature_id: "mount-1".into(),
                         second_feature_id: "mount-1".into(),
@@ -8087,7 +8087,7 @@ mod contextual_layer_tests {
                 derived_mapping: None,
                 construction_source: "left".into(),
                 correspondences: vec![
-                    boardstudio_core::mechanical::change::MechanicalFeatureCorrespondence {
+                    boardstudio_core_mechanical::mechanical::change::MechanicalFeatureCorrespondence {
                         kind: MechanicalFeatureKind::Mount,
                         first_feature_id: "mount-1-left".into(),
                         second_feature_id: "mount-1-right".into(),
@@ -8114,7 +8114,7 @@ mod contextual_layer_tests {
     /// given, which is what the review displays and commits.
     fn echo_projection_port() -> crate::mechanical_pair::MechanicalPairProjectionPort {
         crate::mechanical_pair::MechanicalPairProjectionPort(Rc::new(|change| {
-            let boardstudio_core::mechanical::change::MechanicalChange::LinkMirrorPair {
+            let boardstudio_core_mechanical::mechanical::change::MechanicalChange::LinkMirrorPair {
                 mapping,
                 ..
             } = change
@@ -8352,7 +8352,7 @@ mod mounted_settlement_tests {
     };
     use crate::runtime::{Runtime, project_name_test_support as support};
     use boardstudio_application::Event;
-    use boardstudio_core::model::{
+    use boardstudio_model::model::{
         GasketConstructionVersion, InternalGasketConfiguration, PartDefinition, ProjectDoc,
     };
     use boardstudio_web_ui_shared::test_mount::MountedFixture;

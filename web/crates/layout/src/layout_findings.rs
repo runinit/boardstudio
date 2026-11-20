@@ -1,7 +1,7 @@
 //! Layout's findings page and guarded navigation request.
 use super::keycaps_fit::{self, FindingNavigationTarget};
 use boardstudio_application::{Scope, SnapshotToken};
-use boardstudio_core::model::{Finding, ProjectDoc, Severity};
+use boardstudio_model::model::{Finding, ProjectDoc, Severity};
 use boardstudio_web_ui_shared::ui::{
     badge::{Badge, BadgeVariant},
     button::{Button, ButtonSize, ButtonVariant},
@@ -246,7 +246,7 @@ pub fn target_has_live_layout_destination(
 mod tests {
     use super::*;
     use boardstudio_application::SessionEpoch;
-    use boardstudio_core::model::{Board, Part, Pose2, Scope as FindingScope, Side, Vec2};
+    use boardstudio_model::model::{Board, Part, Pose2, Scope as FindingScope, Side, Vec2};
     use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
     use std::cell::RefCell;

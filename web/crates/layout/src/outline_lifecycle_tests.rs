@@ -10,12 +10,14 @@ use crate::outline::adapter::{self, Admission};
 use crate::outline::planner::{OutlineAction, OutlinePointTarget};
 use crate::outline_settings::{OutlineEdit, generated_feature, reference_outline_settings};
 use boardstudio_application::{AcceptedSnapshot, Scope, SessionEpoch};
-use boardstudio_core::model::{
+use boardstudio_core_kernel::outline_edit::{
+    OutlineChange, OutlineEditDisposition, OutlineEditTarget,
+};
+use boardstudio_model::model::{
     Board, BoardOutline, Contour, EditOperation, EditPhase, Operation, OutlineFeature,
     OutlineOwnership, OutlineProvenance, OutlineSnapshot, OutlineVersion, ProjectDoc, Readiness,
     SceneDelta, Vec2,
 };
-use boardstudio_core::outline_edit::{OutlineChange, OutlineEditDisposition, OutlineEditTarget};
 use boardstudio_web_ui_model::tree::TreeContext;
 use std::sync::Arc;
 
@@ -23,7 +25,7 @@ const BOARD: &str = "board";
 
 #[test]
 fn explicit_connection_joins_mirrored_layouts_inside_one_outline() {
-    use boardstudio_core::model::{CoreReply, CoreRequest};
+    use boardstudio_model::model::{CoreReply, CoreRequest};
     use serde_json::json;
 
     let mut input: serde_json::Value = serde_json::from_str(include_str!(
@@ -203,7 +205,7 @@ fn scene(source_contours: Vec<Contour>) -> SceneDelta {
         contours: vec![],
         board_contours: vec![],
         board_readiness: vec![],
-        board_outline_scenes: vec![boardstudio_core::model::BoardOutlineScene {
+        board_outline_scenes: vec![boardstudio_model::model::BoardOutlineScene {
             board_id: BOARD.into(),
             source_contours,
             bridges: vec![],
@@ -269,7 +271,7 @@ fn edit_for(
     document: &ProjectDoc,
     action: &OutlineAction,
     seed: u64,
-) -> boardstudio_core::outline_edit::OutlineEdit {
+) -> boardstudio_core_kernel::outline_edit::OutlineEdit {
     adapter::outline_edit(&snapshot(document.clone()), action, seed)
         .expect("the action maps to one typed outline edit")
 }
@@ -318,7 +320,7 @@ fn activation_of_a_gone_version_settles_as_a_retirement_with_a_reason() {
     let document = document();
     let edit = edit_for(&document, &action, 1);
     assert!(matches!(
-        boardstudio_core::outline_edit::evaluate(&document, &edit),
+        boardstudio_core_kernel::outline_edit::evaluate(&document, &edit),
         Ok(OutlineEditDisposition::Retire)
     ));
     assert_eq!(
@@ -354,7 +356,7 @@ fn activating_generated_one_action_is_one_board_target_edit() {
     assert_eq!(edit.seed, 2, "the creation seed travels with the edit");
     assert!(edit.reviewed.is_none());
     let mut accepted = document.clone();
-    boardstudio_core::outline_edit::apply(&mut accepted, &edit).unwrap();
+    boardstudio_core_kernel::outline_edit::apply(&mut accepted, &edit).unwrap();
     assert!(accepted.board_outlines[0].active_version_id.is_none());
     // One operation, one revision: the in-place generated edit is not a replacement.
     let mut original = document.clone();
@@ -390,7 +392,7 @@ fn a_connection_action_supplies_the_board_bridge_width_explicitly() {
         Admission::Submit
     );
     let mut accepted = document;
-    boardstudio_core::outline_edit::apply(&mut accepted, &edit).unwrap();
+    boardstudio_core_kernel::outline_edit::apply(&mut accepted, &edit).unwrap();
     let OutlineFeature::PartEnvelope { connections, .. } =
         generated_feature(&accepted, &accepted.boards[0]).unwrap()
     else {
@@ -420,7 +422,7 @@ fn add_feature_on_generated_submits_one_feature_change_and_core_names_the_versio
     assert!(matches!(edit.target, OutlineEditTarget::Board { .. }));
     assert!(matches!(edit.change, OutlineChange::AddFeature { .. }));
     let mut accepted = document.clone();
-    boardstudio_core::outline_edit::apply(&mut accepted, &edit).unwrap();
+    boardstudio_core_kernel::outline_edit::apply(&mut accepted, &edit).unwrap();
     assert_eq!(
         accepted.board_outlines[0].active_version_id.as_deref(),
         Some("outline-version-4")
@@ -456,7 +458,7 @@ fn malformed_perimeter_points_surface_a_core_error_and_change_nothing() {
     };
     let document = generated_active();
     let edit = edit_for(&document, &action, 5);
-    let error = boardstudio_core::outline_edit::evaluate(&document, &edit)
+    let error = boardstudio_core_kernel::outline_edit::evaluate(&document, &edit)
         .expect_err("two points is malformed submitted geometry");
     assert!(error.contains("three finite points"), "{error}");
     assert_eq!(
@@ -464,7 +466,7 @@ fn malformed_perimeter_points_surface_a_core_error_and_change_nothing() {
         Admission::Malformed
     );
     let mut untouched = document.clone();
-    assert!(boardstudio_core::outline_edit::apply(&mut untouched, &edit).is_err());
+    assert!(boardstudio_core_kernel::outline_edit::apply(&mut untouched, &edit).is_err());
     assert_eq!(untouched, document, "a malformed edit mutates nothing");
     // The hook still submits it so Core's own message reaches the user.
     match adapter::settle(&snapshot(document), &edit, &action, String::new()) {
@@ -578,7 +580,7 @@ fn a_version_edit_retires_when_another_version_becomes_active() {
     );
     let before = activated.board_outlines[0].versions[0].clone();
     assert!(matches!(
-        boardstudio_core::outline_edit::evaluate(&activated, &edit),
+        boardstudio_core_kernel::outline_edit::evaluate(&activated, &edit),
         Ok(OutlineEditDisposition::Retire)
     ));
     assert_eq!(
@@ -642,13 +644,13 @@ fn two_queued_field_edits_carry_distinct_seeds_and_both_settle_in_order() {
     let second_edit = adapter::outline_edit(&snapshot(document.clone()), &second, 12).unwrap();
     assert_ne!(first_edit.seed, second_edit.seed);
     let mut accepted = document;
-    boardstudio_core::outline_edit::apply(&mut accepted, &first_edit).unwrap();
+    boardstudio_core_kernel::outline_edit::apply(&mut accepted, &first_edit).unwrap();
     // The second edit is re-evaluated against the document the first one landed on.
     assert_eq!(
         adapter::admission(&snapshot(accepted.clone()), &second_edit),
         Admission::Submit
     );
-    boardstudio_core::outline_edit::apply(&mut accepted, &second_edit).unwrap();
+    boardstudio_core_kernel::outline_edit::apply(&mut accepted, &second_edit).unwrap();
     let OutlineFeature::PartEnvelope { margin, .. } =
         generated_feature(&accepted, &accepted.boards[0]).unwrap()
     else {
@@ -684,20 +686,20 @@ fn copy_names_and_identities_come_from_the_accepted_document() {
 fn gap_check_and_uncheck_address_the_candidate_gap_by_its_own_id() {
     let (scope, token, revision, generation, board_id) = envelope();
     let document = generated_active();
-    let candidate = boardstudio_core::model::OutlineGap {
+    let candidate = boardstudio_model::model::OutlineGap {
         id: "gap-1".into(),
         feature_id: "generated".into(),
         span: 3.0,
         points: vec![
-            boardstudio_core::model::OutlineControlPoint {
+            boardstudio_model::model::OutlineControlPoint {
                 at: Vec2 { x: 1.0, y: 2.0 },
                 part_id: None,
             },
-            boardstudio_core::model::OutlineControlPoint {
+            boardstudio_model::model::OutlineControlPoint {
                 at: Vec2 { x: 4.0, y: 2.0 },
                 part_id: None,
             },
-            boardstudio_core::model::OutlineControlPoint {
+            boardstudio_model::model::OutlineControlPoint {
                 at: Vec2 { x: 1.0, y: 5.0 },
                 part_id: None,
             },
@@ -707,7 +709,7 @@ fn gap_check_and_uncheck_address_the_candidate_gap_by_its_own_id() {
     };
     let mut candidate_snapshot = snapshot(document.clone());
     candidate_snapshot.scene = std::sync::Arc::new(SceneDelta {
-        board_outline_scenes: vec![boardstudio_core::model::BoardOutlineScene {
+        board_outline_scenes: vec![boardstudio_model::model::BoardOutlineScene {
             board_id: BOARD.into(),
             source_contours: vec![],
             bridges: vec![],
@@ -738,7 +740,7 @@ fn gap_check_and_uncheck_address_the_candidate_gap_by_its_own_id() {
         "protecting stores the candidate's points, so it reviews the source they came from"
     );
     let mut accepted = document.clone();
-    boardstudio_core::outline_edit::apply(&mut accepted, &check_edit).unwrap();
+    boardstudio_core_kernel::outline_edit::apply(&mut accepted, &check_edit).unwrap();
 
     // Unchecking passes the same candidate id; Core clears every id protecting it and
     // reports the removed ids, so the adapter needs no alias knowledge of its own.
@@ -761,7 +763,8 @@ fn gap_check_and_uncheck_address_the_candidate_gap_by_its_own_id() {
         panic!("unchecking a candidate is one typed RemoveProtectedGap change");
     };
     assert_eq!(gap_id, &candidate.id);
-    let changed = boardstudio_core::outline_edit::apply(&mut accepted, &uncheck_edit).unwrap();
+    let changed =
+        boardstudio_core_kernel::outline_edit::apply(&mut accepted, &uncheck_edit).unwrap();
     assert!(
         changed.contains(&candidate.id),
         "the removal reports the clear id: {changed:?}"
@@ -787,16 +790,16 @@ fn generate_is_one_typed_edit_that_registers_the_envelope_and_its_board_membersh
     document.outline.clear();
     document.boards[0].outline_ids.clear();
     document.boards[0].part_ids = vec!["part-1".into()];
-    document.parts.push(boardstudio_core::model::Part {
+    document.parts.push(boardstudio_model::model::Part {
         id: "part-1".into(),
         definition_id: "switch".into(),
         reference: "SW1".into(),
-        pose: boardstudio_core::model::Pose2 {
+        pose: boardstudio_model::model::Pose2 {
             at: Vec2 { x: 0.0, y: 0.0 },
             rotation: 0.0,
         },
         anchor: None,
-        side: boardstudio_core::model::Side::Front,
+        side: boardstudio_model::model::Side::Front,
         locked: None,
         keycap: None,
         outline: None,
@@ -836,7 +839,7 @@ fn generate_is_one_typed_edit_that_registers_the_envelope_and_its_board_membersh
 
     // One accepted edit registers the envelope and the board membership together.
     let mut accepted = document.clone();
-    let changed = boardstudio_core::outline_edit::apply(&mut accepted, &edit).unwrap();
+    let changed = boardstudio_core_kernel::outline_edit::apply(&mut accepted, &edit).unwrap();
     let feature_id = "board:board:automatic:outline:13";
     assert_eq!(changed, vec![BOARD.to_owned(), feature_id.to_owned()]);
     assert!(
@@ -859,7 +862,7 @@ fn generate_is_one_typed_edit_that_registers_the_envelope_and_its_board_membersh
         Admission::Ignore
     );
     assert!(matches!(
-        boardstudio_core::outline_edit::evaluate(&accepted, &edit),
+        boardstudio_core_kernel::outline_edit::evaluate(&accepted, &edit),
         Ok(OutlineEditDisposition::Unchanged)
     ));
 }
@@ -889,7 +892,7 @@ fn a_created_version_identity_never_reuses_a_retired_one() {
     assert_eq!(version_id, "outline-version-13-2");
     // Core agrees: the edit applies rather than being refused for a reserved identity.
     let mut accepted = document.clone();
-    let changed = boardstudio_core::outline_edit::apply(&mut accepted, &edit).unwrap();
+    let changed = boardstudio_core_kernel::outline_edit::apply(&mut accepted, &edit).unwrap();
     assert!(changed.contains(version_id));
 }
 
@@ -918,7 +921,7 @@ fn refine_is_one_typed_edit_that_creates_and_selects_a_linked_refinement() {
         Admission::Submit
     );
     let mut accepted = document.clone();
-    let changed = boardstudio_core::outline_edit::apply(&mut accepted, &edit).unwrap();
+    let changed = boardstudio_core_kernel::outline_edit::apply(&mut accepted, &edit).unwrap();
     assert_eq!(changed, vec![BOARD.to_owned(), version_id.clone()]);
     let state = &accepted.board_outlines[0];
     assert_eq!(
@@ -939,16 +942,16 @@ fn refine_is_one_typed_edit_that_creates_and_selects_a_linked_refinement() {
     // component change is reflected in its resolved projection without re-creating it.
     let before = created.geometry.features.clone();
     accepted.boards[0].part_ids.push("part-1".into());
-    accepted.parts.push(boardstudio_core::model::Part {
+    accepted.parts.push(boardstudio_model::model::Part {
         id: "part-1".into(),
         definition_id: "switch".into(),
         reference: "SW1".into(),
-        pose: boardstudio_core::model::Pose2 {
+        pose: boardstudio_model::model::Pose2 {
             at: Vec2 { x: 0.0, y: 0.0 },
             rotation: 0.0,
         },
         anchor: None,
-        side: boardstudio_core::model::Side::Front,
+        side: boardstudio_model::model::Side::Front,
         locked: None,
         keycap: None,
         outline: None,
@@ -987,7 +990,7 @@ fn freeze_is_one_typed_edit_that_keeps_the_linked_version_and_selects_the_copy()
     };
     assert_eq!(name, "Edited outline 2");
     let mut accepted = document.clone();
-    let changed = boardstudio_core::outline_edit::apply(&mut accepted, &edit).unwrap();
+    let changed = boardstudio_core_kernel::outline_edit::apply(&mut accepted, &edit).unwrap();
     let state = &accepted.board_outlines[0];
     assert_eq!(state.versions.len(), 2, "one operation creates one copy");
     let linked = state
@@ -1032,20 +1035,20 @@ fn a_gap_focus_is_not_an_edit() {
 fn a_draft_connection_width_is_refused_by_core_rather_than_defaulted() {
     // The adapter supplies the board's bridge width; a non-positive width on the wire is
     // malformed and Core refuses it with no mutation.
-    let edit = boardstudio_core::outline_edit::OutlineEdit {
+    let edit = boardstudio_core_kernel::outline_edit::OutlineEdit {
         target: OutlineEditTarget::Board {
             board_id: BOARD.into(),
         },
         change: OutlineChange::AddConnection {
-            connection: boardstudio_core::model::OutlineConnection {
+            connection: boardstudio_model::model::OutlineConnection {
                 id: "outline-connection-1".into(),
                 width: 0.0,
                 points: vec![
-                    boardstudio_core::model::OutlineControlPoint {
+                    boardstudio_model::model::OutlineControlPoint {
                         at: Vec2 { x: 0.0, y: 0.0 },
                         part_id: None,
                     },
-                    boardstudio_core::model::OutlineControlPoint {
+                    boardstudio_model::model::OutlineControlPoint {
                         at: Vec2 { x: 1.0, y: 0.0 },
                         part_id: None,
                     },
@@ -1056,7 +1059,7 @@ fn a_draft_connection_width_is_refused_by_core_rather_than_defaulted() {
         reviewed: None,
     };
     let document = generated_active();
-    let error = boardstudio_core::outline_edit::evaluate(&document, &edit)
+    let error = boardstudio_core_kernel::outline_edit::evaluate(&document, &edit)
         .expect_err("a zero width is malformed");
     assert!(error.contains("positive finite"), "{error}");
     let operation = EditOperation::ApplyOutlineEdit {

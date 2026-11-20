@@ -9,11 +9,11 @@
 use super::planner::{OutlineAction, OutlinePointTarget};
 use crate::outline_settings::{OutlineEdit as OutlineSettingEdit, generated_feature};
 use boardstudio_application::{AcceptedSnapshot, Resolution};
-use boardstudio_core::model::{
-    Board, Contour, EditOperation, OutlineConnection, OutlineFeature, ProjectDoc,
-};
-use boardstudio_core::outline_edit::{
+use boardstudio_core_kernel::outline_edit::{
     OutlineChange, OutlineEdit, OutlineEditDisposition, OutlineEditTarget,
+};
+use boardstudio_model::model::{
+    Board, Contour, EditOperation, OutlineConnection, OutlineFeature, ProjectDoc,
 };
 use boardstudio_web_ui_model::tree::TreeContext;
 
@@ -45,7 +45,7 @@ fn all_version_ids(document: &ProjectDoc) -> Vec<String> {
 }
 
 /// The next non-duplicating `Edited outline N` name on this board.
-fn next_edited_outline_name(state: Option<&boardstudio_core::model::BoardOutline>) -> String {
+fn next_edited_outline_name(state: Option<&boardstudio_model::model::BoardOutline>) -> String {
     let next_number = state
         .into_iter()
         .flat_map(|state| &state.versions)
@@ -411,7 +411,7 @@ pub fn outline_edit(
                         if index == 0 || index + 1 == points.len() {
                             super::planner::outline_connection_control(*point, &eligible)
                         } else {
-                            boardstudio_core::model::OutlineControlPoint {
+                            boardstudio_model::model::OutlineControlPoint {
                                 at: *point,
                                 part_id: None,
                             }
@@ -565,7 +565,7 @@ pub fn settle(
     action: &OutlineAction,
     transaction_id: String,
 ) -> Resolution {
-    match boardstudio_core::outline_edit::evaluate(accepted.document.as_ref(), edit) {
+    match boardstudio_core_kernel::outline_edit::evaluate(accepted.document.as_ref(), edit) {
         Ok(OutlineEditDisposition::Changed) => Resolution::submit_with_transaction_id(
             target_ids(action),
             transaction_id,
@@ -581,7 +581,7 @@ pub fn settle(
 
 /// Admission at dispatch: whether the action is worth submitting a pending ticket for.
 pub fn admission(accepted: &AcceptedSnapshot, edit: &OutlineEdit) -> Admission {
-    match boardstudio_core::outline_edit::evaluate(accepted.document.as_ref(), edit) {
+    match boardstudio_core_kernel::outline_edit::evaluate(accepted.document.as_ref(), edit) {
         Ok(OutlineEditDisposition::Changed) => Admission::Submit,
         Ok(OutlineEditDisposition::Unchanged) | Ok(OutlineEditDisposition::Retire) => {
             Admission::Ignore

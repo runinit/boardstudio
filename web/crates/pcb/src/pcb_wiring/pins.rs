@@ -6,10 +6,8 @@ use crate::{
     runtime::Runtime,
 };
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution};
-use boardstudio_core::{
-    electrical::{ElectricalMode, ElectricalPlan},
-    model::{EditOperation, ProjectDoc},
-};
+use boardstudio_core_mechanical::electrical::{ElectricalMode, ElectricalPlan};
+use boardstudio_model::model::{EditOperation, ProjectDoc};
 use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
 use dioxus::prelude::*;
 use std::{cell::RefCell, rc::Rc};
@@ -247,7 +245,7 @@ fn pins_resolver(request: PcbWiringPinEditRequest) -> EditResolver {
         {
             return Resolution::Retire("The board was deleted.".into());
         }
-        let boardstudio_core::model::CoreRequest::ResolveElectrical {
+        let boardstudio_model::model::CoreRequest::ResolveElectrical {
             request: electrical_request,
             ..
         } = crate::pcb_wiring_mode_operation::electrical_preview_request(
@@ -258,7 +256,7 @@ fn pins_resolver(request: PcbWiringPinEditRequest) -> EditResolver {
         else {
             unreachable!()
         };
-        let plan = boardstudio_core::electrical::resolve(electrical_request);
+        let plan = boardstudio_core_mechanical::electrical::resolve(electrical_request);
         if !pin_edit_is_available(
             &accepted.document,
             &plan,

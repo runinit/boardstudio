@@ -1,6 +1,6 @@
 //! Mount the public Inspector; ModuleAttachment retains its own connection draft and validation.
 #[cfg(target_arch = "wasm32")]
-use boardstudio_core::model::*;
+use boardstudio_model::model::*;
 #[cfg(target_arch = "wasm32")]
 use boardstudio_web_parts::parts::*;
 #[cfg(target_arch = "wasm32")]

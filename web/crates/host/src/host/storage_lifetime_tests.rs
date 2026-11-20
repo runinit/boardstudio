@@ -1,5 +1,5 @@
 use super::*;
-use boardstudio_core::migrate::CURRENT_VERSION;
+use boardstudio_core_kernel::migrate::CURRENT_VERSION;
 use wasm_bindgen_test::*;
 
 wasm_bindgen_test_configure!(run_in_browser);
@@ -232,7 +232,7 @@ async fn version_3_closure_project_is_refused_without_rewriting_saved_strings() 
     let store = BrowserStore::new(&database_name).unwrap();
     let mut document = ProjectDoc::empty("closure", "Version 3 closure");
     document.format_version = 3;
-    let mut definition = boardstudio_core::generators::catalogue()
+    let mut definition = boardstudio_core_kernel::generators::catalogue()
         .unwrap()
         .into_iter()
         .find(|d| d.generator.as_ref().unwrap().source == "ceoloide/mounting_hole_npth")
@@ -302,7 +302,7 @@ async fn legacy_generator_project_is_refused_with_saved_data_and_assets_intact()
     let store = BrowserStore::new(&database_name).unwrap();
     let mut document = ProjectDoc::empty("legacy", "Legacy generator");
     document.format_version = 1;
-    let mut definition = boardstudio_core::generators::catalogue()
+    let mut definition = boardstudio_core_kernel::generators::catalogue()
         .unwrap()
         .into_iter()
         .find(|d| d.generator.as_ref().unwrap().source == "ceoloide/mounting_hole_npth")
@@ -518,7 +518,7 @@ async fn a_mechanical_pair_round_trips_through_indexeddb() {
         loaded.mechanical, saved.mechanical,
         "opening/vertex identity reservations round-trip through the browser store"
     );
-    boardstudio_core::mechanical::features::validate(&loaded)
+    boardstudio_core_mechanical::mechanical::features::validate(&loaded)
         .expect("the reopened project's pair is still consistent");
 
     window()
@@ -601,9 +601,9 @@ fn applied(
     document: &ProjectDoc,
     base_revision: u64,
     target_ids: Vec<String>,
-    edit: boardstudio_core::mechanical::change::MechanicalEdit,
+    edit: boardstudio_core_mechanical::mechanical::change::MechanicalEdit,
 ) -> ProjectDoc {
-    use boardstudio_core::model::{CoreReply, CoreRequest, EditCommand, EditOperation, EditPhase};
+    use boardstudio_model::model::{CoreReply, CoreRequest, EditCommand, EditOperation, EditPhase};
     let mut engine = boardstudio_core::CoreEngine::new();
     match engine.handle(CoreRequest::Open {
         id: "storage-open".into(),
@@ -638,7 +638,7 @@ fn applied(
 /// the reservation has to survive a save and reopen for that promise to hold.
 #[wasm_bindgen_test]
 async fn a_disabled_pairs_identity_reservation_survives_indexeddb() {
-    use boardstudio_core::mechanical::change::{
+    use boardstudio_core_mechanical::mechanical::change::{
         MechanicalChange, MechanicalEdit, MechanicalTarget,
     };
     let database_name = format!("boardstudio-idb-reservation-{}", js_sys::Date::now());
@@ -859,7 +859,7 @@ async fn stale_tab_save_preserves_the_other_tabs_document() {
     let name = format!("boardstudio-conflict-{}", js_sys::Date::now());
     let first = BrowserStore::new(&name).unwrap();
     let second = BrowserStore::new(&name).unwrap();
-    let mut document = boardstudio_core::model::ProjectDoc::empty("conflict", "Original");
+    let mut document = boardstudio_model::model::ProjectDoc::empty("conflict", "Original");
     document.id = "conflict".into();
     first
         .save_document(&document, &Default::default())
@@ -901,7 +901,7 @@ async fn concurrent_same_token_saves_leave_exactly_one_winner() {
     let name = format!("boardstudio-same-token-{}", js_sys::Date::now());
     let first = BrowserStore::new(&name).unwrap();
     let second = BrowserStore::new(&name).unwrap();
-    let mut document = boardstudio_core::model::ProjectDoc::empty("race", "Original");
+    let mut document = boardstudio_model::model::ProjectDoc::empty("race", "Original");
     document.id = "race".into();
     // Both writers observe the same stored token before either one writes.
     let token = first
@@ -1415,14 +1415,14 @@ async fn storage_tokens_survive_javascript_integer_float_normalization() {
     })).unwrap());
     document
         .outline
-        .push(boardstudio_core::model::OutlineFeature::Rect {
+        .push(boardstudio_model::model::OutlineFeature::Rect {
             id: "numeric-outline".into(),
             rotation: Some(-0.0),
             anchor_part_id: None,
-            center: boardstudio_core::model::Vec2 { x: -0.0, y: 1.0 },
-            size: boardstudio_core::model::Vec2 { x: 20.0, y: 20.0 },
+            center: boardstudio_model::model::Vec2 { x: -0.0, y: 1.0 },
+            size: boardstudio_model::model::Vec2 { x: 20.0, y: 20.0 },
             radius: 0.0,
-            operation: boardstudio_core::model::Operation::Add,
+            operation: boardstudio_model::model::Operation::Add,
         });
     let token = store
         .save_document_expected(&document, &Default::default(), None)
@@ -1524,8 +1524,8 @@ async fn tokenless_unreadable_record_deletes_by_key_where_guarded_delete_refuses
 async fn delete_project_by_key_removes_one_record_without_a_token() {
     let database_name = format!("boardstudio-idb-by-key-{}", js_sys::Date::now());
     let store = BrowserStore::new(database_name.clone()).unwrap();
-    let kept = boardstudio_core::model::ProjectDoc::empty("by-key-kept", "Kept board");
-    let removed = boardstudio_core::model::ProjectDoc::empty("by-key-removed", "Removed board");
+    let kept = boardstudio_model::model::ProjectDoc::empty("by-key-kept", "Kept board");
+    let removed = boardstudio_model::model::ProjectDoc::empty("by-key-removed", "Removed board");
     store
         .save_document(&kept, &Default::default())
         .await

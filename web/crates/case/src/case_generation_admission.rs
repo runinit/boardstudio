@@ -4,8 +4,8 @@
 //! by `cad_jobs::preparation_request`. Keep the presentation path allocation-
 //! free because it evaluates during ordinary renders.
 
-use boardstudio_core::mechanical::{MechanicalTarget, effective_inputs};
-use boardstudio_core::model::{ProjectDoc, SceneDelta};
+use boardstudio_core_mechanical::mechanical::{MechanicalTarget, effective_inputs};
+use boardstudio_model::model::{ProjectDoc, SceneDelta};
 
 /// Whether the selected target may generate Case output.
 ///
@@ -21,7 +21,9 @@ pub fn is_ready(
     configured: bool,
     instance_id: Option<&str>,
 ) -> bool {
-    if !boardstudio_core::case_preparation_ready(document, scene, board_id, configured) {
+    if !boardstudio_model::case_readiness::case_preparation_ready(
+        document, scene, board_id, configured,
+    ) {
         return false;
     }
     let target = match instance_id {
@@ -56,7 +58,7 @@ pub fn default_case_material(document: &ProjectDoc) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use boardstudio_core::model::{
+    use boardstudio_model::model::{
         Board, BoardContours, BoardReadiness, CaseBody, CaseKind, Contour, Finding, Readiness,
         Severity, Vec2,
     };
@@ -94,7 +96,7 @@ mod tests {
             findings: vec![Finding {
                 id: "case:plate:material".into(),
                 severity: Severity::Error,
-                scope: boardstudio_core::model::Scope::Case,
+                scope: boardstudio_model::model::Scope::Case,
                 message: "Case material is missing".into(),
                 target_ids: vec!["plate".into(), "pla".into()],
             }],
@@ -159,7 +161,7 @@ mod tests {
         other_error.findings.push(Finding {
             id: "case:plate:gasket".into(),
             severity: Severity::Error,
-            scope: boardstudio_core::model::Scope::Case,
+            scope: boardstudio_model::model::Scope::Case,
             message: "Gasket inset, width, or depth is invalid".into(),
             target_ids: vec!["plate".into()],
         });
@@ -204,7 +206,7 @@ mod tests {
             vias: vec![],
         });
         let configuration = || {
-            serde_json::from_value::<boardstudio_core::model::MechanicalConfiguration>(
+            serde_json::from_value::<boardstudio_model::model::MechanicalConfiguration>(
                 serde_json::json!({
                     "boardId": "main-board", "method": "printed", "mount": "tray",
                     "plateThickness": 1.5, "plateFoamThickness": 0.5, "pcbThickness": 1.6,
@@ -331,7 +333,7 @@ mod tests {
         let mut document = ProjectDoc::empty("fixture", "Fixture");
         assert_eq!(default_case_material(&document), None);
 
-        document.materials.push(boardstudio_core::model::Material {
+        document.materials.push(boardstudio_model::model::Material {
             id: "pla-grade-a".into(),
             name: "PLA".into(),
             thickness: 1.75,

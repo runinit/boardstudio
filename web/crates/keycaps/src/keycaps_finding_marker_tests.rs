@@ -1,6 +1,6 @@
 use super::*;
 use boardstudio_application::SessionEpoch;
-use boardstudio_core::model::{Contour, Vec2};
+use boardstudio_model::model::{Contour, Vec2};
 use boardstudio_web_ui_shared::test_mount::MountedFixture;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;

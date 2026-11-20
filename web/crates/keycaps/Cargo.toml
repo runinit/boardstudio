@@ -11,7 +11,7 @@ test-support = ["boardstudio-web-ui-model/test-support", "boardstudio-web-ui-sha
 
 [dependencies]
 boardstudio-application = { path = "../../../application" }
-boardstudio_core = { path = "../../../core" }
+boardstudio-model = { path = "../../../core/crates/model" }
 boardstudio-web-runtime = { path = "../runtime" }
 boardstudio-web-ui-model = { path = "../ui-model" }
 boardstudio-web-ui-shared = { path = "../ui-shared" }

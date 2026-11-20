@@ -1,6 +1,6 @@
 use super::*;
 use boardstudio_application::Scope;
-use boardstudio_core::model::{
+use boardstudio_model::model::{
     Board, BoardOutline, OutlineConnection, OutlineControlPoint, OutlineFeature, OutlineProvenance,
     OutlineSnapshot, OutlineVersion, Part, PartDefinition, PartKind, Pose2, ProjectDoc, Side, Vec2,
 };
@@ -190,7 +190,7 @@ fn accepted_revision(probe: &InspectorProbe) -> u64 {
         .revision
 }
 
-fn accepted_document(probe: &InspectorProbe) -> boardstudio_core::model::ProjectDoc {
+fn accepted_document(probe: &InspectorProbe) -> boardstudio_model::model::ProjectDoc {
     probe
         .runtime
         .model()
@@ -292,7 +292,10 @@ async fn outline_dimension_enter_commits_and_escape_restores_accepted_value() {
 
 type OutlineConnectionAction = (Rc<OutlineActionContext>, EventHandler<OutlineAction>);
 
-fn gap_world_points(document: &ProjectDoc, gap: &boardstudio_core::model::OutlineGap) -> Vec<Vec2> {
+fn gap_world_points(
+    document: &ProjectDoc,
+    gap: &boardstudio_model::model::OutlineGap,
+) -> Vec<Vec2> {
     gap.points
         .iter()
         .map(|point| {
@@ -315,7 +318,7 @@ fn gap_world_points(document: &ProjectDoc, gap: &boardstudio_core::model::Outlin
 }
 
 fn connected_mirrored_gap_document() -> ProjectDoc {
-    use boardstudio_core::model::{CoreReply, CoreRequest};
+    use boardstudio_model::model::{CoreReply, CoreRequest};
     use serde_json::json;
     let mut input: serde_json::Value = serde_json::from_str(include_str!(
         "../../../../core/tests/fixtures/synthetic-outline.json"
@@ -739,7 +742,7 @@ async fn outline_actions_keep_their_layout_without_legacy_classes() {
 }
 
 async fn mounted_outline_inspector_with_version(
-    version: Option<boardstudio_core::model::OutlineVersion>,
+    version: Option<boardstudio_model::model::OutlineVersion>,
 ) -> (InspectorProbe, web_sys::Element, MountedFixture) {
     let board_id = "outline-board".to_string();
     let mut document = ProjectDoc::empty("outline-inspector-doc", "Outline fixture");
@@ -757,7 +760,7 @@ async fn mounted_outline_inspector_with_version(
     if let Some(version) = version {
         document
             .board_outlines
-            .push(boardstudio_core::model::BoardOutline {
+            .push(boardstudio_model::model::BoardOutline {
                 board_id: board_id.clone(),
                 active_version_id: Some(version.id.clone()),
                 versions: vec![version],
@@ -1281,10 +1284,10 @@ async fn mounted_polygon_outline_inspector_with_connections(
     connections: Vec<OutlineConnection>,
 ) -> (InspectorProbe, web_sys::Element, MountedFixture) {
     let points = vec![
-        boardstudio_core::model::Vec2 { x: 0.0, y: 0.0 },
-        boardstudio_core::model::Vec2 { x: 20.0, y: 0.0 },
-        boardstudio_core::model::Vec2 { x: 20.0, y: 20.0 },
-        boardstudio_core::model::Vec2 { x: 0.0, y: 20.0 },
+        boardstudio_model::model::Vec2 { x: 0.0, y: 0.0 },
+        boardstudio_model::model::Vec2 { x: 20.0, y: 0.0 },
+        boardstudio_model::model::Vec2 { x: 20.0, y: 20.0 },
+        boardstudio_model::model::Vec2 { x: 0.0, y: 20.0 },
     ];
     mounted_polygon_outline_inspector_with_points_and_connections(fixed, points, connections).await
 }
@@ -1379,14 +1382,14 @@ async fn mounted_polygon_outline_inspector_with_points_and_connections(
                         anchor_part_id: None,
                         id: "fixed-contour".into(),
                         points: points.clone(),
-                        operation: boardstudio_core::model::Operation::Add,
+                        operation: boardstudio_model::model::Operation::Add,
                     }],
-                    settings: boardstudio_core::model::OutlineSettings::default(),
+                    settings: boardstudio_model::model::OutlineSettings::default(),
                     expected_regions: 1,
                     bridges: vec![],
                     protected_gaps: vec![],
                 },
-                ownership: boardstudio_core::model::OutlineOwnership::Fixed,
+                ownership: boardstudio_model::model::OutlineOwnership::Fixed,
             }],
             generated_last_valid: None,
             retired_version_ids: vec![],
@@ -1394,14 +1397,14 @@ async fn mounted_polygon_outline_inspector_with_points_and_connections(
     } else {
         document.outline.push(OutlineFeature::PartEnvelope {
             connections,
-            settings: boardstudio_core::model::OutlineSettings::default(),
+            settings: boardstudio_model::model::OutlineSettings::default(),
             id: "generated-outline".into(),
             part_ids: has_envelope_part
                 .then(|| "k1".to_owned())
                 .into_iter()
                 .collect(),
             margin: 4.0,
-            operation: boardstudio_core::model::Operation::Add,
+            operation: boardstudio_model::model::Operation::Add,
         });
     }
     let runtime = crate::runtime::project_name_test_support::new_runtime();
@@ -1601,7 +1604,7 @@ async fn fixed_perimeter_finds_the_first_polygon_after_primitive_features() {
 
 #[wasm_bindgen_test]
 async fn mounted_reopened_fixed_outline_selects_its_saved_version() {
-    use boardstudio_core::model::{
+    use boardstudio_model::model::{
         CornerStyle, OutlineProvenance, OutlineSettings, OutlineSnapshot, OutlineVersion,
     };
     let (_probe, root, _mounted) = mounted_outline_inspector_with_version(Some(OutlineVersion {
@@ -1622,7 +1625,7 @@ async fn mounted_reopened_fixed_outline_selects_its_saved_version() {
             bridges: vec![],
             protected_gaps: vec![],
         },
-        ownership: boardstudio_core::model::OutlineOwnership::Fixed,
+        ownership: boardstudio_model::model::OutlineOwnership::Fixed,
     }))
     .await;
     wait_until("the Active outline select mounts", || {
@@ -1687,7 +1690,7 @@ async fn mounted_outline_inspector_generates_through_the_production_owner() {
                     feature.id() == id
                         && matches!(
                             feature,
-                            boardstudio_core::model::OutlineFeature::PartEnvelope { .. }
+                            boardstudio_model::model::OutlineFeature::PartEnvelope { .. }
                         )
                 })
             })
@@ -1956,7 +1959,7 @@ async fn mounted_fixed_perimeter_coordinate_enter_updates_only_the_active_featur
 /// legacy fixed version as linked (ADR-0002/0003).
 mod ownership_presentation {
     use super::*;
-    use boardstudio_core::model::{OutlineOwnership, OutlineSettings};
+    use boardstudio_model::model::{OutlineOwnership, OutlineSettings};
     use boardstudio_web_ui_shared::test_mount::MountedFixture;
 
     const BOARD: &str = "ownership-board";
@@ -1977,7 +1980,7 @@ mod ownership_presentation {
                 },
                 Vec2 { x, y: 20.0 },
             ],
-            operation: boardstudio_core::model::Operation::Add,
+            operation: boardstudio_model::model::Operation::Add,
         }
     }
 
@@ -2140,7 +2143,7 @@ mod ownership_presentation {
             id: id.into(),
             part_ids: vec!["missing-part".into()],
             margin,
-            operation: boardstudio_core::model::Operation::Add,
+            operation: boardstudio_model::model::Operation::Add,
         };
         let (_probe, root, _mounted) = mounted(
             vec![
@@ -2325,7 +2328,7 @@ mod ownership_presentation {
                     id: "linked-envelope".into(),
                     part_ids: vec!["missing-part".into()],
                     margin: 4.0,
-                    operation: boardstudio_core::model::Operation::Add,
+                    operation: boardstudio_model::model::Operation::Add,
                 }],
             )],
             "linked-v1",
@@ -2446,7 +2449,7 @@ mod product_context {
         let created = &state.versions[0];
         assert_eq!(
             created.ownership,
-            boardstudio_core::model::OutlineOwnership::Linked,
+            boardstudio_model::model::OutlineOwnership::Linked,
             "accepting the alternative creates a linked refinement"
         );
         assert_eq!(

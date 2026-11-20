@@ -1,16 +1,16 @@
 //! Private translation from an accepted electrical plan to the existing firmware worker request.
 //!
 //! It maps accepted electrical facts without assembling plans or generating DTS.
-use boardstudio_core::{
+use boardstudio_core_mechanical::{
     electrical::{ElectricalMode, ElectricalPlan},
     electrical_peripherals::PeripheralRequirement,
-    firmware::{
-        FirmwareEncoder, FirmwareHardware, FirmwareKey, FirmwareModuleFinding,
-        FirmwareModuleQualification, FirmwarePartQualification, FirmwarePhysicalInstance,
-        FirmwareQualification, FirmwareRequest, FirmwareScanMode, ScanPin, SplitTransport,
-    },
-    model::{HardwareTransport, ProjectDoc},
 };
+use boardstudio_model::firmware::{
+    FirmwareEncoder, FirmwareHardware, FirmwareKey, FirmwareModuleFinding,
+    FirmwareModuleQualification, FirmwarePartQualification, FirmwarePhysicalInstance,
+    FirmwareQualification, FirmwareRequest, FirmwareScanMode, ScanPin, SplitTransport,
+};
+use boardstudio_model::model::{HardwareTransport, ProjectDoc};
 
 pub fn firmware_request(
     document: &ProjectDoc,
@@ -447,7 +447,7 @@ fn legacy_plan(plan: &ElectricalPlan, profiled: bool) -> ElectricalPlan {
 }
 
 fn keys_for_bindings(
-    assignments: &[boardstudio_core::electrical::ElectricalAssignment],
+    assignments: &[boardstudio_core_mechanical::electrical::ElectricalAssignment],
     auxiliary: &[(String, &String)],
     bindings: Option<&std::collections::BTreeMap<String, String>>,
 ) -> Vec<String> {
@@ -470,7 +470,7 @@ fn keys_for_bindings(
 fn module_encoders(
     document: &ProjectDoc,
     plan: &ElectricalPlan,
-    modules: &[&boardstudio_core::model::MountedModule],
+    modules: &[&boardstudio_model::model::MountedModule],
     physical_instance_id: Option<&str>,
 ) -> Vec<FirmwareEncoder> {
     modules

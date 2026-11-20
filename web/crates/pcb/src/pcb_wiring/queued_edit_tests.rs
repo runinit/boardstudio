@@ -3,10 +3,8 @@ use super::test_fixtures::{test_definition, test_part};
 use super::*;
 use crate::runtime::{Runtime, project_name_test_support as support};
 use boardstudio_application::{EditResolver, Event, Resolution};
-use boardstudio_core::{
-    electrical::{self, ElectricalPlanRequest},
-    model::*,
-};
+use boardstudio_core_mechanical::electrical::{self, ElectricalPlanRequest};
+use boardstudio_model::model::*;
 use boardstudio_web_ui_shared::test_mount::MountedFixture;
 use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::settle_until};
 use std::{

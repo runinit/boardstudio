@@ -1,6 +1,6 @@
 use super::PcbWiringSource;
 use crate::pcb_controls::{PcbChoice, PcbInput, PcbSection};
-use boardstudio_core::model::{Part, PartDefinition, PartKind, PressScanMode, ProjectDoc};
+use boardstudio_model::model::{Part, PartDefinition, PartKind, PressScanMode, ProjectDoc};
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
 use boardstudio_web_ui_shared::ui::input::InputType;
 use boardstudio_web_ui_shared::ui::spinner::Spinner;
@@ -318,7 +318,7 @@ fn edit_identity(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use boardstudio_core::{model::Board, model::Matrix};
+    use boardstudio_model::{model::Board, model::Matrix};
     use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use serde_json::json;
     use wasm_bindgen_test::wasm_bindgen_test;
@@ -480,8 +480,8 @@ mod tests {
             name: None,
             rows: 1,
             columns: 1,
-            pitch: boardstudio_core::model::Vec2 { x: 19.0, y: 19.0 },
-            origin: boardstudio_core::model::Vec2 { x: 0.0, y: 0.0 },
+            pitch: boardstudio_model::model::Vec2 { x: 19.0, y: 19.0 },
+            origin: boardstudio_model::model::Vec2 { x: 0.0, y: 0.0 },
             definition_id: "encoder".into(),
             part_ids: vec!["matrix/main/r0c0".into()],
             board_id: Some("left".into()),

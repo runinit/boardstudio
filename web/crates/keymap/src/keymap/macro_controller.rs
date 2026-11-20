@@ -7,7 +7,7 @@ use super::macro_editor::{
 use crate::macro_edit::{PrecedingStructure, macro_resolver};
 use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, Durability, Lifecycle};
-use boardstudio_core::model::{MacroChange, MacroStep};
+use boardstudio_model::model::{MacroChange, MacroStep};
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
 use boardstudio_web_ui_shared::owned_edits::OwnedEdits;
 use dioxus::prelude::*;
@@ -87,7 +87,7 @@ pub(super) fn use_bound_macro_field(
 
 /// The text a macro text field shows for the accepted document.
 fn accepted_macro_text(
-    document: Option<&boardstudio_core::model::ProjectDoc>,
+    document: Option<&boardstudio_model::model::ProjectDoc>,
     key: &MacroKey,
 ) -> String {
     let item = document
@@ -135,7 +135,7 @@ fn macro_step_text(step: &MacroStep, target: MacroEditTarget) -> String {
             | MacroStep::Release { binding },
             MacroEditTarget::StepKeycode { .. },
         ) => match binding {
-            boardstudio_core::model::KeyBinding::KeyPress { keycode } => keycode.clone(),
+            boardstudio_model::model::KeyBinding::KeyPress { keycode } => keycode.clone(),
             _ => String::new(),
         },
         _ => String::new(),
@@ -612,7 +612,7 @@ mod mounted_step_tests {
     use super::*;
     use crate::runtime::project_name_test_support as support;
     use boardstudio_application::Event;
-    use boardstudio_core::model::{KeyBinding, ProjectDoc};
+    use boardstudio_model::model::{KeyBinding, ProjectDoc};
     use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::test_role::by_role_name;
     use boardstudio_web_ui_shared::test_wait::settle_until;

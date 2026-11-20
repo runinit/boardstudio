@@ -1,6 +1,6 @@
 //! Private authored Case body list and editor. Root owns the scoped edit adapter.
 use boardstudio_application::{Scope, SnapshotToken};
-use boardstudio_core::model::{CaseBody, CaseKind, Gasket, MountKind, Vec2};
+use boardstudio_model::model::{CaseBody, CaseKind, Gasket, MountKind, Vec2};
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertDescription, AlertVariant},
     button::{Button, ButtonVariant},
@@ -879,7 +879,7 @@ mod mounted_tests {
     use super::*;
     use crate::test_contexts::use_case_viewer_test_contexts;
     use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
-    use boardstudio_core::model::Mount;
+    use boardstudio_model::model::Mount;
     use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
     use wasm_bindgen_test::wasm_bindgen_test;

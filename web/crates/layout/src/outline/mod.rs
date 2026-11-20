@@ -55,7 +55,7 @@ use boardstudio_application::{
 };
 #[cfg(all(test, target_arch = "wasm32"))]
 #[allow(unused_imports)] // The included browser suite imports these through `super::*`.
-use boardstudio_core::model::{
+use boardstudio_model::model::{
     Contour, CornerStyle, EditCommand, EditOperation, EditPhase, Operation, OutlineConnection,
     OutlineContourEdit, OutlineControlPoint, OutlineFeature, OutlineGap, OutlineRepairSettings,
     OutlineSettings, Part, Side, Vec2,

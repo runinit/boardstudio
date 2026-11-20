@@ -1,7 +1,7 @@
 //! Lazy, read-only projection of the packaged VIK module catalogue.
 use super::module_profile_editor::ModuleProfileEditor;
 use boardstudio_application::{AcceptedSnapshot, Scope, SnapshotToken};
-use boardstudio_core::model::{
+use boardstudio_model::model::{
     HardwareOutput, ModuleDefinition, PartDefinition, PartModel, Side, Vec3, VikRole,
 };
 use boardstudio_web_ui_shared::ui::{

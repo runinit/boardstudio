@@ -1,5 +1,5 @@
 use super::catalogue::{CatalogEntry, CatalogueSource, preferred_label};
-use boardstudio_core::model::PartDefinition;
+use boardstudio_model::model::PartDefinition;
 use dioxus::prelude::*;
 
 #[component]
@@ -44,13 +44,13 @@ pub fn SelectedDefinition(entry: Option<CatalogEntry>) -> Element {
 
 fn category_label(definition: &PartDefinition) -> &'static str {
     match &definition.kind {
-        boardstudio_core::model::PartKind::Switch => "Switch",
-        boardstudio_core::model::PartKind::Controller => "Controller",
-        boardstudio_core::model::PartKind::Connector => "Connector",
-        boardstudio_core::model::PartKind::Encoder => "Encoder",
-        boardstudio_core::model::PartKind::Passive => "Passive",
-        boardstudio_core::model::PartKind::Utility => "Utility",
-        boardstudio_core::model::PartKind::Custom => "Custom",
+        boardstudio_model::model::PartKind::Switch => "Switch",
+        boardstudio_model::model::PartKind::Controller => "Controller",
+        boardstudio_model::model::PartKind::Connector => "Connector",
+        boardstudio_model::model::PartKind::Encoder => "Encoder",
+        boardstudio_model::model::PartKind::Passive => "Passive",
+        boardstudio_model::model::PartKind::Utility => "Utility",
+        boardstudio_model::model::PartKind::Custom => "Custom",
     }
 }
 

@@ -6,7 +6,7 @@ use super::{
 };
 use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution};
-use boardstudio_core::model::EditOperation;
+use boardstudio_model::model::EditOperation;
 use boardstudio_web_runtime::pending_edits::PendingEdits;
 use dioxus::prelude::*;
 use std::rc::Rc;
@@ -131,7 +131,7 @@ pub(crate) fn submit_board_reference_document(
     runtime: &Rc<Runtime>,
     live: bool,
     owner: &LayoutOwnerIdentity,
-    proposed: boardstudio_core::model::ProjectDoc,
+    proposed: boardstudio_model::model::ProjectDoc,
     transaction_label: &str,
     edits: &mut PendingEdits<BoardReferenceKey>,
     key: BoardReferenceKey,

@@ -108,7 +108,7 @@ impl<K: PartialEq> PendingEdits<K> {
 mod tests {
     use super::*;
     use boardstudio_application::{EditResolver, Event, Resolution};
-    use boardstudio_core::model::{
+    use boardstudio_model::model::{
         Board, EditOperation, Part, PartDefinition, PartKind, Pose2, ProjectDoc, Side, Vec2,
     };
     use std::rc::Rc;

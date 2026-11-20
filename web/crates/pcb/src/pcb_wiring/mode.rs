@@ -7,7 +7,8 @@ use crate::{
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
 };
-use boardstudio_core::{electrical::ElectricalMode, model::EditOperation};
+use boardstudio_core_mechanical::electrical::ElectricalMode;
+use boardstudio_model::model::EditOperation;
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
 use std::{cell::RefCell, rc::Rc};
@@ -28,7 +29,7 @@ pub(crate) fn mode_text(mode: ElectricalMode) -> String {
 
 /// The board's accepted wiring mode; a board without configuration is a matrix.
 pub(crate) fn board_mode(
-    document: &boardstudio_core::model::ProjectDoc,
+    document: &boardstudio_model::model::ProjectDoc,
     board_id: &str,
 ) -> ElectricalMode {
     document
@@ -199,7 +200,7 @@ mod board_mode_tests {
 
     #[test]
     fn a_board_without_configuration_is_a_matrix_and_mode_text_round_trips() {
-        let document = boardstudio_core::model::ProjectDoc::empty("project", "Mode text");
+        let document = boardstudio_model::model::ProjectDoc::empty("project", "Mode text");
         assert_eq!(board_mode(&document, "left"), ElectricalMode::Matrix);
         assert_eq!(mode_text(ElectricalMode::Matrix), "matrix");
         assert_eq!(mode_text(ElectricalMode::Direct), "direct");

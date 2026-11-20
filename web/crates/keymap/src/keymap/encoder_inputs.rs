@@ -5,11 +5,10 @@ use super::binding_editor::EncoderInputIdentity;
 use super::layer_controller::LayerSource;
 use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, Scope, SnapshotToken};
-use boardstudio_core::{
-    electrical::ElectricalPlan,
-    electrical_peripherals::PeripheralRequirement,
-    model::{ProjectDoc, RotaryProfile},
+use boardstudio_core_mechanical::{
+    electrical::ElectricalPlan, electrical_peripherals::PeripheralRequirement,
 };
+use boardstudio_model::model::{ProjectDoc, RotaryProfile};
 use dioxus::prelude::*;
 use std::{cell::RefCell, rc::Rc};
 

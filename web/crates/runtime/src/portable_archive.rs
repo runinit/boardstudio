@@ -1,5 +1,5 @@
-use boardstudio_core::hash::sha256_hex;
-use boardstudio_core::model::{Asset, ProjectDoc};
+use boardstudio_core_kernel::hash::sha256_hex;
+use boardstudio_model::model::{Asset, ProjectDoc};
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 pub struct PreparedArchive {
@@ -167,9 +167,9 @@ pub fn referenced_models(
 #[cfg(test)]
 mod tests {
     use super::referenced_models;
-    use boardstudio_core::hash::sha256_hex;
-    use boardstudio_core::model::HardwareSource;
-    use boardstudio_core::model::{
+    use boardstudio_core_kernel::hash::sha256_hex;
+    use boardstudio_model::model::HardwareSource;
+    use boardstudio_model::model::{
         AssemblyDefinition, AssemblyMember, Asset, BoardReference, ModuleBoard, ModuleCircuit,
         ModuleDefinition, ModuleElectrical, ModuleProtocol, PartDefinition, PartKind, PartModel,
         Pose2, ProjectDoc, Side, Vec2, Vec3,
@@ -366,7 +366,7 @@ mod tests {
 
     #[test]
     fn pack_round_trip_keeps_local_bytes_and_optionally_adds_opaque_model_bytes() {
-        use boardstudio_core::model::{ArchiveReply, Asset};
+        use boardstudio_model::model::{ArchiveReply, Asset};
 
         let local_bytes = b"existing local asset".to_vec();
         let local_hash = sha256_hex(&local_bytes);

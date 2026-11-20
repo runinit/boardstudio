@@ -1,4 +1,4 @@
-use boardstudio_core::model::CoreRequest;
+use boardstudio_model::model::CoreRequest;
 
 pub fn encode_core_request(request: &CoreRequest) -> Result<String, serde_json::Error> {
     serde_json::to_string(request)
@@ -7,7 +7,7 @@ pub fn encode_core_request(request: &CoreRequest) -> Result<String, serde_json::
 #[cfg(test)]
 mod tests {
     use super::encode_core_request;
-    use boardstudio_core::model::{CoreRequest, EditCommand, EditOperation, EditPhase};
+    use boardstudio_model::model::{CoreRequest, EditCommand, EditOperation, EditPhase};
 
     #[test]
     fn text_frame_preserves_full_u64_revision_without_a_js_number_round_trip() {

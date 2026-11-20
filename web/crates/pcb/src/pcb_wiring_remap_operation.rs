@@ -1,5 +1,5 @@
 //! Accepted-document proposal for deliberately reviewing a protected PCB handoff.
-use boardstudio_core::model::ProjectDoc;
+use boardstudio_model::model::ProjectDoc;
 
 pub fn propose_review_remap(
     document: &ProjectDoc,
@@ -31,7 +31,9 @@ pub fn propose_review_remap(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use boardstudio_core::model::{Board, ElectricalBoardConfiguration, ElectricalHandoffBaseline};
+    use boardstudio_model::model::{
+        Board, ElectricalBoardConfiguration, ElectricalHandoffBaseline,
+    };
 
     fn protected_document() -> ProjectDoc {
         let mut document = ProjectDoc::empty("project", "Test");

@@ -12,7 +12,7 @@ use crate::parts_mechanical_profile::{
 };
 use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, Scope};
-use boardstudio_core::model::{MechanicalPartProfile, PartDefinition};
+use boardstudio_model::model::{MechanicalPartProfile, PartDefinition};
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use boardstudio_web_ui_shared::ui::{
@@ -286,7 +286,7 @@ mod mounted_tests {
     use super::*;
     use crate::runtime::project_name_test_support as support;
     use boardstudio_application::TerminalOutcome;
-    use boardstudio_core::model::{Board, ProjectDoc};
+    use boardstudio_model::model::{Board, ProjectDoc};
     use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::test_role::by_role_name;
     use boardstudio_web_ui_shared::test_wait::{settle_until, wait_until, wait_until_future};

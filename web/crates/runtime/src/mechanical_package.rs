@@ -1,6 +1,6 @@
 //! Native-testable formatting for mechanical export package files.
 
-use boardstudio_core::model::{MechanicalAssembly, ProjectDoc};
+use boardstudio_model::model::{MechanicalAssembly, ProjectDoc};
 use std::collections::BTreeSet;
 
 pub(crate) fn push_mechanical_file(
@@ -293,9 +293,9 @@ pub(crate) fn mechanical_fabrication_notes(
 
 pub(crate) fn critical_fit_drawing(
     assembly: &MechanicalAssembly,
-    configuration: &boardstudio_core::model::MechanicalConfiguration,
+    configuration: &boardstudio_model::model::MechanicalConfiguration,
 ) -> Result<String, String> {
-    use boardstudio_core::model::Vec2;
+    use boardstudio_model::model::Vec2;
 
     let contours = &assembly.nominal_plate_contours;
     let fits = configuration.critical_fits.as_deref().unwrap_or_default();

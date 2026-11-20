@@ -4,7 +4,7 @@ use dioxus::prelude::*;
 
 #[cfg(target_arch = "wasm32")]
 fn fixture() -> Element {
-    use boardstudio_core::model::{Board, ProjectDoc};
+    use boardstudio_model::model::{Board, ProjectDoc};
     use boardstudio_web_runtime::runtime::project_name_test_support as support;
     use boardstudio_web_ui_model::{selection::SelectionAdapter, state::WorkspaceState};
 

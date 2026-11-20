@@ -1,7 +1,7 @@
 //! Read-only host scene projection for the currently accepted PCB board.
 use crate::presentation::footprint_graphics::FootprintGraphics;
 use boardstudio_application::{AcceptedSnapshot, Scope, SnapshotToken};
-use boardstudio_core::model::{PadShape, Side, Vec2};
+use boardstudio_model::model::{PadShape, Side, Vec2};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use std::collections::BTreeSet;
@@ -290,7 +290,7 @@ mod mounted_layer_tests {
     use crate::presentation::canvas_layers::CanvasLayer;
     use crate::presentation::pcb_layers::PcbLayerControls;
     use boardstudio_application::{Scope, SessionEpoch};
-    use boardstudio_core::model::{
+    use boardstudio_model::model::{
         Board, BoardContours, Contour, Pad, Part, PartDefinition, PartKind, Pose2, ProjectDoc,
         Readiness, SceneDelta,
     };
@@ -450,16 +450,16 @@ mod mounted_layer_tests {
         let (mut snapshot, scope) = fixture();
         let mut scene = (*snapshot.scene).clone();
         let finding_id = "board:board:pcb-error";
-        scene.findings.push(boardstudio_core::model::Finding {
+        scene.findings.push(boardstudio_model::model::Finding {
             id: finding_id.into(),
-            severity: boardstudio_core::model::Severity::Error,
-            scope: boardstudio_core::model::Scope::Pcb,
+            severity: boardstudio_model::model::Severity::Error,
+            scope: boardstudio_model::model::Scope::Pcb,
             message: "Test PCB error".into(),
             target_ids: vec!["part".into()],
         });
         scene
             .finding_markers
-            .push(boardstudio_core::model::FindingMarker {
+            .push(boardstudio_model::model::FindingMarker {
                 finding_id: finding_id.into(),
                 board_id: "board".into(),
                 contours: vec![Contour {

@@ -3,7 +3,7 @@
 //! the resulting resolver to its name field through `PendingEditSignals`.
 
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution, SessionEpoch};
-use boardstudio_core::model::{EditOperation, ProjectDoc};
+use boardstudio_model::model::{EditOperation, ProjectDoc};
 use boardstudio_web_runtime::runtime::Runtime;
 use std::cell::Cell;
 

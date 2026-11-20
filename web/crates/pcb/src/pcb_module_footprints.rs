@@ -2,7 +2,7 @@
 //! Source pads remain module-owned; presentation never creates host circuitry.
 use super::LayerVisibility;
 use boardstudio_application::AcceptedSnapshot;
-use boardstudio_core::model::{PadShape, Severity, Vec2};
+use boardstudio_model::model::{PadShape, Severity, Vec2};
 use dioxus::prelude::*;
 use std::collections::BTreeSet;
 
@@ -113,7 +113,7 @@ pub fn ModuleSourceFootprints(props: ModuleSourceFootprintsProps) -> Element {
             if !hidden.contains("module-footprints") {
                 for footprint in &module.footprints {
                     {
-                        let back = footprint.side == boardstudio_core::model::Side::Back;
+                        let back = footprint.side == boardstudio_model::model::Side::Back;
                         let side_transform = if back { "scale(-1 1)" } else { "" };
                         let pose = footprint.pose;
                         let copper = if back { "B.Cu" } else { "F.Cu" };

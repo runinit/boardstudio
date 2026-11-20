@@ -9,8 +9,8 @@ use crate::cad_jobs::{
 use crate::cad_qualification::{
     self as qualification, AnalysisMesh, AnalysisRef, Source, SourceQualification,
 };
-use boardstudio_core::hash::sha256_hex;
-use boardstudio_core::model::KeycapSpec;
+use boardstudio_core_kernel::hash::sha256_hex;
+use boardstudio_model::model::KeycapSpec;
 use futures_channel::oneshot;
 use js_sys::{
     Array, Float32Array, Float64Array, Function, Object, Promise, Reflect, Uint8Array, Uint32Array,
@@ -63,7 +63,7 @@ struct WireRequest {
     job_id: String,
     identity: CadSnapshotIdentity,
     operation: CadOperation,
-    prepared: Option<boardstudio_core::model::PreparedCaseAssemblyIR>,
+    prepared: Option<boardstudio_model::model::PreparedCaseAssemblyIR>,
     #[serde(default)]
     source_sha256: Option<String>,
     #[serde(default)]
@@ -1231,7 +1231,7 @@ fn fail_all(state: &Rc<RefCell<ClientState>>, error: CadWorkerError) {
 #[cfg(all(test, target_arch = "wasm32"))]
 mod keycaps_worker_tests {
     use super::*;
-    use boardstudio_core::model::{KeycapMount, KeycapProfile, Pose2, Side, Vec2};
+    use boardstudio_model::model::{KeycapMount, KeycapProfile, Pose2, Side, Vec2};
     use wasm_bindgen_test::wasm_bindgen_test;
     use web_sys::{Blob, BlobPropertyBag, Url};
 
@@ -3046,7 +3046,7 @@ mod generated_analysis_tests {
             "../../../../cad/wasm/tests/fixtures/generated-analysis-contract.json"
         ))
         .unwrap();
-        let body: boardstudio_core::model::PreparedCaseIR =
+        let body: boardstudio_model::model::PreparedCaseIR =
             serde_json::from_value(fixture["preparedBody"].clone()).unwrap();
         let geometry_identity = generated_geometry_identity(&body).unwrap();
         assert!(
@@ -3074,7 +3074,7 @@ mod generated_analysis_tests {
             job_id: "fixture-analysis".into(),
             identity: identity.clone(),
             operation: CadOperation::AnalyzeGeneratedBody,
-            prepared: Some(boardstudio_core::model::PreparedCaseAssemblyIR {
+            prepared: Some(boardstudio_model::model::PreparedCaseAssemblyIR {
                 revision: body.revision,
                 bodies: vec![body],
             }),
@@ -3243,7 +3243,7 @@ mod generated_analysis_tests {
     #[wasm_bindgen_test]
     async fn generated_analysis_worker_selects_one_body_checks_identity_and_recovers_after_failure()
     {
-        let body: boardstudio_core::model::PreparedCaseIR = serde_json::from_value(serde_json::json!({
+        let body: boardstudio_model::model::PreparedCaseIR = serde_json::from_value(serde_json::json!({
             "revision":7,"body":{"id":"plate","name":"Plate","boardId":"board","kind":"plate","thickness":2,"clearance":0},"regions":[]
         })).unwrap();
         let metadata = crate::cad_jobs::CadGeneratedAnalysisRequest {
@@ -3263,7 +3263,7 @@ mod generated_analysis_tests {
                 revision: 7,
             },
             operation: CadOperation::AnalyzeGeneratedBody,
-            prepared: Some(boardstudio_core::model::PreparedCaseAssemblyIR {
+            prepared: Some(boardstudio_model::model::PreparedCaseAssemblyIR {
                 revision: 7,
                 bodies: vec![body],
             }),
@@ -3386,7 +3386,7 @@ mod generated_analysis_tests {
             );
         }
 
-        let body: boardstudio_core::model::PreparedCaseIR = serde_json::from_value(
+        let body: boardstudio_model::model::PreparedCaseIR = serde_json::from_value(
             serde_json::json!({
                 "revision": 7,
                 "body": {"id": "plate", "name": "Plate", "boardId": "board-a", "kind": "plate", "thickness": 2, "clearance": 0},
@@ -3417,24 +3417,24 @@ mod generated_analysis_tests {
         assert_eq!(replies.borrow()[1].request_id, "raw-preview-case");
         assert_eq!(replies.borrow()[1].outcome, CadReplyOutcome::Completed);
 
-        let keycap = boardstudio_core::model::KeycapSpec {
+        let keycap = boardstudio_model::model::KeycapSpec {
             id: "k1".into(),
             reference: "A1".into(),
-            profile: boardstudio_core::model::KeycapProfile::Cherry,
-            mount: boardstudio_core::model::KeycapMount::Mx,
+            profile: boardstudio_model::model::KeycapProfile::Cherry,
+            mount: boardstudio_model::model::KeycapMount::Mx,
             row: 1,
-            size: boardstudio_core::model::Vec2 { x: 18.0, y: 18.0 },
-            top_size: boardstudio_core::model::Vec2 { x: 12.0, y: 12.0 },
+            size: boardstudio_model::model::Vec2 { x: 18.0, y: 18.0 },
+            top_size: boardstudio_model::model::Vec2 { x: 12.0, y: 12.0 },
             height: 8.0,
             tilt: 0.0,
             dish_depth: 0.0,
             spherical: false,
             wall_thickness: 1.2,
-            pose: boardstudio_core::model::Pose2 {
-                at: boardstudio_core::model::Vec2 { x: 0.0, y: 0.0 },
+            pose: boardstudio_model::model::Pose2 {
+                at: boardstudio_model::model::Vec2 { x: 0.0, y: 0.0 },
                 rotation: 0.0,
             },
-            side: boardstudio_core::model::Side::Front,
+            side: boardstudio_model::model::Side::Front,
             z: 8.4,
             travel: 4.0,
             legend: String::new(),

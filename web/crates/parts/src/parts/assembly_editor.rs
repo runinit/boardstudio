@@ -5,7 +5,7 @@ use crate::parts_custom_definition::replacement_commit;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Resolution, Scope,
 };
-use boardstudio_core::model::{
+use boardstudio_model::model::{
     AssemblyDefinition, AssemblyMember, Asset, EditOperation, Part, PartDefinition, PartKind,
     PartModel, Pose2, ProjectDoc, Side, Vec2, Vec3,
 };
@@ -1088,7 +1088,10 @@ fn AssemblyDraftFields(
     let member_definitions = definitions
         .iter()
         .filter(|definition| {
-            !matches!(&definition.kind, boardstudio_core::model::PartKind::Utility)
+            !matches!(
+                &definition.kind,
+                boardstudio_model::model::PartKind::Utility
+            )
         })
         .cloned()
         .collect::<Vec<_>>();
@@ -1145,7 +1148,7 @@ fn AssemblyDraftFields(
                   if let Some(id) = member_id(&add_value()) {
                       add_value.with_mut(|value| value.members.push(AssemblyMember {
                           parameters: None,
-                          model_mode: Some(boardstudio_core::model::AssemblyModelMode::Defaults),
+                          model_mode: Some(boardstudio_model::model::AssemblyModelMode::Defaults),
                           id,
                           definition_id: None,
                           pose: Pose2 { at: Vec2 { x: 0.0, y: 0.0 }, rotation: 0.0 },
@@ -1273,7 +1276,7 @@ fn AssemblyMemberFields(
     let options = model_options(&snapshot.document.assets, &assets());
     let is_custom = matches!(
         &member.model_mode,
-        Some(boardstudio_core::model::AssemblyModelMode::Custom)
+        Some(boardstudio_model::model::AssemblyModelMode::Custom)
     ) || (member.model_mode.is_none() && !member.models.is_empty());
     let definition_models = definition
         .as_ref()
@@ -1418,7 +1421,7 @@ fn AssemblyMemberFields(
                         .find(|member| member.id == member_id)
                     {
                         member.model_mode =
-                            Some(boardstudio_core::model::AssemblyModelMode::Custom);
+                            Some(boardstudio_model::model::AssemblyModelMode::Custom);
                         member.models.push(default_model(asset.id.clone()));
                     }
                 });
@@ -1505,7 +1508,7 @@ fn AssemblyMemberFields(
                         .find(|candidate| candidate.id == member.id)
                     {
                         member.model_mode =
-                            Some(boardstudio_core::model::AssemblyModelMode::Custom);
+                            Some(boardstudio_model::model::AssemblyModelMode::Custom);
                         member.models = models;
                     }
                 });
@@ -1771,7 +1774,7 @@ impl MemberPatch {
             Self::Definition(id) => {
                 member.definition_id = (!id.is_empty()).then_some(id);
                 member.parameters = None;
-                member.model_mode = Some(boardstudio_core::model::AssemblyModelMode::Defaults);
+                member.model_mode = Some(boardstudio_model::model::AssemblyModelMode::Defaults);
                 member.models.clear();
             }
             Self::Side(back) => {
@@ -1809,18 +1812,18 @@ impl MemberPatch {
             Self::Parameters(parameters) => member.parameters = parameters,
             Self::ModelMode(custom, models) => {
                 member.model_mode = Some(if custom {
-                    boardstudio_core::model::AssemblyModelMode::Custom
+                    boardstudio_model::model::AssemblyModelMode::Custom
                 } else {
-                    boardstudio_core::model::AssemblyModelMode::Defaults
+                    boardstudio_model::model::AssemblyModelMode::Defaults
                 });
                 member.models = models;
             }
             Self::AddModel(model) => {
-                member.model_mode = Some(boardstudio_core::model::AssemblyModelMode::Custom);
+                member.model_mode = Some(boardstudio_model::model::AssemblyModelMode::Custom);
                 member.models.push(model);
             }
             Self::RemoveModel(index) => {
-                member.model_mode = Some(boardstudio_core::model::AssemblyModelMode::Custom);
+                member.model_mode = Some(boardstudio_model::model::AssemblyModelMode::Custom);
                 if index < member.models.len() {
                     member.models.remove(index);
                 }
@@ -1992,7 +1995,7 @@ fn assembly_preview_recipe(
             }
             if matches!(
                 &member.model_mode,
-                Some(boardstudio_core::model::AssemblyModelMode::Custom)
+                Some(boardstudio_model::model::AssemblyModelMode::Custom)
             ) || (member.model_mode.is_none() && !member.models.is_empty())
             {
                 definition.models = Some(member.models.clone());
@@ -2316,7 +2319,7 @@ mod assembly_selector_tests {
         );
         assert_eq!(
             member.model_mode,
-            Some(boardstudio_core::model::AssemblyModelMode::Custom)
+            Some(boardstudio_model::model::AssemblyModelMode::Custom)
         );
         assert_eq!(member.side, Side::Back);
         assert_eq!(member.pose.at.x, 4.0);

@@ -1,7 +1,7 @@
 //! Shared canvas navigation state and the behavior that owns camera gestures.
 
 use boardstudio_application::Scope;
-use boardstudio_core::model::Vec2;
+use boardstudio_model::model::Vec2;
 use boardstudio_web_ui_model::{state::Drag, svg_coordinates::PointerLocation};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
@@ -373,7 +373,7 @@ mod tests {
                     let camera_updated = (camera.center.x - expected_center.x).abs() < 0.001
                         && (camera.center.y - expected_center.y).abs() < 0.001;
                     let pan_center = CanvasNavigationState::pan_center(
-                        boardstudio_core::model::Vec2 { x: 4.0, y: 6.0 },
+                        boardstudio_model::model::Vec2 { x: 4.0, y: 6.0 },
                         (20.0, -10.0),
                         2.0,
                     ).unwrap();
@@ -382,7 +382,7 @@ mod tests {
                         &runtime,
                         (-10.0, 10.0, -10.0, 10.0),
                         PointerLocation {
-                            world: boardstudio_core::model::Vec2::default(),
+                            world: boardstudio_model::model::Vec2::default(),
                             x_fraction: 0.5,
                             y_fraction: 0.5,
                         },

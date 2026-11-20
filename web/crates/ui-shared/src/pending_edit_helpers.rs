@@ -510,7 +510,7 @@ mod mounted_tests {
 
     use super::*;
     use boardstudio_application::{Event, Resolution};
-    use boardstudio_core::model::{EditOperation, ProjectDoc};
+    use boardstudio_model::model::{EditOperation, ProjectDoc};
     use std::cell::{Cell, RefCell};
     use std::rc::Rc;
     use wasm_bindgen::JsCast;

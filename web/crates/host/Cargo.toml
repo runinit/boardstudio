@@ -8,7 +8,7 @@ description = "Browser host services for the BoardStudio page: storage, Core and
 
 [features]
 # The page's host services (storage, Core client, renderer host, CAD job capture).
-page = ["boardstudio-web-worker-host/cad", "dep:boardstudio-application", "dep:boardstudio_core", "dep:serde_json"]
+page = ["boardstudio-web-worker-host/cad", "dep:boardstudio-application", "dep:boardstudio-core-kernel", "dep:boardstudio-core-mechanical", "dep:boardstudio-model", "dep:serde_json"]
 test-harness = ["boardstudio-web-worker-host?/test-harness"]
 # Test-only storage hooks the page's own tests drive (raw record fixtures).
 test-support = []
@@ -16,7 +16,9 @@ test-support = []
 [dependencies]
 boardstudio-web-worker-host = { path = "../worker-host", optional = true }
 boardstudio-application = { path = "../../../application", optional = true }
-boardstudio_core = { path = "../../../core", optional = true }
+boardstudio-core-kernel = { path = "../../../core/crates/kernel", optional = true }
+boardstudio-core-mechanical = { path = "../../../core/crates/mechanical", optional = true }
+boardstudio-model = { path = "../../../core/crates/model", optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["float_roundtrip"], optional = true }
 
@@ -28,6 +30,9 @@ js-sys = "=0.3.106"
 serde-wasm-bindgen = "=0.6.5"
 futures-channel = "=0.3.34"
 web-sys = { workspace = true }
+
+[dev-dependencies]
+boardstudio_core = { path = "../../../core" }
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 wasm-bindgen-test = "=0.3.79"

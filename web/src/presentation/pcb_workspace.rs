@@ -172,7 +172,9 @@ mod mounted_tests {
     use wasm_bindgen_test::*;
 
     fn fixture() -> Element {
-        use_context_provider(|| crate::runtime::Runtime::new().unwrap());
+        use_context_provider(|| {
+            crate::runtime::Runtime::new(crate::presentation::core_services()).unwrap()
+        });
         use_context_provider(|| Signal::new(0u64));
         rsx! { PcbInspector { selected: true, div { role: "status", aria_label: "Routing content", "Wiring remains mounted" } } }
     }

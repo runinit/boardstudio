@@ -152,7 +152,7 @@ mod tests {
     use crate::runtime::CadScene;
     use boardstudio_application::AcceptedSnapshot;
     use boardstudio_application::{SessionEpoch, SnapshotToken};
-    use boardstudio_core::model::{PreparedCaseAssemblyIR, ProjectDoc, Readiness, SceneDelta};
+    use boardstudio_model::model::{PreparedCaseAssemblyIR, ProjectDoc, Readiness, SceneDelta};
     use boardstudio_web_host::cad_jobs::CadResult;
     use std::sync::Arc;
     use wasm_bindgen_test::wasm_bindgen_test;

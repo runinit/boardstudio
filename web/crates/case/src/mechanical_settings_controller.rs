@@ -11,9 +11,9 @@ use super::mechanical_settings::{
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
 };
-use boardstudio_core::mechanical::change::{MechanicalEdit, MechanicalTarget};
-use boardstudio_core::mechanical::{MechanicalEditDisposition, evaluate_edit};
-use boardstudio_core::model::{
+use boardstudio_core_mechanical::mechanical::change::{MechanicalEdit, MechanicalTarget};
+use boardstudio_core_mechanical::mechanical::{MechanicalEditDisposition, evaluate_edit};
+use boardstudio_model::model::{
     EditOperation, MechanicalAssembly, MechanicalConfiguration, PartDefinition,
 };
 use boardstudio_web_runtime::edit_ticket::EditTicketPort;
@@ -803,7 +803,7 @@ mod adapter_tests {
         AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, OperationId, Resolution,
         Scope,
     };
-    use boardstudio_core::model::{EditOperation, ProjectDoc};
+    use boardstudio_model::model::{EditOperation, ProjectDoc};
     use boardstudio_web_runtime::edit_ticket::EditTicketPort;
     use boardstudio_web_runtime::operation_outcomes::{LandingSlot, OutcomeSlot};
     use futures_channel::oneshot;
@@ -1048,7 +1048,7 @@ mod adapter_tests {
             identity,
             1,
             MechanicalSettingsPatch::SetDimension {
-                field: boardstudio_core::mechanical::change::MechanicalDimension::WallThickness,
+                field: boardstudio_core_mechanical::mechanical::change::MechanicalDimension::WallThickness,
                 value: 3.0,
             },
         )));
@@ -1066,7 +1066,7 @@ mod adapter_tests {
         assert_eq!(
             edit.change,
             MechanicalSettingsPatch::SetDimension {
-                field: boardstudio_core::mechanical::change::MechanicalDimension::WallThickness,
+                field: boardstudio_core_mechanical::mechanical::change::MechanicalDimension::WallThickness,
                 value: 3.0,
             }
         );
@@ -1088,7 +1088,7 @@ mod adapter_tests {
             identity,
             1,
             MechanicalSettingsPatch::SetDimension {
-                field: boardstudio_core::mechanical::change::MechanicalDimension::WallThickness,
+                field: boardstudio_core_mechanical::mechanical::change::MechanicalDimension::WallThickness,
                 value: 3.0,
             },
         )));
@@ -1128,7 +1128,7 @@ mod adapter_tests {
             identity,
             1,
             MechanicalSettingsPatch::SetDimension {
-                field: boardstudio_core::mechanical::change::MechanicalDimension::WallThickness,
+                field: boardstudio_core_mechanical::mechanical::change::MechanicalDimension::WallThickness,
                 value: 3.0,
             },
         )));
@@ -1161,14 +1161,14 @@ mod adapter_tests {
         let source = |instance: Option<&str>| MechanicalSettingsPatch::LinkMirrorPair {
             pair_id: "pair-new".into(),
             members: ["left".into(), "right".into()],
-            mapping: boardstudio_core::model::Pose2 {
-                at: boardstudio_core::model::Vec2::default(),
+            mapping: boardstudio_model::model::Pose2 {
+                at: boardstudio_model::model::Vec2::default(),
                 rotation: 0.0,
             },
             construction_source: "left".into(),
             correspondences: vec![
-                boardstudio_core::mechanical::change::MechanicalFeatureCorrespondence {
-                    kind: boardstudio_core::model::MechanicalFeatureKind::Mount,
+                boardstudio_core_mechanical::mechanical::change::MechanicalFeatureCorrespondence {
+                    kind: boardstudio_model::model::MechanicalFeatureKind::Mount,
                     first_feature_id: "mount-1-left".into(),
                     second_feature_id: "mount-1-right".into(),
                     source_instance_id: instance.map(str::to_owned),
@@ -1339,14 +1339,14 @@ mod adapter_tests {
         let link = MechanicalSettingsPatch::LinkMirrorPair {
             pair_id: "pair-new".into(),
             members: ["left".into(), "right".into()],
-            mapping: boardstudio_core::model::Pose2 {
-                at: boardstudio_core::model::Vec2::default(),
+            mapping: boardstudio_model::model::Pose2 {
+                at: boardstudio_model::model::Vec2::default(),
                 rotation: 0.0,
             },
             construction_source: "left".into(),
             correspondences: vec![
-                boardstudio_core::mechanical::change::MechanicalFeatureCorrespondence {
-                    kind: boardstudio_core::model::MechanicalFeatureKind::Mount,
+                boardstudio_core_mechanical::mechanical::change::MechanicalFeatureCorrespondence {
+                    kind: boardstudio_model::model::MechanicalFeatureKind::Mount,
                     first_feature_id: "mount-1-left".into(),
                     second_feature_id: "mount-1-right".into(),
                     source_instance_id: None,
@@ -1379,10 +1379,10 @@ mod adapter_tests {
         moved.hardware.as_mut().unwrap().instances[0].mechanical = Some({
             let mut configuration = accepted.document.mechanical.clone().unwrap();
             configuration.board_id = "board".into();
-            configuration.mounts = vec![boardstudio_core::model::Mount {
+            configuration.mounts = vec![boardstudio_model::model::Mount {
                 id: "mount-1-left".into(),
-                at: boardstudio_core::model::Vec2 { x: 9.0, y: 1.0 },
-                kind: boardstudio_core::model::MountKind::Hole,
+                at: boardstudio_model::model::Vec2 { x: 9.0, y: 1.0 },
+                kind: boardstudio_model::model::MountKind::Hole,
                 hole_diameter: 2.2,
                 boss_diameter: None,
                 height: None,
@@ -1419,7 +1419,7 @@ mod adapter_tests {
             identity,
             1,
             MechanicalSettingsPatch::SetDimension {
-                field: boardstudio_core::mechanical::change::MechanicalDimension::WallThickness,
+                field: boardstudio_core_mechanical::mechanical::change::MechanicalDimension::WallThickness,
                 value: wall_thickness,
             },
         )));
@@ -1449,7 +1449,7 @@ mod adapter_tests {
             identity,
             1,
             MechanicalSettingsPatch::SetDimension {
-                field: boardstudio_core::mechanical::change::MechanicalDimension::WallThickness,
+                field: boardstudio_core_mechanical::mechanical::change::MechanicalDimension::WallThickness,
                 value: 3.0,
             },
         )));
@@ -1494,7 +1494,7 @@ mod adapter_tests {
             identity.clone(),
             1,
             MechanicalSettingsPatch::SetDimension {
-                field: boardstudio_core::mechanical::change::MechanicalDimension::WallThickness,
+                field: boardstudio_core_mechanical::mechanical::change::MechanicalDimension::WallThickness,
                 value: 3.0,
             },
         )));
@@ -1502,7 +1502,7 @@ mod adapter_tests {
             identity,
             2,
             MechanicalSettingsPatch::SetDimension {
-                field: boardstudio_core::mechanical::change::MechanicalDimension::WallThickness,
+                field: boardstudio_core_mechanical::mechanical::change::MechanicalDimension::WallThickness,
                 value: 4.0,
             },
         )));
@@ -1523,14 +1523,14 @@ mod adapter_tests {
         assert_eq!(
             first.change,
             MechanicalSettingsPatch::SetDimension {
-                field: boardstudio_core::mechanical::change::MechanicalDimension::WallThickness,
+                field: boardstudio_core_mechanical::mechanical::change::MechanicalDimension::WallThickness,
                 value: 3.0,
             }
         );
         assert_eq!(
             second.change,
             MechanicalSettingsPatch::SetDimension {
-                field: boardstudio_core::mechanical::change::MechanicalDimension::WallThickness,
+                field: boardstudio_core_mechanical::mechanical::change::MechanicalDimension::WallThickness,
                 value: 4.0,
             }
         );
@@ -1560,7 +1560,7 @@ mod adapter_tests {
             MechanicalSettingsPatch::SetOpeningDimension {
                 opening_id: "opening-1".into(),
                 vertex_id: Some("vertex-1".into()),
-                field: boardstudio_core::mechanical::change::MechanicalDimension::OpeningPointX,
+                field: boardstudio_core_mechanical::mechanical::change::MechanicalDimension::OpeningPointX,
                 value: 1.0,
             },
         )));
@@ -1599,7 +1599,7 @@ mod adapter_tests {
             MechanicalSettingsPatch::SetOpeningDimension {
                 opening_id: "opening-1".into(),
                 vertex_id: Some("vertex-1".into()),
-                field: boardstudio_core::mechanical::change::MechanicalDimension::OpeningPointY,
+                field: boardstudio_core_mechanical::mechanical::change::MechanicalDimension::OpeningPointY,
                 value: 1.0,
             },
         )));
@@ -1638,7 +1638,7 @@ mod adapter_tests {
             MechanicalSettingsPatch::SetOpeningDimension {
                 opening_id: "opening-2".into(),
                 vertex_id: Some("vertex-3".into()),
-                field: boardstudio_core::mechanical::change::MechanicalDimension::OpeningPointX,
+                field: boardstudio_core_mechanical::mechanical::change::MechanicalDimension::OpeningPointX,
                 value: 2.0,
             },
         )));
@@ -1666,7 +1666,7 @@ mod adapter_tests {
             MechanicalSettingsPatch::SetOpeningDimension {
                 opening_id: "opening-2".into(),
                 vertex_id: Some("vertex-3".into()),
-                field: boardstudio_core::mechanical::change::MechanicalDimension::OpeningPointX,
+                field: boardstudio_core_mechanical::mechanical::change::MechanicalDimension::OpeningPointX,
                 value: 2.0,
             },
             "the queued edit must keep its own opening id, not the shifted index"
@@ -1675,8 +1675,8 @@ mod adapter_tests {
 
     /// A fixture half pair whose linked mount is authored on the left half.
     fn pair_fixture_document(project_id: &str) -> ProjectDoc {
-        use boardstudio_core::mechanical::features::shared_construction;
-        use boardstudio_core::model::{
+        use boardstudio_core_mechanical::mechanical::features::shared_construction;
+        use boardstudio_model::model::{
             HardwareConfiguration, HardwareTopology, HardwareTransport,
             MechanicalConstructionOwnership, MechanicalFeature, MechanicalFeatureKind,
             MechanicalFeatureMember, MechanicalFeatureState, MechanicalFeatureValue,
@@ -1848,10 +1848,10 @@ mod adapter_tests {
 
     #[wasm_bindgen_test]
     async fn a_stale_critical_fit_setter_cannot_mutate_the_monotonic_replacement() {
-        use boardstudio_core::mechanical::change::{
+        use boardstudio_core_mechanical::mechanical::change::{
             MechanicalChange, MechanicalCriticalFitTextField, MechanicalEdit,
         };
-        use boardstudio_core::model::{EditCommand, EditPhase, MechanicalCriticalFit};
+        use boardstudio_model::model::{EditCommand, EditPhase, MechanicalCriticalFit};
 
         fn command(base_revision: u64, transaction: &str, change: MechanicalChange) -> EditCommand {
             EditCommand {
@@ -1876,8 +1876,8 @@ mod adapter_tests {
             id: "case-critical-fit-1".into(),
             part_id: "case-closure/part".into(),
             label: "Critical dimension".into(),
-            from: boardstudio_core::model::Vec2 { x: 0.0, y: 0.0 },
-            to: boardstudio_core::model::Vec2 { x: 10.0, y: 0.0 },
+            from: boardstudio_model::model::Vec2 { x: 0.0, y: 0.0 },
+            to: boardstudio_model::model::Vec2 { x: 10.0, y: 0.0 },
             tolerance: "±0.2 mm".into(),
         }]);
         let runtime = support::new_runtime();
@@ -1978,7 +1978,7 @@ mod adapter_tests {
             identity,
             1,
             MechanicalSettingsPatch::SetDimension {
-                field: boardstudio_core::mechanical::change::MechanicalDimension::WallThickness,
+                field: boardstudio_core_mechanical::mechanical::change::MechanicalDimension::WallThickness,
                 value: 3.0,
             },
         )));

@@ -3,10 +3,10 @@
 use boardstudio_application::{
     AcceptedSnapshot, EditResolver, OperationId, Resolution, Scope, SessionEpoch,
 };
-use boardstudio_core::mechanical::{
+use boardstudio_core_mechanical::mechanical::{
     default_plate_thickness, generator_switch_family, mounting_datum,
 };
-use boardstudio_core::model::{
+use boardstudio_model::model::{
     CoreReply, EditOperation, MechanicalBuiltinProfile, MechanicalPartProfile,
     MechanicalSwitchFamily, PartDefinition,
 };
@@ -129,7 +129,7 @@ pub fn standard_profile_controls(
     profile: &MechanicalPartProfile,
 ) -> (bool, bool) {
     (
-        definition.kind == boardstudio_core::model::PartKind::Switch,
+        definition.kind == boardstudio_model::model::PartKind::Switch,
         profile.switch_family.is_some(),
     )
 }
@@ -304,8 +304,8 @@ mod tests {
     #[cfg(not(target_arch = "wasm32"))]
     use boardstudio_application::{Event, TerminalOutcome};
     #[cfg(not(target_arch = "wasm32"))]
-    use boardstudio_core::model::ProjectDoc;
-    use boardstudio_core::model::{MechanicalProfileSource, Vec2};
+    use boardstudio_model::model::ProjectDoc;
+    use boardstudio_model::model::{MechanicalProfileSource, Vec2};
     #[cfg(not(target_arch = "wasm32"))]
     use std::rc::Rc;
 
@@ -749,7 +749,7 @@ mod tests {
             OperationId(301),
             owner.clone(),
             target.clone(),
-            boardstudio_core::model::MechanicalSwitchFamily::Mx,
+            boardstudio_model::model::MechanicalSwitchFamily::Mx,
             3.5,
             8,
             4,
@@ -838,7 +838,7 @@ mod tests {
 
     #[test]
     fn initial_profile_infers_the_family_and_its_plate_gap_from_the_generator() {
-        use boardstudio_core::model::MechanicalSwitchFamily::{ChocV1, ChocV2, Mx};
+        use boardstudio_model::model::MechanicalSwitchFamily::{ChocV1, ChocV2, Mx};
         let definition = |generator: Option<(&str, serde_json::Value)>| -> PartDefinition {
             let mut value = serde_json::json!({
                 "id":"def", "name":"def", "kind":"switch", "courtyard":[], "pads":[]
@@ -891,7 +891,7 @@ mod tests {
 
     #[test]
     fn standard_profile_request_matches_react_family_sources_and_plate_gaps() {
-        use boardstudio_core::model::{MechanicalBuiltinProfile, MechanicalSwitchFamily};
+        use boardstudio_model::model::{MechanicalBuiltinProfile, MechanicalSwitchFamily};
 
         assert_eq!(
             standard_profile_source_and_gap(MechanicalSwitchFamily::Mx),
@@ -940,7 +940,7 @@ mod tests {
 
     #[test]
     fn standard_profile_reply_rejects_wrong_request_owner_family_or_gap() {
-        use boardstudio_core::model::CoreReply;
+        use boardstudio_model::model::CoreReply;
         let mut expected = profile("switch", "standard");
         expected.switch_family = Some(MechanicalSwitchFamily::Mx);
         expected.plate_to_pcb = 3.5;
@@ -1001,7 +1001,7 @@ mod tests {
     #[test]
     fn standard_profile_selector_and_action_follow_distinct_issue15_predicates() {
         let mut switch = definition("switch", "Project switch");
-        switch.kind = boardstudio_core::model::PartKind::Switch;
+        switch.kind = boardstudio_model::model::PartKind::Switch;
         let mut family_profile = profile("switch", "saved fit");
         family_profile.switch_family = Some(MechanicalSwitchFamily::ChocV1);
         assert_eq!(
@@ -1010,7 +1010,7 @@ mod tests {
         );
 
         let mut non_switch = definition("controller", "Controller with saved switch fit");
-        non_switch.kind = boardstudio_core::model::PartKind::Controller;
+        non_switch.kind = boardstudio_model::model::PartKind::Controller;
         assert_eq!(
             standard_profile_controls(&non_switch, &family_profile),
             (false, true)

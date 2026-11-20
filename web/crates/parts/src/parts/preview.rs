@@ -3,7 +3,7 @@ use super::{GeneratorPreviewDraft, GeneratorPreviewStatus};
 use crate::footprint_forms::{Graphic, Shape};
 use crate::presentation::footprint_graphics::{self, Drawings, GraphicElement};
 use boardstudio_application::{Scope, SnapshotToken};
-use boardstudio_core::model::{EnvelopeOrigin, Pad, PadShape, PartDefinition, Side, Vec2};
+use boardstudio_model::model::{EnvelopeOrigin, Pad, PadShape, PartDefinition, Side, Vec2};
 use boardstudio_web_ui_shared::canvas_layers::{LayerPanel, LayerToggleButton};
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
@@ -20,7 +20,7 @@ use std::{
 
 #[cfg(test)]
 thread_local! {
-    static NEXT_PARTS_TEST_PREVIEW: RefCell<Option<boardstudio_core::model::PcbPreview>> = const { RefCell::new(None) };
+    static NEXT_PARTS_TEST_PREVIEW: RefCell<Option<boardstudio_model::model::PcbPreview>> = const { RefCell::new(None) };
 }
 
 #[cfg(test)]
@@ -35,7 +35,7 @@ impl Drop for PartsTestPreviewGuard {
 
 #[cfg(test)]
 fn seed_parts_preview_for_test(
-    preview: boardstudio_core::model::PcbPreview,
+    preview: boardstudio_model::model::PcbPreview,
 ) -> PartsTestPreviewGuard {
     NEXT_PARTS_TEST_PREVIEW.with(|next| {
         assert!(next.borrow_mut().replace(preview).is_none());
@@ -44,7 +44,7 @@ fn seed_parts_preview_for_test(
 }
 
 #[cfg(test)]
-fn take_parts_preview_for_test() -> Option<boardstudio_core::model::PcbPreview> {
+fn take_parts_preview_for_test() -> Option<boardstudio_model::model::PcbPreview> {
     NEXT_PARTS_TEST_PREVIEW.with(|preview| preview.borrow_mut().take())
 }
 
@@ -1092,7 +1092,7 @@ mod tests {
     use super::*;
     use crate::runtime::project_name_test_support as support;
     use boardstudio_application::{AcceptedSnapshot, Scope, SessionEpoch};
-    use boardstudio_core::model::{Board, ProjectDoc};
+    use boardstudio_model::model::{Board, ProjectDoc};
     use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use std::sync::Arc;
     use wasm_bindgen::JsCast;
@@ -1100,7 +1100,7 @@ mod tests {
     use web_sys::Element as DomElement;
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
-    use boardstudio_core::model::{EnvelopeSource, KicadSource, PartGenerator, PartKind};
+    use boardstudio_model::model::{EnvelopeSource, KicadSource, PartGenerator, PartKind};
 
     fn definition() -> PartDefinition {
         PartDefinition {
@@ -1419,7 +1419,7 @@ mod tests {
         let _failure = super::super::super::shared_viewer::fail_next_renderer_mount_for_test(
             "injected renderer initialization failure",
         );
-        let _preview = super::seed_parts_preview_for_test(boardstudio_core::model::PcbPreview {
+        let _preview = super::seed_parts_preview_for_test(boardstudio_model::model::PcbPreview {
             revision: snapshot.document.revision,
             thickness: 1.6,
             contours: Vec::new(),

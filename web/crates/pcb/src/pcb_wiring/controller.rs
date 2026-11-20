@@ -13,7 +13,7 @@ use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
 };
-use boardstudio_core::model::{EditOperation, ProjectDoc};
+use boardstudio_model::model::{EditOperation, ProjectDoc};
 use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
@@ -264,7 +264,7 @@ pub fn use_firmware_position_edits(
 fn firmware_position_resolver(request: FirmwarePositionEditRequest) -> EditResolver {
     EditResolver::new("firmware-position", move |accepted: &AcceptedSnapshot| {
         let scope = &request.identity.ui_scope;
-        let boardstudio_core::model::CoreRequest::ResolveElectrical {
+        let boardstudio_model::model::CoreRequest::ResolveElectrical {
             request: electrical_request,
             ..
         } = crate::pcb_wiring_mode_operation::electrical_preview_request(
@@ -275,7 +275,7 @@ fn firmware_position_resolver(request: FirmwarePositionEditRequest) -> EditResol
         else {
             unreachable!()
         };
-        let plan = boardstudio_core::electrical::resolve(electrical_request);
+        let plan = boardstudio_core_mechanical::electrical::resolve(electrical_request);
         let identity = WiringPlanIdentity {
             token: accepted.token,
             revision: accepted.document.revision,
@@ -732,7 +732,7 @@ fn current_part_net_identity(
         .find(|definition| definition.id == part.definition_id)?;
     if matches!(
         &definition.kind,
-        boardstudio_core::model::PartKind::Switch | boardstudio_core::model::PartKind::Controller
+        boardstudio_model::model::PartKind::Switch | boardstudio_model::model::PartKind::Controller
     ) {
         return None;
     }
@@ -929,7 +929,11 @@ type WiringResolver = Rc<
         AcceptedSnapshot,
         Scope,
     ) -> Pin<
-        Box<dyn Future<Output = Result<boardstudio_core::electrical::ElectricalPlan, String>>>,
+        Box<
+            dyn Future<
+                Output = Result<boardstudio_core_mechanical::electrical::ElectricalPlan, String>,
+            >,
+        >,
     >,
 >;
 
@@ -1105,8 +1109,10 @@ fn invalidate_pending(sequence: &Cell<u64>) {
 mod mounted_resolution_tests {
     use super::*;
     use boardstudio_application::{SessionEpoch, SnapshotToken};
-    use boardstudio_core::electrical::{ElectricalMode, ElectricalPlan, ElectricalPlanRequest};
-    use boardstudio_core::model::{Readiness, SceneDelta};
+    use boardstudio_core_mechanical::electrical::{
+        ElectricalMode, ElectricalPlan, ElectricalPlanRequest,
+    };
+    use boardstudio_model::model::{Readiness, SceneDelta};
     use futures_channel::oneshot;
     use std::{cell::RefCell, collections::VecDeque, sync::Arc};
     use wasm_bindgen_test::wasm_bindgen_test;
@@ -1133,7 +1139,7 @@ mod mounted_resolution_tests {
     ) -> WiringInput {
         let mut document = ProjectDoc::empty("resolver-test", "Resolver test");
         document.revision = revision;
-        document.boards.push(boardstudio_core::model::Board {
+        document.boards.push(boardstudio_model::model::Board {
             id: board_id.into(),
             name: board_id.into(),
             outline_ids: vec![],
@@ -1143,8 +1149,8 @@ mod mounted_resolution_tests {
             traces: vec![],
             vias: vec![],
         });
-        document.hardware = Some(boardstudio_core::model::HardwareConfiguration {
-            boards: vec![boardstudio_core::model::ElectricalBoardConfiguration {
+        document.hardware = Some(boardstudio_model::model::HardwareConfiguration {
+            boards: vec![boardstudio_model::model::ElectricalBoardConfiguration {
                 board_id: board_id.into(),
                 controller_part_id: controller_part_id.map(str::to_owned),
                 ..Default::default()
@@ -1192,7 +1198,7 @@ mod mounted_resolution_tests {
     }
 
     fn test_plan(board_id: &str, revision: u64) -> ElectricalPlan {
-        let mut plan = boardstudio_core::electrical::resolve(ElectricalPlanRequest {
+        let mut plan = boardstudio_core_mechanical::electrical::resolve(ElectricalPlanRequest {
             document: ProjectDoc::empty("resolver-test", "Resolver test"),
             instance_id: None,
             mode: ElectricalMode::Matrix,

@@ -8,8 +8,8 @@ use super::shared_viewer::{
 use super::{InstanceSelection, ResolvedAppearance, selection::SelectionAdapter};
 use crate::runtime::{CadScene, Runtime};
 use boardstudio_application::{Scope, SnapshotToken};
-use boardstudio_core::model::polygon_contains;
-use boardstudio_core::model::{
+use boardstudio_model::model::polygon_contains;
+use boardstudio_model::model::{
     CaseKind, GasketPlacement, MechanicalGasketAnchor, MechanicalGasketSupport,
     MechanicalGasketTrack, MechanicalMount, Mount, MountKind, ProjectDoc, Vec2,
 };
@@ -157,14 +157,14 @@ struct CaseKeycapsSource {
     scope: Scope,
     token: SnapshotToken,
     revision: u64,
-    prepared: Option<boardstudio_core::model::PreparedCaseAssemblyIR>,
+    prepared: Option<boardstudio_model::model::PreparedCaseAssemblyIR>,
 }
 
 #[derive(Clone, Default)]
 struct CaseKeycapsState {
     source: Option<CaseKeycapsSource>,
     preview: Option<crate::runtime::KeycapsCadPreview>,
-    findings: Vec<boardstudio_core::model::Finding>,
+    findings: Vec<boardstudio_model::model::Finding>,
     pending: bool,
     error: Option<String>,
 }
@@ -254,7 +254,7 @@ fn use_case_keycaps(
                     }
                     if fit.specs.is_empty()
                         || fit.findings.iter().any(|finding| {
-                            finding.severity == boardstudio_core::model::Severity::Error
+                            finding.severity == boardstudio_model::model::Severity::Error
                         })
                     {
                         return Ok((None, fit.findings));
@@ -1858,10 +1858,8 @@ mod keycap_consumer_tests {
     use crate::presentation::shared_viewer::SharedViewerProjectionProbe;
     use crate::runtime::{KeycapsPreviewInput, project_name_test_support as support};
     use boardstudio_application::{Event, OperationId, Session};
-    use boardstudio_core::{
-        CoreEngine,
-        model::{CoreReply, CoreRequest, PreparedCaseAssemblyIR},
-    };
+    use boardstudio_core::CoreEngine;
+    use boardstudio_model::model::{CoreReply, CoreRequest, PreparedCaseAssemblyIR};
     use boardstudio_web_host::cad_jobs::{CadBodyMesh, CadResult};
     use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use futures_channel::oneshot;
@@ -2046,7 +2044,7 @@ mod keycap_consumer_tests {
             result
                 .findings
                 .iter()
-                .all(|finding| finding.severity != boardstudio_core::model::Severity::Error)
+                .all(|finding| finding.severity != boardstudio_model::model::Severity::Error)
         );
         assert!(
             (result.specs[0].size.x - 132.5).abs() < 1e-9,
@@ -2238,12 +2236,10 @@ mod gesture_cancellation_tests {
     use super::*;
     use crate::presentation::shared_viewer::{HandleGesturePhase, SharedViewerEscapeProbe};
     use boardstudio_application::{AcceptedSnapshot, Event, OperationId, Session};
-    use boardstudio_core::{
-        CoreEngine,
-        model::{
-            Board, CaseKind, Mount, MountKind, PreparedCaseAssemblyIR, PreparedCaseIR,
-            PreparedCaseRegion, ProjectDoc, Vec2,
-        },
+    use boardstudio_core::CoreEngine;
+    use boardstudio_model::model::{
+        Board, CaseKind, Mount, MountKind, PreparedCaseAssemblyIR, PreparedCaseIR,
+        PreparedCaseRegion, ProjectDoc, Vec2,
     };
     use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use wasm_bindgen_test::wasm_bindgen_test;
@@ -2268,7 +2264,7 @@ mod gesture_cancellation_tests {
             boss_diameter: Some(4.0),
             height: Some(5.0),
         };
-        let body = boardstudio_core::model::CaseBody {
+        let body = boardstudio_model::model::CaseBody {
             features: None,
             openings: None,
             id: "bottom".into(),
@@ -2298,17 +2294,17 @@ mod gesture_cancellation_tests {
         });
         document
             .outline
-            .push(boardstudio_core::model::OutlineFeature::Polygon {
+            .push(boardstudio_model::model::OutlineFeature::Polygon {
                 anchor_part_id: None,
                 id: "outline-1".into(),
                 points: outer(),
-                operation: boardstudio_core::model::Operation::Add,
+                operation: boardstudio_model::model::Operation::Add,
             });
         document.case_bodies.push(body.clone());
-        document.hardware = Some(boardstudio_core::model::HardwareConfiguration {
+        document.hardware = Some(boardstudio_model::model::HardwareConfiguration {
             instances: ["primary", "alternate"]
                 .into_iter()
-                .map(|id| boardstudio_core::model::PhysicalBoardInstance {
+                .map(|id| boardstudio_model::model::PhysicalBoardInstance {
                     id: id.into(),
                     name: id.into(),
                     board_id: "board-1".into(),
@@ -2318,7 +2314,7 @@ mod gesture_cancellation_tests {
                     controller_part_id: None,
                     mechanical: None,
                     construction_ownership:
-                        boardstudio_core::model::MechanicalConstructionOwnership::Local,
+                        boardstudio_model::model::MechanicalConstructionOwnership::Local,
                     mechanical_identity_reservation: None,
                 })
                 .collect(),
@@ -2383,7 +2379,7 @@ mod gesture_cancellation_tests {
         snapshot: AcceptedSnapshot,
         scope: Scope,
     ) -> Result<CadScene, String> {
-        use boardstudio_core::model::{CaseAssemblyIR, CaseIR, CoreReply, CoreRequest};
+        use boardstudio_model::model::{CaseAssemblyIR, CaseIR, CoreReply, CoreRequest};
         use boardstudio_web_host::cad_jobs::{
             CadBodyMesh, CadBounds, CadResult, captured_case_scene,
         };

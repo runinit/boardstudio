@@ -1,6 +1,6 @@
 use super::OwnedEdits;
 use boardstudio_application::{EditResolver, Event, Resolution};
-use boardstudio_core::model::{EditOperation, ProjectDoc};
+use boardstudio_model::model::{EditOperation, ProjectDoc};
 use boardstudio_web_runtime::runtime::Runtime;
 use dioxus::prelude::*;
 use std::rc::Rc;

@@ -98,8 +98,8 @@ fn PartsCatalogueCategory(label: String, reveal: bool, children: Element) -> Ele
 pub enum MatrixPlacementSource {
     Preset(MatrixPresetId),
     Assembly {
-        assembly: boardstudio_core::model::AssemblyDefinition,
-        definitions: Vec<boardstudio_core::model::PartDefinition>,
+        assembly: boardstudio_model::model::AssemblyDefinition,
+        definitions: Vec<boardstudio_model::model::PartDefinition>,
     },
 }
 
@@ -139,7 +139,7 @@ mod placement_action_tests;
 
 use crate::parts_mechanical_profile::ProfileDefinitionSource;
 use boardstudio_application::{AcceptedSnapshot, Scope, SnapshotToken};
-use boardstudio_core::model::ProjectDoc;
+use boardstudio_model::model::ProjectDoc;
 use catalogue::{CatalogEntry, catalogue_choices, group_choices, preferred_label};
 use details::SelectedDefinition;
 use dioxus::prelude::*;
@@ -178,7 +178,7 @@ struct AssemblyRecipeRequest {
     orientation: assembly_presets::SwitchOrientation,
     reversible: bool,
     entries: Option<Rc<Vec<CatalogEntry>>>,
-    preview_definition: Option<boardstudio_core::model::PartDefinition>,
+    preview_definition: Option<boardstudio_model::model::PartDefinition>,
 }
 
 impl AssemblyRecipeRequest {
@@ -207,14 +207,14 @@ impl AssemblyRecipeRequest {
 #[derive(Clone, Debug, PartialEq)]
 pub struct GeneratorPreviewDraft {
     owner: generator_settings::GeneratorOwner,
-    definition: Option<boardstudio_core::model::PartDefinition>,
+    definition: Option<boardstudio_model::model::PartDefinition>,
     status: generator_settings::GeneratorPreviewStatus,
 }
 
 #[derive(Clone, Copy)]
 pub struct GeneratorDraftStore(pub Signal<Option<GeneratorPreviewDraft>>);
 /// React's library predicate is advisory; Core remains authoritative when SetMatrix is accepted.
-pub fn matrix_input_available(definition: &boardstudio_core::model::PartDefinition) -> bool {
+pub fn matrix_input_available(definition: &boardstudio_model::model::PartDefinition) -> bool {
     let press = if let Some(profile) = definition.input_profile.as_ref() {
         profile
             .press
@@ -302,11 +302,11 @@ thread_local! {
 /// Reuse the normalized bundled catalogue for project-owned closure projection.
 /// Project overrides never replace this generator template.
 pub async fn load_horizontal_host_connector_definition()
--> Result<boardstudio_core::model::PartDefinition, String> {
+-> Result<boardstudio_model::model::PartDefinition, String> {
     modules_catalogue::load_horizontal_host_connector_definition().await
 }
 
-pub fn placement_label(definition: &boardstudio_core::model::PartDefinition) -> &str {
+pub fn placement_label(definition: &boardstudio_model::model::PartDefinition) -> &str {
     preferred_label(definition)
 }
 
@@ -347,7 +347,7 @@ fn has_unique_mirror_board_pair(document: &ProjectDoc, board_id: &str) -> bool {
 #[component]
 fn AddObjectChoice(
     definition_id: String,
-    kind: boardstudio_core::model::PartKind,
+    kind: boardstudio_model::model::PartKind,
     label: String,
     mirror_only_available: bool,
     on_place: EventHandler<super::part_placement::ComponentPlacementAction>,
@@ -543,7 +543,7 @@ fn add_object_groups<'a>(
         ("Controllers", |entry| {
             matches!(
                 entry.definition.kind,
-                boardstudio_core::model::PartKind::Controller
+                boardstudio_model::model::PartKind::Controller
             )
         }),
         ("Displays", |entry| {
@@ -555,7 +555,7 @@ fn add_object_groups<'a>(
         ("Encoders", |entry| {
             matches!(
                 entry.definition.kind,
-                boardstudio_core::model::PartKind::Encoder
+                boardstudio_model::model::PartKind::Encoder
             ) || entry.definition.name.to_lowercase().contains("encoder")
         }),
     ];
@@ -606,7 +606,7 @@ mod add_object_menu_tests {
     fn retired_entry() -> CatalogEntry {
         let mut definition =
             (*entry("retired", "Battery legacy controller", "controller").definition).clone();
-        definition.generator = Some(boardstudio_core::model::PartGenerator {
+        definition.generator = Some(boardstudio_model::model::PartGenerator {
             source: "infused-kim/nice_nano_pretty".into(),
             version: "legacy".into(),
             parameters: Default::default(),
@@ -1148,7 +1148,7 @@ pub fn ControllerSetupPicker(
     let entries = catalogue.entries.unwrap_or_default();
     let controllers = catalogue_choices(&entries)
         .into_iter()
-        .filter(|entry| entry.definition.kind == boardstudio_core::model::PartKind::Controller)
+        .filter(|entry| entry.definition.kind == boardstudio_model::model::PartKind::Controller)
         .collect::<Vec<_>>();
     let selection = selected().filter(|(owner, _)| owner == &scope);
     let needle = search().trim().to_lowercase();
@@ -1369,7 +1369,7 @@ pub fn PartsInspectorPanel(
         .filter(|entry| {
             matches!(
                 entry.definition.kind,
-                boardstudio_core::model::PartKind::Controller
+                boardstudio_model::model::PartKind::Controller
             )
         })
         .map(|entry| entry.definition.id.clone());

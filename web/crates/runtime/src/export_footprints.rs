@@ -4,8 +4,8 @@
 //! request; the existing Core archive worker packs the resulting files.
 
 use boardstudio_application::{AcceptedSnapshot, OperationId};
-use boardstudio_core::hash::sha256_hex;
-use boardstudio_core::model::{
+use boardstudio_core_kernel::hash::sha256_hex;
+use boardstudio_model::model::{
     ArchiveEntry, ArchiveReply, ArchiveRequest, ArtifactReply, ArtifactRequest, ExportTarget,
     PrepareExportRequest,
 };
@@ -161,7 +161,7 @@ pub async fn build_zip(
 }
 
 async fn load_model_files(
-    document: &boardstudio_core::model::ProjectDoc,
+    document: &boardstudio_model::model::ProjectDoc,
     store: &BrowserStore,
     model_ids: &[String],
     is_current: &impl Fn() -> Result<(), String>,

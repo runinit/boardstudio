@@ -21,7 +21,7 @@ use crate::mechanical_feedback::{
 };
 use crate::runtime::{CadScene, Runtime};
 use boardstudio_application::{AcceptedSnapshot, Durability, Lifecycle, Scope, SnapshotToken};
-use boardstudio_core::model::{
+use boardstudio_model::model::{
     HardwareTransport, MechanicalAssembly, MechanicalBottomStyle, MechanicalConfiguration,
     MechanicalMount, MechanicalStabilizerKind, MechanicalStabilizerOverride, Mount, Part, PartKind,
     ProjectDoc,
@@ -37,7 +37,7 @@ use wasm_bindgen_futures::spawn_local;
 
 type LocalFuture<T> = Pin<Box<dyn Future<Output = T> + 'static>>;
 type MountingHoleLoader =
-    Rc<dyn Fn() -> LocalFuture<Result<Rc<boardstudio_core::model::PartDefinition>, String>>>;
+    Rc<dyn Fn() -> LocalFuture<Result<Rc<boardstudio_model::model::PartDefinition>, String>>>;
 type PresentationKey = (&'static str, u64, Option<Scope>);
 
 #[cfg(test)]
@@ -101,7 +101,7 @@ pub fn use_mechanical_settings_mount(
     // The reviewed link/rejoin projection needs the normalized mounting-hole template
     // whenever the reviewed result creates generated closure holes. Load it once, like
     // the controller does per request, so the review can show the complete result.
-    let review_mounting_hole = use_signal(|| None::<Rc<boardstudio_core::model::PartDefinition>>);
+    let review_mounting_hole = use_signal(|| None::<Rc<boardstudio_model::model::PartDefinition>>);
     use_hook({
         let mut review_mounting_hole = review_mounting_hole;
         move || {
@@ -644,7 +644,7 @@ pub fn use_mechanical_settings_mount(
             let runtime = runtime.clone();
             let alive = alive.clone();
             let current_reader = current_reader.clone();
-            MechanicalProfileExtractionPort(Rc::new(move |definition_id: String, mappings: Vec<boardstudio_core::model::MechanicalPurposeMapping>| -> LocalFuture<Result<boardstudio_core::model::MechanicalExtraction, String>> {
+            MechanicalProfileExtractionPort(Rc::new(move |definition_id: String, mappings: Vec<boardstudio_model::model::MechanicalPurposeMapping>| -> LocalFuture<Result<boardstudio_model::model::MechanicalExtraction, String>> {
                 let Some(before) = current_reader() else {
                     return Box::pin(async { Err("The accepted Case profile scope is no longer available.".into()) });
                 };
@@ -740,7 +740,7 @@ pub fn use_mechanical_settings_mount(
             })
             .is_some_and(|instance| {
                 instance.construction_ownership
-                    == boardstudio_core::model::MechanicalConstructionOwnership::Legacy
+                    == boardstudio_model::model::MechanicalConstructionOwnership::Legacy
             });
         // The review's read-only projection: the mount owns the accepted document, its
         // contours and the normalized template, so the panel never carries them and the
@@ -750,12 +750,14 @@ pub fn use_mechanical_settings_mount(
                 let document = current.accepted.document.clone();
                 let board_contours = current.accepted.scene.board_contours.clone();
                 let mounting_hole = review_mounting_hole.read().clone();
-                move |change: &boardstudio_core::mechanical::change::MechanicalChange| {
+                let open_scratch = runtime.core_services().open_scratch;
+                move |change: &boardstudio_core_mechanical::mechanical::change::MechanicalChange| {
                     crate::mechanical_pair::link_preview(
                         &document,
                         &board_contours,
                         change,
                         mounting_hole.as_deref(),
+                        open_scratch,
                     )
                 }
             }),
@@ -769,11 +771,12 @@ pub fn use_mechanical_settings_mount(
                     &current.accepted.scene.board_contours,
                     instance_id,
                     review_mounting_hole.read().as_deref(),
+                    runtime.core_services().open_scratch,
                 ),
             )
         });
         let preview_values = if configuration.is_none() {
-            boardstudio_core::mechanical::effective_inputs(&current.accepted.document, &current.accepted.scene.board_contours, &boardstudio_core::mechanical::MechanicalTarget::Board { board_id: current.identity.active_board_id.clone() }).ok().map(|inputs| settings_values(&inputs.configuration, transport))
+            boardstudio_core_mechanical::mechanical::effective_inputs(&current.accepted.document, &current.accepted.scene.board_contours, &boardstudio_core_mechanical::mechanical::MechanicalTarget::Board { board_id: current.identity.active_board_id.clone() }).ok().map(|inputs| settings_values(&inputs.configuration, transport))
         } else { None };
         MechanicalSettingsProps {
             preview_values,
@@ -1192,7 +1195,7 @@ fn profile_targets(
             Some(MechanicalProfileTargetChoice {
                 definition_id: definition.id.clone(),
                 name: definition.name.clone(),
-                switch_profile: definition.kind == boardstudio_core::model::PartKind::Switch
+                switch_profile: definition.kind == boardstudio_model::model::PartKind::Switch
                     || definition
                         .generator
                         .as_ref()
@@ -1481,7 +1484,7 @@ fn disabled_reason(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use boardstudio_core::model::{Board, PartDefinition, PartGenerator, Pose2, Side};
+    use boardstudio_model::model::{Board, PartDefinition, PartGenerator, Pose2, Side};
     use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use wasm_bindgen_test::wasm_bindgen_test;
 
@@ -1626,13 +1629,13 @@ mod tests {
             vias: vec![],
         });
         document.parts.push(Part {
-            keycap: Some(boardstudio_core::model::Vec2 { x: 37.0, y: 42.0 }),
+            keycap: Some(boardstudio_model::model::Vec2 { x: 37.0, y: 42.0 }),
             outline: None,
             id: "wide-key".into(),
             definition_id: "mx-switch".into(),
             reference: "K1".into(),
             pose: Pose2 {
-                at: boardstudio_core::model::Vec2 { x: 10.0, y: 20.0 },
+                at: boardstudio_model::model::Vec2 { x: 10.0, y: 20.0 },
                 rotation: 0.0,
             },
             side: Side::Front,

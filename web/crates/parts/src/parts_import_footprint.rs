@@ -1,7 +1,7 @@
 //! Parts-owned file import and acceptance reconciliation for source-owned KiCad footprints.
 
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution, Scope};
-use boardstudio_core::model::{CompiledFootprint, EditOperation};
+use boardstudio_model::model::{CompiledFootprint, EditOperation};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ImportCapture {
@@ -762,7 +762,7 @@ pub use ui::ImportKiCadFootprintAction;
 #[cfg(all(test, target_arch = "wasm32"))]
 mod mounted_tests {
     use super::*;
-    use boardstudio_core::model::ProjectDoc;
+    use boardstudio_model::model::ProjectDoc;
     use boardstudio_web_runtime::{
         runtime::Runtime, runtime::project_name_test_support as support,
     };

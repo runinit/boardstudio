@@ -15,12 +15,12 @@
 //! `SetPartAnchor`; the half origin only marks the current placement of a
 //! detached part or an unanchored matrix.
 
-use boardstudio_core::CoreEngine;
 use boardstudio_core_kernel::matrix::layout::evaluated_part_pose;
 use boardstudio_model::model::{
     CoreReply, CoreRequest, EditOperation, Follow, MatrixAnchor, MatrixScene, PartAnchor, Pose2,
     ProjectDoc, Vec2,
 };
+use boardstudio_web_runtime::core_services::OpenScratchCore;
 use boardstudio_web_ui_model::tree::TreeContext;
 
 /// A committable anchor-key candidate: one live key in the owner's Layout.
@@ -473,6 +473,7 @@ pub fn preview_anchor_poses(
     document: &ProjectDoc,
     selection: &TreeContext,
     target: &PickTarget,
+    open_scratch: OpenScratchCore,
 ) -> Vec<(String, Pose2)> {
     let projected = anchor_pick_candidates(document, &[], selection);
     let Some(projected) = projected else {
@@ -538,8 +539,7 @@ pub fn preview_anchor_poses(
         }
         _ => return Vec::new(),
     }
-    let mut engine = CoreEngine::new();
-    let probe = match engine.handle(CoreRequest::Open {
+    let probe = match open_scratch()(CoreRequest::Open {
         id: "anchor-pick-preview".into(),
         document: probe,
     }) {
@@ -573,6 +573,7 @@ pub fn preview_anchor_poses(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use boardstudio_web_runtime::core_services::CoreServices;
 
     fn document() -> ProjectDoc {
         let mut document = serde_json::to_value(ProjectDoc::empty("pick", "Pick")).unwrap();
@@ -1149,7 +1150,12 @@ mod tests {
             row: 0,
             column: 1,
         };
-        let preview = preview_anchor_poses(&doc, &selection, &target);
+        let preview = preview_anchor_poses(
+            &doc,
+            &selection,
+            &target,
+            CoreServices::engine().open_scratch,
+        );
         let commit = pick_commit(&doc, &selection, &target).expect("a live key commits");
         let (mut engine, _, opened) = open_engine(doc);
         let revision_before = opened.revision;
@@ -1195,7 +1201,12 @@ mod tests {
             row: 0,
             column: 1,
         };
-        let preview = preview_anchor_poses(&doc, &selection, &target);
+        let preview = preview_anchor_poses(
+            &doc,
+            &selection,
+            &target,
+            CoreServices::engine().open_scratch,
+        );
         let commit = pick_commit(&doc, &selection, &target).expect("a live key commits");
         let (mut engine, _, opened) = open_engine(doc);
         let edited = edit_engine(&mut engine, &opened, commit.operation);

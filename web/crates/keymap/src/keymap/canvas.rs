@@ -1,5 +1,5 @@
 use super::view::KeymapView;
-use boardstudio_core::model::{Contour, Vec2};
+use boardstudio_model::model::{Contour, Vec2};
 use dioxus::prelude::*;
 use std::{collections::BTreeSet, rc::Rc};
 

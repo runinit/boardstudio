@@ -34,7 +34,7 @@ use crate::model_delivery::{
     CadCollisionAssessment, CadCollisionSubject, DeliveredModel, IDENTITY_ROW_TRANSFORM_F64,
     ModelDeliveryRows, TIGHT_COLLISION_ACCURACY_MM, ValidatedMesh,
 };
-use boardstudio_core::model::{PcbModel, Pose2, Side, Vec2, Vec3};
+use boardstudio_model::model::{PcbModel, Pose2, Side, Vec2, Vec3};
 use boardstudio_web_host::cad_jobs::{
     CadStepFaceOccurrence, CadStepImportOptions, CadStepSourceFace, CadVendorStep,
 };
@@ -65,7 +65,7 @@ async fn fixture_document_scene(
         "../../../../cad/wasm/tests/fixtures/generated-analysis-contract.json"
     ))
     .unwrap();
-    let mut body: boardstudio_core::model::PreparedCaseIR =
+    let mut body: boardstudio_model::model::PreparedCaseIR =
         serde_json::from_value(data["preparedBody"].clone()).unwrap();
     body.revision = snapshot.document.revision;
     let prepared = if snapshot.document.mechanical.is_some() {
@@ -91,7 +91,7 @@ async fn fixture_document_scene(
         prepared: prepared
             .as_ref()
             .map(|prepared| prepared.prepared.clone())
-            .unwrap_or(boardstudio_core::model::PreparedCaseAssemblyIR {
+            .unwrap_or(boardstudio_model::model::PreparedCaseAssemblyIR {
                 revision: body.revision,
                 bodies: vec![body],
             }),

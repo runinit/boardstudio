@@ -10,7 +10,7 @@ use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Scope,
 };
-use boardstudio_core::model::{
+use boardstudio_model::model::{
     Contour, EditOperation, EditPhase, Operation, OutlineConnection, OutlineFeature, OutlineGap,
     OutlineRepairSettings, OutlineSettings, Part, Side, Vec2,
 };
@@ -1201,11 +1201,13 @@ fn submit_action(runtime: &Rc<Runtime>, state: ActionState, action: OutlineActio
     if admission == adapter::Admission::Malformed {
         // Core owns the message; surface it rather than queueing a ticket that can only
         // fail. A malformed edit leaves the accepted document untouched.
-        let message =
-            match boardstudio_core::outline_edit::evaluate(snapshot.document.as_ref(), &edit) {
-                Err(message) => message,
-                Ok(_) => unreachable!("a malformed admission evaluates to an error"),
-            };
+        let message = match boardstudio_core_kernel::outline_edit::evaluate(
+            snapshot.document.as_ref(),
+            &edit,
+        ) {
+            Err(message) => message,
+            Ok(_) => unreachable!("a malformed admission evaluates to an error"),
+        };
         if is_version_name {
             version_name_failure.set(Some(message));
         } else {
@@ -1422,7 +1424,7 @@ fn connection_edit_field(
 
 /// Resolve one captured typed outline edit against the accepted document at execution.
 pub(super) fn action_resolver(
-    edit: boardstudio_core::outline_edit::OutlineEdit,
+    edit: boardstudio_core_kernel::outline_edit::OutlineEdit,
     action: OutlineAction,
     transaction_id: String,
 ) -> EditResolver {

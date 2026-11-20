@@ -5,9 +5,9 @@
 //! which one remains relevant to the global summary; it does not own UI state.
 
 use boardstudio_application::{Scope, SnapshotToken};
-use boardstudio_core::model::MechanicalConfiguration;
+use boardstudio_model::model::MechanicalConfiguration;
 #[cfg(test)]
-use boardstudio_core::model::{MechanicalMount, PlateMethod};
+use boardstudio_model::model::{MechanicalMount, PlateMethod};
 use std::rc::Rc;
 
 #[derive(Clone, Debug, PartialEq)]

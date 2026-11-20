@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use boardstudio_core::model::PcbModel;
+use boardstudio_model::model::PcbModel;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ComponentModelSource {
@@ -89,7 +89,7 @@ mod tests {
     use super::*;
 
     fn model(id: &str) -> PcbModel {
-        use boardstudio_core::model::{Pose2, Side, Vec2, Vec3};
+        use boardstudio_model::model::{Pose2, Side, Vec2, Vec3};
         PcbModel {
             id: id.to_owned(),
             reference: "SW1".to_owned(),

@@ -3,7 +3,7 @@
 //! The page parent owns route composition and canonical selection. This module is a
 //! controlled view over the accepted document and emits stable part IDs only.
 use boardstudio_application::{AcceptedSnapshot, Scope};
-use boardstudio_core::model::{
+use boardstudio_model::model::{
     Contour, KeyBinding, KeycapBoardSettings, KeycapKeySettings, KeycapMatrixSettings, Part,
     PartDefinition, PartKind, Pose2, ProjectDoc, Vec2,
 };
@@ -561,7 +561,7 @@ mod key_list_mounted_tests {
 mod tests {
     use super::*;
     use boardstudio_application::{SessionEpoch, SnapshotToken};
-    use boardstudio_core::model::{
+    use boardstudio_model::model::{
         Board, KeyBinding, KeycapConfiguration, KeycapKeySettings, KeymapConfiguration,
         KeymapLayer, Matrix, SceneDelta, Transform,
     };
@@ -578,7 +578,7 @@ mod tests {
                 at: Vec2 { x: 1.0, y: 2.0 },
                 rotation: 0.0,
             },
-            side: boardstudio_core::model::Side::Front,
+            side: boardstudio_model::model::Side::Front,
             anchor: None,
             locked: None,
             properties: None,
@@ -647,7 +647,7 @@ mod tests {
                 board_outline_scenes: vec![],
                 finding_markers: vec![],
                 findings: vec![],
-                readiness: boardstudio_core::model::Readiness {
+                readiness: boardstudio_model::model::Readiness {
                     layout: true,
                     outline: false,
                     pcb: false,
@@ -826,10 +826,10 @@ mod tests {
             .definitions
             .push(definition("switch-def", "switch", None));
         document.parts.push(part("switch", "switch-def", "SW1"));
-        let mut hardware = boardstudio_core::model::HardwareConfiguration::default();
+        let mut hardware = boardstudio_model::model::HardwareConfiguration::default();
         hardware
             .boards
-            .push(boardstudio_core::model::ElectricalBoardConfiguration {
+            .push(boardstudio_model::model::ElectricalBoardConfiguration {
                 board_id: "board".into(),
                 key_bindings: BTreeMap::from([("switch".into(), "&kp A".into())]),
                 ..Default::default()
@@ -849,10 +849,10 @@ mod tests {
     fn key_binding_labels_match_existing_choices_and_fallbacks() {
         let mut document = ProjectDoc::empty("doc", "Fixture");
         document.boards.push(board(&[]));
-        let mut hardware = boardstudio_core::model::HardwareConfiguration::default();
+        let mut hardware = boardstudio_model::model::HardwareConfiguration::default();
         hardware
             .boards
-            .push(boardstudio_core::model::ElectricalBoardConfiguration {
+            .push(boardstudio_model::model::ElectricalBoardConfiguration {
                 board_id: "board".into(),
                 key_bindings: BTreeMap::from([
                     ("space".into(), "&kp SPACE".into()),

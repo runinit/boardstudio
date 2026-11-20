@@ -1,7 +1,7 @@
 //! Parts-private custom-component creation through the edit ticket.
 
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution, Scope};
-use boardstudio_core::model::{EditOperation, PartDefinition};
+use boardstudio_model::model::{EditOperation, PartDefinition};
 
 use crate::parts_custom_definition::replacement_commit;
 
@@ -386,7 +386,7 @@ mod tests {
     mod native {
         use super::*;
         use boardstudio_application::{Event, OperationId, TerminalOutcome};
-        use boardstudio_core::model::{PartKind, ProjectDoc};
+        use boardstudio_model::model::{PartKind, ProjectDoc};
         use boardstudio_web_runtime::{operation_outcomes::OutcomeSlot, runtime::Runtime};
         use std::rc::Rc;
 
@@ -571,7 +571,7 @@ mod tests {
 #[cfg(all(test, target_arch = "wasm32"))]
 mod mounted_tests {
     use super::*;
-    use boardstudio_core::model::ProjectDoc;
+    use boardstudio_model::model::ProjectDoc;
     use boardstudio_web_runtime::{
         runtime::Runtime, runtime::project_name_test_support as support,
     };

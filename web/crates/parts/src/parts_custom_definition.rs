@@ -1,7 +1,7 @@
 //! Scoped edits for the authored geometry fields of a project part definition.
 
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution, Scope, SessionEpoch};
-use boardstudio_core::model::{
+use boardstudio_model::model::{
     EditOperation, Pad, PadShape, PartDefinition, PartKind, ProjectDoc, Vec2,
 };
 
@@ -96,7 +96,7 @@ pub(crate) mod ui {
     use crate::parts::editor_fields::{EditorNumberField, EditorTextField};
     use crate::runtime::Runtime;
     use boardstudio_application::{AcceptedSnapshot, Scope};
-    use boardstudio_core::model::{Pad, PadShape, PartDefinition, PartKind};
+    use boardstudio_model::model::{Pad, PadShape, PartDefinition, PartKind};
     use boardstudio_web_runtime::pending_edits::PendingEditResult;
     use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
     use boardstudio_web_ui_shared::ui::{
@@ -1488,7 +1488,7 @@ fn authored_rectangle(definition: &mut PartDefinition, width: f64, height: f64, 
     let envelope = definition
         .envelope_source
         .get_or_insert_with(Default::default);
-    envelope.courtyard = Some(boardstudio_core::model::EnvelopeOrigin::Authored);
+    envelope.courtyard = Some(boardstudio_model::model::EnvelopeOrigin::Authored);
 }
 
 fn imported_pads_retire(definition: &PartDefinition) -> Result<(), String> {
@@ -1565,7 +1565,7 @@ fn unique_pad_id(pads: &[Pad], operation: u64) -> String {
 mod tests {
     use super::*;
     use boardstudio_application::{SessionEpoch, SnapshotToken};
-    use boardstudio_core::model::{ProjectDoc, SceneDelta};
+    use boardstudio_model::model::{ProjectDoc, SceneDelta};
     use std::sync::Arc;
 
     fn definition(pads: serde_json::Value) -> PartDefinition {
@@ -1961,7 +1961,7 @@ mod tests {
 
             let mut generator_document = ProjectDoc::empty("project", "Fixture");
             let mut generated = definition(serde_json::json!([pad("a", "1")]));
-            generated.generator = Some(boardstudio_core::model::PartGenerator {
+            generated.generator = Some(boardstudio_model::model::PartGenerator {
                 source: "generator/source".into(),
                 version: "1".into(),
                 parameters: Default::default(),
@@ -1979,7 +1979,7 @@ mod tests {
 
             let mut imported_document = ProjectDoc::empty("project", "Fixture");
             let mut imported = definition(serde_json::json!([pad("a", "1")]));
-            imported.kicad_source = Some(boardstudio_core::model::KicadSource {
+            imported.kicad_source = Some(boardstudio_model::model::KicadSource {
                 format_version: 1,
                 source: "part.kicad_mod".into(),
             });

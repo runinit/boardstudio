@@ -1,6 +1,6 @@
 //! Test-only wiring fixtures shared by the queued-edit browser tests and native mode-owner tests.
 
-use boardstudio_core::model::*;
+use boardstudio_model::model::*;
 use std::collections::BTreeMap;
 
 pub(crate) fn document() -> ProjectDoc {

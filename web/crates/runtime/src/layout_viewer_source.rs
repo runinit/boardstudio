@@ -5,7 +5,7 @@
 //! captured identity after each asynchronous boundary.
 
 use boardstudio_application::{AcceptedSnapshot, Scope, SnapshotToken};
-use boardstudio_core::model::{
+use boardstudio_model::model::{
     ArtifactRequest, Asset, BoardReference, Contour, ExportTarget, KeycapSpec, PcbPreview,
     PrepareExportRequest, ProjectDoc, ResolvedModule,
 };
@@ -550,7 +550,7 @@ impl LayoutPreviewSnapshot {
 mod tests {
     use super::*;
     use boardstudio_application::SessionEpoch;
-    use boardstudio_core::model::{
+    use boardstudio_model::model::{
         Board, BoardContours, CaseOpening, Contour, ModuleAttachment, ModuleSupportGeometry,
         MountedModule, Part, PcbModel, Pose2, Readiness, ResolvedModule, SceneDelta, Side, Vec2,
         Vec3,
@@ -1030,10 +1030,8 @@ mod tests {
 
     #[test]
     fn rendered_keycap_and_legend_picks_require_current_specs_bodies_and_board_owner() {
-        use boardstudio_core::{
-            CoreEngine,
-            model::{CoreReply, CoreRequest},
-        };
+        use boardstudio_core::CoreEngine;
+        use boardstudio_model::model::{CoreReply, CoreRequest};
 
         let (mut snapshot, scope) = accepted(false);
         let mut document = snapshot.document.as_ref().clone();
@@ -1210,11 +1208,11 @@ mod tests {
                 height: 1.0,
             }],
             footprints: vec![],
-            models: vec![boardstudio_core::model::PartModel {
+            models: vec![boardstudio_model::model::PartModel {
                 asset_id: "module-asset".into(),
-                offset: boardstudio_core::model::Vec3::default(),
-                rotation: boardstudio_core::model::Vec3::default(),
-                scale: boardstudio_core::model::Vec3 {
+                offset: boardstudio_model::model::Vec3::default(),
+                rotation: boardstudio_model::model::Vec3::default(),
+                scale: boardstudio_model::model::Vec3 {
                     x: 1.0,
                     y: 1.0,
                     z: 1.0,

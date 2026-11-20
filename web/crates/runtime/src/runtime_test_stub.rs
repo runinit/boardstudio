@@ -4,10 +4,8 @@ use crate::gate_driver::{GateDriver, OneShotBehavior};
 use boardstudio_application::{
     Completion, Effect, Event, OperationId, ReadModel, RequestId, SaveResult, Scope, Session,
 };
-use boardstudio_core::{
-    CoreEngine,
-    model::{CoreRequest, ProjectDoc},
-};
+use boardstudio_core::CoreEngine;
+use boardstudio_model::model::{CoreRequest, ProjectDoc};
 use std::{
     cell::{Cell, RefCell},
     collections::{BTreeMap, VecDeque},
@@ -82,6 +80,11 @@ impl Runtime {
             parked_save: RefCell::new(None),
             events: EventLog::new(),
         })
+    }
+
+    /// The real engine's Core entry points, matching the browser Runtime's injected services.
+    pub fn core_services(&self) -> crate::core_services::CoreServices {
+        crate::core_services::CoreServices::engine()
     }
 
     pub fn model(&self) -> ReadModel {

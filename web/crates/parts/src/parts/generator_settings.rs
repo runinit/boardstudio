@@ -4,7 +4,7 @@ use super::{GeneratorDraftStore, GeneratorPreviewDraft};
 use crate::parts_custom_definition::replacement_commit;
 use crate::{presentation::model_asset_import::read_model_file, runtime::Runtime};
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution, Scope};
-use boardstudio_core::model::{Asset, EditOperation, Net, PartDefinition, Pin};
+use boardstudio_model::model::{Asset, EditOperation, Net, PartDefinition, Pin};
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
 #[cfg(test)]
 use boardstudio_web_runtime::pending_edits::PendingEdits;
@@ -260,7 +260,7 @@ fn parameter_label(key: &str) -> String {
 fn parameter_group(
     key: &str,
     kind: &str,
-    part_kind: &boardstudio_core::model::PartKind,
+    part_kind: &boardstudio_model::model::PartKind,
 ) -> &'static str {
     if key.contains("3dmodel") || key.starts_with("model_") {
         "3D model placement"
@@ -279,7 +279,7 @@ fn parameter_group(
             | "choc_v2_support"
             | "name"
             | "text"
-    ) || (matches!(part_kind, boardstudio_core::model::PartKind::Utility)
+    ) || (matches!(part_kind, boardstudio_model::model::PartKind::Utility)
         && !key.contains("pad")
         && !key.contains("trace")
         && !key.contains("drill")
@@ -393,7 +393,7 @@ pub async fn prepare_generator_candidate(
 }
 
 fn remap_terminal_nets(
-    document: &boardstudio_core::model::ProjectDoc,
+    document: &boardstudio_model::model::ProjectDoc,
     original: &PartDefinition,
     candidate: &PartDefinition,
 ) -> Result<Vec<Net>, String> {
@@ -601,7 +601,7 @@ pub fn generator_model_upload_resolver(
 /// candidate is rebased onto the accepted definition so unrelated accepted metadata
 /// survives, and equality with the accepted document resolves `Unchanged`.
 fn generator_replacement(
-    document: &boardstudio_core::model::ProjectDoc,
+    document: &boardstudio_model::model::ProjectDoc,
     owner: &GeneratorOwner,
     candidate: &PartDefinition,
     changed_parameters: &BTreeSet<String>,
@@ -629,7 +629,7 @@ fn generator_replacement(
         candidate,
         changed_parameters,
     )?;
-    let rebased = boardstudio_core::generators::normalize_definition(rebased)?;
+    let rebased = boardstudio_core_kernel::generators::normalize_definition(rebased)?;
     let nets = remap_terminal_nets(document, &original, &rebased)?;
     let mut replacement = document.clone();
     if let Some(existing) = replacement
@@ -663,7 +663,7 @@ fn generator_replacement(
     ))
 }
 
-fn unique_generator_model_id(document: &boardstudio_core::model::ProjectDoc, seed: u64) -> String {
+fn unique_generator_model_id(document: &boardstudio_model::model::ProjectDoc, seed: u64) -> String {
     let root = format!("generator-model-{seed}");
     if !document.assets.iter().any(|asset| asset.id == root) {
         return root;
@@ -1501,7 +1501,7 @@ mod tests {
     use super::*;
     use crate::runtime::project_name_test_support as support;
     use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
-    use boardstudio_core::model::{Board, MechanicalPartProfile, ProjectDoc, SceneDelta};
+    use boardstudio_model::model::{Board, MechanicalPartProfile, ProjectDoc, SceneDelta};
     use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::test_role::by_role_name;
     use futures_channel::oneshot;
@@ -1857,7 +1857,7 @@ mod tests {
         generator
             .parameters
             .insert("keycap_width".into(), Value::from(20));
-        boardstudio_core::generators::normalize_definition(candidate).unwrap()
+        boardstudio_core_kernel::generators::normalize_definition(candidate).unwrap()
     }
 
     #[wasm_bindgen_test]
@@ -2182,7 +2182,7 @@ mod tests {
         let refreshed = take_request(&fixture.requests, 21.0).await;
         let prepared = candidate(&refreshed);
         assert!(
-            boardstudio_core::generators::model_bindings(&prepared, None)
+            boardstudio_core_kernel::generators::model_bindings(&prepared, None)
                 .unwrap()
                 .iter()
                 .any(|model| filename == format!("boardstudio-asset:{}", model.asset_id))
@@ -2224,7 +2224,7 @@ mod tests {
     async fn queued_apply_preserves_a_preceding_generator_model_upload() {
         let runtime = support::new_runtime();
         let base = definition();
-        let mut doc = boardstudio_core::model::ProjectDoc::empty("upload-apply", "Upload Apply");
+        let mut doc = boardstudio_model::model::ProjectDoc::empty("upload-apply", "Upload Apply");
         doc.definitions.push(base.clone());
         support::open_document(&runtime, doc).await;
         let accepted = runtime.model().accepted.unwrap();
@@ -2256,7 +2256,7 @@ mod tests {
         entered.await.unwrap();
         let prepared = apply_input(
             &base,
-            &boardstudio_core::generators::parameter_schema(&owner.source).unwrap(),
+            &boardstudio_core_kernel::generators::parameter_schema(&owner.source).unwrap(),
             &BTreeMap::from([("keycap_width".into(), Value::from(20))]),
         )
         .unwrap();
@@ -2293,10 +2293,13 @@ mod tests {
             ))
         );
         assert!(
-            boardstudio_core::generators::model_bindings(&accepted.document.definitions[0], None)
-                .unwrap()
-                .iter()
-                .any(|model| model.asset_id == "generator-model-71")
+            boardstudio_core_kernel::generators::model_bindings(
+                &accepted.document.definitions[0],
+                None
+            )
+            .unwrap()
+            .iter()
+            .any(|model| model.asset_id == "generator-model-71")
         );
     }
 
@@ -2363,7 +2366,7 @@ mod tests {
                 .parameters["keycap_width"],
             Value::from(18.0)
         );
-        let normalized = boardstudio_core::generators::normalize_definition(
+        let normalized = boardstudio_core_kernel::generators::normalize_definition(
             accepted.document.definitions[0].clone(),
         )
         .unwrap();
@@ -2717,7 +2720,7 @@ mod tests {
 #[cfg(test)]
 mod core_check_tests {
     use super::*;
-    use boardstudio_core::generators;
+    use boardstudio_core_kernel::generators;
     use wasm_bindgen_test::*;
 
     fn definition(source: &str) -> PartDefinition {

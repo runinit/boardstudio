@@ -3,7 +3,7 @@ use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope, SnapshotToken,
 };
-use boardstudio_core::model::{EditOperation, PressScanMode};
+use boardstudio_model::model::{EditOperation, PressScanMode};
 use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
 use dioxus::prelude::*;
 use serde_json::Value;
@@ -393,7 +393,7 @@ fn current_snapshot(
         .find(|definition| definition.id == identity.definition_id)?;
     if matches!(
         &definition.kind,
-        boardstudio_core::model::PartKind::Switch | boardstudio_core::model::PartKind::Controller
+        boardstudio_model::model::PartKind::Switch | boardstudio_model::model::PartKind::Controller
     ) || definition
         .generator
         .as_ref()

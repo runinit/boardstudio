@@ -8,7 +8,8 @@ description = "BoardStudio Keymap workspace: layers, bindings, encoders and macr
 
 [dependencies]
 boardstudio-application = { path = "../../../application" }
-boardstudio_core = { path = "../../../core" }
+boardstudio-core-mechanical = { path = "../../../core/crates/mechanical" }
+boardstudio-model = { path = "../../../core/crates/model" }
 boardstudio-web-runtime = { path = "../runtime" }
 boardstudio-web-ui-model = { path = "../ui-model" }
 boardstudio-web-ui-shared = { path = "../ui-shared" }

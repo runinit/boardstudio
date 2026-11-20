@@ -9,7 +9,7 @@ use super::planner::{
     PerimeterAnchor, attach_connection_point, connection_point_world, move_connection_point,
 };
 use crate::outline_settings::OutlineEdit;
-use boardstudio_core::model::{
+use boardstudio_model::model::{
     Contour, CornerStyle, EditPhase, Operation, OutlineControlPoint, OutlineFeature, Side, Vec2,
     polygon_signed_area,
 };

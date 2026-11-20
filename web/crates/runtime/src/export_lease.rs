@@ -148,11 +148,11 @@ impl ExportLeases {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use boardstudio_core::model::ProjectDoc;
+    use boardstudio_model::model::ProjectDoc;
 
     fn captured(kind: ExportKind) -> ExportLease {
         let document = ProjectDoc::empty("project-a", "Project A");
-        let scene = boardstudio_core::model::SceneDelta {
+        let scene = boardstudio_model::model::SceneDelta {
             module_scenes: Vec::new(),
             revision: document.revision,
             transaction_id: String::new(),
@@ -165,7 +165,7 @@ mod tests {
             board_outline_scenes: Vec::new(),
             finding_markers: Vec::new(),
             findings: Vec::new(),
-            readiness: boardstudio_core::model::Readiness {
+            readiness: boardstudio_model::model::Readiness {
                 layout: false,
                 outline: false,
                 pcb: false,

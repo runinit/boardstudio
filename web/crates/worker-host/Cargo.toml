@@ -7,11 +7,12 @@ publish = false
 description = "Browser worker host services shared by the BoardStudio workers and page: offline policy, CAD job protocol, qualification and CAD worker."
 
 [features]
-cad = ["dep:boardstudio_core", "dep:serde_json"]
+cad = ["dep:boardstudio-core-kernel", "dep:boardstudio-model", "dep:serde_json"]
 test-harness = []
 
 [dependencies]
-boardstudio_core = { path = "../../../core", optional = true }
+boardstudio-core-kernel = { path = "../../../core/crates/kernel", optional = true }
+boardstudio-model = { path = "../../../core/crates/model", optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["float_roundtrip"], optional = true }
 

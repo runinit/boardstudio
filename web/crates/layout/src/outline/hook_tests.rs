@@ -2,7 +2,7 @@ use super::super::OutlineVersionInspector;
 use super::super::objects::{ScopedTreeContext, TreeContext};
 use super::*;
 use boardstudio_application::{Event, TerminalOutcome};
-use boardstudio_core::model::{
+use boardstudio_model::model::{
     Board, BoardOutline, OutlineProvenance, OutlineSettings, OutlineSnapshot, OutlineVersion,
     ProjectDoc,
 };
@@ -153,7 +153,7 @@ fn install_version(document: &mut ProjectDoc, id: &str) {
                 bridges: vec![],
                 protected_gaps: vec![],
             },
-            ownership: boardstudio_core::model::OutlineOwnership::Fixed,
+            ownership: boardstudio_model::model::OutlineOwnership::Fixed,
         }],
     }];
 }

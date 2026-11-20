@@ -1,7 +1,7 @@
-use boardstudio_core::generators;
-use boardstudio_core::hash::sha256_hex;
-use boardstudio_core::model::ProjectDoc;
-use boardstudio_core::model::{PartDefinition, PartKind};
+use boardstudio_core_kernel::generators;
+use boardstudio_core_kernel::hash::sha256_hex;
+use boardstudio_model::model::ProjectDoc;
+use boardstudio_model::model::{PartDefinition, PartKind};
 use serde::Deserialize;
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
@@ -379,7 +379,7 @@ pub fn prepare_physical_setup_proposal_with_pair(
 mod generator_tests {
     use super::*;
     use crate::physical_setup::SetupIntent;
-    use boardstudio_core::model::HardwareConfiguration;
+    use boardstudio_model::model::HardwareConfiguration;
     use serde_json::json;
 
     fn bundled_definition(source: &str) -> PartDefinition {
@@ -784,7 +784,7 @@ mod tests {
         definitions.push(uppercase_uuid_snapshot);
         let mut retired = definitions[0].clone();
         retired.id = "legacy-nice-nano".into();
-        retired.generator = Some(boardstudio_core::model::PartGenerator {
+        retired.generator = Some(boardstudio_model::model::PartGenerator {
             source: "infused-kim/nice_nano_pretty".into(),
             version: "legacy".into(),
             parameters: Default::default(),

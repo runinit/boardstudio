@@ -1,6 +1,6 @@
 //! Parts-private admission and resolver construction for one definition-name commit.
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution};
-use boardstudio_core::model::EditOperation;
+use boardstudio_model::model::EditOperation;
 
 use crate::parts_custom_definition::{DEFINITION_GONE, GENERATOR_LOCKED, replacement_commit};
 
@@ -10,7 +10,7 @@ mod ui {
     use crate::parts_custom_definition::DefinitionPanelCapture;
     use crate::runtime::Runtime;
     use boardstudio_application::{AcceptedSnapshot, Scope};
-    use boardstudio_core::model::PartDefinition;
+    use boardstudio_model::model::PartDefinition;
     use boardstudio_web_runtime::pending_edits::PendingEditResult;
     use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
     use boardstudio_web_ui_shared::ui::{
@@ -291,8 +291,8 @@ mod tests {
     use super::*;
     use crate::parts_custom_definition::DefinitionPanelCapture;
     use boardstudio_application::{Durability, Event, OperationId, TerminalOutcome};
-    use boardstudio_core::model::PartDefinition;
-    use boardstudio_core::{
+    use boardstudio_model::model::PartDefinition;
+    use boardstudio_model::{
         model::ProjectDoc,
         model::{AssemblyDefinition, Asset, Net, Part, Pin, Pose2, Side, Vec2},
     };
@@ -301,9 +301,9 @@ mod tests {
 
     fn fixed_commit(
         operation_id: OperationId,
-        command: boardstudio_core::model::EditCommand,
+        command: boardstudio_model::model::EditCommand,
     ) -> Event {
-        let boardstudio_core::model::EditCommand {
+        let boardstudio_model::model::EditCommand {
             transaction_id,
             target_ids,
             operation,
@@ -528,7 +528,7 @@ mod tests {
     #[test]
     fn generator_definitions_and_vanished_targets_retire_a_name_commit() {
         let mut generator_doc = document();
-        generator_doc.definitions[0].generator = Some(boardstudio_core::model::PartGenerator {
+        generator_doc.definitions[0].generator = Some(boardstudio_model::model::PartGenerator {
             source: "generator/source".into(),
             version: "1".into(),
             parameters: Default::default(),
@@ -575,10 +575,10 @@ mod tests {
         submit(&runtime, |operation_id| {
             fixed_commit(
                 operation_id,
-                boardstudio_core::model::EditCommand {
+                boardstudio_model::model::EditCommand {
                     base_revision: initial.document.revision,
                     transaction_id: "parts-name-unrelated-edit".into(),
-                    phase: boardstudio_core::model::EditPhase::Commit,
+                    phase: boardstudio_model::model::EditPhase::Commit,
                     target_ids: vec!["unrelated".into()],
                     operation: EditOperation::ReplaceDocument {
                         document: Box::new(unrelated_document),
@@ -643,10 +643,10 @@ mod tests {
         let departure = submit(&runtime, |operation_id| {
             fixed_commit(
                 operation_id,
-                boardstudio_core::model::EditCommand {
+                boardstudio_model::model::EditCommand {
                     base_revision: initial.document.revision,
                     transaction_id: "parts-name-target-departure".into(),
-                    phase: boardstudio_core::model::EditPhase::Commit,
+                    phase: boardstudio_model::model::EditPhase::Commit,
                     target_ids: vec!["selected".into()],
                     operation: EditOperation::ReplaceDocument {
                         document: Box::new(without_target),
@@ -679,7 +679,7 @@ mod mounted_tests {
     use super::*;
     use crate::runtime::{Runtime, project_name_test_support as support};
     use boardstudio_application::{Event as AppEvent, Scope};
-    use boardstudio_core::model::{PartDefinition, ProjectDoc};
+    use boardstudio_model::model::{PartDefinition, ProjectDoc};
     use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::test_role::{all_by_role_name, by_role_name};
     use dioxus::prelude::*;
@@ -832,10 +832,10 @@ mod mounted_tests {
         let mut second = definition("second", "Second");
         for definition in [&mut first, &mut second] {
             definition.courtyard = vec![
-                boardstudio_core::model::Vec2 { x: -5.0, y: -3.0 },
-                boardstudio_core::model::Vec2 { x: 5.0, y: -3.0 },
-                boardstudio_core::model::Vec2 { x: 5.0, y: 3.0 },
-                boardstudio_core::model::Vec2 { x: -5.0, y: 3.0 },
+                boardstudio_model::model::Vec2 { x: -5.0, y: -3.0 },
+                boardstudio_model::model::Vec2 { x: 5.0, y: -3.0 },
+                boardstudio_model::model::Vec2 { x: 5.0, y: 3.0 },
+                boardstudio_model::model::Vec2 { x: -5.0, y: 3.0 },
             ];
             definition.pads = serde_json::from_value(serde_json::json!([
                 {"id":"shared-pad","number":"1","at":{"x":0.0,"y":0.0},"size":{"x":2.0,"y":2.0},"shape":"circle"}
@@ -1271,10 +1271,10 @@ mod mounted_tests {
         let mut document = ProjectDoc::empty("parts-name-mounted", "Parts name mounted");
         let mut selected = definition("selected", name);
         selected.courtyard = vec![
-            boardstudio_core::model::Vec2 { x: -5.0, y: -3.0 },
-            boardstudio_core::model::Vec2 { x: 5.0, y: -3.0 },
-            boardstudio_core::model::Vec2 { x: 5.0, y: 3.0 },
-            boardstudio_core::model::Vec2 { x: -5.0, y: 3.0 },
+            boardstudio_model::model::Vec2 { x: -5.0, y: -3.0 },
+            boardstudio_model::model::Vec2 { x: 5.0, y: -3.0 },
+            boardstudio_model::model::Vec2 { x: 5.0, y: 3.0 },
+            boardstudio_model::model::Vec2 { x: -5.0, y: 3.0 },
         ];
         document.definitions = vec![selected];
         document
@@ -1684,10 +1684,10 @@ mod mounted_tests {
         removed.definitions.remove(0);
         support::submit_fixed_command(
             &runtime,
-            boardstudio_core::model::EditCommand {
+            boardstudio_model::model::EditCommand {
                 base_revision: snapshot.document.revision,
                 transaction_id: "definition-departs-before-owner-switch".into(),
-                phase: boardstudio_core::model::EditPhase::Commit,
+                phase: boardstudio_model::model::EditPhase::Commit,
                 target_ids: vec!["selected".into()],
                 operation: EditOperation::ReplaceDocument {
                     document: Box::new(removed),
@@ -1772,12 +1772,12 @@ mod mounted_tests {
         deleted.definitions.clear();
         support::submit_fixed_command(
             &runtime,
-            boardstudio_core::model::EditCommand {
+            boardstudio_model::model::EditCommand {
                 base_revision: snapshot.document.revision,
                 transaction_id: "delete-definition-before-queued-edit".into(),
-                phase: boardstudio_core::model::EditPhase::Commit,
+                phase: boardstudio_model::model::EditPhase::Commit,
                 target_ids: vec!["selected".into()],
-                operation: boardstudio_core::model::EditOperation::ReplaceDocument {
+                operation: boardstudio_model::model::EditOperation::ReplaceDocument {
                     document: Box::new(deleted),
                 },
             },

@@ -6,7 +6,7 @@
 
 use super::{keycaps_fit, objects};
 use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
-use boardstudio_core::model::{ProjectDoc, Vec2};
+use boardstudio_model::model::{ProjectDoc, Vec2};
 use dioxus::prelude::*;
 use std::{cell::Cell, rc::Rc};
 
@@ -563,7 +563,7 @@ mod tests {
     use super::super::keycaps_finding_marker::{FocusedFindingMarker, use_retire_stale_finding};
     use super::*;
     use boardstudio_application::{SessionEpoch, SnapshotToken};
-    use boardstudio_core::model::{
+    use boardstudio_model::model::{
         Contour, Finding, FindingMarker, Scope as FindingScope, Severity, Vec2,
     };
     use boardstudio_web_ui_shared::test_mount::MountedFixture;
@@ -621,7 +621,7 @@ mod tests {
         expected: NavigationOwner,
         request: keycaps_fit::FindingNavigationRequest,
         fit_state: keycaps_fit::KeycapsFitState,
-        document: boardstudio_core::model::ProjectDoc,
+        document: boardstudio_model::model::ProjectDoc,
         initial_live: LiveNavigationOwner,
         source_basis: keycaps_fit::CameraBasis,
         workspace: Rc<RefCell<Option<Signal<&'static str>>>>,

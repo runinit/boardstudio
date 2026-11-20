@@ -3,7 +3,7 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, OperationId, Resolution, Scope,
     SnapshotToken,
 };
-use boardstudio_core::model::{EditOperation, HardwareTopology, HardwareTransport, ProjectDoc};
+use boardstudio_model::model::{EditOperation, HardwareTopology, HardwareTransport, ProjectDoc};
 use boardstudio_web_catalogue::physical_setup::PreparedSetup;
 use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
 use boardstudio_web_ui_shared::ui::checkbox::{Checkbox, CheckboxState};

@@ -99,7 +99,8 @@ pub(crate) mod pcb_wiring {
     #[allow(unused_imports)]
     use boardstudio_application::Scope;
     #[allow(unused_imports)]
-    use boardstudio_core::{electrical::ElectricalPlan, model::ProjectDoc};
+    use boardstudio_core_mechanical::electrical::ElectricalPlan;
+    use boardstudio_model::model::ProjectDoc;
     pub(crate) use boardstudio_web_ui_model::wiring::{
         PcbWiringResolution, PcbWiringSource, WiringPlanIdentity,
     };

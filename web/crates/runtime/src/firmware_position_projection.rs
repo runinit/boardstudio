@@ -1,6 +1,7 @@
 //! Immutable selected-board firmware-position values projected from an accepted electrical plan.
 use boardstudio_application::{AcceptedSnapshot, Scope, SnapshotToken};
-use boardstudio_core::{electrical::ElectricalPlan, model::ProjectDoc};
+use boardstudio_core_mechanical::electrical::ElectricalPlan;
+use boardstudio_model::model::ProjectDoc;
 use std::{collections::BTreeMap, rc::Rc};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -219,7 +220,7 @@ fn part_reference(document: &ProjectDoc, part_id: &str) -> String {
 mod tests {
     use super::*;
     use boardstudio_application::{SessionEpoch, SnapshotToken};
-    use boardstudio_core::electrical::{ElectricalMode, ElectricalPlanRequest};
+    use boardstudio_core_mechanical::electrical::{ElectricalMode, ElectricalPlanRequest};
     use serde_json::json;
 
     fn document() -> ProjectDoc {
@@ -227,7 +228,7 @@ mod tests {
             "../../../../core/tests/fixtures/synthetic-outline.json"
         ))
         .expect("synthetic outline fixture is a valid saved project");
-        document.format_version = boardstudio_core::migrate::CURRENT_VERSION;
+        document.format_version = boardstudio_core_kernel::migrate::CURRENT_VERSION;
         let switch = document
             .definitions
             .iter_mut()
@@ -237,11 +238,11 @@ mod tests {
             ("row".into(), vec!["1".into()]),
             ("column".into(), vec!["2".into()]),
         ]);
-        switch.matrix_terminals = Some(boardstudio_core::model::MatrixTerminals {
+        switch.matrix_terminals = Some(boardstudio_model::model::MatrixTerminals {
             row: "row".into(),
             column: "column".into(),
         });
-        let controller = boardstudio_core::generators::catalogue()
+        let controller = boardstudio_core_kernel::generators::catalogue()
             .expect("bundled generator catalogue")
             .into_iter()
             .find(|definition| {
@@ -349,7 +350,7 @@ mod tests {
     }
 
     fn resolve(document: &ProjectDoc) -> ElectricalPlan {
-        boardstudio_core::electrical::resolve(ElectricalPlanRequest {
+        boardstudio_core_mechanical::electrical::resolve(ElectricalPlanRequest {
             document: document.clone(),
             instance_id: None,
             mode: ElectricalMode::Matrix,
@@ -364,7 +365,7 @@ mod tests {
     #[test]
     fn admission_and_edit_settle_through_the_native_runtime() {
         use boardstudio_application::{EditResolver, Event, Resolution};
-        use boardstudio_core::model::{EditCommand, EditOperation, EditPhase};
+        use boardstudio_model::model::{EditCommand, EditOperation, EditPhase};
 
         let runtime = crate::runtime::Runtime::new();
         runtime.submit(Event::Open {

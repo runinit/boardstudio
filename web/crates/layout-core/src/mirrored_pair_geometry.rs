@@ -165,10 +165,8 @@ pub fn project_mirrored_pair(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use boardstudio_core::{
-        CoreEngine,
-        model::{CoreReply, CoreRequest, Mirror},
-    };
+    use boardstudio_core::CoreEngine;
+    use boardstudio_model::model::{CoreReply, CoreRequest, Mirror};
 
     fn matrix() -> Matrix {
         serde_json::from_value(serde_json::json!({

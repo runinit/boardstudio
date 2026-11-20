@@ -7,8 +7,8 @@ use crate::runtime::Runtime;
 #[cfg(test)]
 use boardstudio_application::Event;
 #[cfg(test)]
-use boardstudio_core::model::{EditCommand, EditOperation, EditPhase};
-use boardstudio_core::model::{PartKind, ProjectDoc};
+use boardstudio_model::model::{EditCommand, EditOperation, EditPhase};
+use boardstudio_model::model::{PartKind, ProjectDoc};
 #[cfg(test)]
 use boardstudio_web_host::host::ProjectListing;
 use boardstudio_web_host::host::UnreadableProject;
@@ -458,7 +458,7 @@ fn DemoActionCard(mut open: Signal<bool>) -> Element {
                 CollapsibleContent { id: Some(content_id), class: "grid gap-2 mt-2 [&[hidden]]:hidden", aria_label: "Demo keyboards", hidden: !open(), inert: (!open()).then_some(""),
                     for demo in DEMO_PROJECTS {
                         {
-                            let document = demo.document();
+                            let document = demo.document(runtime.core_services().open_scratch);
                             let demo_preview = preview(&document).ok();
                             let runtime = runtime.clone();
                             rsx! {

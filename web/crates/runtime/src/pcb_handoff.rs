@@ -5,13 +5,11 @@
 //! and the two archive layers used by the reference handoff.
 
 use boardstudio_application::{AcceptedSnapshot, OperationId, Scope};
-use boardstudio_core::{
-    electrical::ElectricalPlan,
-    hash::sha256_hex,
-    model::{
-        ArchiveEntry, ArchiveReply, ArchiveRequest, ArtifactReply, ArtifactRequest, ExportTarget,
-        PrepareExportRequest,
-    },
+use boardstudio_core_kernel::hash::sha256_hex;
+use boardstudio_core_mechanical::electrical::ElectricalPlan;
+use boardstudio_model::model::{
+    ArchiveEntry, ArchiveReply, ArchiveRequest, ArtifactReply, ArtifactRequest, ExportTarget,
+    PrepareExportRequest,
 };
 use boardstudio_web_host::host::{BrowserStore, CoreExecutor};
 use js_sys::Uint8Array;
@@ -218,7 +216,7 @@ pub async fn build_handoff(
 }
 
 async fn load_model_files(
-    document: &boardstudio_core::model::ProjectDoc,
+    document: &boardstudio_model::model::ProjectDoc,
     store: &BrowserStore,
     ids: &[String],
     is_current: &impl Fn() -> Result<(), String>,
@@ -393,7 +391,7 @@ fn assembly_instructions(name: &str, plan: &ElectricalPlan, draft: bool) -> Stri
     lines.join("\n")
 }
 
-fn jumper_diagram(recipe: &boardstudio_core::electrical_jumpers::JumperRecipe) -> String {
+fn jumper_diagram(recipe: &boardstudio_model::electrical_jumpers::JumperRecipe) -> String {
     let min_y = recipe.sites.iter().map(|site| site.y).fold(0.0, f64::min);
     let max_y = recipe.sites.iter().map(|site| site.y).fold(1.0, f64::max);
     let height = ((max_y - min_y) * 18.0 + 110.0).max(200.0);
@@ -435,11 +433,11 @@ mod orchestration_tests {
         AcceptedSnapshot, Completion, Effect, Event, ExportCommitRequest, OperationId, Scope,
         Session, SnapshotToken,
     };
-    use boardstudio_core::{
-        CoreEngine,
-        electrical::{ElectricalMode, ElectricalPlan, ElectricalPlanRequest},
-        model::{CoreReply, CoreRequest, ProjectDoc},
+    use boardstudio_core::CoreEngine;
+    use boardstudio_core_mechanical::electrical::{
+        ElectricalMode, ElectricalPlan, ElectricalPlanRequest,
     };
+    use boardstudio_model::model::{CoreReply, CoreRequest, ProjectDoc};
     use std::{
         cell::{Cell, RefCell},
         collections::VecDeque,

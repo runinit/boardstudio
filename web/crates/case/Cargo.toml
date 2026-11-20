@@ -11,7 +11,8 @@ test-support = ["boardstudio-web-ui-model/test-support", "boardstudio-web-ui-sha
 
 [dependencies]
 boardstudio-application = { path = "../../../application" }
-boardstudio_core = { path = "../../../core" }
+boardstudio-core-mechanical = { path = "../../../core/crates/mechanical" }
+boardstudio-model = { path = "../../../core/crates/model" }
 boardstudio-web-host = { path = "../host", features = ["page"] }
 boardstudio-web-runtime = { path = "../runtime" }
 boardstudio-web-ui-model = { path = "../ui-model" }
@@ -34,6 +35,8 @@ wasm-bindgen-futures = "=0.4.79"
 web-sys = { workspace = true }
 
 [dev-dependencies]
+boardstudio_core = { path = "../../../core" }
+boardstudio-core-artifact = { path = "../../../core/crates/artifact" }
 boardstudio-web-runtime = { path = "../runtime", features = ["test-support"] }
 boardstudio-web-ui-model = { path = "../ui-model", features = ["test-support"] }
 boardstudio-web-ui-shared = { path = "../ui-shared", features = ["test-support"] }

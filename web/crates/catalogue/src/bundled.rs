@@ -1,10 +1,10 @@
 //! Entry points into the bundled catalogue for Parts, Layout, PCB and Case.
 use crate::catalogue;
-use boardstudio_core::model::ProjectDoc;
+use boardstudio_model::model::ProjectDoc;
 use std::rc::Rc;
 
 pub async fn load_mounting_hole_definition()
--> Result<Rc<boardstudio_core::model::PartDefinition>, String> {
+-> Result<Rc<boardstudio_model::model::PartDefinition>, String> {
     let entries = catalogue::load_bundled(false).await?;
     let mut matches = entries.iter().filter(|entry| {
         entry.source == catalogue::CatalogueSource::Generator
@@ -55,8 +55,8 @@ pub async fn prepare_physical_setup_resources(
 
 /// Normalize a matrix-owned clone through the same built-in generator path used by Parts.
 pub async fn normalize_matrix_definition(
-    definition: boardstudio_core::model::PartDefinition,
-) -> Result<boardstudio_core::model::PartDefinition, String> {
+    definition: boardstudio_model::model::PartDefinition,
+) -> Result<boardstudio_model::model::PartDefinition, String> {
     catalogue::normalize_matrix_definition(definition).await
 }
 
@@ -74,7 +74,7 @@ pub async fn generator_parameter_schema(
 
 pub async fn load_matrix_templates(
     reversible: bool,
-) -> Result<Vec<boardstudio_core::model::PartDefinition>, String> {
+) -> Result<Vec<boardstudio_model::model::PartDefinition>, String> {
     let entries = catalogue::load_bundled(reversible).await?;
     Ok(entries
         .iter()
@@ -86,7 +86,7 @@ pub async fn load_matrix_templates(
 /// Every bundled catalogue definition, for key-level assembly and attached-component choices.
 pub async fn load_all_catalogue_definitions(
     reversible: bool,
-) -> Result<Vec<boardstudio_core::model::PartDefinition>, String> {
+) -> Result<Vec<boardstudio_model::model::PartDefinition>, String> {
     let entries = catalogue::load_bundled(reversible).await?;
     Ok(entries
         .iter()
@@ -99,7 +99,7 @@ pub async fn load_all_catalogue_definitions(
 pub async fn load_component_definition(
     document: &ProjectDoc,
     definition_id: &str,
-) -> Result<boardstudio_core::model::PartDefinition, String> {
+) -> Result<boardstudio_model::model::PartDefinition, String> {
     let reversible = reversible_layout(document);
     let bundled = catalogue::load_bundled(reversible).await?;
     let entries = catalogue::merge_project_overrides(&bundled, &document.definitions);

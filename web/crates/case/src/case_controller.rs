@@ -7,8 +7,8 @@ use crate::runtime::Runtime;
 use boardstudio_application::Event;
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Lifecycle, Resolution, Scope};
 #[cfg(test)]
-use boardstudio_core::model::ProjectDoc;
-use boardstudio_core::model::{
+use boardstudio_model::model::ProjectDoc;
+use boardstudio_model::model::{
     CaseBody, CaseKind, EditCommand, EditOperation, Mount, MountKind, Vec2,
 };
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
@@ -596,7 +596,7 @@ fn body_resolver(scope: Scope, edit: CaseBodyEdit, seed: u64) -> EditResolver {
 
 fn new_case_body(
     seed: u64,
-    document: &boardstudio_core::model::ProjectDoc,
+    document: &boardstudio_model::model::ProjectDoc,
     board_id: &str,
 ) -> Result<CaseBody, String> {
     let board = document
@@ -632,7 +632,7 @@ fn new_case_body(
 
 fn apply_body_edit(
     seed: u64,
-    document: &boardstudio_core::model::ProjectDoc,
+    document: &boardstudio_model::model::ProjectDoc,
     body: &mut CaseBody,
     edit: &CaseBodyEdit,
 ) -> Result<(), String> {
@@ -965,7 +965,7 @@ mod queued_body_tests {
         document
             .case_bodies
             .push(new_case_body(1, &document, "board").unwrap());
-        document.case_bodies[0].gasket = Some(boardstudio_core::model::Gasket {
+        document.case_bodies[0].gasket = Some(boardstudio_model::model::Gasket {
             inset: 2.0,
             width: 2.0,
             depth: 1.5,
