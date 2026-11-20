@@ -1,6 +1,6 @@
 # W3-4 Crate Decomposition — Phase 0 Dependency-Graph Design
 
-**Status:** Phase 0 complete; no code moved yet
+**Status:** Implemented on `perf/w3-4-split-core-engine-and-web-layout` (see §8); cold checkpoint pending
 **Baseline:** `aba05d895` (`perf/cold-build-cpu`, `cpu-opt3`: 310.1 s warm / 416.2 s bypass)
 **Branch:** `perf/w3-4-split-core-engine-and-web-layout`
 **Spec:** Section W3-4 of [cold-build-wave3-handoff.md](cold-build-wave3-handoff.md)
@@ -406,5 +406,53 @@ TMPDIR="$HOME/.cache/tmp" PATH="$HOME/.cargo/bin:$PATH"`; never set
   manifest warnings must remain 0 and `cargo deny` clean.
 - **Doc links:** `docs/` cites the old paths in ADRs and historical plans. Fix only
   what `check-doc-links.py` flags; do not rewrite historical plan documents.
+
+## 8. Implementation outcome
+
+The split landed as designed, in the planned slice order (S1 in-place cycle-breakers,
+S2 kernel, S3 kicad-source, S4 modules, S5 electrical, S6 mechanical, S7 artifact,
+S8 dispatch threading + mirrored-half; then T1 cycle break, T2 layout-core,
+T3 layout-objects), with two architectural corrections found during verification:
+
+1. **Release size duplication was architectural, and was refactored, not waived.**
+   First measurement after the split (identical release scripts, baseline built in a
+   temp worktree at `aba05d895`): core-worker +21.7%, cad-worker +24.7%, page +1.3%.
+   Symbol-level attribution (`.evidence/w3-4-release-dup-*.log`) showed ~3.8 MB of
+   generic instantiations repeated per split crate over the shared document types:
+   serde `ContentDeserializer`/Deserialize (~1.8 MB), `i_overlay` (~0.65 MB),
+   `alloc` BTree/Vec Clone and drop glue (~1.3 MB). Fat LTO alone recovered only to
+   +12.1%. The refactor therefore: (a) moved the worker protocol JSON entry points
+   into `boardstudio_model::wire` so one crate instantiates them; (b) centralized
+   even-odd contour overlay and miter-offset operations in
+   `boardstudio_core_kernel::geometry` (and the signed opening offset in kernel
+   `case`), removing direct `i_overlay` dependencies from engine, modules, and
+   mechanical; (c) folded `boardstudio-core-modules` and
+   `boardstudio-core-electrical` back into `boardstudio-core-mechanical` — they had
+   no consumer that does not already depend on mechanical, so their separate
+   instantiation copies bought almost no parallelism (0 and 3 unit tests); and
+   (d) set `[profile.release] codegen-units = 1`, restoring the within-crate
+   monomorphization sharing the monoliths had.
+2. **Final DAG (core):** model → kernel, kicad-source → mechanical (incl. modules,
+   electrical, keymap) → artifact, mirrored-half → engine (remnant) → facade.
+   `boardstudio-core-engine` is 9,022 LOC; largest units are mirrored-half
+   (51,971 total / ~22k production + 370 tests) and web layout-objects (42,843).
+
+Measured outcomes at the final tree (full `check.py repo tooling lint build browser
+security deny release` + `test` all pass):
+
+- Native tests: **2,454 = 2,454** multiset-identical to `aba05d895` after the five
+  documented test-path renames (3 kicad-source, lifecycle tests, grid-rounding);
+  901 Core integration names byte-identical.
+- Browser: **799 crate tests across 14 launches** (layout 48 + objects 178),
+  126 page, 15 drag, 364 CAD browser; `libweb_sys` 1 copy,
+  `libboardstudio_web_host` 2 copies in `wasm-check/deps`.
+- Release `.wasm` vs `aba05d895` built identically: page **−13.23%**, core-worker
+  **+0.44%**, cad-worker **+1.29%**, CAD +0.002%, renderer −5.66%, offline −12.45%;
+  aggregate shipped bytes **−6.4%**. The brief's per-artifact ≤0.1% band is met for
+  CAD only; the two core-linked workers remain slightly above it, and the three
+  shrinkages exceed it downward. Remaining worker delta is the BTree/Vec/Clone
+  long tail (~1.5 MB at object level) that is inherent to by-value document drafts
+  crossing crate boundaries.
+- Cold checkpoint: recorded below once `w3-4-seed` → `w3-4-warm`/`w3-4-bypass` land.
 
 
