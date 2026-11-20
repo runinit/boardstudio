@@ -384,7 +384,7 @@ mod tests {
     }
 
     fn open_document(document: ProjectDoc) -> Rc<Runtime> {
-        let runtime = Runtime::new();
+        let runtime = Runtime::with_core(boardstudio_web_test_runtime::engine_core_services());
         runtime.submit(Event::Open {
             operation_id: runtime.operation(),
             document,
@@ -677,9 +677,10 @@ mod tests {
 #[cfg(all(test, target_arch = "wasm32"))]
 mod mounted_tests {
     use super::*;
-    use crate::runtime::{Runtime, project_name_test_support as support};
+    use crate::runtime::Runtime;
     use boardstudio_application::{Event as AppEvent, Scope};
     use boardstudio_model::model::{PartDefinition, ProjectDoc};
+    use boardstudio_web_test_runtime::project_name_test_support as support;
     use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::test_role::{all_by_role_name, by_role_name};
     use dioxus::prelude::*;

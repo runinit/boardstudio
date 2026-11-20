@@ -18,7 +18,7 @@ pub mod edit_ticket;
 pub(crate) mod export_lease;
 pub mod firmware_position_projection;
 #[cfg(any(test, feature = "test-support"))]
-pub(crate) mod gate_driver;
+pub mod gate_driver;
 pub(crate) mod keycap_package;
 pub mod layout_viewer_source;
 pub(crate) mod mechanical_package;
@@ -46,3 +46,14 @@ pub mod runtime;
 #[cfg(all(not(target_arch = "wasm32"), any(test, feature = "test-support")))]
 #[path = "runtime_test_stub.rs"]
 pub mod runtime;
+
+// Unit tests instantiate this crate's Runtime and inspect its private state. Compile the
+// shared fixture wiring against that Runtime, as the external fixture crate does for callers.
+#[cfg(all(test, target_arch = "wasm32"))]
+#[path = "../../test-runtime/src/fixtures.rs"]
+mod fixtures;
+
+#[cfg(all(test, target_arch = "wasm32"))]
+fn engine_core_services() -> core_services::CoreServices {
+    core_services::CoreServices::engine()
+}

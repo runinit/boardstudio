@@ -4,7 +4,9 @@ use boardstudio_model::model::*;
 #[cfg(target_arch = "wasm32")]
 use boardstudio_web_parts::parts::*;
 #[cfg(target_arch = "wasm32")]
-use boardstudio_web_runtime::runtime::{Runtime, project_name_test_support as support};
+use boardstudio_web_runtime::runtime::Runtime;
+#[cfg(target_arch = "wasm32")]
+use boardstudio_web_test_runtime::project_name_test_support as support;
 #[cfg(target_arch = "wasm32")]
 use boardstudio_web_ui_model::state::WorkspaceState;
 #[cfg(target_arch = "wasm32")]

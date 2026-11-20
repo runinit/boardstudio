@@ -633,7 +633,7 @@ mod mounted_keycaps_preview_tests {
     async fn mounted_preview_failure_retries_and_ignores_a_late_old_owner_reply() {
         let first_fit = super::super::keycaps_fit::cad_preview_fixture("left", 7, 11);
         let newer_fit = super::super::keycaps_fit::cad_preview_fixture("right", 8, 12);
-        let runtime = Runtime::new(boardstudio_web_runtime::core_services::CoreServices::engine())
+        let runtime = Runtime::new(boardstudio_web_test_runtime::engine_core_services())
             .expect("browser runtime fixture initializes");
         let requests = Rc::new(RefCell::new(VecDeque::new()));
         let probe = PreviewProbe {

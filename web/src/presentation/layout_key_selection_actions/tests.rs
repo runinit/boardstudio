@@ -4,9 +4,10 @@ use crate::presentation::{
     SelectionAdapter, WorkspaceState,
     objects::{ScopedTreeContext, TreeContext},
 };
-use crate::runtime::{Runtime, project_name_test_support as support};
+use crate::runtime::Runtime;
 use boardstudio_application::{Event, SelectionMode};
 use boardstudio_core::model::*;
+use boardstudio_web_test_runtime::project_name_test_support as support;
 use boardstudio_web_ui_shared::{
     test_role::by_role_name,
     test_wait::{wait_until, wait_until_step},

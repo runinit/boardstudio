@@ -4,7 +4,7 @@ use std::cell::RefCell;
 
 /// The next call either fails, or is held until its adapter's test gate is released.
 #[derive(Debug)]
-pub(crate) enum OneShotBehavior {
+pub enum OneShotBehavior {
     Fail(String),
     Hold,
 }
@@ -13,33 +13,33 @@ pub(crate) enum OneShotBehavior {
 /// The browser adapter waits asynchronously; the native Runtime parks the effect and
 /// resumes it from its explicit `release_*` methods.
 #[derive(Default)]
-pub(crate) struct GateDriver {
+pub struct GateDriver {
     core: RefCell<Option<OneShotBehavior>>,
     save: RefCell<Option<OneShotBehavior>>,
 }
 
 impl GateDriver {
-    pub(crate) fn fail_next_core(&self, reason: impl Into<String>) {
+    pub fn fail_next_core(&self, reason: impl Into<String>) {
         *self.core.borrow_mut() = Some(OneShotBehavior::Fail(reason.into()));
     }
 
-    pub(crate) fn hold_next_core(&self) {
+    pub fn hold_next_core(&self) {
         *self.core.borrow_mut() = Some(OneShotBehavior::Hold);
     }
 
-    pub(crate) fn take_core(&self) -> Option<OneShotBehavior> {
+    pub fn take_core(&self) -> Option<OneShotBehavior> {
         self.core.borrow_mut().take()
     }
 
-    pub(crate) fn fail_next_save(&self, reason: impl Into<String>) {
+    pub fn fail_next_save(&self, reason: impl Into<String>) {
         *self.save.borrow_mut() = Some(OneShotBehavior::Fail(reason.into()));
     }
 
-    pub(crate) fn hold_next_save(&self) {
+    pub fn hold_next_save(&self) {
         *self.save.borrow_mut() = Some(OneShotBehavior::Hold);
     }
 
-    pub(crate) fn take_save(&self) -> Option<OneShotBehavior> {
+    pub fn take_save(&self) -> Option<OneShotBehavior> {
         self.save.borrow_mut().take()
     }
 }

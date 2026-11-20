@@ -671,8 +671,8 @@ mod add_object_menu_tests {
 
     /// The catalogue panel is given the accepted snapshot of a project the real Session opened.
     async fn catalogue_fixture() -> CatalogueMountedFixture {
-        let runtime = crate::runtime::project_name_test_support::new_runtime();
-        crate::runtime::project_name_test_support::open_document(
+        let runtime = boardstudio_web_test_runtime::project_name_test_support::new_runtime();
+        boardstudio_web_test_runtime::project_name_test_support::open_document(
             &runtime,
             ProjectDoc::empty("catalogue-loading-error", "Catalogue states"),
         )

@@ -148,7 +148,7 @@ mod tests {
         crate::TASKS.with_borrow_mut(Vec::clear);
         crate::TEMPLATES.with_borrow_mut(|reply| *reply = None);
         let probe = Probe {
-            runtime: runtime::Runtime::new(),
+            runtime: runtime::Runtime::with_core(boardstudio_web_test_runtime::engine_core_services()),
             version: Rc::default(),
             workspace: Rc::new(Cell::new("Layout")),
             latest: Rc::default(),

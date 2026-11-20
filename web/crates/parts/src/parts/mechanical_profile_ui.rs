@@ -284,9 +284,9 @@ pub fn PartsMechanicalProfileWorkspace(
 #[cfg(all(test, target_arch = "wasm32"))]
 mod mounted_tests {
     use super::*;
-    use crate::runtime::project_name_test_support as support;
     use boardstudio_application::TerminalOutcome;
     use boardstudio_model::model::{Board, ProjectDoc};
+    use boardstudio_web_test_runtime::project_name_test_support as support;
     use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::test_role::by_role_name;
     use boardstudio_web_ui_shared::test_wait::{settle_until, wait_until, wait_until_future};

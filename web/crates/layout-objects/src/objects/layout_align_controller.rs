@@ -895,11 +895,11 @@ fn reference_label(model: &boardstudio_application::ReadModel, id: &str) -> Stri
 #[cfg(all(test, target_arch = "wasm32"))]
 mod resolver_tests {
     use super::*;
-    use crate::runtime::project_name_test_support as support;
     use boardstudio_model::model::{
         Board, Follow, Layout, Matrix, MatrixAnchor, MatrixCell, MatrixPlacementChange,
         OutlineFeature, OutlineSettings, Pose2, Side,
     };
+    use boardstudio_web_test_runtime::project_name_test_support as support;
     use wasm_bindgen_test::wasm_bindgen_test;
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);

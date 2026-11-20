@@ -887,7 +887,6 @@ mod tests {
         MechanicalGasketAnchor, MechanicalGasketLayout, MechanicalMirrorPair, Mount, MountKind,
         PhysicalBoardInstance, Vec2,
     };
-    use boardstudio_web_runtime::core_services::CoreServices;
     use serde_json::json;
 
     fn configuration(board_id: &str) -> MechanicalConfiguration {
@@ -1404,7 +1403,7 @@ mod tests {
             &accepted,
             &change,
             Some(&mounting_hole_template()),
-            CoreServices::engine().open_scratch,
+            boardstudio_web_test_runtime::engine_core_services().open_scratch,
         )
         .expect("the reviewed link projects");
 
@@ -1485,8 +1484,13 @@ mod tests {
 
         // Without the normalized template the projection cannot produce the generated
         // clearance, so the review must say so instead of showing a partial result.
-        let without =
-            pair_link_options(&doc, &[], "left", None, CoreServices::engine().open_scratch);
+        let without = pair_link_options(
+            &doc,
+            &[],
+            "left",
+            None,
+            boardstudio_web_test_runtime::engine_core_services().open_scratch,
+        );
         assert_eq!(without.len(), 1, "the candidate is still reviewable");
         assert!(
             without[0].preview.is_none(),
@@ -1507,7 +1511,7 @@ mod tests {
             &[],
             "left",
             Some(&template),
-            CoreServices::engine().open_scratch,
+            boardstudio_web_test_runtime::engine_core_services().open_scratch,
         );
         assert_eq!(with_template.len(), 1);
         let preview = with_template[0]
@@ -1554,7 +1558,7 @@ mod tests {
             &[],
             &change,
             None,
-            CoreServices::engine().open_scratch,
+            boardstudio_web_test_runtime::engine_core_services().open_scratch,
         )
         .expect("the reviewed link projects through the disposable engine");
 
@@ -1600,11 +1604,16 @@ mod tests {
     #[test]
     fn the_reviewed_choices_become_the_link_payload_the_review_shows() {
         let doc = linkable_halves();
-        let option =
-            pair_link_options(&doc, &[], "left", None, CoreServices::engine().open_scratch)
-                .into_iter()
-                .next()
-                .expect("one candidate");
+        let option = pair_link_options(
+            &doc,
+            &[],
+            "left",
+            None,
+            boardstudio_web_test_runtime::engine_core_services().open_scratch,
+        )
+        .into_iter()
+        .next()
+        .expect("one candidate");
         let mut sources = std::collections::BTreeMap::new();
 
         // No map, no payload: a translated frame must supply one.
@@ -1670,8 +1679,13 @@ mod tests {
     #[test]
     fn link_options_offer_each_other_half_with_its_map_and_durable_matches() {
         let doc = independent_halves();
-        let options =
-            pair_link_options(&doc, &[], "left", None, CoreServices::engine().open_scratch);
+        let options = pair_link_options(
+            &doc,
+            &[],
+            "left",
+            None,
+            boardstudio_web_test_runtime::engine_core_services().open_scratch,
+        );
         assert_eq!(options.len(), 1, "the other half is the one candidate");
         let option = &options[0];
         assert_eq!(option.instance_id, "left");
@@ -1727,7 +1741,7 @@ mod tests {
                 &[],
                 "missing",
                 None,
-                CoreServices::engine().open_scratch
+                boardstudio_web_test_runtime::engine_core_services().open_scratch
             )
             .is_empty()
         );
@@ -1737,8 +1751,13 @@ mod tests {
     fn link_options_need_an_explicit_map_for_translated_frames_and_are_absent_when_paired() {
         let mut doc = independent_halves();
         doc.hardware.as_mut().unwrap().instances[1].flipped = false;
-        let options =
-            pair_link_options(&doc, &[], "left", None, CoreServices::engine().open_scratch);
+        let options = pair_link_options(
+            &doc,
+            &[],
+            "left",
+            None,
+            boardstudio_web_test_runtime::engine_core_services().open_scratch,
+        );
         assert_eq!(
             options[0].derived_mapping, None,
             "equal declared transforms need the review to supply the map"
@@ -1768,7 +1787,7 @@ mod tests {
                 &[],
                 "left",
                 None,
-                CoreServices::engine().open_scratch
+                boardstudio_web_test_runtime::engine_core_services().open_scratch
             )
             .is_empty(),
             "a paired half is linked through its pair actions instead"
@@ -1779,7 +1798,7 @@ mod tests {
                 &[],
                 "right",
                 None,
-                CoreServices::engine().open_scratch
+                boardstudio_web_test_runtime::engine_core_services().open_scratch
             )
             .is_empty()
         );

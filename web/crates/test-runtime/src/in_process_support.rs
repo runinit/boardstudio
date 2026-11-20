@@ -5,11 +5,26 @@
 //! the next reply or save, so tests control completion timing without feature-named branches
 //! in Runtime itself.
 
-use super::*;
 use crate::gate_driver::{GateDriver, OneShotBehavior};
+use crate::runtime::{CoreExecutor, DocumentPersistence, test_hooks::InstalledAdapters};
+use boardstudio_application::{
+    AcceptedSnapshot, Completion, Effect, Event, OperationId, SaveResult, Scope, Session,
+};
 use boardstudio_core::{archive as core_archive, artifact_request};
+use boardstudio_model::model::{
+    ArtifactReply, ArtifactRequest, Board, CoreReply, CoreRequest, ProjectDoc,
+};
 use boardstudio_web_host::host::{ArchiveResult, CoreExecutorFuture, HostError};
+use boardstudio_web_host::host::{BrowserStore, SaveError, StorageToken};
 use futures_channel::oneshot;
+use js_sys::Uint8Array;
+use std::{
+    cell::{Cell, RefCell},
+    collections::BTreeMap,
+    future::Future,
+    pin::Pin,
+    rc::Rc,
+};
 
 type AsyncGate = (oneshot::Sender<()>, oneshot::Receiver<()>);
 type RequestFilter = fn(&CoreRequest) -> bool;
@@ -181,7 +196,7 @@ impl CoreExecutor for InProcessCore {
             let request = request.clone();
             let (send, receive) = oneshot::channel();
             // Match the worker boundary: Core must not run on the mounted test's poll stack.
-            spawn_local(async move {
+            wasm_bindgen_futures::spawn_local(async move {
                 let reply = if closed.get() {
                     Err(HostError("core worker is closed".into()))
                 } else {
@@ -467,18 +482,6 @@ impl InProcessAdapters {
         }
     }
 
-    /// Take over the runtime's Core executor, persistence port and executor factory. Saving
-    /// stays on the production browser store until `use_memory_saves` is called.
-    pub fn attach(self: &Rc<Self>, runtime: &Runtime) {
-        *runtime.core.borrow_mut() = self.current_core();
-        *runtime.persistence.borrow_mut() = self.persistence.clone();
-        let adapters = self.clone();
-        *runtime.core_executor_factory.borrow_mut() = Rc::new(move || {
-            adapters.restart_core();
-            Ok(adapters.current_core() as Rc<dyn CoreExecutor>)
-        });
-    }
-
     pub fn gate_next_store_read(&self) -> (oneshot::Receiver<()>, oneshot::Sender<()>) {
         let (entered, entered_rx) = oneshot::channel();
         let (release, release_rx) = oneshot::channel();
@@ -489,31 +492,10 @@ impl InProcessAdapters {
         (entered_rx, release)
     }
 
-    /// Pause observation of a real store result without replacing it.
-    pub(super) async fn store_read_completed(&self) {
-        let gate = self.store_read_gate.borrow_mut().take();
-        if let Some(gate) = gate {
-            let _ = gate.entered.send(());
-            let _ = gate.release.await;
-        }
-    }
-
     pub fn observe_next_open(&self) -> oneshot::Receiver<()> {
         let (done, observer) = oneshot::channel();
         *self.open_observer.borrow_mut() = Some(done);
         observer
-    }
-
-    pub(super) fn take_open_observer(&self) -> Option<oneshot::Sender<()>> {
-        self.open_observer.borrow_mut().take()
-    }
-
-    pub(super) fn deliver(&self, artifact: &Artifact) {
-        self.deliveries.borrow_mut().push(DeliveredArtifact {
-            bytes: artifact.bytes.clone(),
-            filename: artifact.filename.clone(),
-            media_type: artifact.media_type.clone(),
-        });
     }
 
     pub fn take_deliveries(&self) -> Vec<DeliveredArtifact> {
@@ -524,7 +506,7 @@ impl InProcessAdapters {
         self.core.borrow().clone()
     }
 
-    fn restart_core(&self) {
+    pub(super) fn restart_core(&self) {
         *self.core.borrow_mut() = Rc::new(InProcessCore::new(boardstudio_core::CoreEngine::new()));
     }
 
@@ -588,4 +570,29 @@ pub fn opened_session() -> (Session, AcceptedSnapshot, Scope) {
     let accepted = session.read_model().accepted.clone().unwrap();
     let scope = session.scope().unwrap();
     (session, accepted, scope)
+}
+
+impl InstalledAdapters for InProcessAdapters {
+    /// Pause observation of a real store result without replacing it.
+    fn store_read_completed(&self) -> Pin<Box<dyn Future<Output = ()> + '_>> {
+        Box::pin(async move {
+            let gate = self.store_read_gate.borrow_mut().take();
+            if let Some(gate) = gate {
+                let _ = gate.entered.send(());
+                let _ = gate.release.await;
+            }
+        })
+    }
+
+    fn take_open_observer(&self) -> Option<oneshot::Sender<()>> {
+        self.open_observer.borrow_mut().take()
+    }
+
+    fn deliver(&self, bytes: &[u8], filename: &str, media_type: Option<&str>) {
+        self.deliveries.borrow_mut().push(DeliveredArtifact {
+            bytes: bytes.to_vec(),
+            filename: filename.to_owned(),
+            media_type: media_type.map(str::to_owned),
+        });
+    }
 }

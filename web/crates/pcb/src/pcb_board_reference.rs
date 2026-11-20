@@ -1075,9 +1075,10 @@ mod test_support {
 #[cfg(all(test, target_arch = "wasm32"))]
 mod mounted_async_tests {
     use super::*;
-    use crate::runtime::{in_process_support, project_name_test_support as support};
     use boardstudio_application::{AcceptedSnapshot, Event, Scope};
     use boardstudio_model::model::{Asset, Board, BoardReference, Pose2, Vec2};
+    use boardstudio_web_test_runtime::in_process_support;
+    use boardstudio_web_test_runtime::project_name_test_support as support;
     use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::test_role::by_role_name;
     use js_sys::{Array, Uint8Array};

@@ -207,13 +207,7 @@ async fn mechanical_export_refuses_unverified_or_incomplete_pcb_sources_without_
             runtime.status()
         );
         assert!(
-            runtime
-                .in_process_adapters
-                .borrow()
-                .as_ref()
-                .unwrap()
-                .take_deliveries()
-                .is_empty(),
+            firmware_export_test_support::take_deliveries(&runtime).is_empty(),
             "an invalid raw source must not fall back to a nominal PCB export"
         );
     }

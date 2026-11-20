@@ -1807,8 +1807,8 @@ fn publish_feedback(
 mod queued_edits {
     use super::*;
     use crate::presentation::objects::matrix_edit_test_support as fixture;
-    use crate::runtime::project_name_test_support as support;
     use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+    use boardstudio_web_test_runtime::project_name_test_support as support;
     use wasm_bindgen_test::wasm_bindgen_test;
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);

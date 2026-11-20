@@ -1,11 +1,12 @@
 //! A small real-Core matrix document shared by the matrix edit tests: three keys in one
 //! matrix, opened through the in-process Session and Core.
 #![cfg(all(test, target_arch = "wasm32"))]
-use crate::runtime::{Runtime, project_name_test_support as support};
+use crate::runtime::Runtime;
 use boardstudio_model::model::{
     Board, Follow, Layout, LayoutMirrorLink, MirroredCorrespondence, MirroredItemKind,
     OutlineFeature, OutlineSettings, Part, PartAnchor, Pose2, ProjectDoc, Side, Vec2,
 };
+use boardstudio_web_test_runtime::project_name_test_support as support;
 use std::rc::Rc;
 
 pub const MATRIX_ID: &str = "matrix";

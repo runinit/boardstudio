@@ -98,7 +98,7 @@ mod tests {
     use std::rc::Rc;
 
     fn open(id: &str, name: &str) -> Rc<Runtime> {
-        let runtime = Runtime::new();
+        let runtime = Runtime::with_core(boardstudio_web_test_runtime::engine_core_services());
         runtime.submit(Event::Open {
             operation_id: runtime.operation(),
             document: ProjectDoc::empty(id, name),

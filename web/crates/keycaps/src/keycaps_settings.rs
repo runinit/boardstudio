@@ -2215,8 +2215,8 @@ mod tests {
 #[cfg(test)]
 mod queued_settings_tests {
     use super::*;
-    use crate::runtime::project_name_test_support as support;
     use boardstudio_application::{Event, TerminalOutcome};
+    use boardstudio_web_test_runtime::project_name_test_support as support;
     use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::test_role::by_role_name;
     use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_future, wait_until_step};

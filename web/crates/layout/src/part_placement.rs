@@ -2296,9 +2296,10 @@ mod tests {
     }
 
     async fn hook_mounted_with_document(document: ProjectDoc) -> (HookProbe, VirtualDom) {
-        let runtime = crate::runtime::project_name_test_support::new_runtime();
+        let runtime = boardstudio_web_test_runtime::project_name_test_support::new_runtime();
         let expected_board_count = document.boards.len();
-        crate::runtime::project_name_test_support::open_document(&runtime, document).await;
+        boardstudio_web_test_runtime::project_name_test_support::open_document(&runtime, document)
+            .await;
         let model = runtime.model();
         assert_eq!(
             model.lifecycle,
@@ -2361,7 +2362,7 @@ mod tests {
             "part-placement-test-replacement-{}",
             probe.runtime.model().accepted.unwrap().document.revision
         );
-        let accepted = crate::runtime::project_name_test_support::replace_document(
+        let accepted = boardstudio_web_test_runtime::project_name_test_support::replace_document(
             &probe.runtime,
             &transaction_id,
             "board-main",
@@ -2410,11 +2411,11 @@ mod tests {
     }
 
     async fn run_pending_runtime(probe: &HookProbe) {
-        crate::runtime::project_name_test_support::run_pending(&probe.runtime).await;
+        boardstudio_web_test_runtime::project_name_test_support::run_pending(&probe.runtime).await;
     }
 
     fn start_pending_runtime(probe: &HookProbe) {
-        crate::runtime::project_name_test_support::drive_pending(&probe.runtime);
+        boardstudio_web_test_runtime::project_name_test_support::drive_pending(&probe.runtime);
     }
 
     fn resolve_loader(probe: &HookProbe, value: Result<PartDefinition, String>) {
@@ -2503,7 +2504,8 @@ mod tests {
         let_hook_tasks_run().await;
         flush_hook(&mut dom);
         let active = probe.latest.borrow().as_ref().unwrap().clone();
-        let outcome = crate::runtime::project_name_test_support::observe_next(&probe.runtime);
+        let outcome =
+            boardstudio_web_test_runtime::project_name_test_support::observe_next(&probe.runtime);
         active.on_commit.call(Vec2 { x: 5.0, y: -2.0 });
         run_pending_runtime(&probe).await;
         let_hook_tasks_run().await;
@@ -2937,7 +2939,10 @@ mod tests {
                 kind: PartKind::Passive,
             });
         let outcome = observe_next_operation(&probe);
-        crate::runtime::project_name_test_support::fail_next_persist(&probe.runtime, "disk full");
+        boardstudio_web_test_runtime::project_name_test_support::fail_next_persist(
+            &probe.runtime,
+            "disk full",
+        );
         resolve_loader(&probe, Ok(passive_definition("imported:reset-switch")));
         run_pending_runtime(&probe).await;
         let_hook_tasks_run().await;
@@ -2966,7 +2971,7 @@ mod tests {
     fn observe_next_operation(
         probe: &HookProbe,
     ) -> boardstudio_web_runtime::operation_outcomes::OutcomeSlot {
-        crate::runtime::project_name_test_support::observe_next(&probe.runtime)
+        boardstudio_web_test_runtime::project_name_test_support::observe_next(&probe.runtime)
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]
@@ -3201,10 +3206,12 @@ mod tests {
             flush_hook(&mut dom);
             let active = start_hook_placement(&probe, &mut dom).await;
             let save_gate = (!fail_save).then(|| {
-                crate::runtime::project_name_test_support::gate_next_persist(&probe.runtime)
+                boardstudio_web_test_runtime::project_name_test_support::gate_next_persist(
+                    &probe.runtime,
+                )
             });
             if fail_save {
-                crate::runtime::project_name_test_support::fail_next_persist(
+                boardstudio_web_test_runtime::project_name_test_support::fail_next_persist(
                     &probe.runtime,
                     "disk full",
                 );
@@ -3279,7 +3286,9 @@ mod tests {
             }
             let active = start_hook_placement(&probe, &mut dom).await;
             let (entered, release) =
-                crate::runtime::project_name_test_support::gate_next_persist(&probe.runtime);
+                boardstudio_web_test_runtime::project_name_test_support::gate_next_persist(
+                    &probe.runtime,
+                );
             let outcome = observe_next_operation(&probe);
             active.on_commit.call(Vec2 { x: 5.0, y: -2.0 });
             start_pending_runtime(&probe);
@@ -3295,10 +3304,12 @@ mod tests {
                 assert_eq!(probe.runtime.model().active_board_id, "board-other");
             } else {
                 let open_operation = probe.runtime.operation();
-                open_outcome = Some(crate::runtime::project_name_test_support::observe(
-                    &probe.runtime,
-                    open_operation,
-                ));
+                open_outcome = Some(
+                    boardstudio_web_test_runtime::project_name_test_support::observe(
+                        &probe.runtime,
+                        open_operation,
+                    ),
+                );
                 probe.runtime.submit(Event::Open {
                     operation_id: open_operation,
                     document: ProjectDoc::empty("replacement-project", "Replacement"),
@@ -3337,7 +3348,9 @@ mod tests {
         let (probe, mut dom) = hook_mounted().await;
         let active = start_hook_placement(&probe, &mut dom).await;
         let (entered, release) =
-            crate::runtime::project_name_test_support::gate_next_persist(&probe.runtime);
+            boardstudio_web_test_runtime::project_name_test_support::gate_next_persist(
+                &probe.runtime,
+            );
         let outcome = observe_next_operation(&probe);
         active.on_commit.call(Vec2 { x: 5.0, y: -2.0 });
         start_pending_runtime(&probe);
@@ -3390,7 +3403,9 @@ mod tests {
 
         let active = start_hook_placement(&probe, &mut dom).await;
         let (entered, release) =
-            crate::runtime::project_name_test_support::gate_next_core_reply(&probe.runtime);
+            boardstudio_web_test_runtime::project_name_test_support::gate_next_core_reply(
+                &probe.runtime,
+            );
         let outcome = observe_next_operation(&probe);
         active.on_commit.call(Vec2 { x: 5.0, y: -2.0 });
         start_pending_runtime(&probe);
@@ -3405,7 +3420,10 @@ mod tests {
         });
         start_pending_runtime(&probe);
         assert_eq!(probe.runtime.model().active_board_id, "board-other");
-        crate::runtime::project_name_test_support::fail_next_persist(&probe.runtime, "stale board");
+        boardstudio_web_test_runtime::project_name_test_support::fail_next_persist(
+            &probe.runtime,
+            "stale board",
+        );
         let _ = release.send(());
         let_hook_tasks_run().await;
         assert_eq!(

@@ -691,7 +691,7 @@ mod tests {
 
     #[wasm_bindgen_test]
     async fn kicad_board_row_explains_pcb_blocker_and_preserves_readiness_guards() {
-        let runtime = crate::runtime::project_name_test_support::new_runtime();
+        let runtime = boardstudio_web_test_runtime::project_name_test_support::new_runtime();
         let cases = [
             (
                 false,

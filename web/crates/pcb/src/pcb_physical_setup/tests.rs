@@ -13,9 +13,10 @@
 //! and wiring-panel equivalents cover the topology landing and undo path in
 //! `pcb_wiring/queued_edit_tests.rs`.
 use super::*;
-use crate::runtime::{Runtime, project_name_test_support as support};
+use crate::runtime::Runtime;
 use boardstudio_application::Event;
 use boardstudio_web_catalogue::physical_setup::PreparedSetup;
+use boardstudio_web_test_runtime::project_name_test_support as support;
 use boardstudio_web_ui_shared::test_mount::MountedFixture;
 use boardstudio_web_ui_shared::test_wait::{settle_until, wait_until_step};
 use dioxus::prelude::*;

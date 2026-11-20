@@ -357,8 +357,8 @@ fn commit_numeric(
 #[cfg(all(test, target_arch = "wasm32"))]
 mod tests {
     use super::*;
-    use crate::runtime::project_name_test_support as support;
     use boardstudio_core::model::{Board, Part, Pose2, ProjectDoc, Side};
+    use boardstudio_web_test_runtime::project_name_test_support as support;
     use boardstudio_web_ui_shared::test_role::by_role_name;
     use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_step};
     use wasm_bindgen_test::*;

@@ -901,7 +901,7 @@ mod settlement_tests {
     use super::*;
     use boardstudio_model::model::ProjectDoc;
     use boardstudio_web_runtime::pending_edits::PendingEdits;
-    use boardstudio_web_runtime::runtime::project_name_test_support as support;
+    use boardstudio_web_test_runtime::project_name_test_support as support;
     use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::test_role::by_role_name;
     use boardstudio_web_ui_shared::test_wait::{

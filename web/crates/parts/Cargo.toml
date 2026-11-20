@@ -31,6 +31,7 @@ wasm-bindgen-futures = "=0.4.79"
 web-sys = { workspace = true }
 
 [dev-dependencies]
+boardstudio-web-test-runtime = { path = "../test-runtime" }
 tokio = { version = "=1.53.1", features = ["macros", "rt", "time"] }
 boardstudio-web-runtime = { path = "../runtime", features = ["test-support"] }
 boardstudio-web-ui-model = { path = "../ui-model", features = ["test-support"] }

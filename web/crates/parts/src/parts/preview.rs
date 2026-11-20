@@ -1090,9 +1090,9 @@ fn PartsPreviewLayers(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::runtime::project_name_test_support as support;
     use boardstudio_application::{AcceptedSnapshot, Scope, SessionEpoch};
     use boardstudio_model::model::{Board, ProjectDoc};
+    use boardstudio_web_test_runtime::project_name_test_support as support;
     use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use std::sync::Arc;
     use wasm_bindgen::JsCast;

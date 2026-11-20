@@ -925,14 +925,14 @@ async fn undo(runtime: &Rc<crate::runtime::Runtime>) {
     runtime.submit(SessionEvent::Undo {
         operation_id: runtime.operation(),
     });
-    crate::runtime::project_name_test_support::run_pending(runtime).await;
+    boardstudio_web_test_runtime::project_name_test_support::run_pending(runtime).await;
 }
 
 #[wasm_bindgen_test]
 async fn rapid_key_size_then_an_unrelated_edit_both_survive_and_undo_removes_them_in_order() {
-    use crate::runtime::project_name_test_support as support;
     use boardstudio_model::model::EditOperation;
     use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+    use boardstudio_web_test_runtime::project_name_test_support as support;
 
     let runtime = support::new_runtime();
     support::open_document(&runtime, key_fixture()).await;
@@ -1099,7 +1099,7 @@ async fn change_size(root: &web_sys::Element, value: &str) {
 
 #[wasm_bindgen_test]
 async fn size_selector_tracks_accepted_undo_redo_and_failed_edit_feedback() {
-    use crate::runtime::project_name_test_support as support;
+    use boardstudio_web_test_runtime::project_name_test_support as support;
     let runtime = support::new_runtime();
     support::open_document(&runtime, key_fixture()).await;
     runtime.submit(SessionEvent::SelectParts {
@@ -1182,9 +1182,9 @@ async fn size_selector_tracks_accepted_undo_redo_and_failed_edit_feedback() {
 
 #[wasm_bindgen_test]
 async fn queued_key_resize_retires_when_row_delete_reuses_the_selected_id() {
-    use crate::runtime::project_name_test_support as support;
     use boardstudio_model::model::EditOperation;
     use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+    use boardstudio_web_test_runtime::project_name_test_support as support;
 
     let runtime = support::new_runtime();
     let mut document = key_fixture();
@@ -1252,8 +1252,8 @@ async fn queued_key_resize_retires_when_row_delete_reuses_the_selected_id() {
 /// a whole-document replacement; invalid units resolve Unchanged and write nothing.
 #[wasm_bindgen_test]
 async fn resize_resolver_submits_a_typed_keycap_size_edit() {
-    use crate::runtime::project_name_test_support as support;
     use boardstudio_model::model::EditOperation;
+    use boardstudio_web_test_runtime::project_name_test_support as support;
 
     let runtime = support::new_runtime();
     support::open_document(&runtime, key_fixture()).await;

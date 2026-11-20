@@ -1517,9 +1517,8 @@ mod tests {
 
     #[wasm_bindgen_test]
     async fn hidden_case_skips_presentation_props_and_rebuilds_them_on_return() {
-        use boardstudio_web_runtime::runtime::{
-            in_process_support, project_name_test_support as support,
-        };
+        use boardstudio_web_test_runtime::in_process_support;
+        use boardstudio_web_test_runtime::project_name_test_support as support;
         use boardstudio_web_ui_shared::test_wait::wait_until;
         use wasm_bindgen::JsCast;
 

@@ -433,14 +433,13 @@ mod demo_rebuild_tests {
     use super::*;
     use boardstudio_core::CoreEngine;
     use boardstudio_core_kernel::migrate::CURRENT_VERSION;
-    use boardstudio_web_runtime::core_services::CoreServices;
 
     fn studio60() -> ProjectDoc {
         DEMO_PROJECTS
             .iter()
             .find(|demo| demo.name == "Studio 60")
             .expect("Studio 60 entry")
-            .document(CoreServices::engine().open_scratch)
+            .document(boardstudio_web_test_runtime::engine_core_services().open_scratch)
     }
 
     fn legacy_grid(rows: usize, columns: usize, pitch: f64) -> Vec<Vec2> {
@@ -557,9 +556,11 @@ mod demo_rebuild_tests {
             .map(|demo| {
                 (
                     demo.name,
-                    demo.document(CoreServices::engine().open_scratch)
-                        .parts
-                        .len(),
+                    demo.document(
+                        boardstudio_web_test_runtime::engine_core_services().open_scratch,
+                    )
+                    .parts
+                    .len(),
                 )
             })
             .collect();
@@ -574,7 +575,7 @@ mod demo_rebuild_tests {
             .iter()
             .find(|demo| demo.name == "Macro 12")
             .expect("Macro 12 entry")
-            .document(CoreServices::engine().open_scratch)
+            .document(boardstudio_web_test_runtime::engine_core_services().open_scratch)
     }
 
     #[test]
@@ -629,7 +630,7 @@ mod demo_rebuild_tests {
                 .iter()
                 .find(|demo| demo.name == name)
                 .expect("demo entry")
-                .document(CoreServices::engine().open_scratch);
+                .document(boardstudio_web_test_runtime::engine_core_services().open_scratch);
             for matrix in &document.matrices {
                 assert_eq!(matrix.pitch, Vec2 { x: 19.05, y: 19.05 }, "{name} pitch");
                 assert_eq!(
@@ -702,7 +703,7 @@ mod demo_rebuild_tests {
             .iter()
             .find(|demo| demo.name == "Split 42")
             .expect("Split 42 entry")
-            .document(CoreServices::engine().open_scratch)
+            .document(boardstudio_web_test_runtime::engine_core_services().open_scratch)
     }
 
     #[test]

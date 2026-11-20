@@ -186,7 +186,7 @@ Evidence: [layers host and mount](../../web/src/presentation/layout_layers_tests
 
 The browser test Runtime is the real WASM Runtime with installed in-process adapters, **not** the native `runtime_test_stub` type. `new_runtime` disables active-project restoration; `open_document` installs real Session/Core, selects memory persistence and opens through `Event::Open`. Core/persistence can be gated or failed; outcomes, accepted/saved documents and held effects can be observed. Driver calls are necessary because the adapter holds Runtime effects until driven; callbacks may enqueue more after asynchronous turns. Use state-based bounded waits and await gate-entry signals rather than fixed sleep as the sole evidence.
 
-Evidence: [target-specific Runtime modules](../../web/crates/runtime/src/lib.rs#L33-L47); [browser support](../../web/crates/runtime/src/runtime.rs#L7933-L7975), [gates/saved document/driver](../../web/crates/runtime/src/runtime.rs#L8123-L8221); [asynchronous real Core adapter](../../web/crates/runtime/src/in_process_support.rs#L136-L203); [bounded test wait pattern](../../web/crates/keymap/src/keymap/queued_edit_tests.rs#L180-L236).
+Evidence: [target-specific Runtime modules](../../web/crates/runtime/src/lib.rs#L33-L47); [browser support](../../web/crates/runtime/src/runtime.rs#L7933-L7975), [gates/saved document/driver](../../web/crates/runtime/src/runtime.rs#L8123-L8221); [asynchronous real Core adapter](../../web/crates/test-runtime/src/in_process_support.rs#L152-L220); [bounded test wait pattern](../../web/crates/keymap/src/keymap/queued_edit_tests.rs#L180-L236).
 
 ### The precise gap: Editor is mountable; App is not dependency-injected
 
@@ -212,7 +212,7 @@ Additional fixture requirements:
 
 1. Open a minimal real document through Core with at least two boards, colliding IDs across replacement projects, keys/layers and explicit physical instances where relevant. Seed guide preferences deliberately and restore changed local-storage panel/guide preferences; memory document saves do not isolate browser preferences.
 2. Establish nonzero canvas size and real attached DOM for fit/pointer/focus assertions. Include production styles only where measured layout is under test. Global IDs/selectors and document listeners mean these mounts should not coexist accidentally.
-3. Gate only the relevant Core request when background PCB/fit queries can race; use `InProcessCore::gate_matching_reply` where necessary. [Filtered gates](../../web/crates/runtime/src/in_process_support.rs#L91-L113).
+3. Gate only the relevant Core request when background PCB/fit queries can race; use `InProcessCore::gate_matching_reply` where necessary. [Filtered gates](../../web/crates/test-runtime/src/in_process_support.rs#L107-L128).
 4. Start with real 2D actions. Case/3D findings can reuse accepted, identity-matched CAD fixture installation (`set_cad_scene_test`) where needed, but that is not a kernel/renderer integration test. Packaged browser checks remain needed for actual worker/GPU behavior. [Case fixture](../../web/src/presentation/case_workspace.rs#L1279-L1343); [architecture test limits](../architecture.md#L52-L73).
 5. For unmount assertions, retain/drop a VirtualDom or conditionally remove Editor beneath a mounted owner, release held replies, and assert no subsequent UI/navigation/focus writes. Existing lower-level placement and Keycaps tests demonstrate these patterns; many DOM tests merely call `root.remove()` and cannot establish scope teardown by that alone.
 

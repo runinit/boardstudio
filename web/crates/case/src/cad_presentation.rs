@@ -309,13 +309,14 @@ pub fn CasePanel(
 #[cfg(all(test, target_arch = "wasm32"))]
 mod mounted_tests {
     use super::*;
-    use crate::runtime::{in_process_support, project_name_test_support as support};
     use boardstudio_application::{
         Completion, Effect, Event as AppEvent, GenerationStatus, JobId, Scope,
     };
     use boardstudio_model::model::{
         Board, EditOperation, MechanicalAssembly, Operation, OutlineFeature, ProjectDoc, Vec2,
     };
+    use boardstudio_web_test_runtime::in_process_support;
+    use boardstudio_web_test_runtime::project_name_test_support as support;
     use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::test_role::by_role_name;
     use wasm_bindgen::JsCast;

@@ -1,5 +1,5 @@
 use super::*;
-use crate::runtime::project_name_test_support as support;
+use boardstudio_web_test_runtime::project_name_test_support as support;
 use boardstudio_web_ui_shared::test_mount::MountedFixture;
 use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
 use wasm_bindgen_test::wasm_bindgen_test;

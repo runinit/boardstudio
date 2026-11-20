@@ -966,7 +966,7 @@ impl MountedProbe {
                 range_part_ids: Vec::new(),
                 mode: boardstudio_application::SelectionMode::Replace,
             });
-        crate::runtime::project_name_test_support::drive_pending(&self.runtime);
+        boardstudio_web_test_runtime::project_name_test_support::drive_pending(&self.runtime);
     }
 
     fn select(&self, part_id: Option<&str>) {
@@ -1016,7 +1016,7 @@ impl MountedProbe {
             .pose
             .at
             .y += 1.0;
-        crate::runtime::project_name_test_support::submit_fixed_command(
+        boardstudio_web_test_runtime::project_name_test_support::submit_fixed_command(
             &self.runtime,
             boardstudio_core::model::EditCommand {
                 base_revision: accepted.document.revision,
@@ -1028,7 +1028,7 @@ impl MountedProbe {
                 },
             },
         );
-        crate::runtime::project_name_test_support::run_pending(&self.runtime).await;
+        boardstudio_web_test_runtime::project_name_test_support::run_pending(&self.runtime).await;
         self.refresh();
         self.runtime
             .model()
@@ -1251,20 +1251,20 @@ async fn mounted_runtime_probe(
     configure: impl FnOnce(&mut ProjectDoc),
     selected_parts: &[&str],
 ) -> (MountedProbe, web_sys::Element) {
-    let runtime = crate::runtime::project_name_test_support::new_runtime();
-    crate::runtime::project_name_test_support::install(
+    let runtime = boardstudio_web_test_runtime::project_name_test_support::new_runtime();
+    boardstudio_web_test_runtime::project_name_test_support::install(
         &runtime,
         boardstudio_application::Session::new(boardstudio_core::CoreEngine::validate_open),
         boardstudio_core::CoreEngine::new(),
     );
-    crate::runtime::project_name_test_support::install_memory_persistence(&runtime);
+    boardstudio_web_test_runtime::project_name_test_support::install_memory_persistence(&runtime);
     let document = runtime_document(configure);
     let open = runtime.operation();
     runtime.submit(boardstudio_application::Event::Open {
         operation_id: open,
         document,
     });
-    crate::runtime::project_name_test_support::run_pending(&runtime).await;
+    boardstudio_web_test_runtime::project_name_test_support::run_pending(&runtime).await;
     runtime.model().accepted.expect(
         "the mounted Inspector fixture must be accepted by Session/Core Open before selection",
     );
@@ -1274,7 +1274,7 @@ async fn mounted_runtime_probe(
         range_part_ids: Vec::new(),
         mode: boardstudio_application::SelectionMode::Replace,
     });
-    crate::runtime::project_name_test_support::run_pending(&runtime).await;
+    boardstudio_web_test_runtime::project_name_test_support::run_pending(&runtime).await;
     let probe = MountedProbe {
         runtime,
         selected_part: std::rc::Rc::new(RefCell::new(Some(
@@ -1517,7 +1517,7 @@ async fn mounted_mirrored_half_actions_work_from_either_board_and_undo() {
             board_id: "mirror-board".into(),
             instance_id: None,
         });
-    crate::runtime::project_name_test_support::run_pending(&probe.runtime).await;
+    boardstudio_web_test_runtime::project_name_test_support::run_pending(&probe.runtime).await;
     probe.select(Some("source-part"));
     probe.refresh();
     wait_until("the counterpart Inspector mounts", || {
@@ -1835,7 +1835,7 @@ fn accepted_revision(probe: &MountedProbe) -> u64 {
 
 /// Drive any held effects to completion so accepted state reflects every submitted edit.
 async fn accept_pending(probe: &MountedProbe) {
-    crate::runtime::project_name_test_support::run_pending(&probe.runtime).await;
+    boardstudio_web_test_runtime::project_name_test_support::run_pending(&probe.runtime).await;
     probe.refresh();
     settle_mounted_component_inspector(probe).await;
 }
@@ -2397,7 +2397,9 @@ async fn mounted_rapid_xy_queued_edits_keep_both_coordinates_and_undo_removes_on
     // Hold the first Core reply so the Y edit queues behind the X edit, exactly as
     // rapid typing does when the engine is busy.
     let (entered, release) =
-        crate::runtime::project_name_test_support::gate_next_core_reply(&probe.runtime);
+        boardstudio_web_test_runtime::project_name_test_support::gate_next_core_reply(
+            &probe.runtime,
+        );
 
     x.focus().unwrap();
     x.set_value("60");
@@ -2407,7 +2409,7 @@ async fn mounted_rapid_xy_queued_edits_keep_both_coordinates_and_undo_removes_on
         &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &enter).unwrap(),
     )
     .unwrap();
-    crate::runtime::project_name_test_support::drive_pending(&probe.runtime);
+    boardstudio_web_test_runtime::project_name_test_support::drive_pending(&probe.runtime);
     entered
         .await
         .expect("the X edit reached the in-process Core");
@@ -2420,7 +2422,7 @@ async fn mounted_rapid_xy_queued_edits_keep_both_coordinates_and_undo_removes_on
         &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &enter).unwrap(),
     )
     .unwrap();
-    crate::runtime::project_name_test_support::drive_pending(&probe.runtime);
+    boardstudio_web_test_runtime::project_name_test_support::drive_pending(&probe.runtime);
     release.send(()).expect("release the held X reply");
     accept_pending(&probe).await;
 
@@ -2458,12 +2460,14 @@ async fn mounted_linked_queued_xy_edits_preserve_board_position_across_adoption_
     let x = position_input(probe.root_id, "X mm");
     let y = position_input(probe.root_id, "Y mm");
     let (entered, release) =
-        crate::runtime::project_name_test_support::gate_next_core_reply(&probe.runtime);
+        boardstudio_web_test_runtime::project_name_test_support::gate_next_core_reply(
+            &probe.runtime,
+        );
     try_commit_position(&x, "-40");
-    crate::runtime::project_name_test_support::drive_pending(&probe.runtime);
+    boardstudio_web_test_runtime::project_name_test_support::drive_pending(&probe.runtime);
     entered.await.expect("the X edit reached Core");
     try_commit_position(&y, "8");
-    crate::runtime::project_name_test_support::drive_pending(&probe.runtime);
+    boardstudio_web_test_runtime::project_name_test_support::drive_pending(&probe.runtime);
     release.send(()).expect("release the held X reply");
     accept_pending(&probe).await;
 
@@ -2521,7 +2525,9 @@ async fn mounted_component_inspector_view_unmount_retires_held_field_observation
         .await;
     settle_mounted_component_inspector(&probe).await;
     let (entered, release) =
-        crate::runtime::project_name_test_support::gate_next_core_reply(&probe.runtime);
+        boardstudio_web_test_runtime::project_name_test_support::gate_next_core_reply(
+            &probe.runtime,
+        );
     let x = position_input(probe.root_id, "X mm");
     let bubbling = web_sys::EventInit::new();
     bubbling.set_bubbles(true);
@@ -2536,7 +2542,7 @@ async fn mounted_component_inspector_view_unmount_retires_held_field_observation
         &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &enter).unwrap(),
     )
     .unwrap();
-    crate::runtime::project_name_test_support::drive_pending(&probe.runtime);
+    boardstudio_web_test_runtime::project_name_test_support::drive_pending(&probe.runtime);
     entered.await.expect("the position edit reached Core");
 
     click_component_inspector(probe.root_id, "button", "Toggle Inspector view");
@@ -2576,7 +2582,9 @@ async fn mounted_edit_retires_when_the_part_becomes_locked_before_execution() {
     settle_mounted_component_inspector(&probe).await;
     // Hold the lock edit's Core reply so the position edit queues behind it.
     let (entered, release) =
-        crate::runtime::project_name_test_support::gate_next_core_reply(&probe.runtime);
+        boardstudio_web_test_runtime::project_name_test_support::gate_next_core_reply(
+            &probe.runtime,
+        );
     let accepted = probe
         .runtime
         .model()
@@ -2590,7 +2598,7 @@ async fn mounted_edit_retires_when_the_part_becomes_locked_before_execution() {
         .find(|part| part.id == "selected-part")
         .unwrap()
         .locked = Some(true);
-    crate::runtime::project_name_test_support::submit_fixed_command(
+    boardstudio_web_test_runtime::project_name_test_support::submit_fixed_command(
         &probe.runtime,
         boardstudio_core::model::EditCommand {
             base_revision: accepted.document.revision,
@@ -2602,7 +2610,7 @@ async fn mounted_edit_retires_when_the_part_becomes_locked_before_execution() {
             },
         },
     );
-    crate::runtime::project_name_test_support::drive_pending(&probe.runtime);
+    boardstudio_web_test_runtime::project_name_test_support::drive_pending(&probe.runtime);
     entered
         .await
         .expect("the lock edit reached the in-process Core");
@@ -2621,7 +2629,7 @@ async fn mounted_edit_retires_when_the_part_becomes_locked_before_execution() {
         &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &enter).unwrap(),
     )
     .unwrap();
-    crate::runtime::project_name_test_support::drive_pending(&probe.runtime);
+    boardstudio_web_test_runtime::project_name_test_support::drive_pending(&probe.runtime);
     release.send(()).expect("release the held lock edit");
     // The parked task drives the lock edit and the queued position edit to completion
     // on its own; only afterwards does a forced rerender settle the ticket.
@@ -3081,9 +3089,11 @@ mod matrix_relations_panel {
 
         /// Drive every pending effect, re-render the host and let effects settle.
         async fn land(&self) {
-            crate::runtime::project_name_test_support::run_pending(&self.runtime).await;
+            boardstudio_web_test_runtime::project_name_test_support::run_pending(&self.runtime)
+                .await;
             self.settle().await;
-            crate::runtime::project_name_test_support::run_pending(&self.runtime).await;
+            boardstudio_web_test_runtime::project_name_test_support::run_pending(&self.runtime)
+                .await;
             self.bump();
             self.settle().await;
         }
@@ -3332,25 +3342,27 @@ mod matrix_relations_panel {
         document: ProjectDoc,
         matrix: Option<serde_json::Value>,
     ) -> (RelationsProbe, web_sys::Element) {
-        let support = crate::runtime::project_name_test_support::new_runtime();
-        crate::runtime::project_name_test_support::install(
+        let support = boardstudio_web_test_runtime::project_name_test_support::new_runtime();
+        boardstudio_web_test_runtime::project_name_test_support::install(
             &support,
             Session::new(boardstudio_core::CoreEngine::validate_open),
             CoreEngine::new(),
         );
-        crate::runtime::project_name_test_support::install_memory_persistence(&support);
+        boardstudio_web_test_runtime::project_name_test_support::install_memory_persistence(
+            &support,
+        );
         support.submit(Event::Open {
             operation_id: support.operation(),
             document,
         });
-        crate::runtime::project_name_test_support::run_pending(&support).await;
+        boardstudio_web_test_runtime::project_name_test_support::run_pending(&support).await;
         if let Some(matrix) = matrix {
             let revision = support.model().accepted.unwrap().document.revision;
-            crate::runtime::project_name_test_support::submit_fixed_command(
+            boardstudio_web_test_runtime::project_name_test_support::submit_fixed_command(
                 &support,
                 set_matrix_command(revision, matrix),
             );
-            crate::runtime::project_name_test_support::run_pending(&support).await;
+            boardstudio_web_test_runtime::project_name_test_support::run_pending(&support).await;
         }
         let probe = RelationsProbe {
             runtime: support,
@@ -3665,7 +3677,7 @@ mod matrix_relations_panel {
         // Remove the referenced key, letting the edit land without re-rendering the panel:
         // the button is still in the DOM, as when a click was queued before the removal.
         let accepted = probe.runtime.model().accepted.unwrap();
-        crate::runtime::project_name_test_support::submit_fixed_command(
+        boardstudio_web_test_runtime::project_name_test_support::submit_fixed_command(
             &probe.runtime,
             EditCommand {
                 base_revision: accepted.document.revision,
@@ -3678,7 +3690,7 @@ mod matrix_relations_panel {
                 },
             },
         );
-        crate::runtime::project_name_test_support::run_pending(&probe.runtime).await;
+        boardstudio_web_test_runtime::project_name_test_support::run_pending(&probe.runtime).await;
         let landed = probe.runtime.model().accepted.unwrap();
         assert!(
             landed.document.revision > accepted.document.revision,
@@ -3686,7 +3698,7 @@ mod matrix_relations_panel {
         );
         let before = probe.selected_context();
         queued_source.click();
-        crate::runtime::project_name_test_support::run_pending(&probe.runtime).await;
+        boardstudio_web_test_runtime::project_name_test_support::run_pending(&probe.runtime).await;
         assert_eq!(
             probe.selected_context(),
             before,
@@ -3827,25 +3839,25 @@ async fn companion_placement_mounted_edit_undo_and_core_refusal() {
     use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_step};
     use wasm_bindgen::JsCast;
 
-    let runtime = crate::runtime::project_name_test_support::new_runtime();
-    crate::runtime::project_name_test_support::install(
+    let runtime = boardstudio_web_test_runtime::project_name_test_support::new_runtime();
+    boardstudio_web_test_runtime::project_name_test_support::install(
         &runtime,
         boardstudio_application::Session::new(boardstudio_core::CoreEngine::validate_open),
         boardstudio_core::CoreEngine::new(),
     );
-    crate::runtime::project_name_test_support::install_memory_persistence(&runtime);
+    boardstudio_web_test_runtime::project_name_test_support::install_memory_persistence(&runtime);
     runtime.submit(boardstudio_application::Event::Open {
         operation_id: runtime.operation(),
         document: runtime_document(configure_mirrored_part_pair),
     });
-    crate::runtime::project_name_test_support::run_pending(&runtime).await;
+    boardstudio_web_test_runtime::project_name_test_support::run_pending(&runtime).await;
     runtime.submit(boardstudio_application::Event::SelectParts {
         operation_id: runtime.operation(),
         part_ids: vec!["selected-part".into()],
         range_part_ids: Vec::new(),
         mode: boardstudio_application::SelectionMode::Replace,
     });
-    crate::runtime::project_name_test_support::run_pending(&runtime).await;
+    boardstudio_web_test_runtime::project_name_test_support::run_pending(&runtime).await;
 
     let model = runtime.model();
     let snapshot = model.accepted.as_ref().expect("fixture opened");
@@ -3902,7 +3914,7 @@ async fn companion_placement_mounted_edit_undo_and_core_refusal() {
     companion_click(&root, "checkbox", "Also set the pair default");
     companion_click(&root, "button", "Apply placement");
     wait_until_step("Core accepts the companion default edit", async || {
-        crate::runtime::project_name_test_support::run_pending(&runtime).await;
+        boardstudio_web_test_runtime::project_name_test_support::run_pending(&runtime).await;
         pair_mode(&runtime) == MirroredCompanionMode::DuplicatePosition
             && runtime.model().accepted.unwrap().document.revision > before
     })
@@ -3912,7 +3924,7 @@ async fn companion_placement_mounted_edit_undo_and_core_refusal() {
         operation_id: runtime.operation(),
     });
     wait_until_step("Undo restores the companion default", async || {
-        crate::runtime::project_name_test_support::run_pending(&runtime).await;
+        boardstudio_web_test_runtime::project_name_test_support::run_pending(&runtime).await;
         pair_mode(&runtime) == MirroredCompanionMode::LiteralMirror
             && runtime.model().accepted.unwrap().document.revision > accepted_revision
     })
@@ -3945,7 +3957,7 @@ async fn companion_placement_mounted_edit_undo_and_core_refusal() {
     reject_pair_tweak.set(true);
     companion_click(&root, "button", "Apply placement");
     wait_until_step("Core refusal reaches the Inspector", async || {
-        crate::runtime::project_name_test_support::run_pending(&runtime).await;
+        boardstudio_web_test_runtime::project_name_test_support::run_pending(&runtime).await;
         root.query_selector("[role='alert']")
             .unwrap()
             .is_some_and(|alert| {

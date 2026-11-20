@@ -4471,7 +4471,9 @@ mod tests {
         let probe = FeedbackLayoutProbe::default();
         let dom = VirtualDom::new(feedback_layout_fixture);
         dom.provide_root_context(probe.clone());
-        dom.provide_root_context(crate::runtime::project_name_test_support::new_runtime());
+        dom.provide_root_context(
+            boardstudio_web_test_runtime::project_name_test_support::new_runtime(),
+        );
         let _mounted = MountedFixture::new(root.clone(), dom);
         for _ in 0..50 {
             if root.query_selector("canvas").unwrap().is_some() {

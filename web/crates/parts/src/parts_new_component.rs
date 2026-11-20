@@ -391,7 +391,7 @@ mod tests {
         use std::rc::Rc;
 
         fn open_document(document: ProjectDoc) -> Rc<Runtime> {
-            let runtime = Runtime::new();
+            let runtime = Runtime::with_core(boardstudio_web_test_runtime::engine_core_services());
             runtime.submit(Event::Open {
                 operation_id: runtime.operation(),
                 document,
@@ -572,9 +572,8 @@ mod tests {
 mod mounted_tests {
     use super::*;
     use boardstudio_model::model::ProjectDoc;
-    use boardstudio_web_runtime::{
-        runtime::Runtime, runtime::project_name_test_support as support,
-    };
+    use boardstudio_web_runtime::runtime::Runtime;
+    use boardstudio_web_test_runtime::project_name_test_support as support;
     use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::test_role::by_role_name;
     use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_future, wait_until_step};

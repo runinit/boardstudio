@@ -798,7 +798,7 @@ fn same_owner(current: &MechanicalSettingsIdentity, request: &MechanicalSettings
 #[cfg(test)]
 mod adapter_tests {
     use super::*;
-    use crate::runtime::{Runtime, project_name_test_support as support};
+    use crate::runtime::Runtime;
     use boardstudio_application::{
         AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, OperationId, Resolution,
         Scope,
@@ -806,6 +806,7 @@ mod adapter_tests {
     use boardstudio_model::model::{EditOperation, ProjectDoc};
     use boardstudio_web_runtime::edit_ticket::EditTicketPort;
     use boardstudio_web_runtime::operation_outcomes::{LandingSlot, OutcomeSlot};
+    use boardstudio_web_test_runtime::project_name_test_support as support;
     use futures_channel::oneshot;
     use gloo_timers::future::TimeoutFuture;
     use std::collections::VecDeque;

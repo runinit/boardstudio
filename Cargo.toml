@@ -11,6 +11,7 @@ members = [
   "web/crates/worker-host",
   "web/crates/host",
   "web/crates/runtime",
+  "web/crates/test-runtime",
   "web/crates/ui-model",
   "web/crates/catalogue",
   "web/crates/ui-shared",

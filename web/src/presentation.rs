@@ -218,7 +218,7 @@ pub fn App() -> Element {
 
 /// The page hosts the document engine: the web crates below it reach Core's synchronous entry
 /// points only through these injected services, so they compile without waiting for the
-/// engine. Tests below the page use the matching `CoreServices::engine()` test helper.
+/// engine. Tests below the page use the matching `boardstudio_web_test_runtime::engine_core_services()` test helper.
 pub(crate) fn core_services() -> CoreServices {
     CoreServices {
         validate_open: boardstudio_core::CoreEngine::validate_open,

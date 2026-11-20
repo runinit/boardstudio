@@ -22,7 +22,7 @@ pub struct CoreServices {
     pub open_scratch: OpenScratchCore,
 }
 
-#[cfg(any(test, feature = "test-support"))]
+#[cfg(test)]
 impl CoreServices {
     /// The real engine, for tests (the page builds the same services from its own engine edge).
     pub fn engine() -> Self {

@@ -219,9 +219,9 @@ mod tests {
         notifications::{NotificationProvider, RuntimeNotifications},
     };
     use super::*;
-    use crate::runtime::firmware_export_test_support as runtime_test;
     use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
     use boardstudio_core::electrical::{ElectricalMode, ElectricalPlan};
+    use boardstudio_web_test_runtime::firmware_export_test_support as runtime_test;
     use boardstudio_web_ui_shared::test_role::{accessible_name, by_role_name};
     use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_step};
     use std::cell::RefCell;

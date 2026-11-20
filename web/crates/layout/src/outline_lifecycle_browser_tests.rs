@@ -168,7 +168,7 @@ fn mount_dimension() -> (DimensionProbe, web_sys::Element, MountedFixture) {
 /// Drive the in-process Session and Core until every queued edit has settled.
 async fn accept(probe: &InspectorProbe) {
     for _ in 0..6 {
-        crate::runtime::project_name_test_support::run_pending(&probe.runtime).await;
+        boardstudio_web_test_runtime::project_name_test_support::run_pending(&probe.runtime).await;
         gloo_timers::future::TimeoutFuture::new(10).await;
     }
 }
@@ -177,7 +177,7 @@ pub(super) async fn undo(runtime: &Rc<crate::runtime::Runtime>) {
     runtime.submit(boardstudio_application::Event::Undo {
         operation_id: runtime.operation(),
     });
-    crate::runtime::project_name_test_support::run_pending(runtime).await;
+    boardstudio_web_test_runtime::project_name_test_support::run_pending(runtime).await;
 }
 
 fn accepted_revision(probe: &InspectorProbe) -> u64 {
@@ -414,8 +414,9 @@ fn connected_mirrored_gap_document() -> ProjectDoc {
 async fn connected_mirrored_outline_gap_controls_edit_distinct_regions() {
     for side in [-1., 1.] {
         let fixture = connected_mirrored_gap_document();
-        let runtime = crate::runtime::project_name_test_support::new_runtime();
-        crate::runtime::project_name_test_support::open_document(&runtime, fixture).await;
+        let runtime = boardstudio_web_test_runtime::project_name_test_support::new_runtime();
+        boardstudio_web_test_runtime::project_name_test_support::open_document(&runtime, fixture)
+            .await;
         let probe = InspectorProbe {
             scope: runtime.scope().unwrap(),
             runtime,
@@ -768,8 +769,9 @@ async fn mounted_outline_inspector_with_version(
                 retired_version_ids: vec![],
             });
     }
-    let runtime = crate::runtime::project_name_test_support::new_runtime();
-    crate::runtime::project_name_test_support::open_document(&runtime, document).await;
+    let runtime = boardstudio_web_test_runtime::project_name_test_support::new_runtime();
+    boardstudio_web_test_runtime::project_name_test_support::open_document(&runtime, document)
+        .await;
     let scope = runtime
         .scope()
         .expect("the opened outline fixture has a scope");
@@ -1407,8 +1409,9 @@ async fn mounted_polygon_outline_inspector_with_points_and_connections(
             operation: boardstudio_model::model::Operation::Add,
         });
     }
-    let runtime = crate::runtime::project_name_test_support::new_runtime();
-    crate::runtime::project_name_test_support::open_document(&runtime, document).await;
+    let runtime = boardstudio_web_test_runtime::project_name_test_support::new_runtime();
+    boardstudio_web_test_runtime::project_name_test_support::open_document(&runtime, document)
+        .await;
     let scope = runtime
         .scope()
         .expect("the opened outline fixture has a scope");
@@ -2033,8 +2036,9 @@ mod ownership_presentation {
             generated_last_valid: None,
             retired_version_ids: vec![],
         });
-        let runtime = crate::runtime::project_name_test_support::new_runtime();
-        crate::runtime::project_name_test_support::open_document(&runtime, document).await;
+        let runtime = boardstudio_web_test_runtime::project_name_test_support::new_runtime();
+        boardstudio_web_test_runtime::project_name_test_support::open_document(&runtime, document)
+            .await;
         let scope = runtime.scope().expect("the fixture has a scope");
         let probe = InspectorProbe {
             runtime,

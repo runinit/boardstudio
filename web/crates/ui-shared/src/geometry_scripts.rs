@@ -494,10 +494,10 @@ fn severity_label(severity: &Severity) -> &'static str {
 #[cfg(all(test, target_arch = "wasm32"))]
 mod queued_script_tests {
     use super::*;
-    use crate::runtime::project_name_test_support as support;
     use crate::test_mount::MountedFixture;
     use boardstudio_model::model::{Board, EditCommand, EditPhase, ProjectDoc};
     use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+    use boardstudio_web_test_runtime::project_name_test_support as support;
     use std::cell::{Cell, RefCell};
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::wasm_bindgen_test;
@@ -803,7 +803,7 @@ mod queued_script_tests {
         let (entered, release) = support::gate_next_core_reply(&runtime);
         let mut renamed = accepted.document.as_ref().clone();
         renamed.boards[0].name = "Renamed".into();
-        crate::runtime::project_name_test_support::submit_fixed_command(
+        boardstudio_web_test_runtime::project_name_test_support::submit_fixed_command(
             &runtime,
             EditCommand {
                 base_revision: accepted.document.revision,

@@ -5,11 +5,11 @@
 //! edit, undo and redo retire the ghost, and a drag preview leaves the view
 //! box still.
 use super::*;
-use crate::runtime::project_name_test_support as support;
 use boardstudio_core::model::{
     Board, EditOperation, Layout, LayoutMirrorLink, MatrixPlacementChange, MirroredCorrespondence,
     MirroredItemKind, ProjectDoc, Vec2,
 };
+use boardstudio_web_test_runtime::project_name_test_support as support;
 use boardstudio_web_ui_model::spacing_ghost::spacing_note;
 use boardstudio_web_ui_shared::test_wait::wait_until;
 use wasm_bindgen::JsCast;

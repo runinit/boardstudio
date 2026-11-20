@@ -7,11 +7,12 @@ use super::layout_component_edits::{
     remove_constraint_resolver,
 };
 use crate::edit_ticket::{EditTicket, Settlement};
-use crate::runtime::{Runtime, project_name_test_support as support};
+use crate::runtime::Runtime;
 use boardstudio_core::model::{
     Board, Constraint, ConstraintEndpoint, ConstraintRelation, OffsetAxes, Part, Pose2, ProjectDoc,
     Side, Vec2,
 };
+use boardstudio_web_test_runtime::project_name_test_support as support;
 use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_step};
 use std::rc::Rc;
 use wasm_bindgen_test::*;

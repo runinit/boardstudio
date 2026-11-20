@@ -1,7 +1,7 @@
 //! Exercise the actual Layout canvas and its layer controls together.
 use super::*;
-use crate::runtime::project_name_test_support as support;
 use boardstudio_core::model::{Board, ProjectDoc};
+use boardstudio_web_test_runtime::project_name_test_support as support;
 use wasm_bindgen_test::*;
 
 fn document() -> ProjectDoc {

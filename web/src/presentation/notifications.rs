@@ -30,7 +30,7 @@ pub(super) fn RuntimeNotifications() -> Element {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use boardstudio_web_runtime::runtime::firmware_export_test_support as support;
+    use boardstudio_web_test_runtime::firmware_export_test_support as support;
     use boardstudio_web_ui_shared::test_role::{all_by_role_name, by_role_name};
     use boardstudio_web_ui_shared::test_wait::{wait_for, wait_until};
     use std::cell::Cell;

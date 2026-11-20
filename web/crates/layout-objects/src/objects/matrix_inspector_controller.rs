@@ -2900,9 +2900,9 @@ mod tests {
     mod queued_edits {
         use super::super::*;
         use crate::presentation::objects::matrix_edit_test_support as fixture;
-        use crate::runtime::project_name_test_support as support;
         use boardstudio_web_runtime::edit_ticket::EditTicket;
         use boardstudio_web_runtime::edit_ticket::Settlement;
+        use boardstudio_web_test_runtime::project_name_test_support as support;
         use boardstudio_web_ui_shared::test_mount::MountedFixture;
         use wasm_bindgen::JsCast;
         use wasm_bindgen_test::wasm_bindgen_test;

@@ -32,6 +32,7 @@ wasm-bindgen-futures = "=0.4.79"
 web-sys = { workspace = true }
 
 [dev-dependencies]
+boardstudio-web-test-runtime = { path = "../test-runtime" }
 boardstudio-web-runtime = { path = "../runtime", features = ["test-support"] }
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]

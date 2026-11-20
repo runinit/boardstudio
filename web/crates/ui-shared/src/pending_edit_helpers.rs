@@ -520,7 +520,7 @@ mod mounted_tests {
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
     type TestRuntime = Rc<boardstudio_web_runtime::runtime::Runtime>;
-    use boardstudio_web_runtime::runtime::project_name_test_support as support;
+    use boardstudio_web_test_runtime::project_name_test_support as support;
 
     #[derive(Clone, Debug, PartialEq)]
     enum Field {

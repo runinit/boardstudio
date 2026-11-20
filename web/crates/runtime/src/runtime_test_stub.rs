@@ -1,10 +1,10 @@
 //! Native test Runtime: Session and Core are real; browser effects use in-memory ports.
+use crate::core_services::{CoreServices, ScratchCore};
 #[cfg(any(test, feature = "test-support"))]
 use crate::gate_driver::{GateDriver, OneShotBehavior};
 use boardstudio_application::{
     Completion, Effect, Event, OperationId, ReadModel, RequestId, SaveResult, Scope, Session,
 };
-use boardstudio_core::CoreEngine;
 use boardstudio_model::model::{CoreRequest, ProjectDoc};
 use std::{
     cell::{Cell, RefCell},
@@ -25,7 +25,8 @@ type ParkedCore = (
 /// reaches a one-shot test gate.
 pub struct Runtime {
     session: RefCell<Session>,
-    engine: RefCell<CoreEngine>,
+    engine: RefCell<ScratchCore>,
+    services: CoreServices,
     pub(crate) outcomes: crate::operation_outcomes::OperationOutcomes,
     next_operation: Cell<u64>,
     saves: RefCell<BTreeMap<String, ProjectDoc>>,
@@ -61,10 +62,16 @@ impl EventLog {
 }
 
 impl Runtime {
+    #[cfg(test)]
     pub fn new() -> Rc<Self> {
+        Self::with_core(CoreServices::engine())
+    }
+
+    pub fn with_core(services: CoreServices) -> Rc<Self> {
         Rc::new(Self {
-            session: RefCell::new(Session::new(boardstudio_core::CoreEngine::validate_open)),
-            engine: RefCell::new(CoreEngine::new()),
+            session: RefCell::new(Session::new(services.validate_open)),
+            engine: RefCell::new((services.open_scratch)()),
+            services,
             outcomes: Default::default(),
             next_operation: Cell::new(1),
             saves: RefCell::new(BTreeMap::new()),
@@ -84,7 +91,7 @@ impl Runtime {
 
     /// The real engine's Core entry points, matching the browser Runtime's injected services.
     pub fn core_services(&self) -> crate::core_services::CoreServices {
-        crate::core_services::CoreServices::engine()
+        self.services
     }
 
     pub fn model(&self) -> ReadModel {
@@ -164,7 +171,7 @@ impl Runtime {
             panic!("no parked Core request");
         };
         self.core_entered.set(false);
-        let reply = self.engine.borrow_mut().handle(*request);
+        let reply = (self.engine.borrow_mut())(*request);
         let effects = self.session.borrow_mut().complete(Completion::Core {
             request_id,
             executor_epoch,
@@ -256,7 +263,7 @@ impl Runtime {
                 VecDeque::new()
             }
             None => {
-                let reply = self.engine.borrow_mut().handle(*request);
+                let reply = (self.engine.borrow_mut())(*request);
                 self.session
                     .borrow_mut()
                     .complete(Completion::Core {

@@ -2097,9 +2097,9 @@ mod screen_chrome_render_tests {
         ThemeState, WorkspaceState, objects, selection,
     };
     use super::*;
-    use crate::runtime::project_name_test_support as support;
     use boardstudio_application::{Event, Session};
     use boardstudio_core::CoreEngine;
+    use boardstudio_web_test_runtime::project_name_test_support as support;
     use boardstudio_web_ui_shared::test_wait::wait_until;
     use serde_json::json;
     use std::cell::RefCell;

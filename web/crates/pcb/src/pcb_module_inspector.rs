@@ -1398,7 +1398,7 @@ mod mounted_save_replacement_tests {
 
     #[wasm_bindgen_test]
     async fn module_face_choice_and_detached_checkbox_are_keyboard_accessible() {
-        use crate::runtime::project_name_test_support as support;
+        use boardstudio_web_test_runtime::project_name_test_support as support;
         use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
         let (session, core) = accepted(module_document(
             "module-control-project",
@@ -1481,7 +1481,7 @@ mod mounted_save_replacement_tests {
 
     #[wasm_bindgen_test]
     async fn placement_fields_queue_two_commits_keep_the_draft_and_undo_in_order() {
-        use crate::runtime::project_name_test_support as support;
+        use boardstudio_web_test_runtime::project_name_test_support as support;
         let runtime = support::new_runtime();
         support::open_document(
             &runtime,
@@ -1563,7 +1563,7 @@ mod mounted_save_replacement_tests {
 
     #[wasm_bindgen_test]
     async fn circuit_removal_disables_siblings_and_rejects_a_retained_sibling_handler() {
-        use crate::runtime::project_name_test_support as support;
+        use boardstudio_web_test_runtime::project_name_test_support as support;
         let mut document = module_document("module-removal-project", "Copy project", 1.0);
         document.module_definitions[0].circuit = Some(ModuleCircuit {
             definitions: Vec::new(),
@@ -1661,7 +1661,7 @@ mod mounted_save_replacement_tests {
 
     #[wasm_bindgen_test]
     async fn newer_placement_returning_to_baseline_survives_landing_and_clean_accepted_updates() {
-        use crate::runtime::project_name_test_support as support;
+        use boardstudio_web_test_runtime::project_name_test_support as support;
         let runtime = support::new_runtime();
         support::open_document(
             &runtime,
@@ -1763,7 +1763,7 @@ mod mounted_save_replacement_tests {
 
     #[wasm_bindgen_test]
     async fn failed_placement_restores_accepted_coordinates() {
-        use crate::runtime::project_name_test_support as support;
+        use boardstudio_web_test_runtime::project_name_test_support as support;
         for preserve_draft in [false, true] {
             let runtime = support::new_runtime();
             support::open_document(
@@ -1827,7 +1827,7 @@ mod mounted_save_replacement_tests {
     #[wasm_bindgen_test]
     async fn mounted_save_persist_settlement_cannot_cross_replacement_with_colliding_ids() {
         let (session, core) = accepted(module_document("old-module-project", "Old project", 1.0));
-        let runtime = crate::runtime::project_name_test_support::new_runtime();
+        let runtime = boardstudio_web_test_runtime::project_name_test_support::new_runtime();
         let initial = session
             .read_model()
             .accepted
@@ -1840,7 +1840,7 @@ mod mounted_save_replacement_tests {
             .save_document(&initial, &std::collections::BTreeMap::new())
             .await
             .expect("seed the old project's durable baseline");
-        crate::runtime::project_name_test_support::install(&runtime, session, core);
+        boardstudio_web_test_runtime::project_name_test_support::install(&runtime, session, core);
         let initial_scope = runtime.scope().expect("old project has scope");
         let probe = Rc::new(Probe {
             runtime: runtime.clone(),
@@ -1857,8 +1857,9 @@ mod mounted_save_replacement_tests {
         settle().await;
 
         let (entered, release) =
-            crate::runtime::project_name_test_support::gate_next_persist(&runtime);
-        let operation = crate::runtime::project_name_test_support::observe_next(&runtime);
+            boardstudio_web_test_runtime::project_name_test_support::gate_next_persist(&runtime);
+        let operation =
+            boardstudio_web_test_runtime::project_name_test_support::observe_next(&runtime);
         let x = by_role_name(&root, "spinbutton", "X (mm)")
             .expect("mounted placement X input exists")
             .dyn_into::<HtmlInputElement>()
@@ -1898,7 +1899,7 @@ mod mounted_save_replacement_tests {
             "7.25",
             "the mounted draft survives the Save handler's rerender"
         );
-        crate::runtime::project_name_test_support::drive_pending(&runtime);
+        boardstudio_web_test_runtime::project_name_test_support::drive_pending(&runtime);
         with_stage_timeout(
             entered,
             "mounted Save click dispatched but actual Persist gate was not entered",
@@ -1923,7 +1924,10 @@ mod mounted_save_replacement_tests {
             "Replacement project",
             4.0,
         ));
-        crate::runtime::project_name_test_support::replace_session(&runtime, replacement);
+        boardstudio_web_test_runtime::project_name_test_support::replace_session(
+            &runtime,
+            replacement,
+        );
         settle().await;
         assert_eq!(
             root.query_selector("#replacement-project")

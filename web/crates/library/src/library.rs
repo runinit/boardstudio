@@ -1430,7 +1430,7 @@ mod mounted_tests {
 
     #[wasm_bindgen_test]
     async fn palette_project_tools_consume_once_and_reject_rename_after_project_switch() {
-        use crate::runtime::project_name_test_support as support;
+        use boardstudio_web_test_runtime::project_name_test_support as support;
         use boardstudio_web_ui_shared::test_role::by_role_name;
         let runtime = support::new_runtime();
         let (session, core) = accepted(ProjectDoc::empty("palette-tools-a", "Project A"));
@@ -1580,7 +1580,7 @@ mod mounted_tests {
     /// run. This is not a wait for any condition. A negative assertion after it is only
     /// drain-protected: no render signal proves the menu re-rendered (recorded in the Outcome).
     async fn drain_and_yield(runtime: &Rc<Runtime>) {
-        crate::runtime::project_name_test_support::run_pending(runtime).await;
+        boardstudio_web_test_runtime::project_name_test_support::run_pending(runtime).await;
         gloo_timers::future::TimeoutFuture::new(0).await;
     }
 
@@ -1609,7 +1609,7 @@ mod mounted_tests {
     #[wasm_bindgen_test]
     async fn unreadable_record_keeps_healthy_card_and_requires_confirmation_to_delete() {
         PROJECT_LIST_TEST_RESULTS.with(|results| results.borrow_mut().clear());
-        let runtime = crate::runtime::project_name_test_support::new_runtime();
+        let runtime = boardstudio_web_test_runtime::project_name_test_support::new_runtime();
         let healthy = ProjectDoc::empty("partial-list-healthy", "Healthy saved keyboard");
         let mut future = ProjectDoc::empty("partial-list-future", "Future saved keyboard");
         future.format_version = 999;
@@ -1624,7 +1624,7 @@ mod mounted_tests {
             .await
             .unwrap();
         let (session, core) = accepted(healthy.clone());
-        crate::runtime::project_name_test_support::install(&runtime, session, core);
+        boardstudio_web_test_runtime::project_name_test_support::install(&runtime, session, core);
         let (root, _mounted) = mount_menu(runtime.clone(), "partial-list-mounted-regression");
         wait_until(
             "healthy card and raw recovery actions render together",
@@ -1712,7 +1712,7 @@ mod mounted_tests {
     /// path instead of the guarded delete that refuses tokenless records.
     #[wasm_bindgen_test]
     async fn tokenless_unreadable_record_stays_deletable_by_explicit_confirm() {
-        let runtime = crate::runtime::project_name_test_support::new_runtime();
+        let runtime = boardstudio_web_test_runtime::project_name_test_support::new_runtime();
         let healthy = ProjectDoc::empty("tokenless-healthy", "Healthy board");
         runtime
             .store
@@ -1737,7 +1737,7 @@ mod mounted_tests {
             .await
             .unwrap();
         let (session, core) = accepted(healthy.clone());
-        crate::runtime::project_name_test_support::install(&runtime, session, core);
+        boardstudio_web_test_runtime::project_name_test_support::install(&runtime, session, core);
         let (root, _mounted) =
             mount_menu(runtime.clone(), "tokenless-unreadable-mounted-regression");
         wait_until(
@@ -1821,7 +1821,7 @@ mod mounted_tests {
             results.push_back(Ok(vec![damaged, healthy]));
         });
 
-        let runtime = crate::runtime::project_name_test_support::new_runtime();
+        let runtime = boardstudio_web_test_runtime::project_name_test_support::new_runtime();
         let (root, _mounted) = mount_menu(runtime, "damaged-preview-fallback-mounted-regression");
         wait_for_project_cards(&root, 2).await;
 
@@ -1852,8 +1852,8 @@ mod mounted_tests {
     #[wasm_bindgen_test]
     async fn saved_project_list_loading_error_and_retry_recover_in_mounted_library() {
         let (session, core) = accepted(ProjectDoc::empty("list-retry-current", "Current keyboard"));
-        let runtime = crate::runtime::project_name_test_support::new_runtime();
-        crate::runtime::project_name_test_support::install(&runtime, session, core);
+        let runtime = boardstudio_web_test_runtime::project_name_test_support::new_runtime();
+        boardstudio_web_test_runtime::project_name_test_support::install(&runtime, session, core);
         PROJECT_LIST_TEST_RESULTS.with(|results| {
             let mut results = results.borrow_mut();
             results.clear();
@@ -1933,7 +1933,7 @@ mod mounted_tests {
     ) -> boardstudio_application::TerminalOutcome {
         let found = RefCell::new(None);
         let waited = wait_for_step("the operation settles", WAIT_BOUND_MS, async || {
-            crate::runtime::project_name_test_support::run_pending(runtime).await;
+            boardstudio_web_test_runtime::project_name_test_support::run_pending(runtime).await;
             let outcome = slot.borrow().clone();
             *found.borrow_mut() = outcome.clone();
             outcome.is_some()
@@ -1961,7 +1961,8 @@ mod mounted_tests {
         event: impl FnOnce(OperationId) -> Event,
     ) -> crate::operation_outcomes::OutcomeSlot {
         let operation = runtime.operation();
-        let slot = crate::runtime::project_name_test_support::observe(runtime, operation);
+        let slot =
+            boardstudio_web_test_runtime::project_name_test_support::observe(runtime, operation);
         runtime.submit(event(operation));
         slot
     }
@@ -2046,8 +2047,10 @@ mod mounted_tests {
 
     #[wasm_bindgen_test]
     async fn import_waits_for_storage_initialization() {
-        let runtime = crate::runtime::project_name_test_support::new_runtime();
-        crate::runtime::project_name_test_support::set_storage_initializing(&runtime, true);
+        let runtime = boardstudio_web_test_runtime::project_name_test_support::new_runtime();
+        boardstudio_web_test_runtime::project_name_test_support::set_storage_initializing(
+            &runtime, true,
+        );
         let (root, _mounted) = mount_library(runtime.clone(), "import-readiness", false);
         wait_until("import button renders", || {
             by_role_name(&root, "button", "Import project").is_some()
@@ -2058,13 +2061,15 @@ mod mounted_tests {
             input.has_attribute("disabled"),
             "import must be disabled while storage initializes"
         );
-        crate::runtime::project_name_test_support::set_storage_initializing(&runtime, false);
+        boardstudio_web_test_runtime::project_name_test_support::set_storage_initializing(
+            &runtime, false,
+        );
         wait_until(
             "import becomes enabled after storage initialization",
             || !input.has_attribute("disabled"),
         )
         .await;
-        crate::runtime::project_name_test_support::fail_storage_initialization(
+        boardstudio_web_test_runtime::project_name_test_support::fail_storage_initialization(
             &runtime,
             "injected failure",
         );
@@ -2098,8 +2103,8 @@ mod mounted_tests {
             "browser-selection-current",
             "Current keyboard",
         ));
-        let runtime = crate::runtime::project_name_test_support::new_runtime();
-        crate::runtime::project_name_test_support::install(&runtime, session, core);
+        let runtime = boardstudio_web_test_runtime::project_name_test_support::new_runtime();
+        boardstudio_web_test_runtime::project_name_test_support::install(&runtime, session, core);
         PROJECT_LIST_TEST_RESULTS.with(|results| {
             results.borrow_mut().clear();
             results.borrow_mut().push_back(Ok(vec![ProjectDoc::empty(
@@ -2142,7 +2147,8 @@ mod mounted_tests {
         .await;
         click(&root, "Rename project");
         type_value(&field(), "Renamed current");
-        let rename_slot = crate::runtime::project_name_test_support::observe_next(&runtime);
+        let rename_slot =
+            boardstudio_web_test_runtime::project_name_test_support::observe_next(&runtime);
         let _ = field().blur();
         assert_eq!(
             wait_outcome(&runtime, &rename_slot).await,
@@ -2194,8 +2200,8 @@ mod mounted_tests {
             "project-copy-ui",
             "Project copy keyboard",
         ));
-        let runtime = crate::runtime::project_name_test_support::new_runtime();
-        crate::runtime::project_name_test_support::install(&runtime, session, core);
+        let runtime = boardstudio_web_test_runtime::project_name_test_support::new_runtime();
+        boardstudio_web_test_runtime::project_name_test_support::install(&runtime, session, core);
         let (root, _mounted) = mount_menu(runtime, "project-copy-mounted-regression");
         wait_until("the Project menu renders its copy action", || {
             by_role_name(&root, "button", "Save project copy…").is_some()
@@ -2249,7 +2255,7 @@ mod mounted_tests {
     #[wasm_bindgen_test]
     async fn project_delete_alert_cancel_keeps_the_named_project() {
         use boardstudio_web_ui_shared::test_role::by_role_name;
-        let runtime = crate::runtime::project_name_test_support::new_runtime();
+        let runtime = boardstudio_web_test_runtime::project_name_test_support::new_runtime();
         let document = ProjectDoc::empty("alert-safe-project", "Safe project");
         let (session, core) = accepted(document.clone());
         runtime
@@ -2257,7 +2263,7 @@ mod mounted_tests {
             .save_document(&document, &Default::default())
             .await
             .unwrap();
-        crate::runtime::project_name_test_support::install(&runtime, session, core);
+        boardstudio_web_test_runtime::project_name_test_support::install(&runtime, session, core);
         let (root, _mounted) = mount_library(runtime.clone(), "alert-safe-root", false);
         wait_for_saved_cards(&root, 1).await;
         let opener = by_role_name(&root, "button", "Delete Safe project").unwrap();
@@ -2303,7 +2309,7 @@ mod mounted_tests {
         remove_test_root("delete-current-failure-regression");
         let document = ProjectDoc::empty("delete-current-ui", "Current board");
         let (session, core) = accepted(document.clone());
-        let runtime = crate::runtime::project_name_test_support::new_runtime();
+        let runtime = boardstudio_web_test_runtime::project_name_test_support::new_runtime();
         clean_saved_projects(
             &runtime,
             &[
@@ -2318,7 +2324,7 @@ mod mounted_tests {
             .save_document(&document, &Default::default())
             .await
             .unwrap();
-        crate::runtime::project_name_test_support::install(&runtime, session, core);
+        boardstudio_web_test_runtime::project_name_test_support::install(&runtime, session, core);
         let (root, _mounted) = mount_menu(runtime.clone(), "delete-current-mounted-regression");
         wait_for_saved_cards(&root, 1).await;
 
@@ -2334,7 +2340,7 @@ mod mounted_tests {
         })
         .await;
         // Cancel submits nothing: drain held work, then the store must still hold the record.
-        crate::runtime::project_name_test_support::run_pending(&runtime).await;
+        boardstudio_web_test_runtime::project_name_test_support::run_pending(&runtime).await;
         assert!(
             runtime
                 .store
@@ -2391,7 +2397,7 @@ mod mounted_tests {
         let alpha = ProjectDoc::empty("delete-sort-alpha", "Alpha keyboard");
         let unnamed = ProjectDoc::empty("delete-sort-unnamed", "");
         let (session, core) = accepted(current.clone());
-        let runtime = crate::runtime::project_name_test_support::new_runtime();
+        let runtime = boardstudio_web_test_runtime::project_name_test_support::new_runtime();
         clean_saved_projects(
             &runtime,
             &[
@@ -2408,7 +2414,7 @@ mod mounted_tests {
                 .await
                 .unwrap();
         }
-        crate::runtime::project_name_test_support::install(&runtime, session, core);
+        boardstudio_web_test_runtime::project_name_test_support::install(&runtime, session, core);
         let (root, _mounted) = mount_menu(runtime.clone(), "delete-current-sort-regression");
         wait_for_saved_cards(&root, 3).await;
         click(&root, "Delete Current keyboard");
@@ -2456,7 +2462,7 @@ mod mounted_tests {
         let current = ProjectDoc::empty("delete-failure-current", "Current board");
         let candidate = ProjectDoc::empty("delete-failure-alpha", "Alpha board");
         let (session, core) = accepted(current.clone());
-        let runtime = crate::runtime::project_name_test_support::new_runtime();
+        let runtime = boardstudio_web_test_runtime::project_name_test_support::new_runtime();
         clean_saved_projects(
             &runtime,
             &["delete-failure-current", "delete-failure-alpha"],
@@ -2469,8 +2475,8 @@ mod mounted_tests {
                 .await
                 .unwrap();
         }
-        crate::runtime::project_name_test_support::install(&runtime, session, core);
-        crate::runtime::project_name_test_support::fail_next_persist(
+        boardstudio_web_test_runtime::project_name_test_support::install(&runtime, session, core);
+        boardstudio_web_test_runtime::project_name_test_support::fail_next_persist(
             &runtime,
             "replacement storage failed",
         );
@@ -2548,7 +2554,7 @@ mod mounted_tests {
         let current = ProjectDoc::empty("delete-noncurrent-active", "Current board");
         let saved = ProjectDoc::empty("delete-noncurrent-target", "Other board");
         let (session, core) = accepted(current.clone());
-        let runtime = crate::runtime::project_name_test_support::new_runtime();
+        let runtime = boardstudio_web_test_runtime::project_name_test_support::new_runtime();
         clean_saved_projects(
             &runtime,
             &["delete-noncurrent-active", "delete-noncurrent-target"],
@@ -2561,13 +2567,13 @@ mod mounted_tests {
                 .await
                 .unwrap();
         }
-        crate::runtime::project_name_test_support::install(&runtime, session, core);
+        boardstudio_web_test_runtime::project_name_test_support::install(&runtime, session, core);
 
         let initial = runtime.model().accepted.unwrap();
         let mut renamed = (*initial.document).clone();
         renamed.name = "Current board edited".into();
         let edit = submit(&runtime, |operation_id| {
-            crate::runtime::project_name_test_support::fixed_command_event(
+            boardstudio_web_test_runtime::project_name_test_support::fixed_command_event(
                 operation_id,
                 EditCommand {
                     base_revision: initial.document.revision,
@@ -2673,7 +2679,7 @@ mod mounted_tests {
      {
         let (session, core) = accepted(ProjectDoc::empty("menu-name", "Sofle v2"));
         let snapshot = session.read_model().accepted.as_ref().unwrap().clone();
-        let runtime = crate::runtime::project_name_test_support::new_runtime();
+        let runtime = boardstudio_web_test_runtime::project_name_test_support::new_runtime();
         let mut search_one = ProjectDoc::empty("menu-search-alpha", "Alpha Board");
         search_one.revision = 1;
         let mut search_two = ProjectDoc::empty("menu-search-ergonomic", "Ergonomic 75%");
@@ -2695,7 +2701,7 @@ mod mounted_tests {
             .save_document(&search_three, &Default::default())
             .await
             .unwrap();
-        crate::runtime::project_name_test_support::install(&runtime, session, core);
+        boardstudio_web_test_runtime::project_name_test_support::install(&runtime, session, core);
         let seed = Rc::new(Seed {
             state: Rc::new(RefCell::new(None)),
             show_library: Rc::new(RefCell::new(None)),
@@ -2833,7 +2839,7 @@ mod mounted_tests {
             .parameters
             .insert("independent".into(), serde_json::json!(42));
         let unrelated_slot = submit(&runtime, |operation_id| {
-            crate::runtime::project_name_test_support::fixed_command_event(
+            boardstudio_web_test_runtime::project_name_test_support::fixed_command_event(
                 operation_id,
                 EditCommand {
                     base_revision: snapshot.document.revision,
@@ -2858,7 +2864,8 @@ mod mounted_tests {
             "an unrelated accepted revision must not discard the menu's active name draft"
         );
         let latest = runtime.model().accepted.unwrap();
-        let rename_slot = crate::runtime::project_name_test_support::observe_next(&runtime);
+        let rename_slot =
+            boardstudio_web_test_runtime::project_name_test_support::observe_next(&runtime);
         let _ = field().blur();
         assert_eq!(
             wait_outcome(&runtime, &rename_slot).await,
@@ -2922,7 +2929,8 @@ mod mounted_tests {
         .await;
 
         type_value(&field(), "Keyboard entered");
-        let enter_slot = crate::runtime::project_name_test_support::observe_next(&runtime);
+        let enter_slot =
+            boardstudio_web_test_runtime::project_name_test_support::observe_next(&runtime);
         press(&field(), "Enter");
         assert_eq!(
             wait_outcome(&runtime, &enter_slot).await,
@@ -3039,8 +3047,8 @@ mod mounted_tests {
     #[wasm_bindgen_test]
     async fn retained_project_name_action_is_rejected_after_library_unmount() {
         let (session, core) = accepted(ProjectDoc::empty("menu-name-unmount", "Original"));
-        let runtime = crate::runtime::project_name_test_support::new_runtime();
-        crate::runtime::project_name_test_support::install(&runtime, session, core);
+        let runtime = boardstudio_web_test_runtime::project_name_test_support::new_runtime();
+        boardstudio_web_test_runtime::project_name_test_support::install(&runtime, session, core);
         let seed = Rc::new(Seed {
             state: Rc::new(RefCell::new(None)),
             show_library: Rc::new(RefCell::new(None)),
@@ -3083,7 +3091,8 @@ mod mounted_tests {
         )
         .await;
 
-        let next_operation = crate::runtime::project_name_test_support::observe_next(&runtime);
+        let next_operation =
+            boardstudio_web_test_runtime::project_name_test_support::observe_next(&runtime);
         retained_action.commit("Stale retained rename");
         drain_and_yield(&runtime).await;
         assert!(
@@ -3109,8 +3118,8 @@ mod mounted_tests {
     #[wasm_bindgen_test]
     async fn pending_project_rename_preserves_typing_and_escape_does_not_commit() {
         let (session, core) = accepted(ProjectDoc::empty("menu-name-typing", "Original"));
-        let runtime = crate::runtime::project_name_test_support::new_runtime();
-        crate::runtime::project_name_test_support::install(&runtime, session, core);
+        let runtime = boardstudio_web_test_runtime::project_name_test_support::new_runtime();
+        boardstudio_web_test_runtime::project_name_test_support::install(&runtime, session, core);
         let seed = Rc::new(Seed {
             state: Rc::new(RefCell::new(None)),
             show_library: Rc::new(RefCell::new(None)),
@@ -3136,7 +3145,7 @@ mod mounted_tests {
         let _mounted = MountedFixture::new(root.clone(), dom);
         wait_until("the Library mounts the name field", name_field_rendered).await;
 
-        use crate::runtime::project_name_test_support as support;
+        use boardstudio_web_test_runtime::project_name_test_support as support;
         let (mut entered, release) = support::gate_next_core_reply(&runtime);
         type_value(&field(), "Committed");
         let _ = field().blur();
@@ -3217,8 +3226,8 @@ mod mounted_tests {
         MountedFixture,
     ) {
         let (session, core) = accepted(ProjectDoc::empty(project_id, "Original"));
-        let runtime = crate::runtime::project_name_test_support::new_runtime();
-        crate::runtime::project_name_test_support::install(&runtime, session, core);
+        let runtime = boardstudio_web_test_runtime::project_name_test_support::new_runtime();
+        boardstudio_web_test_runtime::project_name_test_support::install(&runtime, session, core);
         let seed = Rc::new(Seed {
             state: Rc::new(RefCell::new(None)),
             show_library: Rc::new(RefCell::new(None)),
@@ -3242,7 +3251,7 @@ mod mounted_tests {
 
     #[wasm_bindgen_test]
     async fn a_failed_unchanged_project_name_restores_the_accepted_name_with_an_inline_failure() {
-        use crate::runtime::project_name_test_support as support;
+        use boardstudio_web_test_runtime::project_name_test_support as support;
         let (runtime, root, _mounted) = mounted_name_field("menu-name-unchanged-failure").await;
         support::fail_next_core_reply(&runtime, "name executor failed");
         type_value(&field(), "Rejected");
@@ -3268,7 +3277,7 @@ mod mounted_tests {
 
     #[wasm_bindgen_test]
     async fn a_newer_project_name_draft_survives_an_older_failure_that_reports_inline() {
-        use crate::runtime::project_name_test_support as support;
+        use boardstudio_web_test_runtime::project_name_test_support as support;
         let (runtime, root, _mounted) = mounted_name_field("menu-name-newer-failure").await;
         support::fail_next_core_reply(&runtime, "name executor failed");
         type_value(&field(), "Rejected");
@@ -3299,7 +3308,7 @@ mod mounted_tests {
 
     #[wasm_bindgen_test]
     async fn two_project_name_commits_keep_the_latest_observation_and_both_undo_steps() {
-        use crate::runtime::project_name_test_support as support;
+        use boardstudio_web_test_runtime::project_name_test_support as support;
         let (runtime, root, _mounted) = mounted_name_field("menu-name-latest-observation").await;
         let (mut first_entered, first_release) = support::gate_next_core_reply(&runtime);
         type_value(&field(), "First name");
@@ -3379,8 +3388,8 @@ mod mounted_tests {
     #[wasm_bindgen_test]
     async fn delayed_rename_persist_after_owner_replacement_cannot_update_new_project() {
         let (session, core) = accepted(ProjectDoc::empty("menu-name-delayed", "Original"));
-        let runtime = crate::runtime::project_name_test_support::new_runtime();
-        crate::runtime::project_name_test_support::install(&runtime, session, core);
+        let runtime = boardstudio_web_test_runtime::project_name_test_support::new_runtime();
+        boardstudio_web_test_runtime::project_name_test_support::install(&runtime, session, core);
         let seed = Rc::new(Seed {
             state: Rc::new(RefCell::new(None)),
             show_library: Rc::new(RefCell::new(None)),
@@ -3407,18 +3416,21 @@ mod mounted_tests {
         wait_until("the Library mounts the name field", name_field_rendered).await;
 
         let (mut entered, release) =
-            crate::runtime::project_name_test_support::gate_next_persist(&runtime);
+            boardstudio_web_test_runtime::project_name_test_support::gate_next_persist(&runtime);
         type_value(&field(), "Delayed old rename");
-        let slot = crate::runtime::project_name_test_support::observe_next(&runtime);
+        let slot = boardstudio_web_test_runtime::project_name_test_support::observe_next(&runtime);
         let _ = field().blur();
         wait_until_step("the actual Persist effect reaches the gate", async || {
-            crate::runtime::project_name_test_support::drive_pending(&runtime);
+            boardstudio_web_test_runtime::project_name_test_support::drive_pending(&runtime);
             matches!(entered.try_recv(), Ok(Some(())))
         })
         .await;
         let (replacement, _replacement_core) =
             accepted(ProjectDoc::empty("menu-name-replacement", "Replacement"));
-        crate::runtime::project_name_test_support::replace_session(&runtime, replacement);
+        boardstudio_web_test_runtime::project_name_test_support::replace_session(
+            &runtime,
+            replacement,
+        );
         wait_until("the replacement session renders its name", || {
             field().value() == "Replacement"
         })
@@ -3463,7 +3475,7 @@ mod mounted_tests {
 #[cfg(all(test, target_arch = "wasm32"))]
 mod queued_rename_tests {
     use super::*;
-    use crate::runtime::project_name_test_support as support;
+    use boardstudio_web_test_runtime::project_name_test_support as support;
     use boardstudio_web_ui_shared::test_wait::wait_until_step;
     use wasm_bindgen_test::*;
 

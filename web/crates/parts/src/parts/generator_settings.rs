@@ -1499,9 +1499,9 @@ fn GeneratorParameterField(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::runtime::project_name_test_support as support;
     use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
     use boardstudio_model::model::{Board, MechanicalPartProfile, ProjectDoc, SceneDelta};
+    use boardstudio_web_test_runtime::project_name_test_support as support;
     use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use boardstudio_web_ui_shared::test_role::by_role_name;
     use futures_channel::oneshot;

@@ -8,12 +8,10 @@ description = "BoardStudio page runtime: browser services, model delivery and pr
 
 [features]
 # Exposes the `#[cfg(test)]` helpers the page's own tests drive (enabled by its dev-dependency).
-# They run a real in-process engine, so only test builds put the engine in front of this crate.
-test-support = ["dep:boardstudio_core"]
+test-support = []
 
 [dependencies]
 boardstudio-application = { path = "../../../application" }
-boardstudio_core = { path = "../../../core", optional = true }
 boardstudio-core-kernel = { path = "../../../core/crates/kernel" }
 boardstudio-core-mechanical = { path = "../../../core/crates/mechanical" }
 boardstudio-model = { path = "../../../core/crates/model" }

@@ -362,7 +362,9 @@ mod tests {
 
     #[cfg(not(target_arch = "wasm32"))]
     fn open(document: ProjectDoc) -> Rc<boardstudio_web_runtime::runtime::Runtime> {
-        let runtime = boardstudio_web_runtime::runtime::Runtime::new();
+        let runtime = boardstudio_web_runtime::runtime::Runtime::with_core(
+            boardstudio_web_test_runtime::engine_core_services(),
+        );
         runtime.submit(Event::Open {
             operation_id: OperationId(1),
             document,

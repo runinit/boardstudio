@@ -87,7 +87,9 @@ async fn viewer_slot_exclusions_preserve_actual_inline_controls_in_four_themes()
     let root = document.create_element("div").unwrap();
     document.body().unwrap().append_child(&root).unwrap();
     let dom = VirtualDom::new(inline_fixture);
-    dom.provide_root_context(crate::runtime::project_name_test_support::new_runtime());
+    dom.provide_root_context(
+        boardstudio_web_test_runtime::project_name_test_support::new_runtime(),
+    );
     let _mounted = MountedFixture::new(root.clone(), dom);
     wait_until("the production inline controls mount", || {
         by_role_name(&root, "button", "Fit").is_some()
@@ -226,7 +228,9 @@ async fn noninline_parts_viewer_keeps_transient_values_and_control_identity() {
     let root = document.create_element("div").unwrap();
     document.body().unwrap().append_child(&root).unwrap();
     let dom = VirtualDom::new(fixture);
-    dom.provide_root_context(crate::runtime::project_name_test_support::new_runtime());
+    dom.provide_root_context(
+        boardstudio_web_test_runtime::project_name_test_support::new_runtime(),
+    );
     let _mounted = MountedFixture::new(root.clone(), dom);
     wait_until("the production Parts view controls mount", || {
         by_role_name(&root, "button", "View controls").is_some()

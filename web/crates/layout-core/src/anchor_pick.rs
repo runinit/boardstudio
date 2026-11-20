@@ -573,7 +573,6 @@ pub fn preview_anchor_poses(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use boardstudio_web_runtime::core_services::CoreServices;
 
     fn document() -> ProjectDoc {
         let mut document = serde_json::to_value(ProjectDoc::empty("pick", "Pick")).unwrap();
@@ -1154,7 +1153,7 @@ mod tests {
             &doc,
             &selection,
             &target,
-            CoreServices::engine().open_scratch,
+            boardstudio_web_test_runtime::engine_core_services().open_scratch,
         );
         let commit = pick_commit(&doc, &selection, &target).expect("a live key commits");
         let (mut engine, _, opened) = open_engine(doc);
@@ -1205,7 +1204,7 @@ mod tests {
             &doc,
             &selection,
             &target,
-            CoreServices::engine().open_scratch,
+            boardstudio_web_test_runtime::engine_core_services().open_scratch,
         );
         let commit = pick_commit(&doc, &selection, &target).expect("a live key commits");
         let (mut engine, _, opened) = open_engine(doc);

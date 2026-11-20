@@ -1856,11 +1856,12 @@ fn display_key(scope: &Scope) -> String {
 mod keycap_consumer_tests {
     use super::*;
     use crate::presentation::shared_viewer::SharedViewerProjectionProbe;
-    use crate::runtime::{KeycapsPreviewInput, project_name_test_support as support};
+    use crate::runtime::KeycapsPreviewInput;
     use boardstudio_application::{Event, OperationId, Session};
     use boardstudio_core::CoreEngine;
     use boardstudio_model::model::{CoreReply, CoreRequest, PreparedCaseAssemblyIR};
     use boardstudio_web_host::cad_jobs::{CadBodyMesh, CadResult};
+    use boardstudio_web_test_runtime::project_name_test_support as support;
     use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use futures_channel::oneshot;
     use gloo_timers::future::TimeoutFuture;
@@ -2321,8 +2322,8 @@ mod gesture_cancellation_tests {
             ..Default::default()
         });
 
-        let runtime = crate::runtime::project_name_test_support::new_runtime();
-        crate::runtime::project_name_test_support::install(
+        let runtime = boardstudio_web_test_runtime::project_name_test_support::new_runtime();
+        boardstudio_web_test_runtime::project_name_test_support::install(
             &runtime,
             Session::new(boardstudio_core::CoreEngine::validate_open),
             CoreEngine::new(),
@@ -2331,13 +2332,13 @@ mod gesture_cancellation_tests {
             operation_id: OperationId(100),
             document,
         });
-        crate::runtime::project_name_test_support::run_pending(&runtime).await;
+        boardstudio_web_test_runtime::project_name_test_support::run_pending(&runtime).await;
         runtime.submit(Event::Navigate {
             operation_id: OperationId(101),
             board_id: "board-1".into(),
             instance_id: Some("primary".into()),
         });
-        crate::runtime::project_name_test_support::run_pending(&runtime).await;
+        boardstudio_web_test_runtime::project_name_test_support::run_pending(&runtime).await;
         let accepted = runtime
             .model()
             .accepted
@@ -2750,7 +2751,7 @@ mod gesture_cancellation_tests {
         runtime.submit(Event::Undo {
             operation_id: OperationId(104),
         });
-        crate::runtime::project_name_test_support::run_pending(&runtime).await;
+        boardstudio_web_test_runtime::project_name_test_support::run_pending(&runtime).await;
         assert_eq!(
             runtime.model().accepted.as_ref().unwrap().document,
             accepted.document,

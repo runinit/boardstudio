@@ -112,8 +112,9 @@ fn document() -> ProjectDoc {
 }
 
 async fn mounted() -> (Probe, VirtualDom) {
-    let runtime = crate::runtime::project_name_test_support::new_runtime();
-    crate::runtime::project_name_test_support::open_document(&runtime, document()).await;
+    let runtime = boardstudio_web_test_runtime::project_name_test_support::new_runtime();
+    boardstudio_web_test_runtime::project_name_test_support::open_document(&runtime, document())
+        .await;
     let probe = Probe {
         runtime,
         version: Rc::default(),
@@ -159,7 +160,7 @@ fn install_version(document: &mut ProjectDoc, id: &str) {
 }
 
 async fn accept(probe: &Probe) {
-    crate::runtime::project_name_test_support::run_pending(&probe.runtime).await;
+    boardstudio_web_test_runtime::project_name_test_support::run_pending(&probe.runtime).await;
 }
 
 async fn replace_document(probe: &Probe, document: ProjectDoc) {
@@ -247,13 +248,15 @@ async fn stale_rendered_copy_generation_is_rejected_after_callback_refresh() {
 async fn close_drains_active_edit_then_reopen_retires_its_owner() {
     let (probe, mut dom) = mounted().await;
     let (entered, release) =
-        crate::runtime::project_name_test_support::gate_next_core_reply(&probe.runtime);
+        boardstudio_web_test_runtime::project_name_test_support::gate_next_core_reply(
+            &probe.runtime,
+        );
     let slot = probe.watch_next();
     probe.copy();
     let runtime = probe.runtime.clone();
     let (done_tx, done_rx) = futures_channel::oneshot::channel();
     wasm_bindgen_futures::spawn_local(async move {
-        crate::runtime::project_name_test_support::run_pending(&runtime).await;
+        boardstudio_web_test_runtime::project_name_test_support::run_pending(&runtime).await;
         let _ = done_tx.send(());
     });
     entered.await.unwrap();
@@ -272,7 +275,11 @@ async fn close_drains_active_edit_then_reopen_retires_its_owner() {
     // A closed Session cannot accept another Open. The test adapter installs a fresh real
     // Session and opens the replacement through Core, just as a new editor session does.
     let replacement = document();
-    crate::runtime::project_name_test_support::open_document(&probe.runtime, replacement).await;
+    boardstudio_web_test_runtime::project_name_test_support::open_document(
+        &probe.runtime,
+        replacement,
+    )
+    .await;
     flush(&probe, &mut dom);
     assert!(
         probe.projection().enabled,
@@ -284,13 +291,15 @@ async fn close_drains_active_edit_then_reopen_retires_its_owner() {
 async fn admitted_outcome_survives_editor_unmount_until_terminal() {
     let (probe, dom) = mounted().await;
     let (entered, release) =
-        crate::runtime::project_name_test_support::gate_next_core_reply(&probe.runtime);
+        boardstudio_web_test_runtime::project_name_test_support::gate_next_core_reply(
+            &probe.runtime,
+        );
     let slot = probe.watch_next();
     probe.copy();
     let runtime = probe.runtime.clone();
     let (done_tx, done_rx) = futures_channel::oneshot::channel();
     wasm_bindgen_futures::spawn_local(async move {
-        crate::runtime::project_name_test_support::run_pending(&runtime).await;
+        boardstudio_web_test_runtime::project_name_test_support::run_pending(&runtime).await;
         let _ = done_tx.send(());
     });
     entered.await.unwrap();
@@ -321,7 +330,9 @@ async fn hidden_inspector_does_not_show_success_feedback_after_landing() {
 async fn outline_one_shot_controls_disable_until_the_pending_edit_settles() {
     let (probe, mut dom) = mounted().await;
     let (entered, release) =
-        crate::runtime::project_name_test_support::gate_next_core_reply(&probe.runtime);
+        boardstudio_web_test_runtime::project_name_test_support::gate_next_core_reply(
+            &probe.runtime,
+        );
     probe.copy();
     flush(&probe, &mut dom);
     assert!(probe.projection().one_shot_pending);
@@ -329,7 +340,7 @@ async fn outline_one_shot_controls_disable_until_the_pending_edit_settles() {
     let runtime = probe.runtime.clone();
     let (done_tx, done_rx) = futures_channel::oneshot::channel();
     wasm_bindgen_futures::spawn_local(async move {
-        crate::runtime::project_name_test_support::run_pending(&runtime).await;
+        boardstudio_web_test_runtime::project_name_test_support::run_pending(&runtime).await;
         let _ = done_tx.send(());
     });
     entered.await.unwrap();
@@ -345,7 +356,9 @@ async fn outline_one_shot_controls_disable_until_the_pending_edit_settles() {
 async fn newer_version_name_draft_survives_an_older_rename_settlement() {
     let (probe, mut dom) = mounted().await;
     let (entered, release) =
-        crate::runtime::project_name_test_support::gate_next_core_reply(&probe.runtime);
+        boardstudio_web_test_runtime::project_name_test_support::gate_next_core_reply(
+            &probe.runtime,
+        );
     let mut projection = probe.projection();
     projection.version_name_draft.set("Submitted name".into());
     projection.on_action.call(
@@ -359,7 +372,7 @@ async fn newer_version_name_draft_survives_an_older_rename_settlement() {
     let runtime = probe.runtime.clone();
     let (done_tx, done_rx) = futures_channel::oneshot::channel();
     wasm_bindgen_futures::spawn_local(async move {
-        crate::runtime::project_name_test_support::run_pending(&runtime).await;
+        boardstudio_web_test_runtime::project_name_test_support::run_pending(&runtime).await;
         let _ = done_tx.send(());
     });
     entered.await.unwrap();
@@ -383,18 +396,23 @@ async fn newer_version_name_draft_survives_an_older_rename_settlement() {
 async fn held_failure_after_inspector_view_unmount_is_silent_after_remount() {
     let (probe, mut dom) = mounted().await;
     let (entered, release) =
-        crate::runtime::project_name_test_support::gate_next_core_reply(&probe.runtime);
+        boardstudio_web_test_runtime::project_name_test_support::gate_next_core_reply(
+            &probe.runtime,
+        );
     probe.copy();
     let runtime = probe.runtime.clone();
     let (done_tx, done_rx) = futures_channel::oneshot::channel();
     wasm_bindgen_futures::spawn_local(async move {
-        crate::runtime::project_name_test_support::run_pending(&runtime).await;
+        boardstudio_web_test_runtime::project_name_test_support::run_pending(&runtime).await;
         let _ = done_tx.send(());
     });
     entered.await.unwrap();
     probe.inspector_visible.set(false);
     flush(&probe, &mut dom);
-    crate::runtime::project_name_test_support::fail_next_persist(&probe.runtime, "disk full");
+    boardstudio_web_test_runtime::project_name_test_support::fail_next_persist(
+        &probe.runtime,
+        "disk full",
+    );
     release.send(()).unwrap();
     done_rx.await.unwrap();
     flush(&probe, &mut dom);
@@ -411,7 +429,10 @@ async fn held_failure_after_inspector_view_unmount_is_silent_after_remount() {
 #[wasm_bindgen_test]
 async fn exact_rejection_allows_fresh_operation_retry() {
     let (probe, mut dom) = mounted().await;
-    crate::runtime::project_name_test_support::fail_next_persist(&probe.runtime, "disk full");
+    boardstudio_web_test_runtime::project_name_test_support::fail_next_persist(
+        &probe.runtime,
+        "disk full",
+    );
     let rejected = probe.watch_next();
     probe.copy();
     accept(&probe).await;
@@ -458,13 +479,15 @@ async fn exact_rejection_allows_fresh_operation_retry() {
 async fn completed_old_epoch_retires_before_replacement_readiness() {
     let (probe, mut dom) = mounted().await;
     let (entered, release) =
-        crate::runtime::project_name_test_support::gate_next_core_reply(&probe.runtime);
+        boardstudio_web_test_runtime::project_name_test_support::gate_next_core_reply(
+            &probe.runtime,
+        );
     let slot = probe.watch_next();
     probe.copy();
     let runtime = probe.runtime.clone();
     let (done_tx, done_rx) = futures_channel::oneshot::channel();
     wasm_bindgen_futures::spawn_local(async move {
-        crate::runtime::project_name_test_support::run_pending(&runtime).await;
+        boardstudio_web_test_runtime::project_name_test_support::run_pending(&runtime).await;
         let _ = done_tx.send(());
     });
     entered.await.unwrap();
@@ -505,7 +528,10 @@ async fn different_context_hides_inspector_and_rejects_retained_copy() {
 #[wasm_bindgen_test]
 async fn activation_requires_saved_source() {
     let (probe, mut dom) = versioned().await;
-    crate::runtime::project_name_test_support::fail_next_persist(&probe.runtime, "disk full");
+    boardstudio_web_test_runtime::project_name_test_support::fail_next_persist(
+        &probe.runtime,
+        "disk full",
+    );
     probe.delete();
     accept(&probe).await;
     flush(&probe, &mut dom);
@@ -550,13 +576,15 @@ async fn activation_rejects_stale_rendered_token() {
 async fn activation_retains_observed_slot_after_editor_unmount() {
     let (probe, dom) = versioned().await;
     let (entered, release) =
-        crate::runtime::project_name_test_support::gate_next_core_reply(&probe.runtime);
+        boardstudio_web_test_runtime::project_name_test_support::gate_next_core_reply(
+            &probe.runtime,
+        );
     let slot = probe.watch_next();
     activate_generated(&probe);
     let runtime = probe.runtime.clone();
     let (done_tx, done_rx) = futures_channel::oneshot::channel();
     wasm_bindgen_futures::spawn_local(async move {
-        crate::runtime::project_name_test_support::run_pending(&runtime).await;
+        boardstudio_web_test_runtime::project_name_test_support::run_pending(&runtime).await;
         let _ = done_tx.send(());
     });
     entered.await.unwrap();

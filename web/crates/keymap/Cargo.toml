@@ -24,6 +24,7 @@ wasm-bindgen = "=0.2.129"
 web-sys = { workspace = true }
 
 [dev-dependencies]
+boardstudio-web-test-runtime = { path = "../test-runtime" }
 boardstudio-web-runtime = { path = "../runtime", features = ["test-support"] }
 boardstudio-web-ui-model = { path = "../ui-model", features = ["test-support"] }
 boardstudio-web-ui-shared = { path = "../ui-shared", features = ["test-support"] }
