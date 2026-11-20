@@ -1,0 +1,444 @@
+use boardstudio_model::constraints::relation::*;
+use boardstudio_model::model::{Constraint, MirrorAxis, Pose2, Vec2};
+use serde_json::json;
+
+const TOLERANCE: f64 = 1e-9;
+
+fn assert_pose_close(actual: Pose2, expected: Pose2) {
+    assert!((actual.at.x - expected.at.x).abs() < TOLERANCE);
+    assert!((actual.at.y - expected.at.y).abs() < TOLERANCE);
+    assert!((actual.rotation - expected.rotation).abs() < TOLERANCE);
+}
+
+#[test]
+fn slanted_reflection_matches_independent_literal_oracle() {
+    let relation = ConstraintRelation::MirrorLine {
+        at: Vec2 { x: 1.0, y: -2.0 },
+        angle: 53.13010235415598,
+    };
+
+    let result = relation
+        .apply(Pose2 {
+            at: Vec2 { x: 2.0, y: 5.0 },
+            rotation: 25.0,
+        })
+        .unwrap();
+
+    assert_pose_close(
+        result,
+        Pose2 {
+            at: Vec2 { x: 7.44, y: 0.92 },
+            rotation: 81.26020470831196,
+        },
+    );
+}
+
+#[test]
+fn persisted_slanted_reflection_keeps_the_reviewed_position_and_heading_bits() {
+    // Persisting this general relation makes the current operation order part of the wire
+    // contract; the literal pins prevent later algebraic rearrangement from changing it.
+    let relation = ConstraintRelation::MirrorLine {
+        at: Vec2 { x: 1.0, y: -2.0 },
+        angle: 53.13010235415598,
+    };
+    let result = relation
+        .apply(Pose2 {
+            at: Vec2 { x: 2.0, y: 5.0 },
+            rotation: 25.0,
+        })
+        .unwrap();
+
+    assert_eq!(
+        (
+            result.at.x.to_bits(),
+            result.at.y.to_bits(),
+            result.rotation.to_bits()
+        ),
+        (
+            0x401d_c28f_5c28_f5c4,
+            0x3fed_70a3_d70a_3d60,
+            0x4054_50a7_31a6_1dc4
+        )
+    );
+}
+
+#[test]
+fn offset_relation_is_world_translation_and_full_heading_addition() {
+    let relation = ConstraintRelation::Offset {
+        offset: Vec2 { x: 5.0, y: -2.0 },
+        rotation: 15.0,
+    };
+    let source = Pose2 {
+        at: Vec2 { x: 3.0, y: 4.0 },
+        rotation: 350.0,
+    };
+
+    assert_pose_close(
+        relation.apply(source).unwrap(),
+        Pose2 {
+            at: Vec2 { x: 8.0, y: 2.0 },
+            rotation: 365.0,
+        },
+    );
+    assert_pose_close(
+        relation.inverse(relation.apply(source).unwrap()).unwrap(),
+        source,
+    );
+}
+
+#[test]
+fn transported_slanted_line_keeps_authored_values_and_commutes_with_pair_map() {
+    let original = ConstraintRelation::MirrorLine {
+        at: Vec2 { x: 1.0, y: -2.0 },
+        angle: 53.13010235415598,
+    };
+    let equivalent = ConstraintRelation::MirrorLine {
+        at: Vec2 { x: 20.4, y: -9.2 },
+        angle: 163.73979529168804,
+    };
+    let source = Pose2 {
+        at: Vec2 { x: 2.0, y: 5.0 },
+        rotation: 25.0,
+    };
+
+    let reflected_source = Pose2 {
+        at: Vec2 { x: 15.4, y: -4.2 },
+        rotation: 191.86989764584402,
+    };
+    let reflected_result = Pose2 {
+        at: Vec2 {
+            x: 13.496,
+            y: -10.728,
+        },
+        rotation: 135.60969293753207,
+    };
+    assert_pose_close(
+        equivalent.apply(reflected_source).unwrap(),
+        reflected_result,
+    );
+    assert_pose_close(
+        original
+            .inverse(Pose2 {
+                at: Vec2 { x: 7.44, y: 0.92 },
+                rotation: 81.26020470831196,
+            })
+            .unwrap(),
+        source,
+    );
+    assert_eq!(
+        serde_json::to_value(equivalent).unwrap(),
+        json!({
+            "kind": "mirror-line",
+            "at": {"x": 20.4, "y": -9.2},
+            "angle": 163.73979529168804
+        })
+    );
+}
+
+#[test]
+fn non_finite_relation_or_pose_is_rejected_before_projection() {
+    let non_finite_line = ConstraintRelation::MirrorLine {
+        at: Vec2 {
+            x: 0.0,
+            y: f64::INFINITY,
+        },
+        angle: 45.0,
+    };
+    let valid_line = ConstraintRelation::MirrorLine {
+        at: Vec2 { x: 0.0, y: 0.0 },
+        angle: f64::NAN,
+    };
+    let unrepresentable_axis = ConstraintRelation::MirrorLine {
+        at: Vec2 { x: 0.0, y: 0.0 },
+        angle: f64::MAX,
+    };
+    let offset = ConstraintRelation::Offset {
+        offset: Vec2 {
+            x: f64::NAN,
+            y: 0.0,
+        },
+        rotation: 0.0,
+    };
+    let source = Pose2 {
+        at: Vec2 { x: 1.0, y: 2.0 },
+        rotation: 3.0,
+    };
+
+    assert!(non_finite_line.apply(source).is_err());
+    assert!(valid_line.apply(source).is_err());
+    assert!(unrepresentable_axis.apply(source).is_err());
+    assert!(offset.apply(source).is_err());
+    assert!(
+        valid_line
+            .apply(Pose2 {
+                at: Vec2 {
+                    x: f64::NAN,
+                    y: 2.0
+                },
+                rotation: 3.0,
+            })
+            .is_err()
+    );
+}
+
+#[test]
+fn part_offset_turns_the_offset_by_the_source_heading_before_adding_it() {
+    let relation = ConstraintRelation::PartOffset {
+        offset: Vec2 { x: 5.0, y: -2.0 },
+        rotation: 15.0,
+    };
+    // Heading 90: (5, -2) turns to (2, 5).
+    let quarter = Pose2 {
+        at: Vec2 { x: 3.0, y: 4.0 },
+        rotation: 90.0,
+    };
+    assert_pose_close(
+        relation.apply(quarter).unwrap(),
+        Pose2 {
+            at: Vec2 { x: 5.0, y: 9.0 },
+            rotation: 105.0,
+        },
+    );
+    // Heading 30: x = 5cos30 + 2sin30, y = 5sin30 - 2cos30.
+    let thirty = Pose2 {
+        at: Vec2 { x: 3.0, y: 4.0 },
+        rotation: 30.0,
+    };
+    assert_pose_close(
+        relation.apply(thirty).unwrap(),
+        Pose2 {
+            at: Vec2 {
+                x: 8.330127018922193,
+                y: 4.767949192431122,
+            },
+            rotation: 45.0,
+        },
+    );
+    // The same numbers as a board-axes offset do not turn with the source.
+    let board = ConstraintRelation::Offset {
+        offset: Vec2 { x: 5.0, y: -2.0 },
+        rotation: 15.0,
+    };
+    assert_pose_close(
+        board.apply(quarter).unwrap(),
+        Pose2 {
+            at: Vec2 { x: 8.0, y: 2.0 },
+            rotation: 105.0,
+        },
+    );
+    for source in [quarter, thirty] {
+        assert_pose_close(
+            relation.inverse(relation.apply(source).unwrap()).unwrap(),
+            source,
+        );
+    }
+}
+
+#[test]
+fn legacy_records_compile_to_relations_with_literal_results() {
+    let source = Pose2 {
+        at: Vec2 { x: 2.0, y: 5.0 },
+        rotation: 25.0,
+    };
+    let cases = [
+        (
+            Constraint::Offset {
+                id: "o".into(),
+                source_part_id: "a".into(),
+                target_part_id: "b".into(),
+                offset: Vec2 { x: 10.0, y: 2.0 },
+                rotation: 5.0,
+            },
+            Pose2 {
+                at: Vec2 { x: 12.0, y: 7.0 },
+                rotation: 30.0,
+            },
+        ),
+        (
+            // Heading 25 turns (10, 2) to (10cos25 - 2sin25, 10sin25 + 2cos25).
+            Constraint::PartOffset {
+                id: "p".into(),
+                source_part_id: "a".into(),
+                target_part_id: "b".into(),
+                offset: Vec2 { x: 10.0, y: 2.0 },
+                rotation: 5.0,
+            },
+            Pose2 {
+                at: Vec2 {
+                    x: 10.2178413468851,
+                    y: 11.038798191480295,
+                },
+                rotation: 30.0,
+            },
+        ),
+        (
+            Constraint::Mirror {
+                id: "v".into(),
+                source_part_id: "a".into(),
+                target_part_id: "b".into(),
+                axis: MirrorAxis::Vertical,
+                coordinate: 10.0,
+            },
+            Pose2 {
+                at: Vec2 { x: 18.0, y: 5.0 },
+                rotation: 155.0,
+            },
+        ),
+        (
+            Constraint::Mirror {
+                id: "h".into(),
+                source_part_id: "a".into(),
+                target_part_id: "b".into(),
+                axis: MirrorAxis::Horizontal,
+                coordinate: 3.0,
+            },
+            Pose2 {
+                at: Vec2 { x: 2.0, y: 1.0 },
+                rotation: -25.0,
+            },
+        ),
+    ];
+    for (constraint, expected) in cases {
+        let relation = ConstraintRelation::from_legacy(&constraint);
+        assert_pose_close(relation.apply(source).unwrap(), expected);
+    }
+}
+
+/// An axis-aligned mirror compiles to the stored arithmetic bit for bit: position
+/// `2c - x` (or `2c - y`) with the other coordinate untouched, and heading `180 - r`
+/// (or `-r`, which keeps the sign of a zero heading).
+#[test]
+fn axis_aligned_mirrors_reproduce_the_stored_solver_bit_for_bit() {
+    let sources = [
+        (-73.127, 69.487, 35.0),
+        (2.0, 5.0, 25.0),
+        (0.0, 0.0, 0.0),
+        (-0.0, -0.0, -0.0),
+        (1e-300, -1e300, 360.0),
+        (13.37, -0.1, 179.999),
+    ];
+    for axis in [MirrorAxis::Vertical, MirrorAxis::Horizontal] {
+        for coordinate in [26.377, -3.5, 0.0, -0.0, 4.25, 1e-308, -1e15] {
+            let stored = Constraint::Mirror {
+                id: "m".into(),
+                source_part_id: "a".into(),
+                target_part_id: "b".into(),
+                axis: axis.clone(),
+                coordinate,
+            };
+            let relation = ConstraintRelation::from_legacy(&stored);
+            for (x, y, rotation) in sources {
+                let source = Pose2 {
+                    at: Vec2 { x, y },
+                    rotation,
+                };
+                let expected = constraint_pose(&stored, source);
+                let actual = relation.apply(source).unwrap();
+                assert_eq!(
+                    (
+                        actual.at.x.to_bits(),
+                        actual.at.y.to_bits(),
+                        actual.rotation.to_bits()
+                    ),
+                    (
+                        expected.at.x.to_bits(),
+                        expected.at.y.to_bits(),
+                        expected.rotation.to_bits()
+                    ),
+                    "{axis:?} at {coordinate} from {source:?}"
+                );
+            }
+        }
+    }
+}
+
+/// A slanted axis has no stored counterpart: the general reflection is exact to within
+/// rounding, here against the line y = x, which swaps the coordinates.
+#[test]
+fn a_slanted_mirror_is_equal_to_its_literal_reflection_within_rounding() {
+    let relation = ConstraintRelation::MirrorLine {
+        at: Vec2 { x: 0.0, y: 0.0 },
+        angle: 45.0,
+    };
+    let result = relation
+        .apply(Pose2 {
+            at: Vec2 {
+                x: -73.127,
+                y: 69.487,
+            },
+            rotation: 35.0,
+        })
+        .unwrap();
+    assert!((result.at.x - 69.487).abs() < 1e-12);
+    assert!((result.at.y + 73.127).abs() < 1e-12);
+    assert_eq!(result.rotation, 55.0);
+}
+
+#[test]
+fn part_offset_relation_serializes_with_its_own_kind() {
+    let relation = ConstraintRelation::PartOffset {
+        offset: Vec2 { x: 1.0, y: 2.0 },
+        rotation: 3.0,
+    };
+    assert_eq!(
+        serde_json::to_value(&relation).unwrap(),
+        json!({"kind": "part-offset", "offset": {"x": 1.0, "y": 2.0}, "rotation": 3.0})
+    );
+    let bad = ConstraintRelation::PartOffset {
+        offset: Vec2 {
+            x: f64::NAN,
+            y: 0.0,
+        },
+        rotation: 0.0,
+    };
+    assert!(
+        bad.apply(Pose2 {
+            at: Vec2 { x: 0.0, y: 0.0 },
+            rotation: 0.0
+        })
+        .is_err()
+    );
+}
+
+/// The pre-Framed arithmetic retained as the exact oracle for stored legacy documents.
+fn constraint_pose(constraint: &Constraint, source: Pose2) -> Pose2 {
+    match constraint {
+        Constraint::Offset {
+            offset, rotation, ..
+        } => Pose2 {
+            at: Vec2 {
+                x: source.at.x + offset.x,
+                y: source.at.y + offset.y,
+            },
+            rotation: source.rotation + rotation,
+        },
+        Constraint::PartOffset {
+            offset, rotation, ..
+        } => boardstudio_model::constraints::follow_pose(
+            source,
+            Pose2 {
+                at: *offset,
+                rotation: *rotation,
+            },
+        ),
+        Constraint::Mirror {
+            axis, coordinate, ..
+        } => Pose2 {
+            at: match axis {
+                MirrorAxis::Vertical => Vec2 {
+                    x: 2.0 * coordinate - source.at.x,
+                    y: source.at.y,
+                },
+                MirrorAxis::Horizontal => Vec2 {
+                    x: source.at.x,
+                    y: 2.0 * coordinate - source.at.y,
+                },
+            },
+            rotation: match axis {
+                MirrorAxis::Vertical => 180.0 - source.rotation,
+                MirrorAxis::Horizontal => -source.rotation,
+            },
+        },
+        Constraint::Framed { .. } => unreachable!("the oracle only accepts legacy records"),
+    }
+}

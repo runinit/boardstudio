@@ -10,5 +10,9 @@ boardstudio-contracts = { path = "../../../contracts/rust" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
+[lib]
+test = false
+doctest = false
+
 [lints]
 workspace = true
