@@ -3,10 +3,7 @@ use crate::model::ProjectDoc;
 pub use boardstudio_model::keymap::*;
 use std::collections::BTreeMap;
 
-pub(crate) fn apply_edit(
-    doc: &mut ProjectDoc,
-    change: &KeymapChange,
-) -> Result<Vec<String>, String> {
+pub fn apply_edit(doc: &mut ProjectDoc, change: &KeymapChange) -> Result<Vec<String>, String> {
     let mut map = doc.keymap.clone().unwrap_or_default();
     let targets = match change {
         KeymapChange::EditMacro { macro_id, change } => {

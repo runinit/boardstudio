@@ -14,6 +14,7 @@ boardstudio-model = { path = "../model" }
 boardstudio-core-kernel = { path = "../kernel" }
 boardstudio-core-kicad-source = { path = "../kicad-source" }
 boardstudio-core-modules = { path = "../modules" }
+boardstudio-core-electrical = { path = "../electrical" }
 boardstudio-contracts = { path = "../../../contracts/rust" }
 boardstudio-footprints = { path = "../../../footprints" }
 cavalier_contours = "=0.9.0"

@@ -1143,7 +1143,7 @@ pub fn materialize(document: &mut ProjectDoc, plan: &ElectricalPlan) -> Result<(
     materialize_reviewed(document, plan, false)
 }
 
-pub(crate) fn materialize_reviewed(
+pub fn materialize_reviewed(
     document: &mut ProjectDoc,
     plan: &ElectricalPlan,
     draft: bool,
@@ -1265,10 +1265,7 @@ pub(crate) fn materialize_reviewed(
 }
 
 /// Synchronize generated terminal labels from existing nets for selected parts.
-pub(crate) fn sync_terminal_parameters_for_parts(
-    document: &mut ProjectDoc,
-    part_ids: &BTreeSet<String>,
-) {
+pub fn sync_terminal_parameters_for_parts(document: &mut ProjectDoc, part_ids: &BTreeSet<String>) {
     let ProjectDoc {
         parts,
         definitions,
@@ -1299,7 +1296,7 @@ pub(crate) fn sync_terminal_parameters_for_parts(
     }
 }
 
-pub(crate) fn handoff_assignments(plan: &ElectricalPlan) -> BTreeMap<String, String> {
+pub fn handoff_assignments(plan: &ElectricalPlan) -> BTreeMap<String, String> {
     // Protect fabricated signal assignments. A reversible population can map
     // those signals to different module GPIOs without changing the PCB copper.
     let mut pins = plan
@@ -1342,7 +1339,7 @@ pub(crate) fn handoff_assignments(plan: &ElectricalPlan) -> BTreeMap<String, Str
 }
 
 // A downloaded handoff is outside edit history. Undo cannot erase knowledge of it.
-pub(crate) fn preserve_handoff(previous: &ProjectDoc, next: &mut ProjectDoc) {
+pub fn preserve_handoff(previous: &ProjectDoc, next: &mut ProjectDoc) {
     let Some(old) = &previous.hardware else {
         return;
     };

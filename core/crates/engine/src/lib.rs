@@ -2,13 +2,12 @@
 
 pub mod archive;
 pub mod artifact;
-pub mod electrical;
+pub use boardstudio_core_electrical::{electrical, electrical_peripherals};
 pub use boardstudio_model::electrical_jumpers;
-pub mod electrical_peripherals;
 pub use boardstudio_model::electrical_profiles;
 pub mod firmware;
 mod keycaps;
-mod keymap;
+use boardstudio_core_electrical::keymap;
 pub mod mechanical;
 mod mechanical_checks;
 pub mod migrate;

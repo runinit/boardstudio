@@ -217,10 +217,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "boardstudio-core-electrical"
+version = "0.1.0"
+dependencies = [
+ "boardstudio-core-kernel",
+ "boardstudio-core-modules",
+ "boardstudio-model",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "boardstudio-core-engine"
 version = "0.1.0"
 dependencies = [
  "boardstudio-contracts",
+ "boardstudio-core-electrical",
  "boardstudio-core-kernel",
  "boardstudio-core-kicad-source",
  "boardstudio-core-modules",
