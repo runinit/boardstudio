@@ -1249,11 +1249,10 @@ mod tests {
         );
     }
 
-    #[test]
-    fn rejects_overdeep_conversion_chains() {
+    fn conversion_chain(conversion_units: u64) -> String {
         let mut data = String::from("#1=(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT($,.METRE.));\n");
         let mut base = 1_u64;
-        for index in 0..70_u64 {
+        for index in 0..conversion_units {
             let measure = 1000 + index;
             let unit = 2 + index;
             data.push_str(&format!(
@@ -1264,10 +1263,15 @@ mod tests {
         }
         data.push_str(&format!(
             "#2000=(REPRESENTATION_CONTEXT('3D','MODEL') GLOBAL_UNIT_ASSIGNED_CONTEXT((#{base})));\n\
-             #2001=SHAPE_REPRESENTATION('deep',(),#2000);\n"
+             #2001=SHAPE_REPRESENTATION('depth',(),#2000);\n"
         ));
+        exchange(&data)
+    }
+
+    #[test]
+    fn rejects_overdeep_conversion_chains() {
         assert!(
-            resolve_mm_per_unit(&exchange(&data))
+            resolve_mm_per_unit(&conversion_chain(70))
                 .unwrap_err()
                 .contains("exceeds maximum depth")
         );
@@ -1275,27 +1279,9 @@ mod tests {
 
     #[test]
     fn conversion_chain_depth_boundary_is_explicit() {
-        fn chain(conversion_units: u64) -> String {
-            let mut data = String::from("#1=(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT($,.METRE.));\n");
-            let mut base = 1_u64;
-            for index in 0..conversion_units {
-                let measure = 1000 + index;
-                let unit = 2 + index;
-                data.push_str(&format!(
-                    "#{measure}=LENGTH_MEASURE_WITH_UNIT(LENGTH_MEASURE(1.),#{base});\n\
-                     #{unit}=(LENGTH_UNIT() NAMED_UNIT(*) CONVERSION_BASED_UNIT('CHAIN',#{measure}));\n"
-                ));
-                base = unit;
-            }
-            data.push_str(&format!(
-                "#2000=(REPRESENTATION_CONTEXT('3D','MODEL') GLOBAL_UNIT_ASSIGNED_CONTEXT((#{base})));\n\
-                 #2001=SHAPE_REPRESENTATION('depth',(),#2000);\n"
-            ));
-            exchange(&data)
-        }
-        assert!(resolve_mm_per_unit(&chain(63)).is_ok());
+        assert!(resolve_mm_per_unit(&conversion_chain(63)).is_ok());
         assert!(
-            resolve_mm_per_unit(&chain(64))
+            resolve_mm_per_unit(&conversion_chain(64))
                 .unwrap_err()
                 .contains("exceeds maximum depth 64")
         );
