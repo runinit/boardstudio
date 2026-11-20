@@ -10,7 +10,6 @@ description = "BoardStudio Core KiCad source parsing: s-expressions, board/footp
 boardstudio-model = { path = "../model" }
 boardstudio-core-kernel = { path = "../kernel" }
 boardstudio-contracts = { path = "../../../contracts/rust" }
-cavalier_contours = "=0.9.0"
 kiutils_sexpr = "=0.1.1"
 
 [lints]
