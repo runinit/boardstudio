@@ -17,8 +17,7 @@ struct Limits {
 }
 
 const MIB: usize = 1024 * 1024;
-/// Maximum compressed project archive accepted by Core and browser file admission.
-pub const MAX_PROJECT_ARCHIVE_BYTES: usize = 128 * MIB;
+pub use crate::model::MAX_PROJECT_ARCHIVE_BYTES;
 const LIMITS: Limits = Limits {
     compressed: MAX_PROJECT_ARCHIVE_BYTES,
     project: 8 * MIB,

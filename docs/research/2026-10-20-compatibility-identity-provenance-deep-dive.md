@@ -101,7 +101,7 @@ vendor previews and honest collision uncertainty remain governed by
 | Boundary | Current behavior and compatibility consequence | Primary evidence |
 | --- | --- | --- |
 | Catalogue → project | Project definitions win by ID. Matrix setup clones a definition, changes its ID and extends selected parameters; it does not materialize every default or capture generator code. | [`merge_project_overrides`](../../web/crates/catalogue/src/catalogue.rs#L167-L191); [`snapshot_definition`](../../web/crates/catalogue/src/matrix_setup_operation.rs#L338-L355), diode overrides at L218–228. |
-| Load migration → Open | Migration orders schema/ID repairs; current-version JSON is returned unchanged. Open prepares layout/mirror relationships and validates parameter values, then retains the prepared document. It does **not** call `normalize_definition` for every saved generator. | [`migrate_json`](../../core/crates/engine/src/migrate.rs#L51-L61); [`CoreEngine::handle`, Open](../../core/src/lib.rs#L241-L283); [`prepare_open`](../../core/crates/mirrored-half/src/mirrored_half/reconcile/prepare.rs#L26-L102). |
+| Load migration → Open | Migration orders schema/ID repairs; current-version JSON is returned unchanged. Open prepares layout/mirror relationships and validates parameter values, then retains the prepared document. It does **not** call `normalize_definition` for every saved generator. | [`migrate_json`](../../core/crates/kernel/src/migrate.rs#L51-L61); [`CoreEngine::handle`, Open](../../core/src/lib.rs#L241-L283); [`prepare_open`](../../core/crates/mirrored-half/src/mirrored_half/reconcile/prepare.rs#L26-L102). |
 | Explicit normalization | Re-renders current generator geometry; retains saved pad ID/net **at the same index**, regenerates terminal membership, and preserves valid explicitly authored courtyard/keycap envelopes. This is not geometric freezing. | [`Registry::normalize`](../../footprints/src/definition.rs#L82-L169); [`normalize_definition`](../../core/crates/kernel/src/generators.rs#L62-L76). |
 | Definition + placed-part parameters | Part map overwrites definition map. Missing/null after merge selects the current declared default. Thus a **part-level null masks an explicit definition value**, rather than falling back to that definition value. Current compiled body is called. | [`Registry::render`](../../footprints/src/registry.rs#L163-L249); inspected `part_null_overrides_definition_true_with_the_declaration_default` in [diode tests](../../footprints/tests/diode_sod123_qualification.rs#L345-L360). |
 | Export terminal mapping | Captured saved terminal→pad associations are used to derive generator net parameters, with conflict checks. The job then renders current Rust code; stable saved IDs do not prove unchanged terminal semantics. | [`terminal_parameters`](../../core/crates/artifact/src/artifact/kicad/planning.rs#L157-L243); [`render_jobs`](../../core/crates/artifact/src/artifact/kicad/generation.rs#L23-L59). |
@@ -159,12 +159,12 @@ default `F` means that a back-side part alone no longer supplies the omitted `si
 The [recorded deviation](../investigations/footprint-generators-rust.md#deviations) explicitly
 describes this change; these source objects, not the prose alone, were inspected.
 
-The concrete saved examples in [`migrate::tests::version_1`](../../core/crates/engine/src/migrate.rs#L392-L429)
+The concrete saved examples in [`migrate::tests::version_1`](../../core/crates/kernel/src/migrate.rs#L392-L429)
 cover omitted side on a back part, explicit `side:"F"` on a back part, a definition already
-saving side, and an assembly member. [`state_back_sides`](../../core/crates/engine/src/migrate.rs#L193-L240)
+saving side, and an assembly member. [`state_back_sides`](../../core/crates/kernel/src/migrate.rs#L193-L240)
 writes `B` only where the old omitted-side behavior needs preserving; explicit saved side wins.
-[`migrates_a_version_1_document`](../../core/crates/engine/src/migrate.rs#L433-L492) asserts each distinction.
-[`the_version_1_step_states_the_back_side_and_leaves_text_for_version_4`](../../core/crates/engine/src/migrate.rs#L820-L837)
+[`migrates_a_version_1_document`](../../core/crates/kernel/src/migrate.rs#L433-L492) asserts each distinction.
+[`the_version_1_step_states_the_back_side_and_leaves_text_for_version_4`](../../core/crates/kernel/src/migrate.rs#L820-L837)
 and `version_3_to_4_keeps_unknown_names_and_unconvertible_values` distinguish this from later
 numeric-text migration. These are inspected assertions, not fresh two-version export results.
 
@@ -229,7 +229,7 @@ and is the next bounded check, not a prerequisite for establishing the literal l
 
 For the side transition, old/new direct rendering without migration should distinguish omitted
 back-side input; migration followed by rendering should restore B, while explicit F stays F.
-Current [migration tests](../../core/crates/engine/src/migrate.rs#L433-L492) are the nearest public-data oracle.
+Current [migration tests](../../core/crates/kernel/src/migrate.rs#L433-L492) are the nearest public-data oracle.
 **Neither two-build comparison was executed.** No prebuilt executable's source provenance was
 established, and builds/worktrees/source copies were prohibited here. A current protected PCB
 baseline must not be treated as a geometry fingerprint: [0031](../adr/0031-preserve-pcb-handoff-protection-across-undo.md)
@@ -309,7 +309,7 @@ For **unpaired, nonscripted ordinary matrix data**, the public Core flow is:
 
 This supports a **bounded retained-state/reactivation outcome**, not just “one function lacks
 cleanup.” Save serialization preserves these map fields; migration has no input-binding retirement
-step ([model types](../../core/crates/model/src/keymap.rs#L69-L83), [`migrate_value`](../../core/crates/engine/src/migrate.rs#L18-L49)).
+step ([model types](../../core/crates/model/src/keymap.rs#L69-L83), [`migrate_value`](../../core/crates/kernel/src/migrate.rs#L18-L49)).
 The exact end-to-end shrink/save/reopen/regrow workflow still lacks an executed observation here.
 
 The UI has real, different producers: [selected-key actions](../../web/src/presentation/layout_key_selection_actions.rs#L335-L356)

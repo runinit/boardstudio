@@ -1,4 +1,5 @@
 //! Shared document, request and reply types and their intrinsic operations.
+pub mod case_readiness;
 pub mod constraints;
 pub mod electrical;
 pub mod electrical_jumpers;

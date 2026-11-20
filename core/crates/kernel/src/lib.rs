@@ -10,6 +10,7 @@ pub mod hardware;
 pub mod hash;
 pub mod inputs;
 pub mod matrix;
+pub mod migrate;
 pub mod outline_controls;
 pub mod outline_edit;
 pub mod outline_versions;

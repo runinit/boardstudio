@@ -7,9 +7,9 @@ pub use boardstudio_model::electrical_jumpers;
 pub use boardstudio_model::electrical_profiles;
 pub mod firmware;
 mod keycaps;
+pub use boardstudio_core_kernel::migrate;
 use boardstudio_core_mechanical::keymap;
 pub use boardstudio_core_mechanical::mechanical;
-pub mod migrate;
 use boardstudio_core_mechanical::modules;
 use boardstudio_core_mirrored_half::mirrored_half;
 pub use boardstudio_model::model;
@@ -80,62 +80,6 @@ impl CoreEngine {
     }
 }
 
-/// Whether saved Case geometry for a board is current and usable as a Case
-/// input with a current outer board contour, independently of PCB-coupled
-/// `BoardReadiness::case_ready`.
-///
-/// This is a derived capability, not part of the serialized readiness
-/// contract: authored Case geometry can be prepared/exported without claiming
-/// that the board's PCB is ready.
-pub fn authored_case_geometry_ready(
-    document: &ProjectDoc,
-    scene: &SceneDelta,
-    board_id: &str,
-) -> bool {
-    if scene.revision != document.revision
-        || !document.boards.iter().any(|board| board.id == board_id)
-    {
-        return false;
-    }
-    let Some(readiness) = scene
-        .board_readiness
-        .iter()
-        .find(|readiness| readiness.board_id == board_id)
-    else {
-        return false;
-    };
-    if !readiness.outline
-        || !scene
-            .board_contours
-            .iter()
-            .find(|contours| contours.board_id == board_id)
-            .is_some_and(|entry| entry.contours.iter().any(|contour| !contour.hole))
-    {
-        return false;
-    }
-    if !document
-        .case_bodies
-        .iter()
-        .any(|body| body.board_id == board_id)
-    {
-        return false;
-    }
-    !scene.findings.iter().any(|finding| {
-        finding.severity == Severity::Error
-            && finding.scope == Scope::Case
-            // Material references affect BOM metadata, not prepared solid
-            // geometry; Core's case preparer intentionally accepts them.
-            && !validate::is_case_material_finding_id(&finding.id)
-            && (finding.target_ids.is_empty()
-                || finding.target_ids.iter().any(|target| {
-                    target == board_id
-                        || document.case_bodies.iter().any(|body| {
-                            body.board_id == board_id && body.id.as_str() == target.as_str()
-                        })
-                }))
-    })
-}
-
 /// Returns Core's reason when a linked item cannot change companion placement.
 /// Accepts either the source or mirror part id so Inspectors can normalize either selection.
 pub fn companion_placement_disabled_reason(
@@ -146,21 +90,7 @@ pub fn companion_placement_disabled_reason(
     mirrored_half::companion_placement_disabled_reason(document, pair_id, item_id)
 }
 
-/// Whether Case preparation may run for a selected board. A resolved
-/// mechanical configuration remains sufficient; otherwise saved authored
-/// Case geometry is admitted by its own capability above.
-pub fn case_preparation_ready(
-    document: &ProjectDoc,
-    scene: &SceneDelta,
-    board_id: &str,
-    configured: bool,
-) -> bool {
-    scene
-        .board_readiness
-        .iter()
-        .any(|readiness| readiness.board_id == board_id)
-        && (configured || authored_case_geometry_ready(document, scene, board_id))
-}
+pub use boardstudio_model::case_readiness::{authored_case_geometry_ready, case_preparation_ready};
 
 pub use boardstudio_model::ScriptRunner;
 

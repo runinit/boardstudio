@@ -44,6 +44,9 @@ pub struct ArchiveAssetBuffer {
     pub buffer_index: u32,
 }
 
+/// Maximum compressed project archive accepted by Core and browser file admission.
+pub const MAX_PROJECT_ARCHIVE_BYTES: usize = 128 * 1024 * 1024;
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum ArchiveRequest {

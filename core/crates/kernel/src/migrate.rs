@@ -9,7 +9,7 @@ use crate::generators;
 pub use boardstudio_model::migrate::*;
 
 /// Typed Core admission never migrates or modifies the candidate document.
-pub(crate) fn require_current_version(version: u32) -> Result<(), String> {
+pub fn require_current_version(version: u32) -> Result<(), String> {
     if version == 0 {
         return Err("Project data failed validation: invalid formatVersion 0".into());
     }

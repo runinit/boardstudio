@@ -124,7 +124,7 @@ merely to match an obsolete feature page. Complete keycap provider correctness w
 version 6 adds” optional mechanical reservation counters and then “No migration step
 or version bump was needed.” It does not explain the framed-constraint transition.
 [0010's framed-constraint amendment](../adr/0010-mirrored-half-is-a-core-maintained-reflection.md#amendment-selective-exceptions-and-framed-constraints-2026-10-11)
-does. [Migration source](../../core/crates/engine/src/migrate.rs), `CURRENT_VERSION`, `migrate_value`
+does. [Migration source](../../core/crates/kernel/src/migrate.rs), `CURRENT_VERSION`, `migrate_value`
 and `version_5_migration_only_stamps_the_format_version`, establishes current version
 6 and an ordered 5→6 step. `version_4_document_migrates_without_changing_its_payload`
 explicitly identifies framed constraints as the version-6 addition. H4 shows the
