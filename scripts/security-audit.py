@@ -32,7 +32,7 @@ PATCHED_ADVISORIES = ("RUSTSEC-2026-0196", "RUSTSEC-2026-0197")
 # affected functions outside `binary_heap` (sorted_linked_list, spsc, deque,
 # index_map, history_buf, vec::IntoIter, pools; 0579's `Deque::try_from`
 # range starts at 0.9.2 and 0580's `pool` range ends below 0.8.0), while
-# rstar 0.13.0 -- the sole heapless consumer in cad/monstertruck/Cargo.lock --
+# rstar 0.13.0 -- the sole heapless consumer in cad/Cargo.lock --
 # uses only `heapless::binary_heap` (`BinaryHeap::{new,push,pop,len,capacity,
 # into_vec}` in `src/algorithm/nearest_neighbor.rs`). The one reachable
 # 0577-adjacent path, `vec::IntoIter::drop` via `into_vec`, needs a panicking
@@ -53,7 +53,7 @@ ACCEPTED_ADVISORIES = (
 )
 CGMATH_MANIFESTS = (
     "Cargo.toml",
-    "cad/monstertruck/Cargo.toml",
+    "cad/Cargo.toml",
     "renderer/vendor/cgmath-next-0.18.1/Cargo.toml",
 )
 

@@ -1,0 +1,162 @@
+[workspace]
+resolver = "3"
+members = [
+    "monstertruck",
+    "wasm",
+    "monstertruck-qualification",
+    "monstertruck-qualification/vendor/monstertruck-io",
+    "monstertruck-qualification/vendor/monstertruck-meshing",
+    "monstertruck-qualification/vendor/monstertruck-mesh",
+    "monstertruck-qualification/vendor/monstertruck-traits",
+    "monstertruck-qualification/vendor/monstertruck-solid",
+]
+exclude = [
+    "monstertruck-qualification/vendor/inflector",
+    "monstertruck-qualification/vendor/monstertruck-core",
+    "monstertruck-qualification/vendor/monstertruck-derive",
+    "monstertruck-qualification/vendor/monstertruck-geometry",
+    "monstertruck-qualification/vendor/monstertruck-modeling",
+]
+
+[profile.cad-test]
+inherits = "dev"
+opt-level = 1
+debug = false
+incremental = false
+
+[profile.cad-test.package.clap]
+opt-level = 0
+
+[profile.cad-test.package.clap_builder]
+opt-level = 0
+
+[profile.cad-test.package.image]
+opt-level = 0
+
+[profile.cad-test.package.moxcms]
+opt-level = 0
+
+[profile.cad-test.package.pxfm]
+opt-level = 0
+
+[profile.cad-test.package.png]
+opt-level = 0
+
+[profile.cad-test.package.proptest]
+opt-level = 0
+
+[profile.cad-test.package.monstertruck-fillet]
+opt-level = 0
+
+[profile.cad-test.package.monstertruck-healing]
+opt-level = 0
+
+[profile.cad-test.package.flate2]
+opt-level = 0
+
+[profile.cad-test.package.zlib-rs]
+opt-level = 0
+
+[profile.cad-test.package.toml]
+opt-level = 0
+
+[profile.cad-test.package.regex-syntax]
+opt-level = 0
+
+[profile.cad-test.package.tempfile]
+opt-level = 0
+
+[profile.cad-test.package.miniz_oxide]
+opt-level = 0
+
+[profile.cad-test.package.fdeflate]
+opt-level = 0
+
+[profile.cad-test.package.monstertruck-modeling]
+opt-level = 2
+
+[profile.cad-test.package.monstertruck-geometry]
+opt-level = 2
+
+[profile.cad-test.package.monstertruck-mesh]
+opt-level = 2
+
+[profile.cad-test.package.monstertruck-core]
+opt-level = 2
+
+[profile.cad-test.package.manifold-rust]
+opt-level = 2
+
+[profile.cad-test.package.parry3d-f64]
+opt-level = 2
+
+[profile.cad-test.package.cavalier_contours]
+opt-level = 2
+
+[profile.cad-test.package.spade]
+opt-level = 2
+
+[profile.cad-test.package.glam]
+opt-level = 2
+
+[profile.cad-test.package.wide]
+opt-level = 2
+
+[profile.cad-test.package.lyon_tessellation]
+opt-level = 2
+
+# Owner (qualification) test binaries for monstertruck-io/-meshing compile
+# ~4-5x cheaper at opt-level 0, while production tests need those libraries
+# optimized at runtime; a per-package override cannot split the two, so the
+# owner suites build under this separate profile (see cad/scripts/cad_build.py).
+[profile.cad-owner-test]
+inherits = "dev"
+opt-level = 0
+debug = false
+incremental = false
+
+[profile.cad-owner-test.package.monstertruck-modeling]
+opt-level = 2
+
+[profile.cad-owner-test.package.monstertruck-geometry]
+opt-level = 2
+
+[profile.cad-owner-test.package.monstertruck-mesh]
+opt-level = 2
+
+[profile.cad-owner-test.package.monstertruck-core]
+opt-level = 2
+
+[profile.cad-owner-test.package.manifold-rust]
+opt-level = 2
+
+[profile.cad-owner-test.package.parry3d-f64]
+opt-level = 2
+
+[profile.cad-owner-test.package.cavalier_contours]
+opt-level = 2
+
+[profile.cad-owner-test.package.spade]
+opt-level = 2
+
+[profile.cad-owner-test.package.glam]
+opt-level = 2
+
+[profile.cad-owner-test.package.wide]
+opt-level = 2
+
+[profile.cad-owner-test.package.lyon_tessellation]
+opt-level = 2
+
+[patch.crates-io]
+Inflector = { path = "monstertruck-qualification/vendor/inflector" }
+cgmath = { path = "../renderer/vendor/cgmath-next-0.18.1" }
+monstertruck-core = { path = "monstertruck-qualification/vendor/monstertruck-core" }
+monstertruck-derive = { path = "monstertruck-qualification/vendor/monstertruck-derive" }
+monstertruck-geometry = { path = "monstertruck-qualification/vendor/monstertruck-geometry" }
+monstertruck-io = { path = "monstertruck-qualification/vendor/monstertruck-io" }
+monstertruck-mesh = { path = "monstertruck-qualification/vendor/monstertruck-mesh" }
+monstertruck-meshing = { path = "monstertruck-qualification/vendor/monstertruck-meshing" }
+monstertruck-modeling = { path = "monstertruck-qualification/vendor/monstertruck-modeling" }
+monstertruck-solid = { path = "monstertruck-qualification/vendor/monstertruck-solid" }
+monstertruck-traits = { path = "monstertruck-qualification/vendor/monstertruck-traits" }

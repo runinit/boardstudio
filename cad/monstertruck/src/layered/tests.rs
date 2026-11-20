@@ -854,7 +854,46 @@ fn inspect_cone_step(text: &str, center: [f64; 2], low: f64, high: f64, r0: f64,
 
 #[test]
 fn build_has_no_general_3d_boolean_dependency_or_runtime_calls() {
-    assert!(!include_str!("../../Cargo.lock").contains("name = \"monstertruck-solid\""));
+    let lock = include_str!("../../../Cargo.lock");
+    let mut deps_by_pkg: std::collections::HashMap<&str, Vec<&str>> =
+        std::collections::HashMap::new();
+    for block in lock.split("[[package]]").skip(1) {
+        let mut name = None;
+        let mut in_deps = false;
+        let mut deps = Vec::new();
+        for line in block.lines().map(str::trim) {
+            if let Some(rest) = line.strip_prefix("name = \"") {
+                name = rest.strip_suffix('"');
+            } else if line == "dependencies = [" {
+                in_deps = true;
+            } else if in_deps {
+                if line == "]" {
+                    in_deps = false;
+                } else if let Some(dep) = line
+                    .trim_end_matches(',')
+                    .strip_prefix('"')
+                    .and_then(|s| s.strip_suffix('"'))
+                {
+                    deps.push(dep.split_whitespace().next().unwrap_or(dep));
+                }
+            }
+        }
+        if let Some(pkg) = name {
+            deps_by_pkg.entry(pkg).or_default().extend(deps);
+        }
+    }
+    let mut visited = std::collections::HashSet::new();
+    let mut stack = vec!["boardstudio-cad", "boardstudio-cad-wasm"];
+    while let Some(pkg) = stack.pop() {
+        if visited.insert(pkg)
+            && let Some(deps) = deps_by_pkg.get(pkg)
+        {
+            stack.extend(deps.iter().copied());
+        }
+    }
+    assert!(visited.contains("boardstudio-cad"));
+    assert!(visited.contains("boardstudio-cad-wasm"));
+    assert!(!visited.contains("monstertruck-solid"));
     for source in [
         include_str!("../layered.rs"),
         include_str!("contours.rs"),

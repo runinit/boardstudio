@@ -24,8 +24,7 @@ members = [
 ]
 # The CAD workspace owns the lockfile and patched Monstertruck dependency graph.
 exclude = [
-  "cad/monstertruck",
-  "cad/wasm",
+  "cad",
   "renderer/vendor/cgmath-next-0.18.1",
   "web/vendor/dioxus-interpreter-js-0.7.10",
 ]

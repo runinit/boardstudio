@@ -146,16 +146,16 @@ class CachePolicyTests(unittest.TestCase):
         cached = {(REPO / workspace / target).resolve() for workspace, target in
                   re.findall(r"^ +(\S+) -> (\S+)$", step, re.M)}
         targets = re.search(r'^NATIVE_TEST_TARGETS = \((.*)\)$', CAD_BUILD, re.M)[1]
-        built = {REPO / "cad" / target for target in re.findall(r'"([^"]+/target)"', targets)}
-        self.assertIn(REPO / "cad/monstertruck-qualification/target", built)
+        built = {REPO / "cad" / target for target in re.findall(r'"([^"]*target)"', targets)}
+        self.assertIn(REPO / "cad/target", built)
         self.assertLessEqual(built, cached, "cad_build.py builds into a target dir the CI cache skips")
 
     def test_web_build_jobs_cache_cad_wasm_from_the_merged_workspace(self):
         [wasm_target] = re.findall(r'^WASM_BUILD_TARGET = "([^"]+)"$', CAD_BUILD, re.M)
         for name in ("web", "release-build"):
             [step] = cache_steps(job(name))
-            [target] = re.findall(r"^ +cad/monstertruck -> (\S+)$", step, re.M)
-            self.assertEqual((REPO / "cad/monstertruck" / target).resolve(), REPO / "cad" / wasm_target)
+            [target] = re.findall(r"^ +cad -> (\S+)$", step, re.M)
+            self.assertEqual((REPO / "cad" / target).resolve(), REPO / "cad" / wasm_target)
             self.assertNotIn("cad/wasm ->", step)
 
 
