@@ -160,6 +160,7 @@ def browser() -> list[Command]:
         *HARNESS_CHECKS,
         *with_crate_build([
             crate_launch("host"),
+            crate_launch("worker-host"),
             crate_launch("runtime"),
             crate_launch("ui-model"),
             crate_launch("ui-shared"),
@@ -196,7 +197,10 @@ def with_crate_build(launches: list[Command]) -> list[Command]:
     if not crates:
         return launches
     packages = [arg for crate in crates for arg in ("-p", f"boardstudio-web-{crate}")]
-    features = ["boardstudio-web-host/page"] if "host" in crates else []
+    features = [
+        *(["boardstudio-web-host/page"] if "host" in crates else []),
+        *(["boardstudio-web-worker-host/cad"] if "worker-host" in crates else []),
+    ]
     flags = ["--features", ",".join(features)] if features else []
     return [[*WASM_CRATE_BUILD, *packages, *flags], *launches]
 

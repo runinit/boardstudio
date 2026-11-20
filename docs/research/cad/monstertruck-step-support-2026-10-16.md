@@ -64,7 +64,7 @@ replacement only needs to preserve the current preview mesh, bounds, transforms,
 identity, and original bytes to keep today's vendor model workflow intact.
 Generated case/keycap geometry remains a separate exact-B-rep workflow. See
 [model loading](../../../cad/wasm/src/model.rs),
-[worker routing](../../../web/crates/host/src/cad_worker.rs),
+[worker routing](../../../web/crates/worker-host/src/cad_worker.rs),
 [model delivery](../../../web/crates/runtime/src/model_delivery.rs),
 [footprint export](../../../web/crates/runtime/src/export_footprints.rs), and
 [project archive](../../../core/crates/engine/src/archive.rs).
@@ -226,7 +226,7 @@ This is a change map, not a proposed general-purpose kernel framework:
 | Kernel boundary and case construction | Implement the candidate's generated solids and writer against existing prepared inputs. Preserve feature validation, multiple bodies, units and structured errors. The current builder itself uses Cadrum operations; changing the trait implementation alone does not port it. |
 | Preview/export caches | Replace retained `Rc<Solid>` geometry and direct `Solid::write_step` calls when generation migrates. Preserve bounded retention, ownership, reuse, cache misses and STEP-only export. |
 | [Keycaps](../../../cad/wasm/src/model/keycaps.rs) and [lettering](../../../cad/wasm/src/model/keycaps/lettering.rs) | Port the lofts, curved dishes, cavities, sockets, stems and letter solids, including templates and placed exports. These bypass the kernel trait today. |
-| [Worker](../../../web/crates/host/src/cad_worker.rs) and [model delivery](../../../web/crates/runtime/src/model_delivery.rs) | Replace provider internals while retaining mesh/bounds responses, hash/size checks, revision and scope checks, cancellation and worker recovery. Existing Rust rendering and placement math can consume the same buffers. |
+| [Worker](../../../web/crates/worker-host/src/cad_worker.rs) and [model delivery](../../../web/crates/runtime/src/model_delivery.rs) | Replace provider internals while retaining mesh/bounds responses, hash/size checks, revision and scope checks, cancellation and worker recovery. Existing Rust rendering and placement math can consume the same buffers. |
 | [Manifest](../../../cad/wasm/Cargo.toml), [initialization](../../../cad/wasm/src/lib.rs), CAD build and [web packaging](../../../scripts/build-web.py) | Remove Cadrum/OCCT linking, archives, C++ initialization and the OCCT-specific build pipeline after all consumers migrate. Verify lazy loading and offline assets. Measure build time and payload instead of assuming savings. |
 | Case gate, [source assets](../../../cad/wasm/src/model/source_validation_tests.rs), STEP oracle and [browser smoke](../../../cad/scripts/browser-smoke/smoke.html) | Reuse native geometry expectations and source ledgers, then verify actual WASM bindings, worker transfers, recovery and root/subpath delivery. Replace the required native OCCT oracle with sufficient Rust checks and independently established fixtures; do not weaken coverage by merely deleting it. External differential checks can inform qualification without becoming a retained project dependency. |
 

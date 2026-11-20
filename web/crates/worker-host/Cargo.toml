@@ -1,0 +1,31 @@
+[package]
+name = "boardstudio-web-worker-host"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+description = "Browser worker host services shared by the BoardStudio workers and page: offline policy, CAD job protocol, qualification and CAD worker."
+
+[features]
+cad = ["dep:boardstudio_core", "dep:serde_json"]
+test-harness = []
+
+[dependencies]
+boardstudio_core = { path = "../../../core", optional = true }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["float_roundtrip"], optional = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+gloo-timers = { version = "=0.3.0", features = ["futures"] }
+wasm-bindgen = "=0.2.129"
+wasm-bindgen-futures = "=0.4.79"
+js-sys = "=0.3.106"
+serde-wasm-bindgen = "=0.6.5"
+futures-channel = "=0.3.34"
+web-sys = { workspace = true }
+
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+wasm-bindgen-test = "=0.3.79"
+
+[lints]
+workspace = true

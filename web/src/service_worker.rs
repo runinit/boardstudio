@@ -1,4 +1,4 @@
-use boardstudio_web_host::offline::{OfflineManifest, scope_cache_prefix};
+use boardstudio_web_worker_host::offline::{OfflineManifest, scope_cache_prefix};
 use js_sys::Array;
 use wasm_bindgen::{JsCast, JsValue, closure::Closure, prelude::wasm_bindgen};
 use wasm_bindgen_futures::{JsFuture, future_to_promise};
@@ -137,7 +137,7 @@ pub fn start_offline_worker(version: String, assets: Vec<String>) -> Result<(), 
     let message = Closure::<dyn FnMut(web_sys::ExtendableMessageEvent)>::new(
         |event: web_sys::ExtendableMessageEvent| {
             if event.data().as_string().as_deref()
-                != Some(boardstudio_web_host::offline::STORAGE_WINDOW_QUERY)
+                != Some(boardstudio_web_worker_host::offline::STORAGE_WINDOW_QUERY)
             {
                 return;
             }
@@ -165,7 +165,7 @@ pub fn start_offline_worker(version: String, assets: Vec<String>) -> Result<(), 
                             .is_ok_and(|client| client.id() == source.id())
                     });
                 port.post_message(&JsValue::from_str(if alone {
-                    boardstudio_web_host::offline::STORAGE_WINDOW_ALONE
+                    boardstudio_web_worker_host::offline::STORAGE_WINDOW_ALONE
                 } else {
                     "defer"
                 }))?;

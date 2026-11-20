@@ -278,7 +278,7 @@ An export's own accepted commit can advance its lease, but not relax its origin.
 feed exact layered 2.5D case/PCB construction; display meshes are not exact STEP
 authority. Keycaps are appearance/optional-print meshes, not exact keycap STEP.
 
-- **What:** [Host CAD preparation](../../web/crates/host/src/cad_jobs.rs),
+- **What:** [Host CAD preparation](../../web/crates/host/src/captured_case.rs),
   `prepare_captured_case_for_step`/`validate_prepared`, obtains and checks Core-prepared
   accepted inputs. [Runtime](../../web/crates/runtime/src/runtime.rs),
   `prepare_physical_step_assembly`, shares complete physical PCB preparation between
@@ -494,11 +494,11 @@ offline clients across deployment updates.
   Core/CAD workers and Rust offline policy. [service_worker.rs](../../web/src/service_worker.rs),
   `install_policy`/`activate_policy`, caches the release manifest, waits for old
   clients before activation, then deletes only older caches in its scope prefix.
-  [offline.rs](../../web/crates/host/src/offline.rs), `scope_cache_prefix`, separates
+  [offline.rs](../../web/crates/worker-host/src/offline.rs), `scope_cache_prefix`, separates
   root/subpath cache names.
 - **Named tests:** `path_hex_encoding_separates_root_and_subpath_cache_names` and
   `validates_complete_normalized_manifest` in
-  [offline.rs](../../web/crates/host/src/offline.rs);
+  [offline.rs](../../web/crates/worker-host/src/offline.rs);
   `test_offline_worker_waits_for_old_clients_before_activation` and
   `test_build_assembles_requested_routes_from_dirty_worktree` in
   [test-build-web.py](../../scripts/test-build-web.py). These latter checks inspect
