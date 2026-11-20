@@ -26,6 +26,8 @@ use boardstudio_model::model::{
     MechanicalMount, MechanicalStabilizerKind, MechanicalStabilizerOverride, Mount, Part, PartKind,
     ProjectDoc,
 };
+#[cfg(test)]
+use boardstudio_web_ui_shared::ui::button::Button;
 use dioxus::prelude::*;
 use std::{
     cell::{Cell, RefCell},
@@ -1506,11 +1508,11 @@ mod tests {
             EventHandler::new(|_| {}),
         );
         rsx! {
-            button { id: "show-layout", onclick: move |_| workspace.set("Layout"), "Layout" }
-            button { id: "show-case", onclick: move |_| workspace.set("Case"), "Case" }
+            Button { id: "show-layout", onclick: move |_| workspace.set("Layout"), "Layout" }
+            Button { id: "show-case", onclick: move |_| workspace.set("Case"), "Case" }
             output { id: "workspace", "{workspace()}" }
             output { id: "case-props", "{mount.props.is_some()}" }
-            button { id: "refresh-case-source", onclick: move |_| version += 1, "Refresh" }
+            Button { id: "refresh-case-source", onclick: move |_| version += 1, "Refresh" }
             output { id: "source-version", "{version()}" }
         }
     }

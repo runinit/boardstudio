@@ -19,6 +19,8 @@ use boardstudio_web_ui_shared::ui::{
     checkbox::{Checkbox as UiCheckbox, CheckboxState},
     collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
     field::Field,
+    input::InputType,
+    input_group::{InputGroup, InputGroupInput},
     label::Label,
     select::{Select, SelectOption},
     slider::Slider,
@@ -2788,14 +2790,16 @@ fn SharedViewer(
                     }
                     Field {
                         Label { html_for: format!("viewer-color-{}-{id}", dioxus::core::current_scope_id().0), "Color for {label}" }
-                        input {
-                            id: format!("viewer-color-{}-{id}", dioxus::core::current_scope_id().0),
-                            aria_label: format!("Color for {label}"),
-                            r#type: "color", value: "{color}",
-                            oninput: move |event: FormEvent| {
-                                let mut next_display = color_next.clone();
-                                next_display.set_color(&color_id, &event.value());
-                                set_color(next_display.clone());
+                        InputGroup {
+                            InputGroupInput {
+                                id: format!("viewer-color-{}-{id}", dioxus::core::current_scope_id().0),
+                                aria_label: format!("Color for {label}"),
+                                r#type: InputType::Color, value: "{color}",
+                                oninput: move |event: FormEvent| {
+                                    let mut next_display = color_next.clone();
+                                    next_display.set_color(&color_id, &event.value());
+                                    set_color(next_display.clone());
+                                }
                             }
                         }
                     }

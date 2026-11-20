@@ -3,7 +3,11 @@ use super::*;
 use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
 use boardstudio_web_ui_shared::test_mount::MountedFixture;
 use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
+use dioxus::prelude::*;
+use std::rc::Rc;
+use wasm_bindgen::JsCast;
 use wasm_bindgen_test::wasm_bindgen_test;
+use web_sys::HtmlInputElement;
 
 fn identity() -> MechanicalSettingsIdentity {
     MechanicalSettingsIdentity {

@@ -1912,21 +1912,21 @@ mod keycap_consumer_tests {
         let restore = runtime.clone();
         let use_cad = runtime.clone();
         rsx! {
-            button { id: "case-caps-flipped", onclick: move |_| {
+            Button { id: "case-caps-flipped", onclick: move |_| {
                 let scope = other.scope().unwrap();
                 instance.reconcile(scope.session_epoch, scope.document_id, "flipped".into());
                 other.submit(Event::Navigate { operation_id: OperationId(202), board_id: "board".into(), instance_id: Some("flipped".into()) });
                 other.install_case_pcb_preview_test();
                 cad.set(false);
             }, "Flipped physical instance" }
-            button { id: "case-caps-primary", onclick: move |_| {
+            Button { id: "case-caps-primary", onclick: move |_| {
                 let scope = restore.scope().unwrap();
                 instance.reconcile(scope.session_epoch, scope.document_id, "primary".into());
                 restore.submit(Event::Navigate { operation_id: OperationId(203), board_id: "board".into(), instance_id: Some("primary".into()) });
                 restore.install_case_pcb_preview_test();
                 cad.set(false);
             }, "Original physical instance" }
-            button { id: "case-caps-cad", onclick: move |_| {
+            Button { id: "case-caps-cad", onclick: move |_| {
                 let accepted = use_cad.model().accepted.unwrap();
                 use_cad.set_cad_scene_test(Some(Rc::new(CadScene {
                     scope: use_cad.scope().unwrap(), token: accepted.token,
@@ -1936,7 +1936,7 @@ mod keycap_consumer_tests {
                 })));
                 cad.set(true);
             }, "Case geometry consumer" }
-            button { id: "case-caps-unmount", onclick: move |_| mounted.set(false), "Leave Case" }
+            Button { id: "case-caps-unmount", onclick: move |_| mounted.set(false), "Leave Case" }
             if mounted() {
                 if cad() {
                     CaseViewer { scene: runtime.cad_scene().unwrap(), preview: runtime.native_case_preview(), model_rows: None, mechanical_settings: None }
@@ -2473,7 +2473,7 @@ mod gesture_cancellation_tests {
         let instance = use_context::<InstanceSelection>();
         rsx! {
             style { {include_str!("../../../assets/workbench-base.css")} }
-            button { id: "case-gesture-scope", onclick: move |_| {
+            Button { id: "case-gesture-scope", onclick: move |_| {
                 instance.reconcile(away_source.scope.session_epoch, away_source.scope.document_id.clone(), "alternate".into());
                 navigate.submit(Event::Navigate {
                     operation_id: OperationId(102), board_id: away_source.scope.board_id.clone(),
@@ -2493,8 +2493,8 @@ mod gesture_cancellation_tests {
                 navigate.set_cad_scene_test(Some(next.clone()));
                 scene.set(next);
             }, "Other physical assembly" }
-            button { id: "case-gesture-unmount", onclick: move |_| mounted.set(false), "Leave Case viewer" }
-            button { id: "case-gesture-restore", onclick: move |_| {
+            Button { id: "case-gesture-unmount", onclick: move |_| mounted.set(false), "Leave Case viewer" }
+            Button { id: "case-gesture-restore", onclick: move |_| {
                 instance.reconcile(original.scope.session_epoch, original.scope.document_id.clone(), original.scope.instance_id.clone().unwrap());
                 restore.submit(Event::Navigate {
                     operation_id: OperationId(103), board_id: original.scope.board_id.clone(),
