@@ -486,6 +486,19 @@ engines in production. Lifting that gate means moving the engine-free readiness 
 and `migrate_value` out of the engine and putting `Runtime`'s executor behind an injected
 trait — well beyond a contained slice.
 
+**Follow-up: engine gate lifted.** `case_preparation_ready` and
+`authored_case_geometry_ready` moved to `boardstudio_model::case_readiness`. `migrate` moved
+to the kernel, and `MAX_PROJECT_ARCHIVE_BYTES` moved to `boardstudio_model::model`. The
+facade still exports every name. `Runtime`'s production executor was already the Core worker,
+and the in-process `CoreEngine` executor is test-support only. The remaining synchronous engine
+calls now go through `runtime::core_services::CoreServices`, a pair of function pointers that
+the page builds and passes to `Runtime::new`: Open admission, and a scratch-engine factory.
+Three probes use the factory: `link_preview`, `preview_anchor_poses` and the library's
+demo-project builder. Now `cargo tree -i boardstudio-core-engine -e normal` (host and wasm)
+reaches only `boardstudio-web`. Before, it also reached 15 other web crates
+(`.evidence/w3-4-engine-gate-tree-{before,after}-{host,wasm}.txt`). The 12 `migrate::tests`
+names moved from engine to kernel, and the 2,454-name multiset is otherwise unchanged.
+
 
 ### Test-only dev-dependency cycles removed
 
