@@ -23,15 +23,21 @@ impl Face {
         match self.surface.kind {
             SurfaceKind::Plane => self.mesh_plane(edges, samples, epsilon),
             SurfaceKind::Cylinder(radius) => {
-                self.mesh_cylinder(radius, edges, samples, epsilon, deflection)
+                self.mesh_cylinder(radius, edges, samples, epsilon, deflection, world)
             }
             SurfaceKind::Cone { radius, slope, .. } => {
                 self.mesh_cone(radius, slope, edges, samples, epsilon, deflection)
             }
             SurfaceKind::Sphere(radius) => {
                 let trim = self.spherical_trim(radius, edges, epsilon)?;
-                trim.include_bounds(world, epsilon, bounds)?;
-                trim.mesh(samples, epsilon, deflection)
+                trim.include_bounds(edges, world, epsilon, bounds)?;
+                let triangles = trim.mesh(samples, epsilon, deflection, world)?;
+                for &point in triangles.iter().flatten() {
+                    let point = world.transform_point(point);
+                    check_coordinate(point)?;
+                    super::super::bounds::push(bounds, point)?;
+                }
+                Ok(triangles)
             }
         }
     }
@@ -119,6 +125,7 @@ impl Face {
         samples: &Samples,
         epsilon: f64,
         deflection: f64,
+        world: Matrix4,
     ) -> Result<Triangles, String> {
         if let [a, b] = self.loops.as_slice() {
             return self.mesh_cylinder_band(radius, [a, b], edges, samples, epsilon, deflection);
@@ -131,7 +138,7 @@ impl Face {
             .iter()
             .any(|(id, _)| matches!(edges[id].curve, Curve::Ellipse { .. }))
         {
-            return self.mesh_oblique_cylinder(radius, ring, edges, samples, epsilon);
+            return self.mesh_oblique_cylinder(radius, ring, edges, samples, epsilon, world);
         }
         if ring.edges.len() != 4 {
             return self.mesh_cylinder_chart(radius, ring, edges, samples, epsilon, deflection);

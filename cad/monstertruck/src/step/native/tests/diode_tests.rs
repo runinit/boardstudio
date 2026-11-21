@@ -1,5 +1,5 @@
 use super::*;
-use cgmath::{EuclideanSpace, Zero};
+use cgmath::{EuclideanSpace, Matrix, Zero};
 
 const DIODE: &str = include_str!(
     "../../../../../../ergogen/library/vendor/infused-kim/3d_models/Diode_1N4148W.step"
@@ -74,7 +74,7 @@ fn check_shared_trims(model: &ImportedStep, asset: &Asset) {
     }
 }
 
-fn check_curved_facets(model: &ImportedStep, asset: &Asset) {
+fn check_facets(model: &ImportedStep, asset: &Asset) {
     let exchange = parser::parse(DIODE).unwrap();
     let records = source_records(&exchange);
     let items = units::representation_items(&exchange).unwrap();
@@ -85,12 +85,6 @@ fn check_curved_facets(model: &ImportedStep, asset: &Asset) {
     let mut supports = HashMap::new();
     for (tag, occurrence) in model.face_occurrences().iter().enumerate() {
         let source = &model.source_faces()[occurrence.source_face];
-        // Include the eight cylinders adjoining the reduced rational trims.
-        if source.support_kind != "SPHERICAL_SURFACE"
-            && ![110, 352, 882, 1372, 1507, 1597, 1773, 2007].contains(&source.face_id)
-        {
-            continue;
-        }
         let (id, world, _) = asset.occurrences[occurrence.occurrence];
         assert_eq!(id, source.solid_id);
         let world = world * Matrix4::from_scale(unit_by_solid[&id]);
@@ -101,9 +95,10 @@ fn check_curved_facets(model: &ImportedStep, asset: &Asset) {
         )
         .unwrap();
         let (radius, axis) = match surface.kind {
-            SurfaceKind::Sphere(radius) => (radius, None),
+            SurfaceKind::Plane => (None, None),
+            SurfaceKind::Sphere(radius) => (Some(radius), None),
             SurfaceKind::Cylinder(radius) => (
-                radius,
+                Some(radius),
                 Some(
                     world
                         .transform_vector(surface.frame.z.truncate())
@@ -113,10 +108,25 @@ fn check_curved_facets(model: &ImportedStep, asset: &Asset) {
             _ => unreachable!(),
         };
         let center = world.transform_point(surface.frame.transform_point(Point3::origin()));
-        let radius = world.transform_vector(Vector3::unit_x()).magnitude() * radius;
-        supports.insert(tag, (center, radius, axis));
+        let radius =
+            radius.map(|radius| world.transform_vector(Vector3::unit_x()).magnitude() * radius);
+        let face = named_parameters(&records, source.face_id, "ADVANCED_FACE", 4).unwrap();
+        let sense = if flag(&face[3]).unwrap() { 1.0 } else { -1.0 };
+        supports.insert(
+            tag,
+            (
+                center,
+                radius,
+                axis,
+                surface.frame,
+                world,
+                source.face_id,
+                sense,
+            ),
+        );
     }
-    assert_eq!(supports.len(), 16);
+    assert_eq!(supports.len(), 73);
+    let mut worst_angle = 0.0_f64;
     for (triangle, tag) in model
         .preview_positions_f64()
         .as_chunks::<3>()
@@ -124,9 +134,32 @@ fn check_curved_facets(model: &ImportedStep, asset: &Asset) {
         .iter()
         .zip(model.triangle_faces())
     {
-        let Some(&(center, radius, axis)) = supports.get(tag) else {
+        let Some(&(center, radius, axis, frame, world, face_id, sense)) = supports.get(tag) else {
             continue;
         };
+        let [p, q, r] = triangle.map(Point3::from);
+        let facet = (q - p).cross(r - p).normalize();
+        let inverse = world.invert().unwrap();
+        let normal_map = inverse.transpose();
+        let local_center = frame.transform_point(Point3::origin());
+        for p in [p, q, r] {
+            let z = frame.z.truncate();
+            let mut radial = if radius.is_some() {
+                inverse.transform_point(p) - local_center
+            } else {
+                z
+            };
+            if axis.is_some() {
+                radial -= z * radial.dot(z);
+            }
+            let support = normal_map.transform_vector(radial).normalize() * sense;
+            let angle = facet.cross(support).magnitude().atan2(facet.dot(support));
+            assert!(angle <= ANGULAR_TOLERANCE, "face #{face_id}, angle {angle}");
+            worst_angle = worst_angle.max(angle);
+            let [lo, hi] = model.bounds();
+            assert!((0..3).all(|i| lo[i] <= p[i] && p[i] <= hi[i]));
+        }
+        let Some(radius) = radius else { continue };
         let [a, b, c] = triangle.map(|p| {
             let delta = Point3::from(p) - center;
             axis.map_or(delta, |axis| delta - axis * axis.dot(delta))
@@ -164,6 +197,10 @@ fn check_curved_facets(model: &ImportedStep, asset: &Asset) {
             assert!(x.cross(y).magnitude().atan2(x.dot(y)) <= ANGULAR_TOLERANCE + 1e-12);
         }
     }
+    eprintln!(
+        "diode deflection {} mm: worst facet normal error {worst_angle} rad",
+        model.accuracy().preview_deflection_mm
+    );
 }
 
 #[test]
@@ -198,7 +235,7 @@ fn bundled_diode_has_complete_native_preview_and_unchanged_qualification() {
                 .source_qualification(),
             crate::qualification::SourceQualification::Unknown { .. }
         ));
-        check_curved_facets(&model, &asset);
+        check_facets(&model, &asset);
         check_shared_trims(&model, &asset);
         models.push(model);
     }
@@ -286,7 +323,7 @@ fn spherical_bounds_include_an_interior_world_coordinate_extremum() {
     assert!(maximum - bounds[1][0] > 1e-4);
     face.spherical_trim(radius, &solid.edges, 1e-8)
         .unwrap()
-        .include_bounds(world, 1e-8, &mut bounds)
+        .include_bounds(&solid.edges, world, 1e-8, &mut bounds)
         .unwrap();
     assert!((bounds[1][0] - maximum).abs() < 1e-12);
 }

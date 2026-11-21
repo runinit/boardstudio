@@ -4,10 +4,12 @@ mod assembly;
 mod carrier;
 mod cone;
 mod cylinder_band;
+mod facet;
 mod geometry;
 mod oblique;
 mod rational_trim;
 mod sphere;
+mod sphere_bounds;
 mod trim;
 
 use super::*;

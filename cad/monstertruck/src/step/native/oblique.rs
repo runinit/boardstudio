@@ -71,6 +71,7 @@ impl Face {
         edges: &HashMap<u64, Edge>,
         samples: &Samples,
         epsilon: f64,
+        world: Matrix4,
     ) -> Result<Triangles, String> {
         let shape_error =
             "native oblique cylinder requires one circle, one ellipse and two generators";
@@ -170,6 +171,11 @@ impl Face {
         let (m, n) = (circle.len() - 1, ellipse.len() - 1);
         let c = |i| circle[if circle_forward { i } else { m - i }];
         let e = |j| ellipse[if ellipse_forward { n - j } else { j }];
+        let axis = self.surface.frame.z.truncate();
+        let origin = self
+            .surface
+            .frame
+            .transform_point(Point3::new(0.0, 0.0, 0.0));
         let mut triangles = Vec::with_capacity(m + n);
         let (mut i, mut j) = (0, 0);
         // Merge the two angular subdivisions. Each triangle's angular width
@@ -182,7 +188,13 @@ impl Face {
                 j += 1;
                 [c(i), e(j), e(j - 1)]
             };
-            self.check_cylinder_triangle(triangle)?;
+            let directions = triangle.map(|point| {
+                let p = point - origin;
+                p - axis * p.dot(axis)
+            });
+            if !super::facet::radial_facet_fits(triangle, directions, self.same_sense, world) {
+                return Err("native oblique cylinder facet exceeds angular tolerance".into());
+            }
             triangles.push(triangle);
         }
         Ok(triangles)

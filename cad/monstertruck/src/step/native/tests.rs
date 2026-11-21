@@ -1,5 +1,6 @@
 use super::*;
 
+mod angular_tests;
 mod cone_tests;
 mod cylinder_band_tests;
 mod diode_tests;

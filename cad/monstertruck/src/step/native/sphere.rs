@@ -1,6 +1,7 @@
 //! A convex spherical triangle with three short great-circle arcs.
 use super::{
     geometry::Curve,
+    sphere_bounds::{ArcExtent, enclosing_planes},
     trim::{Samples, Triangles},
     *,
 };
@@ -10,7 +11,8 @@ pub(super) struct SphericalTrim {
     center: Point3,
     radius: f64,
     interior: Point3,
-    inward: [Vector3<f64>; 3],
+    bounds_planes: [Vector3<f64>; 3],
+    projection_margin: f64,
     boundary: [(u64, bool); 3],
     same_sense: bool,
 }
@@ -37,6 +39,9 @@ impl Face {
         let sense = if self.same_sense { 1.0 } else { -1.0 };
         let mut inward = [Vector3::new(0.0, 0.0, 0.0); 3];
         let mut corners = inward;
+        let mut arcs = Vec::with_capacity(3);
+        let mut radial_error = 0.0_f64;
+        let mut join_error = 0.0_f64;
         for (i, (id, forward)) in boundary.into_iter().enumerate() {
             let edge = &edges[&id];
             let Curve::Circle {
@@ -54,7 +59,7 @@ impl Face {
             if !residual.is_finite() || residual > epsilon {
                 return Err("source spherical boundary is off its great circle".into());
             }
-            let (_, sweep) = edge.interval(frame, r, curve_forward, epsilon)?;
+            let (start, sweep) = edge.interval(frame, r, curve_forward, epsilon)?;
             if !sweep.is_finite() || sweep.abs() >= PI {
                 return Err("native spherical boundary is not a short arc".into());
             }
@@ -65,6 +70,21 @@ impl Face {
             };
             inward[i] = sense * direction * frame.z.truncate();
             corners[i] = edge.points[usize::from(!forward)] - center;
+            let (x, y) = (frame.x.truncate() * r, frame.y.truncate() * r);
+            let end = start + sweep;
+            let offset = arc_center - center;
+            radial_error = radial_error.max(residual);
+            for (point, t) in edge.points.into_iter().zip([start, end]) {
+                let arc_point = offset + x * t.cos() + y * t.sin();
+                join_error = join_error.max(((point - center) - arc_point).magnitude());
+            }
+            arcs.push(ArcExtent {
+                offset,
+                x,
+                y,
+                start: start.min(end),
+                end: start.max(end),
+            });
         }
         let middle = (corners[0] + corners[1] + corners[2]).normalize();
         for i in 0..3 {
@@ -84,7 +104,8 @@ impl Face {
             center,
             radius,
             interior: center + middle * radius,
-            inward,
+            bounds_planes: enclosing_planes(middle, inward, &arcs, corners, epsilon)?,
+            projection_margin: radial_error + join_error,
             boundary,
             same_sense: self.same_sense,
         })
@@ -94,19 +115,37 @@ impl Face {
 impl SphericalTrim {
     pub(super) fn include_bounds(
         &self,
+        edges: &HashMap<u64, Edge>,
         world: Matrix4,
         epsilon: f64,
         bounds: &mut [[f64; 3]; 2],
     ) -> Result<(), String> {
-        // Boundary extrema are already included via the authored arcs. Each
-        // world coordinate has just two stationary points on the full sphere.
+        let mut rim = [[f64::INFINITY; 3], [f64::NEG_INFINITY; 3]];
+        for (id, _) in self.boundary {
+            edges[&id].include_bounds(world, epsilon, &mut rim)?;
+        }
+        // Radial projection moves the original curves onto the spherical
+        // support. Inflate their finite bounds by the projection error,
+        // including the possible displacement at tolerant joins.
         for i in 0..3 {
-            let axis = Vector3::new(world.x[i], world.y[i], world.z[i]).normalize();
+            let row = Vector3::new(world.x[i], world.y[i], world.z[i]);
+            let length = row.x.hypot(row.y).hypot(row.z);
+            let margin = self.projection_margin * length;
+            let lower = (rim[0][i] - margin).next_down();
+            let upper = (rim[1][i] + margin).next_up();
+            if length <= 0.0 || !lower.is_finite() || !upper.is_finite() {
+                return Err("nonfinite native spherical bounds".into());
+            }
+            bounds[0][i] = bounds[0][i].min(lower);
+            bounds[1][i] = bounds[1][i].max(upper);
+            // A coordinate has only two stationary points away from the
+            // boundary. Exclude a pole only if an enclosing plane excludes it.
+            let axis = row / length;
             for pole in [axis, -axis] {
                 if self
-                    .inward
+                    .bounds_planes
                     .iter()
-                    .all(|side| side.dot(pole) * self.radius >= -2.0 * epsilon)
+                    .all(|side| side.dot(pole) >= -8.0 * f64::EPSILON * side.magnitude())
                 {
                     let point = world.transform_point(self.center + pole * self.radius);
                     check_coordinate(point)?;
@@ -122,6 +161,7 @@ impl SphericalTrim {
         samples: &Samples,
         epsilon: f64,
         deflection: f64,
+        world: Matrix4,
     ) -> Result<Triangles, String> {
         let error = "native spherical facet exceeds its deflection";
         let depth = deflection.min(self.radius * 0.5);
@@ -171,12 +211,9 @@ impl SphericalTrim {
                 .max_by(|&a, &b| sides[a].total_cmp(&sides[b]))
                 .unwrap();
             if sides[longest] <= chord2 {
-                let orientation = (b - a).cross(c - a).dot(a - self.center);
-                if !orientation.is_finite()
-                    || orientation == 0.0
-                    || (orientation > 0.0) != self.same_sense
-                {
-                    return Err("native spherical facet folds under radial projection".into());
+                let radial = triangle.map(|point| point - self.center);
+                if !super::facet::radial_facet_fits(triangle, radial, self.same_sense, world) {
+                    return Err("native spherical facet exceeds angular tolerance".into());
                 }
                 triangles.push(triangle);
                 continue;
