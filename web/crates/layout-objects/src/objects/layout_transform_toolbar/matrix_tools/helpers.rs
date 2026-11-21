@@ -1,4 +1,4 @@
-//! Angular annotation and the Ctrl-modifier listener for the matrix rail overlay.
+//! Angular annotation for the matrix rail overlay.
 use super::*;
 
 // Presentation-only angular annotation: the accepted Core scene supplies origin and angle.
@@ -47,65 +47,4 @@ pub(super) fn angle_handle_point(
         .fold(f64::NEG_INFINITY, f64::max)
         + pitch_y * 0.9;
     Vec2 { x, y }
-}
-
-// The modifier changes presentation immediately; pointer-down latches the edit intent.
-pub(super) struct CtrlModifierListener {
-    pub(super) document: web_sys::Document,
-    pub(super) window: web_sys::Window,
-    pub(super) down: Closure<dyn FnMut(web_sys::KeyboardEvent)>,
-    pub(super) up: Closure<dyn FnMut(web_sys::KeyboardEvent)>,
-    pub(super) blur: Closure<dyn FnMut(web_sys::Event)>,
-}
-impl CtrlModifierListener {
-    pub(super) fn install(mut pressed: Signal<bool>) -> Option<Self> {
-        let window = web_sys::window()?;
-        let document = window.document()?;
-        let down = Closure::wrap(Box::new(move |event: web_sys::KeyboardEvent| {
-            if event.key() == "Control" {
-                pressed.set(true);
-            }
-        }) as Box<dyn FnMut(_)>);
-        let up = Closure::wrap(Box::new(move |event: web_sys::KeyboardEvent| {
-            if event.key() == "Control" {
-                pressed.set(false);
-            }
-        }) as Box<dyn FnMut(_)>);
-        let blur = Closure::wrap(
-            Box::new(move |_: web_sys::Event| pressed.set(false)) as Box<dyn FnMut(_)>
-        );
-        let listener = Self {
-            document,
-            window,
-            down,
-            up,
-            blur,
-        };
-        listener
-            .document
-            .add_event_listener_with_callback("keydown", listener.down.as_ref().unchecked_ref())
-            .ok()?;
-        listener
-            .document
-            .add_event_listener_with_callback("keyup", listener.up.as_ref().unchecked_ref())
-            .ok()?;
-        listener
-            .window
-            .add_event_listener_with_callback("blur", listener.blur.as_ref().unchecked_ref())
-            .ok()?;
-        Some(listener)
-    }
-}
-impl Drop for CtrlModifierListener {
-    fn drop(&mut self) {
-        let _ = self
-            .document
-            .remove_event_listener_with_callback("keydown", self.down.as_ref().unchecked_ref());
-        let _ = self
-            .document
-            .remove_event_listener_with_callback("keyup", self.up.as_ref().unchecked_ref());
-        let _ = self
-            .window
-            .remove_event_listener_with_callback("blur", self.blur.as_ref().unchecked_ref());
-    }
 }

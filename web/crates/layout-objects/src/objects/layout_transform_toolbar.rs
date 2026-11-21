@@ -2,7 +2,8 @@
 //!
 //! `tool`, `rail` and `placement` hold the plain tool, rail mount state and placement logic (unit
 //! tested natively); `chrome` and `feedback` hold the rail token, popup and toast chrome and
-//! the hooks every overlay shares; `matrix_tools`, `part_tools` and `anchor_pick` are the
+//! the hooks every overlay shares; `keys` holds the canvas-owned key listener every overlay
+//! subscribes to; `matrix_tools`, `part_tools` and `anchor_pick` are the
 //! overlays, with their gesture logic in `matrix_gesture` and `part_drag`; `menu` holds the
 //! contextual toolbar and the Transform menu.
 use super::layout_toolbar::LayoutSelectionKind;
@@ -57,6 +58,7 @@ mod anchor_pick;
 mod chrome;
 mod commit;
 mod feedback;
+mod keys;
 mod matrix_gesture;
 mod matrix_tools;
 mod menu;
@@ -73,6 +75,7 @@ use commit::{
     transform_commit_is_live, transform_version, use_settled_transform_commits,
 };
 use feedback::*;
+use keys::{rail_escape_claims, use_canvas_control, use_canvas_escape};
 use matrix_gesture::*;
 pub use matrix_tools::LayoutTransformToolOverlay;
 pub use menu::{LayoutContextActionToolbar, LayoutTransformToolbar};
@@ -112,30 +115,34 @@ impl PartialEq for LayoutTransformRuntime {
     }
 }
 
-/// The shared svg handle plus the component-owned rail mount sets for one canvas.
+/// The shared svg handle plus the component-owned rail mount sets and key listener for one
+/// canvas.
 ///
 /// W3-C: the matrix rail and the part rail each own one [`RailState`] inside
 /// the svg handle the canvas component owns. Sibling overlays of one canvas
 /// share the same `Rc`, so every overlay of one selection reads the same
-/// mount set; a second canvas (or a remount) owns a second handle with its
-/// own sets. Dropping the handle retires both rails; dropping one overlay
-/// unmounts only its tool.
+/// mount set and routes its Escape and Control keys through the same
+/// listener; a second canvas (or a remount) owns a second handle with its
+/// own sets and listener. Dropping the handle retires both rails and removes
+/// the listener; dropping one overlay unmounts only its tool and routes.
 pub struct LayoutSvgInner {
     pub surface: Rc<RefCell<Option<SvgElement>>>,
     pub matrix_rail: RefCell<RailState<LayoutTransformTool>>,
     pub part_rail: RefCell<RailState<LayoutTransformTool>>,
+    keys: keys::CanvasKeys,
 }
 
 #[derive(Clone)]
 pub struct LayoutTransformSvg(pub Rc<LayoutSvgInner>);
 
 impl LayoutTransformSvg {
-    /// Wrap the canvas-owned surface handle with fresh, empty rail sets.
+    /// Wrap the canvas-owned surface handle with fresh, empty rail sets and no key routes.
     pub fn new(surface: Rc<RefCell<Option<SvgElement>>>) -> Self {
         Self(Rc::new(LayoutSvgInner {
             surface,
             matrix_rail: RefCell::new(RailState::new()),
             part_rail: RefCell::new(RailState::new()),
+            keys: keys::CanvasKeys::default(),
         }))
     }
 

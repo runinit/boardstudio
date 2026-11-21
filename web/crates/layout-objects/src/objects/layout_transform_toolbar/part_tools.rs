@@ -81,18 +81,16 @@ pub fn LayoutPartToolOverlay(
             on_finish.call(());
         })
     };
-    use_document_escape({
+    use_canvas_escape(&svg_handle, {
         let drag = drag.clone();
         let arbiter = arbiter.clone();
         let escape_drag = escape_drag.clone();
         move |event| {
-            if escape_targets_text_entry(event)
-                || (drag.borrow().is_none() && arbiter.current().is_some())
-            {
-                return;
+            let claims = rail_escape_claims(event, drag.borrow().is_some(), &arbiter);
+            if claims {
+                escape_drag();
             }
-            event.prevent_default();
-            escape_drag();
+            claims
         }
     });
     let part_context = TreeContext::Component {

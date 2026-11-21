@@ -1,15 +1,6 @@
-//! Shared screen-size rail chrome: token glyphs, the rail backdrop, the document Escape
-//! listener and the rail mount hook every transform overlay uses.
+//! Shared screen-size rail chrome: token glyphs, the rail backdrop and the rail mount hook
+//! every transform overlay uses.
 use super::*;
-
-type TransformEscapeListener = Rc<
-    RefCell<
-        Option<(
-            web_sys::Document,
-            Closure<dyn FnMut(web_sys::KeyboardEvent)>,
-        )>,
-    >,
->;
 
 /// Registers `tool` on `rail` for this canvas while the overlay stays mounted.
 ///
@@ -65,54 +56,6 @@ pub(super) fn rail_peers(rail: Rail, svg: &LayoutTransformSvg) -> Vec<LayoutTran
         Rail::Matrix => rail.peers_in(&svg.0.matrix_rail.borrow()),
         Rail::Part => rail.peers_in(&svg.0.part_rail.borrow()),
     }
-}
-
-/// Hands every document Escape no earlier listener prevented to `handler` for the
-/// overlay's lifetime. The first render's handler is the one installed, so it holds
-/// clones of the overlay's handles rather than per-render values.
-pub(super) fn use_document_escape(handler: impl FnMut(&web_sys::KeyboardEvent) + 'static) {
-    let listener = use_hook(TransformEscapeListener::default);
-    let mut handler = Some(handler);
-    use_effect({
-        let listener = listener.clone();
-        move || {
-            let Some(mut handler) = handler.take() else {
-                return;
-            };
-            let Some(document) = web_sys::window().and_then(|window| window.document()) else {
-                return;
-            };
-            let callback = Closure::wrap(Box::new(move |event: web_sys::KeyboardEvent| {
-                if event.key() != "Escape" || event.default_prevented() {
-                    return;
-                }
-                handler(&event);
-            }) as Box<dyn FnMut(_)>);
-            let _ = document
-                .add_event_listener_with_callback("keydown", callback.as_ref().unchecked_ref());
-            *listener.borrow_mut() = Some((document, callback));
-        }
-    });
-    use_drop(move || {
-        if let Some((document, callback)) = listener.borrow_mut().take() {
-            let _ = document
-                .remove_event_listener_with_callback("keydown", callback.as_ref().unchecked_ref());
-        }
-    });
-}
-
-/// Whether a document Escape belongs to a text field rather than to the rail.
-pub(super) fn escape_targets_text_entry(event: &web_sys::KeyboardEvent) -> bool {
-    event
-        .target()
-        .and_then(|target| target.dyn_into::<web_sys::Element>().ok())
-        .is_some_and(|target| {
-            target
-                .closest("input, textarea, select, [contenteditable='true']")
-                .ok()
-                .flatten()
-                .is_some()
-        })
 }
 
 /// The drag state both rail overlays keep: who started it, on which selection, with which tool.
