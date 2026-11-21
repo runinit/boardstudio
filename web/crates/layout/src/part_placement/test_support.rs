@@ -1,9 +1,8 @@
 //! Shared fixtures for the placement plan (native) and hook (browser) tests.
-use boardstudio_application::{AcceptedSnapshot, SessionEpoch, SnapshotToken};
+
 use boardstudio_model::model::{
     Board, OutlineFeature, OutlineSettings, Part, PartDefinition, Pose2, ProjectDoc, Side, Vec2,
 };
-use std::sync::Arc;
 
 pub(crate) fn controller_definition(id: &str) -> PartDefinition {
     serde_json::from_value(serde_json::json!({
@@ -138,7 +137,13 @@ pub(crate) fn matrix_fixture() -> boardstudio_model::model::Matrix {
     .unwrap()
 }
 
-pub(crate) fn accepted(document: ProjectDoc, token: u64) -> AcceptedSnapshot {
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn accepted(
+    document: ProjectDoc,
+    token: u64,
+) -> boardstudio_application::AcceptedSnapshot {
+    use boardstudio_application::{AcceptedSnapshot, SessionEpoch, SnapshotToken};
+    use std::sync::Arc;
     let revision = document.revision;
     AcceptedSnapshot {
         token: SnapshotToken(token),

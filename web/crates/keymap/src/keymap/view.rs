@@ -226,7 +226,7 @@ fn binding_title(binding: &KeyBinding, layers: &[KeymapLayer], macros: &[KeymapM
 mod tests {
     use super::*;
     use boardstudio_application::SessionEpoch;
-    use boardstudio_model::model::{Board, KeymapChange, Matrix, MatrixCell, PartDefinition, Side};
+    use boardstudio_model::model::{Board, Side};
     use std::sync::Arc;
 
     fn scope() -> Scope {

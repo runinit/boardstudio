@@ -27,9 +27,9 @@ pub use plan::{
     snap_placement_at, update_pending_part,
 };
 
-#[cfg(test)]
+#[cfg(all(test, not(target_arch = "wasm32")))]
 pub(crate) use owner::PlacementCapture;
-#[cfg(test)]
+#[cfg(all(test, not(target_arch = "wasm32")))]
 pub(crate) use plan::PlacementIntent;
 
 #[cfg(all(test, target_arch = "wasm32"))]

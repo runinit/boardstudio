@@ -1135,7 +1135,7 @@ use retry_drafts::{
     draft_owner_mismatch, keep_retry_draft, remove_retry_draft_through, retry_identity_is_current,
     retry_identity_matches, submit_keycap_edit,
 };
-#[cfg(test)]
+#[cfg(all(test, not(target_arch = "wasm32")))]
 use retry_drafts::{remove_retry_draft_through_map, retry_identity, store_retry_draft};
 
 #[derive(Clone, Debug, PartialEq)]
