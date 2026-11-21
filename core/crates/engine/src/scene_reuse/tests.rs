@@ -557,10 +557,19 @@ fn stagger_shares_only_the_same_ordered_outline_composition() {
         assert!(engine.undo.is_empty() && engine.redo.is_empty());
 
         let cold_projections = cold.independent_board_projections.get();
+        let full_projections = engine.full_scene_projections.get();
         assert!(matches!(
             compare(&mut engine, &mut cold, edit(0, stagger(column, 4.0))),
-            CoreReply::Scene { .. }
+            CoreReply::Scene { scene: committed, .. } if {
+                let mut expected = scene;
+                expected.revision = 1;
+                committed == expected
+            }
         ));
+        assert_eq!(
+            engine.full_scene_projections.get() - full_projections,
+            expected_extra_projections
+        );
         assert_eq!(
             engine.independent_board_projections.get() - board_projections,
             2 * expected_extra_projections
@@ -572,6 +581,35 @@ fn stagger_shares_only_the_same_ordered_outline_composition() {
             2
         );
     }
+}
+
+#[test]
+fn matching_part_poses_do_not_reuse_a_different_stagger_draft() {
+    let mut document = stagger_profile_document(true);
+    for part in &mut document.parts {
+        if document.matrices[0].part_ids.contains(&part.id) {
+            part.properties
+                .get_or_insert_with(Default::default)
+                .insert(matrix::OVERRIDE.into(), serde_json::json!(1));
+        }
+    }
+    let (mut engine, mut cold) = open_preview_fixture(document);
+    let initial_poses = engine.document.parts.clone();
+    let mut preview = edit(0, stagger(0, 2.0));
+    let CoreRequest::Edit { command, .. } = &mut preview else {
+        unreachable!()
+    };
+    command.phase = EditPhase::Preview;
+    compare(&mut engine, &mut cold, preview);
+    assert!(engine.stagger_preview.as_ref().unwrap().settled.is_some());
+
+    let CoreReply::Scene { document, .. } =
+        compare(&mut engine, &mut cold, edit(0, stagger(0, 4.0)))
+    else {
+        panic!("expected stagger commit");
+    };
+    assert_eq!(document.parts, initial_poses);
+    assert_eq!(document.matrices[0].column_layout[0].stagger, 4.0);
 }
 
 #[test]

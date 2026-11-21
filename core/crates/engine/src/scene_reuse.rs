@@ -28,6 +28,47 @@ pub(super) struct StaggerPreview {
     outline: geometry::OutlineProjection,
     board: ValidatedBoardScene,
     pub envelopes: geometry::EnvelopeCache,
+    pub settled: Option<SettledStagger>,
+}
+
+/// Exact authored inputs within the current accepted document. Pose equality
+/// alone allows sharing the perimeter, but cannot identify the matrix scene.
+pub(super) struct SettledStagger {
+    matrix_id: String,
+    column: u32,
+    value: u64,
+    pub document: ProjectDoc,
+    pub scene: SceneDelta,
+}
+
+impl SettledStagger {
+    pub fn new(
+        operation: &EditOperation,
+        document: ProjectDoc,
+        scene: &SceneDelta,
+    ) -> Option<Self> {
+        let EditOperation::SetMatrixPlacement {
+            matrix_id,
+            change: MatrixPlacementChange::ColumnStagger { column, value },
+        } = operation
+        else {
+            return None;
+        };
+        Some(Self {
+            matrix_id: matrix_id.clone(),
+            column: *column,
+            value: value.to_bits(),
+            document,
+            scene: scene.clone(),
+        })
+    }
+
+    pub fn matches(&self, operation: &EditOperation) -> bool {
+        matches!(operation, EditOperation::SetMatrixPlacement {
+            matrix_id,
+            change: MatrixPlacementChange::ColumnStagger { column, value },
+        } if matrix_id == &self.matrix_id && *column == self.column && value.to_bits() == self.value)
+    }
 }
 
 impl StaggerPreview {
@@ -42,6 +83,7 @@ impl StaggerPreview {
             outline,
             board,
             envelopes,
+            settled: None,
         }
     }
 

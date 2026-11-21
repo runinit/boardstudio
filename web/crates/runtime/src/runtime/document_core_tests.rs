@@ -259,6 +259,90 @@ async fn page_core_save_conflict_keeps_the_accepted_snapshot_until_recovery() {
 }
 
 #[wasm_bindgen_test]
+async fn page_core_stagger_prepares_before_persistence_runs() {
+    use futures_channel::oneshot;
+
+    struct HeldSave {
+        underlying: Rc<dyn DocumentPersistence>,
+        started: Cell<Option<oneshot::Sender<()>>>,
+        release: Cell<Option<oneshot::Receiver<()>>>,
+    }
+
+    impl DocumentPersistence for HeldSave {
+        fn save_document<'a>(
+            &'a self,
+            document: &'a ProjectDoc,
+            assets: &'a BTreeMap<String, Vec<u8>>,
+            expected: Option<&'a StorageToken>,
+        ) -> Pin<Box<dyn Future<Output = Result<StorageToken, SaveError>> + 'a>> {
+            let started = self.started.take().expect("one edit is being saved");
+            let release = self.release.take().unwrap();
+            started.send(()).unwrap();
+            Box::pin(async move {
+                release.await.unwrap();
+                self.underlying
+                    .save_document(document, assets, expected)
+                    .await
+            })
+        }
+    }
+
+    let runtime = runtime();
+    let mut document = profile::fixture(true);
+    document.id.push_str("-held-save");
+    let id = document.id.clone();
+    let opened = submit(&runtime, |operation_id| Event::Open {
+        operation_id,
+        document,
+    });
+    assert_eq!(wait_for_outcome(&opened).await, TerminalOutcome::Completed);
+    let initial = runtime.model().accepted.unwrap();
+    let revision = initial.document.revision + 1;
+
+    let (started, mut entered) = oneshot::channel();
+    let (release, held) = oneshot::channel();
+    let underlying = runtime.persistence.borrow().clone();
+    let persistence = Rc::new(HeldSave {
+        underlying,
+        started: Cell::new(Some(started)),
+        release: Cell::new(Some(held)),
+    });
+    *runtime.persistence.borrow_mut() = persistence.clone();
+
+    let ticket = stagger(&runtime, "matrix", 3.125);
+    assert_eq!(entered.try_recv().unwrap(), None);
+    assert_eq!(runtime.model().durability, Durability::Saving { revision });
+    assert_eq!(runtime.model().accepted.as_ref(), Some(&initial));
+    assert_eq!(ticket.settlement(true), Settlement::Pending);
+
+    entered.await.unwrap();
+    assert_eq!(runtime.model().accepted.as_ref(), Some(&initial));
+    assert_eq!(ticket.settlement(true), Settlement::Pending);
+    let stored = runtime
+        .store
+        .load_document(id.clone())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(&stored, initial.document.as_ref());
+
+    release.send(()).unwrap();
+    let outcome = runtime.observe_operation(ticket.operation());
+    assert_eq!(wait_for_outcome(&outcome).await, TerminalOutcome::Completed);
+    let accepted = runtime.model().accepted.unwrap();
+    assert_eq!(
+        accepted.document.matrices[0].column_layout[0].stagger,
+        3.125
+    );
+    assert_eq!(accepted.scene.revision, revision);
+    assert_ne!(accepted.token, initial.token);
+    assert_eq!(ticket.settlement(true), Settlement::Landed { revision });
+    let stored = runtime.store.load_document(id).await.unwrap().unwrap();
+    assert_eq!(&stored, accepted.document.as_ref());
+    *runtime.persistence.borrow_mut() = persistence.underlying.clone();
+}
+
+#[wasm_bindgen_test]
 async fn page_core_measures_rename_and_stagger_submission() {
     let runtime = runtime();
     let document: ProjectDoc = serde_json::from_str(include_str!(

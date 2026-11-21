@@ -47,7 +47,7 @@ impl Drop for Timer {
     }
 }
 
-fn fixture(large: bool) -> ProjectDoc {
+pub(super) fn fixture(large: bool) -> ProjectDoc {
     let mut document: ProjectDoc = serde_json::from_str(include_str!(
         "../../../../../../core/tests/fixtures/synthetic-outline.json"
     ))
@@ -227,6 +227,60 @@ async fn page_core_profiles_rename_and_stagger_submission() {
             }
         }
         report(size, "column stagger", &samples);
+    }
+}
+
+#[wasm_bindgen_test]
+async fn page_core_profiles_distinct_stagger_commits() {
+    for (size, large) in [("2 keys", false), ("60 keys", true)] {
+        let document = fixture(large);
+        for matching_preview in [false, true] {
+            let label = if matching_preview {
+                "distinct stagger after matching Preview"
+            } else {
+                "distinct direct stagger"
+            };
+            let runtime = profile_runtime(document.clone(), label).await;
+            let mut samples = Vec::with_capacity(100);
+            for i in 0..124 {
+                let value = 1.0 + f64::from(i) * 0.025;
+                let expected_preview = if matching_preview {
+                    let preview = submit(&runtime, |operation_id| Event::PreviewEdit {
+                        operation_id,
+                        transaction_id: "stagger-preview".into(),
+                        target_ids: vec!["matrix".into()],
+                        operation: EditOperation::SetMatrixPlacement {
+                            matrix_id: "matrix".into(),
+                            change: MatrixPlacementChange::ColumnStagger { column: 0, value },
+                        },
+                    });
+                    assert_eq!(wait_for_outcome(&preview).await, TerminalOutcome::Completed);
+                    runtime.model().display_preview
+                } else {
+                    None
+                };
+                let (accepted, sample) =
+                    profile_ticket(&runtime, || stagger(&runtime, "matrix", value)).await;
+                assert_eq!(
+                    accepted.document.matrices[0].column_layout[0]
+                        .stagger
+                        .to_bits(),
+                    value.to_bits()
+                );
+                if matching_preview {
+                    let mut expected = (*expected_preview.expect("published Preview")).clone();
+                    expected.revision = accepted.scene.revision;
+                    expected
+                        .transaction_id
+                        .clone_from(&accepted.scene.transaction_id);
+                    assert_eq!(accepted.scene.as_ref(), &expected);
+                }
+                if i >= 24 {
+                    samples.push(sample);
+                }
+            }
+            report(size, label, &samples);
+        }
     }
 }
 

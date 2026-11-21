@@ -4,8 +4,8 @@ use super::apply::{
 };
 use super::preview::{changed_ids, preview_electrical_loss_findings};
 use super::scene_reuse::{
-    StaggerPreview, ValidatedBoardScene, is_column_stagger, replacement_keeps_scene,
-    settled_outline_changes,
+    SettledStagger, StaggerPreview, ValidatedBoardScene, is_column_stagger,
+    replacement_keeps_scene, settled_outline_changes,
 };
 use super::*;
 
@@ -337,6 +337,41 @@ impl CoreEngine {
         if let EditOperation::RenameProject { name } = command.operation {
             return self.rename_project(id, command.transaction_id, command.phase, name);
         }
+        if command.phase == EditPhase::Commit
+            && let Some(settled) = self
+                .stagger_preview
+                .as_ref()
+                .and_then(|preview| preview.settled.as_ref())
+            && settled.matches(&command.operation)
+            && settled.document != self.document
+        {
+            // The settled Preview already applied and validated this pose-only edit.
+            // Commit additionally checks the keymap, and publishes through normal history.
+            if let Some(map) = &settled.document.keymap
+                && let Err(message) = keymap::validate(map)
+            {
+                return self.error(id, &message);
+            }
+            let mut preview = self.stagger_preview.take().unwrap();
+            let SettledStagger {
+                document,
+                mut scene,
+                ..
+            } = preview.settled.take().unwrap();
+            return self.publish_prepared_edit(
+                id,
+                PreparedEdit {
+                    transaction: command.transaction_id,
+                    document,
+                    changed: std::mem::take(&mut scene.changed_ids),
+                    outline: Some(preview.projection().0),
+                    board_geometry: None,
+                    preview_scene: Some(scene),
+                    reuse_scene: false,
+                    cacheable: true,
+                },
+            );
+        }
         // A wholesale replacement is validated before layout can normalize
         // the incoming identities; publication validates its generated result again.
         if let EditOperation::ReplaceDocument { document } = &command.operation
@@ -455,16 +490,18 @@ impl CoreEngine {
                 ) {
                     return self.error(id, &message);
                 }
+                // The settled stagger path preserves part identities.
+                outline_controls::detach_removed(&self.document.parts, &mut raw_next);
+                raw_changed.extend(outline_versions::prune_removed_components(
+                    &self.document.parts,
+                    &mut raw_next,
+                ));
             }
-            outline_controls::detach_removed(&self.document.parts, &mut raw_next);
-            raw_changed.extend(outline_versions::prune_removed_components(
-                &self.document.parts,
-                &mut raw_next,
-            ));
             raw_changed.sort();
             raw_changed.dedup();
             // ReplaceDocument is judged by its own arm in `apply`, which allows warnings.
-            if !matches!(command.operation, EditOperation::ReplaceDocument { .. })
+            if !layout_settled
+                && !matches!(command.operation, EditOperation::ReplaceDocument { .. })
                 && let Err(message) = generators::introduced_error(
                     &generators::parameter_problems(&self.document),
                     &raw_next,
@@ -486,8 +523,10 @@ impl CoreEngine {
         // only moves the halves still publishes. Skipped when the edit changed
         // nothing, so no-op commits stay no-ops. Same Undo entry: the spacing
         // lands in `next` before the undo snapshot is pushed. Creation owns
-        // its own gap (ticket 11); the pass never re-spaces a new pair.
+        // its own gap (ticket 11). The settled stagger route excludes linked
+        // layouts, so there is no half-frame or spacing adjustment to run.
         if command.phase == EditPhase::Commit
+            && !layout_settled
             && next != self.document
             && !matches!(
                 command.operation,
@@ -586,6 +625,7 @@ impl CoreEngine {
                 changed,
                 outline,
                 board_geometry,
+                preview_scene: None,
                 reuse_scene,
                 cacheable: !matches!(command.operation, EditOperation::MoveParts { .. }),
             },
@@ -679,6 +719,7 @@ impl CoreEngine {
             changed,
             outline,
             board_geometry,
+            preview_scene,
             reuse_scene,
             cacheable,
         } = prepared;
@@ -711,6 +752,15 @@ impl CoreEngine {
             self.outline_cache = cache;
             self.contours = contours;
             self.findings = findings;
+        }
+        if let Some(scene) = preview_scene {
+            self.reusable_scene = Some(scene);
+            return self.scene_with_unchanged_geometry(
+                id,
+                &transaction,
+                changed,
+                SceneKind::Committed,
+            );
         }
         self.project_committed_scene(
             id,
@@ -814,12 +864,12 @@ impl CoreEngine {
                         &mut changed,
                         self.reusable_scene.is_some(),
                     )?;
+                    outline_controls::detach_removed(&self.document.parts, &mut draft);
+                    changed.extend(outline_versions::prune_removed_components(
+                        &self.document.parts,
+                        &mut draft,
+                    ));
                 }
-                outline_controls::detach_removed(&self.document.parts, &mut draft);
-                changed.extend(outline_versions::prune_removed_components(
-                    &self.document.parts,
-                    &mut draft,
-                ));
                 changed.sort();
                 changed.dedup();
                 generators::introduced_error(&accepted, &draft)?;
@@ -836,7 +886,7 @@ impl CoreEngine {
         };
         let ((cache, contours, findings), board_geometry) =
             self.edited_outlines(&draft, &command, layout_settled);
-        self.scene_with_board_geometry(
+        let reply = self.scene_with_board_geometry(
             id,
             SceneInput {
                 transaction: &command.transaction_id,
@@ -848,7 +898,15 @@ impl CoreEngine {
                 kind: SceneKind::Preview,
             },
             board_geometry,
-        )
+        );
+        if layout_settled
+            && let Some(preview) = &mut self.stagger_preview
+            && preview.matches(&draft)
+            && let CoreReply::Preview { scene, .. } = &reply
+        {
+            preview.settled = SettledStagger::new(&command.operation, draft, scene);
+        }
+        reply
     }
 
     fn edited_outlines(
@@ -1290,6 +1348,7 @@ struct PreparedEdit {
     changed: Vec<String>,
     outline: Option<geometry::OutlineProjection>,
     board_geometry: Option<ValidatedBoardScene>,
+    preview_scene: Option<SceneDelta>,
     reuse_scene: bool,
     cacheable: bool,
 }
@@ -1353,6 +1412,7 @@ impl CoreEngine {
                 changed,
                 outline: Some((cache, contours, findings)),
                 board_geometry: None,
+                preview_scene: None,
                 reuse_scene: false,
                 cacheable: false,
             },

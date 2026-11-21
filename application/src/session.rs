@@ -606,7 +606,7 @@ struct ActiveCore {
     preview_cancelled: bool,
     export_owner: Option<ExportCommitOwner>,
 }
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 struct PendingSave {
     operation_id: OperationId,
     document: Arc<ProjectDoc>,
