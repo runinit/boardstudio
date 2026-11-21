@@ -8,7 +8,7 @@ pub(crate) struct SetupProjectNameEdit {
 }
 
 pub(crate) fn use_setup_project_name(runtime: Rc<Runtime>) -> SetupProjectNameEdit {
-    use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+    use boardstudio_web_runtime::operation_outcomes::{EditOutcome, Settlement};
     let accepted = runtime.model().accepted;
     let owner = accepted
         .as_ref()
@@ -20,7 +20,7 @@ pub(crate) fn use_setup_project_name(runtime: Rc<Runtime>) -> SetupProjectNameEd
     let mut dirty = use_signal(|| false);
     let mut failure = use_signal(|| None::<String>);
     let mut tickets =
-        use_signal(Vec::<((boardstudio_application::SessionEpoch, String), EditTicket)>::new);
+        use_signal(Vec::<((boardstudio_application::SessionEpoch, String), EditOutcome)>::new);
     let mut latest = use_signal(|| None::<boardstudio_application::OperationId>);
     let mut previous_owner = use_signal(|| owner.clone());
     let mut previous_name = use_signal(|| accepted_name.clone());
@@ -101,12 +101,8 @@ pub(crate) fn use_setup_project_name(runtime: Rc<Runtime>) -> SetupProjectNameEd
         }
         let resolver =
             boardstudio_application::EditResolver::rename_project("setup-project-name", proposed);
-        let ticket = EditTicket::begin(
-            &runtime,
-            "setup-project-name",
-            Some("project name".into()),
-            resolver,
-        );
+        let ticket =
+            runtime.resolve_edit("setup-project-name", Some("project name".into()), resolver);
         latest.set(Some(ticket.operation()));
         failure.set(None);
         tickets.write().push(((*epoch, id.clone()), ticket));

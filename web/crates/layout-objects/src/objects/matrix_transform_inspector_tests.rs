@@ -1028,9 +1028,8 @@ fn begin_ticket(
     runtime: &Rc<Runtime>,
     label: &'static str,
     operation: impl Fn(&AcceptedSnapshot) -> boardstudio_model::model::EditOperation + 'static,
-) -> boardstudio_web_runtime::edit_ticket::EditTicket {
-    boardstudio_web_runtime::edit_ticket::EditTicket::begin(
-        runtime,
+) -> boardstudio_web_runtime::operation_outcomes::EditOutcome {
+    runtime.resolve_edit(
         label,
         None,
         boardstudio_application::EditResolver::new(label, move |accepted| {
@@ -1039,10 +1038,10 @@ fn begin_ticket(
     )
 }
 
-fn landed(ticket: &boardstudio_web_runtime::edit_ticket::EditTicket) -> bool {
+fn landed(ticket: &boardstudio_web_runtime::operation_outcomes::EditOutcome) -> bool {
     matches!(
         ticket.settlement(true),
-        boardstudio_web_runtime::edit_ticket::Settlement::Landed { .. }
+        boardstudio_web_runtime::operation_outcomes::Settlement::Landed { .. }
     )
 }
 

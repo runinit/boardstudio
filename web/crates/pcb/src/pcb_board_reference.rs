@@ -2,7 +2,8 @@
 use crate::pcb_controls::{PcbCheck, PcbChoice, PcbFile, PcbInput, PcbSection};
 use boardstudio_core_kernel::hash::sha256_hex;
 use boardstudio_model::model::{Asset, BoardReference};
-use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
+use boardstudio_web_runtime::operation_outcomes::{EditOutcome, Settlement};
+use boardstudio_web_ui_shared::draft_edits::{DraftEdits, PendingEditResult};
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::input::InputType;
@@ -74,11 +75,11 @@ pub enum Action {
 
 /// Only the latest submitted control can place a failure message.
 fn place_reference_results(
-    results: Vec<(PendingEditResult<BoardReferenceKey>, Action)>,
+    results: Vec<PendingEditResult<BoardReferenceKey>>,
     latest: Signal<Option<BoardReferenceKey>>,
     mut error: Signal<Option<String>>,
 ) {
-    for (result, _) in results {
+    for result in results {
         let (key, message) = match result {
             PendingEditResult::Failed { key, message } => (key, Some(message)),
             PendingEditResult::Landed { key, .. } | PendingEditResult::Retired { key } => {
@@ -97,9 +98,9 @@ fn place_reference_results(
 /// the submission so the accepted value shows again.
 fn reference_with_drafts(
     mut reference: BoardReference,
-    edits: &PendingEdits<BoardReferenceKey, Action>,
+    edits: &DraftEdits<BoardReferenceKey, Action>,
 ) -> BoardReference {
-    for (_, action) in edits.pending_entries() {
+    for action in &edits.pending_values(|_| true) {
         match action {
             Action::SetEnabled(value) => reference.enabled = *value,
             Action::SetPositionX(value) => reference.pose.at.x = *value,
@@ -182,21 +183,18 @@ impl BoardReferenceContext {
     }
 }
 
-async fn wait_for_reference_ticket(
+async fn wait_for_reference(
     ctx: &BoardReferenceContext,
-    mut edits: PendingEdits<BoardReferenceKey>,
+    outcome: EditOutcome,
 ) -> Result<(), String> {
     loop {
         let live = (ctx.generation)() == ctx.request_generation && ctx.lineage_is_current();
-        let mut results = edits.settle(live);
-        if let Some(result) = results.pop() {
-            return match result {
-                PendingEditResult::Landed { .. } => Ok(()),
-                PendingEditResult::Failed { message: error, .. } => Err(error),
-                PendingEditResult::Retired { .. } => Err(String::new()),
-            };
+        match outcome.settlement(live) {
+            Settlement::Landed { .. } => return Ok(()),
+            Settlement::Failed { message } => return Err(message),
+            Settlement::Retired => return Err(String::new()),
+            Settlement::Pending => TimeoutFuture::new(25).await,
         }
-        TimeoutFuture::new(25).await;
     }
 }
 
@@ -370,18 +368,15 @@ async fn import_routed_board(
         .find(|current| current.id == reference_id && current.board_id == scope.board_id)
         .map(|current| current.asset_id.clone())
         .ok_or_else(|| "The routed-board reference could not be prepared.".to_owned())?;
-    let mut edits = PendingEdits::<BoardReferenceKey>::default();
-    super::submit_board_reference_document(
+    let outcome = super::submit_board_reference_document(
         &ctx.runtime,
         ctx.is_current(),
         &ctx.owner,
         proposed,
         "board-reference-import",
-        &mut edits,
-        BoardReferenceKey::Import,
     )?
     .ok_or_else(|| "The routed-board import produced no project change.".to_owned())?;
-    wait_for_reference_ticket(ctx, edits).await?;
+    wait_for_reference(ctx, outcome).await?;
     Ok((reference_id, asset_id, paths))
 }
 
@@ -497,18 +492,15 @@ async fn attach_model_files(
         current.model_assets.insert(path, asset.id.clone());
         proposed.assets.push(asset);
     }
-    let mut edits = PendingEdits::<BoardReferenceKey>::default();
-    super::submit_board_reference_document(
+    let outcome = super::submit_board_reference_document(
         &ctx.runtime,
         ctx.is_current(),
         &ctx.owner,
         proposed,
         "board-reference-model-attach",
-        &mut edits,
-        BoardReferenceKey::ModelAttach,
     )?
     .ok_or_else(|| "The model attachment produced no project change.".to_owned())?;
-    wait_for_reference_ticket(ctx, edits).await
+    wait_for_reference(ctx, outcome).await
 }
 
 fn begin_request(
@@ -698,7 +690,7 @@ pub fn Editor(
         },
     ));
 
-    let mut action_edits = use_signal(PendingEdits::<BoardReferenceKey, Action>::default);
+    let mut action_edits = use_signal(DraftEdits::<BoardReferenceKey, Action>::default);
     let mut action_latest = use_signal(|| None::<BoardReferenceKey>);
     let version = use_context::<Signal<u64>>()();
     use_effect(use_reactive((&version,), {
@@ -711,7 +703,7 @@ pub fn Editor(
             );
             if !panel_is_live || action_edits.peek().has_terminal() {
                 place_reference_results(
-                    action_edits.write().settle_with(panel_is_live),
+                    action_edits.write().discard_drafts(panel_is_live),
                     action_latest,
                     error,
                 );
@@ -735,7 +727,7 @@ pub fn Editor(
                 &owner,
                 reference_id,
                 action,
-                &mut action_edits.write(),
+                &action_edits.write(),
             ) {
                 action_latest.set(Some(key));
                 error.set(None);

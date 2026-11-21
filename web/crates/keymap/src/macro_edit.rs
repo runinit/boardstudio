@@ -236,8 +236,8 @@ mod tests {
     use super::*;
     use boardstudio_application::Event;
     use boardstudio_model::model::{KeyBinding, ProjectDoc};
-    use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
     use boardstudio_web_runtime::runtime::Runtime;
+    use boardstudio_web_ui_shared::draft_edits::{DraftEdits, PendingEditResult};
 
     fn open() -> (Rc<Runtime>, Scope) {
         let mut document = ProjectDoc::empty("macro-edits", "Macros");
@@ -287,7 +287,7 @@ mod tests {
         seed: u64,
         preceding: Option<PrecedingStructure>,
     ) -> PendingEditResult<u8> {
-        let mut edits = PendingEdits::default();
+        let edits = DraftEdits::<_, ()>::default();
         edits.begin(
             runtime,
             0u8,
@@ -295,7 +295,7 @@ mod tests {
             Some("macro".into()),
             macro_resolver(request, seed, preceding),
         );
-        let mut results = edits.settle(true);
+        let mut results = edits.discard_drafts(true);
         assert_eq!(results.len(), 1, "{results:?}");
         results.remove(0)
     }

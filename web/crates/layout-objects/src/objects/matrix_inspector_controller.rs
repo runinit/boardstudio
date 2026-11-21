@@ -14,7 +14,7 @@ use boardstudio_application::{
 use boardstudio_model::model::{
     DiodeDirection, EditOperation, Matrix, PartDefinition, ProjectDoc, Side, Vec2,
 };
-use boardstudio_web_runtime::pending_edits::PendingEditResult;
+use boardstudio_web_ui_shared::draft_edits::PendingEditResult;
 use boardstudio_web_ui_shared::draft_edits::{DraftEdits, FieldView};
 use dioxus::prelude::*;
 use std::{
@@ -470,7 +470,7 @@ pub fn use_matrix_inspector(
     let delete_observed = edits
         .read()
         .observations()
-        .observations()
+        .into_iter()
         .any(|(key, _)| matches!(key, MatrixPendingKey::Action(MatrixActionKey::Delete(_))));
     let projection = fresh_projection.or_else(|| {
         let delete_owner = pending_action_owner.read().as_ref()?.clone();

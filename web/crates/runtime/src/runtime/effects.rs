@@ -31,8 +31,11 @@ impl Runtime {
         let previous_scope = self.scope();
         let previous_snapshot = self.accepted_identity();
         let effects = self.session.borrow_mut().submit(event);
-        self.invalidate_stale_native_case_preview();
         let scope_changed = self.scope() != previous_scope;
+        if scope_changed {
+            self.operation_outcomes.retire_edit_scope();
+        }
+        self.invalidate_stale_native_case_preview();
         if scope_changed || self.accepted_identity() != previous_snapshot {
             self.cancel_active_case_gesture_preview();
             self.cancel_keycaps_cad_preview();
@@ -127,8 +130,12 @@ impl Runtime {
         let previous_scope = self.scope();
         let previous_snapshot = self.accepted_identity();
         let effects = self.session.borrow_mut().complete(event);
+        let scope_changed = self.scope() != previous_scope;
+        if scope_changed {
+            self.operation_outcomes.retire_edit_scope();
+        }
         self.invalidate_stale_native_case_preview();
-        if self.scope() != previous_scope || self.accepted_identity() != previous_snapshot {
+        if scope_changed || self.accepted_identity() != previous_snapshot {
             self.cancel_active_case_gesture_preview();
             self.cancel_keycaps_cad_preview();
         }

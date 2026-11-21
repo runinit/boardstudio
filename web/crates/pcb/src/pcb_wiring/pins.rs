@@ -8,7 +8,7 @@ use crate::{
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution};
 use boardstudio_core_mechanical::electrical::{ElectricalMode, ElectricalPlan};
 use boardstudio_model::model::{EditOperation, ProjectDoc};
-use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
+use boardstudio_web_ui_shared::draft_edits::{DraftEdits, PendingEditResult};
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -79,7 +79,7 @@ impl PcbWiringPinKey {
 }
 
 #[derive(Clone, Copy)]
-struct PinOwner(Signal<PendingEdits<PcbWiringPinKey, Option<String>>>);
+struct PinOwner(Signal<DraftEdits<PcbWiringPinKey, Option<String>>>);
 
 pub(super) fn pending_pin(
     identity: &BoardWiringModeIdentity,
@@ -87,7 +87,7 @@ pub(super) fn pending_pin(
 ) -> Option<Option<String>> {
     let owner = try_consume_context::<PinOwner>()?;
     let key = PcbWiringPinKey::new(identity, assignment_id);
-    owner.0.read().pending_payload(&key).cloned()
+    owner.0.read().pending_submission(&key)
 }
 
 pub fn use_pcb_wiring_pin_edits(
@@ -99,7 +99,7 @@ pub fn use_pcb_wiring_pin_edits(
     source: Option<PcbWiringSource>,
     resolution: Signal<PcbWiringResolution>,
 ) -> PcbWiringPinActions {
-    let mut edits = use_signal(PendingEdits::<PcbWiringPinKey, Option<String>>::default);
+    let mut edits = use_signal(DraftEdits::<PcbWiringPinKey, Option<String>>::default);
     let latest = use_signal(|| None::<PcbWiringPinKey>);
     let failure = use_signal(|| None::<BoardWiringFailure>);
     use_context_provider(|| PinOwner(edits));
@@ -113,7 +113,7 @@ pub fn use_pcb_wiring_pin_edits(
             if live && !edits.peek().has_terminal() {
                 return;
             }
-            for (result, _) in edits.write().settle_with(live) {
+            for result in edits.write().discard_drafts(live) {
                 match result {
                     PendingEditResult::Failed { key, message } => {
                         if latest.peek().as_ref() == Some(&key) {
@@ -170,7 +170,7 @@ pub fn use_pcb_wiring_pin_edits(
             latest.set(Some(key.clone()));
             failure.set(None);
             let pin = request.pin.clone();
-            edits.write().begin_with(
+            edits.write().submit_value(
                 &runtime,
                 key,
                 "pcb-wiring-pins",
@@ -190,6 +190,7 @@ pub fn use_pcb_wiring_pin_edits(
         edits
             .read()
             .observations()
+            .into_iter()
             .any(|(key, pending)| pending && &key.target == target)
     });
     let failure = failure()

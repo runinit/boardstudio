@@ -5,8 +5,8 @@ wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 mod queued_edits {
     use super::super::*;
     use crate::presentation::objects::matrix_edit_test_support as fixture;
-    use boardstudio_web_runtime::edit_ticket::EditTicket;
-    use boardstudio_web_runtime::edit_ticket::Settlement;
+    use boardstudio_web_runtime::operation_outcomes::EditOutcome;
+    use boardstudio_web_runtime::operation_outcomes::Settlement;
     use boardstudio_web_test_runtime::project_name_test_support as support;
     use boardstudio_web_ui_shared::test_mount::MountedFixture;
     use wasm_bindgen::JsCast;
@@ -203,9 +203,8 @@ mod queued_edits {
         runtime: &Rc<Runtime>,
         field: MatrixEditField,
         value: MatrixEditValue,
-    ) -> EditTicket {
-        EditTicket::begin(
-            runtime,
+    ) -> EditOutcome {
+        runtime.resolve_edit(
             "layout-matrix-inspector",
             Some("matrix".into()),
             matrix_field_resolver(
@@ -289,8 +288,7 @@ mod queued_edits {
     async fn editing_a_matrix_deleted_before_the_edit_runs_retires_with_a_reason() {
         let runtime = fixture::open_matrix_runtime().await;
         let (entered, release) = support::gate_next_core_reply(&runtime);
-        let delete = EditTicket::begin(
-            &runtime,
+        let delete = runtime.resolve_edit(
             "layout-matrix-delete",
             Some("matrix delete".into()),
             matrix_delete_resolver(fixture::MATRIX_ID.into()),
@@ -484,8 +482,7 @@ mod queued_edits {
             mirror_link: None,
         });
         let resolver_document = replacement.clone();
-        let ticket = EditTicket::begin(
-            &runtime,
+        let ticket = runtime.resolve_edit(
             "test-add-layout-target",
             Some("document".into()),
             EditResolver::new("test-add-layout-target", move |_| {
@@ -598,8 +595,7 @@ mod queued_edits {
         let mut changed_matrix = fixture::accepted_matrix(&runtime);
         changed_matrix.rows = 2;
         let resolver_matrix = changed_matrix.clone();
-        let ticket = EditTicket::begin(
-            &runtime,
+        let ticket = runtime.resolve_edit(
             "test-unrelated-rows-change",
             Some("matrix".into()),
             EditResolver::new("test-unrelated-rows-change", move |_| {

@@ -16,8 +16,8 @@ use boardstudio_core_mechanical::mechanical::{MechanicalEditDisposition, evaluat
 use boardstudio_model::model::{
     EditOperation, MechanicalAssembly, MechanicalConfiguration, PartDefinition,
 };
-use boardstudio_web_runtime::edit_ticket::EditTicketPort;
-use boardstudio_web_runtime::pending_edits::PendingEditResult;
+use boardstudio_web_runtime::operation_outcomes::EditOutcome;
+use boardstudio_web_ui_shared::draft_edits::PendingEditResult;
 use boardstudio_web_ui_shared::draft_edits::{DraftEdits, FieldView};
 use dioxus::prelude::*;
 use std::{
@@ -62,7 +62,7 @@ pub struct MechanicalResolution {
 pub struct MechanicalSettingsPorts {
     pub current: Rc<dyn Fn() -> Option<MechanicalSettingsCurrent>>,
     pub load_mounting_hole: Rc<dyn Fn() -> LocalFuture<Result<Rc<PartDefinition>, String>>>,
-    pub edit_port: Rc<dyn EditTicketPort>,
+    pub resolve_edit: Rc<dyn Fn(EditResolver) -> EditOutcome>,
     pub publish: Rc<dyn Fn(MechanicalSettingsFeedback)>,
 }
 
@@ -375,14 +375,7 @@ impl MechanicalSettingsController {
                 })
                 .map(|submitted| submitted.view.submitted(submitted.text))
                 .unwrap_or_default();
-            helper.submit(
-                self.ports.edit_port.as_ref(),
-                key.clone(),
-                "mechanical-settings",
-                Some("mechanical settings".into()),
-                resolver,
-                display,
-            );
+            helper.track(key.clone(), (self.ports.resolve_edit)(resolver), display);
             let mut requests = self.requests.borrow_mut();
             // The newest observation replaces the older one for its field.
             requests.retain(|entry| {

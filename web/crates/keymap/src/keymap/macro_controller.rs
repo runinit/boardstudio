@@ -8,7 +8,7 @@ use crate::macro_edit::{PrecedingStructure, macro_resolver};
 use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, Durability, Lifecycle};
 use boardstudio_model::model::{MacroChange, MacroStep};
-use boardstudio_web_runtime::pending_edits::PendingEditResult;
+use boardstudio_web_ui_shared::draft_edits::PendingEditResult;
 use boardstudio_web_ui_shared::{draft_edits::FieldView, owned_edits::OwnedEdits};
 use dioxus::prelude::*;
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
@@ -176,8 +176,8 @@ pub(super) fn action_pending(macro_id: Option<&str>, target: MacroEditTarget) ->
             .0
             .read()
             .edits
-            .observations()
             .pending_keys()
+            .iter()
             .any(|entry| entry.macro_id.as_deref() == macro_id && same_action(entry.target, target))
     })
 }
@@ -194,8 +194,8 @@ pub(super) fn draft_step(
             .0
             .read()
             .edits
-            .observations()
             .pending_keys()
+            .iter()
             .filter_map(|entry| entry.request.as_deref())
             .filter(|request| {
                 request.scope == *scope && request.macro_id.as_deref() == Some(macro_id)
@@ -459,15 +459,9 @@ pub fn use_macro_operations(
                 return;
             }
             if is_action(request.target)
-                && pending
-                    .peek()
-                    .edits
-                    .observations()
-                    .pending_keys()
-                    .any(|entry| {
-                        entry.macro_id == request.macro_id
-                            && same_action(entry.target, request.target)
-                    })
+                && pending.peek().edits.pending_keys().iter().any(|entry| {
+                    entry.macro_id == request.macro_id && same_action(entry.target, request.target)
+                })
             {
                 return;
             }
@@ -485,8 +479,8 @@ pub fn use_macro_operations(
             let preceding_structure = pending
                 .peek()
                 .edits
-                .observations()
                 .pending_keys()
+                .iter()
                 .find(|entry| entry.macro_id == request.macro_id && structural_action(entry.target))
                 .and_then(|entry| {
                     let before = entry.request.as_ref()?.step_sequence.as_ref()?.len();

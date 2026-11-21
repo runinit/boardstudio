@@ -440,15 +440,14 @@ mod tests {
                 binding: "&kp Q".into(),
             },
         );
-        let ticket = crate::edit_ticket::EditTicket::begin(
-            &runtime,
+        let ticket = runtime.resolve_edit(
             "firmware position test",
             Some("key".into()),
             EditResolver::new("firmware position test", move |_| resolution.clone()),
         );
         assert!(matches!(
             ticket.settlement(true),
-            crate::edit_ticket::Settlement::Landed { revision } if revision == snapshot.document.revision + 1
+            crate::operation_outcomes::Settlement::Landed { revision } if revision == snapshot.document.revision + 1
         ));
         let accepted = runtime.model().accepted.unwrap();
         assert_eq!(accepted.document.revision, snapshot.document.revision + 1);

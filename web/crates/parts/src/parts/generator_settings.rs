@@ -7,7 +7,7 @@ use boardstudio_application::{AcceptedSnapshot, Scope};
 #[cfg(test)]
 use boardstudio_model::model::EditOperation;
 use boardstudio_model::model::{Asset, PartDefinition};
-use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
+use boardstudio_web_ui_shared::draft_edits::{DraftEdits, PendingEditResult};
 use boardstudio_web_ui_shared::inspector_fields::{CheckboxField, InspectorSection};
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
@@ -20,7 +20,7 @@ use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use serde_json::Value;
 use std::{
-    cell::{Cell, RefCell},
+    cell::Cell,
     collections::{BTreeMap, BTreeSet},
     rc::Rc,
 };
@@ -349,11 +349,7 @@ pub fn GeneratorSettingsEditor(
     let edits = use_signal(BTreeMap::<String, Value>::new);
     let mut changed_parameters = use_signal(BTreeSet::<String>::new);
     let mut feedback = use_signal(|| None::<ScopedFeedback>);
-    let pending_edits = use_hook(|| {
-        Rc::new(RefCell::new(
-            PendingEdits::<GeneratorKey, GeneratorAction>::default(),
-        ))
-    });
+    let pending_edits = use_hook(DraftEdits::<GeneratorKey, GeneratorAction>::default);
 
     let mut uploaded_preview_generation = use_signal(|| 0_u64);
     let sequence = use_hook(|| Rc::new(Cell::new(0_u64)));
@@ -400,7 +396,7 @@ pub fn GeneratorSettingsEditor(
         let mut changed_parameters = changed_parameters;
 
         move |_| {
-            let results = pending_edits.borrow_mut().settle_where(|intent| {
+            let results = pending_edits.settle_values_where(|intent| {
                 owner_context_is_current(
                     &intent.owner,
                     &runtime,
@@ -575,7 +571,7 @@ pub fn GeneratorSettingsEditor(
         let runtime = model_import_runtime.clone();
         let owner = model_import_owner.clone();
         if model_uploading()
-            || pending_edits.borrow().is_pending(&GeneratorKey::Upload)
+            || pending_edits.is_pending(&GeneratorKey::Upload)
             || !parameter.ends_with("3dmodel_filename")
         {
             return;
@@ -738,7 +734,7 @@ pub fn GeneratorSettingsEditor(
             };
             model_uploading.set(false);
             let asset_seed = runtime.operation().0;
-            pending_edits.borrow_mut().begin_with(
+            pending_edits.submit_value(
                 &runtime,
                 GeneratorKey::Upload,
                 "parts-generator-settings",
@@ -779,7 +775,7 @@ pub fn GeneratorSettingsEditor(
             else {
                 return;
             };
-            if pending_edits.borrow().is_pending(&GeneratorKey::Apply)
+            if pending_edits.is_pending(&GeneratorKey::Apply)
                 || !owner_context_is_current(
                     &current_owner,
                     &runtime,
@@ -791,7 +787,7 @@ pub fn GeneratorSettingsEditor(
             {
                 return;
             }
-            pending_edits.borrow_mut().begin_with(
+            pending_edits.submit_value(
                 &runtime,
                 GeneratorKey::Apply,
                 "parts-generator-settings",
@@ -848,7 +844,7 @@ pub fn GeneratorSettingsEditor(
                                     value: edits().get(&entry.key).cloned().unwrap_or(entry.value.clone()),
                                     on_change: EventHandler::new({ let key = entry.key.clone(); move |value| change_parameter.call((key.clone(), value)) }),
                                     on_import: import_generator_model,
-                                    busy: model_uploading() || pending_edits.borrow().is_pending(&GeneratorKey::Upload),
+                                    busy: model_uploading() || pending_edits.is_pending(&GeneratorKey::Upload),
                                     feedback: feedback()
                                         .filter(|message| owner_context_is_current(
                                             &message.owner,
@@ -890,7 +886,7 @@ pub fn GeneratorSettingsEditor(
             Button {
                 variant: ButtonVariant::Default,
                 class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
-                disabled: !preview_ready || pending_edits.borrow().is_pending(&GeneratorKey::Apply),
+                disabled: !preview_ready || pending_edits.is_pending(&GeneratorKey::Apply),
                 onclick: on_apply,
                 "Apply generator settings"
             }

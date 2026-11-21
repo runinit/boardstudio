@@ -4,7 +4,7 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope, SnapshotToken,
 };
 use boardstudio_model::model::{EditOperation, PressScanMode};
-use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
+use boardstudio_web_ui_shared::draft_edits::{DraftEdits, PendingEditResult};
 use dioxus::prelude::*;
 use serde_json::Value;
 use std::{
@@ -125,7 +125,7 @@ pub struct PartInputActions {
 /// The shared projection the rendered controls read: the latest committed intent per
 /// field. The collection owns the ticket lifetime, its pending payloads and settlement.
 #[derive(Clone, Copy)]
-struct InputDrafts(Signal<PendingEdits<PartInputKey, PartInputEditRequest>>);
+struct InputDrafts(Signal<DraftEdits<PartInputKey, PartInputEditRequest>>);
 
 /// Reapply the committed pending intents for this part over the accepted projection.
 pub(super) fn apply_drafts(
@@ -135,11 +135,10 @@ pub(super) fn apply_drafts(
     let Some(drafts) = try_consume_context::<InputDrafts>() else {
         return;
     };
-    for (_, request) in drafts
+    for request in drafts
         .0
         .read()
-        .pending_entries()
-        .filter(|(key, _)| key.same_part(identity))
+        .pending_values(|key| key.same_part(identity))
     {
         match &request.intent {
             PartInputIntent::ScanMode(mode) => projection.press_mode = Some(*mode),
@@ -179,7 +178,7 @@ pub fn use_part_input_edits(
     scope_generation: Signal<u64>,
     instance_is_current: Rc<dyn Fn() -> bool>,
 ) -> PartInputActions {
-    let mut edits = use_signal(PendingEdits::<PartInputKey, PartInputEditRequest>::default);
+    let mut edits = use_signal(DraftEdits::<PartInputKey, PartInputEditRequest>::default);
     let latest = use_signal(|| None::<PartInputKey>);
     let failure = use_signal(|| None::<PartInputFailure>);
     use_context_provider(|| InputDrafts(edits));
@@ -201,7 +200,7 @@ pub fn use_part_input_edits(
             if live && !edits.peek().has_terminal() {
                 return;
             }
-            for (result, _) in edits.write().settle_with(live) {
+            for result in edits.write().discard_drafts(live) {
                 let (key, message) = match result {
                     PendingEditResult::Failed { key, message } => (key, Some(message)),
                     PendingEditResult::Landed { key, .. } | PendingEditResult::Retired { key } => {
@@ -276,7 +275,7 @@ pub fn use_part_input_edits(
                         continue;
                     }
                     let submitted = request.clone();
-                    edits.write().begin_with(
+                    edits.write().submit_value(
                         &runtime,
                         key,
                         "pcb-part-settings",
@@ -300,9 +299,13 @@ pub fn use_part_input_edits(
             && runtime.scope().as_ref() == Some(ui_scope)
             && runtime.model().selected_part_ids.as_slice() == [part_id]
     };
-    let pending = edits.read().observations().any(|(key, pending)| {
-        pending && live_target(&key.ui_scope, key.scope_generation, &key.part_id)
-    });
+    let pending = edits
+        .read()
+        .observations()
+        .into_iter()
+        .any(|(key, pending)| {
+            pending && live_target(&key.ui_scope, key.scope_generation, &key.part_id)
+        });
     let failure = failure().filter(|failure| {
         live_target(
             &failure.ui_scope,

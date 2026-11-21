@@ -15,7 +15,7 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
 };
 use boardstudio_model::model::{EditOperation, ProjectDoc};
-use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
+use boardstudio_web_ui_shared::draft_edits::{DraftEdits, PendingEditResult};
 use dioxus::prelude::*;
 use std::{
     cell::{Cell, RefCell},
@@ -44,7 +44,7 @@ fn firmware_key_target(
 }
 
 #[derive(Clone, Copy)]
-struct FirmwareOwner(Signal<PendingEdits<FirmwarePositionFeedbackTarget, String>>);
+struct FirmwareOwner(Signal<DraftEdits<FirmwarePositionFeedbackTarget, String>>);
 
 pub(crate) fn pending_binding(
     identity: &crate::firmware_position_projection::FirmwarePositionIdentity,
@@ -52,7 +52,7 @@ pub(crate) fn pending_binding(
 ) -> Option<String> {
     let owner = try_consume_context::<FirmwareOwner>()?;
     let key = firmware_key_target(identity, key_id);
-    owner.0.read().pending_payload(&key).cloned()
+    owner.0.read().pending_submission(&key)
 }
 
 pub struct FirmwarePositionActions {
@@ -70,7 +70,7 @@ pub fn use_firmware_position_edits(
     instance_is_current: Rc<dyn Fn() -> bool>,
     resolution: Signal<PcbWiringResolution>,
 ) -> FirmwarePositionActions {
-    let mut edits = use_signal(PendingEdits::<FirmwarePositionFeedbackTarget, String>::default);
+    let mut edits = use_signal(DraftEdits::<FirmwarePositionFeedbackTarget, String>::default);
     let latest = use_signal(|| None::<FirmwarePositionFeedbackTarget>);
     let feedback = use_signal(|| None::<FirmwarePositionFeedback>);
     use_context_provider(|| FirmwareOwner(edits));
@@ -84,7 +84,7 @@ pub fn use_firmware_position_edits(
             if live && !edits.peek().has_terminal() {
                 return;
             }
-            for (result, _) in edits.write().settle_with(live) {
+            for result in edits.write().discard_drafts(live) {
                 let (key, state) = match result {
                     PendingEditResult::Failed { key, message } => {
                         (key, Some(FirmwarePositionFeedbackState::Failed(message)))
@@ -196,7 +196,7 @@ pub fn use_firmware_position_edits(
             latest.set(Some(key.clone()));
             feedback.set(None);
             let binding = request.binding.clone();
-            edits.write().begin_with(
+            edits.write().submit_value(
                 &runtime,
                 key,
                 "firmware-position",
@@ -315,7 +315,7 @@ impl PartNetEditKey {
     }
 }
 
-type PartNetEdits = PendingEdits<PartNetEditKey, Option<String>>;
+type PartNetEdits = DraftEdits<PartNetEditKey, Option<String>>;
 
 #[derive(Clone, Copy)]
 struct PartNetOwner(Signal<PartNetEdits>);
@@ -323,6 +323,7 @@ struct PartNetOwner(Signal<PartNetEdits>);
 fn is_creating_net(edits: &PartNetEdits) -> bool {
     edits
         .observations()
+        .into_iter()
         .any(|(key, pending)| pending && matches!(key, PartNetEditKey::CreateNet { .. }))
 }
 
@@ -335,7 +336,7 @@ pub(super) fn pending_net(
         target: super::PartNetTarget::of(identity),
         pad_ids: pad_ids.to_vec(),
     };
-    owner.0.read().pending_payload(&key).cloned()
+    owner.0.read().pending_submission(&key)
 }
 
 /// Queue each connection intent against the accepted board at execution.
@@ -370,7 +371,7 @@ pub fn use_pcb_part_net_edits(
             if live && !edits.peek().has_terminal() {
                 return;
             }
-            for (result, _) in edits.write().settle_with(live) {
+            for result in edits.write().discard_drafts(live) {
                 let (key, failure) = match result {
                     PendingEditResult::Failed { key, message } => (key, Some(message)),
                     PendingEditResult::Landed { key, .. } | PendingEditResult::Retired { key } => {
@@ -493,7 +494,7 @@ pub fn use_pcb_part_net_edits(
                     };
                     latest.set(Some(key.clone()));
                     feedback.set(None);
-                    edits.write().begin_with(
+                    edits.write().submit_value(
                         &runtime,
                         key,
                         "pcb-part-net",

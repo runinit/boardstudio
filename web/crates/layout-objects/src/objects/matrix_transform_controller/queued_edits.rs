@@ -1,14 +1,13 @@
 use super::*;
 use crate::presentation::objects::matrix_edit_test_support as fixture;
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+use boardstudio_web_runtime::operation_outcomes::{EditOutcome, Settlement};
 use boardstudio_web_test_runtime::project_name_test_support as support;
 use wasm_bindgen_test::wasm_bindgen_test;
 
 wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
-fn origin_ticket(runtime: &Rc<Runtime>, field: MatrixTransformField, value: f64) -> EditTicket {
-    EditTicket::begin(
-        runtime,
+fn origin_ticket(runtime: &Rc<Runtime>, field: MatrixTransformField, value: f64) -> EditOutcome {
+    runtime.resolve_edit(
         "layout-matrix-transform",
         Some("transform".into()),
         transform_edit_resolver(

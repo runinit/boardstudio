@@ -36,7 +36,7 @@ use boardstudio_web_layout_core::{
     rail_drag::{DragPreview, drag_session_is_ready, nudge_session_is_ready},
     rail_state::RailState,
 };
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+use boardstudio_web_runtime::operation_outcomes::{EditOutcome, Settlement};
 use boardstudio_web_ui_model::state::{FieldPreview, FieldPreviewSource, FieldPreviewState};
 use boardstudio_web_ui_model::transform_feedback::{
     FeedbackDelta, FeedbackEvent, FeedbackState, advance_feedback,
@@ -73,8 +73,8 @@ mod tool;
 pub use anchor_pick::{AnchorPickOwner, LayoutAnchorPickOverlay};
 use chrome::*;
 use commit::{
-    PendingTransformCommit, PendingTransformToast, begin_transform_ticket, raise_commit_toast,
-    transform_commit_is_live, transform_version, use_settled_transform_commits,
+    PendingTransformCommit, PendingTransformToast, raise_commit_toast, transform_commit_is_live,
+    transform_version, use_settled_transform_commits,
 };
 use feedback::*;
 use keys::{rail_escape_claims, use_canvas_control, use_canvas_escape};

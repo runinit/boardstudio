@@ -1,11 +1,10 @@
 use super::*;
 use crate::runtime::Runtime;
 use boardstudio_application::{
-    AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, OperationId, Resolution, Scope,
+    AcceptedSnapshot, Durability, EditResolver, Lifecycle, OperationId, Resolution, Scope,
 };
 use boardstudio_model::model::{EditOperation, ProjectDoc};
-use boardstudio_web_runtime::edit_ticket::EditTicketPort;
-use boardstudio_web_runtime::operation_outcomes::{LandingSlot, OutcomeSlot};
+use boardstudio_web_runtime::operation_outcomes::OperationOutcomes;
 use boardstudio_web_test_runtime::project_name_test_support as support;
 use futures_channel::oneshot;
 use gloo_timers::future::TimeoutFuture;
@@ -17,29 +16,7 @@ use wasm_bindgen_test::wasm_bindgen_test;
 #[derive(Clone, Default)]
 struct RecordingPort {
     resolutions: Rc<RefCell<Vec<EditResolver>>>,
-    next_operation: Rc<Cell<u64>>,
-}
-
-impl EditTicketPort for RecordingPort {
-    fn allocate_operation(&self) -> OperationId {
-        let id = self.next_operation.get();
-        self.next_operation.set(id + 1);
-        OperationId(id)
-    }
-
-    fn scope_source(&self) -> Rc<dyn Fn() -> Option<Scope>> {
-        Rc::new(|| None)
-    }
-
-    fn observe(&self, _operation: OperationId) -> (OutcomeSlot, LandingSlot) {
-        (Rc::new(RefCell::new(None)), Rc::new(RefCell::new(None)))
-    }
-
-    fn submit(&self, event: Event) {
-        if let Event::ResolveEdit { resolver, .. } = event {
-            self.resolutions.borrow_mut().push(resolver);
-        }
-    }
+    outcomes: Rc<OperationOutcomes>,
 }
 
 /// A queue of catalogue replies; an empty queue resolves immediately.
@@ -144,7 +121,12 @@ fn controller(
                 Ok(Rc::new(template()))
             })
         }),
-        edit_port: Rc::new(port),
+        resolve_edit: Rc::new(move |resolver| {
+            let mut resolutions = port.resolutions.borrow_mut();
+            resolutions.push(resolver);
+            port.outcomes
+                .observe_edit(OperationId(resolutions.len() as u64), None)
+        }),
         publish: Rc::new(move |entry| feedback.borrow_mut().push(entry)),
     })
 }

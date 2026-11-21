@@ -5,7 +5,7 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Resolution, Scope, SnapshotToken,
 };
 use boardstudio_model::model::{EditOperation, PartKind, ProjectDoc, Vec2};
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+use boardstudio_web_runtime::operation_outcomes::{EditOutcome, Settlement};
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
@@ -117,7 +117,7 @@ pub fn use_existing_half(
     let error = use_signal(|| None::<String>);
     // The committed mirror is observed through its ticket; the waiting entry is the
     // pending state. Availability derives from it, so no separate disabled flag is kept.
-    let waiting = use_signal(|| None::<(EditTicket, ExistingHalfOwner)>);
+    let waiting = use_signal(|| None::<(EditOutcome, ExistingHalfOwner)>);
 
     use_effect(use_reactive(
         (&version(), &workspace(), &scope_generation()),
@@ -292,8 +292,7 @@ pub fn use_existing_half(
                 error.set(Some(message));
                 return;
             }
-            let ticket = EditTicket::begin(
-                &runtime,
+            let ticket = runtime.resolve_edit(
                 "layout-mirror-existing-half",
                 Some("mirror".into()),
                 mirror_existing_half_resolver(
@@ -499,7 +498,7 @@ fn owner_is_current(
 fn settle_pending(
     runtime: &Rc<Runtime>,
     (workspace, scope_generation, editor_instance_id): (&'static str, u64, u64),
-    waiting: &mut Signal<Option<(EditTicket, ExistingHalfOwner)>>,
+    waiting: &mut Signal<Option<(EditOutcome, ExistingHalfOwner)>>,
     open: &mut Signal<Option<ExistingHalfOwner>>,
     error: &mut Signal<Option<String>>,
 ) {

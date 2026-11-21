@@ -14,7 +14,6 @@ pub mod case_generation_lifecycle;
 pub mod case_model_lifecycle;
 pub mod case_preview;
 pub mod core_services;
-pub mod edit_ticket;
 pub(crate) mod export_lease;
 pub mod firmware_position_projection;
 #[cfg(any(test, feature = "test-support"))]
@@ -26,7 +25,6 @@ pub mod model_delivery;
 pub mod operation_outcomes;
 pub mod parts_preview;
 pub mod pcb_wiring_mode_operation;
-pub mod pending_edits;
 pub mod portable_archive;
 #[cfg(test)]
 mod qualification_assessment_tests;

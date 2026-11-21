@@ -1,60 +1,116 @@
 //! Private, opt-in observation of Session terminal effects for page drafts.
-use boardstudio_application::{Landing, OperationId, TerminalOutcome};
+use boardstudio_application::{DOCUMENT_SESSION_CHANGED, Landing, OperationId, TerminalOutcome};
 use std::{
-    cell::RefCell,
+    cell::{Cell, RefCell},
     collections::BTreeMap,
     rc::{Rc, Weak},
 };
 
 pub type OutcomeSlot = Rc<RefCell<Option<TerminalOutcome>>>;
-pub type LandingSlot = Rc<RefCell<Option<Landing>>>;
+/// Presentation of a resolved edit's Session outcome.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Settlement {
+    Pending,
+    Landed { revision: u64 },
+    Failed { message: String },
+    Retired,
+}
+
+/// The result receiver for an observed edit. Runtime owns the scope lifetime and
+/// Session owns the operation, including any save that outlives this receiver.
+#[derive(Clone)]
+pub struct EditOutcome {
+    operation: OperationId,
+    observation: Rc<EditObservation>,
+}
+
+struct EditObservation {
+    scope: Weak<()>,
+    feature: Option<String>,
+    result: RefCell<Settlement>,
+    retired: Cell<bool>,
+}
+
+impl EditOutcome {
+    pub fn operation(&self) -> OperationId {
+        self.operation
+    }
+
+    pub fn is_pending(&self) -> bool {
+        self.observation.is_live() && *self.observation.result.borrow() == Settlement::Pending
+    }
+
+    pub fn settlement(&self, owner_is_live: bool) -> Settlement {
+        let observation = &self.observation;
+        if !owner_is_live {
+            observation.retired.set(true);
+        }
+        if !observation.is_live() {
+            return Settlement::Retired;
+        }
+        observation.result.borrow().clone()
+    }
+}
+
+impl EditObservation {
+    fn is_live(&self) -> bool {
+        !self.retired.get() && self.scope.strong_count() != 0
+    }
+}
 
 #[derive(Default)]
 struct ObservedSlots {
     outcome: Weak<RefCell<Option<TerminalOutcome>>>,
-    landing: Weak<RefCell<Option<Landing>>>,
-}
-
-impl ObservedSlots {
-    fn outcome_slot(&mut self) -> OutcomeSlot {
-        self.outcome.upgrade().unwrap_or_else(|| {
-            let slot = Rc::new(RefCell::new(None));
-            self.outcome = Rc::downgrade(&slot);
-            slot
-        })
-    }
-
-    fn landing_slot(&mut self) -> LandingSlot {
-        self.landing.upgrade().unwrap_or_else(|| {
-            let slot = Rc::new(RefCell::new(None));
-            self.landing = Rc::downgrade(&slot);
-            slot
-        })
-    }
+    edit: Weak<EditObservation>,
 }
 
 #[derive(Default)]
 pub struct OperationOutcomes {
     waiting: RefCell<BTreeMap<OperationId, ObservedSlots>>,
+    scope: RefCell<Rc<()>>,
 }
 
 impl OperationOutcomes {
+    pub(crate) fn retire_edit_scope(&self) {
+        *self.scope.borrow_mut() = Rc::new(());
+    }
+
+    fn register<T>(
+        &self,
+        operation: OperationId,
+        register: impl FnOnce(&mut ObservedSlots) -> T,
+    ) -> T {
+        let mut waiting = self.waiting.borrow_mut();
+        waiting
+            .retain(|_, slots| slots.outcome.strong_count() != 0 || slots.edit.strong_count() != 0);
+        register(waiting.entry(operation).or_default())
+    }
+
     /// Observe a fresh operation before submitting it. Dropping the slot ends
     /// observation without cancelling the authoritative Session operation.
     pub fn observe(&self, operation: OperationId) -> OutcomeSlot {
-        self.observe_with_landing(operation).0
+        self.register(operation, |slots| {
+            slots.outcome.upgrade().unwrap_or_else(|| {
+                let slot = Rc::new(RefCell::new(None));
+                slots.outcome = Rc::downgrade(&slot);
+                slot
+            })
+        })
     }
 
-    /// Observe a fresh operation and receive a second slot carrying where the operation
-    /// landed. The outcome slot behaves exactly as `observe`'s, whichever way round the
-    /// two observation calls happen.
-    pub fn observe_with_landing(&self, operation: OperationId) -> (OutcomeSlot, LandingSlot) {
-        let mut waiting = self.waiting.borrow_mut();
-        waiting.retain(|_, slots| {
-            slots.outcome.strong_count() != 0 || slots.landing.strong_count() != 0
+    /// Register the receiver before submitting, including for synchronous completion.
+    pub fn observe_edit(&self, operation: OperationId, feature: Option<String>) -> EditOutcome {
+        let observation = Rc::new(EditObservation {
+            scope: Rc::downgrade(&self.scope.borrow()),
+            feature,
+            result: RefCell::new(Settlement::Pending),
+            retired: Cell::new(false),
         });
-        let slots = waiting.entry(operation).or_default();
-        (slots.outcome_slot(), slots.landing_slot())
+        self.register(operation, |slots| slots.edit = Rc::downgrade(&observation));
+        EditOutcome {
+            operation,
+            observation,
+        }
     }
 
     pub fn settle(&self, operation: OperationId, outcome: TerminalOutcome) -> bool {
@@ -69,14 +125,77 @@ impl OperationOutcomes {
     ) -> bool {
         let slots = self.waiting.borrow_mut().remove(&operation);
         let Some(slots) = slots else { return false };
-        let Some(slot) = slots.outcome.upgrade() else {
-            return false;
-        };
-        *slot.borrow_mut() = Some(outcome);
-        if let Some(landing_slot) = slots.landing.upgrade() {
-            *landing_slot.borrow_mut() = landing;
+        let plain = slots.outcome.upgrade();
+        let edit = slots.edit.upgrade();
+        if let Some(edit) = &edit {
+            *edit.result.borrow_mut() = settlement_of(&outcome, landing, edit.feature.as_deref());
         }
-        true
+        if let Some(slot) = &plain {
+            *slot.borrow_mut() = Some(outcome);
+        }
+        plain.is_some() || edit.is_some()
+    }
+}
+
+#[cfg(any(target_arch = "wasm32", test, feature = "test-support"))]
+impl crate::runtime::Runtime {
+    pub fn resolve_edit(
+        self: &Rc<Self>,
+        label: &str,
+        feature: Option<String>,
+        resolver: boardstudio_application::EditResolver,
+    ) -> EditOutcome {
+        let operation_id = self.operation();
+        let outcome = self.operation_outcomes.observe_edit(operation_id, feature);
+        self.submit(boardstudio_application::Event::ResolveEdit {
+            operation_id,
+            label: label.to_owned(),
+            resolver,
+        });
+        outcome
+    }
+}
+
+/// The one mapping from a terminal outcome and its landing to a settlement.
+fn settlement_of(
+    outcome: &TerminalOutcome,
+    landing: Option<Landing>,
+    feature: Option<&str>,
+) -> Settlement {
+    let subject = feature.unwrap_or("edit");
+    match outcome {
+        TerminalOutcome::Completed => match landing {
+            Some(landing) => Settlement::Landed {
+                revision: landing.revision,
+            },
+            None => Settlement::Failed {
+                message: format!(
+                    "The {subject} change could not be confirmed where it landed. The accepted value was restored."
+                ),
+            },
+        },
+        TerminalOutcome::Rejected(reason) if reason == DOCUMENT_SESSION_CHANGED => {
+            Settlement::Retired
+        }
+        TerminalOutcome::Rejected(reason) => Settlement::Failed {
+            message: format!("The {subject} change was refused: {reason}"),
+        },
+        TerminalOutcome::BlockedByRecovery(reason) => Settlement::Failed {
+            message: format!(
+                "The {subject} change was refused while saving is in recovery: {reason}"
+            ),
+        },
+        TerminalOutcome::PersistenceFailed(reason) => Settlement::Failed {
+            message: format!(
+                "The {subject} completed, but the accepted document did not save: {reason}. Retry after recovery."
+            ),
+        },
+        TerminalOutcome::ExecutorFailed(reason) => Settlement::Failed {
+            message: format!("The {subject} change could not be applied: {reason}"),
+        },
+        TerminalOutcome::Superseded | TerminalOutcome::Cancelled | TerminalOutcome::Closed => {
+            Settlement::Retired
+        }
     }
 }
 
@@ -139,37 +258,24 @@ mod tests {
     }
 
     #[test]
-    fn a_landing_observer_reads_the_outcome_and_where_the_operation_landed() {
+    fn typed_and_edit_observers_receive_the_same_completion() {
         let outcomes = OperationOutcomes::default();
-        let (slot, landing) = outcomes.observe_with_landing(OperationId(1));
-        let plain = outcomes.observe(OperationId(1));
-        assert!(
-            Rc::ptr_eq(&slot, &plain),
-            "the plain observer keeps its exact behaviour"
-        );
-
+        let operation = OperationId(1);
+        let edit = outcomes.observe_edit(operation, None);
+        let plain = outcomes.observe(operation);
         assert!(outcomes.settle_with_landing(
-            OperationId(1),
+            operation,
             TerminalOutcome::Completed,
             Some(Landing {
                 revision: 3,
                 token: SnapshotToken(7),
             }),
         ));
-        assert_eq!(*slot.borrow(), Some(TerminalOutcome::Completed));
-        assert_eq!(
-            *landing.borrow(),
-            Some(Landing {
-                revision: 3,
-                token: SnapshotToken(7),
-            })
-        );
-
-        let (_outcome_slot, landing) = outcomes.observe_with_landing(OperationId(2));
-        assert!(outcomes.settle(
-            OperationId(2),
-            TerminalOutcome::Rejected("no landing for this one".into())
-        ));
-        assert_eq!(*landing.borrow(), None);
+        assert_eq!(*plain.borrow(), Some(TerminalOutcome::Completed));
+        assert_eq!(edit.settlement(true), Settlement::Landed { revision: 3 });
     }
 }
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+#[path = "edit_outcome_tests.rs"]
+mod edit_outcome_tests;

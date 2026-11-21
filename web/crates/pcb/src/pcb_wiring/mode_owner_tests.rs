@@ -186,15 +186,10 @@ fn replace_document(runtime: &Rc<crate::runtime::Runtime>, document: ProjectDoc)
                 },
             )
         });
-    let ticket = boardstudio_web_runtime::edit_ticket::EditTicket::begin(
-        runtime,
-        "native-test-document-replacement",
-        None,
-        resolver,
-    );
+    let ticket = runtime.resolve_edit("native-test-document-replacement", None, resolver);
     assert!(matches!(
         ticket.settlement(true),
-        boardstudio_web_runtime::edit_ticket::Settlement::Landed { .. }
+        boardstudio_web_runtime::operation_outcomes::Settlement::Landed { .. }
     ));
 }
 

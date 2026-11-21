@@ -326,7 +326,7 @@ pub struct Runtime {
     session: RefCell<Session>,
     core_services: CoreServices,
     document_core: Option<RefCell<DocumentCore>>,
-    operation_outcomes: crate::operation_outcomes::OperationOutcomes,
+    pub(crate) operation_outcomes: crate::operation_outcomes::OperationOutcomes,
     core: RefCell<Rc<dyn CoreExecutor>>,
     core_executor_factory: RefCell<Rc<CoreExecutorFactory>>,
     pub store: BrowserStore,
@@ -573,16 +573,6 @@ impl Runtime {
                 "Could not read the last active keyboard preference; choose a saved keyboard from the library. {error}"
             )),
         }
-    }
-    /// Observe an operation's terminal outcome and where it landed; edit tickets use this.
-    pub(crate) fn observe_operation_with_landing(
-        &self,
-        operation: OperationId,
-    ) -> (
-        crate::operation_outcomes::OutcomeSlot,
-        crate::operation_outcomes::LandingSlot,
-    ) {
-        self.operation_outcomes.observe_with_landing(operation)
     }
     pub fn operation(&self) -> OperationId {
         let id = self.next_operation.get();

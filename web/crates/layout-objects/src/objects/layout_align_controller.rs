@@ -12,9 +12,7 @@ use boardstudio_application::{
 #[cfg(test)]
 use boardstudio_model::model::{EditCommand, EditOperation, EditPhase};
 use boardstudio_model::model::{Part, ProjectDoc, Vec2};
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
-#[cfg(test)]
-use boardstudio_web_runtime::pending_edits::PendingEdits;
+use boardstudio_web_runtime::operation_outcomes::{EditOutcome, Settlement};
 use dioxus::prelude::*;
 use std::{collections::BTreeSet, rc::Rc};
 
@@ -97,7 +95,7 @@ pub fn use_canvas_align(
     let mut selected_reference = use_signal(|| None::<String>);
     // The committed align is observed through its ticket; the waiting entry (ticket plus
     // the context its feedback needs) is the pending state. No separate busy flag is kept.
-    let waiting = use_signal(|| None::<(EditTicket, AlignFollowUp)>);
+    let waiting = use_signal(|| None::<(EditOutcome, AlignFollowUp)>);
     let feedback = use_signal(|| None::<AlignFeedbackState>);
     let selected = selected_context.read().clone();
     let current_workspace = workspace();
@@ -290,8 +288,7 @@ pub fn use_canvas_align(
                 feedback.set(None);
                 return;
             }
-            let ticket = EditTicket::begin(
-                &runtime,
+            let ticket = runtime.resolve_edit(
                 "layout-align",
                 Some("alignment".into()),
                 align_resolver(
@@ -744,7 +741,7 @@ fn settle_pending(
     runtime: &Runtime,
     selected_context: Signal<Option<ScopedTreeContext>>,
     identity: &AlignIdentity,
-    waiting: &mut Signal<Option<(EditTicket, AlignFollowUp)>>,
+    waiting: &mut Signal<Option<(EditOutcome, AlignFollowUp)>>,
     feedback: &mut Signal<Option<AlignFeedbackState>>,
 ) {
     let Some((ticket, follow_up)) = waiting.read().clone() else {

@@ -2,21 +2,21 @@
 use super::*;
 use crate::matrix_transform_operation::placement_operation;
 use boardstudio_model::model::{MatrixPlacementChange, Mirror};
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+use boardstudio_web_runtime::operation_outcomes::{EditOutcome, Settlement};
 use fixture::{matrix_named, redo, undo};
 
 const TRANSACTION: &str = "layout-transform-test";
 
-fn begin_edit(runtime: &Rc<Runtime>, label: &'static str, resolver: EditResolver) -> EditTicket {
-    EditTicket::begin(runtime, label, Some("transform".into()), resolver)
+fn begin_edit(runtime: &Rc<Runtime>, label: &'static str, resolver: EditResolver) -> EditOutcome {
+    runtime.resolve_edit(label, Some("transform".into()), resolver)
 }
 
-fn nudge_with(runtime: &Rc<Runtime>, nudge: TransformNudge) -> EditTicket {
+fn nudge_with(runtime: &Rc<Runtime>, nudge: TransformNudge) -> EditOutcome {
     let resolver = transform_nudge_resolver(fixture::MATRIX_ID.into(), nudge, Vec2::default());
     begin_edit(runtime, "layout-transform-nudge", resolver)
 }
 
-fn stagger_nudge(runtime: &Rc<Runtime>, key: ArrowKey, big: bool) -> EditTicket {
+fn stagger_nudge(runtime: &Rc<Runtime>, key: ArrowKey, big: bool) -> EditOutcome {
     nudge_with(
         runtime,
         TransformNudge::Stagger {
@@ -27,7 +27,7 @@ fn stagger_nudge(runtime: &Rc<Runtime>, key: ArrowKey, big: bool) -> EditTicket 
     )
 }
 
-fn drag_edit(runtime: &Rc<Runtime>, matrix_id: &str, result: TransformDragResult) -> EditTicket {
+fn drag_edit(runtime: &Rc<Runtime>, matrix_id: &str, result: TransformDragResult) -> EditOutcome {
     let resolver = transform_drag_resolver(matrix_id.into(), TRANSACTION.into(), result);
     begin_edit(runtime, "layout-transform-drag", resolver)
 }
@@ -44,7 +44,7 @@ fn placement_edit(
     runtime: &Rc<Runtime>,
     parameter: PlacementParameter,
     value: PlacementValue,
-) -> EditTicket {
+) -> EditOutcome {
     let resolver = EditResolver::new("inspector-placement", move |_: &AcceptedSnapshot| {
         let operation = placement_operation(fixture::MATRIX_ID, parameter, value);
         transform_commit(String::new(), fixture::MATRIX_ID, operation)
@@ -53,7 +53,7 @@ fn placement_edit(
 }
 
 /// Drive the runtime until `ticket` settles, then return its settlement.
-async fn settle_edit(runtime: &Rc<Runtime>, ticket: &EditTicket) -> Settlement {
+async fn settle_edit(runtime: &Rc<Runtime>, ticket: &EditOutcome) -> Settlement {
     fixture::settle_ticket(runtime, ticket).await;
     let settlement = ticket.settlement(true);
     assert!(
@@ -63,7 +63,7 @@ async fn settle_edit(runtime: &Rc<Runtime>, ticket: &EditTicket) -> Settlement {
     settlement
 }
 
-async fn run(runtime: &Rc<Runtime>, ticket: EditTicket) {
+async fn run(runtime: &Rc<Runtime>, ticket: EditOutcome) {
     settle_edit(runtime, &ticket).await;
 }
 

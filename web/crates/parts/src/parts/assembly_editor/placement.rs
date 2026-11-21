@@ -11,15 +11,12 @@ pub(super) fn begin_place_assembly_on_board(
     origin_x: String,
     origin_y: String,
     mut preparing: Signal<bool>,
-    pending_edits: AssemblyTickets,
+    pending_edits: PendingAssemblyActions,
     editor_generation: Signal<u64>,
     mut feedback: Signal<Option<String>>,
 ) {
     let view_generation = editor_generation();
-    if preparing()
-        || pending_edits.borrow().is_pending(&AssemblyKey::Place)
-        || workspace() != "Parts"
-    {
+    if preparing() || pending_edits.is_pending(&AssemblyKey::Place) || workspace() != "Parts" {
         return;
     }
     let Some(scope) = scope else {
@@ -133,7 +130,7 @@ pub(super) fn begin_place_assembly_on_board(
             ));
             return;
         }
-        pending_edits.borrow_mut().begin_with(
+        pending_edits.submit_value(
             &runtime,
             AssemblyKey::Place,
             "parts-assembly-place",
@@ -165,15 +162,12 @@ pub(super) fn begin_apply_assembly_to_matrix(
     catalogue_definitions: Vec<PartDefinition>,
     assembly: AssemblyDefinition,
     mut preparing: Signal<bool>,
-    pending_edits: AssemblyTickets,
+    pending_edits: PendingAssemblyActions,
     editor_generation: Signal<u64>,
     mut feedback: Signal<Option<String>>,
 ) {
     let view_generation = editor_generation();
-    if preparing()
-        || pending_edits.borrow().is_pending(&AssemblyKey::Matrix)
-        || workspace() != "Parts"
-    {
+    if preparing() || pending_edits.is_pending(&AssemblyKey::Matrix) || workspace() != "Parts" {
         return;
     }
     let Some(scope) = scope else {
@@ -272,7 +266,7 @@ pub(super) fn begin_apply_assembly_to_matrix(
             feedback.set(Some("The project or matrix selection changed while the assembly was being prepared. Reopen the editor and try again.".into()));
             return;
         }
-        pending_edits.borrow_mut().begin_with(
+        pending_edits.submit_value(
             &runtime,
             AssemblyKey::Matrix,
             "parts-assembly-matrix-apply",

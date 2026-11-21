@@ -17,7 +17,7 @@ use boardstudio_model::model::{
     AnchorPart, EditOperation, Matrix, MatrixSplayAffect, PartDefinition, ProjectDoc, Vec2,
     convert_offset_available,
 };
-use boardstudio_web_runtime::pending_edits::PendingEditResult;
+use boardstudio_web_ui_shared::draft_edits::PendingEditResult;
 use boardstudio_web_ui_shared::draft_edits::{DraftEdits, EditDisplay, FieldView};
 use dioxus::prelude::*;
 use std::{cell::RefCell, rc::Rc};

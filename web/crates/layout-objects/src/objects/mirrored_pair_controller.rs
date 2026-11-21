@@ -14,7 +14,7 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
 };
 use boardstudio_model::model::{EditOperation, Layout};
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+use boardstudio_web_runtime::operation_outcomes::{EditOutcome, Settlement};
 use dioxus::prelude::*;
 use std::{cell::Cell, rc::Rc};
 use wasm_bindgen_futures::spawn_local;
@@ -115,7 +115,7 @@ pub fn use_mirrored_pair(
     // The committed pair is observed through its ticket; the waiting entry (ticket plus
     // the identities the Landed follow-up needs) is the pending state. No separate
     // disabled flag is kept: availability derives from it.
-    let waiting = use_signal(|| None::<(EditTicket, PairFollowUp)>);
+    let waiting = use_signal(|| None::<(EditOutcome, PairFollowUp)>);
 
     use_effect(use_reactive(
         (&version(), &workspace(), &scope_generation()),
@@ -774,8 +774,7 @@ pub fn use_mirrored_pair(
                 }
             };
             let left_matrix_id = matrix.id.clone();
-            let ticket = EditTicket::begin(
-                &runtime,
+            let ticket = runtime.resolve_edit(
                 "layout-mirrored-pair",
                 Some("mirrored pair".into()),
                 mirrored_pair_resolver(
@@ -967,7 +966,7 @@ fn clear_preparing(
 }
 
 struct PairSettlement<'a> {
-    waiting: &'a mut Signal<Option<(EditTicket, PairFollowUp)>>,
+    waiting: &'a mut Signal<Option<(EditOutcome, PairFollowUp)>>,
     owner_is_live: bool,
     open: &'a mut Signal<Option<MirroredPairOwner>>,
     form_state: &'a mut Signal<PairFormState<MirroredPairFormValues>>,
@@ -1046,7 +1045,7 @@ fn settle_pending(
 }
 
 fn finish_pending(
-    waiting: &mut Signal<Option<(EditTicket, PairFollowUp)>>,
+    waiting: &mut Signal<Option<(EditOutcome, PairFollowUp)>>,
     status: &mut Signal<Option<String>>,
 ) {
     waiting.set(None);

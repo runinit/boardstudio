@@ -5,7 +5,7 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, Lifecycle, Resolution, Scope, SnapshotToken,
 };
 use boardstudio_model::model::{EditCommand, EditOperation, KeymapChange};
-use boardstudio_web_runtime::pending_edits::PendingEditResult;
+use boardstudio_web_ui_shared::draft_edits::PendingEditResult;
 use boardstudio_web_ui_shared::{draft_edits::FieldView, owned_edits::OwnedEdits};
 use dioxus::prelude::*;
 use std::rc::Rc;

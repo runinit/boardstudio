@@ -1,7 +1,7 @@
 use boardstudio_core::model::{
     CompanionPlacementTarget, MirroredCompanionMode, MirroredCompanionTweak,
 };
-use boardstudio_web_runtime::pending_edits::PendingEditResult;
+use boardstudio_web_ui_shared::draft_edits::PendingEditResult;
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};

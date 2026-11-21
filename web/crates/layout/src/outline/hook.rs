@@ -14,7 +14,7 @@ use boardstudio_model::model::{
     Contour, EditOperation, EditPhase, Operation, OutlineConnection, OutlineFeature, OutlineGap,
     OutlineRepairSettings, OutlineSettings, Part, Side, Vec2,
 };
-use boardstudio_web_runtime::pending_edits::PendingEditResult;
+use boardstudio_web_ui_shared::draft_edits::PendingEditResult;
 use boardstudio_web_ui_shared::draft_edits::{DraftEdits, EditDisplay, FieldView};
 use dioxus::prelude::*;
 use std::rc::Rc;

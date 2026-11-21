@@ -8,8 +8,8 @@ use boardstudio_model::model::{
     Board, Follow, MatrixAnchor, MatrixCell, MatrixPlacementChange, OutlineFeature,
     OutlineSettings, Pose2,
 };
-use boardstudio_web_runtime::pending_edits::PendingEditResult;
 use boardstudio_web_test_runtime::project_name_test_support as support;
+use boardstudio_web_ui_shared::draft_edits::{DraftEdits, PendingEditResult};
 use wasm_bindgen_test::wasm_bindgen_test;
 
 wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
@@ -73,7 +73,7 @@ fn pose_x(runtime: &Rc<Runtime>, id: &str) -> Option<f64> {
 async fn align_moves_the_selection_against_the_accepted_reference() {
     let runtime = support::new_runtime();
     support::open_document(&runtime, fixture()).await;
-    let mut pending = PendingEdits::default();
+    let pending = DraftEdits::<_, ()>::default();
     pending.begin(
         &runtime,
         (),
@@ -83,7 +83,7 @@ async fn align_moves_the_selection_against_the_accepted_reference() {
     );
     support::run_pending(&runtime).await;
     assert!(matches!(
-        pending.settle(true).as_slice(),
+        pending.discard_drafts(true).as_slice(),
         [PendingEditResult::Landed { .. }]
     ));
     assert_eq!(pose_x(&runtime, "a"), Some(20.0));
@@ -113,7 +113,7 @@ async fn align_of_a_part_deleted_before_execution_retires_with_a_reason() {
     );
     support::drive_pending(&runtime);
     entered.await.expect("the delete reached Core");
-    let mut pending = PendingEdits::default();
+    let pending = DraftEdits::<_, ()>::default();
     pending.begin(
         &runtime,
         (),
@@ -134,7 +134,7 @@ async fn align_of_a_part_deleted_before_execution_retires_with_a_reason() {
         }
         gloo_timers::future::TimeoutFuture::new(10).await;
     }
-    match pending.settle(true).as_slice() {
+    match pending.discard_drafts(true).as_slice() {
         [PendingEditResult::Failed { message, .. }] => assert!(
             message.contains("no longer exists"),
             "the reason is explained: {message}"
@@ -204,7 +204,7 @@ async fn column_align_on_a_bent_column_moves_targets_rigidly() {
         (before[0].rotation - before[1].rotation).abs() > 1.0,
         "the bend turns the second key: {before:?}"
     );
-    let mut pending = PendingEdits::default();
+    let pending = DraftEdits::<_, ()>::default();
     pending.begin(
         &runtime,
         (),
@@ -221,7 +221,7 @@ async fn column_align_on_a_bent_column_moves_targets_rigidly() {
         ),
     );
     support::run_pending(&runtime).await;
-    match pending.settle(true).as_slice() {
+    match pending.discard_drafts(true).as_slice() {
         [PendingEditResult::Landed { .. }] => {}
         other => panic!("a rigid column align lands, got {other:?}"),
     }
@@ -315,7 +315,7 @@ async fn anchored_follow_refusal_leaves_the_document_unchanged() {
     assert!(!moving.is_empty(), "the anchored matrix materializes parts");
     let revision = accepted.document.revision;
     let parts = accepted.document.parts.clone();
-    let mut pending = PendingEdits::default();
+    let pending = DraftEdits::<_, ()>::default();
     pending.begin(
         &runtime,
         (),
@@ -331,7 +331,7 @@ async fn anchored_follow_refusal_leaves_the_document_unchanged() {
         ),
     );
     support::run_pending(&runtime).await;
-    match pending.settle(true).as_slice() {
+    match pending.discard_drafts(true).as_slice() {
         [PendingEditResult::Failed { message, .. }] => assert!(
             message.contains("Follow"),
             "the refusal names the Follow restriction: {message}"

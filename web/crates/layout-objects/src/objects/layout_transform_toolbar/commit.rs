@@ -1,27 +1,9 @@
-//! Single-ticket transform commits without polling: begin intent, settle on the
-//! production `version` signal, release observers on retirement.
-//!
-//! The rail drags, nudges and Anchor picks used temporary unit-keyed
-//! `PendingEdits<()>` maps with a 16 ms settlement loop. Each commit below is a
-//! single [`EditTicket`]: resolvers already compose queued edits against the
-//! accepted snapshot at execution time (ADR-0005), so no keyed map or polling
-//! loop is needed. Pending tickets live in a component `Signal<Vec<...>>` and
-//! settle in a `use_effect` on the workbench `version` signal
-//! (`use_workbench_panels` provides it; browser test hosts provide it the same
-//! way via a runtime subscription). Terminal tickets are dropped, which
-//! releases their outcome/landing observers without cancelling the Session
-//! operation.
-//!
-//! Durable completion: a `Landed` ticket means the edit is in the accepted
-//! document; `Failed` carries the exact save/refusal wording and is surfaced
-//! with `Runtime::report`; `Retired` (scope moved on, owner gone, Session
-//! superseded/cancelled/closed) is silent. Owner liveness for settlement is
-//! scope + workspace + generation + selection only: token/revision and
-//! lifecycle/preview/gesture are deliberately not checked, so a commit queued
-//! behind an Applying/Saving Session still lands instead of retiring.
+//! Transform commits settle on the workbench version signal. The Session resolves
+//! each queued intent against the accepted snapshot and saves it before publication.
+//! Dropping the presentation owner drops its observation without cancelling the edit.
 
 use super::*;
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+use boardstudio_web_runtime::operation_outcomes::{EditOutcome, Settlement};
 
 /// The workbench `version` signal every `Runtime::changed` bumps
 /// (`use_workbench_runtime` subscribes the runtime; `use_workbench_panels`
@@ -30,15 +12,6 @@ use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
 /// worse than the panic that surfaces a missing provider.
 pub(super) fn transform_version() -> Signal<u64> {
     use_context::<Signal<u64>>()
-}
-
-/// Begin one transform intent through the shared ticket route.
-pub(super) fn begin_transform_ticket(
-    runtime: &Rc<Runtime>,
-    label: &'static str,
-    resolver: EditResolver,
-) -> EditTicket {
-    EditTicket::begin(runtime, label, Some("transform".into()), resolver)
 }
 
 /// Whether a committed transform still owns its feedback: same scope,
@@ -67,7 +40,7 @@ pub(super) fn transform_commit_is_live(
 /// The toast is raised only on `Landed`; failures report; retirement is silent.
 #[derive(Clone)]
 pub(super) struct PendingTransformCommit {
-    pub(super) ticket: EditTicket,
+    pub(super) ticket: EditOutcome,
     pub(super) owner: LayoutOwnerIdentity,
     pub(super) context: TreeContext,
     pub(super) toast: Option<PendingTransformToast>,

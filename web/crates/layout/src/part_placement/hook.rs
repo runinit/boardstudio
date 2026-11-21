@@ -2,9 +2,9 @@
 //! commit/cancel routing for the canvas. Identity and proposal logic live in
 //! `super::owner` and `super::plan`.
 use super::owner::{
-    ActivePartPlacement, ComponentActionOwner, ControllerChooserOwner, KeyEditOwner,
-    PlacementAdmission, PlacementCapture, PlacementOwner, PlacementPendingKey, PlacementWorkflow,
-    accepted_snapshot_is_current, key_component_resolver, placement_resolver,
+    ActivePartPlacement, ComponentActionOwner, ControllerChooserOwner, PlacementAdmission,
+    PlacementCapture, PlacementOwner, PlacementWorkflow, accepted_snapshot_is_current,
+    key_component_resolver, placement_resolver,
 };
 use super::plan::{
     PlacementIntent, component_part, controller_part, document_with_pending_definition,
@@ -16,11 +16,10 @@ use crate::parts::{PartsQuery, PartsSelection};
 use crate::runtime::Runtime;
 use crate::selection::SelectionAdapter;
 use crate::setup_guide::{SetupGuidePreferences, SetupGuideStage};
-use boardstudio_application::{Durability, Event, Lifecycle, SelectionMode};
+use boardstudio_application::{Durability, Event, Lifecycle, OperationId, SelectionMode};
 use boardstudio_model::model::{PartDefinition, PartKind, ProjectDoc, Vec2};
-use boardstudio_web_runtime::pending_edits::PendingEditResult;
+use boardstudio_web_runtime::operation_outcomes::Settlement;
 use boardstudio_web_ui_model::tree::{ScopedTreeContext, TreeContext};
-use boardstudio_web_ui_shared::draft_edits::{DraftEdits, EditDisplay};
 use dioxus::prelude::*;
 use std::{
     cell::{Cell, RefCell},
@@ -103,8 +102,7 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
     let active = use_signal(|| None::<ActivePartPlacement>);
     let preparing = use_signal(|| None::<PlacementOwner>);
     let committing = use_signal(|| false);
-    let key_edit_disabled = use_signal(|| false);
-    let pending_edits = use_hook(DraftEdits::<PlacementPendingKey>::default);
+    let mut key_edit = use_signal(|| None::<OperationId>);
     let error = use_signal(|| None::<String>);
     let alive = use_hook(|| Rc::new(Cell::new(true)));
     use_drop({
@@ -191,7 +189,6 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
         let alive = alive.clone();
         let adapter_for_async = adapter.clone();
         let canvas_interaction = canvas_interaction.clone();
-        let pending_edits = pending_edits.clone();
         Rc::new(RefCell::new(
             move |definition_id: String,
                   kind: PartKind,
@@ -250,7 +247,7 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                 if active.read().is_some()
                     || preparing.read().is_some()
                     || *committing.read()
-                    || *key_edit_disabled.read()
+                    || key_edit.read().is_some()
                     || workspace() != source_workspace
                 {
                     return;
@@ -323,7 +320,6 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                     let current_context = adapter_for_async.selected_context;
                     let workspace_for_load = workspace;
                     let generation_for_load = generation;
-                    let pending_edits_for_key = pending_edits.clone();
                     let alive = alive.clone();
                     spawn_local(async move {
                         let definition =
@@ -366,48 +362,33 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                         {
                             return;
                         }
-                        pending_edits_for_key.submit(
-                            &runtime,
-                            PlacementPendingKey::KeyComponent,
+                        let outcome = runtime.resolve_edit(
                             "layout-key-component",
                             Some("component".into()),
                             key_component_resolver(scope.clone(), selected.clone(), definition),
-                            EditDisplay::default().disabling(key_edit_disabled),
                         );
-                        let pending = KeyEditOwner {
-                            scope: scope.clone(),
-                            generation: accepted_generation,
-                            source_workspace,
-                            selection: selected.clone(),
-                        };
+                        key_edit.set(Some(outcome.operation()));
                         error.set(None);
-                        let runtime = runtime.clone();
-                        let pending_edits = pending_edits_for_key.clone();
-                        let current_context = current_context;
-                        let workspace_for_key = workspace_for_load;
-                        let generation_for_key = generation_for_load;
-                        let alive = alive.clone();
-                        spawn_local(async move {
-                            loop {
-                                if !alive.get() {
-                                    return;
+                        loop {
+                            if !alive.get() || *key_edit.peek() != Some(outcome.operation()) {
+                                return;
+                            }
+                            let live = workspace_for_load() == source_workspace
+                                && generation_for_load() == accepted_generation
+                                && current_context().as_ref() == Some(&selected);
+                            match outcome.settlement(live) {
+                                Settlement::Pending => {
+                                    gloo_timers::future::TimeoutFuture::new(16).await
                                 }
-                                let still_current = runtime.scope().as_ref()
-                                    == Some(&pending.scope)
-                                    && workspace_for_key() == pending.source_workspace
-                                    && generation_for_key() == pending.generation
-                                    && current_context() == Some(pending.selection.clone());
-                                let results =
-                                    pending_edits.settle(still_current, |_| String::new());
-                                if let Some(result) = results.into_iter().next() {
-                                    if let PendingEditResult::Failed { message, .. } = result {
+                                settlement => {
+                                    key_edit.set(None);
+                                    if let Settlement::Failed { message } = settlement {
                                         error.set(Some(message));
                                     }
                                     break;
                                 }
-                                gloo_timers::future::TimeoutFuture::new(16).await;
                             }
-                        });
+                        }
                     });
                     return;
                 }
@@ -803,6 +784,7 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
     let on_commit = {
         let runtime = runtime.clone();
         let mut active = active;
+        let mut committing = committing;
         let mut error = error;
         let alive = alive.clone();
         let canvas_interaction = canvas_interaction.clone();
@@ -841,9 +823,8 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                 return;
             }
             let owner = placement.owner.clone();
-            pending_edits.submit(
-                &runtime,
-                PlacementPendingKey::Placement,
+            committing.set(true);
+            let outcome = runtime.resolve_edit(
                 "layout-component-placement",
                 Some("placement".into()),
                 placement_resolver(
@@ -853,13 +834,10 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                     owner.layout_id.clone(),
                     owner.intent,
                 ),
-                EditDisplay::default().disabling(committing),
             );
-            // The helper disables this canvas-owning one-shot until settlement.
             active.set(None);
             error.set(None);
             let runtime = runtime.clone();
-            let pending_edits = pending_edits.clone();
             let mut error = error;
             let mut workspace = workspace;
             let guide_preferences = guide_preferences;
@@ -881,18 +859,16 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                         workspace(),
                         guide_preferences(),
                     );
-                    if let Some(result) = pending_edits
-                        .settle(route_live, |_| String::new())
-                        .into_iter()
-                        .next()
-                    {
+                    let result = outcome.settlement(route_live);
+                    if result != Settlement::Pending {
                         break result;
                     }
                     gloo_timers::future::TimeoutFuture::new(16).await;
                 };
+                committing.set(false);
                 let model = runtime.model();
                 match settlement {
-                    PendingEditResult::Landed { .. } => {
+                    Settlement::Landed { .. } => {
                         // Select from the accepted document at the landing; nothing when the
                         // placed part is no longer there.
                         let placed = model.accepted.as_ref().is_some_and(|accepted| {
@@ -938,11 +914,12 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                             mode: SelectionMode::Replace,
                         });
                     }
-                    PendingEditResult::Failed { message, .. } => {
+                    Settlement::Failed { message, .. } => {
                         workspace.set(owner.source_workspace);
                         error.set(Some(message));
                     }
-                    PendingEditResult::Retired { .. } => {}
+                    Settlement::Retired => {}
+                    Settlement::Pending => unreachable!(),
                 }
                 canvas_interaction.release(CanvasInteractionOwner::PartPlacement);
             });
@@ -1021,7 +998,7 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
         )
         .admits(&placement.owner, &runtime, &model)
     });
-    let busy = preparing.read().is_some() || *committing.read() || *key_edit_disabled.read();
+    let busy = preparing.read().is_some() || *committing.read() || key_edit.read().is_some();
     let owns_canvas = busy || projection.is_some();
     use_effect(use_reactive(
         (&version(), &workspace(), &generation(), &owns_canvas),

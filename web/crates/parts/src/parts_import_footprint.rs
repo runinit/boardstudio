@@ -180,7 +180,7 @@ mod ui {
     use super::{ImportCapture, ImportOwner, ScopedMessage, import_resolver, owner_matches};
     use crate::runtime::Runtime;
     use boardstudio_application::{AcceptedSnapshot, Scope};
-    use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+    use boardstudio_web_runtime::operation_outcomes::{EditOutcome, Settlement};
     use boardstudio_web_ui_shared::ui::{
         alert::{Alert, AlertVariant},
         button::{Button, ButtonVariant},
@@ -203,7 +203,7 @@ mod ui {
             filename: String,
         },
         Committed {
-            ticket: EditTicket,
+            ticket: EditOutcome,
             capture: ImportCapture,
             filename: String,
             diagnostics: Vec<String>,
@@ -625,8 +625,7 @@ mod ui {
                         }
                         return;
                     }
-                    let ticket = EditTicket::begin(
-                        &runtime,
+                    let ticket = runtime.resolve_edit(
                         "parts-import-footprint",
                         Some("KiCad footprint".into()),
                         import_resolver(capture.clone(), compiled),

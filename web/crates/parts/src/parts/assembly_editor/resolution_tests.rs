@@ -1,6 +1,6 @@
 use super::*;
-use boardstudio_web_runtime::pending_edits::PendingEdits;
 use boardstudio_web_test_runtime::project_name_test_support as support;
+use boardstudio_web_ui_shared::draft_edits::DraftEdits;
 use boardstudio_web_ui_shared::test_mount::MountedFixture;
 use boardstudio_web_ui_shared::test_role::by_role_name;
 use wasm_bindgen_test::*;
@@ -142,7 +142,7 @@ async fn assembly_followup_keeps_exact_save_and_placement_identity() {
     let scope = runtime.scope().unwrap();
     let mut value = recipe.clone();
     value.name = "Updated".into();
-    let mut edits = PendingEdits::default();
+    let edits = DraftEdits::<_, ()>::default();
     edits.begin(
         &runtime,
         0_u64,
@@ -162,7 +162,7 @@ async fn assembly_followup_keeps_exact_save_and_placement_identity() {
     );
     support::run_pending(&runtime).await;
     assert!(matches!(
-        edits.settle(true).as_slice(),
+        edits.discard_drafts(true).as_slice(),
         [PendingEditResult::Landed { .. }]
     ));
     let accepted = runtime.model().accepted.unwrap();
@@ -182,7 +182,7 @@ async fn assembly_followup_keeps_exact_save_and_placement_identity() {
     );
     support::run_pending(&runtime).await;
     assert!(matches!(
-        edits.settle(true).as_slice(),
+        edits.discard_drafts(true).as_slice(),
         [PendingEditResult::Landed { .. }]
     ));
     let accepted = runtime.model().accepted.unwrap();
@@ -206,7 +206,7 @@ async fn matrix_recipe_keeps_queued_geometry_and_undo_order() {
     )
     .unwrap();
     let (entered, gate) = support::gate_next_core_reply(&runtime);
-    let mut edits = PendingEdits::default();
+    let edits = DraftEdits::<_, ()>::default();
     edits.begin(
         &runtime,
         0_u64,
@@ -242,7 +242,7 @@ async fn matrix_recipe_keeps_queued_geometry_and_undo_order() {
     release(&runtime, gate).await;
     assert!(
         matches!(
-            edits.settle(true).as_slice(),
+            edits.discard_drafts(true).as_slice(),
             [
                 PendingEditResult::Landed { .. },
                 PendingEditResult::Landed { .. }
@@ -290,7 +290,7 @@ async fn assembly_save_and_place_compose_with_queued_rename() {
     )
     .unwrap();
     let (entered, gate) = support::gate_next_core_reply(&runtime);
-    let mut edits = PendingEdits::default();
+    let edits = DraftEdits::<_, ()>::default();
     edits.begin(
         &runtime,
         0_u64,
@@ -321,7 +321,7 @@ async fn assembly_save_and_place_compose_with_queued_rename() {
     release(&runtime, gate).await;
     assert!(
         matches!(
-            edits.settle(true).as_slice(),
+            edits.discard_drafts(true).as_slice(),
             [
                 PendingEditResult::Landed { .. },
                 PendingEditResult::Landed { .. },

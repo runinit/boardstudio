@@ -553,8 +553,7 @@ async fn newer_placement_returning_to_baseline_survives_landing_and_clean_accept
     })
     .await;
 
-    let _external = boardstudio_web_runtime::edit_ticket::EditTicket::begin(
-        &runtime,
+    let _external = runtime.resolve_edit(
         "external-module-placement",
         Some("placement".into()),
         EditResolver::new("pcb-module", |accepted| {

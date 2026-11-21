@@ -4,7 +4,7 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope, SnapshotToken,
 };
 use boardstudio_model::model::{Board, EditOperation, Operation, OutlineFeature};
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+use boardstudio_web_runtime::operation_outcomes::{EditOutcome, Settlement};
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -75,7 +75,7 @@ pub fn use_board_setup(
     // The committed add-board edit is observed through its ticket; the waiting entry
     // (ticket plus the board it should navigate to) is the pending state. There is no
     // separate disabled flag: the button derives its availability from this entry.
-    let waiting = use_signal(|| None::<(EditTicket, BoardCreateOwner, String)>);
+    let waiting = use_signal(|| None::<(EditOutcome, BoardCreateOwner, String)>);
     use_effect(use_reactive((&version(), &workspace(), &generation()), {
         let runtime = runtime.clone();
         let mut waiting = waiting;
@@ -145,8 +145,7 @@ pub fn use_board_setup(
                 };
                 suffix = next;
             };
-            let ticket = EditTicket::begin(
-                &runtime,
+            let ticket = runtime.resolve_edit(
                 "layout-add-board",
                 Some("board".into()),
                 add_board_resolver(board_id.clone(), outline_id),

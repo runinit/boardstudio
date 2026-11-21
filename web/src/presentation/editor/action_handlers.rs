@@ -537,11 +537,10 @@ pub(super) fn nudge_tree_handler(
         inspect_open.set(true);
         // Each press is a delta intent: it moves each part by one step from the
         // position accepted when it runs, so held-key repeats all land.
-        let _ = boardstudio_web_runtime::edit_ticket::EditTicket::begin(
-            &runtime,
-            "layout-nudge",
-            Some("move".into()),
-            layout_component_edits::nudge_resolver(
+        runtime.submit(Event::ResolveEdit {
+            operation_id: runtime.operation(),
+            label: "layout-nudge".into(),
+            resolver: layout_component_edits::nudge_resolver(
                 moving_ids,
                 model.active_board_id.clone(),
                 Vec2 {
@@ -549,7 +548,7 @@ pub(super) fn nudge_tree_handler(
                     y: f64::from(request.dy) * step,
                 },
             ),
-        );
+        });
         let direction = match (request.dx, request.dy) {
             (-1, 0) => "left",
             (1, 0) => "right",

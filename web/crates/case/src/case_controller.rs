@@ -11,7 +11,7 @@ use boardstudio_model::model::ProjectDoc;
 use boardstudio_model::model::{
     CaseBody, CaseKind, EditCommand, EditOperation, Mount, MountKind, Vec2,
 };
-use boardstudio_web_runtime::pending_edits::PendingEditResult;
+use boardstudio_web_ui_shared::draft_edits::PendingEditResult;
 use boardstudio_web_ui_shared::{
     draft_edits::{EditDisplay, FieldView},
     owned_edits::OwnedEdits,
@@ -514,8 +514,8 @@ fn submit_body_edit(
         && pending
             .peek()
             .edits
-            .observations()
             .pending_keys()
+            .iter()
             .filter_map(|entry| entry.meta.as_deref())
             .any(|entry| entry.request.edit.action_id().as_ref() == Some(&action_id))
     {

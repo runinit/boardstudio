@@ -546,8 +546,11 @@ pub fn LayoutPartToolOverlay(
                     }
                     (_, delta) => part_anchor_drag_resolver(part_id, transaction_id, delta),
                 };
-                let ticket =
-                    begin_transform_ticket(&runtime_for_end, "layout-part-rail-drag", resolver);
+                let ticket = runtime_for_end.resolve_edit(
+                    "layout-part-rail-drag",
+                    Some("transform".into()),
+                    resolver,
+                );
                 pending.write().push(PendingTransformCommit {
                     ticket,
                     owner: active.rail.owner.clone(),

@@ -249,8 +249,7 @@ async fn real_pointer_events_with_stubbed_capture_latch_ctrl_at_pointer_down_and
  {
     let runtime = fixture::open_matrix_runtime().await;
     // The first edit syncs the fixture's unlaid poses.
-    let sync = boardstudio_web_runtime::edit_ticket::EditTicket::begin(
-        &runtime,
+    let sync = runtime.resolve_edit(
         "sync",
         Some("transform".into()),
         EditResolver::new("sync", |_: &AcceptedSnapshot| {

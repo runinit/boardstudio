@@ -60,7 +60,7 @@ fn owner_replacement_retires_observations_and_preserves_mounted_signals() {
         edits.follow_owner(scope.as_ref(), 2);
         assert!(!edits.owner_changed(scope.as_ref(), 2));
         assert!(!edits.edits.is_pending(&"name"));
-        assert_eq!(edits.edits.observations().pending_keys().count(), 0);
+        assert_eq!(edits.edits.pending_keys().into_iter().count(), 0);
         assert!(!edits.edits.has_terminal());
         runtime.release_core();
         assert_eq!(runtime.model().accepted.unwrap().document.name, "Old owner");
@@ -123,15 +123,15 @@ fn pending_payloads_follow_latest_submission_order_and_terminals_wait_for_settle
     assert_eq!(
         edits
             .edits
-            .observations()
             .pending_keys()
+            .into_iter()
             .map(|key| key.1)
             .collect::<Vec<_>>(),
         ["Second", "Latest"]
     );
 
     runtime.release_core();
-    assert_eq!(edits.edits.observations().pending_keys().count(), 0);
+    assert_eq!(edits.edits.pending_keys().into_iter().count(), 0);
     assert!(edits.edits.has_terminal());
     assert!(
         edits.edits.has_terminal(),
@@ -143,7 +143,7 @@ fn pending_payloads_follow_latest_submission_order_and_terminals_wait_for_settle
     let payloads = results
         .iter()
         .map(|result| match result {
-            boardstudio_web_runtime::pending_edits::PendingEditResult::Landed { key, .. } => key.1,
+            crate::draft_edits::PendingEditResult::Landed { key, .. } => key.1,
             other => panic!("expected a landing, got {other:?}"),
         })
         .collect::<Vec<_>>();

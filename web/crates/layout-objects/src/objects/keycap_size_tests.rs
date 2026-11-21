@@ -788,7 +788,7 @@ async fn undo(runtime: &Rc<crate::runtime::Runtime>) {
 #[wasm_bindgen_test]
 async fn rapid_key_size_then_an_unrelated_edit_both_survive_and_undo_removes_them_in_order() {
     use boardstudio_model::model::EditOperation;
-    use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+    use boardstudio_web_runtime::operation_outcomes::Settlement;
     use boardstudio_web_test_runtime::project_name_test_support as support;
 
     let runtime = support::new_runtime();
@@ -820,8 +820,7 @@ async fn rapid_key_size_then_an_unrelated_edit_both_survive_and_undo_removes_the
 
     // Hold the first Core reply so the second edit queues behind the key-size edit.
     let (entered, release) = support::gate_next_core_reply(&runtime);
-    let resize = EditTicket::begin(
-        &runtime,
+    let resize = runtime.resolve_edit(
         "layout-key-size",
         Some("key size".into()),
         resize_resolver_for(
@@ -836,8 +835,7 @@ async fn rapid_key_size_then_an_unrelated_edit_both_survive_and_undo_removes_the
     entered.await.expect("the key-size edit reached Core");
     assert!(resize.is_pending(), "the held edit has not settled");
 
-    let rename = EditTicket::begin(
-        &runtime,
+    let rename = runtime.resolve_edit(
         "board-rename",
         Some("board".into()),
         boardstudio_application::EditResolver::new(
@@ -1039,7 +1037,7 @@ async fn size_selector_tracks_accepted_undo_redo_and_failed_edit_feedback() {
 
 #[wasm_bindgen_test]
 async fn queued_key_resize_retires_when_row_delete_reuses_the_selected_id() {
-    use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+    use boardstudio_web_runtime::operation_outcomes::Settlement;
     use boardstudio_web_test_runtime::project_name_test_support as support;
 
     let runtime = support::new_runtime();
@@ -1057,8 +1055,7 @@ async fn queued_key_resize_retires_when_row_delete_reuses_the_selected_id() {
     support::open_document(&runtime, document).await;
     let captured = runtime.model().accepted.unwrap();
     let (entered, release) = support::gate_next_core_reply(&runtime);
-    let delete = EditTicket::begin(
-        &runtime,
+    let delete = runtime.resolve_edit(
         "delete-row",
         None,
         boardstudio_application::EditResolver::new("delete-row", |_| {
@@ -1073,8 +1070,7 @@ async fn queued_key_resize_retires_when_row_delete_reuses_the_selected_id() {
     );
     support::drive_pending(&runtime);
     entered.await.expect("row removal reached Core");
-    let resize = EditTicket::begin(
-        &runtime,
+    let resize = runtime.resolve_edit(
         "layout-key-size",
         None,
         resize_resolver_for(

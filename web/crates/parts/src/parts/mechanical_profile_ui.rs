@@ -13,7 +13,7 @@ use crate::parts_mechanical_profile::{
 use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, Scope};
 use boardstudio_model::model::{MechanicalPartProfile, PartDefinition};
-use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+use boardstudio_web_runtime::operation_outcomes::{EditOutcome, Settlement};
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
     button::{Button, ButtonVariant},
@@ -49,7 +49,7 @@ pub fn PartsMechanicalProfileWorkspace(
     let runtime_version = use_context::<Signal<u64>>();
     let _ = runtime_version();
     let editing = use_signal(|| false);
-    let mut pending = use_signal(|| None::<(EditTicket, MechanicalPartProfile)>);
+    let mut pending = use_signal(|| None::<(EditOutcome, MechanicalPartProfile)>);
     let mut owner_seen = use_signal(|| None::<(ProfileEditOwner, u64, u64)>);
     let scope_generation_at_render = (selection_adapter.generation)();
     let selection_generation_at_render = selection_generation();
@@ -136,8 +136,7 @@ pub fn PartsMechanicalProfileWorkspace(
                 definition.clone(),
                 profile.clone(),
             );
-            let ticket = EditTicket::begin(
-                &runtime,
+            let ticket = runtime.resolve_edit(
                 "parts-mechanical-profile",
                 Some("mechanical profile".into()),
                 resolver,

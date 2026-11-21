@@ -9,7 +9,7 @@ use boardstudio_model::model::{
     EditOperation, ModuleAttachment, ModuleConnection, ModuleSupport, MountedModule,
     PartDefinition, Side, VikRole, VikSignal,
 };
-use boardstudio_web_runtime::pending_edits::PendingEditResult;
+use boardstudio_web_ui_shared::draft_edits::PendingEditResult;
 use boardstudio_web_ui_shared::draft_edits::{DraftEdits, EditDisplay, FieldView};
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};

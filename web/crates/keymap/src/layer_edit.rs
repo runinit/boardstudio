@@ -94,8 +94,8 @@ mod tests {
     use super::*;
     use boardstudio_application::Event;
     use boardstudio_model::model::ProjectDoc;
-    use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
     use boardstudio_web_runtime::runtime::Runtime;
+    use boardstudio_web_ui_shared::draft_edits::{DraftEdits, PendingEditResult};
     use std::rc::Rc;
 
     fn open() -> (Rc<Runtime>, Scope) {
@@ -123,7 +123,7 @@ mod tests {
         request: KeymapLayerOperation,
         seed: u64,
     ) -> PendingEditResult<u8> {
-        let mut edits = PendingEdits::default();
+        let edits = DraftEdits::<_, ()>::default();
         edits.begin(
             runtime,
             0u8,
@@ -131,7 +131,7 @@ mod tests {
             Some("layer".into()),
             layer_resolver(scope.clone(), request, seed),
         );
-        let mut results = edits.settle(true);
+        let mut results = edits.discard_drafts(true);
         assert_eq!(results.len(), 1, "{results:?}");
         results.remove(0)
     }

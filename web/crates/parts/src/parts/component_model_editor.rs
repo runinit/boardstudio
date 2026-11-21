@@ -9,8 +9,8 @@ use crate::{
 };
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution, Scope, SessionEpoch};
 use boardstudio_model::model::{Asset, EditOperation, PartDefinition, PartModel, Vec3};
-use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
-use boardstudio_web_ui_shared::draft_edits::{DraftEdits, FieldView};
+use boardstudio_web_runtime::operation_outcomes::{EditOutcome, Settlement};
+use boardstudio_web_ui_shared::draft_edits::{DraftEdits, FieldView, PendingEditResult};
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
     button::{Button, ButtonVariant},
@@ -21,10 +21,7 @@ use boardstudio_web_ui_shared::ui::{
 };
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
-use std::{
-    cell::{Cell, RefCell},
-    rc::Rc,
-};
+use std::{cell::Cell, rc::Rc};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
 use web_sys::HtmlInputElement;
@@ -47,15 +44,6 @@ struct ModelEditorMessage {
 
 #[cfg(test)]
 type UploadHandlerProbe = Rc<std::cell::RefCell<Option<Callback<FormEvent>>>>;
-
-/// This editor's bounded keys: the two one-shot actions plus one key per vector axis
-/// field, so each axis observes its own edit.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum ModelKey {
-    Upload,
-    Remove,
-    Transform { field: VectorField, axis: Axis },
-}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum VectorField {
@@ -299,8 +287,8 @@ pub fn ComponentModelEditor(
     let mut notice = use_signal(|| None::<ModelEditorMessage>);
     let mut uploading = use_signal(|| false);
     let mut file_input = use_signal(|| None::<HtmlInputElement>);
-    let pending_edits = use_hook(|| Rc::new(RefCell::new(PendingEdits::<ModelKey>::default())));
-    let submit_owner = use_signal(|| None::<ModelEditorOwner>);
+    let mut upload_edit = use_signal(|| None::<(EditOutcome, ModelEditorOwner)>);
+    let mut remove_edit = use_signal(|| None::<(EditOutcome, ModelEditorOwner)>);
     let alive = use_hook(|| Rc::new(Cell::new(true)));
     let request_generation = use_hook(|| Rc::new(Cell::new(0_u64)));
     use_drop({
@@ -325,27 +313,37 @@ pub fn ComponentModelEditor(
     }));
     use_effect(use_reactive((&version(),), {
         let runtime = runtime.clone();
-        let pending_edits = pending_edits.clone();
         let mut error = error;
         let mut notice = notice;
         move |_| {
-            let Some(owner) = submit_owner.peek().clone() else {
-                return;
-            };
-            let live = current_snapshot(
-                &runtime,
-                &owner,
-                &selected,
-                selection_generation(),
-                scope_generation(),
-                &workspace,
-            )
-            .is_some();
-            let results = pending_edits.borrow_mut().settle(live);
-            for result in results {
-                if let PendingEditResult::Failed { message, .. } = result {
+            // Both actions can complete while the editor is between renders.
+            let mut actions = [upload_edit, remove_edit];
+            actions.sort_by_key(|action| {
+                action
+                    .peek()
+                    .as_ref()
+                    .map(|(outcome, _)| outcome.operation())
+            });
+            for mut action in actions {
+                let Some((outcome, owner)) = action.peek().clone() else {
+                    continue;
+                };
+                let live = current_snapshot(
+                    &runtime,
+                    &owner,
+                    &selected,
+                    selection_generation(),
+                    scope_generation(),
+                    &workspace,
+                )
+                .is_some();
+                let result = outcome.settlement(live);
+                if result != Settlement::Pending {
+                    action.set(None);
+                }
+                if let Settlement::Failed { message } = result {
                     error.set(Some(ModelEditorMessage {
-                        owner: owner.clone(),
+                        owner,
                         text: message,
                     }));
                     notice.set(None);
@@ -368,14 +366,19 @@ pub fn ComponentModelEditor(
     let visible_notice = notice()
         .filter(|message| message.owner == owner && current_owner.is_some())
         .map(|message| message.text);
-    let upload_pending = pending_edits.borrow().is_pending(&ModelKey::Upload);
-    let remove_pending = pending_edits.borrow().is_pending(&ModelKey::Remove);
+    let upload_pending = upload_edit
+        .read()
+        .as_ref()
+        .is_some_and(|(outcome, _)| outcome.is_pending());
+    let remove_pending = remove_edit
+        .read()
+        .as_ref()
+        .is_some_and(|(outcome, _)| outcome.is_pending());
     let base_definition = definition.clone();
     let selected_for_upload = selected;
     let runtime_for_upload = runtime.clone();
     let owner_for_upload = owner.clone();
     let upload_generation = request_generation.clone();
-    let upload_pending_edits = pending_edits.clone();
     let upload_model = move |event: FormEvent| {
         let Some(input) = event
             .data()
@@ -390,7 +393,10 @@ pub fn ComponentModelEditor(
         };
         input.set_value("");
         if uploading()
-            || upload_pending_edits.borrow().is_pending(&ModelKey::Upload)
+            || upload_edit
+                .peek()
+                .as_ref()
+                .is_some_and(|(outcome, _)| outcome.is_pending())
             || current_snapshot(
                 &runtime_for_upload,
                 &owner_for_upload,
@@ -419,8 +425,6 @@ pub fn ComponentModelEditor(
         let original = base_definition.clone();
         let project_owned_at_start = project_owned;
         let mut uploading = uploading;
-        let pending_edits = upload_pending_edits.clone();
-        let mut submit_owner = submit_owner;
         let mut error = error;
         let mut notice = notice;
         spawn_local(async move {
@@ -544,14 +548,12 @@ pub fn ComponentModelEditor(
             uploading.set(false);
             error.set(None);
             notice.set(None);
-            pending_edits.borrow_mut().begin(
-                &runtime,
-                ModelKey::Upload,
+            let outcome = runtime.resolve_edit(
                 "parts-component-model",
                 Some("component model".into()),
                 resolver,
             );
-            submit_owner.set(Some(owner));
+            upload_edit.set(Some((outcome, owner)));
         });
     };
 
@@ -622,15 +624,17 @@ pub fn ComponentModelEditor(
         let original = definition.clone();
         let selected = selected;
         let asset_id = binding.as_ref().map(|model| model.asset_id.clone());
-        let pending_edits = pending_edits.clone();
-        let mut submit_owner = submit_owner;
         let mut error = error;
         let mut notice = notice;
         move |_| {
             let Some(asset_id) = asset_id.as_deref() else {
                 return;
             };
-            if pending_edits.borrow().is_pending(&ModelKey::Remove) {
+            if remove_edit
+                .peek()
+                .as_ref()
+                .is_some_and(|(outcome, _)| outcome.is_pending())
+            {
                 return;
             }
             let live = current_snapshot(
@@ -646,14 +650,12 @@ pub fn ComponentModelEditor(
                 Ok(resolver) => {
                     error.set(None);
                     notice.set(None);
-                    pending_edits.borrow_mut().begin(
-                        &runtime,
-                        ModelKey::Remove,
+                    let outcome = runtime.resolve_edit(
                         "parts-component-model",
                         Some("component model".into()),
                         resolver,
                     );
-                    submit_owner.set(Some(owner.clone()));
+                    remove_edit.set(Some((outcome, owner.clone())));
                 }
                 Err(message) => error.set(Some(ModelEditorMessage {
                     owner: owner.clone(),
@@ -686,11 +688,11 @@ pub fn ComponentModelEditor(
                     }
                     fieldset { class: "grid gap-2",
                         legend { "Model alignment" }
-                        { rsx! { ModelVectorEditor { key: "{owner:?}-Offset", field: VectorField::Offset, title: "Offset", value: model.offset, unit: "mm", positive: false,
+                        { rsx! { ModelVectorEditor { key: "{owner:?}-Offset", title: "Offset", value: model.offset, unit: "mm", positive: false,
                             on_commit: move |(axis, submitted, value)| transform_commit.call((VectorField::Offset, axis, submitted, value)) } } }
-                        { rsx! { ModelVectorEditor { key: "{owner:?}-Rotation", field: VectorField::Rotation, title: "Rotation", value: model.rotation, unit: "°", positive: false,
+                        { rsx! { ModelVectorEditor { key: "{owner:?}-Rotation", title: "Rotation", value: model.rotation, unit: "°", positive: false,
                             on_commit: move |(axis, submitted, value)| transform_commit.call((VectorField::Rotation, axis, submitted, value)) } } }
-                        { rsx! { ModelVectorEditor { key: "{owner:?}-Scale", field: VectorField::Scale, title: "Scale", value: model.scale, unit: "×", positive: true,
+                        { rsx! { ModelVectorEditor { key: "{owner:?}-Scale", title: "Scale", value: model.scale, unit: "×", positive: true,
                             on_commit: move |(axis, submitted, value)| transform_commit.call((VectorField::Scale, axis, submitted, value)) } } }
                     }
                     Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: remove_pending, onclick: remove_model, "Remove attached model" }
@@ -736,7 +738,6 @@ pub fn ComponentModelEditor(
 
 #[component]
 fn ModelVectorEditor(
-    field: VectorField,
     title: &'static str,
     value: Vec3,
     unit: &'static str,
@@ -749,7 +750,7 @@ fn ModelVectorEditor(
     // This editor's own collection: the editor is remounted per owner (its parent keys
     // it by the model owner), so its lifetime is the owner lifetime and it settles its
     // own axes here, like the render-body settlement it replaces.
-    let pending = use_hook(DraftEdits::<ModelKey>::default);
+    let pending = use_hook(DraftEdits::<Axis>::default);
     let axes = [Axis::X, Axis::Y, Axis::Z];
     let current = vector_values(value);
     let mut drafts = use_hook(|| current.map(|coordinate| Signal::new(coordinate.to_string())));
@@ -760,10 +761,7 @@ fn ModelVectorEditor(
     {
         let previous = synced();
         for index in 0..3 {
-            let key = ModelKey::Transform {
-                field,
-                axis: axes[index],
-            };
+            let key = axes[index];
             if !pending.is_pending(&key)
                 && !dirty.peek()[index]
                 && current[index] != previous[index]
@@ -777,14 +775,13 @@ fn ModelVectorEditor(
     }
     // Settle this editor's axes before rendering: a failure restores the accepted
     // value and reports inline; landed and retired edits drop silently.
-    let settled = pending.settle(true, |key| match key {
-        ModelKey::Transform { axis, .. } => match axis {
+    let settled = pending.settle(true, |axis| {
+        match axis {
             Axis::X => value.x,
             Axis::Y => value.y,
             Axis::Z => value.z,
         }
-        .to_string(),
-        _ => String::new(),
+        .to_string()
     });
     for result in settled {
         let key = match result {
@@ -792,15 +789,13 @@ fn ModelVectorEditor(
             | PendingEditResult::Failed { key, .. }
             | PendingEditResult::Retired { key } => key,
         };
-        if let ModelKey::Transform { axis, .. } = key {
-            let index = match axis {
-                Axis::X => 0,
-                Axis::Y => 1,
-                Axis::Z => 2,
-            };
-            if drafts[index].peek().as_str() == current[index].to_string() {
-                dirty.write()[index] = false;
-            }
+        let index = match key {
+            Axis::X => 0,
+            Axis::Y => 1,
+            Axis::Z => 2,
+        };
+        if drafts[index].peek().as_str() == current[index].to_string() {
+            dirty.write()[index] = false;
         }
     }
     rsx! {
@@ -835,7 +830,7 @@ fn ModelVectorEditor(
                             }
                             let number = parsed.unwrap_or_default();
                             error.set(None);
-                            let key = ModelKey::Transform { field, axis };
+                            let key = axis;
                             let already_submitted =
                                 pending.pending_submission(&key).as_deref() == Some(raw.as_str());
                             let axis_pending = pending.is_pending(&key);
@@ -865,7 +860,7 @@ fn ModelVectorEditor(
                             {
                                 let _ = input.blur();
                             } else if key == "Escape" {
-                                let escape_key = ModelKey::Transform { field, axis };
+                                let escape_key = axis;
                                 let restored = if pending_for_escape.is_pending(&escape_key) {
                                     pending_for_escape
                                         .pending_submission(&escape_key)

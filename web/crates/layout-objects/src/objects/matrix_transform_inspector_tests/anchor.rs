@@ -2,7 +2,7 @@
 //! anchors, and the mirrored key Omit.
 use super::*;
 use crate::matrix_transform_operation::key_half_exception_at_resolver;
-use boardstudio_web_runtime::edit_ticket::EditTicket;
+use boardstudio_web_runtime::operation_outcomes::EditOutcome;
 
 /// Ticket 23 slice 7a: an anchored matrix that does not follow rotation disables its Rotation
 /// field with an accessible reason instead of letting an edit hit Core's anchored-frame
@@ -760,7 +760,7 @@ fn create_mirrored_half_operation() -> serde_json::Value {
 }
 
 /// Begin one ticket through the Session, drive it, and report whether it landed.
-async fn land(runtime: &Rc<Runtime>, ticket: EditTicket) -> bool {
+async fn land(runtime: &Rc<Runtime>, ticket: EditOutcome) -> bool {
     support::run_pending(runtime).await;
     landed(&ticket)
 }
@@ -770,8 +770,7 @@ async fn land(runtime: &Rc<Runtime>, ticket: EditTicket) -> bool {
 async fn open_created_pair() -> (Rc<Runtime>, String, String) {
     let runtime = support::new_runtime();
     support::open_document(&runtime, native_pair_source_fixture()).await;
-    let created = EditTicket::begin(
-        &runtime,
+    let created = runtime.resolve_edit(
         "layout-create-mirror",
         Some("create".into()),
         boardstudio_application::EditResolver::new("layout-create-mirror", |_| {
@@ -833,12 +832,7 @@ async fn mirror_key_omit_rejoin_round_trip() {
     let before_pose = fixture::part_named(&runtime, &mirror_part).pose;
     let omit = |omitted: bool, transaction: &str| {
         let resolver = key_half_exception_at_resolver(mirror_matrix.clone(), 0, 0, omitted);
-        EditTicket::begin(
-            &runtime,
-            "layout-matrix-key-omit",
-            Some(transaction.into()),
-            resolver,
-        )
+        runtime.resolve_edit("layout-matrix-key-omit", Some(transaction.into()), resolver)
     };
     let mirror_cell = || {
         let accepted = runtime.model().accepted.expect("an accepted document");

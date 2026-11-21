@@ -1,6 +1,5 @@
 use super::*;
 use boardstudio_model::model::ProjectDoc;
-use boardstudio_web_runtime::pending_edits::PendingEdits;
 use boardstudio_web_test_runtime::project_name_test_support as support;
 use boardstudio_web_ui_shared::test_mount::MountedFixture;
 use boardstudio_web_ui_shared::test_role::by_role_name;
@@ -60,7 +59,7 @@ fn host() -> Element {
     });
     let accepted = runtime.model().accepted.unwrap();
     let model = initial_model(&accepted.document.definitions[0]).unwrap();
-    rsx! { ModelVectorEditor { field: VectorField::Offset, title: "Offset", value: model.offset, unit: "mm", positive: false,
+    rsx! { ModelVectorEditor { title: "Offset", value: model.offset, unit: "mm", positive: false,
         on_commit: move |(axis, _submitted, value)| Some(offset_edit(axis, value))
     } }
 }
@@ -606,7 +605,7 @@ async fn mounted_model_axes_queue_preserve_typing_and_undo_in_order() {
 async fn model_edit_retires_if_definition_deleted_before_execution() {
     let runtime = opened().await;
     let (entered, release) = support::gate_next_core_reply(&runtime);
-    let mut edits = PendingEdits::default();
+    let edits = DraftEdits::<_, ()>::default();
     let deletion = support::observe_next(&runtime);
     edits.begin(
         &runtime,
@@ -642,7 +641,7 @@ async fn model_edit_retires_if_definition_deleted_before_execution() {
         deletion.borrow().is_some() && model_edit.borrow().is_some()
     })
     .await;
-    let results = edits.settle(true);
+    let results = edits.discard_drafts(true);
     assert!(
         matches!(&results[..], [PendingEditResult::Landed { .. }, PendingEditResult::Failed { message, .. }] if message.contains("removed")),
         "the deletion lands and the queued model edit fails against the removed definition"

@@ -6,17 +6,9 @@ use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution};
 use boardstudio_core_mechanical::electrical::{self, ElectricalPlan};
 use boardstudio_model::model::{EditOperation, ProjectDoc};
-use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
+use boardstudio_web_runtime::operation_outcomes::{EditOutcome, Settlement};
 use dioxus::prelude::*;
 use std::rc::Rc;
-
-/// The two one-shot action kinds this panel runs. Their controls disable while the
-/// matching edit is pending, so a double click cannot apply or release twice.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum BoardWiringApplyKey {
-    Apply,
-    ReleaseReviewedConnections,
-}
 
 #[derive(Clone, PartialEq)]
 pub struct BoardWiringApplyActions {
@@ -41,28 +33,24 @@ pub fn use_board_wiring_apply(
     source: Option<PcbWiringSource>,
     resolution: Signal<PcbWiringResolution>,
 ) -> BoardWiringApplyActions {
-    let mut edits =
-        use_signal(PendingEdits::<BoardWiringApplyKey, BoardWiringModeFeedbackTarget>::default);
-    let latest = use_signal(|| None::<BoardWiringApplyKey>);
-    let failure = use_signal(|| None::<BoardWiringFailure>);
-    let observed_version = version();
-    use_effect(use_reactive((&observed_version,), {
-        let mut failure = failure;
-        move |_| {
-            let live = workspace() == "PCB";
-            if live && !edits.peek().has_terminal() {
-                return;
-            }
-            for (result, target) in edits.write().settle_with(live) {
-                let (key, message) = match result {
-                    PendingEditResult::Failed { key, message } => (key, Some(message)),
-                    PendingEditResult::Landed { key, .. } | PendingEditResult::Retired { key } => {
-                        (key, None)
-                    }
-                };
-                if latest.peek().as_ref() == Some(&key) {
-                    failure.set(message.map(|message| BoardWiringFailure { target, message }));
-                }
+    let apply = use_signal(|| None::<(EditOutcome, BoardWiringModeFeedbackTarget)>);
+    let release_review = use_signal(|| None::<(EditOutcome, BoardWiringModeFeedbackTarget)>);
+    let latest = use_signal(|| None);
+    let mut failure = use_signal(|| None::<BoardWiringFailure>);
+    use_effect(use_reactive((&version(),), move |_| {
+        let live = workspace() == "PCB";
+        for mut slot in [apply, release_review] {
+            let Some((outcome, target)) = slot.peek().clone() else {
+                continue;
+            };
+            let message = match outcome.settlement(live) {
+                Settlement::Pending => continue,
+                Settlement::Failed { message } => Some(message),
+                Settlement::Landed { .. } | Settlement::Retired => None,
+            };
+            slot.set(None);
+            if *latest.peek() == Some(outcome.operation()) {
+                failure.set(message.map(|message| BoardWiringFailure { target, message }));
             }
         }
     }));
@@ -72,12 +60,12 @@ pub fn use_board_wiring_apply(
         let mut latest = latest;
         let mut failure = failure;
         move |(identity, release): (BoardWiringModeIdentity, bool)| {
-            let key = if release {
-                BoardWiringApplyKey::ReleaseReviewedConnections
-            } else {
-                BoardWiringApplyKey::Apply
-            };
-            if edits.peek().is_pending(&key) {
+            let mut slot = if release { release_review } else { apply };
+            if slot
+                .peek()
+                .as_ref()
+                .is_some_and(|(outcome, _)| outcome.is_pending())
+            {
                 return;
             }
             let Some(snapshot) = current_edit_snapshot(
@@ -105,25 +93,25 @@ pub fn use_board_wiring_apply(
             if release && review.is_none() {
                 return;
             }
-            latest.set(Some(key));
-            // One-shot actions stay quiet while their own ticket is pending.
             failure.set(None);
             let target = identity.feedback_target();
-            edits.write().begin_with(
-                &runtime,
-                key,
+            let outcome = runtime.resolve_edit(
                 "pcb-wiring-apply",
                 Some("wiring plan".into()),
                 apply_resolver(identity, (*plan).clone(), review),
-                target,
             );
+            latest.set(Some(outcome.operation()));
+            slot.set(Some((outcome, target)));
         }
     });
     let on_apply = use_callback(move |identity| submit.call((identity, false)));
     let on_release_reviewed_connections =
         use_callback(move |identity| submit.call((identity, true)));
     let identity = source.as_ref().map(mode_identity);
-    let editable = !edits.read().is_pending(&BoardWiringApplyKey::Apply)
+    let editable = !apply
+        .read()
+        .as_ref()
+        .is_some_and(|(outcome, _)| outcome.is_pending())
         && identity.as_ref().is_some_and(|identity| {
             current_edit_snapshot(
                 &runtime,
@@ -145,9 +133,10 @@ pub fn use_board_wiring_apply(
     BoardWiringApplyActions {
         identity,
         editable,
-        release_disabled: edits
+        release_disabled: release_review
             .read()
-            .is_pending(&BoardWiringApplyKey::ReleaseReviewedConnections),
+            .as_ref()
+            .is_some_and(|(outcome, _)| outcome.is_pending()),
         failure,
         on_apply,
         on_release_reviewed_connections,
