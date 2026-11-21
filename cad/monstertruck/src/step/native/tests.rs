@@ -11,21 +11,33 @@ const NICE_VIEW: &[u8] =
 const RESISTOR: &[u8] = include_bytes!(
     "../../../../../ergogen/library/vendor/infused-kim/3d_models/SMD_0805_Resistor.step"
 );
+const NRF: &[u8] =
+    include_bytes!("../../../../../ergogen/library/vendor/tsuki/3d_models/nrf52840.step");
+const FH12_12: &[u8] = include_bytes!(
+    "../../../../../ergogen/library/vendor/vik/3d_models/Ariamelon-Crenshaw/PCB/Crenshaw.pretty/3d/FH12-12S-0.5SH.step"
+);
+const FH12_30: &[u8] = include_bytes!(
+    "../../../../../ergogen/library/vendor/vik/3d_models/Ariamelon-Crenshaw/PCB/Crenshaw.pretty/3d/FH12-30S-0.5SH.step"
+);
 const SECTOR: &str = include_str!("../../../tests/fixtures/trimmed-cylinder-sector.step");
 
-fn native_model(bytes: &[u8], options: StepImportOptions) -> ImportedStep {
+fn native_candidate(bytes: &[u8], options: StepImportOptions) -> Result<Asset, String> {
     let exchange = parser::parse(&units::decode_step_bytes(bytes)).unwrap();
     let items = units::representation_items(&exchange).unwrap();
     let factors = units::length_factors(&exchange).unwrap();
     let precision = units::precision::resolve(&exchange).unwrap();
-    let candidate = build(
+    build(
         &exchange,
         &items,
         &factors,
         &precision,
         options,
         options.target_deflection_mm.unwrap_or(TOLERANCE_MM),
-    );
+    )
+}
+
+fn native_model(bytes: &[u8], options: StepImportOptions) -> ImportedStep {
+    let candidate = native_candidate(bytes, options);
     assert!(candidate.is_ok(), "{}", candidate.err().unwrap());
     let model = import_step_with_options(bytes.to_vec(), options).unwrap();
     assert!(
@@ -68,6 +80,61 @@ fn bundled_analytic_assets_use_native_geometry_and_keep_every_scene_face() {
             cylinders,
         );
     }
+}
+
+#[test]
+fn split_cylinder_trims_keep_source_faces_and_refine() {
+    for (bytes, count, split_face, support) in [
+        (NRF, 110, 2101, 94),
+        (FH12_12, 530, 10150, 20),
+        (FH12_30, 1106, 21027, 24),
+    ] {
+        let coarse = native_model(bytes, StepImportOptions::default());
+        let fine = native_model(
+            bytes,
+            StepImportOptions {
+                target_deflection_mm: Some(0.001),
+                ..Default::default()
+            },
+        );
+        assert_eq!(coarse.source_faces.len(), count);
+        assert_eq!(fine.source_faces, coarse.source_faces);
+        assert_eq!(fine.face_occurrences, coarse.face_occurrences);
+        assert_eq!(fine.bounds, coarse.bounds);
+        assert_eq!(fine.occurrences, coarse.occurrences);
+        let tag = fine
+            .face_occurrences
+            .iter()
+            .position(|occurrence| {
+                let face = &fine.source_faces[occurrence.source_face];
+                face.face_id == split_face
+                    && face.support_id == support
+                    && face.support_kind == "CYLINDRICAL_SURFACE"
+            })
+            .unwrap();
+        let triangles_at = |model: &ImportedStep| {
+            model
+                .triangle_faces
+                .iter()
+                .filter(|&&face| face == tag)
+                .count()
+        };
+        assert!(triangles_at(&fine) > triangles_at(&coarse));
+    }
+}
+
+#[test]
+fn split_cylinder_trim_refuses_an_off_support_arc() {
+    let source = units::decode_step_bytes(NRF);
+    let authored = "#94=CYLINDRICAL_SURFACE('',#2228,1.65);";
+    assert_eq!(source.matches(authored).count(), 1);
+    let changed = source.replace(authored, "#94=CYLINDRICAL_SURFACE('',#2228,1.75);");
+    assert_eq!(
+        native_candidate(changed.as_bytes(), StepImportOptions::default())
+            .err()
+            .as_deref(),
+        Some("native face #2101: source circular boundary is off its CYLINDRICAL_SURFACE")
+    );
 }
 
 #[test]
@@ -156,6 +223,81 @@ fn native_instances_consume_product_placements_and_units_once() {
     assert_ne!(metres, tetra);
     let model = native_model(metres.as_bytes(), StepImportOptions::default());
     assert_eq!(model.bounds, [[0., 0., 0.], [2000., 3000., 4000.]]);
+}
+
+#[test]
+fn native_product_placements_apply_parent_and_child_units_to_their_own_frames() {
+    let tetra = include_str!("../../../tests/fixtures/placed-tetra-occurrences.step");
+    let mixed = tetra.replace(
+        "#220=SHAPE_REPRESENTATION('',(#200,#201,#202),#103);",
+        "#208=CARTESIAN_POINT('',(0.5,1.,1.5));\n\
+         #209=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT($,.METRE.));\n\
+         #219=(GEOMETRIC_REPRESENTATION_CONTEXT(3)REPRESENTATION_CONTEXT('3D','MODEL')GLOBAL_UNIT_ASSIGNED_CONTEXT((#209)));\n\
+         #220=SHAPE_REPRESENTATION('',(#201,#202),#219);",
+    )
+    .replace("#200=AXIS2_PLACEMENT_3D('',#1,", "#200=AXIS2_PLACEMENT_3D('',#208,")
+    .replace("#104=ADVANCED_BREP_SHAPE_REPRESENTATION('',(#101),", "#104=ADVANCED_BREP_SHAPE_REPRESENTATION('',(#101,#200),");
+    let model = native_model(mixed.as_bytes(), StepImportOptions::default());
+    assert_eq!(
+        model.bounds,
+        [[-5000.5, 6999., 10998.5], [10001., 20001.5, 30002.5]]
+    );
+    assert_eq!(model.occurrences.len(), 2);
+    for (index, ((solid, placement, owner), offset)) in model
+        .occurrences
+        .iter()
+        .zip([[10001., 19999.5, 29998.5], [-5000.5, 6999., 10998.5]])
+        .enumerate()
+    {
+        assert_eq!((*solid, *owner), (101, 104));
+        assert_eq!([placement.w.x, placement.w.y, placement.w.z], offset);
+        assert_eq!(
+            model
+                .face_occurrences
+                .iter()
+                .filter(|f| f.occurrence == index && f.representation_id == *owner)
+                .count(),
+            4
+        );
+    }
+}
+
+#[test]
+fn mirrored_map_reverses_winding_and_preserves_each_face_occurrence() {
+    let tetra = include_str!("../../../tests/fixtures/mapped-occurrence.step");
+    let mirrored = tetra.replace(
+        "#203=CARTESIAN_TRANSFORMATION_OPERATOR_3D('','',$,$,#201,1.,$);",
+        "#202=DIRECTION('',(0.,-1.,0.));\n\
+         #203=CARTESIAN_TRANSFORMATION_OPERATOR_3D('','',$,#202,#201,1.,$);",
+    );
+    let model = native_model(mirrored.as_bytes(), StepImportOptions::default());
+    assert_eq!(model.bounds, [[0., -3., 0.], [102., 3., 4.]]);
+    assert_eq!(model.occurrences.len(), 2);
+    assert!(model.occurrences[1].1.determinant() < 0.0);
+    for (original, reflected) in model.face_occurrences[..4]
+        .iter()
+        .zip(&model.face_occurrences[4..])
+    {
+        assert_eq!(original.source_face, reflected.source_face);
+        assert_eq!((original.occurrence, original.representation_id), (0, 104));
+        assert_eq!(
+            (reflected.occurrence, reflected.representation_id),
+            (1, 105)
+        );
+    }
+    assert_eq!(model.triangle_faces, (0..8).collect::<Vec<_>>());
+    for (original, reflected) in model.preview_positions_f64[..12]
+        .chunks_exact(3)
+        .zip(model.preview_positions_f64[12..].chunks_exact(3))
+    {
+        assert_eq!(
+            reflected,
+            [0, 2, 1].map(|i| {
+                let [x, y, z] = original[i];
+                [100. + x, -y, z]
+            })
+        );
+    }
 }
 
 #[test]

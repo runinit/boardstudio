@@ -243,13 +243,13 @@ fn pending_changes(
     };
     tickets
         .pending_keys()
-        .filter_map(|KeycapsPendingKey(request)| {
-            (request.scope == actions.scope
+        .filter(|KeycapsPendingKey(request)| {
+            request.scope == actions.scope
                 && request.scope_generation == actions.scope_generation
                 && request.selection_generation == actions.selection_generation
-                && request.target == *target)
-                .then(|| request.change.clone())
+                && request.target == *target
         })
+        .map(|KeycapsPendingKey(request)| request.change.clone())
         .collect()
 }
 

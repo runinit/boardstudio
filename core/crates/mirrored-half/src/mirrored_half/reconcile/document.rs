@@ -1,6 +1,7 @@
 //! Forward reconciliation of the mirror half from a validated projection.
 
 use super::changes::ChangeScope;
+use super::hosted::HostedOmissionClosure;
 use super::{
     HostedCircuitAddProvenance, HostedTransition, IndependentPartTransition, MatrixStage,
     Projection, effective_circuit_child_state, outlines, project_part, settings,
@@ -1239,6 +1240,86 @@ pub(super) fn reconcile_with_report(
         }
     }
 
+    let validation_copy = projection_validation_copy(
+        &staged,
+        pair_id,
+        projection,
+        &planned_hosted_operations,
+        &hosted_omission_closure,
+    )?;
+    let validated_draft = validation_copy.as_ref().unwrap_or(&staged);
+    crate::mechanical::features::validate(validated_draft)?;
+    crate::mechanical::halves::validate_document(validated_draft)
+        .map_err(|error| format!("The validated hosted draft is inconsistent: {error}"))?;
+
+    let changed_ids = match report {
+        Some(scope) => scope.ids(document, &staged, &[])?,
+        None => Vec::new(),
+    };
+    *document = staged;
+    {
+        let mut applied_additions = projection.applied_independent_additions.borrow_mut();
+        applied_additions.extend(planned_independent_additions.iter().map(
+            |(source_id, (mirror_id, definition_id, reference))| {
+                (
+                    (*source_id).to_owned(),
+                    (*mirror_id).to_owned(),
+                    (*definition_id).to_owned(),
+                    (*reference).to_owned(),
+                )
+            },
+        ));
+    }
+    projection
+        .applied_hosted_operations
+        .borrow_mut()
+        .extend(planned_hosted_operations);
+    let mut circuit_additions = projection.applied_hosted_circuit_additions.borrow_mut();
+    for transition in &projection.hosted_transitions {
+        let HostedTransition::AddCircuit {
+            source_id,
+            mirror_id,
+            member_ids,
+            member_references,
+            definition_ids,
+            net_ids,
+            member_poses,
+        } = transition
+        else {
+            continue;
+        };
+        let key = ("circuit".to_owned(), source_id.clone(), mirror_id.clone());
+        circuit_additions
+            .entry(key)
+            .or_insert_with(|| HostedCircuitAddProvenance {
+                member_ids: member_ids.clone(),
+                member_references: member_references.clone(),
+                definition_ids: definition_ids.clone(),
+                net_ids: net_ids.clone(),
+                member_poses: member_poses.clone(),
+                first_output: document.clone(),
+            });
+    }
+    Ok(changed_ids)
+}
+
+fn projection_validation_copy(
+    staged: &ProjectDoc,
+    pair_id: &str,
+    projection: &Projection,
+    planned_hosted_operations: &BTreeSet<(String, String, String)>,
+    hosted_omission_closure: &HostedOmissionClosure,
+) -> Result<Option<ProjectDoc>, String> {
+    // Removal evidence can prune pair records for validation before the lifecycle
+    // layer retires them. Ordinary projection validates the staged draft directly.
+    if planned_hosted_operations.is_empty()
+        && hosted_omission_closure.parts.is_empty()
+        && hosted_omission_closure.nets.is_empty()
+        && projection.outline_removal_baselines.borrow().is_empty()
+    {
+        return Ok(None);
+    }
+
     let mut validated_draft = staged.clone();
     let pair = validated_draft
         .hardware
@@ -1249,7 +1330,7 @@ pub(super) fn reconcile_with_report(
         .halves
         .as_mut()
         .ok_or_else(|| format!("The validated pair {pair_id:?} has no halves context"))?;
-    for (operation, source_id, mirror_id) in &planned_hosted_operations {
+    for (operation, source_id, mirror_id) in planned_hosted_operations {
         match operation.as_str() {
             "remove-module" => {
                 validated_halves.correspondences.retain(|association| {
@@ -1312,57 +1393,5 @@ pub(super) fn reconcile_with_report(
                 && hosted_omission_closure.nets.contains(&exception.mirror_id)))
     });
     outlines::prepare_validation(&mut validated_draft, pair_id, projection)?;
-    crate::mechanical::features::validate(&validated_draft)?;
-    crate::mechanical::halves::validate_document(&validated_draft)
-        .map_err(|error| format!("The validated hosted draft is inconsistent: {error}"))?;
-
-    let changed_ids = match report {
-        Some(scope) => scope.ids(document, &staged, &[])?,
-        None => Vec::new(),
-    };
-    *document = staged;
-    {
-        let mut applied_additions = projection.applied_independent_additions.borrow_mut();
-        applied_additions.extend(planned_independent_additions.iter().map(
-            |(source_id, (mirror_id, definition_id, reference))| {
-                (
-                    (*source_id).to_owned(),
-                    (*mirror_id).to_owned(),
-                    (*definition_id).to_owned(),
-                    (*reference).to_owned(),
-                )
-            },
-        ));
-    }
-    projection
-        .applied_hosted_operations
-        .borrow_mut()
-        .extend(planned_hosted_operations);
-    let mut circuit_additions = projection.applied_hosted_circuit_additions.borrow_mut();
-    for transition in &projection.hosted_transitions {
-        let HostedTransition::AddCircuit {
-            source_id,
-            mirror_id,
-            member_ids,
-            member_references,
-            definition_ids,
-            net_ids,
-            member_poses,
-        } = transition
-        else {
-            continue;
-        };
-        let key = ("circuit".to_owned(), source_id.clone(), mirror_id.clone());
-        circuit_additions
-            .entry(key)
-            .or_insert_with(|| HostedCircuitAddProvenance {
-                member_ids: member_ids.clone(),
-                member_references: member_references.clone(),
-                definition_ids: definition_ids.clone(),
-                net_ids: net_ids.clone(),
-                member_poses: member_poses.clone(),
-                first_output: document.clone(),
-            });
-    }
-    Ok(changed_ids)
+    Ok(Some(validated_draft))
 }
