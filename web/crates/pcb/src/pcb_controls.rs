@@ -35,13 +35,14 @@ pub(crate) fn PcbChoice(
     aria_label: String,
     value: String,
     options: Vec<(String, String, bool)>,
+    #[props(default)] id: Option<String>,
     #[props(default)] disabled: bool,
     #[props(default)] searchable: bool,
     #[props(default)] class: String,
     #[props(default)] label_class: String,
     on_change: EventHandler<String>,
 ) -> Element {
-    let id = format!("pcb-choice-{}", dioxus::core::current_scope_id().0);
+    let id = id.unwrap_or_else(|| format!("pcb-choice-{}", dioxus::core::current_scope_id().0));
     let selected = use_memo(use_reactive((&value,), |(value,)| Some(value)));
     rsx! {
         Field { class: "gap-1.5 {class}",

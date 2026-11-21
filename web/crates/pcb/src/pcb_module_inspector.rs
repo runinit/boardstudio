@@ -570,34 +570,27 @@ fn PcbMountedModuleInspector(
                 on_change: move |next: String| edit_module_draft(draft, draft_dirty, |value| value.facing_face = side(&next)),
                 options: vec![("front".into(), "Front".into(), false), ("back".into(), "Back".into(), false)],
             }
-            PcbInput {
-                label: "X (mm)", aria_label: "X (mm)", r#type: InputType::Number,
-                step: Some("any".into()),
-                value: "{draft().at.x}",
-                disabled: !editable,
-                oninput: move |event: FormEvent| if let Ok(number) = event.value().parse::<f64>() && number.is_finite() { edit_module_draft(draft, draft_dirty, |value| value.at.x = number); },
-            }
-            PcbInput {
-                label: "Y (mm)", aria_label: "Y (mm)", r#type: InputType::Number,
-                step: Some("any".into()),
-                value: "{draft().at.y}",
-                disabled: !editable,
-                oninput: move |event: FormEvent| if let Ok(number) = event.value().parse::<f64>() && number.is_finite() { edit_module_draft(draft, draft_dirty, |value| value.at.y = number); },
-            }
-            PcbInput {
-                label: "Yaw (degrees)", aria_label: "Yaw (degrees)", r#type: InputType::Number,
-                step: Some("any".into()),
-                value: "{draft().rotation}",
-                disabled: !editable,
-                oninput: move |event: FormEvent| if let Ok(number) = event.value().parse::<f64>() && number.is_finite() { edit_module_draft(draft, draft_dirty, |value| value.rotation = number); },
-            }
-            PcbInput {
-                label: "Gap (mm)", aria_label: "Gap (mm)", r#type: InputType::Number,
-                min: Some("0".into()),
-                step: Some("any".into()),
-                value: "{draft().gap}",
-                disabled: !editable,
-                oninput: move |event: FormEvent| if let Ok(number) = event.value().parse::<f64>() && number.is_finite() && number >= 0.0 { edit_module_draft(draft, draft_dirty, |value| value.gap = number); },
+            for (label, value, minimum, field) in [
+                ("X (mm)", draft().at.x.to_string(), None, 0u8),
+                ("Y (mm)", draft().at.y.to_string(), None, 1u8),
+                ("Yaw (degrees)", draft().rotation.to_string(), None, 2u8),
+                ("Gap (mm)", draft().gap.to_string(), Some(0.0), 3u8),
+            ] {
+                PcbInput { key: "{label}",
+                    label: label.to_string(), aria_label: label.to_string(), r#type: InputType::Number,
+                    step: Some("any".into()),
+                    min: minimum.map(|_| "0".to_string()),
+                    value,
+                    disabled: !editable,
+                    oninput: move |event: FormEvent| if let Ok(number) = event.value().parse::<f64>() && number.is_finite() && minimum.is_none_or(|floor| number >= floor) {
+                        edit_module_draft(draft, draft_dirty, |value| match field {
+                            0 => value.at.x = number,
+                            1 => value.at.y = number,
+                            2 => value.rotation = number,
+                            _ => value.gap = number,
+                        });
+                    },
+                }
             }
             PcbChoice {
                 label: "Attachment",
@@ -651,37 +644,28 @@ fn PcbMountedModuleInspector(
                     options: std::iter::once((String::new(), "Choose module hole…".into(), false)).chain(source_mounts.iter().map(|mount| (mount.source_id.clone(), format!("{} · source drill {} mm", mount.source_id, mount.diameter), false))).collect(),
                 }
                 div { class: "grid grid-cols-2 gap-2",
-                    PcbInput {
-                        label: "Outer diameter (mm)",
-                        r#type: InputType::Number, step: Some("0.1".into()),
-                        aria_label: "Support outer diameter",
-                        value: "{support_draft().outer_diameter}",
-                        disabled: !editable,
-                        oninput: move |event: FormEvent| support_draft.with_mut(|value| value.outer_diameter = event.value()),
-                    }
-                    PcbInput {
-                        label: "Hole diameter (mm)",
-                        r#type: InputType::Number, step: Some("0.1".into()),
-                        aria_label: "Support hole diameter",
-                        value: "{support_draft().hole_diameter}",
-                        disabled: !editable,
-                        oninput: move |event: FormEvent| support_draft.with_mut(|value| value.hole_diameter = event.value()),
-                    }
-                    PcbInput {
-                        label: "Z from midplane (mm)",
-                        r#type: InputType::Number, step: Some("0.1".into()),
-                        aria_label: "Support Z from midplane",
-                        value: "{support_draft().z}",
-                        disabled: !editable,
-                        oninput: move |event: FormEvent| support_draft.with_mut(|value| value.z = event.value()),
-                    }
-                    PcbInput {
-                        label: "Ring height (mm)",
-                        r#type: InputType::Number, step: Some("0.1".into()),
-                        aria_label: "Support ring height",
-                        value: "{support_draft().height}",
-                        disabled: !editable,
-                        oninput: move |event: FormEvent| support_draft.with_mut(|value| value.height = event.value()),
+                    for (label, aria, value, field) in [
+                        ("Outer diameter (mm)", "Support outer diameter", support_draft().outer_diameter.clone(), 0u8),
+                        ("Hole diameter (mm)", "Support hole diameter", support_draft().hole_diameter.clone(), 1u8),
+                        ("Z from midplane (mm)", "Support Z from midplane", support_draft().z.clone(), 2u8),
+                        ("Ring height (mm)", "Support ring height", support_draft().height.clone(), 3u8),
+                    ] {
+                        PcbInput { key: "{label}",
+                            label: label.to_string(),
+                            r#type: InputType::Number, step: Some("0.1".into()),
+                            aria_label: aria.to_string(),
+                            value,
+                            disabled: !editable,
+                            oninput: move |event: FormEvent| {
+                                let text = event.value();
+                                support_draft.with_mut(|draft| match field {
+                                    0 => draft.outer_diameter = text.clone(),
+                                    1 => draft.hole_diameter = text.clone(),
+                                    2 => draft.z = text.clone(),
+                                    _ => draft.height = text.clone(),
+                                });
+                            },
+                        }
                     }
                 }
                 Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", disabled: !editable || !has_source_mounts, onclick: move |_| {
