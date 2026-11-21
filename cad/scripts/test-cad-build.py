@@ -264,6 +264,7 @@ class CadBuildTests(unittest.TestCase):
     def test_provider_tests_are_registered_or_accounted_for(self):
         scripts = {path.name for path in (REPO_ROOT / "cad/wasm/tests").glob("*.cjs")}
         opt_in = {
+            "bundled-step-parity.cjs": "compares native-baked catalogue previews with the packaged WASM provider",
             "layered-adoption.cjs": "separate layered-adoption fixture corpus",
             "layered-adoption-reachability.cjs": "Core adoption disposition replay prerequisite",
             "keycap-print-legends.cjs": "separate printable keycap export regression",
