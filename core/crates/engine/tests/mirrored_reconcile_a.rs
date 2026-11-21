@@ -12,7 +12,7 @@ pub mod support;
 use fixture_rows::{FixturePair, FixtureRows};
 
 use base_fixtures::*;
-use boardstudio_core_mirrored_half::mirrored_half::reconcile::*;
+use boardstudio_core_mirrored_half::mirrored_half::derive::project_matrix;
 use boardstudio_model::model::*;
 use reconcile_fixtures::*;
 use std::collections::{BTreeMap, BTreeSet};

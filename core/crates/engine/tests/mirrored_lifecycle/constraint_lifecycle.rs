@@ -1,190 +1,5 @@
 use super::*;
 
-pub(crate) fn lifecycle_constraint(
-    id: &str,
-    source: ConstraintEndpoint,
-    target: ConstraintEndpoint,
-) -> FramedConstraint {
-    FramedConstraint::Framed {
-        id: id.into(),
-        source,
-        target,
-        relation: ConstraintRelation::Offset {
-            offset: Vec2 { x: 3.5, y: -2.25 },
-            rotation: 17.0,
-        },
-    }
-}
-
-pub(crate) fn literal_endpoint(part_id: &str) -> ConstraintEndpoint {
-    ConstraintEndpoint::Part {
-        part_id: part_id.into(),
-    }
-}
-
-pub(crate) fn lifecycle_record<'a>(
-    records: &'a [FramedConstraint],
-    id: &str,
-) -> &'a FramedConstraint {
-    records
-        .iter()
-        .find(
-            |record| matches!(record, FramedConstraint::Framed { id: actual, .. } if actual == id),
-        )
-        .unwrap_or_else(|| panic!("missing lifecycle constraint {id}"))
-}
-
-#[test]
-fn constraint_endpoints_follow_local_then_rejoin_without_changing_relations() {
-    let linked = linked_endpoint("pair", "source-part", "mirror-part");
-    let local = literal_endpoint("mirror-part");
-    let outgoing =
-        |endpoint| lifecycle_constraint("outgoing", endpoint, literal_endpoint("other-target"));
-    let incoming =
-        |endpoint| lifecycle_constraint("incoming", literal_endpoint("other-source"), endpoint);
-    let source_owned = lifecycle_constraint(
-        "source-owned",
-        literal_endpoint("other-source"),
-        literal_endpoint("source-part"),
-    );
-    let unrelated = lifecycle_constraint(
-        "unrelated",
-        literal_endpoint("unrelated-source"),
-        literal_endpoint("unrelated-target"),
-    );
-    let records = [
-        outgoing(linked.clone()),
-        incoming(linked.clone()),
-        source_owned.clone(),
-        unrelated.clone(),
-    ];
-
-    let local_delta = prepare_constraint_lifecycle_delta(
-        &records,
-        &[ConstraintLifecycleEffect::MakeLocal {
-            pair_id: "pair".into(),
-            source_part_id: "source-part".into(),
-            mirror_part_id: "mirror-part".into(),
-        }],
-    )
-    .unwrap();
-    assert!(local_delta.removals.is_empty());
-    assert_eq!(local_delta.upserts.len(), 2);
-    assert_eq!(
-        lifecycle_record(&local_delta.upserts, "outgoing"),
-        &outgoing(local.clone())
-    );
-    assert_eq!(
-        lifecycle_record(&local_delta.upserts, "incoming"),
-        &incoming(local)
-    );
-
-    let mut local_records = local_delta.upserts;
-    local_records.extend([source_owned, unrelated]);
-    let rejoin_delta = prepare_constraint_lifecycle_delta(
-        &local_records,
-        &[ConstraintLifecycleEffect::Rejoin {
-            pair_id: "pair".into(),
-            source_part_id: "source-part".into(),
-            mirror_part_id: "mirror-part".into(),
-        }],
-    )
-    .unwrap();
-    assert_eq!(rejoin_delta.removals, ["incoming"]);
-    assert_eq!(rejoin_delta.upserts, [outgoing(linked)]);
-}
-
-#[test]
-fn omit_then_rejoin_retires_only_constraints_naming_removed_visible_endpoints() {
-    let survivors = [
-        lifecycle_constraint(
-            "source-owned",
-            literal_endpoint("source-part"),
-            literal_endpoint("other-part"),
-        ),
-        lifecycle_constraint(
-            "other-pair",
-            literal_endpoint("other-part"),
-            linked_endpoint("other-pair", "other-source", "other-mirror"),
-        ),
-    ];
-    let mut records = survivors.to_vec();
-    records.extend([
-        lifecycle_constraint(
-            "linked-visible",
-            literal_endpoint("source-part"),
-            linked_endpoint("pair", "source-part", "mirror-part"),
-        ),
-        lifecycle_constraint(
-            "local-visible",
-            literal_endpoint("other-part"),
-            literal_endpoint("local-mirror-part"),
-        ),
-    ]);
-    let omit = ConstraintLifecycleEffect::RemoveVisibleParts {
-        part_ids: BTreeSet::from(["mirror-part".into(), "local-mirror-part".into()]),
-    };
-    let rejoin = ConstraintLifecycleEffect::Rejoin {
-        pair_id: "pair".into(),
-        source_part_id: "source-part".into(),
-        mirror_part_id: "mirror-part".into(),
-    };
-
-    let omitted = prepare_constraint_lifecycle_delta(&records, &[omit]).unwrap();
-    assert_eq!(omitted.removals, ["linked-visible", "local-visible"]);
-    assert!(omitted.upserts.is_empty());
-
-    for remaining in [&survivors[..], &[]] {
-        let rejoined =
-            prepare_constraint_lifecycle_delta(remaining, std::slice::from_ref(&rejoin)).unwrap();
-        assert!(rejoined.removals.is_empty());
-        assert!(
-            rejoined.upserts.is_empty(),
-            "Rejoin cannot synthesize retired constraints"
-        );
-    }
-}
-
-#[test]
-fn unlink_flattens_only_selected_pair_endpoints_without_cloning_records() {
-    let records = vec![
-        lifecycle_constraint(
-            "selected-pair",
-            linked_endpoint("pair", "source-one", "mirror-one"),
-            linked_endpoint("pair", "source-two", "mirror-two"),
-        ),
-        lifecycle_constraint(
-            "other-pair",
-            linked_endpoint("other-pair", "other-source", "other-mirror"),
-            literal_endpoint("fixed-target"),
-        ),
-    ];
-    let effect = ConstraintLifecycleEffect::Unlink {
-        pair_id: "pair".into(),
-    };
-
-    let delta = prepare_constraint_lifecycle_delta(&records, &[effect]).unwrap();
-
-    assert!(delta.removals.is_empty());
-    assert_eq!(delta.upserts.len(), 1);
-    let FramedConstraint::Framed {
-        id,
-        source,
-        target,
-        relation,
-    } = lifecycle_record(&delta.upserts, "selected-pair");
-    assert_eq!(id, "selected-pair");
-    assert_eq!(source, &literal_endpoint("mirror-one"));
-    assert_eq!(target, &literal_endpoint("mirror-two"));
-    assert_eq!(
-        relation,
-        &ConstraintRelation::Offset {
-            offset: Vec2 { x: 3.5, y: -2.25 },
-            rotation: 17.0,
-        }
-    );
-}
-
 pub(crate) fn omitted_halves() -> Value {
     json!({
         "sourceBoardId": "source-board",
@@ -281,8 +96,15 @@ pub(crate) fn valid_omitted_document() -> ProjectDoc {
     .unwrap();
     document.hardware = Some(HardwareConfiguration {
         pairs: vec![pair],
+        instances: vec![
+            base_fixtures::fixture_instance("source-instance", "source-board"),
+            base_fixtures::fixture_instance("mirror-instance", "mirror-board"),
+        ],
         ..HardwareConfiguration::default()
     });
+    for instance in &mut document.hardware.as_mut().unwrap().instances {
+        instance.construction_ownership = MechanicalConstructionOwnership::Pair;
+    }
     document
 }
 
@@ -411,12 +233,36 @@ pub(crate) fn expected_closure_ids(board_id: &str) -> BTreeSet<String> {
 }
 
 pub(crate) fn unlink_diff_ids(before: &ProjectDoc, after: &ProjectDoc) -> BTreeSet<String> {
-    let mut ids = boardstudio_core_mirrored_half::mirrored_half::reconcile::changed_document_ids(
-        before,
-        after,
-        &[],
-    )
-    .unwrap();
+    fn rows(doc: &ProjectDoc) -> std::collections::BTreeMap<(String, String), serde_json::Value> {
+        let mut result = std::collections::BTreeMap::new();
+        let doc = serde_json::to_value(doc).unwrap();
+        for field in [
+            "parts",
+            "definitions",
+            "boards",
+            "matrices",
+            "nets",
+            "constraints",
+            "outline",
+            "layouts",
+            "modules",
+            "embeddedCircuits",
+        ] {
+            for row in doc[field].as_array().into_iter().flatten() {
+                let id = row["id"].as_str().unwrap();
+                result.insert((field.into(), id.into()), row.clone());
+            }
+        }
+        result
+    }
+    let before_rows = rows(before);
+    let after_rows = rows(after);
+    let mut ids: Vec<_> = before_rows
+        .keys()
+        .chain(after_rows.keys())
+        .filter(|key| before_rows.get(*key) != after_rows.get(*key))
+        .map(|(_, id)| id.clone())
+        .collect();
 
     let mut expected = before.clone();
     let hardware = expected.hardware.as_mut().unwrap();
@@ -993,242 +839,4 @@ fn unlink_refuses_a_construction_source_on_the_wrong_board_atomically() {
         "{error}"
     );
     assert_eq!(document, before);
-}
-
-pub(crate) fn exception_context()
--> boardstudio_core_mirrored_half::mirrored_half::reconcile::MembershipContext {
-    use boardstudio_core_mirrored_half::mirrored_half::reconcile::{
-        FinalOwner, MatrixPairContext, MembershipContext, TransitionAssociation, TransitionState,
-    };
-    use boardstudio_model::model::{MirroredCompanionMode, Pose2, Vec2};
-    use std::collections::BTreeMap;
-
-    let pair_right: MirroredHalves = serde_json::from_value(json!({
-        "sourceBoardId":"source-board","mirrorBoardId":"mirror-board",
-        "correspondences":[
-            {"kind":"matrix","sourceId":"source-matrix","mirrorId":"mirror-matrix"},
-            {"kind":"part","sourceId":"source-part","mirrorId":"mirror-part"},
-            {"kind":"part","sourceId":"source-part/diode","mirrorId":"mirror-part/diode"},
-            {"kind":"layout","sourceId":"source-layout","mirrorId":"mirror-layout"}
-        ],
-        "exceptions":[
-            {"kind":"layout","mirrorId":"mirror-layout","state":"omitted"}
-        ]
-    }))
-    .unwrap();
-    MembershipContext {
-        pair_id: "pair".into(),
-        source_board_id: "source-board".into(),
-        mirror_board_id: "mirror-board".into(),
-        matrix_pair: Some(MatrixPairContext {
-            source_id: "source-matrix".into(),
-            mirror_id: "mirror-matrix".into(),
-        }),
-        mapping: Pose2 {
-            at: Vec2 { x: 100.0, y: -30.0 },
-            rotation: 90.0,
-        },
-        pair_right,
-        pending_rejoins: BTreeMap::new(),
-        pending_pair_transitions: BTreeMap::new(),
-        pending_pair_baseline: None,
-        associations: vec![
-            TransitionAssociation {
-                kind: boardstudio_model::model::MirroredItemKind::Matrix,
-                source_id: "source-matrix".into(),
-                mirror_id: "mirror-matrix".into(),
-                parent_source_id: None,
-                parent_mirror_id: None,
-                state: TransitionState::Linked,
-                explicit_state: false,
-                raw_mode_override: None,
-                raw_tweak: None,
-                effective_mode: MirroredCompanionMode::LiteralMirror,
-                effective_tweak: None,
-            },
-            TransitionAssociation {
-                kind: boardstudio_model::model::MirroredItemKind::Part,
-                source_id: "source-part".into(),
-                mirror_id: "mirror-part".into(),
-                parent_source_id: Some("source-matrix".into()),
-                parent_mirror_id: Some("mirror-matrix".into()),
-                state: TransitionState::Linked,
-                explicit_state: false,
-                raw_mode_override: Some(MirroredCompanionMode::LiteralMirrorWithTweak),
-                raw_tweak: Some(boardstudio_model::model::MirroredCompanionTweak {
-                    x: 0.25,
-                    y: -0.5,
-                    rotation: 15.0,
-                }),
-                effective_mode: MirroredCompanionMode::LiteralMirrorWithTweak,
-                effective_tweak: Some(boardstudio_model::model::MirroredCompanionTweak {
-                    x: 0.25,
-                    y: -0.5,
-                    rotation: 15.0,
-                }),
-            },
-            TransitionAssociation {
-                kind: boardstudio_model::model::MirroredItemKind::Part,
-                source_id: "source-part/diode".into(),
-                mirror_id: "mirror-part/diode".into(),
-                parent_source_id: Some("source-part".into()),
-                parent_mirror_id: Some("mirror-part".into()),
-                state: TransitionState::Linked,
-                explicit_state: false,
-                raw_mode_override: Some(MirroredCompanionMode::DuplicatePosition),
-                raw_tweak: None,
-                effective_mode: MirroredCompanionMode::DuplicatePosition,
-                effective_tweak: None,
-            },
-            TransitionAssociation {
-                kind: boardstudio_model::model::MirroredItemKind::Layout,
-                source_id: "source-layout".into(),
-                mirror_id: "mirror-layout".into(),
-                parent_source_id: Some("source-matrix".into()),
-                parent_mirror_id: Some("mirror-matrix".into()),
-                state: TransitionState::Omitted,
-                explicit_state: true,
-                raw_mode_override: None,
-                raw_tweak: None,
-                effective_mode: MirroredCompanionMode::LiteralMirror,
-                effective_tweak: None,
-            },
-        ],
-        owners: BTreeMap::<String, FinalOwner>::new(),
-    }
-}
-
-pub(crate) fn root_exception_context(
-    state: boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState,
-) -> boardstudio_core_mirrored_half::mirrored_half::reconcile::MembershipContext {
-    let mut context = exception_context();
-    let root = &mut context.associations[0];
-    root.state = state;
-    root.explicit_state = true;
-    for inherited in &mut context.associations[1..3] {
-        inherited.state = state;
-        inherited.explicit_state = false;
-    }
-    context
-        .pair_right
-        .exceptions
-        .push(boardstudio_model::model::MirroredException {
-        companion_mode: None,
-        companion_tweak: None,
-        kind: boardstudio_model::model::MirroredItemKind::Matrix,
-        mirror_id: "mirror-matrix".into(),
-        state: match state {
-            boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Linked => {
-                unreachable!("linked roots have no exception")
-            }
-            boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Local => {
-                boardstudio_model::model::MirroredExceptionState::Local
-            }
-            boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Omitted => {
-                boardstudio_model::model::MirroredExceptionState::Omitted
-            }
-        },
-        removed_copper: None,
-    });
-    context
-}
-
-#[test]
-fn matrix_owner_transitions_retain_explicit_child_and_durable_baseline() {
-    use boardstudio_core_mirrored_half::mirrored_half::reconcile::{
-        TransitionState::{Linked, Local, Omitted},
-        lifecycle::transition_exception_context,
-    };
-    use boardstudio_model::model::MirroredItemKind;
-
-    let linked = exception_context();
-    for (before, after) in [
-        (Linked, Local),
-        (Linked, Omitted),
-        (Local, Linked),
-        (Omitted, Linked),
-    ] {
-        let input = if before == Linked {
-            linked.clone()
-        } else {
-            root_exception_context(before)
-        };
-        let actual = transition_exception_context(
-            &input,
-            MirroredItemKind::Matrix,
-            "source-matrix",
-            "mirror-matrix",
-            after,
-        )
-        .unwrap_or_else(|error| panic!("{before:?} -> {after:?}: {error}"));
-
-        // Model only the inherited state change. The explicit Layout and every identity and
-        // companion setting stay exactly as in the ordered fixture.
-        let mut associations = linked.associations.clone();
-        for association in &mut associations[..3] {
-            association.state = after;
-        }
-        associations[0].explicit_state = after != Linked;
-        assert_eq!(actual.associations, associations, "{before:?} -> {after:?}");
-        assert_eq!(actual.pair_right, input.pair_right);
-        assert_eq!(
-            actual.pending_pair_baseline.as_ref(),
-            Some(&input.pair_right)
-        );
-        assert_eq!(
-            actual.pending_pair_transitions,
-            [("source-matrix".into(), before)].into()
-        );
-    }
-}
-
-#[test]
-fn owner_transition_refuses_ambiguous_identity_without_changing_full_context() {
-    let mut context = exception_context();
-    context.associations.push(context.associations[0].clone());
-    let before = context.clone();
-
-    let result = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
-        &context,
-        boardstudio_model::model::MirroredItemKind::Matrix,
-        "source-matrix",
-        "mirror-matrix",
-        boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Local,
-    );
-
-    assert!(
-        result.is_err(),
-        "duplicate source/mirror identity must be refused"
-    );
-    assert_eq!(
-        context, before,
-        "the complete private context remains unchanged"
-    );
-}
-
-#[test]
-fn owner_transition_refuses_missing_or_mismatched_association_atomically() {
-    for (source_id, mirror_id) in [
-        ("missing-source", "mirror-matrix"),
-        ("source-matrix", "foreign-mirror"),
-    ] {
-        let context = exception_context();
-        let before = context.clone();
-        let result = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::transition_exception_context(
-            &context,
-            boardstudio_model::model::MirroredItemKind::Matrix,
-            source_id,
-            mirror_id,
-            boardstudio_core_mirrored_half::mirrored_half::reconcile::TransitionState::Local,
-        );
-
-        assert!(
-            result.is_err(),
-            "unbound identity {source_id:?} -> {mirror_id:?} must be refused"
-        );
-        assert_eq!(
-            context, before,
-            "failed transitions leave the full context unchanged"
-        );
-    }
 }

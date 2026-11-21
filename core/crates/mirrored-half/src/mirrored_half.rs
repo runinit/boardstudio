@@ -44,7 +44,7 @@ pub mod inverse;
 pub mod matrix_addition;
 mod mirror_build;
 #[doc(hidden)]
-pub mod reconcile;
+mod reconcile;
 use mirror_build::{
     ModuleMirror, Renames, circuit_mirror, corresponds, free_reference, link_halves,
     materialise_missing_companions, mirror_configuration, mirror_feature, mirror_instance,

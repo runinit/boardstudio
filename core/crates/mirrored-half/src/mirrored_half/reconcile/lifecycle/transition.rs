@@ -8,21 +8,6 @@ use super::{
 use crate::model::MirroredExceptionState;
 use std::collections::BTreeSet;
 
-#[doc(hidden)]
-pub fn prepare_lifecycle_transition(
-    before: &crate::model::ProjectDoc,
-    post_source: &crate::model::ProjectDoc,
-    context: &MembershipContext,
-    dispatch: crate::mirrored_half::EditDispatch,
-) -> Result<super::super::MembershipTransitionOutput, String> {
-    crate::mechanical::halves::validate_document(before)?;
-    let mut output = prepare_lifecycle_projection(before, post_source, context, dispatch)?;
-    output.changed_document_ids =
-        crate::mirrored_half::reconcile::changed_document_ids(post_source, &output.draft, &[])?;
-    Ok(output)
-}
-
-/// The transaction and standalone transition entry points validate the accepted document.
 pub(super) fn prepare_lifecycle_projection(
     before: &crate::model::ProjectDoc,
     post_source: &crate::model::ProjectDoc,
@@ -41,14 +26,6 @@ pub(super) fn prepare_lifecycle_projection(
     if baseline != super::super::selected_pair(post_source, &context.pair_id, "lifecycle")? {
         return Err("The source operation changed the selected lifecycle pair".into());
     }
-    match (
-        context.pending_pair_transitions.is_empty(),
-        &context.pending_pair_baseline,
-    ) {
-        (true, None) => {}
-        (false, Some(baseline)) if baseline == &context.pair_right => {}
-        _ => return Err("The private pending pair baseline is stale or incomplete".into()),
-    }
     validate_lifecycle_context(before, context)?;
 
     let mut draft = post_source.clone();
@@ -66,7 +43,19 @@ pub(super) fn prepare_lifecycle_projection(
         .flat_map(|matrix| matrix.part_ids.iter().cloned())
         .collect();
     let mut removed = BTreeSet::new();
-    let retired = classify_source_retirements(before, post_source, context, false)?;
+    let mut retired = classify_source_retirements(before, post_source, context, false)?;
+    for module in context.associations.iter().filter(|row| {
+        row.kind == MirroredItemKind::Module
+            && !post_source
+                .modules
+                .iter()
+                .any(|module| module.id == row.source_id)
+    }) {
+        if module.state == TransitionState::Linked {
+            crate::modules::remove(&mut draft, &module.mirror_id)?;
+        }
+        retired.push(module.clone());
+    }
 
     for owner in context.associations.iter().filter(|a| {
         a.kind == MirroredItemKind::EmbeddedCircuit
@@ -287,6 +276,26 @@ pub(super) fn prepare_lifecycle_projection(
             }
         }
     }
+    // Removing the members first would bypass the circuit deletion kernel's lock check.
+    for circuit in retired.iter().filter(|row| {
+        row.kind == MirroredItemKind::EmbeddedCircuit && row.state == TransitionState::Linked
+    }) {
+        if let Some(target) = draft
+            .embedded_circuits
+            .iter()
+            .find(|item| item.id == circuit.mirror_id)
+            && let Some(locked) = draft.parts.iter().find(|part| {
+                removed.contains(&part.id)
+                    && target.part_ids.contains(&part.id)
+                    && part.locked == Some(true)
+            })
+        {
+            return Err(format!(
+                "Cannot remove circuit {:?} with locked member {:?}",
+                target.id, locked.id
+            ));
+        }
+    }
     crate::matrix::deletion::remove_parts_by_id(&mut draft, &removed);
     for owner in context.associations.iter().filter(|a| {
         a.kind == MirroredItemKind::EmbeddedCircuit
@@ -350,9 +359,7 @@ pub(super) fn prepare_lifecycle_projection(
         draft,
         context: context.clone(),
         context_delta: MembershipContextDelta::default(),
-        final_owners: context.owners.clone(),
         changed_document_ids: Vec::new(),
-        notices: Vec::new(),
     };
     output.context_delta.removed_copper = removed_copper;
     output
@@ -489,94 +496,11 @@ pub(super) fn prepare_lifecycle_projection(
             slots,
         )?;
     }
-    output.final_owners = output.context.owners.clone();
-    output.context_delta.owners = output.final_owners.clone();
     Ok(output)
 }
 
-/// A pending Omit may still have visible baseline geometry until the kernel removes it.
-/// Follow exact private ownership edges to the selected durable record, never ID prefixes.
-pub(in crate::mirrored_half::reconcile) fn pending_visible_omission(
-    context: &MembershipContext,
-    mirror_id: &str,
-) -> bool {
-    let mut matches = context.associations.iter().filter(|association| {
-        association.kind == crate::model::MirroredItemKind::Part
-            && association.mirror_id == mirror_id
-            && association.state == TransitionState::Omitted
-    });
-    let Some(mut association) = matches.next() else {
-        return false;
-    };
-    if matches.next().is_some() {
-        return false;
-    }
-    for _ in 0..context.associations.len() {
-        if let Some(prior) = context.pending_pair_transitions.get(&association.source_id) {
-            if !association.explicit_state {
-                return false;
-            }
-            return match prior {
-                TransitionState::Linked => {
-                    context
-                        .pair_right
-                        .correspondences
-                        .iter()
-                        .filter(|record| {
-                            record.kind == association.kind
-                                && record.source_id == association.source_id
-                                && record.mirror_id == association.mirror_id
-                        })
-                        .count()
-                        == 1
-                        && !context.pair_right.exceptions.iter().any(|record| {
-                            record.kind == association.kind
-                                && record.mirror_id == association.mirror_id
-                        })
-                }
-                TransitionState::Local => {
-                    context
-                        .pair_right
-                        .exceptions
-                        .iter()
-                        .filter(|record| {
-                            record.kind == association.kind
-                                && record.mirror_id == association.mirror_id
-                                && record.state == crate::model::MirroredExceptionState::Local
-                        })
-                        .count()
-                        == 1
-                        && context.pair_right.correspondences.iter().any(|record| {
-                            record.kind == association.kind
-                                && record.source_id == association.source_id
-                                && record.mirror_id == association.mirror_id
-                        })
-                }
-                TransitionState::Omitted => false,
-            };
-        }
-        if association.explicit_state {
-            return false;
-        }
-        let mut parents = context.associations.iter().filter(|parent| {
-            association.parent_source_id.as_deref() == Some(parent.source_id.as_str())
-                && association.parent_mirror_id.as_deref() == Some(parent.mirror_id.as_str())
-                && parent.state == TransitionState::Omitted
-        });
-        let Some(parent) = parents.next() else {
-            return false;
-        };
-        if parents.next().is_some() {
-            return false;
-        }
-        association = parent;
-    }
-    false
-}
-
 /// Applies one already-validated lifecycle state to a source/mirror association.
-#[doc(hidden)]
-pub fn transition_exception_context(
+pub(super) fn transition_exception_context(
     context: &MembershipContext,
     kind: crate::model::MirroredItemKind,
     source_id: &str,
@@ -614,29 +538,13 @@ pub fn transition_exception_context(
         })
         .collect();
     let (durable_state, _) = durable_state(&next, &selected_association)?;
-    if next
-        .pending_pair_transitions
-        .get(source_id)
-        .is_some_and(|prior| *prior != durable_state)
-    {
-        return Err("The lifecycle transition disagrees with its pending baseline".into());
-    }
     // Also exclude reversed endpoints on the selected correspondence.
     if exact_correspondences.len() != 1 {
         return Err("The lifecycle transition disagrees with exact pair provenance".into());
     }
-    let original_state = durable_state;
-    let returns_to_baseline = state == original_state;
-    if returns_to_baseline {
-        next.pending_pair_transitions.remove(source_id);
-        if next.pending_pair_transitions.is_empty() {
-            next.pending_pair_baseline = None;
-        }
-    } else {
-        next.pending_pair_baseline
-            .get_or_insert_with(|| context.pair_right.clone());
+    if state != durable_state {
         next.pending_pair_transitions
-            .insert(source_id.to_owned(), original_state);
+            .insert(source_id.to_owned(), durable_state);
     }
     next.associations[selected_index].explicit_state = state != TransitionState::Linked;
     next.associations[selected_index].state = state;
@@ -845,23 +753,6 @@ pub(in crate::mirrored_half::reconcile) fn apply_membership_context_delta(
         next_halves.correspondences.push(record_from(added));
     }
 
-    if output.context.pair_right != context.pair_right
-        || output.context.pending_pair_transitions != context.pending_pair_transitions
-        || output.context.pending_pair_baseline != context.pending_pair_baseline
-    {
-        return Err("The reconciliation kernel changed pending private pair evidence".into());
-    }
-    match (
-        context.pending_pair_transitions.is_empty(),
-        context.pending_pair_baseline.as_ref(),
-    ) {
-        (true, None) => {}
-        (false, Some(snapshot))
-            if baseline_pair.halves.as_ref() == Some(snapshot)
-                && snapshot == &context.pair_right => {}
-        _ => return Err("The private pending pair baseline is stale or incomplete".into()),
-    }
-
     // Apply exact association changes only after the projection kernel succeeds. `next_halves`
     // starts as the authentic durable pair, so unrelated rows and their order are preserved.
     // Identity never moves: the correspondence stays in every state and only its overlay changes.
@@ -1015,6 +906,5 @@ pub(in crate::mirrored_half::reconcile) fn apply_membership_context_delta(
     output.context.pair_right = next_halves;
     output.context.pending_rejoins.clear();
     output.context.pending_pair_transitions.clear();
-    output.context.pending_pair_baseline = None;
     Ok(output)
 }

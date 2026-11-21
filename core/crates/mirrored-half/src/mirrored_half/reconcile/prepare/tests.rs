@@ -739,3 +739,42 @@ fn linked_placement_sequence_matches_full_preparation() {
         "lifecycle changes kept the original pair identities"
     );
 }
+
+#[test]
+fn final_constraint_postcondition_detects_tampered_linked_authority() {
+    use crate::model::{Constraint, ConstraintEndpoint, ConstraintRelation, Vec2};
+    let mut draft = document();
+    // Give the linked target a literal independent driver.
+    let mut driver = draft.parts[0].clone();
+    driver.id = "driver".into();
+    let target = "matrix/source-matrix/r0c0";
+    draft.parts.push(driver);
+    draft.boards[0].part_ids.push("driver".into());
+    draft.constraints.push(Constraint::Framed {
+        id: "constraint/final-postcondition".into(),
+        source: ConstraintEndpoint::Part {
+            part_id: "driver".into(),
+        },
+        target: ConstraintEndpoint::LinkedMirror {
+            pair_id: "pair-source-mirror".into(),
+            source_part_id: target.into(),
+            mirror_part_id: "matrix/mirror-matrix/r0c0".into(),
+        },
+        relation: ConstraintRelation::Offset {
+            offset: Vec2 { x: 236.0, y: 20.0 },
+            rotation: 0.0,
+        },
+    });
+    crate::constraints::resolve_prepared(&mut draft, &[], &[]).unwrap();
+    validate_constraint_postcondition(&draft).unwrap();
+    draft
+        .parts
+        .iter_mut()
+        .find(|p| p.id == target)
+        .unwrap()
+        .pose
+        .at
+        .x += 1.0;
+    let error = validate_constraint_postcondition(&draft).unwrap_err();
+    assert!(error.contains(target), "{error}");
+}

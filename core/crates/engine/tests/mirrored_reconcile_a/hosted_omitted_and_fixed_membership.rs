@@ -22,7 +22,7 @@ fn omit_circuit_children(document: &mut ProjectDoc) {
 
 #[test]
 fn hosted_omitted_member_and_net_keep_their_unlinked_payload_under_linked_circuit() {
-    let (mut document, projection) = hosted_electrical_fixture().unwrap();
+    let mut document = hosted_electrical_fixture().unwrap();
     omit_circuit_children(&mut document);
     document
         .parts
@@ -36,7 +36,7 @@ fn hosted_omitted_member_and_net_keep_their_unlinked_payload_under_linked_circui
     document.modules.by_id_mut("source-module").at = Vec2 { x: 17.0, y: -8.0 };
     let pair_before = pair_state_bytes(&document);
 
-    reconcile(&mut document, "pair-source-mirror", &projection).unwrap();
+    reopen(&mut document).unwrap();
     assert_eq!(
         document.parts.by_id("embedded/mirror-circuit/U1").reference,
         "OMITTED-U"
@@ -67,162 +67,9 @@ fn hosted_omitted_member_and_net_keep_their_unlinked_payload_under_linked_circui
 }
 
 #[test]
-fn hosted_omitted_member_and_net_can_be_absent_under_linked_circuit() {
-    let (mut document, projection) = hosted_electrical_fixture().unwrap();
-    reconcile(&mut document, "pair-source-mirror", &projection)
-        .expect("the historical linked owner baseline is fully materialized first");
-    omit_circuit_children(&mut document);
-
-    // The durable Omitted ownership facts are supplied before this target-side
-    // materialization snapshot; the source members and their linked circuit stay
-    // present, and the kernel must leave the pair record byte-identical.
-    let pre_materialization = document.clone();
-    boardstudio_core_mechanical::mechanical::halves::validate_document(&pre_materialization)
-        .expect("the durable Omitted owner baseline has real target records");
-    document
-        .parts
-        .retain(|part| part.id != "embedded/mirror-circuit/U1");
-    document
-        .nets
-        .retain(|net| net.id != "embedded/mirror-circuit/N$1");
-    let mirror_circuit = document.embedded_circuits.by_id_mut("mirror-circuit");
-    mirror_circuit
-        .part_ids
-        .retain(|id| id != "embedded/mirror-circuit/U1");
-    mirror_circuit
-        .net_ids
-        .retain(|id| id != "embedded/mirror-circuit/N$1");
-    let mirror_board = document.boards.by_id_mut("mirror-board");
-    mirror_board
-        .part_ids
-        .retain(|id| id != "embedded/mirror-circuit/U1");
-    mirror_board
-        .net_ids
-        .retain(|id| id != "embedded/mirror-circuit/N$1");
-    document
-        .nets
-        .by_id_mut("host-mirror-net")
-        .pins
-        .retain(|pin| pin.part_id != "embedded/mirror-circuit/U1");
-    let omission_key = (
-        "pair-source-mirror".into(),
-        "source-circuit".into(),
-        "mirror-circuit".into(),
-    );
-    let historical_pair_bytes = pair_state_bytes(&pre_materialization);
-    projection
-        .hosted_omission_baselines
-        .borrow_mut()
-        .insert(omission_key.clone(), pre_materialization.clone());
-    let pair_before = pair_state_bytes(&document);
-    assert_eq!(pair_before, historical_pair_bytes);
-    let applied_before = projection.applied_hosted_operations.borrow().clone();
-    let removal_context_before = projection.hosted_removal_baselines.borrow().clone();
-    let omission_context_before = projection.hosted_omission_baselines.borrow().clone();
-    document.modules.by_id_mut("source-module").at = Vec2 { x: 17.0, y: -8.0 };
-
-    let changed = reconcile(&mut document, "pair-source-mirror", &projection)
-        .expect("explicit Omitted ownership permits absent target children under a linked circuit");
-    assert_eq!(changed, vec!["mirror-module"]);
-    assert!(
-        document
-            .parts
-            .iter()
-            .all(|part| part.id != "embedded/mirror-circuit/U1")
-    );
-    assert!(
-        document
-            .nets
-            .iter()
-            .all(|net| net.id != "embedded/mirror-circuit/N$1")
-    );
-    let mirror_circuit = document
-        .embedded_circuits
-        .iter()
-        .find(|circuit| circuit.id == "mirror-circuit")
-        .expect("the linked target circuit remains independently owned");
-    assert!(
-        !mirror_circuit
-            .part_ids
-            .contains(&"embedded/mirror-circuit/U1".to_owned())
-    );
-    assert!(
-        !mirror_circuit
-            .net_ids
-            .contains(&"embedded/mirror-circuit/N$1".to_owned())
-    );
-    assert!(document.embedded_circuits.iter().any(|circuit| {
-        circuit.id == "source-circuit"
-            && circuit
-                .part_ids
-                .contains(&"embedded/source-circuit/U1".to_owned())
-            && circuit
-                .net_ids
-                .contains(&"embedded/source-circuit/N$1".to_owned())
-    }));
-    let joined_mirror_net = document
-        .nets
-        .iter()
-        .find(|net| net.id == "host-mirror-net")
-        .expect("the independently owned joined host net remains present");
-    assert!(
-        joined_mirror_net
-            .pins
-            .iter()
-            .any(|pin| { pin.part_id == "matrix/mirror-matrix/r0c0" && pin.pad_id == "pad-two" })
-    );
-    assert!(
-        joined_mirror_net
-            .pins
-            .iter()
-            .all(|pin| pin.part_id != "embedded/mirror-circuit/U1")
-    );
-    assert!((document.modules.by_id("mirror-module").at.x - 108.0).abs() < 0.02);
-    assert_eq!(pair_state_bytes(&document), pair_before);
-    assert_eq!(
-        *projection.applied_hosted_operations.borrow(),
-        applied_before,
-        "Omitted owner input does not create Add provenance"
-    );
-    assert_eq!(
-        *projection.hosted_removal_baselines.borrow(),
-        removal_context_before,
-        "Omitted owner input does not create lifecycle removal evidence"
-    );
-    assert_eq!(
-        *projection.hosted_omission_baselines.borrow(),
-        omission_context_before,
-        "the exact validated Omitted owner context remains unchanged"
-    );
-
-    let first_output = document.clone();
-    let repeated = reconcile(&mut document, "pair-source-mirror", &projection)
-        .expect("the updated omitted-child context is replayable");
-    assert!(repeated.is_empty());
-    assert_eq!(
-        document, first_output,
-        "a repeat changes no document identity"
-    );
-    assert_eq!(pair_state_bytes(&document), pair_before);
-    assert_eq!(
-        *projection.applied_hosted_operations.borrow(),
-        applied_before
-    );
-    assert_eq!(
-        *projection.hosted_removal_baselines.borrow(),
-        removal_context_before
-    );
-    assert_eq!(
-        *projection.hosted_omission_baselines.borrow(),
-        omission_context_before
-    );
-    assert_ne!(pre_materialization.parts.len(), document.parts.len());
-}
-
-#[test]
 fn hosted_module_and_embedded_circuit_edits_follow_established_correspondences() {
-    let (mut document, projection) = hosted_electrical_fixture().unwrap();
-    reconcile(&mut document, "pair-source-mirror", &projection)
+    let mut document = hosted_electrical_fixture().unwrap();
+    reopen(&mut document)
         .expect("the literal source and target records establish one valid baseline");
     let source_reference_before = document.board_references[0].clone();
     let source_copper_before = document.boards.by_id("source-board").traces.clone();
@@ -253,7 +100,7 @@ fn hosted_module_and_embedded_circuit_edits_follow_established_correspondences()
         .ports
         .insert("signal".into(), "embedded/source-circuit/N$1".into());
     let pair_before = pair_state_bytes(&document);
-    let changed = reconcile(&mut document, "pair-source-mirror", &projection).unwrap();
+    let changed = reopen(&mut document).unwrap();
     assert_eq!(pair_state_bytes(&document), pair_before);
 
     let mirror_module = document.modules.by_id("mirror-module");
@@ -347,7 +194,7 @@ fn hosted_module_and_embedded_circuit_edits_follow_established_correspondences()
             .any(|trace| trace.id == "source-only-copper")
     );
     let first_output = document.clone();
-    let repeated_changed = reconcile(&mut document, "pair-source-mirror", &projection).unwrap();
+    let repeated_changed = reopen(&mut document).unwrap();
     assert!(
         repeated_changed.is_empty(),
         "the same hosted projection converges"
@@ -360,33 +207,17 @@ fn hosted_module_and_embedded_circuit_edits_follow_established_correspondences()
 
 #[test]
 fn removing_a_hosted_module_keeps_its_independently_owned_connector() {
-    let (mut document, mut projection) = hosted_electrical_fixture().unwrap();
+    let document = hosted_electrical_fixture().unwrap();
     boardstudio_core_mechanical::mechanical::halves::validate_document(&document)
         .expect("the canonical pre-source module baseline validates");
-    projection.hosted_removal_baselines.borrow_mut().insert(
-        (
-            "remove-module".into(),
-            "source-module".into(),
-            "mirror-module".into(),
-        ),
-        document.clone(),
-    );
-    boardstudio_core_mechanical::modules::remove(&mut document, "source-module")
-        .expect("the ordinary source operation removes only the module record");
-    projection.hosted_transitions = vec![HostedTransition::RemoveModule {
-        source_id: "source-module".into(),
-        mirror_id: "mirror-module".into(),
-    }];
-    let pair_before = pair_state_bytes(&document);
-
-    reconcile(&mut document, "pair-source-mirror", &projection)
-        .expect("the source module removal has a complete target identity");
-    assert_eq!(pair_state_bytes(&document), pair_before);
-    assert!(projection.applied_hosted_operations.borrow().contains(&(
-        "remove-module".into(),
-        "source-module".into(),
-        "mirror-module".into()
-    )));
+    let (document, _) = crate::support::prepare_transaction(
+        &document,
+        &[],
+        &EditOperation::RemoveMountedModule {
+            id: "source-module".into(),
+        },
+    )
+    .unwrap();
 
     assert!(
         !document
@@ -407,37 +238,13 @@ fn removing_a_hosted_module_keeps_its_independently_owned_connector() {
             .part_ids
             .contains(&"matrix/mirror-matrix/r0c0".into())
     );
-    let first_output = document.clone();
-    let first_context = projection.applied_hosted_operations.borrow().clone();
-    let repeated = reconcile(&mut document, "pair-source-mirror", &projection);
-    assert!(
-        repeated.is_ok(),
-        "the same hosted removal must accept its full output: {:?}",
-        repeated.as_ref().err()
-    );
-    assert!(repeated.unwrap().is_empty());
-    assert_eq!(document, first_output);
-    assert_eq!(
-        *projection.applied_hosted_operations.borrow(),
-        first_context
-    );
 }
 
 #[test]
 fn circuit_removal_preserves_joined_host_nets_copper_and_unrelated_parts() {
-    let (mut document, mut projection) = hosted_electrical_fixture().unwrap();
+    let mut document = hosted_electrical_fixture().unwrap();
     boardstudio_core_mechanical::mechanical::halves::validate_document(&document)
         .expect("the canonical pre-source circuit baseline validates");
-    projection.hosted_removal_baselines.borrow_mut().insert(
-        (
-            "remove-circuit".into(),
-            "source-circuit".into(),
-            "mirror-circuit".into(),
-        ),
-        document.clone(),
-    );
-    boardstudio_core_mechanical::modules::remove_circuit(&mut document, "source-circuit")
-        .expect("the ordinary source operation removes the source circuit");
     document
         .boards
         .by_id_mut("mirror-board")
@@ -450,20 +257,14 @@ fn circuit_removal_preserves_joined_host_nets_copper_and_unrelated_parts() {
             layer: Side::Front,
             net_id: Some("host-mirror-net".into()),
         });
-    projection.hosted_transitions = vec![HostedTransition::RemoveCircuit {
-        source_id: "source-circuit".into(),
-        mirror_id: "mirror-circuit".into(),
-    }];
-    let pair_before = pair_state_bytes(&document);
-
-    reconcile(&mut document, "pair-source-mirror", &projection)
-        .expect("the source circuit removal reconciles through the existing domain closure");
-    assert_eq!(pair_state_bytes(&document), pair_before);
-    assert!(projection.applied_hosted_operations.borrow().contains(&(
-        "remove-circuit".into(),
-        "source-circuit".into(),
-        "mirror-circuit".into()
-    )));
+    let (document, _) = crate::support::prepare_transaction(
+        &document,
+        &[],
+        &EditOperation::RemoveEmbeddedCircuit {
+            id: "source-circuit".into(),
+        },
+    )
+    .unwrap();
 
     let mirror_board = document.boards.by_id("mirror-board");
     assert!(
@@ -506,46 +307,27 @@ fn circuit_removal_preserves_joined_host_nets_copper_and_unrelated_parts() {
             .iter()
             .any(|definition| definition.id == "embedded/mirror-circuit/definition/u")
     );
-    let first_output = document.clone();
-    let first_context = projection.applied_hosted_operations.borrow().clone();
-    let repeated = reconcile(&mut document, "pair-source-mirror", &projection);
-    assert!(
-        repeated.is_ok(),
-        "the same hosted removal must accept its full output: {:?}",
-        repeated.as_ref().err()
-    );
-    assert!(repeated.unwrap().is_empty());
-    assert_eq!(document, first_output);
-    assert_eq!(
-        *projection.applied_hosted_operations.borrow(),
-        first_context
-    );
 }
 
 #[test]
 fn locked_circuit_removal_refuses_atomically() {
-    let (mut document, mut projection) = hosted_electrical_fixture().unwrap();
-    projection.hosted_removal_baselines.borrow_mut().insert(
-        (
-            "remove-circuit".into(),
-            "source-circuit".into(),
-            "mirror-circuit".into(),
-        ),
-        document.clone(),
-    );
-    boardstudio_core_mechanical::modules::remove_circuit(&mut document, "source-circuit")
-        .expect("the ordinary source operation removes the source circuit");
+    let mut document = hosted_electrical_fixture().unwrap();
     document
         .parts
         .by_id_mut("embedded/mirror-circuit/U1")
         .locked = Some(true);
-    projection.hosted_transitions = vec![HostedTransition::RemoveCircuit {
-        source_id: "source-circuit".into(),
-        mirror_id: "mirror-circuit".into(),
-    }];
     let before = document.clone();
 
-    assert!(reconcile(&mut document, "pair-source-mirror", &projection).is_err());
+    assert!(
+        crate::support::prepare_transaction(
+            &document,
+            &[],
+            &EditOperation::RemoveEmbeddedCircuit {
+                id: "source-circuit".into()
+            }
+        )
+        .is_err()
+    );
     assert_eq!(
         document, before,
         "a late domain refusal cannot publish a partial circuit cleanup"
@@ -553,126 +335,9 @@ fn locked_circuit_removal_refuses_atomically() {
 }
 
 #[test]
-fn hosted_module_removal_refuses_an_unpaired_foreign_target_atomically() {
-    let (mut document, mut projection) = hosted_electrical_fixture().unwrap();
-    let mut unrelated_source = document.modules.by_id("source-module").clone();
-    unrelated_source.id = "unpaired-source-module".into();
-    let mut unrelated_target = document.modules.by_id("mirror-module").clone();
-    unrelated_target.id = "unpaired-target-module".into();
-    document
-        .modules
-        .extend([unrelated_source, unrelated_target]);
-    boardstudio_core_mechanical::mechanical::halves::validate_document(&document)
-        .expect("the unpaired modules are outside valid pair ownership");
-    projection.hosted_removal_baselines.borrow_mut().insert(
-        (
-            "remove-module".into(),
-            "unpaired-source-module".into(),
-            "unpaired-target-module".into(),
-        ),
-        document.clone(),
-    );
-    boardstudio_core_mechanical::modules::remove(&mut document, "unpaired-source-module")
-        .expect("the ordinary source operation removes the selected source module");
-    projection.hosted_transitions = vec![HostedTransition::RemoveModule {
-        source_id: "unpaired-source-module".into(),
-        mirror_id: "unpaired-target-module".into(),
-    }];
-    let before = document.clone();
-    let pair_before = pair_state_bytes(&document);
-    let applied_before = projection.applied_hosted_operations.borrow().clone();
-    let baselines_before = projection.hosted_removal_baselines.borrow().clone();
-
-    assert!(
-        reconcile(&mut document, "pair-source-mirror", &projection).is_err(),
-        "a valid source removal cannot authorize deleting a target outside its pair"
-    );
-    assert_eq!(document, before);
-    assert_eq!(pair_state_bytes(&document), pair_before);
-    assert_eq!(
-        *projection.applied_hosted_operations.borrow(),
-        applied_before
-    );
-    assert_eq!(
-        *projection.hosted_removal_baselines.borrow(),
-        baselines_before
-    );
-    assert!(
-        document
-            .modules
-            .iter()
-            .any(|module| module.id == "unpaired-target-module")
-    );
-}
-
-#[test]
-fn hosted_circuit_removal_refuses_an_unpaired_foreign_target_atomically() {
-    let (mut document, mut projection) = hosted_electrical_fixture().unwrap();
-    document.embedded_circuits.extend([
-        EmbeddedCircuit {
-            id: "unpaired-source-circuit".into(),
-            definition_id: "module-definition".into(),
-            host_board_id: "source-board".into(),
-            part_ids: vec![],
-            net_ids: vec![],
-            ports: BTreeMap::new(),
-        },
-        EmbeddedCircuit {
-            id: "unpaired-target-circuit".into(),
-            definition_id: "module-definition".into(),
-            host_board_id: "mirror-board".into(),
-            part_ids: vec![],
-            net_ids: vec![],
-            ports: BTreeMap::new(),
-        },
-    ]);
-    boardstudio_core_mechanical::mechanical::halves::validate_document(&document)
-        .expect("the unpaired circuits are outside valid pair ownership");
-    projection.hosted_removal_baselines.borrow_mut().insert(
-        (
-            "remove-circuit".into(),
-            "unpaired-source-circuit".into(),
-            "unpaired-target-circuit".into(),
-        ),
-        document.clone(),
-    );
-    boardstudio_core_mechanical::modules::remove_circuit(&mut document, "unpaired-source-circuit")
-        .expect("the ordinary source operation removes the selected source circuit");
-    projection.hosted_transitions = vec![HostedTransition::RemoveCircuit {
-        source_id: "unpaired-source-circuit".into(),
-        mirror_id: "unpaired-target-circuit".into(),
-    }];
-    let before = document.clone();
-    let pair_before = pair_state_bytes(&document);
-    let applied_before = projection.applied_hosted_operations.borrow().clone();
-    let baselines_before = projection.hosted_removal_baselines.borrow().clone();
-
-    assert!(
-        reconcile(&mut document, "pair-source-mirror", &projection).is_err(),
-        "a valid source removal cannot authorize deleting a circuit outside its pair"
-    );
-    assert_eq!(document, before);
-    assert_eq!(pair_state_bytes(&document), pair_before);
-    assert_eq!(
-        *projection.applied_hosted_operations.borrow(),
-        applied_before
-    );
-    assert_eq!(
-        *projection.hosted_removal_baselines.borrow(),
-        baselines_before
-    );
-    assert!(
-        document
-            .embedded_circuits
-            .iter()
-            .any(|circuit| circuit.id == "unpaired-target-circuit")
-    );
-}
-
-#[test]
 fn local_module_exception_keeps_other_hosted_correspondences_linked() {
-    let (mut document, projection) = hosted_electrical_fixture().unwrap();
-    reconcile(&mut document, "pair-source-mirror", &projection).unwrap();
+    let mut document = hosted_electrical_fixture().unwrap();
+    reopen(&mut document).unwrap();
     let local_module_pose = Pose2 {
         at: Vec2 {
             x: 999.0,
@@ -703,8 +368,7 @@ fn local_module_exception_keeps_other_hosted_correspondences_linked() {
         .at = Vec2 { x: 14.0, y: 12.0 };
     let pair_before = pair_state_bytes(&document);
 
-    reconcile(&mut document, "pair-source-mirror", &projection)
-        .expect("a Local module is retained while other items reconcile");
+    reopen(&mut document).expect("a Local module is retained while other items reconcile");
     assert_eq!(pair_state_bytes(&document), pair_before);
 
     let mirror_module = document.modules.by_id("mirror-module");
@@ -725,7 +389,7 @@ fn local_module_exception_keeps_other_hosted_correspondences_linked() {
 
 #[test]
 fn omitted_embedded_circuit_exception_stays_durable_and_unprojected() {
-    let (mut document, projection) = hosted_electrical_fixture().unwrap();
+    let mut document = hosted_electrical_fixture().unwrap();
     let halves = document.first_halves_mut();
     halves.correspondences.retain(|association| {
         !((association.kind == MirroredItemKind::EmbeddedCircuit
@@ -771,8 +435,7 @@ fn omitted_embedded_circuit_exception_stays_durable_and_unprojected() {
     let mirror_net_before = document.nets.by_id("embedded/mirror-circuit/N$1").clone();
     let pair_before = pair_state_bytes(&document);
 
-    reconcile(&mut document, "pair-source-mirror", &projection)
-        .expect("an unlinked Omitted circuit remains under exception ownership");
+    reopen(&mut document).expect("an unlinked Omitted circuit remains under exception ownership");
     assert_eq!(pair_state_bytes(&document), pair_before);
 
     assert_eq!(
@@ -885,21 +548,27 @@ fn fixed_membership_assembly_fixture_reconciles_existing_companions() {
             [((0, 0), (31.0, -93.0, -90.0)), ((1, 1), (81.0, 15.0, 0.0))],
         ),
     ] {
-        let (mut document, projection) =
-            fixed_membership_assembly_fixture(mapping_rotation).unwrap();
+        let mut document = fixed_membership_assembly_fixture(mapping_rotation).unwrap();
         for id in ["source-matrix", "mirror-matrix"] {
             let matrix = document.matrices.by_id(id);
             boardstudio_core_kernel::matrix::valid_matrix(matrix, &document).unwrap();
         }
         boardstudio_core_mechanical::mechanical::features::validate(&document).unwrap();
         boardstudio_core_mechanical::mechanical::halves::validate_document(&document).unwrap();
-        assert_eq!(projection.parts.len(), 4);
-        assert_eq!(projection.locally_protected_mirror_parts.len(), 2);
-        assert_eq!(projection.final_owners.len(), 28);
+        let owners: BTreeMap<_, _> = document
+            .matrices
+            .iter()
+            .flat_map(|m| {
+                m.part_ids
+                    .iter()
+                    .map(|id| (id.clone(), m.board_id.clone().unwrap()))
+            })
+            .collect();
+        assert_eq!(owners.len(), 28);
         let member_parts: Vec<_> = document
             .parts
             .iter()
-            .filter(|part| projection.final_owners.contains_key(&part.id))
+            .filter(|part| owners.contains_key(&part.id))
             .collect();
         assert_eq!(member_parts.len(), 28);
         assert_eq!(
@@ -1012,7 +681,7 @@ fn fixed_membership_assembly_fixture_reconciles_existing_companions() {
         });
         let correspondences_before = entry.first_halves().correspondences.clone();
 
-        let changed = reconcile(&mut document, "pair-source-mirror", &projection).unwrap();
+        let changed = reopen(&mut document).unwrap();
         assert_eq!(changed, expected_changed);
         assert_eq!(
             document.first_halves().correspondences,
@@ -1082,7 +751,7 @@ fn fixed_membership_assembly_fixture_reconciles_existing_companions() {
             }),
             references_before
         );
-        for (id, owner) in &projection.final_owners {
+        for (id, owner) in &owners {
             assert_eq!(
                 document
                     .boards
@@ -1103,11 +772,7 @@ fn fixed_membership_assembly_fixture_reconciles_existing_companions() {
             assert_pose(&disposable, id, *expected);
         }
         let before_repeat = document.clone();
-        assert!(
-            reconcile(&mut document, "pair-source-mirror", &projection)
-                .unwrap()
-                .is_empty()
-        );
+        assert!(reopen(&mut document).unwrap().is_empty());
         assert_eq!(document, before_repeat);
     }
 }

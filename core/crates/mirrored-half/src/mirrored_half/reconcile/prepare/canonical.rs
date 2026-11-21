@@ -3,6 +3,17 @@
 use super::projection::{matrix_by_id, project_matrixless_placement};
 use super::*;
 
+fn version_deletion(operation: &EditOperation) -> Option<&crate::outline_edit::OutlineEdit> {
+    match operation {
+        EditOperation::ApplyOutlineEdit { edit }
+            if edit.change == crate::outline_edit::OutlineChange::Delete =>
+        {
+            Some(edit)
+        }
+        _ => None,
+    }
+}
+
 pub(super) fn prepare_lifecycle_pairs(
     accepted: &ProjectDoc,
     document: &mut ProjectDoc,
@@ -44,20 +55,24 @@ pub(super) fn prepare_lifecycle_pairs(
         .filter(|pair| pair.halves.is_some());
     let mut changed = Vec::new();
     for pair in pairs {
-        if !document
+        let Some(current) = document
             .hardware
             .as_ref()
-            .is_some_and(|hardware| hardware.pairs.iter().any(|row| row.id == pair.id))
-        {
+            .and_then(|h| h.pairs.iter().find(|row| row.id == pair.id))
+        else {
             continue;
-        }
+        };
+        let retired_version =
+            version_deletion(&canonical.operation).is_some() && current.halves != pair.halves;
         // Even a pair the edit did not touch may need its linked drift repaired.
         if directed && project_matrixless_placement(accepted, document, pair, &canonical.operation)?
         {
             continue;
         }
         if let Some(prepared) = super::super::lifecycle::prepare_edit_transition(
-            accepted,
+            // Version deletion has already retired its pair row. The resulting pair is
+            // the baseline for ordinary geometry projection on this edit.
+            if retired_version { document } else { accepted },
             document,
             &pair.id,
             &canonical.operation,
@@ -70,8 +85,7 @@ pub(super) fn prepare_lifecycle_pairs(
     Ok(changed)
 }
 
-#[doc(hidden)]
-pub fn apply_canonical(
+pub(super) fn apply_canonical(
     draft: &mut ProjectDoc,
     accepted: &ProjectDoc,
     board_contours: &[BoardContours],
@@ -145,6 +159,16 @@ pub fn apply_canonical(
     }
     let mut changed =
         (dispatch.apply_with_ledger)(draft, board_contours, &canonical.operation, identities)?;
+    if let Some(edit) = version_deletion(&canonical.operation)
+        && let crate::outline_edit::OutlineEditTarget::Version {
+            board_id,
+            version_id,
+        } = &edit.target
+    {
+        changed.extend(super::super::outlines::retire_version(
+            draft, edit, board_id, version_id,
+        )?);
+    }
     // Ticket 29 B4: removing a halves-pair source over an Omitted mirror
     // orphans the mirror layout shell — its matrix is absent by design and
     // its source is gone, so layout validation could never resolve it. Drop

@@ -351,8 +351,7 @@ pub(in crate::mirrored_half::reconcile) fn prepare_edit_transition(
 
 /// Retires only exact, carried lifecycle rows whose typed source object was removed by a
 /// replacement. The replacement payload remains the sole owner of geometry and target-local data.
-#[doc(hidden)]
-pub fn retire_replacement_records(
+pub(in crate::mirrored_half::reconcile) fn retire_replacement_records(
     accepted: &crate::model::ProjectDoc,
     replacement: &mut crate::model::ProjectDoc,
 ) -> Result<(), String> {

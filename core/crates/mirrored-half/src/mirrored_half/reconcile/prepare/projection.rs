@@ -174,15 +174,8 @@ pub(super) fn reconcile_pairs(
                 EditOperation::AddPart { .. } | EditOperation::AddMirrorOnlyPart { .. }
             ) {
                 let mut projection = super::super::projection_for_pair(&pair.halves, pair.mapping);
-                projection.independent_part_transitions = transitions_for(
-                    accepted,
-                    document,
-                    canonical,
-                    &pair.halves,
-                    &pair.halves.source_board_id,
-                    false,
-                )
-                .0;
+                projection.independent_additions =
+                    transitions_for(document, canonical, &pair.halves.source_board_id, false).0;
                 // Caller-owned draft: no per-pair report. The outer transaction guarantees
                 // rollback and owns the single final scoped report, so refusals still leave
                 // the accepted document intact while ledger updates stay atomic on success.
@@ -202,18 +195,11 @@ pub(super) fn reconcile_pairs(
                 continue;
             }
             let projection = projection_for(
-                accepted,
                 document,
                 Some(canonical),
                 &pair_projection,
                 matrix_link,
                 index == 0,
-            )?;
-            super::super::validate_hosted_removal_baselines(
-                document,
-                &pair.pair_id,
-                &projection,
-                Some(accepted),
             )?;
             reconcile_canonical(document, &pair.pair_id, &projection)?;
         }
@@ -296,7 +282,6 @@ pub(super) fn record_independent_additions(
 }
 
 pub(super) fn projection_for(
-    accepted: &ProjectDoc,
     document: &ProjectDoc,
     canonical: Option<&Canonical>,
     pair: &PairProjection<'_>,
@@ -350,38 +335,12 @@ pub(super) fn projection_for(
             ));
         }
     }
-    let (independent_part_transitions, hosted_transitions) = match canonical {
-        Some(canonical) => transitions_for(
-            accepted,
-            document,
-            canonical,
-            halves,
-            &source_board_id,
-            include_transitions,
-        ),
+    let (independent_additions, hosted_transitions) = match canonical {
+        Some(canonical) => {
+            transitions_for(document, canonical, &source_board_id, include_transitions)
+        }
         None if !include_transitions => (Vec::new(), Vec::new()),
         None => return Err("Edit projection requires canonical intent".into()),
-    };
-    let applied_independent_additions = if include_transitions {
-        BTreeSet::new()
-    } else {
-        independent_part_transitions
-            .iter()
-            .filter_map(|transition| match transition {
-                IndependentPartTransition::Add {
-                    source_id,
-                    mirror_id,
-                    mirror_definition_id,
-                    mirror_reference,
-                } => Some((
-                    source_id.clone(),
-                    mirror_id.clone(),
-                    mirror_definition_id.clone(),
-                    mirror_reference.clone(),
-                )),
-                IndependentPartTransition::Remove { .. } => None,
-            })
-            .collect()
     };
     Ok(Projection {
         matrix: Some(super::super::MatrixLink {
@@ -391,50 +350,30 @@ pub(super) fn projection_for(
         preserve_matrix_geometry: false,
         source_board_id,
         mirror_board_id,
-        independent_part_transitions,
+        independent_additions,
         hosted_transitions,
-        applied_independent_additions: std::cell::RefCell::new(applied_independent_additions),
+        additions_applied: !include_transitions,
         ..super::super::projection_for_pair(halves, pair.mapping)
     })
 }
 
-pub(super) fn transitions_for(
-    accepted: &ProjectDoc,
+fn transitions_for(
     document: &ProjectDoc,
     canonical: &Canonical,
-    halves: &crate::model::MirroredHalves,
     source_board_id: &str,
-    include_removals_and_hosted: bool,
-) -> (Vec<IndependentPartTransition>, Vec<HostedTransition>) {
-    let mut parts = Vec::new();
-    for addition in &canonical.additions {
-        if super::super::super::board_for_part(document, &addition.source_id)
-            .is_some_and(|board| board.id == source_board_id)
-        {
-            parts.push(IndependentPartTransition::Add {
-                source_id: addition.source_id.clone(),
-                mirror_id: addition.mirror_id.clone(),
-                mirror_definition_id: addition.mirror_definition_id.clone(),
-                mirror_reference: addition.mirror_reference.clone(),
-            });
-        }
-    }
-    if include_removals_and_hosted && let EditOperation::RemoveParts { ids } = &canonical.operation
-    {
-        for source_id in ids {
-            if let Some(association) = halves.correspondences.iter().find(|association| {
-                association.kind == MirroredItemKind::Part && association.source_id == *source_id
-            }) {
-                parts.push(IndependentPartTransition::Remove {
-                    source_id: source_id.clone(),
-                    mirror_id: association.mirror_id.clone(),
-                });
-            }
-        }
-    }
-
+    include_hosted: bool,
+) -> (Vec<PartAddition>, Vec<HostedTransition>) {
+    let parts = canonical
+        .additions
+        .iter()
+        .filter(|addition| {
+            super::super::super::board_for_part(document, &addition.source_id)
+                .is_some_and(|board| board.id == source_board_id)
+        })
+        .cloned()
+        .collect();
     let mut hosted = Vec::new();
-    if !include_removals_and_hosted {
+    if !include_hosted {
         return (parts, hosted);
     }
 
@@ -465,60 +404,8 @@ pub(super) fn transitions_for(
                 member_references: addition.member_references.clone(),
                 definition_ids: addition.definition_ids.clone(),
                 net_ids: addition.net_ids.clone(),
-                member_poses: addition.member_poses.clone(),
             });
         }
     }
-    match &canonical.operation {
-        EditOperation::RemoveMountedModule { id } => {
-            if let Some(association) = hosted_association(halves, MirroredItemKind::Module, id)
-                && module_owner(accepted, id) == Some(source_board_id)
-            {
-                hosted.push(HostedTransition::RemoveModule {
-                    source_id: id.clone(),
-                    mirror_id: association.mirror_id.clone(),
-                });
-            }
-        }
-        EditOperation::RemoveEmbeddedCircuit { id } => {
-            if let Some(association) =
-                hosted_association(halves, MirroredItemKind::EmbeddedCircuit, id)
-                && circuit_owner(accepted, id) == Some(source_board_id)
-            {
-                hosted.push(HostedTransition::RemoveCircuit {
-                    source_id: id.clone(),
-                    mirror_id: association.mirror_id.clone(),
-                });
-            }
-        }
-        _ => {}
-    }
     (parts, hosted)
-}
-
-pub(super) fn hosted_association<'a>(
-    halves: &'a crate::model::MirroredHalves,
-    kind: MirroredItemKind,
-    source_id: &str,
-) -> Option<&'a crate::model::MirroredCorrespondence> {
-    halves
-        .correspondences
-        .iter()
-        .find(|association| association.kind == kind && association.source_id == source_id)
-}
-
-pub(super) fn module_owner<'a>(document: &'a ProjectDoc, id: &str) -> Option<&'a str> {
-    document
-        .modules
-        .iter()
-        .find(|module| module.id == id)
-        .map(|module| module.host_board_id.as_str())
-}
-
-pub(super) fn circuit_owner<'a>(document: &'a ProjectDoc, id: &str) -> Option<&'a str> {
-    document
-        .embedded_circuits
-        .iter()
-        .find(|circuit| circuit.id == id)
-        .map(|circuit| circuit.host_board_id.as_str())
 }

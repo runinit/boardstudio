@@ -4,8 +4,7 @@ use super::super::{MembershipContext, TransitionState};
 use super::effective;
 use crate::model::{MirroredExceptionState, MirroredItemKind};
 
-#[doc(hidden)]
-pub fn lifecycle_context(
+pub(super) fn lifecycle_context(
     document: &crate::model::ProjectDoc,
     pair_id: &str,
     matrix_pair: Option<super::super::MatrixPairContext>,
@@ -131,7 +130,6 @@ pub fn lifecycle_context(
         owners: BTreeMap::new(),
         pending_rejoins: BTreeMap::new(),
         pending_pair_transitions: BTreeMap::new(),
-        pending_pair_baseline: None,
     };
     for index in 0..context.associations.len() {
         let state = effective(&context, &context.associations[index], false, 0)?;
@@ -162,8 +160,7 @@ pub fn lifecycle_context(
     Ok(context)
 }
 
-#[doc(hidden)]
-pub fn matrix_pair_for_association(
+pub(super) fn matrix_pair_for_association(
     document: &crate::model::ProjectDoc,
     halves: &crate::model::MirroredHalves,
     kind: crate::model::MirroredItemKind,
@@ -279,7 +276,7 @@ pub(super) fn prepare_matrix_membership_edit(
     dispatch: crate::mirrored_half::EditDispatch,
 ) -> Result<super::super::MembershipTransitionOutput, String> {
     use super::super::{
-        BaselineKind, FinalOwner, MembershipTransitionInput, PlannedAddition, TransitionState,
+        FinalOwner, MembershipTransitionInput, PlannedAddition, TransitionState,
         changes::changed_document_ids,
         transition::{RemovedAxis, prepare_membership_projection},
     };
@@ -681,7 +678,6 @@ pub(super) fn prepare_matrix_membership_edit(
             valid_before: before,
             post_source,
             context,
-            baseline_kind: BaselineKind::MaterializedCurrentSchema,
             source_identity_map: &source_identity_map,
             mirror_identity_map: &mirror_identity_map,
             planned_additions: &planned_additions,

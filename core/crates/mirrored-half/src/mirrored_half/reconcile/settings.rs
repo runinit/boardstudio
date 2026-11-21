@@ -31,15 +31,9 @@ use crate::model::{
 use std::collections::{BTreeMap, BTreeSet};
 
 /// Projects the keycap settings and plain nets of the source half onto the staged mirror.
-#[doc(hidden)]
-pub fn project(
-    document: &ProjectDoc,
-    staged: &mut ProjectDoc,
-    halves: &MirroredHalves,
-) -> Result<(), String> {
+pub(super) fn project(document: &ProjectDoc, staged: &mut ProjectDoc, halves: &MirroredHalves) {
     keycaps(document, staged, halves);
     plain_nets(document, staged, halves);
-    Ok(())
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]

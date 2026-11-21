@@ -170,20 +170,12 @@ fn replace_document_validates_local_owner_when_every_matrix_membership_changed()
                     && !association.mirror_id.starts_with(&member_prefix)
             });
     }
-    assert!(
-        boardstudio_core_mirrored_half::mirrored_half::reconcile::matrix_membership_changed(
-            &accepted,
-            &replacement,
-            "left-keys"
-        )
-    );
-    assert!(
-        boardstudio_core_mirrored_half::mirrored_half::reconcile::matrix_membership_changed(
-            &accepted,
-            &replacement,
-            "right-keys"
-        )
-    );
+    for id in ["left-keys", "right-keys"] {
+        assert_ne!(
+            accepted.matrices.by_id(id).part_ids,
+            replacement.matrices.by_id(id).part_ids
+        );
+    }
     let operation = EditOperation::ReplaceDocument {
         document: Box::new(replacement),
     };
@@ -193,79 +185,6 @@ fn replace_document_validates_local_owner_when_every_matrix_membership_changed()
     );
 
     assert!(error.contains("module definition"), "{error}");
-}
-
-#[test]
-fn matrix_membership_change_table() {
-    let changed =
-        boardstudio_core_mirrored_half::mirrored_half::reconcile::matrix_membership_changed;
-    // Table-driven: each row builds a (before, after) pair and the expected
-    // membership-change verdict for matrix "left-keys".
-    for (name, expected) in [
-        ("reordering the same members", false),
-        ("adding a member", true),
-        ("removing a member", true),
-        ("duplicating a member", true),
-        ("missing matrix versus present-but-empty matrix", true),
-        ("missing matrix versus itself", false),
-    ] {
-        let (before, after) = match name {
-            "reordering the same members" => {
-                let before = pair_document();
-                let mut after = before.clone();
-                after
-                    .matrices
-                    .iter_mut()
-                    .find(|matrix| matrix.id == "left-keys")
-                    .expect("the source matrix exists")
-                    .part_ids
-                    .reverse();
-                (before, after)
-            }
-            "adding a member" => {
-                let before = pair_document();
-                let mut after = before.clone();
-                after
-                    .matrices
-                    .by_id_mut("left-keys")
-                    .part_ids
-                    .push("left/new-member".into());
-                (before, after)
-            }
-            "removing a member" => {
-                let before = pair_document();
-                let mut after = before.clone();
-                after.matrices.by_id_mut("left-keys").part_ids.pop();
-                (before, after)
-            }
-            "duplicating a member" => {
-                let before = pair_document();
-                let mut after = before.clone();
-                let matrix = after.matrices.by_id_mut("left-keys");
-                matrix.part_ids.push(matrix.part_ids[0].clone());
-                (before, after)
-            }
-            "missing matrix versus present-but-empty matrix" => {
-                let mut empty = pair_document();
-                empty.matrices.by_id_mut("left-keys").part_ids.clear();
-                let mut missing = empty.clone();
-                missing.matrices.retain(|matrix| matrix.id != "left-keys");
-                (missing, empty)
-            }
-            "missing matrix versus itself" => {
-                let mut missing = pair_document();
-                missing.matrices.retain(|matrix| matrix.id != "left-keys");
-                let after = missing.clone();
-                (missing, after)
-            }
-            _ => unreachable!("unknown membership-change case {name}"),
-        };
-        assert_eq!(
-            changed(&before, &after, "left-keys"),
-            expected,
-            "membership-change case: {name}"
-        );
-    }
 }
 
 pub(crate) fn add_linked_independent_part(document: &mut ProjectDoc) {
@@ -421,11 +340,7 @@ fn prepared_matrix_pose_edits_preserve_authored_companions_from_both_sides() {
 
             assert_eq!(serde_json::to_vec(&accepted).unwrap(), accepted_bytes);
             let matrix_after = prepared.matrices.by_id(matrix_id);
-            assert_eq!(matrix_after.part_ids.len(), member_ids.len());
-            assert!(
-                !boardstudio_core_mirrored_half::mirrored_half::reconcile::matrix_membership_changed(&accepted, &prepared, matrix_id),
-                "pose edits retain the exact member identities"
-            );
+            assert_eq!(matrix_after.part_ids, member_ids);
             assert_eq!(matrix_after.cells, matrix_before.cells);
             assert_ne!(
                 part(&prepared, &key_id).pose,

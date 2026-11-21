@@ -2,11 +2,11 @@
 
 use super::{
     FinalOwner, MembershipContext, MembershipContextDelta, MembershipTransitionOutput,
-    TransitionState, ValidatedTransitionContext, exact_omitted_matrix_companions, lifecycle,
+    TransitionState, ValidatedTransitionContext, exact_omitted_matrix_companions,
     matrix_identity_slot, require_matrix_pair,
 };
 use crate::model::{Matrix, MirroredExceptionState, MirroredItemKind, Pose2, ProjectDoc, Vec2};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
 pub(super) fn pair_right<'a>(
     document: &'a ProjectDoc,
@@ -88,21 +88,6 @@ pub(super) fn validate_context_owners(
         if actual.as_ref() == Some(owner) {
             continue;
         }
-        let has_pending_omitted_rejoin = actual == Some(FinalOwner::Absent)
-            && matches!(owner, FinalOwner::Board(_))
-            && context.associations.iter().any(|a| {
-                a.kind == MirroredItemKind::Part
-                    && a.mirror_id == *id
-                    && a.state == TransitionState::Linked
-                    && context.pending_rejoins.get(&a.source_id) == Some(&TransitionState::Omitted)
-            });
-        if has_pending_omitted_rejoin
-            || (owner == &FinalOwner::Absent
-                && actual == Some(FinalOwner::Board(context.mirror_board_id.clone()))
-                && lifecycle::pending_visible_omission(context, id))
-        {
-            continue;
-        }
         return Err(format!(
             "The historical owner context for {id:?} does not match actual registration"
         ));
@@ -144,25 +129,6 @@ pub(super) fn validate_transition_part_geometry(
     for id in members {
         let mut parts = document.parts.iter().filter(|part| part.id == *id);
         let Some(part) = parts.next() else {
-            let pending_omitted_rejoin = context.associations.iter().any(|association| {
-                association.kind == MirroredItemKind::Part
-                    && association.mirror_id == *id
-                    && association.state == TransitionState::Linked
-                    && context.pending_rejoins.get(&association.source_id)
-                        == Some(&TransitionState::Omitted)
-                    && context.owners.get(id)
-                        == Some(&FinalOwner::Board(context.mirror_board_id.clone()))
-                    && context.pair_right.correspondences.iter().any(|record| {
-                        record.kind == MirroredItemKind::Part
-                            && record.source_id == association.source_id
-                            && record.mirror_id == association.mirror_id
-                            && record.companion_mode == association.raw_mode_override
-                            && record.companion_tweak == association.raw_tweak
-                    })
-            });
-            if pending_omitted_rejoin {
-                continue;
-            }
             let mut omitted = context.associations.iter().filter(|association| {
                 association.kind == MirroredItemKind::Part
                     && association.mirror_id == *id
@@ -509,28 +475,19 @@ pub(super) fn emit_validated_transition(
     context_delta: MembershipContextDelta,
     expected_mirror_members: &BTreeSet<String>,
 ) -> Result<MembershipTransitionOutput, String> {
-    validate_transition_output(
-        validated,
-        &draft,
-        &next_context,
-        &context_delta.owners,
-        expected_mirror_members,
-    )?;
+    validate_transition_output(validated, &draft, &next_context, expected_mirror_members)?;
     Ok(MembershipTransitionOutput {
         draft,
         changed_document_ids: Vec::new(),
         context: next_context,
         context_delta,
-        final_owners: validated.input.final_owners.clone(),
-        notices: Vec::new(),
     })
 }
 
-pub(super) fn validate_transition_output(
+fn validate_transition_output(
     validated: &ValidatedTransitionContext<'_>,
     draft: &ProjectDoc,
     next_context: &MembershipContext,
-    delta_owners: &BTreeMap<String, FinalOwner>,
     expected_mirror_members: &BTreeSet<String>,
 ) -> Result<(), String> {
     let input = validated.input;
@@ -539,15 +496,8 @@ pub(super) fn validate_transition_output(
     // so only the complete-removal arm is skipped below; the gate still
     // validates the retired pair side as absent.
     let matrix_retained_local = input.context.matrix_state() == TransitionState::Local;
-    // The in-place identity branch has exact member maps, unchanged owners and no pending
-    // transitions or rejoins. Its input checks already proved matrix and owner realization on
-    // this same document and context.
-    let reuses_validated_input =
-        std::ptr::eq(draft, input.valid_before) && std::ptr::eq(next_context, input.context);
-    if !reuses_validated_input {
-        validate_matrix_association(next_context, !validated.removes_paired_matrices)?;
-        validate_association_settings(next_context)?;
-    }
+    validate_matrix_association(next_context, !validated.removes_paired_matrices)?;
+    validate_association_settings(next_context)?;
     if validated.removes_paired_matrices && !matrix_retained_local {
         if draft.matrices.iter().any(|matrix| {
             matrix.id == matrix_pair.source_id.as_str()
@@ -556,7 +506,7 @@ pub(super) fn validate_transition_output(
         {
             return Err("The emitted whole-matrix removal is incomplete".into());
         }
-    } else if !reuses_validated_input {
+    } else {
         // A retained Local mirror has no source left to check; its mirror
         // must match the validated plan below.
         if !validated.removes_paired_matrices
@@ -593,30 +543,28 @@ pub(super) fn validate_transition_output(
             }
         }
     }
-    if next_context.owners != *input.final_owners || delta_owners != input.final_owners {
+    if next_context.owners != *input.final_owners {
         return Err(
             "The emitted context and owner result disagree with the validated final owners".into(),
         );
     }
-    if !reuses_validated_input {
-        if draft
-            .parts
-            .iter()
-            .any(|part| !next_context.owners.contains_key(&part.id))
-        {
-            return Err("The emitted transition contains a Part without a final owner".into());
-        }
-        for (id, owner) in &next_context.owners {
-            let part_count = draft.parts.iter().filter(|part| part.id == *id).count();
-            let realized = match owner {
-                FinalOwner::Board(_) => part_count == 1 && board_owner(draft, id)? == *owner,
-                FinalOwner::Absent => part_count == 0 && registration_count(draft, id) == 0,
-            };
-            if !realized {
-                return Err(format!(
-                    "The final owner for {id:?} is not realized by the draft"
-                ));
-            }
+    if draft
+        .parts
+        .iter()
+        .any(|part| !next_context.owners.contains_key(&part.id))
+    {
+        return Err("The emitted transition contains a Part without a final owner".into());
+    }
+    for (id, owner) in &next_context.owners {
+        let part_count = draft.parts.iter().filter(|part| part.id == *id).count();
+        let realized = match owner {
+            FinalOwner::Board(_) => part_count == 1 && board_owner(draft, id)? == *owner,
+            FinalOwner::Absent => part_count == 0 && registration_count(draft, id) == 0,
+        };
+        if !realized {
+            return Err(format!(
+                "The final owner for {id:?} is not realized by the draft"
+            ));
         }
     }
     validate_emitted_slots(

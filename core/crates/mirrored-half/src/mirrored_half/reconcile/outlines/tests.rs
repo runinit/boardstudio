@@ -1,4 +1,3 @@
-use super::{Projection, reconcile as reconcile_candidate};
 use super::{fixed_geometry_fixture, fixed_membership_assembly_fixture, pair_state_bytes};
 use crate::model::{
     BoardOutline, MirroredCorrespondence, MirroredItemKind, Operation, OutlineBridge,
@@ -72,65 +71,15 @@ fn version(id: &str, ownership: OutlineOwnership, geometry: OutlineSnapshot) -> 
     }
 }
 
-#[derive(Debug, PartialEq)]
-struct ProjectionState {
-    source_board_id: String,
-    mirror_board_id: String,
-    matrix: Option<(String, String)>,
-    mapping: crate::model::Pose2,
-    parts: Vec<(String, String)>,
-    independent_part_transitions: Vec<super::super::IndependentPartTransition>,
-    hosted_transitions: Vec<super::super::HostedTransition>,
-    applied_independent_additions: std::collections::BTreeSet<(String, String, String, String)>,
-    applied_hosted_operations: std::collections::BTreeSet<(String, String, String)>,
-    applied_hosted_circuit_additions: std::collections::BTreeMap<
-        (String, String, String),
-        super::super::HostedCircuitAddProvenance,
-    >,
-    hosted_removal_baselines:
-        std::collections::BTreeMap<(String, String, String), crate::model::ProjectDoc>,
-    hosted_omission_baselines:
-        std::collections::BTreeMap<(String, String, String), crate::model::ProjectDoc>,
-    outline_removal_baselines:
-        std::collections::BTreeMap<(String, String, String), crate::model::ProjectDoc>,
-    locally_protected_mirror_parts: std::collections::BTreeSet<String>,
-    final_owners: std::collections::BTreeMap<String, String>,
+fn reopen(document: &mut crate::model::ProjectDoc) -> Result<Vec<String>, String> {
+    let (draft, _) = super::super::prepare_open(document,&[])?;
+    let ids = super::super::changed_document_ids(document,&draft,&[])?;
+    *document = draft;
+    Ok(ids)
 }
 
-fn projection_state(projection: &Projection) -> ProjectionState {
-    ProjectionState {
-        source_board_id: projection.source_board_id.clone(),
-        mirror_board_id: projection.mirror_board_id.clone(),
-        matrix: projection.matrix.as_ref().map(|matrix| {
-            (
-                matrix.source_matrix_id.clone(),
-                matrix.mirror_matrix_id.clone(),
-            )
-        }),
-        mapping: projection.mapping,
-        parts: projection
-            .parts
-            .iter()
-            .map(|part| (part.source_id.clone(), part.mirror_id.clone()))
-            .collect(),
-        independent_part_transitions: projection.independent_part_transitions.clone(),
-        hosted_transitions: projection.hosted_transitions.clone(),
-        applied_independent_additions: projection.applied_independent_additions.borrow().clone(),
-        applied_hosted_operations: projection.applied_hosted_operations.borrow().clone(),
-        applied_hosted_circuit_additions: projection
-            .applied_hosted_circuit_additions
-            .borrow()
-            .clone(),
-        hosted_removal_baselines: projection.hosted_removal_baselines.borrow().clone(),
-        hosted_omission_baselines: projection.hosted_omission_baselines.borrow().clone(),
-        outline_removal_baselines: projection.outline_removal_baselines.borrow().clone(),
-        locally_protected_mirror_parts: projection.locally_protected_mirror_parts.clone(),
-        final_owners: projection.final_owners.clone(),
-    }
-}
-
-fn outline_fixture() -> (crate::model::ProjectDoc, Projection) {
-    let (mut document, projection) = fixed_geometry_fixture().expect("valid pair fixture");
+fn outline_fixture() -> crate::model::ProjectDoc {
+    let mut document = fixed_geometry_fixture().expect("valid pair fixture");
     let source_board = document
         .boards
         .iter_mut()
@@ -256,11 +205,11 @@ fn outline_fixture() -> (crate::model::ProjectDoc, Projection) {
             mirror_id: "mirror-board/version/fixed".into(),
         },
     ]);
-    (document, projection)
+    document
 }
 
-fn outline_assembly_fixture() -> (crate::model::ProjectDoc, Projection) {
-    let (mut document, projection) =
+fn outline_assembly_fixture() -> crate::model::ProjectDoc {
+    let mut document =
         fixed_membership_assembly_fixture(90.0).expect("valid linked assembly fixture");
     document.assemblies.push(
         serde_json::from_value(serde_json::json!({
@@ -371,7 +320,7 @@ fn outline_assembly_fixture() -> (crate::model::ProjectDoc, Projection) {
             mirror_id: "mirror-board/version/assembly".into(),
         },
     ]);
-    (document, projection)
+    document
 }
 
 include!("tests/projection.rs");

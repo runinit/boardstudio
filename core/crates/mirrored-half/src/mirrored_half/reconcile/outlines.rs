@@ -6,211 +6,71 @@ use crate::model::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct RetiredOutlineItem {
-    kind: MirroredItemKind,
-    source_id: String,
-    mirror_id: String,
-}
-
-fn removal_associations(
-    document: &ProjectDoc,
-    pair_id: &str,
-    projection: &Projection,
-) -> Result<Vec<RetiredOutlineItem>, String> {
-    let mut retired = Vec::new();
-    for ((context_pair, source_id, mirror_id), baseline) in
-        projection.outline_removal_baselines.borrow().iter()
-    {
-        if context_pair != pair_id {
-            continue;
-        }
-        crate::mechanical::halves::validate_document(baseline).map_err(|error| {
-            format!("Outline removal {source_id:?} has an invalid pre-source baseline: {error}")
-        })?;
-        if !super::same_pair_bytes(baseline, document, pair_id, "outline reconciliation")? {
-            return Err(format!(
-                "Outline removal {source_id:?} changed durable pair bytes before reconciliation"
-            ));
-        }
-        let baseline_hardware = baseline
-            .hardware
-            .as_ref()
-            .ok_or_else(|| "The outline removal baseline hardware is unavailable".to_owned())?;
-        let baseline_pair = baseline_hardware
-            .pairs
-            .iter()
-            .find(|pair| pair.id == pair_id)
-            .ok_or_else(|| {
-                format!("The outline removal baseline pair {pair_id:?} is unavailable")
-            })?;
-        let halves = baseline_pair.halves.as_ref().ok_or_else(|| {
-            format!("The outline removal baseline pair {pair_id:?} has no halves context")
-        })?;
-        if halves.source_board_id != projection.source_board_id
-            || halves.mirror_board_id != projection.mirror_board_id
-            || baseline_pair.mapping != projection.mapping
-        {
-            return Err(format!(
-                "Outline removal {source_id:?} belongs to a different source, target or mapping"
-            ));
-        }
-        let associations: Vec<_> = halves
-            .correspondences
-            .iter()
-            .filter(|association| {
-                matches!(
-                    association.kind,
-                    MirroredItemKind::Outline | MirroredItemKind::OutlineVersion
-                ) && association.source_id == *source_id
-                    && association.mirror_id == *mirror_id
-            })
-            .collect();
-        if associations.len() != 1 {
-            return Err(format!(
-                "Outline removal {source_id:?} → {mirror_id:?} lacks one exact baseline correspondence"
-            ));
-        }
-        let kind = associations[0].kind;
-        match kind {
-            MirroredItemKind::OutlineVersion => {
-                let source_outline = baseline
-                    .board_outlines
-                    .iter()
-                    .find(|outline| outline.board_id == halves.source_board_id)
-                    .ok_or_else(|| {
-                        "The outline removal source board has no outline state".to_owned()
-                    })?;
-                let target_outline = baseline
-                    .board_outlines
-                    .iter()
-                    .find(|outline| outline.board_id == halves.mirror_board_id)
-                    .ok_or_else(|| {
-                        "The outline removal target board has no outline state".to_owned()
-                    })?;
-                if !source_outline
-                    .versions
-                    .iter()
-                    .any(|version| version.id == *source_id)
-                    || (!target_outline
-                        .versions
-                        .iter()
-                        .any(|version| version.id == *mirror_id)
-                        && !target_outline.retired_version_ids.contains(mirror_id))
-                {
-                    return Err(format!(
-                        "Outline removal {source_id:?} → {mirror_id:?} was not present on the selected source and target boards"
-                    ));
-                }
-                let current_source_has_item = document
-                    .board_outlines
-                    .iter()
-                    .find(|outline| outline.board_id == projection.source_board_id)
-                    .is_some_and(|outline| {
-                        outline
-                            .versions
-                            .iter()
-                            .any(|version| version.id == *source_id)
-                    });
-                if current_source_has_item {
-                    return Err(format!(
-                        "Outline removal evidence for {source_id:?} does not match a removed source version"
-                    ));
-                }
-            }
-            MirroredItemKind::Outline => {
-                let source_board = baseline
-                    .boards
-                    .iter()
-                    .find(|board| board.id == halves.source_board_id)
-                    .ok_or_else(|| "The outline removal source board is unavailable".to_owned())?;
-                let target_board = baseline
-                    .boards
-                    .iter()
-                    .find(|board| board.id == halves.mirror_board_id)
-                    .ok_or_else(|| "The outline removal target board is unavailable".to_owned())?;
-                if !source_board.outline_ids.contains(source_id)
-                    || !target_board.outline_ids.contains(mirror_id)
-                    || !baseline
-                        .outline
-                        .iter()
-                        .any(|feature| feature.id() == *source_id)
-                    || !baseline
-                        .outline
-                        .iter()
-                        .any(|feature| feature.id() == *mirror_id)
-                {
-                    return Err(format!(
-                        "Outline removal {source_id:?} → {mirror_id:?} was not present on the selected source and target boards"
-                    ));
-                }
-                let current_source_has_item = document
-                    .boards
-                    .iter()
-                    .find(|board| board.id == projection.source_board_id)
-                    .is_some_and(|board| board.outline_ids.contains(source_id))
-                    || document
-                        .outline
-                        .iter()
-                        .any(|feature| feature.id() == *source_id);
-                if current_source_has_item {
-                    return Err(format!(
-                        "Outline removal evidence for {source_id:?} does not match a removed source outline"
-                    ));
-                }
-            }
-            _ => unreachable!("the association filter only selects outline kinds"),
-        }
-        if retired.iter().any(|item: &RetiredOutlineItem| {
-            item.kind == kind && item.source_id == *source_id && item.mirror_id == *mirror_id
-        }) {
-            return Err(format!(
-                "Outline removal {source_id:?} is recorded more than once"
-            ));
-        }
-        retired.push(RetiredOutlineItem {
-            kind,
-            source_id: source_id.clone(),
-            mirror_id: mirror_id.clone(),
-        });
-    }
-    Ok(retired)
-}
-
-/// Remove only authenticated retired-outline associations before validating the draft.
-pub(super) fn prepare_validation(
-    document: &mut ProjectDoc,
-    pair_id: &str,
-    projection: &Projection,
-) -> Result<(), String> {
-    let retired = removal_associations(document, pair_id, projection)?;
-    if retired.is_empty() {
-        return Ok(());
-    }
-    let pair = document
+/// Retire the pair identity after the canonical outline edit deleted its authored version.
+pub(super) fn retire_version(
+    draft: &mut ProjectDoc,
+    edit: &crate::outline_edit::OutlineEdit,
+    board_id: &str,
+    version_id: &str,
+) -> Result<Vec<String>, String> {
+    let mut changed = Vec::new();
+    let mut targets = Vec::new();
+    for halves in draft
         .hardware
-        .as_mut()
-        .and_then(|hardware| hardware.pairs.iter_mut().find(|pair| pair.id == pair_id))
-        .ok_or_else(|| format!("The outline validation pair {pair_id:?} is unavailable"))?;
-    let halves = pair
-        .halves
-        .as_mut()
-        .ok_or_else(|| format!("The outline validation pair {pair_id:?} has no halves context"))?;
-    for item in retired {
-        let before = halves.correspondences.len();
-        halves.correspondences.retain(|association| {
-            !(association.kind == item.kind
-                && association.source_id == item.source_id
-                && association.mirror_id == item.mirror_id)
-        });
-        if before - halves.correspondences.len() != 1 {
-            return Err(format!(
-                "Outline removal {:?} → {:?} is not the exact selected association",
-                item.source_id, item.mirror_id
-            ));
+        .iter_mut()
+        .flat_map(|h| &mut h.pairs)
+        .filter_map(|p| p.halves.as_mut())
+    {
+        if halves.source_board_id == board_id {
+            let Some(index) = halves.correspondences.iter().position(|row| {
+                row.kind == MirroredItemKind::OutlineVersion && row.source_id == version_id
+            }) else {
+                continue;
+            };
+            let row = halves.correspondences.remove(index);
+            if halves.overlay_of(&row).is_none() && halves.mirror_board_id != board_id {
+                targets.push((halves.mirror_board_id.clone(), row.mirror_id.clone()));
+            }
+            halves
+                .exceptions
+                .retain(|e| !(e.kind == row.kind && e.mirror_id == row.mirror_id));
+        } else if halves.mirror_board_id == board_id {
+            // Inverse editing leaves a Local version on its own board. Deleting it
+            // omits that target while the source and its identity remain live.
+            if let Some(index) = halves.exceptions.iter().position(|e| {
+                e.kind == MirroredItemKind::OutlineVersion && e.mirror_id == version_id
+            }) {
+                if halves
+                    .overlaid_correspondence(&halves.exceptions[index])
+                    .is_some()
+                {
+                    halves.exceptions[index].state = crate::model::MirroredExceptionState::Omitted;
+                } else {
+                    halves.exceptions.remove(index);
+                }
+            }
         }
     }
-    Ok(())
+    for (board_id, version_id) in targets {
+        if let Some(state) = draft
+            .board_outlines
+            .iter_mut()
+            .find(|state| state.board_id == board_id)
+        {
+            state.generated_last_valid = None;
+        }
+        changed.extend(crate::outline_edit::apply(
+            draft,
+            &crate::outline_edit::OutlineEdit {
+                target: crate::outline_edit::OutlineEditTarget::Version {
+                    board_id,
+                    version_id,
+                },
+                ..edit.clone()
+            },
+        )?);
+    }
+    Ok(changed)
 }
 
 fn mapped_identity(
@@ -338,7 +198,6 @@ pub(super) fn reconcile_draft(
     {
         return Err("The outline reconciliation context does not match its pair".into());
     }
-    let retired = removal_associations(draft, pair_id, projection)?;
 
     let targets = |kind| {
         halves
@@ -373,16 +232,6 @@ pub(super) fn reconcile_draft(
             _ => None,
         })
         .collect();
-    let retired_outline_ids: BTreeSet<_> = retired
-        .iter()
-        .filter(|item| item.kind == MirroredItemKind::Outline)
-        .map(|item| item.source_id.clone())
-        .collect();
-    let retired_version_ids: BTreeSet<_> = retired
-        .iter()
-        .filter(|item| item.kind == MirroredItemKind::OutlineVersion)
-        .map(|item| item.source_id.clone())
-        .collect();
     let source_board = draft
         .boards
         .iter()
@@ -403,7 +252,7 @@ pub(super) fn reconcile_draft(
         full_rule_part: &|id| !matrix_owned_parts.contains(id) && !controller_parts.contains(id),
     };
     for outline_id in &source_board.outline_ids {
-        if !outline_map.contains_key(outline_id) && !retired_outline_ids.contains(outline_id) {
+        if !outline_map.contains_key(outline_id) {
             return Err(format!(
                 "Source outline {outline_id:?} has no selected mirror correspondence"
             ));
@@ -415,8 +264,7 @@ pub(super) fn reconcile_draft(
         .find(|outline| outline.board_id == projection.source_board_id)
     {
         for version in &source_outline.versions {
-            if !version_map.contains_key(&version.id) && !retired_version_ids.contains(&version.id)
-            {
+            if !version_map.contains_key(&version.id) {
                 return Err(format!(
                     "Source outline version {:?} has no selected mirror correspondence",
                     version.id
@@ -433,9 +281,6 @@ pub(super) fn reconcile_draft(
         .cloned()
         .collect();
     for association in outline_correspondences {
-        if retired_outline_ids.contains(&association.source_id) {
-            continue;
-        }
         if is_local(draft, &association.mirror_id, MirroredItemKind::Outline) {
             continue;
         }
@@ -472,39 +317,7 @@ pub(super) fn reconcile_draft(
         &mut changed,
     );
 
-    if !retired_outline_ids.is_empty() {
-        let target_board = draft
-            .boards
-            .iter_mut()
-            .find(|board| board.id == projection.mirror_board_id)
-            .ok_or_else(|| "The selected target board is unavailable".to_owned())?;
-        for item in retired
-            .iter()
-            .filter(|item| item.kind == MirroredItemKind::Outline)
-        {
-            let had_feature = draft
-                .outline
-                .iter()
-                .any(|feature| feature.id() == item.mirror_id);
-            let had_reference = target_board
-                .outline_ids
-                .iter()
-                .any(|id| id == &item.mirror_id);
-            draft
-                .outline
-                .retain(|feature| feature.id() != item.mirror_id);
-            target_board.outline_ids.retain(|id| id != &item.mirror_id);
-            if had_feature || had_reference {
-                changed.insert(item.mirror_id.clone());
-            }
-        }
-    }
-
-    let version_work = !version_map.is_empty()
-        || retired
-            .iter()
-            .any(|item| item.kind == MirroredItemKind::OutlineVersion);
-    if !version_work {
+    if version_map.is_empty() {
         return Ok(());
     }
 
@@ -560,41 +373,12 @@ pub(super) fn reconcile_draft(
                 changed.insert(target_id.clone());
             }
         }
-        for item in retired
-            .iter()
-            .filter(|item| item.kind == MirroredItemKind::OutlineVersion)
-        {
-            let target_id = &item.mirror_id;
-            let mut did_change = false;
-            if let Some(target) = target_outline
-                .versions
-                .iter()
-                .position(|version| version.id == *target_id)
-            {
-                target_outline.versions.remove(target);
-                did_change = true;
-            } else if !target_outline.retired_version_ids.contains(target_id) {
-                return Err(format!(
-                    "The selected retired target version {target_id:?} is unavailable"
-                ));
-            }
-            if !target_outline.retired_version_ids.contains(target_id) {
-                target_outline.retired_version_ids.push(target_id.clone());
-                did_change = true;
-            }
-            if target_outline.active_version_id.as_deref() == Some(target_id) {
-                target_outline.active_version_id = source_outline
-                    .active_version_id
-                    .as_ref()
-                    .and_then(|id| version_map.get(id).cloned());
-                did_change = true;
-            }
-            if did_change {
-                changed.insert(target_id.clone());
-            }
-        }
         if let Some(source_active) = &source_outline.active_version_id {
             if let Some(target_active) = version_map.get(source_active)
+                && target_outline
+                    .versions
+                    .iter()
+                    .any(|v| v.id == *target_active)
                 && target_outline.active_version_id.as_ref() != Some(target_active)
             {
                 target_outline.active_version_id = Some(target_active.clone());

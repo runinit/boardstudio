@@ -11,21 +11,20 @@ mod edit_transition;
 mod membership_edit;
 mod transition;
 
-pub use context::validate_lifecycle_context;
+use context::validate_lifecycle_context;
 pub(super) use copper::adopt_rejoined_anchor;
 use copper::{
     capture_omitted_copper, copy_part_payload, restore_rejoined_nets, restore_saved_copper,
 };
-pub use edit_transition::retire_replacement_records;
+pub(super) use edit_transition::retire_replacement_records;
 pub(super) use edit_transition::{native_detach_proposal, prepare_edit_transition};
 use membership_edit::{classify_source_retirements, prepare_matrix_membership_edit};
-pub use membership_edit::{lifecycle_context, matrix_pair_for_association};
-pub(super) use transition::{apply_membership_context_delta, pending_visible_omission};
-pub use transition::{prepare_lifecycle_transition, transition_exception_context};
+use membership_edit::{lifecycle_context, matrix_pair_for_association};
+pub(super) use transition::apply_membership_context_delta;
+use transition::transition_exception_context;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-#[doc(hidden)]
-pub enum ConstraintLifecycleEffect {
+enum ConstraintLifecycleEffect {
     MakeLocal {
         pair_id: String,
         source_part_id: String,
@@ -45,19 +44,15 @@ pub enum ConstraintLifecycleEffect {
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
-#[doc(hidden)]
-pub struct ConstraintLifecycleDelta {
-    #[doc(hidden)]
+struct ConstraintLifecycleDelta {
     pub upserts: Vec<FramedConstraint>,
-    #[doc(hidden)]
     pub removals: Vec<String>,
 }
 
 /// Prepares endpoint edits after the owning lifecycle kernel has validated the exact transition
 /// and removal closure. Records are compiled against the pre-transition document; removed IDs
 /// are visible Part IDs from that same validated closure, never canonical aliases.
-#[doc(hidden)]
-pub fn prepare_constraint_lifecycle_delta(
+fn prepare_constraint_lifecycle_delta(
     records: &[FramedConstraint],
     effects: &[ConstraintLifecycleEffect],
 ) -> Result<ConstraintLifecycleDelta, String> {

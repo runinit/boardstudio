@@ -1,9 +1,9 @@
 //! Validation of one membership-transition input against the accepted and staged documents.
 
 use super::{
-    BaselineKind, FinalOwner, MembershipTransitionInput, TransitionState,
-    ValidatedTransitionContext, board_owner, matrix_identity_slot, pair_right, require_matrix_pair,
-    source_members, transition_matrix_by_id, validate_association_settings, validate_constraints,
+    FinalOwner, MembershipTransitionInput, TransitionState, ValidatedTransitionContext,
+    board_owner, matrix_identity_slot, pair_right, require_matrix_pair, source_members,
+    transition_matrix_by_id, validate_association_settings, validate_constraints,
     validate_context_owners, validate_distinct_associations, validate_matrix_association,
     validate_net_pad_ids, validate_no_native_legacy_overlap, validate_transition_part_geometry,
 };
@@ -16,62 +16,10 @@ pub(super) fn validate_transition_input<'a>(
     let matrix_pair = require_matrix_pair(input.context)?;
 
     let context = input.context;
-    // The lifecycle's chained matrix view can reuse the same document on both sides.
-    let same_snapshot = std::ptr::eq(input.valid_before, input.post_source);
-    let matrices_already_removed = input.valid_before.matrices.iter().all(|matrix| {
-        matrix.id != matrix_pair.source_id.as_str() && matrix.id != matrix_pair.mirror_id.as_str()
-    });
-    if matrices_already_removed {
-        validate_matrix_association(context, false)?;
-        validate_association_settings(context)?;
-        if input.valid_before != input.post_source
-            || !input.source_identity_map.is_empty()
-            || !input.mirror_identity_map.is_empty()
-            || !input.planned_additions.is_empty()
-            || !input.explicit_removal_closure.is_empty()
-            || input.final_owners != &context.owners
-        {
-            return Err("A retired matrix transition must be an unchanged, empty operation".into());
-        }
-        let (before_pair, before_mapping) = pair_right(input.valid_before, &context.pair_id)?;
-        let (post_pair, post_mapping) = pair_right(input.post_source, &context.pair_id)?;
-        if before_pair != &context.pair_right
-            || post_pair != &context.pair_right
-            || before_mapping != context.mapping
-            || post_mapping != context.mapping
-        {
-            return Err(
-                "The retired matrix pair provenance changed outside its private context".into(),
-            );
-        }
-        validate_context_owners(input.valid_before, context)?;
-        validate_net_pad_ids(input.valid_before)?;
-        validate_constraints(input.valid_before)?;
-        validate_no_native_legacy_overlap(input.valid_before, context)?;
-        return Ok(ValidatedTransitionContext {
-            input,
-            removes_paired_matrices: true,
-            already_removed: true,
-            before_source_members: BTreeSet::new(),
-            before_mirror_members: BTreeSet::new(),
-            post_source_members: BTreeSet::new(),
-            mapped_source_ids: BTreeSet::new(),
-            mapped_mirror_ids: BTreeSet::new(),
-        });
-    }
     validate_matrix_association(context, true)?;
     validate_association_settings(context)?;
     let (before_pair, before_mapping) = pair_right(input.valid_before, &context.pair_id)?;
     let (post_pair, post_mapping) = pair_right(input.post_source, &context.pair_id)?;
-    match (
-        &context.pending_pair_baseline,
-        context.pending_pair_transitions.is_empty(),
-    ) {
-        (None, true) if context.pair_right == *before_pair => {}
-        (Some(baseline), false)
-            if baseline == before_pair && context.pair_right == *before_pair => {}
-        _ => return Err("The private pending pair baseline is stale or incomplete".into()),
-    }
     if before_pair != post_pair
         || before_mapping != context.mapping
         || post_mapping != context.mapping
@@ -80,7 +28,7 @@ pub(super) fn validate_transition_input<'a>(
     }
     validate_context_owners(input.valid_before, context)?;
     let snapshots = [input.valid_before, input.post_source];
-    let snapshots = &snapshots[..if same_snapshot { 1 } else { 2 }];
+    let snapshots = &snapshots[..];
     for document in snapshots {
         validate_net_pad_ids(document)?;
         validate_constraints(document)?;
@@ -92,9 +40,7 @@ pub(super) fn validate_transition_input<'a>(
     {
         return Err("The transition context does not match its pair boards".into());
     }
-    if input.baseline_kind == BaselineKind::MaterializedCurrentSchema {
-        crate::mechanical::halves::validate_document(input.valid_before)?;
-    }
+    crate::mechanical::halves::validate_document(input.valid_before)?;
 
     let members = |document: &ProjectDoc, id: &str, board: &str, absent_allowed| {
         if absent_allowed && document.matrices.iter().all(|matrix| matrix.id != id) {
@@ -125,12 +71,8 @@ pub(super) fn validate_transition_input<'a>(
     };
     let before_source_members = source(input.valid_before, false)?;
     let before_mirror_members = mirror(input.valid_before)?;
-    let post_source_members = if same_snapshot {
-        before_source_members.clone()
-    } else {
-        mirror(input.post_source)?;
-        source(input.post_source, true)?
-    };
+    mirror(input.post_source)?;
+    let post_source_members = source(input.post_source, true)?;
     let removes_paired_matrices = input
         .post_source
         .matrices
@@ -238,65 +180,6 @@ pub(super) fn validate_transition_input<'a>(
     }
     for association in &part_associations {
         validate_slot_association(matrix_pair, association)?;
-        if input.baseline_kind == BaselineKind::MaterializedCurrentSchema {
-            // The correspondence is the identity in every state; Local and Omitted are an
-            // overlay on it. The persisted overlay must be the state the pair held before any
-            // pending selection, so a pending Rejoin still sees the overlay it will clear.
-            let pair_records: Vec<_> = context
-                .pair_right
-                .correspondences
-                .iter()
-                .filter(|record| {
-                    record.kind == MirroredItemKind::Part
-                        && (record.source_id == association.source_id
-                            || record.mirror_id == association.mirror_id)
-                })
-                .collect();
-            let overlays: Vec<_> = context
-                .pair_right
-                .exceptions
-                .iter()
-                .filter(|exception| {
-                    exception.kind == MirroredItemKind::Part
-                        && exception.mirror_id == association.mirror_id
-                })
-                .collect();
-            let overlay_state = |state: TransitionState| match state {
-                TransitionState::Local => Some(crate::model::MirroredExceptionState::Local),
-                TransitionState::Omitted => Some(crate::model::MirroredExceptionState::Omitted),
-                TransitionState::Linked => None,
-            };
-            let pending_prior = context.pending_pair_transitions.get(&association.source_id);
-            let expected_overlay = match pending_prior {
-                Some(prior) => overlay_state(*prior),
-                None if association.explicit_state => overlay_state(association.state),
-                None => None,
-            };
-            let exact_correspondence = pair_records.len() == 1
-                && pair_records[0].source_id == association.source_id
-                && pair_records[0].mirror_id == association.mirror_id
-                && pair_records[0].companion_mode == association.raw_mode_override
-                && pair_records[0].companion_tweak == association.raw_tweak;
-            let overlay_matches = match overlays.as_slice() {
-                [] => {
-                    expected_overlay.is_none()
-                        // A kernel-only input may protect a part Local with no stored overlay.
-                        || (pending_prior.is_none() && association.state != TransitionState::Linked)
-                }
-                [overlay] => {
-                    Some(overlay.state) == expected_overlay
-                        && overlay.companion_mode.is_none()
-                        && overlay.companion_tweak.is_none()
-                }
-                _ => false,
-            };
-            if !exact_correspondence || !overlay_matches {
-                return Err(format!(
-                    "The Part association {:?} disagrees with pair provenance",
-                    association.source_id
-                ));
-            }
-        }
         if !before_source_members.contains(&association.source_id)
             && association.state != TransitionState::Local
         {
@@ -307,8 +190,6 @@ pub(super) fn validate_transition_input<'a>(
         }
         if association.state == TransitionState::Linked
             && !before_mirror_members.contains(&association.mirror_id)
-            && context.pending_rejoins.get(&association.source_id)
-                != Some(&TransitionState::Omitted)
         {
             return Err(format!(
                 "The linked mirror identity {:?} is not an actual matrix member",
@@ -333,27 +214,6 @@ pub(super) fn validate_transition_input<'a>(
                 association.mirror_id
             ));
         }
-    }
-    let pair_part_sources: BTreeSet<_> = context
-        .pair_right
-        .correspondences
-        .iter()
-        .filter(|record| record.kind == MirroredItemKind::Part)
-        .map(|record| record.source_id.clone())
-        .collect();
-    let pair_part_record_count = context
-        .pair_right
-        .correspondences
-        .iter()
-        .filter(|record| record.kind == MirroredItemKind::Part)
-        .count();
-    if input.baseline_kind == BaselineKind::MaterializedCurrentSchema
-        && (pair_part_sources != associated_sources
-            || pair_part_sources.len() != pair_part_record_count)
-    {
-        return Err(
-            "The pair and transition Part associations do not have bidirectional closure".into(),
-        );
     }
     let association_by_source: BTreeMap<_, _> = context
         .associations
@@ -382,13 +242,7 @@ pub(super) fn validate_transition_input<'a>(
         });
         let mapped_mirror = input.mirror_identity_map.get(&association.mirror_id);
         match association.state {
-            TransitionState::Linked
-                if mapped_mirror != Some(&expected_mirror)
-                    && !(context.pending_rejoins.get(old_source)
-                        == Some(&TransitionState::Omitted)
-                        && mapped_mirror.is_none()
-                        && expected_mirror.as_deref() == Some(association.mirror_id.as_str())) =>
-            {
+            TransitionState::Linked if mapped_mirror != Some(&expected_mirror) => {
                 return Err(format!(
                     "The linked mirror identity disagrees with source identity {old_source:?}"
                 ));
@@ -701,13 +555,11 @@ pub(super) fn validate_transition_input<'a>(
         }
     }
     Ok(ValidatedTransitionContext {
-        input,
-        removes_paired_matrices,
-        already_removed: false,
         before_source_members,
         before_mirror_members,
+        input,
+        removes_paired_matrices,
         post_source_members,
-        mapped_source_ids,
         mapped_mirror_ids,
     })
 }
