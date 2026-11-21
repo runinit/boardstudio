@@ -28,8 +28,9 @@ pub fn LayoutPartToolOverlay(
     on_focus_half: EventHandler<()>,
 ) -> Element {
     let _ = surface_size.map(|size| size());
-    let svg_key: usize = Rc::as_ptr(&svg.0) as usize;
-    use_rail_mount(Rail::Part, svg_key, tool);
+    // W3-C: canvas-owned rail sets; siblings share the handle, a second canvas owns its own.
+    let svg_handle = svg.clone();
+    use_rail_mount(Rail::Part, svg_handle.clone(), tool);
     let drag = use_hook(|| Rc::new(RefCell::new(None::<PartDrag>)));
     let hovered = use_signal(|| false);
     let focused = use_signal(|| false);
@@ -43,19 +44,27 @@ pub fn LayoutPartToolOverlay(
     let runtime_inner = runtime.0.clone();
     let drag_for_drop = drag.clone();
     let arbiter_for_drop = arbiter.clone();
+    let svg_for_drop_cancel = svg_handle.clone();
     use_drop(move || {
-        cancel_part_drag(&runtime_inner, &drag_for_drop, &arbiter_for_drop, svg_key);
+        cancel_part_drag(
+            &runtime_inner,
+            &drag_for_drop,
+            &arbiter_for_drop,
+            &svg_for_drop_cancel,
+        );
     });
     // Escape, on the document or on the focused token, clears the drag and its popup.
+    let svg_for_escape_drag = svg_handle.clone();
     let escape_drag = {
         let runtime = runtime.0.clone();
         let drag = drag.clone();
         let arbiter = arbiter.clone();
+        let svg_for_escape_drag = svg_for_escape_drag.clone();
         Rc::new(move || {
             let (mut feedback, mut popup_at) = (feedback, popup_at);
             feedback.set(advance_feedback(&feedback(), FeedbackEvent::Dismiss));
             popup_at.set(None);
-            cancel_part_drag(&runtime, &drag, &arbiter, svg_key);
+            cancel_part_drag(&runtime, &drag, &arbiter, &svg_for_escape_drag);
             on_finish.call(());
         })
     };
@@ -91,8 +100,9 @@ pub fn LayoutPartToolOverlay(
             let runtime = runtime.0.clone();
             let drag = drag.clone();
             let arbiter = arbiter.clone();
+            let svg_for_stale = svg_handle.clone();
             move || {
-                cancel_part_drag(&runtime, &drag, &arbiter, svg_key);
+                cancel_part_drag(&runtime, &drag, &arbiter, &svg_for_stale);
             }
         },
     );
@@ -131,7 +141,7 @@ pub fn LayoutPartToolOverlay(
         return rsx! {};
     };
     let world_per_screen = handle_scale(&svg, width, height) / 3.0;
-    let rail_tools = Rail::Part.peers(svg_key);
+    let rail_tools = rail_peers(Rail::Part, &svg_handle);
     let rail_index = rail_tools.iter().position(|peer| *peer == tool);
     // The rail centres on the part: its evaluated centre with the top edge
     // of its courtyard, matching the matrix rail's centred row.
@@ -205,7 +215,7 @@ pub fn LayoutPartToolOverlay(
             .to_degrees(),
         _ => 0.0,
     };
-    let active_peer = Rail::Part.active(svg_key);
+    let active_peer = rail_active(Rail::Part, &svg_handle);
     let dragging_here = drag.borrow().is_some();
     // A live drag on a peer dims this token to 35%; the active token keeps
     // full opacity. Siblings re-read the shared mount set whenever the
@@ -233,12 +243,13 @@ pub fn LayoutPartToolOverlay(
     let feedback_state = feedback();
 
     let runtime_for_start = runtime.0.clone();
-    let svg_for_start = svg.0.clone();
+    let svg_for_start = svg.surface().clone();
     let drag_for_start = drag.clone();
     let arbiter_for_start = arbiter.clone();
     let context_for_start = part_context.clone();
     let owner_for_start = owner.clone();
     let part_for_start = part_id.clone();
+    let svg_handle_for_start = svg_handle.clone();
     let start_drag = Rc::new(move |event: PointerEvent| {
         let Some(pointer) = event.data().try_as_web_event() else {
             return;
@@ -369,11 +380,12 @@ pub fn LayoutPartToolOverlay(
             start_point.x + 18.0 * world_per_screen,
             start_point.y - 18.0 * world_per_screen,
         )));
-        Rail::Part.set_active(svg_key, Some(tool));
+        set_rail_active(Rail::Part, &svg_handle_for_start, Some(tool));
     });
 
     let runtime_for_move = runtime.0.clone();
-    let svg_for_move = svg.0.clone();
+    let svg_for_move = svg.surface().clone();
+    let svg_for_move_cancel = svg_handle.clone();
     let drag_for_move = drag.clone();
     let arbiter_for_move = arbiter.clone();
     let feedback_for_move = feedback;
@@ -407,7 +419,7 @@ pub fn LayoutPartToolOverlay(
                 &runtime_for_move,
                 &drag_for_move,
                 &arbiter_for_move,
-                svg_key,
+                &svg_for_move_cancel,
             );
             return;
         }
@@ -525,7 +537,7 @@ pub fn LayoutPartToolOverlay(
                             &runtime_for_move,
                             &drag_for_move,
                             &arbiter_for_move,
-                            svg_key,
+                            &svg_for_move_cancel,
                         );
                         return;
                     }
@@ -600,7 +612,8 @@ pub fn LayoutPartToolOverlay(
     });
 
     let runtime_for_end = runtime.0.clone();
-    let svg_for_end = svg.0.clone();
+    let svg_for_end = svg.surface().clone();
+    let svg_handle_for_end = svg_handle.clone();
     let drag_for_end = drag.clone();
     let arbiter_for_end = arbiter.clone();
     let feedback_for_end = feedback;
@@ -633,11 +646,21 @@ pub fn LayoutPartToolOverlay(
             &active.context,
         ) || active.tool != tool
         {
-            cancel_part_drag(&runtime_for_end, &drag_for_end, &arbiter_for_end, svg_key);
+            cancel_part_drag(
+                &runtime_for_end,
+                &drag_for_end,
+                &arbiter_for_end,
+                &svg_handle_for_end,
+            );
             return;
         }
         if pointer.type_() != "pointerup" {
-            cancel_part_drag(&runtime_for_end, &drag_for_end, &arbiter_for_end, svg_key);
+            cancel_part_drag(
+                &runtime_for_end,
+                &drag_for_end,
+                &arbiter_for_end,
+                &svg_handle_for_end,
+            );
             return;
         }
         let alt = pointer.alt_key();
@@ -774,7 +797,7 @@ pub fn LayoutPartToolOverlay(
                             &runtime_for_end,
                             &drag_for_end,
                             &arbiter_for_end,
-                            svg_key,
+                            &svg_handle_for_end,
                         );
                         return;
                     };
@@ -882,7 +905,7 @@ pub fn LayoutPartToolOverlay(
             }
         }
         popup_at_for_end.set(None);
-        Rail::Part.set_active(svg_key, None);
+        set_rail_active(Rail::Part, &svg_handle_for_end, None);
         drag_for_end.borrow_mut().take();
         if active.capture.has_pointer_capture(pointer.pointer_id()) {
             let _ = active.capture.release_pointer_capture(pointer.pointer_id());
@@ -895,6 +918,7 @@ pub fn LayoutPartToolOverlay(
     let arbiter_for_cancel = arbiter.clone();
     let feedback_for_cancel = feedback;
     let popup_at_for_cancel = popup_at;
+    let svg_for_cancel = svg_handle.clone();
     let cancel_drag = Rc::new(move |event: PointerEvent| {
         let mut feedback_for_cancel = feedback_for_cancel;
         let mut popup_at_for_cancel = popup_at_for_cancel;
@@ -918,7 +942,7 @@ pub fn LayoutPartToolOverlay(
                 &runtime_for_cancel,
                 &drag_for_cancel,
                 &arbiter_for_cancel,
-                svg_key,
+                &svg_for_cancel,
             );
         }
     });

@@ -438,48 +438,43 @@ pub(crate) fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                                         }
                                 },
                         }
-                        { rsx! { TextDraftField {
-                            key: "{props.owner_key}:hardware:{item.id}:designation",
-                            identity: props.identity.clone(), request_sequence, on_request, feedback: props.feedback.clone(),
-                            label: "Designation", value: item.designation.clone(),
-                            intent: MechanicalTextIntent::Hardware { hardware_id: item.id.clone(), field: MechanicalHardwareTextField::Designation },
-                            editable: props.editable,
-                        } } }
-                        { rsx! { TextDraftField {
-                            key: "{props.owner_key}:hardware:{item.id}:thread",
-                            identity: props.identity.clone(), request_sequence, on_request, feedback: props.feedback.clone(),
-                            label: "Thread", value: item.thread.clone(),
-                            intent: MechanicalTextIntent::Hardware { hardware_id: item.id.clone(), field: MechanicalHardwareTextField::Thread },
-                            editable: props.editable,
-                        } } }
-                        div { class: "grid grid-cols-4 items-end gap-1.5 [@container_mechanical_(max-width:320px)]:grid-cols-2",
-                            { rsx! { DimensionField {
-                                key: "{props.owner_key}:hardware:{item.id}:length",
+                        for (suffix, label, value, field, multiline) in [
+                            ("designation", "Designation", item.designation.clone(), MechanicalHardwareTextField::Designation, false),
+                            ("thread", "Thread", item.thread.clone(), MechanicalHardwareTextField::Thread, false),
+                        ] {
+                            TextDraftField {
+                                key: "{props.owner_key}:hardware:{item.id}:{suffix}",
                                 identity: props.identity.clone(), request_sequence, on_request, feedback: props.feedback.clone(),
-                                field: MechanicalDimension::HardwareLength, label: "Length", value: item.length,
-                                editable: props.editable, hardware_target: Some(HardwareDimensionTarget { hardware_id: item.id.clone() }),
-                            } } }
-                            { rsx! { DimensionField {
-                                key: "{props.owner_key}:hardware:{item.id}:quantity",
-                                identity: props.identity.clone(), request_sequence, on_request, feedback: props.feedback.clone(),
-                                field: MechanicalDimension::HardwareQuantity, label: "Quantity", value: f64::from(item.quantity),
-                                editable: props.editable, hardware_target: Some(HardwareDimensionTarget { hardware_id: item.id.clone() }),
-                            } } }
+                                label, value,
+                                intent: MechanicalTextIntent::Hardware { hardware_id: item.id.clone(), field },
+                                editable: props.editable, multiline,
+                            }
                         }
-                        { rsx! { TextDraftField {
-                            key: "{props.owner_key}:hardware:{item.id}:tolerance",
-                            identity: props.identity.clone(), request_sequence, on_request, feedback: props.feedback.clone(),
-                            label: "Tolerance", value: item.tolerance.clone().unwrap_or_default(),
-                            intent: MechanicalTextIntent::Hardware { hardware_id: item.id.clone(), field: MechanicalHardwareTextField::Tolerance },
-                            editable: props.editable,
-                        } } }
-                        { rsx! { TextDraftField {
-                            key: "{props.owner_key}:hardware:{item.id}:notes",
-                            identity: props.identity.clone(), request_sequence, on_request, feedback: props.feedback.clone(),
-                            label: "Notes", value: item.notes.clone().unwrap_or_default(),
-                            intent: MechanicalTextIntent::Hardware { hardware_id: item.id.clone(), field: MechanicalHardwareTextField::Notes },
-                            editable: props.editable, multiline: true,
-                        } } }
+                        div { class: "grid grid-cols-4 items-end gap-1.5 [@container_mechanical_(max-width:320px)]:grid-cols-2",
+                            for (suffix, field, label, value) in [
+                                ("length", MechanicalDimension::HardwareLength, "Length", item.length),
+                                ("quantity", MechanicalDimension::HardwareQuantity, "Quantity", f64::from(item.quantity)),
+                            ] {
+                                DimensionField {
+                                    key: "{props.owner_key}:hardware:{item.id}:{suffix}",
+                                    identity: props.identity.clone(), request_sequence, on_request, feedback: props.feedback.clone(),
+                                    field, label, value,
+                                    editable: props.editable, hardware_target: Some(HardwareDimensionTarget { hardware_id: item.id.clone() }),
+                                }
+                            }
+                        }
+                        for (suffix, label, value, field, multiline) in [
+                            ("tolerance", "Tolerance", item.tolerance.clone().unwrap_or_default(), MechanicalHardwareTextField::Tolerance, false),
+                            ("notes", "Notes", item.notes.clone().unwrap_or_default(), MechanicalHardwareTextField::Notes, true),
+                        ] {
+                            TextDraftField {
+                                key: "{props.owner_key}:hardware:{item.id}:{suffix}",
+                                identity: props.identity.clone(), request_sequence, on_request, feedback: props.feedback.clone(),
+                                label, value,
+                                intent: MechanicalTextIntent::Hardware { hardware_id: item.id.clone(), field },
+                                editable: props.editable, multiline,
+                            }
+                        }
                     }
                 }
             }
@@ -538,28 +533,18 @@ pub(crate) fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                                     ) }
                                 },
                         }
-                        { rsx! { TextDraftField {
-                            key: "{props.owner_key}:fit:{fit.id}:label",
-                            identity: props.identity.clone(),
-                            request_sequence,
-                            on_request,
-                            feedback: props.feedback.clone(),
-                            label: "Dimension name",
-                            value: fit.label.clone(),
-                            intent: MechanicalTextIntent::CriticalFit { fit_id: fit.id.clone(), field: MechanicalCriticalFitTextField::Label },
-                            editable: props.editable,
-                        } } }
-                        { rsx! { TextDraftField {
-                            key: "{props.owner_key}:fit:{fit.id}:tolerance",
-                            identity: props.identity.clone(),
-                            request_sequence,
-                            on_request,
-                            feedback: props.feedback.clone(),
-                            label: "Tolerance",
-                            value: fit.tolerance.clone(),
-                            intent: MechanicalTextIntent::CriticalFit { fit_id: fit.id.clone(), field: MechanicalCriticalFitTextField::Tolerance },
-                            editable: props.editable,
-                        } } }
+                        for (suffix, label, value, field) in [
+                            ("label", "Dimension name", fit.label.clone(), MechanicalCriticalFitTextField::Label),
+                            ("tolerance", "Tolerance", fit.tolerance.clone(), MechanicalCriticalFitTextField::Tolerance),
+                        ] {
+                            TextDraftField {
+                                key: "{props.owner_key}:fit:{fit.id}:{suffix}",
+                                identity: props.identity.clone(), request_sequence, on_request, feedback: props.feedback.clone(),
+                                label, value,
+                                intent: MechanicalTextIntent::CriticalFit { fit_id: fit.id.clone(), field },
+                                editable: props.editable,
+                            }
+                        }
                         div { class: "grid grid-cols-4 items-end gap-1.5 [@container_mechanical_(max-width:320px)]:grid-cols-2",
                             for (suffix, field, label, value, direction) in [
                                 ("from-x", MechanicalDimension::CriticalFitFromX, "From X", fit.from.x, "from X"),

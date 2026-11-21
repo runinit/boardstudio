@@ -1,8 +1,8 @@
 //! Key moves, assembly placements, exception transitions and linked matrix removal.
 
 use super::{
-    MIRRORED_COMPONENT_SOURCE, axis_mapping, exception_state, omitted, partner, reflected,
-    remap_anchor_target, set_component_pose, stored_part_pose, sync,
+    axis_mapping, exception_state, omitted, partner, reflected, remap_anchor_target,
+    set_component_pose, stored_part_pose, sync,
 };
 use crate::{matrix, model::*};
 use std::collections::{BTreeMap, BTreeSet};
@@ -25,49 +25,6 @@ pub(super) fn primary_member<'a>(doc: &'a ProjectDoc, id: &str) -> Option<(&'a M
         }
     }
     None
-}
-
-pub fn has_linked_positions(doc: &ProjectDoc, positions: &[Position]) -> bool {
-    let mut affected: BTreeSet<_> = positions
-        .iter()
-        .map(|position| position.id.as_str())
-        .collect();
-    loop {
-        let previous = affected.len();
-        for id in affected.clone() {
-            if let Some(constraint) = doc.constraint_driving_part(id).ok().flatten() {
-                affected.insert(constraint.target());
-            }
-        }
-        if affected.len() == previous {
-            break;
-        }
-    }
-    if affected.iter().any(|id| primary_member(doc, id).is_some()) {
-        return true;
-    }
-    positions.iter().any(|position| {
-        primary_member(doc, &position.id).is_some()
-            || doc.parts.iter().any(|part| {
-                part.id == position.id
-                    && part.properties.as_ref().is_some_and(|properties| {
-                        properties.contains_key(MIRRORED_COMPONENT_SOURCE)
-                    })
-            })
-            || doc.parts.iter().any(|target| {
-                target
-                    .properties
-                    .as_ref()
-                    .and_then(|properties| properties.get(MIRRORED_COMPONENT_SOURCE))
-                    .and_then(serde_json::Value::as_str)
-                    == Some(position.id.as_str())
-            })
-            || doc
-                .constraint_driving_part(&position.id)
-                .ok()
-                .flatten()
-                .is_some_and(|constraint| constraint.offset_axes().is_some())
-    })
 }
 
 /// Numeric moves and keyboard nudges must update the same parametric geometry

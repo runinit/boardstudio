@@ -297,7 +297,7 @@ async fn mount_matrix_rail(
     tools: Vec<LayoutTransformTool>,
 ) -> MountedRail {
     let (matrix, projection) = matrix_and_scene(runtime, matrix_id);
-    let svg = LayoutTransformSvg(Rc::new(RefCell::new(None)));
+    let svg = LayoutTransformSvg::new(Rc::new(RefCell::new(None)));
     let props = MatrixRailHostProps {
         runtime: LayoutTransformRuntime(runtime.clone()),
         svg: svg.clone(),
@@ -331,7 +331,7 @@ async fn attach_svg(root: &web_sys::Element, svg: &LayoutTransformSvg) {
         query(root, "#overlay-host-svg").is_some()
     })
     .await;
-    *svg.0.borrow_mut() =
+    *svg.surface().borrow_mut() =
         query(root, "#overlay-host-svg").and_then(|element| element.dyn_into::<SvgElement>().ok());
     fixture::stub_pointer_capture(root, "[data-transform-handle]");
 }
@@ -426,7 +426,7 @@ async fn mount_part_rail(
     tools: Vec<LayoutTransformTool>,
     snap: GestureSnapInputs,
 ) -> MountedPartRail {
-    let svg = LayoutTransformSvg(Rc::new(RefCell::new(None)));
+    let svg = LayoutTransformSvg::new(Rc::new(RefCell::new(None)));
     let focus_half = Rc::new(RefCell::new(0_u32));
     let props = PartRailHostProps {
         runtime: LayoutTransformRuntime(runtime.clone()),
@@ -510,7 +510,7 @@ async fn mount_pick(
     runtime: &Rc<Runtime>,
     pick_owner: AnchorPickOwner,
 ) -> (web_sys::Element, MountedFixture) {
-    let svg = LayoutTransformSvg(Rc::new(RefCell::new(None)));
+    let svg = LayoutTransformSvg::new(Rc::new(RefCell::new(None)));
     let props = PickHostProps {
         runtime: LayoutTransformRuntime(runtime.clone()),
         svg: svg.clone(),

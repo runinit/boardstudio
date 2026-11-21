@@ -1233,14 +1233,14 @@ pub(super) fn cancel_transform_drag(
     guide: &mut Signal<Option<Vec2>>,
     mut quick_glyph: Signal<bool>,
     mut swing_glyph: Signal<bool>,
-    svg_key: usize,
+    svg: &LayoutTransformSvg,
 ) {
     if abandon_transform_drag(runtime, drag, arbiter) {
         guide.set(None);
         quick_glyph.set(false);
         swing_glyph.set(false);
     }
-    Rail::Matrix.set_active(svg_key, None);
+    set_rail_active(Rail::Matrix, svg, None);
 }
 
 /// Cancel, Escape, lost capture or an owner change: clear the preview, release the pointer

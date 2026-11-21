@@ -21,7 +21,7 @@ pub(super) struct MatrixTokenView<Show, Hide> {
     pub(super) popup_at: Signal<Option<(f64, f64)>>,
     pub(super) snap_guide: Signal<Option<Vec2>>,
     pub(super) drag: Rc<RefCell<Option<TransformDrag>>>,
-    pub(super) svg_key: usize,
+    pub(super) svg: LayoutTransformSvg,
     pub(super) rail_index: Option<usize>,
     pub(super) rail_layout: Option<crate::matrix_transform_operation::handle_rail::WorldRailLayout>,
     pub(super) rail_tools: Vec<LayoutTransformTool>,
@@ -70,7 +70,7 @@ where
         popup_at,
         snap_guide,
         drag,
-        svg_key,
+        svg,
         rail_index,
         rail_layout,
         rail_tools,
@@ -135,7 +135,7 @@ where
         _ => format!("{stagger_now:.2} mm"),
     };
     let quick_offset_shown = quick_glyph() || control() || tool == LayoutTransformTool::Offset;
-    let active_peer = Rail::Matrix.active(svg_key);
+    let active_peer = rail_active(Rail::Matrix, &svg);
     let dragging_here = drag.borrow().is_some();
     // A live drag on a peer dims this token to 35%; the active token keeps
     // full opacity. Siblings re-read the shared mount set whenever the

@@ -21,9 +21,8 @@ use components::{remove_component, set_component_pose, sync_component_nets};
 use keys::primary_member;
 pub use keys::{
     AssemblyPlacement, LinkedRemovalFollow, add_local_matrix_exception,
-    apply_exception_transitions, assembly_placements, companion_mode, edits_alone,
-    has_linked_positions, is_matrix_key, move_keys, plan_linked_matrix_removal,
-    reconcile_constraint_keys, refuse_omitted_storage_edit,
+    apply_exception_transitions, assembly_placements, companion_mode, edits_alone, is_matrix_key,
+    move_keys, plan_linked_matrix_removal, reconcile_constraint_keys, refuse_omitted_storage_edit,
 };
 use parts::materialize_unrecorded_partners;
 pub use parts::{

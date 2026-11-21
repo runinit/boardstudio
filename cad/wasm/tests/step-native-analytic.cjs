@@ -176,6 +176,74 @@ const path = require('node:path');
     cirqueCoarse.vendorStep.analysisHandle.free();
   }
 
+  const vendorDirectory = 'ergogen/library/vendor/infused-kim/3d_models';
+  const reset = read(vendorDirectory + '/Switch_Reset.step');
+  const rim = (asset, faceId) => {
+    const index = asset.sourceFaces.findIndex(face => face.faceId === faceId && face.solidId === '25');
+    const tag = asset.faceOccurrences.findIndex(face => face.sourceFaceIndex === index && face.solidOccurrenceIndex === 5);
+    assert(index >= 0 && tag >= 0);
+    const points = asset.surfacePositionsMmF64;
+    const onRim = ([x, y, z]) => Math.abs(Math.hypot(y - 0.3, z - 1.9) - 0.2) < 1e-9 && Math.abs(x + y + 0.45) < 1e-9;
+    const edges = new Set();
+    asset.triangleFaceOccurrenceIndices.forEach((face, i) => {
+      if (face !== tag) return;
+      const tri = [0, 1, 2].map(v => points.subarray(9 * i + 3 * v, 9 * i + 3 * v + 3));
+      tri.forEach((a, j) => {
+        const b = tri[(j + 1) % 3];
+        if (onRim(a) && onRim(b) && !edges.delete(b + '>' + a)) {
+          const edge = a + '>' + b;
+          assert(!edges.has(edge));
+          edges.add(edge);
+        }
+      });
+    });
+    return edges;
+  };
+  const centimetres = Buffer.from(reset.toString('latin1').replaceAll('SI_UNIT(.MILLI.,.METRE.)', 'SI_UNIT(.CENTI.,.METRE.)'), 'latin1');
+  assert(!centimetres.equals(reset));
+  const scaled = importModel(centimetres, 0.01);
+  try {
+    for (const [deflection, expectedSegments] of [[0.1, 4], [0.001, 10]]) {
+      const result = importModel(reset, deflection);
+      const asset = result.vendorStep;
+      try {
+        assert.equal(asset.sourceSha256, crypto.createHash('sha256').update(reset).digest('hex'));
+        assert.equal(asset.sourceQualification.state, 'unknown');
+        assert.equal(asset.sourceFaces.length, 326);
+        assert.equal(asset.faceOccurrences.length, 326);
+        assert.equal(new Set(asset.sourceFaces.map(face => face.solidId)).size, 6);
+        assert.equal(new Set(asset.faceOccurrences.map(face => face.solidOccurrenceIndex)).size, 6);
+        assert.equal(asset.accuracy.meshClosedOriented, true);
+        assert.equal(asset.accuracy.boundsFromSourceGeometry, true);
+        const expected = [-2.35, 0, -1.45, 2.35, 1.35, 2.1];
+        assert([...result.bounds.min, ...result.bounds.max].every((x, i) => Math.abs(x - expected[i]) < 1e-9));
+        const cylinder = rim(asset, '6077');
+        const plane = rim(asset, '6180');
+        assert.equal(cylinder.size, expectedSegments);
+        assert.deepEqual(cylinder, new Set([...plane].map(edge => edge.split('>').reverse().join('>'))));
+        if (deflection === 0.001) {
+          assert.deepEqual(scaled.vendorStep.triangleFaceOccurrenceIndices, asset.triangleFaceOccurrenceIndices);
+          assert.equal(scaled.vendorStep.surfacePositionsMmF64.length, asset.surfacePositionsMmF64.length);
+          assert(asset.surfacePositionsMmF64.every((x, i) => Math.abs(10 * x - scaled.vendorStep.surfacePositionsMmF64[i]) < 1e-10));
+        }
+      } finally {
+        asset.analysisHandle.free();
+      }
+    }
+  } finally {
+    scaled.vendorStep.analysisHandle.free();
+  }
+  for (const [pins, count] of [[2, 181], [5, 351]]) {
+    const cable = importModel(read(vendorDirectory + '/Molex_Ezmate_Pico_Cable_' + pins + 'pin.step'));
+    try {
+      assert.equal(cable.vendorStep.faceOccurrences.length, count);
+      assert.equal(cable.vendorStep.accuracy.boundsFromSourceGeometry, false);
+    } finally {
+      cable.vendorStep.analysisHandle.free();
+    }
+  }
+  console.log('PASS packaged reset switch shared elliptical rims, centimetre scaling, and both cable fallbacks');
+
   const sector = read('cad/monstertruck/tests/fixtures/trimmed-cylinder-sector.step').toString();
   const invalid = sector.replace("CYLINDRICAL_SURFACE('',#20,10.)", "CYLINDRICAL_SURFACE('',#20,11.)");
   assert.notEqual(invalid, sector);

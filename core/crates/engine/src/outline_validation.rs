@@ -296,6 +296,9 @@ pub(crate) fn validate(
             (definition.id.as_str(), support_paths(definition, geometry))
         })
         .collect::<std::collections::BTreeMap<_, _>>();
+    // Simplicity is a property of the definition's local courtyard. The fit
+    // and marker geometry below still depend on each part's evaluated pose.
+    let mut valid_courtyards = std::collections::BTreeMap::new();
     for board in &doc.boards {
         let Some(resolved) = boards.iter().find(|item| item.board_id == board.id) else {
             continue;
@@ -446,7 +449,11 @@ pub(crate) fn validate(
                 );
             }
             let body = world(doc, part, &definition.courtyard);
-            if definition.courtyard.len() >= 3 && !geometry::valid_polygon(&definition.courtyard) {
+            if definition.courtyard.len() >= 3
+                && !*valid_courtyards
+                    .entry(definition.id.as_str())
+                    .or_insert_with(|| geometry::valid_polygon(&definition.courtyard))
+            {
                 report(
                     format!("body-source:{}", part.id),
                     format!("{}: courtyard support geometry is invalid", part.reference),
@@ -665,7 +672,7 @@ pub(crate) fn feature_markers(doc: &ProjectDoc, findings: &[Finding]) -> Vec<Fin
                 .parts
                 .iter()
                 .filter(|part| {
-                    board.part_ids.contains(&part.id) && finding.target_ids.contains(&part.id)
+                    finding.target_ids.contains(&part.id) && board.part_ids.contains(&part.id)
                 })
                 .filter_map(|part| {
                     doc.definitions

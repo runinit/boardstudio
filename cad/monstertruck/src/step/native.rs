@@ -3,6 +3,7 @@
 mod assembly;
 mod carrier;
 mod geometry;
+mod oblique;
 mod trim;
 
 use super::*;
@@ -231,7 +232,7 @@ pub(super) fn build(
                     .map_err(|error| format!("native edge #{edge_id}: {error}"))?,
             );
             // Along each admitted cylindrical generator, a world coordinate is
-            // affine in height. Extremes occur at its authored trim endpoints.
+            // affine in height. Its extremes lie on the authored trim curves.
             edge.include_bounds(world, epsilon, &mut asset.bounds)?;
         }
         let mut triangles = Vec::new();

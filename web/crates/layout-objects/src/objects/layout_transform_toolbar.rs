@@ -1,6 +1,6 @@
 //! Transform-property navigation for the Layout command pill and the canvas rail overlays.
 //!
-//! `tool`, `rail` and `placement` hold the plain tool, rail registry and placement logic (unit
+//! `tool`, `rail` and `placement` hold the plain tool, rail mount state and placement logic (unit
 //! tested natively); `chrome` and `feedback` hold the rail token, popup and toast chrome and
 //! the hooks every overlay shares; `matrix_tools`, `part_tools` and `anchor_pick` are the
 //! overlays, with their gesture logic in `matrix_gesture` and `part_drag`; `menu` holds the
@@ -33,6 +33,7 @@ use boardstudio_model::model::{
     EditOperation, Matrix, MatrixScene, MatrixSplayAffect, MatrixSplayChange, Mirror, PartAnchor,
     PartAnchorValueChange, Pose2, Position, ProjectDoc, Vec2,
 };
+use boardstudio_web_layout_core::rail_state::RailState;
 use boardstudio_web_runtime::pending_edits::PendingEdits;
 use boardstudio_web_ui_model::state::{FieldPreview, FieldPreviewSource, FieldPreviewState};
 use boardstudio_web_ui_model::transform_feedback::{
@@ -106,8 +107,38 @@ impl PartialEq for LayoutTransformRuntime {
     }
 }
 
+/// The shared svg handle plus the component-owned rail mount sets for one canvas.
+///
+/// W3-C: the matrix rail and the part rail each own one [`RailState`] inside
+/// the svg handle the canvas component owns. Sibling overlays of one canvas
+/// share the same `Rc`, so every overlay of one selection reads the same
+/// mount set; a second canvas (or a remount) owns a second handle with its
+/// own sets. Dropping the handle retires both rails; dropping one overlay
+/// unmounts only its tool.
+pub struct LayoutSvgInner {
+    pub surface: Rc<RefCell<Option<SvgElement>>>,
+    pub matrix_rail: RefCell<RailState<LayoutTransformTool>>,
+    pub part_rail: RefCell<RailState<LayoutTransformTool>>,
+}
+
 #[derive(Clone)]
-pub struct LayoutTransformSvg(pub Rc<RefCell<Option<SvgElement>>>);
+pub struct LayoutTransformSvg(pub Rc<LayoutSvgInner>);
+
+impl LayoutTransformSvg {
+    /// Wrap the canvas-owned surface handle with fresh, empty rail sets.
+    pub fn new(surface: Rc<RefCell<Option<SvgElement>>>) -> Self {
+        Self(Rc::new(LayoutSvgInner {
+            surface,
+            matrix_rail: RefCell::new(RailState::new()),
+            part_rail: RefCell::new(RailState::new()),
+        }))
+    }
+
+    /// The canvas surface handle the overlays draw through.
+    pub fn surface(&self) -> &Rc<RefCell<Option<SvgElement>>> {
+        &self.0.surface
+    }
+}
 
 impl PartialEq for LayoutTransformSvg {
     fn eq(&self, other: &Self) -> bool {

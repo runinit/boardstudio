@@ -12,15 +12,59 @@ type TransformEscapeListener = Rc<
 >;
 
 /// Registers `tool` on `rail` for this canvas while the overlay stays mounted.
-pub(super) fn use_rail_mount(rail: Rail, svg_key: usize, tool: LayoutTransformTool) {
-    use_hook(move || rail.mount(svg_key, tool));
+///
+/// W3-C: the mount set lives in the canvas-owned [`LayoutTransformSvg`]
+/// handle, not in a thread-local registry. Every overlay of one canvas shares
+/// the same `Rc`, so simultaneous mounts on one canvas list together while a
+/// second canvas (or a remount with a fresh handle) owns a separate set.
+/// Dropping the overlay unmounts its tool; dropping the handle retires both rails.
+pub(super) fn use_rail_mount(rail: Rail, svg: LayoutTransformSvg, tool: LayoutTransformTool) {
+    let svg_for_mount = svg.clone();
+    use_hook(move || {
+        let handle = svg_for_mount.clone();
+        match rail {
+            Rail::Matrix => handle.0.matrix_rail.borrow_mut().mount(tool),
+            Rail::Part => handle.0.part_rail.borrow_mut().mount(tool),
+        }
+    });
     // Peers mount in one commit, so the first overlay paints before the rest
     // register. This second pass re-reads the full mount set once every peer
     // of the commit has registered, keeping every rail centred.
     let mut mounted = use_signal(|| false);
     use_effect(move || mounted.set(true));
     let _ = mounted();
-    use_drop(move || rail.unmount(svg_key, tool));
+    use_drop(move || match rail {
+        Rail::Matrix => svg.0.matrix_rail.borrow_mut().unmount(&tool),
+        Rail::Part => svg.0.part_rail.borrow_mut().unmount(&tool),
+    });
+}
+
+/// The live peer on `rail` for this canvas, if a drag or pick holds one.
+pub(super) fn rail_active(rail: Rail, svg: &LayoutTransformSvg) -> Option<LayoutTransformTool> {
+    match rail {
+        Rail::Matrix => svg.0.matrix_rail.borrow().active(),
+        Rail::Part => svg.0.part_rail.borrow().active(),
+    }
+}
+
+/// Mark the live peer on `rail` for this canvas (`None` clears).
+pub(super) fn set_rail_active(
+    rail: Rail,
+    svg: &LayoutTransformSvg,
+    tool: Option<LayoutTransformTool>,
+) {
+    match rail {
+        Rail::Matrix => svg.0.matrix_rail.borrow_mut().set_active(tool),
+        Rail::Part => svg.0.part_rail.borrow_mut().set_active(tool),
+    }
+}
+
+/// The mounted peers on `rail` for this canvas, in canonical order.
+pub(super) fn rail_peers(rail: Rail, svg: &LayoutTransformSvg) -> Vec<LayoutTransformTool> {
+    match rail {
+        Rail::Matrix => rail.peers_in(&svg.0.matrix_rail.borrow()),
+        Rail::Part => rail.peers_in(&svg.0.part_rail.borrow()),
+    }
 }
 
 /// Hands every document Escape no earlier listener prevented to `handler` for the
@@ -108,7 +152,7 @@ pub(super) fn use_stale_drag_cancel<D: RailDrag>(
 /// World units per screen px times three: the overlays draw screen-size chrome from px art
 /// scaled by this factor, so tokens stay 18 px at every zoom.
 pub(super) fn handle_scale(svg: &LayoutTransformSvg, width: f64, height: f64) -> f64 {
-    svg.0.borrow().as_ref().map_or(3.0, |surface| {
+    svg.surface().borrow().as_ref().map_or(3.0, |surface| {
         let rect = surface.get_bounding_client_rect();
         if rect.width() > 0.0 {
             (width / rect.width()).max(height / rect.height().max(1.0)) * 3.0
@@ -121,11 +165,13 @@ pub(super) fn handle_scale(svg: &LayoutTransformSvg, width: f64, height: f64) ->
 /// The matrix rail's peers for a selection. Column 0 follows the pitch, so it has no Spread
 /// step to drag: a Spread token never joins its rail. Every overlay of the selection filters
 /// the same mount set, so the rail stays centred on the tokens that draw.
-pub(super) fn matrix_rail_tools(svg_key: usize, context: &TreeContext) -> Vec<LayoutTransformTool> {
+pub(super) fn matrix_rail_tools(
+    svg: &LayoutTransformSvg,
+    context: &TreeContext,
+) -> Vec<LayoutTransformTool> {
     let selected_column = context_column(context).unwrap_or(0);
     let selected_row = context_row(context);
-    Rail::Matrix
-        .peers(svg_key)
+    rail_peers(Rail::Matrix, svg)
         .into_iter()
         .filter(|peer| {
             !matches!(peer, LayoutTransformTool::Spread)

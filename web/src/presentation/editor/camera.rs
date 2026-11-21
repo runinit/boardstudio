@@ -3,6 +3,8 @@ use super::super::*;
 pub(super) struct SvgSurface {
     pub svg: Rc<RefCell<Option<SvgElement>>>,
     pub zoom_surface_size: Signal<(f64, f64)>,
+    /// W3-C: canvas-owned rail mount sets shared by one canvas's overlays.
+    pub rail: objects::LayoutTransformSvg,
 }
 
 pub(super) fn use_svg_surface(
@@ -10,6 +12,9 @@ pub(super) fn use_svg_surface(
     workspace: Signal<&'static str>,
 ) -> SvgSurface {
     let svg = use_hook(|| Rc::new(RefCell::new(None::<SvgElement>)));
+    // W3-C: one rail handle per canvas, stable across renders; overlays clone
+    // the Rc so all share the same mount sets, and dropping the canvas retires both rails.
+    let rail = use_hook(|| objects::LayoutTransformSvg::new(svg.clone()));
     let zoom_surface_size = canvas_navigation.surface_size();
     // Read actual post-layout dimensions so attached controls keep their screen size
     // when the viewport or either dock changes, without polling or a resize loop.
@@ -57,6 +62,7 @@ pub(super) fn use_svg_surface(
     SvgSurface {
         svg,
         zoom_surface_size,
+        rail,
     }
 }
 
@@ -677,6 +683,7 @@ pub(super) fn use_camera_bundle(
     let SvgSurface {
         svg,
         zoom_surface_size,
+        rail,
     } = use_svg_surface(canvas_navigation, workspace);
 
     let SceneBounds {
@@ -801,6 +808,7 @@ pub(super) fn use_camera_bundle(
         svg_surface: SvgSurface {
             svg,
             zoom_surface_size,
+            rail,
         },
         scene_bounds: SceneBounds {
             accepted_canvas_source,
