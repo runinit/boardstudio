@@ -213,14 +213,19 @@ enum LocalEnvelope<'a> {
 }
 
 type OffsetKey = (u64, Vec<[u64; 2]>);
-pub(super) type EnvelopeOffsets = BTreeMap<OffsetKey, Shapes>;
-
-pub(super) struct OffsetReuse<'a> {
-    pub moved: BTreeSet<&'a str>,
-    pub offsets: &'a mut EnvelopeOffsets,
+#[derive(Default)]
+pub struct EnvelopeCache {
+    pub(super) offsets: BTreeMap<OffsetKey, Shapes>,
+    pub(super) prefixes: BTreeMap<usize, (usize, Shapes)>,
 }
 
-impl OffsetReuse<'_> {
+pub(super) struct EnvelopeReuse<'a> {
+    pub moved: BTreeSet<&'a str>,
+    pub cache: &'a mut EnvelopeCache,
+    pub feature_index: usize,
+}
+
+impl EnvelopeReuse<'_> {
     fn expand(&mut self, path: &Path, margin: f64) -> Result<Shapes, String> {
         // Offset depends only on the ordered world vertices and the margin.
         // Key after orientation and rounding to preserve the original offset
@@ -229,7 +234,7 @@ impl OffsetReuse<'_> {
             margin.to_bits(),
             path.iter().map(|p| p.map(f64::to_bits)).collect(),
         );
-        match self.offsets.entry(key) {
+        match self.cache.offsets.entry(key) {
             std::collections::btree_map::Entry::Occupied(entry) => Ok(entry.get().clone()),
             std::collections::btree_map::Entry::Vacant(entry) => {
                 let expanded = expand_envelope(path, margin)?;
@@ -255,7 +260,7 @@ pub(super) fn envelope(
     margin: f64,
     settings: &OutlineSettings,
     connections: &[crate::model::OutlineConnection],
-    mut reuse: Option<&mut OffsetReuse<'_>>,
+    mut reuse: Option<&mut EnvelopeReuse<'_>>,
 ) -> Result<FeatureShape, String> {
     let repair = settings.repair.clone().unwrap_or_default();
     cleanup::validate(&repair)?;
@@ -290,7 +295,23 @@ pub(super) fn envelope(
     if boards.len() > 1 {
         return Err("An automatic outline cannot bridge separate boards".into());
     }
-    let mut shapes: Shapes = vec![];
+    // Every union chooses its coordinate transform from its own operands.
+    // Resume with the exact accumulator before the first moved envelope.
+    let prefix_len = reuse
+        .as_ref()
+        .map(|reuse| {
+            selected
+                .iter()
+                .take_while(|part| !reuse.moved.contains(part.id.as_str()))
+                .count()
+        })
+        .filter(|&len| len >= 2)
+        .unwrap_or(0);
+    let prefix = reuse
+        .as_ref()
+        .and_then(|reuse| reuse.cache.prefixes.get(&reuse.feature_index))
+        .filter(|(len, _)| *len <= prefix_len);
+    let (reused_len, mut shapes) = prefix.cloned().unwrap_or_default();
     let mut clipper = OutlineClipper::default();
     let mut notices = vec![];
     let mut fallback_definitions = BTreeSet::new();
@@ -309,7 +330,7 @@ pub(super) fn envelope(
     let mut last_local = None;
     let mut local_path = Vec::new();
     let mut path = Vec::new();
-    for p in &selected {
+    for (index, p) in selected.iter().enumerate() {
         let d = defs
             .get(&p.definition_id)
             .ok_or("Outline part definition is missing")?;
@@ -387,7 +408,17 @@ pub(super) fn envelope(
         } else {
             expand_envelope(&path, m)?
         };
-        shapes = clipper.overlay(&shapes, &expanded, OverlayRule::Union, FillRule::NonZero);
+        if index >= reused_len {
+            shapes = clipper.overlay(&shapes, &expanded, OverlayRule::Union, FillRule::NonZero);
+            if index + 1 == prefix_len
+                && let Some(reuse) = reuse.as_deref_mut()
+            {
+                reuse
+                    .cache
+                    .prefixes
+                    .insert(reuse.feature_index, (prefix_len, shapes.clone()));
+            }
+        }
         envelopes.push((p.id.as_str(), expanded));
     }
     if shapes.is_empty() {

@@ -1175,8 +1175,8 @@ fn stagger_reuses_only_matching_settled_preview_geometry_and_validation() {
         let accepted = engine.document.clone();
         let matrix = &accepted.matrices[0];
         let column = matrix.columns - 1;
-        let preview = |column, value| {
-            let mut request = edit(0, stagger(column, value));
+        let preview = |revision, column, value| {
+            let mut request = edit(revision, stagger(column, value));
             let CoreRequest::Edit { command, .. } = &mut request else {
                 unreachable!()
             };
@@ -1193,7 +1193,7 @@ fn stagger_reuses_only_matching_settled_preview_geometry_and_validation() {
             (column, 4.0, true),
         ] {
             let CoreReply::Preview { scene, .. } =
-                compare(&mut engine, &mut cold, preview(start, value))
+                compare(&mut engine, &mut cold, preview(0, start, value))
             else {
                 panic!("expected a stagger preview");
             };
@@ -1259,7 +1259,7 @@ fn stagger_reuses_only_matching_settled_preview_geometry_and_validation() {
         );
         assert!(engine.stagger_preview.is_none());
         assert!(matches!(
-            compare(&mut engine, &mut cold, preview(column, 4.0)),
+            compare(&mut engine, &mut cold, preview(0, column, 4.0)),
             CoreReply::Preview { .. }
         ));
         runs += 1;
@@ -1281,11 +1281,26 @@ fn stagger_reuses_only_matching_settled_preview_geometry_and_validation() {
         assert!(engine.stagger_preview.is_none());
         assert_eq!(engine.undo.len(), 1);
 
+        assert!(matches!(
+            compare(&mut engine, &mut cold, preview(1, column, 3.0)),
+            CoreReply::Preview { .. }
+        ));
+        assert!(engine.stagger_preview.is_some());
+        assert!(matches!(
+            compare(&mut engine, &mut cold, preview(0, column, 8.0)),
+            CoreReply::Error { revision: 1, .. }
+        ));
         compare(
             &mut engine,
             &mut cold,
             CoreRequest::Undo { id: "undo".into() },
         );
+        assert!(engine.stagger_preview.is_none());
+        assert!(matches!(
+            compare(&mut engine, &mut cold, preview(2, column, 3.0)),
+            CoreReply::Preview { .. }
+        ));
+        assert!(engine.stagger_preview.is_some());
         compare(
             &mut engine,
             &mut cold,

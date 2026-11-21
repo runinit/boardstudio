@@ -891,11 +891,11 @@ impl CoreEngine {
         #[cfg(test)]
         self.stagger_outline_projections
             .set(self.stagger_outline_projections.get() + 1);
-        let mut offsets = previous
-            .map(|previous| previous.offsets)
+        let mut envelopes = previous
+            .map(|previous| previous.envelopes)
             .unwrap_or_default();
         let (outline, board) =
-            geometry::outlines_with_board_reuse(draft, &self.outline_cache, moved, &mut offsets);
+            geometry::outlines_with_board_reuse(draft, &self.outline_cache, moved, &mut envelopes);
         let board = board.map(|board| ValidatedBoardScene::new(draft, board));
         // Shared board geometry rules out saved versions and generated
         // recovery from Keep gap, which publication could otherwise refresh.
@@ -904,7 +904,7 @@ impl CoreEngine {
                 draft,
                 outline.clone(),
                 board.clone(),
-                offsets,
+                envelopes,
             ));
         }
         (outline, board)
