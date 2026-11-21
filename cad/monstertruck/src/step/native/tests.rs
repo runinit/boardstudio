@@ -170,6 +170,34 @@ fn bundled_elliptical_trims_use_native_geometry() {
 }
 
 #[test]
+fn eccentric_ellipse_refines_chord_turn_near_its_tip_and_refuses_excess_work() {
+    let endpoint = |t: f64| Point3::new(10.0 * t.cos(), t.sin(), 0.0);
+    let edge = Edge {
+        vertices: [1, 2],
+        points: [endpoint(-0.24), endpoint(0.24)],
+        curve: geometry::Curve::Ellipse {
+            frame: Matrix4::from_scale(1.0),
+            major: 10.0,
+            minor: 1.0,
+            forward: true,
+        },
+        carrier: None,
+    };
+    let points = edge.sample(0.1, 1e-8).unwrap();
+    assert_eq!([points[0], *points.last().unwrap()], edge.points);
+    assert!(points.len() > 3);
+    for p in points.windows(3) {
+        let left = p[1] - p[0];
+        let right = p[2] - p[1];
+        assert!(left.cross(right).magnitude().atan2(left.dot(right)) <= 0.5);
+    }
+    assert_eq!(
+        edge.sample(1e-12, 1e-8).unwrap_err(),
+        "native conic subdivision limit"
+    );
+}
+
+#[test]
 fn finite_ellipse_bounds_include_its_rotated_interior_extremum() {
     let exchange = parser::parse(str::from_utf8(RESET_SWITCH).unwrap()).unwrap();
     let items = units::representation_items(&exchange).unwrap();

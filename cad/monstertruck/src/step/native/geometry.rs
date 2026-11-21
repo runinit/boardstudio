@@ -274,17 +274,41 @@ impl Edge {
         sweep: f64,
         deflection: f64,
     ) -> Result<Vec<Point3>, String> {
-        let count = (sweep.abs() / circle_step(major, deflection)).ceil() as usize;
-        if !(1..=4096).contains(&count) {
-            return Err("native conic subdivision limit".into());
+        let mut count = (sweep.abs() / circle_step(major, deflection)).ceil() as usize;
+        let mut points = Vec::new();
+        while (1..=4096).contains(&count) {
+            points.clear();
+            points.push(self.points[0]);
+            points.extend(
+                (1..count).map(|i| conic_point(chart, start + sweep * i as f64 / count as f64)),
+            );
+            points.push(self.points[1]);
+            if !matches!(self.curve, Curve::Ellipse { .. }) {
+                return Ok(points);
+            }
+            // Stretching a circle preserves the sagitta bound above, but can
+            // amplify the angle between chords near the tip of an ellipse.
+            let within_turn = |a: Point3, b: Point3, c: Point3| {
+                let u = (b - a).normalize();
+                let v = (c - b).normalize();
+                u.dot(v) >= ANGULAR_TOLERANCE.cos()
+            };
+            let joins_fit = points.windows(3).all(|p| within_turn(p[0], p[1], p[2]));
+            let seam_fits = self.vertices[0] != self.vertices[1]
+                || within_turn(points[count - 1], points[0], points[1]);
+            let spans_fit = points.windows(2).enumerate().all(|(i, p)| {
+                let middle = conic_point(chart, start + sweep * (i as f64 + 0.5) / count as f64);
+                within_turn(p[0], middle, p[1])
+            });
+            if joins_fit && seam_fits && spans_fit {
+                return Ok(points);
+            }
+            if count == 4096 {
+                break;
+            }
+            count = (2 * count).min(4096);
         }
-        let mut points = Vec::with_capacity(count + 1);
-        points.push(self.points[0]);
-        points.extend(
-            (1..count).map(|i| conic_point(chart, start + sweep * i as f64 / count as f64)),
-        );
-        points.push(self.points[1]);
-        Ok(points)
+        Err("native conic subdivision limit".into())
     }
 
     pub(super) fn include_bounds(
