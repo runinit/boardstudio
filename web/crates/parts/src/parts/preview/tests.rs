@@ -1,5 +1,5 @@
 use super::*;
-use boardstudio_application::{AcceptedSnapshot, Scope, SessionEpoch};
+use boardstudio_application::{AcceptedSnapshot, Scope};
 use boardstudio_model::model::{Board, ProjectDoc};
 use boardstudio_web_test_runtime::project_name_test_support as support;
 use boardstudio_web_ui_shared::test_mount::MountedFixture;
@@ -9,52 +9,9 @@ use wasm_bindgen_test::wasm_bindgen_test;
 use web_sys::Element as DomElement;
 
 wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
-use boardstudio_model::model::{EnvelopeSource, KicadSource, PartGenerator, PartKind};
+use boardstudio_model::model::KicadSource;
 
-fn definition() -> PartDefinition {
-    PartDefinition {
-        hardware_profile: None,
-        input_profile: None,
-        id: "generator:ceoloide/switch_mx".into(),
-        name: "switch mx".into(),
-        kind: PartKind::Switch,
-        keycap: Some(Vec2 { x: 18.0, y: 18.0 }),
-        envelope_source: None,
-        kicad_source: None,
-        terminals: Default::default(),
-        matrix_terminals: None,
-        envelope_notice: None,
-        courtyard: vec![
-            Vec2 { x: -8.0, y: -8.0 },
-            Vec2 { x: 8.0, y: -8.0 },
-            Vec2 { x: 8.0, y: 8.0 },
-            Vec2 { x: -8.0, y: 8.0 },
-        ],
-        pads: vec![pad("1", Side::Front, Some(1.5)), pad("2", Side::Back, None)],
-        models: None,
-        generator: Some(PartGenerator {
-            source: "ceoloide/switch_mx".into(),
-            version: "bundled-1".into(),
-            parameters: Default::default(),
-        }),
-        mechanical_profile: None,
-    }
-}
-
-fn pad(number: &str, side: Side, drill: Option<f64>) -> Pad {
-    Pad {
-        id: format!("pad-{number}"),
-        number: number.into(),
-        at: Vec2::default(),
-        size: Vec2 { x: 2.0, y: 2.0 },
-        shape: PadShape::Rect,
-        drill,
-        plated: Some(true),
-        side: Some(side),
-        rotation: None,
-        net_id: None,
-    }
-}
+use crate::preview_logic::test_fixtures::{definition, pad};
 
 #[derive(Clone)]
 struct PartsMountedFixture {
@@ -486,140 +443,5 @@ fn layer_options_omit_source_shapes_that_cannot_be_toggled() {
     assert_eq!(
         ids,
         ["copper:F.Cu", "graphics:B.SilkS", "pad-labels", "part:0"]
-    );
-}
-
-#[wasm_bindgen_test]
-fn stale_async_result_cannot_reclaim_same_definition_after_selection_round_trip() {
-    let input_a = PreviewInput {
-        selection_generation: 1,
-        scope: Some(Scope {
-            session_epoch: SessionEpoch(4),
-            document_id: "doc-a".into(),
-            board_id: "board-a".into(),
-            instance_id: None,
-        }),
-        snapshot_token: SnapshotToken(7),
-        definition_id: "generator:ceoloide/switch_mx".into(),
-        definition_json: String::new(),
-        recipe_identity: String::new(),
-    };
-    let last_input = Rc::new(RefCell::new(None));
-    let generation_counter = Rc::new(Cell::new(0));
-    let first_a = next_preview_owner(&last_input, &generation_counter, input_a.clone());
-    assert_eq!(
-        next_preview_owner(&last_input, &generation_counter, input_a.clone()),
-        first_a,
-        "an ordinary repaint of the same accepted resource keeps its generation"
-    );
-    let input_b = PreviewInput {
-        definition_id: "generator:ceoloide/encoder".into(),
-        ..input_a.clone()
-    };
-    let _b = next_preview_owner(&last_input, &generation_counter, input_b);
-    let second_a = next_preview_owner(&last_input, &generation_counter, input_a.clone());
-    assert_eq!(first_a.generation, 1);
-    assert_eq!(second_a.generation, 3);
-    assert!(!owner_is_current(&first_a, &second_a));
-
-    let mut other_scope = input_a.clone();
-    other_scope.scope.as_mut().unwrap().instance_id = Some("right".into());
-    let scoped_owner = next_preview_owner(&last_input, &generation_counter, other_scope);
-    let returned_a = next_preview_owner(&last_input, &generation_counter, input_a);
-    assert_eq!(scoped_owner.generation, 4);
-    assert_eq!(returned_a.generation, 5);
-    assert!(!owner_is_current(&scoped_owner, &returned_a));
-}
-
-#[wasm_bindgen_test]
-fn generated_keycap_uses_retained_dimensions_unless_the_envelope_is_authored() {
-    let defaults = footprint_graphics::GeneratorPreviewDefaults {
-        keycap_width: Some(18.0),
-        keycap_height: Some(18.0),
-        include_keycap: Some(true),
-    };
-    let mut definition = definition();
-    definition.envelope_source = Some(EnvelopeSource {
-        courtyard: None,
-        keycap: Some(EnvelopeOrigin::Generated),
-    });
-    definition
-        .generator
-        .as_mut()
-        .unwrap()
-        .parameters
-        .insert("keycap_width".into(), serde_json::Value::from(19.0));
-    definition
-        .generator
-        .as_mut()
-        .unwrap()
-        .parameters
-        .insert("keycap_height".into(), serde_json::Value::from(20.0));
-    assert_eq!(
-        keycap_size(&definition, defaults),
-        Some(Vec2 { x: 19.0, y: 20.0 })
-    );
-
-    definition.keycap = Some(Vec2 { x: 21.0, y: 22.0 });
-    definition.envelope_source.as_mut().unwrap().keycap = Some(EnvelopeOrigin::Authored);
-    assert_eq!(
-        keycap_size(&definition, defaults),
-        Some(Vec2 { x: 21.0, y: 22.0 })
-    );
-}
-
-#[wasm_bindgen_test]
-fn keycap_visibility_prefers_generator_value_then_retained_default() {
-    let defaults = footprint_graphics::GeneratorPreviewDefaults {
-        include_keycap: Some(false),
-        ..Default::default()
-    };
-    let mut definition = definition();
-    assert!(!include_keycap(&definition, defaults));
-    definition
-        .generator
-        .as_mut()
-        .unwrap()
-        .parameters
-        .insert("include_keycap".into(), serde_json::Value::Bool(true));
-    assert!(include_keycap(&definition, defaults));
-}
-
-#[wasm_bindgen_test]
-fn non_plated_drills_keep_the_mechanical_hole_class() {
-    let mut mechanical = pad("NPTH", Side::Front, Some(1.0));
-    mechanical.plated = Some(false);
-    let plated = pad("PTH", Side::Front, Some(1.0));
-    assert!(
-        drill_class(&mechanical)
-            .split_whitespace()
-            .any(|class| class == "is-mechanical")
-    );
-    assert!(
-        !drill_class(&plated)
-            .split_whitespace()
-            .any(|class| class == "is-mechanical")
-    );
-}
-
-#[wasm_bindgen_test]
-fn visibility_is_one_definition_pair_like_the_reference_workspace() {
-    let stored_a = Visibility {
-        definition_id: "a".into(),
-        hidden: BTreeSet::from(["drills".into()]),
-    };
-    assert_eq!(
-        visible_hidden("a", &stored_a),
-        BTreeSet::from(["drills".into()])
-    );
-    assert!(visible_hidden("b", &stored_a).is_empty());
-    let after_b_toggle = Visibility {
-        definition_id: "b".into(),
-        hidden: BTreeSet::from(["copper:F.Cu".into()]),
-    };
-    assert!(visible_hidden("a", &after_b_toggle).is_empty());
-    assert_eq!(
-        visible_hidden("b", &after_b_toggle),
-        BTreeSet::from(["copper:F.Cu".into()])
     );
 }
