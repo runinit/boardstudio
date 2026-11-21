@@ -23,7 +23,6 @@ pub mod footprint_forms;
 pub mod inspector_fields;
 pub mod layout_camera;
 pub mod owned_edits;
-pub mod pending_edit_helpers;
 pub mod ui;
 
 #[cfg(target_arch = "wasm32")]
