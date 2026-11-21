@@ -1,6 +1,7 @@
 //! Editor-lifetime owner for automatic, board-scoped electrical plan resolution.
 //! The selected part is intentionally absent from this controller's request identity.
 use super::part_net_admission::{part_net_owner_context_is_current, use_part_net_owner_lifetime};
+use super::part_net_identity::request_matches_current_part;
 use super::{
     FirmwarePositionEditRequest, FirmwarePositionFeedback, FirmwarePositionFeedbackState,
     PcbWiringResolution, WiringPlanIdentity, firmware_position_projection,
@@ -744,13 +745,6 @@ fn current_part_net_identity(
         revision: accepted.document.revision,
         generation,
     })
-}
-
-fn request_matches_current_part(
-    rendered: &PartNetEditIdentity,
-    current: &PartNetEditIdentity,
-) -> bool {
-    rendered == current
 }
 
 fn fresh_net_id(document: &ProjectDoc, operation: u64) -> String {

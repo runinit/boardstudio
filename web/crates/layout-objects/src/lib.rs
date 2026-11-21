@@ -64,6 +64,9 @@ mod objects {
     mod keycap_resize;
 
     #[cfg(test)]
+    mod layout_align_logic;
+
+    #[cfg(test)]
     #[path = "layout_align_geometry.rs"]
     mod layout_align_geometry_tests;
 
