@@ -12,17 +12,7 @@ pub(super) fn pair_right<'a>(
     document: &'a ProjectDoc,
     pair_id: &str,
 ) -> Result<(&'a crate::model::MirroredHalves, Pose2), String> {
-    let hardware = document
-        .hardware
-        .as_ref()
-        .ok_or_else(|| "The transition hardware configuration is unavailable".to_owned())?;
-    let mut pairs = hardware.pairs.iter().filter(|pair| pair.id == pair_id);
-    let pair = pairs
-        .next()
-        .ok_or_else(|| format!("The transition pair {pair_id:?} is unavailable"))?;
-    if pairs.next().is_some() {
-        return Err(format!("The transition pair {pair_id:?} is ambiguous"));
-    }
+    let pair = super::selected_pair(document, pair_id, "transition")?;
     let halves = pair
         .halves
         .as_ref()

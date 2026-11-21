@@ -146,8 +146,15 @@ pub(super) fn stage_independent_transitions(
             ));
         }
         let projected = crate::mirrored_half::derive::part(
-            source, mirror_id, mirror_definition_id, mirror_reference, mapping,
-            crate::mirrored_half::derive::is_controller(&document.definitions, &source.definition_id),
+            source,
+            mirror_id,
+            mirror_definition_id,
+            mirror_reference,
+            mapping,
+            crate::mirrored_half::derive::is_controller(
+                &document.definitions,
+                &source.definition_id,
+            ),
         );
         if let Some(staged_target) = staged.parts.iter_mut().find(|part| part.id == *mirror_id) {
             *staged_target = projected;

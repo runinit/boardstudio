@@ -13,23 +13,6 @@ struct RetiredOutlineItem {
     mirror_id: String,
 }
 
-fn pair_bytes(document: &ProjectDoc, pair_id: &str) -> Result<Vec<u8>, String> {
-    let hardware = document
-        .hardware
-        .as_ref()
-        .ok_or_else(|| "The outline reconciliation hardware is unavailable".to_owned())?;
-    let mut pairs = hardware.pairs.iter().filter(|pair| pair.id == pair_id);
-    let pair = pairs
-        .next()
-        .ok_or_else(|| format!("The outline reconciliation pair {pair_id:?} is unavailable"))?;
-    if pairs.next().is_some() {
-        return Err(format!(
-            "The outline reconciliation pair {pair_id:?} is ambiguous"
-        ));
-    }
-    serde_json::to_vec(pair).map_err(|error| error.to_string())
-}
-
 fn removal_associations(
     document: &ProjectDoc,
     pair_id: &str,
@@ -45,7 +28,7 @@ fn removal_associations(
         crate::mechanical::halves::validate_document(baseline).map_err(|error| {
             format!("Outline removal {source_id:?} has an invalid pre-source baseline: {error}")
         })?;
-        if pair_bytes(baseline, pair_id)? != pair_bytes(document, pair_id)? {
+        if !super::same_pair_bytes(baseline, document, pair_id, "outline reconciliation")? {
             return Err(format!(
                 "Outline removal {source_id:?} changed durable pair bytes before reconciliation"
             ));
@@ -345,19 +328,7 @@ pub(super) fn reconcile_draft(
     pair_id: &str,
     projection: &Projection,
 ) -> Result<(), String> {
-    let hardware = draft
-        .hardware
-        .as_ref()
-        .ok_or_else(|| "The outline reconciliation hardware is unavailable".to_owned())?;
-    let mut pair_matches = hardware.pairs.iter().filter(|pair| pair.id == pair_id);
-    let pair = pair_matches
-        .next()
-        .ok_or_else(|| format!("The outline reconciliation pair {pair_id:?} is unavailable"))?;
-    if pair_matches.next().is_some() {
-        return Err(format!(
-            "The outline reconciliation pair {pair_id:?} is ambiguous"
-        ));
-    }
+    let pair = super::selected_pair(draft, pair_id, "outline reconciliation")?;
     let halves = pair.halves.as_ref().ok_or_else(|| {
         format!("The outline reconciliation pair {pair_id:?} has no halves context")
     })?;
@@ -367,13 +338,16 @@ pub(super) fn reconcile_draft(
     {
         return Err("The outline reconciliation context does not match its pair".into());
     }
-    let pair_bytes_before = pair_bytes(draft, pair_id)?;
     let retired = removal_associations(draft, pair_id, projection)?;
 
-    let targets = |kind| halves.correspondences.iter()
-        .filter(|association| association.kind == kind)
-        .map(|association| (association.source_id.clone(), association.mirror_id.clone()))
-        .collect::<BTreeMap<_, _>>();
+    let targets = |kind| {
+        halves
+            .correspondences
+            .iter()
+            .filter(|association| association.kind == kind)
+            .map(|association| (association.source_id.clone(), association.mirror_id.clone()))
+            .collect::<BTreeMap<_, _>>()
+    };
     let outline_map = targets(MirroredItemKind::Outline);
     let version_map = targets(MirroredItemKind::OutlineVersion);
     let part_map = targets(MirroredItemKind::Part);
@@ -417,7 +391,14 @@ pub(super) fn reconcile_draft(
     let matrix_owned_parts = super::super::matrix_owned_parts(draft, &source_board.id);
     let controller_parts = super::super::controller_parts(draft, &source_board.id);
     let renames = super::super::Renames {
-        identity: &|id| mapped_identity(&projection.source_board_id, &projection.mirror_board_id, id, &outline_map),
+        identity: &|id| {
+            mapped_identity(
+                &projection.source_board_id,
+                &projection.mirror_board_id,
+                id,
+                &outline_map,
+            )
+        },
         part: &|id| part_map.get(id).cloned().unwrap_or_else(|| id.to_owned()),
         full_rule_part: &|id| !matrix_owned_parts.contains(id) && !controller_parts.contains(id),
     };
@@ -524,9 +505,6 @@ pub(super) fn reconcile_draft(
             .iter()
             .any(|item| item.kind == MirroredItemKind::OutlineVersion);
     if !version_work {
-        if pair_bytes(draft, pair_id)? != pair_bytes_before {
-            return Err("Outline reconciliation changed durable pair bytes".into());
-        }
         return Ok(());
     }
 
@@ -564,7 +542,12 @@ pub(super) fn reconcile_draft(
                         )
                     }),
                 },
-                geometry: super::super::mirror_snapshot(&source_version.geometry, projection.mapping, &renames, &matrix_map),
+                geometry: super::super::mirror_snapshot(
+                    &source_version.geometry,
+                    projection.mapping,
+                    &renames,
+                    &matrix_map,
+                ),
                 ownership: source_version.ownership,
             };
             if let Some(existing) = target_outline
@@ -637,8 +620,5 @@ pub(super) fn reconcile_draft(
         }
     }
 
-    if pair_bytes(draft, pair_id)? != pair_bytes_before {
-        return Err("Outline reconciliation changed durable pair bytes".into());
-    }
     Ok(())
 }

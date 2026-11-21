@@ -6,7 +6,7 @@
 //!   shared pair/matrix helpers.
 //! - `membership_view`: `FixedMembershipView`, `build_fixed_membership_view`.
 //! - `document`: the `reconcile` body, in order: baseline validators and `stage_matrix`;
-//!   pair/halves lookup; independent part Add/Remove; `correspondence_targets` and circuit pairs;
+//!   pair/halves lookup; independent part Add/Remove; `hosted::HostedTargets` and circuit pairs;
 //!   hosted `AddCircuit` (`hosted::stage_hosted_circuit_additions`); board/layout
 //!   correspondences; module targets; final validation, `outlines::reconcile_draft`.
 //! - `hosted`: hosted circuit staging and hosted removal/omission baseline validators.
@@ -247,6 +247,37 @@ fn is_omitted_matrix_link(
             && exception.state == MirroredExceptionState::Omitted
             && halves.overlay_source(exception) == Some(source_matrix_id)
     })
+}
+
+fn selected_pair<'a>(
+    document: &'a ProjectDoc,
+    id: &str,
+    context: &str,
+) -> Result<&'a crate::model::MechanicalMirrorPair, String> {
+    let hardware = document
+        .hardware
+        .as_ref()
+        .ok_or_else(|| format!("The {context} hardware is unavailable"))?;
+    let mut matches = hardware.pairs.iter().filter(|pair| pair.id == id);
+    let pair = matches
+        .next()
+        .ok_or_else(|| format!("The {context} pair {id:?} is unavailable"))?;
+    if matches.next().is_some() {
+        return Err(format!("The {context} pair {id:?} is ambiguous"));
+    }
+    Ok(pair)
+}
+
+fn same_pair_bytes(
+    before: &ProjectDoc,
+    after: &ProjectDoc,
+    id: &str,
+    context: &str,
+) -> Result<bool, String> {
+    let bytes = |document: &ProjectDoc| {
+        serde_json::to_vec(selected_pair(document, id, context)?).map_err(|error| error.to_string())
+    };
+    Ok(bytes(before)? == bytes(after)?)
 }
 
 fn unique_board_owner<'a>(
