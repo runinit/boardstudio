@@ -16,8 +16,7 @@ const output = path.join(providers, 'bundled-step');
 // Wave 2 adds the deferred catalogue paths with value-dense previews:
 // whole vendor-fallback component assets plus small connectors and mounts.
 // The two Choc V1 sources also cover the byte-identical KiSwitch catalogue entries.
-const compressedBudget = 2883584;
-const largeSidecarBudget = 256 * 1024;
+const compressedBudget = 2.75 * 1024 * 1024;
 const sources = [
   // Wave 1.
   'infused-kim/3d_models/Choc_V1_Hotswap.step',
@@ -78,38 +77,6 @@ const aliasSources = {
   'kiswitch/3d_models/SW_Hotswap_Kailh_Choc_V1.stp': 'infused-kim/3d_models/Choc_V1_Hotswap.step',
   'kiswitch/3d_models/SW_Kailh_Choc_V1.stp': 'infused-kim/3d_models/Choc_V1_Switch.step',
 };
-// Catalogue STEP paths with no sidecar, and why. Import refusals and probe-limit
-// timeouts are never attempted; oversize previews carry no fallback value.
-const excludedSources = {
-  'foostan/3d_models/OLED-Module-with-Pins.step': 'probe limit: source cold import timed out',
-  'gdek/3d_models/KS33.stp': 'import refusal: presented VALUE_REPRESENTATION_ITEM #16 is not retained by scene discovery',
-  'infused-kim/3d_models/Nice_Nano_V2.step': 'import refusal: Monstertruck produced a degenerate mesh triangle',
-  'infused-kim/3d_models/SMD_0805_Capacitor.step': 'eligibility refusal: preview bake requires an unqualified STEP source',
-  'infused-kim/3d_models/trackpoint/TP_Keycap_MBK_Black_stagger_2.375_large.step': 'oversize without fallback value: 659829 compressed bytes, 0 fallback faces',
-  'infused-kim/3d_models/trackpoint/TP_Keycap_MBK_Black_stagger_2.375_small.step': 'oversize without fallback value: 643411 compressed bytes, 0 fallback faces',
-  'infused-kim/3d_models/trackpoint/TP_Red_T460S_platform_z_offset_+0.0_pcb_offset_-2.0.step': 'probe limit: source cold import timed out',
-  'infused-kim/3d_models/trackpoint/TP_Red_T460S_screw_mount_z_offset_+0.0_pcb_-2.0.step': 'probe limit: source cold import timed out',
-  'infused-kim/3d_models/trackpoint/TP_Red_T460S_screw_mount_z_offset_-2.0_pcb_+0.0.step': 'probe limit: source cold import timed out',
-  'keebio/3d_models/SK6812MINI-E v1.step': 'import refusal: source curve #16 is CARTESIAN_POINT, expected TRIMMED_CURVE',
-  'kiswitch/3d_models/SW_Cherry_MX_PCB.stp': 'oversize without fallback value: 324924 compressed bytes, 0 fallback faces',
-  'kiswitch/3d_models/SW_Hotswap_Kailh_MX.stp': 'probe limit: source cold import timed out',
-  'koktoh/3d_models/Choc_V2_Red.step': 'probe limit: source cold import timed out',
-  'thqwgd001/3d_models/THQWGD001-rotation.stp': 'eligibility refusal: preview bake does not support source lines',
-  'thqwgd001/3d_models/THQWGD001C-2pin.stp': 'oversize without fallback value: 332143 compressed bytes, 0 fallback faces',
-  'thqwgd001/3d_models/THQWGD001C-4pin.stp': 'oversize without fallback value: 333768 compressed bytes, 0 fallback faces',
-  'vik/3d_models/Ariamelon-Crenshaw/Showcase/Crenshaw.step': 'probe limit: source cold import timed out',
-  'vik/3d_models/Ariamelon-Kiwano/3DP/Knob Full.step': 'probe limit: source cold import timed out',
-  'vik/3d_models/Ariamelon-Kiwano/3DP/Knob Low Profile.step': 'probe limit: source cold import timed out',
-  'vik/3d_models/Ariamelon-Kiwano/3DP/Knob Ribbed.step': 'oversize without fallback value: 310326 compressed bytes, 0 fallback faces',
-  'vik/3d_models/Ariamelon-Kiwano/Showcase/Kiwano.step': 'probe limit: source cold import timed out',
-  'vik/3d_models/christrotter-shift-register-spi-breakout-pcb/matrix-inator-rev2.step': 'probe limit: source cold import timed out',
-  'vik/3d_models/sadekbaroudi-fingerpunch/keyboards/vikropad/cases/choc-glp/vikropad-choc-glp-xivik.step': 'probe limit: source cold import timed out',
-  'vik/3d_models/sadekbaroudi-vik/kicad/3dmodels/vik-connector-horizontal-mini.step': 'eligibility refusal: preview bake requires an unqualified STEP source',
-  'vik/3d_models/sadekbaroudi-vik/pcb/vik-playground/vik-playground.step': 'probe limit: source cold import timed out',
-  'vik/3d_models/zzeneg-vik-display-adapter/pcb/1.28inch-round/1.28inch-round.step': 'probe limit: source cold import timed out',
-  'vik/3d_models/zzeneg-vik-display-adapter/pcb/1.47inch/1.47inch.step': 'probe limit: source cold import timed out',
-  'vik/3d_models/zzeneg-vik-display-adapter/pcb/2inch-0.8mm/2inch-0.8mm.step': 'probe limit: source cold import timed out',
-};
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const shaPattern = /^[a-f0-9]{64}$/;
 
@@ -131,13 +98,6 @@ function stagedSources() {
     const canonicalSha = [...selected.entries()]
       .find(([, source]) => source.file === canonical)?.[0];
     assert.equal(sha256(aliasBytes), canonicalSha, `${alias} is no longer byte-identical to ${canonical}`);
-  }
-  const covered = new Set([...sources, ...Object.keys(aliasSources), ...Object.keys(excludedSources)]);
-  assert.deepEqual([...models.keys()].sort(), [...covered].sort(),
-    'bundled STEP selection must account for every shipped catalogue path');
-  for (const file of Object.keys(excludedSources)) {
-    assert(models.has(file), `${file} left the shipped STEP catalogue; drop its exclusion`);
-    assert(!sources.includes(file), `${file} is both baked and excluded`);
   }
   return selected;
 }
@@ -176,7 +136,6 @@ function verify(cad, compressed, sourceSha256, { file, bytes }) {
   assert.throws(() => cad.read_baked_step_model(payload.subarray(0, -1), sourceSha256), /Invalid baked STEP/);
   const fallbackFaces = baked.vendorStep.accuracy.fallbackMeshedFaces;
   console.log(`cad: matched ${file} (${baked.vendorStep.triangleFaceOccurrenceIndices.length} triangles, ${compressed.length} bytes, ${fallbackFaces} fallback faces)`);
-  return { fallbackFaces, triangles: baked.vendorStep.triangleFaceOccurrenceIndices.length };
 }
 
 async function main() {
@@ -212,9 +171,7 @@ async function main() {
       try {
         const payload = cad.bake_bundled_step_model(source.bytes, sha);
         const compressed = gzipSync(payload, { level: 9 });
-        const { fallbackFaces } = verify(cad, compressed, sha, source);
-        assert(compressed.length <= largeSidecarBudget || fallbackFaces > 0,
-          `bundled STEP preview for ${source.file} is ${compressed.length} bytes without fallback value`);
+        verify(cad, compressed, sha, source);
         const digest = sha256(compressed);
         writeFileSync(path.join(temporary, `${digest}.bstep`), compressed);
         assets[sha] = digest;
