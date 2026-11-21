@@ -13,7 +13,7 @@ struct Metadata {
     unknown_reasons: Vec<String>,
 }
 
-pub fn bake_bundled_step(bytes: Vec<u8>, source_sha256: String) -> Result<Vec<u8>, String> {
+fn encode(bytes: Vec<u8>, source_sha256: String) -> Result<Vec<u8>, String> {
     let asset = ReadStepAsset::import_bytes(
         bytes,
         ReadStepOptions {
@@ -62,6 +62,17 @@ pub fn bake_bundled_step(bytes: Vec<u8>, source_sha256: String) -> Result<Vec<u8
         return Err("baked STEP preview exceeds the asset size limit".into());
     }
     Ok(output)
+}
+
+/// Content builds call this on the same packaged provider that handles live STEP imports.
+#[wasm_bindgen]
+pub fn bake_bundled_step_model(
+    bytes: Uint8Array,
+    source_sha256: String,
+) -> Result<Uint8Array, JsValue> {
+    encode(bytes.to_vec(), source_sha256)
+        .map(|payload| Uint8Array::from(payload.as_slice()))
+        .map_err(super::super::js_error)
 }
 
 #[wasm_bindgen]

@@ -271,7 +271,6 @@ class CadBuildTests(unittest.TestCase):
         }
         mapped = {
             "step-face-completeness.cjs": "source for the required browser regression",
-            "bundled-step-parity.cjs": "runs after baking in scripts/build-web.py provider builds",
         }
         self.assertEqual(scripts, opt_in.keys() | mapped.keys() | {"load-provider.cjs"})
         self.assertTrue(all(opt_in.values()) and all(mapped.values()))

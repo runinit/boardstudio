@@ -10,8 +10,7 @@ use wasm_bindgen::{prelude::wasm_bindgen, JsCast, JsValue};
 
 mod baked;
 
-pub use baked::bake_bundled_step;
-pub use baked::read_baked_step_model;
+pub use baked::{bake_bundled_step_model, read_baked_step_model};
 
 const MAX_STEP_BYTES: u32 = 32 * 1024 * 1024;
 
