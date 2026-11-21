@@ -622,8 +622,15 @@ pub(super) fn validate_transition_output(
             && association.state == TransitionState::Local
             && association.explicit_state
     });
-    validate_matrix_association(next_context, !validated.removes_paired_matrices)?;
-    validate_association_settings(next_context)?;
+    // The in-place identity branch has exact member maps, unchanged owners and no pending
+    // transitions or rejoins. Its input checks already proved matrix and owner realization on
+    // this same document and context.
+    let reuses_validated_input =
+        std::ptr::eq(draft, input.valid_before) && std::ptr::eq(next_context, input.context);
+    if !reuses_validated_input {
+        validate_matrix_association(next_context, !validated.removes_paired_matrices)?;
+        validate_association_settings(next_context)?;
+    }
     if validated.removes_paired_matrices && !matrix_retained_local {
         if draft.matrices.iter().any(|matrix| {
             matrix.id == matrix_pair.source_id.as_str()
@@ -632,19 +639,16 @@ pub(super) fn validate_transition_output(
         {
             return Err("The emitted whole-matrix removal is incomplete".into());
         }
-    } else {
+    } else if !reuses_validated_input {
         // A retained Local mirror has no source left to check; its mirror
         // must match the validated plan below.
-        if !validated.removes_paired_matrices {
-            let source = transition_matrix_by_id(draft, matrix_pair.source_id.as_str())?;
-            crate::matrix::valid_matrix(source, draft)?;
-            if source_members(draft, matrix_pair.source_id.as_str(), next_context, false)?
+        if !validated.removes_paired_matrices
+            && source_members(draft, matrix_pair.source_id.as_str(), next_context, false)?
                 != validated.post_source_members
-            {
-                return Err(
-                    "The emitted source matrix disagrees with its validated operation map".into(),
-                );
-            }
+        {
+            return Err(
+                "The emitted source matrix disagrees with its validated operation map".into(),
+            );
         }
         // A matrix-level Omitted mirror is record-absent by design: an
         // absent record must pair with an empty member plan.
@@ -682,11 +686,10 @@ pub(super) fn validate_transition_output(
             "The emitted context and owner result disagree with the validated final owners".into(),
         );
     }
-    // Input validation already checked this exact document and context for the identity result.
-    if !std::ptr::eq(draft, input.valid_before) || !std::ptr::eq(next_context, input.context) {
+    if !reuses_validated_input {
         validate_context_owners(draft, next_context)?;
+        validate_owner_realization(draft, input.final_owners)?;
     }
-    validate_owner_realization(draft, input.final_owners)?;
     let association_keys: BTreeSet<_> = next_context
         .associations
         .iter()
