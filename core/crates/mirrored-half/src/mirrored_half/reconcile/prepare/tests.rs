@@ -555,6 +555,56 @@ fn placement_repairs_stale_link_in_another_pair() {
 }
 
 #[test]
+fn matrix_only_pair_expands_and_trims_linked_membership() {
+    let ordered_ids = [
+        "matrix/mirror-matrix/r0c2",
+        "matrix/source-matrix/r0c2",
+        "mirror-board",
+        "mirror-matrix",
+        "pair-source-mirror",
+        "source-board",
+        "source-matrix",
+    ];
+    let accepted = document();
+    let mut expanded = matrix_by_id(&accepted, "source-matrix").unwrap().clone();
+    expanded.columns = 3;
+    let mut new_cell = expanded.cells[1].clone();
+    new_cell.column = 2;
+    expanded.cells.push(new_cell);
+    let (draft, changed) = compare(&accepted, json!({"kind":"set-matrix","matrix":expanded}));
+    assert_eq!(changed, ordered_ids);
+    let halves = draft.hardware.as_ref().unwrap().pairs[0]
+        .halves
+        .as_ref()
+        .unwrap();
+    assert!(halves.correspondences.iter().any(|link| {
+        link.kind == MirroredItemKind::Part
+            && link.source_id == "matrix/source-matrix/r0c2"
+            && link.mirror_id == "matrix/mirror-matrix/r0c2"
+    }));
+    assert_eq!(matrix_by_id(&draft, "mirror-matrix").unwrap().columns, 3);
+
+    let mut trimmed = matrix_by_id(&draft, "source-matrix").unwrap().clone();
+    trimmed.cells[2].enabled = false;
+    let (draft, changed) = compare(&draft, json!({"kind":"set-matrix","matrix":trimmed}));
+    assert_eq!(changed, ordered_ids);
+    assert!(
+        draft
+            .parts
+            .iter()
+            .all(|part| !ordered_ids[..2].contains(&part.id.as_str()))
+    );
+    let halves = draft.hardware.as_ref().unwrap().pairs[0]
+        .halves
+        .as_ref()
+        .unwrap();
+    assert!(halves.correspondences.iter().all(|link| {
+        !ordered_ids[..2].contains(&link.source_id.as_str())
+            && !ordered_ids[..2].contains(&link.mirror_id.as_str())
+    }));
+}
+
+#[test]
 fn linked_placement_sequence_matches_full_preparation() {
     let mut accepted = document();
     let halves = accepted.hardware.as_mut().unwrap().pairs[0]

@@ -332,40 +332,27 @@ pub(in crate::mirrored_half::reconcile) fn prepare_edit_transition(
             source_id: record.source_id.clone(),
             mirror_id: record.mirror_id.clone(),
         };
-    if !changed_matrices.is_empty() {
-        // A single RemoveSelectedMatrixCells request can change membership in several matrix
-        // pairs. Prepare each against the accepted baseline while carrying the prior private
-        // draft forward, so each transition preserves the already-composed mirror membership.
-        // Compose the matrices before applying constraint retirements to the individual outputs.
-        let mut outputs: Vec<super::super::MembershipTransitionOutput> =
-            Vec::with_capacity(changed_matrices.len());
+    let output = if changed_matrices.is_empty() {
+        let matrix_pair = matrix_pairs.next().map(matrix_context);
+        let context = lifecycle_context(before, pair_id, matrix_pair)?;
+        prepare_lifecycle_projection(before, post_source, &context, dispatch)?
+    } else {
+        // Compose membership against the accepted baseline in pair order. Only the final
+        // draft survives, so retire constraints once against its complete removal closure.
+        let mut current: Option<super::super::MembershipTransitionOutput> = None;
+        let mut changed_document_ids = Vec::new();
         for record in changed_matrices {
             let context = lifecycle_context(before, pair_id, Some(matrix_context(record)))?;
-            let draft = outputs.last().map_or(post_source, |output| &output.draft);
-            outputs.push(prepare_matrix_membership_edit(
-                before, draft, operation, &context, dispatch,
-            )?);
+            let draft = current.as_ref().map_or(post_source, |output| &output.draft);
+            let mut output =
+                prepare_matrix_membership_edit(before, draft, operation, &context, dispatch)?;
+            changed_document_ids.append(&mut output.changed_document_ids);
+            current = Some(output);
         }
-        let mut draft = None;
-        let mut changed_document_ids = Vec::new();
-        for output in outputs {
-            let removed = removed_part_ids(before, &output.draft);
-            let prepared = prepare_lifecycle_output(
-                before,
-                output,
-                &[ConstraintLifecycleEffect::RemoveVisibleParts { part_ids: removed }],
-            )?;
-            changed_document_ids.extend(prepared.changed_document_ids);
-            draft = Some(prepared.draft);
-        }
-        return Ok(Some(super::super::PreparedLifecycleDraft {
-            draft: draft.expect("at least one matrix membership changed"),
-            changed_document_ids,
-        }));
-    }
-    let matrix_pair = matrix_pairs.next().map(matrix_context);
-    let context = lifecycle_context(before, pair_id, matrix_pair)?;
-    let output = prepare_lifecycle_projection(before, post_source, &context, dispatch)?;
+        let mut output = current.expect("at least one matrix membership changed");
+        output.changed_document_ids = changed_document_ids;
+        output
+    };
     // Caller-owned draft: no per-pair full report. The outer transaction guarantees rollback
     // and owns the single final scoped report; the final diff already covers these IDs.
     let removed = removed_part_ids(before, &output.draft);

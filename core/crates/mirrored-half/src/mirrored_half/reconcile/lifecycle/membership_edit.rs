@@ -319,7 +319,8 @@ pub(super) fn prepare_matrix_membership_edit(
         BaselineKind, FinalOwner, MembershipTransitionInput, PlannedAddition, TransitionState,
         changes::changed_document_ids, transition::prepare_membership_projection,
     };
-    use crate::model::{EditOperation as Op, MirroredItemKind};
+    use crate::model::{EditOperation as Op, MirroredItemKind, ProjectDoc};
+    use std::borrow::Cow;
     use std::collections::{BTreeMap, BTreeSet};
 
     let matrix_pair = super::super::require_matrix_pair(selected)?;
@@ -368,19 +369,21 @@ pub(super) fn prepare_matrix_membership_edit(
         }
     }
 
-    fn filter_other_matrix_parts(
-        document: &mut crate::model::ProjectDoc,
+    fn selected_matrix_document<'a>(
+        document: &'a ProjectDoc,
         context: &MembershipContext,
-    ) -> Result<(), String> {
+        retired_layouts: &[&super::super::TransitionAssociation],
+    ) -> Result<Cow<'a, ProjectDoc>, String> {
         let hardware = document
             .hardware
-            .as_mut()
+            .as_ref()
             .ok_or("Transition hardware is unavailable")?;
         let mut pairs = hardware
             .pairs
-            .iter_mut()
-            .filter(|pair| pair.id == context.pair_id);
-        let pair = pairs
+            .iter()
+            .enumerate()
+            .filter(|(_, pair)| pair.id == context.pair_id);
+        let (index, pair) = pairs
             .next()
             .ok_or("The exact transition pair is unavailable")?;
         if pairs.next().is_some() {
@@ -388,26 +391,40 @@ pub(super) fn prepare_matrix_membership_edit(
         }
         let halves = pair
             .halves
-            .as_mut()
+            .as_ref()
             .ok_or("The exact transition pair has no halves record")?;
         let matrix_pair = super::super::require_matrix_pair(context)?;
-        halves.correspondences.retain(|association| {
-            selected_matrix_association(
-                association,
-                matrix_pair.source_id.as_str(),
-                matrix_pair.mirror_id.as_str(),
-            )
-        });
-        halves.exceptions.retain(|exception| {
-            selected_matrix_exception(exception, matrix_pair.mirror_id.as_str())
-        });
-        Ok(())
+        let retain_association = |association: &crate::model::MirroredCorrespondence| {
+            selected_matrix_association(association, &matrix_pair.source_id, &matrix_pair.mirror_id)
+                && (association.kind != MirroredItemKind::Layout
+                    || !retired_layouts.iter().any(|retired| {
+                        association.source_id == retired.source_id
+                            && association.mirror_id == retired.mirror_id
+                    }))
+        };
+        let retain_exception = |exception: &crate::model::MirroredException| {
+            selected_matrix_exception(exception, &matrix_pair.mirror_id)
+                && (exception.kind != MirroredItemKind::Layout
+                    || !retired_layouts
+                        .iter()
+                        .any(|retired| exception.mirror_id == retired.mirror_id))
+        };
+        // Membership validation needs the narrowed pair rows. Borrow the original document
+        // when those rows already describe exactly the selected matrix.
+        if halves.correspondences.iter().all(retain_association)
+            && halves.exceptions.iter().all(retain_exception)
+        {
+            return Ok(Cow::Borrowed(document));
+        }
+        let mut filtered = document.clone();
+        let halves = filtered.hardware.as_mut().unwrap().pairs[index]
+            .halves
+            .as_mut()
+            .unwrap();
+        halves.correspondences.retain(retain_association);
+        halves.exceptions.retain(retain_exception);
+        Ok(Cow::Owned(filtered))
     }
-
-    let mut filtered_before = valid_before.clone();
-    let mut filtered_post_source = source_operation.clone();
-    filter_other_matrix_parts(&mut filtered_before, selected)?;
-    filter_other_matrix_parts(&mut filtered_post_source, selected)?;
 
     // Matrix removal uses the membership kernel, which only projects Part rows. Retire the
     // exact linked Layout rows whose source endpoint this operation removed before projecting
@@ -422,56 +439,21 @@ pub(super) fn prepare_matrix_membership_edit(
                     .iter()
                     .any(|layout| layout.id == association.source_id)
         })
-        .cloned()
         .collect();
-    fn remove_retired_layout_rows(
-        document: &mut crate::model::ProjectDoc,
-        pair_id: &str,
-        retired: &[super::super::TransitionAssociation],
-    ) -> Result<(), String> {
-        if retired.is_empty() {
-            return Ok(());
-        }
-        let pair = document
-            .hardware
-            .as_mut()
-            .ok_or("Transition hardware is unavailable")?
-            .pairs
-            .iter_mut()
-            .find(|pair| pair.id == pair_id)
-            .ok_or("The exact transition pair is unavailable")?;
-        let halves = pair
-            .halves
-            .as_mut()
-            .ok_or("The exact transition pair has no halves record")?;
-        halves.correspondences.retain(|record| {
-            !retired.iter().any(|association| {
-                record.kind == association.kind
-                    && record.source_id == association.source_id
-                    && record.mirror_id == association.mirror_id
-            })
-        });
-        halves.exceptions.retain(|exception| {
-            !retired.iter().any(|association| {
-                exception.kind == association.kind && exception.mirror_id == association.mirror_id
-            })
-        });
-        Ok(())
-    }
-    remove_retired_layout_rows(&mut filtered_before, &selected.pair_id, &retired_layouts)?;
-    remove_retired_layout_rows(
-        &mut filtered_post_source,
-        &selected.pair_id,
-        &retired_layouts,
-    )?;
-    let filtered_context = lifecycle_context(
-        &filtered_before,
-        &selected.pair_id,
-        selected.matrix_pair.clone(),
-    )?;
-    let before = &filtered_before;
-    let post_source = &filtered_post_source;
-    let context = &filtered_context;
+    let filtered_before = selected_matrix_document(valid_before, selected, &retired_layouts)?;
+    let filtered_post_source =
+        selected_matrix_document(source_operation, selected, &retired_layouts)?;
+    let filtered_context = match &filtered_before {
+        Cow::Borrowed(_) => Cow::Borrowed(selected),
+        Cow::Owned(document) => Cow::Owned(lifecycle_context(
+            document,
+            &selected.pair_id,
+            selected.matrix_pair.clone(),
+        )?),
+    };
+    let before = filtered_before.as_ref();
+    let post_source = filtered_post_source.as_ref();
+    let context = filtered_context.as_ref();
 
     // A detached matrix-level mirror owns its membership (spec §5): source
     // growth stays source-only, so no mirror additions are planned for it. A

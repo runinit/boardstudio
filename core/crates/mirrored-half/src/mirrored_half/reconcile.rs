@@ -178,30 +178,21 @@ pub struct MatrixLink {
 
 #[doc(hidden)]
 pub fn matrix_membership_changed(before: &ProjectDoc, after: &ProjectDoc, matrix_id: &str) -> bool {
-    let before = before
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == matrix_id)
-        .map(|matrix| {
-            matrix
-                .part_ids
-                .iter()
-                .map(String::as_str)
-                .collect::<Vec<_>>()
-        });
-    let after = after
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == matrix_id)
-        .map(|matrix| {
-            matrix
-                .part_ids
-                .iter()
-                .map(String::as_str)
-                .collect::<Vec<_>>()
-        });
-    match (before, after) {
-        (Some(mut before), Some(mut after)) => {
+    fn members<'a>(document: &'a ProjectDoc, matrix_id: &str) -> Option<&'a [String]> {
+        document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == matrix_id)
+            .map(|matrix| matrix.part_ids.as_slice())
+    }
+    // Setters usually keep canonical member order. Only compare unordered membership when
+    // that order differs, retaining the existing duplicate and absent-matrix semantics.
+    match (members(before, matrix_id), members(after, matrix_id)) {
+        (Some(before), Some(after)) if before == after => false,
+        (Some(before), Some(after)) if before.len() != after.len() => true,
+        (Some(before), Some(after)) => {
+            let mut before: Vec<_> = before.iter().collect();
+            let mut after: Vec<_> = after.iter().collect();
             before.sort_unstable();
             after.sort_unstable();
             before != after

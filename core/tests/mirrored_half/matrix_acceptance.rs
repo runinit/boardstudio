@@ -62,6 +62,61 @@ fn accepted_matrix_pair(pair_id: &str) -> (CoreEngine, Value) {
     (engine, added["document"].clone())
 }
 
+#[test]
+fn compound_cell_removal_projects_both_matrices_in_one_transaction() {
+    let pair_id = "compound-matrix-removal";
+    let (mut engine, before) = accepted_matrix_pair(pair_id);
+    let operation = json!({
+        "kind":"remove-selected-matrix-cells",
+        "cells":{SOURCE_MATRIX:[[0,0]], MIRROR_THUMB_MATRIX:[[0,1]]}
+    });
+    preview_without_publishing(
+        &mut engine,
+        &before,
+        "compound-preview",
+        operation.clone(),
+        &[],
+    );
+    let committed = matrix_commit(&mut engine, &before, "compound-commit", operation, &[]);
+    assert_eq!(committed["kind"], "scene", "{committed}");
+    let after = &committed["document"];
+    verify_matrix_sequence(
+        MatrixSequenceKind::MembershipRemoval,
+        "left",
+        &before,
+        after,
+    );
+    for matrix_id in [SOURCE_THUMB_MATRIX, MIRROR_THUMB_MATRIX] {
+        assert_deleted_cell_tombstone(after, matrix_id, 0, 1);
+        assert_key_absent(after, &format!("matrix/{matrix_id}/r0c1"));
+        let retained = format!("matrix/{matrix_id}/r0c0");
+        assert_eq!(part(after, &retained), part(&before, &retained));
+    }
+    assert_eq!(part(after, "right/U1"), part(&before, "right/U1"));
+    assert_eq!(
+        committed["scene"]["changedIds"],
+        json!([
+            "compound-matrix-removal",
+            "left",
+            "left-synthetic-keys",
+            "left-thumb-keys",
+            "left/synthetic-envelope",
+            "matrix/left-synthetic-keys/r0c0",
+            "matrix/left-synthetic-keys/r0c0/diode",
+            "matrix/left-synthetic-keys/r0c0/led",
+            "matrix/left-thumb-keys/r0c1",
+            "matrix/right-synthetic-keys/r0c0",
+            "matrix/right-synthetic-keys/r0c0/diode",
+            "matrix/right-synthetic-keys/r0c0/led",
+            "matrix/right-thumb-keys/r0c1",
+            "right",
+            "right-synthetic-keys",
+            "right-thumb-keys",
+            "right/synthetic-envelope",
+        ])
+    );
+}
+
 fn matrix<'a>(document: &'a Value, id: &str) -> &'a Value {
     document["matrices"]
         .as_array()
