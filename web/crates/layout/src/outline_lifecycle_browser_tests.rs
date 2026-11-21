@@ -12,6 +12,91 @@ use wasm_bindgen_test::wasm_bindgen_test;
 
 wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
+/// The shared browser document.
+fn browser_document() -> web_sys::Document {
+    web_sys::window().unwrap().document().unwrap()
+}
+
+/// A mounted root element by id (the inspector hosts use fixed mount ids).
+fn root_by_id(id: &str) -> web_sys::Element {
+    browser_document().get_element_by_id(id).unwrap()
+}
+
+fn points_root() -> web_sys::Element {
+    root_by_id("outline-points-inspector-mount")
+}
+
+fn inspector_root() -> web_sys::Element {
+    root_by_id("outline-inspector-mount")
+}
+
+/// Create (but do not mount) a root div with the given id.
+fn new_root(id: &str) -> web_sys::Element {
+    let document = browser_document();
+    let root = document.create_element("div").unwrap();
+    root.set_id(id);
+    document.body().unwrap().append_child(&root).unwrap();
+    root
+}
+
+/// Mount `dom` (with `probe` as root context) under a fresh root div.
+fn mount_probe<T: Clone + 'static>(
+    id: &str,
+    dom: VirtualDom,
+    probe: &T,
+) -> (web_sys::Element, MountedFixture) {
+    let root = new_root(id);
+    dom.provide_root_context(probe.clone());
+    let mounted = MountedFixture::new(root.clone(), dom);
+    (root, mounted)
+}
+
+/// Open `document` in a fresh runtime and build its inspector probe.
+async fn open_inspector_probe(document: ProjectDoc) -> InspectorProbe {
+    let runtime = boardstudio_web_test_runtime::project_name_test_support::new_runtime();
+    boardstudio_web_test_runtime::project_name_test_support::open_document(&runtime, document)
+        .await;
+    let scope = runtime.scope().expect("the opened fixture has a scope");
+    InspectorProbe {
+        runtime,
+        scope,
+        connection_action: Rc::default(),
+        selected_context: Rc::default(),
+    }
+}
+
+/// A button by accessible name, as a clickable HTML element.
+fn button(root: &web_sys::Element, name: &str) -> web_sys::HtmlElement {
+    by_role_name(root, "button", name)
+        .unwrap_or_else(|| panic!("button {name} is mounted"))
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap()
+}
+
+fn click_button(root: &web_sys::Element, name: &str) {
+    button(root, name).click();
+}
+
+/// Wait until a button with `name` is mounted under `root`.
+async fn wait_for_button(root: &web_sys::Element, description: &'static str, name: &str) {
+    let root = root.clone();
+    wait_until(description, move || {
+        by_role_name(&root, "button", name).is_some()
+    })
+    .await;
+}
+
+/// Wait for and open the perimeter point editor on the points inspector.
+async fn open_perimeter_editor() {
+    wait_for_button(
+        &points_root(),
+        "the perimeter exposes its point editor action",
+        "Edit perimeter points",
+    )
+    .await;
+    click_button(&points_root(), "Edit perimeter points");
+}
+
 async fn active_outline_option_labels(root: &web_sys::Element) -> Vec<String> {
     let choice = by_role_name(root, "button", "Active outline").unwrap();
     choice.focus().unwrap();
@@ -60,111 +145,6 @@ async fn active_outline_option_labels(root: &web_sys::Element) -> Vec<String> {
     labels
 }
 
-#[derive(Clone)]
-struct DimensionProbe {
-    committed: Rc<RefCell<Vec<f64>>>,
-}
-
-fn mounted_dimension_host() -> Element {
-    let probe = use_context::<DimensionProbe>();
-    let committed = probe.committed.clone();
-    let on_commit = use_callback(move |value: f64| committed.borrow_mut().push(value));
-    rsx! {
-        div { id: "outline-dimension-test-root",
-            OutlineDimension {
-                label: "Outline margin",
-                value: 4.0,
-                minimum: 0.0,
-                editable: true,
-                on_commit,
-            }
-        }
-    }
-}
-
-fn coordinate_history_host() -> Element {
-    let mut accepted = use_signal(|| 0.0);
-    rsx! {
-        OutlineCoordinate { label: "Point 1 X mm".to_owned(), value: accepted(), editable: true, on_commit: |_| {} }
-        OutlineCoordinate { label: "Point 1 Y mm".to_owned(), value: 10.0, editable: true, on_commit: |_| {} }
-        button { id: "coordinate-accepted", onclick: move |_| accepted.set(1.5), "Accept coordinate" }
-        button { id: "coordinate-undo", onclick: move |_| accepted.set(0.0), "Undo coordinate" }
-    }
-}
-
-#[wasm_bindgen_test]
-async fn coordinate_undo_restores_accepted_value_without_reviving_a_submitted_draft() {
-    let document = web_sys::window().unwrap().document().unwrap();
-    let root = document.create_element("div").unwrap();
-    root.set_id("coordinate-history-mount");
-    document.body().unwrap().append_child(&root).unwrap();
-    let _mounted = MountedFixture::new(root.clone(), VirtualDom::new(coordinate_history_host));
-    wait_until("the coordinate inputs mount", || {
-        by_role_name(&root, "spinbutton", "Point 1 X mm").is_some()
-    })
-    .await;
-    let x = by_role_name(&root, "spinbutton", "Point 1 X mm")
-        .unwrap()
-        .dyn_into::<web_sys::HtmlInputElement>()
-        .unwrap();
-    let y = by_role_name(&root, "spinbutton", "Point 1 Y mm")
-        .unwrap()
-        .dyn_into::<web_sys::HtmlInputElement>()
-        .unwrap();
-    send_input(&y, "");
-    x.focus().unwrap();
-    send_input(&x, "1.5");
-    send_key(&x, "Enter");
-    root.query_selector("#coordinate-accepted")
-        .unwrap()
-        .unwrap()
-        .dyn_into::<web_sys::HtmlElement>()
-        .unwrap()
-        .click();
-    settle_dimension().await;
-    assert_eq!(x.value(), "1.5");
-    assert_eq!(
-        y.value(),
-        "",
-        "another coordinate's dirty draft must remain local"
-    );
-    root.query_selector("#coordinate-undo")
-        .unwrap()
-        .unwrap()
-        .dyn_into::<web_sys::HtmlElement>()
-        .unwrap()
-        .click();
-    wait_until("Undo shows the restored accepted coordinate", || {
-        x.value() == "0"
-    })
-    .await;
-    assert_eq!(
-        x.value(),
-        "0",
-        "Undo must show the restored accepted coordinate"
-    );
-    assert_eq!(
-        y.value(),
-        "",
-        "Undo on X must preserve the unrelated Y draft"
-    );
-    root.remove();
-}
-
-fn mount_dimension() -> (DimensionProbe, web_sys::Element, MountedFixture) {
-    let probe = DimensionProbe {
-        committed: Rc::default(),
-    };
-    let document = web_sys::window().unwrap().document().unwrap();
-    let root = document.create_element("div").unwrap();
-    root.set_id("outline-dimension-mount");
-    document.body().unwrap().append_child(&root).unwrap();
-    let dom = VirtualDom::new(mounted_dimension_host);
-    dom.provide_root_context(probe.clone());
-    let mounted = MountedFixture::new(root.clone(), dom);
-    (probe, root, mounted)
-}
-
 /// Drive the in-process Session and Core until every queued edit has settled.
 async fn accept(probe: &InspectorProbe) {
     for _ in 0..6 {
@@ -211,20 +191,6 @@ async fn yield_turn() {
     gloo_timers::future::TimeoutFuture::new(0).await;
 }
 
-fn dimension_input() -> web_sys::HtmlInputElement {
-    web_sys::window()
-        .unwrap()
-        .document()
-        .unwrap()
-        .query_selector(
-            "#outline-dimension-mount #outline-dimension-test-root input[aria-label='Outline margin']",
-        )
-        .unwrap()
-        .unwrap()
-        .dyn_into::<web_sys::HtmlInputElement>()
-        .unwrap()
-}
-
 fn send_input(input: &web_sys::HtmlInputElement, value: &str) {
     input.set_value(value);
     let init = web_sys::EventInit::new();
@@ -245,330 +211,7 @@ fn send_key(input: &web_sys::HtmlInputElement, key: &str) {
         .unwrap();
 }
 
-#[wasm_bindgen_test]
-async fn outline_dimension_enter_commits_and_escape_restores_accepted_value() {
-    let (probe, root, _mounted) = mount_dimension();
-    wait_until("the outline margin input mounts", || {
-        web_sys::window()
-            .unwrap()
-            .document()
-            .unwrap()
-            .query_selector(
-                "#outline-dimension-mount #outline-dimension-test-root input[aria-label='Outline margin']",
-            )
-            .unwrap()
-            .is_some()
-    })
-    .await;
-    let input = dimension_input();
-
-    input.focus().unwrap();
-    send_input(&input, "5.25");
-    send_key(&input, "Enter");
-    wait_until("Enter commits 5.25", || {
-        probe.committed.borrow().as_slice() == [5.25]
-    })
-    .await;
-    assert_eq!(probe.committed.borrow().as_slice(), &[5.25]);
-
-    input.focus().unwrap();
-    send_input(&input, "9");
-    send_key(&input, "Escape");
-    wait_until("Escape restores the accepted baseline", || {
-        input.value() == "4"
-    })
-    .await;
-    assert_eq!(input.value(), "4");
-    input.blur().unwrap();
-    // Negative check (no commit): one event-loop turn, recorded as unproven in the Outcome.
-    yield_turn().await;
-    assert_eq!(
-        probe.committed.borrow().as_slice(),
-        &[5.25],
-        "Escape restores the accepted baseline without submitting"
-    );
-    root.remove();
-}
-
 type OutlineConnectionAction = (Rc<OutlineActionContext>, EventHandler<OutlineAction>);
-
-fn gap_world_points(
-    document: &ProjectDoc,
-    gap: &boardstudio_model::model::OutlineGap,
-) -> Vec<Vec2> {
-    gap.points
-        .iter()
-        .map(|point| {
-            let Some(id) = &point.part_id else {
-                return point.at;
-            };
-            let part = document.parts.iter().find(|part| &part.id == id).unwrap();
-            let x = if part.side == Side::Back {
-                -point.at.x
-            } else {
-                point.at.x
-            };
-            let (sin, cos) = part.pose.rotation.to_radians().sin_cos();
-            Vec2 {
-                x: part.pose.at.x + x * cos - point.at.y * sin,
-                y: part.pose.at.y + x * sin + point.at.y * cos,
-            }
-        })
-        .collect()
-}
-
-fn connected_mirrored_gap_document() -> ProjectDoc {
-    use boardstudio_model::model::{CoreReply, CoreRequest};
-    use serde_json::json;
-    let mut input: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../../core/tests/fixtures/synthetic-outline.json"
-    ))
-    .unwrap();
-    for key in ["parts", "matrices", "layouts", "outline"] {
-        input[key] = json!([]);
-    }
-    input["boards"][0]["partIds"] = json!([]);
-    input["boards"][0]["outlineIds"] = json!([]);
-    let mut engine = boardstudio_core::CoreEngine::new();
-    let reply = engine.handle(CoreRequest::Open {
-        id: "gap-fixture".into(),
-        document: serde_json::from_value(input).unwrap(),
-    });
-    let CoreReply::Scene { document, .. } = reply else {
-        panic!("the synthetic gap board opens: {reply:?}");
-    };
-    let apply = |engine: &mut boardstudio_core::CoreEngine, document: &ProjectDoc, operation| {
-        let reply = engine.request(&json!({"id":"gap-fixture", "kind":"edit", "command":{
-            "baseRevision":document.revision,"transactionId":format!("gap-{}",document.revision),
-            "phase":"commit","targetIds":[],"operation":operation
-        }}).to_string());
-        let CoreReply::Scene {
-            document, scene, ..
-        } = serde_json::from_str(&reply).unwrap()
-        else {
-            panic!("fixture edit is accepted: {reply}");
-        };
-        (*document, scene)
-    };
-    let (document, _) = apply(
-        &mut engine,
-        &document,
-        json!({"kind":"create-mirrored-pair",
-            "matrix":{"id":"left-matrix","rows":1,"columns":2,"pitch":{"x":24.,"y":19.},
-                "origin":{"x":-36.,"y":0.},"columnLayout": [{"offset": {"x": 0.0, "y": 0.0}}, {"offset": {"x": 0.0, "y": 10.0}}],
-        "definitionId":"synthetic/switch","boardId":"main","partIds":[]},
-            "left":{"id":"left-layout","name":"Left","boardId":"main","matrixIds":["left-matrix"],"partIds":[]},
-            "right":{"id":"right-layout","name":"Right","boardId":"main","matrixIds":["right-matrix"],"partIds":[],
-                "mirrorLink":{"sourceId":"left-layout","axisX":0.}}
-        }),
-    );
-    let (document, _) = apply(
-        &mut engine,
-        &document,
-        json!({"kind":"apply-outline-edit","edit":{
-            "target":{"kind":"board","boardId":"main"},"change":{"create-generated":{
-                "margin":1.,"part_ids":document.boards[0].part_ids,
-                "settings":{"corners":"fillet","size":2.,"bridgeWidth":10.,
-                    "repair":{"enabled":true,"maximumGapSpan":20.,"minimumConnectionWidth":2.,"edgeClearance":0.}}
-            }},"seed":141,"reviewed":null
-        }}),
-    );
-    let (mut document, mut scene) = apply(
-        &mut engine,
-        &document,
-        json!({"kind":"apply-outline-edit","edit":{
-            "target":{"kind":"board","boardId":"main"},"change":{"add-connection":{"connection":{
-                "id":"cross-split","width":6.,"points":[{"at":{"x":-4.,"y":20.}},{"at":{"x":4.,"y":20.}}]
-            }}},"seed":144,"reviewed":null
-        }}),
-    );
-    for (index, side) in [-1., 1.].into_iter().enumerate() {
-        let gap = scene
-            .board_outline_scenes
-            .iter()
-            .find(|board| board.board_id == "main")
-            .unwrap()
-            .gaps
-            .iter()
-            .find(|gap| {
-                gap_world_points(&document, gap)
-                    .iter()
-                    .all(|point| point.x * side > 20.)
-            })
-            .expect("each half has a distinct recess")
-            .clone();
-        (document, scene) = apply(
-            &mut engine,
-            &document,
-            json!({"kind":"apply-outline-edit","edit":{
-                "target":{"kind":"board","boardId":"main"},"change":{"set-protected-gap":{
-                    "gap_id":gap.id,"points":gap.points
-                }},"seed":150 + index,"reviewed":null
-            }}),
-        );
-    }
-    document
-}
-
-#[wasm_bindgen_test]
-async fn connected_mirrored_outline_gap_controls_edit_distinct_regions() {
-    for side in [-1., 1.] {
-        let fixture = connected_mirrored_gap_document();
-        let runtime = boardstudio_web_test_runtime::project_name_test_support::new_runtime();
-        boardstudio_web_test_runtime::project_name_test_support::open_document(&runtime, fixture)
-            .await;
-        let probe = InspectorProbe {
-            scope: runtime.scope().unwrap(),
-            runtime,
-            connection_action: Rc::default(),
-            selected_context: Rc::default(),
-        };
-        let document = web_sys::window().unwrap().document().unwrap();
-        let root = document.create_element("div").unwrap();
-        root.set_id("connected-gap-inspector");
-        document.body().unwrap().append_child(&root).unwrap();
-        let dom = VirtualDom::new(mounted_outline_inspector_host);
-        dom.provide_root_context(probe.clone());
-        let _mounted = MountedFixture::new(root.clone(), dom);
-        wait_until("the connected outline Inspector mounts", || {
-            probe.connection_action.borrow().is_some()
-        })
-        .await;
-        let before = probe.runtime.model().accepted.unwrap();
-        assert_eq!(before.document.boards.len(), 1);
-        assert_eq!(before.document.boards[0].outline_ids.len(), 1);
-        let contours = |snapshot: &boardstudio_application::AcceptedSnapshot| {
-            snapshot
-                .scene
-                .board_contours
-                .iter()
-                .find(|board| board.board_id == "main")
-                .unwrap()
-                .contours
-                .clone()
-        };
-        assert_eq!(
-            contours(&before)
-                .iter()
-                .filter(|contour| !contour.hole)
-                .count(),
-            1
-        );
-        let gaps = &before
-            .scene
-            .board_outline_scenes
-            .iter()
-            .find(|board| board.board_id == "main")
-            .unwrap()
-            .gaps;
-        let selected = gaps
-            .iter()
-            .position(|gap| {
-                gap.protected
-                    && gap_world_points(&before.document, gap)
-                        .iter()
-                        .all(|point| point.x * side > 20.)
-            })
-            .unwrap();
-        let other = gaps
-            .iter()
-            .find(|gap| {
-                gap.protected
-                    && gap_world_points(&before.document, gap)
-                        .iter()
-                        .all(|point| point.x * side < -20.)
-            })
-            .unwrap();
-        let selected_id = gaps[selected].id.clone();
-        let other_id = other.id.clone();
-        assert_ne!(selected_id, other_id);
-        assert_eq!(gaps[selected].feature_id, other.feature_id);
-        assert!(
-            gaps[selected]
-                .protected_ids
-                .iter()
-                .all(|id| !other.protected_ids.contains(id))
-        );
-        let controls = root.query_selector_all("[role=checkbox]").unwrap();
-        let gap_count = (0..controls.length())
-            .filter_map(|index| controls.item(index))
-            .filter_map(|node| node.dyn_into::<web_sys::Element>().ok())
-            .filter(|control| {
-                control
-                    .get_attribute("aria-label")
-                    .is_some_and(|name| name.starts_with("Keep gap "))
-            })
-            .count();
-        assert_eq!(gap_count, gaps.len());
-        let checkbox =
-            by_role_name(&root, "checkbox", &format!("Keep gap {}", selected + 1)).unwrap();
-        assert_eq!(
-            checkbox.get_attribute("aria-checked").as_deref(),
-            Some("true")
-        );
-        checkbox.click();
-        accept(&probe).await;
-        wait_until("the gap edit lands through the production resolver", || {
-            probe
-                .runtime
-                .model()
-                .accepted
-                .as_ref()
-                .unwrap()
-                .document
-                .revision
-                > before.document.revision
-        })
-        .await;
-        let after = probe.runtime.model().accepted.unwrap();
-        let after_gaps = &after
-            .scene
-            .board_outline_scenes
-            .iter()
-            .find(|board| board.board_id == "main")
-            .unwrap()
-            .gaps;
-        assert!(
-            !after_gaps
-                .iter()
-                .find(|gap| gap.id == selected_id)
-                .unwrap()
-                .protected
-        );
-        assert!(
-            after_gaps
-                .iter()
-                .find(|gap| gap.id == other_id)
-                .unwrap()
-                .protected
-        );
-        assert_eq!(
-            contours(&after)
-                .iter()
-                .filter(|contour| !contour.hole)
-                .count(),
-            1
-        );
-        let half_points = |snapshot: &boardstudio_application::AcceptedSnapshot, side: f64| {
-            let mut points: Vec<_> = contours(snapshot)
-                .into_iter()
-                .flat_map(|contour| contour.points)
-                .filter(|point| point.x * side > 20.)
-                .collect();
-            points.sort_by(|a, b| a.x.total_cmp(&b.x).then(a.y.total_cmp(&b.y)));
-            points
-        };
-        assert_ne!(half_points(&before, side), half_points(&after, side));
-        assert_eq!(half_points(&before, -side), half_points(&after, -side));
-        web_sys::console::log_1(&serde_json::json!({"ticket":141,"boardId":"main", "side":side,
-            "selectedGapId":selected_id,"otherGapId":other_id,"featureId":gaps[selected].feature_id,
-            "selectedWorldPoints":gap_world_points(&before.document, &gaps[selected]),
-            "otherWorldPoints":gap_world_points(&before.document, other),
-            "beforeGaps":gaps,"afterGaps":after_gaps,"beforeContours":contours(&before),"afterContours":contours(&after)
-        }).to_string().into());
-        root.remove();
-    }
-}
 
 #[derive(Clone)]
 struct InspectorProbe {
@@ -677,10 +320,7 @@ async fn mounted_outline_inspector() -> (InspectorProbe, web_sys::Element, Mount
 #[wasm_bindgen_test]
 async fn outline_actions_keep_their_layout_without_legacy_classes() {
     let (_probe, root, mut mounted) = mounted_outline_inspector().await;
-    wait_until("outline actions mount", || {
-        by_role_name(&root, "button", "Copy outline").is_some()
-    })
-    .await;
+    wait_for_button(&root, "outline actions mount", "Copy outline").await;
     let document = web_sys::window().unwrap().document().unwrap();
     let stylesheet = document.create_element("style").unwrap();
     stylesheet.set_text_content(Some(include_str!("../../../assets/tailwind.css")));
@@ -769,25 +409,12 @@ async fn mounted_outline_inspector_with_version(
                 retired_version_ids: vec![],
             });
     }
-    let runtime = boardstudio_web_test_runtime::project_name_test_support::new_runtime();
-    boardstudio_web_test_runtime::project_name_test_support::open_document(&runtime, document)
-        .await;
-    let scope = runtime
-        .scope()
-        .expect("the opened outline fixture has a scope");
-    let probe = InspectorProbe {
-        runtime,
-        scope,
-        connection_action: Rc::default(),
-        selected_context: Rc::default(),
-    };
-    let document = web_sys::window().unwrap().document().unwrap();
-    let root = document.create_element("div").unwrap();
-    root.set_id("outline-inspector-mount");
-    document.body().unwrap().append_child(&root).unwrap();
-    let dom = VirtualDom::new(mounted_outline_inspector_host);
-    dom.provide_root_context(probe.clone());
-    let mounted = MountedFixture::new(root.clone(), dom);
+    let probe = open_inspector_probe(document).await;
+    let (root, mounted) = mount_probe(
+        "outline-inspector-mount",
+        VirtualDom::new(mounted_outline_inspector_host),
+        &probe,
+    );
     (probe, root, mounted)
 }
 
@@ -809,47 +436,14 @@ async fn mounted_outline_perimeter_escape_returns_to_board_inspector() {
         Some(super::super::objects::TreeContext::Outline { .. })
     ));
 
-    let open = by_role_name(
-        &web_sys::window()
-            .unwrap()
-            .document()
-            .unwrap()
-            .get_element_by_id("outline-points-inspector-mount")
-            .unwrap(),
-        "button",
-        "Edit perimeter points",
-    )
-    .unwrap()
-    .dyn_into::<web_sys::HtmlElement>()
-    .unwrap();
-    open.click();
-    wait_until("Edit perimeter points renders the point editor", || {
-        by_role_name(
-            &web_sys::window()
-                .unwrap()
-                .document()
-                .unwrap()
-                .get_element_by_id("outline-points-inspector-mount")
-                .unwrap(),
-            "button",
-            "Done",
-        )
-        .is_some()
-    })
-    .await;
-    let done = by_role_name(
-        &web_sys::window()
-            .unwrap()
-            .document()
-            .unwrap()
-            .get_element_by_id("outline-points-inspector-mount")
-            .unwrap(),
-        "button",
+    click_button(&points_root(), "Edit perimeter points");
+    wait_for_button(
+        &points_root(),
+        "Edit perimeter points renders the point editor",
         "Done",
     )
-    .unwrap()
-    .dyn_into::<web_sys::HtmlElement>()
-    .unwrap();
+    .await;
+    let done = button(&points_root(), "Done");
     done.focus().unwrap();
     let init = web_sys::KeyboardEventInit::new();
     init.set_key("Escape");
@@ -892,17 +486,8 @@ async fn mounted_outline_perimeter_escape_returns_to_board_inspector() {
             .is_none(),
         "the nested Perimeter inspector is no longer mounted after returning to Board"
     );
-    let board_name = by_role_name(
-        &web_sys::window()
-            .unwrap()
-            .document()
-            .unwrap()
-            .get_element_by_id("outline-points-inspector-mount")
-            .unwrap(),
-        "textbox",
-        "Board name",
-    )
-    .expect("the returned Board Inspector exposes its name field");
+    let board_name = by_role_name(&points_root(), "textbox", "Board name")
+        .expect("the returned Board Inspector exposes its name field");
     assert_eq!(
         document
             .active_element()
@@ -935,20 +520,7 @@ async fn mounted_fixed_outline_canvas_point_escape_returns_to_board_without_edit
         .expect("fixture retains the accepted fixed outline");
     let accepted_document_before = accepted_before.document.clone();
 
-    by_role_name(
-        &web_sys::window()
-            .unwrap()
-            .document()
-            .unwrap()
-            .get_element_by_id("outline-points-inspector-mount")
-            .unwrap(),
-        "button",
-        "Edit perimeter points",
-    )
-    .expect("fixed outline exposes Edit perimeter points")
-    .dyn_into::<web_sys::HtmlElement>()
-    .unwrap()
-    .click();
+    click_button(&points_root(), "Edit perimeter points");
     wait_until("the canvas point handle mounts", || {
         document
             .query_selector("#outline-point-canvas-test circle[aria-label='Outline point 2']")
@@ -1019,17 +591,7 @@ async fn mounted_fixed_outline_canvas_point_escape_returns_to_board_without_edit
         "the focused point handle unmounts after returning to the outline inspector"
     );
     assert!(
-        by_role_name(
-            &web_sys::window()
-                .unwrap()
-                .document()
-                .unwrap()
-                .get_element_by_id("outline-points-inspector-mount")
-                .unwrap(),
-            "button",
-            "Edit perimeter points"
-        )
-        .is_some(),
+        by_role_name(&points_root(), "button", "Edit perimeter points").is_some(),
         "the normal Board outline controls remain mounted after point editing closes"
     );
     assert_eq!(
@@ -1065,37 +627,10 @@ async fn mounted_fixed_outline_point_click_and_escape_preserve_fractional_geomet
         Vec2 { x: 13.0, y: 13.0 },
     ];
     let (probe, root, _mounted) = mounted_polygon_outline_inspector_with_points(true, points).await;
-    wait_until("the fixed outline exposes Edit perimeter points", || {
-        by_role_name(
-            &web_sys::window()
-                .unwrap()
-                .document()
-                .unwrap()
-                .get_element_by_id("outline-points-inspector-mount")
-                .unwrap(),
-            "button",
-            "Edit perimeter points",
-        )
-        .is_some()
-    })
-    .await;
+    open_perimeter_editor().await;
     let document = web_sys::window().unwrap().document().unwrap();
     let revision_before = accepted_revision(&probe);
 
-    by_role_name(
-        &web_sys::window()
-            .unwrap()
-            .document()
-            .unwrap()
-            .get_element_by_id("outline-points-inspector-mount")
-            .unwrap(),
-        "button",
-        "Edit perimeter points",
-    )
-    .expect("fixed outline exposes Edit perimeter points")
-    .dyn_into::<web_sys::HtmlElement>()
-    .unwrap()
-    .click();
     wait_until("the perimeter point handles mount", || {
         document
             .query_selector("#outline-point-canvas-test circle[aria-label='Outline point 2']")
@@ -1409,25 +944,12 @@ async fn mounted_polygon_outline_inspector_with_points_and_connections(
             operation: boardstudio_model::model::Operation::Add,
         });
     }
-    let runtime = boardstudio_web_test_runtime::project_name_test_support::new_runtime();
-    boardstudio_web_test_runtime::project_name_test_support::open_document(&runtime, document)
-        .await;
-    let scope = runtime
-        .scope()
-        .expect("the opened outline fixture has a scope");
-    let probe = InspectorProbe {
-        runtime,
-        scope,
-        connection_action: Rc::default(),
-        selected_context: Rc::default(),
-    };
-    let document = web_sys::window().unwrap().document().unwrap();
-    let root = document.create_element("div").unwrap();
-    root.set_id("outline-points-inspector-mount");
-    document.body().unwrap().append_child(&root).unwrap();
-    let dom = VirtualDom::new(mounted_outline_inspector_host);
-    dom.provide_root_context(probe.clone());
-    let mounted = MountedFixture::new(root.clone(), dom);
+    let probe = open_inspector_probe(document).await;
+    let (root, mounted) = mount_probe(
+        "outline-points-inspector-mount",
+        VirtualDom::new(mounted_outline_inspector_host),
+        &probe,
+    );
     (probe, root, mounted)
 }
 
@@ -1631,10 +1153,7 @@ async fn mounted_reopened_fixed_outline_selects_its_saved_version() {
         ownership: boardstudio_model::model::OutlineOwnership::Fixed,
     }))
     .await;
-    wait_until("the Active outline select mounts", || {
-        by_role_name(&root, "button", "Active outline").is_some()
-    })
-    .await;
+    wait_for_button(&root, "the Active outline select mounts", "Active outline").await;
     let select = by_role_name(&root, "button", "Active outline").unwrap();
     assert_eq!(
         select.text_content().as_deref(),
@@ -1652,34 +1171,16 @@ async fn mounted_reopened_fixed_outline_selects_its_saved_version() {
 #[wasm_bindgen_test]
 async fn mounted_outline_inspector_generates_through_the_production_owner() {
     let (probe, root, _mounted) = mounted_outline_inspector().await;
-    wait_until("the Generate action mounts", || {
-        by_role_name(
-            &web_sys::window()
-                .unwrap()
-                .document()
-                .unwrap()
-                .get_element_by_id("outline-inspector-mount")
-                .unwrap(),
-            "button",
-            "Generate automatic outline",
-        )
-        .is_some()
-    })
-    .await;
-    let button = by_role_name(
-        &web_sys::window()
-            .unwrap()
-            .document()
-            .unwrap()
-            .get_element_by_id("outline-inspector-mount")
-            .unwrap(),
-        "button",
+    wait_for_button(
+        &inspector_root(),
+        "the Generate action mounts",
         "Generate automatic outline",
     )
-    .unwrap()
-    .dyn_into::<web_sys::HtmlElement>()
-    .unwrap();
-    button.click();
+    .await;
+    // Hold the mounted button: the second click below reuses this element, whose
+    // handler settles Unchanged once the outline exists.
+    let generate = button(&inspector_root(), "Generate automatic outline");
+    generate.click();
     settle_dimension().await;
     accept(&probe).await;
     let document = accepted_document(&probe);
@@ -1716,7 +1217,7 @@ async fn mounted_outline_inspector_generates_through_the_production_owner() {
     );
 
     // A second Generate is Unchanged: no new envelope, no revision step.
-    button.click();
+    generate.click();
     settle_dimension().await;
     accept(&probe).await;
     let repeated = accepted_document(&probe);
@@ -1754,65 +1255,14 @@ async fn mounted_outline_inspector_generates_through_the_production_owner() {
 #[wasm_bindgen_test]
 async fn mounted_generated_perimeter_insert_creates_one_fixed_copy_with_edited_points() {
     let (probe, root, _mounted) = mounted_polygon_outline_inspector(false).await;
-    wait_until(
-        "the generated perimeter exposes its point editor action",
-        || {
-            by_role_name(
-                &web_sys::window()
-                    .unwrap()
-                    .document()
-                    .unwrap()
-                    .get_element_by_id("outline-points-inspector-mount")
-                    .unwrap(),
-                "button",
-                "Edit perimeter points",
-            )
-            .is_some()
-        },
-    )
-    .await;
-    let open = by_role_name(
-        &web_sys::window()
-            .unwrap()
-            .document()
-            .unwrap()
-            .get_element_by_id("outline-points-inspector-mount")
-            .unwrap(),
-        "button",
-        "Edit perimeter points",
-    )
-    .unwrap()
-    .dyn_into::<web_sys::HtmlElement>()
-    .unwrap();
-    open.click();
-    wait_until("Insert point renders in the point editor", || {
-        by_role_name(
-            &web_sys::window()
-                .unwrap()
-                .document()
-                .unwrap()
-                .get_element_by_id("outline-points-inspector-mount")
-                .unwrap(),
-            "button",
-            "Insert after 1",
-        )
-        .is_some()
-    })
-    .await;
-    let insert = by_role_name(
-        &web_sys::window()
-            .unwrap()
-            .document()
-            .unwrap()
-            .get_element_by_id("outline-points-inspector-mount")
-            .unwrap(),
-        "button",
+    open_perimeter_editor().await;
+    wait_for_button(
+        &points_root(),
+        "Insert point renders in the point editor",
         "Insert after 1",
     )
-    .unwrap()
-    .dyn_into::<web_sys::HtmlElement>()
-    .unwrap();
-    insert.click();
+    .await;
+    click_button(&points_root(), "Insert after 1");
     // The insert's effect is the accepted revision, which the accept drain below reads.
     settle_dimension().await;
 
@@ -1860,64 +1310,15 @@ async fn mounted_generated_perimeter_insert_creates_one_fixed_copy_with_edited_p
 #[wasm_bindgen_test]
 async fn mounted_fixed_perimeter_coordinate_enter_updates_only_the_active_feature() {
     let (probe, root, _mounted) = mounted_polygon_outline_inspector(true).await;
-    wait_until(
-        "the fixed perimeter exposes its point editor action",
-        || {
-            by_role_name(
-                &web_sys::window()
-                    .unwrap()
-                    .document()
-                    .unwrap()
-                    .get_element_by_id("outline-points-inspector-mount")
-                    .unwrap(),
-                "button",
-                "Edit perimeter points",
-            )
-            .is_some()
-        },
-    )
-    .await;
-    let open = by_role_name(
-        &web_sys::window()
-            .unwrap()
-            .document()
-            .unwrap()
-            .get_element_by_id("outline-points-inspector-mount")
-            .unwrap(),
-        "button",
-        "Edit perimeter points",
-    )
-    .unwrap()
-    .dyn_into::<web_sys::HtmlElement>()
-    .unwrap();
-    open.click();
+    open_perimeter_editor().await;
     wait_until("the point editor renders Point 1 X", || {
-        by_role_name(
-            &web_sys::window()
-                .unwrap()
-                .document()
-                .unwrap()
-                .get_element_by_id("outline-points-inspector-mount")
-                .unwrap(),
-            "spinbutton",
-            "Point 1 X mm",
-        )
-        .is_some()
+        by_role_name(&points_root(), "spinbutton", "Point 1 X mm").is_some()
     })
     .await;
-    let input = by_role_name(
-        &web_sys::window()
-            .unwrap()
-            .document()
-            .unwrap()
-            .get_element_by_id("outline-points-inspector-mount")
-            .unwrap(),
-        "spinbutton",
-        "Point 1 X mm",
-    )
-    .unwrap()
-    .dyn_into::<web_sys::HtmlInputElement>()
-    .unwrap();
+    let input = by_role_name(&points_root(), "spinbutton", "Point 1 X mm")
+        .unwrap()
+        .dyn_into::<web_sys::HtmlInputElement>()
+        .unwrap();
     input.focus().unwrap();
     send_input(&input, "9.5");
     send_key(&input, "Escape");
@@ -1957,565 +1358,11 @@ async fn mounted_fixed_perimeter_coordinate_enter_updates_only_the_active_featur
     root.remove();
 }
 
-/// Ownership presentation: the Inspector names Core's persisted ownership, shows a
-/// linked refinement's located finding and affected exports, and never presents a
-/// legacy fixed version as linked (ADR-0002/0003).
-mod ownership_presentation {
-    use super::*;
-    use boardstudio_model::model::{OutlineOwnership, OutlineSettings};
-    use boardstudio_web_ui_shared::test_mount::MountedFixture;
-
-    const BOARD: &str = "ownership-board";
-
-    fn polygon(id: &str, x: f64) -> OutlineFeature {
-        OutlineFeature::Polygon {
-            anchor_part_id: None,
-            id: id.into(),
-            points: vec![
-                Vec2 { x, y: 0.0 },
-                Vec2 {
-                    x: x + 20.0,
-                    y: 0.0,
-                },
-                Vec2 {
-                    x: x + 20.0,
-                    y: 20.0,
-                },
-                Vec2 { x, y: 20.0 },
-            ],
-            operation: boardstudio_model::model::Operation::Add,
-        }
-    }
-
-    fn version(
-        id: &str,
-        name: &str,
-        ownership: OutlineOwnership,
-        features: Vec<OutlineFeature>,
-    ) -> OutlineVersion {
-        OutlineVersion {
-            id: id.into(),
-            name: name.into(),
-            source: OutlineProvenance {
-                revision: 0,
-                version_id: None,
-            },
-            geometry: OutlineSnapshot {
-                features,
-                settings: OutlineSettings::default(),
-                expected_regions: 1,
-                bridges: vec![],
-                protected_gaps: vec![],
-            },
-            ownership,
-        }
-    }
-
-    /// A linked refinement that resolves from its own authored contour, plus a legacy
-    /// fixed version (written before ownership existed, so its serde default is Fixed).
-    async fn mounted(
-        versions: Vec<OutlineVersion>,
-        active: &str,
-    ) -> (InspectorProbe, web_sys::Element, MountedFixture) {
-        let mut document = ProjectDoc::empty("ownership-doc", "Ownership fixture");
-        document.revision = 5;
-        document.boards.push(Board {
-            id: BOARD.into(),
-            name: "Board".into(),
-            outline_ids: vec![],
-            part_ids: vec![],
-            net_ids: vec![],
-            thickness: 1.6,
-            traces: vec![],
-            vias: vec![],
-        });
-        document.board_outlines.push(BoardOutline {
-            board_id: BOARD.into(),
-            active_version_id: Some(active.into()),
-            versions,
-            generated_last_valid: None,
-            retired_version_ids: vec![],
-        });
-        let runtime = boardstudio_web_test_runtime::project_name_test_support::new_runtime();
-        boardstudio_web_test_runtime::project_name_test_support::open_document(&runtime, document)
-            .await;
-        let scope = runtime.scope().expect("the fixture has a scope");
-        let probe = InspectorProbe {
-            runtime,
-            scope,
-            connection_action: Rc::default(),
-            selected_context: Rc::default(),
-        };
-        let document = web_sys::window().unwrap().document().unwrap();
-        let root = document.create_element("div").unwrap();
-        root.set_id("outline-inspector-mount");
-        document.body().unwrap().append_child(&root).unwrap();
-        let dom = VirtualDom::new(mounted_outline_inspector_host);
-        dom.provide_root_context(probe.clone());
-        let mounted = MountedFixture::new(root.clone(), dom);
-        (probe, root, mounted)
-    }
-
-    async fn option_labels(root: &web_sys::Element) -> Vec<String> {
-        active_outline_option_labels(root).await
-    }
-
-    fn input(root: &web_sys::Element, name: &str) -> web_sys::HtmlInputElement {
-        let role = if name == "Outline version name" {
-            "textbox"
-        } else {
-            "spinbutton"
-        };
-        by_role_name(root, role, name)
-            .unwrap_or_else(|| panic!("{role} {name} is mounted"))
-            .dyn_into::<web_sys::HtmlInputElement>()
-            .unwrap()
-    }
-
-    /// The DOM `disabled` property, so a `<select>` and an `<input>` are read the same way.
-    fn is_disabled(element: &web_sys::Element) -> bool {
-        js_sys::Reflect::get(element, &"disabled".into())
-            .ok()
-            .and_then(|value| value.as_bool())
-            .unwrap_or(false)
-    }
-
-    fn button(root: &web_sys::Element, name: &str) -> web_sys::HtmlElement {
-        by_role_name(root, "button", name).unwrap_or_else(|| panic!("Button {name} is mounted"))
-    }
-
-    #[wasm_bindgen_test]
-    async fn mounted_linked_and_legacy_fixed_versions_are_distinct_ownership_choices() {
-        let (_probe, root, _mounted) = mounted(
-            vec![
-                version(
-                    "linked-v1",
-                    "Linked 1",
-                    OutlineOwnership::Linked,
-                    vec![polygon("linked-contour", 0.0)],
-                ),
-                version(
-                    "legacy-fixed",
-                    "Edited outline 1",
-                    OutlineOwnership::Fixed,
-                    vec![polygon("legacy-contour", 60.0)],
-                ),
-            ],
-            "linked-v1",
-        )
-        .await;
-        settle_dimension().await;
-
-        let labels = option_labels(&root).await;
-        assert!(
-            labels.iter().any(|label| label.contains("Generated")),
-            "the permanent Generated outline stays a distinct choice: {labels:?}"
-        );
-        assert!(
-            labels
-                .iter()
-                .any(|label| label == "Linked refinement \u{b7} Linked 1"),
-            "a persisted linked refinement is named as linked: {labels:?}"
-        );
-        assert!(
-            labels
-                .iter()
-                .any(|label| label == "Edited outline \u{b7} Edited outline 1"),
-            "a legacy fixed version is presented as an edited outline, never as linked: {labels:?}"
-        );
-        // Settings stay editable while a linked refinement is selected.
-        assert!(
-            !is_disabled(
-                &by_role_name(&root, "button", "Outline corners")
-                    .unwrap()
-                    .into()
-            ),
-            "the linked refinement's settings remain editable"
-        );
-        assert!(
-            !input(&root, "Outline version name").disabled(),
-            "the linked refinement's own choices stay editable"
-        );
-        root.remove();
-    }
-
-    #[wasm_bindgen_test]
-    async fn mounted_linked_refinement_edits_its_own_envelope_settings_and_a_fixed_copy_has_none() {
-        let envelope = |id: &str, margin: f64| OutlineFeature::PartEnvelope {
-            connections: vec![],
-            settings: OutlineSettings::default(),
-            id: id.into(),
-            part_ids: vec!["missing-part".into()],
-            margin,
-            operation: boardstudio_model::model::Operation::Add,
-        };
-        let (_probe, root, _mounted) = mounted(
-            vec![
-                version(
-                    "linked-v1",
-                    "Linked 1",
-                    OutlineOwnership::Linked,
-                    vec![envelope("linked-envelope", 4.0)],
-                ),
-                version(
-                    "fixed-v1",
-                    "Edited outline 1",
-                    OutlineOwnership::Fixed,
-                    vec![polygon("fixed-contour", 60.0)],
-                ),
-            ],
-            "linked-v1",
-        )
-        .await;
-        settle_dimension().await;
-
-        // The linked refinement shows and edits its own margin, bridge width and cleanup,
-        // so a source change never forces a Freeze just to adjust them.
-        let margin = input(&root, "Outline margin");
-        assert_eq!(margin.value().parse::<f64>().unwrap(), 4.0);
-        assert!(
-            !margin.disabled(),
-            "the linked refinement's margin is editable"
-        );
-        for selector in ["Bridge width", "Automatic gap cleanup", "Maximum gap span"] {
-            assert!(
-                !by_role_name(
-                    &root,
-                    if selector == "Automatic gap cleanup" {
-                        "checkbox"
-                    } else {
-                        "spinbutton"
-                    },
-                    selector
-                )
-                .unwrap()
-                .has_attribute("disabled"),
-                "{selector} is editable on a linked refinement"
-            );
-        }
-        root.remove();
-
-        // A fixed edited copy has no envelope, so those controls are not offered.
-        let (_probe, root, _mounted) = mounted(
-            vec![version(
-                "fixed-v1",
-                "Edited outline 1",
-                OutlineOwnership::Fixed,
-                vec![polygon("fixed-contour", 60.0)],
-            )],
-            "fixed-v1",
-        )
-        .await;
-        settle_dimension().await;
-        for selector in [
-            "Outline margin",
-            "Bridge width",
-            "Automatic gap cleanup",
-            "Maximum gap span",
-        ] {
-            assert!(
-                by_role_name(
-                    &root,
-                    if selector == "Automatic gap cleanup" {
-                        "checkbox"
-                    } else {
-                        "spinbutton"
-                    },
-                    selector
-                )
-                .is_none(),
-                "{selector} is not offered on a fixed copy"
-            );
-        }
-        root.remove();
-    }
-
-    #[wasm_bindgen_test]
-    async fn mounted_freeze_creates_one_fixed_copy_retaining_the_link_and_one_undo_restores_both() {
-        let (probe, root, _mounted) = mounted(
-            vec![version(
-                "linked-v1",
-                "Linked 1",
-                OutlineOwnership::Linked,
-                vec![polygon("linked-contour", 0.0)],
-            )],
-            "linked-v1",
-        )
-        .await;
-        settle_dimension().await;
-        let revision_before = accepted_revision(&probe);
-        let freeze = button(&root, "Freeze into an edited copy");
-        freeze.click();
-        accept(&probe).await;
-
-        let accepted = accepted_document(&probe);
-        let state = &accepted.board_outlines[0];
-        assert_eq!(
-            state.versions.len(),
-            2,
-            "one action creates exactly one copy"
-        );
-        let linked = state
-            .versions
-            .iter()
-            .find(|version| version.id == "linked-v1")
-            .expect("the linked refinement is retained");
-        assert_eq!(
-            linked.ownership,
-            OutlineOwnership::Linked,
-            "Freeze keeps the linked refinement linked"
-        );
-        let frozen = state
-            .versions
-            .iter()
-            .find(|version| version.id != "linked-v1")
-            .expect("the frozen copy exists");
-        assert_eq!(frozen.ownership, OutlineOwnership::Fixed);
-        assert!(
-            frozen.name.starts_with("Edited outline "),
-            "the copy is named as an edited outline: {}",
-            frozen.name
-        );
-        assert_eq!(
-            state.active_version_id.as_deref(),
-            Some(frozen.id.as_str()),
-            "the frozen copy becomes the selected version"
-        );
-        assert!(
-            accepted.revision > revision_before,
-            "Freeze is one accepted revision"
-        );
-        settle_dimension().await;
-        let labels = option_labels(&root).await;
-        assert!(
-            labels
-                .iter()
-                .any(|label| label == "Linked refinement \u{b7} Linked 1"),
-            "the linked refinement stays visibly available after the freeze copy: {labels:?}"
-        );
-        assert!(
-            root.query_selector("[data-finding-id] [role=alert]")
-                .unwrap()
-                .is_none(),
-            "a resolvable linked refinement reports no problem"
-        );
-
-        // One Undo restores both the document state and the selection.
-        undo(&probe.runtime).await;
-        accept(&probe).await;
-        let restored = accepted_document(&probe);
-        assert_eq!(
-            restored.board_outlines[0].versions.len(),
-            1,
-            "one Undo removes only the freeze copy"
-        );
-        assert_eq!(
-            restored.board_outlines[0].active_version_id.as_deref(),
-            Some("linked-v1"),
-            "one Undo restores the selected version as well"
-        );
-        root.remove();
-    }
-
-    #[wasm_bindgen_test]
-    async fn mounted_linked_refinement_that_cannot_resolve_shows_its_located_finding() {
-        // The selected refinement owns a generated envelope whose included components are
-        // gone, so it cannot resolve and Core keeps its last valid shape.
-        let (_probe, root, _mounted) = mounted(
-            vec![version(
-                "linked-v1",
-                "Linked 1",
-                OutlineOwnership::Linked,
-                vec![OutlineFeature::PartEnvelope {
-                    connections: vec![],
-                    settings: OutlineSettings::default(),
-                    id: "linked-envelope".into(),
-                    part_ids: vec!["missing-part".into()],
-                    margin: 4.0,
-                    operation: boardstudio_model::model::Operation::Add,
-                }],
-            )],
-            "linked-v1",
-        )
-        .await;
-        settle_dimension().await;
-
-        let finding_id = format!("board:{BOARD}:outline:linked:linked-v1");
-        let problem = root
-            .query_selector(&format!("[data-finding-id='{finding_id}']"))
-            .unwrap()
-            .unwrap_or_else(|| {
-                panic!(
-                    "the located finding is presented by its id contract, not by message text; body: {}",
-                    root.inner_html()
-                )
-            });
-        assert!(
-            problem.get_attribute("class").is_none(),
-            "the located finding does not depend on a legacy styling class"
-        );
-        let announcement = problem
-            .query_selector("[role=alert]")
-            .unwrap()
-            .expect("the located finding is announced");
-        assert_eq!(
-            announcement.get_attribute("data-slot").as_deref(),
-            Some("alert"),
-            "the actual finding adopts the copied Alert"
-        );
-        assert_eq!(
-            problem.query_selector_all("[role=alert]").unwrap().length(),
-            1
-        );
-        let text = announcement.text_content().unwrap_or_default();
-        assert!(
-            text.contains("cannot resolve"),
-            "Core's message is shown as-is: {text}"
-        );
-        assert!(
-            text.contains("PCB"),
-            "the affected export is named (only the affected exports are disabled): {text}"
-        );
-        assert!(
-            text.contains("Saving and further editing stay available"),
-            "saving and editing stay available: {text}"
-        );
-        // The linked choice stays selectable and its settings stay editable.
-        let labels = option_labels(&root).await;
-        assert!(
-            labels
-                .iter()
-                .any(|label| label == "Linked refinement \u{b7} Linked 1"),
-            "a broken refinement remains an available choice: {labels:?}"
-        );
-        assert!(
-            !input(&root, "Outline version name").disabled(),
-            "editing stays possible while the refinement cannot resolve"
-        );
-        root.remove();
-    }
-}
-
-/// Product-context gestures on a generated outline: the panel's own controls must land
-/// through real Session/Core, never a silent dead click.
-mod product_context {
-    use super::*;
-
-    fn click_by_text(root: &web_sys::Element, text: &str) -> bool {
-        let Some(button) = by_role_name(root, "button", text) else {
-            return false;
-        };
-        button.click();
-        true
-    }
-
-    fn versions(runtime: &Rc<crate::runtime::Runtime>, board_id: &str) -> usize {
-        runtime
-            .model()
-            .accepted
-            .expect("accepted")
-            .document
-            .board_outlines
-            .iter()
-            .find(|state| state.board_id == board_id)
-            .map_or(0, |state| state.versions.len())
-    }
-
-    fn alert_text(root: &web_sys::Element) -> Option<String> {
-        root.query_selector("[role='alert']")
-            .ok()
-            .flatten()
-            .and_then(|node| node.text_content())
-    }
-
-    async fn ownership_labels(root: &web_sys::Element) -> Vec<String> {
-        active_outline_option_labels(root).await
-    }
-
-    #[wasm_bindgen_test]
-    async fn mounted_refine_outline_creates_a_linked_refinement_with_one_undo() {
-        let (probe, root, _mounted) = mounted_polygon_outline_inspector(false).await;
-        settle_dimension().await;
-        assert!(
-            click_by_text(&root, "Refine outline"),
-            "the Refine outline control is reachable in the generated context; body: {}",
-            root.inner_html()
-        );
-        accept(&probe).await;
-        settle_dimension().await;
-        let accepted = accepted_document(&probe);
-        let state = accepted
-            .board_outlines
-            .iter()
-            .find(|state| state.board_id == probe.scope.board_id)
-            .expect("the refinement creates board outline state");
-        assert_eq!(state.versions.len(), 1, "one action creates one refinement");
-        let created = &state.versions[0];
-        assert_eq!(
-            created.ownership,
-            boardstudio_model::model::OutlineOwnership::Linked,
-            "accepting the alternative creates a linked refinement"
-        );
-        assert_eq!(
-            state.active_version_id.as_deref(),
-            Some(created.id.as_str()),
-            "the created refinement is selected"
-        );
-        let labels = ownership_labels(&root).await;
-        assert!(
-            labels
-                .iter()
-                .any(|label| label.starts_with("Linked refinement")),
-            "the refinement is presented as linked: {labels:?}"
-        );
-        let name_input = by_role_name(&root, "textbox", "Outline version name")
-            .expect("the version name control is mounted for the selected refinement")
-            .dyn_into::<web_sys::HtmlInputElement>()
-            .unwrap();
-        assert!(
-            !name_input.disabled(),
-            "its settings stay editable while linked"
-        );
-
-        // One Undo removes the refinement and restores the Generated selection.
-        undo(&probe.runtime).await;
-        accept(&probe).await;
-        settle_dimension().await;
-        let undone = accepted_document(&probe);
-        let state = undone
-            .board_outlines
-            .iter()
-            .find(|state| state.board_id == probe.scope.board_id);
-        assert!(
-            state.is_none_or(|state| state.versions.is_empty()),
-            "one Undo removes the refinement"
-        );
-        assert!(
-            undone
-                .board_outlines
-                .iter()
-                .all(|state| state.active_version_id.is_none()),
-            "one Undo restores the Generated selection"
-        );
-        root.remove();
-    }
-
-    #[wasm_bindgen_test]
-    async fn mounted_copy_outline_on_a_generated_outline_creates_one_version() {
-        let (probe, root, _mounted) = mounted_polygon_outline_inspector(false).await;
-        settle_dimension().await;
-        assert!(
-            click_by_text(&root, "Copy outline"),
-            "the Copy outline control is reachable"
-        );
-        accept(&probe).await;
-        settle_dimension().await;
-        let count = versions(&probe.runtime, &probe.scope.board_id);
-        assert!(
-            count == 1,
-            "Copy outline lands one version (got {count}); alert={:?}",
-            alert_text(&root)
-        );
-        root.remove();
-    }
-}
+#[path = "outline_lifecycle_browser_tests/dimension_tests.rs"]
+mod dimension_tests;
+#[path = "outline_lifecycle_browser_tests/gap_tests.rs"]
+mod gap_tests;
+#[path = "outline_lifecycle_browser_tests/ownership_presentation.rs"]
+mod ownership_presentation;
+#[path = "outline_lifecycle_browser_tests/product_context.rs"]
+mod product_context;
