@@ -9,6 +9,3 @@ pub mod matrix_input;
 pub mod matrix_setup_operation;
 pub mod mirror_pair;
 pub mod physical_setup;
-
-#[cfg(all(test, target_arch = "wasm32"))]
-wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);

@@ -409,7 +409,6 @@ dependencies = [
  "boardstudio_core",
  "serde",
  "serde_json",
- "wasm-bindgen-test",
 ]
 
 [[package]]
