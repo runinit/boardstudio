@@ -143,6 +143,7 @@ async function main() {
   const files = [binding, binding.replace(/\.js$/, '_bg.wasm'), __filename,
     require.resolve('../wasm/tests/load-provider.cjs')];
   // The exact packaged binding and module are the authority, including the wasm-opt pass.
+  // Changes to the baked format or importer invalidate the cache through the module digest.
   const inputs = sha256(files.map(file => sha256(readFileSync(file))).join('') +
     [...selected.keys()].join(''));
   const manifest = path.join(output, 'manifest.json');

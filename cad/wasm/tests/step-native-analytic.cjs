@@ -177,6 +177,47 @@ const path = require('node:path');
   }
 
   const vendorDirectory = 'ergogen/library/vendor/infused-kim/3d_models';
+  // Bounds come from the source vertices, projected LINE extrema and root placement.
+  for (const [size, solids, faces, expected] of [
+    ['1x-4', 1, 153, [-25.6500003814697 + 24.13, -3, -1.25, -14.9900010681152 + 24.13, 5, 1.25]],
+    ['1x-5', 1, 189, [-25.6500003814697 + 24.13, -3, -1.25, -12.4500010681152 + 24.13, 5, 1.25]],
+    // Both 2x12 solids belong to the untransformed root. The child holds a frame.
+    ['2x-12', 2, 882, [-1.5200003814697, -3, -8.87, 29.4599989318848, 5, 8.87]],
+  ]) {
+    const source = read(`${vendorDirectory}/PinSocket_2.54mm_5mm_${size}.step`);
+    const sourceSha256 = crypto.createHash('sha256').update(source).digest('hex');
+    const input = new Uint8Array(source);
+    const { vendorStep: asset, bounds } = cad.read_step_model(input, { sourceSha256 });
+    try {
+      assert.equal(asset.sourceSha256, sourceSha256, size);
+      assert.equal(asset.sourceFaces.length, faces, size);
+      assert.equal(asset.faceOccurrences.length, faces, size);
+      assert.equal(new Set(asset.sourceFaces.map(face => face.solidId)).size, solids, size);
+      assert.equal(new Set(asset.faceOccurrences.map(face => face.solidOccurrenceIndex)).size, solids, size);
+      const census = Array.from({ length: faces }, (_, i) => i);
+      assert.deepEqual(asset.faceOccurrences.map(face => face.sourceFaceIndex).sort((a, b) => a - b), census, size);
+      assert.deepEqual([...new Set(asset.triangleFaceOccurrenceIndices)].sort((a, b) => a - b), census, size);
+      assert.equal(asset.accuracy.meshClosedOriented, true, size);
+      assert.equal(asset.accuracy.boundsFromSourceGeometry, true, size);
+      assert.equal(asset.accuracy.fallbackMeshedFaces, 0, size);
+      assert.equal(asset.accuracy.maxRepairDisplacementMm, null, size);
+      assert.equal(asset.accuracy.analysisErrorBoundMm, null, size);
+      assert.equal(asset.sourceQualification.state, 'unknown', size);
+      assert(asset.faceOccurrences.every(face => face.repairDisplacementMm === null), size);
+      assert([...bounds.min, ...bounds.max].every((x, i) => Math.abs(x - expected[i]) < 1e-10), size);
+      if (size === '1x-4') {
+        assert.throws(() => cad.read_step_model(input, {
+          sourceSha256,
+          previewRepairBudgetMm: 3.8e-7,
+        }), /finite LINE repair/);
+      }
+      assert.deepEqual(Buffer.from(input), source, size);
+    } finally {
+      asset.analysisHandle.free();
+    }
+  }
+  console.log('PASS packaged PinSocket face coverage, source bounds, unknown qualification and insufficient-budget refusal');
+
   const reset = read(vendorDirectory + '/Switch_Reset.step');
   const rim = (asset, faceId) => {
     const index = asset.sourceFaces.findIndex(face => face.faceId === faceId && face.solidId === '25');
