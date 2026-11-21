@@ -1,5 +1,8 @@
 use super::retry_drafts::retry_identity;
 use super::*;
+use boardstudio_web_ui_shared::inspector_fields::{
+    InspectorSection, NumericField, SelectField, TextField,
+};
 
 #[component]
 fn SettingsSection(
@@ -9,10 +12,13 @@ fn SettingsSection(
     children: Element,
 ) -> Element {
     let mut open = use_signal(|| default_open);
+    let _ = class;
     rsx! {
-        Collapsible { class, open: open(), on_open_change: move |value| open.set(value), keep_mounted: true,
-            CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{label}" }
-            CollapsibleContent { hidden: !open(), inert: (!open()).then_some(""), {children} }
+        InspectorSection {
+            title: "{label}",
+            open: open(),
+            on_open_change: move |value: bool| open.set(value),
+            {children}
         }
     }
 }
@@ -25,18 +31,13 @@ fn SettingsChoice(
     options: Vec<(String, String)>,
     on_change: EventHandler<String>,
 ) -> Element {
-    let id = format!("keycaps-choice-{}", dioxus::core::current_scope_id().0);
-    let current = use_memo(use_reactive((&value,), |(value,)| Some(value)));
     rsx! {
-        Field { class: "gap-1.5", FieldLabel { html_for: id.clone(), "{label}" }
-            Select::<String> {
-                id, aria_label, value: Some(current.into()),
-                class: "max-[960px]:[&_[data-slot=select-trigger]]:min-h-control-touch [@media(pointer:coarse)]:[&_[data-slot=select-trigger]]:min-h-control-touch",
-                on_value_change: move |value: Option<String>| if let Some(value) = value { on_change.call(value); },
-                for (index, (value, text)) in options.into_iter().enumerate() {
-                    SelectOption::<String> { index, value, text_value: text.clone(), class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{text}" }
-                }
-            }
+        SelectField {
+            label,
+            aria_label: Some(aria_label),
+            value,
+            options,
+            on_select: move |value: String| on_change.call(value),
         }
     }
 }
@@ -64,12 +65,30 @@ fn SettingsInput(
     oninput: EventHandler<FormEvent>,
 ) -> Element {
     let id = format!("keycaps-input-{}", dioxus::core::current_scope_id().0);
+    if r#type == InputType::Number {
+        return rsx! {
+            NumericField {
+                id,
+                label,
+                aria_label: Some(aria_label),
+                value,
+                min,
+                max,
+                step: step.unwrap_or_else(|| "any".to_owned()),
+                placeholder,
+                oninput,
+            }
+        };
+    }
     rsx! {
-        Field { class: "gap-1.5", FieldLabel { html_for: id.clone(), "{label}" }
-            InputGroup { InputGroupInput { id, aria_label, r#type, value, min, max, step, placeholder,
-                class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
-                oninput: move |event: FormEvent| oninput.call(event),
-            } }
+        TextField {
+            id,
+            label,
+            aria_label: Some(aria_label),
+            r#type,
+            value,
+            placeholder,
+            oninput,
         }
     }
 }
@@ -204,12 +223,23 @@ fn settings_feedback(
     retries: Vec<KeycapsRetryDraft>,
     actions: &KeycapsSettingsActions,
 ) -> Element {
-    let on_retry = actions.on_retry;
-    let on_discard = actions.on_discard;
     rsx! {
         if feedback.is_some() {
             p { role: "status", Spinner {} "Saving keycap settings…" }
         }
+        KeycapsRetryList { retries, on_retry: actions.on_retry, on_discard: actions.on_discard }
+    }
+}
+
+/// Shared retry drafts list: one Alert with Retry/Discard per unaccepted change.
+/// Board, matrix and key editors share this table so their form rows stay thin.
+#[component]
+fn KeycapsRetryList(
+    retries: Vec<KeycapsRetryDraft>,
+    on_retry: EventHandler<KeycapsRetryIdentity>,
+    on_discard: EventHandler<KeycapsRetryIdentity>,
+) -> Element {
+    rsx! {
         for draft in retries {
             Alert { variant: AlertVariant::Destructive,
                 p { "Unaccepted {field_label(&draft.field)} change: {change_label(&draft.change)}. {draft.message}" }
@@ -453,13 +483,7 @@ pub fn KeycapsSettingsEditor(props: KeycapsSettingsEditorProps) -> Element {
             if feedback.is_some() {
                 p { role: "status", Spinner {} "Saving keycap override…" }
             }
-            for draft in retry_drafts.iter() {
-                Alert { variant: AlertVariant::Destructive,
-                    p { "Unaccepted {field_label(&draft.field)} change: {change_label(&draft.change)}. {draft.message}" }
-                    Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", onclick: { let identity = retry_identity(draft); move |_| on_retry.call(identity.clone()) }, "Retry" }
-                    Button { variant: ButtonVariant::Secondary, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", onclick: { let identity = retry_identity(draft); move |_| on_discard.call(identity.clone()) }, "Discard" }
-                }
-            }
+            KeycapsRetryList { retries: retry_drafts.iter().cloned().collect::<Vec<_>>(), on_retry, on_discard }
         }
     }
 }
