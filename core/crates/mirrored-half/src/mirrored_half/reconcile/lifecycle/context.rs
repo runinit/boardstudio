@@ -1,4 +1,4 @@
-//! Lifecycle context validation and matrix projection for a membership transition.
+//! Lifecycle context and matrix ownership validation.
 
 use super::super::{MembershipContext, TransitionState};
 use super::{durable_state, effective, matrix_pair_for_association, parent};

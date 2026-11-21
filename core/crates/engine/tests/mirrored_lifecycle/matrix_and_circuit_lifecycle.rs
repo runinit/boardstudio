@@ -194,6 +194,31 @@ fn matrix_owner_lifecycle_commits_one_exception_and_preserves_explicit_child() {
         rejoined.draft.parts.iter().find(|p| p.id == child_mirror),
         Some(&explicit_part)
     );
+    let mut generated = rejoined.draft.clone();
+    let mirror = rejoined
+        .draft
+        .matrices
+        .iter()
+        .find(|m| m.id == "mirror-matrix")
+        .unwrap();
+    for part in &mut generated.parts {
+        if let Some(properties) = &mut part.properties {
+            properties.remove("layoutOverride");
+        }
+    }
+    boardstudio_core_kernel::matrix::set_matrix(&mut generated, mirror).unwrap();
+    for id in [child_mirror, "matrix/mirror-matrix/r0c0/diode"] {
+        let expected = child.draft.parts.iter().find(|p| p.id == id).unwrap().pose;
+        for doc in [&rejoined.draft, &generated] {
+            let pose = doc.parts.iter().find(|p| p.id == id).unwrap().pose;
+            assert!(
+                (pose.at.x - expected.at.x).abs() < 1e-9
+                    && (pose.at.y - expected.at.y).abs() < 1e-9
+                    && (pose.rotation - expected.rotation).abs() < 1e-9,
+                "{id}: {pose:?} expected {expected:?}"
+            );
+        }
+    }
     assert_eq!(rejoined.context.pair_right.exceptions.len(), 1);
     assert_eq!(
         rejoined.context.pair_right.exceptions[0].mirror_id,
@@ -1278,4 +1303,46 @@ fn owner_source_deletion_preserves_local_objects_and_retires_only_removed_source
             );
         }
     }
+}
+
+#[test]
+fn cutover_lifecycle_rejects_linked_slot_outside_matrix_membership() {
+    let (mut document, mut context) = independent_lifecycle_fixture();
+    for side in ["source", "mirror"] {
+        let board = format!("{side}-board");
+        let mut orphan = document
+            .parts
+            .iter()
+            .find(|p| p.id == format!("{side}-screen"))
+            .unwrap()
+            .clone();
+        orphan.id = format!("matrix/{side}-matrix/r9c9");
+        orphan.reference = format!("{side}_orphan");
+        document
+            .boards
+            .iter_mut()
+            .find(|b| b.id == board)
+            .unwrap()
+            .part_ids
+            .push(orphan.id.clone());
+        document.parts.push(orphan);
+    }
+    add_lifecycle_association(
+        &mut document,
+        &mut context,
+        MirroredItemKind::Part,
+        "matrix/source-matrix/r9c9",
+        "matrix/mirror-matrix/r9c9",
+        None,
+    );
+    let result = prepare_lifecycle_transition(
+        &document,
+        &document,
+        &context,
+        crate::support::test_dispatch(),
+    );
+    assert!(
+        result.is_err(),
+        "a visible Part and matching correspondence cannot establish a matrix slot"
+    );
 }

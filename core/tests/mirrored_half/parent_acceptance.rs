@@ -733,3 +733,176 @@ fn omitted_key_detaches_its_local_companion_through_reopen_and_rejoin() {
         assert_history_document(&result["document"], expected, action);
     }
 }
+fn select_matrix(engine: &mut CoreEngine, doc: &Value, state: &str) -> Value {
+    let id = "right-synthetic-keys";
+    let reply = commit_operation(
+        engine,
+        doc,
+        state,
+        &[id],
+        json!({
+            "kind":"set-half-exception", "pairId":PAIR_ID, "itemKind":"matrix", "mirrorId":id, "state":state
+        }),
+    );
+    assert_eq!(reply["kind"], "scene", "{reply}");
+    reply["document"].clone()
+}
+
+fn check_slot(doc: &Value, old: &Value, from: &str, to: &str) {
+    let mut typed: ProjectDoc = serde_json::from_value(doc.clone()).unwrap();
+    let matrix = typed
+        .matrices
+        .iter()
+        .find(|m| m.id == "right-synthetic-keys")
+        .unwrap()
+        .clone();
+    // Force regeneration from the saved cell even when the Part has an authored pose.
+    for part in &mut typed.parts {
+        if let Some(properties) = &mut part.properties {
+            properties.remove("layoutOverride");
+        }
+    }
+    boardstudio_core_kernel::matrix::set_matrix(&mut typed, &matrix).unwrap();
+    for suffix in ["", "/diode", "/led"] {
+        let id = format!("{to}{suffix}");
+        let expected = &part(old, &format!("{from}{suffix}"))["pose"];
+        let saved = &part(doc, &id)["pose"];
+        let generated =
+            serde_json::to_value(typed.parts.iter().find(|p| p.id == id).unwrap().pose).unwrap();
+        for pose in [saved, &generated] {
+            for path in ["/at/x", "/at/y", "/rotation"] {
+                let coord =
+                    |value: &Value| value.pointer(path).and_then(Value::as_f64).unwrap_or(0.0);
+                assert!(
+                    (coord(pose) - coord(expected)).abs() < 1e-9,
+                    "{id} {path}: {pose} expected {expected}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn cutover_column_compaction_preserves_local_world_pose() {
+    check_compaction("column", "r0c1");
+}
+
+#[test]
+fn cutover_row_compaction_preserves_local_world_pose() {
+    check_compaction("row", "r1c0");
+}
+
+fn check_compaction(axis: &str, coordinate: &str) {
+    let (mut engine, doc) = accepted_pair();
+    let old = format!("matrix/right-synthetic-keys/{coordinate}");
+    let localized = set_exception(&mut engine, &doc, &old, "local");
+    let before = &localized["document"];
+    let reply = commit_operation(
+        &mut engine,
+        before,
+        axis,
+        &["left-synthetic-keys"],
+        json!({
+            "kind":format!("remove-matrix-{axis}"), "matrixId":"left-synthetic-keys", (axis):0
+        }),
+    );
+    assert_eq!(reply["kind"], "scene", "{reply}");
+    let new = "matrix/right-synthetic-keys/r0c0";
+    check_slot(&reply["document"], before, &old, new);
+    let (_, reopened) = save_archive_and_open(&reply["document"]);
+    check_slot(&reopened, before, &old, new);
+}
+
+#[test]
+fn cutover_omitted_owner_rejoins_rotated_local_slot() {
+    let (mut engine, doc) = accepted_pair();
+    let source = "left-synthetic-keys";
+    let mut matrix = doc["matrices"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|m| m["id"] == source)
+        .unwrap()
+        .clone();
+    matrix["cells"][0]["rotation"] = json!(27.0);
+    let rotated = commit_operation(
+        &mut engine,
+        &doc,
+        "rotate-cell",
+        &[source],
+        json!({"kind":"set-matrix","matrix":matrix}),
+    );
+    assert_eq!(rotated["kind"], "scene", "{rotated}");
+    let id = "matrix/right-synthetic-keys/r0c0";
+    let diode = "matrix/right-synthetic-keys/r0c0/diode";
+    let local_diode = set_exception(&mut engine, &rotated["document"], diode, "local");
+    let moved = move_part(&mut engine, &local_diode["document"], diode, 187.0, 13.0);
+    assert_eq!(moved["kind"], "scene", "{moved}");
+    let localized = set_exception(&mut engine, &moved["document"], id, "local");
+    let before = &localized["document"];
+    assert_eq!(
+        part(before, diode)["pose"]["at"],
+        json!({"x":187.0,"y":13.0})
+    );
+    let omitted = select_matrix(&mut engine, before, "omitted");
+    let (mut engine, reopened) = save_archive_and_open(&omitted);
+    let rejoined = select_matrix(&mut engine, &reopened, "linked");
+    check_slot(&rejoined, before, id, id);
+    let (_, reopened) = save_archive_and_open(&rejoined);
+    check_slot(&reopened, before, id, id);
+}
+
+#[test]
+fn cutover_local_owner_rejoins_overlapping_growth() {
+    let (mut engine, doc) = accepted_pair();
+    let mut doc = select_matrix(&mut engine, &doc, "local");
+    for (id, columns) in [("left-synthetic-keys", 3), ("right-synthetic-keys", 4)] {
+        let mut matrix = doc["matrices"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|m| m["id"] == id)
+            .unwrap()
+            .clone();
+        matrix["columns"] = json!(columns);
+        for column in 2..columns {
+            for row in 0..2 {
+                let mut cell = matrix["cells"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .find(|c| c["row"] == row && c["column"] == 0)
+                    .unwrap()
+                    .clone();
+                cell["column"] = json!(column);
+                matrix["cells"].as_array_mut().unwrap().push(cell);
+            }
+        }
+        let reply = commit_operation(
+            &mut engine,
+            &doc,
+            id,
+            &[id],
+            json!({"kind":"set-matrix", "matrix":matrix}),
+        );
+        assert_eq!(reply["kind"], "scene", "{reply}");
+        doc = reply["document"].clone();
+    }
+    let rejoined = select_matrix(&mut engine, &doc, "linked");
+    let (_, reopened) = save_archive_and_open(&rejoined);
+    for doc in [&rejoined, &reopened] {
+        for row in 0..2 {
+            let adopted = format!("matrix/right-synthetic-keys/r{row}c2");
+            let discarded = format!("matrix/right-synthetic-keys/r{row}c3");
+            for suffix in ["", "/diode", "/led"] {
+                let id = format!("{adopted}{suffix}");
+                assert!(find_part(doc, &id).is_some());
+                assert_eq!(
+                    correspondence(doc, &id)["sourceId"],
+                    format!("matrix/left-synthetic-keys/r{row}c2{suffix}")
+                );
+                assert!(find_part(doc, &format!("{discarded}{suffix}")).is_none());
+            }
+        }
+    }
+}

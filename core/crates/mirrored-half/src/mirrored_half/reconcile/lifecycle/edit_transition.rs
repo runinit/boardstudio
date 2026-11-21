@@ -158,15 +158,7 @@ pub(in crate::mirrored_half::reconcile) fn prepare_edit_transition(
                 }),
                 TransitionState::Omitted => {
                     effects.push(ConstraintLifecycleEffect::RemoveVisibleParts {
-                        part_ids: before
-                            .parts
-                            .iter()
-                            .filter(|part| {
-                                output.context_delta.owners.get(&part.id)
-                                    == Some(&super::super::FinalOwner::Absent)
-                            })
-                            .map(|part| part.id.clone())
-                            .collect(),
+                        part_ids: removed_part_ids(before, &output.draft),
                     })
                 }
                 TransitionState::Linked => effects.push(ConstraintLifecycleEffect::Rejoin {

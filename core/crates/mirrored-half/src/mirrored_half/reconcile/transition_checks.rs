@@ -690,6 +690,26 @@ pub(super) fn validate_transition_output(
         validate_context_owners(draft, next_context)?;
         validate_owner_realization(draft, input.final_owners)?;
     }
+    validate_emitted_slots(
+        draft,
+        next_context,
+        &validated.post_source_members,
+        expected_mirror_members,
+        next_context
+            .associations
+            .iter()
+            .filter(|a| a.kind == MirroredItemKind::Part),
+    )
+}
+
+pub(super) fn validate_emitted_slots<'a>(
+    draft: &ProjectDoc,
+    next_context: &MembershipContext,
+    source_members: &BTreeSet<String>,
+    expected_mirror_members: &BTreeSet<String>,
+    associations: impl Iterator<Item = &'a super::TransitionAssociation>,
+) -> Result<(), String> {
+    let matrix_pair = require_matrix_pair(next_context)?;
     let association_keys: BTreeSet<_> = next_context
         .associations
         .iter()
@@ -705,57 +725,7 @@ pub(super) fn validate_transition_output(
     {
         return Err("The emitted transition associations contain aliased identities".into());
     }
-    for association in next_context
-        .associations
-        .iter()
-        .filter(|association| association.kind == MirroredItemKind::Part)
-    {
-        if association.state == TransitionState::Linked {
-            let Some((row, column, child)) =
-                matrix_identity_slot(&association.source_id, matrix_pair.source_id.as_str())
-            else {
-                return Err(format!(
-                    "The emitted linked source identity {:?} is not canonical",
-                    association.source_id
-                ));
-            };
-            let suffix = if child.is_empty() {
-                String::new()
-            } else {
-                format!("/{child}")
-            };
-            let expected_mirror = format!(
-                "matrix/{}/r{}c{}{}",
-                matrix_pair.mirror_id.as_str(),
-                row,
-                column,
-                suffix
-            );
-            if !validated
-                .post_source_members
-                .contains(&association.source_id)
-                || association.mirror_id != expected_mirror
-                || !expected_mirror_members.contains(&association.mirror_id)
-            {
-                return Err(format!(
-                    "The emitted linked association {:?} disagrees with actual matrix membership",
-                    association.source_id
-                ));
-            }
-        } else if association.state == TransitionState::Omitted
-            && expected_mirror_members.contains(&association.mirror_id)
-        {
-            return Err(format!(
-                "The emitted Omitted identity {:?} remains in mirror membership",
-                association.mirror_id
-            ));
-        }
-    }
-    for association in next_context
-        .associations
-        .iter()
-        .filter(|association| association.kind == MirroredItemKind::Part)
-    {
+    for association in associations {
         let (row, column, child) =
             matrix_identity_slot(&association.source_id, matrix_pair.source_id.as_str())
                 .ok_or_else(|| {
@@ -764,34 +734,22 @@ pub(super) fn validate_transition_output(
                         association.source_id
                     )
                 })?;
-        let suffix = if child.is_empty() {
-            String::new()
+        let mirror_key = crate::matrix::member_id(&matrix_pair.mirror_id, row, column);
+        let expected_mirror = if child.is_empty() {
+            mirror_key.clone()
         } else {
-            format!("/{child}")
+            crate::matrix::companion_id(&mirror_key, child)
         };
-        let expected_mirror = format!(
-            "matrix/{}/r{}c{}{}",
-            matrix_pair.mirror_id.as_str(),
-            row,
-            column,
-            suffix
-        );
         let expected_parents = if child.is_empty() {
             (None, None)
         } else {
             (
-                Some(format!(
-                    "matrix/{}/r{}c{}",
-                    matrix_pair.source_id.as_str(),
+                Some(crate::matrix::member_id(
+                    &matrix_pair.source_id,
                     row,
-                    column
+                    column,
                 )),
-                Some(format!(
-                    "matrix/{}/r{}c{}",
-                    matrix_pair.mirror_id.as_str(),
-                    row,
-                    column
-                )),
+                Some(mirror_key),
             )
         };
         // A top-level key owned by its matrix pair names that pair (spec
@@ -831,9 +789,7 @@ pub(super) fn validate_transition_output(
         match association.state {
             TransitionState::Linked => {
                 if association.mirror_id != expected_mirror
-                    || !validated
-                        .post_source_members
-                        .contains(&association.source_id)
+                    || !source_members.contains(&association.source_id)
                     || !expected_mirror_members.contains(&association.mirror_id)
                 {
                     return Err(format!(
@@ -850,16 +806,14 @@ pub(super) fn validate_transition_output(
                     .count()
                     != 1
                     || board_owner(draft, &association.mirror_id)?
-                        != FinalOwner::Board(input.context.mirror_board_id.clone())
+                        != FinalOwner::Board(next_context.mirror_board_id.clone())
                 {
                     return Err(format!(
                         "The emitted Local identity {:?} lacks its unique mirror-board Part realization",
                         association.mirror_id
                     ));
                 }
-                if validated
-                    .post_source_members
-                    .contains(&association.source_id)
+                if source_members.contains(&association.source_id)
                     && expected_mirror_members.contains(&association.mirror_id)
                     && association.mirror_id != expected_mirror
                 {

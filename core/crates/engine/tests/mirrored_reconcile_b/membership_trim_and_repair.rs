@@ -1374,3 +1374,61 @@ fn repair_fresh_refuses_native_and_legacy_matrix_overlap() {
         "a matrix with both valid native and same-board legacy links must refuse this transition"
     );
 }
+
+#[test]
+fn cutover_replay_compensation_survives_shifted_local_key() {
+    let (before, post, mut context, source_map, owners, closure) =
+        repair_fresh_coherent_compaction_fixture().unwrap();
+    let source = "matrix/source-matrix/r1c2";
+    for a in context
+        .associations
+        .iter_mut()
+        .filter(|a| a.source_id == source || a.parent_source_id.as_deref() == Some(source))
+    {
+        a.state = TransitionState::Local;
+        a.explicit_state = a.source_id == source;
+    }
+    let mirror_map = source_map
+        .iter()
+        .map(|(old, new)| {
+            (
+                old.replace("matrix/source-matrix/", "matrix/mirror-matrix/"),
+                new.as_ref()
+                    .map(|id| id.replace("matrix/source-matrix/", "matrix/mirror-matrix/")),
+            )
+        })
+        .collect();
+    let output = prepare_membership_transition_kernel(MembershipTransitionInput {
+        dispatch: crate::support::test_dispatch(),
+        valid_before: &before,
+        post_source: &post,
+        context: &context,
+        baseline_kind: BaselineKind::MaterializedCurrentSchema,
+        source_identity_map: &source_map,
+        mirror_identity_map: &mirror_map,
+        planned_additions: &[],
+        final_owners: &owners,
+        explicit_removal_closure: &closure,
+    })
+    .unwrap();
+    let mut regenerated = output.draft.clone();
+    let matrix = output
+        .draft
+        .matrices
+        .iter()
+        .find(|m| m.id == "mirror-matrix")
+        .unwrap();
+    boardstudio_core_kernel::matrix::set_matrix(&mut regenerated, matrix).unwrap();
+    for suffix in ["", "/diode"] {
+        let old = format!("matrix/mirror-matrix/r1c2{suffix}");
+        let new = format!("matrix/mirror-matrix/r1c1{suffix}");
+        let expected = before.parts.iter().find(|p| p.id == old).unwrap().pose;
+        for doc in [&output.draft, &regenerated] {
+            assert_eq!(
+                doc.parts.iter().find(|p| p.id == new).unwrap().pose,
+                expected,
+                "{new}"
+            );
+        }
+    }
+}

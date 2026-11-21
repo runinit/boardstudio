@@ -4,6 +4,26 @@ use crate::matrix_and_circuit_lifecycle::{add_lifecycle_association, circuit_lif
 
 #[test]
 fn matrix_owner_rejoin_projects_members_added_while_local() {
+    check_growth(Growth::SourceOnly);
+}
+
+#[test]
+fn cutover_rejoin_adopts_owned_overlap() {
+    check_growth(Growth::OwnedOverlap);
+}
+
+#[test]
+fn cutover_rejoin_refuses_unrelated_collision() {
+    check_growth(Growth::UnrelatedCollision);
+}
+
+enum Growth {
+    SourceOnly,
+    OwnedOverlap,
+    UnrelatedCollision,
+}
+
+fn check_growth(growth: Growth) {
     let (before, mut context) = independent_lifecycle_fixture();
     for a in context.associations.iter_mut().filter(|a| {
         a.kind == MirroredItemKind::Part
@@ -59,6 +79,46 @@ fn matrix_owner_rejoin_projects_members_added_while_local() {
         .find(|p| p.id == "matrix/source-matrix/r0c4")
         .unwrap()
         .properties = Some(BTreeMap::from([("new-source".into(), json!(true))]));
+    let mut target = target;
+    if matches!(growth, Growth::OwnedOverlap) {
+        target.columns = 6;
+        for column in [4, 5] {
+            for row in 0..2 {
+                let mut cell = target
+                    .cells
+                    .iter()
+                    .find(|c| c.row == row && c.column == 0)
+                    .unwrap()
+                    .clone();
+                cell.column = column;
+                target.cells.push(cell);
+            }
+        }
+        boardstudio_core_kernel::matrix::set_matrix(&mut post, &target).unwrap();
+        target = post
+            .matrices
+            .iter()
+            .find(|m| m.id == target.id)
+            .unwrap()
+            .clone();
+    }
+    if matches!(growth, Growth::UnrelatedCollision) {
+        let mut foreign = post
+            .parts
+            .iter()
+            .find(|p| p.id == "matrix/mirror-matrix/r0c0")
+            .unwrap()
+            .clone();
+        foreign.id = "matrix/mirror-matrix/r0c4".into();
+        foreign.reference = "FOREIGN".into();
+        post.boards
+            .iter_mut()
+            .find(|b| b.id == "mirror-board")
+            .unwrap()
+            .part_ids
+            .push(foreign.id.clone());
+        post.parts.push(foreign);
+    }
     let expanded = boardstudio_core_mirrored_half::mirrored_half::reconcile::lifecycle::prepare_lifecycle_transition(
         &local.draft,
         &post,
@@ -87,8 +147,22 @@ fn matrix_owner_rejoin_projects_members_added_while_local() {
         &expanded.draft,
         &rejoin,
         crate::support::test_dispatch(),
-    )
-    .expect("an explicit owner Rejoin projects the current source, including new owned members");
+    );
+    if matches!(growth, Growth::UnrelatedCollision) {
+        assert!(output.is_err(), "an unrelated Part cannot be adopted");
+        return;
+    }
+    let output = output.expect(
+        "an explicit owner Rejoin projects the current source, including new owned members",
+    );
+    assert!(
+        !output
+            .draft
+            .parts
+            .iter()
+            .any(|p| p.id.starts_with("matrix/mirror-matrix/r0c5")
+                || p.id.starts_with("matrix/mirror-matrix/r1c5"))
+    );
     for row in 0..2 {
         for suffix in ["", "/diode"] {
             let source_id = format!("matrix/source-matrix/r{row}c4{suffix}");

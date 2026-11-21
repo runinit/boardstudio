@@ -272,6 +272,7 @@ fn project_membership(
         return Err("A detached mirror takes no projected additions".into());
     }
     let removal = membership_removal(input, axis, detached)?;
+    let compacts_axis = matches!(removal, MembershipRemoval::Axis(_));
 
     let mut staged = input.post_source.clone();
     // An Omitted-absent mirror has no record to stage or project onto: the
@@ -485,13 +486,19 @@ fn project_membership(
     // absent mirror has no record to write: in both cases the projection
     // write-back is skipped (the prune set above is empty here).
     if let Some((projected, omitted)) = projection {
-        let retained = context
-            .associations
-            .iter()
-            .filter(|a| a.kind == MirroredItemKind::Part && a.state == TransitionState::Local)
-            .filter_map(|a| input.mirror_identity_map.get(&a.mirror_id)?.as_ref())
-            .filter_map(|id| staged.parts.iter().find(|p| p.id == *id).cloned())
-            .collect();
+        // The axis setter has already moved staged Parts into their new slots.
+        // Only the compensated descriptor can supply their final Local poses.
+        let retained = if compacts_axis {
+            Vec::new()
+        } else {
+            context
+                .associations
+                .iter()
+                .filter(|a| a.kind == MirroredItemKind::Part && a.state == TransitionState::Local)
+                .filter_map(|a| input.mirror_identity_map.get(&a.mirror_id)?.as_ref())
+                .filter_map(|id| staged.parts.iter().find(|p| p.id == *id).cloned())
+                .collect()
+        };
         super::matrix_membership::materialize_slots(&mut staged, &projected, &omitted, retained)?;
     }
     deduplicate_outline_members(&mut staged);

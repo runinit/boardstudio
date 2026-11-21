@@ -437,8 +437,8 @@ pub(super) fn prepare_lifecycle_projection(
     output.context_delta.retired = retired;
     let mut output = apply_membership_context_delta(before, post_source, context, output)?;
 
-    // The lifecycle already staged matrix geometry. Pass only the matrix identity so
-    // reconciliation can validate it and project the other linked records.
+    // The selection stages the affected slots. Canonical reconciliation uses the
+    // durable matrix link to project the rest of the pair.
     let mut projection =
         super::super::projection_for_pair(&output.context.pair_right, context.mapping);
     if let Some(pair) = &context.matrix_pair {
@@ -523,6 +523,28 @@ pub(super) fn prepare_lifecycle_projection(
             .context
             .owners
             .insert(part.id.clone(), FinalOwner::Board(board.id.clone()));
+    }
+    if let Some(pair) = &context.matrix_pair
+        && matrix_owner.is_some_and(|owner| owner.state == TransitionState::Linked)
+        && !source_matrix_removed
+    {
+        let sources =
+            super::super::source_members(&output.draft, &pair.source_id, &output.context, false)?;
+        let mirrors =
+            super::super::source_members(&output.draft, &pair.mirror_id, &output.context, false)?;
+        let prefix = format!("matrix/{}/", pair.source_id);
+        let slots = output
+            .context
+            .associations
+            .iter()
+            .filter(|a| a.kind == MirroredItemKind::Part && a.source_id.starts_with(&prefix));
+        super::super::transition_checks::validate_emitted_slots(
+            &output.draft,
+            &output.context,
+            &sources,
+            &mirrors,
+            slots,
+        )?;
     }
     output.final_owners = output.context.owners.clone();
     output.context_delta.owners = output.final_owners.clone();

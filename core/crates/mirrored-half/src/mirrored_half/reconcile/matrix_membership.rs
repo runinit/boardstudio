@@ -37,11 +37,7 @@ pub(super) fn slot_projection<'a>(
     let mut local_key_preservations = Vec::new();
     // A Rejoined owner uses the source descriptor as its seed. Explicit Local
     // hardware still belongs to the previous target, including its assembly overrides.
-    let previous = staged
-        .matrices
-        .iter()
-        .find(|m| m.id == mirror.id)
-        .unwrap_or(mirror);
+    let previous = staged.matrices.iter().find(|m| m.id == mirror.id);
     let omitted_owner = context.associations.iter().any(|a| {
         a.kind == MirroredItemKind::Matrix
             && a.source_id == source.id
@@ -74,30 +70,47 @@ pub(super) fn slot_projection<'a>(
             ));
         }
         if let Some(association) = original_key.filter(|a| a.state == TransitionState::Local) {
-            let local_cell = previous
-                .cells
-                .iter()
-                .find(|candidate| candidate.row == cell.row && candidate.column == cell.column)
-                .ok_or_else(|| {
-                    format!(
-                        "The retained Local matrix cell r{}c{} is unavailable",
-                        cell.row, cell.column
-                    )
-                })?;
+            if let Some(previous) = previous {
+                *cell = previous
+                    .cells
+                    .iter()
+                    .find(|candidate| candidate.row == cell.row && candidate.column == cell.column)
+                    .ok_or_else(|| {
+                        format!(
+                            "The retained Local matrix cell r{}c{} is unavailable",
+                            cell.row, cell.column
+                        )
+                    })?
+                    .clone();
+            }
             local_key_preservations.push((
                 cell.row,
                 cell.column,
                 association.mirror_id.clone(),
                 mirror_key_id.clone(),
             ));
-            *cell = local_cell.clone();
-            for assembly in &cell.assemblies {
+            for assembly in &mut cell.assemblies {
                 let source_child_id = crate::matrix::companion_id(&source_key_id, &assembly.id);
-                if association_for(&source_child_id).is_some_and(|child| {
-                    child.state == TransitionState::Omitted && child.explicit_state
-                }) {
+                let Some(child) = association_for(&source_child_id) else {
+                    continue;
+                };
+                if child.state == TransitionState::Omitted && child.explicit_state {
                     omitted_target_parts
                         .insert(crate::matrix::companion_id(&mirror_key_id, &assembly.id));
+                } else if previous.is_none() && child.state == TransitionState::Local {
+                    // An Omitted matrix has no saved assembly descriptor. Both Local
+                    // Parts survive on the board, including independently authored offsets.
+                    let local_pose =
+                        |id: &str| {
+                            before.parts.iter().find(|p| p.id == id).ok_or_else(|| {
+                                format!("The retained Local Part {id:?} is unavailable")
+                            })
+                        };
+                    super::membership_view::retain_companion_pose(
+                        assembly,
+                        local_pose(&association.mirror_id)?.pose,
+                        local_pose(&child.mirror_id)?,
+                    )?;
                 }
             }
             continue;
@@ -119,8 +132,8 @@ pub(super) fn slot_projection<'a>(
             }
             if original.is_some_and(|association| association.state == TransitionState::Local) {
                 let local_assembly = previous
-                    .cells
-                    .iter()
+                    .into_iter()
+                    .flat_map(|matrix| &matrix.cells)
                     .find(|candidate| candidate.row == cell.row && candidate.column == cell.column)
                     .and_then(|candidate| {
                         candidate
@@ -130,7 +143,9 @@ pub(super) fn slot_projection<'a>(
                     });
                 if let Some(local) = local_assembly {
                     assembly = local.clone();
-                } else if !context.pending_rejoins.contains_key(&source_key_id) {
+                } else if previous.is_some()
+                    && !context.pending_rejoins.contains_key(&source_key_id)
+                {
                     return Err(format!(
                         "The retained Local companion {mirror_child_id:?} is unavailable"
                     ));
@@ -293,12 +308,7 @@ pub(super) fn materialize_selection(
             .clone();
         let mut next = current.clone();
         for cell in &mut next.cells {
-            let key = format!(
-                "matrix/{}/r{}c{}",
-                matrix_pair.mirror_id.as_str(),
-                cell.row,
-                cell.column
-            );
+            let key = crate::matrix::member_id(&matrix_pair.mirror_id, cell.row, cell.column);
             if context.associations.iter().any(|a| {
                 a.kind == MirroredItemKind::Part
                     && a.mirror_id == key
@@ -329,8 +339,8 @@ pub(super) fn materialize_selection(
         .iter()
         .find(|m| m.id == matrix_pair.mirror_id);
     let mirror = if context.pending_rejoins.contains_key(&owner.source_id) {
-        // New cells introduced while an owner was Local acquire associations only on this
-        // explicitly authorized owner Rejoin, after the normal setter assigns their targets.
+        // Rejoin adopts overlapping slots already owned by this matrix. The setter drops
+        // target-only growth and materializes source-only growth.
         for id in &source.part_ids {
             if context
                 .associations
@@ -341,12 +351,15 @@ pub(super) fn materialize_selection(
             }
             let (row, column, suffix) = super::matrix_identity_slot(id, &matrix_pair.source_id)
                 .ok_or("A new owner Rejoin member is not canonical")?;
+            let mirror_key = crate::matrix::member_id(&matrix_pair.mirror_id, row, column);
             let mirror_id = if suffix.is_empty() {
-                format!("matrix/{}/r{row}c{column}", matrix_pair.mirror_id)
+                mirror_key.clone()
             } else {
-                format!("matrix/{}/r{row}c{column}/{suffix}", matrix_pair.mirror_id)
+                crate::matrix::companion_id(&mirror_key, suffix)
             };
-            if draft.parts.iter().any(|p| p.id == mirror_id) {
+            if draft.parts.iter().any(|p| p.id == mirror_id)
+                && !current.is_some_and(|matrix| matrix.part_ids.contains(&mirror_id))
+            {
                 return Err(format!(
                     "A new owner Rejoin member collides with existing Part {mirror_id:?}"
                 ));
@@ -358,12 +371,12 @@ pub(super) fn materialize_selection(
                 parent_source_id: Some(if suffix.is_empty() {
                     matrix_pair.source_id.clone()
                 } else {
-                    format!("matrix/{}/r{row}c{column}", matrix_pair.source_id)
+                    crate::matrix::member_id(&matrix_pair.source_id, row, column)
                 }),
                 parent_mirror_id: Some(if suffix.is_empty() {
                     matrix_pair.mirror_id.clone()
                 } else {
-                    format!("matrix/{}/r{row}c{column}", matrix_pair.mirror_id)
+                    mirror_key
                 }),
                 state: TransitionState::Linked,
                 explicit_state: false,
