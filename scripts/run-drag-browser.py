@@ -122,6 +122,14 @@ class Smoke:
         x, y = self.point(selector, name, scroll=True)
         input_actions(self.browser, "pointer", move(x, y), DOWN, UP)
 
+    def select_option(self, name, option):
+        self.button(name)
+        self.click(f'[role="listbox"][aria-label="{name}"] [role="option"]', option)
+        wait_for(lambda: self.evaluate("""(() => {
+            const trigger = [...document.querySelectorAll('button')].find(el => el.getAttribute('aria-label') === arguments[0]);
+            return trigger?.textContent.trim() === arguments[1] && trigger.getAttribute('aria-expanded') === 'false';
+        })()""", name, option), f"{name} selected {option}")
+
     def point(self, selector, name=None, *, scroll=False):
         return wait_for(lambda: self.browser.execute_sync("""
             const [selector, name, scroll] = arguments;
@@ -268,8 +276,22 @@ class Smoke:
         self.commit_and_undo("Ctrl Offset handle", '[aria-label="Drag to offset column"]',
                              matrix_id, "columnLayout", ctrl=True)
 
-    def collision(self):
+    def prepare_collision(self):
         self.button("Open Case workspace")
+        before = self.project()
+        self.button("Configure mechanical stack")
+        configured = wait_for(lambda: (project if (project := self.persisted_after(before["revision"]))
+                                       and mechanical_mounts(project) else None), "mechanical stack save", 60)
+        if mechanical_mounts(configured) != ["rigid"]:
+            self.select_option("Mount style", "Rigid mount")
+            wait_for(lambda: (project if (project := self.persisted_after(configured["revision"]))
+                              and mechanical_mounts(project) == ["rigid"] else None),
+                     "rigid mount save", 60)
+        # Wait for readiness instead of treating an initially disabled button as no action.
+        self.button("Update preview")
+
+    def collision(self):
+        self.prepare_collision()
         wait_for(lambda: self.evaluate(
             """[...document.querySelectorAll('[role="status"]')].some(el =>
                 el.textContent.includes('Exact case geometry ready.'))"""), "exact Case geometry", 120)
@@ -315,6 +337,12 @@ def without_revision(project):
     return {key: value for key, value in project.items() if key != "revision"}
 
 
+def mechanical_mounts(project):
+    configurations = [project.get("mechanical")]
+    configurations.extend(instance.get("mechanical") for instance in (project.get("hardware") or {}).get("instances", []))
+    return [configuration["mount"] for configuration in configurations if configuration is not None]
+
+
 def verify_edit(name, field, before, after):
     require({key: value for key, value in before.items() if key != field}
             == {key: value for key, value in after.items() if key != field},
@@ -356,6 +384,14 @@ def run(suite, site):
                 for suffix in ("/m1_cad_worker_bg.wasm", ".bstep"):
                     require(any(path.endswith(suffix) for path in served.copy()), f"Case did not load {suffix}")
         except (OSError, RuntimeError, ValueError) as error:
+            try:
+                status = browser.execute_sync("""return ({
+                    statuses: [...document.querySelectorAll('[role="status"]')].map(el => el.textContent.trim()),
+                    alerts: [...document.querySelectorAll('[role="alert"]')].map(el => el.textContent.trim()),
+                });""")
+                error.add_note(f"rendered DOM status={status.get('statuses')} alerts={status.get('alerts')}")
+            except (OSError, RuntimeError):
+                pass
             try:
                 browser.check_page_errors()
             except (OSError, RuntimeError) as page_error:

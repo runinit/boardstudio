@@ -13,6 +13,26 @@ drag = importlib.import_module("run-drag-browser")
 
 
 class DragBrowserTests(unittest.TestCase):
+    def test_collision_setup_waits_for_durable_configuration_and_mount_before_generation(self):
+        smoke = drag.Smoke(Mock())
+        initial = {"revision": 3}
+        configured = {"revision": 4, "mechanical": {"mount": "tray"}}
+        rigid = {"revision": 5, "mechanical": {"mount": "rigid"}}
+        events = []
+        smoke.project = Mock(return_value=initial)
+        smoke.button = Mock(side_effect=lambda name: events.append(name))
+        smoke.select_option = Mock(side_effect=lambda name, value: events.append((name, value)))
+        smoke.persisted_after = Mock(side_effect=lambda revision: {
+            3: configured, 4: rigid,
+        }[revision])
+        smoke.prepare_collision()
+        self.assertEqual(events, ["Open Case workspace", "Configure mechanical stack",
+                                  ("Mount style", "Rigid mount"), "Update preview"])
+        self.assertEqual(smoke.persisted_after.call_args_list, [call(3), call(4)])
+        self.assertEqual(drag.mechanical_mounts({"hardware": {"instances": [
+            {"mechanical": {"mount": "rigid"}}, {"mechanical": None},
+        ]}}), ["rigid"])
+
     def test_service_worker_is_stubbed_without_changing_other_assets(self):
         with tempfile.TemporaryDirectory() as directory:
             site = Path(directory)
