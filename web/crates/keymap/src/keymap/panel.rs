@@ -1,15 +1,15 @@
 use super::view::KeymapView;
 use crate::layer_edit::{KeymapLayerFeedback, KeymapLayerOperation};
 use boardstudio_application::Scope;
+use boardstudio_web_ui_shared::inspector_fields::TextField;
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::collapsible::{
     Collapsible, CollapsibleContent, CollapsibleTrigger,
 };
 use boardstudio_web_ui_shared::ui::combobox::{Combobox, ComboboxOption};
-use boardstudio_web_ui_shared::ui::field::{Field, FieldError, FieldLabel};
+use boardstudio_web_ui_shared::ui::field::{Field, FieldLabel};
 use boardstudio_web_ui_shared::ui::input::InputType;
-use boardstudio_web_ui_shared::ui::input_group::{InputGroup, InputGroupInput};
 use boardstudio_web_ui_shared::ui::tabs::{Tabs, TabsContent, TabsList, TabsTrigger};
 use boardstudio_web_ui_shared::ui::toggle_group::{ToggleGroup, ToggleItem};
 use dioxus::prelude::*;
@@ -133,15 +133,10 @@ pub fn KeymapPanel(
                     CollapsibleContent { hidden: !keys_section_open(), inert: (!keys_section_open()).then_some(""),
                     div { class: "grid gap-3 min-w-0 pb-5",
                         if show_navigation {
-                        Field { class: "gap-1.5",
-                            FieldLabel { html_for: search_id.clone(), "Find a key" }
-                            InputGroup { InputGroupInput {
-                                id: search_id.clone(), r#type: InputType::Search,
-                                class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
-                                aria_label: "Find a key",
-                                value: "{query}",
-                                oninput: move |event: FormEvent| query.set(event.value()),
-                            } }
+                        TextField {
+                            id: search_id, label: "Find a key", aria_label: "Find a key",
+                            class: "gap-1.5", aria_invalid: None, r#type: InputType::Search,
+                            value: query(), oninput: move |event: FormEvent| query.set(event.value()),
                         }
                         Field { class: "gap-1.5",
                             FieldLabel { html_for: key_picker_id.clone(), "Selected key" }
@@ -259,11 +254,10 @@ pub fn KeymapNavigation(
                 on_layer_operation,
             }
 
-            Field { class: "gap-1.5",
-                FieldLabel { html_for: search_id.clone(), "Find a key" }
-                InputGroup { InputGroupInput { id: search_id, r#type: InputType::Search, aria_label: "Find a key", class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
-                    value: query(), oninput: move |event: FormEvent| query.set(event.value()) }
-                }
+            TextField {
+                id: search_id, label: "Find a key", aria_label: "Find a key",
+                class: "gap-1.5", aria_invalid: None, r#type: InputType::Search,
+                value: query(), oninput: move |event: FormEvent| query.set(event.value()),
             }
             ToggleGroup { class: "grid! gap-0.5! mt-3 w-full", aria_label: "Keys on active layer", horizontal: false,
                 pressed: Some(selected_index.into_iter().collect()),
@@ -409,38 +403,26 @@ fn KeymapLayerControls(props: KeymapLayerControlsProps) -> Element {
                 onclick: move |_| props.on_operation.call(KeymapLayerOperation::Add),
                 "Add layer"
             }
-            Field { class: if props.compact { "grid gap-2" } else { "gap-1.5" }, disabled: !props.enabled, invalid: field_error.is_some(),
-                FieldLabel { html_for: name_id.clone(), "Layer name" }
-                InputGroup {
-                InputGroupInput {
-                    id: name_id,
-                    class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
-                    aria_label: "Layer name",
-                    aria_invalid: field_error.is_some(),
-                    aria_describedby: field_error.as_ref().map(|_| error_id.clone()),
-                    value: "{name_draft}",
-                    disabled: !props.enabled,
-                    oninput: move |event: FormEvent| { name_failure.set(None); name_draft.set(event.value()); dirty.set(true); },
-                    attributes: {
-                        let name_draft = name_draft;
-                        let on_operation = props.on_operation;
-                        let layer_id = layer_id.clone();
-                        vec![Attribute::new("maxlength", "32", None, false), dioxus::events::onblur(move |_| {
-                            let name = name_draft();
-                            if dirty() && props.enabled {
-                                dirty.set(false);
-                                on_operation.call(KeymapLayerOperation::Rename {
-                                    layer_id: layer_id.clone(),
-                                    name,
-                                });
-                            }
-                        })]
-                    },
-                }
-                }
-                if let Some(message) = field_error.as_deref() {
-                    div { id: error_id, FieldError { "{message}" } }
-                }
+            TextField {
+                id: name_id, label: "Layer name", aria_label: "Layer name",
+                class: if props.compact { "grid gap-2" } else { "gap-1.5" },
+                error: field_error, message_id: error_id, maxlength: Some("32".to_owned()),
+                value: "{name_draft}", disabled: !props.enabled,
+                oninput: move |event: FormEvent| { name_failure.set(None); name_draft.set(event.value()); dirty.set(true); },
+                onblur: {
+                    let on_operation = props.on_operation;
+                    let layer_id = layer_id.clone();
+                    move |_| {
+                        let name = name_draft();
+                        if dirty() && props.enabled {
+                            dirty.set(false);
+                            on_operation.call(KeymapLayerOperation::Rename {
+                                layer_id: layer_id.clone(),
+                                name,
+                            });
+                        }
+                    }
+                },
             }
             if !props.is_base {
                 Button {

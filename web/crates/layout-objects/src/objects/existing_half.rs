@@ -6,6 +6,7 @@ use boardstudio_application::{
 };
 use boardstudio_model::model::{EditOperation, PartKind, ProjectDoc, Vec2};
 use boardstudio_web_runtime::operation_outcomes::{EditOutcome, Settlement};
+use boardstudio_web_ui_shared::inspector_fields::NumericField;
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
@@ -14,10 +15,6 @@ use boardstudio_web_ui_shared::ui::{
     combobox::{Combobox, ComboboxOption},
     field::{Field, FieldLabel},
     select::{Select, SelectOption},
-};
-use boardstudio_web_ui_shared::ui::{
-    input::InputType,
-    input_group::{InputGroup, InputGroupInput},
 };
 use dioxus::prelude::*;
 use std::rc::Rc;
@@ -605,142 +602,138 @@ pub fn ExistingHalfSetup(props: ExistingHalfProps) -> Element {
     let error = props.projection.error.clone();
 
     rsx! {
-                section {
-                    role: "region",
-                    aria_label: "Mirror existing half",
-                    onkeydown: move |event: KeyboardEvent| {
-                        if event.key() == Key::Escape && can_cancel {
-                            event.prevent_default();
-                            event.stop_propagation();
-                            cancel.call(owner_escape.clone());
-                        }
-                    },
-                    Card { class: "layout-mirror-dock gap-4 p-4",
-                        header { class: "flex items-baseline justify-between gap-2",
-                            h2 { class: "m-0! text-[16px]!", "Mirror existing half" }
-                        }
-                        Callout { variant: CalloutVariant::Info,
-                            "Keep the original in place and mirror its components too. Replace a component on one side when the halves need different hardware."
-                        }
-                        form { class: "grid gap-4", onsubmit: submit,
-                            {
-                                let control_label = "Source layouts".to_owned();
-                                let control_aria_label = "Source layouts".to_owned();
-                                let control_id = format!(
-                                    "layout-choice-{}-{}",
-                                    dioxus::core::current_scope_id().0,
-                                    control_aria_label.replace(' ', "-"),
-                                );
-                                let mut control_choices: Vec<(String, String, bool)> = Vec::new();
+            section {
+                role: "region",
+                aria_label: "Mirror existing half",
+                onkeydown: move |event: KeyboardEvent| {
+                    if event.key() == Key::Escape && can_cancel {
+                        event.prevent_default();
+                        event.stop_propagation();
+                        cancel.call(owner_escape.clone());
+                    }
+                },
+                Card { class: "layout-mirror-dock gap-4 p-4",
+                    header { class: "flex items-baseline justify-between gap-2",
+                        h2 { class: "m-0! text-[16px]!", "Mirror existing half" }
+                    }
+                    Callout { variant: CalloutVariant::Info,
+                        "Keep the original in place and mirror its components too. Replace a component on one side when the halves need different hardware."
+                    }
+                    form { class: "grid gap-4", onsubmit: submit,
+                        {
+                            let control_label = "Source layouts".to_owned();
+                            let control_aria_label = "Source layouts".to_owned();
+                            let control_id = format!(
+                                "layout-choice-{}-{}",
+                                dioxus::core::current_scope_id().0,
+                                control_aria_label.replace(' ', "-"),
+                            );
+                            let mut control_choices: Vec<(String, String, bool)> = Vec::new();
+                            control_choices
+                                .push((
+                                    "all".to_owned(),
+                                    "All unpaired layouts on this board".to_owned(),
+                                    false,
+                                ));
+                            for option in owner.options.iter() {
                                 control_choices
                                     .push((
-                                        "all".to_owned(),
-                                        "All unpaired layouts on this board".to_owned(),
+                                        option.matrix_id.to_string(),
+                                        option.label.to_string(),
                                         false,
                                     ));
-                                for option in owner.options.iter() {
-                                    control_choices
-                                        .push((
-                                            option.matrix_id.to_string(),
-                                            option.label.to_string(),
-                                            false,
-                                        ));
-                                }
-                                let on_value_change = EventHandler::new(move |choice: Option<String>| {
-            let Some(choice) = choice else {
-                return;
-            };
-            default_choice.set(choice)
-        });
-        rsx! {
+                            }
+                            let on_value_change = EventHandler::new(move |choice: Option<String>| {
+        let Some(choice) = choice else {
+            return;
+        };
+        default_choice.set(choice)
+    });
+    rsx! {
 
-                                    Field { class: "min-w-0",
-                                        FieldLabel { html_for: control_id.clone(), "{control_label}" }
-                                        if control_choices.len() > 12 {
-                                            Combobox::<String> { class: "max-[760px]:[&_[data-slot=combobox-input]]:min-h-control-touch",
-                                                id: control_id.clone(),
-                                                aria_label: control_aria_label.clone(),
-                                                list_aria_label: control_aria_label.clone(),
-                                                value: Some(source_choice.into()),
-                                                disabled: !props.projection.editable,
-                                                on_value_change,
-                                                for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
-                                                    ComboboxOption::<String> {
-                                                        index,
-                                                        value: value.clone(),
-                                                        text_value: label.clone(),
-                                                        disabled: *disabled,
-                                                        "{label}"
-                                                    }
+                                Field { class: "min-w-0",
+                                    FieldLabel { html_for: control_id.clone(), "{control_label}" }
+                                    if control_choices.len() > 12 {
+                                        Combobox::<String> { class: "max-[760px]:[&_[data-slot=combobox-input]]:min-h-control-touch",
+                                            id: control_id.clone(),
+                                            aria_label: control_aria_label.clone(),
+                                            list_aria_label: control_aria_label.clone(),
+                                            value: Some(source_choice.into()),
+                                            disabled: !props.projection.editable,
+                                            on_value_change,
+                                            for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
+                                                ComboboxOption::<String> {
+                                                    index,
+                                                    value: value.clone(),
+                                                    text_value: label.clone(),
+                                                    disabled: *disabled,
+                                                    "{label}"
                                                 }
                                             }
-                                        } else {
-                                            Select::<String> { class: "min-w-0 w-full [&_[data-placeholder]]:min-w-0 [&_[data-placeholder]]:truncate max-[760px]:[&_[data-slot=select-trigger]]:min-h-control-touch",
-                                                id: control_id.clone(),
-                                                aria_label: control_aria_label.clone(),
-                                                value: Some(source_choice.into()),
-                                                disabled: !props.projection.editable,
-                                                on_value_change,
-                                                for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
-                                                    SelectOption::<String> {
-                                                        index,
-                                                        value: value.clone(),
-                                                        text_value: label.clone(),
-                                                        disabled: *disabled,
-                                                        "{label}"
-                                                    }
+                                        }
+                                    } else {
+                                        Select::<String> { class: "min-w-0 w-full [&_[data-placeholder]]:min-w-0 [&_[data-placeholder]]:truncate max-[760px]:[&_[data-slot=select-trigger]]:min-h-control-touch",
+                                            id: control_id.clone(),
+                                            aria_label: control_aria_label.clone(),
+                                            value: Some(source_choice.into()),
+                                            disabled: !props.projection.editable,
+                                            on_value_change,
+                                            for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
+                                                SelectOption::<String> {
+                                                    index,
+                                                    value: value.clone(),
+                                                    text_value: label.clone(),
+                                                    disabled: *disabled,
+                                                    "{label}"
                                                 }
                                             }
                                         }
                                     }
                                 }
                             }
-                            {
-                                let control_input_id = format!(
-                                    "layout-input-{}-1",
-                                    dioxus::core::current_scope_id().0,
-                                );
-                                rsx! {
-                                    Field {
-                                        FieldLabel { html_for: control_input_id.clone(), "Mirror axis X (mm)" }
-                                        InputGroup { class: "max-[760px]:h-control-touch",
-                                            InputGroupInput { class: "max-[760px]:h-control-touch", aria_label: "Mirror axis X",
-    r#type: InputType::Number,
-    step: "any",
-    required: true,
-    value: "{axis_value}",
-    disabled: !props.projection.editable,
-    oninput: move |event: FormEvent| axis.set(event.value()),
-    id: control_input_id.clone(), }
-                                        }
-                                    }
+                        }
+                        {
+                            let control_input_id = format!(
+                                "layout-input-{}-1",
+                                dioxus::core::current_scope_id().0,
+                            );
+                            rsx! {
+                                NumericField {
+                                    id: control_input_id, label: "Mirror axis X (mm)", class: "", aria_invalid: None,
+                                    control_class: "max-[760px]:h-control-touch",
+                                    aria_label: "Mirror axis X",
+                                    required: true,
+                                    value: "{axis_value}",
+                                    disabled: !props.projection.editable,
+                                    oninput: move |event: FormEvent| axis.set(event.value()),
                                 }
                             }
-                            if let Some(message) = error {
-                                Alert {
-        variant: AlertVariant::Destructive,AlertDescription {  "{message}"  } }
+                        }
+                        if let Some(message) = error {
+                            Alert {
+    variant: AlertVariant::Destructive,AlertDescription {  "{message}"  } }
+                        }
+                        footer { class: "flex flex-wrap justify-end gap-2",
+                            Button {
+                                variant: ButtonVariant::Secondary,
+                                class: "max-[760px]:min-h-control-touch",
+                                button_type: "button",
+                                disabled: !props.projection.can_cancel,
+                                onclick: move |_| cancel.call(owner.clone()),
+                                "Cancel"
                             }
-                            footer { class: "flex flex-wrap justify-end gap-2",
-                                Button {
-                                    variant: ButtonVariant::Secondary,
-                                    class: "max-[760px]:min-h-control-touch",
-                                    button_type: "button",
-                                    disabled: !props.projection.can_cancel,
-                                    onclick: move |_| cancel.call(owner.clone()),
-                                    "Cancel"
-                                }
-                                Button {
-                                    variant: ButtonVariant::Default,
-                                    class: "max-[760px]:min-h-control-touch",
-                                    button_type: "submit",
-                                    disabled: !can_create,
-                                    "Create linked half"
-                                }
+                            Button {
+                                variant: ButtonVariant::Default,
+                                class: "max-[760px]:min-h-control-touch",
+                                button_type: "submit",
+                                disabled: !can_create,
+                                "Create linked half"
                             }
                         }
                     }
                 }
             }
+        }
 }
 
 #[cfg(test)]

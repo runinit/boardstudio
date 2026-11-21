@@ -1,7 +1,6 @@
 //! Outline version Inspector.
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
 use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
-use boardstudio_web_ui_shared::ui::input_group::{InputGroup, InputGroupInput};
 
 use super::hook::{OutlineDrawTool, OutlineInspectorProjection, OutlineVersionOwnership};
 use super::overlays::{OutlineCoordinate, OutlineDimension};

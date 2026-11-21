@@ -7,11 +7,11 @@ use crate::matrix_setup_operation::MatrixSetupPreset;
 use crate::mirrored_pair_geometry::MirroredPairProjection;
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_model::model::Vec2;
+use boardstudio_web_ui_shared::inspector_fields::NumericField;
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
 use boardstudio_web_ui_shared::ui::field::{Field, FieldLabel};
-use boardstudio_web_ui_shared::ui::input::InputType;
 use boardstudio_web_ui_shared::ui::input_group::{InputGroup, InputGroupInput};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
@@ -260,16 +260,11 @@ pub fn MirroredPairForm(props: MirroredPairFormProps) -> Element {
                 }
                 MatrixAssemblyPicker { family, mounting, lighting, editable: props.projection.editable }
                 MatrixPreview { rows: rows_value.clone(), columns: columns_value.clone() }
-                Field {
-                    FieldLabel { html_for: gap_id.clone(), "Gap between key edges (mm)" }
-                    InputGroup { class: "max-[760px]:h-control-touch",
-                        InputGroupInput {
-                            class: "max-[760px]:h-control-touch", aria_label: "Gap between key edges (mm)", id: gap_id,
-                            r#type: InputType::Number, min: "0", step: "any", required: true,
-                            value: "{gap_value}", disabled: !props.projection.editable,
-                            oninput: move |event: FormEvent| gap.set(event.value()),
-                        }
-                    }
+                NumericField {
+                    id: gap_id, label: "Gap between key edges (mm)", aria_label: "Gap between key edges (mm)",
+                    class: "", control_class: "max-[760px]:h-control-touch", aria_invalid: None,
+                    min: "0", required: true, value: "{gap_value}", disabled: !props.projection.editable,
+                    oninput: move |event: FormEvent| gap.set(event.value()),
                 }
                 p { class: "mt-2.5 mb-5 border-t border-border pt-3.5 text-[13px] leading-normal text-muted-foreground",
                     "Edit either half to update both. Unlink in the inspector for independent geometry."

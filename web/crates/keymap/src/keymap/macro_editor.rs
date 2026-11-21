@@ -1,14 +1,10 @@
 //! Private read-only projection and typed view for saved Keymap macros.
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_model::model::{KeymapMacro, MacroChange, MacroStep, ProjectDoc};
-use boardstudio_web_ui_shared::inspector_fields::TextField;
+use boardstudio_web_ui_shared::inspector_fields::{NumericField, SelectField, TextField};
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
-use boardstudio_web_ui_shared::ui::field::{Field, FieldError, FieldLabel};
-use boardstudio_web_ui_shared::ui::input::InputType;
-use boardstudio_web_ui_shared::ui::input_group::{InputGroup, InputGroupInput};
-use boardstudio_web_ui_shared::ui::select::{Select, SelectOption};
 use dioxus::prelude::*;
 use std::sync::Arc;
 use std::{cell::RefCell, rc::Rc};
@@ -428,30 +424,26 @@ fn StepEditor(props: StepEditorProps) -> Element {
         props.scope, props.scope_generation, props.editor_instance_id, props.macro_id, index
     );
     let select_id = format!("macro-step-kind-{}", dioxus::core::current_scope_id().0);
-    let current_kind = use_memo(use_reactive((&kind,), |(kind,)| Some(kind.to_owned())));
     rsx! {
         div { class: "grid gap-2 min-w-0 p-2 border border-border rounded-[4px] bg-accent",
-            Field { class: "gap-1.5", disabled: !props.enabled,
-                FieldLabel { html_for: select_id.clone(), "Step {index + 1}" }
-                Select::<String> {
-                id: select_id,
-                class: "max-[960px]:[&_[data-slot=select-trigger]]:min-h-control-touch [@media(pointer:coarse)]:[&_[data-slot=select-trigger]]:min-h-control-touch",
+            SelectField {
+                id: select_id, label: "Step {index + 1}",
                 aria_label: crate::macro_accessible_names::step_kind_control_name(&props.macro_name, index),
-                value: Some(current_kind.into()),
-                disabled: !props.enabled,
-                on_value_change: { let context = request_context.clone(); let macro_id = macro_id.clone(); let sequence = sequence.clone(); move |value: Option<String>| {
-                        let Some(value) = value else { return; };
+                value: kind, disabled: !props.enabled,
+                options: ["tap", "press", "release", "wait"].map(|option| (option.into(), option.into())).to_vec(),
+                on_select: {
+                    let context = request_context.clone();
+                    let macro_id = macro_id.clone();
+                    let sequence = sequence.clone();
+                    move |value: String| {
                         let next = match value.as_str() {
                             "wait" => MacroStep::Wait { ms: 100 },
                             "press" => press_a(), "release" => release_a(), _ => tap_a(),
                         };
                         request(&context, MacroEditTarget::StepKind { index }, Some(macro_id.clone()), Some(sequence.clone()),
                             MacroEditChange::Change(MacroChange::Step { index, value: next }));
-                    } },
-                for (option_index, option) in ["tap", "press", "release", "wait"].into_iter().enumerate() {
-                    SelectOption::<String> { index: option_index, value: option, text_value: option, class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{option}" }
-                }
-                }
+                    }
+                },
             }
             if let MacroStep::Wait { .. } = displayed {
                 NumberDraft {
@@ -590,23 +582,16 @@ fn NumberDraft(props: NumberDraftProps) -> Element {
     let error_id = format!("{id}-error");
     let message = failure();
     rsx! {
-        Field { class: "gap-1.5", disabled: !props.enabled, invalid: message.is_some(),
-            FieldLabel { html_for: id.clone(), "{props.label}" }
-            InputGroup { InputGroupInput {
-                id, aria_label: props.aria_label, r#type: InputType::Number, min: "0", max: "10000",
-                class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
-                value: "{draft}", disabled: !props.enabled,
-                aria_invalid: message.is_some(), aria_describedby: message.as_ref().map(|_| error_id.clone()),
-                oninput: move |event: FormEvent| { failure.set(None); draft.set(event.value()); dirty.set(true); },
-                attributes: vec![dioxus::events::onblur(move |_| {
-                    let raw = draft();
-                    let parsed = if raw.is_empty() { Some(0) } else { raw.parse::<u32>().ok() };
-                    if let Some(value) = parsed && dirty() { dirty.set(false); on_commit.call(value); }
-                })],
-            } }
-            if let Some(message) = message.as_deref() {
-                div { id: error_id, FieldError { "{message}" } }
-            }
+        NumericField {
+            id, label: props.label, aria_label: props.aria_label, min: "0", max: "10000", step: None::<String>,
+            class: "gap-1.5", error: message, message_id: error_id,
+            value: "{draft}", disabled: !props.enabled,
+            oninput: move |event: FormEvent| { failure.set(None); draft.set(event.value()); dirty.set(true); },
+            onblur: move |_| {
+                let raw = draft();
+                let parsed = if raw.is_empty() { Some(0) } else { raw.parse::<u32>().ok() };
+                if let Some(value) = parsed && dirty() { dirty.set(false); on_commit.call(value); }
+            },
         }
     }
 }

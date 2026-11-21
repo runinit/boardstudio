@@ -1,5 +1,6 @@
 //! Anchor section of the transform Inspector: detach, pick, aggregate, follow.
 use super::*;
+use boardstudio_web_ui_shared::inspector_fields::CheckboxField;
 
 /// Parse Core's detach proposal ("Detaching {m} would move its linked partner
 /// {p}; make {p} Local ...") into the required Local matrix. Anything else is
@@ -558,15 +559,12 @@ pub(super) fn FollowTransformField(props: FollowTransformFieldProps) -> Element 
     let toggle = move |(field, label, current): (MatrixTransformField, &'static str, bool)| {
         let mut send = send.clone();
         rsx! {
-            Label { html_for: format!("matrix-anchor-{}", label.replace(' ', "-")),
-                Checkbox {
-                    id: format!("matrix-anchor-{}", label.replace(' ', "-")),
-                    checked: Some(if current { CheckboxState::Checked } else { CheckboxState::Unchecked }),
-                    disabled: !props.editable,
-                    aria_label: label,
-                    on_checked_change: move |next| send(field, current, next == CheckboxState::Checked),
-                }
-                "{label}"
+            CheckboxField {
+                inline: true, id: format!("matrix-anchor-{}", label.replace(' ', "-")), label,
+                checked: if current { CheckboxState::Checked } else { CheckboxState::Unchecked },
+                disabled: !props.editable,
+                aria_label: label,
+                on_checked_change: move |next| send(field, current, next == CheckboxState::Checked),
             }
         }
     };

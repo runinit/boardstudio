@@ -10,22 +10,18 @@ use boardstudio_web_layout::component_offset::{
     default_axes_for_source, offset_axes_from_value, offset_axes_value, offset_drafts,
     offset_values, position_commit_value, position_input_disabled,
 };
+use boardstudio_web_ui_shared::inspector_fields::{CheckboxField, NumericField, SelectField};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
-use boardstudio_web_ui_shared::ui::checkbox::{Checkbox, CheckboxState};
+use boardstudio_web_ui_shared::ui::checkbox::CheckboxState;
 use boardstudio_web_ui_shared::ui::collapsible::{
     Collapsible, CollapsibleContent, CollapsibleTrigger,
 };
-use boardstudio_web_ui_shared::ui::label::Label;
 use boardstudio_web_ui_shared::ui::tabs::{Tabs, TabsContent, TabsList, TabsTrigger};
 use boardstudio_web_ui_shared::ui::{
     combobox::{Combobox, ComboboxOption},
     field::{Field, FieldError, FieldLabel},
     select::{Select, SelectOption},
-};
-use boardstudio_web_ui_shared::ui::{
-    input::InputType,
-    input_group::{InputGroup, InputGroupInput},
 };
 
 use boardstudio_web_ui_shared::ui::icons::ChevronDown;
@@ -817,14 +813,12 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
             let last_anchor_commit = last_anchor_commit.clone();
             let input_id = format!("part-anchor-{field}");
             rsx! {
-                Field {
-                  FieldLabel { html_for: input_id.clone(), "{label}" }
-                  InputGroup {
-                   InputGroupInput {
-                    id: input_id, r#type: InputType::Number, step: "any", value: "{draft}", aria_label: "{aria}",
+                NumericField {
+                    id: input_id, label, value: "{draft}", aria_label: aria,
+                    class: "", control_class: "", aria_invalid: None,
                     disabled: position_input_disabled(anchor_locked),
                     oninput: { let mut draft = draft; move |event: FormEvent| draft.set(event.value()) },
-                    attributes: vec![dioxus::events::onblur({
+                    onblur: {
                         let mut error = error;
                         let last_anchor_commit = last_anchor_commit.clone();
                         let commit = commit.clone();
@@ -847,8 +841,8 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                             }
                             commit(change(value));
                         }
-                    }),
-                    dioxus::events::onkeydown({
+                    },
+                    onkeydown: {
                         let mut draft = draft;
                         let mut error = error;
                         let current_text = current_text.clone();
@@ -874,9 +868,7 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                                 _ => {}
                             }
                         }
-                    })],
-                   }
-                  }
+                    },
                 }
             }
         }

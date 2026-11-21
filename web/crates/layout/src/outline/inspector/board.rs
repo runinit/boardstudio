@@ -1,5 +1,6 @@
 //! The board-outline (non-perimeter) section of the outline Inspector.
 use super::*;
+use boardstudio_web_ui_shared::inspector_fields::{SelectField, TextField};
 
 pub(super) struct BoardInspectorView {
     pub(super) projection: OutlineInspectorProjection,
@@ -178,48 +179,42 @@ pub(super) fn board_outline_inspector(view: BoardInspectorView) -> Element {
                                             dioxus::core::current_scope_id().0,
                                         );
                                         rsx! {
-                                            Field { class: "grid gap-[5px] text-xs text-muted-foreground",
-                                                FieldLabel { html_for: control_input_id.clone(),
-                                                    span { "Version name" }
-                                                }
-                                                InputGroup {
-                                                    InputGroupInput { aria_label: "Outline version name",
-        value: "{name_draft}",
-        disabled: !enabled,
-        oninput: {
-                                            move |event: FormEvent| version_name.set(event.value())
-                                        },
-        id: control_input_id.clone(),
-        attributes: vec![dioxus::core::Attribute::new("maxlength", "120", None, false),dioxus::core::Attribute::new("aria-invalid", name_draft.trim().is_empty(), None, false),dioxus::events::onblur({
-                                            let version_id = version_id.clone();
-                                            let accepted_name = accepted_name.clone();
-                                            let action_context = action_context.clone();
-                                            move |_| {
-                                                let draft = version_name();
-                                                let name = draft.trim().to_owned();
-                                                version_name.set(name.clone());
-                                                if !name.is_empty() && name.len() <= 120 && name != accepted_name {
-                                                    on_action.call(action_context.action(OutlineEdit::RenameVersion { version_id: version_id.clone(), name }));
-                                                }
-                                            }
-                                        }),dioxus::events::onkeydown({
-                                            let accepted_name = accepted_name.clone();
-                                            move |event: KeyboardEvent| match event.data().key().to_string().as_str() {
-                                                "Enter" => {
-                                                    event.prevent_default();
-                                                    if let Some(input) = event.data().try_as_web_event()
-                                                        .and_then(|event| event.target())
-                                                        .and_then(|target| target.dyn_into::<web_sys::HtmlInputElement>().ok())
-                                                    { let _ = input.blur(); }
-                                                }
-                                                "Escape" => {
-                                                    event.prevent_default();
-                                                    version_name.set(accepted_name.clone());
-                                                }
-                                                _ => {}
-                                            }
-                                        })], }
-                                                }
+                                            TextField {
+                                                id: control_input_id, label: "Version name", aria_label: "Outline version name",
+                                                class: "grid gap-[5px] text-xs text-muted-foreground", control_class: "",
+                                                maxlength: Some("120".to_owned()), aria_invalid: Some(name_draft.trim().is_empty()),
+                                                value: "{name_draft}", disabled: !enabled,
+                                                oninput: move |event: FormEvent| version_name.set(event.value()),
+                                                onblur: {
+                                                    let version_id = version_id.clone();
+                                                    let accepted_name = accepted_name.clone();
+                                                    let action_context = action_context.clone();
+                                                    move |_| {
+                                                        let draft = version_name();
+                                                        let name = draft.trim().to_owned();
+                                                        version_name.set(name.clone());
+                                                        if !name.is_empty() && name.len() <= 120 && name != accepted_name {
+                                                            on_action.call(action_context.action(OutlineEdit::RenameVersion { version_id: version_id.clone(), name }));
+                                                        }
+                                                    }
+                                                },
+                                                onkeydown: {
+                                                    let accepted_name = accepted_name.clone();
+                                                    move |event: KeyboardEvent| match event.data().key().to_string().as_str() {
+                                                        "Enter" => {
+                                                            event.prevent_default();
+                                                            if let Some(input) = event.data().try_as_web_event()
+                                                                .and_then(|event| event.target())
+                                                                .and_then(|target| target.dyn_into::<web_sys::HtmlInputElement>().ok())
+                                                            { let _ = input.blur(); }
+                                                        }
+                                                        "Escape" => {
+                                                            event.prevent_default();
+                                                            version_name.set(accepted_name.clone());
+                                                        }
+                                                        _ => {}
+                                                    }
+                                                },
                                             }
                                         }
                                     }
@@ -273,55 +268,25 @@ pub(super) fn board_outline_inspector(view: BoardInspectorView) -> Element {
                                 }
                                 if projection.has_generated || projection.active_version_id.is_some() {
                                     {
-                                        let control_label = "Corners".to_owned();
-                                        let control_aria_label = "Outline corners".to_owned();
-                                        let control_id = format!(
-                                            "layout-choice-{}-{}",
-                                            dioxus::core::current_scope_id().0,
-                                            control_aria_label.replace(' ', "-"),
-                                        );
-
-                                        let control_choices = [
-                                            ("sharp".to_owned(), "Sharp".to_owned(), false),
-                                            ("fillet".to_owned(), "Fillet".to_owned(), false),
-                                            ("chamfer".to_owned(), "Chamfer".to_owned(), false),
-                                        ];
-                                        let on_value_change = EventHandler::new({
-                let action_context = action_context.clone();
-                move |choice: Option<String>| {
-                    let Some(choice) = choice else {
-                        return;
-                    };
-                    let corner = match choice.as_str() {
-                        "fillet" => CornerStyle::Fillet,
-                        "chamfer" => CornerStyle::Chamfer,
-                        _ => CornerStyle::Sharp,
-                    };
-                    on_action.call(action_context.action(OutlineEdit::SetCorners(corner)));
-                }
-            });
-            rsx! {
-
-                                            Field { class: "grid gap-[5px] text-xs text-muted-foreground",
-                                                FieldLabel { html_for: control_id.clone(), "{control_label}" }
-                                                Select::<String> {
-                                                    id: control_id,
-                                                    aria_label: control_aria_label.clone(),
-                                                    value: Some(corner_selection.into()),
-                                                    disabled: !enabled,
-                                                    on_value_change,
-                                                    for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
-                                                        SelectOption::<String> {
-                                                            index,
-                                                            value: value.clone(),
-                                                            text_value: label.clone(),
-                                                            disabled: *disabled,
-                                                            "{label}"
-                                                        }
+                                        let id = format!("layout-choice-{}-Outline-corners", dioxus::core::current_scope_id().0);
+                                        rsx! {
+                                            SelectField {
+                                                id, label: "Corners", aria_label: "Outline corners",
+                                                class: "grid gap-[5px] text-xs text-muted-foreground", touch_targets: false,
+                                                value: corner_selection().unwrap_or_default(), disabled: !enabled,
+                                                options: vec![("sharp".into(), "Sharp".into()), ("fillet".into(), "Fillet".into()), ("chamfer".into(), "Chamfer".into())],
+                                                on_select: {
+                                                    let action_context = action_context.clone();
+                                                    move |choice: String| {
+                                                        let corner = match choice.as_str() {
+                                                            "fillet" => CornerStyle::Fillet,
+                                                            "chamfer" => CornerStyle::Chamfer,
+                                                            _ => CornerStyle::Sharp,
+                                                        };
+                                                        on_action.call(action_context.action(OutlineEdit::SetCorners(corner)));
                                                     }
-                                                }
+                                                },
                                             }
-
                                         }
                                     }
                                     if projection.settings.corners != CornerStyle::Sharp {

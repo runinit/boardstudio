@@ -1,4 +1,5 @@
 use super::*;
+use boardstudio_web_ui_shared::inspector_fields::TextField;
 
 /// Place inside the existing Objects panel when Parts is the active workspace.
 #[component]
@@ -42,17 +43,16 @@ pub fn PartsLibraryPanel(
         let no_matches = groups.is_empty() && !matching_assembly;
 
         rsx! {
-            Field {
-                Label { html_for: format!("parts-library-search-{}", dioxus::core::current_scope_id().0), "Search parts" }
-                InputGroup { class: "max-[960px]:h-control-touch [@media(pointer:coarse)]:h-control-touch", InputGroupInput { class: "max-[960px]:h-control-touch [@media(pointer:coarse)]:h-control-touch",
-                    id: format!("parts-library-search-{}", dioxus::core::current_scope_id().0),
-                    r#type: InputType::Search, aria_label: "Search footprints", placeholder: "Name or category", value: query(),
-                    oninput: move |event: FormEvent| {
-                        query.set(event.value());
-                        view_generation.set(view_generation() + 1);
-                        generation.with_mut(|value| *value = value.wrapping_add(1));
-                    },
-                } }
+            TextField {
+                id: format!("parts-library-search-{}", dioxus::core::current_scope_id().0),
+                label: "Search parts", plain_label: true, aria_label: "Search footprints",
+                class: "", control_class: "max-[960px]:h-control-touch [@media(pointer:coarse)]:h-control-touch",
+                aria_invalid: None, r#type: InputType::Search, placeholder: "Name or category", value: query(),
+                oninput: move |event: FormEvent| {
+                    query.set(event.value());
+                    view_generation.set(view_generation() + 1);
+                    generation.with_mut(|value| *value = value.wrapping_add(1));
+                },
             }
             Collapsible { class: "mt-3 min-h-0 flex-none", default_open: true, keep_mounted: true,
                 div { class: "flex items-center justify-between gap-2",
@@ -262,9 +262,12 @@ pub fn ControllerSetupPicker(
     let navigation_disabled = matches.len() < 2;
     rsx! {
         section { class: "grid grid-cols-1 gap-3 min-w-0", aria_label: "Controller selection", aria_roledescription: "carousel",
-            Field {
-                Label { html_for: format!("parts-controller-search-{}", dioxus::core::current_scope_id().0), "Search controllers" }
-                InputGroup { class: "max-[960px]:h-control-touch [@media(pointer:coarse)]:h-control-touch", InputGroupInput { class: "max-[960px]:h-control-touch [@media(pointer:coarse)]:h-control-touch", id: format!("parts-controller-search-{}", dioxus::core::current_scope_id().0), r#type: InputType::Search, aria_label: "Search controllers", placeholder: "Find a controller…", value: search(), oninput: move |event: FormEvent| search.set(event.value()) } }
+            TextField {
+                id: format!("parts-controller-search-{}", dioxus::core::current_scope_id().0),
+                label: "Search controllers", plain_label: true, aria_label: "Search controllers",
+                class: "", control_class: "max-[960px]:h-control-touch [@media(pointer:coarse)]:h-control-touch",
+                aria_invalid: None, r#type: InputType::Search, placeholder: "Find a controller…", value: search(),
+                oninput: move |event: FormEvent| search.set(event.value()),
             }
             div { class: "flex items-center gap-1 text-muted-foreground text-xs [&>span]:flex-1 [&>span]:tabular-nums [&_svg]:size-5 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.5]",
                 span { role: "status", aria_live: "polite", if matches.is_empty() { "0 controllers" } else { "{position + 1} of {matches.len()}" } }

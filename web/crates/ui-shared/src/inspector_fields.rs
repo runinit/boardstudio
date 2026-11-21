@@ -14,8 +14,12 @@ use crate::ui::{
     input_group::{
         InputGroup, InputGroupAddon, InputGroupAddonAlign, InputGroupInput, InputGroupText,
     },
+    label::Label,
     select::{Select, SelectOption},
 };
+
+const TOUCH_INPUT_CLASS: &str =
+    "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch";
 
 fn field_message_id(id: &str) -> String {
     format!("{id}-message")
@@ -32,35 +36,41 @@ pub fn NumericField(
     #[props(default)] description: Option<String>,
     #[props(default)] error: Option<String>,
     #[props(default)] disabled: bool,
-    #[props(default)] aria_label: Option<String>,
-    #[props(default)] placeholder: Option<String>,
-    #[props(default)] min: Option<String>,
-    #[props(default)] max: Option<String>,
-    #[props(default = "any".to_owned())] step: String,
+    #[props(into, optional)] aria_label: Option<String>,
+    #[props(into, optional)] placeholder: Option<String>,
+    #[props(into, optional)] min: Option<String>,
+    #[props(into, optional)] max: Option<String>,
+    #[props(into, default = Some("any".to_owned()))] step: Option<String>,
     #[props(default)] readonly: bool,
+    #[props(default)] required: bool,
+    #[props(into, optional)] class: Option<String>,
+    #[props(into, optional)] control_class: Option<String>,
+    #[props(default = Some(false))] aria_invalid: Option<bool>,
+    #[props(into, optional)] message_id: Option<String>,
     #[props(default)] onblur: EventHandler<FocusEvent>,
     #[props(default)] onkeydown: EventHandler<KeyboardEvent>,
 ) -> Element {
-    let message_id = field_message_id(&id);
+    let message_id = message_id.unwrap_or_else(|| field_message_id(&id));
     let has_error = error.is_some();
     let described_by = has_error.then(|| message_id.clone());
     rsx! {
-        Field { invalid: has_error, disabled, class: "gap-1 min-w-0",
+        Field { invalid: has_error, disabled, class: class.as_deref().unwrap_or("gap-1 min-w-0"),
             FieldLabel { html_for: id.clone(), "{label}" }
-            InputGroup {
+            InputGroup { class: control_class.clone(),
                 InputGroupInput {
                     id: id.clone(),
                     r#type: InputType::Number,
-                    class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    class: control_class.as_deref().unwrap_or(TOUCH_INPUT_CLASS),
                     value: "{value}",
                     disabled,
                     readonly,
+                    required,
                     placeholder,
                     min,
                     max,
                     step,
                     aria_label,
-                    aria_invalid: has_error,
+                    aria_invalid: has_error.then_some(true).or(aria_invalid),
                     aria_describedby: described_by,
                     oninput: move |event: FormEvent| oninput.call(event),
                     attributes: vec![
@@ -93,30 +103,39 @@ pub fn TextField(
     #[props(default)] description: Option<String>,
     #[props(default)] error: Option<String>,
     #[props(default)] disabled: bool,
-    #[props(default)] aria_label: Option<String>,
-    #[props(default)] placeholder: Option<String>,
+    #[props(into, optional)] aria_label: Option<String>,
+    #[props(into, optional)] placeholder: Option<String>,
     #[props(default)] readonly: bool,
     #[props(default)] maxlength: Option<String>,
+    #[props(into, optional)] class: Option<String>,
+    #[props(into, optional)] control_class: Option<String>,
+    #[props(default)] plain_label: bool,
+    #[props(default = Some(false))] aria_invalid: Option<bool>,
+    #[props(into, optional)] message_id: Option<String>,
     #[props(default)] onblur: EventHandler<FocusEvent>,
     #[props(default)] onkeydown: EventHandler<KeyboardEvent>,
 ) -> Element {
-    let message_id = field_message_id(&id);
+    let message_id = message_id.unwrap_or_else(|| field_message_id(&id));
     let has_error = error.is_some();
     let described_by = has_error.then(|| message_id.clone());
     rsx! {
-        Field { invalid: has_error, disabled, class: "gap-1 min-w-0",
-            FieldLabel { html_for: id.clone(), "{label}" }
-            InputGroup {
+        Field { invalid: has_error, disabled, class: class.as_deref().unwrap_or("gap-1 min-w-0"),
+            if plain_label {
+                Label { html_for: id.clone(), "{label}" }
+            } else {
+                FieldLabel { html_for: id.clone(), "{label}" }
+            }
+            InputGroup { class: control_class.clone(),
                 InputGroupInput {
                     id: id.clone(),
-                    class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                    class: control_class.as_deref().unwrap_or(TOUCH_INPUT_CLASS),
                     r#type,
                     value: "{value}",
                     disabled,
                     readonly,
                     placeholder,
                     aria_label,
-                    aria_invalid: has_error,
+                    aria_invalid: has_error.then_some(true).or(aria_invalid),
                     aria_describedby: described_by,
                     oninput: move |event: FormEvent| oninput.call(event),
                     attributes: {
@@ -147,17 +166,21 @@ pub fn SelectField(
     value: String,
     options: Vec<(String, String)>,
     on_select: EventHandler<String>,
-    #[props(default)] aria_label: Option<String>,
+    #[props(into, optional)] id: Option<String>,
+    #[props(into, optional)] aria_label: Option<String>,
     #[props(default)] disabled: bool,
+    #[props(into, optional)] class: Option<String>,
+    #[props(default = true)] touch_targets: bool,
 ) -> Element {
-    let id = format!("inspector-select-{}", dioxus::core::current_scope_id().0);
+    let id =
+        id.unwrap_or_else(|| format!("inspector-select-{}", dioxus::core::current_scope_id().0));
     let current = use_memo(use_reactive((&value,), |(value,)| Some(value)));
     let name = aria_label.unwrap_or_else(|| label.clone());
     rsx! {
-        Field { class: "gap-1.5", disabled,
+        Field { class: class.as_deref().unwrap_or("gap-1.5"), disabled,
             FieldLabel { html_for: id.clone(), "{label}" }
             Select::<String> {
-                class: "max-[960px]:[&_[data-slot=select-trigger]]:min-h-control-touch [@media(pointer:coarse)]:[&_[data-slot=select-trigger]]:min-h-control-touch",
+                class: touch_targets.then_some("max-[960px]:[&_[data-slot=select-trigger]]:min-h-control-touch [@media(pointer:coarse)]:[&_[data-slot=select-trigger]]:min-h-control-touch"),
                 id: id.clone(),
                 aria_label: name,
                 value: Some(current.into()),
@@ -168,7 +191,7 @@ pub fn SelectField(
                     }
                 },
                 for (index, (option_value, option_text)) in options.into_iter().enumerate() {
-                    SelectOption::<String> { class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", index, value: option_value, text_value: option_text.clone(), "{option_text}" }
+                    SelectOption::<String> { class: touch_targets.then_some(TOUCH_INPUT_CLASS), index, value: option_value, text_value: option_text.clone(), "{option_text}" }
                 }
             }
         }
@@ -227,11 +250,22 @@ pub fn CheckboxField(
     #[props(default)] description: Option<String>,
     #[props(default)] error: Option<String>,
     #[props(default)] disabled: bool,
-    #[props(default)] aria_label: Option<String>,
+    #[props(into, optional)] aria_label: Option<String>,
+    #[props(default)] inline: bool,
 ) -> Element {
+    let checkbox = rsx! {
+        Checkbox { id: id.clone(), aria_label, checked: Some(checked), disabled, on_checked_change }
+    };
+    if inline {
+        return rsx! {
+            Label { html_for: id, {checkbox} "{label}" }
+            if let Some(description) = description { FieldDescription { "{description}" } }
+            if let Some(error) = error { FieldError { "{error}" } }
+        };
+    }
     rsx! {
         Field { variant: FieldVariant::Horizontal, invalid: error.is_some(), disabled,
-            Checkbox { id: id.clone(), aria_label, checked: Some(checked), disabled, on_checked_change }
+            {checkbox}
             FieldContent {
                 FieldLabel { html_for: id, class: "min-h-control-touch", "{label}" }
                 if let Some(description) = description { FieldDescription { "{description}" } }

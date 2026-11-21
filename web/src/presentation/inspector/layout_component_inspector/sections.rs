@@ -127,20 +127,18 @@ macro_rules! render_inspector {
                                     }
                                     CollapsibleContent {
                                         hidden: !mirror_section_open(), inert: (!mirror_section_open()).then_some(""),
-                                        Label { html_for: "component-inspector-part-mirror",
-                                            Checkbox {
-                                                id: "component-inspector-part-mirror", aria_label: "Mirror on both halves",
-                                                checked: Some(if mirrored { CheckboxState::Checked } else { CheckboxState::Unchecked }),
-                                                disabled: (props.mirrored_half_pending)(),
-                                                on_checked_change: {
-                                                    let action = props.on_action;
-                                                    let part_id = owner.part_id.clone();
-                                                    move |next| action.call(LayoutComponentInspectorAction::SetPartMirrored {
-                                                        owner: latest_capture(), part_id: part_id.clone(), mirrored: next == CheckboxState::Checked,
-                                                    })
-                                                },
-                                            }
-                                            "Mirror on both halves"
+                                        CheckboxField {
+                                            inline: true, id: "component-inspector-part-mirror",
+                                            label: "Mirror on both halves", aria_label: "Mirror on both halves",
+                                            checked: if mirrored { CheckboxState::Checked } else { CheckboxState::Unchecked },
+                                            disabled: (props.mirrored_half_pending)(),
+                                            on_checked_change: {
+                                                let action = props.on_action;
+                                                let part_id = owner.part_id.clone();
+                                                move |next| action.call(LayoutComponentInspectorAction::SetPartMirrored {
+                                                    owner: latest_capture(), part_id: part_id.clone(), mirrored: next == CheckboxState::Checked,
+                                                })
+                                            },
                                         }
                                         p { "A mirrored part edits both halves together and stops at the split axis." }
                                     }
@@ -324,27 +322,27 @@ macro_rules! render_inspector {
                         }
                         fieldset { class: "flex flex-wrap gap-3", disabled: anchor_locked,
                             legend { "Follow" }
-                            Label { html_for: "anchor-follow-x", Checkbox {
+                            CheckboxField { inline: true, label: "X",
                                 id: "anchor-follow-x", aria_label: "Follow X", disabled: anchor_locked,
-                                checked: Some(if anchor_follow.is_some_and(|follow| follow.x) { CheckboxState::Checked } else { CheckboxState::Unchecked }),
+                                checked: if anchor_follow.is_some_and(|follow| follow.x) { CheckboxState::Checked } else { CheckboxState::Unchecked },
                                 on_checked_change: { let commit = commit_anchor_follow.clone();
                                     let previous = anchor_follow.unwrap_or(Follow { x: true, y: true, rotation: true });
                                     move |next| commit(Follow { x: next == CheckboxState::Checked, y: previous.y, rotation: previous.rotation }) },
-                            } "X" }
-                            Label { html_for: "anchor-follow-y", Checkbox {
+                            }
+                            CheckboxField { inline: true, label: "Y",
                                 id: "anchor-follow-y", aria_label: "Follow Y", disabled: anchor_locked,
-                                checked: Some(if anchor_follow.is_some_and(|follow| follow.y) { CheckboxState::Checked } else { CheckboxState::Unchecked }),
+                                checked: if anchor_follow.is_some_and(|follow| follow.y) { CheckboxState::Checked } else { CheckboxState::Unchecked },
                                 on_checked_change: { let commit = commit_anchor_follow.clone();
                                     let previous = anchor_follow.unwrap_or(Follow { x: true, y: true, rotation: true });
                                     move |next| commit(Follow { x: previous.x, y: next == CheckboxState::Checked, rotation: previous.rotation }) },
-                            } "Y" }
-                            Label { html_for: "anchor-follow-rotation", Checkbox {
+                            }
+                            CheckboxField { inline: true, label: "Rotation",
                                 id: "anchor-follow-rotation", aria_label: "Follow rotation", disabled: anchor_locked,
-                                checked: Some(if anchor_follow.is_some_and(|follow| follow.rotation) { CheckboxState::Checked } else { CheckboxState::Unchecked }),
+                                checked: if anchor_follow.is_some_and(|follow| follow.rotation) { CheckboxState::Checked } else { CheckboxState::Unchecked },
                                 on_checked_change: { let commit = commit_anchor_follow.clone();
                                     let previous = anchor_follow.unwrap_or(Follow { x: true, y: true, rotation: true });
                                     move |next| commit(Follow { x: previous.x, y: previous.y, rotation: next == CheckboxState::Checked }) },
-                            } "Rotation" }
+                            }
                         }
                         Button { button_type: "button", variant: ButtonVariant::Secondary, disabled: anchor_locked,
                             onclick: { let commit = commit_anchor_detach.clone(); move |_| commit() },
@@ -362,33 +360,31 @@ macro_rules! render_inspector {
                             }
                           }
                         }
-                        Field { FieldLabel { html_for: "anchor-row", "Row" }
-                          InputGroup { InputGroupInput {
-                            id: "anchor-row", r#type: InputType::Number, min: "1", step: "1", value: "{pick_row}", aria_label: "Anchor row",
+                        NumericField {
+                            id: "anchor-row", label: "Row", step: "1", min: "1", value: "{pick_row}",
+                            class: "", control_class: "", aria_invalid: None, aria_label: "Anchor row",
                             disabled: anchor_locked, oninput: move |event: FormEvent| pick_row.set(event.value()),
-                          } }
                         }
-                        Field { FieldLabel { html_for: "anchor-column", "Column" }
-                          InputGroup { InputGroupInput {
-                            id: "anchor-column", r#type: InputType::Number, min: "1", step: "1", value: "{pick_column}", aria_label: "Anchor column",
+                        NumericField {
+                            id: "anchor-column", label: "Column", step: "1", min: "1", value: "{pick_column}",
+                            class: "", control_class: "", aria_invalid: None, aria_label: "Anchor column",
                             disabled: anchor_locked, oninput: move |event: FormEvent| pick_column.set(event.value()),
-                          } }
                         }
-                        Label { html_for: "pick-follow-x", Checkbox {
+                        CheckboxField { inline: true, label: "X",
                             id: "pick-follow-x", aria_label: "Pick follows X", disabled: anchor_locked,
-                            checked: Some(if pick_follow_x() { CheckboxState::Checked } else { CheckboxState::Unchecked }),
+                            checked: if pick_follow_x() { CheckboxState::Checked } else { CheckboxState::Unchecked },
                             on_checked_change: move |next| pick_follow_x.set(next == CheckboxState::Checked),
-                        } "X" }
-                        Label { html_for: "pick-follow-y", Checkbox {
+                        }
+                        CheckboxField { inline: true, label: "Y",
                             id: "pick-follow-y", aria_label: "Pick follows Y", disabled: anchor_locked,
-                            checked: Some(if pick_follow_y() { CheckboxState::Checked } else { CheckboxState::Unchecked }),
+                            checked: if pick_follow_y() { CheckboxState::Checked } else { CheckboxState::Unchecked },
                             on_checked_change: move |next| pick_follow_y.set(next == CheckboxState::Checked),
-                        } "Y" }
-                        Label { html_for: "pick-follow-rotation", Checkbox {
+                        }
+                        CheckboxField { inline: true, label: "Rotation",
                             id: "pick-follow-rotation", aria_label: "Pick follows rotation", disabled: anchor_locked,
-                            checked: Some(if pick_follow_rotation() { CheckboxState::Checked } else { CheckboxState::Unchecked }),
+                            checked: if pick_follow_rotation() { CheckboxState::Checked } else { CheckboxState::Unchecked },
                             on_checked_change: move |next| pick_follow_rotation.set(next == CheckboxState::Checked),
-                        } "Rotation" }
+                        }
                         Button { button_type: "button", variant: ButtonVariant::Secondary, disabled: anchor_locked,
                             onclick: {
                                 let commit = commit_anchor_pick.clone();
@@ -430,24 +426,22 @@ macro_rules! render_inspector {
                                         dioxus::core::current_scope_id().0,
                                     );
                                     rsx! {
-                                        Field {
-                                            FieldLabel { html_for: control_input_id.clone(), "X (mm)" }
-                                            InputGroup { class: "max-[760px]:h-control-touch",
-                                                InputGroupInput { class: "max-[760px]:h-control-touch", r#type: InputType::Number,
-        step: "0.1",
-        value: "{x}",
-        aria_label: "X mm",
-        disabled: position_input_disabled(position_unavailable(&projection)),
-        oninput: { let last_enter_commit = last_enter_commit.clone(); move |event: FormEvent| { last_enter_commit.borrow_mut().take(); x.set(event.value()); } },
-        id: control_input_id.clone(),
-        attributes: vec![dioxus::events::onblur({ let commit = commit_position.clone(); move |_| commit(ComponentPositionAxis::X, PositionCommitTrigger::Blur) }),dioxus::events::onkeydown({ let commit = commit_position.clone(); move |event: KeyboardEvent| {
-                                        match event.data().key().to_string().as_str() {
-                                            "Enter" => { event.prevent_default(); commit(ComponentPositionAxis::X, PositionCommitTrigger::Enter); }
-                                            "Escape" => { x.set(format!("{:.2}", position.x)); error.set(None); }
-                                            _ => {}
-                                        }
-                                    } })], }
-                                            }
+                                        NumericField {
+                                            id: control_input_id, label: "X (mm)", class: "", aria_invalid: None,
+                                            control_class: "max-[760px]:h-control-touch",
+                                            step: "0.1",
+                                            value: "{x}",
+                                            aria_label: "X mm",
+                                            disabled: position_input_disabled(position_unavailable(&projection)),
+                                            oninput: { let last_enter_commit = last_enter_commit.clone(); move |event: FormEvent| { last_enter_commit.borrow_mut().take(); x.set(event.value()); } },
+                                            onblur: { let commit = commit_position.clone(); move |_| commit(ComponentPositionAxis::X, PositionCommitTrigger::Blur) },
+                                            onkeydown: { let commit = commit_position.clone(); move |event: KeyboardEvent| {
+                                                    match event.data().key().to_string().as_str() {
+                                                        "Enter" => { event.prevent_default(); commit(ComponentPositionAxis::X, PositionCommitTrigger::Enter); }
+                                                        "Escape" => { x.set(format!("{:.2}", position.x)); error.set(None); }
+                                                        _ => {}
+                                                    }
+                                                } },
                                         }
                                     }
                                 }
@@ -457,24 +451,22 @@ macro_rules! render_inspector {
                                         dioxus::core::current_scope_id().0,
                                     );
                                     rsx! {
-                                        Field {
-                                            FieldLabel { html_for: control_input_id.clone(), "Y (mm)" }
-                                            InputGroup { class: "max-[760px]:h-control-touch",
-                                                InputGroupInput { class: "max-[760px]:h-control-touch", r#type: InputType::Number,
-        step: "0.1",
-        value: "{y}",
-        aria_label: "Y mm",
-        disabled: position_input_disabled(position_unavailable(&projection)),
-        oninput: { let last_enter_commit = last_enter_commit.clone(); move |event: FormEvent| { last_enter_commit.borrow_mut().take(); y.set(event.value()); } },
-        id: control_input_id.clone(),
-        attributes: vec![dioxus::events::onblur({ let commit = commit_position.clone(); move |_| commit(ComponentPositionAxis::Y, PositionCommitTrigger::Blur) }),dioxus::events::onkeydown({ let commit = commit_position.clone(); move |event: KeyboardEvent| {
-                                        match event.data().key().to_string().as_str() {
-                                            "Enter" => { event.prevent_default(); commit(ComponentPositionAxis::Y, PositionCommitTrigger::Enter); }
-                                            "Escape" => { y.set(format!("{:.2}", position.y)); error.set(None); }
-                                            _ => {}
-                                        }
-                                    } })], }
-                                            }
+                                        NumericField {
+                                            id: control_input_id, label: "Y (mm)", class: "", aria_invalid: None,
+                                            control_class: "max-[760px]:h-control-touch",
+                                            step: "0.1",
+                                            value: "{y}",
+                                            aria_label: "Y mm",
+                                            disabled: position_input_disabled(position_unavailable(&projection)),
+                                            oninput: { let last_enter_commit = last_enter_commit.clone(); move |event: FormEvent| { last_enter_commit.borrow_mut().take(); y.set(event.value()); } },
+                                            onblur: { let commit = commit_position.clone(); move |_| commit(ComponentPositionAxis::Y, PositionCommitTrigger::Blur) },
+                                            onkeydown: { let commit = commit_position.clone(); move |event: KeyboardEvent| {
+                                                    match event.data().key().to_string().as_str() {
+                                                        "Enter" => { event.prevent_default(); commit(ComponentPositionAxis::Y, PositionCommitTrigger::Enter); }
+                                                        "Escape" => { y.set(format!("{:.2}", position.y)); error.set(None); }
+                                                        _ => {}
+                                                    }
+                                                } },
                                         }
                                     }
                                 }
@@ -507,29 +499,25 @@ macro_rules! render_inspector {
                                                     ("Include in outline").replace(' ', "-"),
                                                 );
                                                 rsx! {
-                                                    Label { html_for: check_id.clone(),
-                                                        Checkbox {
-                                                            id: check_id.clone(),
-                                                            aria_label: "Include in outline",
-                                                            checked: Some(
-                                                                if !projection.outline.excluded {
-                                                                    CheckboxState::Checked
-                                                                } else {
-                                                                    CheckboxState::Unchecked
-                                                                },
-                                                            ),
-                                                            on_checked_change: {
-                                                                let baseline = outline.clone();
-                                                                let submit = set_outline.clone();
-                                                                move |checked: CheckboxState| {
-                                                                    let mut outline = baseline.clone();
-                                                                    outline.excluded = !bool::from(checked);
-                                                                    submit(outline);
-                                                                }
+                                                    CheckboxField {
+                                                        inline: true, label: "Include in outline",
+                                                        id: check_id,
+                                                        aria_label: "Include in outline",
+                                                        checked: if !projection.outline.excluded {
+                                                                CheckboxState::Checked
+                                                            } else {
+                                                                CheckboxState::Unchecked
                                                             },
-                                                            disabled: projection.locked,
-                                                        }
-                                                        "Include in outline"
+                                                        on_checked_change: {
+                                                            let baseline = outline.clone();
+                                                            let submit = set_outline.clone();
+                                                            move |checked: CheckboxState| {
+                                                                let mut outline = baseline.clone();
+                                                                outline.excluded = !bool::from(checked);
+                                                                submit(outline);
+                                                            }
+                                                        },
+                                                        disabled: projection.locked,
                                                     }
                                                 }
                                             }
@@ -541,31 +529,27 @@ macro_rules! render_inspector {
                                                         ("Use board margin").replace(' ', "-"),
                                                     );
                                                     rsx! {
-                                                        Label { html_for: check_id.clone(),
-                                                            Checkbox {
-                                                                id: check_id.clone(),
-                                                                aria_label: "Use board margin",
-                                                                checked: Some(
-                                                                    if projection.outline.margin.is_none() {
-                                                                        CheckboxState::Checked
-                                                                    } else {
-                                                                        CheckboxState::Unchecked
-                                                                    },
-                                                                ),
-                                                                on_checked_change: {
-                                                                    let baseline = outline.clone();
-                                                                    let submit = set_outline.clone();
-                                                                    move |checked: CheckboxState| {
-                                                                        let mut outline = baseline.clone();
-                                                                        outline.margin = if bool::from(checked) { None } else { Some(0.0) };
-                                                                        margin
-                                                                            .set(outline.margin.map(|value| value.to_string()).unwrap_or_default());
-                                                                        submit(outline);
-                                                                    }
+                                                        CheckboxField {
+                                                            inline: true, label: "Use board margin",
+                                                            id: check_id,
+                                                            aria_label: "Use board margin",
+                                                            checked: if projection.outline.margin.is_none() {
+                                                                    CheckboxState::Checked
+                                                                } else {
+                                                                    CheckboxState::Unchecked
                                                                 },
-                                                                disabled: projection.locked,
-                                                            }
-                                                            "Use board margin"
+                                                            on_checked_change: {
+                                                                let baseline = outline.clone();
+                                                                let submit = set_outline.clone();
+                                                                move |checked: CheckboxState| {
+                                                                    let mut outline = baseline.clone();
+                                                                    outline.margin = if bool::from(checked) { None } else { Some(0.0) };
+                                                                    margin
+                                                                        .set(outline.margin.map(|value| value.to_string()).unwrap_or_default());
+                                                                    submit(outline);
+                                                                }
+                                                            },
+                                                            disabled: projection.locked,
                                                         }
                                                     }
                                                 }
@@ -576,51 +560,48 @@ macro_rules! render_inspector {
                                                             dioxus::core::current_scope_id().0,
                                                         );
                                                         rsx! {
-                                                            Field {
-                                                                FieldLabel { html_for: control_input_id.clone(), "Part edge margin" }
-                                                                InputGroup { class: "max-[760px]:h-control-touch",
-                                                                    InputGroupInput { class: "max-[760px]:h-control-touch", r#type: InputType::Number,
-        step: "any",
-        min: "0",
-        value: "{margin}",
-        aria_label: "Part edge margin",
-        oninput: move |event: FormEvent| margin.set(event.value()),
-        id: control_input_id.clone(),
-        attributes: vec![dioxus::events::onblur({
-                                                let margin_outline = outline.clone();
-                                                let save_outline = set_outline.clone();
-                                                move |_| {
-                                                    match margin().parse::<f64>() {
-                                                        Ok(value) if value.is_finite() && value >= 0.0 => {
-                                                            if value != margin_outline.margin.unwrap_or(value) {
-                                                                let mut next = margin_outline.clone(); next.margin = Some(value); save_outline(next);
-                                                            }
-                                                            error.set(None);
-                                                        }
-                                                        _ => error.set(Some("Enter 0 or greater for the part edge margin.".to_owned())),
-                                                    }
-                                                }
-                                            }),dioxus::events::onkeydown({
-                                                let accepted_margin = outline.margin.unwrap_or_default().to_string();
-                                                move |event: KeyboardEvent| match event.data().key().to_string().as_str() {
-                                                    "Enter" => {
-                                                        event.prevent_default();
-                                                        if let Some(input) = event.data().try_as_web_event()
-                                                            .and_then(|event| event.target())
-                                                            .and_then(|target| target.dyn_into::<web_sys::HtmlInputElement>().ok())
-                                                        {
-                                                            let _ = input.blur();
-                                                        }
-                                                    }
-                                                    "Escape" => {
-                                                        event.prevent_default();
-                                                        margin.set(accepted_margin.clone());
-                                                        error.set(None);
-                                                    }
-                                                    _ => {}
-                                                }
-                                            })], }
-                                                                }
+                                                            NumericField {
+                                                                id: control_input_id, label: "Part edge margin", class: "", aria_invalid: None,
+                                                                control_class: "max-[760px]:h-control-touch",
+                                                                min: "0",
+                                                                value: "{margin}",
+                                                                aria_label: "Part edge margin",
+                                                                oninput: move |event: FormEvent| margin.set(event.value()),
+                                                                onblur: {
+                                                                    let margin_outline = outline.clone();
+                                                                    let save_outline = set_outline.clone();
+                                                                    move |_| {
+                                                                        match margin().parse::<f64>() {
+                                                                            Ok(value) if value.is_finite() && value >= 0.0 => {
+                                                                                if value != margin_outline.margin.unwrap_or(value) {
+                                                                                    let mut next = margin_outline.clone(); next.margin = Some(value); save_outline(next);
+                                                                                }
+                                                                                error.set(None);
+                                                                            }
+                                                                            _ => error.set(Some("Enter 0 or greater for the part edge margin.".to_owned())),
+                                                                        }
+                                                                    }
+                                                                },
+                                                                onkeydown: {
+                                                                    let accepted_margin = outline.margin.unwrap_or_default().to_string();
+                                                                    move |event: KeyboardEvent| match event.data().key().to_string().as_str() {
+                                                                        "Enter" => {
+                                                                            event.prevent_default();
+                                                                            if let Some(input) = event.data().try_as_web_event()
+                                                                                .and_then(|event| event.target())
+                                                                                .and_then(|target| target.dyn_into::<web_sys::HtmlInputElement>().ok())
+                                                                            {
+                                                                                let _ = input.blur();
+                                                                            }
+                                                                        }
+                                                                        "Escape" => {
+                                                                            event.prevent_default();
+                                                                            margin.set(accepted_margin.clone());
+                                                                            error.set(None);
+                                                                        }
+                                                                        _ => {}
+                                                                    }
+                                                                },
                                                             }
                                                         }
                                                     }
@@ -633,29 +614,25 @@ macro_rules! render_inspector {
                                                     ("Allow component body overhang").replace(' ', "-"),
                                                 );
                                                 rsx! {
-                                                    Label { html_for: check_id.clone(),
-                                                        Checkbox {
-                                                            id: check_id.clone(),
-                                                            aria_label: "Allow component body overhang",
-                                                            checked: Some(
-                                                                if projection.outline.allow_body_overhang {
-                                                                    CheckboxState::Checked
-                                                                } else {
-                                                                    CheckboxState::Unchecked
-                                                                },
-                                                            ),
-                                                            on_checked_change: {
-                                                                let baseline = outline.clone();
-                                                                let submit = set_outline.clone();
-                                                                move |checked: CheckboxState| {
-                                                                    let mut outline = baseline.clone();
-                                                                    outline.allow_body_overhang = bool::from(checked);
-                                                                    submit(outline);
-                                                                }
+                                                    CheckboxField {
+                                                        inline: true, label: "Allow component body overhang",
+                                                        id: check_id,
+                                                        aria_label: "Allow component body overhang",
+                                                        checked: if projection.outline.allow_body_overhang {
+                                                                CheckboxState::Checked
+                                                            } else {
+                                                                CheckboxState::Unchecked
                                                             },
-                                                            disabled: projection.locked,
-                                                        }
-                                                        "Allow component body overhang"
+                                                        on_checked_change: {
+                                                            let baseline = outline.clone();
+                                                            let submit = set_outline.clone();
+                                                            move |checked: CheckboxState| {
+                                                                let mut outline = baseline.clone();
+                                                                outline.allow_body_overhang = bool::from(checked);
+                                                                submit(outline);
+                                                            }
+                                                        },
+                                                        disabled: projection.locked,
                                                     }
                                                 }
                                             }
@@ -695,41 +672,22 @@ macro_rules! render_inspector {
                                                     control_aria_label.replace(' ', "-"),
                                                 );
 
-                                                let control_choices = [
-                                                    ("offset".to_owned(), "Offset from part".to_owned(), false),
-                                                    ("mirror".to_owned(), "Mirror placement across axis".to_owned(), false),
-                                                    ("mirror-line".to_owned(), "Mirror line".to_owned(), false),
-                                                ];
-                                                let on_value_change = EventHandler::new(move |choice: Option<String>| {
-                let Some(choice) = choice else {
-                    return;
-                };
-                constraint_kind.set(match choice.as_str() {
-                    "mirror" => ConstraintKind::Mirror,
-                    "mirror-line" => ConstraintKind::MirrorLine,
-                    _ => ConstraintKind::Offset,
-                })
-            });
-            rsx! {
-
-                                                    Field { class: "",
-                                                        FieldLabel { html_for: control_id.clone(), "{control_label}" }
-                                                        Select::<String> {
-                                                            id: control_id,
-                                                            aria_label: control_aria_label,
-                                                            value: Some(kind_choice.into()),
-                                                            disabled: false,
-                                                            on_value_change,
-                                                            for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
-                                                                SelectOption::<String> {
-                                                                    index,
-                                                                    value: value.clone(),
-                                                                    text_value: label.clone(),
-                                                                    disabled: *disabled,
-                                                                    "{label}"
-                                                                }
-                                                            }
-                                                        }
+                                                rsx! {
+                                                    SelectField {
+                                                        id: control_id, label: control_label, aria_label: control_aria_label,
+                                                        value: kind_choice().unwrap_or_default(), class: "", touch_targets: false,
+                                                        options: vec![
+                                                            ("offset".into(), "Offset from part".into()),
+                                                            ("mirror".into(), "Mirror placement across axis".into()),
+                                                            ("mirror-line".into(), "Mirror line".into()),
+                                                        ],
+                                                        on_select: move |choice: String| {
+                                                            constraint_kind.set(match choice.as_str() {
+                                                                "mirror" => ConstraintKind::Mirror,
+                                                                "mirror-line" => ConstraintKind::MirrorLine,
+                                                                _ => ConstraintKind::Offset,
+                                                            });
+                                                        },
                                                     }
                                                 }
                                             }
@@ -802,44 +760,15 @@ macro_rules! render_inspector {
                                                         control_aria_label.replace(' ', "-"),
                                                     );
 
-                                                    let control_choices = [
-                                                        (
-                                                            (offset_axes_value(OffsetAxes::Board)).to_string(),
-                                                            "Offset on board axes".to_owned(),
-                                                            false,
-                                                        ),
-                                                        (
-                                                            (offset_axes_value(OffsetAxes::Part)).to_string(),
-                                                            "Offset along part axes".to_owned(),
-                                                            false,
-                                                        ),
-                                                    ];
-                                                    let on_value_change = EventHandler::new(move |choice: Option<String>| {
-                let Some(choice) = choice else {
-                    return;
-                };
-                choose_offset_axes(offset_axes_from_value(&choice))
-            });
-            rsx! {
-
-                                                        Field { class: "",
-                                                            FieldLabel { html_for: control_id.clone(), "{control_label}" }
-                                                            Select::<String> {
-                                                                id: control_id,
-                                                                aria_label: control_aria_label,
-                                                                value: Some(axes_choice.into()),
-                                                                disabled: false,
-                                                                on_value_change,
-                                                                for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
-                                                                    SelectOption::<String> {
-                                                                        index,
-                                                                        value: value.clone(),
-                                                                        text_value: label.clone(),
-                                                                        disabled: *disabled,
-                                                                        "{label}"
-                                                                    }
-                                                                }
-                                                            }
+                                                    rsx! {
+                                                        SelectField {
+                                                            id: control_id, label: control_label, aria_label: control_aria_label,
+                                                            value: axes_choice().unwrap_or_default(), class: "", touch_targets: false,
+                                                            options: vec![
+                                                                (offset_axes_value(OffsetAxes::Board).to_owned(), "Offset on board axes".into()),
+                                                                (offset_axes_value(OffsetAxes::Part).to_owned(), "Offset along part axes".into()),
+                                                            ],
+                                                            on_select: move |choice: String| choose_offset_axes(offset_axes_from_value(&choice)),
                                                         }
 
                                                     }
@@ -851,16 +780,12 @@ macro_rules! render_inspector {
                                                             dioxus::core::current_scope_id().0,
                                                         );
                                                         rsx! {
-                                                            Field {
-                                                                FieldLabel { html_for: control_input_id.clone(), "Offset X (mm)" }
-                                                                InputGroup { class: "max-[760px]:h-control-touch",
-                                                                    InputGroupInput { class: "max-[760px]:h-control-touch", r#type: InputType::Number,
-        step: "any",
-        aria_label: "Offset X (mm)",
-        value: "{offset_x}",
-        oninput: move |event: FormEvent| offset_x.set(event.value()),
-        id: control_input_id.clone(), }
-                                                                }
+                                                            NumericField {
+                                                                id: control_input_id, label: "Offset X (mm)", class: "", aria_invalid: None,
+                                                                control_class: "max-[760px]:h-control-touch",
+                                                                aria_label: "Offset X (mm)",
+                                                                value: "{offset_x}",
+                                                                oninput: move |event: FormEvent| offset_x.set(event.value()),
                                                             }
                                                         }
                                                     }
@@ -870,16 +795,12 @@ macro_rules! render_inspector {
                                                             dioxus::core::current_scope_id().0,
                                                         );
                                                         rsx! {
-                                                            Field {
-                                                                FieldLabel { html_for: control_input_id.clone(), "Offset Y (mm)" }
-                                                                InputGroup { class: "max-[760px]:h-control-touch",
-                                                                    InputGroupInput { class: "max-[760px]:h-control-touch", r#type: InputType::Number,
-        step: "any",
-        aria_label: "Offset Y (mm)",
-        value: "{offset_y}",
-        oninput: move |event: FormEvent| offset_y.set(event.value()),
-        id: control_input_id.clone(), }
-                                                                }
+                                                            NumericField {
+                                                                id: control_input_id, label: "Offset Y (mm)", class: "", aria_invalid: None,
+                                                                control_class: "max-[760px]:h-control-touch",
+                                                                aria_label: "Offset Y (mm)",
+                                                                value: "{offset_y}",
+                                                                oninput: move |event: FormEvent| offset_y.set(event.value()),
                                                             }
                                                         }
                                                     }
@@ -890,16 +811,12 @@ macro_rules! render_inspector {
                                                         dioxus::core::current_scope_id().0,
                                                     );
                                                     rsx! {
-                                                        Field {
-                                                            FieldLabel { html_for: control_input_id.clone(), "Rotation (degrees)" }
-                                                            InputGroup { class: "max-[760px]:h-control-touch",
-                                                                InputGroupInput { class: "max-[760px]:h-control-touch", r#type: InputType::Number,
-        step: "any",
-        aria_label: "Rotation (degrees)",
-        value: "{rotation}",
-        oninput: move |event: FormEvent| rotation.set(event.value()),
-        id: control_input_id.clone(), }
-                                                            }
+                                                        NumericField {
+                                                            id: control_input_id, label: "Rotation (degrees)", class: "", aria_invalid: None,
+                                                            control_class: "max-[760px]:h-control-touch",
+                                                            aria_label: "Rotation (degrees)",
+                                                            value: "{rotation}",
+                                                            oninput: move |event: FormEvent| rotation.set(event.value()),
                                                         }
                                                     }
                                                 }
@@ -913,40 +830,14 @@ macro_rules! render_inspector {
                                                         control_aria_label.replace(' ', "-"),
                                                     );
 
-                                                    let control_choices = [
-                                                        ("vertical".to_owned(), "Vertical".to_owned(), false),
-                                                        ("horizontal".to_owned(), "Horizontal".to_owned(), false),
-                                                    ];
-                                                    let on_value_change = EventHandler::new(move |choice: Option<String>| {
-                let Some(choice) = choice else {
-                    return;
-                };
-                mirror_axis.set(if choice == "horizontal" {
-                    MirrorAxis::Horizontal
-                } else {
-                    MirrorAxis::Vertical
-                })
-            });
-            rsx! {
-
-                                                        Field { class: "",
-                                                            FieldLabel { html_for: control_id.clone(), "{control_label}" }
-                                                            Select::<String> {
-                                                                id: control_id,
-                                                                aria_label: control_aria_label,
-                                                                value: Some(axis_choice.into()),
-                                                                disabled: false,
-                                                                on_value_change,
-                                                                for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
-                                                                    SelectOption::<String> {
-                                                                        index,
-                                                                        value: value.clone(),
-                                                                        text_value: label.clone(),
-                                                                        disabled: *disabled,
-                                                                        "{label}"
-                                                                    }
-                                                                }
-                                                            }
+                                                    rsx! {
+                                                        SelectField {
+                                                            id: control_id, label: control_label, aria_label: control_aria_label,
+                                                            value: axis_choice().unwrap_or_default(), class: "", touch_targets: false,
+                                                            options: vec![("vertical".into(), "Vertical".into()), ("horizontal".into(), "Horizontal".into())],
+                                                            on_select: move |choice: String| {
+                                                                mirror_axis.set(if choice == "horizontal" { MirrorAxis::Horizontal } else { MirrorAxis::Vertical });
+                                                            },
                                                         }
                                                     }
                                                 }
@@ -956,16 +847,12 @@ macro_rules! render_inspector {
                                                         dioxus::core::current_scope_id().0,
                                                     );
                                                     rsx! {
-                                                        Field {
-                                                            FieldLabel { html_for: control_input_id.clone(), "Axis coordinate (mm)" }
-                                                            InputGroup { class: "max-[760px]:h-control-touch",
-                                                                InputGroupInput { class: "max-[760px]:h-control-touch", r#type: InputType::Number,
-        step: "any",
-        aria_label: "Axis coordinate (mm)",
-        value: "{mirror_coordinate}",
-        oninput: move |event: FormEvent| mirror_coordinate.set(event.value()),
-        id: control_input_id.clone(), }
-                                                            }
+                                                        NumericField {
+                                                            id: control_input_id, label: "Axis coordinate (mm)", class: "", aria_invalid: None,
+                                                            control_class: "max-[760px]:h-control-touch",
+                                                            aria_label: "Axis coordinate (mm)",
+                                                            value: "{mirror_coordinate}",
+                                                            oninput: move |event: FormEvent| mirror_coordinate.set(event.value()),
                                                         }
                                                     }
                                                 }
@@ -980,16 +867,12 @@ macro_rules! render_inspector {
                                                             dioxus::core::current_scope_id().0,
                                                         );
                                                         rsx! {
-                                                            Field {
-                                                                FieldLabel { html_for: control_input_id.clone(), "Line anchor X (mm)" }
-                                                                InputGroup { class: "max-[760px]:h-control-touch",
-                                                                    InputGroupInput { class: "max-[760px]:h-control-touch", r#type: InputType::Number,
-        step: "any",
-        aria_label: "Mirror line anchor X (mm)",
-        value: "{mirror_line_x}",
-        oninput: move |event: FormEvent| mirror_line_x.set(event.value()),
-        id: control_input_id.clone(), }
-                                                                }
+                                                            NumericField {
+                                                                id: control_input_id, label: "Line anchor X (mm)", class: "", aria_invalid: None,
+                                                                control_class: "max-[760px]:h-control-touch",
+                                                                aria_label: "Mirror line anchor X (mm)",
+                                                                value: "{mirror_line_x}",
+                                                                oninput: move |event: FormEvent| mirror_line_x.set(event.value()),
                                                             }
                                                         }
                                                     }
@@ -999,16 +882,12 @@ macro_rules! render_inspector {
                                                             dioxus::core::current_scope_id().0,
                                                         );
                                                         rsx! {
-                                                            Field {
-                                                                FieldLabel { html_for: control_input_id.clone(), "Line anchor Y (mm)" }
-                                                                InputGroup { class: "max-[760px]:h-control-touch",
-                                                                    InputGroupInput { class: "max-[760px]:h-control-touch", r#type: InputType::Number,
-        step: "any",
-        aria_label: "Mirror line anchor Y (mm)",
-        value: "{mirror_line_y}",
-        oninput: move |event: FormEvent| mirror_line_y.set(event.value()),
-        id: control_input_id.clone(), }
-                                                                }
+                                                            NumericField {
+                                                                id: control_input_id, label: "Line anchor Y (mm)", class: "", aria_invalid: None,
+                                                                control_class: "max-[760px]:h-control-touch",
+                                                                aria_label: "Mirror line anchor Y (mm)",
+                                                                value: "{mirror_line_y}",
+                                                                oninput: move |event: FormEvent| mirror_line_y.set(event.value()),
                                                             }
                                                         }
                                                     }
@@ -1019,16 +898,12 @@ macro_rules! render_inspector {
                                                         dioxus::core::current_scope_id().0,
                                                     );
                                                     rsx! {
-                                                        Field {
-                                                            FieldLabel { html_for: control_input_id.clone(), "Line angle (degrees)" }
-                                                            InputGroup { class: "max-[760px]:h-control-touch",
-                                                                InputGroupInput { class: "max-[760px]:h-control-touch", r#type: InputType::Number,
-        step: "any",
-        aria_label: "Mirror line angle (degrees)",
-        value: "{mirror_line_angle}",
-        oninput: move |event: FormEvent| mirror_line_angle.set(event.value()),
-        id: control_input_id.clone(), }
-                                                            }
+                                                        NumericField {
+                                                            id: control_input_id, label: "Line angle (degrees)", class: "", aria_invalid: None,
+                                                            control_class: "max-[760px]:h-control-touch",
+                                                            aria_label: "Mirror line angle (degrees)",
+                                                            value: "{mirror_line_angle}",
+                                                            oninput: move |event: FormEvent| mirror_line_angle.set(event.value()),
                                                         }
                                                     }
                                                 }

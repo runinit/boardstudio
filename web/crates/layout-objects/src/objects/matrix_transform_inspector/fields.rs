@@ -1,5 +1,6 @@
 //! Shared numeric, choice, toggle, and reset molecules for the matrix transform Inspector.
 use super::*;
+use boardstudio_web_ui_shared::inspector_fields::CheckboxField;
 
 #[derive(Props, Clone, PartialEq)]
 pub struct NumericTransformFieldProps {
@@ -443,15 +444,11 @@ pub(super) struct TransformCheckRowProps {
 pub(super) fn TransformCheckRow(props: TransformCheckRowProps) -> Element {
     let checked = props.checked;
     rsx! {
-        Label { html_for: props.id.clone(),
-            Checkbox {
-                id: props.id.clone(),
-                aria_label: props.aria_label.clone(),
-                disabled: props.disabled,
-                checked: Some(if checked { CheckboxState::Checked } else { CheckboxState::Unchecked }),
-                on_checked_change: props.on_checked_change,
-            }
-            " {props.label}"
+        CheckboxField {
+            inline: true, id: props.id, label: " {props.label}",
+            aria_label: props.aria_label, disabled: props.disabled,
+            checked: if checked { CheckboxState::Checked } else { CheckboxState::Unchecked },
+            on_checked_change: props.on_checked_change,
         }
         if let Some(help) = props.help {
             p { class: "text-xs text-muted-foreground", "{help}" }

@@ -7,11 +7,11 @@ use boardstudio_model::model::{
     Contour, KeyBinding, KeycapBoardSettings, KeycapKeySettings, KeycapMatrixSettings, Part,
     PartDefinition, PartKind, Pose2, ProjectDoc, Vec2,
 };
+use boardstudio_web_ui_shared::inspector_fields::TextField;
 #[cfg(target_arch = "wasm32")]
 use boardstudio_web_ui_shared::ui::combobox::{Combobox, ComboboxOption};
 use boardstudio_web_ui_shared::ui::field::{Field, FieldLabel};
 use boardstudio_web_ui_shared::ui::input::InputType;
-use boardstudio_web_ui_shared::ui::input_group::{InputGroup, InputGroupInput};
 use dioxus::prelude::*;
 use std::{collections::BTreeSet, rc::Rc};
 
@@ -399,14 +399,10 @@ pub fn KeycapsKeyList(
     let current = use_memo(use_reactive((&selected_value,), |(value,)| Some(value)));
     rsx! {
         section { class: "grid min-w-0 gap-3", "aria-label": "Keycaps key selection",
-            Field { class: "gap-1.5",
-                FieldLabel { html_for: search_id.clone(), "Find a key" }
-                InputGroup { InputGroupInput {
-                    id: search_id, r#type: InputType::Search,
-                    aria_label: "Find a key", class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
-                    value: "{query}",
-                    oninput: move |event: FormEvent| query.set(event.value()),
-                } }
+            TextField {
+                id: search_id, label: "Find a key", aria_label: "Find a key",
+                class: "gap-1.5", aria_invalid: None, r#type: InputType::Search,
+                value: query(), oninput: move |event: FormEvent| query.set(event.value()),
             }
             Field { class: "gap-1.5",
                 FieldLabel { html_for: selection_id.clone(), "Selected key" }
