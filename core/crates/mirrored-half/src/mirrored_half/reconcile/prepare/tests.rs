@@ -8,8 +8,8 @@ const DISPATCH: EditDispatch = EditDispatch {
     apply_unscripted: apply,
 };
 
-// Use the real keymap and matrix kernels. The wiring arm supplies the authored mode write
-// at the injected engine boundary, so the oracle compares the two mirror preparation paths.
+// Use the real keymap and matrix kernels where possible. Authored wiring and independent
+// move writes supplied at the injected engine boundary use fixture-specific inputs.
 fn apply(document: &mut ProjectDoc, operation: &EditOperation) -> Result<Vec<String>, String> {
     match operation {
         EditOperation::EditKeymap { change } => crate::keymap::apply_edit(document, change),
@@ -54,13 +54,36 @@ fn apply(document: &mut ProjectDoc, operation: &EditOperation) -> Result<Vec<Str
             definitions: None,
         } => crate::matrix::set_matrix(document, matrix),
         EditOperation::MoveParts { positions } => {
-            let (changed, handled) = crate::matrix::layout::move_keys(document, positions)?;
-            assert!(
-                positions
-                    .iter()
-                    .all(|position| handled.contains(&position.id))
-            );
+            let (mut changed, handled) = crate::matrix::layout::move_keys(document, positions)?;
+            for position in positions
+                .iter()
+                .filter(|position| !handled.contains(&position.id))
+            {
+                // This fixture uses unanchored independent Parts outside any layout.
+                assert!(document.constraints.is_empty());
+                assert!(
+                    document
+                        .layouts
+                        .iter()
+                        .all(|layout| !layout.part_ids.contains(&position.id))
+                );
+                assert_eq!(
+                    crate::matrix::layout::clamp_part_to_half(document, &position.id, position.at),
+                    position.at
+                );
+                let part = document
+                    .parts
+                    .iter_mut()
+                    .find(|part| part.id == position.id)
+                    .unwrap();
+                assert!(part.anchor.is_none());
+                part.pose.at = position.at;
+                changed.push(position.id.clone());
+            }
             Ok(changed)
+        }
+        EditOperation::SetPartRotation { part_id, rotation } => {
+            crate::matrix::layout::set_detached_part_rotation(document, part_id, *rotation)
         }
         EditOperation::SetLayout { layout } => {
             let current = document
@@ -188,24 +211,7 @@ fn matrixless_pair_retains_wiring_refresh_on_ordinary_edits() {
     assert_eq!(boards[1].mode, crate::electrical::ElectricalMode::Matrix);
 }
 
-#[test]
-fn linked_placement_sequence_matches_full_preparation() {
-    let mut accepted = document();
-    let halves = accepted.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap();
-    halves.correspondences.push(
-        serde_json::from_value(json!({
-            "kind":"layout","sourceId":"source-layout","mirrorId":"mirror-layout"
-        }))
-        .unwrap(),
-    );
-    accepted.layouts = serde_json::from_value(json!([
-        {"id":"source-layout","name":"Source","boardId":"source-board","matrixIds":["source-matrix"],"partIds":[]},
-        {"id":"mirror-layout","name":"Mirror","boardId":"mirror-board","matrixIds":["mirror-matrix"],"partIds":[]}
-    ])).unwrap();
-
+fn with_second_pair(mut accepted: ProjectDoc) -> ProjectDoc {
     let mut other = serde_json::to_string(&accepted).unwrap();
     for identity in [
         "source-board",
@@ -236,6 +242,123 @@ fn linked_placement_sequence_matches_full_preparation() {
     hardware.instances.extend(other_hardware.instances);
     hardware.boards.extend(other_hardware.boards);
     hardware.pairs.extend(other_hardware.pairs);
+    accepted
+}
+
+#[test]
+fn independent_placement_repairs_stale_link_in_another_pair() {
+    use crate::mirrored_half::reconcile::tests::fixtures::fixture_matrix;
+    use crate::model::MirroredCorrespondence;
+
+    let mut accepted = document();
+    for (board_id, matrix_id) in [
+        ("source-board", "source-matrix-extra"),
+        ("mirror-board", "mirror-matrix-extra"),
+    ] {
+        crate::matrix::set_matrix(&mut accepted, &fixture_matrix(matrix_id, board_id)).unwrap();
+        let mut part = accepted.parts[0].clone();
+        part.id = format!("{board_id}/free");
+        part.reference = format!("{board_id}-free");
+        accepted
+            .boards
+            .iter_mut()
+            .find(|board| board.id == board_id)
+            .unwrap()
+            .part_ids
+            .push(part.id.clone());
+        accepted.parts.push(part);
+    }
+    let halves = accepted.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap();
+    for (kind, source_id, mirror_id) in [
+        (
+            MirroredItemKind::Part,
+            "source-board/free",
+            "mirror-board/free",
+        ),
+        (
+            MirroredItemKind::Matrix,
+            "source-matrix-extra",
+            "mirror-matrix-extra",
+        ),
+        (
+            MirroredItemKind::Part,
+            "matrix/source-matrix-extra/r0c0",
+            "matrix/mirror-matrix-extra/r0c0",
+        ),
+        (
+            MirroredItemKind::Part,
+            "matrix/source-matrix-extra/r0c1",
+            "matrix/mirror-matrix-extra/r0c1",
+        ),
+    ] {
+        halves.correspondences.push(MirroredCorrespondence {
+            kind,
+            source_id: source_id.into(),
+            mirror_id: mirror_id.into(),
+            companion_mode: None,
+            companion_tweak: None,
+        });
+    }
+    accepted = prepare_open(&with_second_pair(accepted), &[]).unwrap().0;
+
+    let unrelated_mirror = "other-mirror-board/free";
+    let mirror_index = accepted
+        .parts
+        .iter()
+        .position(|part| part.id == unrelated_mirror)
+        .unwrap();
+    let expected = accepted.parts[mirror_index].clone();
+    accepted.parts[mirror_index].pose.at.x += 37.0;
+    let (moved, changed) = compare(
+        &accepted,
+        json!({"kind":"move-parts","positions":[{"id":"source-board/free","at":{"x":15.0,"y":-8.0}}]}),
+    );
+    assert_eq!(moved.parts[mirror_index], expected);
+    for id in ["source-board/free", "mirror-board/free", unrelated_mirror] {
+        assert!(changed.iter().any(|changed_id| changed_id == id));
+    }
+
+    let (rotated, changed) = compare(
+        &moved,
+        json!({"kind":"set-part-rotation","partId":"source-board/free","rotation":35.0}),
+    );
+    assert!(changed.iter().any(|id| id == "source-board/free"));
+    assert!(changed.iter().any(|id| id == "mirror-board/free"));
+    assert_eq!(
+        rotated
+            .parts
+            .iter()
+            .find(|part| part.id == "source-board/free")
+            .unwrap()
+            .pose
+            .rotation,
+        35.0
+    );
+    assert_eq!(rotated.parts[mirror_index], expected);
+}
+
+#[test]
+fn linked_placement_sequence_matches_full_preparation() {
+    let mut accepted = document();
+    let halves = accepted.hardware.as_mut().unwrap().pairs[0]
+        .halves
+        .as_mut()
+        .unwrap();
+    halves.correspondences.push(
+        serde_json::from_value(json!({
+            "kind":"layout","sourceId":"source-layout","mirrorId":"mirror-layout"
+        }))
+        .unwrap(),
+    );
+    accepted.layouts = serde_json::from_value(json!([
+        {"id":"source-layout","name":"Source","boardId":"source-board","matrixIds":["source-matrix"],"partIds":[]},
+        {"id":"mirror-layout","name":"Mirror","boardId":"mirror-board","matrixIds":["mirror-matrix"],"partIds":[]}
+    ])).unwrap();
+
+    accepted = with_second_pair(accepted);
     accepted = prepare_open(&accepted, &[]).unwrap().0;
 
     let mut layout = accepted.layouts[1].clone();

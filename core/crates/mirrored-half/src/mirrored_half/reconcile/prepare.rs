@@ -28,7 +28,7 @@ use canonical::{
     bind_deferred_constraints, initial_framed_constraints, operation_positions,
     prepare_lifecycle_pairs, record_id, restore_local_matrix_companion_parts,
 };
-use projection::{projection_for, reconcile_pairs, record_independent_additions};
+use projection::{PairProjection, projection_for, reconcile_pairs, record_independent_additions};
 
 /// Builds the source-authoritative document draft used by Open without publishing it.
 /// Open has its own route: it does not canonicalize an edit or use transaction preparation,
@@ -63,29 +63,16 @@ pub fn prepare_open(
     crate::generators::document_error(&draft)?;
 
     restore_local_matrix_companion_parts(accepted, &mut draft, &[])?;
-    for pair in pair_views.iter().cloned() {
-        let matrices: Vec<_> = pair
-            .halves
-            .correspondences
-            .iter()
-            .filter(|association| association.kind == MirroredItemKind::Matrix)
-            .map(|association| (association.source_id.clone(), association.mirror_id.clone()))
-            .collect();
-        if matrices.is_empty() {
+    for pair in &pair_views {
+        let pair_projection = PairProjection::new(&pair.halves, pair.mapping);
+        let mut matrices = pair_projection.matrix_links().peekable();
+        if matrices.peek().is_none() {
             let projection = super::projection_for_matrixless_pair(&pair.halves, pair.mapping);
             reconcile_with_report(&mut draft, &pair.pair_id, &projection, None)?;
         }
-        for (source_matrix_id, mirror_matrix_id) in matrices {
-            let projection = projection_for(
-                &draft,
-                &draft,
-                None,
-                &pair.halves,
-                pair.mapping,
-                &source_matrix_id,
-                &mirror_matrix_id,
-                false,
-            )?;
+        for matrix_link in matrices {
+            let projection =
+                projection_for(&draft, &draft, None, &pair_projection, matrix_link, false)?;
             reconcile_with_report(&mut draft, &pair.pair_id, &projection, None)?;
         }
     }
@@ -112,7 +99,6 @@ pub fn prepare_open(
     Ok((draft, findings))
 }
 
-#[derive(Clone)]
 struct NativePairView {
     pair_id: String,
     mapping: Pose2,

@@ -1,6 +1,55 @@
 //! Pair projection and membership-transition construction for prepared drafts.
 
 use super::*;
+use crate::model::{MirroredCorrespondence, MirroredHalves};
+use std::cell::OnceCell;
+
+pub(super) struct PairProjection<'a> {
+    halves: &'a MirroredHalves,
+    mapping: Pose2,
+    // A present key with no row represents ambiguous source provenance.
+    part_links: OnceCell<BTreeMap<&'a str, Option<&'a MirroredCorrespondence>>>,
+}
+
+impl<'a> PairProjection<'a> {
+    pub(super) fn new(halves: &'a MirroredHalves, mapping: Pose2) -> Self {
+        Self {
+            halves,
+            mapping,
+            part_links: OnceCell::new(),
+        }
+    }
+
+    pub(super) fn matrix_links(&self) -> impl Iterator<Item = &'a MirroredCorrespondence> {
+        self.halves
+            .correspondences
+            .iter()
+            .filter(|link| link.kind == MirroredItemKind::Matrix)
+    }
+
+    fn part_link(&self, source_id: &str) -> Result<&'a MirroredCorrespondence, String> {
+        // Build once per immutable pair view, only if a matrix needs a cell's link.
+        let links = self.part_links.get_or_init(|| {
+            let mut links = BTreeMap::new();
+            for link in &self.halves.correspondences {
+                if link.kind == MirroredItemKind::Part {
+                    links
+                        .entry(link.source_id.as_str())
+                        .and_modify(|entry| *entry = None)
+                        .or_insert(Some(link));
+                }
+            }
+            links
+        });
+        match links.get(source_id) {
+            Some(Some(link)) => Ok(link),
+            Some(None) => Err(format!(
+                "Matrix part {source_id:?} has ambiguous correspondence"
+            )),
+            None => Err(format!("Matrix part {source_id:?} has no correspondence")),
+        }
+    }
+}
 
 pub(super) fn reconcile_pairs(
     accepted: &ProjectDoc,
@@ -12,14 +61,9 @@ pub(super) fn reconcile_pairs(
     let mut changed = Vec::new();
     for pair in pair_views {
         super::super::validate_local_circuit_targets(document, &pair.halves)?;
-        let matrices: Vec<_> = pair
-            .halves
-            .correspondences
-            .iter()
-            .filter(|association| association.kind == MirroredItemKind::Matrix)
-            .map(|association| (association.source_id.clone(), association.mirror_id.clone()))
-            .collect();
-        if matrices.is_empty() {
+        let pair_projection = PairProjection::new(&pair.halves, pair.mapping);
+        let mut matrices = pair_projection.matrix_links().peekable();
+        if matrices.peek().is_none() {
             if matches!(
                 canonical.operation,
                 EditOperation::AddPart { .. } | EditOperation::AddMirrorOnlyPart { .. }
@@ -45,8 +89,8 @@ pub(super) fn reconcile_pairs(
             }
             continue;
         }
-        for (index, (source_matrix_id, mirror_matrix_id)) in matrices.iter().enumerate() {
-            if super::super::matrix_membership_changed(accepted, document, source_matrix_id) {
+        for (index, matrix_link) in matrices.enumerate() {
+            if super::super::matrix_membership_changed(accepted, document, &matrix_link.source_id) {
                 // Lifecycle preparation has already projected this matrix's changed membership.
                 // The fixed-membership reconciler owns only matrices whose membership stayed put.
                 continue;
@@ -55,10 +99,8 @@ pub(super) fn reconcile_pairs(
                 accepted,
                 document,
                 Some(canonical),
-                &pair.halves,
-                pair.mapping,
-                source_matrix_id,
-                mirror_matrix_id,
+                &pair_projection,
+                matrix_link,
                 index == 0,
             )?;
             changed.extend(reconcile_with_report(
@@ -79,8 +121,6 @@ pub(super) fn record_independent_additions(
     document: &mut ProjectDoc,
     additions: &[inverse::PartAddition],
 ) -> Result<Vec<String>, String> {
-    use crate::model::{MirroredCorrespondence, MirroredItemKind};
-
     let mut changed = Vec::new();
     for addition in additions {
         let source_board = super::super::super::board_for_part(document, &addition.source_id)
@@ -148,17 +188,17 @@ pub(super) fn record_independent_additions(
     Ok(changed)
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(super) fn projection_for(
     accepted: &ProjectDoc,
     document: &ProjectDoc,
     canonical: Option<&Canonical>,
-    halves: &crate::model::MirroredHalves,
-    mapping: Pose2,
-    source_matrix_id: &str,
-    mirror_matrix_id: &str,
+    pair: &PairProjection<'_>,
+    matrix_link: &MirroredCorrespondence,
     include_transitions: bool,
 ) -> Result<Projection, String> {
+    let halves = pair.halves;
+    let source_matrix_id = matrix_link.source_id.as_str();
+    let mirror_matrix_id = matrix_link.mirror_id.as_str();
     let source_matrix = matrix_by_id(document, source_matrix_id)?;
     let omitted_matrix = is_omitted_matrix_link(halves, source_matrix_id, mirror_matrix_id);
     let absent_omitted_matrix;
@@ -188,30 +228,19 @@ pub(super) fn projection_for(
     // Members introduced under a detached matrix have no mirror target yet;
     // an explicit Rejoin adopts them. Any other missing correspondence stays
     // a refusal.
-    let matrix_detached = halves
-        .correspondences
-        .iter()
-        .find(|record| {
-            record.kind == MirroredItemKind::Matrix
-                && record.source_id == source_matrix_id
-                && record.mirror_id == mirror_matrix_id
-        })
-        .is_some_and(|record| {
-            halves.overlay_of(record).is_some_and(|exception| {
-                matches!(
-                    exception.state,
-                    crate::model::MirroredExceptionState::Local
-                        | crate::model::MirroredExceptionState::Omitted
-                )
-            })
-        });
+    let matrix_detached = halves.overlay_of(matrix_link).is_some_and(|exception| {
+        matches!(
+            exception.state,
+            MirroredExceptionState::Local | MirroredExceptionState::Omitted
+        )
+    });
     for cell in source_matrix
         .cells
         .iter()
         .filter(|cell| cell.enabled && !cell.deleted)
     {
         let source_id = format!("matrix/{source_matrix_id}/r{}c{}", cell.row, cell.column);
-        let association = match part_association(halves, &source_id) {
+        let association = match pair.part_link(&source_id) {
             Ok(association) => association,
             Err(_) if matrix_detached => continue,
             Err(error) => return Err(error),
@@ -281,13 +310,13 @@ pub(super) fn projection_for(
     };
     Ok(Projection {
         matrix: Some(super::super::MatrixLink {
-            source_matrix_id: source_matrix_id.to_owned(),
-            mirror_matrix_id: mirror_matrix_id.to_owned(),
+            source_matrix_id: matrix_link.source_id.clone(),
+            mirror_matrix_id: matrix_link.mirror_id.clone(),
         }),
         preserve_matrix_geometry: false,
         source_board_id,
         mirror_board_id,
-        mapping,
+        mapping: pair.mapping,
         parts,
         independent_part_transitions,
         hosted_transitions,
@@ -311,24 +340,6 @@ pub(super) fn matrix_by_id<'a>(document: &'a ProjectDoc, id: &str) -> Result<&'a
         return Err(format!("Mirrored matrix {id:?} is ambiguous"));
     }
     Ok(matrix)
-}
-
-pub(super) fn part_association<'a>(
-    halves: &'a crate::model::MirroredHalves,
-    source_id: &str,
-) -> Result<&'a crate::model::MirroredCorrespondence, String> {
-    let mut associations = halves.correspondences.iter().filter(|association| {
-        association.kind == MirroredItemKind::Part && association.source_id == source_id
-    });
-    let association = associations
-        .next()
-        .ok_or_else(|| format!("Matrix part {source_id:?} has no correspondence"))?;
-    if associations.next().is_some() {
-        return Err(format!(
-            "Matrix part {source_id:?} has ambiguous correspondence"
-        ));
-    }
-    Ok(association)
 }
 
 pub(super) type RemovalBaselines = BTreeMap<(String, String, String), ProjectDoc>;
