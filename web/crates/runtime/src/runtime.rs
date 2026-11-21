@@ -7,6 +7,7 @@ use crate::mechanical_package::{
     critical_fit_drawing, mechanical_fabrication_notes, mechanical_filename_component,
     mechanical_stl, push_mechanical_file,
 };
+use crate::native_model_mapping::{NativeModelDeliveryState, resolve_native_model_paths};
 use crate::pcb_wiring_mode_operation::electrical_preview_request;
 use boardstudio_application::{
     AcceptedSnapshot, Completion, Durability, Effect, Event, JobId, Lifecycle, OperationId,
@@ -968,22 +969,8 @@ impl Runtime {
     }
 }
 
-#[derive(Default)]
-struct NativeModelDeliveryState {
-    pending: Option<crate::case_preview::CasePreviewOwnerIdentity>,
-    failed: Option<crate::case_preview::CasePreviewOwnerIdentity>,
-    published: Option<(
-        crate::case_preview::CasePreviewOwnerIdentity,
-        crate::model_delivery::ModelDeliveryRows,
-    )>,
-}
-
 #[cfg(all(test, target_arch = "wasm32"))]
 mod case_preview_source_tests;
-
-#[cfg(all(test, target_arch = "wasm32"))]
-#[path = "native_model_mapping_tests.rs"]
-mod native_model_mapping_tests;
 
 impl Drop for Runtime {
     fn drop(&mut self) {

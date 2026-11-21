@@ -18,10 +18,14 @@ pub(crate) mod export_lease;
 pub mod firmware_position_projection;
 #[cfg(any(test, feature = "test-support"))]
 pub mod gate_driver;
+pub(crate) mod handoff_ordering;
 pub(crate) mod keycap_package;
 pub mod layout_viewer_source;
 pub(crate) mod mechanical_package;
 pub mod model_delivery;
+pub(crate) mod native_model_mapping;
+#[cfg(test)]
+mod native_model_mapping_tests;
 pub mod operation_outcomes;
 pub mod parts_preview;
 pub mod pcb_wiring_mode_operation;

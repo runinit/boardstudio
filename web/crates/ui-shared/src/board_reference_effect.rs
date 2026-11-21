@@ -32,7 +32,7 @@ pub fn clear_missing_reference(
 mod tests {
     use super::retryable_error;
 
-    #[wasm_bindgen_test::wasm_bindgen_test]
+    #[test]
     fn current_failure_keeps_specific_reason_and_stale_failure_is_retryable() {
         assert_eq!(
             retryable_error("Saved routed-board file is missing".into(), true),
